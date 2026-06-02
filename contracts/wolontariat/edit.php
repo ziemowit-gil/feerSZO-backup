@@ -29,8 +29,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
 
     if (!$errors) {
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'z_webngo'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'z_webngo', 'canva_access'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
+        }
+        // Guardian initials — przelicz gdy zmieniono guardian_editor_id
+        if (!empty($data['guardian_editor_id'])) {
+            $ge = db_one("SELECT first_name, last_name, name FROM users WHERE id=?", [(int)$data['guardian_editor_id']]);
+            if ($ge) {
+                $fn = trim($ge['first_name'] ?: explode(' ', $ge['name']??'')[0]);
+                $ln = trim($ge['last_name']  ?: (explode(' ', $ge['name']??'')[1] ?? ''));
+                $data['guardian_initials'] = strtoupper(mb_substr($fn,0,1).mb_substr($ln,0,1));
+                $data['opiekun']           = trim($fn . ' ' . $ln) ?: ($ge['name'] ?? '');
+            }
         }
         // Czyszczenie pól webNGO jeśli checkbox nie jest zaznaczony
         if ($data['z_webngo'] === 0) {
@@ -39,12 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Nullifikacja pól, które nie mogą być pustym stringiem (FK, daty, liczby)
         $nullable_fields = [
-            'godzin_tygodniowo', 'godzin_przepracowanych',
+            'godzin_tygodniowo', 'godzin_przepracowanych', 'limit_zwrotu_kosztow',
             'data_urodzenia', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
-            'data_szkolenia_bhp',
+            'data_szkolenia_bhp', 'epodpis_data_waznosci',
             'person_id', 'org_unit_id', 'org_position_id', 'action_id', 'grant_id',
+            'guardian_editor_id',
             'webngo_id', 'numer_polisy_nnw', 'id_dokumentu_el',
             'pesel', 'seria_nr_dowodu',
+            'm365_security_group_id',
         ];
         foreach ($nullable_fields as $f) {
             if (isset($data[$f]) && $data[$f] === '') $data[$f] = null;
@@ -73,7 +85,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'nr_roboczy', 'nr_system', 'nr_rejestru',
             'adres_odbiorca', 'adres_linia1', 'adres_linia2', 'adres_kod_pocztowy', 'adres_miasto', 'adres_kraj',
             'z_webngo', 'webngo_id', 'webngo_numer_umowy', 'person_id', 'org_unit_id',
-            'action_id', 'grant_id'];
+            'action_id', 'grant_id',
+            // Dostęp IT
+            'portal_scope', 'canva_access',
+            'm365_security_group_id', 'm365_security_group_name',
+            // Opiekun
+            'guardian_editor_id', 'guardian_initials',
+            // Finanse
+            'limit_zwrotu_kosztow',
+            // ePodpis
+            'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
+        ];
         $save = array_intersect_key($data, array_flip($allowed));
 
         // Normalizacja telefonu: zawsze 48XXXXXXXXX
@@ -104,6 +126,9 @@ try { $__grants = db_all("SELECT id, nazwa, donator FROM grants WHERE status IN 
 catch (\Throwable $e) { $__grants = []; }
 try { $__units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name"); }
 catch (\Throwable $e) { $__units = []; }
+// Edytorzy do selecta opiekuna
+try { $__editors = db_all("SELECT id, CASE WHEN first_name!='' AND last_name!='' THEN first_name||' '||last_name ELSE name END AS display_name FROM users WHERE role IN ('admin','editor') AND is_active=1 ORDER BY display_name"); }
+catch (\Throwable $e) { $__editors = []; }
 $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 'secondary'];
 ?>
 <style>
@@ -283,6 +308,7 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   <a href="#sec-bhp">🛡 BHP &amp; Ubezpieczenia</a>
   <a href="#sec-podpisanie">✍ Podpisanie</a>
   <a href="#sec-powiazania">🔗 Powiązania</a>
+  <a href="#sec-it">🔐 Dostęp IT</a>
   <a href="#sec-zaawansowane">⚙ Zaawansowane</a>
 </nav>
 
@@ -319,8 +345,14 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
       </select>
     </div>
     <div class="col-md-3 fgroup">
-      <label for="opiekun_inp">Opiekun</label>
-      <input name="opiekun" id="opiekun_inp" class="form-control" value="<?= h($row['opiekun']) ?>">
+      <label for="guardian_editor_id">Opiekun</label>
+      <select name="guardian_editor_id" id="guardian_editor_id" class="form-select">
+        <option value="">— nie przypisano —</option>
+        <?php foreach ($__editors as $ed): ?>
+        <option value="<?= (int)$ed['id'] ?>" <?= (int)($row['guardian_editor_id']??0) === (int)$ed['id'] ? 'selected' : '' ?>><?= h($ed['display_name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text">Inicjały opiekuna pojawiają się na numerze umowy.</div>
     </div>
 
     <div class="col-md-4 fgroup">
@@ -554,9 +586,16 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
     </div>
     <label for="zwrot_kosztow" class="mb-0">Zwrot kosztów</label>
   </div>
-  <div id="zwrot_kosztow_opis_field" style="display:<?= $row['zwrot_kosztow'] ? '' : 'none' ?>" class="mt-2 fgroup">
-    <label>Opis zwrotu kosztów</label>
-    <input name="zwrot_kosztow_opis" class="form-control" value="<?= h($row['zwrot_kosztow_opis']) ?>">
+  <div id="zwrot_kosztow_opis_field" style="display:<?= $row['zwrot_kosztow'] ? '' : 'none' ?>" class="mt-2 row g-2">
+    <div class="col-md-8 fgroup">
+      <label>Opis zwrotu kosztów</label>
+      <input name="zwrot_kosztow_opis" class="form-control" value="<?= h($row['zwrot_kosztow_opis']) ?>">
+    </div>
+    <div class="col-md-4 fgroup">
+      <label>Limit zwrotu (zł)</label>
+      <input name="limit_zwrotu_kosztow" type="number" step="0.01" min="0" class="form-control"
+             value="<?= h($row['limit_zwrotu_kosztow'] ?? '') ?>" placeholder="np. 200.00">
+    </div>
   </div>
 
   <div class="mt-3 fgroup">
@@ -748,6 +787,85 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
       </div>
     </div>
   </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SEKCJA IT — DOSTĘP I UPRAWNIENIA
+     ══════════════════════════════════════════════════════════ -->
+<section id="sec-it" class="esec">
+  <div class="esec-head">
+    <i class="bi bi-shield-lock" style="color:#7c3aed"></i>
+    <h6>Dostęp IT <span class="esec-sub">portal, Canva, security group</span></h6>
+  </div>
+
+  <!-- Ważna uwaga o uprawnieniach -->
+  <div class="alert alert-primary d-flex gap-2 py-2 mb-3" style="font-size:.83rem;background:#eff6ff;border-color:#bfdbfe;color:#1e40af">
+    <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+    <div>
+      <strong>Uprawnienia przez Security Group:</strong>
+      Wszelkie ścieżki uprawnień (dostęp do plików, SharePoint, Teams, aplikacji M365)
+      są przypisywane na poziomie <strong>Security Group</strong> w Azure AD — nie per użytkownik.
+      Zmiana grupy poniżej automatycznie aktualizuje zakres dostępu w całej platformie M365.
+    </div>
+  </div>
+
+  <!-- Zakres portalu -->
+  <div class="mb-3">
+    <div class="fw-semibold small mb-2"><i class="bi bi-display me-1"></i>Zakres dostępu do portalu</div>
+    <div class="d-flex flex-column gap-2">
+      <?php foreach ([
+        ''           => ['label'=>'Pełny dostęp','sub'=>'Wolontariusz widzi wszystkie dostępne moduły','icon'=>'bi-grid-3x3-gap-fill','color'=>'#1d6ef9'],
+        'tasks_only' => ['label'=>'Tylko zadania','sub'=>'Przekierowanie bezpośrednio do tablicy zadań','icon'=>'bi-kanban','color'=>'#0ea5e9'],
+        'crm_only'   => ['label'=>'Tylko CRM','sub'=>'Przekierowanie bezpośrednio do systemu CRM','icon'=>'bi-diagram-2-fill','color'=>'#16a34a'],
+      ] as $val => $opt): $checked = ($row['portal_scope']??'') === $val; ?>
+      <label style="display:flex;align-items:flex-start;gap:.75rem;padding:.6rem .85rem;border-radius:9px;border:1.5px solid <?= $checked?$opt['color']:'#E2E8F0' ?>;background:<?= $checked?'#F8FBFF':'#fff' ?>;cursor:pointer;transition:border-color .12s">
+        <input type="radio" name="portal_scope" value="<?= h($val) ?>" <?= $checked?'checked':'' ?> style="margin-top:.2rem;flex-shrink:0">
+        <div>
+          <div style="font-weight:600;font-size:.85rem;color:<?= $opt['color'] ?>">
+            <i class="bi <?= $opt['icon'] ?> me-1"></i><?= $opt['label'] ?>
+          </div>
+          <div style="font-size:.75rem;color:#64748B"><?= $opt['sub'] ?></div>
+        </div>
+      </label>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+  <!-- Canva -->
+  <div class="toggle-row mb-3">
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" role="switch"
+             name="canva_access" id="canva_access_edit" value="1"
+             <?= !empty($row['canva_access'])?'checked':'' ?>>
+    </div>
+    <div>
+      <label for="canva_access_edit" class="mb-0 fw-semibold small">Dostęp do Canva Pro</label>
+      <div style="font-size:.72rem;color:#94A3B8">
+        <?php if (!empty($row['canva_invited_at'])): ?>
+          <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Zaproszony <?= date_pl($row['canva_invited_at']) ?></span>
+        <?php else: ?>
+          Zaproszenie do Canva zostanie wysłane po zaznaczeniu
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security Group M365 -->
+  <div class="fgroup">
+    <label class="fw-semibold small"><i class="bi bi-people-fill text-primary me-1"></i>Security Group M365</label>
+    <div class="input-group input-group-sm">
+      <span class="input-group-text bg-white border-end-0"><i class="bi bi-microsoft text-primary"></i></span>
+      <input name="m365_security_group_name" id="sg_name_edit" class="form-control border-start-0"
+             value="<?= h($row['m365_security_group_name']??'') ?>"
+             placeholder="np. Wolontariusze-Aktywni" style="font-family:monospace;font-size:.85rem">
+    </div>
+    <input type="hidden" name="m365_security_group_id" id="sg_id_edit" value="<?= h($row['m365_security_group_id']??'') ?>">
+    <div class="form-text">
+      Przypisanie do grupy nadaje <strong>wszystkie uprawnienia M365</strong> (SharePoint, Teams, aplikacje).
+      Zmiana grupy wymaga ręcznej aktualizacji w Azure AD — system zapisuje tylko metadane.
+    </div>
+  </div>
+
 </section>
 
 <!-- ══════════════════════════════════════════════════════════

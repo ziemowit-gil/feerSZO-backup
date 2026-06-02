@@ -95,6 +95,12 @@ $_cvh_accent = match($_cvh_st['class']) {
       <a href="<?= h($_cvh_edit_url) ?>" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Edytuj</span>
       </a>
+      <?php if (($_cvh_type ?? '') === 'wolontariat'): ?>
+      <a href="<?= APP_URL ?>/contracts/wolontariat/renew.php?id=<?= (int)($_cvh_id ?? 0) ?>"
+         class="btn btn-sm btn-outline-success" title="Przedłuż umowę">
+        <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Przedłuż</span>
+      </a>
+      <?php endif; ?>
       <?php endif; ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark">
         <i class="bi bi-printer"></i>

@@ -227,6 +227,16 @@ $groups = [
             ['icon'=>'bi-calendar-x',      'label'=>'Wygasające umowy',   'url'=>'/admin/contract_expiry.php', 'badge'=>$cnt['expiring_7'] ?: ($cnt['expiring_30'] ?: null), 'badge_type'=>$cnt['expiring_7'] ? 'danger' : 'warning'],
             ['icon'=>'bi-calendar3',       'label'=>'Kalendarz',          'url'=>'/admin/calendar.php'],
             ['icon'=>'bi-envelope-check',  'label'=>'Masowe maile',       'url'=>'/admin/bulk_email.php'],
+            ['icon'=>'bi-kanban',          'label'=>'Kanban umów',        'url'=>'/contracts/wolontariat/kanban.php'],
+            ['icon'=>'bi-bar-chart-line',  'label'=>'Statystyki',         'url'=>'/reports/volunteer_stats.php'],
+        ],
+    ],
+    'Import i integracje' => [
+        'icon'  => 'bi-cloud-upload',
+        'color' => 'blue',
+        'items' => [
+            ['icon'=>'bi-file-earmark-arrow-up', 'label'=>'Import CSV',    'url'=>'/admin/import_volunteers.php'],
+            ['icon'=>'bi-webhook',               'label'=>'Webhooki',      'url'=>'/admin/webhooks.php'],
         ],
     ],
 
