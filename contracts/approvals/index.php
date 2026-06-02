@@ -91,14 +91,20 @@ if ($tab === 'approvals'):
   <thead class="table-light"><tr><th>Typ</th><th>Numer</th><th>Wnioskujący</th><th>Data</th><th>Status</th><th></th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r):
+      $is_canva = $r['contract_type'] === 'canva_request';
       $tbl    = table_for_type($r['contract_type']);
-      $c      = db_one("SELECT numer_umowy FROM {$tbl} WHERE id=?", [$r['contract_id']]);
+      $c      = db_one("SELECT numer_umowy, imie_nazwisko FROM {$tbl} WHERE id=?", [$r['contract_id']]);
       $numer  = $c['numer_umowy'] ?? '(usunięta)';
-      $vurl   = APP_URL . '/contracts/' . $r['contract_type'] . '/view.php?id=' . $r['contract_id'];
+      $vurl   = contract_url($r['contract_type'], (int)$r['contract_id']);
+      $type_label = $is_canva
+          ? '<span style="color:#7c3aed">🎨 Prośba o Canva</span>'
+          : h(CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type']);
   ?>
   <tr>
-    <td><small class="text-muted"><?= h(CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type']) ?></small></td>
-    <td><a href="<?= $vurl ?>"><strong><?= h($numer) ?></strong></a></td>
+    <td><small class="text-muted"><?= $type_label ?></small></td>
+    <td><a href="<?= $vurl ?>"><strong><?= h($is_canva ? ($c['imie_nazwisko'] ?? $numer) : $numer) ?></strong></a>
+      <?php if ($is_canva): ?><div class="text-muted" style="font-size:.75rem"><?= h($numer) ?></div><?php endif; ?>
+    </td>
     <td><?= h($r['requested_by_name'] ?? '—') ?></td>
     <td><?= date_pl($r['requested_at']) ?></td>
     <td><?= approval_badge($r['status']) ?></td>

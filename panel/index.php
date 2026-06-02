@@ -95,63 +95,28 @@ if ($_active_contract) {
     $_active_row   = db_one("SELECT * FROM {$_active_table} WHERE id = ?", [(int)$_active_contract['id']]);
 }
 
-// ── Prośba o dostęp do Canva ──────────────────────────────────────────────────
+// ── Prośba o dostęp do Canva — przez system Zatwierdzeń ──────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_request_canva'])) {
     require_once dirname(__DIR__) . '/includes/functions.php';
     if (isset($_POST['_csrf'])) csrf_check();
     $contract_id = (int)($_POST['canva_contract_id'] ?? ($_active_contract['id'] ?? 0));
     if ($contract_id && $_active_contract && $_active_contract['contract_type'] === 'wolontariat') {
-        $row_c = db_one("SELECT id, imie_nazwisko, email, m365_login, numer_umowy, canva_access, canva_access_requested_at FROM umowy_wolontariat WHERE id=?", [$contract_id]);
-        if ($row_c && !$row_c['canva_access']) {
+        $row_c = db_one("SELECT id, imie_nazwisko, numer_umowy, canva_access, canva_access_requested_at FROM umowy_wolontariat WHERE id=?", [$contract_id]);
+        if ($row_c && !$row_c['canva_access'] && !$row_c['canva_access_requested_at']) {
             // Zapisz datę prośby
             try {
                 db()->prepare("UPDATE umowy_wolontariat SET canva_access_requested_at=datetime('now','localtime') WHERE id=?")
                     ->execute([$contract_id]);
             } catch (\Throwable $e) {}
-
-            // Powiadom adminów
-            $org = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-            $name = h($row_c['imie_nazwisko'] ?? '');
-            $email_vol = $row_c['email'] ?? '';
-            $m365 = $row_c['m365_login'] ?? '';
-            $numer = $row_c['numer_umowy'] ?? '';
-            $canva_url = APP_URL . '/contracts/wolontariat/view.php?id=' . $contract_id . '#tab-m365-anchor';
-            $admin_body = <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎨 Prośba o dostęp do Canva Pro — {$org}</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:22px;border-radius:0 0 8px 8px">
-  <p>Wolontariusz prosi o dostęp do przestrzeni <strong>Canva Pro</strong> organizacji.</p>
-  <table style="background:#f8f9fa;border-radius:6px;width:100%;border-collapse:collapse;margin:12px 0">
-    <tr><td style="padding:5px 12px;color:#6c757d;width:130px">Imię i nazwisko</td><td style="padding:5px 12px"><strong>{$name}</strong></td></tr>
-    <tr><td style="padding:5px 12px;color:#6c757d">E-mail</td><td style="padding:5px 12px">{$email_vol}</td></tr>
-    <tr><td style="padding:5px 12px;color:#6c757d">Login M365</td><td style="padding:5px 12px"><code>{$m365}</code></td></tr>
-    <tr><td style="padding:5px 12px;color:#6c757d">Numer umowy</td><td style="padding:5px 12px">{$numer}</td></tr>
-  </table>
-  <div style="margin:16px 0;text-align:center">
-    <a href="{$canva_url}" style="background:#7c3aed;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600">
-      Przejdź do umowy →
-    </a>
-    &nbsp;
-    <a href="https://www.canva.com/brand/invite" target="_blank" style="background:#f8f9fa;color:#374151;padding:10px 18px;border-radius:7px;text-decoration:none;font-weight:500;border:1px solid #dee2e6">
-      Panel zaproszeń Canva
-    </a>
-  </div>
-  <p style="font-size:.82em;color:#6c757d">Wyślij zaproszenie w Canva, a następnie oznacz jako wysłane w widoku umowy.</p>
-</div></body></html>
-HTML;
+            // Złóż wniosek w systemie Zatwierdzeń (type=canva_request)
             try {
-                require_once dirname(__DIR__) . '/includes/mail_queue.php';
-                $admins = db_all("SELECT email, name FROM users WHERE role='admin' AND is_active=1 LIMIT 3");
-                foreach ($admins as $adm) {
-                    mail_queue_add($adm['email'], $adm['name'], "Prośba o Canva: {$name} — {$org}", $admin_body);
-                }
+                require_once dirname(__DIR__) . '/includes/approval.php';
+                submit_for_approval('canva_request', $contract_id, (int)$user['id'],
+                    '🎨 Canva: ' . ($row_c['imie_nazwisko'] ?? $row_c['numer_umowy'] ?? ''));
             } catch (\Throwable $e) {}
-
-            flash_set('success', 'Prośba o dostęp do Canva wysłana. Administrator skontaktuje się z Tobą.');
-        } elseif ($row_c && $row_c['canva_access']) {
-            flash_set('info', 'Masz już dostęp do Canva lub prośba jest w trakcie realizacji.');
+            flash_set('success', 'Prośba o Canva złożona! Pojawi się w Zatwierdzeniach — administrator wkrótce podejmie decyzję.');
+        } elseif ($row_c && ($row_c['canva_access'] || $row_c['canva_access_requested_at'])) {
+            flash_set('info', 'Prośba o Canva jest już złożona lub masz już dostęp.');
         }
     }
     header('Location: ' . $_SERVER['REQUEST_URI']); exit;

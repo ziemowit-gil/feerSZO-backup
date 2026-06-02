@@ -32,9 +32,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_GET['token'])) {
 
     $user = current_user();
     decide_approval($appr_id, $decision, $note, $user['id'], false);
+
+    // ── Obsługa specjalnych typów po decyzji ──────────────────────────────────
+    if ($appr['contract_type'] === 'canva_request') {
+        if ($decision === 'zaakceptowana') {
+            db_update('umowy_wolontariat', [
+                'canva_access'     => 1,
+                'canva_invited_at' => date('Y-m-d H:i:s'),
+            ], (int)$appr['contract_id']);
+            $vol = db_one("SELECT imie_nazwisko, email, m365_login FROM umowy_wolontariat WHERE id=?", [$appr['contract_id']]);
+            if ($vol && !empty($vol['email'])) {
+                $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+                $name = h($vol['imie_nazwisko'] ?? $vol['email']);
+                $m365 = $vol['m365_login'] ? "kontem Microsoft 365 (<strong>" . h($vol['m365_login']) . "</strong>)" : "adresem e-mail";
+                $body = "<html><body style='font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529'>"
+                    . "<div style='background:linear-gradient(135deg,#7c3aed,#a855f7);padding:22px 26px;border-radius:10px 10px 0 0'>"
+                    . "<h2 style='color:#fff;margin:0;font-size:1.1rem'>🎨 Twój dostęp do Canva Pro jest gotowy — {$org}</h2></div>"
+                    . "<div style='border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px'>"
+                    . "<p>Cześć, <strong>{$name}</strong>!</p>"
+                    . "<p>Twoja prośba o dostęp do <strong>Canva Pro</strong> organizacji <strong>{$org}</strong> została zaakceptowana.</p>"
+                    . "<div style='background:#fdf4ff;border-left:4px solid #a855f7;border-radius:4px;padding:14px;margin:16px 0;font-size:.9em'>"
+                    . "Sprawdź skrzynkę e-mail i kliknij przycisk <strong>Dolacz do zespolu</strong> w wiadomości od Canva.<br>"
+                    . "Loguj sie przez {$m365} — wybierz opcje Continue with Microsoft.</div>"
+                    . "<div style='text-align:center;margin:20px 0'>"
+                    . "<a href='https://www.canva.com' style='background:#7c3aed;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600'>Otwórz Canva →</a></div>"
+                    . "</div></body></html>";
+                try {
+                    require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+                    mail_queue_add($vol['email'], $vol['imie_nazwisko'] ?? '', "Twój dostęp do Canva Pro jest gotowy — {$org}", $body);
+                } catch (\Throwable $e) {}
+            }
+            flash_set('success', 'Prośba o Canva zaakceptowana. E-mail wysłany do wolontariusza.');
+        } else {
+            db()->prepare("UPDATE umowy_wolontariat SET canva_access_requested_at=NULL WHERE id=?")->execute([$appr['contract_id']]);
+            flash_set('warning', 'Prośba o Canva odrzucona.');
+        }
+        header('Location: ' . APP_URL . '/contracts/wolontariat/view.php?id=' . (int)$appr['contract_id'] . '#tab-m365-anchor');
+        exit;
+    }
+
     flash_set($decision === 'zaakceptowana' ? 'success' : 'warning',
         'Decyzja zapisana: ' . ($decision === 'zaakceptowana' ? 'Zaakceptowano' : 'Odrzucono') . '.');
-    header('Location: ' . APP_URL . '/contracts/' . $appr['contract_type'] . '/view.php?id=' . $appr['contract_id']);
+    header('Location: ' . contract_url($appr['contract_type'], (int)$appr['contract_id']));
     exit;
 }
 
