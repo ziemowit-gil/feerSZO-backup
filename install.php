@@ -333,10 +333,31 @@ body { background: #f1f5f9; }
     $upload = is_writable(__DIR__ . '/uploads/');
     $all_ok = $upload && ($sqlite || $mysql);
   ?>
-  <?php if ($reinstall): ?>
-  <div class="alert alert-warning py-2 small mb-3">
+  <?php if ($reinstall && !empty($preserved)): ?>
+  <div class="alert alert-success py-2 small mb-3">
     <i class="bi bi-shield-check me-1"></i>
-    <strong>Tryb reinstalacji.</strong> Klucze Microsoft 365, SMS API, CRON token i AI zostaną automatycznie zachowane.
+    <strong>Tryb reinstalacji — wykryte istniejące klucze:</strong>
+    <div class="mt-1 d-flex flex-wrap gap-1">
+      <?php
+      $detected = [];
+      if (!empty($preserved['m365_tenant_id']))        $detected[] = ['Microsoft 365', 'bi-microsoft', 'success'];
+      if (!empty($preserved['smtp_host']))              $detected[] = ['SMTP: '.$preserved['smtp_host'], 'bi-envelope', 'info'];
+      if (!empty($preserved['m365_send_from_email']))  $detected[] = ['M365 e-mail', 'bi-envelope-fill', 'info'];
+      if (!empty($preserved['sms_api_login']))          $detected[] = ['SMS API', 'bi-phone', 'warning'];
+      if (!empty($preserved['cron_token']))             $detected[] = ['CRON token', 'bi-clock', 'secondary'];
+      if (!empty($preserved['anthropic_api_key']))      $detected[] = ['Claude AI', 'bi-stars', 'primary'];
+      foreach ($detected as $d): ?>
+      <span class="badge bg-<?= $d[2] ?> bg-opacity-15 text-<?= $d[2] ?> border border-<?= $d[2] ?> border-opacity-25" style="font-size:.72rem">
+        <i class="bi <?= $d[1] ?> me-1"></i><?= htmlspecialchars($d[0]) ?>
+      </span>
+      <?php endforeach; ?>
+    </div>
+    <div class="mt-1" style="color:#166534">Zostaną automatycznie przywrócone po reinstalacji.</div>
+  </div>
+  <?php elseif ($reinstall): ?>
+  <div class="alert alert-warning py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    <strong>Tryb reinstalacji</strong> — brak wykrytych kluczy do zachowania.
   </div>
   <?php endif; ?>
   <h2><?= $reinstall ? 'Reinstalacja platformy' : 'Wymagania systemowe' ?></h2>
@@ -435,45 +456,103 @@ body { background: #f1f5f9; }
   elseif ($step === 4):
     $redirect_uri = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
                   . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/auth/microsoft.php';
+    // Wykryj istniejące klucze M365
+    $ms_existing = !empty($preserved['m365_tenant_id']) && !empty($preserved['m365_client_id']);
+    $ms_tenant_short = $ms_existing ? substr($preserved['m365_tenant_id'], 0, 8) . '…' : '';
+    $ms_keep = $ms_existing && empty($_GET['ms_overwrite']);
   ?>
   <h2>Logowanie Microsoft 365</h2>
   <p class="sub">Pozwala pracownikom i wolontariuszom logować się kontem Microsoft. Można skonfigurować później.</p>
 
+  <?php if ($ms_existing && $ms_keep): ?>
+  <!-- Klucze wykryte — pytamy co zrobić -->
+  <div class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle me-1"></i>
+    <strong>Klucze Microsoft 365 już skonfigurowane</strong> (Tenant: <code><?= htmlspecialchars($ms_tenant_short) ?></code>).
+    Zostaną zachowane bez zmian.
+  </div>
+  <div class="d-flex flex-column gap-2 mb-4">
+    <a href="install.php?step=5" class="btn btn-success w-100">
+      <i class="bi bi-check-lg me-1"></i>Zachowaj istniejące klucze i przejdź dalej
+    </a>
+    <a href="install.php?step=4&ms_overwrite=1" class="btn btn-outline-warning w-100" style="font-size:.85rem">
+      <i class="bi bi-pencil me-1"></i>Nadpisz — wpisz nowe klucze
+    </a>
+    <a href="install.php?step=5" class="btn btn-link w-100 text-muted" style="font-size:.82rem">Pomiń — skonfiguruj później</a>
+  </div>
+
+  <?php else: ?>
   <form method="post">
     <div class="form-check form-switch mb-3">
       <input class="form-check-input" type="checkbox" name="ms_enabled" id="ms_en"
              onchange="document.getElementById('ms_f').style.display=this.checked?'':'none'"
-             <?= !empty($_SESSION['install_ms']['enabled']) ? 'checked' : '' ?>>
+             <?= ($ms_existing || !empty($_SESSION['install_ms']['enabled'])) ? 'checked' : '' ?>>
       <label class="form-check-label fw-semibold" for="ms_en">Włącz logowanie przez Microsoft 365</label>
     </div>
-    <div id="ms_f" style="display:<?= !empty($_SESSION['install_ms']['enabled']) ? '' : 'none' ?>">
+    <div id="ms_f" style="display:<?= ($ms_existing || !empty($_SESSION['install_ms']['enabled'])) ? '' : 'none' ?>">
       <div class="alert alert-light border small p-2 mb-3">
         <strong>URI przekierowania</strong> do wklejenia w Azure AD:<br>
         <code style="font-size:.78rem;word-break:break-all"><?= htmlspecialchars($redirect_uri) ?></code>
       </div>
-      <div class="mb-2"><label class="form-label small fw-semibold">Tenant ID</label><input name="tenant_id" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars($_SESSION['install_ms']['tenant_id'] ?? '') ?>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-      <div class="mb-2"><label class="form-label small fw-semibold">Client ID</label><input name="client_id" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars($_SESSION['install_ms']['client_id'] ?? '') ?>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-      <div class="mb-3"><label class="form-label small fw-semibold">Client Secret</label><input name="client_secret" class="form-control form-control-sm" type="password"></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Tenant ID</label>
+        <input name="tenant_id" class="form-control form-control-sm font-monospace"
+               value="<?= htmlspecialchars($_SESSION['install_ms']['tenant_id'] ?? '') ?>"
+               placeholder="<?= $ms_existing ? '(zostaw puste aby zachować istniejący)' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' ?>"></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Client ID</label>
+        <input name="client_id" class="form-control form-control-sm font-monospace"
+               value="<?= htmlspecialchars($_SESSION['install_ms']['client_id'] ?? '') ?>"
+               placeholder="<?= $ms_existing ? '(zostaw puste aby zachować istniejący)' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' ?>"></div>
+      <div class="mb-3"><label class="form-label small fw-semibold">Client Secret
+        <?php if ($ms_existing): ?><span class="text-muted fw-normal">(zostaw puste aby zachować istniejący)</span><?php endif; ?></label>
+        <input name="client_secret" class="form-control form-control-sm" type="password"></div>
     </div>
     <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
-    <a href="install.php?step=5" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później w Admin → Dane organizacji</a>
+    <a href="install.php?step=5" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później</a>
   </form>
+  <?php endif; ?>
 
   <?php // ── KROK 5: E-mail
   elseif ($step === 5):
     $ms = $_SESSION['install_ms'] ?? [];
     $m365_configured = !empty($ms['enabled']) && !empty($ms['client_id']);
+    // Wykryj istniejące klucze SMTP/M365 e-mail
+    $smtp_existing = !empty($preserved['smtp_host']);
+    $m365mail_existing = !empty($preserved['m365_send_from_email']);
+    $mail_existing = $smtp_existing || $m365mail_existing;
+    $mail_keep = $mail_existing && empty($_GET['mail_overwrite']);
   ?>
   <h2>Konfiguracja e-mail</h2>
   <p class="sub">System wysyła powiadomienia, dane logowania i kody SMS. Możesz skonfigurować później w panelu admina.</p>
 
+  <?php if ($mail_existing && $mail_keep): ?>
+  <div class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle me-1"></i>
+    <strong>E-mail już skonfigurowany</strong>:
+    <?php if ($smtp_existing): ?>
+      SMTP — <code><?= htmlspecialchars($preserved['smtp_host']) ?></code>
+    <?php elseif ($m365mail_existing): ?>
+      Microsoft 365 — <code><?= htmlspecialchars($preserved['m365_send_from_email']) ?></code>
+    <?php endif; ?>
+    Konfiguracja zostanie zachowana.
+  </div>
+  <div class="d-flex flex-column gap-2 mb-4">
+    <a href="install.php?step=6" class="btn btn-success w-100">
+      <i class="bi bi-check-lg me-1"></i>Zachowaj i przejdź dalej
+    </a>
+    <a href="install.php?step=5&mail_overwrite=1" class="btn btn-outline-warning w-100" style="font-size:.85rem">
+      <i class="bi bi-pencil me-1"></i>Nadpisz — wpisz nową konfigurację
+    </a>
+    <a href="install.php?step=6" class="btn btn-link w-100 text-muted" style="font-size:.82rem">Pomiń</a>
+  </div>
+
+  <?php else: ?>
   <form method="post">
     <div class="mb-3">
       <label class="form-label small fw-semibold">Metoda wysyłki</label>
       <div class="d-flex flex-column gap-2">
         <?php if ($m365_configured): ?>
         <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
-          <input type="radio" name="mail_type" value="m365" <?= ($m365_configured ? 'checked' : '') ?> onchange="switchMail('m365')" style="margin-top:.2rem">
+          <input type="radio" name="mail_type" value="m365" checked onchange="switchMail('m365')" style="margin-top:.2rem">
           <div>
             <div class="fw-semibold small">Microsoft 365 <span class="badge bg-success ms-1" style="font-size:.65rem">Zalecane — M365 skonfigurowany</span></div>
             <div class="text-muted" style="font-size:.78rem">Wysyłka przez skonfigurowane konto Microsoft</div>
@@ -496,31 +575,32 @@ body { background: #f1f5f9; }
         </label>
       </div>
     </div>
-
     <div id="mail-smtp" style="display:<?= !$m365_configured ? '' : 'none' ?>">
       <div class="row g-2 mb-2">
-        <div class="col-8"><label class="form-label small fw-semibold">Serwer SMTP</label><input name="smtp_host" class="form-control form-control-sm" placeholder="smtp.gmail.com"></div>
-        <div class="col-4"><label class="form-label small fw-semibold">Port</label><input name="smtp_port" class="form-control form-control-sm" value="587" type="number"></div>
+        <div class="col-8"><label class="form-label small fw-semibold">Serwer SMTP</label><input name="smtp_host" class="form-control form-control-sm" value="<?= htmlspecialchars($preserved['smtp_host'] ?? '') ?>" placeholder="smtp.gmail.com"></div>
+        <div class="col-4"><label class="form-label small fw-semibold">Port</label><input name="smtp_port" class="form-control form-control-sm" value="<?= htmlspecialchars($preserved['smtp_port'] ?? '587') ?>" type="number"></div>
       </div>
       <div class="row g-2 mb-2">
-        <div class="col-6"><label class="form-label small fw-semibold">Login</label><input name="smtp_user" class="form-control form-control-sm" type="email"></div>
-        <div class="col-6"><label class="form-label small fw-semibold">Hasło / App Password</label><input name="smtp_pass" class="form-control form-control-sm" type="password"></div>
+        <div class="col-6"><label class="form-label small fw-semibold">Login</label><input name="smtp_user" class="form-control form-control-sm" type="email" value="<?= htmlspecialchars($preserved['smtp_user'] ?? '') ?>"></div>
+        <div class="col-6"><label class="form-label small fw-semibold">Hasło <?= !empty($preserved['smtp_pass']) ? '<span class="text-muted fw-normal">(zostaw puste aby zachować)</span>' : '' ?></label><input name="smtp_pass" class="form-control form-control-sm" type="password"></div>
       </div>
       <div class="row g-2 mb-3">
-        <div class="col-8"><label class="form-label small fw-semibold">Adres nadawcy</label><input name="smtp_from" class="form-control form-control-sm" type="email" placeholder="noreply@organizacja.pl"></div>
+        <div class="col-8"><label class="form-label small fw-semibold">Adres nadawcy</label><input name="smtp_from" class="form-control form-control-sm" type="email" value="<?= htmlspecialchars($preserved['smtp_from_email'] ?? '') ?>" placeholder="noreply@organizacja.pl"></div>
         <div class="col-4"><label class="form-label small fw-semibold">Szyfrowanie</label>
-          <select name="smtp_enc" class="form-select form-select-sm"><option value="tls">STARTTLS</option><option value="ssl">SSL</option><option value="">Brak</option></select>
+          <select name="smtp_enc" class="form-select form-select-sm">
+            <option value="tls" <?= ($preserved['smtp_encryption'] ?? '') === 'tls' ? 'selected' : '' ?>>STARTTLS</option>
+            <option value="ssl" <?= ($preserved['smtp_encryption'] ?? '') === 'ssl' ? 'selected' : '' ?>>SSL</option>
+            <option value="" <?= ($preserved['smtp_encryption'] ?? '') === '' ? 'selected' : '' ?>>Brak</option>
+          </select>
         </div>
       </div>
     </div>
-
     <div id="mail-m365" style="display:<?= $m365_configured ? '' : 'none' ?>">
       <div class="mb-3">
         <label class="form-label small fw-semibold">Adres e-mail nadawcy (skrzynka M365)</label>
-        <input name="m365_from" class="form-control form-control-sm" type="email" placeholder="noreply@organizacja.pl">
+        <input name="m365_from" class="form-control form-control-sm" type="email" value="<?= htmlspecialchars($preserved['m365_send_from_email'] ?? '') ?>" placeholder="noreply@organizacja.pl">
       </div>
     </div>
-
     <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
     <a href="install.php?step=6" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później</a>
   </form>
@@ -530,6 +610,7 @@ body { background: #f1f5f9; }
     document.getElementById('mail-m365').style.display = t==='m365' ? '' : 'none';
   }
   </script>
+  <?php endif; ?>
 
   <?php // ── KROK 6: Moduły
   elseif ($step === 6):
