@@ -356,35 +356,75 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 #topbar {
     background: #fff;
     border-bottom: 1px solid #e2e8f0;
-    padding: .3rem 1.25rem;
+    padding: .28rem 1rem;
     display: flex;
     align-items: center;
-    gap: .75rem;
+    gap: .4rem;
     font-size: .875rem;
     color: #64748b;
     position: sticky;
     top: 0;
     z-index: 50;
 }
-#topbar .page-title { font-weight: 600; color: #1e293b; font-size: .95rem; flex: 1; }
-.topbar-view-toggle {
-    display: inline-flex; align-items: stretch; gap: 2px;
+#topbar .page-title {
+    font-weight: 600; color: #1e293b; font-size: .92rem;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 0;
 }
-.topbar-view-toggle a {
-    display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: .18rem; padding: .3rem .85rem;
-    border-radius: 8px; font-size: .78rem; font-weight: 600;
+
+/* Moduły główne — kompaktowe */
+.tb-mods {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 10px; padding: 3px;
+}
+.tb-mod {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .28rem .55rem; border-radius: 7px;
+    font-size: .78rem; font-weight: 500;
     text-decoration: none; color: #64748b;
-    border-bottom: 3px solid transparent;
-    transition: background .12s, color .12s, border-color .12s;
-    line-height: 1.2; white-space: nowrap;
+    transition: background .1s, color .1s;
+    white-space: nowrap;
 }
-.topbar-view-toggle a i { font-size: 1.1rem; }
-.topbar-view-toggle .active-mode {
-    color: #2563eb; border-bottom-color: #2563eb;
-    background: #eff6ff;
+.tb-mod i { font-size: .95rem; }
+/* Domyślnie: tylko ikona */
+.tb-mod .tb-label { display: none; }
+/* Aktywny: ikona + etykieta */
+.tb-mod.active-mode {
+    background: #fff; color: #2563eb; font-weight: 700;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
 }
-.topbar-view-toggle a:hover:not(.active-mode) { background: #f1f5f9; color: #334155; }
+.tb-mod.active-mode .tb-label { display: inline; }
+.tb-mod:hover:not(.active-mode) { background: #fff; color: #334155; }
+
+/* Kompaktowe wyszukiwanie */
+.tb-search-wrap { position: relative; }
+.tb-search-wrap input {
+    width: 36px; height: 30px;
+    border: 1px solid transparent; border-radius: 8px;
+    background: #f8fafc; padding: 0 .5rem;
+    font-size: .82rem; outline: none;
+    transition: width .2s, border-color .2s, background .2s;
+    cursor: pointer;
+}
+.tb-search-wrap input:focus,
+.tb-search-wrap input.expanded {
+    width: 200px; border-color: #cbd5e1; background: #fff; cursor: text;
+}
+.tb-search-wrap .tb-search-icon {
+    position: absolute; left: .55rem; top: 50%; transform: translateY(-50%);
+    color: #94a3b8; font-size: .82rem; pointer-events: none;
+}
+
+/* Dropdown Więcej */
+.tb-more-btn {
+    display: inline-flex; align-items: center; gap: .25rem;
+    padding: .28rem .55rem; border-radius: 7px;
+    font-size: .78rem; font-weight: 500; color: #64748b;
+    background: none; border: none; cursor: pointer;
+    transition: background .1s;
+}
+.tb-more-btn:hover { background: #f1f5f9; color: #334155; }
 .topbar-user-chip {
     display: inline-flex; align-items: center; gap: .4rem;
     background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px;
@@ -901,68 +941,109 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
         fn($w) => mb_strtoupper(mb_substr($w,0,1)),
         array_slice(explode(' ', $_user['name']), 0, 2)
       ));
+      // Oblicz aktywne sekcje raz
+      $_on_szo     = (!str_contains($_uri,'/crm/') && !str_contains($_uri,'/actions/') && !str_contains($_uri,'/events/') && !str_contains($_uri,'/directory/') && !str_contains($_uri,'/karty30/') && !str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/') && !$_is_panel_view);
+      $_on_crm     = str_contains($_uri,'/crm/');
+      $_on_tasks   = str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/');
+      $_on_admin   = str_contains($_uri,'/admin/');
+      $_on_actions = str_contains($_uri,'/actions/');
+      $_on_events  = str_contains($_uri,'/events/');
+      $_on_dir     = str_contains($_uri,'/directory/');
+      $_on_k30     = str_contains($_uri,'/karty30/');
+      $_has_more_active = $_on_actions || $_on_events || $_on_dir || $_on_k30;
     ?>
-    <!-- Moduły główne -->
-    <div class="topbar-view-toggle">
-      <a href="<?= APP_URL ?>/index.php"
-         class="<?= (!str_contains($_uri,'/crm/') && !str_contains($_uri,'/actions/') && !str_contains($_uri,'/events/') && !str_contains($_uri,'/directory/') && !str_contains($_uri,'/karty30/') && !str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/') && !$_is_panel_view) ? 'active-mode' : '' ?>">
-        <i class="bi bi-building"></i>SZO
+    <!-- Moduły główne — kompaktowe -->
+    <nav class="tb-mods" aria-label="Moduły systemu">
+      <a href="<?= APP_URL ?>/index.php" class="tb-mod <?= $_on_szo ? 'active-mode' : '' ?>"
+         title="SZO — System Zarządzania Organizacją">
+        <i class="bi bi-building"></i><span class="tb-label">SZO</span>
       </a>
       <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
-      <a href="<?= APP_URL ?>/crm/dashboard.php"
-         class="<?= str_contains($_uri,'/crm/') ? 'active-mode' : '' ?>">
-        <i class="bi bi-diagram-2-fill"></i>CRM
-      </a>
-      <?php endif; ?>
-      <a href="<?= APP_URL ?>/actions/index.php"
-         class="<?= str_contains($_uri,'/actions/') ? 'active-mode' : '' ?>">
-        <i class="bi bi-calendar-event"></i>Działania
-      </a>
-      <?php if (module_enabled('events_enabled')): ?>
-      <a href="<?= APP_URL ?>/events/dashboard.php"
-         class="<?= str_contains($_uri,'/events/') ? 'active-mode' : '' ?>">
-        <i class="bi bi-calendar-event-fill"></i>Wydarzenia
-      </a>
-      <?php endif; ?>
-      <a href="<?= APP_URL ?>/directory/"
-         class="<?= str_contains($_uri,'/directory/') ? 'active-mode' : '' ?>">
-        <i class="bi bi-person-lines-fill"></i>Katalog
-      </a>
-      <?php if (can_read('karty30')): ?>
-      <a href="<?= APP_URL ?>/karty30/index.php"
-         class="<?= str_contains($_uri,'/karty30/') ? 'active-mode' : '' ?>">
-        <i class="bi bi-card-checklist"></i>Karty 30
+      <a href="<?= APP_URL ?>/crm/dashboard.php" class="tb-mod <?= $_on_crm ? 'active-mode' : '' ?>"
+         title="CRM">
+        <i class="bi bi-diagram-2-fill"></i><span class="tb-label">CRM</span>
       </a>
       <?php endif; ?>
       <?php if (module_enabled('tasks_enabled')): ?>
-      <a href="<?= APP_URL ?>/tasks/dashboard.php"
-         class="<?= str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/') ? 'active-mode' : '' ?>">
-        <i class="bi bi-table"></i>Zadania
+      <a href="<?= APP_URL ?>/tasks/dashboard.php" class="tb-mod <?= $_on_tasks ? 'active-mode' : '' ?>"
+         title="Zadania">
+        <i class="bi bi-kanban"></i><span class="tb-label">Zadania</span>
       </a>
       <?php endif; ?>
       <?php if (is_admin()): ?>
-      <a href="<?= APP_URL ?>/admin/index.php"
-         class="<?= str_contains($_uri,'/admin/') ? 'active-mode' : '' ?>">
-        <i class="bi bi-gear-fill"></i>Administrator
+      <a href="<?= APP_URL ?>/admin/index.php" class="tb-mod <?= $_on_admin ? 'active-mode' : '' ?>"
+         title="Panel admina">
+        <i class="bi bi-gear-fill"></i><span class="tb-label">Admin</span>
       </a>
       <?php endif; ?>
-    </div>
+
+      <!-- Więcej ▾ -->
+      <div class="dropdown">
+        <button type="button" class="tb-more-btn <?= $_has_more_active ? 'active-mode' : '' ?>"
+                data-bs-toggle="dropdown" aria-expanded="false" title="Więcej modułów">
+          <?php if ($_has_more_active): ?>
+          <?php // pokaż aktywną ikonę
+          if ($_on_actions) echo '<i class="bi bi-calendar-event"></i><span class="tb-label">Działania</span>';
+          elseif ($_on_events) echo '<i class="bi bi-calendar-event-fill"></i><span class="tb-label">Wydarzenia</span>';
+          elseif ($_on_dir) echo '<i class="bi bi-person-lines-fill"></i><span class="tb-label">Katalog</span>';
+          elseif ($_on_k30) echo '<i class="bi bi-card-checklist"></i><span class="tb-label">Karty30</span>';
+          ?>
+          <?php else: ?>
+          <i class="bi bi-grid-3x3-gap"></i>
+          <?php endif; ?>
+          <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.6"></i>
+        </button>
+        <ul class="dropdown-menu shadow" style="min-width:175px;font-size:.83rem">
+          <li><h6 class="dropdown-header py-1" style="font-size:.68rem">Więcej modułów</h6></li>
+          <li>
+            <a class="dropdown-item <?= $_on_actions ? 'active' : '' ?>" href="<?= APP_URL ?>/actions/index.php">
+              <i class="bi bi-calendar-event me-2"></i>Działania
+            </a>
+          </li>
+          <?php if (module_enabled('events_enabled')): ?>
+          <li>
+            <a class="dropdown-item <?= $_on_events ? 'active' : '' ?>" href="<?= APP_URL ?>/events/dashboard.php">
+              <i class="bi bi-calendar-event-fill me-2"></i>Wydarzenia
+            </a>
+          </li>
+          <?php endif; ?>
+          <li>
+            <a class="dropdown-item <?= $_on_dir ? 'active' : '' ?>" href="<?= APP_URL ?>/directory/">
+              <i class="bi bi-person-lines-fill me-2"></i>Katalog osób
+            </a>
+          </li>
+          <?php if (can_read('karty30')): ?>
+          <li>
+            <a class="dropdown-item <?= $_on_k30 ? 'active' : '' ?>" href="<?= APP_URL ?>/karty30/index.php">
+              <i class="bi bi-card-checklist me-2"></i>Karty 30
+            </a>
+          </li>
+          <?php endif; ?>
+          <li><hr class="dropdown-divider my-1"></li>
+          <li>
+            <a class="dropdown-item" href="<?= APP_URL ?>/search.php">
+              <i class="bi bi-search me-2"></i>Globalne wyszukiwanie
+            </a>
+          </li>
+        </ul>
+      </div>
+    </nav>
     <?php endif; ?>
 
     <?php if ($_user): ?>
-    <form method="get" action="<?= APP_URL ?>/search.php" class="d-none d-md-flex align-items-center me-2" role="search" style="min-width:180px;max-width:260px">
-      <div class="input-group input-group-sm">
-        <span class="input-group-text bg-white border-end-0 py-0" style="border-color:#cbd5e1">
-          <i class="bi bi-search text-muted" style="font-size:.8rem"></i>
-        </span>
+    <!-- Kompaktowe wyszukiwanie -->
+    <div class="tb-search-wrap d-none d-md-block">
+      <i class="tb-search-icon bi bi-search"></i>
+      <form method="get" action="<?= APP_URL ?>/search.php">
         <input type="search" name="q" id="topbar-search"
-               class="form-control form-control-sm border-start-0 ps-0"
-               placeholder="Szukaj…"
+               placeholder="Szukaj… (Ctrl+K)"
                autocomplete="off"
                aria-label="Globalne wyszukiwanie"
-               style="border-color:#cbd5e1;box-shadow:none;font-size:.82rem">
-      </div>
-    </form>
+               style="padding-left:1.8rem"
+               onfocus="this.classList.add('expanded')"
+               onblur="if(!this.value)this.classList.remove('expanded')">
+      </form>
+    </div>
     <?php endif; ?>
 
     <?php if ($_user):
@@ -1025,8 +1106,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       </div>
     </div>
     <?php endif; ?>
-
-    <span class="text-muted small d-none d-md-inline"><?= date('d.m.Y') ?></span>
 
     <?php if ($_user): ?>
     <!-- Chip użytkownika z dropdown -->
