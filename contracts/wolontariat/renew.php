@@ -41,22 +41,22 @@ $default_new_start = $row['data_zakonczenia'] ?? $row['data_rozpoczecia'] ?? dat
 
 // ── Oblicz następny suffix /Pn ────────────────────────────────────────────────
 function next_renewal_suffix(string $base_nr): string {
-    // Szuka istniejących /P/1, /P/2 itd. i wybiera kolejny
+    // Szuka istniejących /P1, /P2 itd. i wybiera kolejny
     $existing = db_all(
         "SELECT numer_umowy FROM umowy_wolontariat WHERE numer_umowy LIKE ? ORDER BY numer_umowy",
-        [$base_nr . '/P/%']
+        [$base_nr . '/P%']
     );
     $max_n = 0;
     foreach ($existing as $e) {
-        if (preg_match('|/P/(\d+)$|', $e['numer_umowy'], $m)) {
+        if (preg_match('|/P(\d+)$|', $e['numer_umowy'], $m)) {
             $max_n = max($max_n, (int)$m[1]);
         }
     }
-    return $base_nr . '/P/' . ($max_n + 1);
+    return $base_nr . '/P' . ($max_n + 1);
 }
 
-// Bazowy numer (usuń ewentualne wcześniejsze sufiksy /P/1, /P/2 itd.)
-$base_numer = preg_replace('|/P/\d+$|', '', $row['numer_umowy']);
+// Bazowy numer (usuń ewentualne wcześniejsze sufiksy /P1, /P2 itd.)
+$base_numer = preg_replace('|/P\d+$|', '', $row['numer_umowy']);
 $suggested_numer = next_renewal_suffix($base_numer);
 
 // ── POST: zapis ───────────────────────────────────────────────────────────────

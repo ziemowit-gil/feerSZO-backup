@@ -29,12 +29,12 @@ if (!viewer_owns_contract('wolontariat', $row) && !can_edit()) {
     http_response_code(403); exit('Brak dostępu.');
 }
 
-// ── Parsuj numer: BAZA/P/N ────────────────────────────────────────────────────
-$numer_pelny = $row['numer_umowy'];                   // np. W-2025-001/P/2
-preg_match('|^(.*)/P/(\d+)$|', $numer_pelny, $pm);
+// ── Parsuj numer: BAZA/Pn (np. W-2025-001/P2) ────────────────────────────────
+$numer_pelny = $row['numer_umowy'];                   // np. W-2025-001/P2
+preg_match('|^(.*)/P(\d+)$|', $numer_pelny, $pm);
 $numer_orig  = $pm[1] ?? $numer_pelny;               // W-2025-001
 $p_nr        = $pm[2] ?? '1';                        // 2
-$numer_aneksu = $numer_orig . '/P/' . $p_nr;         // W-2025-001/P/2
+$numer_aneksu = $numer_orig . '/P' . $p_nr;          // W-2025-001/P2
 
 // Umowa bazowa (oryginalna) do porównania
 $base_row = db_one("SELECT * FROM umowy_wolontariat WHERE numer_umowy = ?", [$numer_orig]);

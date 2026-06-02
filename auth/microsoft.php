@@ -109,15 +109,10 @@ if (!$error) {
         if ($upd) db_update('users', $upd, $existing['id']);
         $user = $existing;
     } else {
-        // Nowy użytkownik z domeny M365 — automatycznie viewer
-        $new_id = db_insert('users', [
-            'name'         => $name,
-            'email'        => $email,
-            'microsoft_id' => $ms_id,
-            'role'         => 'viewer',
-            'is_active'    => 1,
-        ]);
-        $user = db_one("SELECT * FROM users WHERE id = ?", [$new_id]);
+        // Brak konta w systemie — nie twórz automatycznie, pokaż komunikat
+        $error = 'no_account';
+        $ms_display_name  = $name;
+        $ms_display_email = $email;
     }
 
     log_auth_action((int)$user['id'], 'login_ms', 'Logowanie Microsoft: ' . ($user['email'] ?? ''));
@@ -139,6 +134,47 @@ if (!$error) {
 <body>
 <div class="card shadow-sm">
 <div class="card-body p-4">
+
+<?php if ($error === 'no_account'): ?>
+  <!-- Brak konta w systemie -->
+  <div class="text-center mb-3">
+    <div style="width:64px;height:64px;border-radius:16px;background:#FEF3C7;display:inline-flex;align-items:center;justify-content:center;font-size:1.8rem;margin-bottom:.75rem">
+      🔒
+    </div>
+    <h5 class="fw-bold mb-1">Brak dostępu do systemu</h5>
+    <p class="text-muted small mb-0">
+      Twoje konto Microsoft zostało rozpoznane, ale nie masz jeszcze dostępu do systemu organizacji.
+    </p>
+  </div>
+
+  <div class="alert alert-warning d-flex gap-2 py-2 mb-3" style="font-size:.85rem">
+    <i class="bi bi-person-x-fill flex-shrink-0 mt-1" style="color:#d97706"></i>
+    <div>
+      Zalogowano jako: <strong><?= h($ms_display_name ?? '') ?></strong><br>
+      <span class="text-muted"><?= h($ms_display_email ?? '') ?></span>
+    </div>
+  </div>
+
+  <div class="bg-light rounded p-3 mb-3" style="font-size:.84rem">
+    <div class="fw-semibold mb-1"><i class="bi bi-info-circle text-primary me-1"></i>Co zrobić?</div>
+    <ul class="mb-0 ps-3" style="line-height:1.7">
+      <li>Skontaktuj się z administratorem organizacji i poproś o nadanie dostępu.</li>
+      <li>Jeśli masz umowę wolontariacką — opiekun może przypisać Ci konto po zalogowaniu.</li>
+      <li>Możesz też spróbować zalogować się <strong>kodem jednorazowym</strong> otrzymanym od admina.</li>
+    </ul>
+  </div>
+
+  <div class="d-grid gap-2">
+    <a href="<?= APP_URL ?>/auth/login.php?tab=code" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-key me-1"></i>Zaloguj się kodem jednorazowym
+    </a>
+    <a href="<?= APP_URL ?>/auth/login.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Wróć do strony logowania
+    </a>
+  </div>
+
+<?php else: ?>
+  <!-- Ogólny błąd -->
   <div class="text-center mb-3">
     <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size:2rem"></i>
     <h5 class="mt-2">Błąd logowania Microsoft 365</h5>
@@ -146,9 +182,11 @@ if (!$error) {
   <div class="alert alert-danger small"><?= h($error) ?></div>
   <div class="d-grid gap-2">
     <a href="<?= APP_URL ?>/auth/login.php" class="btn btn-primary">
-      <i class="bi bi-arrow-left"></i> Wróć do logowania
+      <i class="bi bi-arrow-left me-1"></i>Wróć do logowania
     </a>
   </div>
+<?php endif; ?>
+
 </div>
 </div>
 </body>
