@@ -300,6 +300,64 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
   <p class="adm-sub">Centrum zarządzania systemem — użytkownicy, ustawienia, integracje i narzędzia.</p>
 
+  <?php
+  // ── Checklist konfiguracji wstępnej ──────────────────────────────────────────
+  $setup_items = [];
+
+  $s_org_name  = org_setting('org_name');
+  $s_org_krs   = org_setting('org_krs');
+  $s_logo      = org_setting('org_logo');
+  $s_color     = org_setting('sidebar_color');
+  $s_vol_color = org_setting('volunteer_color');
+  $s_cron      = db_one("SELECT 1 FROM settings WHERE key_='cron_token'");
+  $s_cert      = file_exists(dirname(__DIR__) . '/certs/app.crt');
+  $s_m365      = org_setting('m365_tenant_id') || org_setting('smtp_host') || org_setting('m365_send_from_email');
+  $s_reps      = (bool)db_one("SELECT 1 FROM org_representatives WHERE is_active=1") ?? false;
+
+  try { $s_reps = (bool)db_one("SELECT 1 FROM org_representatives WHERE is_active=1"); } catch(\Throwable $e){ $s_reps=false; }
+
+  $setup_items = [
+    ['ok'=>(bool)$s_org_name, 'label'=>'Nazwa organizacji',      'url'=>'/admin/org_settings.php',   'tip'=>'Pełna nazwa w bazie danych'],
+    ['ok'=>(bool)$s_org_krs,  'label'=>'Numer KRS',              'url'=>'/admin/org_settings.php',   'tip'=>'Wymagany do certyfikatu'],
+    ['ok'=>(bool)$s_logo,     'label'=>'Logo organizacji',        'url'=>'/admin/org_settings.php#branding', 'tip'=>'Wyświetlane na stronie logowania'],
+    ['ok'=>$s_color!=='#1e293b' && (bool)$s_color, 'label'=>'Kolor brandingu', 'url'=>'/admin/org_settings.php#branding', 'tip'=>'Kolor sidebara i panelu'],
+    ['ok'=>(bool)$s_m365,     'label'=>'E-mail (M365 lub SMTP)', 'url'=>'/admin/org_settings.php#mail', 'tip'=>'Konfiguracja wysyłki maili'],
+    ['ok'=>$s_cert,           'label'=>'Certyfikat instalacyjny', 'url'=>'/admin/app_license.php',    'tip'=>'x509 wymagany do uruchomienia'],
+    ['ok'=>(bool)$s_cron,     'label'=>'Token CRON',              'url'=>'/admin/cron_setup.php',     'tip'=>'Potrzebny do URL-cron w DirectAdmin'],
+    ['ok'=>$s_reps,           'label'=>'Osoby do reprezentacji',  'url'=>'/admin/org_settings.php#representatives', 'tip'=>'Podpisujący umowy'],
+  ];
+
+  $done  = count(array_filter($setup_items, fn($i) => $i['ok']));
+  $total = count($setup_items);
+  $all_done = $done === $total;
+
+  if (!$all_done):
+  ?>
+  <div class="card shadow-sm mb-4" style="border-left:4px solid #f59e0b">
+    <div class="card-body py-3">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-list-check text-warning" style="font-size:1.1rem"></i>
+        <strong class="small">Konfiguracja wstępna</strong>
+        <span class="text-muted small ms-auto"><?= $done ?>/<?= $total ?> ukończone</span>
+      </div>
+      <div class="progress mb-3" style="height:4px">
+        <div class="progress-bar bg-warning" style="width:<?= round($done/$total*100) ?>%"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.35rem">
+        <?php foreach ($setup_items as $si): ?>
+        <a href="<?= APP_URL . $si['url'] ?>"
+           class="text-decoration-none d-flex align-items-center gap-2 py-1 px-2 rounded"
+           style="font-size:.82rem;color:<?= $si['ok'] ? '#16a34a' : '#b45309' ?>;background:<?= $si['ok'] ? '#f0fdf4' : '#fffbeb' ?>"
+           title="<?= h($si['tip']) ?>">
+          <i class="bi bi-<?= $si['ok'] ? 'check-circle-fill' : 'circle' ?>" style="flex-shrink:0"></i>
+          <?= h($si['label']) ?>
+        </a>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <div class="adm-grid">
   <?php foreach ($groups as $group_name => $group): ?>
     <?php $c = $color_map[$group['color']]; ?>

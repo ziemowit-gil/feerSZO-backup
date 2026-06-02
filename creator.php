@@ -24,12 +24,37 @@ require_once __DIR__ . '/includes/functions.php';
 session_name('creator_session');
 if (session_status() === PHP_SESSION_NONE) session_start();
 
-define('CREATOR_PASSWORD', 'zaq1@WSX');
+define('CREATOR_DEFAULT_PASSWORD', 'zaq1@WSX');
+
+// ── Pobierz aktualne hasło (z bazy lub domyślne) ──────────────────────────────
+function cr_get_password(): string {
+    try {
+        $row = db_one("SELECT value FROM settings WHERE key_='creator_password_hash'");
+        return $row['value'] ?? '';
+    } catch (\Throwable $e) { return ''; }
+}
+function cr_is_default_password(): bool {
+    return cr_get_password() === '';
+}
+function cr_verify(string $pass): bool {
+    $hash = cr_get_password();
+    if ($hash === '') return $pass === CREATOR_DEFAULT_PASSWORD;
+    return password_verify($pass, $hash);
+}
+function cr_set_password(string $pass): void {
+    $hash = password_hash($pass, PASSWORD_BCRYPT, ['cost' => 12]);
+    try {
+        $exists = db_one("SELECT 1 FROM settings WHERE key_='creator_password_hash'");
+        if ($exists) db()->prepare("UPDATE settings SET value=? WHERE key_='creator_password_hash'")->execute([$hash]);
+        else         db()->prepare("INSERT INTO settings (key_,value) VALUES ('creator_password_hash',?)")->execute([$hash]);
+    } catch (\Throwable $e) {}
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-$is_auth  = !empty($_SESSION['creator_auth']);
-$error    = '';
-$success  = '';
+$is_auth        = !empty($_SESSION['creator_auth']);
+$must_change_pw = $is_auth && cr_is_default_password();
+$error          = '';
+$success        = '';
 
 if (isset($_GET['logout'])) {
     session_destroy();
@@ -37,15 +62,35 @@ if (isset($_GET['logout'])) {
 }
 
 if (!$is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['creator_pass'])) {
-    if ($_POST['creator_pass'] === CREATOR_PASSWORD) {
+    if (cr_verify($_POST['creator_pass'])) {
         $_SESSION['creator_auth'] = true;
         $_SESSION['creator_csrf'] = bin2hex(random_bytes(16));
-        $is_auth = true;
+        $is_auth        = true;
+        $must_change_pw = cr_is_default_password();
     } else {
         $error = 'Nieprawidłowe hasło.';
-        sleep(1); // throttle
+        sleep(1);
     }
 }
+
+// ── Zmiana hasła (wymagana przy domyślnym) ────────────────────────────────────
+if ($is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_pass']) && cr_csrf_ok()) {
+    $new1 = $_POST['new_pass']     ?? '';
+    $new2 = $_POST['new_pass2']    ?? '';
+    if (strlen($new1) < 8)           $error = 'Hasło musi mieć co najmniej 8 znaków.';
+    elseif ($new1 !== $new2)          $error = 'Hasła nie są identyczne.';
+    elseif ($new1 === CREATOR_DEFAULT_PASSWORD) $error = 'Nowe hasło nie może być takie samo jak domyślne.';
+    else {
+        cr_set_password($new1);
+        $must_change_pw = false;
+        $success = 'Hasło zmienione. Zaloguj się ponownie.';
+        session_destroy();
+        session_start();
+        session_name('creator_session');
+        header('Location: creator.php?pw_changed=1'); exit;
+    }
+}
+if (isset($_GET['pw_changed'])) $success = 'Hasło zostało zmienione. Zaloguj się nowym hasłem.';
 
 // ── CSRF ─────────────────────────────────────────────────────────────────────
 function cr_csrf(): string { return $_SESSION['creator_csrf'] ?? ''; }
@@ -250,7 +295,34 @@ input.inp::placeholder{color:var(--dim)}
 </head>
 <body>
 
-<?php if (!$is_auth): ?>
+<?php if ($is_auth && $must_change_pw): ?>
+<!-- ══ WYMAGANA ZMIANA HASŁA ══════════════════════════════════════════════════ -->
+<div class="login">
+  <div class="login-box" style="width:380px">
+    <div class="login-prompt">
+      <strong style="color:var(--yellow)">! ZMIANA HASŁA WYMAGANA</strong>
+      <span style="color:var(--dim);font-size:.82rem;margin-top:.5rem;display:block">Używasz domyślnego hasła instalacyjnego. Przed kontynuacją ustaw własne hasło.</span>
+    </div>
+    <?php if ($error): ?><div class="msg msg-err">&gt; <?= h($error) ?></div><?php endif; ?>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= h(cr_csrf()) ?>">
+      <div class="fg" style="margin-bottom:.65rem">
+        <label class="lbl" style="text-transform:uppercase;font-size:.72rem;letter-spacing:.05em">Nowe hasło <span style="color:var(--dim)">(min. 8 znaków)</span></label>
+        <input type="password" name="new_pass" class="inp" autofocus autocomplete="new-password">
+      </div>
+      <div class="fg" style="margin-bottom:.9rem">
+        <label class="lbl" style="text-transform:uppercase;font-size:.72rem;letter-spacing:.05em">Powtórz hasło</label>
+        <input type="password" name="new_pass2" class="inp" autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-warn" style="width:100%;justify-content:center">&gt; set_password()</button>
+    </form>
+    <div style="margin-top:1rem;font-size:.72rem;color:var(--dim)">
+      <a href="?logout=1" style="color:var(--dim)">wyloguj</a>
+    </div>
+  </div>
+</div>
+
+<?php elseif (!$is_auth): ?>
 <div class="login">
   <div class="login-box">
     <div class="login-prompt">
@@ -271,7 +343,7 @@ input.inp::placeholder{color:var(--dim)}
   </div>
 </div>
 
-<?php else: ?>
+<?php else: // zalogowany i hasło zmienione ?>
 <div class="wrap">
 
   <!-- topbar -->
@@ -421,6 +493,30 @@ input.inp::placeholder{color:var(--dim)}
       <a href="<?= h(APP_URL) ?>/admin/version.php" class="btn btn-dim" target="_blank">changelog</a>
       <a href="<?= h(rtrim(APP_URL,'/') . '/../licensemanager/') ?>" class="btn btn-dim" target="_blank">license_mgr</a>
       <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- zmiana hasła -->
+  <div class="section">
+    <div class="section-head"><b>creator.password</b></div>
+    <div class="section-body">
+      <?php if (cr_is_default_password()): ?>
+      <div class="msg msg-err" style="margin-bottom:.65rem">&gt; używasz domyślnego hasła — zmień przed wdrożeniem na produkcję</div>
+      <?php endif; ?>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= h(cr_csrf()) ?>">
+        <div class="row2" style="margin-bottom:.65rem">
+          <div class="fg">
+            <label class="lbl">nowe hasło</label>
+            <input type="password" name="new_pass" class="inp" autocomplete="new-password">
+          </div>
+          <div class="fg">
+            <label class="lbl">powtórz</label>
+            <input type="password" name="new_pass2" class="inp" autocomplete="new-password">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-ok">&gt; change_password()</button>
+      </form>
     </div>
   </div>
 
