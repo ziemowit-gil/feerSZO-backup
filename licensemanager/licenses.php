@@ -184,15 +184,74 @@ if ($id) {
       <div class="lm-card">
         <div class="lm-card-header">🔄 Odnów licencję</div>
         <div class="lm-card-body">
-          <form method="post" style="display:flex;gap:.75rem;align-items:flex-end">
+          <form method="post">
             <input type="hidden" name="_csrf"   value="<?= lm_h(lm_csrf()) ?>">
             <input type="hidden" name="_action" value="renew">
-            <div class="lm-form-group" style="margin:0;flex:1">
-              <label class="lm-label">Ile dni od dziś</label>
-              <input type="number" name="days" class="lm-input" value="365" min="1" max="3650">
+            <div class="lm-form-group">
+              <label class="lm-label">Okres przedłużenia</label>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.6rem">
+                <?php foreach ([
+                    ['label'=>'1 miesiąc','days'=>30],
+                    ['label'=>'3 miesiące','days'=>90],
+                    ['label'=>'6 miesięcy','days'=>180],
+                    ['label'=>'1 rok','days'=>365],
+                    ['label'=>'2 lata','days'=>730],
+                    ['label'=>'3 lata','days'=>1095],
+                    ['label'=>'5 lat','days'=>1825],
+                    ['label'=>'Własny','days'=>0],
+                ] as $opt): ?>
+                <label style="cursor:pointer;border:1px solid #334155;padding:.4rem .5rem;text-align:center;font-size:.75rem;border-radius:4px;transition:background .1s"
+                       onmouseover="this.style.background='#334155'" onmouseout="this.style.background=''">
+                  <input type="radio" name="period_preset" value="<?= $opt['days'] ?>"
+                         style="display:none"
+                         onchange="var c=document.getElementById('custom-days');c.style.display=this.value=='0'?'block':'none';if(this.value!='0')document.getElementById('days-input').value=this.value"
+                         <?= $opt['days'] === 365 ? 'checked' : '' ?>>
+                  <?= lm_h($opt['label']) ?>
+                  <?php if ($opt['days'] > 0): ?>
+                  <div style="font-size:.68rem;color:#64748b;margin-top:.1rem"><?= $opt['days'] ?>d</div>
+                  <?php endif; ?>
+                </label>
+                <?php endforeach; ?>
+              </div>
+              <div id="custom-days" style="display:none">
+                <label class="lm-label" style="margin-top:.4rem">Własna liczba dni</label>
+                <input type="number" id="custom-days-input" class="lm-input" value="365" min="1" max="3650"
+                       oninput="document.getElementById('days-hidden').value=this.value">
+              </div>
+              <input type="hidden" id="days-hidden" name="days" value="365">
             </div>
             <button type="submit" class="btn-lm btn-success">Odnów</button>
           </form>
+          <script>
+          // Sync radio → hidden days field
+          document.querySelectorAll('[name=period_preset]').forEach(function(r) {
+            r.addEventListener('change', function() {
+              var custom = document.getElementById('custom-days');
+              var hidden = document.getElementById('days-hidden');
+              if (this.value === '0') {
+                custom.style.display = 'block';
+              } else {
+                custom.style.display = 'none';
+                hidden.value = this.value;
+              }
+            });
+          });
+          // Mark selected preset visually
+          document.querySelectorAll('[name=period_preset]').forEach(function(r) {
+            r.addEventListener('change', function() {
+              document.querySelectorAll('[name=period_preset]').forEach(function(x) {
+                x.closest('label').style.borderColor = '#334155';
+                x.closest('label').style.color = '';
+              });
+              this.closest('label').style.borderColor = '#22c55e';
+              this.closest('label').style.color = '#86efac';
+            });
+            if (r.checked) {
+              r.closest('label').style.borderColor = '#22c55e';
+              r.closest('label').style.color = '#86efac';
+            }
+          });
+          </script>
         </div>
       </div>
 
