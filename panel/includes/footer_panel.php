@@ -4,7 +4,7 @@ $_pv_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 </main>
 <footer class="pv-footer" role="contentinfo">
   <span><i class="bi bi-person-circle me-1" style="color:var(--vol-color)" aria-hidden="true"></i>Panel wolontariusza<?= $_pv_org_f ? ' · '.h($_pv_org_f) : '' ?></span>
-  <span>&copy; <?= date('Y') ?></span>
+  <span>&copy; <?= date('Y') ?> &nbsp;<?php try { require_once dirname(dirname(__DIR__)) . '/includes/version.php'; $__v = app_version()['hash']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.4;font-size:.7rem;font-family:monospace;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?></span>
 </footer>
 </div><!-- /pv-shell -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

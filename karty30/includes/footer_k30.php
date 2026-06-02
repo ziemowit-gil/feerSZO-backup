@@ -14,7 +14,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
     <strong>TyfloKonsultacje</strong> — Karty 30
     <?php if ($_org_f): ?> · <?= h($_org_f) ?><?php endif; ?>
   </span>
-  <span style="color:#9CA3AF">&copy; <?= date('Y') ?> Rejestr Umów NGO</span>
+  <span style="color:#9CA3AF">&copy; <?= date('Y') ?> Rejestr Umów NGO &nbsp;<?php try { require_once dirname(dirname(dirname(__DIR__))) . '/includes/version.php'; $__v = app_version()['hash']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.5;font-size:.7rem;font-family:monospace;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?></span>
 </footer>
 
 </div><!-- /k30-shell -->
