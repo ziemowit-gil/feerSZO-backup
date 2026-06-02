@@ -11,6 +11,20 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_role('admin');
 $PAGE_TITLE = 'Konfiguracja CRON';
 
+// ── Obsługa tokenu ─────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'generate_token') {
+    csrf_check();
+    $token = bin2hex(random_bytes(24)); // 48 znaków hex
+    $exists = db_one("SELECT 1 FROM settings WHERE key_='cron_token'");
+    if ($exists) db()->prepare("UPDATE settings SET value=? WHERE key_='cron_token'")->execute([$token]);
+    else         db()->prepare("INSERT INTO settings (key_,value) VALUES ('cron_token',?)")->execute([$token]);
+    flash_set('success', 'Wygenerowano nowy token CRON.');
+    header('Location: cron_setup.php'); exit;
+}
+
+$cron_token = db_one("SELECT value FROM settings WHERE key_='cron_token'")['value'] ?? '';
+$cron_url   = rtrim(APP_URL, '/') . '/cron.php' . ($cron_token ? '?token=' . $cron_token : '');
+
 // Wykryj ścieżkę do PHP i do katalogu aplikacji
 $php_bin  = trim(@shell_exec('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
 $app_path = rtrim(str_replace('\\', '/', realpath(dirname(__DIR__))), '/');
@@ -84,10 +98,72 @@ $crontab_block = $full_cmd;
   <h4 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Konfiguracja CRON</h4>
 </div>
 
+<?= flash_html() ?>
+
+<!-- ══ OPCJA A: URL (panel hostingowy) ══════════════════════════════════════ -->
+<div class="card border-primary shadow mb-4">
+  <div class="card-header bg-primary text-white fw-bold py-2">
+    <i class="bi bi-globe2 me-2"></i>Opcja A — URL CRON (panel hostingowy, cPanel, Plesk)
+  </div>
+  <div class="card-body">
+
+    <?php if ($cron_token): ?>
+    <p class="small mb-2">Wklej poniższy URL w polu <strong>„Adres URL"</strong> lub użyj polecenia curl w cronie hostingu. Ustaw częstotliwość: <strong>co minutę</strong>.</p>
+
+    <div class="d-flex gap-2 align-items-stretch mb-3">
+      <code class="flex-grow-1 p-2 rounded" id="cron-url-display"
+            style="background:#1e293b;color:#7dd3fc;font-size:.85rem;word-break:break-all;display:block">
+        <?= h($cron_url) ?>
+      </code>
+      <button class="btn btn-outline-primary btn-sm flex-shrink-0"
+              onclick="navigator.clipboard.writeText(<?= json_encode($cron_url) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i> Skopiowano';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i> Kopiuj',2000)">
+        <i class="bi bi-clipboard"></i> Kopiuj
+      </button>
+    </div>
+
+    <p class="small text-muted mb-2">Lub jako polecenie curl (jeśli hosting wymaga komendy zamiast URL):</p>
+    <?php $curl_cmd = 'curl -L -s ' . $cron_url . ' > /dev/null 2>&1'; ?>
+    <div class="d-flex gap-2 align-items-stretch mb-2">
+      <code class="flex-grow-1 p-2 rounded" style="background:#1e293b;color:#7dd3fc;font-size:.82rem;word-break:break-all;display:block">
+        <?= h($curl_cmd) ?>
+      </code>
+      <button class="btn btn-outline-primary btn-sm flex-shrink-0"
+              onclick="navigator.clipboard.writeText(<?= json_encode($curl_cmd) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i> Skopiowano';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i> Kopiuj',2000)">
+        <i class="bi bi-clipboard"></i> Kopiuj
+      </button>
+    </div>
+
+    <div class="mt-3 pt-3 border-top d-flex align-items-center gap-2">
+      <span class="small text-muted">Token: <code><?= h(substr($cron_token, 0, 8)) ?>…</code></span>
+      <form method="post" class="d-inline ms-auto">
+        <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="generate_token">
+        <button class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Stary token przestanie działać. Zaktualizuj URL w panelu hostingu. Kontynuować?')">
+          <i class="bi bi-arrow-clockwise me-1"></i>Wygeneruj nowy token
+        </button>
+      </form>
+    </div>
+
+    <?php else: ?>
+    <p class="text-muted small mb-3">Aby korzystać z URL CRON, wygeneruj token bezpieczeństwa.</p>
+    <form method="post">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="generate_token">
+      <button class="btn btn-primary">
+        <i class="bi bi-key me-1"></i>Wygeneruj token i URL
+      </button>
+    </form>
+    <?php endif; ?>
+
+  </div>
+</div>
+
+<!-- ══ OPCJA B: CLI crontab ══════════════════════════════════════════════════ -->
 <!-- GŁÓWNE polecenie — duże, nie można przegapić -->
 <div class="card border-success shadow mb-4">
   <div class="card-header bg-success text-white fw-bold py-2 d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-1-circle-fill me-2"></i>Dodaj ten jeden wpis do crontab — uruchomi wszystkie zadania</span>
+    <span><i class="bi bi-terminal me-2"></i>Opcja B — CLI crontab (SSH, serwer VPS/dedykowany)</span>
     <button class="btn btn-sm btn-light" onclick="copyBlock()">
       <i class="bi bi-clipboard me-1"></i>Kopiuj
     </button>
