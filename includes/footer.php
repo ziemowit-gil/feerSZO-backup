@@ -1,9 +1,12 @@
   </div><!-- /content -->
 
   <footer class="border-top py-2 px-4 text-muted small bg-white d-flex justify-content-between align-items-center">
-    <span><?= h(ORG_NAME) ?></span>
+    <span>Platforma NGO</span>
     <span class="d-flex align-items-center gap-3">
       <?php
+        $_w5 = preg_split('/\s+/', trim(ORG_NAME));
+        $_acr = count($_w5) >= 2 ? implode('', array_map(fn($w) => mb_strtoupper(mb_substr($w,0,1,'UTF-8'),'UTF-8'), $_w5)) : mb_substr(ORG_NAME,0,12,'UTF-8');
+        echo '<span class="text-muted" style="opacity:.55;font-size:.78rem">' . h($_acr) . '</span>';
         try {
             require_once __DIR__ . '/version.php';
             $__fv = app_version();

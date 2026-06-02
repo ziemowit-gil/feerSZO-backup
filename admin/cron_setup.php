@@ -100,10 +100,10 @@ $crontab_block = $full_cmd;
 
 <?= flash_html() ?>
 
-<!-- ══ OPCJA A: URL (panel hostingowy) ══════════════════════════════════════ -->
+<!-- ══ OPCJA A: DirectAdmin / PHP CLI ════════════════════════════════════════ -->
 <div class="card border-primary shadow mb-4">
   <div class="card-header bg-primary text-white fw-bold py-2">
-    <i class="bi bi-globe2 me-2"></i>Opcja A — URL CRON (panel hostingowy, cPanel, Plesk)
+    <i class="bi bi-globe2 me-2"></i>Opcja A — DirectAdmin / panel hostingowy (PHP CLI)
   </div>
   <div class="card-body">
 
@@ -182,11 +182,66 @@ $crontab_block = $full_cmd;
   </div>
 </div>
 
-<!-- ══ OPCJA B: CLI crontab ══════════════════════════════════════════════════ -->
+<!-- ══ OPCJA B: curl (URL CRON) ══════════════════════════════════════════════ -->
+<div class="card border-info shadow mb-4">
+  <div class="card-header bg-info text-white fw-bold py-2">
+    <i class="bi bi-link-45deg me-2"></i>Opcja B — URL CRON przez curl (cPanel, Plesk, inne panele bez PHP CLI)
+  </div>
+  <div class="card-body">
+
+    <?php if ($cron_token): ?>
+    <div class="alert alert-info py-2 mb-3 small">
+      Gdy panel hostingowy wymaga <strong>adresu URL</strong> zamiast komendy — wpisz URL bezpośrednio lub użyj curl w polu polecenia. Ustaw częstotliwość: <strong>co minutę</strong>.
+    </div>
+
+    <p class="small fw-semibold mb-1">Sam URL (wklej w pole „Adres URL" w panelu):</p>
+    <?php $url_only = $cron_url; ?>
+    <div class="d-flex gap-2 align-items-stretch mb-3">
+      <code class="flex-grow-1 p-2 rounded"
+            style="background:#1e293b;color:#7dd3fc;font-size:.82rem;word-break:break-all;display:block">
+        <?= h($url_only) ?>
+      </code>
+      <button class="btn btn-info btn-sm text-white flex-shrink-0"
+              onclick="navigator.clipboard.writeText(<?= json_encode($url_only) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i><br>OK';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i><br>Kopiuj',2000)"
+              style="min-width:65px"><i class="bi bi-clipboard"></i><br>Kopiuj</button>
+    </div>
+
+    <p class="small fw-semibold mb-1">Lub jako komenda curl (gdy panel wymaga komendy zamiast URL):</p>
+    <?php $curl_cmd2 = 'curl -L -s ' . $cron_url . ' > /dev/null 2>&1'; ?>
+    <div class="d-flex gap-2 align-items-stretch mb-0">
+      <code class="flex-grow-1 p-2 rounded"
+            style="background:#1e293b;color:#7dd3fc;font-size:.82rem;word-break:break-all;display:block">
+        <?= h($curl_cmd2) ?>
+      </code>
+      <button class="btn btn-info btn-sm text-white flex-shrink-0"
+              onclick="navigator.clipboard.writeText(<?= json_encode($curl_cmd2) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i><br>OK';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i><br>Kopiuj',2000)"
+              style="min-width:65px"><i class="bi bi-clipboard"></i><br>Kopiuj</button>
+    </div>
+
+    <div class="mt-3 pt-2 border-top d-flex align-items-center gap-2">
+      <span class="small text-muted">Token: <code><?= h(substr($cron_token,0,8)) ?>…</code></span>
+      <form method="post" class="d-inline ms-auto">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="generate_token">
+        <button class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Stary token przestanie działać. Zaktualizuj URL. Kontynuować?')">
+          <i class="bi bi-arrow-clockwise me-1"></i>Nowy token
+        </button>
+      </form>
+    </div>
+
+    <?php else: ?>
+    <p class="text-muted small mb-3">Wygeneruj token w Opcji A — zostanie użyty też tutaj.</p>
+    <?php endif; ?>
+
+  </div>
+</div>
+
+<!-- ══ OPCJA C: CLI crontab ══════════════════════════════════════════════════ -->
 <!-- GŁÓWNE polecenie — duże, nie można przegapić -->
 <div class="card border-success shadow mb-4">
   <div class="card-header bg-success text-white fw-bold py-2 d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-terminal me-2"></i>Opcja B — CLI crontab (SSH, serwer VPS/dedykowany)</span>
+    <span><i class="bi bi-terminal me-2"></i>Opcja C — CLI crontab (SSH, serwer VPS/dedykowany)</span>
     <button class="btn btn-sm btn-light" onclick="copyBlock()">
       <i class="bi bi-clipboard me-1"></i>Kopiuj
     </button>

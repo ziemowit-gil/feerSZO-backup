@@ -9,7 +9,11 @@ $_org_name_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
     <strong>Katalog współpracowników</strong>
     <?php if ($_org_name_f): ?> · <?= h($_org_name_f) ?><?php endif; ?>
   </span>
-  <span>&copy; <?= date('Y') ?> Rejestr Umów NGO &nbsp;<?php try { require_once dirname(dirname(__DIR__)) . '/includes/version.php'; $__v = app_version()['hash']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.45;font-size:.7rem;font-family:monospace;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?></span>
+  <span style="font-size:.78rem;display:flex;align-items:center;gap:.5rem">
+    <?php $_w4=preg_split('/\s+/',trim($_org_name_f??'')); if(count($_w4)>=2) echo '<span style="opacity:.5">'.h(implode('',array_map(fn($w)=>mb_strtoupper(mb_substr($w,0,1,'UTF-8'),'UTF-8'),$_w4))).'</span>'; ?>
+    Platforma NGO
+    <?php try { require_once dirname(dirname(__DIR__)) . '/includes/version.php'; $__v = app_version()['hash']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.45;font-family:monospace;font-size:.7rem;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?>
+  </span>
 </footer>
 
 </div><!-- /dir-shell -->
