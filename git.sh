@@ -50,7 +50,7 @@ ensure_gitignore() {
     for entry in "${entries[@]}"; do
         grep -qxF "$entry" .gitignore 2>/dev/null || { echo "$entry" >> .gitignore; changed=1; }
     done
-    [[ $changed -eq 1 ]] && info "Zaktualizowano .gitignore"
+    if [[ $changed -eq 1 ]]; then info "Zaktualizowano .gitignore"; fi
 }
 
 # ── STATUS ────────────────────────────────────────────────────────────────────
@@ -64,9 +64,9 @@ cmd_status() {
     git fetch "$REMOTE" "$BRANCH" --quiet 2>/dev/null || true
     ahead=$(git rev-list --count "${REMOTE}/${BRANCH}..HEAD" 2>/dev/null || echo 0)
     behind=$(git rev-list --count "HEAD..${REMOTE}/${BRANCH}" 2>/dev/null || echo 0)
-    [[ $ahead  -gt 0 ]] && warn "Lokalnie: +${ahead} commitów do wypchnięcia"
-    [[ $behind -gt 0 ]] && warn "Zdalnie:  +${behind} commitów do pobrania"
-    [[ $ahead -eq 0 && $behind -eq 0 ]] && success "Synchronizacja aktualna"
+    if [[ $ahead  -gt 0 ]]; then warn "Lokalnie: +${ahead} commitów do wypchnięcia"; fi
+    if [[ $behind -gt 0 ]]; then warn "Zdalnie:  +${behind} commitów do pobrania";  fi
+    if [[ $ahead -eq 0 && $behind -eq 0 ]]; then success "Synchronizacja aktualna"; fi
 }
 
 # ── PUSH ──────────────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ cmd_push() {
     git status --short
     echo
     read -rp "$(echo -e "${YELLOW}?${NC} Wiadomość commita [${msg}]: ")" custom_msg
-    [[ -n "$custom_msg" ]] && msg="$custom_msg"
+    if [[ -n "$custom_msg" ]]; then msg="$custom_msg"; fi
 
     # Staging — wszystko oprócz .gitignore'owanych
     git add -A
@@ -126,7 +126,7 @@ cmd_pull() {
     if ! git diff --quiet || ! git diff --staged --quiet; then
         warn "Masz niezatwierdzone zmiany. Pull może powodować konflikty."
         read -rp "$(echo -e "${YELLOW}?${NC} Kontynuować? [t/N]: ")" ans
-        [[ "${ans,,}" != "t" ]] && { info "Anulowano."; exit 0; }
+        if [[ "${ans,,}" != "t" ]]; then info "Anulowano."; exit 0; fi
     fi
 
     info "Pobieranie z ${REMOTE}/${BRANCH}..."

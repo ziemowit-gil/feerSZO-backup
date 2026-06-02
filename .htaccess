@@ -76,9 +76,12 @@ RewriteCond %{REQUEST_FILENAME} !-d
     Deny from all
 </Files>
 
-# Chroń katalog includes przed bezpośrednim dostępem
+# Chroń katalogi wrażliwe przed bezpośrednim dostępem HTTP
 <IfModule mod_rewrite.c>
-    RewriteRule ^includes/ - [F,L]
+    RewriteRule ^includes/  - [F,L]
+    RewriteRule ^backups/   - [F,L]
+    RewriteRule ^cron/      - [F,L]
+    RewriteRule ^tenants/   - [F,L]
 </IfModule>
 
 # Nagłówki bezpieczeństwa

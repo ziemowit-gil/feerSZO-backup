@@ -11,7 +11,16 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 // ── Weryfikacja IKA — wymagana dla całego CRM ────────────────────────────────
 // Sesja IKA jest współdzielona z systemem głównym (30 min). Użytkownicy bez
 // przypisanego kodu IKA mogą poprosić admina o jego nadanie (Administracja → Kody IKA).
-ika_require(APP_URL . $_SERVER['REQUEST_URI']);
+// Usuń bazowy prefiks APP_URL z REQUEST_URI zanim go dokleisz — inaczej
+// na subpath (np. /szo-preprod/) powstaje podwójny prefiks w URL powrotu.
+(function () {
+    $uri  = $_SERVER['REQUEST_URI'] ?? '/';
+    $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+    if ($base !== '' && $base !== '/' && str_starts_with($uri, $base)) {
+        $uri = substr($uri, strlen($base));
+    }
+    ika_require(APP_URL . $uri);
+})();
 
 $_cu        = current_user();
 $_crm_title = $PAGE_TITLE ?? 'CRM';

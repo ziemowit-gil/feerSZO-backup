@@ -26,7 +26,14 @@ k30_require_access();
 // ── IKA — wymagane przy każdym dostępie do Karty30 ───────────────────────────
 // Moduł przetwarza dane osobowe beneficjentów (imię, adres, opis problemu).
 // Sesja IKA ważna 30 min — wspólna z CRM i systemem głównym.
-ika_require(APP_URL . $_SERVER['REQUEST_URI']);
+(function () {
+    $uri  = $_SERVER['REQUEST_URI'] ?? '/';
+    $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+    if ($base !== '' && $base !== '/' && str_starts_with($uri, $base)) {
+        $uri = substr($uri, strlen($base));
+    }
+    ika_require(APP_URL . $uri);
+})();
 
 $_ku        = current_user();
 $_k30_title = $PAGE_TITLE ?? 'TyfloKonsultacje';
