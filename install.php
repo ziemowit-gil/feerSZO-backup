@@ -122,6 +122,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
 }
 
 // ── KROK 3: Dane organizacji ──────────────────────────────────────────────────
+
+// AJAX — fetch KRS
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3 && !empty($_POST['_krs_fetch'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!file_exists(__DIR__ . '/includes/krs.php')) {
+        echo json_encode(['error' => 'Brak modułu KRS.']); exit;
+    }
+    require_once __DIR__ . '/includes/krs.php';
+    $krs_nr = preg_replace('/\D/', '', $_POST['_krs_fetch']);
+    echo json_encode(krs_lookup($krs_nr));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
     $org_name = trim($_POST['org_name'] ?? '');
     $org_krs  = preg_replace('/\D/', '', $_POST['org_krs'] ?? '');
@@ -542,6 +555,17 @@ $total_steps = count($step_labels);
   <h2><?= $reinstall ? 'Reinstalacja platformy' : 'Wymagania systemowe' ?></h2>
   <p class="sub">Sprawdzenie środowiska przed instalacją.</p>
 
+  <!-- Informacja o Microsoft 365 -->
+  <div class="alert alert-primary d-flex align-items-start gap-2 py-2 mb-3 small">
+    <i class="bi bi-microsoft flex-shrink-0 mt-1" style="font-size:1rem"></i>
+    <div>
+      <strong>Platforma NGO współdziała z Microsoft 365.</strong>
+      Logowanie OAuth, synchronizacja kont i wysyłka e-mail przez M365 są <strong>zalecane do prawidłowego działania</strong>.
+      Skonfiguruj konto M365 i zarejestruj aplikację w Azure AD przed instalacją lub w kroku 4 kreatora.
+      <a href="https://portal.azure.com" target="_blank" class="alert-link">Azure Portal →</a>
+    </div>
+  </div>
+
   <?php foreach ($exts as $ext => $required): ?>
   <div class="chk">
     <?php $ok = extension_loaded($ext); ?>
@@ -615,21 +639,96 @@ $total_steps = count($step_labels);
   <h2>Dane organizacji</h2>
   <p class="sub">Będą widoczne w systemie, dokumentach i stopce e-maili.</p>
 
-  <form method="post">
+  <!-- Fetch KRS -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold small">Numer KRS</label>
+    <div class="d-flex gap-2">
+      <input type="text" id="krs-input" class="form-control form-control-sm font-monospace"
+             placeholder="0000000000" maxlength="10" pattern="\d{0,10}"
+             value="<?= htmlspecialchars($_SESSION['install_org']['org_krs'] ?? '') ?>">
+      <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" onclick="fetchKRS()">
+        <i class="bi bi-search me-1"></i>Zaciągnij z KRS
+      </button>
+    </div>
+    <div id="krs-status" class="form-text"></div>
+  </div>
+
+  <!-- Podgląd danych z KRS -->
+  <div id="krs-preview" class="border rounded p-3 mb-3 d-none" style="background:#f0fdf4;border-color:#bbf7d0!important;font-size:.82rem">
+    <div class="fw-semibold small mb-2"><i class="bi bi-check-circle text-success me-1"></i>Dane pobrane z KRS</div>
+    <table class="table table-sm table-borderless mb-2" style="font-size:.8rem">
+      <tr><td class="text-muted py-0" style="width:120px">Nazwa</td><td id="kp-nazwa" class="fw-semibold py-0"></td></tr>
+      <tr><td class="text-muted py-0">Forma prawna</td><td id="kp-forma" class="py-0"></td></tr>
+      <tr><td class="text-muted py-0">NIP</td><td id="kp-nip" class="font-monospace py-0"></td></tr>
+      <tr><td class="text-muted py-0">REGON</td><td id="kp-regon" class="font-monospace py-0"></td></tr>
+      <tr><td class="text-muted py-0">Adres</td><td id="kp-adres" class="py-0"></td></tr>
+      <tr><td class="text-muted py-0">Rejestr</td><td id="kp-rejestr" class="py-0"></td></tr>
+    </table>
+    <button type="button" class="btn btn-success btn-sm" onclick="applyKRS()">
+      <i class="bi bi-check2 me-1"></i>Użyj tych danych
+    </button>
+  </div>
+
+  <form method="post" id="org-form">
     <div class="mb-3">
       <label class="form-label fw-semibold small">Pełna nazwa organizacji <span class="text-danger">*</span></label>
-      <input type="text" name="org_name" class="form-control"
+      <input type="text" name="org_name" id="org-name" class="form-control"
              value="<?= htmlspecialchars($_SESSION['install_org']['org_name'] ?? '') ?>"
              placeholder="np. Fundacja Edukacji Empatii Rozwoju FEER" required maxlength="200">
     </div>
-    <div class="mb-4">
-      <label class="form-label fw-semibold small">Numer KRS <span class="text-muted fw-normal">(opcjonalny — wymagany do certyfikatu)</span></label>
-      <input type="text" name="org_krs" class="form-control font-monospace"
-             value="<?= htmlspecialchars($_SESSION['install_org']['org_krs'] ?? '') ?>"
-             placeholder="0000000000" maxlength="10" pattern="\d{0,10}">
-    </div>
+    <input type="hidden" name="org_krs" id="org-krs-hidden"
+           value="<?= htmlspecialchars($_SESSION['install_org']['org_krs'] ?? '') ?>">
     <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
   </form>
+
+  <script>
+  var _krsData = null;
+
+  function fetchKRS() {
+    var krs = document.getElementById('krs-input').value.replace(/\D/g,'');
+    if (!krs) { setKrsStatus('Wpisz numer KRS.','warn'); return; }
+    setKrsStatus('Pobieranie danych…','info');
+    document.getElementById('krs-preview').classList.add('d-none');
+
+    var fd = new FormData();
+    fd.append('_krs_fetch', krs);
+
+    fetch('install.php?step=3', { method:'POST', body: fd })
+      .then(r => r.json())
+      .then(function(d) {
+        if (d.error) { setKrsStatus('✗ ' + d.error, 'danger'); return; }
+        _krsData = d;
+        document.getElementById('kp-nazwa').textContent   = d.nazwa       || '—';
+        document.getElementById('kp-forma').textContent   = d.forma_prawna|| '—';
+        document.getElementById('kp-nip').textContent     = d.nip         || '—';
+        document.getElementById('kp-regon').textContent   = d.regon       || '—';
+        document.getElementById('kp-adres').textContent   = d.adres       || '—';
+        document.getElementById('kp-rejestr').textContent = d.rejestr_label|| d.rejestr || '—';
+        document.getElementById('krs-preview').classList.remove('d-none');
+        setKrsStatus('✓ Znaleziono — sprawdź dane i kliknij „Użyj tych danych"','success');
+      })
+      .catch(function() { setKrsStatus('Błąd połączenia.','danger'); });
+  }
+
+  function applyKRS() {
+    if (!_krsData) return;
+    document.getElementById('org-name').value       = _krsData.nazwa || '';
+    document.getElementById('krs-input').value      = _krsData.krs   || '';
+    document.getElementById('org-krs-hidden').value = _krsData.krs   || '';
+    setKrsStatus('✓ Dane wpisane do formularza','success');
+  }
+
+  function setKrsStatus(msg, type) {
+    var el = document.getElementById('krs-status');
+    el.textContent = msg;
+    el.className = 'form-text ' + {info:'text-primary',success:'text-success',warn:'text-warning',danger:'text-danger'}[type] || 'text-muted';
+  }
+
+  // Synchronizuj KRS do hidden przy zmianie
+  document.getElementById('krs-input').addEventListener('input', function() {
+    document.getElementById('org-krs-hidden').value = this.value.replace(/\D/g,'');
+  });
+  </script>
 
   <?php // ── KROK 4: Microsoft
   elseif ($step === 4):
