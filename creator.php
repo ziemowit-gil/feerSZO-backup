@@ -13,9 +13,9 @@
  */
 
 // ── Minimalny bootstrap — bez weryfikacji cert ───────────────────────────────
-define('APP_INSTALLED', true);
-define('BOOTSTRAP_CHECKED', true); // pomiń bootstrap.php
-define('CREATOR_MODE', true);
+if (!defined('APP_INSTALLED'))    define('APP_INSTALLED', true);
+if (!defined('BOOTSTRAP_CHECKED')) define('BOOTSTRAP_CHECKED', true); // pomiń bootstrap.php
+if (!defined('CREATOR_MODE'))     define('CREATOR_MODE', true);
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
@@ -50,7 +50,6 @@ if (!$is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['creator_
 // ── CSRF ─────────────────────────────────────────────────────────────────────
 function cr_csrf(): string { return $_SESSION['creator_csrf'] ?? ''; }
 function cr_csrf_ok(): bool { return ($_POST['_csrf'] ?? '') === ($_SESSION['creator_csrf'] ?? ''); }
-function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
 // ── Cert helpers (kopiowane z admin/app_license.php) ─────────────────────────
 $certs_dir = __DIR__ . '/certs';
