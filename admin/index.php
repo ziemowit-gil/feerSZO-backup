@@ -15,6 +15,44 @@ require_role('admin');
 ika_require(APP_URL . '/admin/index.php', 3600);
 $PAGE_TITLE = 'Administrator';
 
+// ── Setup: utwórz administratora org ─────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'create_org_admin') {
+    csrf_check();
+    require_once dirname(__DIR__) . '/includes/mail_queue.php';
+    $adm_name  = trim($_POST['adm_name']  ?? '');
+    $adm_email = trim($_POST['adm_email'] ?? '');
+    $adm_pass  = bin2hex(random_bytes(6)); // 12-znakowe losowe hasło
+    $adm_errors = [];
+
+    if (!$adm_name)                          $adm_errors[] = 'Podaj imię i nazwisko.';
+    if (!filter_var($adm_email, FILTER_VALIDATE_EMAIL)) $adm_errors[] = 'Podaj prawidłowy e-mail.';
+    if (!$adm_errors) {
+        $exists = db_one("SELECT id FROM users WHERE email=?", [$adm_email]);
+        if ($exists) $adm_errors[] = 'Użytkownik z tym e-mailem już istnieje.';
+    }
+    if (!$adm_errors) {
+        $hash = password_hash($adm_pass, PASSWORD_BCRYPT);
+        db_insert('users', ['name'=>$adm_name,'email'=>$adm_email,'password'=>$hash,'role'=>'admin','is_active'=>1]);
+
+        $org  = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
+        $url  = defined('APP_URL') ? APP_URL : '';
+        $body = "Witaj {$adm_name},\n\n"
+              . "Zostało dla Ciebie utworzone konto administratora w systemie Platforma NGO — {$org}.\n\n"
+              . "Dane logowania:\n"
+              . "  Adres systemu : {$url}\n"
+              . "  E-mail        : {$adm_email}\n"
+              . "  Hasło         : {$adm_pass}\n\n"
+              . "Po pierwszym logowaniu zmień hasło w ustawieniach konta.\n\n"
+              . "Pozdrawiamy,\n{$org}";
+
+        mail_queue_add($adm_email, $adm_name, "Dostęp do systemu — {$org}", nl2br(htmlspecialchars($body)), $body);
+        flash_set('success', "Administrator {$adm_name} ({$adm_email}) został utworzony. Dane logowania wysłano na podany adres e-mail.");
+        header('Location: ' . APP_URL . '/admin/index.php'); exit;
+    }
+    flash_set('error', implode(' ', $adm_errors));
+    header('Location: ' . APP_URL . '/admin/index.php#setup'); exit;
+}
+
 // ── Liczniki do odznak ────────────────────────────────────────────────────────
 $cnt = [];
 
@@ -302,29 +340,40 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <?php
   // ── Checklist konfiguracji wstępnej ──────────────────────────────────────────
-  $setup_items = [];
-
   $s_org_name  = org_setting('org_name');
   $s_org_krs   = org_setting('org_krs');
   $s_logo      = org_setting('org_logo');
   $s_color     = org_setting('sidebar_color');
-  $s_vol_color = org_setting('volunteer_color');
   $s_cron      = db_one("SELECT 1 FROM settings WHERE key_='cron_token'");
   $s_cert      = file_exists(dirname(__DIR__) . '/certs/app.crt');
   $s_m365      = org_setting('m365_tenant_id') || org_setting('smtp_host') || org_setting('m365_send_from_email');
-  $s_reps      = (bool)db_one("SELECT 1 FROM org_representatives WHERE is_active=1") ?? false;
+  $s_reps      = false;
+  try { $s_reps = (bool)db_one("SELECT 1 FROM org_representatives WHERE is_active=1"); } catch(\Throwable $e){}
 
-  try { $s_reps = (bool)db_one("SELECT 1 FROM org_representatives WHERE is_active=1"); } catch(\Throwable $e){ $s_reps=false; }
+  // Sprawdź hasło serwis@local (domyślne = 'serwis')
+  $s_serwis_pass = false;
+  try {
+      $serwis = db_one("SELECT password FROM users WHERE email='serwis@local'");
+      if ($serwis) $s_serwis_pass = !password_verify('serwis', $serwis['password']);
+  } catch(\Throwable $e){}
+
+  // Sprawdź czy jest admin poza serwis@local
+  $s_org_admin = false;
+  try {
+      $s_org_admin = (bool)db_one("SELECT 1 FROM users WHERE role='admin' AND is_active=1 AND email != 'serwis@local'");
+  } catch(\Throwable $e){}
 
   $setup_items = [
-    ['ok'=>(bool)$s_org_name, 'label'=>'Nazwa organizacji',      'url'=>'/admin/org_settings.php',   'tip'=>'Pełna nazwa w bazie danych'],
-    ['ok'=>(bool)$s_org_krs,  'label'=>'Numer KRS',              'url'=>'/admin/org_settings.php',   'tip'=>'Wymagany do certyfikatu'],
-    ['ok'=>(bool)$s_logo,     'label'=>'Logo organizacji',        'url'=>'/admin/org_settings.php#branding', 'tip'=>'Wyświetlane na stronie logowania'],
-    ['ok'=>$s_color!=='#1e293b' && (bool)$s_color, 'label'=>'Kolor brandingu', 'url'=>'/admin/org_settings.php#branding', 'tip'=>'Kolor sidebara i panelu'],
-    ['ok'=>(bool)$s_m365,     'label'=>'E-mail (M365 lub SMTP)', 'url'=>'/admin/org_settings.php#mail', 'tip'=>'Konfiguracja wysyłki maili'],
-    ['ok'=>$s_cert,           'label'=>'Certyfikat instalacyjny', 'url'=>'/admin/app_license.php',    'tip'=>'x509 wymagany do uruchomienia'],
-    ['ok'=>(bool)$s_cron,     'label'=>'Token CRON',              'url'=>'/admin/cron_setup.php',     'tip'=>'Potrzebny do URL-cron w DirectAdmin'],
-    ['ok'=>$s_reps,           'label'=>'Osoby do reprezentacji',  'url'=>'/admin/org_settings.php#representatives', 'tip'=>'Podpisujący umowy'],
+    ['ok'=>(bool)$s_org_name,  'label'=>'Nazwa organizacji',       'url'=>'/admin/org_settings.php',   'tip'=>'Pełna nazwa w bazie danych'],
+    ['ok'=>(bool)$s_org_krs,   'label'=>'Numer KRS',               'url'=>'/admin/org_settings.php',   'tip'=>'Wymagany do certyfikatu'],
+    ['ok'=>(bool)$s_logo,      'label'=>'Logo organizacji',         'url'=>'/admin/org_settings.php#branding', 'tip'=>'Wyświetlane na stronie logowania'],
+    ['ok'=>$s_color!=='#1e293b'&&(bool)$s_color, 'label'=>'Kolor brandingu', 'url'=>'/admin/org_settings.php#branding', 'tip'=>'Kolor sidebara i panelu'],
+    ['ok'=>(bool)$s_m365,      'label'=>'E-mail (M365 lub SMTP)',  'url'=>'/admin/org_settings.php#mail', 'tip'=>'Konfiguracja wysyłki maili'],
+    ['ok'=>$s_cert,            'label'=>'Certyfikat instalacyjny',  'url'=>'/admin/app_license.php',    'tip'=>'x509 wymagany do uruchomienia'],
+    ['ok'=>(bool)$s_cron,      'label'=>'Token CRON',               'url'=>'/admin/cron_setup.php',     'tip'=>'Potrzebny do URL-cron w DirectAdmin'],
+    ['ok'=>$s_reps,            'label'=>'Osoby do reprezentacji',   'url'=>'/admin/org_settings.php#representatives', 'tip'=>'Podpisujący umowy'],
+    ['ok'=>$s_serwis_pass,     'label'=>'Hasło konta serwisowego',  'url'=>'/admin/users.php',          'tip'=>'serwis@local — zmień z domyślnego "serwis"', 'warn'=>true],
+    ['ok'=>$s_org_admin,       'label'=>'Administrator organizacji','url'=>'#create-admin',             'tip'=>'Konto admina dla właściciela systemu', 'action'=>true],
   ];
 
   $done  = count(array_filter($setup_items, fn($i) => $i['ok']));
@@ -343,17 +392,54 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="progress mb-3" style="height:4px">
         <div class="progress-bar bg-warning" style="width:<?= round($done/$total*100) ?>%"></div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.35rem">
-        <?php foreach ($setup_items as $si): ?>
-        <a href="<?= APP_URL . $si['url'] ?>"
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.35rem" id="setup">
+        <?php foreach ($setup_items as $si):
+          $is_ok   = $si['ok'];
+          $is_warn = !$is_ok && !empty($si['warn']);
+          $is_act  = !$is_ok && !empty($si['action']);
+          $href    = !empty($si['action']) && !$is_ok ? '#' : APP_URL . $si['url'];
+          $onclick = $is_act ? 'onclick="document.getElementById(\'createAdminModal\').classList.toggle(\'d-none\')"' : '';
+          $bg      = $is_ok ? '#f0fdf4' : ($is_warn ? '#fff1f2' : '#fffbeb');
+          $color   = $is_ok ? '#16a34a' : ($is_warn ? '#be123c' : '#b45309');
+          $icon    = $is_ok ? 'check-circle-fill' : ($is_warn ? 'exclamation-circle-fill' : 'circle');
+        ?>
+        <a href="<?= h($href) ?>" <?= $onclick ?>
            class="text-decoration-none d-flex align-items-center gap-2 py-1 px-2 rounded"
-           style="font-size:.82rem;color:<?= $si['ok'] ? '#16a34a' : '#b45309' ?>;background:<?= $si['ok'] ? '#f0fdf4' : '#fffbeb' ?>"
+           style="font-size:.82rem;color:<?= $color ?>;background:<?= $bg ?>"
            title="<?= h($si['tip']) ?>">
-          <i class="bi bi-<?= $si['ok'] ? 'check-circle-fill' : 'circle' ?>" style="flex-shrink:0"></i>
+          <i class="bi bi-<?= $icon ?>" style="flex-shrink:0"></i>
           <?= h($si['label']) ?>
         </a>
         <?php endforeach; ?>
       </div>
+
+      <!-- Formularz tworzenia admina org (inline, ukryty) -->
+      <?php if (!$s_org_admin): ?>
+      <div id="createAdminModal" class="d-none mt-3 p-3 border rounded" style="background:#fffbeb">
+        <div class="fw-semibold small mb-2"><i class="bi bi-person-plus me-1"></i>Utwórz administratora organizacji</div>
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="create_org_admin">
+          <div class="col-sm-4">
+            <label class="form-label small fw-semibold mb-1">Imię i nazwisko</label>
+            <input type="text" name="adm_name" class="form-control form-control-sm" placeholder="Jan Kowalski" required>
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label small fw-semibold mb-1">E-mail</label>
+            <input type="email" name="adm_email" class="form-control form-control-sm" placeholder="jan@organizacja.pl" required>
+          </div>
+          <div class="col-sm-3">
+            <button class="btn btn-warning btn-sm w-100">
+              <i class="bi bi-send me-1"></i>Utwórz i wyślij
+            </button>
+          </div>
+          <div class="col-12">
+            <div class="form-text">Hasło zostanie wygenerowane automatycznie i wysłane na podany adres e-mail.</div>
+          </div>
+        </form>
+      </div>
+      <?php endif; ?>
+
     </div>
   </div>
   <?php endif; ?>
