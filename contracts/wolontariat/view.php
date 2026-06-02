@@ -341,6 +341,63 @@ $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 ?>
 
+<!-- ── Styles widoku umowy ──────────────────────────────────────────────────── -->
+<style>
+/* Zakładki — nowoczesny styl */
+#wolontariatTabs {
+  border-bottom: 2px solid #E2E8F0;
+  flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
+  gap: .15rem; padding-bottom: 0;
+}
+#wolontariatTabs::-webkit-scrollbar { display: none; }
+#wolontariatTabs .nav-link {
+  border: none; border-bottom: 2px solid transparent; border-radius: 0;
+  padding: .65rem 1rem; font-size: .83rem; font-weight: 500;
+  color: #64748B; white-space: nowrap;
+  margin-bottom: -2px; transition: color .12s, border-color .12s;
+  display: flex; align-items: center; gap: .35rem;
+}
+#wolontariatTabs .nav-link:hover { color: #1E3A5F; }
+#wolontariatTabs .nav-link.active {
+  color: #1E6DFF; border-bottom-color: #1E6DFF;
+  font-weight: 700; background: none;
+}
+#wolontariatTabs .nav-link .bi { font-size: .9rem; }
+
+/* Zawartość zakładek */
+#wolontariatTabsContent {
+  border: 1px solid #E2E8F0 !important;
+  border-top: none !important;
+  border-radius: 0 0 12px 12px !important;
+}
+
+/* Karty sekcji wewnątrz zakładek */
+.tab-pane .card {
+  border: 1px solid #E2E8F0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04) !important;
+  overflow: hidden;
+}
+.tab-pane .card-header {
+  background: #F8FAFC !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+  padding: .75rem 1.1rem !important;
+  font-size: .88rem !important;
+  font-weight: 700 !important;
+  color: #1E293B !important;
+  display: flex; align-items: center; gap: .4rem;
+}
+.tab-pane .card-body { padding: 1rem 1.1rem !important; }
+
+/* Detail label/value */
+.detail-label {
+  font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #94A3B8; margin-bottom: .2rem;
+}
+.detail-value { font-size: .9rem; color: #1E293B; line-height: 1.4; }
+</style>
+
 <!-- ── ZAKŁADKI ────────────────────────────────────────────────────────────── -->
 <ul class="nav nav-tabs mb-0 no-print" id="wolontariatTabs" role="tablist">
 

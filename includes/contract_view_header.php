@@ -76,7 +76,7 @@ $_cvh_accent = match($_cvh_st['class']) {
 
 <!-- ── Contract hero header ──────────────────────────────────────────── -->
 <div class="contract-hero no-print mb-3"
-     style="border-left: 4px solid <?= $_cvh_accent ?>">
+     style="--cvh-accent: <?= $_cvh_accent ?>">
 
   <div class="contract-hero-top">
 
@@ -207,10 +207,11 @@ $_cvh_accent = match($_cvh_st['class']) {
 <style>
 .contract-hero {
   background: #fff;
-  border-radius: 0 .6rem .6rem 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,.09);
-  padding: 1.1rem 1.3rem .9rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.07);
+  padding: 1.1rem 1.4rem 1rem;
   margin-bottom: 1rem;
+  border-left: 4px solid var(--cvh-accent, #3b82f6);
 }
 .contract-hero-top {
   display: flex;
@@ -246,17 +247,17 @@ $_cvh_accent = match($_cvh_st['class']) {
 .contract-hero-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: .5rem 1.5rem;
+  gap: .6rem 2rem;
   align-items: flex-start;
   border-top: 1px solid #f1f5f9;
-  padding-top: .75rem;
+  padding-top: .8rem;
 }
 .contract-hero-stat {
-  min-width: 120px;
-  flex: 0 0 auto;
+  min-width: 110px;
+  flex: 0 1 auto;
 }
 .contract-hero-stat--wide {
-  flex: 1 1 280px;
+  flex: 1 1 260px;
 }
 .cvh-stat-label {
   font-size: .65rem;

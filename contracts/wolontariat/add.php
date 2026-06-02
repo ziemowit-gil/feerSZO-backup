@@ -439,94 +439,117 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
 <style>
-/* ══ Wizard styles ══════════════════════════════════════════════════════════ */
-.wiz-steps {
-  display: flex; flex-direction: column; align-items: center; gap: 0;
+/* ══ Wizard — Horizontal Stepper ════════════════════════════════════════════ */
+.wiz-hsteps {
+  display: flex; align-items: center;
   background: #fff; border: 1px solid #E5E7EB;
-  border-radius: 14px; padding: .6rem .4rem;
+  border-radius: 14px; padding: .65rem 1.1rem;
   box-shadow: 0 1px 4px rgba(0,0,0,.06);
-  position: sticky; top: 80px; width: fit-content; margin: 0 auto;
+  margin-bottom: 1.5rem; overflow-x: auto;
+  gap: 0;
 }
-.wiz-step {
-  display: flex; align-items: center; justify-content: center;
-  padding: .3rem; border-radius: 50%;
+.wiz-hstep {
+  display: flex; flex-direction: column; align-items: center; gap: .22rem;
+  flex: 1; min-width: 44px; max-width: 110px;
   cursor: pointer; background: none; border: none;
-  transition: all .15s; position: relative;
+  padding: .35rem .4rem; border-radius: 10px;
+  transition: background .12s;
 }
-.wiz-step .wiz-num {
-  width: 34px; height: 34px; border-radius: 50%;
+.wiz-hstep:hover:not(.active) { background: #F5F8FF; }
+.wiz-hstep-num {
+  width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: .75rem; font-weight: 700;
   background: #E5E7EB; color: #6B7280;
-  transition: all .15s;
+  transition: all .15s; flex-shrink: 0;
 }
-.wiz-step.active .wiz-num { background: #1E6DFF; color: #fff; box-shadow: 0 0 0 4px rgba(30,109,255,.18); }
-.wiz-step.done .wiz-num   { background: #1E6DFF; color: #fff; opacity: .65; }
-.wiz-step:hover:not(.active) .wiz-num { background: #DBEAFE; color: #1E6DFF; }
-/* Tooltip z nazwą kroku */
-.wiz-step::after {
-  content: attr(data-label);
-  position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%);
-  background: #1E3A5F; color: #fff; font-size: .72rem; font-weight: 500;
-  padding: .3rem .6rem; border-radius: 6px; white-space: nowrap;
-  pointer-events: none; opacity: 0; transition: opacity .15s;
+.wiz-hstep.active .wiz-hstep-num {
+  background: #1E6DFF; color: #fff;
+  box-shadow: 0 0 0 4px rgba(30,109,255,.18);
 }
-.wiz-step:hover::after { opacity: 1; }
-.wiz-sep { width: 2px; height: 14px; background: #E5E7EB; margin: 1px auto; border-radius: 1px; }
+.wiz-hstep.done .wiz-hstep-num {
+  background: #16A34A; color: #fff;
+}
+.wiz-hstep-label {
+  font-size: .67rem; font-weight: 500; color: #9CA3AF;
+  text-align: center; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px;
+  display: none;
+}
+.wiz-hstep.active .wiz-hstep-label { color: #1E6DFF; font-weight: 700; }
+.wiz-hstep.done  .wiz-hstep-label  { color: #16A34A; }
+.wiz-hstep-sep {
+  flex: 1; height: 2px; background: #E5E7EB; border-radius: 1px;
+  min-width: 12px; max-width: 40px; flex-shrink: 0;
+  transition: background .2s;
+}
+.wiz-hstep-sep.done { background: #16A34A; }
+@media (min-width: 500px) {
+  .wiz-hstep-label { display: block; }
+}
 
 /* Sekcja wizarda */
 .wiz-section { display: none; }
 .wiz-section.active { display: block; }
 
-/* Nagłówki kart */
+/* Karty kroku */
 .wiz-card {
   background: #fff; border: 1px solid #E5E7EB;
-  border-radius: 12px; margin-bottom: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  border-radius: 14px; margin-bottom: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  overflow: hidden;
 }
 .wiz-card-header {
-  display: flex; align-items: center; gap: .6rem;
-  padding: .85rem 1.25rem .7rem;
+  display: flex; align-items: center; gap: .7rem;
+  padding: .9rem 1.3rem .75rem;
   border-bottom: 1px solid #F3F4F6;
+  background: #FAFBFC;
 }
 .wiz-card-icon {
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 34px; height: 34px; border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font-size: .95rem; flex-shrink: 0;
+  font-size: 1rem; flex-shrink: 0;
 }
-.wiz-card-title { font-weight: 700; font-size: .92rem; color: #111827; }
-.wiz-card-subtitle { font-size: .76rem; color: #9CA3AF; }
-.wiz-card-body { padding: 1.1rem 1.25rem; }
+.wiz-card-title { font-weight: 700; font-size: .93rem; color: #111827; }
+.wiz-card-subtitle { font-size: .76rem; color: #9CA3AF; margin-top: .05rem; }
+.wiz-card-body { padding: 1.1rem 1.3rem; }
 
 /* Nawigacja kroków */
 .wiz-nav-btns {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 1rem 0; margin-top: .5rem;
+  padding: 1rem 0 .25rem; margin-top: .75rem;
   border-top: 1px solid #F3F4F6;
 }
+.wiz-nav-btns .btn {
+  min-width: 110px; font-weight: 600;
+}
+.wiz-nav-btns .btn-primary {
+  background: #1E6DFF; border-color: #1E6DFF;
+}
+.wiz-nav-btns .btn-primary:hover { background: #155EE0; border-color: #155EE0; }
 
 /* Live preview sidebar */
 .wiz-preview {
   background: #fff; border: 1px solid #E5E7EB;
-  border-radius: 12px; overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  border-radius: 14px; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
   position: sticky; top: 80px;
 }
 .wiz-preview-header {
-  background: linear-gradient(135deg, #1033A0, #1E6DFF);
-  color: #fff; padding: .75rem 1rem;
+  background: linear-gradient(135deg, #0F2EA8 0%, #1E6DFF 100%);
+  color: #fff; padding: .85rem 1.1rem;
   font-size: .82rem; font-weight: 600;
   display: flex; align-items: center; gap: .5rem;
 }
 .wiz-preview-body { padding: .75rem 1rem; }
 .wiz-preview-row {
-  display: flex; justify-content: space-between;
-  padding: .3rem 0; border-bottom: 1px solid #F9FAFB;
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: .32rem 0; border-bottom: 1px solid #F3F4F6;
   font-size: .8rem;
 }
 .wiz-preview-row:last-child { border-bottom: none; }
-.wiz-preview-label { color: #9CA3AF; }
-.wiz-preview-val   { color: #111827; font-weight: 600; text-align: right; max-width: 55%; word-break: break-word; }
+.wiz-preview-label { color: #9CA3AF; flex-shrink: 0; }
+.wiz-preview-val   { color: #111827; font-weight: 600; text-align: right; max-width: 58%; word-break: break-word; }
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3">
@@ -610,36 +633,40 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <div class="row g-4">
 
-<!-- ── Boczny pasek kroków ──────────────────────────────────────────────── -->
-<div class="col-xl-auto d-none d-xl-block" style="width:64px">
-  <div class="wiz-steps" id="wizSteps" role="tablist">
-    <button type="button" class="wiz-step active" onclick="goToStep(1)" id="step-btn-1" role="tab" aria-selected="true" data-label="Umowa">
-      <span class="wiz-num" id="step-num-1">1</span>
-    </button>
-    <div class="wiz-sep"></div>
-    <button type="button" class="wiz-step" onclick="goToStep(2)" id="step-btn-2" role="tab" data-label="Wolontariusz">
-      <span class="wiz-num" id="step-num-2">2</span>
-    </button>
-    <div class="wiz-sep"></div>
-    <button type="button" class="wiz-step" onclick="goToStep(3)" id="step-btn-3" role="tab" data-label="Szczegóły">
-      <span class="wiz-num" id="step-num-3">3</span>
-    </button>
-    <div class="wiz-sep"></div>
-    <button type="button" class="wiz-step" onclick="goToStep(4)" id="step-btn-4" role="tab" data-label="Ubezpieczenie i szkolenia">
-      <span class="wiz-num" id="step-num-4">4</span>
-    </button>
-    <div class="wiz-sep"></div>
-    <button type="button" class="wiz-step" onclick="goToStep(5)" id="step-btn-5" role="tab" data-label="Dostępy IT">
-      <span class="wiz-num" id="step-num-5">5</span>
-    </button>
-    <div class="wiz-sep"></div>
-    <button type="button" class="wiz-step" onclick="goToStep(6)" id="step-btn-6" role="tab" data-label="Grupa bezpieczeństwa IT">
-      <span class="wiz-num" id="step-num-6">6</span>
-    </button>
-  </div>
-</div>
-
 <div class="col-xl-8">
+
+<!-- ── Poziomy pasek kroków ──────────────────────────────────────────────── -->
+<nav class="wiz-hsteps" id="wizSteps" role="tablist" aria-label="Kroki formularza">
+  <button type="button" class="wiz-hstep active" id="step-btn-1" role="tab" aria-selected="true" onclick="goToStep(1)">
+    <span class="wiz-hstep-num" id="step-num-1">1</span>
+    <span class="wiz-hstep-label">Umowa</span>
+  </button>
+  <div class="wiz-hstep-sep" id="step-sep-1"></div>
+  <button type="button" class="wiz-hstep" id="step-btn-2" role="tab" aria-selected="false" onclick="goToStep(2)">
+    <span class="wiz-hstep-num" id="step-num-2">2</span>
+    <span class="wiz-hstep-label">Wolontariusz</span>
+  </button>
+  <div class="wiz-hstep-sep" id="step-sep-2"></div>
+  <button type="button" class="wiz-hstep" id="step-btn-3" role="tab" aria-selected="false" onclick="goToStep(3)">
+    <span class="wiz-hstep-num" id="step-num-3">3</span>
+    <span class="wiz-hstep-label">Szczegóły</span>
+  </button>
+  <div class="wiz-hstep-sep" id="step-sep-3"></div>
+  <button type="button" class="wiz-hstep" id="step-btn-4" role="tab" aria-selected="false" onclick="goToStep(4)">
+    <span class="wiz-hstep-num" id="step-num-4">4</span>
+    <span class="wiz-hstep-label">BHP i ubezp.</span>
+  </button>
+  <div class="wiz-hstep-sep" id="step-sep-4"></div>
+  <button type="button" class="wiz-hstep" id="step-btn-5" role="tab" aria-selected="false" onclick="goToStep(5)">
+    <span class="wiz-hstep-num" id="step-num-5">5</span>
+    <span class="wiz-hstep-label">Dostępy IT</span>
+  </button>
+  <div class="wiz-hstep-sep" id="step-sep-5"></div>
+  <button type="button" class="wiz-hstep" id="step-btn-6" role="tab" aria-selected="false" onclick="goToStep(6)">
+    <span class="wiz-hstep-num" id="step-num-6">6</span>
+    <span class="wiz-hstep-label">Grupy IT</span>
+  </button>
+</nav>
 
 <!-- ════════════════════════════════════════════════════════════════
      KROK 1: UMOWA
@@ -1716,16 +1743,26 @@ function goToStep(n) {
   document.getElementById('wiz-step-' + n).classList.add('active');
   document.getElementById('step-btn-' + n).classList.add('active');
 
-  // Update done state
+  // Update done state + separators
   for (var i = 1; i <= _totalSteps; i++) {
     var btn = document.getElementById('step-btn-' + i);
     var num = document.getElementById('step-num-' + i);
+    var sep = document.getElementById('step-sep-' + i);
     if (i < n && _visitedSteps.has(i)) {
       btn.classList.add('done');
+      btn.classList.remove('active');
+      btn.setAttribute('aria-selected', 'false');
       num.innerHTML = '<i class="bi bi-check-lg" style="font-size:.8rem"></i>';
+      if (sep) sep.classList.add('done');
     } else if (i === n) {
       btn.classList.remove('done');
+      btn.setAttribute('aria-selected', 'true');
       num.textContent = i;
+      if (sep) sep.classList.remove('done');
+    } else {
+      btn.classList.remove('done');
+      btn.setAttribute('aria-selected', 'false');
+      if (sep) sep.classList.remove('done');
     }
   }
 
