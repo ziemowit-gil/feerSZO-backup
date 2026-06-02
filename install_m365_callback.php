@@ -46,27 +46,32 @@ if (!$error) {
     }
 }
 
-$code      = trim($_GET['code'] ?? '');
-$verifier  = $_SESSION['m365_install_pkce_verifier']  ?? '';
-$client_id = $_SESSION['m365_install_pkce_client_id'] ?? '';
+$code          = trim($_GET['code'] ?? '');
+$verifier      = $_SESSION['m365_install_pkce_verifier']      ?? '';
+$client_id     = $_SESSION['m365_install_pkce_client_id']     ?? '';
+$client_secret = $_SESSION['m365_install_pkce_client_secret'] ?? '';
 
 if (!$error && !$code)     $error = 'Brak kodu autoryzacyjnego.';
 if (!$error && !$verifier) $error = 'Brak code_verifier — sesja wygasła.';
 
-// ── Wymień kod na token (PKCE bez client_secret) ─────────────────────────────
+// ── Wymień kod na token ───────────────────────────────────────────────────────
 $redirect_uri = APP_URL . '/install_m365_callback.php';
 
 if (!$error) {
+    $token_params = [
+        'client_id'     => $client_id,
+        'code'          => $code,
+        'redirect_uri'  => $redirect_uri,
+        'grant_type'    => 'authorization_code',
+        'code_verifier' => $verifier,
+    ];
+    // Dodaj client_secret jeśli podany (wymagane dla "confidential client")
+    if ($client_secret) $token_params['client_secret'] = $client_secret;
+
     $ctx = stream_context_create(['http' => [
         'method'        => 'POST',
         'header'        => "Content-Type: application/x-www-form-urlencoded\r\n",
-        'content'       => http_build_query([
-            'client_id'     => $client_id,
-            'code'          => $code,
-            'redirect_uri'  => $redirect_uri,
-            'grant_type'    => 'authorization_code',
-            'code_verifier' => $verifier,
-        ]),
+        'content'       => http_build_query($token_params),
         'ignore_errors' => true,
     ], 'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
 
@@ -115,7 +120,7 @@ if (!$error) {
         'enabled'       => true,
         'tenant_id'     => $tenant_id,
         'client_id'     => $client_id,
-        'client_secret' => '',        // PKCE — bez client_secret
+        'client_secret' => $client_secret, // pusty jeśli PKCE public client
         'org_name'      => $org_name,
         'domain'        => $domain,
         'autodetected'  => true,

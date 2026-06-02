@@ -149,10 +149,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4 && !empty($_POST['ms_co
         $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
         $state     = bin2hex(random_bytes(16));
 
-        $_SESSION['m365_install_pkce_verifier']  = $verifier;
-        $_SESSION['m365_install_pkce_state']     = $state;
-        $_SESSION['m365_install_pkce_client_id'] = $client_id;
-        $_SESSION['reinstall_mode']              = $reinstall;
+        $client_secret = trim($_POST['client_secret_opt'] ?? '');
+        $_SESSION['m365_install_pkce_verifier']       = $verifier;
+        $_SESSION['m365_install_pkce_state']          = $state;
+        $_SESSION['m365_install_pkce_client_id']      = $client_id;
+        $_SESSION['m365_install_pkce_client_secret']  = $client_secret;
+        $_SESSION['reinstall_mode']                   = $reinstall;
 
         $params = http_build_query([
             'client_id'             => $client_id,
@@ -684,16 +686,31 @@ $total_steps = count($step_labels);
                             . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/install_m365_callback.php';
       ?>
       <div class="alert alert-light border small p-2 mb-3">
-        <strong>1.</strong> W Azure Portal → App registrations → Twoja aplikacja → Authentication → dodaj URI przekierowania:<br>
-        <code class="user-select-all" style="font-size:.75rem;word-break:break-all"><?= htmlspecialchars($install_redirect_uri) ?></code>
+        <strong>URI przekierowania</strong> — dodaj w Azure Portal → App registrations → Authentication:<br>
+        <code class="user-select-all" style="font-size:.73rem;word-break:break-all"><?= htmlspecialchars($install_redirect_uri) ?></code>
       </div>
-      <form method="post" class="d-flex gap-2">
+      <form method="post">
         <input type="hidden" name="ms_connect_pkce" value="1">
-        <input type="text" name="client_id" class="form-control form-control-sm font-monospace flex-grow-1"
-               value="<?= htmlspecialchars($_SESSION['install_ms']['client_id'] ?? '') ?>"
-               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (Client ID z Azure)" required>
-        <button type="submit" class="btn btn-primary btn-sm flex-shrink-0">
-          <i class="bi bi-microsoft me-1"></i>Zaloguj się
+        <div class="mb-2">
+          <label class="form-label small fw-semibold">Client ID <span class="text-danger">*</span></label>
+          <input type="text" name="client_id" class="form-control form-control-sm font-monospace"
+                 value="<?= htmlspecialchars($_SESSION['install_ms']['client_id'] ?? '') ?>"
+                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">
+            Client Secret
+            <span class="text-muted fw-normal">(wymagane jeśli aplikacja nie ma włączonego "Allow public client flows")</span>
+          </label>
+          <input type="password" name="client_secret_opt" class="form-control form-control-sm"
+                 placeholder="Zostaw puste jeśli masz public client / PKCE bez secretu">
+          <div class="form-text">
+            Jeśli Azure zwróci błąd <code>AADSTS7000218</code> bez secretu: w Azure Portal → Authentication → włącz
+            <strong>"Allow public client flows" = Yes</strong> albo wpisz Client Secret powyżej.
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-microsoft me-1"></i>Zaloguj się przez Microsoft
         </button>
       </form>
     </div>
