@@ -57,8 +57,10 @@ function _wolontariat_provision_account(
     string  $email,
     string  $name,
     string  $numer,
-    ?string $plain_pass  = null,
-    ?string $m365_login  = null
+    ?string $plain_pass    = null,
+    ?string $m365_login    = null,
+    bool    $is_technical  = false,   // umowa przed 01.06 (migracja z Trello)
+    string  $portal_scope  = ''       // '' = pełny, 'tasks_only', 'crm_only'
 ): ?string {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
     if (db_one("SELECT id FROM users WHERE email = ?", [$email])) return null;
@@ -78,21 +80,40 @@ function _wolontariat_provision_account(
     $login_url = APP_URL . '/auth/login.php';
     $panel_url = APP_URL . '/panel/index.php';
 
-    $m365_section = '';
+    // ── Blok logowania (wspólny dla wszystkich wariantów) ──────────────────────
+    $login_block = <<<HTML
+<table style="background:#f8f9fa;border-radius:8px;padding:16px;width:100%;margin:16px 0;border-collapse:collapse">
+  <tr>
+    <td style="padding:5px 14px;color:#6c757d;width:130px;font-size:.9em">Adres e-mail</td>
+    <td style="padding:5px 14px"><strong>{$email}</strong></td>
+  </tr>
+  <tr>
+    <td style="padding:5px 14px;color:#6c757d;font-size:.9em">Hasło</td>
+    <td style="padding:5px 14px"><strong style="font-family:monospace;font-size:1.15em;letter-spacing:.05em">{$plain}</strong></td>
+  </tr>
+</table>
+HTML;
+
+    // ── Blok M365 (jeśli dotyczy) ──────────────────────────────────────────────
+    $m365_block = '';
     if ($m365_login) {
-        $m365_section = <<<HTML
-<div style="background:#f0f7ff;border:1px solid #b6d4fe;border-radius:6px;padding:16px;margin:16px 0">
-  <div style="font-weight:700;color:#0d6efd;margin-bottom:8px">
-    <span style="font-size:1.1rem">🖥️</span> Konto Microsoft 365
+        $m365_block = <<<HTML
+<div style="background:#f0f7ff;border:1px solid #b6d4fe;border-radius:8px;padding:16px;margin:16px 0">
+  <div style="font-weight:700;color:#0d6efd;margin-bottom:10px;font-size:.95em">
+    🖥️ Konto Microsoft 365
   </div>
-  <p style="margin:0 0 8px">Masz również konto w pakiecie Microsoft 365 (Outlook, Teams, OneDrive):</p>
+  <p style="margin:0 0 10px;font-size:.9em">Masz również konto w pakiecie Microsoft 365 (Outlook, Teams, OneDrive):</p>
   <table style="border-collapse:collapse;width:100%">
-    <tr><td style="padding:4px 12px;color:#6c757d;width:140px">Login M365</td>
-        <td style="padding:4px 12px"><strong style="font-family:monospace">{$m365_login}</strong></td></tr>
-    <tr><td style="padding:4px 12px;color:#6c757d">Hasło startowe</td>
-        <td style="padding:4px 12px"><strong style="font-family:monospace;font-size:1.1em">{$plain}</strong></td></tr>
+    <tr>
+      <td style="padding:4px 12px;color:#6c757d;width:140px;font-size:.88em">Login M365</td>
+      <td style="padding:4px 12px"><strong style="font-family:monospace">{$m365_login}</strong></td>
+    </tr>
+    <tr>
+      <td style="padding:4px 12px;color:#6c757d;font-size:.88em">Hasło startowe</td>
+      <td style="padding:4px 12px"><strong style="font-family:monospace;font-size:1.1em">{$plain}</strong></td>
+    </tr>
   </table>
-  <p style="margin:10px 0 0;font-size:.88em;color:#555">
+  <p style="margin:10px 0 0;font-size:.83em;color:#555">
     To samo hasło działa w portalu <strong>i</strong> w Microsoft 365.<br>
     Przy pierwszym logowaniu do Office zostaniesz poproszony/a o jego zmianę.
     Zaloguj się na: <a href="https://portal.office.com" style="color:#0d6efd">portal.office.com</a>
@@ -101,48 +122,168 @@ function _wolontariat_provision_account(
 HTML;
     }
 
-    $body = <<<HTML
+    // ── Stopka (wspólna) ───────────────────────────────────────────────────────
+    $footer = <<<HTML
+<p style="color:#6c757d;font-size:.82em;margin-top:28px;padding-top:14px;border-top:1px solid #dee2e6">
+  Jeśli nie spodziewałeś/aś się tej wiadomości lub to pomyłka, możesz zignorować tego maila.<br>
+  <a href="{$panel_url}" style="color:#0d6efd">{$panel_url}</a>
+</p>
+HTML;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  WARIANT 1: Umowa przed 01.06.2026 — migracja z poprzedniej platformy
+    // ══════════════════════════════════════════════════════════════════════════
+    if ($is_technical) {
+        $subject = "Twoje konto w nowym systemie zarządzania — {$org}";
+        $body    = <<<HTML
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#0d6efd;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.2rem">
-    <span style="font-size:1.5rem">📋</span> Portal Wolontariusza — {$org}
-  </h2>
+<div style="background:linear-gradient(135deg,#7c3aed,#5b21b6);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">🚀 Nowa platforma organizacji — {$org}</h2>
 </div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>
+    Informujemy, że <strong>{$org}</strong> przeszła na nową platformę do zarządzania
+    wolontariatem i zadaniami organizacji. Zastępuje ona dotychczas używanego <strong>Trello</strong>
+    i inne narzędzia — teraz całe zarządzanie zadaniami, dokumentami i komunikacją
+    znajdziesz w jednym miejscu.
+  </p>
+  <div style="background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:4px;padding:14px 18px;margin:18px 0;font-size:.92em">
+    <strong>Twoje konto zostało przeniesione do nowej platformy.</strong><br>
+    Poniżej znajdziesz dane logowania — możesz je zmienić po pierwszym wejściu.
+  </div>
+  {$login_block}
+  {$m365_block}
+  <div style="margin:22px 0;text-align:center">
+    <a href="{$login_url}" style="background:#7c3aed;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Zaloguj się do platformy →
+    </a>
+  </div>
+  <p style="font-size:.9em">Po zalogowaniu znajdziesz:</p>
+  <ul style="font-size:.9em;padding-left:18px">
+    <li>Swoje zadania i tablice (zastępuje Trello)</li>
+    <li>Dokumenty i korespondencję organizacji</li>
+    <li>Podgląd swojej umowy wolontariackiej</li>
+    <li>Komunikację z opiekunem</li>
+  </ul>
+  {$footer}
+</div>
+</body></html>
+HTML;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  WARIANT 2: Tylko zadania (tasks_only)
+    // ══════════════════════════════════════════════════════════════════════════
+    } elseif ($portal_scope === 'tasks_only') {
+        $subject = "Dostęp do tablicy zadań — {$org}";
+        $body    = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#0ea5e9,#0369a1);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">📋 Tablica zadań — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>
+    W ramach współpracy wolontariackiej (<strong>{$numer}</strong>) otrzymujesz dostęp
+    do <strong>tablicy zadań organizacji</strong> — naszego systemu do zarządzania zadaniami,
+    który zastąpił Trello.
+  </p>
+  <div style="background:#f0f9ff;border-left:4px solid #0ea5e9;border-radius:4px;padding:14px 18px;margin:18px 0;font-size:.92em">
+    Twoje konto daje dostęp wyłącznie do modułu <strong>Zadania</strong>.
+  </div>
+  {$login_block}
+  {$m365_block}
+  <div style="margin:22px 0;text-align:center">
+    <a href="{$login_url}" style="background:#0ea5e9;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Zaloguj się →
+    </a>
+  </div>
+  <p style="font-size:.9em">Po zalogowaniu zobaczysz:</p>
+  <ul style="font-size:.9em;padding-left:18px">
+    <li>Przypisane do Ciebie zadania</li>
+    <li>Tablice projektów, do których jesteś dodany/a</li>
+    <li>Możliwość komentowania i aktualizacji statusu zadań</li>
+  </ul>
+  {$footer}
+</div>
+</body></html>
+HTML;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  WARIANT 3: Tylko CRM (crm_only)
+    // ══════════════════════════════════════════════════════════════════════════
+    } elseif ($portal_scope === 'crm_only') {
+        $subject = "Dostęp do systemu CRM — {$org}";
+        $body    = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#16a34a,#15803d);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">👥 System CRM — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>
+    W ramach porozumienia wolontariackiego (<strong>{$numer}</strong>) otrzymujesz dostęp
+    do systemu CRM organizacji — narzędzia do zarządzania kontaktami i sprawami.
+  </p>
+  <div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:4px;padding:14px 18px;margin:18px 0;font-size:.92em">
+    Twoje konto daje dostęp wyłącznie do modułu <strong>CRM</strong>.
+  </div>
+  {$login_block}
+  {$m365_block}
+  <div style="margin:22px 0;text-align:center">
+    <a href="{$login_url}" style="background:#16a34a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Zaloguj się →
+    </a>
+  </div>
+  <p style="font-size:.9em">Po zalogowaniu znajdziesz:</p>
+  <ul style="font-size:.9em;padding-left:18px">
+    <li>Kontakty i dane beneficjentów</li>
+    <li>Sprawy i historię działań</li>
+    <li>Notatki i komunikację z podopiecznymi</li>
+  </ul>
+  {$footer}
+</div>
+</body></html>
+HTML;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  WARIANT 4: Pełny dostęp (domyślny)
+    // ══════════════════════════════════════════════════════════════════════════
+    } else {
+        $subject = "Twoje konto w portalu wolontariusza — {$org}";
+        $body    = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#1e40af,#1d6ef9);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">🤝 Portal Wolontariusza — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
   <p>Witaj, <strong>{$name}</strong>!</p>
   <p>
     W związku z zawarciem porozumienia wolontariackiego <strong>{$numer}</strong>
     zostało utworzone dla Ciebie konto w portalu organizacji.
   </p>
-  <p>Możesz się zalogować, używając poniższych danych:</p>
-  <table style="background:#f8f9fa;border-radius:6px;padding:16px;width:100%;margin:12px 0;border-collapse:collapse">
-    <tr><td style="padding:4px 12px;color:#6c757d;width:120px">Adres e-mail</td>
-        <td style="padding:4px 12px"><strong>{$email}</strong></td></tr>
-    <tr><td style="padding:4px 12px;color:#6c757d">Hasło</td>
-        <td style="padding:4px 12px"><strong style="font-family:monospace;font-size:1.1em">{$plain}</strong></td></tr>
-  </table>
-  {$m365_section}
-  <div style="margin:20px 0">
-    <a href="{$login_url}"
-       style="background:#0d6efd;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;display:inline-block">
+  {$login_block}
+  {$m365_block}
+  <div style="margin:22px 0;text-align:center">
+    <a href="{$login_url}" style="background:#1d6ef9;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
       Zaloguj się do portalu →
     </a>
   </div>
-  <p style="margin-top:20px">Po zalogowaniu w sekcji <strong>Mój panel</strong> znajdziesz:</p>
-  <ul>
+  <p style="font-size:.9em">Po zalogowaniu w sekcji <strong>Mój panel</strong> znajdziesz:</p>
+  <ul style="font-size:.9em;padding-left:18px">
     <li>Podgląd swoich umów i ich statusów</li>
+    <li>Swoje zadania i tablice projektów</li>
     <li>Możliwość złożenia wniosku o zaświadczenie</li>
     <li>Korespondencję powiązaną z Twoimi umowami</li>
     <li>Wniosek o rozwiązanie umowy</li>
   </ul>
-  <p style="color:#6c757d;font-size:.9em;margin-top:24px;border-top:1px solid #dee2e6;padding-top:12px">
-    Jeśli nie spodziewałeś/aś się tej wiadomości, zignoruj ją.<br>
-    <a href="{$panel_url}" style="color:#0d6efd">{$panel_url}</a>
-  </p>
+  {$footer}
 </div>
 </body></html>
 HTML;
-    approval_send_email($email, "Twoje konto w portalu wolontariusza — {$org}", $body);
+    }
+
+    approval_send_email($email, $subject, $body);
     return $plain;
 }
 
@@ -384,7 +525,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $data['imie_nazwisko'] ?? '',
                 $data['numer_umowy']   ?? '',
                 $m365_pass_created,
-                $m365_login_created
+                $m365_login_created,
+                $is_technical,
+                ($data['portal_scope'] ?? '')
             );
             if ($plain !== null) {
                 $_SESSION['new_portal_account'] = [
