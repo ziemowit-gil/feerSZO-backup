@@ -1,0 +1,12 @@
+# Zablokuj bezpośredni dostęp do bazy SQLite i plików pomocniczych
+<FilesMatch "\.(db|db-wal|db-shm|php~|bak)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "^(db|auth|layout)\.php$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+Options -Indexes
