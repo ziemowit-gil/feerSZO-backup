@@ -479,20 +479,22 @@ body { background: #f1f5f9; }
   <p class="sub">Pozwala pracownikom i wolontariuszom logować się kontem Microsoft. Można skonfigurować później.</p>
 
   <?php if ($ms_existing && $ms_keep): ?>
-  <!-- Klucze wykryte — pytamy co zrobić -->
-  <div class="alert alert-success py-2 small mb-3">
-    <i class="bi bi-check-circle me-1"></i>
-    <strong>Klucze Microsoft 365 już skonfigurowane</strong> (Tenant: <code><?= htmlspecialchars($ms_tenant_short) ?></code>).
-    Zostaną zachowane bez zmian.
+  <!-- M365 już skonfigurowane — tylko info, bez ponownej konfiguracji -->
+  <div class="border rounded p-3 mb-3" style="background:#f0fdf4;border-color:#bbf7d0!important">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <i class="bi bi-microsoft text-success"></i>
+      <strong class="small">Microsoft 365 aktywny</strong>
+    </div>
+    <div class="small text-muted mb-1">Tenant: <code><?= htmlspecialchars($ms_tenant_short) ?></code> — logowanie OAuth skonfigurowane.</div>
+    <div class="small text-muted">Konfiguracja zostanie zachowana. Nie musisz jej zmieniać.</div>
   </div>
   <div class="d-flex flex-column gap-2 mb-4">
     <a href="install.php?step=5" class="btn btn-success w-100">
-      <i class="bi bi-check-lg me-1"></i>Zachowaj istniejące klucze i przejdź dalej
+      <i class="bi bi-check-lg me-1"></i>Dalej
     </a>
-    <a href="install.php?step=4&ms_overwrite=1" class="btn btn-outline-warning w-100" style="font-size:.85rem">
-      <i class="bi bi-pencil me-1"></i>Nadpisz — wpisz nowe klucze
+    <a href="install.php?step=4&ms_overwrite=1" class="btn btn-link w-100 text-muted" style="font-size:.82rem">
+      Zmień konfigurację M365
     </a>
-    <a href="install.php?step=5" class="btn btn-link w-100 text-muted" style="font-size:.82rem">Pomiń — skonfiguruj później</a>
   </div>
 
   <?php else: ?>
@@ -528,7 +530,9 @@ body { background: #f1f5f9; }
   <?php // ── KROK 5: E-mail
   elseif ($step === 5):
     $ms = $_SESSION['install_ms'] ?? [];
-    $m365_configured = !empty($ms['enabled']) && !empty($ms['client_id']);
+    // M365 dostępne: skonfigurowane w tym kroku LUB zachowane z poprzedniej instalacji
+    $m365_configured = (!empty($ms['enabled']) && !empty($ms['client_id']))
+                    || !empty($preserved['m365_tenant_id']);
     // Wykryj istniejące klucze SMTP/M365 e-mail
     $smtp_existing = !empty($preserved['smtp_host']);
     $m365mail_existing = !empty($preserved['m365_send_from_email']);
@@ -539,24 +543,27 @@ body { background: #f1f5f9; }
   <p class="sub">System wysyła powiadomienia, dane logowania i kody SMS. Możesz skonfigurować później w panelu admina.</p>
 
   <?php if ($mail_existing && $mail_keep): ?>
-  <div class="alert alert-success py-2 small mb-3">
-    <i class="bi bi-check-circle me-1"></i>
-    <strong>E-mail już skonfigurowany</strong>:
+  <div class="border rounded p-3 mb-3" style="background:#f0fdf4;border-color:#bbf7d0!important">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <i class="bi bi-envelope-check-fill text-success"></i>
+      <strong class="small">E-mail skonfigurowany</strong>
+    </div>
     <?php if ($smtp_existing): ?>
-      SMTP — <code><?= htmlspecialchars($preserved['smtp_host']) ?></code>
+    <div class="small text-muted">SMTP: <code><?= htmlspecialchars($preserved['smtp_host']) ?></code>
+      <?php if (!empty($preserved['smtp_from_email'])): ?> · Nadawca: <code><?= htmlspecialchars($preserved['smtp_from_email']) ?></code><?php endif; ?>
+    </div>
     <?php elseif ($m365mail_existing): ?>
-      Microsoft 365 — <code><?= htmlspecialchars($preserved['m365_send_from_email']) ?></code>
+    <div class="small text-muted"><i class="bi bi-microsoft me-1"></i>Microsoft 365 · <code><?= htmlspecialchars($preserved['m365_send_from_email']) ?></code></div>
     <?php endif; ?>
-    Konfiguracja zostanie zachowana.
+    <div class="small text-muted mt-1">Konfiguracja zostanie zachowana.</div>
   </div>
   <div class="d-flex flex-column gap-2 mb-4">
     <a href="install.php?step=6" class="btn btn-success w-100">
-      <i class="bi bi-check-lg me-1"></i>Zachowaj i przejdź dalej
+      <i class="bi bi-check-lg me-1"></i>Dalej
     </a>
-    <a href="install.php?step=5&mail_overwrite=1" class="btn btn-outline-warning w-100" style="font-size:.85rem">
-      <i class="bi bi-pencil me-1"></i>Nadpisz — wpisz nową konfigurację
+    <a href="install.php?step=5&mail_overwrite=1" class="btn btn-link w-100 text-muted" style="font-size:.82rem">
+      Zmień konfigurację e-mail
     </a>
-    <a href="install.php?step=6" class="btn btn-link w-100 text-muted" style="font-size:.82rem">Pomiń</a>
   </div>
 
   <?php else: ?>
@@ -568,8 +575,11 @@ body { background: #f1f5f9; }
         <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
           <input type="radio" name="mail_type" value="m365" checked onchange="switchMail('m365')" style="margin-top:.2rem">
           <div>
-            <div class="fw-semibold small">Microsoft 365 <span class="badge bg-success ms-1" style="font-size:.65rem">Zalecane — M365 skonfigurowany</span></div>
-            <div class="text-muted" style="font-size:.78rem">Wysyłka przez skonfigurowane konto Microsoft</div>
+            <div class="fw-semibold small">
+              <i class="bi bi-microsoft me-1 text-primary"></i>Microsoft 365
+              <span class="badge bg-success ms-1" style="font-size:.65rem">Zalecane — logowanie M365 aktywne</span>
+            </div>
+            <div class="text-muted" style="font-size:.78rem">Wysyłka przez ten sam tenant co logowanie OAuth</div>
           </div>
         </label>
         <?php endif; ?>
