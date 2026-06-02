@@ -9,6 +9,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
+cte_migrate();
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
@@ -39,6 +41,49 @@ if (!$row) { http_response_code(404); die('Nie znaleziono porozumienia.'); }
 if (!viewer_owns_contract($TYPE, $row)) {
     flash_set('error', 'Nie masz dostępu do tej umowy.');
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
+}
+
+// ── Upload dodatkowego pliku do umowy ─────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'upload_contract_doc' && can_edit()) {
+    csrf_check();
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS contract_extra_docs (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_type TEXT    NOT NULL,
+            contract_id   INTEGER NOT NULL,
+            label         TEXT    NULL,
+            stored_path   TEXT    NOT NULL,
+            uploaded_by   INTEGER NULL,
+            uploaded_at   DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_ced_ctype_cid ON contract_extra_docs (contract_type, contract_id)");
+    } catch (\Throwable $e) {}
+
+    $path = save_uploaded_file('contract_doc_file', 'contract_docs');
+    if ($path) {
+        db()->prepare(
+            "INSERT INTO contract_extra_docs (contract_type, contract_id, label, stored_path, uploaded_by) VALUES (?,?,?,?,?)"
+        )->execute([$TYPE, $id, trim($_POST['contract_doc_label'] ?? ''), $path, (int)(current_user()['id'] ?? 0)]);
+        flash_set('success', 'Plik dodany.');
+    } else {
+        flash_set('error', 'Błąd uploadu — sprawdź format i rozmiar pliku.');
+    }
+    header('Location: view.php?id=' . $id . '#tab-docs-anchor'); exit;
+}
+
+// ── Usuń plik umowy ─────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'delete_contract_doc' && can_edit()) {
+    csrf_check();
+    $doc_id = (int)($_POST['doc_id'] ?? 0);
+    $doc    = db_one("SELECT * FROM contract_extra_docs WHERE id=? AND contract_type=? AND contract_id=?",
+                     [$doc_id, $TYPE, $id]);
+    if ($doc) {
+        $fpath = UPLOAD_DIR . $doc['stored_path'];
+        if (file_exists($fpath)) @unlink($fpath);
+        db()->prepare("DELETE FROM contract_extra_docs WHERE id=?")->execute([$doc_id]);
+        flash_set('success', 'Plik usunięty.');
+    }
+    header('Location: view.php?id=' . $id . '#tab-docs-anchor'); exit;
 }
 
 // ── Szybka zmiana statusu ─────────────────────────────────────────────────────
@@ -1251,7 +1296,140 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
      ════════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-pane fade" id="tab-docs" role="tabpanel">
 
-  <!-- Pisma -->
+  <!-- ── Dokumenty umowy ─────────────────────────────────────────────────── -->
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-file-earmark-text"></i> Dokumenty umowy i osoby</span>
+    <?php if (can_edit()): ?>
+    <button class="btn btn-sm btn-outline-primary" type="button"
+            data-bs-toggle="collapse" data-bs-target="#uploadDocCollapse">
+      <i class="bi bi-upload me-1"></i>Dodaj plik
+    </button>
+    <?php endif; ?>
+  </div>
+
+  <?php if (can_edit()): ?>
+  <div class="collapse" id="uploadDocCollapse">
+    <div class="card-body border-bottom">
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="upload_contract_doc">
+        <div class="col-sm-6">
+          <label class="form-label small fw-semibold">Plik (PDF, DOCX, JPG, PNG — max 20 MB)</label>
+          <input type="file" name="contract_doc_file" class="form-control form-control-sm"
+                 accept=".pdf,.docx,.jpg,.jpeg,.png" required>
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label small fw-semibold">Opis</label>
+          <input type="text" name="contract_doc_label" class="form-control form-control-sm"
+                 placeholder="np. Dowód osobisty, CV…" maxlength="120">
+        </div>
+        <div class="col-sm-2">
+          <button class="btn btn-primary btn-sm w-100">Prześlij</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php
+  // Pliki uploadowane ręcznie
+  $_cdocs = db_all(
+      "SELECT * FROM contract_extra_docs WHERE contract_type=? AND contract_id=? ORDER BY uploaded_at DESC",
+      [$TYPE, $id]
+  );
+  // Szablony dostępne dla tego typu
+  $_cte_templates = cte_list($TYPE);
+  ?>
+
+  <div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th class="ps-3">Dokument</th>
+        <th>Typ</th>
+        <th>Data</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <?php
+      // Wbudowane pliki umowy
+      $builtin = [
+          ['label' => 'Plik porozumienia',       'path' => $row['plik_umowy']         ?? ''],
+          ['label' => 'Potwierdzenie podpisania', 'path' => $row['plik_potwierdzenia'] ?? ''],
+          ['label' => 'Zgoda opiekuna',           'path' => $row['zgoda_opiekuna']     ?? ''],
+      ];
+      foreach ($builtin as $b):
+          if (!$b['path']) continue;
+      ?>
+      <tr>
+        <td class="ps-3"><i class="bi bi-file-earmark-pdf text-danger me-1"></i><?= h($b['label']) ?></td>
+        <td><span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.68rem">Skan</span></td>
+        <td class="small text-muted">—</td>
+        <td class="text-end pe-3">
+          <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" target="_blank"
+             class="btn btn-sm btn-outline-secondary py-0 px-2">
+            <i class="bi bi-eye"></i>
+          </a>
+          <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" download
+             class="btn btn-sm btn-outline-primary py-0 px-2">
+            <i class="bi bi-download"></i>
+          </a>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+
+      <?php foreach ($_cdocs as $cd): ?>
+      <tr>
+        <td class="ps-3">
+          <i class="bi bi-file-earmark me-1 text-muted"></i>
+          <?= h($cd['label'] ?: basename($cd['stored_path'])) ?>
+        </td>
+        <td><span class="badge bg-info bg-opacity-25 text-info" style="font-size:.68rem">Upload</span></td>
+        <td class="small text-muted"><?= date('d.m.Y', strtotime($cd['uploaded_at'])) ?></td>
+        <td class="text-end pe-3">
+          <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" target="_blank"
+             class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-eye"></i></a>
+          <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" download
+             class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-download"></i></a>
+          <?php if (can_edit()): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
+            <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="delete_contract_doc">
+            <input type="hidden" name="doc_id"  value="<?= $cd['id'] ?>">
+            <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash3"></i></button>
+          </form>
+          <?php endif; ?>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+
+      <?php if (!$builtin[0]['path'] && !$_cdocs): ?>
+      <tr><td colspan="4" class="text-center text-muted small py-3">Brak plików.</td></tr>
+      <?php endif; ?>
+    </tbody>
+  </table>
+  </div>
+
+  <?php if ($_cte_templates): ?>
+  <div class="card-footer bg-transparent py-2">
+    <span class="small fw-semibold text-muted me-2">Generuj z wzoru:</span>
+    <?php foreach ($_cte_templates as $tpl): ?>
+    <a href="<?= h(APP_URL . '/contracts/print_template.php?template_id=' . $tpl['id'] . '&contract_id=' . $id . '&type=' . $TYPE . '&preview=1') ?>"
+       target="_blank"
+       class="btn btn-sm btn-outline-secondary me-1 mb-1"
+       style="font-size:.75rem">
+      <i class="bi bi-file-earmark-text me-1"></i><?= h($tpl['name']) ?>
+    </a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  </div><!-- /card dokumenty -->
+
+  <!-- ── Pisma -->
   <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
     <span><i class="bi bi-envelope-paper"></i> Pisma</span>

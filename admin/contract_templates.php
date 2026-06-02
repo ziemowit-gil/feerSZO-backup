@@ -23,10 +23,104 @@ $type_labels = [
     'praca'       => 'Praca',
 ];
 
+/**
+ * Parsuje plik DOCX (ZIP) do uproszczonego HTML.
+ * Obsługuje akapity, pogrubienie, kursywę, podkreślenie, nagłówki, listy.
+ */
+function cte_docx_to_html(string $path): string {
+    if (!class_exists('ZipArchive')) return '';
+    $zip = new ZipArchive();
+    if ($zip->open($path) !== true) return '';
+    $xml = $zip->getFromName('word/document.xml');
+    $zip->close();
+    if (!$xml) return '';
+
+    // Usuń namespace prefixes aby ułatwić parsing
+    $xml = preg_replace('/\s+xmlns[^=]*="[^"]*"/', '', $xml);
+    $xml = preg_replace('/<\/?(w|r|mc|wp|a|v|o|m):/i', '<\1_', $xml); // w:p → w_p
+    $xml = preg_replace('/<(w|r|mc|wp|a|v|o|m):/i',     '<\1_', $xml);
+
+    $doc = new DOMDocument();
+    @$doc->loadXML($xml);
+    $xpath = new DOMXPath($doc);
+
+    $html  = '';
+
+    // Każdy akapit (w_p)
+    foreach ($xpath->query('//w_p') as $para) {
+        // Styl nagłówka
+        $styleNode = $xpath->query('.//w_pStyle/@w_val', $para);
+        $style = $styleNode->length ? strtolower($styleNode->item(0)->nodeValue) : '';
+        $isH1  = in_array($style, ['heading1','heading 1','nagwek1','nagłówek1']);
+        $isH2  = in_array($style, ['heading2','heading 2','nagwek2','nagłówek2']);
+        $isH3  = in_array($style, ['heading3','heading 3','nagwek3','nagłówek3']);
+        $isList = str_contains($style, 'list') || $xpath->query('.//w_numPr', $para)->length > 0;
+
+        $paraText = '';
+        foreach ($xpath->query('.//w_r', $para) as $run) {
+            $text = '';
+            foreach ($xpath->query('.//w_t', $run) as $t) $text .= $t->nodeValue;
+            if ($text === '') continue;
+            $text = htmlspecialchars($text, ENT_QUOTES);
+
+            $bold   = $xpath->query('.//w_b[not(@w_val="0")]', $run)->length > 0;
+            $italic = $xpath->query('.//w_i[not(@w_val="0")]', $run)->length > 0;
+            $under  = $xpath->query('.//w_u[not(@w_val="none")]', $run)->length > 0;
+
+            if ($bold)   $text = "<strong>$text</strong>";
+            if ($italic) $text = "<em>$text</em>";
+            if ($under)  $text = "<u>$text</u>";
+            $paraText .= $text;
+        }
+
+        if ($paraText === '') { $html .= '<p>&nbsp;</p>'; continue; }
+
+        if ($isH1)        $html .= "<h1>$paraText</h1>";
+        elseif ($isH2)    $html .= "<h2>$paraText</h2>";
+        elseif ($isH3)    $html .= "<h3>$paraText</h3>";
+        elseif ($isList)  $html .= "<li>$paraText</li>";
+        else              $html .= "<p>$paraText</p>";
+    }
+
+    // Owiń samotne <li> w <ul>
+    $html = preg_replace('/(<li>.*?<\/li>)+/s', '<ul>$0</ul>', $html);
+
+    return $html;
+}
+
 // ── POST ──────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $act = $_POST['_action'] ?? '';
+
+    if ($act === 'import_docx') {
+        $file = $_FILES['docx_file'] ?? null;
+        if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
+            flash_set('error', 'Błąd uploadu pliku DOCX.');
+            header('Location: ' . $SELF); exit;
+        }
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if ($ext !== 'docx') {
+            flash_set('error', 'Dozwolony tylko format .docx.');
+            header('Location: ' . $SELF); exit;
+        }
+        $html = cte_docx_to_html($file['tmp_name']);
+        if (!$html) {
+            flash_set('error', 'Nie udało się przetworzyć pliku DOCX. Sprawdź czy plik nie jest uszkodzony.');
+            header('Location: ' . $SELF); exit;
+        }
+        $name = pathinfo($file['name'], PATHINFO_FILENAME);
+        $type = array_key_exists($_POST['docx_type'] ?? '', $type_labels) ? $_POST['docx_type'] : 'universal';
+        $id   = db_insert('contract_doc_templates', [
+            'name'       => $name,
+            'type'       => $type,
+            'body'       => $html,
+            'created_by' => (int)current_user()['id'],
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        flash_set('success', 'Zaimportowano „' . $name . '" z DOCX. Możesz teraz edytować treść.');
+        header('Location: ' . $SELF . '?edit=' . $id); exit;
+    }
 
     if (in_array($act, ['create', 'update'], true)) {
         $name = trim($_POST['name'] ?? '');
@@ -108,10 +202,15 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <div class="d-flex align-items-center gap-2 mb-3">
   <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Wzory dokumentów</h4>
-  <button class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#tplModal"
-          onclick="openCreate()">
-    <i class="bi bi-plus-lg me-1"></i>Nowy wzór
-  </button>
+  <div class="d-flex gap-2 ms-auto">
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importDocxModal">
+      <i class="bi bi-file-earmark-word me-1"></i>Import DOCX
+    </button>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#tplModal"
+            onclick="openCreate()">
+      <i class="bi bi-plus-lg me-1"></i>Nowy wzór
+    </button>
+  </div>
 </div>
 
 <?= flash_html() ?>
@@ -183,6 +282,47 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php endforeach; ?>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- ── Modal: Import DOCX ──────────────────────────────────────────────── -->
+<div class="modal fade" id="importDocxModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="import_docx">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold">
+            <i class="bi bi-file-earmark-word text-primary me-1"></i>Import z DOCX
+          </h6>
+          <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Plik Word (.docx) <span class="text-danger">*</span></label>
+            <input type="file" name="docx_file" class="form-control form-control-sm"
+                   accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                   required>
+            <div class="form-text">Obsługiwane: formatowanie (bold, italic, nagłówki, listy). Obrazy i tabele są ignorowane.</div>
+          </div>
+          <div class="mb-0">
+            <label class="form-label small fw-semibold">Typ umowy</label>
+            <select name="docx_type" class="form-select form-select-sm">
+              <?php foreach ($type_labels as $k => $v): ?>
+              <option value="<?= $k ?>"><?= h($v) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-upload me-1"></i>Importuj i edytuj
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -304,7 +444,8 @@ function syncBody() {
 }
 
 function insertVar(varName) {
-    const range = quill.getSelection(true);
+    quill.focus();
+    const range = quill.getSelection() || { index: quill.getLength() - 1 };
     quill.insertText(range.index, varName, 'user');
     quill.setSelection(range.index + varName.length);
 }
@@ -333,6 +474,19 @@ function openEdit(id, name, type, desc, body) {
 document.getElementById('tplForm').addEventListener('submit', function() {
     syncBody();
 });
+
+<?php if ($editing): ?>
+// Auto-otwórz edytor po imporcie DOCX
+window.addEventListener('load', function() {
+    openEdit(
+        <?= $editing['id'] ?>,
+        <?= json_encode($editing['name']) ?>,
+        <?= json_encode($editing['type']) ?>,
+        <?= json_encode($editing['description'] ?? '') ?>,
+        <?= json_encode($editing['body']) ?>
+    );
+});
+<?php endif; ?>
 </script>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
