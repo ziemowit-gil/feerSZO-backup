@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 
 require_role('admin');
+ika_require(APP_URL . '/admin/m365_settings.php', 3600);
 $PAGE_TITLE = 'Konfiguracja Microsoft 365';
 
 // ── Bieżące ustawienia z DB ───────────────────────────────────────────────────

@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/permissions.php';
 
 require_role('admin');
+ika_require(APP_URL . '/admin/users.php', 3600);
 $PAGE_TITLE = 'Zarządzanie użytkownikami';
 $errors   = [];
 $new_pass = null;

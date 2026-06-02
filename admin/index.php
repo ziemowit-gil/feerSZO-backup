@@ -12,6 +12,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 
 require_role('admin');
+ika_require(APP_URL . '/admin/index.php', 3600);
 $PAGE_TITLE = 'Administrator';
 
 // ── Liczniki do odznak ────────────────────────────────────────────────────────
@@ -39,6 +40,26 @@ catch (\Throwable $e) {}
 
 $cnt['res_pending'] = 0;
 try { $r = db_one("SELECT COUNT(*) AS c FROM resource_reservations WHERE status IN ('zlozony','pending_admin')"); $cnt['res_pending'] = (int)($r['c'] ?? 0); }
+catch (\Throwable $e) {}
+
+$cnt['expiring_7']  = 0;
+$cnt['expiring_30'] = 0;
+try {
+    $today = date('Y-m-d');
+    $d30   = date('Y-m-d', strtotime('+30 days'));
+    $d7    = date('Y-m-d', strtotime('+7 days'));
+    foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_inne'] as $_et) {
+        try {
+            $r30 = db_one("SELECT COUNT(*) AS c FROM {$_et} WHERE bezterminowa=0 AND data_zakonczenia IS NOT NULL AND data_zakonczenia >= ? AND data_zakonczenia <= ? AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $d30]);
+            $r7  = db_one("SELECT COUNT(*) AS c FROM {$_et} WHERE bezterminowa=0 AND data_zakonczenia IS NOT NULL AND data_zakonczenia >= ? AND data_zakonczenia <= ? AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $d7]);
+            $cnt['expiring_30'] += (int)($r30['c'] ?? 0);
+            $cnt['expiring_7']  += (int)($r7['c'] ?? 0);
+        } catch (\Throwable $e) {}
+    }
+} catch (\Throwable $e) {}
+
+$cnt['audit_today'] = 0;
+try { $r = db_one("SELECT COUNT(*) AS c FROM admin_audit_log WHERE DATE(created_at)=DATE('now','localtime')"); $cnt['audit_today'] = (int)($r['c'] ?? 0); }
 catch (\Throwable $e) {}
 
 // ── Flaga konta serwisowego ───────────────────────────────────────────────────
@@ -70,6 +91,7 @@ $groups = [
             ['icon'=>'bi-key',             'label'=>'Kody IKA',          'url'=>'/admin/manage_cpc.php'],
             ['icon'=>'bi-door-open',       'label'=>'Metody logowania',  'url'=>'/admin/login_settings.php'],
             ['icon'=>'bi-journal-text',    'label'=>'Dziennik zdarzeń',  'url'=>'/admin/log.php',           'badge'=>$cnt['log_today'] ?: null,'badge_type'=>'info'],
+            ['icon'=>'bi-shield-exclamation','label'=>'Audit log (admin)','url'=>'/admin/audit_log.php',     'badge'=>$cnt['audit_today'] ?: null,'badge_type'=>'secondary'],
             ['icon'=>'bi-person-badge',    'label'=>'Podszywanie',       'url'=>'/admin/impersonate.php'],
         ],
     ],
@@ -151,6 +173,14 @@ $groups = [
             ['icon'=>'bi-patch-check',   'label'=>'Certyfikaty X.509 i IKA', 'url'=>'/admin/kdok_certs.php'],
             ['icon'=>'bi-gear',          'label'=>'Ustawienia (baza, MPK)', 'url'=>'/admin/ksiegowosc_settings.php'],
             ['icon'=>'bi-arrow-repeat',  'label'=>'Wyczyść stare PDF',  'url'=>'/admin/kdok_cleanup_run.php'],
+        ],
+    ],
+
+    'Monitoring umów' => [
+        'icon'  => 'bi-clock-history',
+        'color' => 'orange',
+        'items' => [
+            ['icon'=>'bi-calendar-x',      'label'=>'Wygasające umowy',   'url'=>'/admin/contract_expiry.php', 'badge'=>$cnt['expiring_7'] ?: ($cnt['expiring_30'] ?: null), 'badge_type'=>$cnt['expiring_7'] ? 'danger' : 'warning'],
         ],
     ],
 

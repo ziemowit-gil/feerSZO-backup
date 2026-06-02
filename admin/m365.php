@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 
 require_role('admin');
+ika_require(APP_URL . '/admin/m365.php', 3600);
 $PAGE_TITLE = 'Microsoft 365';
 
 // ── Aktywna zakładka (URL lub localStorage-fallback) ───────────────────────

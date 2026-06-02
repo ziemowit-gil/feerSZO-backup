@@ -5,6 +5,8 @@ if (!defined('APP_INSTALLED')) {
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/admin_audit.php';
+admin_audit_migrate();
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/messages.php';
 require_once __DIR__ . '/notifications.php';

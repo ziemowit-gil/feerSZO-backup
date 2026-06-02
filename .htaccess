@@ -91,3 +91,8 @@ RewriteCond %{REQUEST_FILENAME} !-d
     Header always set X-XSS-Protection "1; mode=block"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
+
+# Własne strony błędów
+ErrorDocument 404 /errors/404.php
+ErrorDocument 500 /errors/500.php
+ErrorDocument 403 /errors/404.php
