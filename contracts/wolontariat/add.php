@@ -32,6 +32,16 @@ $_editors = db_all(
 
 $m365_enabled = (new M365Graph())->is_configured();
 
+// Obszary zadań do sugestii przy wyborze grupy M365
+$_task_workspaces = [];
+try {
+    if (module_enabled('tasks_enabled')) {
+        $_task_workspaces = db_all(
+            "SELECT id, name FROM task_workspaces WHERE is_active=1 ORDER BY name"
+        );
+    }
+} catch (\Throwable $e) {}
+
 // Konfiguracja wymagalności pól
 $_add_field_keys = ['imie_nazwisko','email','pesel','data_urodzenia','telefon','adres',
                     'numer_umowy','data_zawarcia','data_rozpoczecia','data_zakonczenia',
@@ -171,8 +181,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($row['status']))         $row['status']         = 'podpisana';
         if (empty($row['data_zawarcia']))  $row['data_zawarcia']  = '2026-06-01';
         if (empty($row['data_rozpoczecia'])) $row['data_rozpoczecia'] = '2026-06-01';
-        $row['bezterminowa']   = 1;
-        $row['is_technical']   = 1;
+        $row['bezterminowa']        = 1;
+        $row['is_technical']        = 1;
+        $_POST['bezterminowa']      = '1'; // wymuś checkbox przy przetwarzaniu pól boolowych
         $row['forma_podpisania'] = $row['forma_podpisania'] ?? 'elektroniczna';
         $row['przedmiot_porozumienia'] = $row['przedmiot_porozumienia'] ?: 'Współpraca wolontariacka przed 01.06.2026 — wpis historyczny';
     }
@@ -409,13 +420,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($bd) db_update($TABLE, ['data_urodzenia' => $bd], $id);
         }
 
-        // Generuj kod odzyskiwania (8 cyfr) tylko dla umów sprzed 01.06.2026
+        // Generuj kod odzyskiwania (8 cyfr) dla umów technicznych i tych sprzed 01.06.2026
         $recovery_plain = null;
         $zawarcia = $data['data_zawarcia'] ?? '';
-        if ($zawarcia !== '' && $zawarcia < '2026-06-01') {
+        if ($is_technical || ($zawarcia !== '' && $zawarcia <= '2026-06-01')) {
             $recovery_plain = str_pad((string)random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
             db_update($TABLE, ['recovery_code_hash' => password_hash($recovery_plain, PASSWORD_BCRYPT)], $id);
             $_SESSION['recovery_code_plain_' . $id] = $recovery_plain;
+        }
+
+        // Przypisanie do obszaru zadań (jeśli wybrano przy grupie M365)
+        $suggested_workspace_id = intval($_POST['suggested_workspace_id'] ?? 0);
+        if ($suggested_workspace_id > 0 && !empty($data['email'])) {
+            try {
+                $wvol_user = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$data['email']]);
+                if ($wvol_user) {
+                    db()->prepare(
+                        "INSERT OR IGNORE INTO task_workspace_members
+                         (workspace_id, user_id, role, added_by, added_at)
+                         VALUES (?, ?, 'member', ?, datetime('now','localtime'))"
+                    )->execute([$suggested_workspace_id, (int)$wvol_user['id'], (int)current_user()['id']]);
+                    log_contract_action($TYPE, $id, current_user()['id'], 'note',
+                        'Wolontariusz dodany do obszaru zadań ID=' . $suggested_workspace_id);
+                }
+            } catch (\Throwable $e) {}
         }
 
         // Techniczna: bez obiegu, bez numeru RU — tylko wpis i dostęp
@@ -1395,6 +1423,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <input type="hidden" name="m365_security_group_name" id="add_sg_name">
           <div id="add_sg_status" class="form-text mt-1"></div>
         </div>
+
+        <?php if (!empty($_task_workspaces)): ?>
+        <!-- Sugestia obszaru zadań -->
+        <div id="sg_workspace_suggest" style="display:none;margin-top:.85rem">
+          <div class="alert alert-info d-flex gap-2 py-2 mb-0" style="font-size:.85rem">
+            <i class="bi bi-kanban-fill flex-shrink-0 mt-1" style="color:#0284c7"></i>
+            <div style="flex:1">
+              <div class="fw-semibold mb-1">Przypisz też do obszaru w module Zadania</div>
+              <select name="suggested_workspace_id" id="sg_workspace_id" class="form-select form-select-sm">
+                <option value="">— pomiń (nie przypisuj) —</option>
+                <?php foreach ($_task_workspaces as $ws): ?>
+                <option value="<?= h($ws['id']) ?>"><?= h($ws['name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <div class="form-text mt-1">Wolontariusz zostanie dodany jako <strong>member</strong> wybranego obszaru.</div>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
+
       </div>
     </div>
   </div>
@@ -1635,7 +1683,13 @@ var ADD_STEP_FIELDS = {
   3: [
     {name:'data_zawarcia',          label:'Data zawarcia'},
     {name:'data_rozpoczecia',       label:'Data rozpoczęcia'},
-    {name:'data_zakonczenia',       label:'Data zakończenia'},
+    {name:'data_zakonczenia',       label:'Data zakończenia', customCheck: function() {
+      var bzt = document.querySelector('[name="bezterminowa"]');
+      var tech = document.getElementById('wspolpraca_przed_2026');
+      if ((bzt && bzt.checked) || (tech && tech.checked)) return true;
+      var el = document.querySelector('[name="data_zakonczenia"]');
+      return !!(el && el.value.trim());
+    }},
     {name:'opiekun',                label:'Opiekun'},
     {name:'miejsce_wolontariatu',   label:'Miejsce wolontariatu'},
     {name:'przedmiot_porozumienia', label:'Przedmiot porozumienia'},
@@ -2108,6 +2162,9 @@ document.addEventListener('DOMContentLoaded', function() {
   sel.addEventListener('change', function() {
     var opt = this.options[this.selectedIndex];
     if (hidden) hidden.value = opt ? (opt.dataset.name || opt.textContent.trim()) : '';
+    // Pokaż sugestię obszaru zadań gdy wybrano grupę
+    var suggest = document.getElementById('sg_workspace_suggest');
+    if (suggest) suggest.style.display = this.value ? '' : 'none';
   });
 
   if (refresh) refresh.addEventListener('click', loadGroups);

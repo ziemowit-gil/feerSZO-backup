@@ -308,6 +308,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_task']) && can_e
     header('Location: view.php?id=' . $id . '#tab-tasks-anchor'); exit;
 }
 
+// ── Utwórz / podepnij konto lokalne na podstawie M365 (dla umów przed 01.06) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_create_local_from_m365']) && can_edit()) {
+    csrf_check();
+    $m365_login = trim($row['m365_login'] ?? '');
+    $m365_uid   = trim($row['m365_user_id'] ?? '');
+    $name       = trim($row['imie_nazwisko'] ?? '');
+    $email      = trim($row['email'] ?? $m365_login);
+
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        flash_set('danger', 'Brak prawidłowego adresu e-mail — nie można utworzyć konta lokalnego.');
+        header('Location: view.php?id=' . $id . '#tab-m365-anchor'); exit;
+    }
+
+    // 1. Szukaj istniejącego konta po microsoft_id
+    $existing = $m365_uid
+        ? db_one("SELECT id FROM users WHERE microsoft_id=?", [$m365_uid])
+        : null;
+
+    // 2. Jeśli nie znaleziono po microsoft_id — szukaj po e-mail
+    if (!$existing) {
+        $existing = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$email]);
+    }
+
+    if ($existing) {
+        // Konto istnieje — tylko podepnij microsoft_id
+        db()->prepare("UPDATE users SET microsoft_id=?, is_active=1 WHERE id=?")
+            ->execute([$m365_uid ?: null, (int)$existing['id']]);
+        log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
+            'Powiązano istniejące konto lokalne (id=' . $existing['id'] . ') z kontem M365: ' . $m365_login);
+        flash_set('success', 'Istniejące konto lokalne zostało powiązane z kontem Microsoft 365.');
+    } else {
+        // Konto nie istnieje — utwórz nowe (bez hasła, logowanie tylko przez M365)
+        $uid = db_insert('users', [
+            'name'         => $name ?: $email,
+            'email'        => $email,
+            'password'     => null,          // brak hasła — logowanie przez M365
+            'microsoft_id' => $m365_uid ?: null,
+            'role'         => 'viewer',
+            'is_active'    => 1,
+            'created_at'   => date('Y-m-d H:i:s'),
+        ]);
+        log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
+            'Utworzono konto lokalne (id=' . $uid . ') na podstawie M365: ' . $m365_login);
+        flash_set('success', 'Konto lokalne zostało utworzone i powiązane z kontem Microsoft 365. Logowanie tylko przez M365.');
+    }
+    header('Location: view.php?id=' . $id . '#tab-m365-anchor'); exit;
+}
+
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 // Hasło M365 z sesji (wyświetlamy przed zakładkami)
@@ -372,7 +420,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   border-radius: 0 0 12px 12px !important;
 }
 
-/* Karty sekcji wewnątrz zakładek */
+/* Karty sekcji wewnątrz zakładek (inne zakładki) */
 .tab-pane .card {
   border: 1px solid #E2E8F0 !important;
   border-radius: 12px !important;
@@ -396,6 +444,42 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   letter-spacing: .07em; color: #94A3B8; margin-bottom: .2rem;
 }
 .detail-value { font-size: .9rem; color: #1E293B; line-height: 1.4; }
+
+/* ── Poziome karty sekcji (tab Umowa) ──────────────────────────── */
+.irow {
+  display: flex; align-items: stretch;
+  background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 12px; margin-bottom: .65rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04); overflow: hidden;
+}
+.irow-head {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  gap: .45rem; padding: 1rem .75rem .85rem;
+  background: #F8FAFC; border-right: 1px solid #E2E8F0;
+  min-width: 80px; text-align: center; flex-shrink: 0;
+}
+.irow-head-icon {
+  width: 36px; height: 36px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem; flex-shrink: 0;
+}
+.irow-head-label {
+  font-size: .62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #94A3B8; line-height: 1.3;
+}
+.irow-body {
+  flex: 1; padding: .85rem 1.2rem;
+  display: flex; flex-wrap: wrap; gap: .55rem 2.2rem; align-items: flex-start;
+}
+.ifield { min-width: 110px; flex: 0 1 auto; }
+.ifield-wide { flex: 1 1 260px; }
+.ifield-full { flex: 1 1 100%; }
+@media (max-width: 576px) {
+  .irow { flex-direction: column; }
+  .irow-head { flex-direction: row; min-width: unset; border-right: none; border-bottom: 1px solid #E2E8F0; padding: .6rem 1rem; }
+  .irow-head-label { font-size: .72rem; }
+}
 </style>
 
 <!-- ── ZAKŁADKI ────────────────────────────────────────────────────────────── -->
@@ -534,135 +618,212 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <div class="tab-pane fade" id="tab-umowa" role="tabpanel">
 
   <!-- Dane podstawowe -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Dane podstawowe</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Opiekun wolontariusza</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data zawarcia</div><div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Projekt / program</div><div class="detail-value"><?= h($row['projekt_program']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data rozpoczęcia</div><div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data zakończenia</div>
-      <div class="detail-value">
-        <?php if ($row['bezterminowa']): ?>
-          <span class="badge bg-info text-dark">Bezterminowe</span>
-        <?php else: ?>
-          <?= date_pl($row['data_zakonczenia']) ?>
-        <?php endif; ?>
+  <div class="irow">
+    <div class="irow-head">
+      <div class="irow-head-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
+      <div class="irow-head-label">Dane<br>umowy</div>
+    </div>
+    <div class="irow-body">
+      <div class="ifield">
+        <div class="detail-label">Opiekun wolontariusza</div>
+        <div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Data zawarcia</div>
+        <div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Data rozpoczęcia</div>
+        <div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Data zakończenia</div>
+        <div class="detail-value">
+          <?php if ($row['bezterminowa']): ?>
+            <span class="badge bg-info text-dark">Bezterminowe</span>
+          <?php else: ?>
+            <?= date_pl($row['data_zakonczenia']) ?>
+          <?php endif; ?>
+        </div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Projekt / program</div>
+        <div class="detail-value"><?= h($row['projekt_program']) ?: '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Miejsce wolontariatu</div>
+        <div class="detail-value"><?= h($row['miejsce_wolontariatu']) ?: '—' ?></div>
       </div>
     </div>
-    <div class="col-md-4"><div class="detail-label">Miejsce wolontariatu</div><div class="detail-value"><?= h($row['miejsce_wolontariatu']) ?: '—' ?></div></div>
-  </div>
-  </div>
   </div>
 
   <!-- Szczegóły wolontariatu -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Szczegóły wolontariatu</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-12"><div class="detail-label">Przedmiot porozumienia</div><div class="detail-value"><?= nl2br(h($row['przedmiot_porozumienia'])) ?: '—' ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Godzin tygodniowo</div>
-      <div class="detail-value"><?= ($row['godzin_tygodniowo'] !== null && $row['godzin_tygodniowo'] !== '') ? h($row['godzin_tygodniowo']) . ' h' : '—' ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Godzin przepracowanych</div>
-      <div class="detail-value"><?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h($row['godzin_przepracowanych']) . ' h' : '—' ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Zwrot kosztów</div><div class="detail-value"><?= yn($row['zwrot_kosztow']) ?></div></div>
-    <?php if ($row['zwrot_kosztow'] && $row['zwrot_kosztow_opis']): ?>
-    <div class="col-12"><div class="detail-label">Opis zwrotu kosztów</div><div class="detail-value"><?= h($row['zwrot_kosztow_opis']) ?></div></div>
-    <?php endif; ?>
-  </div>
-  </div>
+  <div class="irow">
+    <div class="irow-head">
+      <div class="irow-head-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-heart-fill"></i></div>
+      <div class="irow-head-label">Szczegóły</div>
+    </div>
+    <div class="irow-body">
+      <div class="ifield-full">
+        <div class="detail-label">Przedmiot porozumienia</div>
+        <div class="detail-value"><?= nl2br(h($row['przedmiot_porozumienia'])) ?: '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Godzin / tydzień</div>
+        <div class="detail-value"><?= ($row['godzin_tygodniowo'] !== null && $row['godzin_tygodniowo'] !== '') ? h($row['godzin_tygodniowo']) . ' h' : '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Godzin przepracowanych</div>
+        <div class="detail-value"><?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h($row['godzin_przepracowanych']) . ' h' : '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Zwrot kosztów</div>
+        <div class="detail-value"><?= yn($row['zwrot_kosztow']) ?></div>
+      </div>
+      <?php if ($row['zwrot_kosztow'] && $row['zwrot_kosztow_opis']): ?>
+      <div class="ifield-wide">
+        <div class="detail-label">Opis zwrotu kosztów</div>
+        <div class="detail-value"><?= h($row['zwrot_kosztow_opis']) ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
   </div>
 
   <!-- BHP i ubezpieczenia -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">BHP i ubezpieczenia</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-3"><div class="detail-label">Szkolenie BHP</div><div class="detail-value"><?= yn($row['szkolenie_bhp']) ?></div></div>
-    <?php if ($row['szkolenie_bhp']): ?>
-    <div class="col-md-3"><div class="detail-label">Data szkolenia BHP</div><div class="detail-value"><?= date_pl($row['data_szkolenia_bhp']) ?></div></div>
-    <?php endif; ?>
-    <div class="col-md-3"><div class="detail-label">Ubezpieczenie NNW</div><div class="detail-value"><?= yn($row['ubezpieczenie_nnw']) ?></div></div>
-    <?php if ($row['ubezpieczenie_nnw'] && $row['numer_polisy_nnw']): ?>
-    <div class="col-md-3"><div class="detail-label">Nr polisy NNW</div><div class="detail-value"><?= h($row['numer_polisy_nnw']) ?></div></div>
-    <?php endif; ?>
-    <div class="col-md-3"><div class="detail-label">Ubezpieczenie OC</div><div class="detail-value"><?= yn($row['ubezpieczenie_oc']) ?></div></div>
-  </div>
-  </div>
+  <div class="irow">
+    <div class="irow-head">
+      <div class="irow-head-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-shield-check"></i></div>
+      <div class="irow-head-label">BHP<br>i ubezp.</div>
+    </div>
+    <div class="irow-body">
+      <div class="ifield">
+        <div class="detail-label">Szkolenie BHP</div>
+        <div class="detail-value"><?= yn($row['szkolenie_bhp']) ?></div>
+      </div>
+      <?php if ($row['szkolenie_bhp']): ?>
+      <div class="ifield">
+        <div class="detail-label">Data szkolenia BHP</div>
+        <div class="detail-value"><?= date_pl($row['data_szkolenia_bhp']) ?></div>
+      </div>
+      <?php endif; ?>
+      <div class="ifield">
+        <div class="detail-label">Ubezpieczenie NNW</div>
+        <div class="detail-value"><?= yn($row['ubezpieczenie_nnw']) ?></div>
+      </div>
+      <?php if ($row['ubezpieczenie_nnw'] && $row['numer_polisy_nnw']): ?>
+      <div class="ifield">
+        <div class="detail-label">Nr polisy NNW</div>
+        <div class="detail-value"><?= h($row['numer_polisy_nnw']) ?></div>
+      </div>
+      <?php endif; ?>
+      <div class="ifield">
+        <div class="detail-label">Ubezpieczenie OC</div>
+        <div class="detail-value"><?= yn($row['ubezpieczenie_oc']) ?></div>
+      </div>
+    </div>
   </div>
 
   <!-- Podpisanie -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Podpisanie</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Forma podpisania</div>
-      <div class="detail-value">
-        <?php
-        $forma_labels = [
-          'papierowa'              => '<i class="bi bi-pen text-secondary"></i> Papierowa',
-          'elektroniczna'          => '<i class="bi bi-laptop text-primary"></i> Elektroniczna',
-          'epodpis_kwalifikowany'  => '<i class="bi bi-shield-lock text-success"></i> ePodpis kwalifikowany',
-        ];
-        echo $forma_labels[$row['forma_podpisania'] ?? ''] ?? h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—';
-        ?>
+  <div class="irow">
+    <div class="irow-head">
+      <div class="irow-head-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
+      <div class="irow-head-label">Podpi-<br>sanie</div>
+    </div>
+    <div class="irow-body">
+      <div class="ifield">
+        <div class="detail-label">Forma podpisania</div>
+        <div class="detail-value">
+          <?php
+          $forma_labels = [
+            'papierowa'             => '<i class="bi bi-pen text-secondary"></i> Papierowa',
+            'elektroniczna'         => '<i class="bi bi-laptop text-primary"></i> Elektroniczna',
+            'epodpis_kwalifikowany' => '<i class="bi bi-shield-lock text-success"></i> ePodpis kwalifikowany',
+          ];
+          echo $forma_labels[$row['forma_podpisania'] ?? ''] ?? h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—';
+          ?>
+        </div>
       </div>
-    </div>
-    <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
-    <div class="col-md-4"><div class="detail-label">Platforma</div><div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">ID dokumentu</div><div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Plik potwierdzenia</div><div class="detail-value"><?= upload_link($row['plik_potwierdzenia']) ?></div></div>
-    <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
-    <div class="col-md-4">
-      <div class="detail-label">Dostawca podpisu (TSP)</div>
-      <div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div>
-    </div>
-    <div class="col-md-4">
-      <div class="detail-label">Nr seryjny certyfikatu</div>
-      <div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div>
-    </div>
-    <div class="col-md-4">
-      <div class="detail-label">Ważność certyfikatu</div>
-      <div class="detail-value">
-        <?php
-        $waz = $row['epodpis_data_waznosci'] ?? '';
-        if ($waz) {
-            $past = strtotime($waz) < time();
-            echo '<span class="' . ($past ? 'text-danger' : 'text-success') . '">';
-            echo date_pl($waz);
-            echo $past ? ' <i class="bi bi-exclamation-circle"></i>' : ' <i class="bi bi-check-circle"></i>';
-            echo '</span>';
-        } else { echo '—'; }
-        ?>
+      <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
+      <div class="ifield">
+        <div class="detail-label">Platforma</div>
+        <div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div>
       </div>
+      <div class="ifield">
+        <div class="detail-label">ID dokumentu</div>
+        <div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Plik potwierdzenia</div>
+        <div class="detail-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+      </div>
+      <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
+      <div class="ifield">
+        <div class="detail-label">Dostawca (TSP)</div>
+        <div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Nr seryjny certyfikatu</div>
+        <div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div>
+      </div>
+      <div class="ifield">
+        <div class="detail-label">Ważność certyfikatu</div>
+        <div class="detail-value">
+          <?php
+          $waz = $row['epodpis_data_waznosci'] ?? '';
+          if ($waz) {
+              $past = strtotime($waz) < time();
+              echo '<span class="' . ($past ? 'text-danger' : 'text-success') . '">';
+              echo date_pl($waz);
+              echo $past ? ' <i class="bi bi-exclamation-circle"></i>' : ' <i class="bi bi-check-circle"></i>';
+              echo '</span>';
+          } else { echo '—'; }
+          ?>
+        </div>
+      </div>
+      <?php endif; ?>
     </div>
-    <?php endif; ?>
-  </div>
-  </div>
   </div>
 
   <?php if ($row['uwagi']): ?>
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Uwagi</div>
-  <div class="card-body"><?= nl2br(h($row['uwagi'])) ?></div>
+  <div class="irow">
+    <div class="irow-head">
+      <div class="irow-head-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
+      <div class="irow-head-label">Uwagi</div>
+    </div>
+    <div class="irow-body">
+      <div class="ifield-full">
+        <div class="detail-value" style="font-size:.88rem;color:#374151"><?= nl2br(h($row['uwagi'])) ?></div>
+      </div>
+    </div>
   </div>
   <?php endif; ?>
 
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
-  <div class="card shadow-sm">
-  <div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-  <div class="card-body"><div class="row g-3">
-    <?php if ($row['nr_roboczy']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr roboczy</div><div class="detail-value"><?= h($row['nr_roboczy']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_system']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr ogólny (webNGO)</div><div class="detail-value"><?= h($row['nr_system']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_rejestru']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr rejestru</div><div class="detail-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
-    <?php endif; ?>
-  </div></div>
+  <div class="irow">
+    <div class="irow-head">
+      <div class="irow-head-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
+      <div class="irow-head-label">Numery<br>ref.</div>
+    </div>
+    <div class="irow-body">
+      <?php if ($row['nr_roboczy']): ?>
+      <div class="ifield">
+        <div class="detail-label">Nr roboczy</div>
+        <div class="detail-value"><?= h($row['nr_roboczy']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($row['nr_system']): ?>
+      <div class="ifield">
+        <div class="detail-label">Nr ogólny (webNGO)</div>
+        <div class="detail-value"><?= h($row['nr_system']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($row['nr_rejestru']): ?>
+      <div class="ifield">
+        <div class="detail-label">Nr rejestru</div>
+        <div class="detail-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -1335,6 +1496,65 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
         <i class="bi bi-link-45deg"></i> Powiąż
       </button>
     </form>
+  </div>
+  <?php endif; ?>
+
+  <?php
+  // Sekcja: konto lokalne na podstawie M365 (umowy przed 01.06.2026 z kontem M365)
+  if ($row['m365_konto'] && can_edit() && !empty($row['is_technical'])):
+      $m365_email    = trim($row['email'] ?? $row['m365_login'] ?? '');
+      $m365_uid_val  = trim($row['m365_user_id'] ?? '');
+      // Sprawdź czy konto lokalne już istnieje i jest powiązane
+      $_local_linked = null;
+      if ($m365_uid_val) {
+          $_local_linked = db_one("SELECT id, name, email FROM users WHERE microsoft_id=?", [$m365_uid_val]);
+      }
+      if (!$_local_linked && $m365_email) {
+          $_local_linked = db_one("SELECT id, name, email, microsoft_id FROM users WHERE LOWER(email)=LOWER(?)", [$m365_email]);
+      }
+  ?>
+  <div class="border-top pt-3 mt-3">
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <i class="bi bi-person-badge text-primary"></i>
+      <span class="fw-semibold small">Konto lokalne portalu (współpraca przed 01.06.2026)</span>
+      <?php if ($_local_linked): ?>
+        <?php if ($_local_linked['microsoft_id']): ?>
+        <span class="badge bg-success"><i class="bi bi-link-45deg"></i> Powiązane — <?= h($_local_linked['name'] ?: $_local_linked['email']) ?></span>
+        <?php else: ?>
+        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Konto istnieje, brak powiązania M365</span>
+        <?php endif; ?>
+      <?php else: ?>
+      <span class="badge bg-secondary">Brak konta lokalnego</span>
+      <?php endif; ?>
+    </div>
+
+    <?php if (!$_local_linked || !$_local_linked['microsoft_id']): ?>
+    <div class="alert alert-info py-2 px-3 mb-2 small">
+      <?php if ($_local_linked): ?>
+      <i class="bi bi-info-circle me-1"></i>
+      Znaleziono konto lokalne <strong><?= h($_local_linked['email']) ?></strong> bez powiązania z M365.
+      Kliknij poniżej, aby powiązać — użytkownik będzie logować się przez Microsoft 365.
+      <?php else: ?>
+      <i class="bi bi-info-circle me-1"></i>
+      Ta umowa dotyczy współpracy przed 01.06.2026. Utwórz konto lokalne na podstawie konta M365
+      <strong><?= h($row['m365_login']) ?></strong> — użytkownik będzie logować się przez Microsoft 365.
+      <?php endif; ?>
+    </div>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_create_local_from_m365" value="1">
+      <button type="submit" class="btn btn-sm btn-primary">
+        <i class="bi bi-person-plus-fill me-1"></i>
+        <?= $_local_linked ? 'Powiąż konto z M365' : 'Utwórz konto lokalne z M365' ?>
+      </button>
+    </form>
+    <?php else: ?>
+    <div class="text-muted small">
+      <i class="bi bi-check-circle-fill text-success me-1"></i>
+      Użytkownik loguje się przez Microsoft 365.
+      Konto lokalne: <strong><?= h($_local_linked['email']) ?></strong>
+    </div>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 

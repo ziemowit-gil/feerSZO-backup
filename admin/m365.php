@@ -14,7 +14,7 @@ require_role('admin');
 $PAGE_TITLE = 'Microsoft 365';
 
 // ── Aktywna zakładka (URL lub localStorage-fallback) ───────────────────────
-$tab = in_array($_GET['tab'] ?? '', ['config','standalone','sync']) ? $_GET['tab'] : 'config';
+$tab = in_array($_GET['tab'] ?? '', ['config','standalone','sync','przed2026']) ? $_GET['tab'] : 'config';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tab: Konfiguracja — obsługa POST (przeniesiona z m365_settings.php)
@@ -134,6 +134,80 @@ if (!empty($_SESSION['m365sa_new_login'])) {
 // Counters for tab badges
 $_standalone_count = count($accounts);
 
+// ── Obsługa akcji „przed 01.06" ─────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'link_przed2026') {
+    csrf_check();
+    $tab = 'przed2026';
+
+    // Zbierz kontrakty do przetworzenia
+    $ids = array_map('intval', (array)($_POST['contract_ids'] ?? []));
+    if (empty($ids)) {
+        // Tryb "przetwórz wszystkie"
+        $rows_to_process = db_all(
+            "SELECT id, imie_nazwisko, email, m365_login, m365_user_id
+             FROM umowy_wolontariat
+             WHERE is_technical=1 AND m365_konto=1
+             ORDER BY imie_nazwisko"
+        );
+    } else {
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $rows_to_process = db_all(
+            "SELECT id, imie_nazwisko, email, m365_login, m365_user_id
+             FROM umowy_wolontariat
+             WHERE id IN ({$placeholders}) AND is_technical=1 AND m365_konto=1",
+            $ids
+        );
+    }
+
+    $_p2026_results = [];
+    foreach ($rows_to_process as $r) {
+        $m365_uid   = trim($r['m365_user_id'] ?? '');
+        $email      = trim($r['email'] ?? $r['m365_login'] ?? '');
+        $name       = trim($r['imie_nazwisko'] ?? '');
+
+        if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_p2026_results[] = ['row' => $r, 'status' => 'skip', 'msg' => 'Brak e-mail'];
+            continue;
+        }
+
+        // Szukaj po microsoft_id, potem po e-mail
+        $existing = $m365_uid
+            ? db_one("SELECT id, name, microsoft_id FROM users WHERE microsoft_id=?", [$m365_uid])
+            : null;
+        if (!$existing) {
+            $existing = db_one("SELECT id, name, microsoft_id FROM users WHERE LOWER(email)=LOWER(?)", [$email]);
+        }
+
+        if ($existing) {
+            if ($existing['microsoft_id'] === $m365_uid && $m365_uid) {
+                $_p2026_results[] = ['row' => $r, 'status' => 'already', 'msg' => 'Już powiązane'];
+                continue;
+            }
+            db()->prepare("UPDATE users SET microsoft_id=?, is_active=1 WHERE id=?")
+                ->execute([$m365_uid ?: null, (int)$existing['id']]);
+            log_contract_action('wolontariat', (int)$r['id'], (int)current_user()['id'], 'note',
+                'Admin: powiązano konto lokalne id=' . $existing['id'] . ' z M365: ' . $r['m365_login']);
+            $_p2026_results[] = ['row' => $r, 'status' => 'linked', 'msg' => 'Powiązano z istniejącym kontem'];
+        } else {
+            $uid = db_insert('users', [
+                'name'         => $name ?: $email,
+                'email'        => $email,
+                'password'     => null,
+                'microsoft_id' => $m365_uid ?: null,
+                'role'         => 'viewer',
+                'is_active'    => 1,
+                'created_at'   => date('Y-m-d H:i:s'),
+            ]);
+            log_contract_action('wolontariat', (int)$r['id'], (int)current_user()['id'], 'note',
+                'Admin: utworzono konto lokalne id=' . $uid . ' z M365: ' . $r['m365_login']);
+            $_p2026_results[] = ['row' => $r, 'status' => 'created', 'msg' => 'Utworzono nowe konto'];
+        }
+    }
+
+    $n_done = count(array_filter($_p2026_results, fn($x) => in_array($x['status'], ['linked','created'])));
+    flash_set('success', "Przetworzono {$n_done} kont.");
+}
+
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
@@ -191,6 +265,38 @@ include dirname(__DIR__) . '/includes/header.php';
     <a class="nav-link d-flex align-items-center gap-1" id="tab-sync" data-bs-toggle="tab"
        href="#pane-sync" role="tab">
       <i class="bi bi-arrow-repeat"></i> Synchronizacja
+    </a>
+  </li>
+  <li class="nav-item">
+    <?php
+    $_p2026_total = (int)(db_one(
+        "SELECT COUNT(*) AS n FROM umowy_wolontariat WHERE is_technical=1 AND m365_konto=1"
+    )['n'] ?? 0);
+    $_p2026_unlinked = 0;
+    if ($_p2026_total) {
+        // Ile nie ma jeszcze powiązanego konta lokalnego
+        $_p2026_rows_all = db_all(
+            "SELECT email, m365_user_id FROM umowy_wolontariat WHERE is_technical=1 AND m365_konto=1"
+        );
+        foreach ($_p2026_rows_all as $_pr) {
+            $m = $_pr['m365_user_id']
+                ? db_one("SELECT id FROM users WHERE microsoft_id=?", [$_pr['m365_user_id']])
+                : null;
+            if (!$m && $_pr['email']) {
+                $m = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$_pr['email']]);
+            }
+            if (!$m || !$m['id']) $_p2026_unlinked++;
+        }
+    }
+    ?>
+    <a class="nav-link d-flex align-items-center gap-1" id="tab-przed2026" data-bs-toggle="tab"
+       href="#pane-przed2026" role="tab">
+      <i class="bi bi-clock-history"></i> Przed 01.06
+      <?php if ($_p2026_unlinked): ?>
+      <span class="badge bg-warning text-dark ms-1"><?= $_p2026_unlinked ?></span>
+      <?php elseif ($_p2026_total): ?>
+      <span class="badge bg-success ms-1"><i class="bi bi-check"></i></span>
+      <?php endif; ?>
     </a>
   </li>
 </ul>
@@ -860,6 +966,148 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 </div>
 </div><!-- /pane-sync -->
+
+<!-- ══ ZAKŁADKA: PRZED 01.06.2026 ═══════════════════════════════════════════ -->
+<div class="tab-pane fade" id="pane-przed2026" role="tabpanel">
+<?php
+// Załaduj dane na potrzeby wyświetlenia
+$_p2026_contracts = db_all(
+    "SELECT id, imie_nazwisko, email, m365_login, m365_user_id, numer_umowy
+     FROM umowy_wolontariat
+     WHERE is_technical=1 AND m365_konto=1
+     ORDER BY imie_nazwisko"
+);
+// Uzupełnij status lokalnego konta dla każdego
+foreach ($_p2026_contracts as &$_pc) {
+    $m = ($_pc['m365_user_id'] ?? '')
+        ? db_one("SELECT id, name, microsoft_id FROM users WHERE microsoft_id=?", [$_pc['m365_user_id']])
+        : null;
+    if (!$m && ($_pc['email'] ?? '')) {
+        $m = db_one("SELECT id, name, microsoft_id FROM users WHERE LOWER(email)=LOWER(?)", [$_pc['email']]);
+    }
+    $_pc['_local'] = $m;
+    $_pc['_status'] = !$m ? 'brak'
+        : ($m['microsoft_id'] ? 'ok' : 'nopowiazania');
+}
+unset($_pc);
+$_cnt_ok   = count(array_filter($_p2026_contracts, fn($r) => $r['_status'] === 'ok'));
+$_cnt_warn = count(array_filter($_p2026_contracts, fn($r) => $r['_status'] === 'nopowiazania'));
+$_cnt_miss = count(array_filter($_p2026_contracts, fn($r) => $r['_status'] === 'brak'));
+?>
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h6 class="mb-0">Konta M365 z umów przed 01.06.2026</h6>
+    <div class="text-muted small">Umowy techniczne z kontem M365 — podpinanie kont lokalnych (logowanie przez Microsoft).</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <span class="badge bg-success py-2 px-3"><i class="bi bi-check me-1"></i>Powiązane: <?= $_cnt_ok ?></span>
+    <?php if ($_cnt_warn): ?>
+    <span class="badge bg-warning text-dark py-2 px-3"><i class="bi bi-exclamation-triangle me-1"></i>Konto bez powiązania: <?= $_cnt_warn ?></span>
+    <?php endif; ?>
+    <?php if ($_cnt_miss): ?>
+    <span class="badge bg-danger py-2 px-3"><i class="bi bi-x me-1"></i>Brak konta lokalnego: <?= $_cnt_miss ?></span>
+    <?php endif; ?>
+  </div>
+</div>
+
+<?php if (isset($_p2026_results)): ?>
+<div class="alert alert-success alert-dismissible fade show mb-3">
+  <strong>Wyniki przetwarzania:</strong>
+  <ul class="mb-0 mt-1">
+    <?php foreach ($_p2026_results as $_pr): ?>
+    <li>
+      <strong><?= h($_pr['row']['imie_nazwisko'] ?: $_pr['row']['email']) ?></strong>
+      — <?= h($_pr['msg']) ?>
+      <?php if ($_pr['status'] === 'skip'): ?><span class="text-warning">(pominięto)</span><?php endif; ?>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
+<?php if (empty($_p2026_contracts)): ?>
+<div class="alert alert-secondary">
+  <i class="bi bi-info-circle me-1"></i>
+  Brak umów technicznych z kontem M365 w systemie.
+</div>
+<?php else: ?>
+
+<?php if ($_cnt_miss + $_cnt_warn > 0): ?>
+<form method="post" class="mb-3">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="_action" value="link_przed2026">
+  <button type="submit" class="btn btn-primary"
+          onclick="return confirm('Przetworzyć wszystkie niepowiązane konta (<?= $_cnt_miss + $_cnt_warn ?>)?')">
+    <i class="bi bi-lightning-fill me-1"></i>Powiąż wszystkie niepowiązane (<?= $_cnt_miss + $_cnt_warn ?>)
+  </button>
+</form>
+<?php endif; ?>
+
+<div class="table-responsive">
+<table class="table table-sm table-hover align-middle mb-0">
+  <thead class="table-light">
+    <tr>
+      <th>Wolontariusz</th>
+      <th>E-mail / M365 login</th>
+      <th>Konto lokalne</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  <?php foreach ($_p2026_contracts as $_pc): ?>
+  <tr>
+    <td>
+      <a href="<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= $_pc['id'] ?>&tab=m365" class="fw-semibold text-decoration-none">
+        <?= h($_pc['imie_nazwisko'] ?: '—') ?>
+      </a>
+      <?php if ($_pc['numer_umowy']): ?>
+      <div class="text-muted small font-monospace"><?= h($_pc['numer_umowy']) ?></div>
+      <?php endif; ?>
+    </td>
+    <td>
+      <div><?= h($_pc['email'] ?: '—') ?></div>
+      <div class="text-muted small font-monospace"><?= h($_pc['m365_login'] ?: '—') ?></div>
+    </td>
+    <td>
+      <?php if ($_pc['_local']): ?>
+        <span class="small"><?= h($_pc['_local']['name'] ?: $_pc['_local']['email'] ?? '—') ?></span>
+      <?php else: ?>
+        <span class="text-muted small">—</span>
+      <?php endif; ?>
+    </td>
+    <td>
+      <?php if ($_pc['_status'] === 'ok'): ?>
+        <span class="badge bg-success"><i class="bi bi-check"></i> Powiązane</span>
+      <?php elseif ($_pc['_status'] === 'nopowiazania'): ?>
+        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Konto bez M365</span>
+      <?php else: ?>
+        <span class="badge bg-danger"><i class="bi bi-x"></i> Brak konta</span>
+      <?php endif; ?>
+    </td>
+    <td>
+      <?php if ($_pc['_status'] !== 'ok'): ?>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="link_przed2026">
+        <input type="hidden" name="contract_ids[]" value="<?= intval($_pc['id']) ?>">
+        <button type="submit" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-link-45deg"></i>
+          <?= $_pc['_status'] === 'nopowiazania' ? 'Powiąż' : 'Utwórz' ?>
+        </button>
+      </form>
+      <?php endif; ?>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  </tbody>
+</table>
+</div>
+<?php endif; ?>
+
+</div><!-- /pane-przed2026 -->
 
 </div><!-- /tab-content -->
 
