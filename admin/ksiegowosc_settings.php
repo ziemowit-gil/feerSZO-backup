@@ -76,12 +76,12 @@ foreach ([
     $cfg[$k] = org_setting($k);
 }
 
-$PAGE_TITLE = 'Ustawienia — Dokumenty Księgowe';
+$PAGE_TITLE = 'Ustawienia — eObieg DK';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">
   <a href="<?= APP_URL ?>/admin/" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
-  <h4 class="mb-0"><i class="bi bi-gear"></i> Ustawienia — Dokumenty Księgowe</h4>
+  <h4 class="mb-0"><i class="bi bi-gear"></i> Ustawienia — eObieg DK</h4>
 </div>
 <?= flash_html() ?>
 

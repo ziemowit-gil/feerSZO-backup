@@ -583,15 +583,15 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <?php endif; ?>
 
-  <!-- ── Dokumenty Księgowe ──────────────────────────────────────── -->
+  <!-- ── eObieg DK ──────────────────────────────────────────────── -->
   <?php
   require_once __DIR__ . '/ksiegowosc.php';
   kdok_migrate();
   if (kdok_has_role('upload') || kdok_has_role('meryt') || kdok_has_role('formal') || kdok_has_role('zatwierdza') || is_admin()):
   ?>
-  <div class="sb-label">Księgowość</div>
+  <div class="sb-label">eObieg DK</div>
   <a class="sb-link<?= _nav_active('/ksiegowosc/') ?>" href="<?= APP_URL ?>/ksiegowosc/index.php">
-    <i class="bi bi-file-earmark-check"></i> Dokumenty Księgowe
+    <i class="bi bi-file-earmark-check"></i> eObieg DK
   </a>
   <?php endif; ?>
 

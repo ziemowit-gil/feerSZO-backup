@@ -165,7 +165,7 @@ $groups = [
         ],
     ],
 
-    'Dokumenty Księgowe' => [
+    'eObieg DK' => [
         'icon'  => 'bi-file-earmark-check',
         'color' => 'green',
         'items' => [

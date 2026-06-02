@@ -3,7 +3,7 @@
  * Moduł Akceptacji Dokumentów Księgowych (KDOK).
  *
  * Obsługuje oddzielną bazę danych (SQLite lub MySQL),
- * konfigurowaną przez admin → Dokumenty Księgowe → Ustawienia.
+ * konfigurowaną przez admin → eObieg DK → Ustawienia.
  * Gdy kdok_db_type = 'main' (domyślnie), używa głównej bazy aplikacji.
  *
  * Role (tabela kdok_user_roles, zawsze w głównej bazie):
