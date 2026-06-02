@@ -732,11 +732,17 @@ class CrmManager
         $status  = 'zaplanowana';
 
         if ($do_send) {
-            $contact = db_one("SELECT * FROM crm_contacts WHERE id=?", [$contact_id]);
+            $contact   = db_one("SELECT * FROM crm_contacts WHERE id=?", [$contact_id]);
+            $user_sig  = db_one("SELECT crm_email_signature, crm_sms_signature FROM users WHERE id=?", [$user_id]);
             try {
                 if ($channel === 'sms' && ($contact['telefon'] ?? '')) {
                     require_once __DIR__ . '/sms.php';
-                    sms_send($contact['telefon'], $body);
+                    $sms_body = $body;
+                    $sms_sig  = trim($user_sig['crm_sms_signature'] ?? '');
+                    if ($sms_sig !== '') {
+                        $sms_body = rtrim($sms_body) . "\n" . $sms_sig;
+                    }
+                    sms_send($contact['telefon'], $sms_body);
                     $status = 'wysłana';
                 } elseif ($channel === 'email' && ($contact['email'] ?? '')) {
                     require_once __DIR__ . '/mail_queue.php';
@@ -744,7 +750,12 @@ class CrmManager
                     // Wyślij HTML jeśli treść zawiera tagi, inaczej zawiń w prosty HTML
                     $is_html = strip_tags($body) !== $body;
                     $html_body = $is_html ? $body : nl2br(htmlspecialchars($body));
-                    // Dołącz globalną stopkę CRM (jeśli ustawiona przez admina)
+                    // Dołącz podpis użytkownika (jeśli ustawiony)
+                    $user_email_sig = trim($user_sig['crm_email_signature'] ?? '');
+                    if ($user_email_sig !== '') {
+                        $html_body .= "\n<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:1rem 0\">\n" . $user_email_sig;
+                    }
+                    // Dołącz globalną stopkę CRM admina (jeśli ustawiona)
                     $crm_footer = trim(org_setting('crm_email_footer'));
                     if ($crm_footer !== '') {
                         $html_body .= "\n<hr>\n" . $crm_footer;

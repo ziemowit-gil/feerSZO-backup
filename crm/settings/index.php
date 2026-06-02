@@ -58,7 +58,10 @@ include __DIR__ . '/../includes/header_crm.php';
     <h1 class="crm-object-title">Ustawienia CRM</h1>
     <div class="crm-object-count">Konfiguracja modułu CRM</div>
   </div>
-  <div class="crm-object-actions d-flex gap-2">
+  <div class="crm-object-actions d-flex gap-2 flex-wrap">
+    <a href="<?= APP_URL ?>/crm/settings/signature.php" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-pen me-1"></i>Mój podpis
+    </a>
     <a href="<?= APP_URL ?>/crm/settings/roles.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-people-fill me-1"></i>Role CRM
     </a>
