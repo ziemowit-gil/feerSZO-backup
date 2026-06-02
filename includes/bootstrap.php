@@ -42,8 +42,7 @@ function _bootstrap_halt(string $title, string $message, string $hint = ''): nev
         'certs/app.crt' => [$crt_ok === 'present' ? 'OK' : 'FAIL', $crt_ok === 'present'],
         'certs/app.sig' => [$sig_ok === 'present' ? 'OK' : 'FAIL', $sig_ok === 'present'],
         'php openssl'   => [$ssl_ok === 'loaded'  ? 'OK' : 'FAIL', $ssl_ok === 'loaded'],
-        'php version'   => [$php_ver, true],
-        'app_key'       => [$app_key, true],
+        'php'           => [$php_ver, true],
         'timestamp'     => [$ts, true],
     ];
 
@@ -95,10 +94,9 @@ tr:last-child td{border:none}
        . '<div class="action"><div class="action-label">1 &mdash; Panel twórcy (przeglądarka)</div>'
        . '<a href="' . htmlspecialchars($creator) . '">' . htmlspecialchars($creator) . '</a></div>'
        . '<div class="action"><div class="action-label">2 &mdash; SSH / CLI</div>'
-       . '<code>php ' . htmlspecialchars(dirname(__DIR__)) . '/cli/generatorCertyfikatu.php</code></div>'
+       . '<code>php cli/generatorCertyfikatu.php</code></div>'
        . '<div class="meta">'
        . '<span>' . htmlspecialchars($org) . '</span>'
-       . '<span>' . htmlspecialchars($app_url) . '</span>'
        . '<span>' . htmlspecialchars($ts) . '</span>'
        . '</div>'
        . '</div></div></body></html>';
