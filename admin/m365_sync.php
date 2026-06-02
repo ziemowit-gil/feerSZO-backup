@@ -26,76 +26,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $graph = new M365Graph();
         if (!$graph->is_configured()) throw new RuntimeException('M365 nie jest skonfigurowane.');
 
-        // Pobieramy użytkowników, którzy mają powiązanie z Microsoft
+        // Pobieramy użytkowników z microsoft_id — jeden user może mieć wiele umów w różnych tabelach
         $users = db_all("SELECT id, name, email, microsoft_id, is_active FROM users WHERE microsoft_id IS NOT NULL AND microsoft_id != ''");
 
         foreach ($users as $user) {
-            $has_any_contract = false;
             $should_be_active = false;
-            $m365_user_id = $user['microsoft_id'];
-            $user_email = $user['email']; // Email z tabeli users do porównania
-            $contract_info = 'Brak powiązanych umów';
-            $has_license = true; 
+            $m365_user_id     = $user['microsoft_id'];
+            $user_email       = $user['email'];
+            $contract_infos   = [];
+            $has_any_contract = false;
 
-            // 1. Weryfikacja umów w tabelach
+            // 1. Sprawdź WSZYSTKIE tabele umów dla tego użytkownika
+            // (Aktywny jeśli choć jedna umowa jest aktywna — unika konfliktu między tabelami)
             foreach ($types as $type_key => $table) {
-                // Poprawione zapytanie: używamy m365_login zamiast email, zgodnie z migracją
-                $contracts = db_all("SELECT * FROM {$table} WHERE m365_konto = 1 AND (m365_user_id = ? OR m365_login = ?)", [$m365_user_id, $user_email]);
-
-                if (!empty($contracts)) {
+                $contracts = db_all(
+                    "SELECT * FROM {$table}
+                     WHERE m365_konto = 1
+                       AND (m365_user_id = ? OR (m365_login != '' AND m365_login = ?))",
+                    [$m365_user_id, $user_email]
+                );
+                foreach ($contracts as $contract) {
                     $has_any_contract = true;
-                    foreach ($contracts as $contract) {
-                        if (m365_should_be_active($contract)) {
-                            $should_be_active = true;
-                            $contract_info = "Umowa: " . ($contract['numer_umowy'] ?? 'N/A');
-                            break 2;
-                        }
-                    }
-                    $contract_info = "Umowa: " . ($contracts[0]['numer_umowy'] ?? 'N/A') . " (Zakończona)";
+                    $active = m365_should_be_active($contract);
+                    $contract_infos[] = ($contract['numer_umowy'] ?? '?') . ' ' . ($active ? '✓' : '✗');
+                    if ($active) $should_be_active = true;
                 }
             }
+            $contract_info = $has_any_contract ? implode(', ', $contract_infos) : 'Brak powiązanych umów';
 
-            // Globalna dezaktywacja w tabeli users nadpisuje ważność umowy
+            // Konto dezaktywowane globalnie — nadpisuje umowy
             if (!$has_any_contract || (int)$user['is_active'] === 0) {
                 $should_be_active = false;
             }
 
             // 2. Odpytanie Microsoft Graph o stan faktyczny
             try {
-                $ms_account_info = $graph->get_user_by_id($m365_user_id);
+                $ms_account_info   = $graph->get_user_by_id($m365_user_id);
                 $current_ms_status = isset($ms_account_info['accountEnabled']) ? (bool)$ms_account_info['accountEnabled'] : null;
-                
-                $licenses = $ms_account_info['assignedLicenses'] ?? [];
-                $has_license = !empty($licenses);
+                $licenses          = $ms_account_info['assignedLicenses'] ?? [];
+                $has_license       = !empty($licenses);
 
                 $action_text = '';
                 $status_code = 'skip';
 
                 // LOGIKA DECYZYJNA
                 if ($should_be_active && !$has_license) {
-                    // Sugestia przypisania licencji
-                    $action_text = 'Wymaga przypisania licencji';
-                    $status_code = 'warning';
-                    
-                    // Jeśli konto jest wyłączone, a powinno być aktywne (ale nie ma licencji)
-                    // Zostawiamy zablokowane dla bezpieczeństwa/kosztów
+                    // Aktywna umowa, ale brak licencji — wymuś wyłączenie
                     if ($current_ms_status === true) {
                         $graph->set_enabled($m365_user_id, false);
+                        foreach ($types as $table) {
+                            db_query("UPDATE {$table} SET m365_konto_aktywne=0 WHERE m365_user_id=?", [$m365_user_id]);
+                        }
                         $action_text = 'Zablokowano (brak licencji)';
                         $status_code = 'ok';
+                    } else {
+                        $action_text = 'Zablokowane — brak licencji (OK)';
+                        $status_code = 'warning';
                     }
                 } elseif ($current_ms_status !== null && $should_be_active !== $current_ms_status) {
                     // Synchronizacja stanu Enabled/Disabled
                     $graph->set_enabled($m365_user_id, $should_be_active);
-                    
-                    // Aktualizacja statusu w tabelach umów dla spójności UI
                     foreach ($types as $table) {
-                        db_query("UPDATE {$table} SET m365_konto_aktywne = ? WHERE m365_user_id = ?", [$should_be_active ? 1 : 0, $m365_user_id]);
+                        db_query("UPDATE {$table} SET m365_konto_aktywne=? WHERE m365_user_id=?",
+                            [$should_be_active ? 1 : 0, $m365_user_id]);
                     }
-
                     $action_text = $should_be_active ? 'Włączono konto' : 'Wyłączono konto';
                     $status_code = 'ok';
                 } else {
+                    // Wyrównaj flagę DB do stanu chmury (bez wywołania API)
+                    if ($current_ms_status !== null) {
+                        foreach ($types as $table) {
+                            db_query("UPDATE {$table} SET m365_konto_aktywne=? WHERE m365_user_id=?",
+                                [$current_ms_status ? 1 : 0, $m365_user_id]);
+                        }
+                    }
                     $action_text = $should_be_active ? 'Aktywne — OK' : 'Zablokowane — OK';
                     $status_code = 'skip';
                 }

@@ -406,8 +406,10 @@ function m365_should_be_active(array $row): bool {
     $start = $row['data_rozpoczecia'] ?? $row['data_zawarcia'] ?? null;
     $end   = $row['data_zakonczenia'] ?? $row['termin_oddania'] ?? null;
     $status = $row['status'] ?? '';
+    $bezterminowa = !empty($row['bezterminowa']);
     if (in_array($status, ['zakończona','anulowana','rozwiązana','wygasła'], true)) return false;
     if ($start && $start > $today) return false;
-    if ($end && $end < $today) return false;
+    // Wyłącz konto w dniu wygaśnięcia umowy (włącznie) — nie dzień po
+    if (!$bezterminowa && $end && $end <= $today) return false;
     return true;
 }
