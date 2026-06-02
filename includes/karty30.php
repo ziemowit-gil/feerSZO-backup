@@ -386,11 +386,28 @@ function k30_get_consultants(): array {
 
 function k30_require_access(): void {
     require_login();
-    if (!can_read('karty30') && !is_admin()) {
-        flash_set('danger', 'Brak dostępu do modułu Karty 30.');
-        header('Location: ' . APP_URL . '/index.php');
-        exit;
-    }
+    if (can_read('karty30') || is_admin()) return;
+
+    // Doradcy K30 mają dostęp przez flagę k30_consultant w tabeli users
+    $user = current_user();
+    try {
+        $row = db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)($user['id'] ?? 0)]);
+        if (!empty($row['k30_consultant'])) return;
+    } catch (\Throwable $e) {}
+
+    flash_set('danger', 'Brak dostępu do modułu Karty 30.');
+    header('Location: ' . APP_URL . '/index.php');
+    exit;
+}
+
+function k30_is_consultant(): bool {
+    if (is_admin() || can_read('karty30')) return true;
+    $user = current_user();
+    if (!$user) return false;
+    try {
+        $row = db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)$user['id']]);
+        return !empty($row['k30_consultant']);
+    } catch (\Throwable $e) { return false; }
 }
 
 // ── Certyfikaty x509 doradców ─────────────────────────────────────────────────

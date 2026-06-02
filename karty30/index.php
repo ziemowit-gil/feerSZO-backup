@@ -6,10 +6,11 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
 
 k30_require_access();
+ika_require(APP_URL . '/karty30/index.php');
 karty30_migrate();
 
 $PAGE_TITLE = 'TyfloKonsultacje — Karty 30';
-$can_write  = can_write('karty30') || is_admin();
+$can_write  = can_write('karty30') || is_admin() || k30_is_consultant();
 
 // ── Statystyki ──────────────────────────────────────────────────────────────
 function _k($sql, array $p = []): int {

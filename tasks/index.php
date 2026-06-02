@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/tasks.php';
 
 require_login();
 require_module_enabled('tasks_enabled', 'Moduł zadań');
+task_areas_migrate();
 
 try {
     $_tm = db_one("SELECT value FROM settings WHERE key_='tasks_enabled'");
@@ -107,10 +108,12 @@ $filter_status   = $_GET['status'] ?? 'all';
 $filter_priority = (int)($_GET['pri'] ?? 0);
 $filter_tag      = (int)($_GET['tag'] ?? 0);
 $filter_list     = (int)($_GET['list'] ?? 0);
+$filter_area     = (int)($_GET['area'] ?? 0);
 $filter_q        = trim($_GET['q'] ?? '');
+$all_areas       = task_get_areas();
 
 // Zastosuj filtry
-$tasks = array_filter($tasks_raw, function ($t) use ($filter_status, $filter_priority, $filter_tag, $filter_list, $filter_q, $uid) {
+$tasks = array_filter($tasks_raw, function ($t) use ($filter_status, $filter_priority, $filter_tag, $filter_list, $filter_area, $filter_q, $uid) {
     if ($filter_status === 'open'  && $t['_status'] !== 'open')  return false;
     if ($filter_status === 'taken' && $t['_status'] !== 'taken') return false;
     if ($filter_status === 'done'  && $t['_status'] !== 'done')  return false;
@@ -118,6 +121,7 @@ $tasks = array_filter($tasks_raw, function ($t) use ($filter_status, $filter_pri
     if ($filter_priority && (int)$t['priority'] !== $filter_priority) return false;
     if ($filter_tag  && !in_array($filter_tag,  array_column($t['tags'], 'id'), true)) return false;
     if ($filter_list && (int)$t['list_id'] !== $filter_list)    return false;
+    if ($filter_area && (int)($t['area_id'] ?? 0) !== $filter_area) return false;
     if ($filter_q    && mb_stripos($t['title'] . ' ' . ($t['description'] ?? ''), $filter_q) === false) return false;
     return true;
 });
@@ -499,6 +503,19 @@ require_once __DIR__ . '/includes/header_tasks.php';
     <option value="0" <?= !$filter_tag?'selected':'' ?>>Każdy tag</option>
     <?php foreach ($available_tags as $tg): ?>
     <option value="<?= $tg['id'] ?>" <?= $filter_tag==$tg['id']?'selected':'' ?>><?= h($tg['name']) ?></option>
+    <?php endforeach; ?>
+  </select>
+  <?php endif; ?>
+
+  <!-- Obszar -->
+  <?php if ($all_areas): ?>
+  <label class="visually-hidden" for="tk-area">Obszar</label>
+  <select id="tk-area" class="tk-select" onchange="tkFilter('area',this.value)">
+    <option value="0" <?= !$filter_area?'selected':'' ?>>Każdy obszar</option>
+    <?php foreach ($all_areas as $ar): ?>
+    <option value="<?= $ar['id'] ?>" <?= $filter_area==$ar['id']?'selected':'' ?>>
+      <?= h($ar['name']) ?>
+    </option>
     <?php endforeach; ?>
   </select>
   <?php endif; ?>
@@ -896,6 +913,17 @@ require_once __DIR__ . '/includes/header_tasks.php';
             <label class="form-label fw-semibold small" for="at-due">Termin</label>
             <input type="date" id="at-due" class="form-control form-control-sm">
           </div>
+          <?php if ($all_areas): ?>
+          <div class="col-12">
+            <label class="form-label fw-semibold small" for="at-area">Obszar</label>
+            <select id="at-area" class="form-select form-select-sm">
+              <option value="0">— brak obszaru —</option>
+              <?php foreach ($all_areas as $ar): ?>
+              <option value="<?= $ar['id'] ?>"><?= h($ar['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
         </div>
         <div id="at-error" class="alert alert-danger py-2 small d-none" role="alert"></div>
       </div>
@@ -1038,6 +1066,7 @@ function submitAddTask() {
             due_date:     document.getElementById('at-due').value || null,
             priority:     parseInt(document.getElementById('at-priority').value),
             list_id:      parseInt(document.getElementById('at-list').value),
+            area_id:      parseInt(document.getElementById('at-area')?.value || '0') || null,
             workspace_id: WS_ID
         })
     })

@@ -97,6 +97,7 @@ if ($action === 'create') {
         'start_date'      => $body['start_date'] ?? null,
         'due_date'        => $body['due_date']   ?? null,
         'estimated_hours' => isset($body['estimated_hours']) ? (float)$body['estimated_hours'] : null,
+        'area_id'         => isset($body['area_id']) ? ((int)$body['area_id'] ?: null) : null,
         'created_by'      => $uid,
         'created_at'      => $now,
         'updated_at'      => $now,
@@ -129,7 +130,7 @@ if ($action === 'update') {
     $allowed = $viewer_only
         ? ['due_date','estimated_hours','recurrence','recurrence_end_date']
         : ['title','description','priority','start_date','due_date','estimated_hours',
-           'recurrence','recurrence_end_date','claimable'];
+           'recurrence','recurrence_end_date','claimable','area_id'];
     $changes = [];
     foreach ($allowed as $f) {
         if (!array_key_exists($f, $body)) continue;
@@ -139,6 +140,7 @@ if ($action === 'update') {
         if ($f === 'estimated_hours') $val = $val !== '' && $val !== null ? (float)$val : null;
         if ($f === 'claimable') $val = $val ? 1 : 0;
         if ($f === 'start_date' || $f === 'due_date') $val = ($val === '' ? null : $val);
+        if ($f === 'area_id') $val = ($val ? (int)$val : null);
 
         // Loguj zmiany
         if ((string)($task[$f] ?? '') !== (string)($val ?? '')) {

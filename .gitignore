@@ -1,2 +1,13 @@
 *.pfx
 *.db
+*.db-shm
+*.db-wal
+*.p12
+*.key
+certs/*.key
+uploads/
+backups/
+tenants/*/umowy.db
+tenants/*/uploads/
+.env
+*.log

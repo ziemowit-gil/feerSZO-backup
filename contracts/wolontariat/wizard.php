@@ -59,9 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$d['imie_nazwisko']) $errors[] = 'Imię i nazwisko wolontariusza jest wymagane.';
 
     if (!$errors) {
-        // Generuj kod odzyskiwania (8 cyfr)
-        $recovery_plain = str_pad((string)random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
-        $d['recovery_code_hash'] = password_hash($recovery_plain, PASSWORD_BCRYPT);
+        // Generuj kod odzyskiwania (8 cyfr) tylko dla umów sprzed 01.06.2026
+        $recovery_plain = null;
+        $zawarcia = $d['data_zawarcia'] ?? '';
+        if ($zawarcia !== '' && $zawarcia < '2026-06-01') {
+            $recovery_plain = str_pad((string)random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
+            $d['recovery_code_hash'] = password_hash($recovery_plain, PASSWORD_BCRYPT);
+        }
 
         // Plik przed insertem żeby mieć nazwę
         $plik = handle_upload('plik_umowy', $TYPE);
@@ -74,10 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_system_action((int)current_user()['id'], 'contract_create',
             "Dodano porozumienie {$TYPE} #{$id} przez kreator: " . $d['imie_nazwisko']);
 
-        // Przekaż kod plain jednorazowo przez sesję
-        $_SESSION['recovery_code_plain_' . $id] = $recovery_plain;
-
-        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&show_recovery=1");
+        // Przekaż kod plain jednorazowo przez sesję (tylko gdy wygenerowany)
+        if ($recovery_plain !== null) {
+            $_SESSION['recovery_code_plain_' . $id] = $recovery_plain;
+            header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&show_recovery=1");
+        } else {
+            header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}");
+        }
         exit;
     }
 }

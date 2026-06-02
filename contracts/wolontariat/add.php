@@ -409,10 +409,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($bd) db_update($TABLE, ['data_urodzenia' => $bd], $id);
         }
 
-        // Generuj kod odzyskiwania (8 cyfr)
-        $recovery_plain = str_pad((string)random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
-        db_update($TABLE, ['recovery_code_hash' => password_hash($recovery_plain, PASSWORD_BCRYPT)], $id);
-        $_SESSION['recovery_code_plain_' . $id] = $recovery_plain;
+        // Generuj kod odzyskiwania (8 cyfr) tylko dla umów sprzed 01.06.2026
+        $recovery_plain = null;
+        $zawarcia = $data['data_zawarcia'] ?? '';
+        if ($zawarcia !== '' && $zawarcia < '2026-06-01') {
+            $recovery_plain = str_pad((string)random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
+            db_update($TABLE, ['recovery_code_hash' => password_hash($recovery_plain, PASSWORD_BCRYPT)], $id);
+            $_SESSION['recovery_code_plain_' . $id] = $recovery_plain;
+        }
 
         // Techniczna: bez obiegu, bez numeru RU — tylko wpis i dostęp
         if ($is_technical) {
@@ -423,7 +427,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('success', 'Porozumienie wolontariackie zostało dodane.');
         }
-        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&onboard=1&show_recovery=1");
+        $show = $recovery_plain !== null ? '&show_recovery=1' : '';
+        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&onboard=1{$show}");
         exit;
     }
 }

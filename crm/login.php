@@ -32,9 +32,14 @@ $error = '';
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $csrf_ok = hash_equals($_SESSION['csrf'] ?? '', $_POST['_csrf'] ?? '');
+    $session_csrf = $_SESSION['csrf'] ?? '';
+    $post_csrf    = $_POST['_csrf']   ?? '';
+    $csrf_ok      = $session_csrf !== '' && hash_equals($session_csrf, $post_csrf);
     if (!$csrf_ok) {
-        $error = 'Nieprawidłowy token CSRF. Odśwież stronę.';
+        // Wygeneruj świeży token — kolejne przesłanie formularza zadziała
+        unset($_SESSION['csrf']);
+        csrf_token();
+        $error = 'Token sesji wygasł. Spróbuj ponownie.';
     } else {
         $email = trim($_POST['email'] ?? '');
         $pass  = $_POST['password'] ?? '';

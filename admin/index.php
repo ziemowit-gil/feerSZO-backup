@@ -158,6 +158,8 @@ $groups = [
         'icon'  => 'bi-tools',
         'color' => 'red',
         'items' => [
+            ['icon'=>'bi-info-circle',       'label'=>'Informacje o systemie', 'url'=>'/admin/system_info.php', 'danger'=>false],
+            ['icon'=>'bi-layers',            'label'=>'Obszary zadań',         'url'=>'/admin/task_areas.php',  'danger'=>false],
             ['icon'=>'bi-database-fill-gear','label'=>'Narzędzia bazy danych','url'=>'/admin/db_tools.php',     'danger'=>false],
             ['icon'=>'bi-trash3',          'label'=>'Wyczyść bazę',      'url'=>'/admin/clean_db.php',       'danger'=>true],
             ['icon'=>'bi-journal-text',    'label'=>'Przeglądarka logów',    'url'=>'/admin/logs_global.php',  'danger'=>false],

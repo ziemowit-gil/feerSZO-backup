@@ -47,6 +47,12 @@ if (!defined('CRM_STANDALONE')) define('CRM_STANDALONE', false);
 define('APP_KEY', '0d74d40a14da3673d68c6bd7094d4142f60d20eea6435eb99b567f232b4608d7');
 define('ORG_NAME', 'Fundacja Edukacji Empatii Rozwoju FEER');
 
+// Wersja i środowisko aplikacji
+define('APP_VERSION', '2.2.0');
+define('APP_ENV',     getenv('APP_ENV') ?: (
+    ($_SERVER['SERVER_NAME'] ?? 'localhost') === 'localhost' ? 'development' : 'production'
+));
+
 // Baza danych
 define('DB_TYPE', 'sqlite');
 define('DB_PATH', __DIR__ . '/umowy.db');

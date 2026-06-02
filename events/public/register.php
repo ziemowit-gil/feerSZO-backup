@@ -112,15 +112,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'updated_at'  => date('Y-m-d H:i:s'),
         ]);
 
-        // CRM & webhook
-        ev_crm_sync($event['id'], $reg_id, [
-            'first_name' => $first_name, 'last_name' => $last_name,
-            'email' => $email, 'phone' => $phone,
-        ]);
-        ev_pa_notify($event['id'], [
-            'first_name' => $first_name, 'last_name' => $last_name,
-            'email' => $email, 'phone' => $phone, 'ticket_code' => $ticket_code,
-        ]);
+        // CRM sync
+        try {
+            ev_crm_sync([
+                'first_name' => $first_name, 'last_name' => $last_name,
+                'email' => $email, 'phone' => $phone,
+            ], (int)$event['id']);
+        } catch (\Throwable $_e) {}
+
+        // Webhook PA
+        try {
+            ev_pa_notify((int)$event['id'], [
+                'first_name' => $first_name, 'last_name' => $last_name,
+                'email' => $email, 'phone' => $phone, 'ticket_code' => $ticket_code,
+            ]);
+        } catch (\Throwable $_e) {}
+
+        // E-mail potwierdzający dla uczestnika
+        try {
+            require_once dirname(dirname(dirname(__FILE__))) . '/includes/mail_queue.php';
+            $org    = defined('ORG_NAME') ? ORG_NAME : '';
+            $subj   = 'Potwierdzenie rejestracji — ' . $event['title'];
+            $start  = $event['start_at'] ? date('d.m.Y H:i', strtotime($event['start_at'])) : '';
+            $html   = '
+<p>Cześć <strong>' . htmlspecialchars($first_name . ' ' . $last_name) . '</strong>,</p>
+<p>Twoja rejestracja na <strong>' . htmlspecialchars($event['title']) . '</strong> została potwierdzona.</p>
+' . ($start ? '<p><i>Data:</i> ' . htmlspecialchars($start) . '</p>' : '') . '
+<div style="text-align:center;margin:24px 0">
+  <span style="font-size:1.6rem;font-weight:900;letter-spacing:.2em;font-family:monospace;
+               background:#f5f3ff;border:2px dashed #7c3aed;border-radius:8px;
+               padding:10px 24px;display:inline-block;color:#7c3aed">'
+               . htmlspecialchars($ticket_code) . '</span>
+  <div style="margin-top:8px;font-size:.82rem;color:#64748b">Kod biletu — zachowaj go</div>
+</div>
+' . ($status === 'waitlist' ? '<p style="color:#d97706">⚠️ Zostałeś/aś zapisany/a na listę oczekujących.</p>' : '') . '
+<p style="color:#64748b;font-size:.85rem">Organizator: ' . htmlspecialchars($org) . '</p>';
+            mail_queue_add($email, $first_name . ' ' . $last_name, $subj, $html, '', 'event', (int)$event['id']);
+        } catch (\Throwable $_e) {}
+
+        // Powiadomienie dla organizatora (jeśli skonfigurowane)
+        try {
+            $notify = trim($event['notify_email'] ?? '');
+            if ($notify && $event['notify_new_reg']) {
+                require_once dirname(dirname(dirname(__FILE__))) . '/includes/mail_queue.php';
+                $org_subj = 'Nowa rejestracja: ' . $event['title'];
+                $org_html = '<p>Nowa rejestracja na <strong>' . htmlspecialchars($event['title']) . '</strong>:</p>'
+                          . '<ul><li>' . htmlspecialchars($first_name . ' ' . $last_name) . '</li>'
+                          . '<li>' . htmlspecialchars($email) . '</li>'
+                          . '<li>Status: ' . htmlspecialchars($status) . '</li></ul>';
+                mail_queue_add($notify, '', $org_subj, $org_html, '', 'event', (int)$event['id']);
+            }
+        } catch (\Throwable $_e) {}
 
         $success = true;
     }

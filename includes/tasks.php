@@ -359,6 +359,41 @@ function task_avatar_initials(string $name, string $bg = '#2563eb', string $colo
     return '<span class="task-avatar" style="background:' . h($bg) . ';color:' . h($color) . '">' . h($initials) . '</span>';
 }
 
+// ── Obszary (Areas) ────────────────────────────────────────────────────────
+
+function task_areas_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS task_areas (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       VARCHAR(100) NOT NULL,
+        color      VARCHAR(7)   NOT NULL DEFAULT '#6c757d',
+        icon       VARCHAR(50)  NOT NULL DEFAULT 'bi-layers',
+        is_active  INTEGER      NOT NULL DEFAULT 1,
+        created_by INTEGER,
+        created_at DATETIME     NOT NULL DEFAULT (datetime('now','localtime')),
+        updated_at DATETIME     NOT NULL DEFAULT (datetime('now','localtime'))
+    )");
+    try { $pdo->exec("ALTER TABLE tasks ADD COLUMN area_id INTEGER REFERENCES task_areas(id)"); }
+    catch (\Throwable $e) {}
+}
+
+function task_get_areas(): array {
+    task_areas_migrate();
+    return db_all("SELECT * FROM task_areas WHERE is_active=1 ORDER BY name");
+}
+
+function task_area_badge(?int $area_id): string {
+    if (!$area_id) return '';
+    $a = db_one("SELECT name, color, icon FROM task_areas WHERE id=?", [$area_id]);
+    if (!$a) return '';
+    $color = h($a['color']);
+    return '<span class="badge" style="background:' . $color . ';font-size:.72em">'
+         . '<i class="bi ' . h($a['icon']) . ' me-1"></i>' . h($a['name']) . '</span>';
+}
+
 // ── Due date badge ─────────────────────────────────────────────────────────
 
 function task_due_badge(?string $due_date, ?string $completed_at): string {
