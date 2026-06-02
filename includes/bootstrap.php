@@ -23,32 +23,67 @@ $_boot_sig = dirname(__DIR__) . '/certs/app.sig';
 // ── Błąd blokujący ────────────────────────────────────────────────────────────
 function _bootstrap_halt(string $title, string $message, string $hint = ''): never {
     http_response_code(503);
-    $org      = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME) : 'Rejestr Umow';
-    $hint_html = $hint ? '<div class="hint">' . $hint . '</div>' : '';
-    $css = '*{box-sizing:border-box;margin:0;padding:0}'
-         . 'body{font-family:system-ui,sans-serif;background:#f8f9fa;display:flex;'
-         . 'align-items:center;justify-content:center;min-height:100vh;padding:1rem}'
-         . '.card{background:#fff;border-radius:.75rem;box-shadow:0 4px 24px rgba(0,0,0,.1);'
-         . 'max-width:520px;width:100%;padding:2.5rem 2rem;text-align:center}'
-         . '.icon{font-size:3rem;margin-bottom:1rem}'
-         . 'h1{font-size:1.3rem;font-weight:700;color:#212529;margin-bottom:.75rem}'
-         . 'p{color:#495057;font-size:.95rem;line-height:1.6;margin-bottom:.75rem}'
-         . '.hint{background:#fff3cd;border:1px solid #ffc107;border-radius:.5rem;'
-         . 'padding:.75rem 1rem;font-size:.82rem;color:#856404;text-align:left;'
-         . 'font-family:monospace;margin-top:1rem;word-break:break-all}'
-         . '.badge{display:inline-block;background:#dc3545;color:#fff;border-radius:.3rem;'
-         . 'padding:.25rem .6rem;font-size:.75rem;font-weight:600;margin-bottom:1rem}';
+
+    $org       = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME) : '';
+    $app_url   = defined('APP_URL')  ? htmlspecialchars(rtrim(APP_URL, '/')) : '';
+    $app_key   = defined('APP_KEY')  ? substr(APP_KEY, 0, 8) . '…' : '—';
+    $php_ver   = PHP_VERSION;
+    $sapi      = php_sapi_name();
+    $ts        = date('Y-m-d H:i:s T');
+    $certs_dir = dirname(__DIR__) . '/certs';
+    $crt_ok    = file_exists($certs_dir . '/app.crt') ? 'present' : 'MISSING';
+    $sig_ok    = file_exists($certs_dir . '/app.sig') ? 'present' : 'MISSING';
+    $ssl_ok    = extension_loaded('openssl') ? 'loaded' : 'MISSING';
+    $creator   = $app_url ? $app_url . '/creator.php' : '/creator.php';
+
+    $hint_html = $hint ? '<div class="cmd">' . $hint . '</div>' : '';
+
     echo '<!doctype html><html lang="pl"><head>'
-       . '<meta charset="utf-8">'
-       . '<meta name="viewport" content="width=device-width,initial-scale=1">'
-       . "<title>Blad autoryzacji &mdash; {$org}</title>"
-       . "<style>{$css}</style>"
-       . '</head><body><div class="card">'
-       . '<div class="icon">&#128274;</div>'
-       . '<span class="badge">BRAK AUTORYZACJI</span>'
-       . "<h1>{$title}</h1>"
-       . "<p>{$message}</p>"
+       . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+       . '<title>503 License Error</title>'
+       . '<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;font-size:13px;line-height:1.7}
+.wrap{max-width:720px;margin:0 auto;padding:3rem 1.5rem}
+.top{color:#555;font-size:.8rem;margin-bottom:2rem}
+.top b{color:#888}
+h1{font-size:1rem;color:#e8e8e8;font-weight:700;margin-bottom:.25rem}
+.err-code{color:#c0392b;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1.5rem}
+p{color:#888;font-size:.85rem;margin-bottom:.75rem}
+.section{border-top:1px solid #1a1a1a;margin-top:1.5rem;padding-top:1rem}
+.section-title{color:#555;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem}
+.kv{width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:.75rem}
+.kv td{padding:.25rem 0;vertical-align:top}
+.kv td:first-child{color:#555;width:38%;padding-right:1rem;white-space:nowrap}
+.ok{color:#3d9970}.err{color:#c0392b}.warn{color:#c9a227}
+.cmd{background:#111;border-left:2px solid #333;padding:.6rem .9rem;font-size:.8rem;color:#7dd3fc;margin:.75rem 0;word-break:break-all}
+.link{display:inline-block;margin-top:1rem;color:#7dd3fc;font-size:.82rem;text-decoration:none;border-bottom:1px solid #334}
+.link:hover{color:#93c5fd}
+.foot{color:#2a2a2a;font-size:.72rem;margin-top:2.5rem}
+</style>'
+       . '</head><body><div class="wrap">'
+       . '<div class="top"><b>platforma-ngo</b> · ' . htmlspecialchars($org) . ' · ' . htmlspecialchars($ts) . '</div>'
+       . '<div class="err-code">503 · license_error</div>'
+       . '<h1>' . htmlspecialchars($title) . '</h1>'
+       . '<p>' . htmlspecialchars($message) . '</p>'
        . $hint_html
+       . '<div class="section"><div class="section-title">diagnostics</div>'
+       . '<table class="kv">'
+       . '<tr><td>certs/app.crt</td><td class="' . ($crt_ok === 'present' ? 'ok' : 'err') . '">' . $crt_ok . '</td></tr>'
+       . '<tr><td>certs/app.sig</td><td class="' . ($sig_ok === 'present' ? 'ok' : 'err') . '">' . $sig_ok . '</td></tr>'
+       . '<tr><td>php_openssl</td><td class="' . ($ssl_ok === 'loaded' ? 'ok' : 'err') . '">' . $ssl_ok . '</td></tr>'
+       . '<tr><td>php</td><td>' . htmlspecialchars($php_ver) . ' (' . htmlspecialchars($sapi) . ')</td></tr>'
+       . '<tr><td>app_key</td><td>' . htmlspecialchars($app_key) . '</td></tr>'
+       . '<tr><td>app_url</td><td>' . htmlspecialchars($app_url ?: '—') . '</td></tr>'
+       . '<tr><td>certs_dir</td><td style="font-size:.75rem">' . htmlspecialchars($certs_dir) . '</td></tr>'
+       . '</table></div>'
+       . '<div class="section"><div class="section-title">resolve</div>'
+       . '<div class="cmd">// Opcja 1 — panel twórcy (przeglądarka)<br>'
+       . '<a href="' . htmlspecialchars($creator) . '" class="link" style="margin:0">' . htmlspecialchars($creator) . '</a></div>'
+       . '<div class="cmd">// Opcja 2 — CLI (SSH)<br>'
+       . 'php ' . htmlspecialchars(dirname(__DIR__)) . '/cli/generatorCertyfikatu.php</div>'
+       . '</div>'
+       . '<div class="foot">platforma-ngo · bootstrap_halt · ' . htmlspecialchars($ts) . '</div>'
        . '</div></body></html>';
     exit;
 }
