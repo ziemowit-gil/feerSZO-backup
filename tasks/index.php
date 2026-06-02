@@ -409,19 +409,76 @@ require_once __DIR__ . '/includes/header_tasks.php';
 <div id="tk-sr" aria-live="polite" aria-atomic="true"></div>
 
 <?php if (!$workspaces): ?>
-<div class="card border-0 shadow-sm">
-  <div class="card-body text-center py-5">
-    <i class="bi bi-table display-3 text-muted opacity-25 d-block mb-3" aria-hidden="true"></i>
-    <h2 class="h5 text-muted">Brak dostępnych obszarów</h2>
-    <?php if ($is_admin): ?>
-    <p class="text-muted small">Utwórz pierwszy obszar, aby zacząć dodawać zadania.</p>
-    <a href="<?= APP_URL ?>/admin/tasks_workspaces.php" class="btn btn-primary">
-      <i class="bi bi-plus-lg me-1"></i>Utwórz obszar
-    </a>
-    <?php else: ?>
-    <p class="text-muted small">Poproś administratora o przypisanie Cię do obszaru.</p>
-    <?php endif; ?>
+<!-- ══ ONBOARDING — brak obszarów ══════════════════════════════════════════ -->
+<div style="max-width:680px;margin:2rem auto">
+
+  <!-- Hero -->
+  <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);border-radius:16px;padding:2rem 2.5rem;color:#fff;margin-bottom:1.25rem;position:relative;overflow:hidden">
+    <div style="position:absolute;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.06);right:-60px;top:-60px"></div>
+    <div style="font-size:2rem;margin-bottom:.75rem">📋</div>
+    <h1 style="font-size:1.4rem;font-weight:800;margin:0 0 .4rem;letter-spacing:-.02em">Witaj w module Zadania!</h1>
+    <p style="font-size:.88rem;opacity:.85;margin:0;line-height:1.6">
+      Tu zarządzasz zadaniami organizacji — przypisujesz je do wolontariuszy,
+      śledzisz postęp i widzisz kto nad czym pracuje.
+    </p>
   </div>
+
+  <?php if ($is_admin): ?>
+  <!-- Kroki dla admina -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.5rem;margin-bottom:1rem">
+    <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:1rem">Jak zacząć — 3 kroki</div>
+
+    <div style="display:flex;flex-direction:column;gap:.85rem">
+      <div style="display:flex;align-items:flex-start;gap:1rem">
+        <div style="width:32px;height:32px;border-radius:50%;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;flex-shrink:0">1</div>
+        <div>
+          <div style="font-weight:600;font-size:.9rem;color:#0f172a">Utwórz obszar roboczy</div>
+          <div style="font-size:.8rem;color:#64748b;margin-top:.15rem">Obszar to odpowiednik projektu lub działu — np. „Wolontariat 2026", „Komunikacja"</div>
+          <a href="<?= APP_URL ?>/admin/tasks_workspaces.php" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.5rem;background:#2563eb;color:#fff;padding:.35rem .85rem;border-radius:7px;text-decoration:none;font-size:.8rem;font-weight:600">
+            <i class="bi bi-plus-lg"></i>Utwórz obszar
+          </a>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:1rem;opacity:.5">
+        <div style="width:32px;height:32px;border-radius:50%;background:#f8fafc;color:#64748b;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;flex-shrink:0">2</div>
+        <div>
+          <div style="font-weight:600;font-size:.9rem;color:#0f172a">Dodaj listy i zadania</div>
+          <div style="font-size:.8rem;color:#64748b;margin-top:.15rem">W obszarze tworzysz listy (np. „Do zrobienia", „W trakcie", „Gotowe") i zadania w każdej z nich</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:1rem;opacity:.5">
+        <div style="width:32px;height:32px;border-radius:50%;background:#f8fafc;color:#64748b;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;flex-shrink:0">3</div>
+        <div>
+          <div style="font-weight:600;font-size:.9rem;color:#0f172a">Przypisz wolontariuszy</div>
+          <div style="font-size:.8rem;color:#64748b;margin-top:.15rem">Przypisuj zadania do konkretnych osób — wolontariusze widzą swoje zadania po zalogowaniu do panelu</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tip -->
+  <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:1rem 1.25rem;display:flex;gap:.75rem;align-items:flex-start">
+    <i class="bi bi-lightbulb-fill" style="color:#16a34a;flex-shrink:0;margin-top:.1rem"></i>
+    <div style="font-size:.82rem;color:#15803d;line-height:1.5">
+      <strong>Szybki start:</strong> Możesz też zaimportować tablice bezpośrednio z Trello —
+      przejdź do <a href="<?= APP_URL ?>/admin/trello_import.php" style="color:#15803d;font-weight:600">Import z Trello</a> w panelu admina.
+    </div>
+  </div>
+
+  <?php else: ?>
+  <!-- Dla zwykłego użytkownika -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.75rem;text-align:center">
+    <i class="bi bi-person-plus" style="font-size:2rem;color:#94a3b8;display:block;margin-bottom:.75rem"></i>
+    <div style="font-weight:700;font-size:.95rem;color:#0f172a;margin-bottom:.3rem">Nie masz jeszcze przypisanego obszaru</div>
+    <p style="font-size:.83rem;color:#64748b;line-height:1.6;margin:0">
+      Poproś administratora lub koordynatora, aby dodał Cię do obszaru roboczego.
+      Po przypisaniu zobaczysz tutaj swoje zadania.
+    </p>
+  </div>
+  <?php endif; ?>
+
 </div>
 
 <?php else: ?>
@@ -632,11 +689,38 @@ require_once __DIR__ . '/includes/header_tasks.php';
       <?php if (!$tasks): ?>
       <tr>
         <td colspan="9">
-          <div class="tk-empty">
-            <i class="bi bi-inbox" aria-hidden="true"></i>
-            <p class="fw-semibold mb-1">Brak zadań spełniających kryteria</p>
-            <p class="small mb-0">Zmień filtry lub dodaj nowe zadanie.</p>
+          <?php
+          // Sprawdź czy obszar jest zupełnie nowy (0 list lub 0 zadań łącznie)
+          $is_brand_new = ($workspace && (int)($workspace['task_count'] ?? 0) === 0 && empty($lists_map));
+          ?>
+          <?php if ($is_brand_new && $can_add): ?>
+          <div style="padding:2rem 1.5rem;text-align:center;max-width:480px;margin:0 auto">
+            <div style="font-size:2.5rem;margin-bottom:.75rem">🎉</div>
+            <div style="font-weight:700;font-size:1rem;color:#0f172a;margin-bottom:.35rem">Obszar „<?= h($workspace['name']) ?>" jest gotowy!</div>
+            <p style="font-size:.83rem;color:#64748b;line-height:1.6;margin-bottom:1.25rem">
+              Teraz dodaj pierwsze zadania. Możesz też najpierw stworzyć listy
+              (np. „Do zrobienia" / „W trakcie" / „Gotowe") żeby lepiej porządkować pracę.
+            </p>
+            <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+              <button type="button" onclick="openAddModal()"
+                      style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.55rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem">
+                <i class="bi bi-plus-lg"></i>Dodaj pierwsze zadanie
+              </button>
+              <?php if ($is_admin): ?>
+              <a href="<?= APP_URL ?>/admin/tasks_workspaces.php"
+                 style="background:#f8fafc;color:#374151;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem 1rem;font-size:.83rem;font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem">
+                <i class="bi bi-list-ul"></i>Zarządzaj listami
+              </a>
+              <?php endif; ?>
+            </div>
           </div>
+          <?php else: ?>
+          <div class="tk-empty">
+            <i class="bi bi-funnel" aria-hidden="true"></i>
+            <p class="fw-semibold mb-1">Brak zadań spełniających kryteria</p>
+            <p class="small mb-0">Zmień filtry lub <button type="button" class="btn btn-link btn-sm p-0" onclick="openAddModal()">dodaj nowe zadanie</button>.</p>
+          </div>
+          <?php endif; ?>
         </td>
       </tr>
 

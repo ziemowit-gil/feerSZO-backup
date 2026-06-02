@@ -1,6 +1,10 @@
 <?php
+// Kanban wyłączony — przekieruj do listy tabelarycznej
+require_once dirname(dirname(__DIR__)) . '/config.php';
+header('Location: ' . APP_URL . '/contracts/wolontariat/list.php');
+exit;
 /**
- * contracts/wolontariat/kanban.php — Kanban statusów umów wolontariackich
+ * contracts/wolontariat/kanban.php — Kanban statusów umów wolontariackich (WYŁĄCZONY)
  *
  * Obsługuje:
  *   GET              — widok kanban z filtrami
