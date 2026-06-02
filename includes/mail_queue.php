@@ -36,6 +36,15 @@
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
+/**
+ * Dodaje e-mail do kolejki.
+ *
+ * Jeśli wiadomość jest krótka (< 50 KB) i nie ma zaplanowanego czasu wysyłki,
+ * system próbuje ją wysłać natychmiast — bez czekania na cron.
+ * Przy błędzie wiadomość zostaje w kolejce do ponowienia.
+ *
+ * @param bool $immediate  Wymuś natychmiastową wysyłkę niezależnie od rozmiaru.
+ */
 function mail_queue_add(
     string $to_email,
     string $to_name,
@@ -44,7 +53,8 @@ function mail_queue_add(
     string $body_text    = '',
     string $context_type = '',
     ?int   $context_id   = null,
-    string $scheduled_at = ''
+    string $scheduled_at = '',
+    bool   $immediate    = false
 ): int {
     if (!$body_text) {
         $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_html));
@@ -61,18 +71,22 @@ function mail_queue_add(
     ]);
     $mail_id = (int)db()->lastInsertId();
 
-    // Jeśli brak konfiguracji SMTP/M365 — wyślij od razu przez PHP mail()
-    // żeby wiadomość nie utknęła w kolejce gdy cron nie działa
-    $has_smtp  = (bool)_mail_setting('smtp_host');
-    $has_m365  = (bool)_mail_setting('m365_sender_user_id');
-    if (!$has_smtp && !$has_m365 && !$scheduled_at) {
+    // Natychmiastowa wysyłka gdy:
+    //  a) flaga $immediate = true
+    //  b) mała wiadomość (< 50 KB treści HTML) i brak zaplanowanego czasu
+    $is_small = strlen($body_html) < 51200;
+    if (!$scheduled_at && ($immediate || $is_small)) {
         try {
             $msg = db_one("SELECT * FROM mail_queue WHERE id=?", [$mail_id]);
-            if ($msg && _mail_send_native($msg)) {
-                db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$mail_id]);
+            if ($msg) {
+                $ok = _mail_send($msg);
+                if ($ok) {
+                    db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$mail_id]);
+                }
             }
         } catch (\Throwable $e) {
-            // Zostaje w kolejce do następnego uruchomienia crona
+            // Przy błędzie zostaje status='pending' — cron ponowi
+            db()->prepare("UPDATE mail_queue SET last_error=? WHERE id=?")->execute([$e->getMessage(), $mail_id]);
         }
     }
 
