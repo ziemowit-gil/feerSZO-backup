@@ -131,6 +131,8 @@ function cpc_migrate(): void {
         'canva_access'              => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_access INTEGER NOT NULL DEFAULT 0",
         'canva_invited_at'          => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_invited_at DATETIME NULL",
         'canva_email_sent_at'       => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_email_sent_at DATETIME NULL",
+        // Prośba o Canva (składana przez wolontariusza z panelu)
+        'canva_access_requested_at' => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_access_requested_at DATETIME NULL",
         // Token jednorazowy do uzupełnienia danych przez wolontariusza (przed 01.06.2026)
         'data_token'                => "ALTER TABLE umowy_wolontariat ADD COLUMN data_token TEXT NULL",
         'data_token_used_at'        => "ALTER TABLE umowy_wolontariat ADD COLUMN data_token_used_at DATETIME NULL",

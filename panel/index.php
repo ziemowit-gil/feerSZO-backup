@@ -95,6 +95,68 @@ if ($_active_contract) {
     $_active_row   = db_one("SELECT * FROM {$_active_table} WHERE id = ?", [(int)$_active_contract['id']]);
 }
 
+// ── Prośba o dostęp do Canva ──────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_request_canva'])) {
+    require_once dirname(__DIR__) . '/includes/functions.php';
+    if (isset($_POST['_csrf'])) csrf_check();
+    $contract_id = (int)($_POST['canva_contract_id'] ?? ($_active_contract['id'] ?? 0));
+    if ($contract_id && $_active_contract && $_active_contract['contract_type'] === 'wolontariat') {
+        $row_c = db_one("SELECT id, imie_nazwisko, email, m365_login, numer_umowy, canva_access, canva_access_requested_at FROM umowy_wolontariat WHERE id=?", [$contract_id]);
+        if ($row_c && !$row_c['canva_access']) {
+            // Zapisz datę prośby
+            try {
+                db()->prepare("UPDATE umowy_wolontariat SET canva_access_requested_at=datetime('now','localtime') WHERE id=?")
+                    ->execute([$contract_id]);
+            } catch (\Throwable $e) {}
+
+            // Powiadom adminów
+            $org = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+            $name = h($row_c['imie_nazwisko'] ?? '');
+            $email_vol = $row_c['email'] ?? '';
+            $m365 = $row_c['m365_login'] ?? '';
+            $numer = $row_c['numer_umowy'] ?? '';
+            $canva_url = APP_URL . '/contracts/wolontariat/view.php?id=' . $contract_id . '#tab-m365-anchor';
+            $admin_body = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:20px 24px;border-radius:8px 8px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎨 Prośba o dostęp do Canva Pro — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:22px;border-radius:0 0 8px 8px">
+  <p>Wolontariusz prosi o dostęp do przestrzeni <strong>Canva Pro</strong> organizacji.</p>
+  <table style="background:#f8f9fa;border-radius:6px;width:100%;border-collapse:collapse;margin:12px 0">
+    <tr><td style="padding:5px 12px;color:#6c757d;width:130px">Imię i nazwisko</td><td style="padding:5px 12px"><strong>{$name}</strong></td></tr>
+    <tr><td style="padding:5px 12px;color:#6c757d">E-mail</td><td style="padding:5px 12px">{$email_vol}</td></tr>
+    <tr><td style="padding:5px 12px;color:#6c757d">Login M365</td><td style="padding:5px 12px"><code>{$m365}</code></td></tr>
+    <tr><td style="padding:5px 12px;color:#6c757d">Numer umowy</td><td style="padding:5px 12px">{$numer}</td></tr>
+  </table>
+  <div style="margin:16px 0;text-align:center">
+    <a href="{$canva_url}" style="background:#7c3aed;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600">
+      Przejdź do umowy →
+    </a>
+    &nbsp;
+    <a href="https://www.canva.com/brand/invite" target="_blank" style="background:#f8f9fa;color:#374151;padding:10px 18px;border-radius:7px;text-decoration:none;font-weight:500;border:1px solid #dee2e6">
+      Panel zaproszeń Canva
+    </a>
+  </div>
+  <p style="font-size:.82em;color:#6c757d">Wyślij zaproszenie w Canva, a następnie oznacz jako wysłane w widoku umowy.</p>
+</div></body></html>
+HTML;
+            try {
+                require_once dirname(__DIR__) . '/includes/mail_queue.php';
+                $admins = db_all("SELECT email, name FROM users WHERE role='admin' AND is_active=1 LIMIT 3");
+                foreach ($admins as $adm) {
+                    mail_queue_add($adm['email'], $adm['name'], "Prośba o Canva: {$name} — {$org}", $admin_body);
+                }
+            } catch (\Throwable $e) {}
+
+            flash_set('success', 'Prośba o dostęp do Canva wysłana. Administrator skontaktuje się z Tobą.');
+        } elseif ($row_c && $row_c['canva_access']) {
+            flash_set('info', 'Masz już dostęp do Canva lub prośba jest w trakcie realizacji.');
+        }
+    }
+    header('Location: ' . $_SERVER['REQUEST_URI']); exit;
+}
+
 // ── Liczniki ──────────────────────────────────────────────────────────────────
 $my_letters_count = 0;
 foreach ($contracts as $_c) {
@@ -752,6 +814,76 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
   <?php endif; ?>
 
 </div>
+
+<!-- ── Canva Pro — prośba o dostęp ──────────────────────────────────────────── -->
+<?php
+$_canva_contract_id = (int)(($_active_contract['id'] ?? 0));
+$_canva_row = null;
+if ($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat') {
+    try {
+        $_canva_row = db_one(
+            "SELECT canva_access, canva_invited_at, canva_access_requested_at FROM umowy_wolontariat WHERE id=?",
+            [$_canva_contract_id]
+        );
+    } catch (\Throwable $e) {}
+}
+$_canva_access     = !empty($_canva_row['canva_access']);
+$_canva_invited    = !empty($_canva_row['canva_invited_at']);
+$_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
+?>
+<?php if ($_canva_invited): ?>
+<!-- Już zaproszony → pokaż skrót -->
+<a href="https://www.canva.com" target="_blank" rel="noopener"
+   class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3 text-decoration-none"
+   style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;transition:opacity .15s"
+   onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+  <span style="width:38px;height:38px;background:rgba(255,255,255,.18);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem">🎨</span>
+  <div style="flex:1">
+    <div style="font-size:.82rem;font-weight:700;line-height:1.2">Canva Pro — masz dostęp!</div>
+    <div style="font-size:.76rem;opacity:.85">Zaloguj się przez Microsoft na canva.com</div>
+  </div>
+  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.2rem;opacity:.7"></i>
+</a>
+
+<?php elseif ($_canva_requested): ?>
+<!-- Prośba złożona → czeka na realizację -->
+<div class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3"
+     style="background:linear-gradient(135deg,#fdf4ff,#f5f3ff);border:1.5px solid #e9d5ff">
+  <span style="width:38px;height:38px;background:#f3e8ff;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem">⏳</span>
+  <div style="flex:1">
+    <div style="font-size:.82rem;font-weight:700;color:#6d28d9;line-height:1.2">Prośba o Canva — w trakcie</div>
+    <div style="font-size:.76rem;color:#7c3aed;opacity:.85">Administrator wkrótce wyśle zaproszenie na Twój adres e-mail.</div>
+  </div>
+</div>
+
+<?php elseif ($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat'): ?>
+<!-- Nie ma dostępu, nie złożono prośby → formularz -->
+<div class="mb-3 px-3 py-3 rounded-3" style="background:#fdf4ff;border:1.5px solid #e9d5ff">
+  <div class="d-flex align-items-start gap-3">
+    <span style="width:40px;height:40px;background:#f3e8ff;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.2rem;margin-top:.1rem">🎨</span>
+    <div style="flex:1">
+      <div style="font-size:.88rem;font-weight:700;color:#6d28d9;margin-bottom:.2rem">
+        Chcesz tworzyć materiały w Canva?
+      </div>
+      <div style="font-size:.8rem;color:#7c3aed;line-height:1.5;margin-bottom:.75rem">
+        Organizacja korzysta z <strong>Canva Pro</strong>. Złóż prośbę, a administrator
+        wyśle Ci zaproszenie do wspólnej przestrzeni z szablonami i brandingiem.
+      </div>
+      <form method="post" onsubmit="return confirm('Wysłać prośbę o dostęp do Canva?')">
+        <?php if (function_exists('csrf_token')): ?>
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <?php endif; ?>
+        <input type="hidden" name="_request_canva" value="1">
+        <input type="hidden" name="canva_contract_id" value="<?= $_canva_contract_id ?>">
+        <button type="submit"
+                style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:.5rem 1.1rem;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem">
+          <i class="bi bi-send-fill"></i> Poproś o dostęp do Canva
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── Skrzynka pocztowa FEER ─────────────────────────────────────────────── -->
 <a href="https://poczta.feer.org.pl"
