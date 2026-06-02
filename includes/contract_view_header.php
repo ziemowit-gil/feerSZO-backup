@@ -1,0 +1,325 @@
+<?php
+/**
+ * Wspólny nagłówek widoku umowy.
+ *
+ * Oczekiwane zmienne (ustawiane w każdym view.php przed include):
+ *   $_cvh_type       string   — typ umowy ('zlecenie','wolontariat',...)
+ *   $_cvh_id         int      — id rekordu
+ *   $_cvh_row        array    — wiersz z bazy (numer_umowy, status, data_zawarcia, ...)
+ *   $_cvh_icon       string   — klasa Bootstrap Icon (np. 'bi-person-lines-fill')
+ *   $_cvh_label      string   — czytelna nazwa typu (np. 'Umowa zlecenie')
+ *   $_cvh_person     string   — imię i nazwisko / nazwa firmy
+ *   $_cvh_person_sub string   — podtytuł osoby (e-mail, stanowisko, rola...)
+ *   $_cvh_amount     ?float   — główna kwota (null = brak)
+ *   $_cvh_amount_lbl string   — etykieta kwoty ('Brutto','Wartość brutto',...)
+ *   $_cvh_end_date   ?string  — data zakończenia / termin (null = bezterminowo/brak)
+ *   $_cvh_subject    ?string  — krótki opis przedmiotu (null = pomiń)
+ *   $_cvh_list_url   string   — URL listy umów (np. APP_URL.'/contracts/zlecenie/list.php')
+ *   $_cvh_edit_url   string   — URL edycji (np. 'edit.php?id=5')
+ *
+ *   $_pending_term   array|null — oczekujący wniosek o rozwiązanie (opcjonalnie)
+ *   $_m365_creds     array|null — jednorazowe dane logowania M365 (opcjonalnie)
+ */
+
+$_cvh_st     = STATUS_LABELS[$_cvh_row['status']] ?? ['label' => $_cvh_row['status'], 'class' => 'secondary'];
+$_cvh_status = $_cvh_row['status'];
+
+// Pasek postępu trwania umowy
+$_cvh_prog = null;
+if (!empty($_cvh_row['data_zawarcia']) && !empty($_cvh_end_date)) {
+    $s = strtotime($_cvh_row['data_zawarcia']);
+    $e = strtotime($_cvh_end_date);
+    $n = time();
+    if ($e > $s) {
+        $pct  = min(100, max(0, round(($n - $s) / ($e - $s) * 100)));
+        $days = max(0, (int)(($e - $n) / 86400));
+        $_cvh_prog = ['pct' => $pct, 'days_left' => $days, 'ended' => $n > $e];
+    }
+}
+
+// Kolor akcentu na podstawie statusu
+$_cvh_accent = match($_cvh_st['class']) {
+    'primary'   => '#3b82f6',
+    'info'      => '#0ea5e9',
+    'success'   => '#22c55e',
+    'warning'   => '#f59e0b',
+    'danger'    => '#ef4444',
+    default     => '#94a3b8',
+};
+?>
+
+<?php if (!empty($_pending_term)): ?>
+<div class="alert alert-warning d-flex align-items-center gap-2 no-print mb-2 py-2">
+  <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0"></i>
+  <div class="small">
+    <strong>Oczekujący wniosek o rozwiązanie</strong> —
+    złożony przez <?= h($_pending_term['requester_name']) ?>
+    dnia <?= date_pl($_pending_term['created_at']) ?>.
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/admin/terminations.php?status=oczekuje" class="alert-link ms-2">Rozpatrz →</a>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($_m365_creds)): ?>
+<div class="alert alert-warning border-warning mb-2 small">
+  <strong><i class="bi bi-key-fill"></i> Hasło jednorazowe (zapisz teraz!):</strong><br>
+  <code><?= h($_m365_creds['login']) ?></code> / <code><?= h($_m365_creds['pass']) ?></code>
+  <?php if ($_m365_creds['sent']): ?>
+  <br><span class="text-success"><i class="bi bi-check-circle"></i> Mail wysłany na: <?= h($_m365_creds['email']) ?></span>
+  <?php else: ?>
+  <br><span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Mail nie wysłany.</span>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- ── Contract hero header ──────────────────────────────────────────── -->
+<div class="contract-hero no-print mb-3"
+     style="border-left: 4px solid <?= $_cvh_accent ?>">
+
+  <div class="contract-hero-top">
+
+    <!-- Left: type + number -->
+    <div class="contract-hero-id">
+      <div class="contract-hero-type">
+        <i class="bi <?= h($_cvh_icon) ?>"></i>
+        <?= h($_cvh_label) ?>
+      </div>
+      <div class="contract-hero-num"><?= h($_cvh_row['numer_umowy']) ?></div>
+    </div>
+
+    <!-- Right: actions -->
+    <div class="contract-hero-actions">
+      <?php if (can_edit()): ?>
+      <a href="<?= h($_cvh_edit_url) ?>" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Edytuj</span>
+      </a>
+      <?php endif; ?>
+      <button onclick="window.print()" class="btn btn-sm btn-outline-dark">
+        <i class="bi bi-printer"></i>
+      </button>
+      <a href="<?= h($_cvh_list_url) ?>" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Lista</span>
+      </a>
+    </div>
+
+  </div><!-- /hero-top -->
+
+  <!-- Stats row -->
+  <div class="contract-hero-stats">
+
+    <!-- Status (quick-change for editors) -->
+    <div class="contract-hero-stat">
+      <div class="cvh-stat-label">Status</div>
+      <?php if (can_edit()): ?>
+      <form method="post" class="d-inline" id="cvhStatusForm">
+        <input type="hidden" name="_csrf"        value="<?= csrf_token() ?>">
+        <input type="hidden" name="_set_status"  value="1">
+        <select name="status" class="cvh-status-select cvh-status-<?= h($_cvh_st['class']) ?>"
+                onchange="document.getElementById('cvhStatusForm').submit()">
+          <?php foreach (STATUS_LABELS as $_sv => $_sm): ?>
+          <option value="<?= h($_sv) ?>" <?= $_cvh_status === $_sv ? 'selected' : '' ?>>
+            <?= h($_sm['label']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </form>
+      <?php else: ?>
+      <span class="badge bg-<?= h($_cvh_st['class']) ?> fs-6"><?= h($_cvh_st['label']) ?></span>
+      <?php if (!empty($_cvh_row['is_technical'])): ?>
+      <span class="badge ms-1" style="background:#7c3aed;font-size:.7rem;vertical-align:middle">
+        <i class="bi bi-clock-history me-1"></i>Współpraca przed 01.06.2026
+      </span>
+      <?php endif; ?>
+      <?php endif; ?>
+    </div>
+
+    <!-- Person -->
+    <?php if ($_cvh_person): ?>
+    <div class="contract-hero-stat">
+      <div class="cvh-stat-label">Strona umowy</div>
+      <div class="cvh-stat-val fw-semibold"><?= h($_cvh_person) ?></div>
+      <?php if ($_cvh_person_sub): ?>
+      <div class="cvh-stat-sub"><?= h($_cvh_person_sub) ?></div>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <!-- Amount -->
+    <?php if ($_cvh_amount !== null && $_cvh_amount !== ''): ?>
+    <div class="contract-hero-stat">
+      <div class="cvh-stat-label"><?= h($_cvh_amount_lbl) ?></div>
+      <div class="cvh-stat-val fw-bold text-success"><?= money((float)$_cvh_amount) ?></div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Dates -->
+    <div class="contract-hero-stat">
+      <div class="cvh-stat-label">Okres</div>
+      <div class="cvh-stat-val">
+        <?= date_pl($_cvh_row['data_zawarcia']) ?>
+        <?php if ($_cvh_end_date): ?>
+        <span class="text-muted mx-1">→</span>
+        <span class="<?= ($_cvh_prog['ended'] ?? false) ? 'text-danger fw-semibold' : '' ?>">
+          <?= date_pl($_cvh_end_date) ?>
+        </span>
+        <?php else: ?>
+        <span class="text-muted">→ bezterminowo</span>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- Subject snippet -->
+    <?php if ($_cvh_subject): ?>
+    <div class="contract-hero-stat contract-hero-stat--wide">
+      <div class="cvh-stat-label">Przedmiot</div>
+      <div class="cvh-stat-val" style="font-size:.85rem">
+        <?= h(mb_strimwidth(strip_tags($_cvh_subject), 0, 120, '…')) ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+  </div><!-- /hero-stats -->
+
+  <!-- Progress bar -->
+  <?php if ($_cvh_prog): ?>
+  <div class="contract-hero-progress">
+    <div class="cvh-prog-bar">
+      <div class="cvh-prog-fill <?= $_cvh_prog['pct'] > 85 ? 'cvh-prog-warn' : '' ?> <?= $_cvh_prog['ended'] ? 'cvh-prog-end' : '' ?>"
+           style="width:<?= $_cvh_prog['pct'] ?>%"></div>
+    </div>
+    <div class="cvh-prog-label">
+      <?php if ($_cvh_prog['ended']): ?>
+        <span class="text-danger fw-semibold"><i class="bi bi-clock"></i> Umowa zakończona</span>
+      <?php else: ?>
+        <span class="text-muted"><i class="bi bi-clock"></i>
+          Pozostało <strong><?= $_cvh_prog['days_left'] ?></strong> dni
+        </span>
+      <?php endif; ?>
+      <span class="text-muted ms-auto"><?= $_cvh_prog['pct'] ?>%</span>
+    </div>
+  </div>
+  <?php endif; ?>
+
+</div><!-- /contract-hero -->
+
+<style>
+.contract-hero {
+  background: #fff;
+  border-radius: 0 .6rem .6rem 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.09);
+  padding: 1.1rem 1.3rem .9rem;
+  margin-bottom: 1rem;
+}
+.contract-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .85rem;
+}
+.contract-hero-type {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: #64748b;
+  margin-bottom: .2rem;
+}
+.contract-hero-type i { margin-right: .3rem; }
+.contract-hero-num {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+}
+.contract-hero-actions {
+  display: flex;
+  gap: .4rem;
+  flex-shrink: 0;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+/* Stats row */
+.contract-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.5rem;
+  align-items: flex-start;
+  border-top: 1px solid #f1f5f9;
+  padding-top: .75rem;
+}
+.contract-hero-stat {
+  min-width: 120px;
+  flex: 0 0 auto;
+}
+.contract-hero-stat--wide {
+  flex: 1 1 280px;
+}
+.cvh-stat-label {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: #94a3b8;
+  margin-bottom: .15rem;
+}
+.cvh-stat-val  { font-size: .9rem; color: #1e293b; line-height: 1.3; }
+.cvh-stat-sub  { font-size: .75rem; color: #64748b; }
+
+/* Quick status select */
+.cvh-status-select {
+  appearance: none;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: .9rem;
+  font-weight: 700;
+  padding: .1rem .9rem .1rem .1rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .1rem center;
+  border-radius: .25rem;
+  transition: background-color .12s;
+}
+.cvh-status-select:hover { background-color: #f8fafc; }
+.cvh-status-select.cvh-status-primary   { color: #2563eb; }
+.cvh-status-select.cvh-status-info      { color: #0284c7; }
+.cvh-status-select.cvh-status-success   { color: #16a34a; }
+.cvh-status-select.cvh-status-warning   { color: #d97706; }
+.cvh-status-select.cvh-status-danger    { color: #dc2626; }
+.cvh-status-select.cvh-status-secondary { color: #64748b; }
+
+/* Progress */
+.contract-hero-progress {
+  margin-top: .75rem;
+  padding-top: .6rem;
+  border-top: 1px solid #f1f5f9;
+}
+.cvh-prog-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: .35rem;
+}
+.cvh-prog-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 3px;
+  transition: width .4s;
+}
+.cvh-prog-fill.cvh-prog-warn { background: #f59e0b; }
+.cvh-prog-fill.cvh-prog-end  { background: #94a3b8; }
+.cvh-prog-label {
+  display: flex;
+  font-size: .75rem;
+}
+@media (max-width: 576px) {
+  .contract-hero-num { font-size: 1.2rem; }
+  .contract-hero-stat { min-width: 100px; }
+}
+</style>

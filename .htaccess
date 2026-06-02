@@ -1,0 +1,90 @@
+Options -Indexes
+DirectoryIndex index.php
+
+RewriteEngine On
+
+# ── Short / friendly URLs ───────────────────────────────────────────────────
+# Aliasy krótkich linków do modułów systemu.
+# Format: /alias → /moduł/  (wewnętrzny rewrite — URL zostaje w przeglądarce)
+
+RewriteRule ^katalog/?$       directory/index.php  [QSA,L]
+RewriteRule ^katalog/(.+)$    directory/$1          [QSA,L]
+
+RewriteRule ^zadania/?$       tasks/index.php       [QSA,L]
+RewriteRule ^zadania/(.+)$    tasks/$1              [QSA,L]
+
+RewriteRule ^granty/?$        grants/index.php      [QSA,L]
+RewriteRule ^granty/(.+)$     grants/$1             [QSA,L]
+
+RewriteRule ^dzialania/?$     actions/index.php     [QSA,L]
+RewriteRule ^dzialania/(.+)$  actions/$1            [QSA,L]
+
+RewriteRule ^osoby/?$         persons/index.php     [QSA,L]
+RewriteRule ^osoby/(.+)$      persons/$1            [QSA,L]
+
+RewriteRule ^raporty/?$       reports/index.php     [QSA,L]
+RewriteRule ^raporty/(.+)$    reports/$1            [QSA,L]
+
+RewriteRule ^procedury/?$     procedures/index.php  [QSA,L]
+RewriteRule ^procedury/(.+)$  procedures/$1         [QSA,L]
+
+RewriteRule ^tyflo/?$         karty30/index.php     [QSA,L]
+RewriteRule ^tyflo/(.+)$      karty30/$1            [QSA,L]
+
+RewriteRule ^crm/?$           crm/dashboard.php     [QSA,L]
+
+RewriteRule ^moj-panel/?$     panel/index.php       [QSA,L]
+
+RewriteRule ^korespondencja/?$ correspondence/index.php [QSA,L]
+RewriteRule ^korespondencja/(.+)$ correspondence/$1  [QSA,L]
+
+RewriteRule ^zasady/?$        org_intro/index.php   [QSA,L]
+RewriteRule ^zasady/(.+)$     org_intro/$1           [QSA,L]
+
+# Dynamiczne aliasy z bazy danych (short_url_routes)
+# Każdy nieznany path jest sprawdzany przez router.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/(org|api|admin|auth|contracts|uploads|assets|directory|crm|karty30|tasks|grants|actions|persons|reports|procedures|panel|onboarding|org|correspondence|ezd|resolutions|saas|saas-tenent|tenants|certs|cli|misc) [NC]
+RewriteRule ^([a-z0-9_-]+)/?$ r.php?_slug=$1 [QSA,L]
+
+# ── koniec short URLs ───────────────────────────────────────────────────────
+
+# --- SaaS tenant routing ---
+# Static uploads: /org/{slug}/uploads/... → tenants/{slug}/uploads/...
+RewriteRule ^org/([a-z0-9]+)/uploads/(.+)$ tenants/$1/uploads/$2 [L]
+
+# Tenant panel requests: /org/{slug}/{path} → /{path} with TENANT_SLUG env
+RewriteRule ^org/([a-z0-9]+)/(.+)$ $2 [E=TENANT_SLUG:$1,QSA,L]
+
+# Tenant root: /org/{slug} or /org/{slug}/ → index.php with TENANT_SLUG env
+RewriteRule ^org/([a-z0-9]+)/?$ index.php [E=TENANT_SLUG:$1,QSA,L]
+# --- koniec SaaS routing ---
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Blokuj dostęp do wrażliwych plików
+<FilesMatch "\.(sql|db|log|env|json|md)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Blokuj dostęp do config
+<Files "config.php">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Chroń katalog includes przed bezpośrednim dostępem
+<IfModule mod_rewrite.c>
+    RewriteRule ^includes/ - [F,L]
+</IfModule>
+
+# Nagłówki bezpieczeństwa
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

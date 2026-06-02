@@ -1,0 +1,578 @@
+<?php
+require_once dirname(dirname(__DIR__)) . '/config.php';
+require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
+require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
+
+require_login();
+$TYPE  = 'inne';
+$TABLE = 'umowy_inne';
+$id    = intval($_GET['id'] ?? 0);
+$row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
+if (!$row) { http_response_code(404); die('Nie znaleziono umowy.'); }
+if (!viewer_owns_contract($TYPE, $row)) { flash_set('error', 'Nie masz dostępu do tej umowy.'); header('Location: ' . APP_URL . '/panel/index.php'); exit; }
+$PAGE_TITLE = 'Umowa ' . $row['numer_umowy'];
+
+// ── Szybka zmiana statusu ─────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
+    csrf_check();
+    if (can_edit()) {
+        $new_status = $_POST['status'] ?? '';
+        if (isset(STATUS_LABELS[$new_status])) {
+            $old_status = $row['status'];
+            db_update($TABLE, ['status' => $new_status], $id);
+            log_contract_action($TYPE, $id, (int)current_user()['id'], 'status_change',
+                'Zmiana statusu: ' . $old_status . ' → ' . $new_status);
+            $row['status'] = $new_status;
+        }
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
+// ── Obsługa opiekuna umowy ────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_supervisor'])) {
+    csrf_check();
+    supervisor_set($TYPE, $id, (int)($_POST['sup_user_id'] ?? 0));
+    header('Location: view.php?id=' . $id); exit;
+}
+
+$typy_umow = ['najem' => 'Najem', 'użyczenie' => 'Użyczenie', 'darowizna' => 'Darowizna', 'partnerstwo' => 'Partnerstwo', 'NDA' => 'NDA', 'licencja' => 'Licencja', 'inne' => 'Inne'];
+
+include dirname(dirname(__DIR__)) . '/includes/header.php';
+?>
+
+<?php
+$_cvh_type       = $TYPE;
+$_cvh_id         = $id;
+$_cvh_row        = $row;
+$_cvh_icon       = 'bi-file-text';
+$_cvh_label      = 'Inna umowa';
+$_cvh_person     = $row['strona_umowy'] ?? ($row['imie_nazwisko'] ?? ($row['firma_nazwa'] ?? ''));
+$_cvh_person_sub = $row['email'] ?? '';
+$_cvh_amount     = $row['wartosc_umowy'] ?? ($row['kwota'] ?? ($row['wartosc_brutto'] ?? null));
+$_cvh_amount_lbl = 'Wartość umowy';
+$_cvh_end_date   = $row['data_zakonczenia'] ?? null;
+$_cvh_subject    = $row['przedmiot_umowy'] ?? ($row['opis'] ?? null);
+$_cvh_list_url   = APP_URL . '/contracts/inne/list.php';
+$_cvh_edit_url   = 'edit.php?id=' . $id;
+include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
+?>
+
+<div class="row g-3">
+
+<div class="col-lg-8">
+
+<!-- DANE PODSTAWOWE -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Dane podstawowe</div>
+<div class="card-body">
+<div class="row g-3">
+  <div class="col-md-4"><div class="detail-label">Typ umowy</div><div class="detail-value"><?= h($typy_umow[$row['typ_umowy']] ?? $row['typ_umowy']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Numer projektu</div><div class="detail-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
+</div>
+</div>
+</div>
+
+<!-- STRONA UMOWY -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Strona umowy</div>
+<div class="card-body">
+<div class="row g-3">
+  <div class="col-md-6"><div class="detail-label">Nazwa / strona umowy</div><div class="detail-value"><?= h($row['strona_umowy']) ?: '—' ?></div></div>
+  <div class="col-md-6"><div class="detail-label">PESEL / NIP / KRS</div><div class="detail-value"><?= h($row['pesel_nip_krs']) ?: '—' ?></div></div>
+  <div class="col-12"><div class="detail-label">Adres</div><div class="detail-value"><?= h($row['adres']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Adres e-mail</div><div class="detail-value"><?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?></div></div>
+</div>
+</div>
+</div>
+
+<!-- PRZEDMIOT I DATY -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Przedmiot i daty</div>
+<div class="card-body">
+<div class="row g-3">
+  <div class="col-12"><div class="detail-label">Przedmiot umowy</div><div class="detail-value"><?= nl2br(h($row['przedmiot_umowy'])) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Data zawarcia</div><div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Data rozpoczęcia</div><div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
+  <div class="col-md-4">
+    <div class="detail-label">Data zakończenia</div>
+    <div class="detail-value">
+      <?php if ($row['czas_nieokreslony']): ?>
+        <span class="text-muted">∞ czas nieokreślony</span>
+      <?php else: ?>
+        <?= date_pl($row['data_zakonczenia']) ?>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php if ($row['okres_wypowiedzenia']): ?>
+  <div class="col-md-6"><div class="detail-label">Okres wypowiedzenia</div><div class="detail-value"><?= h($row['okres_wypowiedzenia']) ?></div></div>
+  <?php endif; ?>
+</div>
+</div>
+</div>
+
+<!-- FINANSOWE -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Warunki finansowe</div>
+<div class="card-body">
+<div class="row g-3">
+  <div class="col-md-4"><div class="detail-label">Wartość umowy</div><div class="detail-value fw-bold text-success"><?= money($row['wartosc_umowy'], $row['waluta'] ?: 'PLN') ?></div></div>
+  <?php if ($row['warunki_finansowe']): ?>
+  <div class="col-12"><div class="detail-label">Warunki finansowe</div><div class="detail-value"><?= nl2br(h($row['warunki_finansowe'])) ?></div></div>
+  <?php endif; ?>
+</div>
+</div>
+</div>
+
+<!-- DZIAŁANIA CYKLICZNE -->
+<?php if ($row['dzialania_cykliczne'] || $row['data_przegladu']): ?>
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Działania cykliczne</div>
+<div class="card-body">
+<div class="row g-3">
+  <div class="col-md-4"><div class="detail-label">Działania cykliczne</div><div class="detail-value"><?= yn($row['dzialania_cykliczne']) ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Data przeglądu / odnowienia</div><div class="detail-value"><?= date_pl($row['data_przegladu']) ?></div></div>
+  <?php if ($row['dzialania_opis']): ?>
+  <div class="col-12"><div class="detail-label">Opis działań</div><div class="detail-value"><?= nl2br(h($row['dzialania_opis'])) ?></div></div>
+  <?php endif; ?>
+</div>
+</div>
+</div>
+<?php endif; ?>
+
+<!-- PODPISANIE -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Forma podpisania</div>
+<div class="card-body">
+<div class="row g-3">
+  <div class="col-md-4"><div class="detail-label">Forma podpisania</div><div class="detail-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
+  <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
+  <div class="col-md-4"><div class="detail-label">Platforma</div><div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">ID dokumentu</div><div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Plik potwierdzenia</div><div class="detail-value"><?= upload_link($row['plik_potwierdzenia']) ?></div></div>
+  <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
+  <div class="col-md-4"><div class="detail-label">Dostawca podpisu</div><div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Nr certyfikatu</div><div class="detail-value"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Ważność certyfikatu</div><div class="detail-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
+  <?php endif; ?>
+</div>
+</div>
+</div>
+
+<?php if ($row['uwagi']): ?>
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Uwagi</div>
+<div class="card-body"><?= nl2br(h($row['uwagi'])) ?></div>
+</div>
+<?php endif; ?>
+
+<!-- Numery referencyjne -->
+<?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
+<div class="card-body"><div class="row g-3">
+  <?php if ($row['nr_roboczy']): ?>
+  <div class="col-md-4"><div class="detail-label">Nr roboczy</div>
+    <div class="detail-value"><?= h($row['nr_roboczy']) ?></div></div>
+  <?php endif; ?>
+  <?php if ($row['nr_system']): ?>
+  <div class="col-md-4"><div class="detail-label">Nr ogólny (webNGO)</div>
+    <div class="detail-value"><?= h($row['nr_system']) ?></div></div>
+  <?php endif; ?>
+  <?php if ($row['nr_rejestru']): ?>
+  <div class="col-md-4"><div class="detail-label">Nr rejestru</div>
+    <div class="detail-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
+  <?php endif; ?>
+</div></div>
+</div>
+<?php endif; ?>
+
+</div><!-- /col-lg-8 -->
+
+<div class="col-lg-4">
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
+<div class="card-body">
+  <div class="mb-2">
+    <div class="detail-label">Plik umowy</div>
+    <?= upload_link($row['plik_umowy']) ?>
+  </div>
+  <?php if ($row['zalaczniki']): ?>
+  <div class="mb-2">
+    <div class="detail-label">Załączniki</div>
+    <?= upload_link($row['zalaczniki']) ?>
+  </div>
+  <?php endif; ?>
+</div>
+</div>
+
+<!-- Opiekun umowy -->
+<?php $sup = supervisor_get($TYPE, $id); ?>
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-person-check"></i> Opiekun umowy</div>
+<div class="card-body">
+  <?php if ($sup): ?>
+    <div class="fw-semibold small"><?= h($sup['user_name']) ?></div>
+    <div class="text-muted" style="font-size:.8rem"><?= h($sup['user_email']) ?></div>
+  <?php else: ?>
+    <div class="text-muted small">Nieprzypisany</div>
+  <?php endif; ?>
+  <?php if (can_edit()): ?>
+  <form method="post" class="mt-2">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_set_supervisor" value="1">
+    <select name="sup_user_id" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">— brak —</option>
+      <?php foreach (supervisors_all_editors() as $_se): ?>
+      <option value="<?= (int)$_se['id'] ?>" <?= ($sup && (int)$sup['user_id']===(int)$_se['id']) ? 'selected' : '' ?>>
+        <?= h($_se['name']) ?>
+      </option>
+      <?php endforeach; ?>
+    </select>
+  </form>
+  <?php endif; ?>
+</div>
+</div>
+
+<div class="card shadow-sm">
+<div class="card-header fw-semibold">Historia</div>
+<div class="card-body small text-muted">
+  Dodano: <?= date_pl($row['created_at']) ?><br>
+  Zmodyfikowano: <?= date_pl($row['updated_at']) ?>
+</div>
+</div>
+</div>
+
+</div><!-- /row -->
+
+<?php
+require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
+$amendments   = get_amendments($TYPE, $id);
+$edit_requests = get_edit_requests($TYPE, $id);
+?>
+
+<!-- Aneksy -->
+<div class="card shadow-sm mb-3 no-print">
+<div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-file-earmark-diff"></i> Aneksy do umowy</span>
+  <?php if (can_edit()): ?>
+  <a href="<?= APP_URL ?>/contracts/approvals/amendments_submit.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-plus-lg"></i> Nowy aneks
+  </a>
+  <?php endif; ?>
+</div>
+<?php if ($amendments): ?>
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0">
+  <thead class="table-light"><tr><th>Nr</th><th>Opis zmian</th><th>Złożono</th><th>Status</th><th>Plik</th><th></th></tr></thead>
+  <tbody>
+  <?php foreach ($amendments as $am): ?>
+  <tr>
+    <td><span class="badge bg-secondary">#<?= $am['numer_aneksu'] ?></span></td>
+    <td style="max-width:250px">
+      <?= h($am['opis_zmian']) ?>
+      <?php if (!empty($am['proposed_changes'])): ?>
+      <br><button class="btn btn-link btn-sm p-0 mt-1" type="button"
+        data-bs-toggle="collapse" data-bs-target="#am-changes-<?= $am['id'] ?>">
+        <i class="bi bi-table"></i> Pokaż zmiany pól
+      </button>
+      <div class="collapse mt-1" id="am-changes-<?= $am['id'] ?>">
+        <?= render_amendment_changes($am['proposed_changes']) ?>
+      </div>
+      <?php endif; ?>
+    </td>
+    <td><?= date_pl($am['requested_at']) ?></td>
+    <td><?= amendment_badge($am['status']) ?></td>
+    <td><?= upload_link($am['plik_aneksu'] ?? '') ?></td>
+    <td class="text-end">
+      <?php if ($am['status'] === 'oczekuje' && is_admin()): ?>
+      <form method="post" action="<?= APP_URL ?>/contracts/approvals/amendments_approve.php" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="amendment_id" value="<?= $am['id'] ?>">
+        <input type="hidden" name="decision" value="zaakceptowany">
+        <button class="btn btn-sm btn-success" title="Zatwierdź"><i class="bi bi-check-lg"></i></button>
+      </form>
+      <form method="post" action="<?= APP_URL ?>/contracts/approvals/amendments_approve.php" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="amendment_id" value="<?= $am['id'] ?>">
+        <input type="hidden" name="decision" value="odrzucony">
+        <button class="btn btn-sm btn-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
+      </form>
+      <?php endif; ?>
+      <?php if ($am['decision_note']): ?>
+      <span class="text-muted small ms-1" title="<?= h($am['decision_note']) ?>"><i class="bi bi-chat-text"></i></span>
+      <?php endif; ?>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  </tbody>
+</table>
+</div>
+<?php else: ?>
+<div class="card-body text-muted small">Brak aneksów.</div>
+<?php endif; ?>
+</div>
+
+<!-- Wnioski o edycję -->
+<div class="card shadow-sm mb-3 no-print">
+<div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-pencil-square"></i> Wnioski o edycję</span>
+  <?php
+  $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
+  if (can_edit() && !$has_pending_edit): ?>
+  <a href="<?= APP_URL ?>/contracts/approvals/changes_request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-pencil"></i> Złóż wniosek o edycję
+  </a>
+  <?php endif; ?>
+</div>
+<?php if ($edit_requests): ?>
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0">
+  <thead class="table-light"><tr><th>Opis żądanej zmiany</th><th>Złożono przez</th><th>Data</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  <?php foreach ($edit_requests as $er): ?>
+  <tr>
+    <td class="text-truncate" style="max-width:280px"><?= h($er['opis_zmian']) ?></td>
+    <td><?= h($er['requested_by_name'] ?? '—') ?></td>
+    <td><?= date_pl($er['requested_at']) ?></td>
+    <td><?= edit_request_badge($er['status']) ?></td>
+    <td class="text-end">
+      <?php if ($er['status'] === 'oczekuje' && is_admin()): ?>
+      <form method="post" action="<?= APP_URL ?>/contracts/approvals/changes_approve.php" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="request_id" value="<?= $er['id'] ?>">
+        <input type="hidden" name="decision" value="zaakceptowany">
+        <button class="btn btn-sm btn-success" title="Zatwierdź"><i class="bi bi-check-lg"></i></button>
+      </form>
+      <form method="post" action="<?= APP_URL ?>/contracts/approvals/changes_approve.php" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="request_id" value="<?= $er['id'] ?>">
+        <input type="hidden" name="decision" value="odrzucony">
+        <button class="btn btn-sm btn-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
+      </form>
+      <?php endif; ?>
+      <?php if ($er['decision_note']): ?>
+      <span class="text-muted small" title="<?= h($er['decision_note']) ?>"><i class="bi bi-chat-text"></i></span>
+      <?php endif; ?>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  </tbody>
+</table>
+</div>
+<?php else: ?>
+<div class="card-body text-muted small">Brak wniosków o edycję.</div>
+<?php endif; ?>
+</div>
+
+<?php
+require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
+$approval  = get_current_approval($TYPE, $id);
+$audit_log = get_audit_log($TYPE, $id);
+?>
+
+<div class="card shadow-sm mb-3 no-print">
+<div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-check2-circle"></i> Akceptacja</span>
+  <?php if ($approval): echo approval_badge($approval['status']); else: ?>
+    <span class="badge bg-secondary">Nie złożono</span>
+  <?php endif; ?>
+</div>
+<div class="card-body">
+
+<?php if ($approval): ?>
+<div class="row g-2 mb-3">
+  <div class="col-md-4"><div class="detail-label">Wnioskujący</div><div class="detail-value"><?= h($approval['requested_by_name'] ?? '—') ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Data wniosku</div><div class="detail-value"><?= date_pl($approval['requested_at']) ?></div></div>
+  <?php if ($approval['decided_at']): ?>
+  <div class="col-md-4"><div class="detail-label">Data decyzji</div><div class="detail-value"><?= date_pl($approval['decided_at']) ?></div></div>
+  <?php if ($approval['decision_note']): ?>
+  <div class="col-12"><div class="detail-label">Uwaga</div><div class="detail-value"><?= h($approval['decision_note']) ?></div></div>
+  <?php endif; ?>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php if ($approval && $approval['status'] === 'oczekuje' && is_admin()): ?>
+<form method="post" action="<?= APP_URL ?>/contracts/approvals/approve.php" class="mb-3">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="approval_id" value="<?= $approval['id'] ?>">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-8">
+      <label class="form-label small">Uwaga (opcjonalne)</label>
+      <input type="text" name="decision_note" class="form-control form-control-sm">
+    </div>
+    <div class="col-auto">
+      <button name="decision" value="zaakceptowana" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Zaakceptuj</button>
+      <button name="decision" value="odrzucona" class="btn btn-sm btn-danger"><i class="bi bi-x-lg"></i> Odrzuć</button>
+    </div>
+  </div>
+</form>
+<?php endif; ?>
+
+<?php if (can_edit() && (!$approval || $approval['status'] !== 'oczekuje')): ?>
+<form method="post" action="<?= APP_URL ?>/contracts/approvals/submit.php">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="type" value="<?= $TYPE ?>">
+  <input type="hidden" name="id" value="<?= $id ?>">
+  <button class="btn btn-sm btn-outline-warning"><i class="bi bi-send"></i> Złóż do akceptacji</button>
+</form>
+<?php endif; ?>
+
+<?php if (is_admin()): ?>
+<div class="mt-3">
+  <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+    <i class="bi bi-trash3"></i> Usuń umowę
+  </button>
+</div>
+<?php endif; ?>
+
+</div>
+</div>
+
+<?php
+require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
+$_letters = get_contract_letters($TYPE, $id);
+?>
+<div class="card shadow-sm mb-3 no-print">
+<div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-envelope-paper"></i> Pisma</span>
+  <?php if (can_edit()): ?>
+  <a href="<?= APP_URL ?>/contracts/letters/add.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-plus-lg"></i> Dodaj pismo
+  </a>
+  <?php endif; ?>
+</div>
+<?php if ($_letters): ?>
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-middle">
+  <thead class="table-light"><tr><th>Kierunek</th><th>Typ</th><th>Tytuł</th><th>Data</th><th>Strona</th><th></th></tr></thead>
+  <tbody>
+  <?php foreach ($_letters as $_l): ?>
+  <tr>
+    <td><?= letter_direction_badge($_l['kierunek']) ?></td>
+    <td><?= letter_type_badge($_l['typ_pisma']) ?></td>
+    <td>
+      <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $_l['id'] ?>" class="text-decoration-none">
+        <?= h($_l['tytul']) ?>
+      </a>
+      <?php if ($_l['email_sent']): ?><i class="bi bi-envelope-check text-success ms-1" title="E-mail wysłany"></i><?php endif; ?>
+      <?php if ($_l['plik']): ?><i class="bi bi-paperclip text-muted ms-1" title="Z plikiem"></i><?php endif; ?>
+    </td>
+    <td class="small text-nowrap"><?= date_pl($_l['data_pisma']) ?></td>
+    <td class="small"><?= h($_l['kierunek'] === 'wychodzące' ? ($_l['odbiorca'] ?: '—') : ($_l['nadawca'] ?: '—')) ?></td>
+    <td class="text-end text-nowrap">
+      <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $_l['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+      <?php if ($_l['plik']): ?>
+      <a href="<?= h(letter_file_url($_l['plik'])) ?>" download class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>
+      <?php endif; ?>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  </tbody>
+</table>
+</div>
+<?php else: ?>
+<div class="card-body text-muted small">Brak pism dla tej umowy.</div>
+<?php endif; ?>
+</div>
+
+<?php
+require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
+$cert_requests    = get_certificate_requests($TYPE, $id);
+$cert_has_pending = !empty(array_filter($cert_requests, fn($r) => $r['status'] === 'oczekuje'));
+?>
+<div class="card shadow-sm mb-3 no-print">
+<div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-award"></i> Zaświadczenia</span>
+  <?php if (!$cert_has_pending): ?>
+  <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-plus-lg"></i> Złóż wniosek
+  </a>
+  <?php else: ?>
+  <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Wniosek w toku</span>
+  <?php endif; ?>
+</div>
+<?php if ($cert_requests): ?>
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0">
+  <thead class="table-light"><tr><th>Wnioskodawca</th><th>Cel</th><th>Data</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  <?php foreach ($cert_requests as $cr): ?>
+  <tr>
+    <td><?= h($cr['requester_name']) ?></td>
+    <td class="small text-truncate" style="max-width:200px"><?= h($cr['cel']) ?></td>
+    <td class="small text-nowrap"><?= date_pl($cr['created_at']) ?></td>
+    <td><?= certificate_status_badge($cr['status']) ?></td>
+    <td class="text-end text-nowrap">
+      <?php if ($cr['status'] === 'oczekuje' && is_admin()): ?>
+      <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $cr['id'] ?>" class="btn btn-sm btn-success">
+        <i class="bi bi-award"></i> Wydaj
+      </a>
+      <?php elseif ($cr['status'] === 'wydane'): ?>
+      <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-printer"></i> Drukuj
+      </a>
+      <?php endif; ?>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  </tbody>
+</table>
+</div>
+<?php else: ?>
+<div class="card-body text-muted small">Brak wniosków o zaświadczenia.</div>
+<?php endif; ?>
+</div>
+
+<?php if ($audit_log): ?>
+<div class="card shadow-sm mb-3 no-print">
+<div class="card-header fw-semibold"><i class="bi bi-journal-text"></i> Historia zdarzeń</div>
+<div class="card-body p-0">
+<ul class="list-group list-group-flush">
+<?php foreach ($audit_log as $log): ?>
+<li class="list-group-item d-flex justify-content-between align-items-start py-2">
+  <div>
+    <?= action_badge($log['action']) ?>
+    <span class="ms-2 small"><?= h($log['user_snapshot'] ?? 'System') ?></span>
+    <?php if ($log['note']): ?><br><small class="text-muted ms-1"><?= h($log['note']) ?></small><?php endif; ?>
+  </div>
+  <small class="text-muted text-nowrap"><?= date_pl($log['created_at']) ?></small>
+</li>
+<?php endforeach; ?>
+</ul>
+</div>
+</div>
+<?php endif; ?>
+
+<?php if (is_admin()): ?>
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-trash3"></i> Usuń umowę</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="<?= APP_URL ?>/contracts/approvals/delete.php">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="type" value="<?= $TYPE ?>">
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <div class="modal-body">
+          <p class="text-danger fw-bold">Tej operacji nie można cofnąć.</p>
+          <label class="form-label">Powód usunięcia <span class="text-danger">*</span></label>
+          <textarea name="reason" class="form-control" rows="3" required placeholder="Wpisz powód usunięcia..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i> Usuń</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

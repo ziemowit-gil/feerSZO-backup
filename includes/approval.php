@@ -1,0 +1,306 @@
+<?php
+const APPROVAL_STATUSES = [
+    'oczekuje'      => ['label' => 'Oczekuje na akceptację', 'class' => 'warning'],
+    'zaakceptowana' => ['label' => 'Zaakceptowana',          'class' => 'success'],
+    'odrzucona'     => ['label' => 'Odrzucona',              'class' => 'danger'],
+    'wycofana'      => ['label' => 'Wycofana',               'class' => 'secondary'],
+];
+
+function approval_badge(string $status): string {
+    $s = APPROVAL_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
+    return '<span class="badge bg-' . $s['class'] . '">' . htmlspecialchars($s['label']) . '</span>';
+}
+
+function get_current_approval(string $type, int $id): ?array {
+    return db_one(
+        "SELECT a.*, u.name AS requested_by_name, d.name AS decided_by_name
+         FROM contract_approvals a
+         LEFT JOIN users u ON u.id = a.requested_by
+         LEFT JOIN users d ON d.id = a.decided_by
+         WHERE a.contract_type = ? AND a.contract_id = ?
+         ORDER BY a.id DESC LIMIT 1",
+        [$type, $id]
+    );
+}
+
+function get_all_approvals(string $type, int $id): array {
+    return db_all(
+        "SELECT a.*, u.name AS requested_by_name, d.name AS decided_by_name
+         FROM contract_approvals a
+         LEFT JOIN users u ON u.id = a.requested_by
+         LEFT JOIN users d ON d.id = a.decided_by
+         WHERE a.contract_type = ? AND a.contract_id = ?
+         ORDER BY a.id DESC",
+        [$type, $id]
+    );
+}
+
+function submit_for_approval(string $type, int $id, int $user_id, string $contract_numer): array {
+    // Deleguj do systemu wielostopniowego, jeśli skonfigurowano workflow
+    static $awf_checked = false;
+    if (!$awf_checked) {
+        $awf_checked = true;
+        $awf_file = __DIR__ . '/approval_workflow.php';
+        if (file_exists($awf_file)) {
+            require_once $awf_file;
+        }
+    }
+    if (function_exists('awf_get_workflow_for_type') && awf_get_workflow_for_type($type)) {
+        return awf_submit($type, $id, $user_id, $contract_numer);
+    }
+
+    // Wycofaj poprzednie oczekujące
+    db()->prepare(
+        "UPDATE contract_approvals SET status='wycofana' WHERE contract_type=? AND contract_id=? AND status='oczekuje'"
+    )->execute([$type, $id]);
+
+    $token   = bin2hex(random_bytes(32));
+    $expires = date('Y-m-d H:i:s', strtotime('+30 days'));
+
+    $appr_id = db_insert('contract_approvals', [
+        'contract_type' => $type,
+        'contract_id'   => $id,
+        'requested_by'  => $user_id,
+        'token'         => $token,
+        'token_expires' => $expires,
+        'status'        => 'oczekuje',
+    ]);
+
+    log_contract_action($type, $id, $user_id, 'submit_approval', 'Złożono do akceptacji: ' . $contract_numer);
+
+    // Wyślij mail do wszystkich adminów
+    $admins = db_all("SELECT * FROM users WHERE role='admin' AND is_active=1");
+    $sent   = 0;
+    foreach ($admins as $admin) {
+        if (approval_send_request_email($admin, $type, $id, $contract_numer, $token)) $sent++;
+    }
+
+    db()->prepare("UPDATE contract_approvals SET email_sent=? WHERE id=?")->execute([$sent, $appr_id]);
+
+    return ['id' => $appr_id, 'token' => $token, 'emails_sent' => $sent];
+}
+
+function decide_approval(int $appr_id, string $decision, string $note, ?int $user_id, bool $via_email = false): bool {
+    $appr = db_one("SELECT * FROM contract_approvals WHERE id=?", [$appr_id]);
+    if (!$appr || $appr['status'] !== 'oczekuje') return false;
+
+    db()->prepare(
+        "UPDATE contract_approvals SET status=?, decided_by=?, decided_at=?, decision_note=?, via_email=? WHERE id=?"
+    )->execute([$decision, $user_id, date('Y-m-d H:i:s'), $note, $via_email ? 1 : 0, $appr_id]);
+
+    $action = $decision === 'zaakceptowana' ? 'approve' : 'reject';
+    $by = $user_id ?? 0;
+    log_contract_action($appr['contract_type'], $appr['contract_id'], $by,
+        $action, ($via_email ? '[via e-mail] ' : '') . $note);
+
+    // Powiadom zgłaszającego
+    $requester = db_one("SELECT * FROM users WHERE id=?", [$appr['requested_by']]);
+    if ($requester) {
+        $contract = db_one("SELECT numer_umowy FROM " . table_for_type($appr['contract_type'])
+                         . " WHERE id=?", [$appr['contract_id']]);
+        approval_send_decision_email($requester, $appr['contract_type'], $appr['contract_id'],
+            $contract['numer_umowy'] ?? '—', $decision, $note);
+    }
+    return true;
+}
+
+function log_contract_action(string $type, int $id, int $user_id, string $action, string $note = ''): void {
+    $user = $user_id ? db_one("SELECT name FROM users WHERE id=?", [$user_id]) : null;
+    db_insert('contract_audit_log', [
+        'contract_type'  => $type,
+        'contract_id'    => $id,
+        'user_id'        => $user_id ?: null,
+        'user_snapshot'  => $user['name'] ?? 'System',
+        'action'         => $action,
+        'note'           => $note,
+        'ip_address'     => $_SERVER['REMOTE_ADDR'] ?? '',
+        'created_at'     => date('Y-m-d H:i:s'),
+    ]);
+}
+
+function get_audit_log(string $type, int $id): array {
+    return db_all(
+        "SELECT * FROM contract_audit_log WHERE contract_type=? AND contract_id=? ORDER BY id DESC",
+        [$type, $id]
+    );
+}
+
+// ── Pomocnicze wrappery do logowania zdarzeń systemowych ──────────────────────
+
+/** Loguje zdarzenie uwierzytelniania (logowanie, błąd logowania). */
+function log_auth_action(int $user_id, string $action, string $note = ''): void {
+    log_contract_action('auth', $user_id, $user_id, $action, $note);
+}
+
+/** Loguje zmianę na koncie użytkownika (reset hasła, zmiana roli itp.). */
+function log_user_action(int $affected_uid, int $by_uid, string $action, string $note = ''): void {
+    log_contract_action('user', $affected_uid, $by_uid, $action, $note);
+}
+
+/** Loguje zdarzenie systemowe (ustawienia, konfiguracja). */
+function log_system_action(int $user_id, string $action, string $note = ''): void {
+    log_contract_action('system', 0, $user_id, $action, $note);
+}
+
+// ── Wysyłka maili ─────────────────────────────────────────────────────────────
+
+function approval_send_email(string $to, string $subject, string $html_body): bool {
+    // Próbuj przez Graph API (M365)
+    if (function_exists('m365_setting')) {
+        require_once __DIR__ . '/m365.php';
+        $sender = m365_setting('m365_sender_user_id');
+        if ($sender && m365_setting('m365_enabled') === '1') {
+            try {
+                $graph = new M365Graph();
+                if ($graph->is_configured()) {
+                    // Użyj send_welcome_email jako wzorzec - tu robimy bezpośrednio
+                    _graph_send_mail($graph, $sender, $to, $subject, $html_body);
+                    return true;
+                }
+            } catch (\Exception $e) {}
+        }
+    }
+    // Fallback: PHP mail()
+    $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
+    return @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html_body, $headers);
+}
+
+function _graph_send_mail(object $graph, string $sender_id, string $to, string $subject, string $body): void {
+    // Bezpośrednie wywołanie Graph — reużywa prywatnej infrastruktury przez refleksję
+    $ref = new ReflectionMethod($graph, 'http_post');
+    $ref->setAccessible(true);
+    $ref->invoke($graph, "https://graph.microsoft.com/v1.0/users/{$sender_id}/sendMail", [
+        'message' => [
+            'subject' => $subject,
+            'body'    => ['contentType' => 'HTML', 'content' => $body],
+            'toRecipients' => [['emailAddress' => ['address' => $to]]],
+        ],
+        'saveToSentItems' => false,
+    ]);
+}
+
+function approval_send_request_email(array $admin, string $type, int $id, string $numer, string $token): bool {
+    $approve_url = APP_URL . '/contracts/approvals/approve.php?token=' . $token . '&action=zaakceptowana';
+    $reject_url  = APP_URL . '/contracts/approvals/approve.php?token=' . $token . '&action=odrzucona';
+    $view_url    = APP_URL . '/contracts/' . $type . '/view.php?id=' . $id;
+    $type_label  = CONTRACT_TYPES[$type] ?? $type;
+    $org         = defined('ORG_NAME') ? ORG_NAME : '';
+
+    $body = "
+<p>Dzień dobry,</p>
+<p>Użytkownik złożył wniosek o akceptację umowy w systemie Rejestru Umów <strong>{$org}</strong>.</p>
+<table style='border-collapse:collapse;margin:12px 0'>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Typ:</td><td><strong>" . htmlspecialchars($type_label) . "</strong></td></tr>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Numer:</td><td><strong>" . htmlspecialchars($numer) . "</strong></td></tr>
+</table>
+<p>Możesz zaakceptować lub odrzucić tę umowę klikając poniższe przyciski:</p>
+<p>
+  <a href='" . htmlspecialchars($approve_url) . "' style='background:#198754;color:#fff;padding:10px 22px;text-decoration:none;border-radius:4px;margin-right:8px;display:inline-block'>✓ Zatwierdź</a>
+  <a href='" . htmlspecialchars($reject_url) . "' style='background:#dc3545;color:#fff;padding:10px 22px;text-decoration:none;border-radius:4px;display:inline-block'>✗ Odrzuć</a>
+</p>
+<p><a href='" . htmlspecialchars($view_url) . "'>Otwórz umowę w systemie →</a></p>
+<p style='color:#888;font-size:.85em'>Link jest ważny 30 dni. Wygenerowany automatycznie przez system Rejestru Umów.</p>
+";
+    return approval_send_email($admin['email'], "Do akceptacji: {$numer} — {$org}", $body);
+}
+
+function approval_send_decision_email(array $user, string $type, int $id, string $numer, string $decision, string $note): bool {
+    $view_url   = APP_URL . '/contracts/' . $type . '/view.php?id=' . $id;
+    $type_label = CONTRACT_TYPES[$type] ?? $type;
+    $org        = defined('ORG_NAME') ? ORG_NAME : '';
+    $decision_label = $decision === 'zaakceptowana' ? '✓ Zaakceptowana' : '✗ Odrzucona';
+    $color = $decision === 'zaakceptowana' ? '#198754' : '#dc3545';
+
+    $body = "
+<p>Dzień dobry,</p>
+<p>Umowa złożona przez Ciebie do akceptacji otrzymała decyzję w systemie Rejestru Umów <strong>{$org}</strong>.</p>
+<table style='border-collapse:collapse;margin:12px 0'>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Umowa:</td><td><strong>" . htmlspecialchars($numer) . "</strong></td></tr>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Decyzja:</td><td><strong style='color:{$color}'>{$decision_label}</strong></td></tr>
+  " . ($note ? "<tr><td style='padding:4px 12px 4px 0;color:#555'>Uwaga:</td><td>" . htmlspecialchars($note) . "</td></tr>" : "") . "
+</table>
+<p><a href='" . htmlspecialchars($view_url) . "'>Otwórz umowę →</a></p>
+";
+    return approval_send_email($user['email'], "Decyzja: {$numer} — {$decision_label}", $body);
+}
+
+// ── Akcja etykiety ─────────────────────────────────────────────────────────────
+
+function action_label(string $action): string {
+    return match($action) {
+        'submit_approval'  => 'Złożono do akceptacji',
+        'approve'          => 'Zaakceptowano',
+        'reject'           => 'Odrzucono',
+        'delete'           => 'Usunięto',
+        'create'           => 'Utworzono',
+        'edit'             => 'Edytowano',
+        'withdraw'         => 'Wycofano z akceptacji',
+        'amendment_submit' => 'Złożono aneks',
+        'amendment_approve'=> 'Zaakceptowano aneks',
+        'amendment_reject' => 'Odrzucono aneks',
+        'edit_request'     => 'Wniosek o edycję',
+        'edit_approve'       => 'Edycja zatwierdzona',
+        'edit_reject'        => 'Edycja odrzucona',
+        'certificate_request' => 'Wniosek o zaświadczenie',
+        'certificate_issued'  => 'Wydano zaświadczenie',
+        'certificate_rejected'=> 'Odrzucono wniosek o zaświadczenie',
+        'termination_request' => 'Wniosek o rozwiązanie',
+        'termination_approved'=> 'Rozwiązano umowę',
+        'termination_rejected'=> 'Odrzucono wniosek o rozwiązanie',
+        'letter_added'        => 'Dodano pismo',
+        // Autentykacja
+        'login'               => 'Zalogowano',
+        'login_fail'          => 'Błąd logowania',
+        'login_sms'           => 'Zalogowano SMS',
+        'login_ms'            => 'Zalogowano Microsoft',
+        'login_2fa'           => 'Zalogowano 2FA',
+        // Zarządzanie użytkownikami
+        'user_create'         => 'Dodano użytkownika',
+        'user_password_reset' => 'Reset hasła',
+        'user_password_start' => 'Hasło startowe',
+        'user_role_change'    => 'Zmiana roli',
+        'user_toggle'         => 'Zmiana statusu konta',
+        // Ustawienia systemowe
+        'settings_save'       => 'Zapisano ustawienia',
+        // 2FA
+        '2fa_enabled'         => 'Włączono 2FA',
+        '2fa_disabled'        => 'Wyłączono 2FA',
+        // M365
+        'm365_password_reset' => 'Reset hasła M365',
+        default               => $action,
+    };
+}
+
+function action_badge(string $action): string {
+    $cls = match($action) {
+        'approve','amendment_approve','edit_approve' => 'success',
+        'reject','amendment_reject','edit_reject','delete' => 'danger',
+        'submit_approval','amendment_submit','edit_request' => 'warning',
+        'create'             => 'primary',
+        'edit'               => 'info',
+        'certificate_issued'  => 'success',
+        'certificate_rejected'=> 'danger',
+        'certificate_request' => 'warning',
+        'termination_approved'=> 'success',
+        'termination_rejected'=> 'danger',
+        'termination_request' => 'warning',
+        'letter_added'        => 'primary',
+        // Autentykacja
+        'login','login_sms','login_ms','login_2fa' => 'success',
+        'login_fail'          => 'danger',
+        // Zarządzanie użytkownikami
+        'user_create'         => 'primary',
+        'user_password_reset','user_password_start' => 'warning',
+        'user_role_change'    => 'info',
+        'user_toggle'         => 'secondary',
+        // Ustawienia
+        'settings_save'       => 'info',
+        // 2FA
+        '2fa_enabled'         => 'success',
+        '2fa_disabled'        => 'warning',
+        // M365
+        'm365_password_reset' => 'warning',
+        default               => 'secondary',
+    };
+    return '<span class="badge bg-' . $cls . '">' . htmlspecialchars(action_label($action)) . '</span>';
+}

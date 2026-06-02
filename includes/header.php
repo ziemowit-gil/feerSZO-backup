@@ -1,0 +1,1456 @@
+<?php
+if (!defined('APP_INSTALLED')) {
+    require_once dirname(__DIR__) . '/config.php';
+}
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/messages.php';
+require_once __DIR__ . '/notifications.php';
+notif_migrate();
+
+$_user       = current_user();
+$_page_title = $PAGE_TITLE ?? 'Rejestr Umów';
+
+// ── Consent / onboarding check ───────────────────────────────────────────────
+// Runs for every logged-in user. Redirects to consent page if:
+//   - document_form_consent is 0  OR
+//   - consent text has changed since last acceptance
+// Skipped for: SAAS admin, API endpoints, auth pages, the consent page itself.
+if ($_user && !defined('SKIP_CONSENT_CHECK')) {
+    // Pages that must never be redirected
+    $_skip_consent_paths = [
+        '/user/first_login_consent.php',
+        '/user/verify_reset.php',
+        '/auth/',
+        '/admin/api/',
+        '/api/',
+    ];
+    $_current_path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+    $_skip_consent = false;
+    foreach ($_skip_consent_paths as $_sp) {
+        if (str_contains($_current_path, $_sp)) { $_skip_consent = true; break; }
+    }
+
+    // SaaS system admin never needs consent
+    $_is_saas_sys = ($_user['email'] ?? '') === 'serwis@local';
+
+    if (!$_skip_consent && !$_is_saas_sys) {
+        require_once __DIR__ . '/cpc.php';
+        cpc_migrate();
+
+        // Refresh consent status from DB (session may be stale)
+        $_fresh_user = db_one("SELECT document_form_consent, consent_text_version_hash FROM users WHERE id=?", [(int)$_user['id']]);
+        if ($_fresh_user) {
+            $_has_consent = (int)($_fresh_user['document_form_consent'] ?? 0) === 1;
+            $_hash_match  = ($_fresh_user['consent_text_version_hash'] ?? '') === consent_current_hash();
+            if (!$_has_consent || !$_hash_match) {
+                header('Location: ' . APP_URL . '/user/first_login_consent.php');
+                exit;
+            }
+        }
+    }
+}
+
+$_pending = 0;
+if ($_user && is_admin()) {
+    require_once __DIR__ . '/amendments.php';
+    $_pending = get_workflow_pending_count();
+}
+
+$_uri = $_SERVER['REQUEST_URI'] ?? '';
+
+// SaaS context
+$_is_tenant      = defined('TENANT_SLUG') && TENANT_SLUG !== '';
+$_is_service_acc = ($_user['email'] ?? '') === 'serwis@local';
+$_is_saas_admin  = $_is_tenant && $_is_service_acc;
+// URL panelu SaaS: dla tenanta odetnij /org/slug, dla standalone użyj APP_URL
+$_saas_url = $_is_service_acc
+    ? ($_is_tenant
+        ? preg_replace('#/org/' . preg_quote(TENANT_SLUG, '#') . '$#', '', rtrim(APP_URL, '/')) . '/saas-tenent/x/'
+        : rtrim(APP_URL, '/') . '/saas-tenent/x/')
+    : null;
+
+$_contract_icons = [
+    'zlecenie'    => 'bi-person-lines-fill',
+    'uslugi'      => 'bi-briefcase',
+    'wolontariat' => 'bi-heart',
+    'dzielo'      => 'bi-palette',
+    'praca'       => 'bi-building',
+    'inne'        => 'bi-file-text',
+];
+
+// Branding settings
+$_sb_color        = org_setting('sidebar_color') ?: '#1e293b';
+$_volunteer_color = org_setting('volunteer_color') ?: '#2563eb';
+$_org_logo  = org_setting('org_logo');  // relative filename under assets/logo/
+
+// Oblicz kontrast: jasny lub ciemny tekst zależnie od luminancji tła
+function _sb_luminance(string $hex): float {
+    $hex = ltrim($hex, '#');
+    if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+    [$r, $g, $b] = [hexdec(substr($hex,0,2))/255, hexdec(substr($hex,2,2))/255, hexdec(substr($hex,4,2))/255];
+    $lin = fn($c) => $c <= .03928 ? $c/12.92 : (($c+.055)/1.055)**2.4;
+    return .2126*$lin($r) + .7152*$lin($g) + .0722*$lin($b);
+}
+$_sb_dark = _sb_luminance($_sb_color) < 0.35; // true = ciemne tło → jasne napisy
+
+// Tokeny kolorów sidebara
+if ($_sb_dark) {
+    $_sb_text        = '#cbd5e1';   // jasny tekst główny
+    $_sb_text_muted  = '#94a3b8';   // wygaszone linki
+    $_sb_label_color = '#475569';   // etykiety sekcji
+    $_sb_hover_bg    = 'rgba(255,255,255,.07)';
+    $_sb_hover_text  = '#e2e8f0';
+    $_sb_sub_color   = '#64748b';
+    $_sb_sub_hover   = '#cbd5e1';
+    $_sb_footer_link = '#94a3b8';
+    $_sb_footer_user = '#e2e8f0';
+    $_sb_border      = 'rgba(255,255,255,.08)';
+    $_sb_brand_color = '#fff';
+    $_sb_icon_color  = 'rgba(255,220,0,.9)';
+    $_sb_type_open   = '#93c5fd';
+} else {
+    $_sb_text        = '#1e293b';
+    $_sb_text_muted  = '#374151';
+    $_sb_label_color = '#6b7280';
+    $_sb_hover_bg    = 'rgba(0,0,0,.06)';
+    $_sb_hover_text  = '#111827';
+    $_sb_sub_color   = '#4b5563';
+    $_sb_sub_hover   = '#111827';
+    $_sb_footer_link = '#374151';
+    $_sb_footer_user = '#111827';
+    $_sb_border      = 'rgba(0,0,0,.1)';
+    $_sb_brand_color = '#111827';
+    $_sb_icon_color  = '#2563eb';
+    $_sb_type_open   = '#1d4ed8';
+}
+
+function _nav_active(string $needle): string {
+    global $_uri;
+    return str_contains($_uri, $needle) ? ' nav-active' : '';
+}
+?>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title><?= h($_page_title) ?> — <?= h(ORG_NAME) ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="<?= APP_URL ?>/assets/css/app.css" rel="stylesheet">
+<style>
+/* ── Layout ───────────────────────────────── */
+body { display:flex; min-height:100vh; background:#f8fafc; }
+
+#sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: #fff;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 100;
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+#main {
+    flex: 1;
+    min-width: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Sidebar brand ────────────────────────── */
+.sb-brand {
+    padding: 1rem 1rem .9rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: .97rem;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    letter-spacing: -.01em;
+}
+.sb-brand:hover { background: #f8fafc; color: #0f172a; }
+.sb-brand-icon {
+    width: 30px; height: 30px;
+    background: #eff6ff;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; flex-shrink: 0; color: #2563eb;
+}
+.sb-logo-img { height: 28px; width: auto; max-width: 36px; object-fit: contain; border-radius: 4px; }
+.sb-brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-brand-sub { font-size: .64rem; color: #94a3b8; font-weight: 400; display: block; line-height: 1.1; }
+
+/* ── Section labels ───────────────────────── */
+.sb-label {
+    padding: 1rem 1rem .3rem;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: #94a3b8;
+    display: block;
+}
+
+/* ── Nav links ────────────────────────────── */
+.sb-link {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .52rem 1rem;
+    color: #334155;
+    text-decoration: none;
+    font-size: .88rem;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+    transition: background .1s, color .1s;
+}
+.sb-link i { font-size: .95rem; width: 18px; text-align: center; flex-shrink: 0; }
+.sb-link:hover { background: #eff6ff; color: #2563eb; }
+.sb-link.nav-active { background: #eff6ff; color: #2563eb; border-left-color: #2563eb; font-weight: 700; }
+.sb-link .badge { font-size: .64rem; margin-left: auto; font-weight: 700; }
+
+/* ── Collapsible type headers ─────────────── */
+.sb-type-btn {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .52rem 1rem;
+    color: #334155;
+    font-size: .88rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background .1s, color .1s;
+    line-height: 1.4;
+}
+.sb-type-btn i:first-child { font-size: .95rem; width: 18px; text-align: center; flex-shrink: 0; }
+.sb-type-btn:hover { background: #eff6ff; color: #2563eb; }
+.sb-type-btn.type-open { color: #2563eb; background: #eff6ff; border-left-color: #2563eb; font-weight: 700; }
+.sb-chevron {
+    margin-left: auto;
+    font-size: .7rem;
+    opacity: .5;
+    transition: transform .18s ease;
+    flex-shrink: 0;
+}
+.sb-type-btn.type-open .sb-chevron { transform: rotate(90deg); opacity: 1; }
+
+/* ── Sub-links ────────────────────────────── */
+.sb-sub { padding: 1px 0 4px 0; }
+.sb-sub-link {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .38rem 1rem .38rem 2.3rem;
+    color: #64748b;
+    text-decoration: none;
+    font-size: .83rem;
+    border-left: 3px solid transparent;
+    transition: background .1s, color .1s;
+}
+.sb-sub-link i { font-size: .8rem; width: 16px; text-align: center; flex-shrink: 0; }
+.sb-sub-link:hover { background: #eff6ff; color: #2563eb; }
+.sb-sub-link.nav-active { color: #2563eb; font-weight: 600; border-left-color: #2563eb; background: #eff6ff; }
+
+/* ── Separator ────────────────────────────── */
+.sb-sep { height: 1px; background: #e2e8f0; margin: .5rem .75rem; }
+
+/* ── Footer ───────────────────────────────── */
+.sb-footer {
+    margin-top: auto;
+    padding: .75rem 1rem;
+    border-top: 1px solid #e2e8f0;
+    font-size: .77rem;
+    color: #94a3b8;
+}
+.sb-footer a { color: #64748b; text-decoration: none; }
+.sb-footer a:hover { color: #1e293b; }
+.sb-user { color: #0f172a; font-size: .83rem; font-weight: 600; margin-bottom: .3rem; }
+
+/* ── SaaS admin bar ─────────────────────── */
+#saas-bar {
+    background: #7c3aed;
+    color: #fff;
+    padding: .35rem 1.5rem;
+    font-size: .76rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    position: sticky;
+    top: 0;
+    z-index: 60;
+}
+#saas-bar .saas-bar-sep  { opacity: .45; }
+#saas-bar .saas-bar-slug { opacity: .6; font-size: .7rem; }
+#saas-bar .saas-bar-back { color: #ddd8fc; text-decoration: none; font-size: .74rem; }
+#saas-bar .saas-bar-back:hover { color: #fff; }
+
+.saas-tenant-bar {
+    background: #1e40af;
+    color: #bfdbfe;
+    padding: .28rem 1.5rem;
+    font-size: .74rem;
+    display: flex;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 60;
+}
+.saas-tenant-bar strong { color: #fff; }
+.saas-tenant-bar .saas-bar-slug { opacity: .65; font-size: .68rem; }
+
+/* ── Impersonate bar ──────────────────────── */
+#impersonate-bar {
+    background: #f59e0b;
+    color: #1c1400;
+    padding: .38rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    font-size: .82rem;
+    font-weight: 500;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 55;
+}
+#impersonate-bar .imp-name { font-weight: 700; }
+#impersonate-bar .imp-email { opacity: .65; font-size: .78rem; }
+#impersonate-bar a.imp-stop {
+    margin-left: auto;
+    background: rgba(0,0,0,.15);
+    color: #1c1400;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: .8rem;
+    border-radius: 5px;
+    padding: .22rem .7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    white-space: nowrap;
+}
+#impersonate-bar a.imp-stop:hover { background: rgba(0,0,0,.25); }
+
+/* ── Top bar ──────────────────────────────── */
+#topbar {
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: .3rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    font-size: .875rem;
+    color: #64748b;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+#topbar .page-title { font-weight: 600; color: #1e293b; font-size: .95rem; flex: 1; }
+.topbar-view-toggle {
+    display: inline-flex; align-items: stretch; gap: 2px;
+}
+.topbar-view-toggle a {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .18rem; padding: .3rem .85rem;
+    border-radius: 8px; font-size: .78rem; font-weight: 600;
+    text-decoration: none; color: #64748b;
+    border-bottom: 3px solid transparent;
+    transition: background .12s, color .12s, border-color .12s;
+    line-height: 1.2; white-space: nowrap;
+}
+.topbar-view-toggle a i { font-size: 1.1rem; }
+.topbar-view-toggle .active-mode {
+    color: #2563eb; border-bottom-color: #2563eb;
+    background: #eff6ff;
+}
+.topbar-view-toggle a:hover:not(.active-mode) { background: #f1f5f9; color: #334155; }
+.topbar-user-chip {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px;
+    padding: .25rem .75rem .25rem .4rem; font-size: .8rem; font-weight: 500;
+    color: #334155; text-decoration: none; transition: background .15s;
+}
+.topbar-user-chip:hover { background: #e2e8f0; color: #1e293b; }
+.topbar-user-chip .avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--bs-primary), #6610f2);
+    color: #fff; font-size: .65rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+/* ── Content ──────────────────────────────── */
+/* padding-bottom zwiększony by FAB komunikatora nie zasłaniał ostatniej karty */
+#content { padding: 1.5rem 1.5rem 5rem; flex: 1; }
+
+/* ── Mobile toggler ───────────────────────── */
+@media (max-width: 991px) {
+    #sidebar { position: fixed; left: -230px; transition: left .2s; }
+    #sidebar.show { left: 0; }
+    #main { margin-left: 0 !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ─────────────────────────────────────────────────── -->
+<nav id="sidebar">
+
+  <a class="sb-brand" href="<?= APP_URL ?>/index.php">
+    <?php if ($_org_logo && file_exists(dirname(__DIR__) . '/assets/logo/' . $_org_logo)): ?>
+    <img src="<?= APP_URL ?>/assets/logo/<?= h($_org_logo) ?>" alt="Logo" class="sb-logo-img">
+    <?php else: ?>
+    <span class="sb-brand-icon"><i class="bi bi-building"></i></span>
+    <?php endif; ?>
+    <span>
+      <span class="sb-brand-name"><?= h(ORG_NAME) ?></span>
+      <span class="sb-brand-sub">System SZO</span>
+    </span>
+  </a>
+
+  <?php if ($_user): ?>
+
+  <?php if (!can_edit()): ?>
+  <!-- ══ WIDOK UŻYTKOWNIKA (viewer) ══════════════════════════════ -->
+  <div class="sb-label">Mój panel</div>
+  <a class="sb-link<?= _nav_active('/panel/index') ?>" href="<?= APP_URL ?>/panel/index.php">
+    <i class="bi bi-person-circle"></i> Moja umowa
+  </a>
+  <?php
+  // Badge niepotwierdzonych zasad
+  try {
+    require_once __DIR__ . '/org_rules.php';
+    org_rules_migrate();
+    $_unread_rules = count(org_rules_unread((int)($_user['id'] ?? 0)));
+  } catch (\Throwable $e) { $_unread_rules = 0; }
+  ?>
+  <a class="sb-link<?= _nav_active('/org_intro/') ?>" href="<?= APP_URL ?>/org_intro/index.php">
+    <i class="bi bi-building-heart"></i> Zasady organizacji
+    <?php if ($_unread_rules > 0): ?>
+    <span class="badge bg-danger ms-auto"><?= $_unread_rules ?></span>
+    <?php endif; ?>
+  </a>
+  <a class="sb-link<?= _nav_active('/panel/profile_edit') ?>" href="<?= APP_URL ?>/panel/profile_edit.php">
+    <i class="bi bi-person-badge"></i> Mój profil
+  </a>
+  <a class="sb-link<?= _nav_active('/komunikaty/') ?>" href="<?= APP_URL ?>/komunikaty/index.php">
+    <i class="bi bi-megaphone" style="color:#F59E0B"></i> Komunikaty
+    <?php try {
+      $_v_ann_count = count(array_filter(ann_list_for_user((int)$_user['id'], $_user['role'] ?? 'viewer'), fn($a) => !(int)($a['is_read_by_me'] ?? 0)));
+      if ($_v_ann_count > 0): ?>
+    <span class="badge bg-warning text-dark ms-auto" style="font-size:.65rem"><?= $_v_ann_count ?></span>
+    <?php endif; } catch (\Throwable $e) {} ?>
+  </a>
+  <a class="sb-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
+    <i class="bi bi-person-lines-fill"></i> Książka telefoniczna
+  </a>
+  <?php if (module_enabled('messages_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/panel/messages') ?>" href="<?= APP_URL ?>/panel/messages.php">
+    <i class="bi bi-chat-left-text"></i> Wiadomości
+    <?php $_pnl_unread = 0;
+      if (!empty($_SESSION['panel_contract'])) {
+        try { $_pnl_unread = msg_unread_thread('contract', (int)$_SESSION['panel_contract']['id'], 'user'); }
+        catch (\Throwable $e) {}
+      }
+      if ($_pnl_unread): ?>
+    <span class="badge bg-danger ms-auto"><?= $_pnl_unread ?></span>
+    <?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <?php
+  $_sprawy_open = str_contains($_uri, '/panel/letters')
+               || str_contains($_uri, '/panel/apply')
+               || str_contains($_uri, '/panel/certificates')
+               || str_contains($_uri, '/panel/terminations')
+               || str_contains($_uri, '/panel/timesheets');
+  $_sprawy_has  = module_enabled('letters_enabled')
+               || module_enabled('certificates_enabled')
+               || module_enabled('terminations_enabled')
+               || module_enabled('timesheets_enabled');
+  ?>
+  <?php /* "Wyślij pismo/wniosek" zawsze widoczne — blok zawsze renderujemy */ if (true): ?>
+  <button type="button"
+          class="sb-type-btn <?= $_sprawy_open ? 'type-open' : '' ?>"
+          data-bs-toggle="collapse" data-bs-target="#sb-sprawy"
+          aria-expanded="<?= $_sprawy_open ? 'true' : 'false' ?>">
+    <i class="bi bi-folder2-open"></i> Sprawy umowy
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_sprawy_open ? 'show' : '' ?>" id="sb-sprawy">
+    <?php if (module_enabled('letters_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/letters') ?>" href="<?= APP_URL ?>/panel/letters.php">
+      <i class="bi bi-archive"></i> Moje pisma
+    </a>
+    <?php endif; ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/apply') ?>" href="<?= APP_URL ?>/panel/apply.php">
+      <i class="bi bi-send"></i> Wyślij pismo / wniosek
+    </a>
+    <?php if (module_enabled('certificates_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/certificates') ?>" href="<?= APP_URL ?>/panel/certificates.php">
+      <i class="bi bi-award"></i> Zaświadczenia
+    </a>
+    <?php endif; ?>
+    <?php if (module_enabled('terminations_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/terminations') ?>" href="<?= APP_URL ?>/panel/terminations.php">
+      <i class="bi bi-file-earmark-x"></i> Rozwiązanie umowy
+    </a>
+    <?php endif; ?>
+    <?php if (module_enabled('timesheets_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/timesheets') ?>" href="<?= APP_URL ?>/panel/timesheets.php">
+      <i class="bi bi-clock-history"></i> Ewidencja godzin
+    </a>
+    <?php endif; ?>
+    <?php require_once __DIR__ . '/apaczka.php';
+    if (apaczka_setting('apaczka_enabled') !== '0'): ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/shipments') ?>" href="<?= APP_URL ?>/panel/shipments.php">
+      <i class="bi bi-box-seam"></i> Przesyłki
+    </a>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+  <?php if (module_enabled('moodle_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/panel/moodle') ?>" href="<?= APP_URL ?>/panel/moodle.php">
+    <i class="bi bi-mortarboard"></i> Moje kursy
+  </a>
+  <?php endif; ?>
+  <a class="sb-link<?= _nav_active('/panel/m365') ?>" href="<?= APP_URL ?>/panel/m365.php">
+    <i class="bi bi-microsoft"></i> Microsoft 365
+  </a>
+  <a class="sb-link<?= _nav_active('/panel/sessions') ?>" href="<?= APP_URL ?>/panel/sessions.php">
+    <i class="bi bi-shield-lock"></i> Sesje i bezpieczeństwo
+  </a>
+  <a class="sb-link<?= _nav_active('/panel/password') . _nav_active('/panel/2fa') . _nav_active('/panel/m365_password') ?>"
+     href="<?= APP_URL ?>/panel/password.php">
+    <i class="bi bi-gear"></i> Ustawienia konta
+  </a>
+
+  <?php else: ?>
+  <!-- ══ WIDOK EDYTORA / ADMINA ══════════════════════════════════ -->
+
+  <!-- Mój obszar -->
+  <div class="sb-label">Mój obszar</div>
+  <a class="sb-link<?= _nav_active('/panel/index') ?>" href="<?= APP_URL ?>/panel/index.php">
+    <i class="bi bi-person-circle"></i> Mój panel
+  </a>
+  <a class="sb-link<?= _nav_active('/komunikaty/') ?>" href="<?= APP_URL ?>/komunikaty/index.php">
+    <i class="bi bi-megaphone" style="color:#F59E0B"></i> Komunikaty
+    <?php try {
+      $_e_ann_count = count(array_filter(ann_list_for_user((int)$_user['id'], $_user['role'] ?? 'editor'), fn($a) => !(int)($a['is_read_by_me'] ?? 0)));
+      if ($_e_ann_count > 0): ?>
+    <span class="badge bg-warning text-dark ms-auto" style="font-size:.65rem"><?= $_e_ann_count ?></span>
+    <?php endif; } catch (\Throwable $e) {} ?>
+  </a>
+  <a class="sb-link<?= _nav_active('/panel/profile_edit') ?>" href="<?= APP_URL ?>/panel/profile_edit.php">
+    <i class="bi bi-person-badge"></i> Mój profil
+  </a>
+  <?php if (module_enabled('moodle_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/panel/moodle') ?>" href="<?= APP_URL ?>/panel/moodle.php">
+    <i class="bi bi-mortarboard"></i> Moje kursy
+  </a>
+  <?php endif; ?>
+  <a class="sb-link<?= _nav_active('/panel/m365') ?>" href="<?= APP_URL ?>/panel/m365.php">
+    <i class="bi bi-microsoft" style="color:#00a4ef"></i> Microsoft 365
+  </a>
+
+  <!-- ── Działania i granty ───────────────────────────────────── -->
+  <?php if (can_edit()): ?>
+  <div class="sb-label">Działania i granty</div>
+  <a class="sb-link<?= _nav_active('/grants/') ?>" href="<?= APP_URL ?>/grants/index.php">
+    <i class="bi bi-cash-coin"></i> Granty
+  </a>
+  <a class="sb-link<?= _nav_active('/actions/') ?>" href="<?= APP_URL ?>/actions/index.php">
+    <i class="bi bi-calendar-event"></i> Działania
+  </a>
+  <?php endif; ?>
+
+  <!-- ── Dokumenty Księgowe ──────────────────────────────────────── -->
+  <?php
+  require_once __DIR__ . '/ksiegowosc.php';
+  kdok_migrate();
+  if (kdok_has_role('upload') || kdok_has_role('meryt') || kdok_has_role('formal') || kdok_has_role('zatwierdza') || is_admin()):
+  ?>
+  <div class="sb-label">Księgowość</div>
+  <a class="sb-link<?= _nav_active('/ksiegowosc/') ?>" href="<?= APP_URL ?>/ksiegowosc/index.php">
+    <i class="bi bi-file-earmark-check"></i> Dokumenty Księgowe
+  </a>
+  <?php endif; ?>
+
+  <!-- ── Zarządzanie umowami ──────────────────────────────────── -->
+  <?php
+  $_contracts_visible = array_filter(array_keys(CONTRACT_TYPES), fn($s) => module_enabled('contract_' . $s));
+  $_contracts_active  = str_contains($_uri, '/contracts/') || str_contains($_uri, '/persons/');
+  $_umowy_section = $_contracts_visible
+      || module_enabled('letters_enabled')
+      || module_enabled('approvals_enabled')
+      || module_enabled('reports_enabled');
+  if ($_umowy_section): ?>
+  <div class="sb-label">Zarządzanie umowami</div>
+
+  <?php if ($_contracts_visible): ?>
+  <button type="button"
+          class="sb-type-btn <?= $_contracts_active ? 'type-open' : '' ?>"
+          data-bs-toggle="collapse" data-bs-target="#sb-umowy"
+          aria-expanded="<?= $_contracts_active ? 'true' : 'false' ?>">
+    <i class="bi bi-file-earmark-text"></i> Umowy
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse<?= $_contracts_active ? ' show' : '' ?>" id="sb-umowy">
+    <div class="sb-sub">
+      <?php foreach (CONTRACT_TYPES as $slug => $label):
+        if (!module_enabled('contract_' . $slug)) continue;
+        $icon = $_contract_icons[$slug] ?? 'bi-file-text';
+      ?>
+      <a class="sb-sub-link<?= _nav_active("/contracts/{$slug}/") ?>"
+         href="<?= APP_URL ?>/contracts/<?= $slug ?>/list.php">
+        <i class="bi <?= $icon ?>"></i> <?= h($label) ?>
+      </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <a class="sb-link<?= _nav_active('/persons/') ?>"
+     href="<?= APP_URL ?>/persons/index.php">
+    <i class="bi bi-person-lines-fill"></i> Strony umów
+  </a>
+
+  <a class="sb-link<?= _nav_active('/contracts/zwroty/') ?>"
+     href="<?= APP_URL ?>/contracts/zwroty/index.php">
+    <i class="bi bi-receipt-cutoff"></i> Zwroty kosztów
+    <?php
+    try {
+        $_zwr_pending = db_one("SELECT COUNT(*) AS c FROM zwroty_kosztow WHERE status IN ('oczekuje','weryfikacja')");
+        if (($_zwr_pending['c'] ?? 0) > 0):
+    ?>
+    <span class="badge bg-warning text-dark ms-auto" style="font-size:.65rem"><?= (int)$_zwr_pending['c'] ?></span>
+    <?php endif; } catch (\Throwable $e) {} ?>
+  </a>
+
+  <?php if (module_enabled('letters_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/contracts/letters/') ?>"
+     href="<?= APP_URL ?>/contracts/letters/index.php">
+    <i class="bi bi-envelope-paper"></i> Pisma umów
+  </a>
+  <?php endif; ?>
+
+  <?php if (module_enabled('approvals_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/contracts/approvals/') ?>"
+     href="<?= APP_URL ?>/contracts/approvals/index.php">
+    <i class="bi bi-check2-square"></i> Akceptacje
+    <?php if ($_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+
+  <?php if (module_enabled('reports_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/reports/') ?>" href="<?= APP_URL ?>/reports/index.php">
+    <i class="bi bi-bar-chart-line"></i> Raporty umów
+  </a>
+  <?php endif; ?>
+
+  <?php endif; /* $_umowy_section */ ?>
+
+  <!-- ── Wolontariat (Rekrutacja + Onboarding) ─────────────────── -->
+  <?php if ($_vol_section ?? false): ?><div class="sb-sep"></div><?php endif; ?>
+  <?php
+  $_vol_section = module_enabled('onboarding_enabled') || can_edit();
+  if ($_vol_section): ?>
+  <div class="sb-label">Wolontariat</div>
+
+  <a class="sb-link<?= _nav_active('/contracts/rekrutacja/') ?>"
+     href="<?= APP_URL ?>/contracts/rekrutacja/index.php">
+    <i class="bi bi-megaphone-fill"></i> Rekrutacja
+    <?php
+    try {
+        $_rek_new = db_one("SELECT COUNT(*) AS c FROM volunteer_applications WHERE status = 'new'");
+        if (($_rek_new['c'] ?? 0) > 0):
+    ?>
+    <span class="badge bg-primary ms-auto" style="font-size:.65rem"><?= (int)$_rek_new['c'] ?></span>
+    <?php endif; } catch (\Throwable $e) {} ?>
+  </a>
+
+  <?php if (module_enabled('onboarding_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/onboarding/') ?>" href="<?= APP_URL ?>/onboarding/index.php">
+    <i class="bi bi-person-plus"></i> Onboarding
+    <?php try {
+      $_ob_new = db_one("SELECT COUNT(*) AS c FROM onboarding_volunteers WHERE status='pending'");
+      if (($_ob_new['c'] ?? 0) > 0): ?>
+      <span class="badge bg-warning text-dark ms-auto"><?= (int)$_ob_new['c'] ?></span>
+    <?php endif; } catch(\Exception $e) {} ?>
+  </a>
+  <?php endif; ?>
+
+  <?php endif; /* $_vol_section */ ?>
+
+  <!-- ── Obsługa ────────────────────────────────────────────────── -->
+  <?php if ($_obsługa_items ?? false): ?><div class="sb-sep"></div><?php endif; ?>
+  <?php
+  $_obsługa_items = array_filter([
+    'terminations_enabled',
+    'certificates_enabled','messages_enabled','timesheets_enabled',
+  ], 'module_enabled');
+  if ($_obsługa_items): ?>
+  <div class="sb-label">Obsługa</div>
+
+  <?php if (module_enabled('messages_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
+    <i class="bi bi-chat-dots"></i> Wiadomości
+    <?php try { $_msg_unread_total = msg_unread_admin(); } catch(\Exception $e) { $_msg_unread_total = 0; } ?>
+    <span class="badge bg-danger ms-auto" data-msg-sb-badge
+          style="<?= $_msg_unread_total > 0 ? '' : 'display:none' ?>"><?= $_msg_unread_total ?></span>
+  </a>
+  <?php endif; ?>
+
+  <?php if (module_enabled('terminations_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php">
+    <i class="bi bi-file-earmark-x"></i> Rozwiązania
+    <?php if (is_admin()) {
+      require_once __DIR__ . '/termination.php';
+      $_term_pending = get_pending_terminations_count();
+      if ($_term_pending): ?>
+      <span class="badge bg-danger ms-auto"><?= $_term_pending ?></span>
+    <?php endif; } ?>
+  </a>
+  <?php endif; ?>
+
+  <?php if (module_enabled('certificates_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>"
+     href="<?= APP_URL ?>/admin/certificates.php">
+    <i class="bi bi-award"></i> Zaświadczenia
+    <?php if (is_admin()) {
+      require_once __DIR__ . '/certificates.php';
+      $_cert_pending = get_pending_certificates_count();
+      if ($_cert_pending): ?>
+      <span class="badge bg-warning text-dark ms-auto"><?= $_cert_pending ?></span>
+    <?php endif; } ?>
+  </a>
+  <?php endif; ?>
+
+  <?php if (module_enabled('timesheets_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/timesheets') ?>" href="<?= APP_URL ?>/admin/timesheets.php">
+    <i class="bi bi-clock-history"></i> Ewidencja godzin
+    <?php
+    require_once __DIR__ . '/timesheets.php';
+    $_ts_pending = ts_pending_count();
+    if ($_ts_pending): ?>
+    <span class="badge bg-warning text-dark ms-auto"><?= $_ts_pending ?></span>
+    <?php endif; ?>
+  </a>
+  <?php endif; ?>
+
+  <?php
+  require_once __DIR__ . '/apaczka.php';
+  require_once __DIR__ . '/furgonetka.php';
+  if (apaczka_setting('apaczka_enabled') !== '0' || furgonetka_enabled()): ?>
+  <a class="sb-link<?= _nav_active('/admin/shipments') ?>" href="<?= APP_URL ?>/admin/shipments.php">
+    <i class="bi bi-box-seam"></i> Przesyłki
+    <?php $_ship_pending = shipment_pending_count();
+    if ($_ship_pending): ?>
+    <span class="badge bg-warning text-dark ms-auto"><?= $_ship_pending ?></span>
+    <?php endif; ?>
+  </a>
+  <?php endif; ?>
+
+  <?php endif; /* $_obsługa_items */ ?>
+
+  <?php endif; /* can_edit */ ?>
+  <?php endif; /* _user */ ?>
+
+  <!-- ── Zasoby ───────────────────────────────────────────────── -->
+  <?php
+  $_res_badge = 0;
+  if ($_user && is_admin()) {
+      try {
+          $r = db_one("SELECT COUNT(*) AS c FROM resource_reservations WHERE status IN ('zlozony','pending_admin')");
+          $_res_badge = (int)($r['c'] ?? 0);
+      } catch (\Throwable $e) {}
+  }
+  $_res_active = str_contains($_uri, '/resources/');
+  ?>
+  <?php if ($_user): ?>
+  <div class="sb-sep"></div>
+  <div class="sb-label">Zasoby organizacji</div>
+  <a class="sb-link<?= str_contains($_uri,'/resources/') && !str_contains($_uri,'/resources/admin') ? ' nav-active' : '' ?>"
+     href="<?= APP_URL ?>/resources/">
+    <i class="bi bi-box-seam"></i> Zasoby do rezerwacji
+  </a>
+  <a class="sb-link<?= _nav_active('/resources/my') ?>"
+     href="<?= APP_URL ?>/resources/my.php">
+    <i class="bi bi-calendar-check"></i> Moje rezerwacje
+  </a>
+  <?php if (is_admin() || can_write('resources')): ?>
+  <a class="sb-link<?= str_contains($_uri,'/resources/admin') ? ' nav-active' : '' ?>"
+     href="<?= APP_URL ?>/resources/admin/">
+    <i class="bi bi-calendar2-check-fill"></i> Zatwierdź rezerwacje
+    <?php if ($_res_badge > 0): ?>
+    <span class="badge bg-danger ms-auto"><?= $_res_badge ?></span>
+    <?php endif; ?>
+  </a>
+  <a class="sb-link<?= _nav_active('/resources/admin/resources') ?>"
+     href="<?= APP_URL ?>/resources/admin/resources.php">
+    <i class="bi bi-box"></i> Zarządzaj zasobami
+  </a>
+  <?php endif; ?>
+  <?php endif; ?>
+
+  <!-- ── Administrator — tylko admini ─────────────────────────── -->
+  <?php if ($_user && is_admin()):
+    $_adm_section_active = str_contains($_uri, '/admin/');
+    $_adm_badge = 0;
+    try {
+        $r = db_one("SELECT COUNT(*) AS c FROM mail_queue WHERE status='failed'");
+        $_adm_badge += (int)($r['c'] ?? 0);
+    } catch (\Throwable $e) {}
+    try {
+        $r = db_one("SELECT COUNT(*) AS c FROM user_applications WHERE status='nowy'");
+        $_adm_badge += (int)($r['c'] ?? 0);
+    } catch (\Throwable $e) {}
+  ?>
+  <div class="sb-sep"></div>
+  <div class="sb-label">Administrator</div>
+  <a class="sb-link<?= $_adm_section_active ? ' nav-active' : '' ?>"
+     href="<?= APP_URL ?>/admin/index.php">
+    <i class="bi bi-shield-shaded"></i> Panel administratora
+    <?php if ($_adm_badge > 0): ?>
+    <span class="badge bg-danger ms-auto"><?= $_adm_badge ?></span>
+    <?php endif; ?>
+  </a>
+  <?php endif; ?>
+
+  <!-- ── Użytkownik + wylogowanie ─────────────────────────────── -->
+  <div class="sb-footer">
+    <?php if ($_user): ?>
+    <div class="sb-user"><i class="bi bi-person-circle"></i> <?= h($_user['name']) ?></div>
+    <?php if ($_is_service_acc && $_saas_url): ?>
+    <a href="<?= h($_saas_url) ?>" style="color:#a78bfa">
+      <i class="bi bi-server me-1"></i>Panel SaaS
+    </a>
+    <?php endif; ?>
+    <a href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right"></i> Wyloguj</a>
+    <?php else: ?>
+    <a href="<?= APP_URL ?>/auth/login.php"><i class="bi bi-box-arrow-in-right"></i> Zaloguj</a>
+    <?php endif; ?>
+  </div>
+
+</nav>
+
+<!-- ── MAIN ────────────────────────────────────────────────────── -->
+<div id="main">
+
+  <?php if ($_is_saas_admin): ?>
+  <div id="saas-bar">
+    <i class="bi bi-shield-lock-fill"></i>
+    <strong>SaaS Admin</strong>
+    <span class="saas-bar-sep">·</span>
+    <span><?= h(ORG_NAME) ?></span>
+    <span class="saas-bar-slug font-monospace"><?= h(TENANT_SLUG) ?></span>
+    <a href="<?= h($_saas_url) ?>" class="ms-auto saas-bar-back">
+      <i class="bi bi-arrow-left me-1"></i>Panel SaaS
+    </a>
+  </div>
+  <?php elseif ($_is_tenant): ?>
+  <div class="saas-tenant-bar">
+    <i class="bi bi-building me-1"></i>
+    Tenant:&nbsp;<strong><?= h(ORG_NAME) ?></strong>
+    <span class="saas-bar-slug font-monospace ms-2"><?= h(TENANT_SLUG) ?></span>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!empty($_SESSION['_admin_original'])): ?>
+  <div id="impersonate-bar">
+    <i class="bi bi-person-badge-fill"></i>
+    <span>Podgląd jako:</span>
+    <span class="imp-name"><?= h($_SESSION['user']['name'] ?? 'użytkownik') ?></span>
+    <span class="imp-email">&lt;<?= h($_SESSION['user']['email'] ?? '') ?>&gt;</span>
+    <a href="<?= APP_URL ?>/admin/impersonate_stop.php" class="imp-stop">
+      <i class="bi bi-arrow-left"></i> Powrót do admina
+    </a>
+  </div>
+  <?php endif; ?>
+
+  <div id="topbar">
+    <button class="btn btn-sm btn-outline-secondary d-lg-none" id="sidebarToggle" style="padding:.25rem .5rem">
+      <i class="bi bi-list"></i>
+    </button>
+    <span class="page-title"><?= h($_page_title) ?></span>
+
+    <?php if ($_user && can_edit()): ?>
+    <?php
+      $_uri = $_SERVER['REQUEST_URI'] ?? '';
+      $_is_panel_view = str_contains($_uri, '/panel/');
+      $_initials_tb = implode('', array_map(
+        fn($w) => mb_strtoupper(mb_substr($w,0,1)),
+        array_slice(explode(' ', $_user['name']), 0, 2)
+      ));
+    ?>
+    <!-- Moduły główne -->
+    <div class="topbar-view-toggle">
+      <a href="<?= APP_URL ?>/index.php"
+         class="<?= (!str_contains($_uri,'/crm/') && !str_contains($_uri,'/actions/') && !str_contains($_uri,'/events/') && !str_contains($_uri,'/directory/') && !str_contains($_uri,'/karty30/') && !str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/') && !$_is_panel_view) ? 'active-mode' : '' ?>">
+        <i class="bi bi-building"></i>SZO
+      </a>
+      <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
+      <a href="<?= APP_URL ?>/crm/dashboard.php"
+         class="<?= str_contains($_uri,'/crm/') ? 'active-mode' : '' ?>">
+        <i class="bi bi-diagram-2-fill"></i>CRM
+      </a>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/actions/index.php"
+         class="<?= str_contains($_uri,'/actions/') ? 'active-mode' : '' ?>">
+        <i class="bi bi-calendar-event"></i>Działania
+      </a>
+      <?php if (module_enabled('events_enabled')): ?>
+      <a href="<?= APP_URL ?>/events/dashboard.php"
+         class="<?= str_contains($_uri,'/events/') ? 'active-mode' : '' ?>">
+        <i class="bi bi-calendar-event-fill"></i>Wydarzenia
+      </a>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/directory/"
+         class="<?= str_contains($_uri,'/directory/') ? 'active-mode' : '' ?>">
+        <i class="bi bi-person-lines-fill"></i>Katalog
+      </a>
+      <?php if (can_read('karty30')): ?>
+      <a href="<?= APP_URL ?>/karty30/index.php"
+         class="<?= str_contains($_uri,'/karty30/') ? 'active-mode' : '' ?>">
+        <i class="bi bi-card-checklist"></i>Karty 30
+      </a>
+      <?php endif; ?>
+      <?php if (module_enabled('tasks_enabled')): ?>
+      <a href="<?= APP_URL ?>/tasks/dashboard.php"
+         class="<?= str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/') ? 'active-mode' : '' ?>">
+        <i class="bi bi-table"></i>Zadania
+      </a>
+      <?php endif; ?>
+      <?php if (is_admin()): ?>
+      <a href="<?= APP_URL ?>/admin/index.php"
+         class="<?= str_contains($_uri,'/admin/') ? 'active-mode' : '' ?>">
+        <i class="bi bi-gear-fill"></i>Administrator
+      </a>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($_user):
+    $_notif_count  = notif_unread_count((int)$_user['id']);
+    $_notif_latest = notif_latest((int)$_user['id'], 6);
+    ?>
+    <div class="dropdown me-2" id="notif-bell">
+      <button type="button" class="btn btn-sm btn-outline-secondary position-relative"
+              data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+              aria-label="Powiadomienia — <?= $_notif_count ?> nieprzeczytanych"
+              id="notif-btn">
+        <i class="bi bi-bell-fill"></i>
+        <?php if ($_notif_count > 0): ?>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+              style="font-size:.55rem" aria-hidden="true">
+          <?= $_notif_count > 99 ? '99+' : $_notif_count ?>
+        </span>
+        <?php endif; ?>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end shadow" style="width:320px;max-height:400px;overflow-y:auto" role="menu" aria-label="Lista powiadomień">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+          <span class="fw-semibold" style="font-size:.85rem">Powiadomienia</span>
+          <div class="d-flex gap-2">
+            <a href="<?= APP_URL ?>/komunikaty/index.php" class="btn btn-link btn-sm p-0" style="font-size:.75rem">Wszystkie</a>
+            <?php if ($_notif_count > 0): ?>
+            <button type="button" class="btn btn-link btn-sm p-0 text-muted" style="font-size:.75rem" id="notif-mark-all">Oznacz przeczytane</button>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php if (empty($_notif_latest)): ?>
+        <div class="text-center py-4 text-muted" style="font-size:.82rem">
+          <i class="bi bi-bell-slash d-block mb-1" style="font-size:1.5rem;opacity:.3"></i>
+          Brak powiadomień
+        </div>
+        <?php else: ?>
+        <?php foreach ($_notif_latest as $notif): ?>
+        <a href="<?= h($notif['url'] ?: APP_URL . '/komunikaty/index.php') ?>"
+           class="dropdown-item py-2 px-3 <?= $notif['is_read'] ? '' : 'fw-semibold' ?>"
+           style="white-space:normal;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+           data-notif-id="<?= (int)$notif['id'] ?>">
+          <div class="d-flex gap-2 align-items-start">
+            <i class="bi <?= notif_type_icon($notif['type']) ?> mt-1 flex-shrink-0"
+               style="color:<?= notif_type_color($notif['type']) ?>;font-size:.9rem" aria-hidden="true"></i>
+            <div class="flex-grow-1">
+              <div><?= h($notif['title']) ?></div>
+              <div class="text-muted fw-normal" style="font-size:.74rem"><?= h(substr($notif['created_at'], 0, 16)) ?></div>
+            </div>
+            <?php if (!$notif['is_read']): ?>
+            <span class="rounded-circle bg-primary flex-shrink-0" style="width:7px;height:7px;margin-top:5px" aria-hidden="true"></span>
+            <?php endif; ?>
+          </div>
+        </a>
+        <?php endforeach; ?>
+        <?php endif; ?>
+        <div class="px-3 py-2 border-top">
+          <a href="<?= APP_URL ?>/komunikaty/index.php" class="btn btn-sm w-100" style="background:var(--sb-hover-bg,#f1f5f9);color:#374151;font-size:.8rem">
+            <i class="bi bi-envelope-open me-1"></i>Przejdź do komunikatów
+          </a>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <span class="text-muted small d-none d-md-inline"><?= date('d.m.Y') ?></span>
+
+    <?php if ($_user): ?>
+    <!-- Chip użytkownika z dropdown -->
+    <div class="dropdown">
+      <button class="topbar-user-chip border-0" type="button" data-bs-toggle="dropdown">
+        <span class="avatar"><?= h($_initials_tb ?? mb_strtoupper(mb_substr($_user['name'],0,1))) ?></span>
+        <span class="d-none d-sm-inline"><?= h(explode(' ', $_user['name'])[0]) ?></span>
+        <i class="bi bi-chevron-down" style="font-size:.65rem;opacity:.6"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width:230px;font-size:.85rem">
+
+        <!-- Dane użytkownika -->
+        <li class="px-3 py-2 border-bottom">
+          <div class="fw-semibold"><?= h($_user['name']) ?></div>
+          <div class="text-muted" style="font-size:.74rem"><?= h($_user['email']) ?></div>
+          <span class="badge bg-light text-dark border mt-1" style="font-size:.67rem"><?= h($_user['role']) ?></span>
+        </li>
+
+        <!-- Konto -->
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/index.php">
+            <i class="bi bi-person-circle me-2 text-muted"></i>Mój panel
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/m365.php">
+            <i class="bi bi-microsoft me-2 text-muted"></i>Microsoft 365
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/sessions.php">
+            <i class="bi bi-shield-lock me-2 text-muted"></i>Sesje
+          </a>
+        </li>
+        <?php if (in_array($_user['role'] ?? '', ['admin', 'editor'], true)): ?>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/webauthn.php">
+            <i class="bi bi-usb-symbol me-2 text-muted"></i>Klucze WebAuthn
+          </a>
+        </li>
+        <?php endif; ?>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/password.php">
+            <i class="bi bi-gear me-2 text-muted"></i>Ustawienia konta
+          </a>
+        </li>
+
+        <?php if ($_user && can_edit()): ?>
+        <li><hr class="dropdown-divider my-1"></li>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/admin/users.php">
+            <i class="bi bi-people me-2 text-muted"></i>Użytkownicy
+          </a>
+        </li>
+        <?php endif; ?>
+
+        <li><hr class="dropdown-divider my-1"></li>
+        <li>
+          <a class="dropdown-item py-2 text-danger" href="<?= APP_URL ?>/auth/logout.php">
+            <i class="bi bi-box-arrow-right me-2"></i>Wyloguj się
+          </a>
+        </li>
+      </ul>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <div id="content">
+  <?= flash_html() ?>
+
+<?php if ($_user && in_array($_user['role'] ?? '', ['admin', 'editor'], true)): ?>
+<div id="mvpBanner" class="alert alert-warning alert-dismissible d-flex gap-2 align-items-start mb-3 py-2"
+     role="alert" style="display:none!important">
+  <i class="bi bi-cone-striped flex-shrink-0 mt-1"></i>
+  <div style="font-size:.875rem">
+    <strong>Wersja MVP (Minimum Viable Product)</strong> — system jest w fazie wczesnego wdrożenia.
+    Niektóre funkcje mogą działać niestabilnie lub być jeszcze rozwijane. W razie błędów prosimy o kontakt z administratorem.
+  </div>
+  <button type="button" class="btn-close btn-sm" onclick="mvpDismiss()" aria-label="Zamknij"></button>
+</div>
+<script>
+(function () {
+  var KEY = 'mvp_banner_dismissed_v1';
+  var el  = document.getElementById('mvpBanner');
+  if (!el) return;
+  if (!localStorage.getItem(KEY)) {
+    el.style.removeProperty('display');
+  }
+})();
+function mvpDismiss() {
+  localStorage.setItem('mvp_banner_dismissed_v1', '1');
+  var el = document.getElementById('mvpBanner');
+  if (el) el.style.display = 'none';
+}
+</script>
+<?php endif; ?>
+
+<script>
+(function () {
+  var APP_URL = '<?= APP_URL ?>';
+
+  // Kliknięcie w powiadomienie w dropdownie → oznacz jako przeczytane
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('[data-notif-id]');
+    if (link) {
+      var id = parseInt(link.dataset.notifId);
+      fetch(APP_URL + '/api/notifications/mark_read.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+        body: JSON.stringify({id: id})
+      });
+    }
+  });
+
+  // Oznacz wszystkie w topbarze
+  var markAll = document.getElementById('notif-mark-all');
+  if (markAll) {
+    markAll.addEventListener('click', function() {
+      fetch(APP_URL + '/api/notifications/mark_read.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+        body: JSON.stringify({all: true})
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.ok) {
+          document.querySelectorAll('[data-notif-id]').forEach(function(el) {
+            el.classList.remove('fw-semibold');
+            var dot = el.querySelector('.bg-primary.rounded-circle');
+            if (dot) dot.remove();
+          });
+          var badge = document.querySelector('#notif-btn .badge');
+          if (badge) badge.remove();
+          markAll.remove();
+        }
+      });
+    });
+  }
+})();
+</script>
+
+<?php
+// ── CPC Authorization Modal (admin + editor only) ────────────────────────────
+// Injected once per page. Intercepts submits on forms with data-cpc="1".
+if ($_user && in_array($_user['role'] ?? '', ['admin', 'editor'], true)):
+    require_once __DIR__ . '/cpc.php';
+    cpc_migrate();
+    // Sesja może nie mieć cpc_code (kolumna dodana po zalogowaniu) — odczyt z DB
+    $_cpc_fresh   = db_one("SELECT cpc_code, cpc_fails, cpc_blocked_until FROM users WHERE id=?", [(int)$_user['id']]);
+    $_cpc_user    = array_merge($_user, $_cpc_fresh ?: []);
+    $_cpc_enabled = cpc_user_can_use($_cpc_user);
+?>
+<!-- CPC Modal ──────────────────────────────────────────────────── -->
+<div id="cpcModal" class="modal fade" tabindex="-1"
+     role="dialog" aria-modal="true" aria-labelledby="cpcModalTitle" aria-describedby="cpcModalDesc">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="cpcModalTitle">
+          <i class="bi bi-shield-lock-fill text-primary"></i>
+          Autoryzacja operacji
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="text-muted small mb-3" id="cpcModalDesc">
+          Ta operacja wymaga potwierdzenia Twoim indywidualnym kodem autoryzacyjnym IKA (6 cyfr).
+        </p>
+
+        <!-- Dynamiczna tabela potwierdzenia -->
+        <div id="cpcSummaryWrap" class="mb-3"></div>
+
+        <!-- Stan: zapis po poprawnej weryfikacji -->
+        <div id="cpcSavingSection" class="d-none text-center py-2">
+          <div class="mb-3">
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2" style="font-size:.85rem">
+              <i class="bi bi-check-circle-fill me-1"></i>Kod IKA poprawny
+            </span>
+          </div>
+          <div class="spinner-border text-primary mb-2" role="status" style="width:2.2rem;height:2.2rem">
+            <span class="visually-hidden">Zapisuję…</span>
+          </div>
+          <div class="fw-semibold" id="cpcSavingTitle">Zapisuję umowę…</div>
+          <div class="text-muted small mt-1">Proszę czekać, nie zamykaj okna.</div>
+        </div>
+
+        <!-- CPC input -->
+        <div id="cpcInputSection">
+          <label for="cpcCodeInput" id="cpcInputLabel" class="form-label fw-semibold">
+            Indywidualny kod autoryzacyjny IKA (6 cyfr)
+          </label>
+          <input type="text" id="cpcCodeInput" inputmode="numeric" pattern="\d{6}" maxlength="6"
+                 class="form-control form-control-lg text-center font-monospace letter-spacing-lg"
+                 autocomplete="off" placeholder="000000"
+                 aria-describedby="cpcAlertBox">
+          <div id="cpcAlertBox" role="alert" aria-live="assertive" class="mt-2" style="min-height:1.5rem"></div>
+
+          <?php if ($_cpc_enabled): ?>
+          <div class="text-end mt-1">
+            <button type="button" id="cpcFallbackBtn" class="btn btn-link btn-sm p-0 text-muted">
+              Nie pamiętam kodu IKA
+            </button>
+          </div>
+          <?php endif; ?>
+        </div>
+
+        <?php if (!$_cpc_enabled): ?>
+        <div class="alert alert-warning small py-2 mt-2 mb-0">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Nie masz przypisanego kodu IKA (indywidualnego kodu autoryzacyjnego). Skontaktuj się z administratorem, aby kontynuować.
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          Anuluj
+        </button>
+        <button type="button" id="cpcSubmitBtn" class="btn btn-primary btn-sm px-4"
+                <?= !$_cpc_enabled ? 'disabled' : '' ?>>
+          <span id="cpcBtnText"><i class="bi bi-check-lg me-1"></i>Zatwierdź</span>
+          <span id="cpcBtnSpinner" class="d-none">
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            Weryfikacja…
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+#cpcCodeInput { font-size: 1.6rem; letter-spacing: .35em; }
+#cpcSummaryWrap table { font-size: .83rem; }
+#cpcSummaryWrap th { width: 42%; color: #64748b; font-weight: 600; }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  var _pendingForm  = null;   // original form that triggered CPC
+  var _usingSms     = false;  // true after SMS fallback requested
+  var _cpcModal     = null;
+  var _bsModal      = null;
+
+  // ── Bootstrap modal instance ─────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function () {
+    _cpcModal = document.getElementById('cpcModal');
+    if (!_cpcModal) return;
+    _bsModal = new bootstrap.Modal(_cpcModal, { backdrop: 'static', keyboard: false });
+
+    // Focus trap: when modal shown, focus input
+    _cpcModal.addEventListener('shown.bs.modal', function () {
+      var inp = document.getElementById('cpcCodeInput');
+      if (inp) inp.focus();
+      _usingSms = false;
+    });
+
+    // ESC / close resets state
+    _cpcModal.addEventListener('hidden.bs.modal', function () {
+      _pendingForm = null;
+      _resetCpcUi();
+    });
+
+    // ── Intercept forms with data-cpc="1" ────────────────────
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (form.dataset.cpc !== '1') return;
+      e.preventDefault();
+      _pendingForm = form;
+      _resetCpcUi();
+      _buildSummaryTable(form);
+      _bsModal.show();
+    }, true);
+
+    // ── Submit button ─────────────────────────────────────────
+    document.getElementById('cpcSubmitBtn').addEventListener('click', function () {
+      var code = (document.getElementById('cpcCodeInput').value || '').trim();
+      if (!/^\d{6}$/.test(code)) {
+        _setAlert('Wpisz 6-cyfrowy kod.', 'danger'); return;
+      }
+      _setLoading(true);
+      var endpoint = _usingSms
+        ? '<?= APP_URL ?>/admin/api/verify_sms_fallback.php'
+        : '<?= APP_URL ?>/admin/api/verify_cpc.php';
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code, _csrf: _getCsrf() })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          _setLoading(false);
+          if (data.ok) {
+            // Pokaż stan zapisu (modal pozostaje otwarty)
+            _setSaving(_pendingForm);
+            // Submituj formularz — przeglądarka przejdzie na nową stronę
+            if (_pendingForm) {
+              _pendingForm.dataset.cpc = '0';
+              _pendingForm.submit();
+            }
+          } else if (data.blocked) {
+            _setAlert('Kod IKA zablokowany do: ' + (data.blocked_until || '') + '. Skontaktuj się z administratorem.', 'danger');
+            document.getElementById('cpcCodeInput').disabled = true;
+            document.getElementById('cpcSubmitBtn').disabled = true;
+          } else {
+            _setAlert(data.message || 'Nieprawidłowy kod.', 'danger');
+            var inp = document.getElementById('cpcCodeInput');
+            inp.value = ''; inp.focus();
+          }
+        })
+        .catch(function () {
+          _setLoading(false);
+          _setAlert('Błąd połączenia z serwerem. Spróbuj ponownie.', 'danger');
+        });
+    });
+
+    // ── SMS Fallback button ───────────────────────────────────
+    var fallbackBtn = document.getElementById('cpcFallbackBtn');
+    if (fallbackBtn) {
+      fallbackBtn.addEventListener('click', function () {
+        fallbackBtn.disabled = true;
+        fetch('<?= APP_URL ?>/admin/api/send_sms_fallback.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ _csrf: _getCsrf() })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) {
+              _usingSms = true;
+              document.getElementById('cpcInputLabel').textContent = 'Kod z wiadomości SMS (6 cyfr)';
+              _setAlert('Kod SMS wysłany. Wprowadź go poniżej.', 'success');
+              var inp = document.getElementById('cpcCodeInput');
+              inp.value = ''; inp.focus();
+            } else {
+              _setAlert(data.message || 'Nie udało się wysłać SMS.', 'warning');
+              fallbackBtn.disabled = false;
+            }
+          })
+          .catch(function () {
+            _setAlert('Błąd wysyłki SMS. Spróbuj ponownie.', 'warning');
+            fallbackBtn.disabled = false;
+          });
+      });
+    }
+
+    // ── Auto-submit on 6 digits ───────────────────────────────
+    document.getElementById('cpcCodeInput').addEventListener('input', function () {
+      if (this.value.length === 6 && /^\d{6}$/.test(this.value)) {
+        document.getElementById('cpcSubmitBtn').click();
+      }
+    });
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────
+
+  function _getCsrf() {
+    var el = document.querySelector('[name="_csrf"]');
+    return el ? el.value : '';
+  }
+
+  function _setSaving(form) {
+    // Komunikat — można nadpisać atrybutem data-cpc-saving na formularzu
+    var msg = (form && form.dataset.cpcSaving) ? form.dataset.cpcSaving : 'Zapisuję umowę…';
+    var titleEl = document.getElementById('cpcSavingTitle');
+    if (titleEl) titleEl.textContent = msg;
+    // Ukryj elementy wejściowe i stopkę
+    ['cpcInputSection', 'cpcSummaryWrap', 'cpcModalDesc'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.add('d-none');
+    });
+    var footer  = _cpcModal ? _cpcModal.querySelector('.modal-footer') : null;
+    var closeBtn = _cpcModal ? _cpcModal.querySelector('.btn-close')   : null;
+    if (footer)   footer.classList.add('d-none');
+    if (closeBtn) closeBtn.classList.add('d-none');
+    // Pokaż sekcję zapisu
+    var sav = document.getElementById('cpcSavingSection');
+    if (sav) sav.classList.remove('d-none');
+  }
+
+  function _setLoading(on) {
+    document.getElementById('cpcBtnText').classList.toggle('d-none', on);
+    document.getElementById('cpcBtnSpinner').classList.toggle('d-none', !on);
+    document.getElementById('cpcSubmitBtn').disabled = on;
+    document.getElementById('cpcCodeInput').disabled = on;
+    if (on) {
+      var al = document.getElementById('cpcAlertBox');
+      al.className = 'mt-2 alert alert-info py-1 small';
+      al.textContent = 'Trwa weryfikacja kodu…';
+    }
+  }
+
+  function _setAlert(msg, type) {
+    var al = document.getElementById('cpcAlertBox');
+    al.className = 'mt-2 alert alert-' + type + ' py-1 small';
+    al.textContent = msg;
+  }
+
+  function _resetCpcUi() {
+    // Przywróć ukryte przez _setSaving()
+    ['cpcInputSection', 'cpcSummaryWrap', 'cpcModalDesc'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('d-none');
+    });
+    var footer   = _cpcModal ? _cpcModal.querySelector('.modal-footer') : null;
+    var closeBtn = _cpcModal ? _cpcModal.querySelector('.btn-close')    : null;
+    if (footer)   footer.classList.remove('d-none');
+    if (closeBtn) closeBtn.classList.remove('d-none');
+    var sav = document.getElementById('cpcSavingSection');
+    if (sav) sav.classList.add('d-none');
+    // Reset inputów
+    var inp = document.getElementById('cpcCodeInput');
+    if (inp) { inp.value = ''; inp.disabled = false; }
+    var al = document.getElementById('cpcAlertBox');
+    if (al) { al.className = 'mt-2'; al.textContent = ''; }
+    var lbl = document.getElementById('cpcInputLabel');
+    if (lbl) lbl.textContent = 'Indywidualny kod autoryzacyjny IKA (6 cyfr)';
+    var btn = document.getElementById('cpcSubmitBtn');
+    if (btn) btn.disabled = <?= $_cpc_enabled ? 'false' : 'true' ?>;
+    document.getElementById('cpcBtnText').classList.remove('d-none');
+    document.getElementById('cpcBtnSpinner').classList.add('d-none');
+    var fb = document.getElementById('cpcFallbackBtn');
+    if (fb) fb.disabled = false;
+    _usingSms = false;
+  }
+
+  // ── Build summary table from form data-* attributes ──────────
+  function _buildSummaryTable(form) {
+    var wrap = document.getElementById('cpcSummaryWrap');
+    wrap.innerHTML = '';
+    var meta = form.dataset.cpcMeta ? JSON.parse(form.dataset.cpcMeta) : null;
+    if (!meta || !meta.rows) return;
+    var tbl = '<table class="table table-sm table-bordered mb-0"><tbody>';
+    meta.rows.forEach(function (r) {
+      tbl += '<tr><th scope="row">' + _esc(r[0]) + '</th><td>' + _esc(r[1]) + '</td></tr>';
+    });
+    tbl += '</tbody></table>';
+    wrap.innerHTML = tbl;
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+})();
+</script>
+<?php endif; ?>

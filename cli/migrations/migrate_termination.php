@@ -1,0 +1,66 @@
+<?php
+/** Migracja: tworzy tabelę contract_termination_requests. Usuń po wykonaniu! */
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/db.php';
+
+$driver = db()->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+if ($driver === 'sqlite') {
+    $sql = "CREATE TABLE IF NOT EXISTS contract_termination_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        contract_type TEXT NOT NULL,
+        contract_id INTEGER NOT NULL,
+        requested_by INTEGER,
+        requester_name TEXT NOT NULL,
+        powod TEXT NOT NULL,
+        proposed_date TEXT,
+        status TEXT NOT NULL DEFAULT 'oczekuje',
+        decided_by INTEGER,
+        decided_at DATETIME,
+        decision_note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )";
+} else {
+    $sql = "CREATE TABLE IF NOT EXISTS contract_termination_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        contract_type VARCHAR(32) NOT NULL,
+        contract_id INT NOT NULL,
+        requested_by INT,
+        requester_name VARCHAR(255) NOT NULL,
+        powod TEXT NOT NULL,
+        proposed_date DATE,
+        status VARCHAR(32) NOT NULL DEFAULT 'oczekuje',
+        decided_by INT,
+        decided_at DATETIME,
+        decision_note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4";
+}
+
+$done = []; $err = [];
+try {
+    db()->exec($sql);
+    $done[] = 'Tabela contract_termination_requests — OK';
+} catch (PDOException $e) {
+    $err[] = $e->getMessage();
+}
+?>
+<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>Migracja — rozwiązania umów</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head><body class="bg-light"><div class="container mt-5" style="max-width:640px">
+<div class="card shadow-sm">
+  <div class="card-header fw-bold">Migracja — wnioski o rozwiązanie umowy</div>
+  <div class="card-body">
+    <?php if ($done): ?>
+    <div class="alert alert-success small"><b>Wykonano:</b><ul class="mb-0">
+    <?php foreach($done as $d) echo '<li><code>'.htmlspecialchars($d).'</code></li>'; ?>
+    </ul></div>
+    <?php endif; ?>
+    <?php if ($err): ?>
+    <div class="alert alert-danger small"><?= implode('<br>', array_map('htmlspecialchars', $err)) ?></div>
+    <?php endif; ?>
+    <p>Gotowe. <a href="index.php">Przejdź do rejestru →</a></p>
+    <p class="text-danger small">Usuń <code>migrate_termination.php</code> po zakończeniu migracji.</p>
+  </div>
+</div>
+</div></body></html>

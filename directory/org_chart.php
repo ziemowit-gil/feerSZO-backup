@@ -1,0 +1,575 @@
+<?php
+/**
+ * directory/org_chart.php — Struktura organizacyjna (tylko odczyt).
+ * Wbudowana w moduł Katalogu współpracowników, bez przycisków edycji.
+ */
+require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/db.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/directory.php';
+require_once dirname(__DIR__) . '/includes/org.php';
+
+require_login();
+directory_migrate();
+
+$PAGE_TITLE = 'Struktura organizacyjna';
+
+// ── Dane ──────────────────────────────────────────────────────────────────────
+$all_units = [];
+$tree      = [];
+$enabled   = true;
+
+try {
+    $all_units = org_units_all();
+    $tree      = org_build_tree($all_units);
+} catch (\Throwable $e) {
+    $enabled = false;
+}
+
+$total_units   = count(array_filter($all_units, fn($u) => $u['status'] === 'active'));
+$total_members = 0;
+try {
+    $r = db_one("SELECT COUNT(*) AS c FROM org_members WHERE status='active' AND (valid_to IS NULL OR valid_to >= date('now'))");
+    $total_members = (int)($r['c'] ?? 0);
+} catch (\Throwable $e) {}
+
+// Jednostka szczegółowa (GET unit_id)
+$unit_focus = (int)($_GET['unit'] ?? 0);
+
+include __DIR__ . '/includes/header_dir.php';
+?>
+
+<style>
+/* ── Drzewo org ───────────────────────────────────────────────── */
+.oc-tree { }
+.oc-node { position: relative; }
+.oc-children { margin-left: 1.5rem; border-left: 2px solid var(--dir-border); padding-left: .25rem; }
+
+.oc-row {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .45rem .75rem;
+  border-radius: 8px;
+  cursor: default;
+  transition: background .1s;
+}
+.oc-row:hover { background: var(--dir-primary-bg); }
+.oc-row.focused { background: var(--dir-primary-bg); border-left: 3px solid var(--dir-primary); border-radius: 0 8px 8px 0; }
+/* Focus ring for keyboard navigation */
+[role="treeitem"]:focus { outline: 2px solid var(--dir-primary); outline-offset: -2px; border-radius: 8px; }
+[role="treeitem"]:focus .oc-row { background: var(--dir-primary-bg); }
+
+.oc-toggle {
+  background: none; border: none; padding: 0;
+  color: var(--dir-text-light); font-size: .75rem;
+  width: 18px; flex-shrink: 0; cursor: pointer;
+  transition: transform .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.oc-toggle:hover { color: var(--dir-primary); }
+.oc-toggle.open { transform: rotate(90deg); }
+
+.oc-icon { font-size: .9rem; color: var(--dir-primary); flex-shrink: 0; }
+.oc-name { font-size: .88rem; font-weight: 600; color: var(--dir-text); flex: 1; min-width: 0; }
+.oc-code { font-size: .65rem; font-family: monospace; background: #F1F5F9; color: #475569; padding: .1rem .4rem; border-radius: 4px; flex-shrink: 0; }
+.oc-head { font-size: .76rem; color: var(--dir-text-muted); white-space: nowrap; flex-shrink: 0; }
+.oc-head a { color: inherit; text-decoration: none; }
+.oc-head a:hover { color: var(--dir-primary); text-decoration: underline; }
+.oc-count { font-size: .72rem; background: var(--dir-primary-bg); color: var(--dir-primary);
+            border: 1px solid var(--dir-primary-light); border-radius: 10px;
+            padding: .05rem .45rem; flex-shrink: 0; font-weight: 600; }
+.oc-inactive { opacity: .45; }
+
+/* Panel szczegółów jednostki */
+.oc-detail {
+  background: #fff; border: 1px solid var(--dir-border);
+  border-radius: 12px; padding: 1.25rem 1.5rem; margin-top: 1.5rem;
+}
+.oc-detail-title { font-size: 1.05rem; font-weight: 700; color: var(--dir-text); margin-bottom: .25rem; }
+.oc-detail-meta  { font-size: .8rem; color: var(--dir-text-muted); margin-bottom: 1rem; }
+
+/* Karta członka jednostki */
+.oc-member-card {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .55rem .75rem; border-radius: 8px;
+  text-decoration: none; color: inherit;
+  transition: background .1s;
+}
+.oc-member-card:hover { background: var(--dir-primary-bg); color: inherit; }
+.oc-member-name { font-size: .86rem; font-weight: 600; color: var(--dir-text); }
+.oc-member-pos  { font-size: .74rem; color: var(--dir-text-muted); }
+.oc-member-head-badge {
+  font-size: .65rem; font-weight: 700; padding: .1rem .4rem;
+  background: #FEF9C3; color: #A16207; border-radius: 4px;
+  border: 1px solid #FDE68A; white-space: nowrap; flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .oc-code, .oc-head { display: none; }
+  .oc-children { margin-left: .85rem; }
+}
+</style>
+
+<!-- Nagłówek strony -->
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0 fw-bold" style="color:var(--dir-text)">
+      <i class="bi bi-diagram-3 me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>Struktura organizacyjna
+    </h1>
+    <p class="text-muted small mb-0 mt-1">Hierarchia jednostek i przypisania wolontariuszy</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-sm btn-outline-secondary"
+            onclick="ocExpandAll()"
+            aria-controls="ocTree"
+            aria-label="Rozwiń wszystkie węzły drzewa">
+      <i class="bi bi-arrows-expand me-1" aria-hidden="true"></i>Rozwiń wszystko
+    </button>
+    <button class="btn btn-sm btn-outline-secondary"
+            onclick="ocCollapseAll()"
+            aria-controls="ocTree"
+            aria-label="Zwiń wszystkie węzły drzewa">
+      <i class="bi bi-arrows-collapse me-1" aria-hidden="true"></i>Zwiń wszystko
+    </button>
+  </div>
+</div>
+
+<?php if (!$enabled || empty($tree)): ?>
+<div class="dir-info-card text-center py-5" style="color:var(--dir-text-muted)" role="status">
+  <i class="bi bi-diagram-3" aria-hidden="true" style="font-size:3rem;opacity:.25;display:block;margin-bottom:.75rem"></i>
+  <p class="mb-0">Struktura organizacyjna nie jest jeszcze skonfigurowana.</p>
+  <?php if (is_admin()): ?>
+  <a href="<?= APP_URL ?>/org/units/add.php" class="btn btn-sm mt-3" style="background:var(--dir-primary);color:#fff">
+    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz pierwszą jednostkę
+  </a>
+  <?php endif; ?>
+</div>
+<?php else: ?>
+
+<!-- Statystyki -->
+<div class="row g-3 mb-4" aria-label="Statystyki struktury organizacyjnej">
+  <?php foreach ([
+    ['Aktywnych jednostek', $total_units,   'bi-diagram-3',   '#6366F1', '#EEF2FF'],
+    ['Wolontariuszy',       $total_members, 'bi-people-fill', '#16A34A', '#F0FDF4'],
+  ] as [$lbl, $val, $icon, $col, $bg]): ?>
+  <div class="col-6 col-md-3">
+    <div style="background:#fff;border:1px solid var(--dir-border);border-radius:10px;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.8rem"
+         aria-label="<?= h($lbl) ?>: <?= $val ?>">
+      <div style="width:38px;height:38px;border-radius:9px;background:<?= $bg ?>;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:<?= $col ?>;flex-shrink:0"
+           aria-hidden="true">
+        <i class="bi <?= $icon ?>"></i>
+      </div>
+      <div>
+        <div style="font-size:1.4rem;font-weight:700;line-height:1;color:var(--dir-text)" aria-hidden="true"><?= $val ?></div>
+        <div style="font-size:.72rem;color:var(--dir-text-muted)" aria-hidden="true"><?= $lbl ?></div>
+      </div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+</div>
+
+<!-- Drzewo + panel szczegółów -->
+<div class="row g-4">
+
+  <!-- Drzewo -->
+  <div class="col-lg-7 col-xl-6">
+    <div class="dir-info-card p-3" style="padding:0!important">
+      <div style="padding:.75rem 1rem;border-bottom:1px solid var(--dir-border);font-size:.8rem;font-weight:600;color:var(--dir-text-muted)">
+        <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Drzewo struktury
+        <span class="text-muted fw-normal ms-1">— kliknij jednostkę, by zobaczyć jej skład</span>
+      </div>
+      <div class="p-3 oc-tree" id="ocTree">
+        <ul role="tree" aria-label="Drzewo struktury organizacyjnej" class="list-unstyled mb-0">
+          <?php dir_render_tree($tree, 1, $unit_focus); ?>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel szczegółów jednostki -->
+  <div class="col-lg-5 col-xl-6">
+    <div id="ocDetailPanel"
+         role="region"
+         aria-label="Szczegóły jednostki"
+         aria-live="polite">
+      <?php if ($unit_focus > 0):
+          dir_render_unit_detail($unit_focus);
+      else: ?>
+      <div class="dir-info-card text-center py-5" style="color:var(--dir-text-muted)">
+        <i class="bi bi-cursor-fill d-block mb-2" aria-hidden="true" style="font-size:2rem;opacity:.25"></i>
+        <p class="mb-0 small">Kliknij nazwę jednostki, aby zobaczyć jej skład i szczegóły.</p>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+</div>
+<?php endif; ?>
+
+<script>
+(function () {
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function getVisibleTreeItems() {
+    return Array.from(document.querySelectorAll('[role="treeitem"]')).filter(function (el) {
+      // An item is visible if none of its ancestors have aria-expanded="false"
+      var parent = el.parentElement;
+      while (parent) {
+        var owner = parent.closest('[role="treeitem"]');
+        if (owner && owner.getAttribute('aria-expanded') === 'false') return false;
+        if (!owner) break;
+        parent = owner.parentElement;
+      }
+      return true;
+    });
+  }
+
+  function focusItem(item) {
+    if (!item) return;
+    // Set tabindex on all items, then focus the target
+    document.querySelectorAll('[role="treeitem"]').forEach(function (el) {
+      el.setAttribute('tabindex', '-1');
+    });
+    item.setAttribute('tabindex', '0');
+    item.focus();
+  }
+
+  function expandItem(item) {
+    var children = item.querySelector(':scope > [role="group"]');
+    if (!children) return false; // leaf node
+    if (item.getAttribute('aria-expanded') === 'false') {
+      children.style.display = '';
+      item.setAttribute('aria-expanded', 'true');
+      var btn = item.querySelector(':scope > .oc-row > .oc-toggle');
+      if (btn) btn.classList.add('open');
+      return true;
+    }
+    return false;
+  }
+
+  function collapseItem(item) {
+    var children = item.querySelector(':scope > [role="group"]');
+    if (!children) return false;
+    if (item.getAttribute('aria-expanded') === 'true') {
+      children.style.display = 'none';
+      item.setAttribute('aria-expanded', 'false');
+      var btn = item.querySelector(':scope > .oc-row > .oc-toggle');
+      if (btn) btn.classList.remove('open');
+      return true;
+    }
+    return false;
+  }
+
+  function loadDetail(uid) {
+    var panel = document.getElementById('ocDetailPanel');
+    panel.setAttribute('aria-busy', 'true');
+    panel.innerHTML = '<div class="dir-info-card text-center py-4"><i class="bi bi-hourglass-split" aria-hidden="true" style="font-size:1.5rem;opacity:.4"></i><p class="mt-2 mb-0 small text-muted">Ładowanie…</p></div>';
+    fetch('<?= APP_URL ?>/directory/org_unit_detail.php?id=' + uid, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        panel.innerHTML = html;
+        panel.removeAttribute('aria-busy');
+      })
+      .catch(function () {
+        panel.innerHTML = '<div class="alert alert-warning small" role="alert">Błąd ładowania danych.</div>';
+        panel.removeAttribute('aria-busy');
+      });
+  }
+
+  // ── Keyboard navigation ───────────────────────────────────────────────────
+  var tree = document.getElementById('ocTree');
+  if (tree) {
+    tree.addEventListener('keydown', function (e) {
+      var focused = document.activeElement;
+      if (!focused || focused.getAttribute('role') !== 'treeitem') return;
+
+      var items = getVisibleTreeItems();
+      var idx = items.indexOf(focused);
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          if (idx < items.length - 1) focusItem(items[idx + 1]);
+          break;
+
+        case 'ArrowUp':
+          e.preventDefault();
+          if (idx > 0) focusItem(items[idx - 1]);
+          break;
+
+        case 'ArrowRight':
+          e.preventDefault();
+          // If collapsed, expand; if already expanded, move to first child
+          if (focused.getAttribute('aria-expanded') === 'false') {
+            expandItem(focused);
+          } else if (focused.getAttribute('aria-expanded') === 'true') {
+            var firstChild = focused.querySelector('[role="group"] > [role="treeitem"]');
+            if (firstChild) focusItem(firstChild);
+          }
+          break;
+
+        case 'ArrowLeft':
+          e.preventDefault();
+          // If expanded, collapse; otherwise move to parent
+          if (focused.getAttribute('aria-expanded') === 'true') {
+            collapseItem(focused);
+          } else {
+            var parentGroup = focused.parentElement;
+            if (parentGroup && parentGroup.getAttribute('role') === 'group') {
+              var parentItem = parentGroup.closest('[role="treeitem"]');
+              if (parentItem) focusItem(parentItem);
+            }
+          }
+          break;
+
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          var uid = focused.dataset.unit;
+          if (uid) {
+            document.querySelectorAll('[role="treeitem"]').forEach(function (r) { r.classList.remove('focused'); });
+            focused.classList.add('focused');
+            loadDetail(uid);
+          }
+          break;
+
+        case 'Home':
+          e.preventDefault();
+          if (items.length) focusItem(items[0]);
+          break;
+
+        case 'End':
+          e.preventDefault();
+          if (items.length) focusItem(items[items.length - 1]);
+          break;
+      }
+    });
+  }
+
+  // ── Toggle buttons ────────────────────────────────────────────────────────
+  document.querySelectorAll('.oc-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = this.closest('[role="treeitem"]');
+      if (!item) return;
+      var childrenEl = item.querySelector(':scope > [role="group"]');
+      if (!childrenEl) return;
+      var hidden = childrenEl.style.display === 'none';
+      childrenEl.style.display = hidden ? '' : 'none';
+      this.classList.toggle('open', hidden);
+      item.setAttribute('aria-expanded', hidden ? 'true' : 'false');
+    });
+  });
+
+  // ── Row click — load detail AJAX ──────────────────────────────────────────
+  document.querySelectorAll('[role="treeitem"][data-unit]').forEach(function (item) {
+    var row = item.querySelector('.oc-row');
+    if (row) {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('.oc-toggle')) return;
+        document.querySelectorAll('[role="treeitem"]').forEach(function (r) { r.classList.remove('focused'); });
+        item.classList.add('focused');
+        loadDetail(item.dataset.unit);
+      });
+    }
+  });
+
+  // Set first treeitem as focusable
+  var firstItem = document.querySelector('[role="treeitem"]');
+  if (firstItem) firstItem.setAttribute('tabindex', '0');
+})();
+
+// ── Rozwiń / zwiń wszystkie (global, called from onclick) ─────────────────────
+function ocExpandAll() {
+  document.querySelectorAll('[role="treeitem"]').forEach(function (item) {
+    var childrenEl = item.querySelector(':scope > [role="group"]');
+    if (childrenEl) {
+      childrenEl.style.display = '';
+      item.setAttribute('aria-expanded', 'true');
+      var btn = item.querySelector(':scope > .oc-row > .oc-toggle');
+      if (btn) btn.classList.add('open');
+    }
+  });
+}
+function ocCollapseAll() {
+  document.querySelectorAll('[role="treeitem"]').forEach(function (item) {
+    var childrenEl = item.querySelector(':scope > [role="group"]');
+    if (childrenEl) {
+      childrenEl.style.display = 'none';
+      item.setAttribute('aria-expanded', 'false');
+      var btn = item.querySelector(':scope > .oc-row > .oc-toggle');
+      if (btn) btn.classList.remove('open');
+    }
+  });
+}
+</script>
+
+<?php
+include __DIR__ . '/includes/footer_dir.php';
+
+// ── Helpery renderujące ───────────────────────────────────────────────────────
+
+function dir_render_tree(array $nodes, int $level = 1, int $focus_id = 0): void {
+    foreach ($nodes as $node):
+        $has_ch  = !empty($node['children']);
+        $active  = $node['status'] === 'active';
+        $focused = (int)$node['id'] === $focus_id;
+        $head    = null;
+        try { $head = org_unit_head((int)$node['id']); } catch (\Throwable $e) {}
+        $member_count = (int)($node['member_count'] ?? 0);
+        ?>
+        <li role="treeitem"
+            aria-level="<?= $level ?>"
+            <?php if ($has_ch): ?>aria-expanded="true"<?php endif; ?>
+            tabindex="-1"
+            data-unit="<?= (int)$node['id'] ?>"
+            class="oc-node<?= $focused ? ' focused' : '' ?><?= $active ? '' : ' oc-inactive' ?>"
+            aria-label="<?= h($node['name']) ?><?= $node['code'] ? ', kod: ' . h($node['code']) : '' ?><?= $head ? ', kierownik: ' . h($head['user_name']) : '' ?>, <?= $member_count ?> <?= $member_count === 1 ? 'wolontariusz' : 'wolontariuszy' ?>">
+
+          <div class="oc-row">
+            <!-- Toggle chevron -->
+            <?php if ($has_ch): ?>
+            <button class="oc-toggle open"
+                    tabindex="-1"
+                    aria-label="Zwiń jednostkę <?= h($node['name']) ?>"
+                    aria-hidden="true">
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
+            <?php else: ?>
+            <span style="width:18px;flex-shrink:0" aria-hidden="true"></span>
+            <?php endif; ?>
+
+            <i class="oc-icon bi bi-diagram-3" aria-hidden="true"></i>
+
+            <span class="oc-name"><?= h($node['name']) ?></span>
+            <?php if ($node['code']): ?>
+            <span class="oc-code" aria-hidden="true"><?= h($node['code']) ?></span>
+            <?php endif; ?>
+
+            <?php if ($head): ?>
+            <span class="oc-head d-none d-sm-inline" aria-hidden="true">
+              <i class="bi bi-person-fill me-1" aria-hidden="true" style="font-size:.7rem"></i><?= h($head['user_name']) ?>
+            </span>
+            <?php endif; ?>
+
+            <span class="oc-count" aria-hidden="true">
+              <?= $member_count ?>
+            </span>
+          </div>
+
+          <?php if ($has_ch): ?>
+          <ul role="group" class="oc-children list-unstyled mb-0">
+            <?php dir_render_tree($node['children'], $level + 1, $focus_id); ?>
+          </ul>
+          <?php endif; ?>
+        </li>
+    <?php endforeach;
+}
+
+function dir_render_unit_detail(int $unit_id): void {
+    try {
+        $unit = org_unit_get($unit_id);
+    } catch (\Throwable $e) { $unit = null; }
+    if (!$unit) {
+        echo '<div class="alert alert-warning small" role="alert">Nie znaleziono jednostki.</div>';
+        return;
+    }
+
+    // Pobierz aktywnych członków
+    $members = [];
+    try {
+        $members = db_all("
+            SELECT om.id, om.user_id, om.position_name, om.is_head, om.status,
+                   om.phone_direct, om.phone_mobile,
+                   u.first_name, u.last_name, u.name AS user_name, u.email,
+                   COALESCE(up.phone_public,0) AS phone_public,
+                   COALESCE(up.avatar_file,'')  AS avatar_file
+            FROM org_members om
+            JOIN users u ON u.id = om.user_id
+            LEFT JOIN user_profiles up ON up.user_id = om.user_id
+            WHERE om.unit_id = ? AND om.status = 'active'
+              AND (om.valid_to IS NULL OR om.valid_to >= date('now'))
+            ORDER BY om.is_head DESC, om.sort_order, u.last_name
+        ", [$unit_id]);
+    } catch (\Throwable $e) {}
+
+    echo '<div class="oc-detail">';
+    echo '<div class="oc-detail-title">'
+       . '<i class="bi bi-diagram-3 me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>'
+       . h($unit['name'])
+       . '</div>';
+
+    $meta = [];
+    if ($unit['short_name']) $meta[] = h($unit['short_name']);
+    if ($unit['location'])   $meta[] = '<i class="bi bi-geo-alt me-1" aria-hidden="true"></i>' . h($unit['location']);
+    if ($unit['phone'])      $meta[] = '<i class="bi bi-telephone me-1" aria-hidden="true"></i>' . h($unit['phone']);
+    if ($unit['parent_name']) $meta[] = '<i class="bi bi-arrow-up-right me-1" aria-hidden="true"></i>' . h($unit['parent_name']);
+    if ($meta) echo '<div class="oc-detail-meta">' . implode(' &nbsp;·&nbsp; ', $meta) . '</div>';
+
+    if ($unit['description']) {
+        echo '<p class="small text-muted mb-3" style="white-space:pre-wrap">' . h($unit['description']) . '</p>';
+    }
+
+    if (empty($members)) {
+        echo '<p class="small text-muted mb-0">'
+           . '<i class="bi bi-people me-1" aria-hidden="true"></i>'
+           . 'Brak wolontariuszy w tej jednostce.'
+           . '</p>';
+    } else {
+        $count = count($members);
+        echo '<div class="mb-1" style="font-size:.75rem;font-weight:700;color:var(--dir-text-muted);text-transform:uppercase;letter-spacing:.06em">';
+        echo '<i class="bi bi-people me-1" aria-hidden="true"></i>Wolontariusze (' . $count . ')';
+        echo '</div>';
+        echo '<ul class="list-unstyled mb-0">';
+        foreach ($members as $m) {
+            $display = trim(($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
+            if (!$display) $display = $m['user_name'] ?? $m['email'];
+            $phone_show = ($m['phone_public'] && ($m['phone_direct'] ?: $m['phone_mobile']));
+
+            // Build accessible label
+            $a11y_label = h($display);
+            if ($m['position_name']) $a11y_label .= ', ' . h($m['position_name']);
+            if ($m['is_head'])       $a11y_label .= ', Kierownik';
+            if ($phone_show) {
+                $ph_val = $m['phone_direct'] ?: $m['phone_mobile'];
+                $a11y_label .= ', telefon: ' . h($ph_val);
+            }
+
+            echo '<li>';
+            echo '<a href="' . APP_URL . '/directory/profile.php?id=' . (int)$m['user_id'] . '"'
+               . ' class="oc-member-card"'
+               . ' aria-label="' . $a11y_label . '">';
+
+            // Avatar
+            $avatar_html = directory_avatar_html($m, 36);
+            if (strpos($avatar_html, '<img') !== false) {
+                $avatar_html = preg_replace(
+                    '/<img\b([^>]*?)(?:\s+alt="[^"]*")?([^>]*?)>/',
+                    '<img$1 alt=""$2>',
+                    $avatar_html
+                );
+            } elseif (strpos($avatar_html, '<span') !== false) {
+                $avatar_html = preg_replace('/<span\b/', '<span aria-hidden="true"', $avatar_html, 1);
+            }
+            echo $avatar_html;
+
+            echo '<div class="flex-grow-1 min-width-0" aria-hidden="true">';
+            echo '<div class="oc-member-name">' . h($display) . '</div>';
+            $pos = $m['position_name'] ?? '';
+            if ($pos) echo '<div class="oc-member-pos">' . h($pos) . '</div>';
+            if ($phone_show) {
+                $ph = $m['phone_direct'] ?: $m['phone_mobile'];
+                echo '<div class="oc-member-pos"><i class="bi bi-telephone me-1" aria-hidden="true" style="font-size:.7rem"></i>' . h($ph) . '</div>';
+            }
+            echo '</div>';
+            if ($m['is_head']) {
+                echo '<span class="oc-member-head-badge" aria-hidden="true"><i class="bi bi-star-fill me-1" aria-hidden="true"></i>Kierownik</span>';
+            }
+            echo '</a>';
+            echo '</li>';
+        }
+        echo '</ul>';
+    }
+    echo '</div>';
+}
+?>

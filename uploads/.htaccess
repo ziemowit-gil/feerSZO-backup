@@ -1,0 +1,25 @@
+Options -Indexes
+
+# Blokuj bezpośredni dostęp i wykonanie PHP — pliki PHP obsługiwane tylko przez aplikację
+<Files "*.php">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+# Zezwól na pobieranie plików PDF przez przeglądarkę
+<FilesMatch "\.pdf$">
+    Order Allow,Deny
+    Allow from all
+    Header set Content-Disposition "inline"
+</FilesMatch>
+
+# Blokuj wykonanie skryptów w innych językach
+<FilesMatch "\.(php|php3|php4|php5|php7|php8|phtml|phar|pl|py|sh|cgi)$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Nagłówki bezpieczeństwa dla plików w uploads
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+</IfModule>

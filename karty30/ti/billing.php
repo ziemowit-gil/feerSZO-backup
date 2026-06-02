@@ -1,0 +1,244 @@
+<?php
+/**
+ * karty30/ti/billing.php — Miesięczne rozliczenia zajęć TI.
+ */
+require_once dirname(dirname(__DIR__)) . '/config.php';
+require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+
+k30_require_access();
+karty30_migrate();
+
+$PAGE_TITLE = 'Rozliczenia TI';
+$can_write  = can_write('karty30') || is_admin();
+$course_id  = (int)($_GET['course_id'] ?? 0);
+$course     = $course_id ? k30_ti_course_get($course_id) : null;
+
+// Filtr okresu
+$month = (int)($_GET['month'] ?? date('m'));
+$year  = (int)($_GET['year']  ?? date('Y'));
+$month = max(1, min(12, $month));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
+    csrf_check();
+    $op = $_POST['_op'] ?? '';
+
+    if ($op === 'issue') {
+        $client_id = (int)($_POST['client_id'] ?? 0);
+        $notes     = trim($_POST['notes'] ?? '');
+        if ($client_id) {
+            k30_ti_issue_billing($client_id, $month, $year, $notes);
+            flash_set('success','Rozliczenie wystawione.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    if ($op === 'issue_all') {
+        $clients_with_sessions = db_all(
+            "SELECT DISTINCT e.client_id FROM k30_ti_attendance a
+             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status='held'
+             JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id
+             WHERE a.attended=1 AND strftime('%m',s.lesson_date)=? AND strftime('%Y',s.lesson_date)=?",
+            [sprintf('%02d',$month), (string)$year]
+        );
+        foreach ($clients_with_sessions as $c) {
+            k30_ti_issue_billing((int)$c['client_id'], $month, $year);
+        }
+        flash_set('success','Wystawiono ' . count($clients_with_sessions) . ' rozliczeń.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    if ($op === 'set_paid') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        if ($bid) db()->prepare("UPDATE k30_ti_billing SET status='paid' WHERE id=?")->execute([$bid]);
+        flash_set('success','Oznaczono jako opłacone.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+}
+
+// Pobierz rozliczenia za wybrany miesiąc
+$where = ["b.month=? AND b.year=?"]; $params = [$month, $year];
+if ($course_id) {
+    // Filtruj per kurs — klienci w tym kursie
+    $where[] = "b.client_id IN (SELECT client_id FROM k30_ti_enrollments WHERE course_id=?)";
+    $params[] = $course_id;
+}
+$billings = db_all(
+    "SELECT b.*, cl.name AS client_name, cl.email AS client_email
+     FROM k30_ti_billing b
+     JOIN k30_clients cl ON cl.id=b.client_id
+     WHERE " . implode(' AND ', $where) . " ORDER BY cl.name",
+    $params
+);
+
+// Podgląd nieopłaconych (kalkulacja bez zapisu)
+$preview_where = []; $prev_params = [];
+if ($course_id) {
+    $preview_where[] = "e.course_id=?";
+    $prev_params[] = $course_id;
+}
+$pq = $preview_where ? 'AND ' . implode(' AND ', $preview_where) : '';
+$enrolled_active = db_all(
+    "SELECT DISTINCT e.client_id, cl.name AS client_name
+     FROM k30_ti_enrollments e
+     JOIN k30_clients cl ON cl.id=e.client_id
+     WHERE e.status='active' $pq ORDER BY cl.name",
+    $prev_params
+);
+$billed_ids = array_column($billings, 'client_id');
+
+// Podgląd kwot dla nieopłaconych
+$preview = [];
+foreach ($enrolled_active as $e) {
+    $cid = (int)$e['client_id'];
+    if (in_array($cid, $billed_ids)) continue;
+    $calc = k30_ti_calculate_billing($cid, $month, $year);
+    if ($calc['hours_billed'] > 0) {
+        $preview[$cid] = array_merge($calc, ['client_name' => $e['client_name']]);
+    }
+}
+
+// Miesiące do nawigacji
+$months_pl = [1=>'Styczeń',2=>'Luty',3=>'Marzec',4=>'Kwiecień',5=>'Maj',6=>'Czerwiec',
+              7=>'Lipiec',8=>'Sierpień',9=>'Wrzesień',10=>'Październik',11=>'Listopad',12=>'Grudzień'];
+
+include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
+?>
+
+<nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
+  <li class="breadcrumb-item"><a href="index.php">Zajęcia TI</a></li>
+  <?php if ($course): ?>
+  <li class="breadcrumb-item"><a href="course.php?id=<?= $course_id ?>"><?= h($course['name']) ?></a></li>
+  <?php endif; ?>
+  <li class="breadcrumb-item active">Rozliczenia miesięczne</li>
+</ol></nav>
+
+<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-receipt text-primary me-2"></i>
+    Rozliczenia TI<?= $course ? ' — '.h($course['name']) : '' ?>
+  </h4>
+</div>
+
+<?= flash_html() ?>
+
+<!-- Nawigacja miesięczna -->
+<div class="d-flex align-items-center gap-2 mb-4">
+  <?php
+    $prev_m = $month === 1 ? 12 : $month - 1;
+    $prev_y = $month === 1 ? $year - 1 : $year;
+    $next_m = $month === 12 ? 1 : $month + 1;
+    $next_y = $month === 12 ? $year + 1 : $year;
+    $base   = '?'.($course_id?'course_id='.$course_id.'&':'');
+  ?>
+  <a href="<?= $base ?>month=<?= $prev_m ?>&year=<?= $prev_y ?>" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-chevron-left"></i>
+  </a>
+  <h5 class="mb-0 fw-bold"><?= $months_pl[$month] ?> <?= $year ?></h5>
+  <a href="<?= $base ?>month=<?= $next_m ?>&year=<?= $next_y ?>" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-chevron-right"></i>
+  </a>
+  <?php if ($preview && $can_write): ?>
+  <form method="post" class="ms-auto" onsubmit="return confirm('Wystawić rozliczenia dla wszystkich klientów z lekcjami w tym miesiącu?')">
+    <input type="hidden" name="_csrf"  value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op"    value="issue_all">
+    <button type="submit" class="btn btn-primary btn-sm">
+      <i class="bi bi-receipt-cutoff me-1"></i>Wystaw wszystkie (<?= count($preview) ?>)
+    </button>
+  </form>
+  <?php endif; ?>
+</div>
+
+<!-- Wystawione rozliczenia -->
+<?php if ($billings): ?>
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-check-circle text-success me-2"></i>Wystawione rozliczenia
+    <span class="badge bg-secondary ms-2"><?= count($billings) ?></span>
+    <span class="ms-auto text-muted small fw-normal">
+      Razem: <?= number_format(array_sum(array_column($billings,'amount')),2,',','') ?> zł
+    </span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Klient</th><th>Godz.</th><th>Kwota</th><th>Status</th><th class="text-end">Akcje</th></tr>
+      </thead>
+      <tbody>
+        <?php foreach ($billings as $b):
+          $bs = K30_TI_BILLING_STATUSES[$b['status']] ?? ['label'=>$b['status'],'color'=>'#666','bg'=>'#eee'];
+        ?>
+        <tr>
+          <td>
+            <div class="fw-semibold"><?= h($b['client_name']) ?></div>
+            <?php if ($b['notes']): ?><div class="text-muted small"><?= h($b['notes']) ?></div><?php endif; ?>
+          </td>
+          <td><?= number_format((float)$b['hours_billed'],2,',','') ?> h</td>
+          <td class="fw-semibold"><?= number_format((float)$b['amount'],2,',','') ?> zł</td>
+          <td>
+            <span class="badge" style="background:<?= h($bs['bg']) ?>;color:<?= h($bs['color']) ?>;border:1px solid <?= h($bs['color']) ?>44;font-size:.74rem">
+              <?= h($bs['label']) ?>
+            </span>
+          </td>
+          <td class="text-end">
+            <?php if ($b['status'] === 'issued' && $can_write): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="set_paid">
+              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-success py-0 px-2">
+                <i class="bi bi-check-lg me-1"></i>Opłacone
+              </button>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Podgląd — klienci z lekcjami bez rozliczenia -->
+<?php if ($preview): ?>
+<div class="card border-0 shadow-sm">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-hourglass-split text-warning me-2"></i>Do wystawienia
+    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-2"><?= count($preview) ?></span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Klient</th><th>Godz. obecności</th><th>Szacowana kwota</th><th class="text-end">Akcja</th></tr>
+      </thead>
+      <tbody>
+        <?php foreach ($preview as $cid => $p): ?>
+        <tr>
+          <td class="fw-semibold"><?= h($p['client_name']) ?></td>
+          <td><?= number_format($p['hours_billed'],2,',','') ?> h</td>
+          <td class="fw-semibold"><?= number_format($p['amount'],2,',','') ?> zł</td>
+          <td class="text-end">
+            <?php if ($can_write): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"        value="issue">
+              <input type="hidden" name="client_id"  value="<?= $cid ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2">
+                <i class="bi bi-receipt me-1"></i>Wystaw
+              </button>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php elseif (!$billings): ?>
+<div class="alert alert-info">Brak lekcji odbyłych w <?= $months_pl[$month] ?> <?= $year ?>.</div>
+<?php endif; ?>
+
+<?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

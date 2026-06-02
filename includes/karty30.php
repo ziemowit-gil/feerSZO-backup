@@ -1,0 +1,1349 @@
+<?php
+/**
+ * includes/karty30.php — Moduł TyfloKonsultacje / Karty 30.
+ * Auto-migracja tabel k30_* + funkcje pomocnicze.
+ */
+
+function karty30_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_clients (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        name            TEXT    NOT NULL,
+        email           TEXT,
+        phone           TEXT,
+        status          TEXT    NOT NULL DEFAULT 'enrolled',
+        problem         TEXT,
+        equipment       TEXT,
+        date_of_birth   DATE,
+        gender          TEXT,
+        address         TEXT,
+        notes           TEXT,
+        preferred_contact_method TEXT DEFAULT 'email',
+        consent         INTEGER NOT NULL DEFAULT 0,
+        available_days  TEXT,
+        time_slots      TEXT,
+        available_hours REAL    NOT NULL DEFAULT 0,
+        used            REAL    NOT NULL DEFAULT 0,
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_schedules (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id       INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        assigned_to     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        start_time      DATETIME NOT NULL,
+        duration_minutes INTEGER NOT NULL DEFAULT 60,
+        status          TEXT    NOT NULL DEFAULT 'preliminary',
+        description     TEXT,
+        cancel_reason   TEXT,
+        approved_by_name TEXT,
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_sched_client ON k30_schedules(client_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_sched_time   ON k30_schedules(start_time)");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_consultations (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        schedule_id     INTEGER REFERENCES k30_schedules(id) ON DELETE SET NULL,
+        client_id       INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        consultant_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        consultation_datetime DATETIME NOT NULL,
+        duration_minutes INTEGER,
+        description     TEXT,
+        next_action     TEXT,
+        status          TEXT    NOT NULL DEFAULT 'draft',
+        sign_type       TEXT,
+        confirmed       INTEGER NOT NULL DEFAULT 0,
+        approved_by_name TEXT,
+        sha1sum         TEXT,
+        xml_path        TEXT,
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_cons_client ON k30_consultations(client_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_cons_dt     ON k30_consultations(consultation_datetime)");
+
+    // Certyfikaty x509 doradców K30 — wymagane do zatwierdzania kart konsultacji
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_consultant_certs (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        cert_pem         TEXT    NOT NULL,
+        cert_subject     TEXT    NOT NULL DEFAULT '',
+        cert_fingerprint TEXT    NOT NULL DEFAULT '',
+        cert_serial      TEXT    NOT NULL DEFAULT '',
+        cert_valid_from  INTEGER NOT NULL DEFAULT 0,
+        cert_valid_to    INTEGER NOT NULL DEFAULT 0,
+        is_active        INTEGER NOT NULL DEFAULT 1,
+        uploaded_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_certs_user ON k30_consultant_certs(user_id)");
+
+    // Kolumny certyfikatu na karcie konsultacji
+    foreach ([
+        "ALTER TABLE k30_consultations ADD COLUMN cert_fingerprint TEXT",
+        "ALTER TABLE k30_consultations ADD COLUMN cert_subject      TEXT",
+        "ALTER TABLE k30_consultations ADD COLUMN ika_verified_at   DATETIME",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
+    // Uprawnienie "Doradca TyfloKonsultacje" — może prowadzić konsultacje
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN k30_consultant INTEGER NOT NULL DEFAULT 0");
+    } catch (\Throwable $e) {}
+
+    // Zasób zarezerwowany na termin (sala, stanowisko itp.)
+    try {
+        $pdo->exec("ALTER TABLE k30_schedules ADD COLUMN resource_id INTEGER REFERENCES resources(id) ON DELETE SET NULL");
+    } catch (\Throwable $e) {}
+    // Flaga "Zdalnie" — termin odbywa się zdalnie (brak fizycznego zasobu)
+    try {
+        $pdo->exec("ALTER TABLE k30_schedules ADD COLUMN is_remote INTEGER NOT NULL DEFAULT 0");
+    } catch (\Throwable $e) {}
+
+    // Dane do faktury — zbierane przy rezerwacji terminu
+    foreach ([
+        "ALTER TABLE k30_schedules ADD COLUMN needs_invoice    INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_schedules ADD COLUMN invoice_type     TEXT    NOT NULL DEFAULT 'company'",
+        "ALTER TABLE k30_schedules ADD COLUMN invoice_name     TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_schedules ADD COLUMN invoice_nip      TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_schedules ADD COLUMN invoice_address  TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_schedules ADD COLUMN invoice_email    TEXT    NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
+    // ── Cennik ────────────────────────────────────────────────────────────────
+    // Progi godzinowe: np. 0-2h = 0 zł/h (bezpłatny limit), 2-5h = 80 zł/h, >5h = 100 zł/h
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_price_tiers (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        hours_from  REAL    NOT NULL DEFAULT 0,
+        hours_to    REAL,
+        rate        REAL    NOT NULL DEFAULT 0,
+        label       TEXT    NOT NULL DEFAULT '',
+        sort_order  INTEGER NOT NULL DEFAULT 0
+    )");
+    // Kolumny czasu i kwoty na terminie
+    foreach ([
+        "ALTER TABLE k30_schedules ADD COLUMN time_from       TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_schedules ADD COLUMN time_to         TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_schedules ADD COLUMN billed_hours    REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_schedules ADD COLUMN free_hours      REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_schedules ADD COLUMN charged_hours   REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_schedules ADD COLUMN amount_due      REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_schedules ADD COLUMN pricing_note    TEXT NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+    // Godziny odpłatne (odrębne od bezpłatnych) na kliencie
+    try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN used_paid REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
+    // ── Umowy PFRON ───────────────────────────────────────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pfron_contracts (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id       INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        contract_number TEXT    NOT NULL,
+        hours_limit     REAL    NOT NULL DEFAULT 0,
+        hours_used      REAL    NOT NULL DEFAULT 0,
+        valid_from      DATE,
+        valid_to        DATE,
+        status          TEXT    NOT NULL DEFAULT 'active',
+        notes           TEXT    NOT NULL DEFAULT '',
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Kolumny trybu rozliczenia i PFRON na terminie
+    foreach ([
+        "ALTER TABLE k30_schedules ADD COLUMN billing_type      TEXT NOT NULL DEFAULT 'free'",
+        "ALTER TABLE k30_schedules ADD COLUMN pfron_contract_id INTEGER REFERENCES k30_pfron_contracts(id) ON DELETE SET NULL",
+        "ALTER TABLE k30_schedules ADD COLUMN pfron_status      TEXT NOT NULL DEFAULT ''",
+        // Wizyty cykliczne
+        "ALTER TABLE k30_schedules ADD COLUMN series_id         TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_schedules ADD COLUMN series_index      INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_schedules ADD COLUMN recurrence_rule   TEXT NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
+    // ── Zajęcia TI (informatyka) ──────────────────────────────────────────────
+    // Kurs TI = kontener (nazwa + uczestnicy + stawki).
+    // Harmonogram NALEŻY do lekcji — kurs nie ma stałych dni/godzin.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_courses (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT    NOT NULL,
+        description   TEXT    NOT NULL DEFAULT '',
+        instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        location      TEXT    NOT NULL DEFAULT '',
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Zapisy klientów do kursu z indywidualną stawką godzinową
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_enrollments (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id     INTEGER NOT NULL REFERENCES k30_ti_courses(id)  ON DELETE CASCADE,
+        client_id     INTEGER NOT NULL REFERENCES k30_clients(id)     ON DELETE CASCADE,
+        hourly_rate   REAL    NOT NULL DEFAULT 0,
+        start_date    DATE,
+        end_date      DATE,
+        status        TEXT    NOT NULL DEFAULT 'active',
+        notes         TEXT    NOT NULL DEFAULT '',
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(course_id, client_id)
+    )");
+
+    // Konkretne lekcje zajęć
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_sessions (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id     INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        lesson_date  DATE    NOT NULL,
+        time_from     TEXT    NOT NULL DEFAULT '',
+        time_to       TEXT    NOT NULL DEFAULT '',
+        duration_min  INTEGER NOT NULL DEFAULT 60,
+        status        TEXT    NOT NULL DEFAULT 'planned',
+        notes         TEXT    NOT NULL DEFAULT '',
+        created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Obecność klientów na lekcji
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_attendance (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id    INTEGER NOT NULL REFERENCES k30_ti_sessions(id)   ON DELETE CASCADE,
+        client_id     INTEGER NOT NULL REFERENCES k30_clients(id)        ON DELETE CASCADE,
+        attended      INTEGER NOT NULL DEFAULT 0,
+        notes         TEXT    NOT NULL DEFAULT '',
+        UNIQUE(session_id, client_id)
+    )");
+
+    // Miesięczne rozliczenia per klient
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_billing (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id     INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        month         INTEGER NOT NULL,
+        year          INTEGER NOT NULL,
+        hours_billed  REAL    NOT NULL DEFAULT 0,
+        hourly_rate   REAL    NOT NULL DEFAULT 0,
+        amount        REAL    NOT NULL DEFAULT 0,
+        status        TEXT    NOT NULL DEFAULT 'draft',
+        notes         TEXT    NOT NULL DEFAULT '',
+        issued_at     DATETIME,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(client_id, month, year)
+    )");
+    // Migracja: session_date → lesson_date (SQLite 3.25+)
+    try { $pdo->exec("ALTER TABLE k30_ti_sessions RENAME COLUMN session_date TO lesson_date"); } catch (\Throwable $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_sessions_course ON k30_ti_sessions(course_id,lesson_date)"); } catch (\Throwable $e) {}
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_attend_session  ON k30_ti_attendance(session_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_attend_client   ON k30_ti_attendance(client_id)");
+
+    // Konta kursantów — osobny system logowania, bez dostępu do K30/systemu głównego
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_student_accounts (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id   INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        login       TEXT    NOT NULL UNIQUE,
+        password_hash TEXT  NOT NULL,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        last_login  DATETIME,
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Dodatkowe pola lekcji
+    foreach ([
+        "ALTER TABLE k30_ti_sessions ADD COLUMN topic            TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN instructor_notes TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN has_homework     INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN updated_at       DATETIME",
+        "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+
+    // ── Lista oczekujących ────────────────────────────────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id       INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        priority        TEXT    NOT NULL DEFAULT 'zwykly',
+        reason          TEXT    NOT NULL DEFAULT '',
+        notes           TEXT    NOT NULL DEFAULT '',
+        status          TEXT    NOT NULL DEFAULT 'waiting',
+        scheduled_id    INTEGER REFERENCES k30_schedules(id) ON DELETE SET NULL,
+        sms_sent_at     DATETIME,
+        sms_count       INTEGER NOT NULL DEFAULT 0,
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_wl_status   ON k30_waiting_list(status,priority,created_at)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_wl_client   ON k30_waiting_list(client_id)");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_blacklist (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id   INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        reason      TEXT,
+        added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(client_id)
+    )");
+}
+
+// Konfiguracja statusów harmonogramu
+const K30_SCHEDULE_STATUSES = [
+    'preliminary'        => ['label' => 'Wstępna',                  'color' => '#F59E0B', 'bg' => '#FEF3E2', 'icon' => 'bi-clock'],
+    'confirmed'          => ['label' => 'Potwierdzona',              'color' => '#2E844A', 'bg' => '#EFF7ED', 'icon' => 'bi-check-circle'],
+    'attended'           => ['label' => 'Odbyta',                    'color' => '#0176D3', 'bg' => '#EEF4FF', 'icon' => 'bi-person-check'],
+    'cancelled_by_feer'  => ['label' => 'Odwołana przez FEER',       'color' => '#DC2626', 'bg' => '#FEF2F2', 'icon' => 'bi-x-circle'],
+    'cancelled_by_client'=> ['label' => 'Odwołana przez beneficjenta','color'=> '#D97706', 'bg' => '#FEF3E2', 'icon' => 'bi-x-octagon'],
+    'no_show'            => ['label' => 'Nie pojawił się',            'color' => '#7C3AED', 'bg' => '#F5F3FF', 'icon' => 'bi-dash-circle'],
+    'cancelled'          => ['label' => 'Odwołana',                  'color' => '#9CA3AF', 'bg' => '#F3F4F6', 'icon' => 'bi-slash-circle'],
+];
+
+const K30_CLIENT_STATUSES = [
+    'enrolled'  => ['label' => 'Zarejestrowany', 'color' => '#0176D3', 'bg' => '#EEF4FF'],
+    'ready'     => ['label' => 'Aktywny',         'color' => '#2E844A', 'bg' => '#EFF7ED'],
+    'to_settle' => ['label' => 'Do rozliczenia',  'color' => '#D97706', 'bg' => '#FEF3E2'],
+    'other'     => ['label' => 'Inny',            'color' => '#9CA3AF', 'bg' => '#F3F4F6'],
+];
+
+const K30_CONSULTATION_STATUSES = [
+    'draft'     => ['label' => 'Robocza',      'color' => '#9CA3AF', 'bg' => '#F3F4F6'],
+    'completed' => ['label' => 'Zatwierdzona', 'color' => '#2E844A', 'bg' => '#EFF7ED'],
+    'cancelled' => ['label' => 'Anulowana',    'color' => '#DC2626', 'bg' => '#FEF2F2'],
+];
+
+// Tryby rozliczenia terminu
+const K30_BILLING_TYPES = [
+    'free'  => ['label' => 'Bezpłatne',  'color' => '#16a34a', 'bg' => '#f0fdf4', 'icon' => 'bi-gift'],
+    'paid'  => ['label' => 'Odpłatne',   'color' => '#2563eb', 'bg' => '#eff6ff', 'icon' => 'bi-credit-card'],
+    'pfron' => ['label' => 'PFRON',      'color' => '#7c3aed', 'bg' => '#f5f3ff', 'icon' => 'bi-building-fill-check'],
+];
+
+// Statusy rozliczenia PFRON
+const K30_PFRON_STATUSES = [
+    'pending'   => ['label' => 'Do złożenia',    'color' => '#9CA3AF', 'bg' => '#F3F4F6'],
+    'submitted' => ['label' => 'Złożone',        'color' => '#2563EB', 'bg' => '#EFF6FF'],
+    'approved'  => ['label' => 'Zatwierdzone',   'color' => '#16A34A', 'bg' => '#F0FDF4'],
+    'rejected'  => ['label' => 'Odrzucone',      'color' => '#DC2626', 'bg' => '#FEF2F2'],
+    'resubmit'  => ['label' => 'Do ponowienia',  'color' => '#D97706', 'bg' => '#FEF3E2'],
+];
+
+// Statusy umowy PFRON
+const K30_PFRON_CONTRACT_STATUSES = [
+    'active'   => ['label' => 'Aktywna',   'color' => '#16A34A', 'bg' => '#F0FDF4'],
+    'expired'  => ['label' => 'Wygasła',   'color' => '#9CA3AF', 'bg' => '#F3F4F6'],
+    'closed'   => ['label' => 'Zamknięta', 'color' => '#DC2626', 'bg' => '#FEF2F2'],
+];
+
+function k30_status_badge(string $status, string $type = 'schedule'): string {
+    $cfg = match($type) {
+        'client'       => K30_CLIENT_STATUSES,
+        'consultation' => K30_CONSULTATION_STATUSES,
+        default        => K30_SCHEDULE_STATUSES,
+    };
+    $s = $cfg[$status] ?? ['label' => $status, 'color' => '#6B7280', 'bg' => '#F3F4F6'];
+    return '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .65rem;border-radius:2rem;font-size:.73rem;font-weight:600;background:' . h($s['bg']) . ';color:' . h($s['color']) . '">'
+        . (isset($s['icon']) ? '<i class="bi ' . h($s['icon']) . '"></i>' : '')
+        . h($s['label']) . '</span>';
+}
+
+function k30_available_hours(int $client_id): float {
+    $c = db_one("SELECT available_hours, used FROM k30_clients WHERE id=?", [$client_id]);
+    if (!$c) return 0;
+    return max(0, (float)$c['available_hours'] - (float)$c['used']);
+}
+
+/**
+ * Zwraca listę aktywnych doradców TyfloKonsultacje (k30_consultant=1).
+ * Wolontariusze i inni użytkownicy mogą być doradcami niezależnie od roli.
+ */
+function k30_get_consultants(): array {
+    return db_all(
+        "SELECT id,
+                CASE WHEN first_name != '' AND last_name != ''
+                     THEN first_name || ' ' || last_name
+                     ELSE name END AS display_name,
+                name, email, role
+         FROM users
+         WHERE is_active=1 AND k30_consultant=1
+         ORDER BY display_name"
+    );
+}
+
+function k30_require_access(): void {
+    require_login();
+    if (!can_read('karty30') && !is_admin()) {
+        flash_set('danger', 'Brak dostępu do modułu Karty 30.');
+        header('Location: ' . APP_URL . '/index.php');
+        exit;
+    }
+}
+
+// ── Certyfikaty x509 doradców ─────────────────────────────────────────────────
+
+/**
+ * Parsuje certyfikat PEM i zwraca kluczowe dane lub null przy błędzie.
+ */
+function k30_parse_cert(string $pem): ?array {
+    if (!extension_loaded('openssl')) return null;
+    $parsed = @openssl_x509_parse($pem);
+    if (!$parsed) return null;
+
+    // Fingerprint SHA1 (openssl x509 -fingerprint)
+    $der        = '';
+    openssl_x509_export_to_file($pem, 'php://memory');  // nie używamy — obliczamy inaczej
+    $fingerprint = '';
+    $res = openssl_x509_read($pem);
+    if ($res) {
+        $derData = '';
+        openssl_x509_export($res, $certPem);
+        // Wyciągnij base64 z PEM i zdekoduj do DER
+        $b64 = preg_replace('/-----[^-]+-----|\s/', '', $certPem);
+        $derData = base64_decode($b64);
+        $fingerprint = strtoupper(implode(':', str_split(sha1($derData), 2)));
+    }
+
+    $subject = '';
+    foreach (['CN','O','emailAddress','E'] as $k) {
+        if (!empty($parsed['subject'][$k])) {
+            $subject .= ($subject ? ', ' : '') . $k . '=' . $parsed['subject'][$k];
+        }
+    }
+
+    return [
+        'subject'     => $subject ?: ($parsed['name'] ?? 'Nieznany'),
+        'fingerprint' => $fingerprint,
+        'serial'      => $parsed['serialNumberHex'] ?? '',
+        'valid_from'  => $parsed['validFrom_time_t'] ?? 0,
+        'valid_to'    => $parsed['validTo_time_t']   ?? 0,
+        'email'       => $parsed['subject']['emailAddress'] ?? ($parsed['subject']['E'] ?? ''),
+        'cn'          => $parsed['subject']['CN'] ?? '',
+    ];
+}
+
+/**
+ * Zwraca aktywny certyfikat doradcy lub null.
+ */
+function k30_consultant_cert(int $user_id): ?array {
+    return db_one("SELECT * FROM k30_consultant_certs WHERE user_id=? AND is_active=1", [$user_id]) ?: null;
+}
+
+/**
+ * Weryfikuje certyfikat doradcy:
+ * - czy istnieje
+ * - czy nie wygasł
+ * Zwraca ['ok'=>bool, 'error'=>string|null, 'cert'=>array|null]
+ */
+function k30_verify_consultant_cert(int $user_id): array {
+    $cert = k30_consultant_cert($user_id);
+    if (!$cert) {
+        return ['ok' => false, 'error' => 'Brak certyfikatu x509. Skontaktuj się z administratorem.', 'cert' => null];
+    }
+    if ((int)$cert['cert_valid_to'] < time()) {
+        return ['ok' => false, 'error' => 'Certyfikat x509 wygasł ' . date('d.m.Y', (int)$cert['cert_valid_to']) . '. Skontaktuj się z administratorem.', 'cert' => $cert];
+    }
+    // Weryfikacja parsowania (certyfikat nadal odczytywalny)
+    $parsed = k30_parse_cert($cert['cert_pem']);
+    if (!$parsed) {
+        return ['ok' => false, 'error' => 'Certyfikat x509 jest uszkodzony lub nieczytelny.', 'cert' => $cert];
+    }
+    return ['ok' => true, 'error' => null, 'cert' => $cert, 'parsed' => $parsed];
+}
+
+// ── Integracja z CRM ──────────────────────────────────────────────────────────
+
+/**
+ * Znajdź lub utwórz grupę CRM "Beneficjenci — Konsultacje Tyflo".
+ * Zwraca ID grupy.
+ */
+function k30_crm_group_id(): int {
+    static $gid = null;
+    if ($gid !== null) return $gid;
+
+    try {
+        // Sprawdź czy crm_groups istnieje
+        $existing = db_one("SELECT id FROM crm_groups WHERE auto_source='k30_beneficjenci'");
+        if ($existing) {
+            $gid = (int)$existing['id'];
+            return $gid;
+        }
+
+        $gid = db_insert('crm_groups', [
+            'name'        => 'Beneficjenci — Konsultacje Tyflo',
+            'description' => 'Beneficjenci programu TyfloKonsultacje / Karty 30 — dodawani automatycznie',
+            'color'       => '#7C3AED',
+            'icon'        => 'bi-card-checklist',
+            'auto_source' => 'k30_beneficjenci',
+            'sort_order'  => 10,
+            'created_by'  => null,
+            'created_at'  => date('Y-m-d H:i:s'),
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ]);
+        return $gid;
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+/**
+ * Synchronizuje beneficjenta K30 z kontaktem CRM.
+ * - Tworzy lub aktualizuje kontakt CRM po email/nazwisku
+ * - Dodaje do grupy "Beneficjenci — Konsultacje Tyflo"
+ * - Dodaje tag "beneficjent-tyflo"
+ * Zwraca CRM contact_id lub 0 przy błędzie.
+ */
+function k30_sync_to_crm(array $client, ?int $created_by = null): int {
+    try {
+        require_once __DIR__ . '/crm.php';
+        crm_migrate();
+
+        $email = trim($client['email'] ?? '');
+        $name  = trim($client['name']  ?? '');
+        if (!$name) return 0;
+
+        // Znajdź istniejący kontakt
+        $contact_id = null;
+        if ($email) {
+            $ex = db_one("SELECT id FROM crm_contacts WHERE LOWER(email)=LOWER(?) AND crm_active=1", [$email]);
+            if ($ex) $contact_id = (int)$ex['id'];
+        }
+        if (!$contact_id) {
+            $ex = db_one("SELECT id FROM crm_contacts WHERE imie_nazwisko=? AND crm_active=1 ORDER BY id DESC LIMIT 1", [$name]);
+            if ($ex) $contact_id = (int)$ex['id'];
+        }
+
+        if ($contact_id) {
+            // Zaktualizuj istniejący
+            $upd = [];
+            if ($email && $email !== (db_one("SELECT email FROM crm_contacts WHERE id=?",[$contact_id])['email']??''))
+                $upd['email'] = $email;
+            if ($client['phone'] ?? '') $upd['telefon'] = $client['phone'];
+            if ($upd) CrmManager::updateContact($contact_id, $upd);
+        } else {
+            // Stwórz nowy
+            $contact_id = CrmManager::createContact([
+                'type'          => 'osoba',
+                'imie_nazwisko' => $name,
+                'email'         => $email ?: null,
+                'telefon'       => $client['phone'] ?? null,
+                'adres'         => $client['address'] ?? null,
+                'status'        => 'aktywny',
+                'source'        => 'k30_auto',
+                'created_by'    => $created_by,
+            ]);
+        }
+
+        // Tag beneficjent-tyflo
+        try {
+            db()->prepare("INSERT OR IGNORE INTO crm_tags (contact_id, tag) VALUES (?,?)")
+                ->execute([$contact_id, 'beneficjent-tyflo']);
+        } catch (\Throwable $e) {}
+
+        // Dodaj do grupy
+        $gid = k30_crm_group_id();
+        if ($gid) CrmManager::addToGroup($gid, $contact_id, $created_by);
+
+        return $contact_id;
+    } catch (\Throwable $e) {
+        error_log('[k30_crm] ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Zapisuje aktywność K30 (konsultacja/odwołanie) jako planowane działanie CRM
+ * na karcie kontaktu. Wymaga wcześniejszego k30_sync_to_crm().
+ *
+ * @param int    $contact_id   CRM contact_id
+ * @param string $type         Typ: 'meeting' | 'call' | 'task'
+ * @param string $title        Tytuł aktywności
+ * @param string $description  Opis
+ * @param string $scheduled_at Datetime ISO
+ * @param string $status       'done' | 'planned' | 'cancelled'
+ * @param string $outcome      Wynik (dla zakończonych)
+ */
+function k30_log_crm_activity(
+    int    $contact_id,
+    string $type,
+    string $title,
+    string $description = '',
+    string $scheduled_at = '',
+    string $status = 'done',
+    string $outcome = '',
+    ?int   $created_by = null
+): void {
+    try {
+        require_once __DIR__ . '/crm.php';
+        crm_migrate();
+
+        db_insert('crm_activities', [
+            'contact_id'   => $contact_id,
+            'type'         => $type,
+            'title'        => $title,
+            'description'  => $description ?: null,
+            'scheduled_at' => $scheduled_at ?: null,
+            'status'       => $status,
+            'outcome'      => $outcome ?: null,
+            'assigned_to'  => $created_by,
+            'created_by'   => $created_by,
+            'created_at'   => date('Y-m-d H:i:s'),
+            'updated_at'   => date('Y-m-d H:i:s'),
+            'completed_at' => $status === 'done' ? date('Y-m-d H:i:s') : null,
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[k30_crm_act] ' . $e->getMessage());
+    }
+}
+
+/**
+ * Pobiera CRM contact_id powiązany z beneficjentem K30.
+ * Szuka po emailu lub imieniu i nazwisku.
+ */
+function k30_get_crm_contact(array $client): int {
+    $email = trim($client['email'] ?? '');
+    $name  = trim($client['name']  ?? '');
+    try {
+        if ($email) {
+            $r = db_one("SELECT id FROM crm_contacts WHERE LOWER(email)=LOWER(?) AND crm_active=1", [$email]);
+            if ($r) return (int)$r['id'];
+        }
+        if ($name) {
+            $r = db_one("SELECT id FROM crm_contacts WHERE imie_nazwisko=? AND crm_active=1 ORDER BY id DESC LIMIT 1", [$name]);
+            if ($r) return (int)$r['id'];
+        }
+    } catch (\Throwable $e) {}
+    return 0;
+}
+
+// ── Cennik ────────────────────────────────────────────────────────────────────
+
+/** Globalny darmowy limit godzin (ustawienie admina). */
+function k30_free_hours_limit(): float {
+    try {
+        $r = db_one("SELECT value FROM settings WHERE key_='k30_free_hours_limit'");
+        return (float)($r['value'] ?? 0);
+    } catch (\Throwable $e) { return 0; }
+}
+
+/** Wszystkie progi cennika, posortowane. */
+function k30_price_tiers(): array {
+    try {
+        return db_all("SELECT * FROM k30_price_tiers ORDER BY sort_order, hours_from");
+    } catch (\Throwable $e) { return []; }
+}
+
+/**
+ * Oblicza kwotę do zapłaty za termin.
+ *
+ * Logika:
+ *  1. Policz łączne godziny już wykorzystane przez klienta (used).
+ *  2. Globalny darmowy limit = k30_free_hours_limit().
+ *     Indywidualny darmowy limit = k30_clients.available_hours (0 = brak).
+ *     Efektywny limit = max(globalny, indywidualny).
+ *  3. Godziny bezpłatne tego terminu = max(0, limit - used).
+ *  4. Godziny płatne = billed_hours - free_hours.
+ *  5. Kwota = sumuj wg progów cennika dla godzin płatnych.
+ *
+ * @return array [
+ *   billed_hours   float  — czas trwania w h
+ *   free_hours     float  — godziny bezpłatne
+ *   charged_hours  float  — godziny płatne
+ *   amount_due     float  — kwota PLN
+ *   pricing_note   string — opis kalkulacji
+ *   tiers_used     array  — progi użyte
+ * ]
+ */
+function k30_calculate_amount(int $client_id, float $billed_hours, int $exclude_schedule_id = 0): array {
+    // Dotychczasowe godziny klienta (bez bieżącego terminu)
+    $excl  = $exclude_schedule_id ? "AND s.id != {$exclude_schedule_id}" : '';
+    $used_row = db_one(
+        "SELECT COALESCE(SUM(s.billed_hours), 0) AS total
+         FROM k30_schedules s
+         WHERE s.client_id=? AND s.status NOT IN ('cancelled','rejected') {$excl}",
+        [$client_id]
+    );
+    $already_used = (float)($used_row['total'] ?? 0);
+
+    // Efektywny darmowy limit
+    $global_limit = k30_free_hours_limit();
+    $client = db_one("SELECT available_hours FROM k30_clients WHERE id=?", [$client_id]);
+    $ind_limit    = (float)($client['available_hours'] ?? 0);
+    $free_limit   = max($global_limit, $ind_limit);
+
+    // Godziny bezpłatne w tym terminie
+    $free_used    = min($already_used, $free_limit);
+    $free_remaining = max(0, $free_limit - $free_used);
+    $free_hours   = min($billed_hours, $free_remaining);
+    $charged_hours = round($billed_hours - $free_hours, 4);
+
+    // Wylicz kwotę według progów
+    $tiers = k30_price_tiers();
+    $amount_due = 0.0;
+    $notes = [];
+    $tiers_used = [];
+
+    if ($charged_hours > 0 && $tiers) {
+        // Punkt startowy w cennikowych godzinach odpłatnych
+        $client_paid = (float)(db_one(
+            "SELECT COALESCE(SUM(s.charged_hours), 0) AS total FROM k30_schedules s
+             WHERE s.client_id=? AND s.status NOT IN ('cancelled','rejected') {$excl}",
+            [$client_id]
+        )['total'] ?? 0);
+        $remaining = $charged_hours;
+        $pos = $client_paid; // aktualna pozycja na skali płatnych godzin
+
+        foreach ($tiers as $tier) {
+            if ($remaining <= 0) break;
+            $t_from = (float)$tier['hours_from'];
+            $t_to   = $tier['hours_to'] !== null ? (float)$tier['hours_to'] : PHP_FLOAT_MAX;
+            if ($pos >= $t_to) continue;
+            $start  = max($pos, $t_from);
+            $avail  = $t_to - $start;
+            $in_tier= min($remaining, $avail);
+            if ($in_tier <= 0) continue;
+            $cost = round($in_tier * (float)$tier['rate'], 2);
+            $amount_due += $cost;
+            $tiers_used[] = ['tier' => $tier, 'hours' => $in_tier, 'cost' => $cost];
+            $notes[] = sprintf('%s h × %.2f zł/h = %.2f zł%s',
+                number_format($in_tier, 2, ',', ''),
+                $tier['rate'],
+                $cost,
+                $tier['label'] ? " ({$tier['label']})" : ''
+            );
+            $remaining -= $in_tier;
+            $pos += $in_tier;
+        }
+    }
+
+    $pricing_note_parts = [];
+    if ($free_hours > 0) {
+        $pricing_note_parts[] = number_format($free_hours, 2, ',', '') . ' h bezpłatnie (limit: ' . number_format($free_limit, 2, ',', '') . ' h)';
+    }
+    $pricing_note_parts = array_merge($pricing_note_parts, $notes);
+    if ($amount_due == 0 && $charged_hours == 0) {
+        $pricing_note_parts[] = 'Bezpłatne';
+    }
+
+    return [
+        'billed_hours'  => $billed_hours,
+        'free_hours'    => $free_hours,
+        'charged_hours' => $charged_hours,
+        'amount_due'    => round($amount_due, 2),
+        'pricing_note'  => implode(' + ', $pricing_note_parts),
+        'tiers_used'    => $tiers_used,
+    ];
+}
+
+// ── Umowy PFRON ───────────────────────────────────────────────────────────────
+
+function k30_pfron_contracts_for_client(int $client_id): array {
+    return db_all(
+        "SELECT * FROM k30_pfron_contracts WHERE client_id=? ORDER BY created_at DESC",
+        [$client_id]
+    );
+}
+
+function k30_pfron_contract_get(int $id): ?array {
+    return db_one("SELECT * FROM k30_pfron_contracts WHERE id=?", [$id]) ?: null;
+}
+
+function k30_pfron_contract_save(array $data, ?int $id = null): int {
+    $fields = ['client_id','contract_number','hours_limit','valid_from','valid_to','status','notes'];
+    $data['updated_at'] = date('Y-m-d H:i:s');
+    if ($id) {
+        $set = []; $params = [];
+        foreach (array_merge($fields, ['updated_at']) as $f) {
+            if (array_key_exists($f, $data)) { $set[] = "$f=?"; $params[] = $data[$f]; }
+        }
+        $params[] = $id;
+        db()->prepare("UPDATE k30_pfron_contracts SET " . implode(',', $set) . " WHERE id=?")->execute($params);
+        return $id;
+    }
+    $data['created_by'] = (int)(current_user()['id'] ?? 0);
+    $data['created_at'] = date('Y-m-d H:i:s');
+    return db_insert('k30_pfron_contracts', array_intersect_key($data, array_flip(
+        array_merge($fields, ['created_by','created_at','updated_at'])
+    )));
+}
+
+function k30_pfron_hours_remaining(int $contract_id): float {
+    $c = db_one("SELECT hours_limit, hours_used FROM k30_pfron_contracts WHERE id=?", [$contract_id]);
+    if (!$c) return 0;
+    return max(0, (float)$c['hours_limit'] - (float)$c['hours_used']);
+}
+
+/**
+ * Oblicza kwotę z uwzględnieniem trybu rozliczenia (free / paid / pfron).
+ *
+ * billing_type='pfron': godziny wliczają się w limit umowy PFRON (bezpłatnie),
+ * nadwyżka ponad limit — odpłatnie według cennika.
+ * billing_type='free':  bezpłatnie w ramach globalnego/indywidualnego limitu.
+ * billing_type='paid':  całość odpłatnie według cennika (bez limitu bezpłatnego).
+ */
+function k30_calculate_amount_v2(
+    int    $client_id,
+    float  $billed_hours,
+    string $billing_type = 'free',
+    ?int   $pfron_contract_id = null,
+    int    $exclude_schedule_id = 0
+): array {
+    $excl = $exclude_schedule_id ? "AND s.id != {$exclude_schedule_id}" : '';
+
+    // ── PFRON ─────────────────────────────────────────────────────────────────
+    if ($billing_type === 'pfron' && $pfron_contract_id) {
+        $remaining = k30_pfron_hours_remaining($pfron_contract_id);
+        $free_hours    = min($billed_hours, $remaining);
+        $charged_hours = max(0, round($billed_hours - $free_hours, 4));
+        $contract      = k30_pfron_contract_get($pfron_contract_id);
+        $cn            = $contract['contract_number'] ?? '';
+
+        $amount_due = 0.0;
+        $notes = [];
+        if ($free_hours > 0) {
+            $notes[] = number_format($free_hours,2,',','') . " h bezpłatnie (PFRON {$cn})";
+        }
+        // Nadwyżka → cennik
+        if ($charged_hours > 0) {
+            $paid_already = (float)(db_one(
+                "SELECT COALESCE(SUM(s.charged_hours),0) AS t FROM k30_schedules s
+                 WHERE s.client_id=? AND s.billing_type='pfron'
+                 AND s.status NOT IN ('cancelled','rejected') {$excl}", [$client_id]
+            )['t'] ?? 0);
+            [$amount_due, $tier_notes] = _k30_apply_tiers($charged_hours, $paid_already);
+            $notes = array_merge($notes, $tier_notes);
+        }
+
+        return [
+            'billed_hours'  => $billed_hours,
+            'free_hours'    => $free_hours,
+            'charged_hours' => $charged_hours,
+            'amount_due'    => round($amount_due, 2),
+            'pricing_note'  => implode(' + ', $notes) ?: 'PFRON',
+            'billing_type'  => 'pfron',
+        ];
+    }
+
+    // ── ODPŁATNE — całość wg cennika ─────────────────────────────────────────
+    if ($billing_type === 'paid') {
+        $paid_already = (float)(db_one(
+            "SELECT COALESCE(SUM(s.charged_hours),0) AS t FROM k30_schedules s
+             WHERE s.client_id=? AND s.billing_type='paid'
+             AND s.status NOT IN ('cancelled','rejected') {$excl}", [$client_id]
+        )['t'] ?? 0);
+        [$amount_due, $notes] = _k30_apply_tiers($billed_hours, $paid_already);
+        return [
+            'billed_hours'  => $billed_hours,
+            'free_hours'    => 0,
+            'charged_hours' => $billed_hours,
+            'amount_due'    => round($amount_due, 2),
+            'pricing_note'  => implode(' + ', $notes) ?: 'Odpłatne',
+            'billing_type'  => 'paid',
+        ];
+    }
+
+    // ── BEZPŁATNE — w ramach globalnego/indywidualnego limitu ────────────────
+    $already_used = (float)(db_one(
+        "SELECT COALESCE(SUM(s.billed_hours),0) AS t FROM k30_schedules s
+         WHERE s.client_id=? AND s.billing_type='free'
+         AND s.status NOT IN ('cancelled','rejected') {$excl}", [$client_id]
+    )['t'] ?? 0);
+
+    $global_limit = k30_free_hours_limit();
+    $client       = db_one("SELECT available_hours FROM k30_clients WHERE id=?", [$client_id]);
+    $ind_limit    = (float)($client['available_hours'] ?? 0);
+    $free_limit   = max($global_limit, $ind_limit);
+
+    $free_remaining = max(0, $free_limit - $already_used);
+    $free_hours     = min($billed_hours, $free_remaining);
+    $charged_hours  = round($billed_hours - $free_hours, 4);
+
+    $amount_due = 0.0; $notes = [];
+    if ($free_hours > 0) {
+        $notes[] = number_format($free_hours,2,',','') . ' h bezpłatnie (limit: ' . number_format($free_limit,2,',','') . ' h)';
+    }
+    if ($charged_hours > 0) {
+        $paid_already = (float)(db_one(
+            "SELECT COALESCE(SUM(s.charged_hours),0) AS t FROM k30_schedules s
+             WHERE s.client_id=? AND s.billing_type='free'
+             AND s.status NOT IN ('cancelled','rejected') {$excl}", [$client_id]
+        )['t'] ?? 0);
+        [$amount_due, $tier_notes] = _k30_apply_tiers($charged_hours, $paid_already);
+        $notes = array_merge($notes, $tier_notes);
+    }
+    if (!$notes) $notes[] = 'Bezpłatne';
+
+    return [
+        'billed_hours'  => $billed_hours,
+        'free_hours'    => $free_hours,
+        'charged_hours' => $charged_hours,
+        'amount_due'    => round($amount_due, 2),
+        'pricing_note'  => implode(' + ', $notes),
+        'billing_type'  => 'free',
+    ];
+}
+
+/** Pomocnicza: wylicza kwotę z cennika dla zadanej liczby godzin odpłatnych,
+ *  zaczynając od pozycji $already_paid_hours na skali. */
+function _k30_apply_tiers(float $hours, float $already_paid_hours): array {
+    $tiers  = k30_price_tiers();
+    $amount = 0.0; $notes = [];
+    $pos    = $already_paid_hours;
+    $rem    = $hours;
+    foreach ($tiers as $t) {
+        if ($rem <= 0) break;
+        $tTo   = $t['hours_to'] !== null ? (float)$t['hours_to'] : PHP_FLOAT_MAX;
+        if ($pos >= $tTo) continue;
+        $start  = max($pos, (float)$t['hours_from']);
+        $avail  = $tTo - $start;
+        $inTier = min($rem, $avail);
+        if ($inTier <= 0) continue;
+        $cost   = round($inTier * (float)$t['rate'], 2);
+        $amount += $cost;
+        $notes[] = sprintf('%s h × %s zł/h = %s zł%s',
+            number_format($inTier,2,',',''),
+            number_format((float)$t['rate'],2,',',''),
+            number_format($cost,2,',',''),
+            $t['label'] ? " ({$t['label']})" : ''
+        );
+        $rem -= $inTier;
+        $pos += $inTier;
+    }
+    return [$amount, $notes];
+}
+
+// ── Wizyty cykliczne ─────────────────────────────────────────────────────────
+
+/**
+ * Generuje daty dla serii wizyt na podstawie reguły powtarzania.
+ *
+ * @param string $date_start  Data pierwszej wizyty (Y-m-d)
+ * @param string $freq        Częstotliwość: 'daily'|'weekly'|'biweekly'|'monthly'
+ * @param array  $week_days   Dla 'weekly'/'biweekly': dni tygodnia [0=Nd,1=Pn…6=Sb]
+ * @param int    $count       Liczba powtórzeń (0 = użyj until)
+ * @param string $until       Data końca serii (Y-m-d), używana gdy count=0
+ * @param int    $max         Maksymalna liczba terminów (safety cap)
+ * @return string[]           Tablica dat Y-m-d
+ */
+function k30_generate_series_dates(
+    string $date_start,
+    string $freq,
+    array  $week_days = [],
+    int    $count     = 0,
+    string $until     = '',
+    int    $max       = 52
+): array {
+    $dates   = [];
+    $current = new DateTimeImmutable($date_start);
+    $end_dt  = $until ? new DateTimeImmutable($until) : null;
+    $limit   = $count > 0 ? min($count, $max) : $max;
+
+    // Normalizuj dni tygodnia
+    $week_days = array_unique(array_map('intval', $week_days));
+    if (empty($week_days)) $week_days = [(int)$current->format('w')]; // domyślnie dzień startowy
+
+    $i = 0;
+    $iter = clone $current;
+
+    while ($i < $limit) {
+        if ($end_dt && $iter > $end_dt) break;
+
+        switch ($freq) {
+            case 'daily':
+                $dates[] = $iter->format('Y-m-d');
+                $iter = $iter->modify('+1 day');
+                $i++;
+                break;
+
+            case 'weekly':
+            case 'biweekly':
+                $step = $freq === 'biweekly' ? 2 : 1;
+                // Wygeneruj wszystkie dni w bieżącym tygodniu (lub co-tygodniu)
+                $week_start = $iter->modify('this week monday');
+                // Upewnij się że idziemy do przodu
+                if ($week_start > $iter) $week_start = $week_start->modify('-7 days');
+
+                foreach (range(0, 6) as $d) {
+                    $day = $week_start->modify("+{$d} days");
+                    $dow = (int)$day->format('w'); // 0=Nd..6=Sb
+                    if (!in_array($dow, $week_days)) continue;
+                    if ($day < $current) continue;
+                    if ($end_dt && $day > $end_dt) { $i = $limit; break; }
+                    $dates[] = $day->format('Y-m-d');
+                    $i++;
+                    if ($i >= $limit) break;
+                }
+                $iter = $week_start->modify("+{$step} weeks");
+                break;
+
+            case 'monthly':
+                $dates[] = $iter->format('Y-m-d');
+                $iter = $iter->modify('+1 month');
+                $i++;
+                break;
+        }
+    }
+
+    return array_unique($dates);
+}
+
+/**
+ * Tworzy serię terminów K30.
+ * Zwraca tablicę ID nowo utworzonych terminów.
+ */
+function k30_create_series(array $base_data, array $dates): array {
+    $series_id   = bin2hex(random_bytes(8));
+    $rule        = $base_data['recurrence_rule'] ?? '';
+    $created_ids = [];
+
+    foreach ($dates as $idx => $date) {
+        $start_time = $date . ' ' . substr($base_data['start_time'], 11, 8);
+        $billed     = round((int)$base_data['duration_minutes'] / 60, 4);
+        $pricing    = k30_calculate_amount_v2(
+            (int)$base_data['client_id'],
+            $billed,
+            $base_data['billing_type'] ?? 'free',
+            $base_data['pfron_contract_id'] ?? null
+        );
+
+        $row = array_merge($base_data, [
+            'start_time'    => $start_time,
+            'series_id'     => $series_id,
+            'series_index'  => $idx,
+            'recurrence_rule'=> $rule,
+            'billed_hours'  => $pricing['billed_hours'],
+            'free_hours'    => $pricing['free_hours'],
+            'charged_hours' => $pricing['charged_hours'],
+            'amount_due'    => $pricing['amount_due'],
+            'pricing_note'  => $pricing['pricing_note'],
+        ]);
+        unset($row['recurrence_rule']); // przechowujemy tylko w pierwszym terminie
+        if ($idx === 0) $row['recurrence_rule'] = $rule;
+
+        $id = db_insert('k30_schedules', $row);
+        $created_ids[] = $id;
+
+        // Aktualizuj liczniki
+        db()->prepare(
+            "UPDATE k30_clients SET used=used+?, used_paid=used_paid+?, updated_at=datetime('now') WHERE id=?"
+        )->execute([$pricing['billed_hours'], $pricing['charged_hours'], $base_data['client_id']]);
+
+        if (!empty($base_data['pfron_contract_id']) && $pricing['free_hours'] > 0) {
+            db()->prepare(
+                "UPDATE k30_pfron_contracts SET hours_used=hours_used+?, updated_at=datetime('now') WHERE id=?"
+            )->execute([$pricing['free_hours'], $base_data['pfron_contract_id']]);
+        }
+    }
+    return $created_ids;
+}
+
+// ── Zajęcia TI — helpers ──────────────────────────────────────────────────────
+
+const K30_TI_DAYS = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',0=>'Niedziela'];
+
+const K30_TI_SESSION_STATUSES = [
+    'planned'   => ['label'=>'Zaplanowana',  'color'=>'#F59E0B', 'bg'=>'#FFFBEB'],
+    'held'      => ['label'=>'Odbyła się',   'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
+    'cancelled' => ['label'=>'Odwołana',     'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
+];
+
+const K30_TI_BILLING_STATUSES = [
+    'draft'  => ['label'=>'Robocze',     'color'=>'#9CA3AF', 'bg'=>'#F9FAFB'],
+    'issued' => ['label'=>'Wystawione',  'color'=>'#2563EB', 'bg'=>'#EFF6FF'],
+    'paid'   => ['label'=>'Opłacone',    'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
+];
+
+// Kursy
+function k30_ti_courses(bool $active_only = true): array {
+    $w = $active_only ? 'WHERE c.is_active=1' : '';
+    return db_all(
+        "SELECT c.*, u.name AS instructor_name,
+                (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS enrolled_count
+         FROM k30_ti_courses c
+         LEFT JOIN users u ON u.id=c.instructor_id
+         $w ORDER BY c.name",
+    );
+}
+
+function k30_ti_course_get(int $id): ?array {
+    return db_one(
+        "SELECT c.*, u.name AS instructor_name FROM k30_ti_courses c
+         LEFT JOIN users u ON u.id=c.instructor_id WHERE c.id=?", [$id]
+    ) ?: null;
+}
+
+// Zapisy
+function k30_ti_enrollments(int $course_id): array {
+    return db_all(
+        "SELECT e.*, cl.name AS client_name, cl.email AS client_email, cl.phone AS client_phone
+         FROM k30_ti_enrollments e
+         JOIN k30_clients cl ON cl.id=e.client_id
+         WHERE e.course_id=? ORDER BY cl.name", [$course_id]
+    );
+}
+
+function k30_ti_client_courses(int $client_id): array {
+    return db_all(
+        "SELECT e.*, c.name AS course_name, c.time_from, c.time_to, c.day_of_week,
+                u.name AS instructor_name
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_courses c ON c.id=e.course_id
+         LEFT JOIN users u ON u.id=c.instructor_id
+         WHERE e.client_id=? ORDER BY c.name", [$client_id]
+    );
+}
+
+// Lekcje
+function k30_ti_sessions(int $course_id, string $from='', string $to=''): array {
+    $where = ['s.course_id=?']; $params = [$course_id];
+    if ($from) { $where[] = 's.lesson_date>=?'; $params[] = $from; }
+    if ($to)   { $where[] = 's.lesson_date<=?'; $params[] = $to; }
+    return db_all(
+        "SELECT s.*,
+                (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id AND a.attended=1) AS attended_count,
+                (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id) AS total_count
+         FROM k30_ti_sessions s
+         WHERE " . implode(' AND ', $where) . " ORDER BY s.lesson_date, s.time_from",
+        $params
+    );
+}
+
+function k30_ti_session_get(int $id): ?array {
+    return db_one(
+        "SELECT s.*, c.name AS course_name, c.id AS course_id,
+                u.name AS instructor_name
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN users u ON u.id=c.instructor_id
+         WHERE s.id=?", [$id]
+    ) ?: null;
+}
+
+// Obecność — pobierz lub utwórz domyślną listę dla lekcji
+function k30_ti_session_attendance(int $session_id): array {
+    // Pobierz zapisanych klientów kursu
+    $s = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$session_id]);
+    if (!$s) return [];
+    $enrolled = db_all(
+        "SELECT e.client_id, cl.name AS client_name, cl.email AS client_email, e.hourly_rate
+         FROM k30_ti_enrollments e
+         JOIN k30_clients cl ON cl.id=e.client_id
+         WHERE e.course_id=? AND e.status='active' ORDER BY cl.name",
+        [(int)$s['course_id']]
+    );
+    // Pobierz istniejącą obecność
+    $att = db_all("SELECT * FROM k30_ti_attendance WHERE session_id=?", [$session_id]);
+    $att_map = [];
+    foreach ($att as $a) $att_map[(int)$a['client_id']] = $a;
+    // Uzupełnij
+    foreach ($enrolled as &$e) {
+        $cid = (int)$e['client_id'];
+        $e['attended'] = isset($att_map[$cid]) ? (int)$att_map[$cid]['attended'] : 0;
+        $e['att_id']   = $att_map[$cid]['id'] ?? null;
+        $e['att_notes']= $att_map[$cid]['notes'] ?? '';
+    }
+    return $enrolled;
+}
+
+// Zapis obecności (bulk — tablica [client_id => attended])
+function k30_ti_save_attendance(int $session_id, array $attended_ids): void {
+    $s = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$session_id]);
+    if (!$s) return;
+    $enrolled = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [(int)$s['course_id']]);
+    foreach ($enrolled as $e) {
+        $cid      = (int)$e['client_id'];
+        $attended = in_array($cid, $attended_ids) ? 1 : 0;
+        try {
+            db()->prepare(
+                "INSERT INTO k30_ti_attendance (session_id, client_id, attended) VALUES (?,?,?)
+                 ON CONFLICT(session_id, client_id) DO UPDATE SET attended=excluded.attended"
+            )->execute([$session_id, $cid, $attended]);
+        } catch (\Throwable $ex) {
+            $ex2 = db_one("SELECT id FROM k30_ti_attendance WHERE session_id=? AND client_id=?", [$session_id, $cid]);
+            if ($ex2) db()->prepare("UPDATE k30_ti_attendance SET attended=? WHERE session_id=? AND client_id=?")->execute([$attended, $session_id, $cid]);
+            else      db_insert('k30_ti_attendance', ['session_id'=>$session_id,'client_id'=>$cid,'attended'=>$attended]);
+        }
+    }
+}
+
+/**
+ * Oblicza miesięczne rozliczenie klienta w TI.
+ * Zwraca godziny i kwotę na podstawie lekcji odbyłych w danym miesiącu.
+ */
+function k30_ti_calculate_billing(int $client_id, int $month, int $year): array {
+    $from = sprintf('%04d-%02d-01', $year, $month);
+    $to   = date('Y-m-t', strtotime($from));
+    // Lekcje odbyłe, na których klient był obecny
+    $rows = db_all(
+        "SELECT s.duration_min, e.hourly_rate
+         FROM k30_ti_attendance a
+         JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status='held' AND s.lesson_date BETWEEN ? AND ?
+         JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id AND e.status='active'
+         WHERE a.client_id=? AND a.attended=1",
+        [$from, $to, $client_id]
+    );
+    $hours  = 0.0;
+    $amount = 0.0;
+    foreach ($rows as $r) {
+        $h       = (float)$r['duration_min'] / 60;
+        $hours  += $h;
+        $amount += $h * (float)$r['hourly_rate'];
+    }
+    return [
+        'client_id'   => $client_id,
+        'month'       => $month,
+        'year'        => $year,
+        'hours_billed'=> round($hours, 4),
+        'amount'      => round($amount, 2),
+    ];
+}
+
+/** Generuje / aktualizuje rozliczenie miesięczne klienta. */
+function k30_ti_issue_billing(int $client_id, int $month, int $year, string $notes = ''): int {
+    $calc = k30_ti_calculate_billing($client_id, $month, $year);
+    // Pobierz stawkę — używamy sredniej lub ze zróżnicowanych kursów (uproszczenie: sumujemy w calculate)
+    // Zwróć istniejące lub utwórz
+    $ex = db_one("SELECT id FROM k30_ti_billing WHERE client_id=? AND month=? AND year=?",
+                 [$client_id, $month, $year]);
+    $data = [
+        'hours_billed' => $calc['hours_billed'],
+        'amount'       => $calc['amount'],
+        'notes'        => $notes,
+        'issued_at'    => date('Y-m-d H:i:s'),
+        'status'       => 'issued',
+    ];
+    if ($ex) {
+        $set = []; $p = [];
+        foreach ($data as $k => $v) { $set[] = "$k=?"; $p[] = $v; }
+        $p[] = $ex['id'];
+        db()->prepare("UPDATE k30_ti_billing SET " . implode(',', $set) . " WHERE id=?")->execute($p);
+        return (int)$ex['id'];
+    }
+    return db_insert('k30_ti_billing', array_merge($data, [
+        'client_id' => $client_id, 'month' => $month, 'year' => $year,
+        'created_at'=> date('Y-m-d H:i:s'),
+    ]));
+}
+
+// ── Lista oczekujących ─────────────────────────────────────────────────────────
+
+const K30_WAIT_PRIORITIES = [
+    'pilny'  => ['label' => 'Pilny',   'color' => '#dc2626', 'bg' => '#fef2f2', 'icon' => 'bi-exclamation-circle-fill', 'order' => 1],
+    'pfron'  => ['label' => 'PFRON',   'color' => '#7c3aed', 'bg' => '#f5f3ff', 'icon' => 'bi-building-fill-check',      'order' => 2],
+    'zwykly' => ['label' => 'Zwykły',  'color' => '#2563eb', 'bg' => '#eff6ff', 'icon' => 'bi-clock',                    'order' => 3],
+];
+
+const K30_WAIT_STATUSES = [
+    'waiting'   => ['label' => 'Oczekuje',    'color' => '#f59e0b', 'bg' => '#fffbeb'],
+    'contacted' => ['label' => 'Skontaktowano','color'=> '#2563eb', 'bg' => '#eff6ff'],
+    'scheduled' => ['label' => 'Zaplanowane', 'color' => '#16a34a', 'bg' => '#f0fdf4'],
+    'cancelled' => ['label' => 'Anulowane',   'color' => '#9ca3af', 'bg' => '#f9fafb'],
+    'done'      => ['label' => 'Zakończone',  'color' => '#6b7280', 'bg' => '#f3f4f6'],
+];
+
+function k30_waiting_list(string $status = 'waiting', int $client_id = 0): array {
+    $where = []; $params = [];
+    if ($status === 'active') {
+        $where[] = "w.status IN ('waiting','contacted')";
+    } elseif ($status) {
+        $where[] = "w.status=?"; $params[] = $status;
+    }
+    if ($client_id) { $where[] = "w.client_id=?"; $params[] = $client_id; }
+    $sql_where = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    // Sortuj: pilny → pfron → zwykły, potem data zapisu
+    return db_all(
+        "SELECT w.*,
+                cl.name AS client_name, cl.phone AS client_phone, cl.email AS client_email,
+                u.name AS created_by_name,
+                s.start_time AS scheduled_time
+         FROM k30_waiting_list w
+         JOIN k30_clients cl ON cl.id=w.client_id
+         LEFT JOIN users u ON u.id=w.created_by
+         LEFT JOIN k30_schedules s ON s.id=w.scheduled_id
+         $sql_where
+         ORDER BY
+           CASE w.priority WHEN 'pilny' THEN 1 WHEN 'pfron' THEN 2 ELSE 3 END,
+           w.created_at ASC",
+        $params
+    );
+}
+
+function k30_waiting_add(int $client_id, string $priority, string $reason, string $notes): int {
+    $id = db_insert('k30_waiting_list', [
+        'client_id'  => $client_id,
+        'priority'   => array_key_exists($priority, K30_WAIT_PRIORITIES) ? $priority : 'zwykly',
+        'reason'     => $reason,
+        'notes'      => $notes,
+        'status'     => 'waiting',
+        'created_by' => (int)(current_user()['id'] ?? 0),
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s'),
+    ]);
+
+    // Aktywność CRM
+    try {
+        require_once __DIR__ . '/crm.php';
+        crm_migrate();
+        $client = db_one("SELECT * FROM k30_clients WHERE id=?", [$client_id]);
+        if ($client) {
+            $contact_id = k30_sync_to_crm($client, (int)(current_user()['id'] ?? 0));
+            if ($contact_id) {
+                $prio_label = K30_WAIT_PRIORITIES[$priority]['label'] ?? $priority;
+                k30_log_crm_activity(
+                    $contact_id, 'task',
+                    "Dodano do kolejki K30 [{$prio_label}]",
+                    $reason ?: "Beneficjent oczekuje na termin konsultacji. Priorytet: {$prio_label}.",
+                    '', 'planned', '',
+                    (int)(current_user()['id'] ?? 0)
+                );
+            }
+        }
+    } catch (\Throwable $e) {
+        error_log('[k30_wait_crm] ' . $e->getMessage());
+    }
+
+    return $id;
+}
+
+function k30_waiting_change_status(int $id, string $status, ?int $schedule_id = null): void {
+    $data = ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')];
+    if ($schedule_id) $data['scheduled_id'] = $schedule_id;
+    $set = []; $p = [];
+    foreach ($data as $k => $v) { $set[] = "$k=?"; $p[] = $v; }
+    $p[] = $id;
+    db()->prepare("UPDATE k30_waiting_list SET " . implode(',', $set) . " WHERE id=?")->execute($p);
+}
+
+function k30_waiting_send_sms(int $id, string $message): bool {
+    try {
+        require_once __DIR__ . '/sms.php';
+        if (!sms_is_enabled()) return false;
+        $row = db_one(
+            "SELECT w.*, cl.phone AS client_phone, cl.name AS client_name
+             FROM k30_waiting_list w JOIN k30_clients cl ON cl.id=w.client_id WHERE w.id=?",
+            [$id]
+        );
+        if (!$row || !$row['client_phone']) return false;
+        sms_send($row['client_phone'], $message);
+        db()->prepare(
+            "UPDATE k30_waiting_list SET sms_sent_at=datetime('now'), sms_count=sms_count+1, status='contacted', updated_at=datetime('now') WHERE id=?"
+        )->execute([$id]);
+        return true;
+    } catch (\Throwable $e) {
+        error_log('[k30_wait_sms] ' . $e->getMessage());
+        return false;
+    }
+}

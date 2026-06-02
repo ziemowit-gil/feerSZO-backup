@@ -1,0 +1,163 @@
+<?php
+require_once dirname(dirname(__DIR__)) . '/config.php';
+require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
+if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
+
+$PAGE_TITLE = 'Nowa sprawa';
+$users  = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
+$teczki = ezd_teczki_all('open');
+
+// pre-select teczka if passed via GET
+$preselect_teczka = (int)($_GET['teczka_id'] ?? 0);
+
+$row = [
+    'teczka_id'   => $preselect_teczka ?: '',
+    'title'       => '',
+    'description' => '',
+    'status'      => 'open',
+    'priority'    => 'normal',
+    'owner_id'    => current_user()['id'],
+    'deadline'    => '',
+];
+$errors = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
+    $row = [
+        'teczka_id'   => (int)($_POST['teczka_id']   ?? 0),
+        'title'       => trim($_POST['title']         ?? ''),
+        'description' => trim($_POST['description']   ?? ''),
+        'status'      => $_POST['status']             ?? 'open',
+        'priority'    => $_POST['priority']           ?? 'normal',
+        'owner_id'    => (int)($_POST['owner_id']     ?? 0) ?: null,
+        'deadline'    => $_POST['deadline']           ?? '',
+    ];
+    if (!$row['teczka_id']) $errors[] = 'Wybierz teczkę aktową.';
+    if (!$row['title'])     $errors[] = 'Tytuł sprawy jest wymagany.';
+    if (!in_array($row['status'],   array_keys(EZD_STATUSES_SPRAWA))) $errors[] = 'Nieprawidłowy status.';
+    if (!in_array($row['priority'], array_keys(EZD_PRIORITIES)))      $errors[] = 'Nieprawidłowy priorytet.';
+
+    if (!$errors) {
+        try {
+            $id = ezd_sprawa_create($row, (int)current_user()['id']);
+            flash_set('success', 'Sprawa założona.');
+            header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$id); exit;
+        } catch (\RuntimeException $e) {
+            $errors[] = $e->getMessage();
+        }
+    }
+}
+
+include dirname(dirname(__DIR__)) . '/includes/header.php';
+?>
+<nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Sprawy</a></li>
+  <li class="breadcrumb-item active">Nowa sprawa</li>
+</ol></nav>
+<h4 class="fw-bold mb-3"><i class="bi bi-folder-plus text-primary me-2"></i>Nowa sprawa</h4>
+<?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
+
+<div class="row"><div class="col-lg-7">
+<form method="post">
+<input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+<div class="card shadow-sm">
+<div class="card-body">
+  <!-- Teczka -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Teczka aktowa <span class="text-danger">*</span></label>
+    <select name="teczka_id" class="form-select" required onchange="updateZnak(this)">
+      <option value="">— wybierz teczkę —</option>
+      <?php foreach($teczki as $t): ?>
+      <option value="<?= $t['id'] ?>" data-symbol="<?= h($t['symbol']) ?>" data-rok="<?= $t['rok'] ?>"
+              <?= (int)$row['teczka_id']===$t['id']?'selected':'' ?>>
+        <?= h($t['symbol'].' — '.$t['title'].' ('.$t['rok'].')') ?>
+      </option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <!-- Podgląd znaku -->
+  <div class="mb-3">
+    <div class="alert alert-info py-2 px-3" style="font-size:.82rem">
+      <i class="bi bi-info-circle me-1"></i>Znak sprawy zostanie nadany automatycznie:
+      <strong id="znak-preview" class="font-monospace ms-1">SYMBOL.N.<?= date('Y') ?></strong>
+    </div>
+  </div>
+  <!-- Tytuł -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Tytuł sprawy <span class="text-danger">*</span></label>
+    <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>"
+           placeholder="np. Umowa z firmą XYZ na dostawę materiałów" required>
+  </div>
+  <!-- Opis -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Opis / uwagi</label>
+    <textarea name="description" class="form-control" rows="3"
+              placeholder="Krótki opis sprawy..."><?= h($row['description']) ?></textarea>
+  </div>
+  <!-- Status + Priorytet -->
+  <div class="row g-3 mb-3">
+    <div class="col-6">
+      <label class="form-label fw-semibold">Status</label>
+      <select name="status" class="form-select">
+        <?php foreach(EZD_STATUSES_SPRAWA as $sv=>$sl): ?>
+        <option value="<?= $sv ?>" <?= $row['status']===$sv?'selected':'' ?>><?= h($sl['label']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-6">
+      <label class="form-label fw-semibold">Priorytet</label>
+      <select name="priority" class="form-select">
+        <?php foreach(EZD_PRIORITIES as $pv=>$pl): ?>
+        <option value="<?= $pv ?>" <?= $row['priority']===$pv?'selected':'' ?>><?= h($pl['label']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+  </div>
+  <!-- Właściciel + Deadline -->
+  <div class="row g-3">
+    <div class="col-6">
+      <label class="form-label fw-semibold">Właściciel / referent</label>
+      <select name="owner_id" class="form-select">
+        <option value="">— brak —</option>
+        <?php foreach($users as $u): ?>
+        <option value="<?= $u['id'] ?>" <?= (int)$row['owner_id']===$u['id']?'selected':'' ?>><?= h($u['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-6">
+      <label class="form-label fw-semibold">Termin</label>
+      <input type="date" name="deadline" class="form-control" value="<?= h($row['deadline']) ?>">
+    </div>
+  </div>
+</div>
+<div class="card-footer d-flex gap-2">
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Załóż sprawę</button>
+  <?php if($preselect_teczka): ?>
+  <a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $preselect_teczka ?>" class="btn btn-outline-secondary">Anuluj</a>
+  <?php else: ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-outline-secondary">Anuluj</a>
+  <?php endif; ?>
+</div>
+</div>
+</form>
+</div></div>
+
+<script>
+function updateZnak(sel) {
+    var opt = sel.options[sel.selectedIndex];
+    var sym = opt.dataset.symbol || 'SYMBOL';
+    var rok = opt.dataset.rok   || '<?= date('Y') ?>';
+    document.getElementById('znak-preview').textContent = sym + '.N.' + rok;
+}
+// init
+(function(){
+    var sel = document.querySelector('[name=teczka_id]');
+    if (sel && sel.value) updateZnak(sel);
+})();
+</script>
+<?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

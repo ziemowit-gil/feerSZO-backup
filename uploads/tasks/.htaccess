@@ -1,0 +1,5 @@
+Options -ExecCGI
+AddHandler cgi-script .php .pl .py
+<FilesMatch "\.php$">
+  Deny from all
+</FilesMatch>
