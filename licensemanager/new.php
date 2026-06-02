@@ -36,6 +36,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             lm_log($id, 'created', "Status: {$status}, wygasa: {$expires}");
             lm_flash_set('success', "Licencja dla {$url} została utworzona.");
+
+            // Powiadomienie e-mail do twórcy
+            $notify_to = 'ziemowit.gil@gmail.com';
+            $subject   = "[License Manager] Nowa instalacja: {$org_name}";
+            $body      = implode("\n", [
+                "Nowa licencja została utworzona w License Manager.",
+                "",
+                "Organizacja : {$org_name}",
+                "KRS         : " . ($org_krs ?: '—'),
+                "URL         : {$url}",
+                "Status      : {$status}",
+                "Wygasa      : {$expires}",
+                "APP_KEY     : " . ($app_key ? substr($app_key, 0, 8) . '…' : '—'),
+                "",
+                "Panel: " . lm_base_url() . "/licenses.php?id={$id}",
+                "",
+                "-- License Manager · Platforma NGO",
+            ]);
+            @mail($notify_to, $subject, $body,
+                "From: noreply@feer.me\r\nContent-Type: text/plain; charset=UTF-8\r\nX-Mailer: LicenseManager/1.0");
+
             header('Location: licenses.php?id=' . $id); exit;
         }
     }
