@@ -49,77 +49,59 @@ function _bootstrap_halt(string $title, string $message, string $hint = ''): nev
 
     $rows_html = '';
     foreach ($rows as $k => $v) {
-        $col   = $v[1] ? '#33ff33' : '#ff3333';
-        $blink = !$v[1] ? ' class="blink"' : '';
-        $rows_html .= '<tr><td>' . htmlspecialchars(str_pad($k, 16)) . '</td>'
-                    . '<td>........</td>'
-                    . '<td' . $blink . ' style="color:' . $col . '">' . htmlspecialchars($v[0]) . '</td></tr>';
+        $ok  = $v[1];
+        $val = htmlspecialchars($v[0]);
+        $rows_html .=
+            '<tr>'
+          . '<td style="color:#64748b;padding:.35rem 1rem .35rem 0;white-space:nowrap">' . htmlspecialchars($k) . '</td>'
+          . '<td style="' . ($ok ? 'color:#94a3b8' : 'color:#f87171;font-weight:600') . ';padding:.35rem 0">' . $val . '</td>'
+          . '</tr>';
     }
 
     echo '<!doctype html><html lang="pl"><head>'
        . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-       . '<title>** SYSTEM HALT **</title>'
+       . '<title>Błąd autoryzacji — ' . htmlspecialchars($org) . '</title>'
        . '<style>
-@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap");
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{min-height:100vh;background:#000;color:#33ff33;font-family:"Share Tech Mono","Courier New",monospace;font-size:14px;line-height:1.8;overflow-x:hidden}
-body::before{content:"";position:fixed;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.15) 0px,rgba(0,0,0,.15) 1px,transparent 1px,transparent 2px);pointer-events:none;z-index:9999}
-body::after{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.7) 100%);pointer-events:none;z-index:9998}
-.wrap{max-width:780px;margin:0 auto;padding:2.5rem 1.5rem;position:relative;z-index:1}
-.scanline{position:fixed;top:0;left:0;width:100%;height:3px;background:rgba(51,255,51,.08);animation:scan 6s linear infinite;z-index:10000;pointer-events:none}
-@keyframes scan{0%{top:0}100%{top:100%}}
-.blink{animation:blink .8s step-end infinite}
-@keyframes blink{50%{opacity:0}}
-.dim{color:#1a8c1a}
-.hi{color:#ccffcc;font-weight:bold}
-.err{color:#ff3333}
-.warn{color:#ffaa00}
-pre{white-space:pre-wrap;word-break:break-all}
-table{border-collapse:collapse;width:100%}
-td{padding:.1rem 0;vertical-align:top;font-size:.88rem}
-td:first-child{color:#1a8c1a;white-space:pre}
-td:nth-child(2){color:#0d440d;padding:0 .5rem}
-hr{border:none;border-top:1px solid #0d440d;margin:1rem 0}
-a{color:#33ff33;text-decoration:none;border-bottom:1px solid #1a8c1a}
-a:hover{color:#ccffcc;border-color:#33ff33}
-.box{border:1px solid #1a8c1a;padding:.75rem 1rem;margin:.75rem 0}
-.box-err{border-color:#ff3333}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:#0f172a;color:#cbd5e1;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6}
+.page{display:flex;min-height:100vh}
+.sidebar{width:4px;background:#dc2626;flex-shrink:0}
+.body{flex:1;padding:3rem 2.5rem;max-width:760px}
+.label{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#dc2626;margin-bottom:.5rem}
+h1{font-size:1.15rem;font-weight:600;color:#f1f5f9;margin-bottom:.35rem;line-height:1.4}
+.sub{font-size:.85rem;color:#64748b;margin-bottom:2rem}
+.divider{height:1px;background:#1e293b;margin:1.75rem 0}
+.section-label{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#334155;margin-bottom:.75rem}
+table{border-collapse:collapse;width:100%;font-size:.82rem}
+td{padding:.3rem 0;vertical-align:top;border-bottom:1px solid #1e293b}
+tr:last-child td{border:none}
+.action{background:#1e293b;border-left:3px solid #dc2626;padding:.85rem 1.1rem;margin-bottom:.75rem;font-size:.82rem}
+.action-label{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem}
+.action a{color:#93c5fd;text-decoration:none;font-family:monospace;font-size:.8rem;word-break:break-all}
+.action a:hover{color:#dbeafe}
+.action code{font-family:monospace;color:#7dd3fc;font-size:.78rem;word-break:break-all}
+.meta{margin-top:2.5rem;font-size:.72rem;color:#1e293b;display:flex;gap:1.5rem;flex-wrap:wrap}
 </style>'
        . '</head><body>'
-       . '<div class="scanline"></div>'
-       . '<div class="wrap">'
-       . '<pre class="dim">================================================================================</pre>'
-       . '<pre class="hi">  PLATFORMA NGO &mdash; SYSTEM BOOT FAILURE                          v503</pre>'
-       . '<pre class="dim">================================================================================</pre>'
-       . '<br>'
-       . '<pre class="dim">SYSTEM  : ' . htmlspecialchars($org) . '</pre>'
-       . '<pre class="dim">HOST    : ' . htmlspecialchars($app_url ?: 'unknown') . '</pre>'
-       . '<pre class="dim">TIME    : ' . htmlspecialchars($ts) . '</pre>'
-       . '<br>'
-       . '<pre class="box box-err">'
-       . '  !! FATAL ERROR: LICENSE_VERIFICATION_FAILED' . "\n"
-       . '  !! ' . htmlspecialchars(strtoupper($title)) . "\n"
-       . '  !!' . "\n"
-       . '  !! ' . htmlspecialchars($message)
-       . '</pre>'
-       . '<br>'
-       . '<pre class="dim">POST DIAGNOSTICS:</pre>'
+       . '<div class="page"><div class="sidebar"></div><div class="body">'
+       . '<div class="label">Błąd krytyczny &nbsp;·&nbsp; 503</div>'
+       . '<h1>' . htmlspecialchars($title) . '</h1>'
+       . '<p class="sub">' . htmlspecialchars($message) . '</p>'
+       . '<div class="divider"></div>'
+       . '<div class="section-label">Diagnostyka</div>'
        . '<table>' . $rows_html . '</table>'
-       . '<br>'
-       . '<hr>'
-       . '<pre class="dim">RECOMMENDED ACTION:</pre>'
-       . '<br>'
-       . '<pre class="dim">  [1] BROWSER (creator panel):</pre>'
-       . '<pre>      <a href="' . htmlspecialchars($creator) . '">' . htmlspecialchars($creator) . '</a></pre>'
-       . '<br>'
-       . '<pre class="dim">  [2] SSH / CLI:</pre>'
-       . '<pre>      php ' . htmlspecialchars(dirname(__DIR__)) . '/cli/generatorCertyfikatu.php</pre>'
-       . '<br>'
-       . '<hr>'
-       . '<pre class="dim">System halted. Press [1] or run CLI to regenerate certificate.</pre>'
-       . '<pre class="dim">================================================================================</pre>'
-       . '<pre class="dim blink">_</pre>'
-       . '</div></body></html>';
+       . '<div class="divider"></div>'
+       . '<div class="section-label">Jak naprawić</div>'
+       . '<div class="action"><div class="action-label">1 &mdash; Panel twórcy (przeglądarka)</div>'
+       . '<a href="' . htmlspecialchars($creator) . '">' . htmlspecialchars($creator) . '</a></div>'
+       . '<div class="action"><div class="action-label">2 &mdash; SSH / CLI</div>'
+       . '<code>php ' . htmlspecialchars(dirname(__DIR__)) . '/cli/generatorCertyfikatu.php</code></div>'
+       . '<div class="meta">'
+       . '<span>' . htmlspecialchars($org) . '</span>'
+       . '<span>' . htmlspecialchars($app_url) . '</span>'
+       . '<span>' . htmlspecialchars($ts) . '</span>'
+       . '</div>'
+       . '</div></div></body></html>';
     exit;
 }
 
