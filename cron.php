@@ -16,15 +16,14 @@ require_once __DIR__ . '/includes/db.php';
 header('Content-Type: text/plain; charset=utf-8');
 
 // ── Weryfikacja tokenu ─────────────────────────────────────────────────────
-$expected = db_one("SELECT value FROM settings WHERE key_='cron_token'")['value'] ?? '';
+$expected = trim(db_one("SELECT value FROM settings WHERE key_='cron_token'")['value'] ?? '');
+$provided = trim($_GET['token'] ?? $_SERVER['HTTP_X_CRON_TOKEN'] ?? '');
 
 if (!$expected) {
     http_response_code(503);
     echo "Brak tokenu CRON. Ustaw go w: Admin → Konfiguracja CRON.\n";
     exit;
 }
-
-$provided = $_GET['token'] ?? $_SERVER['HTTP_X_CRON_TOKEN'] ?? '';
 
 if (!hash_equals($expected, $provided)) {
     http_response_code(403);

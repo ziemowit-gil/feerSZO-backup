@@ -22,8 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'gene
     header('Location: cron_setup.php'); exit;
 }
 
-$cron_token = db_one("SELECT value FROM settings WHERE key_='cron_token'")['value'] ?? '';
-$cron_url   = rtrim(APP_URL, '/') . '/cron.php' . ($cron_token ? '?token=' . $cron_token : '');
+$cron_token = trim(db_one("SELECT value FROM settings WHERE key_='cron_token'")['value'] ?? '');
+$cron_url   = rtrim(trim(APP_URL), '/') . '/cron.php' . ($cron_token ? '?token=' . $cron_token : '');
 
 // Wykryj ścieżkę do PHP i do katalogu aplikacji
 $php_bin  = trim(@shell_exec('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
@@ -138,20 +138,21 @@ $crontab_block = $full_cmd;
 
       <!-- Pole Polecenie -->
       <div class="col-12">
-        <p class="small fw-semibold mb-1">Pole <strong>„Polecenie"</strong> — wklej dokładnie to:</p>
-        <div class="d-flex gap-2 align-items-stretch">
-          <code class="flex-grow-1 p-3 rounded"
-                style="background:#1e293b;color:#6ee7b7;font-size:.88rem;word-break:break-all;display:block;line-height:1.6">
-            <?= h($da_cmd) ?>
-          </code>
-          <button class="btn btn-primary btn-sm flex-shrink-0 align-self-stretch"
-                  onclick="navigator.clipboard.writeText(<?= json_encode($da_cmd) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i><br>Skopiowano';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i><br>Kopiuj',2000)"
-                  style="min-width:72px">
-            <i class="bi bi-clipboard"></i><br>Kopiuj
+        <p class="small fw-semibold mb-1">Pole <strong>„Polecenie"</strong> — wklej dokładnie to (bez spacji na końcu):</p>
+        <div class="input-group">
+          <input type="text" class="form-control form-control-sm font-monospace"
+                 id="da-cmd-input"
+                 value="<?= h($da_cmd) ?>"
+                 readonly
+                 onclick="this.select()"
+                 style="background:#1e293b;color:#6ee7b7;border-color:#334155;font-size:.82rem">
+          <button class="btn btn-primary btn-sm"
+                  onclick="var v=document.getElementById('da-cmd-input').value.trim();navigator.clipboard.writeText(v);this.textContent='✓ Skopiowano';setTimeout(()=>this.textContent='Kopiuj',2000)">
+            Kopiuj
           </button>
         </div>
         <div class="form-text mt-1">
-          Kliknij <strong>Dodaj</strong> w DirectAdmin — gotowe.
+          Kliknij w pole → zaznacza całość → <strong>Kopiuj</strong> lub Ctrl+C. Następnie <strong>Dodaj</strong> w DirectAdmin.
         </div>
       </div>
     </div>
