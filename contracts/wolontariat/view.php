@@ -1002,64 +1002,46 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
         </div>
       </div>
       <div class="col-md-6"><div class="detail-label">Adres e-mail</div>
-        <div class="detail-value d-flex align-items-center gap-2 flex-wrap">
+        <div class="detail-value">
           <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
+
           <?php if ($row['email'] && can_edit()): ?>
-          <div class="dropdown d-inline-block">
-            <button class="btn btn-outline-secondary btn-sm py-0 px-2 dropdown-toggle" type="button"
-                    data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-person-lock me-1"></i>Konto portalu
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width:260px">
-              <li><h6 class="dropdown-header small">
-                <i class="bi bi-envelope me-1"></i><?= h($row['email']) ?>
-              </h6></li>
-              <li><hr class="dropdown-divider my-1"></li>
+          <div class="d-flex flex-wrap gap-1 mt-2">
 
-              <!-- Wyślij e-mail powitalny (nowe hasło) -->
-              <li>
-                <form method="post" class="px-3 py-1"
-                      onsubmit="return confirm('Wysłać e-mail powitalny?\nHasło zostanie zresetowane i wysłane na <?= h(addslashes($row['email'] ?? '')) ?>')">
-                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                  <button type="submit" name="_resend_welcome" value="1" class="btn btn-sm btn-outline-success w-100 text-start">
-                    <i class="bi bi-envelope-heart me-2"></i>Wyślij e-mail powitalny
-                  </button>
-                  <div class="text-muted" style="font-size:.75rem;margin-top:3px;padding-left:2px">Nowe hasło + instrukcja logowania</div>
-                </form>
-              </li>
-              <li><hr class="dropdown-divider my-1"></li>
+            <!-- E-mail powitalny -->
+            <form method="post" style="display:contents"
+                  onsubmit="return confirm('Wysłać e-mail powitalny do <?= h(addslashes($row['email'] ?? '')) ?>?\nHasło zostanie zresetowane.')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <button type="submit" name="_resend_welcome" value="1"
+                      class="btn btn-sm btn-outline-success"
+                      title="Wyślij e-mail powitalny z nowym hasłem">
+                <i class="bi bi-envelope-heart me-1"></i>E-mail powitalny
+              </button>
+            </form>
 
-              <!-- Wyślij kod jednorazowy -->
-              <li>
-                <form method="post" class="px-3 py-1">
-                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                  <button type="submit" name="_resend_portal" value="1" class="btn btn-sm btn-outline-primary w-100 text-start">
-                    <i class="bi bi-send me-2"></i>Wyślij kod jednorazowy
-                  </button>
-                  <div class="text-muted" style="font-size:.75rem;margin-top:3px;padding-left:2px">Link do logowania e-mailem (7 dni)</div>
-                </form>
-              </li>
+            <!-- Kod jednorazowy -->
+            <form method="post" style="display:contents">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <button type="submit" name="_resend_portal" value="1"
+                      class="btn btn-sm btn-outline-primary"
+                      title="Wyślij jednorazowy kod dostępu (ważny 7 dni)">
+                <i class="bi bi-send me-1"></i>Kod jednorazowy
+              </button>
+            </form>
 
-              <li><hr class="dropdown-divider my-1"></li>
+            <!-- Nadaj hasło -->
+            <form method="post" class="d-flex gap-1" id="form_set_pass_<?= $id ?>">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="password" name="new_pass" class="form-control form-control-sm"
+                     placeholder="Nowe hasło" minlength="6" required
+                     style="font-family:monospace;width:130px">
+              <button type="submit" name="_set_portal_pass" value="1"
+                      class="btn btn-sm btn-warning"
+                      title="Zapisz hasło i wyślij e-mailem">
+                <i class="bi bi-key me-1"></i>Ustaw
+              </button>
+            </form>
 
-              <!-- Nadaj hasło -->
-              <li>
-                <div class="px-3 py-1">
-                  <div class="small fw-semibold mb-1"><i class="bi bi-key me-1"></i>Nadaj nowe hasło</div>
-                  <form method="post" class="d-flex gap-1" id="form_set_pass_<?= $id ?>">
-                    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                    <input type="password" name="new_pass" class="form-control form-control-sm"
-                           placeholder="Min. 6 znaków" minlength="6" required
-                           style="font-family:monospace">
-                    <button type="submit" name="_set_portal_pass" value="1"
-                            class="btn btn-sm btn-warning flex-shrink-0" title="Zapisz i wyślij e-mailem">
-                      <i class="bi bi-check-lg"></i>
-                    </button>
-                  </form>
-                  <div class="text-muted" style="font-size:.75rem;margin-top:3px">Hasło zostanie wysłane e-mailem</div>
-                </div>
-              </li>
-            </ul>
           </div>
           <?php endif; ?>
         </div>
