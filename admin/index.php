@@ -110,6 +110,7 @@ $groups = [
             ['icon'=>'bi-person-lines-fill','label'=>'Pola profilu',     'url'=>'/admin/profile_fields.php'],
             ['icon'=>'bi-ui-checks',       'label'=>'Pola w formularzach','url'=>'/admin/form_fields.php'],
             ['icon'=>'bi-file-earmark-text','label'=>'Wzory dokumentów', 'url'=>'/admin/contract_templates.php'],
+            ['icon'=>'bi-stars',           'label'=>'Ustawienia AI',     'url'=>'/admin/ai_settings.php'],
         ],
     ],
 

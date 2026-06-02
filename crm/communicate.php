@@ -294,14 +294,23 @@ include __DIR__ . '/includes/header_crm.php';
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           <span>Treść wiadomości</span>
-          <!-- Przełącznik trybu edytora -->
-          <div class="btn-group btn-group-sm" id="editorModeGroup" role="group">
-            <button type="button" id="btnModeRich" class="btn btn-outline-secondary active" onclick="Comm.setMode('rich')" title="Edytor wizualny (WYSIWYG)">
-              <i class="bi bi-type-bold me-1"></i>Rich Text
+          <div class="d-flex align-items-center gap-2">
+            <!-- AI -->
+            <button type="button" class="btn btn-sm btn-outline-primary"
+                    style="font-size:.78rem;padding:.2rem .65rem"
+                    data-bs-toggle="modal" data-bs-target="#aiModal"
+                    title="Wygeneruj treść przez AI">
+              <i class="bi bi-stars me-1"></i>Wygeneruj AI
             </button>
-            <button type="button" id="btnModePlain" class="btn btn-outline-secondary" onclick="Comm.setMode('plain')" title="Zwykły tekst (SMS, plain)">
-              <i class="bi bi-code me-1"></i>Zwykły
-            </button>
+            <!-- Przełącznik trybu edytora -->
+            <div class="btn-group btn-group-sm" id="editorModeGroup" role="group">
+              <button type="button" id="btnModeRich" class="btn btn-outline-secondary active" onclick="Comm.setMode('rich')" title="Edytor wizualny (WYSIWYG)">
+                <i class="bi bi-type-bold me-1"></i>Rich Text
+              </button>
+              <button type="button" id="btnModePlain" class="btn btn-outline-secondary" onclick="Comm.setMode('plain')" title="Zwykły tekst (SMS, plain)">
+                <i class="bi bi-code me-1"></i>Zwykły
+              </button>
+            </div>
           </div>
         </div>
 
@@ -562,6 +571,8 @@ include __DIR__ . '/includes/header_crm.php';
       }
     }
     _quill.on('text-change', function() { updateCharCount(); });
+    // Udostępnij dla modułu AI
+    document.getElementById('quillEditor').__quill = _quill;
   }
 
   // Uruchom Quill od razu
@@ -705,6 +716,146 @@ include __DIR__ . '/includes/header_crm.php';
   toggleSubject();
   updateCharCount();
 })();
+</script>
+
+<!-- ══ Modal: Generuj treść przez AI ═══════════════════════════════════════ -->
+<div class="modal fade" id="aiModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold">
+          <i class="bi bi-stars text-primary me-1"></i>Asystent AI — wygeneruj treść
+        </h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Temat / instrukcja <span class="text-danger">*</span></label>
+          <textarea id="ai-prompt" class="form-control" rows="3"
+                    placeholder="np. Zaproszenie na spotkanie podsumowujące projekt, nieformalne, z podziękowaniem za zaangażowanie"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Ton</label>
+            <select id="ai-tone" class="form-select form-select-sm">
+              <option value="profesjonalny">Profesjonalny</option>
+              <option value="przyjazny">Przyjazny</option>
+              <option value="formalny">Formalny</option>
+              <option value="nieformalny">Nieformalny</option>
+              <option value="motywujący">Motywujący</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Działanie po wygenerowaniu</label>
+            <select id="ai-insert" class="form-select form-select-sm">
+              <option value="replace">Zastąp treść</option>
+              <option value="append">Dodaj na końcu</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-0 mt-2">
+          <label class="form-label small fw-semibold">Dodatkowy kontekst (opcjonalnie)</label>
+          <input type="text" id="ai-context" class="form-control form-control-sm"
+                 placeholder="np. Dotyczy projektu Lato 2025, grupę odbiorców: wolontariusze">
+        </div>
+        <div id="ai-error" class="alert alert-danger py-2 small mt-3 d-none"></div>
+        <div id="ai-result" class="border rounded bg-light p-2 mt-3 small d-none" style="max-height:160px;overflow-y:auto"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ai-submit" onclick="aiGenerate()">
+          <i class="bi bi-stars me-1"></i>Generuj
+        </button>
+        <button type="button" class="btn btn-success btn-sm d-none" id="ai-apply" onclick="aiApply()">
+          <i class="bi bi-check2 me-1"></i>Wstaw do edytora
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var _aiGeneratedHtml  = '';
+var _aiGeneratedPlain = '';
+
+function aiGenerate() {
+    const prompt = document.getElementById('ai-prompt').value.trim();
+    if (!prompt) { document.getElementById('ai-prompt').focus(); return; }
+
+    const btn = document.getElementById('ai-submit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generuję…';
+    document.getElementById('ai-error').classList.add('d-none');
+    document.getElementById('ai-result').classList.add('d-none');
+    document.getElementById('ai-apply').classList.add('d-none');
+
+    const channel = document.querySelector('[name="channel"]')?.value || 'email';
+
+    fetch('<?= APP_URL ?>/crm/api/ai_generate.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            _csrf:   '<?= csrf_token() ?>',
+            prompt:  prompt,
+            tone:    document.getElementById('ai-tone').value,
+            channel: channel,
+            context: document.getElementById('ai-context').value,
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generuj ponownie';
+        if (data.ok) {
+            _aiGeneratedHtml  = data.html  || '';
+            _aiGeneratedPlain = data.plain || '';
+            const preview = document.getElementById('ai-result');
+            preview.innerHTML = _aiGeneratedHtml || _aiGeneratedPlain.replace(/\n/g, '<br>');
+            preview.classList.remove('d-none');
+            document.getElementById('ai-apply').classList.remove('d-none');
+        } else {
+            const err = document.getElementById('ai-error');
+            err.textContent = data.error || 'Nieznany błąd.';
+            err.classList.remove('d-none');
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generuj';
+        const err = document.getElementById('ai-error');
+        err.textContent = 'Błąd połączenia.';
+        err.classList.remove('d-none');
+    });
+}
+
+function aiApply() {
+    const insertMode = document.getElementById('ai-insert').value;
+    const channel    = document.querySelector('[name="channel"]')?.value || 'email';
+    const isRich     = !document.getElementById('plainWrapper') ||
+                       document.getElementById('plainWrapper').style.display === 'none';
+
+    const qlEditor = document.getElementById('quillEditor');
+    if (isRich && qlEditor && qlEditor.__quill) {
+        const q = qlEditor.__quill;
+        if (insertMode === 'replace') {
+            q.root.innerHTML = _aiGeneratedHtml;
+        } else {
+            q.clipboard.dangerouslyPasteHTML(q.getLength() - 1, _aiGeneratedHtml);
+        }
+    } else if (isRich && qlEditor) {
+        // fallback: wstaw bezpośrednio do DOM edytora Quill
+        if (insertMode === 'replace') qlEditor.innerHTML = _aiGeneratedHtml;
+        else qlEditor.innerHTML += _aiGeneratedHtml;
+    } else {
+        const ta = document.getElementById('bodyPlain');
+        if (ta) {
+            if (insertMode === 'replace') ta.value = _aiGeneratedPlain;
+            else ta.value = (ta.value ? ta.value + '\n\n' : '') + _aiGeneratedPlain;
+        }
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById('aiModal')).hide();
+}
 </script>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
