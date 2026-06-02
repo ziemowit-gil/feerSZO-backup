@@ -23,11 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'gene
 }
 
 $cron_token = trim(db_one("SELECT value FROM settings WHERE key_='cron_token'")['value'] ?? '');
-$cron_url   = rtrim(trim(APP_URL), '/') . '/cron.php' . ($cron_token ? '?token=' . $cron_token : '');
+$cron_url   = preg_replace('/\s+/', '', rtrim(APP_URL, '/')) . '/cron.php' . ($cron_token ? '?token=' . $cron_token : '');
 
 // Wykryj ścieżkę do PHP i do katalogu aplikacji
-$php_bin  = trim(@shell_exec('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
-$app_path = rtrim(str_replace('\\', '/', realpath(dirname(__DIR__))), '/');
+$php_bin  = preg_replace('/\s+/', '', @shell_exec('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
+$app_path = rtrim(preg_replace('/\s+/', '', str_replace('\\', '/', (string)realpath(dirname(__DIR__)))), '/');
 $log_dir  = $app_path . '/logs';
 
 // Jeden wpis — dispatcher obsługuje wszystko
@@ -119,7 +119,7 @@ $crontab_block = $full_cmd;
       → kliknij <strong>Dodaj zadanie Cron</strong>.
     </div>
 
-    <?php $da_cmd = $php_bin . ' ' . $app_path . '/' . $dispatcher['script']; ?>
+    <?php $da_cmd = preg_replace('/[\r\n\t]+/', '', $php_bin . ' ' . $app_path . '/' . $dispatcher['script']); ?>
 
     <div class="row g-3 mb-3">
       <!-- Pola czasowe -->
