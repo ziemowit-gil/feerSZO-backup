@@ -347,6 +347,20 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 
+<!-- ── Creator Panel link ───────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-3 border-secondary">
+  <div class="card-body py-2 d-flex align-items-center gap-3 small">
+    <i class="bi bi-shield-shaded text-secondary" style="font-size:1.1rem"></i>
+    <div>
+      <span class="fw-semibold">Creator Panel</span> — zarządzanie lokalne bez wymaganego certyfikatu.
+      Działa nawet gdy aplikacja jest zablokowana przez wygasły cert.
+    </div>
+    <a href="<?= APP_URL ?>/creator.php" target="_blank" class="btn btn-sm btn-outline-secondary ms-auto">
+      <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz
+    </a>
+  </div>
+</div>
+
 <!-- ── CLI fallback ─────────────────────────────────────────────────────── -->
 <div class="card shadow-sm border-secondary">
   <div class="card-header fw-semibold py-2 small"><i class="bi bi-terminal me-1"></i>Alternatywnie — przez SSH</div>
