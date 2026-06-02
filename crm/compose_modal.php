@@ -84,7 +84,6 @@ $smtp_ok = (bool)_mail_setting('smtp_host');
 $templates = db_all("SELECT * FROM crm_templates WHERE is_active=1 ORDER BY channel, name");
 $csrf      = csrf_token();
 ?>
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 <style>
 #cm-quill-wrapper .ql-toolbar.ql-snow {
   border:1px solid #E5E7EB;border-bottom:none;border-radius:.375rem .375rem 0 0;
@@ -286,7 +285,6 @@ $csrf      = csrf_token();
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
 (function() {
 'use strict';

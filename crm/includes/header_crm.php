@@ -281,6 +281,9 @@ body {
 .crm-page-subtitle { font-size: .82rem; color: #6B7280; }
 .crm-page-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
 </style>
+<!-- Quill — ładowany globalnie, potrzebny dla modalnego kompozytora -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 </head>
 <body>
 
@@ -314,10 +317,11 @@ body {
  */
 window.openCommModal = function(contactId, channel) {
     channel = channel || 'email';
-    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('crmComposeModal'));
-    var body  = document.getElementById('crmComposeModalBody');
-    var foot  = document.getElementById('crmComposeModalFooter');
-    var title = document.getElementById('crmComposeModalTitle');
+    var modalEl = document.getElementById('crmComposeModal');
+    var modal   = bootstrap.Modal.getOrCreateInstance(modalEl);
+    var body    = document.getElementById('crmComposeModalBody');
+    var foot    = document.getElementById('crmComposeModalFooter');
+    var title   = document.getElementById('crmComposeModalTitle');
 
     // Reset
     body.innerHTML  = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm" role="status"></div><div class="mt-2 small">Ładowanie…</div></div>';
@@ -326,17 +330,34 @@ window.openCommModal = function(contactId, channel) {
 
     modal.show();
 
+    // Pobierz fragment — uruchom JS dopiero gdy modal jest w pełni widoczny (Quill wymaga widocznego kontenera)
+    var _pending_html = null;
+    var _modal_shown  = false;
+
+    function _inject(html) {
+        body.innerHTML = html;
+        body.querySelectorAll('script').forEach(function(old) {
+            var s = document.createElement('script');
+            Array.from(old.attributes).forEach(function(a) { s.setAttribute(a.name, a.value); });
+            s.textContent = old.textContent;
+            old.parentNode.replaceChild(s, old);
+        });
+    }
+
+    modalEl.addEventListener('shown.bs.modal', function _onShown() {
+        modalEl.removeEventListener('shown.bs.modal', _onShown);
+        _modal_shown = true;
+        if (_pending_html !== null) _inject(_pending_html);
+    });
+
     fetch('<?= APP_URL ?>/crm/compose_modal.php?contact_id=' + encodeURIComponent(contactId) + '&channel=' + encodeURIComponent(channel))
         .then(function(r) { return r.text(); })
         .then(function(html) {
-            body.innerHTML = html;
-            // Uruchom skrypty wstrzyknięte w fragment
-            body.querySelectorAll('script').forEach(function(old) {
-                var s = document.createElement('script');
-                Array.from(old.attributes).forEach(function(a) { s.setAttribute(a.name, a.value); });
-                s.textContent = old.textContent;
-                old.parentNode.replaceChild(s, old);
-            });
+            if (_modal_shown) {
+                _inject(html);
+            } else {
+                _pending_html = html; // czekaj na shown.bs.modal
+            }
         })
         .catch(function() {
             body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania formularza.</div>';
@@ -353,7 +374,7 @@ window.openCommModal = function(contactId, channel) {
     <div>
       <div>CRM</div>
       <?php if ($_org_name): ?>
-      <div class="crm-topbar-brand-org"><?= h(mb_substr($_org_name, 0, 24, 'UTF-8')) ?></div>
+      <div class="crm-topbar-brand-org" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="<?= h($_org_name) ?>"><?= h($_org_name) ?></div>
       <?php endif; ?>
     </div>
   </a>

@@ -135,7 +135,7 @@ if ('serviceWorker' in navigator) {
     <div class="pv-brand-icon" aria-hidden="true"><i class="bi bi-person-circle"></i></div>
     <div>
       <div>Panel</div>
-      <?php if ($_pv_org): ?><div class="pv-brand-sub"><?= h(mb_substr($_pv_org,0,22,'UTF-8')) ?></div><?php endif; ?>
+      <?php if ($_pv_org): ?><div class="pv-brand-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px" title="<?= h($_pv_org) ?>"><?= h($_pv_org) ?></div><?php endif; ?>
     </div>
   </a>
   <div class="pv-topbar-bc" aria-hidden="true"><strong><?= h($_pv_title) ?></strong></div>
