@@ -11,3 +11,4 @@ tenants/*/umowy.db
 tenants/*/uploads/
 .env
 *.log
+.install.lock

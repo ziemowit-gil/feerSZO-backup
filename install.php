@@ -5,8 +5,49 @@
 define('INSTALL_MODE', true);
 session_start();
 
+define('INSTALL_LOCK_FILE', __DIR__ . '/.install.lock');
+
 $step      = (int)($_GET['step'] ?? 1);
 $reinstall = !empty($_GET['reinstall']) || !empty($_SESSION['reinstall_mode']);
+
+// ── Blokada instalatora ───────────────────────────────────────────────────────
+if (file_exists(INSTALL_LOCK_FILE) && !$reinstall) {
+    $lock_date = date('d.m.Y H:i', filemtime(INSTALL_LOCK_FILE));
+    $lock_path = INSTALL_LOCK_FILE;
+    ?><!DOCTYPE html><html lang="pl"><head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Instalator zablokowany</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>body{background:#f1f5f9}.wrap{max-width:560px;margin:4rem auto;padding:0 1rem}</style>
+    </head><body><div class="wrap">
+      <div class="text-center mb-4">
+        <div style="width:56px;height:56px;background:#dc2626;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;color:#fff;margin-bottom:.75rem">
+          <i class="bi bi-lock-fill"></i>
+        </div>
+        <h1 style="font-size:1.1rem;font-weight:700;color:#0f172a">Instalator jest zablokowany</h1>
+        <p class="text-muted small">Platforma NGO została już zainstalowana <?= htmlspecialchars($lock_date) ?>.</p>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <p class="small mb-2">Aby uruchomić instalator ponownie (reinstalacja), usuń plik blokady przez terminal SSH:</p>
+          <pre class="p-3 rounded mb-3" style="background:#1e293b;color:#7dd3fc;font-size:.82rem;overflow-x:auto">rm <?= htmlspecialchars($lock_path) ?></pre>
+          <div class="alert alert-warning py-2 small mb-3">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Reinstalacja <strong>wyczyści bazę danych</strong> (poza kluczami API i konfiguracji). Upewnij się że masz backup.
+          </div>
+          <div class="d-flex gap-2">
+            <a href="index.php" class="btn btn-primary btn-sm">Przejdź do systemu</a>
+            <a href="upgrade.php" class="btn btn-outline-secondary btn-sm">Panel aktualizacji</a>
+          </div>
+        </div>
+      </div>
+      <p class="text-center text-muted mt-3" style="font-size:.72rem">
+        Plik blokady: <code><?= htmlspecialchars($lock_path) ?></code>
+      </p>
+    </div></body></html>
+    <?php exit;
+}
 $errors    = [];
 
 // Tryb reinstalacji — załaduj config żeby wyciągnąć klucze
@@ -50,7 +91,11 @@ if (file_exists(__DIR__ . '/config.php')) {
     }
 }
 
-if ($reinstall) $_SESSION['reinstall_mode'] = true;
+if ($reinstall) {
+    $_SESSION['reinstall_mode'] = true;
+    // Usuń blokadę na czas reinstalacji
+    if (file_exists(INSTALL_LOCK_FILE)) @unlink(INSTALL_LOCK_FILE);
+}
 
 // ── KROK 2: Baza danych ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
@@ -245,6 +290,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
             foreach ($modules as $k => $v) {
                 $pdo->prepare($upsert)->execute([$k, $v]);
             }
+
+            // Utwórz plik blokady
+            file_put_contents(INSTALL_LOCK_FILE, date('Y-m-d H:i:s'));
 
             header('Location: install.php?step=8'); exit;
 
