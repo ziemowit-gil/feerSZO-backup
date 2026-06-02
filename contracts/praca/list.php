@@ -35,6 +35,8 @@ $rows  = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY created_at DESC 
 $statuses = ['obowiązująca' => 'Obowiązująca', 'rozwiązana' => 'Rozwiązana', 'wygasła' => 'Wygasła'];
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
+echo contract_preview_notice('praca');
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">

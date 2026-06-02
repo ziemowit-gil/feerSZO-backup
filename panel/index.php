@@ -323,16 +323,24 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
 </a>
 
 <?php
-// ── Zaproszenie do katalogu (jednorazowe po zalogowaniu) ──────────────────────
-// Warunek: wolontariusz ma telefon w pierwszej umowie + nie pokazano w tej sesji
+// ── Zachęta do uzupełnienia profilu w katalogu ────────────────────────────────
+// Pokazuje się gdy profil jest niepełny (brak bio lub zdjęcia) — raz na sesję
 auth_start();
 $_show_dir_invite = false;
-if ($_is_volunteer_only
-    && !empty($_active_row['telefon'])
-    && empty($_SESSION['_panel_dir_invited'])
-) {
-    $_show_dir_invite = true;
-    $_SESSION['_panel_dir_invited'] = true; // jednorazowe — nie pokazuj ponownie w tej sesji
+if (!empty($_SESSION['_panel_dir_invited'])) {
+    $_show_dir_invite = false; // już pokazano w tej sesji
+} else {
+    // Sprawdź czy profil jest wypełniony
+    $_dir_profile = null;
+    try {
+        $_dir_profile = db_one("SELECT bio, avatar_file FROM user_profiles WHERE user_id=?", [(int)$user['id']]);
+    } catch (\Throwable $e) {}
+    $_profile_empty = empty($_dir_profile['bio']) && empty($_dir_profile['avatar_file']);
+
+    if ($_profile_empty) {
+        $_show_dir_invite = true;
+        $_SESSION['_panel_dir_invited'] = true;
+    }
 }
 ?>
 
@@ -343,18 +351,18 @@ if ($_is_volunteer_only
       <i class="bi bi-people-fill"></i>
     </div>
     <div class="dir-invite-content">
-      <div class="dir-invite-title">Poznaj innych współpracowników!</div>
+      <div class="dir-invite-title">Uzupełnij swój profil w katalogu 👤</div>
       <div class="dir-invite-sub">
-        Twój numer telefonu jest w systemie — możesz teraz przejrzeć katalog wolontariuszy
-        i pracowników organizacji. Znajdziesz tam kontakty do osób, z którymi współpracujesz.
+        Twój profil w katalogu organizacji jest niepełny. Dodaj zdjęcie, krótki opis i umiejętności —
+        inni współpracownicy łatwiej Cię znajdą, a koordynatorzy będą mogli lepiej dopasować zadania.
       </div>
     </div>
     <div class="dir-invite-actions">
-      <a href="<?= APP_URL ?>/directory/index.php"
+      <a href="<?= APP_URL ?>/directory/profile_edit.php"
          class="dir-invite-btn"
-         aria-label="Przejdź do katalogu współpracowników">
-        <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>
-        Przejdź do katalogu
+         aria-label="Uzupełnij swój profil w katalogu">
+        <i class="bi bi-person-badge me-1" aria-hidden="true"></i>
+        Uzupełnij profil
       </a>
       <button type="button"
               class="dir-invite-dismiss"

@@ -7,6 +7,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_praca', 'Umowy o pracę');
+
+// Moduł w przygotowaniu — blokuj dodawanie/edycję
+require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
+if (contract_is_preview('praca') && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    flash_set('warning', 'Moduł praca jest w przygotowaniu. Dodawanie i edycja są tymczasowo wyłączone.');
+    header('Location: list.php'); exit;
+}
 if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/praca/add.php');
 $PAGE_TITLE = 'Nowa umowa o pracę';
 $TYPE  = 'praca';

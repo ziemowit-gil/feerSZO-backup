@@ -7,6 +7,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_role('admin','editor');
+
+// Moduł w przygotowaniu — blokuj dodawanie/edycję
+require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
+if (contract_is_preview('dzielo') && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    flash_set('warning', 'Moduł dzielo jest w przygotowaniu. Dodawanie i edycja są tymczasowo wyłączone.');
+    header('Location: list.php'); exit;
+}
 $TYPE  = 'dzielo';
 $TABLE = 'umowy_dzielo';
 $id = intval($_GET['id'] ?? 0);

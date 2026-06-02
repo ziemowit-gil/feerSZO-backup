@@ -76,6 +76,8 @@ $_badge_obieg += count(array_filter($edit_requests, fn($r) => $r['status'] === '
 $_badge_docs = count(array_filter($cert_requests,   fn($r) => $r['status'] === 'oczekuje'));
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
+echo contract_preview_notice('dzielo');
 
 auth_start();
 $_m365_creds = null;

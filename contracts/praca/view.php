@@ -71,6 +71,8 @@ if (!empty($row['bhp_data_waznosci'])) {
 }
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
+echo contract_preview_notice('praca');
 ?>
 
 <?php

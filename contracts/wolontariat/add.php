@@ -578,6 +578,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $log_note .= ' [Umowa techniczna — współpraca przed 01.06.2026]';
         }
         log_contract_action($TYPE, $id, current_user()['id'], 'create', $log_note);
+        try { require_once dirname(dirname(__DIR__)) . '/includes/webhooks.php'; webhook_fire('contract.created', ['id'=>$id,'type'=>'wolontariat','numer'=>$data['numer_umowy']??'','email'=>$data['email']??'']); } catch(\Throwable $e) {}
 
         // Auto-dodaj wolontariusza do CRM
         try {
@@ -728,6 +729,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('success', 'Porozumienie wolontariackie zostało dodane.');
         }
+        // ── Zachęta do uzupełnienia profilu w katalogu ────────────────────────
+        if (!empty($data['email']) && filter_var($data['email'], FILTER_VALIDATE_EMAIL) && !$is_technical) {
+            try {
+                $vol_email  = $data['email'];
+                $vol_name   = $data['imie_nazwisko'] ?? '';
+                $org        = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+                $profile_url = APP_URL . '/directory/profile_edit.php';
+                $dir_url     = APP_URL . '/directory/';
+                $body = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#4338CA,#6366F1);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">📋 Uzupełnij swój profil w katalogu — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$vol_name}</strong>!</p>
+  <p>Twoja umowa wolontariacka jest już w systemie. Teraz zapraszamy Cię do wypełnienia
+     <strong>profilu w katalogu współpracowników</strong> organizacji {$org}.</p>
+  <div style="background:#EEF2FF;border-left:4px solid #6366F1;border-radius:4px;padding:14px 18px;margin:16px 0;font-size:.9em">
+    <strong>Co zyskasz uzupełniając profil?</strong>
+    <ul style="margin:.5rem 0 0;padding-left:1.25rem;line-height:1.7">
+      <li>Inni współpracownicy łatwiej Cię znajdą</li>
+      <li>Możesz pokazać swoje umiejętności i zainteresowania</li>
+      <li>Twoje zdjęcie i kontakt pojawią się w katalogu organizacji</li>
+      <li>Ułatwiasz koordynatorom przypisywanie zadań</li>
+    </ul>
+  </div>
+  <p style="font-size:.9em">To zajmie dosłownie 2 minuty — wystarczy imię, krótki opis i zdjęcie:</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{$profile_url}" style="background:#6366F1;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;margin-right:8px">
+      Uzupełnij profil →
+    </a>
+    <a href="{$dir_url}" style="background:#f8f9fa;color:#374151;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:500;border:1px solid #dee2e6">
+      Zobacz katalog
+    </a>
+  </div>
+  <p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Możesz pominąć ten krok — profil możesz uzupełnić w dowolnym momencie po zalogowaniu się do portalu.
+  </p>
+</div></body></html>
+HTML;
+                require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+                mail_queue_add($vol_email, $vol_name, "Uzupełnij swój profil w katalogu — {$org}", $body);
+            } catch (\Throwable $e) {}
+        }
+
         $show = $recovery_plain !== null ? '&show_recovery=1' : '';
         header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&onboard=1{$show}");
         exit;
