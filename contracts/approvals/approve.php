@@ -62,10 +62,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_GET['token'])) {
                     mail_queue_add($vol['email'], $vol['imie_nazwisko'] ?? '', "Twój dostęp do Canva Pro jest gotowy — {$org}", $body);
                 } catch (\Throwable $e) {}
             }
-            flash_set('success', 'Prośba o Canva zaakceptowana. E-mail wysłany do wolontariusza.');
+            // Powiadomienie w systemie dla wolontariusza
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/notifications.php';
+                $vol_user = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$vol['email'] ?? '']);
+                if ($vol_user) {
+                    notif_create(
+                        (int)$vol_user['id'],
+                        'approval',
+                        '🎨 Dostęp do Canva zaakceptowany!',
+                        'Twoja prośba o Canva Pro została zaakceptowana. Sprawdź skrzynkę — zaproszenie od Canva już leci.',
+                        APP_URL . '/panel/index.php'
+                    );
+                }
+            } catch (\Throwable $e) {}
+            flash_set('success', 'Prośba o Canva zaakceptowana. Powiadomienie i e-mail wysłane do wolontariusza.');
         } else {
             db()->prepare("UPDATE umowy_wolontariat SET canva_access_requested_at=NULL WHERE id=?")->execute([$appr['contract_id']]);
-            flash_set('warning', 'Prośba o Canva odrzucona.');
+            // Powiadomienie o odrzuceniu
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/notifications.php';
+                $vol2 = db_one("SELECT email FROM umowy_wolontariat WHERE id=?", [$appr['contract_id']]);
+                $vol_user2 = $vol2 ? db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$vol2['email']]) : null;
+                if ($vol_user2) {
+                    notif_create(
+                        (int)$vol_user2['id'],
+                        'system',
+                        '🎨 Prośba o Canva — informacja',
+                        'Twoja prośba o dostęp do Canva Pro nie została tym razem zatwierdzona. Skontaktuj się z opiekunem po szczegóły.',
+                        APP_URL . '/panel/index.php'
+                    );
+                }
+            } catch (\Throwable $e) {}
+            flash_set('warning', 'Prośba o Canva odrzucona. Wolontariusz otrzymał powiadomienie.');
         }
         header('Location: ' . APP_URL . '/contracts/wolontariat/view.php?id=' . (int)$appr['contract_id'] . '#tab-m365-anchor');
         exit;

@@ -111,8 +111,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_request_canva'])) {
             // Złóż wniosek w systemie Zatwierdzeń (type=canva_request)
             try {
                 require_once dirname(__DIR__) . '/includes/approval.php';
+                require_once dirname(__DIR__) . '/includes/notifications.php';
                 submit_for_approval('canva_request', $contract_id, (int)$user['id'],
                     '🎨 Canva: ' . ($row_c['imie_nazwisko'] ?? $row_c['numer_umowy'] ?? ''));
+                // Powiadom adminów przez system powiadomień
+                $admins = db_all("SELECT id FROM users WHERE role='admin' AND is_active=1");
+                $view_url = APP_URL . '/contracts/approvals/index.php';
+                foreach ($admins as $adm) {
+                    notif_create(
+                        (int)$adm['id'],
+                        'approval',
+                        '🎨 Prośba o Canva: ' . ($row_c['imie_nazwisko'] ?? ''),
+                        'Wolontariusz prosi o dostęp do przestrzeni Canva Pro. Przejdź do Zatwierdzeń, aby podjąć decyzję.',
+                        $view_url
+                    );
+                }
             } catch (\Throwable $e) {}
             flash_set('success', 'Prośba o Canva złożona! Pojawi się w Zatwierdzeniach — administrator wkrótce podejmie decyzję.');
         } elseif ($row_c && ($row_c['canva_access'] || $row_c['canva_access_requested_at'])) {
