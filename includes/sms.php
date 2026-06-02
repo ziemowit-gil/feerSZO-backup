@@ -114,13 +114,19 @@ function sms_find_user_by_phone(string $phone): ?array {
 
 /** Pomocnik: wysyła żądanie HTTP i zwraca [body, http_code]. */
 function _sms_http(string $url, string $method, array $headers, string $body = ''): array {
-    $ctx = stream_context_create(['http' => [
-        'method'        => $method,
-        'header'        => implode("\r\n", $headers),
-        'content'       => $body,
-        'ignore_errors' => true,
-        'timeout'       => 15,
-    ]]);
+    $ctx = stream_context_create([
+        'http' => [
+            'method'        => $method,
+            'header'        => implode("\r\n", $headers),
+            'content'       => $body,
+            'ignore_errors' => true,
+            'timeout'       => 15,
+        ],
+        'ssl' => [
+            'verify_peer'      => false,
+            'verify_peer_name' => false,
+        ],
+    ]);
     $resp = @file_get_contents($url, false, $ctx);
     if ($resp === false) {
         $err = error_get_last();
@@ -138,25 +144,27 @@ function _sms_http(string $url, string $method, array $headers, string $body = '
 }
 
 function _sms_send_smsapi(string $phone, string $message): void {
-    $token  = sms_setting('sms_api_token');
+    $login  = sms_setting('sms_api_login');
+    $pass   = sms_setting('sms_api_password');
     $sender = sms_setting('sms_sender_name') ?: 'INFO';
 
-    if (!$token) {
-        throw new RuntimeException('Brak tokenu API smsapi.pl. Skonfiguruj w: Administracja → Ustawienia SMS.');
+    if (!$login || !$pass) {
+        throw new RuntimeException('Brak loginu lub hasła smsapi.pl. Skonfiguruj w: Administracja → Ustawienia SMS.');
     }
 
     $body = http_build_query([
-        'to'      => $phone,
-        'message' => $message,
-        'from'    => $sender,
-        'format'  => 'json',
+        'username' => $login,
+        'password' => md5($pass),
+        'to'       => $phone,
+        'message'  => $message,
+        'from'     => $sender,
+        'format'   => 'json',
     ]);
 
     [$resp, $code] = _sms_http(
-        'https://api.smsapi.com/sms.do',
+        'https://ssl.smsapi.pl/sms.do',
         'POST',
         [
-            'Authorization: Bearer ' . $token,
             'Content-Type: application/x-www-form-urlencoded',
             'Content-Length: ' . strlen($body),
         ],
