@@ -137,7 +137,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
 if ($step === 4 && $reinstall && !empty($preserved['m365_tenant_id']) && empty($_GET['ms_overwrite'])) {
     header('Location: install.php?step=5'); exit;
 }
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4) {
+
+// Start PKCE — "Połącz przez Microsoft" (1-click)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4 && !empty($_POST['ms_connect_pkce'])) {
+    $client_id = trim($_POST['client_id'] ?? '');
+    if (!$client_id) { $errors[] = 'Podaj Client ID z Azure App Registration.'; }
+    else {
+        $redirect_uri = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
+                      . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/install_m365_callback.php';
+        $verifier  = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+        $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
+        $state     = bin2hex(random_bytes(16));
+
+        $_SESSION['m365_install_pkce_verifier']  = $verifier;
+        $_SESSION['m365_install_pkce_state']     = $state;
+        $_SESSION['m365_install_pkce_client_id'] = $client_id;
+        $_SESSION['reinstall_mode']              = $reinstall;
+
+        $params = http_build_query([
+            'client_id'             => $client_id,
+            'response_type'         => 'code',
+            'redirect_uri'          => $redirect_uri,
+            'response_mode'         => 'query',
+            'scope'                 => 'openid profile email offline_access Directory.Read.All Organization.Read.All',
+            'state'                 => $state,
+            'code_challenge'        => $challenge,
+            'code_challenge_method' => 'S256',
+            'prompt'                => 'select_account',
+        ]);
+        header('Location: https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' . $params);
+        exit;
+    }
+}
+
+// Ręczny formularz (stary sposób)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4 && empty($_POST['ms_connect_pkce'])) {
     $_SESSION['install_ms'] = [
         'enabled'       => !empty($_POST['ms_enabled']),
         'tenant_id'     => trim($_POST['tenant_id']     ?? ''),
@@ -549,33 +583,71 @@ body { background: #f1f5f9; }
   </div>
 
   <?php else: ?>
-  <form method="post">
-    <div class="form-check form-switch mb-3">
-      <input class="form-check-input" type="checkbox" name="ms_enabled" id="ms_en"
-             onchange="document.getElementById('ms_f').style.display=this.checked?'':'none'"
-             <?= ($ms_existing || !empty($_SESSION['install_ms']['enabled'])) ? 'checked' : '' ?>>
-      <label class="form-check-label fw-semibold" for="ms_en">Włącz logowanie przez Microsoft 365</label>
-    </div>
-    <div id="ms_f" style="display:<?= ($ms_existing || !empty($_SESSION['install_ms']['enabled'])) ? '' : 'none' ?>">
-      <div class="alert alert-light border small p-2 mb-3">
-        <strong>URI przekierowania</strong> do wklejenia w Azure AD:<br>
-        <code style="font-size:.78rem;word-break:break-all"><?= htmlspecialchars($redirect_uri) ?></code>
+  <?php if (!empty($_GET['ms_ok']) && !empty($_SESSION['install_ms']['autodetected'])): ?>
+  <div class="alert alert-success py-2 small mb-3">
+    <i class="bi bi-check-circle me-1"></i>
+    <strong>Połączono!</strong> Tenant ID wykryty automatycznie.
+    <?php if (!empty($_SESSION['install_ms']['org_name'])): ?>· <?= htmlspecialchars($_SESSION['install_ms']['org_name']) ?><?php endif; ?>
+    <a href="install.php?step=5" class="btn btn-success btn-sm ms-2">Dalej →</a>
+  </div>
+  <?php endif; ?>
+
+  <!-- 1-click: tylko Client ID -->
+  <div class="card border-primary mb-3">
+    <div class="card-body">
+      <div class="fw-semibold small mb-1">
+        <i class="bi bi-microsoft text-primary me-1"></i>Połącz przez Microsoft — automatyczna konfiguracja
       </div>
-      <div class="mb-2"><label class="form-label small fw-semibold">Tenant ID</label>
-        <input name="tenant_id" class="form-control form-control-sm font-monospace"
-               value="<?= htmlspecialchars($_SESSION['install_ms']['tenant_id'] ?? '') ?>"
-               placeholder="<?= $ms_existing ? '(zostaw puste aby zachować istniejący)' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' ?>"></div>
-      <div class="mb-2"><label class="form-label small fw-semibold">Client ID</label>
-        <input name="client_id" class="form-control form-control-sm font-monospace"
+      <p class="text-muted mb-3" style="font-size:.78rem">
+        Podaj tylko <strong>Client ID</strong> z Azure App Registration — Tenant ID i dane organizacji zostaną wykryte automatycznie po zalogowaniu. Nie potrzebujesz Client Secret.
+      </p>
+      <?php
+      $install_redirect_uri = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
+                            . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/install_m365_callback.php';
+      ?>
+      <div class="alert alert-light border small p-2 mb-3">
+        <strong>1.</strong> W Azure Portal → App registrations → Twoja aplikacja → Authentication → dodaj URI przekierowania:<br>
+        <code class="user-select-all" style="font-size:.75rem;word-break:break-all"><?= htmlspecialchars($install_redirect_uri) ?></code>
+      </div>
+      <form method="post" class="d-flex gap-2">
+        <input type="hidden" name="ms_connect_pkce" value="1">
+        <input type="text" name="client_id" class="form-control form-control-sm font-monospace flex-grow-1"
                value="<?= htmlspecialchars($_SESSION['install_ms']['client_id'] ?? '') ?>"
-               placeholder="<?= $ms_existing ? '(zostaw puste aby zachować istniejący)' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' ?>"></div>
-      <div class="mb-3"><label class="form-label small fw-semibold">Client Secret
-        <?php if ($ms_existing): ?><span class="text-muted fw-normal">(zostaw puste aby zachować istniejący)</span><?php endif; ?></label>
-        <input name="client_secret" class="form-control form-control-sm" type="password"></div>
+               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (Client ID z Azure)" required>
+        <button type="submit" class="btn btn-primary btn-sm flex-shrink-0">
+          <i class="bi bi-microsoft me-1"></i>Zaloguj się
+        </button>
+      </form>
     </div>
-    <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
-    <a href="install.php?step=5" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później</a>
-  </form>
+  </div>
+
+  <!-- Ręczna konfiguracja — zwinięta -->
+  <details class="mb-3">
+    <summary class="small text-muted" style="cursor:pointer">
+      Mam Tenant ID i Client Secret — wpisz ręcznie
+    </summary>
+    <div class="pt-3">
+      <form method="post">
+        <div class="mb-2"><label class="form-label small fw-semibold">Tenant ID</label>
+          <input name="tenant_id" class="form-control form-control-sm font-monospace"
+                 value="<?= htmlspecialchars($_SESSION['install_ms']['tenant_id'] ?? '') ?>"
+                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Client ID</label>
+          <input name="client_id" class="form-control form-control-sm font-monospace"
+                 value="<?= htmlspecialchars($_SESSION['install_ms']['client_id'] ?? '') ?>"
+                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+        <div class="mb-3"><label class="form-label small fw-semibold">Client Secret</label>
+          <input name="client_secret" class="form-control form-control-sm" type="password"
+                 placeholder="<?= $ms_existing ? '(zostaw puste aby zachować)' : '' ?>"></div>
+        <input type="hidden" name="ms_enabled" value="1">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Zapisz ręcznie i dalej</button>
+      </form>
+    </div>
+  </details>
+
+  <a href="install.php?step=5" class="btn btn-link w-100 text-muted" style="font-size:.82rem">
+    Pomiń — skonfiguruj Microsoft 365 później w panelu admina
+  </a>
   <?php endif; ?>
 
   <?php // ── KROK 5: E-mail
