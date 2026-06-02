@@ -73,48 +73,73 @@ include dirname(__DIR__) . '/includes/header.php';
   </ol>
 </nav>
 
-<div class="d-flex align-items-center gap-2 mb-3">
-  <h4 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Konfiguracja zadań CRON</h4>
-</div>
-
 <?php
-$full_cmd = sprintf('* * * * * %s %s/%s >> %s/%s 2>&1',
+$full_cmd      = sprintf('* * * * * %s %s/%s >> %s/%s 2>&1',
     $php_bin, $app_path, $dispatcher['script'], $app_path, $dispatcher['log']);
-$crontab_block = "# feerSZO — CRON\n# Dispatcher uruchamia wszystkie zadania wewnętrznie\n" . $full_cmd . "\n";
+$mkdir_cmd     = 'mkdir -p ' . $app_path . '/logs';
+$crontab_block = $full_cmd;
 ?>
 
-<!-- Konfiguracja serwera -->
-<div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold py-2"><i class="bi bi-server me-1"></i>Ścieżki serwera</div>
-  <div class="card-body py-2">
-    <div class="row g-2 small">
-      <div class="col-sm-3 text-muted">PHP</div>
-      <div class="col-sm-9"><code><?= h($php_bin) ?></code></div>
-      <div class="col-sm-3 text-muted">Aplikacja</div>
-      <div class="col-sm-9"><code><?= h($app_path) ?></code></div>
-      <div class="col-sm-3 text-muted">Logi</div>
-      <div class="col-sm-9">
-        <code><?= h($log_dir) ?></code>
-        <?php if (!is_dir($log_dir)): ?>
-        <span class="badge bg-warning text-dark ms-2">utwórz: <code>mkdir -p <?= h($log_dir) ?></code></span>
-        <?php else: ?>
-        <span class="badge bg-success ms-2">OK</span>
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
+<div class="d-flex align-items-center gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Konfiguracja CRON</h4>
 </div>
 
-<!-- Polecenie crontab -->
-<div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold py-2 d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-terminal me-1"></i>Wpis do crontab <code style="font-size:.78rem">crontab -e</code></span>
-    <button class="btn btn-sm btn-outline-secondary" onclick="copyBlock()">
+<!-- GŁÓWNE polecenie — duże, nie można przegapić -->
+<div class="card border-success shadow mb-4">
+  <div class="card-header bg-success text-white fw-bold py-2 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-1-circle-fill me-2"></i>Dodaj ten jeden wpis do crontab — uruchomi wszystkie zadania</span>
+    <button class="btn btn-sm btn-light" onclick="copyBlock()">
       <i class="bi bi-clipboard me-1"></i>Kopiuj
     </button>
   </div>
   <div class="card-body p-0">
-    <pre id="crontab-block" class="mb-0 p-3" style="background:#0f172a;color:#e2e8f0;font-size:.82rem;border-radius:0 0 .5rem .5rem;overflow-x:auto;line-height:1.7"><?= h($crontab_block) ?></pre>
+    <pre id="crontab-block" class="mb-0 p-4" style="background:#022c22;color:#6ee7b7;font-size:.95rem;border-radius:0 0 .5rem .5rem;overflow-x:auto;line-height:1.8;white-space:pre-wrap;word-break:break-all"><?= h($full_cmd) ?></pre>
+  </div>
+  <div class="card-footer bg-success bg-opacity-10 py-2 small">
+    <strong>Jak dodać:</strong>
+    w terminalu wpisz <code>crontab -e</code>, wklej powyższą linię, zapisz (<kbd>Ctrl+O</kbd> → <kbd>Enter</kbd> → <kbd>Ctrl+X</kbd> w nano, lub <kbd>:wq</kbd> w vim).
+  </div>
+</div>
+
+<!-- Krok 0: katalog logów -->
+<?php if (!is_dir($log_dir)): ?>
+<div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
+  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+  <div>
+    <strong>Najpierw utwórz katalog logów:</strong>
+    <div class="mt-1">
+      <pre class="mb-0 d-inline-block px-3 py-1 rounded" style="background:#1e293b;color:#fde68a;font-size:.85rem"><?= h($mkdir_cmd) ?></pre>
+      <button class="btn btn-sm btn-outline-warning ms-2" onclick="navigator.clipboard.writeText(<?= json_encode($mkdir_cmd) ?>)">
+        <i class="bi bi-clipboard"></i> Kopiuj
+      </button>
+    </div>
+  </div>
+</div>
+<?php else: ?>
+<div class="alert alert-success py-2 small mb-3">
+  <i class="bi bi-check-circle me-1"></i>Katalog logów istnieje: <code><?= h($log_dir) ?></code>
+</div>
+<?php endif; ?>
+
+<!-- Szczegóły techniczne (zwinięte) -->
+<div class="mb-3">
+  <button class="btn btn-outline-secondary btn-sm" type="button"
+          data-bs-toggle="collapse" data-bs-target="#techDetails">
+    <i class="bi bi-chevron-down me-1"></i>Szczegóły techniczne (ścieżki)
+  </button>
+  <div class="collapse mt-2" id="techDetails">
+    <div class="card card-body py-2 small">
+      <div class="row g-2">
+        <div class="col-sm-3 text-muted">PHP binary</div>
+        <div class="col-sm-9"><code><?= h($php_bin) ?></code></div>
+        <div class="col-sm-3 text-muted">Aplikacja</div>
+        <div class="col-sm-9"><code><?= h($app_path) ?></code></div>
+        <div class="col-sm-3 text-muted">Skrypt</div>
+        <div class="col-sm-9"><code><?= h($app_path . '/' . $dispatcher['script']) ?></code></div>
+        <div class="col-sm-3 text-muted">Log</div>
+        <div class="col-sm-9"><code><?= h($app_path . '/' . $dispatcher['log']) ?></code></div>
+      </div>
+    </div>
   </div>
 </div>
 
