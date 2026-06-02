@@ -85,7 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
     }
 }
 
-// ── KROK 4: Microsoft OAuth (opcjonalne) ─────────────────────────────────────
+// ── KROK 4: Microsoft OAuth — auto-skip jeśli klucze zachowane ──────────────
+if ($step === 4 && $reinstall && !empty($preserved['m365_tenant_id']) && empty($_GET['ms_overwrite'])) {
+    header('Location: install.php?step=5'); exit;
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4) {
     $_SESSION['install_ms'] = [
         'enabled'       => !empty($_POST['ms_enabled']),
@@ -96,7 +99,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4) {
     header('Location: install.php?step=5'); exit;
 }
 
-// ── KROK 5: E-mail ───────────────────────────────────────────────────────────
+// ── KROK 5: E-mail — auto-skip jeśli klucze zachowane ───────────────────────
+$_mail_preserved = !empty($preserved['smtp_host']) || !empty($preserved['m365_send_from_email']);
+if ($step === 5 && $reinstall && $_mail_preserved && empty($_GET['mail_overwrite'])) {
+    header('Location: install.php?step=6'); exit;
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 5) {
     $_SESSION['install_mail'] = [
         'type'       => in_array($_POST['mail_type'] ?? '', ['smtp','m365','php'], true) ? $_POST['mail_type'] : 'php',
@@ -158,6 +165,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
             // Admin
             $pdo->prepare("INSERT INTO users (name,email,password,role,is_active) VALUES (?,?,?,'admin',1)")
                 ->execute([$admin_name, $admin_email, password_hash($admin_pass, PASSWORD_BCRYPT)]);
+
+            // Konto serwisowe — losowe hasło, bez ujawniania
+            $serwis_exists = $pdo->prepare("SELECT id FROM users WHERE email='serwis@local'")->execute() && $pdo->query("SELECT id FROM users WHERE email='serwis@local'")->fetch();
+            if (!$serwis_exists) {
+                $pdo->prepare("INSERT INTO users (name,email,password,role,is_active) VALUES ('Konto serwisowe','serwis@local',?,'admin',0)")
+                    ->execute([password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT)]);
+            }
 
             // Org settings
             $upsert = $db['db_type'] === 'sqlite'

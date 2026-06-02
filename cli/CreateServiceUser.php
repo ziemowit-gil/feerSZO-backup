@@ -30,28 +30,20 @@ if (file_exists($lockFile)) {
     die("Instalacja została już zakończona (wykryto .INSTALL_COMPLETE). Skrypt zablokowany.\n");
 }
 
-$isCli = (php_sapi_name() === 'cli');
-$message = "";
-
-// Obsługa CLI - interaktywne potwierdzenie
-if ($isCli) {
-    echo "--- SERVICE ACCOUNT CREATE ---\n";
-    echo "Działanie: Utworzenie lub aktualizacja konta serwisowego.\n";
-    echo "Dane: serwis@local / hasło: serwis / rola: admin\n";
-    echo "Czy chcesz kontynuować? (t/n): ";
-    $handle = fopen("php://stdin", "r");
-    $line = fgets($handle);
-    if (trim(strtolower($line)) !== 't') {
-        echo "Anulowano.\n";
-        exit;
-    }
+// Tylko CLI
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    exit('Dostęp tylko z CLI.');
 }
 
+$isCli = true;
+$message = "";
+
 // Logika zapisu do bazy
-if (($_SERVER['REQUEST_METHOD'] === 'POST') || $isCli) {
+if ($isCli) {
     $name     = 'Konto serwisowe';
     $email    = 'serwis@local';
-    $password = 'serwis';
+    $password = bin2hex(random_bytes(12)); // losowe hasło — nie 'serwis'
     $role     = 'admin';
     $hash     = password_hash($password, PASSWORD_BCRYPT);
 
@@ -76,30 +68,5 @@ if (($_SERVER['REQUEST_METHOD'] === 'POST') || $isCli) {
     }
 }
 
-if ($isCli) {
-    echo $message . "\n";
-    exit;
-}
-?>
-
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <title>ServiceAccountCreate</title>
-</head>
-<body class="bg-light p-5">
-    <div class="container card p-4 shadow-sm" style="max-width: 400px;">
-        <h4 class="mb-4">ServiceAccountCreate</h4>
-        <?php if ($message): ?>
-            <div class="alert alert-info"><?= htmlspecialchars($message) ?></div>
-        <?php else: ?>
-            <p>Zalecane jest uruchomienie z CLI. Jeśli wolisz, kliknij poniżej:</p>
-            <form method="POST">
-                <button type="submit" class="btn btn-primary w-100">Utwórz konto serwisowe</button>
-            </form>
-        <?php endif; ?>
-    </div>
-</body>
-</html>
+echo $message . "\n";
+exit;
