@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#1D4ED8"/>
+  <!-- Heart icon -->
+  <path d="M96 140
+    C96 140 44 104 44 68
+    C44 50 58 38 72 38
+    C82 38 90 44 96 52
+    C102 44 110 38 120 38
+    C134 38 148 50 148 68
+    C148 104 96 140 96 140Z"
+    fill="#ffffff"/>
+</svg>
