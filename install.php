@@ -1,153 +1,145 @@
 <?php
 /**
- * Kreator instalacji — Rejestr Umów Fundacji
+ * install.php — Kreator instalacji Platformy NGO
  */
 define('INSTALL_MODE', true);
 session_start();
 
-$step = $_GET['step'] ?? 1;
+$step   = (int)($_GET['step'] ?? 1);
 $errors = [];
-$success = '';
 
-// Sprawdź czy już zainstalowano
+// Przekieruj jeśli już zainstalowane
 if (file_exists(__DIR__ . '/config.php') && $step < 5) {
     require_once __DIR__ . '/config.php';
     if (defined('APP_INSTALLED') && APP_INSTALLED) {
-        header('Location: index.php');
-        exit;
+        header('Location: index.php'); exit;
     }
 }
 
-// ─── KROK 2: Zapis konfiguracji DB ─────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 2) {
-    $db_type    = $_POST['db_type'] ?? 'sqlite';
-    $db_host    = trim($_POST['db_host'] ?? 'localhost');
-    $db_name    = trim($_POST['db_name'] ?? 'umowy');
-    $db_user    = trim($_POST['db_user'] ?? '');
-    $db_pass    = $_POST['db_pass'] ?? '';
-    $db_port    = intval($_POST['db_port'] ?? 3306);
-
-    // Test połączenia
+// ── KROK 2: Baza danych ───────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
+    $db_type = $_POST['db_type'] ?? 'sqlite';
+    $db_host = trim($_POST['db_host'] ?? 'localhost');
+    $db_name = trim($_POST['db_name'] ?? 'umowy');
+    $db_user = trim($_POST['db_user'] ?? '');
+    $db_pass = $_POST['db_pass'] ?? '';
+    $db_port = (int)($_POST['db_port'] ?? 3306);
     try {
         if ($db_type === 'sqlite') {
-            $pdo = new PDO('sqlite:' . __DIR__ . '/umowy.db');
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            new PDO('sqlite:' . __DIR__ . '/umowy.db');
         } else {
-            $dsn = "mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4";
-            $pdo = new PDO($dsn, $db_user, $db_pass);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            new PDO("mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4", $db_user, $db_pass);
         }
         $_SESSION['install_db'] = compact('db_type','db_host','db_name','db_user','db_pass','db_port');
-        header('Location: install.php?step=3');
-        exit;
+        header('Location: install.php?step=3'); exit;
     } catch (PDOException $e) {
-        $errors[] = 'Błąd połączenia z bazą: ' . $e->getMessage();
+        $errors[] = 'Błąd połączenia: ' . $e->getMessage();
     }
 }
 
-// ─── KROK 3: Konfiguracja Microsoft OAuth ──────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 3) {
-    $_SESSION['install_ms'] = [
-        'tenant_id'     => trim($_POST['tenant_id'] ?? ''),
-        'client_id'     => trim($_POST['client_id'] ?? ''),
-        'client_secret' => trim($_POST['client_secret'] ?? ''),
-        'enabled'       => !empty($_POST['ms_enabled']),
-    ];
-    header('Location: install.php?step=4');
-    exit;
+// ── KROK 3: Dane organizacji ──────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
+    $org_name = trim($_POST['org_name'] ?? '');
+    $org_krs  = preg_replace('/\D/', '', $_POST['org_krs'] ?? '');
+    if (!$org_name) {
+        $errors[] = 'Podaj pełną nazwę organizacji.';
+    } else {
+        $_SESSION['install_org'] = compact('org_name','org_krs');
+        header('Location: install.php?step=4'); exit;
+    }
 }
 
-// ─── KROK 4: Konto administratora ──────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 4) {
-    $admin_name  = trim($_POST['admin_name'] ?? '');
-    $admin_email = trim($_POST['admin_email'] ?? '');
-    $admin_pass  = $_POST['admin_pass'] ?? '';
-    $admin_pass2 = $_POST['admin_pass2'] ?? '';
-    $org_name    = trim($_POST['org_name'] ?? 'Fundacja');
+// ── KROK 4: Microsoft OAuth (opcjonalne) ─────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4) {
+    $_SESSION['install_ms'] = [
+        'enabled'       => !empty($_POST['ms_enabled']),
+        'tenant_id'     => trim($_POST['tenant_id']     ?? ''),
+        'client_id'     => trim($_POST['client_id']     ?? ''),
+        'client_secret' => trim($_POST['client_secret'] ?? ''),
+    ];
+    header('Location: install.php?step=5'); exit;
+}
 
-    if (!$admin_name)  $errors[] = 'Podaj imię i nazwisko administratora.';
+// ── KROK 5: Konto admina + zapis ─────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 5) {
+    $admin_name  = trim($_POST['admin_name']  ?? '');
+    $admin_email = trim($_POST['admin_email'] ?? '');
+    $admin_pass  = $_POST['admin_pass']  ?? '';
+    $admin_pass2 = $_POST['admin_pass2'] ?? '';
+
+    if (!$admin_name)                                    $errors[] = 'Podaj imię i nazwisko.';
     if (!filter_var($admin_email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Nieprawidłowy adres e-mail.';
-    if (strlen($admin_pass) < 8) $errors[] = 'Hasło musi mieć co najmniej 8 znaków.';
-    if ($admin_pass !== $admin_pass2) $errors[] = 'Hasła nie są identyczne.';
+    if (strlen($admin_pass) < 8)                         $errors[] = 'Hasło musi mieć co najmniej 8 znaków.';
+    if ($admin_pass !== $admin_pass2)                    $errors[] = 'Hasła nie są identyczne.';
 
     if (!$errors) {
-        // Buduj bazę i zapisz config
-        $db   = $_SESSION['install_db'];
-        $ms    = $_SESSION['install_ms'] ?? ['enabled' => false];
+        $db  = $_SESSION['install_db']  ?? ['db_type' => 'sqlite'];
+        $ms  = $_SESSION['install_ms']  ?? ['enabled' => false];
+        $org = $_SESSION['install_org'] ?? ['org_name' => 'Organizacja', 'org_krs' => ''];
 
         try {
-            if ($db['db_type'] === 'sqlite') {
-                $pdo = new PDO('sqlite:' . __DIR__ . '/umowy.db');
-            } else {
-                $dsn = "mysql:host={$db['db_host']};port={$db['db_port']};dbname={$db['db_name']};charset=utf8mb4";
-                $pdo = new PDO($dsn, $db['db_user'], $db['db_pass']);
-            }
+            $pdo = $db['db_type'] === 'sqlite'
+                ? new PDO('sqlite:' . __DIR__ . '/umowy.db')
+                : new PDO("mysql:host={$db['db_host']};port={$db['db_port']};dbname={$db['db_name']};charset=utf8mb4", $db['db_user'], $db['db_pass']);
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            // Uruchom schemat
+            // Schema
             $schema = file_get_contents(__DIR__ . '/schema.sql');
             $schema = preg_replace('/--[^\n]*/', '', $schema);
-            $statements = array_filter(array_map('trim', explode(';', $schema)));
-            foreach ($statements as $sql) {
-                if (trim($sql)) {
-                    try { $pdo->exec($sql); } catch (PDOException $e) { /* ignoruj IF NOT EXISTS duplikaty */ }
-                }
+            foreach (array_filter(array_map('trim', explode(';', $schema))) as $sql) {
+                try { $pdo->exec($sql); } catch (PDOException $e) {}
             }
 
-            // Dodaj admina
-            $hash = password_hash($admin_pass, PASSWORD_BCRYPT);
-            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, is_active) VALUES (?, ?, ?, 'admin', 1)");
-            $stmt->execute([$admin_name, $admin_email, $hash]);
+            // Admin
+            $pdo->prepare("INSERT INTO users (name,email,password,role,is_active) VALUES (?,?,?,'admin',1)")
+                ->execute([$admin_name, $admin_email, password_hash($admin_pass, PASSWORD_BCRYPT)]);
 
-            // Zapisz nazwę organizacji (kompatybilne SQLite i MySQL)
-            if ($db['db_type'] === 'sqlite') {
-                $pdo->prepare("INSERT OR REPLACE INTO settings (key_, value) VALUES ('org_name', ?)")->execute([$org_name]);
-            } else {
-                $pdo->prepare("INSERT INTO settings (key_, value) VALUES ('org_name', ?) ON DUPLICATE KEY UPDATE value=?")->execute([$org_name, $org_name]);
+            // Org settings
+            $upsert = $db['db_type'] === 'sqlite'
+                ? "INSERT OR REPLACE INTO settings (key_,value) VALUES (?,?)"
+                : "INSERT INTO settings (key_,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)";
+            foreach (['org_name' => $org['org_name'], 'org_krs' => $org['org_krs']] as $k => $v) {
+                $pdo->prepare($upsert)->execute([$k, $v]);
             }
 
-            // Generuj config.php
-            $app_key = bin2hex(random_bytes(32));
-            $ms_enabled = $ms['enabled'] ? 'true' : 'false';
+            // config.php
+            $app_key     = bin2hex(random_bytes(32));
+            $ms_enabled  = $ms['enabled'] ? 'true' : 'false';
             $redirect_uri = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
                           . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/auth/microsoft.php';
 
-            $config = "<?php\n";
-            $config .= "define('APP_INSTALLED', true);\n";
-            $config .= "define('APP_KEY', '{$app_key}');\n";
-            $config .= "define('ORG_NAME', " . var_export($org_name, true) . ");\n\n";
-            $config .= "// Baza danych\n";
-            $config .= "define('DB_TYPE', '{$db['db_type']}');\n";
+            $cfg  = "<?php\n";
+            $cfg .= "define('APP_INSTALLED', true);\n";
+            $cfg .= "define('APP_KEY', '{$app_key}');\n";
+            $cfg .= "define('ORG_NAME', " . var_export($org['org_name'], true) . ");\n\n";
+            $cfg .= "define('DB_TYPE', '{$db['db_type']}');\n";
             if ($db['db_type'] === 'sqlite') {
-                $config .= "define('DB_PATH', __DIR__ . '/umowy.db');\n";
+                $cfg .= "define('DB_PATH', __DIR__ . '/umowy.db');\n";
             } else {
-                $config .= "define('DB_HOST', " . var_export($db['db_host'], true) . ");\n";
-                $config .= "define('DB_PORT', {$db['db_port']});\n";
-                $config .= "define('DB_NAME', " . var_export($db['db_name'], true) . ");\n";
-                $config .= "define('DB_USER', " . var_export($db['db_user'], true) . ");\n";
-                $config .= "define('DB_PASS', " . var_export($db['db_pass'], true) . ");\n";
+                $cfg .= "define('DB_HOST', " . var_export($db['db_host'], true) . ");\n";
+                $cfg .= "define('DB_PORT', {$db['db_port']});\n";
+                $cfg .= "define('DB_NAME', " . var_export($db['db_name'], true) . ");\n";
+                $cfg .= "define('DB_USER', " . var_export($db['db_user'], true) . ");\n";
+                $cfg .= "define('DB_PASS', " . var_export($db['db_pass'], true) . ");\n";
             }
-            $config .= "\n// Microsoft OAuth\n";
-            $config .= "define('MS_ENABLED', {$ms_enabled});\n";
-            $config .= "define('MS_TENANT_ID', " . var_export($ms['tenant_id'] ?? '', true) . ");\n";
-            $config .= "define('MS_CLIENT_ID', " . var_export($ms['client_id'] ?? '', true) . ");\n";
-            $config .= "define('MS_CLIENT_SECRET', " . var_export($ms['client_secret'] ?? '', true) . ");\n";
-            $config .= "define('MS_REDIRECT_URI', " . var_export($redirect_uri, true) . ");\n";
-            $config .= "\n// Ścieżki\n";
-            $config .= "define('UPLOAD_DIR', __DIR__ . '/uploads/');\n";
-            $config .= "define('APP_URL', (function() {\n";
-            $config .= "    \$scheme  = (!empty(\$_SERVER['HTTPS']) && \$_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';\n";
-            $config .= "    \$host    = \$_SERVER['HTTP_HOST'] ?? 'localhost';\n";
-            $config .= "    \$docRoot = rtrim(str_replace('\\\\', '/', realpath(\$_SERVER['DOCUMENT_ROOT'] ?? '')), '/');\n";
-            $config .= "    \$appDir  = rtrim(str_replace('\\\\', '/', realpath(__DIR__)), '/');\n";
-            $config .= "    \$path    = (\$docRoot && str_starts_with(\$appDir, \$docRoot)) ? substr(\$appDir, strlen(\$docRoot)) : '';\n";
-            $config .= "    return rtrim(\$scheme . '://' . \$host . \$path, '/');\n";
-            $config .= "})());\n";
+            $cfg .= "\ndefine('MS_ENABLED', {$ms_enabled});\n";
+            $cfg .= "define('MS_TENANT_ID', "     . var_export($ms['tenant_id']     ?? '', true) . ");\n";
+            $cfg .= "define('MS_CLIENT_ID', "     . var_export($ms['client_id']     ?? '', true) . ");\n";
+            $cfg .= "define('MS_CLIENT_SECRET', " . var_export($ms['client_secret'] ?? '', true) . ");\n";
+            $cfg .= "define('MS_REDIRECT_URI', "  . var_export($redirect_uri, true) . ");\n";
+            $cfg .= "\ndefine('UPLOAD_DIR', __DIR__ . '/uploads/');\n";
+            $cfg .= "define('APP_URL', (function() {\n";
+            $cfg .= "    \$s = (!empty(\$_SERVER['HTTPS']) && \$_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';\n";
+            $cfg .= "    \$h = \$_SERVER['HTTP_HOST'] ?? 'localhost';\n";
+            $cfg .= "    \$d = rtrim(str_replace('\\\\','/',realpath(\$_SERVER['DOCUMENT_ROOT']??'')),'/'); \n";
+            $cfg .= "    \$a = rtrim(str_replace('\\\\','/',realpath(__DIR__)),'/'); \n";
+            $cfg .= "    \$p = (\$d && str_starts_with(\$a,\$d)) ? substr(\$a,strlen(\$d)) : ''; \n";
+            $cfg .= "    return rtrim(\$s.'://'.\$h.\$p,'/');\n";
+            $cfg .= "})());\n";
 
-            file_put_contents(__DIR__ . '/config.php', $config);
+            file_put_contents(__DIR__ . '/config.php', $cfg);
+            header('Location: install.php?step=6'); exit;
 
-            header('Location: install.php?step=5');
-            exit;
         } catch (Exception $e) {
             $errors[] = 'Błąd instalacji: ' . $e->getMessage();
         }
@@ -159,163 +151,298 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 4) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Instalacja — Rejestr Umów</title>
+<title>Instalacja — Platforma NGO</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-body{background:#f0f4f8}
-.install-card{max-width:600px;margin:60px auto}
-.step-badge{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem}
-.step-done{background:#198754;color:#fff}
-.step-active{background:#0d6efd;color:#fff}
-.step-todo{background:#dee2e6;color:#6c757d}
+body { background: #f1f5f9; }
+.ins-wrap { max-width: 560px; margin: 3rem auto; padding: 0 1rem 3rem; }
+.ins-logo  { text-align: center; margin-bottom: 2rem; }
+.ins-logo-icon { width: 56px; height: 56px; background: #2563eb; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #fff; margin-bottom: .75rem; }
+.ins-logo h1 { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin: 0; }
+.ins-logo p  { font-size: .82rem; color: #64748b; margin: .2rem 0 0; }
+/* Steps */
+.steps { display: flex; align-items: center; margin-bottom: 2rem; }
+.step  { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+.step:not(:last-child)::after {
+    content: ''; position: absolute; top: 14px; left: 50%; width: 100%;
+    height: 2px; background: #e2e8f0; z-index: 0;
+}
+.step.done::after  { background: #2563eb; }
+.step-num {
+    width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: .78rem; font-weight: 700; z-index: 1;
+    background: #e2e8f0; color: #94a3b8; border: 2px solid #e2e8f0;
+}
+.step.done .step-num   { background: #2563eb; color: #fff; border-color: #2563eb; }
+.step.active .step-num { background: #fff; color: #2563eb; border-color: #2563eb; }
+.step-lbl { font-size: .7rem; color: #94a3b8; margin-top: .35rem; text-align: center; }
+.step.active .step-lbl { color: #2563eb; font-weight: 600; }
+.step.done .step-lbl   { color: #64748b; }
+/* Card */
+.ins-card { background: #fff; border-radius: .75rem; box-shadow: 0 1px 12px rgba(0,0,0,.08); padding: 2rem; }
+.ins-card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: .25rem; color: #0f172a; }
+.ins-card .sub { font-size: .83rem; color: #64748b; margin-bottom: 1.5rem; }
+/* Check items */
+.chk { display: flex; align-items: center; gap: .6rem; font-size: .85rem; padding: .3rem 0; }
+.chk .ok  { color: #16a34a; }
+.chk .err { color: #dc2626; }
+.chk .warn{ color: #d97706; }
+/* Success */
+.ins-success-icon { font-size: 3rem; color: #16a34a; text-align: center; display: block; margin-bottom: 1rem; }
+.next-step { display: flex; align-items: flex-start; gap: .75rem; padding: .65rem 0; border-bottom: 1px solid #f1f5f9; }
+.next-step:last-child { border: none; }
+.next-num { width: 22px; height: 22px; border-radius: 50%; background: #2563eb; color: #fff; font-size: .72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: .1rem; }
+.next-step .title { font-size: .85rem; font-weight: 600; }
+.next-step .desc  { font-size: .78rem; color: #64748b; }
 </style>
 </head>
 <body>
-<div class="install-card">
-  <div class="text-center mb-4">
-    <h3 class="fw-bold"><i class="bi bi-file-earmark-text"></i> Rejestr Umów</h3>
-    <p class="text-muted">Kreator instalacji</p>
+<div class="ins-wrap">
+
+  <div class="ins-logo">
+    <div class="ins-logo-icon"><i class="bi bi-building-heart"></i></div>
+    <h1>Platforma NGO</h1>
+    <p>Kreator instalacji</p>
   </div>
 
-  <!-- Pasek kroków -->
-  <div class="d-flex justify-content-between align-items-center mb-4 px-2">
-    <?php
-    $steps = ['Start','Baza danych','Microsoft','Administrator','Gotowe'];
-    foreach ($steps as $i => $label):
-        $n = $i+1;
-        $cls = $n < $step ? 'step-done' : ($n == $step ? 'step-active' : 'step-todo');
-        $icon = $n < $step ? '<i class="bi bi-check"></i>' : $n;
+  <?php
+  $step_labels = ['Wymagania','Baza danych','Organizacja','Microsoft','Administrator','Gotowe'];
+  $total_steps = count($step_labels);
+  ?>
+  <div class="steps">
+    <?php foreach ($step_labels as $i => $lbl):
+        $n   = $i + 1;
+        $cls = $n < $step ? 'done' : ($n === $step ? 'active' : '');
+        $icon= $n < $step ? '<i class="bi bi-check" style="font-size:.8rem"></i>' : $n;
     ?>
-    <div class="text-center" style="flex:1">
-      <div class="step-badge <?= $cls ?> mx-auto"><?= $icon ?></div>
-      <div class="small mt-1 <?= $n==$step?'fw-bold':'' ?>"><?= $label ?></div>
+    <div class="step <?= $cls ?>">
+      <div class="step-num"><?= $icon ?></div>
+      <div class="step-lbl"><?= $lbl ?></div>
     </div>
-    <?php if ($i < 4): ?><div style="flex:.5;height:2px;background:#dee2e6;margin-top:-18px"></div><?php endif; ?>
     <?php endforeach; ?>
   </div>
 
-  <div class="card shadow-sm">
-    <div class="card-body p-4">
+  <div class="ins-card">
 
-    <?php if ($errors): ?>
-      <div class="alert alert-danger"><ul class="mb-0"><?php foreach($errors as $e) echo "<li>$e</li>"; ?></ul></div>
+  <?php if ($errors): ?>
+  <div class="alert alert-danger py-2 small"><ul class="mb-0 ps-3">
+    <?php foreach ($errors as $e): ?><li><?= htmlspecialchars($e) ?></li><?php endforeach; ?>
+  </ul></div>
+  <?php endif; ?>
+
+  <?php // ── KROK 1: Wymagania
+  if ($step === 1):
+    $exts   = ['pdo' => true, 'json' => true, 'mbstring' => true, 'openssl' => true, 'zip' => false];
+    $sqlite = extension_loaded('pdo_sqlite');
+    $mysql  = extension_loaded('pdo_mysql');
+    $upload = is_writable(__DIR__ . '/uploads/');
+    $all_ok = $upload && ($sqlite || $mysql);
+  ?>
+  <h2>Wymagania systemowe</h2>
+  <p class="sub">Sprawdzenie środowiska przed instalacją.</p>
+
+  <?php foreach ($exts as $ext => $required): ?>
+  <div class="chk">
+    <?php $ok = extension_loaded($ext); ?>
+    <i class="bi bi-<?= $ok ? 'check-circle-fill ok' : ($required ? 'x-circle-fill err' : 'dash-circle warn') ?>"></i>
+    <span>PHP <code><?= $ext ?></code></span>
+    <?php if (!$ok && !$required): ?><span class="text-muted small">(opcjonalne)</span><?php endif; ?>
+  </div>
+  <?php endforeach; ?>
+
+  <div class="chk">
+    <i class="bi bi-<?= $sqlite ? 'check-circle-fill ok' : 'dash-circle warn' ?>"></i>
+    <span>PHP <code>pdo_sqlite</code><?= !$sqlite ? ' <span class="text-muted small">(brak — SQLite niedostępny)</span>' : '' ?></span>
+  </div>
+  <div class="chk">
+    <i class="bi bi-<?= $mysql ? 'check-circle-fill ok' : 'dash-circle warn' ?>"></i>
+    <span>PHP <code>pdo_mysql</code><?= !$mysql ? ' <span class="text-muted small">(brak — MySQL niedostępny)</span>' : '' ?></span>
+  </div>
+  <div class="chk mt-1">
+    <i class="bi bi-<?= $upload ? 'check-circle-fill ok' : 'x-circle-fill err' ?>"></i>
+    <span>Katalog <code>uploads/</code> zapisywalny<?= !$upload ? ' — <strong>wymagane: <code>chmod 755 uploads/</code></strong>' : '' ?></span>
+  </div>
+
+  <div class="mt-3">
+    <a href="install.php?step=2" class="btn btn-primary w-100 <?= !$all_ok ? 'disabled' : '' ?>">
+      Dalej <i class="bi bi-arrow-right ms-1"></i>
+    </a>
+    <?php if (!$all_ok): ?>
+    <div class="form-text text-center mt-1">Rozwiąż problemy powyżej, a następnie odśwież stronę.</div>
     <?php endif; ?>
+  </div>
 
-    <!-- ── KROK 1: Start ── -->
-    <?php if ($step == 1): ?>
-      <h5 class="mb-3">Witaj w kreatorze instalacji</h5>
-      <p>Zanim zaczniesz, upewnij się że:</p>
-      <ul>
-        <li>PHP 8.1+ z rozszerzeniami: <code>pdo</code>, <code>pdo_sqlite</code> lub <code>pdo_mysql</code>, <code>json</code>, <code>mbstring</code></li>
-        <li>Katalog <code>uploads/</code> jest zapisywalny przez serwer</li>
-        <li>Plik <code>config.php</code> będzie tworzony automatycznie</li>
-      </ul>
-      <?php
-        $exts = ['pdo','json','mbstring'];
-        foreach ($exts as $ext): ?>
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <?= extension_loaded($ext) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger"></i>' ?>
-          <span><?= $ext ?></span>
-        </div>
-      <?php endforeach;
-        $sqlite_ok = extension_loaded('pdo_sqlite');
-        $mysql_ok  = extension_loaded('pdo_mysql');
-      ?>
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <?= $sqlite_ok ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash-circle text-warning"></i>' ?>
-        pdo_sqlite <?= $sqlite_ok ? '' : '(brak — SQLite niedostępny)' ?>
-      </div>
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <?= $mysql_ok ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash-circle text-warning"></i>' ?>
-        pdo_mysql <?= $mysql_ok ? '' : '(brak — MySQL niedostępny)' ?>
-      </div>
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <?= is_writable(__DIR__ . '/uploads/') ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger"></i>' ?>
-        Katalog uploads/ zapisywalny
-      </div>
-      <a href="install.php?step=2" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right"></i></a>
+  <?php // ── KROK 2: Baza
+  elseif ($step === 2): ?>
+  <h2>Baza danych</h2>
+  <p class="sub">SQLite jest zalecane dla większości instalacji — nie wymaga osobnego serwera.</p>
 
-    <!-- ── KROK 2: Baza ── -->
-    <?php elseif ($step == 2): ?>
-      <h5 class="mb-3">Konfiguracja bazy danych</h5>
-      <form method="post">
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Typ bazy danych</label>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="db_type" id="sqlite" value="sqlite" checked onchange="toggleMysql(false)">
-            <label class="form-check-label" for="sqlite">SQLite <span class="text-muted small">(plik lokalny — zalecane dla małych instalacji)</span></label>
+  <form method="post">
+    <div class="mb-3">
+      <div class="d-flex flex-column gap-2">
+        <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
+          <input type="radio" name="db_type" value="sqlite" checked onchange="toggleMysql(false)" style="margin-top:.2rem">
+          <div>
+            <div class="fw-semibold small">SQLite <span class="badge bg-primary ms-1" style="font-size:.65rem">Zalecane</span></div>
+            <div class="text-muted" style="font-size:.78rem">Plik lokalny, zero konfiguracji</div>
           </div>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="db_type" id="mysql" value="mysql" onchange="toggleMysql(true)">
-            <label class="form-check-label" for="mysql">MySQL / MariaDB</label>
+        </label>
+        <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
+          <input type="radio" name="db_type" value="mysql" onchange="toggleMysql(true)" style="margin-top:.2rem">
+          <div>
+            <div class="fw-semibold small">MySQL / MariaDB</div>
+            <div class="text-muted" style="font-size:.78rem">Dla większych instalacji lub SaaS</div>
           </div>
-        </div>
-        <div id="mysql_fields" style="display:none">
-          <div class="row g-2">
-            <div class="col-8"><label class="form-label">Host</label><input name="db_host" class="form-control" value="localhost"></div>
-            <div class="col-4"><label class="form-label">Port</label><input name="db_port" class="form-control" value="3306" type="number"></div>
-          </div>
-          <div class="mb-2 mt-2"><label class="form-label">Nazwa bazy</label><input name="db_name" class="form-control" value="umowy"></div>
-          <div class="mb-2"><label class="form-label">Użytkownik</label><input name="db_user" class="form-control"></div>
-          <div class="mb-3"><label class="form-label">Hasło</label><input name="db_pass" class="form-control" type="password"></div>
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Testuj i kontynuuj <i class="bi bi-arrow-right"></i></button>
-      </form>
-      <script>function toggleMysql(v){document.getElementById('mysql_fields').style.display=v?'':'none'}</script>
-
-    <!-- ── KROK 3: Microsoft OAuth ── -->
-    <?php elseif ($step == 3): ?>
-      <h5 class="mb-3">Logowanie Microsoft (Azure AD)</h5>
-      <form method="post">
-        <div class="form-check form-switch mb-3">
-          <input class="form-check-input" type="checkbox" role="switch" name="ms_enabled" id="ms_enabled" onchange="toggleMs(this.checked)" checked>
-          <label class="form-check-label" for="ms_enabled">Włącz logowanie przez konto Microsoft</label>
-        </div>
-        <div id="ms_fields">
-          <div class="alert alert-info small p-2">
-            <b>Jak uzyskać dane:</b> Azure Portal → Azure Active Directory → Rejestracje aplikacji → Nowa rejestracja.
-            Jako URI przekierowania podaj: <code><?= htmlspecialchars((isset($_SERVER['HTTPS'])?'https':'http').'://'.$_SERVER['HTTP_HOST'].rtrim(dirname($_SERVER['PHP_SELF']),'/'))?>/auth/microsoft.php</code>
-          </div>
-          <div class="mb-2"><label class="form-label">Tenant ID</label><input name="tenant_id" class="form-control" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-          <div class="mb-2"><label class="form-label">Client ID (Application ID)</label><input name="client_id" class="form-control" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-          <div class="mb-3"><label class="form-label">Client Secret</label><input name="client_secret" class="form-control" type="password"></div>
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right"></i></button>
-        <a href="install.php?step=4" class="btn btn-link w-100 text-muted">Pomiń (tylko logowanie lokalne)</a>
-      </form>
-      <script>function toggleMs(v){document.getElementById('ms_fields').style.display=v?'':'none'}</script>
-
-    <!-- ── KROK 4: Admin ── -->
-    <?php elseif ($step == 4): ?>
-      <h5 class="mb-3">Konto administratora</h5>
-      <form method="post">
-        <div class="mb-2"><label class="form-label">Nazwa organizacji</label><input name="org_name" class="form-control" value="Fundacja" required></div>
-        <hr>
-        <div class="mb-2"><label class="form-label">Imię i nazwisko</label><input name="admin_name" class="form-control" required></div>
-        <div class="mb-2"><label class="form-label">E-mail</label><input name="admin_email" class="form-control" type="email" required></div>
-        <div class="mb-2"><label class="form-label">Hasło (min. 8 znaków)</label><input name="admin_pass" class="form-control" type="password" required></div>
-        <div class="mb-3"><label class="form-label">Powtórz hasło</label><input name="admin_pass2" class="form-control" type="password" required></div>
-        <button type="submit" class="btn btn-success w-100">Zainstaluj <i class="bi bi-check-lg"></i></button>
-      </form>
-
-    <!-- ── KROK 5: Gotowe ── -->
-    <?php elseif ($step == 5): ?>
-      <div class="text-center py-3">
-        <i class="bi bi-check-circle-fill text-success" style="font-size:3rem"></i>
-        <h4 class="mt-3">Instalacja zakończona!</h4>
-        <p class="text-muted">System Rejestru Umów jest gotowy do użycia.</p>
-        <div class="alert alert-warning text-start small">
-          <i class="bi bi-exclamation-triangle-fill"></i>
-          <strong>Ważne:</strong> Usuń lub zabezpiecz plik <code>install.php</code> przed publicznym dostępem.
-        </div>
-        <a href="index.php" class="btn btn-primary btn-lg">Przejdź do rejestru <i class="bi bi-arrow-right"></i></a>
+        </label>
       </div>
-    <?php endif; ?>
+    </div>
+    <div id="mysql_fields" style="display:none">
+      <div class="row g-2 mb-2">
+        <div class="col-8"><label class="form-label small fw-semibold">Host</label><input name="db_host" class="form-control form-control-sm" value="localhost"></div>
+        <div class="col-4"><label class="form-label small fw-semibold">Port</label><input name="db_port" class="form-control form-control-sm" value="3306" type="number"></div>
+      </div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Nazwa bazy</label><input name="db_name" class="form-control form-control-sm" value="umowy"></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Użytkownik</label><input name="db_user" class="form-control form-control-sm"></div>
+      <div class="mb-3"><label class="form-label small fw-semibold">Hasło</label><input name="db_pass" class="form-control form-control-sm" type="password"></div>
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Testuj połączenie i kontynuuj <i class="bi bi-arrow-right ms-1"></i></button>
+  </form>
+  <script>function toggleMysql(v){document.getElementById('mysql_fields').style.display=v?'':'none'}</script>
 
+  <?php // ── KROK 3: Organizacja
+  elseif ($step === 3): ?>
+  <h2>Dane organizacji</h2>
+  <p class="sub">Będą widoczne w systemie, dokumentach i stopce e-maili.</p>
+
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label fw-semibold small">Pełna nazwa organizacji <span class="text-danger">*</span></label>
+      <input type="text" name="org_name" class="form-control"
+             value="<?= htmlspecialchars($_SESSION['install_org']['org_name'] ?? '') ?>"
+             placeholder="np. Fundacja Edukacji Empatii Rozwoju FEER" required maxlength="200">
+    </div>
+    <div class="mb-4">
+      <label class="form-label fw-semibold small">Numer KRS <span class="text-muted fw-normal">(opcjonalny — wymagany do certyfikatu)</span></label>
+      <input type="text" name="org_krs" class="form-control font-monospace"
+             value="<?= htmlspecialchars($_SESSION['install_org']['org_krs'] ?? '') ?>"
+             placeholder="0000000000" maxlength="10" pattern="\d{0,10}">
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
+  </form>
+
+  <?php // ── KROK 4: Microsoft
+  elseif ($step === 4):
+    $redirect_uri = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
+                  . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/auth/microsoft.php';
+  ?>
+  <h2>Logowanie Microsoft 365</h2>
+  <p class="sub">Pozwala pracownikom i wolontariuszom logować się kontem Microsoft. Można skonfigurować później.</p>
+
+  <form method="post">
+    <div class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" name="ms_enabled" id="ms_en"
+             onchange="document.getElementById('ms_f').style.display=this.checked?'':'none'"
+             <?= !empty($_SESSION['install_ms']['enabled']) ? 'checked' : '' ?>>
+      <label class="form-check-label fw-semibold" for="ms_en">Włącz logowanie przez Microsoft 365</label>
+    </div>
+    <div id="ms_f" style="display:<?= !empty($_SESSION['install_ms']['enabled']) ? '' : 'none' ?>">
+      <div class="alert alert-light border small p-2 mb-3">
+        <strong>URI przekierowania</strong> do wklejenia w Azure AD:<br>
+        <code style="font-size:.78rem;word-break:break-all"><?= htmlspecialchars($redirect_uri) ?></code>
+      </div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Tenant ID</label><input name="tenant_id" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars($_SESSION['install_ms']['tenant_id'] ?? '') ?>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Client ID</label><input name="client_id" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars($_SESSION['install_ms']['client_id'] ?? '') ?>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+      <div class="mb-3"><label class="form-label small fw-semibold">Client Secret</label><input name="client_secret" class="form-control form-control-sm" type="password"></div>
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
+    <a href="install.php?step=5" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później</a>
+  </form>
+
+  <?php // ── KROK 5: Administrator
+  elseif ($step === 5): ?>
+  <h2>Konto administratora</h2>
+  <p class="sub">Pierwsze konto do zarządzania systemem. Możesz dodać więcej użytkowników po instalacji.</p>
+
+  <form method="post">
+    <div class="mb-2">
+      <label class="form-label small fw-semibold">Imię i nazwisko <span class="text-danger">*</span></label>
+      <input type="text" name="admin_name" class="form-control" required>
+    </div>
+    <div class="mb-2">
+      <label class="form-label small fw-semibold">Adres e-mail <span class="text-danger">*</span></label>
+      <input type="email" name="admin_email" class="form-control" required>
+    </div>
+    <div class="mb-2">
+      <label class="form-label small fw-semibold">Hasło <span class="text-danger">*</span> <span class="text-muted fw-normal">(min. 8 znaków)</span></label>
+      <input type="password" name="admin_pass" class="form-control" required minlength="8">
+    </div>
+    <div class="mb-4">
+      <label class="form-label small fw-semibold">Powtórz hasło <span class="text-danger">*</span></label>
+      <input type="password" name="admin_pass2" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-success w-100 fw-semibold">
+      <i class="bi bi-check-lg me-1"></i>Zainstaluj Platformę NGO
+    </button>
+  </form>
+
+  <?php // ── KROK 6: Gotowe
+  elseif ($step === 6): ?>
+  <div class="text-center mb-3">
+    <i class="bi bi-check-circle-fill ins-success-icon"></i>
+    <h2 style="font-size:1.25rem">Instalacja zakończona!</h2>
+    <p class="text-muted small">Platforma NGO jest gotowa. Wykonaj poniższe kroki aby ukończyć konfigurację.</p>
+  </div>
+
+  <div class="mb-3">
+    <div class="next-step">
+      <div class="next-num">1</div>
+      <div>
+        <div class="title">Wygeneruj certyfikat instalacyjny</div>
+        <div class="desc">Otwórz <code>creator.php</code> → zaloguj się hasłem twórcy → wygeneruj cert. Bez tego aplikacja jest zablokowana.</div>
+      </div>
+    </div>
+    <div class="next-step">
+      <div class="next-num">2</div>
+      <div>
+        <div class="title">Zmień hasło twórcy</div>
+        <div class="desc">W panelu creator.php → sekcja <em>creator.password</em> → ustaw własne hasło przed wdrożeniem.</div>
+      </div>
+    </div>
+    <div class="next-step">
+      <div class="next-num">3</div>
+      <div>
+        <div class="title">Skonfiguruj CRON</div>
+        <div class="desc">Admin → Konfiguracja CRON → wygeneruj token → dodaj zadanie w DirectAdmin.</div>
+      </div>
+    </div>
+    <div class="next-step">
+      <div class="next-num">4</div>
+      <div>
+        <div class="title">Uzupełnij dane i usuń dane testowe</div>
+        <div class="desc">Admin → Dane organizacji → logo, kolory, e-mail. Przed startem: Admin → Czyszczenie przed wdrożeniem.</div>
+      </div>
+    </div>
+    <div class="next-step">
+      <div class="next-num">5</div>
+      <div>
+        <div class="title">Zabezpiecz lub usuń <code>install.php</code></div>
+        <div class="desc">Plik instalacyjny powinien być niedostępny publicznie po zakończeniu instalacji.</div>
+      </div>
     </div>
   </div>
-  <p class="text-center text-muted small mt-3">Rejestr Umów Fundacji</p>
+
+  <a href="creator.php" class="btn btn-primary w-100 mb-2">
+    <i class="bi bi-shield-check me-1"></i>Otwórz Creator Panel → wygeneruj certyfikat
+  </a>
+  <a href="index.php" class="btn btn-outline-secondary w-100" style="font-size:.85rem">
+    Przejdź do systemu
+  </a>
+
+  <?php endif; ?>
+
+  </div><!-- /ins-card -->
+  <p class="text-center text-muted mt-3" style="font-size:.75rem">Platforma NGO · Krok <?= $step ?>/<?= $total_steps ?></p>
 </div>
 </body>
 </html>
