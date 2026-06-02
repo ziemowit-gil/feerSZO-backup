@@ -38,7 +38,9 @@ try {
 $code_available = _login_method_enabled('login_method_code', true);
 
 // ── State ─────────────────────────────────────────────────────────────────
-$active_tab = $_GET['tab'] ?? 'local';
+// Domyślna zakładka zależy od dostępności MS365
+$default_tab = $ms_available ? 'ms365' : 'local';
+$active_tab = $_GET['tab'] ?? $default_tab;
 $sms_step   = 1;
 $sms_phone  = '';
 $error      = '';
@@ -176,7 +178,7 @@ $valid_tabs = ['local'];
 if ($code_available) $valid_tabs[] = 'code';
 if ($sms_available)  $valid_tabs[] = 'sms';
 if ($ms_available)   $valid_tabs[] = 'ms365';
-if (!in_array($active_tab, $valid_tabs, true)) $active_tab = 'local';
+if (!in_array($active_tab, $valid_tabs, true)) $active_tab = $default_tab;
 
 // ── Branding ─────────────────────────────────────────────────────────────
 $_b = branding_load();
@@ -215,16 +217,16 @@ if ($is_tenant) {
 }
 
 $tab_labels = [
-    'local' => 'Zaloguj się',
-    'code'  => 'Kod dostępu',
+    'ms365' => 'Zaloguj się',
+    'local' => 'E-mail i hasło',
+    'code'  => 'Kod jednorazowy',
     'sms'   => 'Kod SMS',
-    'ms365' => 'Microsoft 365',
 ];
 $tab_subs = [
-    'local' => 'Wprowadź adres e-mail i hasło do swojego konta.',
-    'code'  => 'Wprowadź kod dostępu nadany przez administratora.',
+    'ms365' => 'Zaloguj się kontem Microsoft 365 (pracownicy, wolontariusze, zarząd).',
+    'local' => 'Pierwsze logowanie lub gdy konto Microsoft nie działa — wprowadź e-mail i hasło.',
+    'code'  => 'Nie masz konta Microsoft ani aktywnego konta lokalnego? Wpisz kod jednorazowy od administratora.',
     'sms'   => 'Wyślemy jednorazowy kod na Twój numer telefonu.',
-    'ms365' => 'Zaloguj się swoim kontem Microsoft 365.',
 ];
 ?>
 
@@ -578,7 +580,28 @@ html, body { height: 100%; margin: 0; padding: 0; }
 
   <!-- ══ ZAKŁADKI ════════════════════════════════════════════════════════ -->
 
-  <!-- E-mail + hasło -->
+  <!-- Microsoft 365 — metoda główna -->
+  <?php if ($ms_available): ?>
+  <section id="tab-ms365" aria-labelledby="login-heading"
+           <?= $active_tab !== 'ms365' ? 'hidden' : '' ?>>
+    <a href="<?= h(ms_auth_url($redirect)) ?>"
+       class="btn-login"
+       aria-label="Zaloguj się przez konto Microsoft 365 — zostaniesz przekierowany na stronę Microsoft">
+      <svg class="ms-logo" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true">
+        <path fill="#f35325" d="M1 1h10v10H1z"/>
+        <path fill="#81bc06" d="M12 1h10v10H12z"/>
+        <path fill="#05a6f0" d="M1 12h10v10H12z"/>
+        <path fill="#ffba08" d="M12 12h10v10H12z"/>
+      </svg>
+      Zaloguj przez Microsoft 365
+    </a>
+    <p style="text-align:center;font-size:.82rem;color:#6B7280;margin-top:.85rem">
+      Zostaniesz przekierowany na stronę logowania Microsoft.
+    </p>
+  </section>
+  <?php endif; ?>
+
+  <!-- E-mail + hasło — zapasowa (pierwsze logowanie / brak MS) -->
   <section id="tab-local" aria-labelledby="login-heading"
            <?= $active_tab !== 'local' ? 'hidden' : '' ?>>
     <form method="post" novalidate aria-label="Formularz logowania — e-mail i hasło" autocomplete="on">
@@ -614,7 +637,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
           </button>
         </div>
         <div id="pass-hint" class="form-hint">
-          Hasło ustawione podczas rejestracji lub przez administratora.
+          Użyj tego formularza przy pierwszym logowaniu lub gdy konto Microsoft nie działa.
         </div>
       </div>
       <button type="submit" class="btn-login">
@@ -630,7 +653,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
     </form>
   </section>
 
-  <!-- Kod dostępu -->
+  <!-- Kod jednorazowy — awaryjny (brak MS365 i konta lokalnego) -->
   <?php if ($code_available): ?>
   <section id="tab-code" aria-labelledby="login-heading"
            <?= $active_tab !== 'code' ? 'hidden' : '' ?>>
@@ -638,7 +661,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_method" value="code">
       <div class="mb-4">
-        <label class="form-label" for="f-code">Kod dostępu</label>
+        <label class="form-label" for="f-code">Kod jednorazowy</label>
         <input type="text" name="login_code" id="f-code"
                class="form-control"
                style="font-family:monospace;letter-spacing:.1em;text-align:center;font-size:1.1rem"
@@ -649,7 +672,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
                aria-describedby="code-hint"
                <?= $active_tab === 'code' ? 'autofocus' : '' ?>>
         <div id="code-hint" class="form-hint">
-          Jednorazowy kod dostępu nadany przez administratora systemu.
+          Kod jednorazowy dostępu nadany przez administratora — dla osób bez konta Microsoft i bez aktywnego konta lokalnego.
         </div>
       </div>
       <button type="submit" class="btn-login">
@@ -729,33 +752,13 @@ html, body { height: 100%; margin: 0; padding: 0; }
   </section>
   <?php endif; ?>
 
-  <!-- Microsoft 365 -->
-  <?php if ($ms_available): ?>
-  <section id="tab-ms365" aria-labelledby="login-heading"
-           <?= $active_tab !== 'ms365' ? 'hidden' : '' ?>>
-    <a href="<?= h(ms_auth_url($redirect)) ?>"
-       class="btn-login"
-       aria-label="Zaloguj się przez konto Microsoft 365 — zostaniesz przekierowany na stronę Microsoft">
-      <svg class="ms-logo" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true">
-        <path fill="#f35325" d="M1 1h10v10H1z"/>
-        <path fill="#81bc06" d="M12 1h10v10H12z"/>
-        <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-        <path fill="#ffba08" d="M12 12h10v10H12z"/>
-      </svg>
-      Zaloguj przez Microsoft 365
-    </a>
-    <p style="text-align:center;font-size:.82rem;color:#6B7280;margin-top:.85rem">
-      Zostaniesz przekierowany na stronę logowania Microsoft.
-    </p>
-  </section>
-  <?php endif; ?>
-
   <!-- ══ Inne metody — role="tablist" ══════════════════════════════════ -->
   <?php
-  $all_tabs = ['local' => ['icon' => 'bi-person-fill', 'label' => 'E-mail i hasło']];
-  if ($code_available) $all_tabs['code']  = ['icon' => 'bi-key-fill',   'label' => 'Kod dostępu'];
-  if ($sms_available)  $all_tabs['sms']   = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS'];
+  $all_tabs = [];
   if ($ms_available)   $all_tabs['ms365'] = ['icon' => 'bi-microsoft',  'label' => 'Microsoft 365'];
+  $all_tabs['local'] = ['icon' => 'bi-person-fill', 'label' => 'E-mail i hasło'];
+  if ($code_available) $all_tabs['code']  = ['icon' => 'bi-key-fill',   'label' => 'Kod jednorazowy'];
+  if ($sms_available)  $all_tabs['sms']   = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS'];
   ?>
   <?php if (count($all_tabs) > 1): ?>
   <div class="or-div" aria-hidden="true"><span>inne metody logowania</span></div>
