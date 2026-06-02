@@ -11,7 +11,9 @@ $step      = (int)($_GET['step'] ?? 1);
 $reinstall = !empty($_GET['reinstall']) || !empty($_SESSION['reinstall_mode']);
 
 // ── Blokada instalatora ───────────────────────────────────────────────────────
-if (file_exists(INSTALL_LOCK_FILE) && !$reinstall) {
+$force_install = isset($_GET['force']) && $_GET['force'] === 'true';
+
+if (file_exists(INSTALL_LOCK_FILE) && !$reinstall && !$force_install) {
     $lock_date = date('d.m.Y H:i', filemtime(INSTALL_LOCK_FILE));
     $lock_path = INSTALL_LOCK_FILE;
     ?><!DOCTYPE html><html lang="pl"><head>
@@ -36,9 +38,10 @@ if (file_exists(INSTALL_LOCK_FILE) && !$reinstall) {
             <i class="bi bi-exclamation-triangle me-1"></i>
             Reinstalacja <strong>wyczyści bazę danych</strong> (poza kluczami API i konfiguracji). Upewnij się że masz backup.
           </div>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 flex-wrap">
             <a href="index.php" class="btn btn-primary btn-sm">Przejdź do systemu</a>
             <a href="upgrade.php" class="btn btn-outline-secondary btn-sm">Panel aktualizacji</a>
+            <a href="install.php?force=true" class="btn btn-outline-danger btn-sm ms-auto">Uruchom mimo blokady</a>
           </div>
         </div>
       </div>
