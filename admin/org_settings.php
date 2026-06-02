@@ -8,6 +8,20 @@ require_once dirname(__DIR__) . '/includes/krs.php';
 require_role('admin');
 $PAGE_TITLE = 'Dane organizacji';
 
+function _org_reps_migrate(): void {
+    static $done = false;
+    if ($done) return; $done = true;
+    db()->exec("CREATE TABLE IF NOT EXISTS org_representatives (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        name      TEXT NOT NULL,
+        title     TEXT NOT NULL DEFAULT '',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+    )");
+}
+_org_reps_migrate();
+
 $branding_keys = ['org_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
@@ -82,6 +96,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', 'Dane organizacji zostały zapisane.');
         header('Location: ' . APP_URL . '/admin/org_settings.php');
         exit;
+
+    } elseif (isset($_POST['save_representative'])) {
+        // Dodaj osobę do reprezentacji
+        _org_reps_migrate();
+        $name  = trim($_POST['rep_name']  ?? '');
+        $title = trim($_POST['rep_title'] ?? '');
+        if ($name) {
+            db()->prepare("INSERT INTO org_representatives (name, title) VALUES (?,?)")->execute([$name, $title]);
+            flash_set('success', 'Dodano: ' . $name);
+        }
+        header('Location: ' . APP_URL . '/admin/org_settings.php#representatives'); exit;
+
+    } elseif (isset($_POST['delete_representative'])) {
+        _org_reps_migrate();
+        $rid = (int)($_POST['rep_id'] ?? 0);
+        if ($rid) db()->prepare("DELETE FROM org_representatives WHERE id=?")->execute([$rid]);
+        flash_set('success', 'Usunięto.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php#representatives'); exit;
 
     } elseif (isset($_POST['save_branding'])) {
         // Kolor sidebara
@@ -385,6 +417,71 @@ include dirname(__DIR__) . '/includes/header.php';
       </button>
     </div>
   </form>
+</div>
+</div>
+
+<!-- ── Osoby do reprezentacji ──────────────────────────────────────────── -->
+<?php $reps = db_all("SELECT * FROM org_representatives WHERE is_active=1 ORDER BY sort_order, name"); ?>
+<div class="card shadow-sm mb-3" id="representatives">
+<div class="card-header fw-semibold d-flex align-items-center justify-content-between">
+  <span><i class="bi bi-person-badge me-1"></i>Osoby do reprezentacji organizacji</span>
+  <span class="text-muted small">Używane jako podpisujący na umowach i dokumentach</span>
+</div>
+<div class="card-body">
+
+  <!-- Dodaj nową osobę -->
+  <form method="post" class="row g-2 align-items-end mb-3">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <div class="col-sm-5">
+      <label class="form-label small fw-semibold">Imię i nazwisko <span class="text-danger">*</span></label>
+      <input type="text" name="rep_name" class="form-control form-control-sm"
+             placeholder="np. Jan Kowalski" required maxlength="120">
+    </div>
+    <div class="col-sm-5">
+      <label class="form-label small fw-semibold">Stanowisko / funkcja</label>
+      <input type="text" name="rep_title" class="form-control form-control-sm"
+             placeholder="np. Prezes Zarządu" maxlength="120">
+    </div>
+    <div class="col-sm-2">
+      <button type="submit" name="save_representative" class="btn btn-primary btn-sm w-100">
+        <i class="bi bi-plus-lg me-1"></i>Dodaj
+      </button>
+    </div>
+  </form>
+
+  <!-- Lista -->
+  <?php if ($reps): ?>
+  <table class="table table-sm align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th>Imię i nazwisko</th>
+        <th>Stanowisko</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($reps as $r): ?>
+      <tr>
+        <td class="fw-semibold small"><?= h($r['name']) ?></td>
+        <td class="text-muted small"><?= h($r['title']) ?></td>
+        <td class="text-end">
+          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć?')">
+            <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+            <input type="hidden" name="rep_id"  value="<?= $r['id'] ?>">
+            <button type="submit" name="delete_representative"
+                    class="btn btn-outline-danger btn-sm py-0 px-2">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  <?php else: ?>
+  <p class="text-muted small mb-0">Brak zdefiniowanych przedstawicieli. Dodaj pierwszego powyżej.</p>
+  <?php endif; ?>
+
 </div>
 </div>
 

@@ -173,6 +173,33 @@ function contract_url(string $type, int $id, string $action = 'view'): string {
     return APP_URL . "/contracts/{$type}/{$action}.php?id={$id}";
 }
 
+/**
+ * Zwraca listę aktywnych przedstawicieli organizacji.
+ */
+function org_representatives(): array {
+    try {
+        return db_all("SELECT * FROM org_representatives WHERE is_active=1 ORDER BY sort_order, name");
+    } catch (\Throwable $e) { return []; }
+}
+
+/**
+ * Zwraca select HTML z przedstawicielami do użycia w formularzach umów.
+ */
+function org_representative_select(string $name = 'representative_id', ?int $selected = null, string $class = 'form-select form-select-sm'): string {
+    $reps = org_representatives();
+    if (!$reps) return '<input type="text" name="representative_name" class="' . h($class) . '" placeholder="Imię i nazwisko podpisującego">';
+    $html = '<select name="' . h($name) . '" class="' . h($class) . '">';
+    $html .= '<option value="">— wybierz podpisującego —</option>';
+    foreach ($reps as $r) {
+        $sel  = ($selected === (int)$r['id']) ? ' selected' : '';
+        $html .= '<option value="' . (int)$r['id'] . '"' . $sel . '>'
+               . h($r['name']) . ($r['title'] ? ' (' . h($r['title']) . ')' : '')
+               . '</option>';
+    }
+    $html .= '</select>';
+    return $html;
+}
+
 function org_setting(string $key): string {
     static $cache = [];
     if (!array_key_exists($key, $cache)) {

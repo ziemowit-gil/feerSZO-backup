@@ -43,6 +43,18 @@ if (!viewer_owns_contract($TYPE, $row)) {
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
 
+// ── Migracja kolumny representative_id ───────────────────────────────────────
+try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN representative_id INTEGER NULL"); } catch(\Throwable $e) {}
+
+// ── Zmiana podpisującego ───────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'set_representative' && can_edit()) {
+    csrf_check();
+    $rid = (int)($_POST['representative_id'] ?? 0) ?: null;
+    db()->prepare("UPDATE umowy_wolontariat SET representative_id=? WHERE id=?")->execute([$rid, $id]);
+    flash_set('success', 'Podpisujący zaktualizowany.');
+    header('Location: view.php?id=' . $id . '#tab-umowa-anchor'); exit;
+}
+
 // ── Upload dodatkowego pliku do umowy ─────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'upload_contract_doc' && can_edit()) {
     csrf_check();
@@ -681,8 +693,8 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <ul class="nav nav-tabs mb-0 no-print" id="wolontariatTabs" role="tablist">
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-umowa-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-umowa" type="button" role="tab">
+    <button class="nav-link active" id="tab-umowa-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-umowa" type="button" role="tab" aria-selected="true">
       <i class="bi bi-file-text"></i> Umowa
     </button>
   </li>
@@ -810,7 +822,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 1 — UMOWA
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane fade" id="tab-umowa" role="tabpanel">
+<div class="tab-pane fade show active" id="tab-umowa" role="tabpanel">
 
   <!-- Dane podstawowe -->
   <div class="irow">
@@ -978,6 +990,41 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
       <?php endif; ?>
     </div>
   </div>
+
+  <!-- Podpisujący ze strony organizacji -->
+  <?php
+  $rep = $row['representative_id'] ? db_one("SELECT * FROM org_representatives WHERE id=?", [(int)$row['representative_id']]) : null;
+  $all_reps = org_representatives();
+  ?>
+  <?php if ($all_reps || $rep): ?>
+  <div class="irow">
+    <div class="irow-head">
+      <div class="irow-head-icon" style="background:#F0FDF4;color:#16a34a"><i class="bi bi-person-badge-fill"></i></div>
+      <div class="irow-head-label">Podpisu-<br>jący</div>
+    </div>
+    <div class="irow-body">
+      <div class="ifield">
+        <div class="detail-label">Ze strony organizacji</div>
+        <div class="detail-value">
+          <?php if ($rep): ?>
+          <strong><?= h($rep['name']) ?></strong>
+          <?php if ($rep['title']): ?><span class="text-muted small"> — <?= h($rep['title']) ?></span><?php endif; ?>
+          <?php else: ?><span class="text-muted">Nie przypisano</span><?php endif; ?>
+          <?php if (can_edit() && $all_reps): ?>
+          <button class="btn btn-link btn-sm py-0 ms-2" style="font-size:.75rem"
+                  onclick="document.getElementById('rep-form').classList.toggle('d-none')">zmień</button>
+          <form id="rep-form" method="post" class="d-none mt-2 d-flex gap-2 align-items-center">
+            <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="set_representative">
+            <?= org_representative_select('representative_id', (int)($row['representative_id'] ?? 0)) ?>
+            <button class="btn btn-sm btn-primary">Zapisz</button>
+          </form>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <?php if ($row['uwagi']): ?>
   <div class="irow">
