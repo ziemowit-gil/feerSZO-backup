@@ -181,12 +181,17 @@ function _mail_setting(string $key): string {
 }
 
 function _mail_from(): string {
-    // M365 send_from ma priorytet
+    // 1. Explicite ustawiony adres nadawcy M365
     $m365from = _mail_setting('m365_send_from_email');
-    if ($m365from && _mail_m365_configured()) return $m365from;
+    if ($m365from) return $m365from;
 
+    // 2. SMTP from
     $smtp = _mail_setting('smtp_from_email') ?: _mail_setting('notify_from_email');
     if ($smtp) return $smtp;
+
+    // 3. Fallback: m365_sender_user_id (Azure Object ID działa jako endpoint sendMail)
+    $sender_uid = _mail_setting('m365_sender_user_id');
+    if ($sender_uid) return $sender_uid;
 
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     return "no-reply@{$host}";
@@ -201,7 +206,9 @@ function _mail_from_name(): string {
 // ── M365 Graph API ────────────────────────────────────────────────────────────
 
 function _mail_m365_configured(): bool {
-    return (bool)(_mail_setting('m365_send_from_email')
+    // Wystarczy sender_user_id LUB send_from_email + credentials Graph API
+    $has_sender = _mail_setting('m365_sender_user_id') || _mail_setting('m365_send_from_email');
+    return (bool)($has_sender
         && _mail_setting('m365_tenant_id')
         && _mail_setting('m365_graph_client_id')
         && _mail_setting('m365_graph_client_secret'));
@@ -211,7 +218,8 @@ function _mail_send_m365(array $msg): bool {
     $tenant   = _mail_setting('m365_tenant_id');
     $client   = _mail_setting('m365_graph_client_id');
     $secret   = _mail_setting('m365_graph_client_secret');
-    $from     = _mail_setting('m365_send_from_email');
+    // Fallback: jeśli send_from_email nie ustawione, użyj sender_user_id (Azure Object ID)
+    $from     = _mail_setting('m365_send_from_email') ?: _mail_setting('m365_sender_user_id');
 
     // Pobierz token
     $tok_resp = _mail_http_post(

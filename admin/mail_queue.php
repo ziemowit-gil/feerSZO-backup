@@ -17,7 +17,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? '';
     $mid    = (int)($_POST['id'] ?? 0);
 
-    if ($action === 'process') {
+    if ($action === 'test_send') {
+        // Test diagnostyczny z pełnym logowaniem
+        $to  = trim($_POST['test_email'] ?? '');
+        if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            flash_set('danger', 'Podaj prawidłowy adres e-mail do testu.');
+        } else {
+            $org = defined('ORG_NAME') ? ORG_NAME : 'System';
+            $mid_test = mail_queue_add(
+                $to, $to,
+                "Test wysyłki — {$org}",
+                "<html><body><h2>Test e-mail</h2><p>Wysłano: " . date('d.m.Y H:i:s') . "</p>"
+                . "<p>Nadawca: " . htmlspecialchars(_mail_from()) . "</p>"
+                . "<p>Metoda: " . (_mail_m365_configured() ? 'Microsoft 365 Graph API' : ((_mail_setting('smtp_host') ? 'SMTP: '._mail_setting('smtp_host') : 'PHP mail()'))) . "</p>"
+                . "</body></html>"
+            );
+            // Wymuś natychmiastowe wysłanie z verbose błędem
+            $msg = db_one("SELECT * FROM mail_queue WHERE id=?", [$mid_test]);
+            $method = 'PHP mail()';
+            $ok = false; $err = '';
+            try {
+                if (_mail_m365_configured()) {
+                    $method = 'Microsoft 365 Graph API';
+                    $ok = _mail_send_m365($msg);
+                } elseif (_mail_setting('smtp_host')) {
+                    $method = 'SMTP: ' . _mail_setting('smtp_host');
+                    $ok = _mail_send_smtp($msg, _mail_setting('smtp_host'));
+                } else {
+                    $method = 'PHP mail() — fallback';
+                    $ok = _mail_send_native($msg);
+                }
+            } catch (\Throwable $e) {
+                $err = $e->getMessage();
+            }
+            if ($ok) {
+                db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$mid_test]);
+                flash_set('success', "✓ Test wysłany do {$to} przez <strong>{$method}</strong>. Sprawdź skrzynkę (też spam).");
+            } else {
+                db()->prepare("UPDATE mail_queue SET status='failed',last_error=? WHERE id=?")->execute([$err, $mid_test]);
+                flash_set('danger', "✗ Błąd wysyłki przez <strong>{$method}</strong>: " . htmlspecialchars($err ?: 'nieznany błąd'));
+            }
+        }
+        header('Location: mail_queue.php?status='.$status_f); exit;
+
+    } elseif ($action === 'process') {
         $res = mail_queue_process((int)($_POST['batch'] ?? 20));
         flash_set('success', "Wysłano: {$res['sent']}, błędy: {$res['failed']}.");
     } elseif ($action === 'retry' && $mid) {
@@ -59,6 +102,35 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- Diagnostyka metody wysyłki -->
+<?php
+$mail_method = 'PHP mail() — brak konfiguracji SMTP/M365';
+$mail_status_class = 'warning';
+if (_mail_m365_configured()) {
+    $mail_method = 'Microsoft 365 Graph API (fundacja@feer.org.pl → Graph)';
+    $mail_status_class = 'success';
+} elseif (_mail_setting('smtp_host')) {
+    $mail_method = 'SMTP: ' . _mail_setting('smtp_host') . ':' . (_mail_setting('smtp_port') ?: 587);
+    $mail_status_class = 'info';
+}
+?>
+<div class="alert alert-<?= $mail_status_class ?> d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 mb-3">
+  <div class="d-flex align-items-center gap-2">
+    <i class="bi bi-<?= $mail_status_class === 'success' ? 'check-circle-fill' : 'exclamation-triangle-fill' ?> flex-shrink-0"></i>
+    <span class="small"><strong>Aktywna metoda wysyłki:</strong> <?= h($mail_method) ?></span>
+  </div>
+  <form method="post" class="d-flex gap-2 align-items-center flex-shrink-0">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_action" value="test_send">
+    <input type="email" name="test_email" class="form-control form-control-sm"
+           placeholder="twoj@gmail.com" required style="width:200px"
+           value="<?= h(current_user()['email'] ?? '') ?>">
+    <button type="submit" class="btn btn-sm btn-outline-dark">
+      <i class="bi bi-send me-1"></i>Wyślij test
+    </button>
+  </form>
+</div>
 
 <!-- Stats -->
 <div class="row g-2 mb-3">
