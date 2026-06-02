@@ -132,6 +132,95 @@ HTML;
     header('Location: view.php?id=' . $id); exit;
 }
 
+// ── Ponowna wysyłka e-maila powitalnego ──────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_resend_welcome']) && can_edit()) {
+    csrf_check();
+    $email = trim($row['email'] ?? '');
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        flash_set('danger', 'Brak adresu e-mail — nie można wysłać maila powitalnego.');
+    } else {
+        $portal_user = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$email]);
+        if (!$portal_user) {
+            flash_set('warning', 'Wolontariusz nie ma jeszcze konta — konto zostanie utworzone przy edycji umowy.');
+        } else {
+            // Wygeneruj nowe hasło tymczasowe
+            $plain = substr(str_replace(['+','/','-'], '', base64_encode(random_bytes(18))), 0, 12);
+            $hash  = password_hash($plain, PASSWORD_BCRYPT);
+            db()->prepare("UPDATE users SET password=?, login_code=NULL WHERE id=?")->execute([$hash, (int)$portal_user['id']]);
+
+            $org          = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+            $name         = h($row['imie_nazwisko'] ?? $email);
+            $numer        = h($row['numer_umowy'] ?? '');
+            $m365_login   = trim($row['m365_login'] ?? '');
+            $is_technical = !empty($row['is_technical']);
+            $portal_scope = $row['portal_scope'] ?? '';
+            $login_url    = APP_URL . '/auth/login.php';
+            $panel_url    = APP_URL . '/panel/index.php';
+
+            // Blok logowania
+            $login_block = <<<HTML
+<table style="background:#f8f9fa;border-radius:8px;padding:16px;width:100%;margin:16px 0;border-collapse:collapse">
+  <tr><td style="padding:5px 14px;color:#6c757d;width:130px;font-size:.9em">Adres e-mail</td><td style="padding:5px 14px"><strong>{$email}</strong></td></tr>
+  <tr><td style="padding:5px 14px;color:#6c757d;font-size:.9em">Hasło</td><td style="padding:5px 14px"><strong style="font-family:monospace;font-size:1.15em;letter-spacing:.05em">{$plain}</strong></td></tr>
+</table>
+HTML;
+
+            // Dobierz wariant e-maila taki sam jak przy tworzeniu konta
+            if ($is_technical) {
+                $subject = "Twoje dane logowania do platformy — {$org}";
+                $intro   = "Poniżej znajdziesz aktualne dane logowania do platformy organizacji (zastępuje Trello i inne narzędzia).";
+                $accent  = '#7c3aed';
+                $btn_bg  = '#7c3aed';
+            } elseif ($portal_scope === 'tasks_only') {
+                $subject = "Dane logowania — tablica zadań — {$org}";
+                $intro   = "Poniżej znajdziesz aktualne dane logowania do tablicy zadań organizacji.";
+                $accent  = '#0ea5e9';
+                $btn_bg  = '#0ea5e9';
+            } elseif ($portal_scope === 'crm_only') {
+                $subject = "Dane logowania — CRM — {$org}";
+                $intro   = "Poniżej znajdziesz aktualne dane logowania do systemu CRM organizacji.";
+                $accent  = '#16a34a';
+                $btn_bg  = '#16a34a';
+            } else {
+                $subject = "Twoje dane logowania do portalu — {$org}";
+                $intro   = "Poniżej znajdziesz aktualne dane logowania do portalu wolontariusza.";
+                $accent  = '#1d6ef9';
+                $btn_bg  = '#1d6ef9';
+            }
+
+            $body = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,{$accent},{$btn_bg});padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">🔑 Nowe dane logowania — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>{$intro}</p>
+  <div style="background:#fff8e1;border-left:3px solid #f59e0b;border-radius:4px;padding:10px 14px;margin:14px 0;font-size:.88em">
+    Hasło zostało zresetowane. Użyj danych poniżej — po zalogowaniu możesz je zmienić w <strong>Mój panel</strong>.
+  </div>
+  {$login_block}
+  <div style="margin:20px 0;text-align:center">
+    <a href="{$login_url}" style="background:{$btn_bg};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Zaloguj się →</a>
+  </div>
+  <p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Jeśli nie zamawiałeś/aś tego e-maila, zignoruj go.<br>
+    <a href="{$panel_url}" style="color:{$accent}">{$panel_url}</a>
+  </p>
+</div></body></html>
+HTML;
+
+            require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+            mail_queue_add($email, $row['imie_nazwisko'] ?? $email, $subject, $body);
+            mail_queue_process();
+            log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
+                'Ponownie wysłano e-mail powitalny z nowym hasłem na: ' . $email);
+            flash_set('success', 'E-mail powitalny wysłany na ' . $email . '. Hasło zostało zresetowane.');
+        }
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
 // ── Ponowne wysłanie danych do panelu wolontariusza ──────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_resend_portal']) && can_edit()) {
     csrf_check();
@@ -925,6 +1014,19 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
               <li><h6 class="dropdown-header small">
                 <i class="bi bi-envelope me-1"></i><?= h($row['email']) ?>
               </h6></li>
+              <li><hr class="dropdown-divider my-1"></li>
+
+              <!-- Wyślij e-mail powitalny (nowe hasło) -->
+              <li>
+                <form method="post" class="px-3 py-1"
+                      onsubmit="return confirm('Wysłać e-mail powitalny?\nHasło zostanie zresetowane i wysłane na <?= h(addslashes($row['email'] ?? '')) ?>')">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <button type="submit" name="_resend_welcome" value="1" class="btn btn-sm btn-outline-success w-100 text-start">
+                    <i class="bi bi-envelope-heart me-2"></i>Wyślij e-mail powitalny
+                  </button>
+                  <div class="text-muted" style="font-size:.75rem;margin-top:3px;padding-left:2px">Nowe hasło + instrukcja logowania</div>
+                </form>
+              </li>
               <li><hr class="dropdown-divider my-1"></li>
 
               <!-- Wyślij kod jednorazowy -->
