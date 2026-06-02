@@ -703,56 +703,97 @@ body { background: #f1f5f9; }
   </form>
 
   <?php // ── KROK 8: Gotowe
-  elseif ($step === 8): ?>
+  elseif ($step === 8):
+    // Wykryj aktualny URL instalacji
+    $inst_url = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
+              . rtrim(dirname($_SERVER['PHP_SELF']), '/');
+    $creator_url = $inst_url . '/creator.php';
+  ?>
   <div class="text-center mb-3">
     <i class="bi bi-check-circle-fill ins-success-icon"></i>
     <h2 style="font-size:1.25rem">Instalacja zakończona!</h2>
-    <p class="text-muted small">Platforma NGO jest gotowa. Wykonaj poniższe kroki aby ukończyć konfigurację.</p>
+    <p class="text-muted small">Platforma NGO jest gotowa. Wyślij poniższe dane twórcy, a następnie wykonaj kolejne kroki.</p>
   </div>
 
+  <!-- Blok Creator Panel — główna akcja -->
+  <div class="border rounded p-3 mb-3" style="background:#eff6ff;border-color:#bfdbfe!important">
+    <div class="d-flex align-items-start gap-2 mb-2">
+      <i class="bi bi-shield-lock-fill text-primary mt-1" style="font-size:1.1rem"></i>
+      <div>
+        <div class="fw-bold small">Panel twórcy — aktywacja licencji</div>
+        <div class="text-muted" style="font-size:.78rem">
+          Hasło zna twórca. Możliwe też zdalne wgranie licencji przez License Manager.
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 align-items-stretch mb-2">
+      <code class="flex-grow-1 px-2 py-1 rounded small" id="creator-url-val"
+            style="background:#1e293b;color:#7dd3fc;display:block;word-break:break-all">
+        <?= htmlspecialchars($creator_url) ?>
+      </code>
+      <button class="btn btn-sm btn-primary flex-shrink-0"
+              onclick="navigator.clipboard.writeText(<?= json_encode($creator_url) ?>);this.textContent='✓';setTimeout(()=>this.textContent='Kopiuj',1500)">
+        Kopiuj
+      </button>
+    </div>
+
+    <div class="alert alert-warning py-2 mb-0" style="font-size:.78rem">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      <strong>Zmiana adresu URL instalacji wymaga ponownego wystawienia licencji.</strong>
+      Certyfikat jest powiązany z APP_KEY, a APP_KEY z konkretną instalacją — nie z domeną.
+      Jeśli instalacja zostanie przeniesiona na inny adres, twórca musi wygenerować nowy certyfikat.
+    </div>
+  </div>
+
+  <!-- Kolejne kroki -->
   <div class="mb-3">
     <div class="next-step">
       <div class="next-num">1</div>
       <div>
-        <div class="title">Wygeneruj certyfikat instalacyjny</div>
-        <div class="desc">Otwórz <code>creator.php</code> → zaloguj się hasłem twórcy → wygeneruj cert. Bez tego aplikacja jest zablokowana.</div>
+        <div class="title">Aktywuj licencję w Creator Panel</div>
+        <div class="desc">
+          Twórca loguje się na <code>creator.php</code> (zna hasło) i generuje certyfikat instalacyjny.
+          Alternatywnie wgrywa certyfikat zdalnie przez License Manager.
+          <strong>Bez certyfikatu aplikacja jest zablokowana.</strong>
+        </div>
       </div>
     </div>
     <div class="next-step">
       <div class="next-num">2</div>
       <div>
         <div class="title">Zmień hasło twórcy</div>
-        <div class="desc">W panelu creator.php → sekcja <em>creator.password</em> → ustaw własne hasło przed wdrożeniem.</div>
+        <div class="desc">Creator Panel → sekcja <em>creator.password</em> → ustaw indywidualne hasło dla tej instalacji.</div>
       </div>
     </div>
     <div class="next-step">
       <div class="next-num">3</div>
       <div>
         <div class="title">Skonfiguruj CRON</div>
-        <div class="desc">Admin → Konfiguracja CRON → wygeneruj token → dodaj zadanie w DirectAdmin.</div>
+        <div class="desc">Admin → Konfiguracja CRON → wygeneruj token → dodaj zadanie w DirectAdmin co minutę.</div>
       </div>
     </div>
     <div class="next-step">
       <div class="next-num">4</div>
       <div>
-        <div class="title">Uzupełnij dane i usuń dane testowe</div>
-        <div class="desc">Admin → Dane organizacji → logo, kolory, e-mail. Przed startem: Admin → Czyszczenie przed wdrożeniem.</div>
+        <div class="title">Uzupełnij dane i wyczyść dane testowe</div>
+        <div class="desc">Admin → Dane organizacji → logo, kolory. Przed startem produkcyjnym: Admin → Czyszczenie przed wdrożeniem.</div>
       </div>
     </div>
     <div class="next-step">
       <div class="next-num">5</div>
       <div>
-        <div class="title">Zabezpiecz lub usuń <code>install.php</code></div>
-        <div class="desc">Plik instalacyjny powinien być niedostępny publicznie po zakończeniu instalacji.</div>
+        <div class="title">Usuń lub zablokuj <code>install.php</code></div>
+        <div class="desc">Plik instalacyjny powinien być niedostępny publicznie. Usuń go przez FTP lub dodaj regułę w <code>.htaccess</code>.</div>
       </div>
     </div>
   </div>
 
   <a href="creator.php" class="btn btn-primary w-100 mb-2">
-    <i class="bi bi-shield-check me-1"></i>Otwórz Creator Panel → wygeneruj certyfikat
+    <i class="bi bi-shield-check me-1"></i>Otwórz Creator Panel
   </a>
   <a href="index.php" class="btn btn-outline-secondary w-100" style="font-size:.85rem">
-    Przejdź do systemu
+    Przejdź do systemu (wymaga aktywnej licencji)
   </a>
 
   <?php endif; ?>
