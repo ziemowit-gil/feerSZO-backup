@@ -110,15 +110,18 @@ if (!$error) {
         $user = $existing;
     } else {
         // Brak konta w systemie — nie twórz automatycznie, pokaż komunikat
-        $error = 'no_account';
-        $ms_display_name  = $name;
-        $ms_display_email = $email;
+        $error            = 'no_account';
+        $ms_display_name  = $name  ?? '';
+        $ms_display_email = $email ?? '';
     }
 
-    log_auth_action((int)$user['id'], 'login_ms', 'Logowanie Microsoft: ' . ($user['email'] ?? ''));
-    login_user($user);
-    header('Location: ' . $redirect_after);
-    exit;
+    // Zaloguj i przekieruj tylko gdy nie ma błędu
+    if (!$error && isset($user)) {
+        log_auth_action((int)$user['id'], 'login_ms', 'Logowanie Microsoft: ' . ($user['email'] ?? ''));
+        login_user($user);
+        header('Location: ' . $redirect_after);
+        exit;
+    }
 }
 ?>
 <!DOCTYPE html>

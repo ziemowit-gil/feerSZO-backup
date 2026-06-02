@@ -198,12 +198,12 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 
 /* ── Section labels ───────────────────────── */
 .sb-label {
-    padding: 1rem 1rem .3rem;
-    font-size: .68rem;
+    padding: .6rem 1rem .2rem;
+    font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .09em;
-    color: #94a3b8;
+    letter-spacing: .08em;
+    color: #b0bec5;
     display: block;
 }
 
@@ -211,28 +211,30 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 .sb-link {
     display: flex;
     align-items: center;
-    gap: .6rem;
-    padding: .52rem 1rem;
+    gap: .5rem;
+    padding: .38rem .9rem;
     color: #334155;
     text-decoration: none;
-    font-size: .88rem;
+    font-size: .84rem;
     font-weight: 500;
     border-left: 3px solid transparent;
     transition: background .1s, color .1s;
 }
-.sb-link i { font-size: .95rem; width: 18px; text-align: center; flex-shrink: 0; }
+.sb-link i { font-size: .9rem; width: 17px; text-align: center; flex-shrink: 0; color: #94a3b8; }
 .sb-link:hover { background: #eff6ff; color: #2563eb; }
-.sb-link.nav-active { background: #eff6ff; color: #2563eb; border-left-color: #2563eb; font-weight: 700; }
-.sb-link .badge { font-size: .64rem; margin-left: auto; font-weight: 700; }
+.sb-link:hover i { color: #2563eb; }
+.sb-link.nav-active { background: #eff6ff; color: #2563eb; border-left-color: #2563eb; font-weight: 600; }
+.sb-link.nav-active i { color: #2563eb; }
+.sb-link .badge { font-size: .62rem; margin-left: auto; font-weight: 700; }
 
 /* ── Collapsible type headers ─────────────── */
 .sb-type-btn {
     display: flex;
     align-items: center;
-    gap: .6rem;
-    padding: .52rem 1rem;
+    gap: .5rem;
+    padding: .38rem .9rem;
     color: #334155;
-    font-size: .88rem;
+    font-size: .84rem;
     font-weight: 500;
     background: none;
     border: none;
@@ -243,37 +245,39 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     transition: background .1s, color .1s;
     line-height: 1.4;
 }
-.sb-type-btn i:first-child { font-size: .95rem; width: 18px; text-align: center; flex-shrink: 0; }
+.sb-type-btn i:first-child { font-size: .9rem; width: 17px; text-align: center; flex-shrink: 0; color: #94a3b8; }
 .sb-type-btn:hover { background: #eff6ff; color: #2563eb; }
-.sb-type-btn.type-open { color: #2563eb; background: #eff6ff; border-left-color: #2563eb; font-weight: 700; }
+.sb-type-btn:hover i:first-child { color: #2563eb; }
+.sb-type-btn.type-open { color: #2563eb; background: #eff6ff; border-left-color: #2563eb; font-weight: 600; }
+.sb-type-btn.type-open i:first-child { color: #2563eb; }
 .sb-chevron {
     margin-left: auto;
-    font-size: .7rem;
-    opacity: .5;
+    font-size: .65rem;
+    opacity: .4;
     transition: transform .18s ease;
     flex-shrink: 0;
 }
-.sb-type-btn.type-open .sb-chevron { transform: rotate(90deg); opacity: 1; }
+.sb-type-btn.type-open .sb-chevron { transform: rotate(90deg); opacity: .8; }
 
 /* ── Sub-links ────────────────────────────── */
-.sb-sub { padding: 1px 0 4px 0; }
+.sb-sub { padding: 0 0 2px 0; }
 .sb-sub-link {
     display: flex;
     align-items: center;
-    gap: .5rem;
-    padding: .38rem 1rem .38rem 2.3rem;
+    gap: .45rem;
+    padding: .3rem .9rem .3rem 2.2rem;
     color: #64748b;
     text-decoration: none;
-    font-size: .83rem;
+    font-size: .82rem;
     border-left: 3px solid transparent;
     transition: background .1s, color .1s;
 }
-.sb-sub-link i { font-size: .8rem; width: 16px; text-align: center; flex-shrink: 0; }
+.sb-sub-link i { font-size: .8rem; width: 15px; text-align: center; flex-shrink: 0; }
 .sb-sub-link:hover { background: #eff6ff; color: #2563eb; }
 .sb-sub-link.nav-active { color: #2563eb; font-weight: 600; border-left-color: #2563eb; background: #eff6ff; }
 
 /* ── Separator ────────────────────────────── */
-.sb-sep { height: 1px; background: #e2e8f0; margin: .5rem .75rem; }
+.sb-sep { height: 1px; background: #f1f5f9; margin: .35rem .85rem; }
 
 /* ── Footer ───────────────────────────────── */
 .sb-footer {
@@ -587,30 +591,41 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <?php else: ?>
   <!-- ══ WIDOK EDYTORA / ADMINA ══════════════════════════════════ -->
 
-  <!-- Mój obszar -->
-  <div class="sb-label">Mój obszar</div>
-  <a class="sb-link<?= _nav_active('/panel/index') ?>" href="<?= APP_URL ?>/panel/index.php">
-    <i class="bi bi-person-circle"></i> Mój panel
-  </a>
-  <a class="sb-link<?= _nav_active('/komunikaty/') ?>" href="<?= APP_URL ?>/komunikaty/index.php">
-    <i class="bi bi-megaphone" style="color:#F59E0B"></i> Komunikaty
-    <?php try {
-      $_e_ann_count = count(array_filter(ann_list_for_user((int)$_user['id'], $_user['role'] ?? 'editor'), fn($a) => !(int)($a['is_read_by_me'] ?? 0)));
-      if ($_e_ann_count > 0): ?>
-    <span class="badge bg-warning text-dark ms-auto" style="font-size:.65rem"><?= $_e_ann_count ?></span>
-    <?php endif; } catch (\Throwable $e) {} ?>
-  </a>
-  <a class="sb-link<?= _nav_active('/panel/profile_edit') ?>" href="<?= APP_URL ?>/panel/profile_edit.php">
-    <i class="bi bi-person-badge"></i> Mój profil
-  </a>
-  <?php if (module_enabled('moodle_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/panel/moodle') ?>" href="<?= APP_URL ?>/panel/moodle.php">
-    <i class="bi bi-mortarboard"></i> Moje kursy
-  </a>
-  <?php endif; ?>
-  <a class="sb-link<?= _nav_active('/panel/m365') ?>" href="<?= APP_URL ?>/panel/m365.php">
-    <i class="bi bi-microsoft" style="color:#00a4ef"></i> Microsoft 365
-  </a>
+  <!-- Mój obszar — zwijane dla admina (mniej ważne) -->
+  <?php
+  $_my_active = str_contains($_uri,'/panel/') || str_contains($_uri,'/komunikaty/');
+  ?>
+  <button type="button"
+          class="sb-type-btn <?= $_my_active ? 'type-open' : '' ?>"
+          data-bs-toggle="collapse" data-bs-target="#sb-myarea"
+          aria-expanded="<?= $_my_active ? 'true' : 'false' ?>">
+    <i class="bi bi-person-circle"></i> Mój obszar
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_my_active ? 'show' : '' ?>" id="sb-myarea">
+    <a class="sb-sub-link<?= _nav_active('/panel/index') ?>" href="<?= APP_URL ?>/panel/index.php">
+      <i class="bi bi-house"></i> Mój panel
+    </a>
+    <a class="sb-sub-link<?= _nav_active('/komunikaty/') ?>" href="<?= APP_URL ?>/komunikaty/index.php">
+      <i class="bi bi-megaphone"></i> Komunikaty
+      <?php try {
+        $_e_ann_count = count(array_filter(ann_list_for_user((int)$_user['id'], $_user['role'] ?? 'editor'), fn($a) => !(int)($a['is_read_by_me'] ?? 0)));
+        if ($_e_ann_count > 0): ?>
+      <span class="badge bg-warning text-dark ms-auto" style="font-size:.62rem"><?= $_e_ann_count ?></span>
+      <?php endif; } catch (\Throwable $e) {} ?>
+    </a>
+    <a class="sb-sub-link<?= _nav_active('/panel/profile_edit') ?>" href="<?= APP_URL ?>/panel/profile_edit.php">
+      <i class="bi bi-person-badge"></i> Mój profil
+    </a>
+    <?php if (module_enabled('moodle_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/moodle') ?>" href="<?= APP_URL ?>/panel/moodle.php">
+      <i class="bi bi-mortarboard"></i> Moje kursy
+    </a>
+    <?php endif; ?>
+    <a class="sb-sub-link<?= _nav_active('/panel/m365') ?>" href="<?= APP_URL ?>/panel/m365.php">
+      <i class="bi bi-microsoft"></i> Microsoft 365
+    </a>
+  </div>
 
   <!-- ── Działania i granty ───────────────────────────────────── -->
   <?php if (can_edit()): ?>
