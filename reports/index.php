@@ -90,6 +90,56 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 </div>
 </div>
+
+<!-- Generator XLS — Ubezpieczenie (umowy krótkie) -->
+<div class="col-12">
+<div class="card border-warning-subtle shadow-sm">
+<div class="card-header fw-semibold d-flex align-items-center gap-2"
+     style="background:#FFFBEB;border-bottom:1px solid #FDE68A">
+  <i class="bi bi-shield-check text-warning fs-5"></i>
+  Wykaz do ubezpieczenia — umowy krótsze niż 30 dni
+  <span class="badge bg-warning text-dark ms-1" style="font-size:.72rem">PESEL / Imię / Nazwisko</span>
+</div>
+<div class="card-body">
+  <p class="text-muted small mb-3">
+    Generuje plik Excel (.xls) z listą osób, których umowy trwają krócej niż określona liczba dni.
+    Przydatne do zgłoszeń ubezpieczeniowych (ZUS/NNW) dla krótkoterminowych umów wolontariackich i zleceń.
+  </p>
+  <form method="get" action="export_insurance.php" class="row g-2 align-items-end">
+    <div class="col-sm-3">
+      <label class="form-label small fw-semibold">Typ umowy</label>
+      <select name="type" class="form-select form-select-sm">
+        <option value="all">Wszystkie typy</option>
+        <?php foreach (CONTRACT_TYPES as $slug => $label): ?>
+        <option value="<?= $slug ?>"><?= h($label) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label small fw-semibold">Maks. liczba dni</label>
+      <input type="number" name="max_days" class="form-control form-control-sm"
+             value="30" min="1" max="365">
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label small fw-semibold">Data od</label>
+      <input type="date" name="date_from" class="form-control form-control-sm"
+             value="<?= date('Y-m-01') ?>">
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label small fw-semibold">Data do</label>
+      <input type="date" name="date_to" class="form-control form-control-sm"
+             value="<?= date('Y-m-t') ?>">
+    </div>
+    <div class="col-sm-3">
+      <button type="submit" class="btn btn-warning w-100">
+        <i class="bi bi-file-earmark-excel me-1"></i>Generuj XLS
+      </button>
+    </div>
+  </form>
+</div>
+</div>
+</div>
+
 </div>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
