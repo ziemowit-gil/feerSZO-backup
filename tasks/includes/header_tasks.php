@@ -532,6 +532,14 @@ body {
   </a>
   <?php endif; ?>
   <?php if ($_is_admin): ?>
+  <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/areas') ? 'active' : '' ?>"
+     href="<?= APP_URL ?>/tasks/settings/areas.php"
+     aria-current="<?= _tsk_active('/tasks/settings/areas') ? 'page' : 'false' ?>">
+    <i class="bi bi-layers" aria-hidden="true"></i>
+    Obszary zadań
+  </a>
+  <?php endif; ?>
+  <?php if ($_is_admin): ?>
   <div class="tsk-nav-sep" role="separator"></div>
   <a class="tsk-nav-link <?= _tsk_active('/admin/tasks_cleanup') ? 'active' : '' ?>"
      href="<?= APP_URL ?>/admin/tasks_cleanup.php"

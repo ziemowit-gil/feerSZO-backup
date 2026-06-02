@@ -159,6 +159,7 @@ $groups = [
             ['icon'=>'bi-palette2',        'label'=>'Canva Pro',          'url'=>'/admin/canva.php'],
             ['icon'=>'bi-trello',          'label'=>'Import z Trello',    'url'=>'/admin/trello_import.php'],
             ['icon'=>'bi-envelope-heart',  'label'=>'Wysyłka powitalna',  'url'=>'/admin/resend_welcome.php'],
+            ['icon'=>'bi-key-fill',        'label'=>'Klucze API',         'url'=>'/admin/api_keys.php'],
             ['icon'=>'bi-chat-dots',       'label'=>'SMS',               'url'=>'/admin/sms_settings.php'],
             ['icon'=>'bi-whatsapp',        'label'=>'WhatsApp',          'url'=>'/admin/whatsapp_settings.php'],
             ['icon'=>'bi-envelope-at',     'label'=>'Postivo (maile)',    'url'=>'/admin/postivo_settings.php'],
@@ -184,6 +185,8 @@ $groups = [
         'color' => 'orange',
         'items' => [
             ['icon'=>'bi-calendar-x',      'label'=>'Wygasające umowy',   'url'=>'/admin/contract_expiry.php', 'badge'=>$cnt['expiring_7'] ?: ($cnt['expiring_30'] ?: null), 'badge_type'=>$cnt['expiring_7'] ? 'danger' : 'warning'],
+            ['icon'=>'bi-calendar3',       'label'=>'Kalendarz',          'url'=>'/admin/calendar.php'],
+            ['icon'=>'bi-envelope-check',  'label'=>'Masowe maile',       'url'=>'/admin/bulk_email.php'],
         ],
     ],
 
@@ -193,7 +196,7 @@ $groups = [
         'items' => [
             ['icon'=>'bi-info-circle',       'label'=>'Informacje o systemie', 'url'=>'/admin/system_info.php', 'danger'=>false],
             ['icon'=>'bi-archive',           'label'=>'Kopie zapasowe',        'url'=>'/admin/backups.php',     'danger'=>false],
-            ['icon'=>'bi-layers',            'label'=>'Obszary zadań',         'url'=>'/admin/task_areas.php',  'danger'=>false],
+            ['icon'=>'bi-layers',            'label'=>'Obszary zadań',         'url'=>'/tasks/settings/areas.php',  'danger'=>false],
             ['icon'=>'bi-database-fill-gear','label'=>'Narzędzia bazy danych','url'=>'/admin/db_tools.php',     'danger'=>false],
             ['icon'=>'bi-trash3',          'label'=>'Wyczyść bazę',      'url'=>'/admin/clean_db.php',       'danger'=>true],
             ['icon'=>'bi-journal-text',    'label'=>'Przeglądarka logów',    'url'=>'/admin/logs_global.php',  'danger'=>false],
