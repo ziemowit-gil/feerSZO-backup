@@ -414,14 +414,16 @@ body { background: #f1f5f9; }
     </p>
 
     <?php if ($migration_results): ?>
-    <div class="mb-3" style="max-height:280px;overflow-y:auto">
+    <div class="mb-3 border rounded" style="max-height:300px;overflow-y:auto;font-size:.78rem">
       <?php foreach ($migration_results as $r):
         [$status, $label] = $r;
-        $icon  = match($status) { 'ok' => 'check-circle-fill text-success', 'skip' => 'dash-circle text-secondary', default => 'x-circle-fill text-danger' };
+        $row_bg = match($status) { 'ok' => '#f0fdf4', 'err' => '#fef2f2', default => '#f8fafc' };
+        $txt_color = match($status) { 'ok' => '#166534', 'err' => '#991b1b', default => '#6b7280' };
+        $icon = match($status) { 'ok' => 'check-circle-fill', 'err' => 'x-circle-fill', default => 'dash-circle' };
       ?>
-      <div class="d-flex align-items-center gap-2 py-1" style="font-size:.78rem;border-bottom:1px solid #f8fafc">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background:<?= $row_bg ?>;color:<?= $txt_color ?>;border-bottom:1px solid #e5e7eb">
         <i class="bi bi-<?= $icon ?>" style="flex-shrink:0"></i>
-        <span class="<?= $status === 'err' ? 'text-danger' : ($status === 'skip' ? 'text-muted' : '') ?>"><?= upg_h($label) ?></span>
+        <span><?= upg_h($label) ?></span>
       </div>
       <?php endforeach; ?>
     </div>
@@ -486,6 +488,11 @@ body { background: #f1f5f9; }
   <div class="text-center">
     <a href="<?= defined('APP_URL') ? upg_h(APP_URL) . '/admin/' : 'admin/' ?>" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left me-1"></i>Wróć do panelu admina
+    </a>
+    <a href="install.php?reinstall=1"
+       class="btn btn-outline-danger btn-sm"
+       onclick="return confirm('Reinstalacja wyczyści bazę i konfigurację (poza kluczami API i CRON). Kontynuować?')">
+      <i class="bi bi-arrow-repeat me-1"></i>Reinstaluj platformę
     </a>
   </div>
 

@@ -5,16 +5,52 @@
 define('INSTALL_MODE', true);
 session_start();
 
-$step   = (int)($_GET['step'] ?? 1);
-$errors = [];
+$step      = (int)($_GET['step'] ?? 1);
+$reinstall = !empty($_GET['reinstall']) || !empty($_SESSION['reinstall_mode']);
+$errors    = [];
 
-// Przekieruj jeśli już zainstalowane
-if (file_exists(__DIR__ . '/config.php') && $step < 7) {
+// Tryb reinstalacji — załaduj config żeby wyciągnąć klucze
+$preserved = [];
+if (file_exists(__DIR__ . '/config.php')) {
+    define('BOOTSTRAP_CHECKED', true);
     require_once __DIR__ . '/config.php';
+
     if (defined('APP_INSTALLED') && APP_INSTALLED) {
-        header('Location: index.php'); exit;
+        if (!$reinstall && $step < 7) {
+            header('Location: index.php'); exit;
+        }
+        // Zachowaj wrażliwe klucze z bieżącej instalacji
+        if ($reinstall || $step > 1) {
+            if (file_exists(__DIR__ . '/includes/db.php')) {
+                require_once __DIR__ . '/includes/db.php';
+                try {
+                    $keys_to_preserve = [
+                        // Microsoft 365
+                        'm365_tenant_id','m365_client_id','m365_client_secret',
+                        'm365_send_from_email','m365_send_from_name',
+                        // SMTP
+                        'smtp_host','smtp_port','smtp_user','smtp_pass',
+                        'smtp_from_email','smtp_encryption',
+                        // SMS
+                        'sms_api_login','sms_api_password','sms_provider',
+                        'sms_enabled','sms_sender_name',
+                        'sms_twilio_sid','sms_twilio_token','sms_twilio_from',
+                        // CRON
+                        'cron_token',
+                        // Anthropic AI
+                        'anthropic_api_key','anthropic_model',
+                        // Creator
+                        'creator_password_hash',
+                    ];
+                    $rows = db_all("SELECT key_, value FROM settings WHERE key_ IN (" . implode(',', array_fill(0, count($keys_to_preserve), '?')) . ")", $keys_to_preserve);
+                    foreach ($rows as $r) $preserved[$r['key_']] = $r['value'];
+                } catch (\Throwable $e) {}
+            }
+        }
     }
 }
+
+if ($reinstall) $_SESSION['reinstall_mode'] = true;
 
 // ── KROK 2: Baza danych ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
@@ -168,6 +204,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
 
             file_put_contents(__DIR__ . '/config.php', $cfg);
 
+            // Przywróć zachowane klucze (reinstalacja)
+            if (!empty($preserved)) {
+                foreach ($preserved as $k => $v) {
+                    $pdo->prepare($upsert)->execute([$k, $v]);
+                }
+            }
+            unset($_SESSION['reinstall_mode']);
+
             // E-mail
             $mail = $_SESSION['install_mail'] ?? ['type' => 'php'];
             $mail_settings = [];
@@ -289,7 +333,13 @@ body { background: #f1f5f9; }
     $upload = is_writable(__DIR__ . '/uploads/');
     $all_ok = $upload && ($sqlite || $mysql);
   ?>
-  <h2>Wymagania systemowe</h2>
+  <?php if ($reinstall): ?>
+  <div class="alert alert-warning py-2 small mb-3">
+    <i class="bi bi-shield-check me-1"></i>
+    <strong>Tryb reinstalacji.</strong> Klucze Microsoft 365, SMS API, CRON token i AI zostaną automatycznie zachowane.
+  </div>
+  <?php endif; ?>
+  <h2><?= $reinstall ? 'Reinstalacja platformy' : 'Wymagania systemowe' ?></h2>
   <p class="sub">Sprawdzenie środowiska przed instalacją.</p>
 
   <?php foreach ($exts as $ext => $required): ?>
