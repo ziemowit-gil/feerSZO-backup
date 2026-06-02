@@ -119,18 +119,59 @@ $_cvh_accent = match($_cvh_st['class']) {
     <div class="contract-hero-stat">
       <div class="cvh-stat-label">Status</div>
       <?php if (can_edit()): ?>
-      <form method="post" class="d-inline" id="cvhStatusForm">
-        <input type="hidden" name="_csrf"        value="<?= csrf_token() ?>">
-        <input type="hidden" name="_set_status"  value="1">
-        <select name="status" class="cvh-status-select cvh-status-<?= h($_cvh_st['class']) ?>"
-                onchange="document.getElementById('cvhStatusForm').submit()">
+      <span class="d-inline-flex align-items-center gap-2">
+        <select id="cvhStatusSelect"
+                class="cvh-status-select cvh-status-<?= h($_cvh_st['class']) ?>"
+                data-contract-id="<?= (int)$_cvh_row['id'] ?>"
+                data-contract-type="<?= h($_cvh_type) ?>"
+                onchange="cvhSetStatus(this)">
           <?php foreach (STATUS_LABELS as $_sv => $_sm): ?>
           <option value="<?= h($_sv) ?>" <?= $_cvh_status === $_sv ? 'selected' : '' ?>>
             <?= h($_sm['label']) ?>
           </option>
           <?php endforeach; ?>
         </select>
-      </form>
+        <span id="cvhStatusSpinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status" aria-hidden="true"></span>
+      </span>
+      <script>
+      function cvhSetStatus(sel) {
+        var prev = sel.dataset.prevValue || sel.value;
+        // Zapamiętaj poprzednią wartość przy pierwszym uruchomieniu
+        if (!sel.dataset.prevValue) sel.dataset.prevValue = sel.value;
+        var newVal = sel.value;
+        if (newVal === prev) return;
+
+        var spinner = document.getElementById('cvhStatusSpinner');
+        sel.disabled = true;
+        if (spinner) spinner.classList.remove('d-none');
+
+        csrfFetch(<?= json_encode(APP_URL . '/api/ajax.php') ?>, {
+          action : 'set_status',
+          id     : sel.dataset.contractId,
+          type   : sel.dataset.contractType,
+          value  : newVal
+        }).then(function(res) {
+          sel.disabled = false;
+          if (spinner) spinner.classList.add('d-none');
+          if (res.ok) {
+            // Aktualizuj klasę koloru selekta
+            sel.className = sel.className.replace(/cvh-status-\S+/g, '');
+            sel.classList.add('cvh-status-select', 'cvh-status-' + res.badge_class);
+            sel.dataset.prevValue = newVal;
+            ajaxToast('Status zaktualizowany');
+          } else {
+            // Przywróć poprzednią wartość
+            sel.value = prev;
+            ajaxToast(res.msg || 'Błąd zmiany statusu', 'error');
+          }
+        }).catch(function() {
+          sel.disabled = false;
+          if (spinner) spinner.classList.add('d-none');
+          sel.value = prev;
+          ajaxToast('Błąd połączenia', 'error');
+        });
+      }
+      </script>
       <?php else: ?>
       <span class="badge bg-<?= h($_cvh_st['class']) ?> fs-6"><?= h($_cvh_st['label']) ?></span>
       <?php if (!empty($_cvh_row['is_technical'])): ?>

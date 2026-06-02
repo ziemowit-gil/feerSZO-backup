@@ -43,6 +43,33 @@ if (!viewer_owns_contract($TYPE, $row)) {
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
 
+// ── Endpoint AJAX: odznaki (?_badges=1) ───────────────────────────────────────
+if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest') {
+    try {
+        $_b_approval = db_one("SELECT status FROM contract_approvals WHERE contract_type=? AND contract_id=? ORDER BY id DESC LIMIT 1", [$TYPE, $id]);
+        $_b_amendments = db_all("SELECT status FROM contract_amendments WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
+        $_b_edit_req   = db_all("SELECT status FROM edit_requests WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
+        $_b_cert       = db_all("SELECT status FROM certificate_requests WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
+        $_b_zwroty     = (new FinanceManager())->listForContract($id, $TYPE);
+        $_b_obieg = 0;
+        if ($_b_approval && $_b_approval['status'] === 'oczekuje') $_b_obieg++;
+        $_b_obieg += count(array_filter($_b_amendments, fn($a) => $a['status'] === 'oczekuje'));
+        $_b_obieg += count(array_filter($_b_edit_req, fn($r) => $r['status'] === 'oczekuje'));
+        header('Content-Type: application/json');
+        echo json_encode([
+            'ok'            => true,
+            'msg_unread'    => (int)msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user'),
+            'badge_obieg'   => $_b_obieg,
+            'badge_docs'    => count(array_filter($_b_cert, fn($r) => $r['status'] === 'oczekuje')),
+            'zwroty_pending'=> count(array_filter($_b_zwroty, fn($z) => in_array($z['status'],['oczekuje','weryfikacja']))),
+        ]);
+    } catch (\Throwable $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false]);
+    }
+    exit;
+}
+
 // ── Migracja kolumny representative_id ───────────────────────────────────────
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN representative_id INTEGER NULL"); } catch(\Throwable $e) {}
 
@@ -606,17 +633,33 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   gap: .15rem; padding-bottom: 0;
 }
 #wolontariatTabs::-webkit-scrollbar { display: none; }
+
+/* Reset Bootstrap nav-tabs defaults that interfere */
+#wolontariatTabs.nav-tabs { border-bottom: 2px solid #E2E8F0; }
 #wolontariatTabs .nav-link {
-  border: none; border-bottom: 2px solid transparent; border-radius: 0;
-  padding: .65rem 1rem; font-size: .83rem; font-weight: 500;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  padding: .7rem 1.05rem; font-size: .83rem; font-weight: 500;
   color: #64748B; white-space: nowrap;
-  margin-bottom: -2px; transition: color .12s, border-color .12s;
+  margin-bottom: -2px; background: transparent !important;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
   display: flex; align-items: center; gap: .35rem;
 }
-#wolontariatTabs .nav-link:hover { color: #1E3A5F; }
-#wolontariatTabs .nav-link.active {
-  color: #1E6DFF; border-bottom-color: #1E6DFF;
-  font-weight: 700; background: none;
+#wolontariatTabs .nav-link:hover {
+  color: #1E3A5F;
+  border-bottom-color: #CBD5E1 !important;
+  background: #F8FAFC !important;
+}
+#wolontariatTabs .nav-link.active,
+#wolontariatTabs .nav-link[aria-selected="true"] {
+  color: #1E6DFF !important;
+  border-bottom-color: #1E6DFF !important;
+  font-weight: 700 !important;
+  background: transparent !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
 }
 #wolontariatTabs .nav-link .bi { font-size: .9rem; }
 
@@ -627,23 +670,35 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   border-radius: 0 0 12px 12px !important;
 }
 
-/* Karty sekcji wewnątrz zakładek (inne zakładki) */
+/* Animacja przełączania zakładek */
+#wolontariatTabsContent .tab-pane {
+  animation-duration: .18s;
+  animation-fill-mode: both;
+}
+#wolontariatTabsContent .tab-pane.fade { opacity: 0; transition: opacity .18s ease; }
+#wolontariatTabsContent .tab-pane.fade.show { opacity: 1; }
+
+/* Karty sekcji wewnątrz zakładek */
 .tab-pane .card {
   border: 1px solid #E2E8F0 !important;
   border-radius: 12px !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,.04) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,.05) !important;
   overflow: hidden;
+  transition: box-shadow .15s ease;
+}
+.tab-pane .card:hover {
+  box-shadow: 0 3px 12px rgba(0,0,0,.08) !important;
 }
 .tab-pane .card-header {
-  background: #F8FAFC !important;
+  background: linear-gradient(to bottom, #F8FAFC, #F1F5F9) !important;
   border-bottom: 1px solid #E2E8F0 !important;
-  padding: .75rem 1.1rem !important;
+  padding: .9rem 1.3rem !important;
   font-size: .88rem !important;
   font-weight: 700 !important;
   color: #1E293B !important;
   display: flex; align-items: center; gap: .4rem;
 }
-.tab-pane .card-body { padding: 1rem 1.1rem !important; }
+.tab-pane .card-body { padding: 1.2rem 1.4rem !important; }
 
 /* Detail label/value */
 .detail-label {
@@ -656,35 +711,41 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 .irow {
   display: flex; align-items: stretch;
   background: #fff; border: 1px solid #E2E8F0;
-  border-radius: 12px; margin-bottom: .65rem;
+  border-radius: 12px; margin-bottom: .8rem;
   box-shadow: 0 1px 4px rgba(0,0,0,.04); overflow: hidden;
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+.irow:hover {
+  box-shadow: 0 3px 14px rgba(30,109,255,.09);
+  border-color: #C7D8FF;
 }
 .irow-head {
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-start;
-  gap: .45rem; padding: 1rem .75rem .85rem;
-  background: #F8FAFC; border-right: 1px solid #E2E8F0;
-  min-width: 80px; text-align: center; flex-shrink: 0;
+  gap: .5rem; padding: 1.1rem .95rem 1rem;
+  background: linear-gradient(to bottom, #F8FAFC, #EEF2F7);
+  border-right: 1px solid #E2E8F0;
+  min-width: 96px; text-align: center; flex-shrink: 0;
 }
 .irow-head-icon {
-  width: 36px; height: 36px; border-radius: 9px;
+  width: 40px; height: 40px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.05rem; flex-shrink: 0;
+  font-size: 1.1rem; flex-shrink: 0;
 }
 .irow-head-label {
-  font-size: .62rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: #94A3B8; line-height: 1.3;
+  font-size: .63rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #7C8FA8; line-height: 1.35;
 }
 .irow-body {
-  flex: 1; padding: .85rem 1.2rem;
-  display: flex; flex-wrap: wrap; gap: .55rem 2.2rem; align-items: flex-start;
+  flex: 1; padding: 1rem 1.5rem;
+  display: flex; flex-wrap: wrap; gap: .65rem 2.5rem; align-items: flex-start;
 }
-.ifield { min-width: 110px; flex: 0 1 auto; }
-.ifield-wide { flex: 1 1 260px; }
+.ifield { min-width: 120px; flex: 0 1 auto; }
+.ifield-wide { flex: 1 1 280px; }
 .ifield-full { flex: 1 1 100%; }
 @media (max-width: 576px) {
   .irow { flex-direction: column; }
-  .irow-head { flex-direction: row; min-width: unset; border-right: none; border-bottom: 1px solid #E2E8F0; padding: .6rem 1rem; }
+  .irow-head { flex-direction: row; min-width: unset; border-right: none; border-bottom: 1px solid #E2E8F0; padding: .7rem 1rem; }
   .irow-head-label { font-size: .72rem; }
 }
 </style>
@@ -2594,8 +2655,15 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 // ── Zapamiętaj aktywną zakładkę ─────────────────────────────────────────────
 (function () {
   var STORAGE_KEY = 'wolontariat_tab_<?= $id ?>';
+  var CONTRACT_ID = <?= (int)$id ?>;
   var tabs = document.getElementById('wolontariatTabs');
   if (!tabs) return;
+
+  // Upewnij się że Bootstrap nie napotka na konflikt z Bootstrap nav-tabs
+  // (force proper init by removing Bootstrap's default active border styling)
+  tabs.querySelectorAll('.nav-link').forEach(function(btn) {
+    btn.style.outline = 'none';
+  });
 
   // Przywróć z localStorage lub otwórz pierwszą
   var saved = localStorage.getItem(STORAGE_KEY) || 'tab-umowa';
@@ -2626,10 +2694,54 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
     if (tasksBtn) { setTimeout(function(){ new bootstrap.Tab(tasksBtn).show(); localStorage.setItem(STORAGE_KEY,'tab-tasks'); }, 50); }
   }
 
-  // Zapisz przy zmianie
+  // ── AJAX odświeżanie odznak ──────────────────────────────────────────────
+  var _badgeRefreshTimer = null;
+  function refreshBadges() {
+    fetch('view.php?id=' + CONTRACT_ID + '&_badges=1', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data) return;
+        // Wiadomości
+        var msgBadge = document.querySelector('#tab-messages-btn .badge');
+        if (data.msg_unread > 0) {
+          if (!msgBadge) {
+            msgBadge = document.createElement('span');
+            msgBadge.className = 'badge bg-danger ms-1';
+            document.getElementById('tab-messages-btn').appendChild(msgBadge);
+          }
+          msgBadge.textContent = data.msg_unread;
+        } else if (msgBadge) { msgBadge.remove(); }
+        // Obieg
+        var obiegBadge = document.querySelector('#tab-obieg-btn .badge');
+        if (data.badge_obieg > 0) {
+          if (!obiegBadge) {
+            obiegBadge = document.createElement('span');
+            obiegBadge.className = 'badge bg-danger ms-1';
+            document.getElementById('tab-obieg-btn').appendChild(obiegBadge);
+          }
+          obiegBadge.textContent = data.badge_obieg;
+        } else if (obiegBadge) { obiegBadge.remove(); }
+        // Zwroty kosztów
+        var zwrotyBadge = document.querySelector('#tab-zwroty-btn .badge');
+        if (data.zwroty_pending > 0) {
+          if (!zwrotyBadge) {
+            zwrotyBadge = document.createElement('span');
+            zwrotyBadge.className = 'badge bg-warning text-dark ms-1';
+            document.getElementById('tab-zwroty-btn').appendChild(zwrotyBadge);
+          }
+          zwrotyBadge.textContent = data.zwroty_pending;
+        } else if (zwrotyBadge) { zwrotyBadge.remove(); }
+      })
+      .catch(function() {});
+  }
+
+  // Zapisz przy zmianie + odśwież odznaki co zmianę zakładki
   tabs.addEventListener('shown.bs.tab', function (e) {
     var id = e.target.dataset.bsTarget.replace('#', '');
     localStorage.setItem(STORAGE_KEY, id);
+    // Odśwież odznaki z 300ms opóźnienia (nie blokuj animacji)
+    clearTimeout(_badgeRefreshTimer);
+    _badgeRefreshTimer = setTimeout(refreshBadges, 300);
   });
 })();
 

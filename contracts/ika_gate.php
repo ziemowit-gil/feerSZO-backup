@@ -118,9 +118,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . $return_to);
             exit;
         } else {
-            $remaining = max(0, 3 - (int)($result['fails'] ?? 0));
-            $s = $remaining === 1 ? 'próba' : 'prób';
-            $error = 'Nieprawidłowy kod IKA. Pozostało ' . $remaining . ' ' . $s . '.';
+            $fails_so_far = (int)($result['fails'] ?? 0);
+            $remaining = max(0, 3 - $fails_so_far);
+            $error = 'Nieprawidłowy kod IKA.';
+            // Pokaż licznik prób dopiero po 2+ nieudanych próbach
+            if ($fails_so_far >= 2) {
+                $s = $remaining === 1 ? 'próba' : ($remaining === 0 ? 'prób' : 'prób');
+                $error .= ' Pozostało ' . $remaining . ' ' . $s . '.';
+            }
         }
     }
 }
@@ -269,7 +274,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
 /* ── Prawa strona ───────────────────────────────────────────────── */
 .login-right {
   flex: 1;
-  background: #f8fafc;
+  background: #EEF2F7;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -278,7 +283,11 @@ html, body { height: 100%; margin: 0; padding: 0; }
 }
 .login-box {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 32px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04);
+  padding: 2.25rem 2rem;
 }
 
 /* Org header — tylko mobile */
@@ -342,16 +351,17 @@ html, body { height: 100%; margin: 0; padding: 0; }
   letter-spacing: .5em;
   text-align: center;
   padding: .75rem 1rem;
-  border: 1.5px solid #d1d5db;
-  border-radius: .5rem;
+  border: 2px solid #CBD5E1;
+  border-radius: .6rem;
   outline: none;
-  transition: border-color .15s, box-shadow .15s;
-  background: #fff;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  background: #F8FAFC;
   color: #1e293b;
 }
 .code-input:focus {
   border-color: var(--c);
-  box-shadow: 0 0 0 3px var(--c-ring);
+  box-shadow: 0 0 0 4px var(--c-ring);
+  background: #fff;
 }
 .code-input.is-error { border-color: #ef4444; background: #fff5f5; }
 
@@ -408,7 +418,8 @@ html, body { height: 100%; margin: 0; padding: 0; }
   .brand-icon-wrap { width: 36px; height: 36px; border-radius: 9px; font-size: 1.1rem; margin-bottom: 0; }
   .brand-system-label, .brand-system-name, .ika-info-box, .org-box, .left-footer { display: none; }
   .org-header-mobile { display: block; }
-  .login-right { padding: 1.5rem 1.2rem; align-items: flex-start; }
+  .login-right { padding: 1.5rem 1.2rem; align-items: flex-start; background: #F8FAFC; }
+  .login-box { box-shadow: none; padding: 1.75rem 1.25rem; }
 }
 </style>
 </head>
@@ -489,7 +500,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
       <?php endif; ?>
     </div>
     <div class="form-sub">
-      Autoryzujesz dostęp do modułu:
+      Podaj swój kod IKA, aby kontynuować do:
       <strong style="color:#0f172a"><?= h($_ika_module) ?></strong>
     </div>
 
@@ -539,7 +550,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
 
       <div class="mb-3">
         <label class="form-label" for="ika_code">
-          Indywidualny Kod Autoryzacyjny (6 cyfr)
+          Kod IKA <span style="font-weight:400;color:#94a3b8;font-size:.78rem">(6 cyfr)</span>
         </label>
         <input type="text"
                id="ika_code"
@@ -548,9 +559,13 @@ html, body { height: 100%; margin: 0; padding: 0; }
                inputmode="numeric"
                pattern="\d{6}"
                maxlength="6"
-               placeholder="000000"
+               placeholder="––––––"
                autofocus
-               autocomplete="one-time-code">
+               autocomplete="one-time-code"
+               aria-describedby="ika-hint">
+        <div id="ika-hint" style="font-size:.78rem;color:#94a3b8;margin-top:.4rem;text-align:center">
+          <i class="bi bi-info-circle me-1"></i>Nie pamiętasz kodu? Skontaktuj się z administratorem.
+        </div>
       </div>
 
       <button type="submit" class="btn-login mb-3" id="btnVerify" disabled>

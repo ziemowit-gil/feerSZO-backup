@@ -949,6 +949,22 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     </div>
     <?php endif; ?>
 
+    <?php if ($_user): ?>
+    <form method="get" action="<?= APP_URL ?>/search.php" class="d-none d-md-flex align-items-center me-2" role="search" style="min-width:180px;max-width:260px">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white border-end-0 py-0" style="border-color:#cbd5e1">
+          <i class="bi bi-search text-muted" style="font-size:.8rem"></i>
+        </span>
+        <input type="search" name="q" id="topbar-search"
+               class="form-control form-control-sm border-start-0 ps-0"
+               placeholder="Szukaj…"
+               autocomplete="off"
+               aria-label="Globalne wyszukiwanie"
+               style="border-color:#cbd5e1;box-shadow:none;font-size:.82rem">
+      </div>
+    </form>
+    <?php endif; ?>
+
     <?php if ($_user):
     $_notif_count  = notif_unread_count((int)$_user['id']);
     $_notif_latest = notif_latest((int)$_user['id'], 6);
@@ -1456,3 +1472,37 @@ if ($_user && in_array($_user['role'] ?? '', ['admin', 'editor'], true)):
 })();
 </script>
 <?php endif; ?>
+<script>
+// ── Globalny helper AJAX + CSRF ───────────────────────────────────────────────
+window._csrf = '<?= csrf_token() ?>';
+
+function csrfFetch(url, data) {
+  return fetch(url, {
+    method : 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body   : new URLSearchParams(Object.assign({_csrf: window._csrf}, data))
+  }).then(function(r) { return r.json(); });
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+(function() {
+  var style = document.createElement('style');
+  style.textContent =
+    '@keyframes _toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}' +
+    '@keyframes _toastOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(8px)}}';
+  document.head.appendChild(style);
+})();
+
+function ajaxToast(msg, type) {
+  type = type || 'success';
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;padding:.75rem 1.1rem;border-radius:10px;font-size:.85rem;font-weight:600;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.18);animation:_toastIn .2s ease;max-width:300px';
+  t.style.background = (type === 'success') ? '#16a34a' : '#dc2626';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() {
+    t.style.animation = '_toastOut .2s ease forwards';
+    setTimeout(function() { t.remove(); }, 200);
+  }, 3000);
+}
+</script>
