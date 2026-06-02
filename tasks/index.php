@@ -21,8 +21,15 @@ $user     = current_user();
 $uid      = (int)$user['id'];
 $is_admin = is_admin();
 
-$workspaces = task_user_workspaces($uid);
-$ws_id      = (int)($_GET['ws'] ?? 0);
+$workspaces   = task_user_workspaces($uid);
+$ws_id_param  = (int)($_GET['ws'] ?? 0);
+$ws_id        = $ws_id_param;
+
+// Jeśli podany ws nie należy do listy dostępnych — przekieruj na pierwszy dostępny
+if ($ws_id && $workspaces && !in_array($ws_id, array_column($workspaces, 'id'), false)) {
+    header('Location: ' . APP_URL . '/tasks/index.php?ws=' . (int)$workspaces[0]['id']);
+    exit;
+}
 if (!$ws_id && $workspaces) {
     $ws_id = (int)$workspaces[0]['id'];
 }
@@ -893,12 +900,20 @@ require_once __DIR__ . '/includes/header_tasks.php';
         </div>
         <div class="row g-2 mb-3">
           <div class="col-sm-6">
-            <label class="form-label fw-semibold small" for="at-list">Kategoria</label>
+            <label class="form-label fw-semibold small" for="at-list">Kolumna</label>
+            <?php if ($lists_map): ?>
             <select id="at-list" class="form-select form-select-sm">
               <?php foreach ($lists_map as $l): ?>
               <option value="<?= $l['id'] ?>"><?= h($l['name']) ?></option>
               <?php endforeach; ?>
             </select>
+            <?php else: ?>
+            <div class="alert alert-warning py-2 small mb-0">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Ten obszar roboczy nie ma kolumn. <a href="<?= APP_URL ?>/tasks/settings/workspaces.php?ws=<?= $ws_id ?>">Dodaj kolumnę</a> przed dodaniem zadania.
+            </div>
+            <input type="hidden" id="at-list" value="0">
+            <?php endif; ?>
           </div>
           <div class="col-sm-6">
             <label class="form-label fw-semibold small" for="at-priority">Priorytet</label>
@@ -1050,6 +1065,14 @@ function submitAddTask() {
     const title   = titleEl.value.trim();
     if (!title) { titleEl.classList.add('is-invalid'); titleEl.focus(); return; }
     titleEl.classList.remove('is-invalid');
+
+    const listId = parseInt(document.getElementById('at-list')?.value);
+    if (!WS_ID || !listId) {
+        const err = document.getElementById('at-error');
+        err.textContent = !WS_ID ? 'Nie wybrano obszaru roboczego.' : 'Ten obszar nie ma kolumn — dodaj je w ustawieniach.';
+        err.classList.remove('d-none');
+        return;
+    }
 
     const btn = document.getElementById('at-submit');
     btn.disabled    = true;

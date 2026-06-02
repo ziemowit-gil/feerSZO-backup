@@ -196,6 +196,7 @@ $groups = [
         'icon'  => 'bi-tools',
         'color' => 'red',
         'items' => [
+            ['icon'=>'bi-git',               'label'=>'Wersja i historia zmian','url'=>'/admin/version.php',    'danger'=>false],
             ['icon'=>'bi-info-circle',       'label'=>'Informacje o systemie', 'url'=>'/admin/system_info.php', 'danger'=>false],
             ['icon'=>'bi-archive',           'label'=>'Kopie zapasowe',        'url'=>'/admin/backups.php',     'danger'=>false],
             ['icon'=>'bi-layers',            'label'=>'Obszary zadań',         'url'=>'/tasks/settings/areas.php',  'danger'=>false],

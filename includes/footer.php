@@ -1,8 +1,17 @@
   </div><!-- /content -->
 
-  <footer class="border-top py-2 px-4 text-muted small bg-white d-flex justify-content-between">
-    <span><?= h(ORG_NAME) ?> </span>
-    <span>&copy; <?= date('Y') ?> Ziemowit Gil | dev@ziemowit.me</span>
+  <footer class="border-top py-2 px-4 text-muted small bg-white d-flex justify-content-between align-items-center">
+    <span><?= h(ORG_NAME) ?></span>
+    <span class="d-flex align-items-center gap-3">
+      <?php
+        try {
+            require_once __DIR__ . '/version.php';
+            $__fv = app_version();
+            echo '<a href="' . APP_URL . '/admin/version.php" class="text-muted text-decoration-none font-monospace" style="font-size:.72rem" title="' . htmlspecialchars($__fv['date']) . '">v' . htmlspecialchars($__fv['hash']) . '</a>';
+        } catch (\Throwable $e) {}
+      ?>
+      <span>&copy; <?= date('Y') ?> Ziemowit Gil | dev@ziemowit.me</span>
+    </span>
   </footer>
 
 </div><!-- /main -->

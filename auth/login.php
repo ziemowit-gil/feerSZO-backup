@@ -655,6 +655,17 @@ html, body { height: 100%; margin: 0; padding: 0; }
 
   <!-- Stopka -->
   <div class="left-footer">
+    <?php
+    $__v = '';
+    try {
+        require_once dirname(__DIR__) . '/includes/version.php';
+        $__vd = app_version();
+        $__v  = 'v' . $__vd['hash'];
+    } catch (\Throwable $e) {}
+    ?>
+    <?php if ($__v): ?>
+    <span style="opacity:.35;font-size:.68rem;font-family:monospace"><?= h($__v) ?></span>
+    <?php endif; ?>
   </div>
 
 </aside>

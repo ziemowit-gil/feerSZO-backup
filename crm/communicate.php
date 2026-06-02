@@ -735,7 +735,7 @@ include __DIR__ . '/includes/header_crm.php';
                     placeholder="np. Zaproszenie na spotkanie podsumowujące projekt, nieformalne, z podziękowaniem za zaangażowanie"></textarea>
         </div>
         <div class="row g-2">
-          <div class="col-6">
+          <div class="col-4">
             <label class="form-label small fw-semibold">Ton</label>
             <select id="ai-tone" class="form-select form-select-sm">
               <option value="profesjonalny">Profesjonalny</option>
@@ -745,8 +745,15 @@ include __DIR__ . '/includes/header_crm.php';
               <option value="motywujący">Motywujący</option>
             </select>
           </div>
-          <div class="col-6">
-            <label class="form-label small fw-semibold">Działanie po wygenerowaniu</label>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">Model AI</label>
+            <select id="ai-model" class="form-select form-select-sm">
+              <option value="claude-haiku-4-5-20251001">Haiku — szybki</option>
+              <option value="claude-sonnet-4-6">Sonnet — lepszy</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">Działanie</label>
             <select id="ai-insert" class="form-select form-select-sm">
               <option value="replace">Zastąp treść</option>
               <option value="append">Dodaj na końcu</option>
@@ -798,6 +805,7 @@ function aiGenerate() {
             _csrf:   '<?= csrf_token() ?>',
             prompt:  prompt,
             tone:    document.getElementById('ai-tone').value,
+            model:   document.getElementById('ai-model').value,
             channel: channel,
             context: document.getElementById('ai-context').value,
         }),

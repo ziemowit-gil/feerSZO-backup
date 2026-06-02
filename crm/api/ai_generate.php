@@ -27,10 +27,11 @@ if (($body['_csrf'] ?? '') !== ($_SESSION['csrf'] ?? '')) {
     exit;
 }
 
-$prompt  = trim($body['prompt']  ?? '');
-$tone    = trim($body['tone']    ?? 'profesjonalny');
-$channel = trim($body['channel'] ?? 'email');
-$context = trim($body['context'] ?? '');
+$prompt   = trim($body['prompt']  ?? '');
+$tone     = trim($body['tone']    ?? 'profesjonalny');
+$channel  = trim($body['channel'] ?? 'email');
+$context  = trim($body['context'] ?? '');
+$req_model = trim($body['model'] ?? '');
 
 if (!$prompt) {
     echo json_encode(['ok' => false, 'error' => 'Podaj temat lub instrukcję dla asystenta.']);
@@ -63,7 +64,9 @@ SYSTEM;
 $user_msg = $prompt . ($context ? "\n\nDodatkowy kontekst: " . $context : '');
 
 // ── Wywołaj Claude API ──────────────────────────────────────────────────
-$ai_model = db_one("SELECT value FROM settings WHERE key_='anthropic_model'")['value'] ?: 'claude-haiku-4-5-20251001';
+$allowed_models = ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6'];
+$default_model  = db_one("SELECT value FROM settings WHERE key_='anthropic_model'")['value'] ?: 'claude-haiku-4-5-20251001';
+$ai_model       = in_array($req_model, $allowed_models, true) ? $req_model : $default_model;
 
 $request_body = json_encode([
     'model'      => $ai_model,
