@@ -109,6 +109,7 @@ $groups = [
             ['icon'=>'bi-tags',            'label'=>'Tagi zadań',        'url'=>'/admin/tasks_tags.php'],
             ['icon'=>'bi-person-lines-fill','label'=>'Pola profilu',     'url'=>'/admin/profile_fields.php'],
             ['icon'=>'bi-ui-checks',       'label'=>'Pola w formularzach','url'=>'/admin/form_fields.php'],
+            ['icon'=>'bi-file-earmark-text','label'=>'Wzory dokumentów', 'url'=>'/admin/contract_templates.php'],
         ],
     ],
 

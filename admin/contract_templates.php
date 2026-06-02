@@ -1,0 +1,338 @@
+<?php
+/**
+ * admin/contract_templates.php
+ * Zarządzanie wzorami dokumentów (szablony umów).
+ */
+require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/db.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/contract_template_engine.php';
+
+require_role('admin');
+cte_migrate();
+
+$PAGE_TITLE = 'Wzory dokumentów';
+$SELF       = APP_URL . '/admin/contract_templates.php';
+
+$type_labels = [
+    'universal'   => 'Uniwersalny',
+    'wolontariat' => 'Wolontariat',
+    'zlecenie'    => 'Zlecenie',
+    'dzielo'      => 'Dzieło',
+    'praca'       => 'Praca',
+];
+
+// ── POST ──────────────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
+    $act = $_POST['_action'] ?? '';
+
+    if (in_array($act, ['create', 'update'], true)) {
+        $name = trim($_POST['name'] ?? '');
+        $type = array_key_exists($_POST['type'] ?? '', $type_labels) ? $_POST['type'] : 'universal';
+        $desc = trim($_POST['description'] ?? '');
+        $body = $_POST['body'] ?? '';
+
+        if (!$name) { flash_set('error', 'Nazwa szablonu jest wymagana.'); header('Location: ' . $SELF); exit; }
+
+        if ($act === 'create') {
+            db_insert('contract_doc_templates', [
+                'name'        => $name,
+                'type'        => $type,
+                'description' => $desc,
+                'body'        => $body,
+                'created_by'  => (int)current_user()['id'],
+                'created_at'  => date('Y-m-d H:i:s'),
+            ]);
+            flash_set('success', 'Szablon „' . $name . '" został utworzony.');
+        } else {
+            $id = (int)($_POST['id'] ?? 0);
+            db()->prepare(
+                "UPDATE contract_doc_templates SET name=?, type=?, description=?, body=?, updated_at=datetime('now','localtime') WHERE id=?"
+            )->execute([$name, $type, $desc, $body, $id]);
+            flash_set('success', 'Szablon zaktualizowany.');
+        }
+        header('Location: ' . $SELF); exit;
+    }
+
+    if ($act === 'toggle') {
+        $id  = (int)($_POST['id'] ?? 0);
+        $row = db_one("SELECT is_active FROM contract_doc_templates WHERE id=?", [$id]);
+        if ($row) {
+            db()->prepare("UPDATE contract_doc_templates SET is_active=?, updated_at=datetime('now','localtime') WHERE id=?")
+                ->execute([$row['is_active'] ? 0 : 1, $id]);
+            flash_set('success', 'Status zmieniony.');
+        }
+        header('Location: ' . $SELF); exit;
+    }
+
+    if ($act === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        db()->prepare("DELETE FROM contract_doc_templates WHERE id=?")->execute([$id]);
+        flash_set('success', 'Szablon usunięty.');
+        header('Location: ' . $SELF); exit;
+    }
+
+    header('Location: ' . $SELF); exit;
+}
+
+// ── Pobierz listę + edytowany ────────────────────────────────────────────
+$templates = db_all("SELECT * FROM contract_doc_templates ORDER BY type, name");
+$edit_id   = (int)($_GET['edit'] ?? 0);
+$editing   = $edit_id ? db_one("SELECT * FROM contract_doc_templates WHERE id=?", [$edit_id]) : null;
+$variables = cte_variables();
+
+include dirname(__DIR__) . '/includes/header.php';
+?>
+
+<style>
+#quillEditor { min-height: 420px; font-size: .93rem; }
+.var-badge {
+  display: inline-block; font-family: monospace; font-size: .72rem;
+  background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+  border-radius: 4px; padding: .1rem .35rem; cursor: pointer;
+  transition: background .12s;
+  user-select: none;
+}
+.var-badge:hover { background: #dbeafe; }
+.tpl-row td { vertical-align: middle; }
+</style>
+
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb" style="font-size:.8rem">
+    <li class="breadcrumb-item"><a href="index.php">Admin</a></li>
+    <li class="breadcrumb-item active">Wzory dokumentów</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-center gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Wzory dokumentów</h4>
+  <button class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#tplModal"
+          onclick="openCreate()">
+    <i class="bi bi-plus-lg me-1"></i>Nowy wzór
+  </button>
+</div>
+
+<?= flash_html() ?>
+
+<!-- ── Lista szablonów ──────────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-4">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Nazwa</th>
+          <th>Typ umowy</th>
+          <th>Opis</th>
+          <th class="text-center" style="width:90px">Status</th>
+          <th style="width:140px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (!$templates): ?>
+        <tr><td colspan="5" class="text-center text-muted py-5">
+          Brak wzorów. Kliknij <strong>Nowy wzór</strong> aby dodać pierwszy.
+        </td></tr>
+        <?php endif; ?>
+        <?php foreach ($templates as $t): ?>
+        <tr class="tpl-row">
+          <td class="ps-3 fw-semibold"><?= h($t['name']) ?></td>
+          <td><span class="badge bg-secondary bg-opacity-25 text-secondary"><?= h($type_labels[$t['type']] ?? $t['type']) ?></span></td>
+          <td class="small text-muted"><?= h(mb_substr($t['description'] ?? '', 0, 80)) ?></td>
+          <td class="text-center">
+            <span class="badge <?= $t['is_active'] ? 'bg-success' : 'bg-secondary' ?>">
+              <?= $t['is_active'] ? 'Aktywny' : 'Nieaktywny' ?>
+            </span>
+          </td>
+          <td class="pe-3">
+            <div class="d-flex gap-1 justify-content-end">
+              <button class="btn btn-outline-primary btn-sm py-0 px-2"
+                      onclick="openEdit(<?= $t['id'] ?>, <?= json_encode($t['name']) ?>, <?= json_encode($t['type']) ?>, <?= json_encode($t['description'] ?? '') ?>, <?= json_encode($t['body']) ?>)"
+                      aria-label="Edytuj <?= h($t['name']) ?>">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <a href="<?= APP_URL ?>/contracts/print_template.php?template_id=<?= $t['id'] ?>&preview=1"
+                 target="_blank"
+                 class="btn btn-outline-secondary btn-sm py-0 px-2"
+                 aria-label="Podgląd wzoru <?= h($t['name']) ?>">
+                <i class="bi bi-eye"></i>
+              </a>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+                <input type="hidden" name="_action" value="toggle">
+                <input type="hidden" name="id"      value="<?= $t['id'] ?>">
+                <button class="btn btn-outline-warning btn-sm py-0 px-2"
+                        aria-label="<?= $t['is_active'] ? 'Dezaktywuj' : 'Aktywuj' ?> <?= h($t['name']) ?>">
+                  <i class="bi bi-<?= $t['is_active'] ? 'pause' : 'play' ?>"></i>
+                </button>
+              </form>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Usunąć wzór «<?= h(addslashes($t['name'])) ?>»?')">
+                <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+                <input type="hidden" name="_action" value="delete">
+                <input type="hidden" name="id"      value="<?= $t['id'] ?>">
+                <button class="btn btn-outline-danger btn-sm py-0 px-2"
+                        aria-label="Usuń <?= h($t['name']) ?>">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Modal: Edytor szablonu ──────────────────────────────────────────── -->
+<div class="modal fade" id="tplModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <form method="post" id="tplForm">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" id="tpl-action" value="create">
+        <input type="hidden" name="id"      id="tpl-id"     value="0">
+        <input type="hidden" name="body"    id="tpl-body">
+
+        <div class="modal-header py-2">
+          <h5 class="modal-title fw-bold" id="tpl-modal-title">Nowy wzór dokumentu</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row g-3 mb-3">
+            <div class="col-sm-5">
+              <label class="form-label small fw-semibold">Nazwa wzoru <span class="text-danger">*</span></label>
+              <input type="text" name="name" id="tpl-name" class="form-control form-control-sm"
+                     placeholder="np. Porozumienie wolontariackie — standardowe" required maxlength="200">
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label small fw-semibold">Typ umowy</label>
+              <select name="type" id="tpl-type" class="form-select form-select-sm">
+                <?php foreach ($type_labels as $k => $v): ?>
+                <option value="<?= $k ?>"><?= h($v) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small fw-semibold">Opis (opcjonalny)</label>
+              <input type="text" name="description" id="tpl-desc" class="form-control form-control-sm"
+                     placeholder="Krótki opis zastosowania">
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <!-- Edytor -->
+            <div class="col-lg-8">
+              <label class="form-label small fw-semibold">Treść dokumentu</label>
+              <div class="border rounded" style="overflow:hidden">
+                <div id="tplToolbar">
+                  <span class="ql-formats">
+                    <select class="ql-header"><option selected></option><option value="1"></option><option value="2"></option><option value="3"></option></select>
+                  </span>
+                  <span class="ql-formats">
+                    <button class="ql-bold"></button>
+                    <button class="ql-italic"></button>
+                    <button class="ql-underline"></button>
+                  </span>
+                  <span class="ql-formats">
+                    <select class="ql-align"></select>
+                  </span>
+                  <span class="ql-formats">
+                    <button class="ql-list" value="ordered"></button>
+                    <button class="ql-list" value="bullet"></button>
+                  </span>
+                  <span class="ql-formats">
+                    <button class="ql-indent" value="-1"></button>
+                    <button class="ql-indent" value="+1"></button>
+                  </span>
+                  <span class="ql-formats">
+                    <button class="ql-clean"></button>
+                  </span>
+                </div>
+                <div id="quillEditor"></div>
+              </div>
+              <div class="form-text">Kliknij zmienną z listy po prawej, aby wstawić ją do dokumentu.</div>
+            </div>
+
+            <!-- Lista zmiennych -->
+            <div class="col-lg-4">
+              <label class="form-label small fw-semibold">Dostępne zmienne</label>
+              <div class="border rounded p-2" style="max-height:460px;overflow-y:auto;background:#f8fafc">
+                <?php foreach ($variables as $group => $vars): ?>
+                <div class="small text-muted fw-semibold mb-1 mt-2"><?= h($group) ?></div>
+                <?php foreach ($vars as $var => $desc): ?>
+                <div class="mb-1">
+                  <span class="var-badge" onclick="insertVar(<?= json_encode($var) ?>)" title="<?= h($desc) ?>">
+                    <?= h($var) ?>
+                  </span>
+                  <span class="text-muted" style="font-size:.68rem"> <?= h($desc) ?></span>
+                </div>
+                <?php endforeach; ?>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary btn-sm" onclick="syncBody()">
+            <i class="bi bi-check2 me-1"></i>Zapisz wzór
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Quill -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+
+<script>
+var quill = new Quill('#quillEditor', {
+    theme: 'snow',
+    modules: { toolbar: '#tplToolbar' },
+    placeholder: 'Wpisz treść dokumentu… Użyj zmiennych w formacie {zmienna}',
+});
+
+function syncBody() {
+    document.getElementById('tpl-body').value = quill.root.innerHTML;
+}
+
+function insertVar(varName) {
+    const range = quill.getSelection(true);
+    quill.insertText(range.index, varName, 'user');
+    quill.setSelection(range.index + varName.length);
+}
+
+function openCreate() {
+    document.getElementById('tpl-action').value = 'create';
+    document.getElementById('tpl-id').value     = '0';
+    document.getElementById('tpl-name').value   = '';
+    document.getElementById('tpl-type').value   = 'universal';
+    document.getElementById('tpl-desc').value   = '';
+    document.getElementById('tpl-modal-title').textContent = 'Nowy wzór dokumentu';
+    quill.root.innerHTML = '';
+}
+
+function openEdit(id, name, type, desc, body) {
+    document.getElementById('tpl-action').value = 'update';
+    document.getElementById('tpl-id').value     = id;
+    document.getElementById('tpl-name').value   = name;
+    document.getElementById('tpl-type').value   = type;
+    document.getElementById('tpl-desc').value   = desc;
+    document.getElementById('tpl-modal-title').textContent = 'Edytuj wzór: ' + name;
+    quill.root.innerHTML = body;
+    new bootstrap.Modal(document.getElementById('tplModal')).show();
+}
+
+document.getElementById('tplForm').addEventListener('submit', function() {
+    syncBody();
+});
+</script>
+
+<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
