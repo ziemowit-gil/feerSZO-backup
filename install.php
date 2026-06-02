@@ -348,75 +348,153 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-body { background: #f1f5f9; }
-.ins-wrap { max-width: 560px; margin: 3rem auto; padding: 0 1rem 3rem; }
-.ins-logo  { text-align: center; margin-bottom: 2rem; }
-.ins-logo-icon { width: 56px; height: 56px; background: #2563eb; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #fff; margin-bottom: .75rem; }
-.ins-logo h1 { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin: 0; }
-.ins-logo p  { font-size: .82rem; color: #64748b; margin: .2rem 0 0; }
-/* Steps */
-.steps { display: flex; align-items: center; margin-bottom: 2rem; }
-.step  { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
-.step:not(:last-child)::after {
-    content: ''; position: absolute; top: 14px; left: 50%; width: 100%;
-    height: 2px; background: #e2e8f0; z-index: 0;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:#f8fafc;font-family:system-ui,-apple-system,sans-serif;font-size:14px}
+
+/* ── Layout split ── */
+.ins-shell { display:flex; min-height:100vh; }
+
+/* ── Sidebar ── */
+.ins-sidebar {
+  width:240px; flex-shrink:0;
+  background:#1e293b; color:#cbd5e1;
+  display:flex; flex-direction:column;
+  padding:2rem 0;
 }
-.step.done::after  { background: #2563eb; }
-.step-num {
-    width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
-    justify-content: center; font-size: .78rem; font-weight: 700; z-index: 1;
-    background: #e2e8f0; color: #94a3b8; border: 2px solid #e2e8f0;
+.ins-brand { padding:0 1.5rem 2rem; border-bottom:1px solid #334155; }
+.ins-brand-icon {
+  width:42px; height:42px; background:#2563eb; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.2rem; color:#fff; margin-bottom:.75rem;
 }
-.step.done .step-num   { background: #2563eb; color: #fff; border-color: #2563eb; }
-.step.active .step-num { background: #fff; color: #2563eb; border-color: #2563eb; }
-.step-lbl { font-size: .7rem; color: #94a3b8; margin-top: .35rem; text-align: center; }
-.step.active .step-lbl { color: #2563eb; font-weight: 600; }
-.step.done .step-lbl   { color: #64748b; }
-/* Card */
-.ins-card { background: #fff; border-radius: .75rem; box-shadow: 0 1px 12px rgba(0,0,0,.08); padding: 2rem; }
-.ins-card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: .25rem; color: #0f172a; }
-.ins-card .sub { font-size: .83rem; color: #64748b; margin-bottom: 1.5rem; }
-/* Check items */
-.chk { display: flex; align-items: center; gap: .6rem; font-size: .85rem; padding: .3rem 0; }
-.chk .ok  { color: #16a34a; }
-.chk .err { color: #dc2626; }
-.chk .warn{ color: #d97706; }
-/* Success */
-.ins-success-icon { font-size: 3rem; color: #16a34a; text-align: center; display: block; margin-bottom: 1rem; }
-.next-step { display: flex; align-items: flex-start; gap: .75rem; padding: .65rem 0; border-bottom: 1px solid #f1f5f9; }
-.next-step:last-child { border: none; }
-.next-num { width: 22px; height: 22px; border-radius: 50%; background: #2563eb; color: #fff; font-size: .72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: .1rem; }
-.next-step .title { font-size: .85rem; font-weight: 600; }
-.next-step .desc  { font-size: .78rem; color: #64748b; }
+.ins-brand-name { font-size:.95rem; font-weight:700; color:#f1f5f9; }
+.ins-brand-sub  { font-size:.72rem; color:#64748b; margin-top:.15rem; }
+
+/* ── Steps nav ── */
+.ins-steps { padding:1.25rem 0; flex:1; }
+.ins-step {
+  display:flex; align-items:center; gap:.75rem;
+  padding:.55rem 1.5rem;
+  font-size:.82rem; color:#64748b;
+  position:relative;
+}
+.ins-step-num {
+  width:24px; height:24px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:.72rem; font-weight:700;
+  background:#334155; color:#64748b; border:2px solid #334155;
+}
+.ins-step.done .ins-step-num   { background:#2563eb; color:#fff; border-color:#2563eb; }
+.ins-step.active .ins-step-num { background:#fff; color:#2563eb; border-color:#2563eb; }
+.ins-step.active { color:#f1f5f9; font-weight:600; background:rgba(255,255,255,.04); }
+.ins-step.done   { color:#94a3b8; }
+.ins-step-connector {
+  position:absolute; left:calc(1.5rem + 11px); top:100%;
+  width:2px; height:calc(100% - 0px); background:#334155; z-index:0;
+}
+.ins-step.done .ins-step-connector { background:#2563eb; }
+
+/* ── Sidebar footer ── */
+.ins-sidebar-foot { padding:1rem 1.5rem; border-top:1px solid #334155; font-size:.72rem; color:#475569; }
+
+/* ── Content ── */
+.ins-content { flex:1; display:flex; align-items:flex-start; justify-content:center; padding:3rem 2rem; }
+.ins-card {
+  background:#fff; border-radius:.75rem;
+  box-shadow:0 1px 16px rgba(0,0,0,.09);
+  padding:2rem 2rem;
+  width:100%; max-width:560px;
+}
+.ins-card h2 { font-size:1.1rem; font-weight:700; margin-bottom:.25rem; color:#0f172a; }
+.ins-card .sub { font-size:.83rem; color:#64748b; margin-bottom:1.5rem; }
+
+/* ── Checks ── */
+.chk { display:flex; align-items:center; gap:.6rem; font-size:.85rem; padding:.3rem 0; }
+.chk .ok   { color:#16a34a; }
+.chk .err  { color:#dc2626; }
+.chk .warn { color:#d97706; }
+
+/* ── Success ── */
+.ins-success-icon { font-size:3rem; color:#16a34a; text-align:center; display:block; margin-bottom:1rem; }
+.next-step { display:flex; align-items:flex-start; gap:.75rem; padding:.65rem 0; border-bottom:1px solid #f1f5f9; }
+.next-step:last-child { border:none; }
+.next-num { width:22px; height:22px; border-radius:50%; background:#2563eb; color:#fff; font-size:.72rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:.1rem; }
+.next-step .title { font-size:.85rem; font-weight:600; }
+.next-step .desc  { font-size:.78rem; color:#64748b; }
+
+/* ── Mobile ── */
+@media(max-width:768px){
+  .ins-shell{flex-direction:column}
+  .ins-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;padding:1rem;gap:.5rem}
+  .ins-brand{padding:0;border:none;display:flex;align-items:center;gap:.75rem;width:100%}
+  .ins-brand-icon{width:30px;height:30px;font-size:.9rem;margin:0}
+  .ins-steps{display:flex;flex-wrap:wrap;gap:.25rem;padding:.5rem 0;width:100%}
+  .ins-step{padding:.3rem .6rem;font-size:.72rem;border-radius:4px}
+  .ins-step-connector{display:none}
+  .ins-sidebar-foot{display:none}
+  .ins-content{padding:1.5rem 1rem}
+}
 </style>
 </head>
 <body>
-<div class="ins-wrap">
 
-  <div class="ins-logo">
-    <div class="ins-logo-icon"><i class="bi bi-building-heart"></i></div>
-    <h1>Platforma NGO</h1>
-    <p>Kreator instalacji</p>
+<?php
+$step_labels = [
+  1 => ['Wymagania',    'bi-check2-circle'],
+  2 => ['Baza danych',  'bi-database'],
+  3 => ['Organizacja',  'bi-building'],
+  4 => ['Microsoft',    'bi-microsoft'],
+  5 => ['E-mail',       'bi-envelope'],
+  6 => ['Moduły',       'bi-toggles'],
+  7 => ['Administrator','bi-person-lock'],
+  8 => ['Gotowe',       'bi-rocket-takeoff'],
+];
+$total_steps = count($step_labels);
+?>
+
+<div class="ins-shell">
+
+<!-- ── Sidebar ── -->
+<aside class="ins-sidebar">
+  <div class="ins-brand">
+    <div class="ins-brand-icon"><i class="bi bi-building-heart"></i></div>
+    <div>
+      <div class="ins-brand-name">Platforma NGO</div>
+      <div class="ins-brand-sub">Kreator instalacji</div>
+    </div>
   </div>
 
-  <?php
-  $step_labels = ['Wymagania','Baza danych','Organizacja','Microsoft','E-mail','Moduły','Administrator','Gotowe'];
-  $total_steps = count($step_labels);
-  ?>
-  <div class="steps">
-    <?php foreach ($step_labels as $i => $lbl):
-        $n   = $i + 1;
-        $cls = $n < $step ? 'done' : ($n === $step ? 'active' : '');
-        $icon= $n < $step ? '<i class="bi bi-check" style="font-size:.8rem"></i>' : $n;
+  <nav class="ins-steps" aria-label="Kroki instalacji">
+    <?php foreach ($step_labels as $n => [$lbl, $icon]):
+      $cls  = $n < $step ? 'done' : ($n === $step ? 'active' : '');
+      $snum = $n < $step ? '<i class="bi bi-check2" style="font-size:.7rem"></i>' : $n;
+      $last = $n === $total_steps;
     ?>
-    <div class="step <?= $cls ?>">
-      <div class="step-num"><?= $icon ?></div>
-      <div class="step-lbl"><?= $lbl ?></div>
+    <div class="ins-step <?= $cls ?>">
+      <div class="ins-step-num"><?= $snum ?></div>
+      <div>
+        <i class="bi <?= $icon ?> me-1" style="font-size:.75rem;opacity:.6"></i><?= $lbl ?>
+      </div>
+      <?php if (!$last): ?><div class="ins-step-connector"></div><?php endif; ?>
     </div>
     <?php endforeach; ?>
-  </div>
+  </nav>
 
-  <div class="ins-card">
+  <div class="ins-sidebar-foot">
+    Krok <?= $step ?> z <?= $total_steps ?>
+    <?php try { require_once __DIR__ . '/includes/version.php'; $__iv = app_version(); echo '<br>v' . htmlspecialchars($__iv['main']); } catch(\Throwable $e){} ?>
+  </div>
+</aside>
+
+<!-- ── Content ── -->
+<main class="ins-content">
+<div class="ins-card">
+
+  <?php if ($errors): ?>
+  <div class="alert alert-danger py-2 small mb-3"><ul class="mb-0 ps-3">
+    <?php foreach ($errors as $e): ?><li><?= htmlspecialchars($e) ?></li><?php endforeach; ?>
+  </ul></div>
+  <?php endif; ?>
 
   <?php if ($errors): ?>
   <div class="alert alert-danger py-2 small"><ul class="mb-0 ps-3">
@@ -837,15 +915,52 @@ body { background: #f1f5f9; }
 
   <?php // ── KROK 8: Gotowe
   elseif ($step === 8):
-    // Wykryj aktualny URL instalacji
-    $inst_url = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
-              . rtrim(dirname($_SERVER['PHP_SELF']), '/');
+    $inst_url    = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
+                 . rtrim(dirname($_SERVER['PHP_SELF']), '/');
     $creator_url = $inst_url . '/creator.php';
+
+    // Test wysyłki e-mail
+    $mail_test_result = null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['test_email'])) {
+        $to = filter_var(trim($_POST['test_email']), FILTER_VALIDATE_EMAIL);
+        if ($to) {
+            try {
+                require_once __DIR__ . '/config.php';
+                require_once __DIR__ . '/includes/db.php';
+                require_once __DIR__ . '/includes/mail_queue.php';
+                $mid = mail_queue_add($to, '', 'Test instalacji — Platforma NGO',
+                    '<p>Wiadomość testowa z kreatora instalacji Platformy NGO.<br>E-mail działa poprawnie.</p>',
+                    'Wiadomość testowa z kreatora instalacji Platformy NGO. E-mail działa poprawnie.');
+                $mail_test_result = ['ok' => (bool)$mid, 'to' => $to,
+                    'msg' => $mid ? "Wiadomość wysłana na {$to}." : 'Błąd kolejki — sprawdź konfigurację e-mail.'];
+            } catch (\Throwable $e) {
+                $mail_test_result = ['ok' => false, 'to' => $to, 'msg' => 'Błąd: ' . $e->getMessage()];
+            }
+        } else {
+            $mail_test_result = ['ok' => false, 'to' => '', 'msg' => 'Nieprawidłowy adres e-mail.'];
+        }
+    }
   ?>
   <div class="text-center mb-3">
     <i class="bi bi-check-circle-fill ins-success-icon"></i>
     <h2 style="font-size:1.25rem">Instalacja zakończona!</h2>
     <p class="text-muted small">Platforma NGO jest gotowa. Wyślij poniższe dane twórcy, a następnie wykonaj kolejne kroki.</p>
+  </div>
+
+  <!-- Test wysyłki e-mail -->
+  <div class="border rounded p-3 mb-3">
+    <div class="fw-semibold small mb-2"><i class="bi bi-envelope-check me-1 text-primary"></i>Test wysyłki e-mail</div>
+    <?php if ($mail_test_result): ?>
+    <div class="alert <?= $mail_test_result['ok'] ? 'alert-success' : 'alert-danger' ?> py-2 small mb-2">
+      <?= $mail_test_result['ok'] ? '✓' : '✗' ?> <?= htmlspecialchars($mail_test_result['msg']) ?>
+    </div>
+    <?php endif; ?>
+    <form method="post" class="d-flex gap-2">
+      <input type="email" name="test_email" class="form-control form-control-sm flex-grow-1"
+             placeholder="adres@domena.pl — wyślij wiadomość testową" required>
+      <button type="submit" class="btn btn-outline-primary btn-sm flex-shrink-0">Wyślij test</button>
+    </form>
+    <div class="form-text mt-1">Sprawdź czy konfiguracja e-mail działa przed uruchomieniem systemu.</div>
   </div>
 
   <!-- Blok Creator Panel — główna akcja -->
@@ -931,8 +1046,8 @@ body { background: #f1f5f9; }
 
   <?php endif; ?>
 
-  </div><!-- /ins-card -->
-  <p class="text-center text-muted mt-3" style="font-size:.75rem">Platforma NGO · Krok <?= $step ?>/<?= $total_steps ?></p>
-</div>
+</div><!-- /ins-card -->
+</main>
+</div><!-- /ins-shell -->
 </body>
 </html>
