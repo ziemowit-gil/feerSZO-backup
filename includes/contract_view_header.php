@@ -86,7 +86,16 @@ $_cvh_accent = match($_cvh_st['class']) {
         <i class="bi <?= h($_cvh_icon) ?>"></i>
         <?= h($_cvh_label) ?>
       </div>
-      <div class="contract-hero-num"><?= h($_cvh_row['numer_umowy']) ?></div>
+      <div class="contract-hero-num d-flex align-items-center gap-2">
+        <?= h($_cvh_row['numer_umowy']) ?>
+        <button type="button"
+                data-copy="<?= h($_cvh_row['numer_umowy']) ?>"
+                title="Kopiuj numer"
+                style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;padding:.1rem .25rem;font-size:.8rem;line-height:1"
+                aria-label="Kopiuj numer umowy">
+          <i class="bi bi-clipboard"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Right: actions -->

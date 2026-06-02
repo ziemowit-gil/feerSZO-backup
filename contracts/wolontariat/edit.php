@@ -314,7 +314,9 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 
 <form method="post" enctype="multipart/form-data" id="editForm"
       data-cpc="<?= in_array(current_user()['role'] ?? '', ['admin','editor']) ? '1' : '0' ?>"
-      data-cpc-meta=''>
+      data-cpc-meta=''
+      data-dirty-check
+      data-autosave="wolontariat_edit_<?= $id ?>">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
 <div class="row g-4 align-items-start">

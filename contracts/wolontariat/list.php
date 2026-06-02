@@ -311,7 +311,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           $sc = $status_cfg[$r['status']] ?? ['label'=>$r['status'],'color'=>'#6B7280','bg'=>'#F3F4F6','icon'=>'bi-circle'];
           $bezterm = !empty($r['bezterminowa']);
         ?>
-        <tr>
+        <tr data-row-href="<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= $r['id'] ?>">
           <td>
             <div class="wol-num"><?= h($r['numer_umowy']) ?></div>
             <?php if (!empty($r['ubezpieczenie_nnw']) || !empty($r['ubezpieczenie_oc'])): ?>
