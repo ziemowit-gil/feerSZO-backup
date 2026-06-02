@@ -220,22 +220,37 @@ if ($_is_volunteer_only) {
 .vol-data-val  { font-size: .9rem; font-weight: 600; color: #111827; }
 .vol-data-val.monospace { font-family: monospace; letter-spacing: .05em; }
 
-/* Szybkie akcje */
-.vol-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .75rem; margin-bottom: 1.25rem; }
+/* Szybkie akcje — duże karty */
+.vol-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: .85rem; margin-bottom: 1.4rem; }
 .vol-action-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: .35rem; padding: 1rem .5rem; text-align: center;
-  background: #fff; border: 1px solid #E5E7EB; border-radius: 10px;
-  text-decoration: none; color: #374151;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
-  transition: box-shadow .15s, transform .12s, border-color .12s;
-  position: relative;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
+  gap: .5rem; padding: 1.1rem 1.15rem 1rem;
+  background: #fff; border: 1.5px solid #E5E7EB; border-radius: 14px;
+  text-decoration: none; color: #1E293B;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+  transition: box-shadow .15s, transform .12s, border-color .12s, background .12s;
+  position: relative; min-height: 100px;
 }
-.vol-action-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-2px); border-color: var(--vol-color); color: var(--vol-color); }
-.vol-action-icon  { font-size: 1.6rem; }
-.vol-action-label { font-size: .75rem; font-weight: 600; line-height: 1.2; }
-.vol-action-count { font-size: 1rem; font-weight: 800; line-height: 1; }
-.vol-action-badge { position: absolute; top: .35rem; right: .4rem; font-size: .65rem; }
+.vol-action-btn:hover {
+  box-shadow: 0 6px 18px rgba(0,0,0,.1);
+  transform: translateY(-2px);
+  border-color: var(--vol-color);
+  background: color-mix(in srgb, var(--vol-color) 5%, #fff);
+  color: #1E293B;
+}
+.vol-action-icon-wrap {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--vol-color) 12%, #fff);
+}
+.vol-action-icon      { font-size: 1.25rem; color: var(--vol-color); }
+.vol-action-label     { font-size: .82rem; font-weight: 700; line-height: 1.25; color: #1E293B; }
+.vol-action-count     { font-size: 1.4rem; font-weight: 900; line-height: 1; color: var(--vol-color); }
+.vol-action-sub       { font-size: .72rem; color: #94A3B8; margin-top: .1rem; }
+.vol-action-badge     { position: absolute; top: .5rem; right: .6rem; font-size: .67rem; }
+@media (max-width: 400px) {
+  .vol-actions { grid-template-columns: repeat(2, 1fr); }
+}
 
 /* Szczegóły wolontariatu (tylko dla wolontariat type) */
 .vol-detail-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; margin-bottom: 1rem; }
@@ -306,24 +321,6 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
   </div>
   <i class="bi bi-arrow-right-circle-fill" style="font-size:1.5rem;opacity:.7;flex-shrink:0"></i>
 </a>
-
-<!-- Informacja o spójności wyglądu — jednorazowa na sesję -->
-<div id="cn-vol" style="display:none;margin-bottom:1rem">
-  <div style="background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:10px;padding:.75rem 1rem .75rem 1.1rem;display:flex;align-items:flex-start;gap:.75rem;font-size:.82rem;color:#92400E">
-    <i class="bi bi-info-circle-fill" aria-hidden="true" style="color:#D97706;font-size:1rem;flex-shrink:0;margin-top:.1rem"></i>
-    <span style="flex:1;line-height:1.5">
-      <strong>Informacja o wyglądzie systemu:</strong>
-      Wygląd poszczególnych stron może nie być spójny — panel stanowi połączenie kilku systemów,
-      z których korzystała Fundacja. Będziemy to ujednolicać w kolejnych wersjach.
-    </span>
-    <button type="button" aria-label="Zamknij"
-            onclick="sessionStorage.setItem('cn_dismissed','1');this.closest('#cn-vol').style.display='none'"
-            style="background:none;border:none;color:#D97706;cursor:pointer;font-size:1rem;padding:0;flex-shrink:0;opacity:.7;line-height:1">
-      <i class="bi bi-x-lg" aria-hidden="true"></i>
-    </button>
-  </div>
-</div>
-<script>(function(){ if(!sessionStorage.getItem('cn_dismissed')) document.getElementById('cn-vol').style.display=''; })();</script>
 
 <?php
 // ── Zaproszenie do katalogu (jednorazowe po zalogowaniu) ──────────────────────
@@ -644,7 +641,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
 <?php endif; // is_wolontariat ?>
 <?php endif; // _active_row ?>
 
-<!-- ═══ SZYBKIE AKCJE ════════════════════════════════════════════════════════ -->
+<!-- ═══ SZYBKIE AKCJE — duże karty ══════════════════════════════════════════ -->
 <div class="vol-actions" role="list" aria-label="Szybkie akcje">
 
   <a href="<?= APP_URL ?>/panel/messages.php" class="vol-action-btn" role="listitem"
@@ -652,69 +649,97 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
     <?php if ($msg_unread): ?>
     <span class="vol-action-badge badge rounded-pill bg-danger"><?= $msg_unread ?></span>
     <?php endif; ?>
-    <i class="bi bi-chat-left-text vol-action-icon" style="color:<?= $msg_unread ? 'var(--vol-color)' : '#9CA3AF' ?>" aria-hidden="true"></i>
-    <div class="vol-action-count"><?= $msg_unread ?: '0' ?></div>
-    <div class="vol-action-label">Wiadomości</div>
+    <div class="vol-action-icon-wrap"><i class="bi bi-chat-left-text vol-action-icon" aria-hidden="true"></i></div>
+    <div>
+      <div class="vol-action-count"><?= $msg_unread ?: '0' ?></div>
+      <div class="vol-action-label">Wiadomości</div>
+      <div class="vol-action-sub"><?= $msg_unread ? "$msg_unread nowych" : 'brak nowych' ?></div>
+    </div>
   </a>
 
   <a href="<?= APP_URL ?>/panel/apply.php" class="vol-action-btn" role="listitem"
-     aria-label="Wnioski i pisma<?= $my_apps_new ? " — $my_apps_new nowych" : '' ?>">
+     aria-label="Wnioski i pisma">
     <?php if ($my_apps_new): ?>
-    <span class="vol-action-badge badge rounded-pill bg-primary"><?= $my_apps_new ?></span>
+    <span class="vol-action-badge badge rounded-pill bg-danger"><?= $my_apps_new ?></span>
     <?php endif; ?>
-    <i class="bi bi-send vol-action-icon" style="color:<?= $my_apps_new ? 'var(--vol-color)' : '#9CA3AF' ?>" aria-hidden="true"></i>
-    <div class="vol-action-count"><?= count($my_apps) ?></div>
-    <div class="vol-action-label">Wnioski i pisma</div>
+    <div class="vol-action-icon-wrap"><i class="bi bi-send vol-action-icon" aria-hidden="true"></i></div>
+    <div>
+      <div class="vol-action-count"><?= count($my_apps) ?></div>
+      <div class="vol-action-label">Wnioski i pisma</div>
+      <div class="vol-action-sub"><?= $my_apps_new ? "$my_apps_new oczekuje" : 'złożone wnioski' ?></div>
+    </div>
   </a>
 
   <?php if (module_enabled('certificates_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/certificates.php" class="vol-action-btn" role="listitem"
-     aria-label="Zaświadczenia<?= $my_certs_pending ? " — $my_certs_pending oczekujących" : '' ?>">
+  <a href="<?= APP_URL ?>/panel/certificates.php" class="vol-action-btn" role="listitem">
     <?php if ($my_certs_pending): ?>
     <span class="vol-action-badge badge rounded-pill bg-warning text-dark"><?= $my_certs_pending ?></span>
     <?php endif; ?>
-    <i class="bi bi-award vol-action-icon" style="color:#D97706" aria-hidden="true"></i>
-    <div class="vol-action-count"><?= count($my_certs) ?></div>
-    <div class="vol-action-label">Zaświadczenia</div>
-  </a>
-  <?php endif; ?>
-
-  <?php if (module_enabled('terminations_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/terminations.php" class="vol-action-btn" role="listitem"
-     aria-label="Rozwiązanie umowy">
-    <?php if ($my_terms_pending): ?>
-    <span class="vol-action-badge badge rounded-pill bg-warning text-dark"><?= $my_terms_pending ?></span>
-    <?php endif; ?>
-    <i class="bi bi-file-earmark-x vol-action-icon" style="color:#DC2626" aria-hidden="true"></i>
-    <div class="vol-action-count"><?= count($my_terms) ?></div>
-    <div class="vol-action-label">Rozwiązanie</div>
+    <div class="vol-action-icon-wrap" style="background:#FFF8E7">
+      <i class="bi bi-award vol-action-icon" style="color:#D97706" aria-hidden="true"></i>
+    </div>
+    <div>
+      <div class="vol-action-count" style="color:#D97706"><?= count($my_certs) ?></div>
+      <div class="vol-action-label">Zaświadczenia</div>
+      <div class="vol-action-sub"><?= $my_certs_pending ? "$my_certs_pending w toku" : 'wszystkie gotowe' ?></div>
+    </div>
   </a>
   <?php endif; ?>
 
   <?php if ($_active_zwroty): ?>
-  <a href="<?= APP_URL ?>/panel/zwroty.php" class="vol-action-btn" role="listitem"
-     aria-label="Zwroty kosztów">
+  <a href="<?= APP_URL ?>/panel/zwroty.php" class="vol-action-btn" role="listitem">
     <?php if ($_zwroty_pending): ?>
     <span class="vol-action-badge badge rounded-pill bg-warning text-dark"><?= $_zwroty_pending ?></span>
     <?php endif; ?>
-    <i class="bi bi-receipt vol-action-icon" style="color:#16A34A" aria-hidden="true"></i>
-    <div class="vol-action-count"><?= $_zwroty_pending ?: '0' ?></div>
-    <div class="vol-action-label">Zwroty kosztów</div>
+    <div class="vol-action-icon-wrap" style="background:#F0FDF4">
+      <i class="bi bi-receipt vol-action-icon" style="color:#16A34A" aria-hidden="true"></i>
+    </div>
+    <div>
+      <div class="vol-action-count" style="color:#16A34A"><?= $_zwroty_pending ?: '0' ?></div>
+      <div class="vol-action-label">Zwroty kosztów</div>
+      <div class="vol-action-sub"><?= $_zwroty_pending ? "oczekuje zwrotu" : 'do złożenia' ?></div>
+    </div>
   </a>
   <?php endif; ?>
 
   <?php if (module_enabled('timesheets_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/timesheets.php" class="vol-action-btn" role="listitem">
-    <i class="bi bi-clock-history vol-action-icon" style="color:#7C3AED" aria-hidden="true"></i>
-    <div class="vol-action-label">Ewidencja godzin</div>
+    <div class="vol-action-icon-wrap" style="background:#F5F3FF">
+      <i class="bi bi-clock-history vol-action-icon" style="color:#7C3AED" aria-hidden="true"></i>
+    </div>
+    <div>
+      <div class="vol-action-label">Ewidencja godzin</div>
+      <div class="vol-action-sub">arkusze czasu</div>
+    </div>
   </a>
   <?php endif; ?>
 
-  <?php if (module_enabled('letters_enabled')): ?>
+  <?php if (module_enabled('letters_enabled') && $my_letters_count): ?>
   <a href="<?= APP_URL ?>/panel/letters.php" class="vol-action-btn" role="listitem">
-    <i class="bi bi-archive vol-action-icon" style="color:#0176D3" aria-hidden="true"></i>
-    <div class="vol-action-count"><?= $my_letters_count ?></div>
-    <div class="vol-action-label">Pisma</div>
+    <div class="vol-action-icon-wrap" style="background:#EFF6FF">
+      <i class="bi bi-archive vol-action-icon" style="color:#0176D3" aria-hidden="true"></i>
+    </div>
+    <div>
+      <div class="vol-action-count" style="color:#0176D3"><?= $my_letters_count ?></div>
+      <div class="vol-action-label">Pisma</div>
+      <div class="vol-action-sub">korespondencja</div>
+    </div>
+  </a>
+  <?php endif; ?>
+
+  <?php if (module_enabled('terminations_enabled') && count($my_terms)): ?>
+  <a href="<?= APP_URL ?>/panel/terminations.php" class="vol-action-btn" role="listitem">
+    <?php if ($my_terms_pending): ?>
+    <span class="vol-action-badge badge rounded-pill bg-warning text-dark"><?= $my_terms_pending ?></span>
+    <?php endif; ?>
+    <div class="vol-action-icon-wrap" style="background:#FEF2F2">
+      <i class="bi bi-file-earmark-x vol-action-icon" style="color:#DC2626" aria-hidden="true"></i>
+    </div>
+    <div>
+      <div class="vol-action-count" style="color:#DC2626"><?= count($my_terms) ?></div>
+      <div class="vol-action-label">Rozwiązanie</div>
+      <div class="vol-action-sub">wnioski złożone</div>
+    </div>
   </a>
   <?php endif; ?>
 

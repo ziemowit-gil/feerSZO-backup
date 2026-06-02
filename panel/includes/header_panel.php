@@ -228,6 +228,41 @@ body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;display:f
 <div class="pv-shell">
 <main class="pv-content" id="pv-main" role="main" tabindex="-1">
 
+<?php if (!empty($_SESSION['_admin_original'])): ?>
+<?php $_imp_name = $_SESSION['user']['name'] ?? 'użytkownik'; ?>
+<a href="<?= APP_URL ?>/admin/impersonate_stop.php"
+   style="display:flex;align-items:center;gap:1rem;
+          background:linear-gradient(135deg,#b91c1c,#dc2626);
+          border-radius:14px;padding:1.1rem 1.4rem;margin-bottom:1.25rem;
+          text-decoration:none;color:#fff;
+          box-shadow:0 4px 20px rgba(185,28,28,.45);
+          animation:_impPulse 2.5s ease-in-out infinite;
+          border:2px solid rgba(255,255,255,.25)"
+   role="alert" aria-label="Tryb podglądu — kliknij aby wrócić do swojego konta">
+  <div style="width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.3rem">
+    👁
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:.72rem;font-weight:700;opacity:.8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.1rem">
+      Tryb podglądu — przeglądasz jako:
+    </div>
+    <div style="font-size:1.05rem;font-weight:800">
+      <?= h($_imp_name) ?>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:.5rem;background:rgba(0,0,0,.3);border-radius:10px;padding:.65rem 1.1rem;font-weight:700;font-size:.95rem;flex-shrink:0;white-space:nowrap;border:1.5px solid rgba(255,255,255,.3)">
+    <i class="bi bi-arrow-left-circle-fill" style="font-size:1.1rem"></i>
+    Powrót do admina
+  </div>
+</a>
+<style>
+@keyframes _impPulse {
+  0%,100% { box-shadow: 0 4px 20px rgba(185,28,28,.45); }
+  50%      { box-shadow: 0 4px 32px rgba(185,28,28,.75); }
+}
+</style>
+<?php endif; ?>
+
 <?php
 $_flash = flash_get();
 if ($_flash):
