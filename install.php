@@ -9,7 +9,7 @@ $step   = (int)($_GET['step'] ?? 1);
 $errors = [];
 
 // Przekieruj jeśli już zainstalowane
-if (file_exists(__DIR__ . '/config.php') && $step < 5) {
+if (file_exists(__DIR__ . '/config.php') && $step < 7) {
     require_once __DIR__ . '/config.php';
     if (defined('APP_INSTALLED') && APP_INSTALLED) {
         header('Location: index.php'); exit;
@@ -60,8 +60,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 4) {
     header('Location: install.php?step=5'); exit;
 }
 
-// ── KROK 5: Konto admina + zapis ─────────────────────────────────────────────
+// ── KROK 5: E-mail ───────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 5) {
+    $_SESSION['install_mail'] = [
+        'type'       => in_array($_POST['mail_type'] ?? '', ['smtp','m365','php'], true) ? $_POST['mail_type'] : 'php',
+        'smtp_host'  => trim($_POST['smtp_host']  ?? ''),
+        'smtp_port'  => (int)($_POST['smtp_port'] ?? 587),
+        'smtp_user'  => trim($_POST['smtp_user']  ?? ''),
+        'smtp_pass'  => $_POST['smtp_pass']       ?? '',
+        'smtp_from'  => trim($_POST['smtp_from']  ?? ''),
+        'smtp_enc'   => in_array($_POST['smtp_enc'] ?? '', ['tls','ssl',''], true) ? $_POST['smtp_enc'] : 'tls',
+        'm365_from'  => trim($_POST['m365_from']  ?? ''),
+    ];
+    header('Location: install.php?step=6'); exit;
+}
+
+// ── KROK 6: Moduły ───────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 6) {
+    $all_modules = ['crm_enabled','tasks_enabled','ezd_enabled','events_enabled',
+                    'certificates_enabled','onboarding_enabled','reports_enabled',
+                    'approvals_enabled','procedures_enabled','letters_enabled',
+                    'messages_enabled','resolutions_enabled','correspondence_enabled'];
+    $enabled = [];
+    foreach ($all_modules as $m) {
+        $enabled[$m] = !empty($_POST[$m]) ? '1' : '0';
+    }
+    $_SESSION['install_modules'] = $enabled;
+    header('Location: install.php?step=7'); exit;
+}
+
+// ── KROK 7: Konto admina + zapis ─────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 7) {
     $admin_name  = trim($_POST['admin_name']  ?? '');
     $admin_email = trim($_POST['admin_email'] ?? '');
     $admin_pass  = $_POST['admin_pass']  ?? '';
@@ -138,7 +167,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 5) {
             $cfg .= "})());\n";
 
             file_put_contents(__DIR__ . '/config.php', $cfg);
-            header('Location: install.php?step=6'); exit;
+
+            // E-mail
+            $mail = $_SESSION['install_mail'] ?? ['type' => 'php'];
+            $mail_settings = [];
+            if ($mail['type'] === 'smtp') {
+                $mail_settings = ['smtp_host' => $mail['smtp_host'], 'smtp_port' => $mail['smtp_port'],
+                    'smtp_user' => $mail['smtp_user'], 'smtp_pass' => $mail['smtp_pass'],
+                    'smtp_from_email' => $mail['smtp_from'], 'smtp_encryption' => $mail['smtp_enc']];
+            } elseif ($mail['type'] === 'm365') {
+                $mail_settings = ['m365_send_from_email' => $mail['m365_from']];
+            }
+            foreach ($mail_settings as $k => $v) {
+                $pdo->prepare($upsert)->execute([$k, $v]);
+            }
+
+            // Moduły
+            $modules = $_SESSION['install_modules'] ?? [];
+            foreach ($modules as $k => $v) {
+                $pdo->prepare($upsert)->execute([$k, $v]);
+            }
+
+            header('Location: install.php?step=8'); exit;
 
         } catch (Exception $e) {
             $errors[] = 'Błąd instalacji: ' . $e->getMessage();
@@ -207,7 +257,7 @@ body { background: #f1f5f9; }
   </div>
 
   <?php
-  $step_labels = ['Wymagania','Baza danych','Organizacja','Microsoft','Administrator','Gotowe'];
+  $step_labels = ['Wymagania','Baza danych','Organizacja','Microsoft','E-mail','Moduły','Administrator','Gotowe'];
   $total_steps = count($step_labels);
   ?>
   <div class="steps">
@@ -356,11 +406,132 @@ body { background: #f1f5f9; }
       <div class="mb-3"><label class="form-label small fw-semibold">Client Secret</label><input name="client_secret" class="form-control form-control-sm" type="password"></div>
     </div>
     <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
-    <a href="install.php?step=5" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później</a>
+    <a href="install.php?step=5" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później w Admin → Dane organizacji</a>
   </form>
 
-  <?php // ── KROK 5: Administrator
-  elseif ($step === 5): ?>
+  <?php // ── KROK 5: E-mail
+  elseif ($step === 5):
+    $ms = $_SESSION['install_ms'] ?? [];
+    $m365_configured = !empty($ms['enabled']) && !empty($ms['client_id']);
+  ?>
+  <h2>Konfiguracja e-mail</h2>
+  <p class="sub">System wysyła powiadomienia, dane logowania i kody SMS. Możesz skonfigurować później w panelu admina.</p>
+
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">Metoda wysyłki</label>
+      <div class="d-flex flex-column gap-2">
+        <?php if ($m365_configured): ?>
+        <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
+          <input type="radio" name="mail_type" value="m365" <?= ($m365_configured ? 'checked' : '') ?> onchange="switchMail('m365')" style="margin-top:.2rem">
+          <div>
+            <div class="fw-semibold small">Microsoft 365 <span class="badge bg-success ms-1" style="font-size:.65rem">Zalecane — M365 skonfigurowany</span></div>
+            <div class="text-muted" style="font-size:.78rem">Wysyłka przez skonfigurowane konto Microsoft</div>
+          </div>
+        </label>
+        <?php endif; ?>
+        <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
+          <input type="radio" name="mail_type" value="smtp" <?= !$m365_configured ? 'checked' : '' ?> onchange="switchMail('smtp')" style="margin-top:.2rem">
+          <div>
+            <div class="fw-semibold small">SMTP</div>
+            <div class="text-muted" style="font-size:.78rem">Serwer pocztowy (Gmail, własny SMTP)</div>
+          </div>
+        </label>
+        <label class="border rounded p-3 d-flex align-items-start gap-3" style="cursor:pointer">
+          <input type="radio" name="mail_type" value="php" onchange="switchMail('php')" style="margin-top:.2rem">
+          <div>
+            <div class="fw-semibold small">PHP mail()</div>
+            <div class="text-muted" style="font-size:.78rem">Wbudowana funkcja PHP — często blokowana przez hostingi</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div id="mail-smtp" style="display:<?= !$m365_configured ? '' : 'none' ?>">
+      <div class="row g-2 mb-2">
+        <div class="col-8"><label class="form-label small fw-semibold">Serwer SMTP</label><input name="smtp_host" class="form-control form-control-sm" placeholder="smtp.gmail.com"></div>
+        <div class="col-4"><label class="form-label small fw-semibold">Port</label><input name="smtp_port" class="form-control form-control-sm" value="587" type="number"></div>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label small fw-semibold">Login</label><input name="smtp_user" class="form-control form-control-sm" type="email"></div>
+        <div class="col-6"><label class="form-label small fw-semibold">Hasło / App Password</label><input name="smtp_pass" class="form-control form-control-sm" type="password"></div>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-8"><label class="form-label small fw-semibold">Adres nadawcy</label><input name="smtp_from" class="form-control form-control-sm" type="email" placeholder="noreply@organizacja.pl"></div>
+        <div class="col-4"><label class="form-label small fw-semibold">Szyfrowanie</label>
+          <select name="smtp_enc" class="form-select form-select-sm"><option value="tls">STARTTLS</option><option value="ssl">SSL</option><option value="">Brak</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div id="mail-m365" style="display:<?= $m365_configured ? '' : 'none' ?>">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Adres e-mail nadawcy (skrzynka M365)</label>
+        <input name="m365_from" class="form-control form-control-sm" type="email" placeholder="noreply@organizacja.pl">
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
+    <a href="install.php?step=6" class="btn btn-link w-100 text-muted mt-1" style="font-size:.83rem">Pomiń — skonfiguruj później</a>
+  </form>
+  <script>
+  function switchMail(t) {
+    document.getElementById('mail-smtp').style.display = t==='smtp' ? '' : 'none';
+    document.getElementById('mail-m365').style.display = t==='m365' ? '' : 'none';
+  }
+  </script>
+
+  <?php // ── KROK 6: Moduły
+  elseif ($step === 6):
+    $module_groups = [
+      'Zarządzanie' => [
+        ['key'=>'tasks_enabled',       'icon'=>'bi-kanban',              'label'=>'Tablica zadań (Kanban)',       'default'=>true],
+        ['key'=>'approvals_enabled',   'icon'=>'bi-check2-square',       'label'=>'Obieg akceptacji',             'default'=>true],
+        ['key'=>'procedures_enabled',  'icon'=>'bi-journal-bookmark-fill','label'=>'Procedury wewnętrzne',        'default'=>false],
+        ['key'=>'resolutions_enabled', 'icon'=>'bi-hammer',              'label'=>'Uchwały i zarządzenia',        'default'=>false],
+      ],
+      'Komunikacja i ludzie' => [
+        ['key'=>'crm_enabled',         'icon'=>'bi-diagram-2',           'label'=>'CRM — kontakty i komunikacja', 'default'=>true],
+        ['key'=>'messages_enabled',    'icon'=>'bi-chat-dots',           'label'=>'Wiadomości wewnętrzne',        'default'=>true],
+        ['key'=>'onboarding_enabled',  'icon'=>'bi-person-plus',         'label'=>'Zgłoszenia wolontariuszy',     'default'=>true],
+        ['key'=>'events_enabled',      'icon'=>'bi-calendar-event',      'label'=>'Moduł wydarzeń',               'default'=>false],
+      ],
+      'Dokumenty i raporty' => [
+        ['key'=>'letters_enabled',     'icon'=>'bi-envelope-paper',      'label'=>'Pisma i korespondencja',       'default'=>true],
+        ['key'=>'certificates_enabled','icon'=>'bi-award',               'label'=>'Zaświadczenia',                'default'=>true],
+        ['key'=>'ezd_enabled',         'icon'=>'bi-building-gear',       'label'=>'Kancelaria EZD',               'default'=>false],
+        ['key'=>'reports_enabled',     'icon'=>'bi-bar-chart-line',      'label'=>'Zestawienia i raporty',        'default'=>true],
+        ['key'=>'correspondence_enabled','icon'=>'bi-mailbox2',          'label'=>'Rejestr korespondencji',       'default'=>false],
+      ],
+    ];
+    $saved_modules = $_SESSION['install_modules'] ?? [];
+  ?>
+  <h2>Aktywne moduły</h2>
+  <p class="sub">Wybierz funkcje do uruchomienia. Pozostałe możesz włączyć w panelu admina w dowolnym momencie.</p>
+
+  <form method="post">
+    <?php foreach ($module_groups as $gname => $mods): ?>
+    <div class="mb-3">
+      <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:.5rem"><?= $gname ?></div>
+      <?php foreach ($mods as $m):
+        $checked = isset($saved_modules[$m['key']]) ? $saved_modules[$m['key']] === '1' : $m['default'];
+      ?>
+      <div class="form-check d-flex align-items-center gap-2 py-1 border-bottom" style="padding-left:0">
+        <input type="checkbox" name="<?= $m['key'] ?>" id="<?= $m['key'] ?>" class="form-check-input ms-0 flex-shrink-0" <?= $checked ? 'checked' : '' ?> style="margin-top:0">
+        <label for="<?= $m['key'] ?>" class="form-check-label d-flex align-items-center gap-2 w-100" style="cursor:pointer">
+          <i class="bi <?= $m['icon'] ?> text-primary" style="font-size:.9rem;width:18px;text-align:center"></i>
+          <span style="font-size:.85rem"><?= $m['label'] ?></span>
+        </label>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endforeach; ?>
+
+    <button type="submit" class="btn btn-primary w-100 mt-2">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
+  </form>
+
+  <?php // ── KROK 7: Administrator
+  elseif ($step === 7): ?>
   <h2>Konto administratora</h2>
   <p class="sub">Pierwsze konto do zarządzania systemem. Możesz dodać więcej użytkowników po instalacji.</p>
 
@@ -386,8 +557,8 @@ body { background: #f1f5f9; }
     </button>
   </form>
 
-  <?php // ── KROK 6: Gotowe
-  elseif ($step === 6): ?>
+  <?php // ── KROK 8: Gotowe
+  elseif ($step === 8): ?>
   <div class="text-center mb-3">
     <i class="bi bi-check-circle-fill ins-success-icon"></i>
     <h2 style="font-size:1.25rem">Instalacja zakończona!</h2>

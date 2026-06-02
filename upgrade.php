@@ -174,6 +174,8 @@ $backup_result     = null;
 if ($is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'run_upgrade') {
     if (($_POST['_csrf'] ?? '') !== ($_SESSION['upgrade_csrf'] ?? '')) {
         $error = 'CSRF error.';
+    } elseif ($up_to_date && empty($_POST['force'])) {
+        $error = 'System jest już aktualny (' . $current_ver['hash'] . '). Jeśli chcesz wymusić ponowne uruchomienie migracji, użyj przycisku "Uruchom ponownie".';
     } else {
         // 1. Backup przed migracją
         $backup_result = upg_backup();
@@ -434,10 +436,24 @@ body { background: #f1f5f9; }
     <form method="post" onsubmit="return confirm('Uruchomić migracje schematu bazy danych?')">
       <input type="hidden" name="_csrf"   value="<?= upg_h($_SESSION['upgrade_csrf'] ?? '') ?>">
       <input type="hidden" name="_action" value="run_upgrade">
-      <button type="submit" class="btn btn-primary <?= $up_to_date && !$migration_results ? 'btn-outline-primary' : '' ?>">
-        <i class="bi bi-database-gear me-1"></i>
-        <?= $up_to_date && !$migration_results ? 'Uruchom ponownie migracje' : 'Uruchom aktualizację' ?>
+      <?php if ($up_to_date && !$migration_results): ?>
+      <input type="hidden" name="force" value="1">
+      <button type="submit" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-clockwise me-1"></i>Uruchom ponownie migracje
       </button>
+      <?php else: ?>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-database-gear me-1"></i>Uruchom aktualizację
+        <?php if (count($new_commits)): ?>
+        <span class="badge bg-light text-dark ms-1"><?= count($new_commits) ?> zmian</span>
+        <?php endif; ?>
+      </button>
+      <?php endif; ?>
+      <?php if (!$new_commits && $installed_ver && !$up_to_date): ?>
+      <div class="form-text text-warning mt-1">
+        <i class="bi bi-exclamation-triangle me-1"></i>Zainstalowana wersja (<code><?= upg_h($installed_ver) ?></code>) nie została znaleziona w historii git — możliwe cofnięcie wersji.
+      </div>
+      <?php endif; ?>
     </form>
   </div>
 
