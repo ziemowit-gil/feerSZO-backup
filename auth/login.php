@@ -664,7 +664,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
     } catch (\Throwable $e) {}
     ?>
     <?php if ($__v): ?>
-    <span style="opacity:.35;font-size:.68rem;font-family:monospace"><?= h($__v) ?></span>
+    <span style="color:#fff;opacity:.45;font-size:.68rem;font-family:monospace"><?= h($__v) ?></span>
     <?php endif; ?>
   </div>
 
