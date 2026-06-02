@@ -284,6 +284,66 @@ body {
 </head>
 <body>
 
+<!-- ══ Modal: Compose (wyślij wiadomość) ══════════════════════════════════════ -->
+<div class="modal fade" id="crmComposeModal" tabindex="-1" aria-labelledby="crmComposeModalLabel">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fw-bold" id="crmComposeModalLabel">
+          <i class="bi bi-send-fill text-primary me-2" aria-hidden="true"></i>
+          <span id="crmComposeModalTitle">Wyślij wiadomość</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body" id="crmComposeModalBody">
+        <div class="text-center py-5 text-muted">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+          <div class="mt-2 small">Ładowanie…</div>
+        </div>
+      </div>
+      <div class="modal-footer py-2" id="crmComposeModalFooter">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+/**
+ * openCommModal(contactId, channel) — otwiera modalny composer wiadomości.
+ * Można wywołać z dowolnego miejsca w CRM.
+ */
+window.openCommModal = function(contactId, channel) {
+    channel = channel || 'email';
+    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('crmComposeModal'));
+    var body  = document.getElementById('crmComposeModalBody');
+    var foot  = document.getElementById('crmComposeModalFooter');
+    var title = document.getElementById('crmComposeModalTitle');
+
+    // Reset
+    body.innerHTML  = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm" role="status"></div><div class="mt-2 small">Ładowanie…</div></div>';
+    foot.innerHTML  = '<button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button>';
+    title.textContent = 'Wyślij wiadomość';
+
+    modal.show();
+
+    fetch('<?= APP_URL ?>/crm/compose_modal.php?contact_id=' + encodeURIComponent(contactId) + '&channel=' + encodeURIComponent(channel))
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+            body.innerHTML = html;
+            // Uruchom skrypty wstrzyknięte w fragment
+            body.querySelectorAll('script').forEach(function(old) {
+                var s = document.createElement('script');
+                Array.from(old.attributes).forEach(function(a) { s.setAttribute(a.name, a.value); });
+                s.textContent = old.textContent;
+                old.parentNode.replaceChild(s, old);
+            });
+        })
+        .catch(function() {
+            body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania formularza.</div>';
+        });
+};
+</script>
+
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <header class="crm-topbar" role="banner">
 

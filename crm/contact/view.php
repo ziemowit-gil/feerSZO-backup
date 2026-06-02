@@ -187,11 +187,11 @@ include __DIR__ . '/../includes/header_crm.php';
           <i class="bi bi-pencil-fill me-1"></i>Edytuj
         </a>
         <?php endif; ?>
-        <a href="<?= APP_URL ?>/crm/communicate.php?contact_id=<?= $id ?>"
-           class="btn btn-sm btn-light"
-           aria-label="Wyślij wiadomość">
+        <button type="button" class="btn btn-sm btn-light"
+                onclick="openCommModal(<?= $id ?>,'email')"
+                aria-label="Wyślij wiadomość">
           <i class="bi bi-send-fill me-1"></i>Wiadomość
-        </a>
+        </button>
       </div>
     </div>
   </div>
@@ -1112,11 +1112,12 @@ include __DIR__ . '/../includes/header_crm.php';
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           Historia komunikacji
-          <a href="<?= APP_URL ?>/crm/communicate.php?contact_id=<?= $id ?>"
-             class="btn btn-sm btn-crm-outline" style="font-size:.72rem;padding:.15rem .5rem;text-transform:none;letter-spacing:0"
-             aria-label="Wyślij nową wiadomość">
+          <button type="button" class="btn btn-sm btn-crm-outline"
+                  style="font-size:.72rem;padding:.15rem .5rem;text-transform:none;letter-spacing:0"
+                  onclick="openCommModal(<?= $id ?>,'email')"
+                  aria-label="Wyślij nową wiadomość">
             <i class="bi bi-send me-1"></i>Wyślij
-          </a>
+          </button>
         </div>
 
         <?php if ($contact['communications']): ?>
@@ -1169,14 +1170,14 @@ include __DIR__ . '/../includes/header_crm.php';
              class="btn btn-sm btn-crm-outline">
             <i class="bi bi-pencil me-1"></i>Edytuj dane
           </a>
-          <a href="<?= APP_URL ?>/crm/communicate.php?contact_id=<?= $id ?>"
-             class="btn btn-sm btn-crm-outline">
+          <button type="button" class="btn btn-sm btn-crm-outline"
+                  onclick="openCommModal(<?= $id ?>,'email')">
             <i class="bi bi-envelope me-1"></i>Wyślij e-mail
-          </a>
-          <a href="<?= APP_URL ?>/crm/communicate.php?contact_id=<?= $id ?>&channel=sms"
-             class="btn btn-sm btn-crm-outline">
+          </button>
+          <button type="button" class="btn btn-sm btn-crm-outline"
+                  onclick="openCommModal(<?= $id ?>,'sms')">
             <i class="bi bi-phone me-1"></i>Wyślij SMS
-          </a>
+          </button>
           <?php if ($contact['email']): ?>
           <a href="mailto:<?= h($contact['email']) ?>"
              class="btn btn-sm btn-outline-secondary">
