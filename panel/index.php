@@ -283,6 +283,30 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
 
 <?= flash_html() ?>
 
+<!-- ── Baner: poczta organizacji ─────────────────────────────────────────── -->
+<a href="https://poczta.feer.org.pl" target="_blank" rel="noopener"
+   style="display:flex;align-items:center;gap:1rem;
+          background:linear-gradient(135deg,#1e40af 0%,#1d6ef9 100%);
+          border-radius:14px;padding:1rem 1.4rem;margin-bottom:1.1rem;
+          text-decoration:none;color:#fff;
+          box-shadow:0 4px 18px rgba(30,110,255,.25);
+          transition:box-shadow .15s,transform .12s"
+   onmouseenter="this.style.boxShadow='0 6px 24px rgba(30,110,255,.38)';this.style.transform='translateY(-1px)'"
+   onmouseleave="this.style.boxShadow='0 4px 18px rgba(30,110,255,.25)';this.style.transform=''">
+  <div style="width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+    <i class="bi bi-envelope-fill" style="font-size:1.3rem"></i>
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:.72rem;font-weight:600;opacity:.75;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.15rem">
+      Szukasz poczty?
+    </div>
+    <div style="font-size:1.1rem;font-weight:800;letter-spacing:-.01em">
+      poczta.feer.org.pl
+    </div>
+  </div>
+  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.5rem;opacity:.7;flex-shrink:0"></i>
+</a>
+
 <!-- Informacja o spójności wyglądu — jednorazowa na sesję -->
 <div id="cn-vol" style="display:none;margin-bottom:1rem">
   <div style="background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:10px;padding:.75rem 1rem .75rem 1.1rem;display:flex;align-items:flex-start;gap:.75rem;font-size:.82rem;color:#92400E">
