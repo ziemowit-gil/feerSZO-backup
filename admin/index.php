@@ -241,6 +241,7 @@ $groups = [
             ['icon'=>'bi-archive',           'label'=>'Kopie zapasowe',        'url'=>'/admin/backups.php',     'danger'=>false],
             ['icon'=>'bi-layers',            'label'=>'Obszary zadań',         'url'=>'/tasks/settings/areas.php',  'danger'=>false],
             ['icon'=>'bi-database-fill-gear','label'=>'Narzędzia bazy danych','url'=>'/admin/db_tools.php',     'danger'=>false],
+            ['icon'=>'bi-rocket-takeoff',  'label'=>'Czyszczenie przed wdrożeniem','url'=>'/admin/clean_for_prod.php','danger'=>true],
             ['icon'=>'bi-trash3',          'label'=>'Wyczyść bazę',      'url'=>'/admin/clean_db.php',       'danger'=>true],
             ['icon'=>'bi-journal-text',    'label'=>'Przeglądarka logów',    'url'=>'/admin/logs_global.php',  'danger'=>false],
             ['icon'=>'bi-database-gear',   'label'=>'Zarządzanie migracjami', 'url'=>'/admin/migrations.php',   'danger'=>false],
