@@ -308,6 +308,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_task']) && can_e
     header('Location: view.php?id=' . $id . '#tab-tasks-anchor'); exit;
 }
 
+// ── Canva — oznacz jako zaproszony / włącz dostęp ────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_canva_invited']) && can_edit()) {
+    csrf_check();
+    $now = date('Y-m-d H:i:s');
+    db_update($TABLE, ['canva_invited_at' => $now, 'canva_access' => 1], $id);
+    log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
+        'Oznaczono jako zaproszony do Canva');
+    // Wyślij wolontariuszowi mail potwierdzający aktywację
+    $email_vol = trim($row['email'] ?? '');
+    if ($email_vol && filter_var($email_vol, FILTER_VALIDATE_EMAIL)) {
+        $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+        $name = h($row['imie_nazwisko'] ?? $email_vol);
+        $m365 = trim($row['m365_login'] ?? '');
+        $login_method = $m365
+            ? "kontem Microsoft 365 (<strong>{$m365}</strong>)"
+            : "adresem e-mail (<strong>{$email_vol}</strong>)";
+        $body = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">🎨 Twój dostęp do Canva jest aktywny — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>
+    Twoje zaproszenie do przestrzeni <strong>Canva Pro</strong> organizacji <strong>{$org}</strong>
+    zostało wysłane. Sprawdź skrzynkę e-mail pod adresem <strong>{$email_vol}</strong>
+    i kliknij przycisk <strong>„Dołącz do zespołu"</strong> w wiadomości od Canva.
+  </p>
+  <div style="background:#fdf4ff;border-left:4px solid #a855f7;border-radius:4px;padding:14px 18px;margin:18px 0;font-size:.92em">
+    Loguj się do Canva przez {$login_method}.<br>
+    Jeśli używasz SSO (Microsoft 365), wybierz opcję <em>„Continue with Microsoft"</em> na stronie logowania Canva.
+  </div>
+  <div style="margin:22px 0;text-align:center">
+    <a href="https://www.canva.com" style="background:#7c3aed;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz Canva →
+    </a>
+  </div>
+  <p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    W razie pytań skontaktuj się ze swoim opiekunem w {$org}.
+  </p>
+</div>
+</body></html>
+HTML;
+        try {
+            approval_send_email($email_vol, "Twój dostęp do Canva jest gotowy — {$org}", $body);
+        } catch (\Throwable $e) {}
+    }
+    flash_set('success', 'Zaproszenie Canva oznaczone. E-mail wysłany do wolontariusza.');
+    header('Location: view.php?id=' . $id . '#tab-m365-anchor'); exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_canva_toggle']) && can_edit()) {
+    csrf_check();
+    $new_val = (int)($_POST['canva_access_val'] ?? 0);
+    db_update($TABLE, ['canva_access' => $new_val], $id);
+    if (!$new_val) db_update($TABLE, ['canva_invited_at' => null], $id);
+    log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
+        'Canva access: ' . ($new_val ? 'włączono' : 'wyłączono'));
+    header('Location: view.php?id=' . $id . '#tab-m365-anchor'); exit;
+}
+
 // ── Utwórz / podepnij konto lokalne na podstawie M365 (dla umów przed 01.06) ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_create_local_from_m365']) && can_edit()) {
     csrf_check();
@@ -1584,6 +1645,102 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 
   </div>
   </div>
+
+  <!-- ── Sekcja Canva ──────────────────────────────────────────────────────── -->
+  <?php if (can_edit()): ?>
+  <?php
+  $canva_access     = !empty($row['canva_access']);
+  $canva_invited_at = $row['canva_invited_at'] ?? null;
+  $has_m365_for_canva = !empty($row['m365_login']) || !empty($row['m365_user_id']);
+  ?>
+  <div class="card shadow-sm mt-3">
+  <div class="card-header fw-semibold d-flex align-items-center justify-content-between"
+       style="background:#fdf4ff;border-bottom:1px solid #e9d5ff">
+    <span style="color:#7c3aed">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/></svg>
+      Canva Pro
+    </span>
+    <?php if ($canva_access && $canva_invited_at): ?>
+    <span class="badge bg-success" style="font-size:.72rem">
+      <i class="bi bi-check-lg me-1"></i>Zaproszony <?= date_pl($canva_invited_at) ?>
+    </span>
+    <?php elseif ($canva_access): ?>
+    <span class="badge bg-warning text-dark" style="font-size:.72rem">
+      <i class="bi bi-hourglass-split me-1"></i>Oczekuje na zaproszenie
+    </span>
+    <?php else: ?>
+    <span class="badge bg-light text-secondary border" style="font-size:.72rem">Brak dostępu</span>
+    <?php endif; ?>
+  </div>
+  <div class="card-body py-3">
+
+    <?php if (!$has_m365_for_canva): ?>
+    <div class="alert alert-warning py-2 small mb-0 d-flex gap-2">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+      <span>Wolontariusz nie ma konta M365. Konto M365 jest <strong>wymagane</strong> do logowania w Canva przez Microsoft 365.</span>
+    </div>
+
+    <?php elseif ($canva_access && $canva_invited_at): ?>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="small text-success">
+        <i class="bi bi-check-circle-fill me-1"></i>
+        Dostęp aktywny. Wolontariusz loguje się do Canva kontem M365: <strong><?= h($row['m365_login'] ?? '') ?></strong>
+      </div>
+      <form method="post" class="ms-auto">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_canva_toggle" value="1">
+        <input type="hidden" name="canva_access_val" value="0">
+        <button type="submit" class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Cofnąć dostęp do Canva?')">
+          <i class="bi bi-x-circle me-1"></i>Cofnij dostęp
+        </button>
+      </form>
+    </div>
+
+    <?php elseif ($canva_access): ?>
+    <div class="small text-muted mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      Dostęp zaznaczony. Zaproś ręcznie w panelu Canva, następnie oznacz poniżej.
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="https://www.canva.com/brand/invite" target="_blank"
+         class="btn btn-sm btn-primary" style="background:#7c3aed;border-color:#7c3aed">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz panel zaproszeń Canva
+      </a>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_canva_invited" value="1">
+        <button type="submit" class="btn btn-sm btn-success">
+          <i class="bi bi-check-lg me-1"></i>Zaproszenie wysłane — oznacz i powiadom wolontariusza
+        </button>
+      </form>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_canva_toggle" value="1">
+        <input type="hidden" name="canva_access_val" value="0">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-x me-1"></i>Anuluj
+        </button>
+      </form>
+    </div>
+
+    <?php else: ?>
+    <div class="small text-muted mb-2">
+      Brak dostępu do Canva. Nadaj dostęp — system powiadomi admina i wyśle instrukcję wolontariuszowi.
+    </div>
+    <form method="post" class="d-inline">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_canva_toggle" value="1">
+      <input type="hidden" name="canva_access_val" value="1">
+      <button type="submit" class="btn btn-sm" style="background:#7c3aed;border-color:#7c3aed;color:#fff">
+        <i class="bi bi-plus-circle me-1"></i>Nadaj dostęp do Canva
+      </button>
+    </form>
+    <?php endif; ?>
+
+  </div>
+  </div>
+  <?php endif; ?>
 
 </div><!-- /tab-m365 -->
 

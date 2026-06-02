@@ -156,6 +156,7 @@ $groups = [
         'color' => 'slate',
         'items' => [
             ['icon'=>'bi-microsoft',       'label'=>'Microsoft 365',     'url'=>'/admin/m365.php'],
+            ['icon'=>'bi-palette2',        'label'=>'Canva Pro',          'url'=>'/admin/canva.php'],
             ['icon'=>'bi-chat-dots',       'label'=>'SMS',               'url'=>'/admin/sms_settings.php'],
             ['icon'=>'bi-whatsapp',        'label'=>'WhatsApp',          'url'=>'/admin/whatsapp_settings.php'],
             ['icon'=>'bi-envelope-at',     'label'=>'Postivo (maile)',    'url'=>'/admin/postivo_settings.php'],

@@ -127,6 +127,10 @@ function cpc_migrate(): void {
         'epodpis_data_waznosci'     => "ALTER TABLE umowy_wolontariat ADD COLUMN epodpis_data_waznosci DATE NULL",
         // Zakres dostępu portalu
         'portal_scope'              => "ALTER TABLE umowy_wolontariat ADD COLUMN portal_scope TEXT NULL",
+        // Canva
+        'canva_access'              => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_access INTEGER NOT NULL DEFAULT 0",
+        'canva_invited_at'          => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_invited_at DATETIME NULL",
+        'canva_email_sent_at'       => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_email_sent_at DATETIME NULL",
     ];
 
     foreach ($wolontariat_extra as $col => $sql) {

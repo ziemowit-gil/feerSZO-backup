@@ -287,6 +287,129 @@ HTML;
     return $plain;
 }
 
+// ── Powiadomienia Canva ───────────────────────────────────────────────────────
+function _wolontariat_notify_canva(array $data, int $contract_id, string $org): void {
+    $name       = trim($data['imie_nazwisko'] ?? '');
+    $email      = trim($data['email'] ?? '');
+    $m365_login = trim($data['m365_login'] ?? '');
+    $numer      = $data['numer_umowy'] ?? '';
+    $login_url  = APP_URL . '/auth/login.php';
+    $canva_url  = 'https://www.canva.com';
+
+    // ── 1. E-mail do admina / opiekuna — prośba o ręczne zaproszenie ──────────
+    try {
+        $admin_emails = db_all(
+            "SELECT email, name FROM users WHERE role='admin' AND is_active=1 ORDER BY id LIMIT 3"
+        );
+        // Dodaj opiekuna umowy jeśli jest
+        if (!empty($data['guardian_editor_id'])) {
+            $opiekun = db_one("SELECT email, name FROM users WHERE id=?", [(int)$data['guardian_editor_id']]);
+            if ($opiekun) $admin_emails[] = $opiekun;
+        }
+        $admin_emails = array_unique(array_column($admin_emails, null, 'email'));
+
+        $canva_invite_url = 'https://www.canva.com/brand/invite';
+        $admin_body = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎨 Canva — nowe zaproszenie do wysłania</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 10px 10px">
+  <p>Wolontariusz wymaga dostępu do przestrzeni <strong>Canva Pro</strong> organizacji {$org}.</p>
+  <table style="background:#f8f9fa;border-radius:8px;padding:14px;width:100%;border-collapse:collapse;margin:14px 0">
+    <tr><td style="padding:4px 12px;color:#6c757d;width:130px;font-size:.9em">Imię i nazwisko</td><td style="padding:4px 12px"><strong>{$name}</strong></td></tr>
+    <tr><td style="padding:4px 12px;color:#6c757d;font-size:.9em">E-mail</td><td style="padding:4px 12px">{$email}</td></tr>
+    <tr><td style="padding:4px 12px;color:#6c757d;font-size:.9em">Login M365</td><td style="padding:4px 12px"><strong style="font-family:monospace">{$m365_login}</strong></td></tr>
+    <tr><td style="padding:4px 12px;color:#6c757d;font-size:.9em">Numer umowy</td><td style="padding:4px 12px">{$numer}</td></tr>
+  </table>
+  <div style="background:#fdf4ff;border-left:4px solid #a855f7;border-radius:4px;padding:14px;margin:14px 0;font-size:.9em">
+    <strong>Akcja wymagana:</strong> Zaloguj się do Canva jako administrator i wyślij zaproszenie na adres
+    <strong>{$email}</strong> (lub login M365: <code>{$m365_login}</code>).
+  </div>
+  <div style="margin:18px 0;text-align:center">
+    <a href="{$canva_invite_url}" style="background:#7c3aed;color:#fff;padding:11px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz panel zaproszeń Canva →
+    </a>
+  </div>
+  <p style="font-size:.82em;color:#6c757d;margin-top:20px;border-top:1px solid #dee2e6;padding-top:12px">
+    Po wysłaniu zaproszenia oznacz je jako wysłane w systemie:
+    <a href="{$_url}" style="color:#7c3aed">{$_url}</a>
+  </p>
+</div>
+</body></html>
+HTML;
+
+        $_url = APP_URL . "/contracts/wolontariat/view.php?id={$contract_id}#tab-m365-anchor";
+        $admin_body = str_replace('{$_url}', $_url, $admin_body);
+
+        foreach ($admin_emails as $ae) {
+            approval_send_email(
+                $ae['email'],
+                "Canva — wyślij zaproszenie: {$name} ({$org})",
+                $admin_body
+            );
+        }
+
+        // Zapisz datę powiadomienia admina
+        db_update('umowy_wolontariat', ['canva_email_sent_at' => date('Y-m-d H:i:s')], $contract_id);
+
+    } catch (\Throwable $e) {
+        // Nie przerywaj zapisu umowy jeśli mail się nie uda
+    }
+
+    // ── 2. E-mail do wolontariusza — instrukcja jak zalogować się do Canva ────
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+
+    try {
+        $login_method = $m365_login
+            ? "swoim kontem Microsoft 365 (<strong>{$m365_login}</strong>)"
+            : "adresem e-mail (<strong>{$email}</strong>)";
+
+        $vol_body = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">🎨 Dostęp do Canva — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>
+    W ramach współpracy wolontariackiej w <strong>{$org}</strong> otrzymujesz dostęp
+    do wspólnej przestrzeni <strong>Canva Pro</strong> organizacji.
+  </p>
+  <div style="background:#fdf4ff;border-left:4px solid #a855f7;border-radius:4px;padding:14px 18px;margin:18px 0;font-size:.92em">
+    <strong>Co to oznacza?</strong><br>
+    Będziesz mieć dostęp do brandingu, szablonów i zasobów graficznych organizacji.
+    Możesz tworzyć i edytować materiały korzystając z gotowych szablonów.
+  </div>
+  <p style="font-size:.92em">Wkrótce otrzymasz e-mail z zaproszeniem od Canva. Aby dołączyć:</p>
+  <ol style="font-size:.9em;padding-left:18px">
+    <li>Otwórz e-mail z zaproszeniem od Canva (nadawca: <code>noreply@canva.com</code>)</li>
+    <li>Kliknij przycisk <strong>„Dołącz do zespołu"</strong></li>
+    <li>Zaloguj się {$login_method}</li>
+    <li>Gotowe — masz dostęp do przestrzeni {$org}</li>
+  </ol>
+  <div style="margin:22px 0;text-align:center">
+    <a href="{$canva_url}" style="background:#7c3aed;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Przejdź do Canva →
+    </a>
+  </div>
+  <p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Jeśli masz pytania dotyczące dostępu do Canva, skontaktuj się ze swoim opiekunem.<br>
+    <strong>{$org}</strong>
+  </p>
+</div>
+</body></html>
+HTML;
+
+        approval_send_email(
+            $email,
+            "Dostęp do Canva Pro — {$org} (oczekuj zaproszenia)",
+            $vol_body
+        );
+
+    } catch (\Throwable $e) {}
+}
+
 $TYPE  = 'wolontariat';
 $TABLE = 'umowy_wolontariat';
 $errors = [];
@@ -391,7 +514,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'adres_odbiorca', 'adres_linia1', 'adres_linia2', 'adres_kod_pocztowy', 'adres_miasto', 'adres_kraj',
             'addr_street', 'addr_house', 'addr_flat', 'addr_postal', 'addr_city', 'addr_country',
             'z_webngo', 'webngo_id', 'webngo_numer_umowy', 'person_id', 'org_unit_id',
-            'wspolpraca_przed_2026', 'is_technical',
+            'wspolpraca_przed_2026', 'is_technical', 'canva_access',
             'action_id', 'grant_id',
             'guardian_editor_id', 'guardian_initials',
             'id_document_type', 'id_document_number', 'no_pesel_reason',
@@ -570,6 +693,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $recovery_plain = str_pad((string)random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
             db_update($TABLE, ['recovery_code_hash' => password_hash($recovery_plain, PASSWORD_BCRYPT)], $id);
             $_SESSION['recovery_code_plain_' . $id] = $recovery_plain;
+        }
+
+        // ── Dostęp do Canva ──────────────────────────────────────────────────
+        $canva_access = isset($_POST['canva_access']) ? 1 : 0;
+        if ($canva_access) {
+            db_update($TABLE, ['canva_access' => 1], $id);
+            _wolontariat_notify_canva($data, $id, $org ?? (defined('ORG_NAME') ? ORG_NAME : 'Organizacja'));
         }
 
         // Przypisanie do obszaru zadań (jeśli wybrano przy grupie M365)
@@ -1590,6 +1720,63 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <!-- Dostęp do Canva -->
+  <div class="wiz-card">
+    <div class="wiz-card-header">
+      <div class="wiz-card-icon" style="background:#FFF0F3;color:#8B3CF7">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.293 14.707a1 1 0 0 1-1.414 0L12 13.414l-2.879 2.879a1 1 0 0 1-1.414-1.414L10.586 12 7.707 9.121a1 1 0 0 1 1.414-1.414L12 10.586l2.879-2.879a1 1 0 0 1 1.414 1.414L13.414 12l2.879 2.879a1 1 0 0 1 0 1.414z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="wiz-card-title">Dostęp do Canva</div>
+        <div class="wiz-card-subtitle">Zaproszenie do przestrzeni Canva Pro organizacji</div>
+      </div>
+    </div>
+    <div class="wiz-card-body">
+      <?php
+      $m365_configured = $m365_enabled;
+      $has_m365_login  = !empty($row['m365_login']);
+      ?>
+
+      <?php if (!$m365_configured): ?>
+      <div class="alert alert-secondary py-2 small mb-0">
+        <i class="bi bi-info-circle me-1"></i>
+        Integracja M365 musi być skonfigurowana, aby nadawać dostęp do Canva.
+      </div>
+      <?php else: ?>
+      <div class="form-check d-flex align-items-start gap-2">
+        <input class="form-check-input mt-1 flex-shrink-0" type="checkbox"
+               name="canva_access" id="canva_access" value="1"
+               <?= !empty($row['canva_access']) ? 'checked' : '' ?>
+               onchange="toggleCanvaInfo(this.checked)">
+        <label class="form-check-label" for="canva_access" style="cursor:pointer">
+          <span class="fw-semibold">Nadaj dostęp do Canva Pro organizacji</span>
+          <div class="form-text mt-1">
+            System wyśle powiadomienie do administratora Canva oraz e-mail do wolontariusza
+            z instrukcją jak zalogować się przez Microsoft 365.
+          </div>
+        </label>
+      </div>
+
+      <div id="canva_info_block" style="display:<?= !empty($row['canva_access']) ? '' : 'none' ?>;margin-top:.85rem">
+        <div class="alert alert-warning d-flex gap-2 py-2 mb-2" style="font-size:.83rem">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+          <div>
+            <strong>Canva Pro — zaproszenie ręczne przez admina.</strong><br>
+            Canva API nie obsługuje automatycznych zaproszeń na planie Pro.
+            System wyśle notyfikację do admina, który wykona zaproszenie w panelu Canva.
+          </div>
+        </div>
+        <div class="alert alert-info d-flex gap-2 py-2 mb-0" id="canva_m365_check" style="font-size:.83rem;display:none!important">
+          <i class="bi bi-microsoft flex-shrink-0 mt-1"></i>
+          <div>Wolontariusz musi mieć konto M365 — logowanie do Canva odbywa się przez Microsoft 365.</div>
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
   <div class="wiz-nav-btns">
     <button type="button" class="btn btn-outline-secondary" onclick="goToStep(4)">
       <i class="bi bi-arrow-left me-1"></i>Wstecz
@@ -2320,6 +2507,12 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
 })();
+
+// Canva — pokaż/ukryj blok info
+function toggleCanvaInfo(on) {
+  var block = document.getElementById('canva_info_block');
+  if (block) block.style.display = on ? '' : 'none';
+}
 
 // ── Walidacja submit — sprawdź wymagane we wszystkich krokach ─────────────────
 (function() {
