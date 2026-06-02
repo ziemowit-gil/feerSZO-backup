@@ -35,36 +35,49 @@ include dirname(__DIR__) . '/includes/header.php';
   </ol>
 </nav>
 
-<div class="d-flex align-items-center gap-3 mb-4">
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
   <h4 class="mb-0"><i class="bi bi-git me-2 text-primary"></i>Wersja aplikacji</h4>
-  <span class="badge bg-dark font-monospace" style="font-size:.85rem"><?= h($ver['hash']) ?></span>
+  <span class="badge bg-primary" style="font-size:1rem;padding:.4rem .85rem">v<?= h($ver['main']) ?></span>
+  <span class="badge bg-dark font-monospace" style="font-size:.8rem" title="Git commit hash"><?= h($ver['hash']) ?></span>
   <?php if ($ver['date']): ?>
   <span class="text-muted small"><?= h($ver['date']) ?></span>
   <?php endif; ?>
+  <a href="<?= APP_URL ?>/min_version.txt" class="btn btn-sm btn-outline-secondary ms-auto" style="font-size:.75rem">
+    <i class="bi bi-pencil me-1"></i>Edytuj min_version.txt
+  </a>
 </div>
 
 <!-- Karta wersji -->
 <div class="row g-3 mb-4">
-  <div class="col-sm-4">
+  <div class="col-sm-3">
+    <div class="card shadow-sm h-100 border-primary">
+      <div class="card-body py-3">
+        <div class="small text-muted mb-1">Wersja główna</div>
+        <div class="fw-bold" style="font-size:1.4rem">v<?= h($ver['main']) ?></div>
+        <div class="small text-muted">z min_version.txt</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-3">
     <div class="card shadow-sm h-100">
       <div class="card-body py-3">
-        <div class="small text-muted mb-1">Commit</div>
+        <div class="small text-muted mb-1">Commit (git)</div>
         <div class="fw-bold font-monospace"><?= h($ver['hash']) ?></div>
         <?php if ($ver['hash_full']): ?>
-        <div class="small text-muted font-monospace" style="font-size:.68rem;word-break:break-all"><?= h($ver['hash_full']) ?></div>
+        <div class="small text-muted font-monospace" style="font-size:.68rem;word-break:break-all"><?= h(substr($ver['hash_full'], 0, 20)) ?>…</div>
         <?php endif; ?>
       </div>
     </div>
   </div>
-  <div class="col-sm-4">
+  <div class="col-sm-3">
     <div class="card shadow-sm h-100">
       <div class="card-body py-3">
-        <div class="small text-muted mb-1">Data wdrożenia</div>
+        <div class="small text-muted mb-1">Data commitu</div>
         <div class="fw-bold"><?= h($ver['date'] ?: '—') ?></div>
       </div>
     </div>
   </div>
-  <div class="col-sm-4">
+  <div class="col-sm-3">
     <div class="card shadow-sm h-100">
       <div class="card-body py-3">
         <div class="small text-muted mb-1">Gałąź (branch)</div>

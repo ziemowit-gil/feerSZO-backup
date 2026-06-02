@@ -17,7 +17,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
   <span style="color:#9CA3AF;font-size:.78rem;display:flex;align-items:center;gap:.5rem">
     <?php $_w3=preg_split('/\s+/',trim($_org_f??'')); if(count($_w3)>=2) echo '<span style="opacity:.55">'.h(implode('',array_map(fn($w)=>mb_strtoupper(mb_substr($w,0,1,'UTF-8'),'UTF-8'),$_w3))).'</span>'; ?>
     Platforma NGO
-    <?php try { require_once dirname(dirname(dirname(__DIR__))) . '/includes/version.php'; $__v = app_version()['hash']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.5;font-family:monospace;font-size:.7rem;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?>
+    <?php try { require_once dirname(dirname(dirname(__DIR__))) . '/includes/version.php'; $__v = app_version()['main']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.5;font-family:monospace;font-size:.7rem;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?>
   </span>
 </footer>
 

@@ -10,7 +10,7 @@
         try {
             require_once __DIR__ . '/version.php';
             $__fv = app_version();
-            echo '<a href="' . APP_URL . '/admin/version.php" class="text-muted text-decoration-none font-monospace" style="font-size:.72rem" title="' . htmlspecialchars($__fv['date']) . '">v' . htmlspecialchars($__fv['hash']) . '</a>';
+            echo '<a href="' . APP_URL . '/admin/version.php" class="text-muted text-decoration-none" style="font-size:.72rem" title="commit: ' . htmlspecialchars($__fv['hash']) . ' · ' . htmlspecialchars($__fv['date']) . '">v' . htmlspecialchars($__fv['main']) . '</a>';
         } catch (\Throwable $e) {}
       ?>
       <span>&copy; <?= date('Y') ?> Ziemowit Gil | dev@ziemowit.me</span>

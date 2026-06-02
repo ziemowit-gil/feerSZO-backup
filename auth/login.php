@@ -660,7 +660,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
     try {
         require_once dirname(__DIR__) . '/includes/version.php';
         $__vd = app_version();
-        $__v  = 'v' . $__vd['hash'];
+        $__v  = 'v' . $__vd['main'];
     } catch (\Throwable $e) {}
     ?>
     <?php if ($__v): ?>

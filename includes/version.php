@@ -10,23 +10,30 @@ function app_version(): array {
 
     $base = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__);
 
+    // Główna wersja z min_version.txt
+    $ver_file = $base . '/min_version.txt';
+    $main_ver = file_exists($ver_file) ? trim(file_get_contents($ver_file)) : '';
+    $main_ver = preg_replace('/[^0-9.]/', '', $main_ver); // tylko cyfry i kropki
+
     // Hash commitu
-    $hash  = trim(@shell_exec("cd " . escapeshellarg($base) . " && git rev-parse --short HEAD 2>/dev/null") ?: '');
+    $hash      = trim(@shell_exec("cd " . escapeshellarg($base) . " && git rev-parse --short HEAD 2>/dev/null") ?: '');
     $hash_full = trim(@shell_exec("cd " . escapeshellarg($base) . " && git rev-parse HEAD 2>/dev/null") ?: '');
 
     // Data commitu
-    $date  = trim(@shell_exec("cd " . escapeshellarg($base) . " && git log -1 --format='%ci' 2>/dev/null") ?: '');
-    $date  = $date ? date('d.m.Y H:i', strtotime($date)) : '';
+    $date = trim(@shell_exec("cd " . escapeshellarg($base) . " && git log -1 --format='%ci' 2>/dev/null") ?: '');
+    $date = $date ? date('d.m.Y H:i', strtotime($date)) : '';
 
     // Branch
     $branch = trim(@shell_exec("cd " . escapeshellarg($base) . " && git rev-parse --abbrev-ref HEAD 2>/dev/null") ?: '');
 
     $v = [
-        'hash'      => $hash      ?: 'unknown',
+        'main'      => $main_ver  ?: '1.0',           // z min_version.txt
+        'hash'      => $hash      ?: 'unknown',        // short git hash
         'hash_full' => $hash_full ?: '',
         'date'      => $date,
         'branch'    => $branch    ?: 'main',
-        'label'     => $hash ? $hash . ($date ? ' · ' . $date : '') : 'brak git',
+        'label'     => ($main_ver ? 'v' . $main_ver . ' ' : '') . ($hash ?: 'unknown'),
+        'full'      => ($main_ver ? 'v' . $main_ver : '') . ($hash ? ' (' . $hash . ')' : ''),
     ];
     return $v;
 }

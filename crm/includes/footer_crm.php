@@ -21,7 +21,7 @@ $_org_name_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
     if ($_short) echo '<span style="opacity:.6">' . h($_short) . '</span>';
     ?>
     Platforma NGO
-    <?php try { require_once dirname(dirname(__DIR__)) . '/includes/version.php'; $__v = app_version()['hash']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.5;font-family:monospace;font-size:.7rem;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?>
+    <?php try { require_once dirname(dirname(__DIR__)) . '/includes/version.php'; $__v = app_version()['main']; echo '<a href="' . APP_URL . '/admin/version.php" style="color:inherit;opacity:.5;font-family:monospace;font-size:.7rem;text-decoration:none">v' . h($__v) . '</a>'; } catch(\Throwable $e) {} ?>
   </span>
 </footer>
 
