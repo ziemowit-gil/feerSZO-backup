@@ -467,7 +467,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <span class="sb-brand-icon"><i class="bi bi-building"></i></span>
     <?php endif; ?>
     <span>
-      <span class="sb-brand-name"><?= h(ORG_NAME) ?></span>
+      <span class="sb-brand-name"><?= h(org_setting('org_short_name') ?: ORG_NAME) ?></span>
       <span class="sb-brand-sub">System SZO</span>
     </span>
   </a>

@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif (isset($_POST['save_manual'])) {
         // Ręczny zapis danych org
-        $fields = ['org_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres'];
+        $fields = ['org_name','org_short_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres'];
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
         foreach ($fields as $k) {
             $v = trim($_POST[$k] ?? '');
@@ -385,12 +385,19 @@ include dirname(__DIR__) . '/includes/header.php';
   <form method="post">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <div class="row g-3">
-      <div class="col-12">
-        <label class="form-label fw-semibold">Pełna nazwa organizacji <span class="text-muted small">(wyświetlana w systemie, mailach, dokumentach)</span></label>
+      <div class="col-md-8">
+        <label class="form-label fw-semibold">Pełna nazwa organizacji <span class="text-muted small">(wyświetlana w dokumentach i mailach)</span></label>
         <input type="text" name="org_name" class="form-control"
                value="<?= h($saved['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : '')) ?>"
                placeholder="np. Fundacja Edukacji Empatii Rozwoju FEER">
         <div class="form-text">Jeśli puste — używana wartość z config.php: <code><?= h(defined('ORG_NAME') ? ORG_NAME : '—') ?></code></div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Krótka nazwa <span class="text-muted small">(w topbarze, aplikacji)</span></label>
+        <input type="text" name="org_short_name" class="form-control"
+               value="<?= h($saved['org_short_name'] ?? org_setting('org_short_name')) ?>"
+               placeholder="np. FEER" maxlength="30">
+        <div class="form-text">Wyświetlana w pasku nawigacji i nagłówku portalu.</div>
       </div>
       <div class="col-md-6">
         <label class="form-label">Numer KRS</label>
