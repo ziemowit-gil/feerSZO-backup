@@ -217,17 +217,48 @@ if ($is_tenant) {
 }
 
 $tab_labels = [
-    'ms365' => 'Zaloguj się',
+    'ms365' => 'Konto Microsoft',
     'local' => 'E-mail i hasło',
     'code'  => 'Kod jednorazowy',
     'sms'   => 'Kod SMS',
 ];
-$tab_subs = [
-    'ms365' => 'Zaloguj się kontem Microsoft 365 (pracownicy, wolontariusze, zarząd).',
-    'local' => 'Pierwsze logowanie lub gdy konto Microsoft nie działa — wprowadź e-mail i hasło.',
-    'code'  => 'Nie masz konta Microsoft ani aktywnego konta lokalnego? Wpisz kod jednorazowy od administratora.',
-    'sms'   => 'Wyślemy jednorazowy kod na Twój numer telefonu.',
+
+// Kto używa której metody — wyświetlane jako przewodnik na stronie logowania
+$login_guide = [];
+if ($ms_available) {
+    $login_guide[] = [
+        'icon'  => 'bi-microsoft',
+        'color' => '#2563eb',
+        'who'   => 'Pracownicy, wolontariusze, zarząd',
+        'how'   => 'Konto Microsoft 365 organizacji',
+        'tab'   => 'ms365',
+    ];
+}
+$login_guide[] = [
+    'icon'  => 'bi-person-lock',
+    'color' => '#0f766e',
+    'who'   => 'Administratorzy i koordynatorzy',
+    'how'   => 'E-mail i hasło (konto lokalne)',
+    'tab'   => 'local',
 ];
+if ($code_available) {
+    $login_guide[] = [
+        'icon'  => 'bi-key',
+        'color' => '#7c3aed',
+        'who'   => 'Goście, nowi pracownicy',
+        'how'   => 'Jednorazowy kod od administratora',
+        'tab'   => 'code',
+    ];
+}
+if ($sms_available) {
+    $login_guide[] = [
+        'icon'  => 'bi-phone',
+        'color' => '#b45309',
+        'who'   => 'Wolontariusze bez konta Microsoft',
+        'how'   => 'Kod SMS na numer z umowy wolontariackiej',
+        'tab'   => 'sms',
+    ];
+}
 ?>
 
 <!DOCTYPE html>
@@ -341,6 +372,31 @@ html, body { height: 100%; margin: 0; padding: 0; }
 }
 .left-footer a { color: rgba(255,255,255,.38); text-decoration: none; transition: color .15s; }
 .left-footer a:hover { color: rgba(255,255,255,.75); }
+
+/* ── Przewodnik metod logowania (lewa strona) ───────────────────── */
+.left-guide {
+  padding: 1.25rem 2rem 1.5rem;
+  border-top: 1px solid rgba(255,255,255,.10);
+}
+.left-guide-title {
+  font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: rgba(255,255,255,.45); margin-bottom: .75rem;
+}
+.left-guide-item {
+  display: flex; align-items: flex-start; gap: .65rem; margin-bottom: .6rem;
+}
+.left-guide-item:last-child { margin-bottom: 0; }
+.left-guide-icon {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem;
+}
+.left-guide-who {
+  font-size: .78rem; font-weight: 600; color: rgba(255,255,255,.92); line-height: 1.2;
+}
+.left-guide-how {
+  font-size: .7rem; color: rgba(255,255,255,.52); margin-top: .1rem; line-height: 1.3;
+}
 
 /* ── Prawa strona — karta formularza ────────────────────────────── */
 .login-right {
@@ -509,7 +565,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
   .left-logo-img { max-height: 34px; max-width: 120px; }
   .left-logo-icon { width: 34px; height: 34px; font-size: 1.1rem; border-radius: 8px; }
   .left-org-name { font-size: .95rem; margin-bottom: 0; }
-  .left-org-tagline, .left-change-org, .left-footer { display: none; }
+  .left-org-tagline, .left-change-org, .left-footer, .left-guide { display: none; }
   .org-mobile { display: block; }
   .login-right {
     padding: 1.25rem 1rem;
@@ -579,6 +635,24 @@ html, body { height: 100%; margin: 0; padding: 0; }
     <?php endif; ?>
   </div>
 
+  <!-- Przewodnik metod logowania -->
+  <?php if (count($login_guide) > 1): ?>
+  <div class="left-guide" aria-hidden="true">
+    <div class="left-guide-title">Kto jak się loguje?</div>
+    <?php foreach ($login_guide as $g): ?>
+    <div class="left-guide-item">
+      <span class="left-guide-icon" style="background:<?= $g['color'] ?>22;color:<?= $g['color'] ?>">
+        <i class="bi <?= $g['icon'] ?>"></i>
+      </span>
+      <div>
+        <div class="left-guide-who"><?= h($g['who']) ?></div>
+        <div class="left-guide-how"><?= h($g['how']) ?></div>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
   <!-- Stopka -->
   <div class="left-footer">
   </div>
@@ -607,10 +681,15 @@ html, body { height: 100%; margin: 0; padding: 0; }
 
   <!-- Nagłówek -->
   <h1 class="form-heading" id="login-heading">Zaloguj się</h1>
-  <p class="form-sub" id="login-sub" style="margin-bottom:<?= $ms_available ? '1.5rem' : '1.5rem' ?>">
-    <?= $ms_available
-        ? 'Wybierz metodę logowania odpowiednią dla Twojej roli.'
-        : 'Wprowadź adres e-mail i hasło do swojego konta.' ?>
+  <p class="form-sub" id="login-sub" style="margin-bottom:1.5rem">
+    <?php if ($ms_available): ?>
+      Wybierz metodę odpowiednią dla Twojej roli.
+      Nie wiesz której użyć? <strong>Sprawdź listę po lewej stronie.</strong>
+    <?php elseif (count($login_guide) > 1): ?>
+      Wybierz odpowiednią metodę logowania dla swojej roli.
+    <?php else: ?>
+      Wprowadź adres e-mail i hasło do swojego konta.
+    <?php endif; ?>
   </p>
 
   <!-- Komunikaty błędów i sukcesu -->
@@ -762,8 +841,8 @@ html, body { height: 100%; margin: 0; padding: 0; }
   <!-- ══ Alternatywne metody (kod jednorazowy, SMS) ════════════════════════ -->
   <?php
   $alt_tabs = [];
-  if ($code_available) $alt_tabs['code'] = ['icon' => 'bi-key-fill',   'label' => 'Kod jednorazowy'];
-  if ($sms_available)  $alt_tabs['sms']  = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS'];
+  if ($code_available) $alt_tabs['code'] = ['icon' => 'bi-key-fill',   'label' => 'Kod jednorazowy', 'for' => 'Goście i nowi pracownicy'];
+  if ($sms_available)  $alt_tabs['sms']  = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS',         'for' => 'Wolontariusze bez konta Microsoft'];
   $active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
   ?>
   <?php if (!empty($alt_tabs)): ?>
@@ -778,7 +857,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
               onclick="switchAltTab('<?= $key ?>')"
               <?= $active_alt === $key ? '' : 'tabindex="-1"' ?>>
         <i class="bi <?= $m['icon'] ?>" aria-hidden="true"></i>
-        <?= h($m['label']) ?>
+        <span><?= h($m['label']) ?><small style="display:block;font-size:.7em;font-weight:400;opacity:.65;margin-top:.05rem"><?= h($m['for']) ?></small></span>
       </button>
       <?php endforeach; ?>
     </div>
@@ -803,7 +882,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
                aria-describedby="code-hint"
                <?= $active_alt === 'code' ? 'autofocus' : '' ?>>
         <div id="code-hint" class="form-hint">
-          Dla osób bez konta Microsoft i bez aktywnego konta lokalnego — kod nadany przez administratora.
+          Dla gości i nowych pracowników — jednorazowy kod dostępu nadany przez administratora systemu.
         </div>
       </div>
       <button type="submit" class="btn-login">
@@ -837,7 +916,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
                  <?= $active_alt === 'sms' ? 'autofocus' : '' ?>>
         </div>
         <div id="sms-phone-hint" class="form-hint">
-          Numer powiązany z umową wolontariacką — 9 cyfr, bez spacji.
+          Dla wolontariuszy bez konta Microsoft — podaj numer z umowy wolontariackiej (9 cyfr).
         </div>
       </div>
       <button type="submit" class="btn-login">
