@@ -235,6 +235,7 @@ $groups = [
         'color' => 'red',
         'items' => [
             ['icon'=>'bi-shield-lock',       'label'=>'Certyfikat i licencja',  'url'=>'/admin/app_license.php', 'danger'=>false],
+            ['icon'=>'bi-arrow-repeat',      'label'=>'Aktualizacja systemu',   'url'=>'/upgrade.php',           'danger'=>false],
             ['icon'=>'bi-git',               'label'=>'Wersja i historia zmian','url'=>'/admin/version.php',    'danger'=>false],
             ['icon'=>'bi-clock-history',     'label'=>'Konfiguracja CRON',     'url'=>'/admin/cron_setup.php',  'danger'=>false],
             ['icon'=>'bi-info-circle',       'label'=>'Informacje o systemie', 'url'=>'/admin/system_info.php', 'danger'=>false],
