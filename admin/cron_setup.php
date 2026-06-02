@@ -107,31 +107,64 @@ $crontab_block = $full_cmd;
   </div>
   <div class="card-body">
 
+    <?php
+    $curl_cmd = 'curl -L -s ' . $cron_url . ' > /dev/null 2>&1';
+    ?>
     <?php if ($cron_token): ?>
-    <p class="small mb-2">Wklej poniższy URL w polu <strong>„Adres URL"</strong> lub użyj polecenia curl w cronie hostingu. Ustaw częstotliwość: <strong>co minutę</strong>.</p>
 
-    <div class="d-flex gap-2 align-items-stretch mb-3">
-      <code class="flex-grow-1 p-2 rounded" id="cron-url-display"
-            style="background:#1e293b;color:#7dd3fc;font-size:.85rem;word-break:break-all;display:block">
-        <?= h($cron_url) ?>
-      </code>
-      <button class="btn btn-outline-primary btn-sm flex-shrink-0"
-              onclick="navigator.clipboard.writeText(<?= json_encode($cron_url) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i> Skopiowano';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i> Kopiuj',2000)">
-        <i class="bi bi-clipboard"></i> Kopiuj
-      </button>
+    <!-- DirectAdmin — krok po kroku -->
+    <div class="alert alert-primary py-2 mb-3 small">
+      <strong><i class="bi bi-info-circle me-1"></i>DirectAdmin:</strong>
+      Zaloguj się → <strong>Zaawansowane funkcje</strong> → <strong>Menadżer zadań Cron</strong>
+      → kliknij <strong>Dodaj zadanie Cron</strong>.
     </div>
 
-    <p class="small text-muted mb-2">Lub jako polecenie curl (jeśli hosting wymaga komendy zamiast URL):</p>
-    <?php $curl_cmd = 'curl -L -s ' . $cron_url . ' > /dev/null 2>&1'; ?>
-    <div class="d-flex gap-2 align-items-stretch mb-2">
-      <code class="flex-grow-1 p-2 rounded" style="background:#1e293b;color:#7dd3fc;font-size:.82rem;word-break:break-all;display:block">
-        <?= h($curl_cmd) ?>
-      </code>
-      <button class="btn btn-outline-primary btn-sm flex-shrink-0"
-              onclick="navigator.clipboard.writeText(<?= json_encode($curl_cmd) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i> Skopiowano';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i> Kopiuj',2000)">
-        <i class="bi bi-clipboard"></i> Kopiuj
-      </button>
+    <div class="row g-3 mb-3">
+      <!-- Pola czasowe -->
+      <div class="col-12">
+        <p class="small fw-semibold mb-2">Pola czasowe (ustaw co minutę):</p>
+        <div class="d-flex gap-2 flex-wrap">
+          <?php foreach (['Minuta' => '*', 'Godzina' => '*', 'Dzień' => '*', 'Miesiąc' => '*', 'Dzień tyg.' => '*'] as $lbl => $val): ?>
+          <div class="text-center">
+            <div class="small text-muted mb-1" style="font-size:.7rem"><?= $lbl ?></div>
+            <div class="border rounded px-3 py-1 fw-bold font-monospace"
+                 style="background:#f8fafc;min-width:50px"><?= $val ?></div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <!-- Pole Polecenie -->
+      <div class="col-12">
+        <p class="small fw-semibold mb-1">Pole <strong>„Polecenie"</strong> — wklej dokładnie to:</p>
+        <div class="d-flex gap-2 align-items-stretch">
+          <code class="flex-grow-1 p-2 rounded"
+                style="background:#1e293b;color:#7dd3fc;font-size:.82rem;word-break:break-all;display:block">
+            <?= h($curl_cmd) ?>
+          </code>
+          <button class="btn btn-primary btn-sm flex-shrink-0"
+                  onclick="navigator.clipboard.writeText(<?= json_encode($curl_cmd) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i> Skopiowano';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i> Kopiuj',2000)">
+            <i class="bi bi-clipboard"></i> Kopiuj
+          </button>
+        </div>
+        <div class="form-text mt-1">Kliknij <strong>Dodaj</strong> w DirectAdmin — gotowe.</div>
+      </div>
     </div>
+
+    <!-- URL bezpośredni (zwinięty) -->
+    <details class="mb-2">
+      <summary class="small text-muted" style="cursor:pointer">Pokaż też sam URL (bez curl)</summary>
+      <div class="d-flex gap-2 align-items-stretch mt-2">
+        <code class="flex-grow-1 p-2 rounded"
+              style="background:#1e293b;color:#7dd3fc;font-size:.78rem;word-break:break-all;display:block">
+          <?= h($cron_url) ?>
+        </code>
+        <button class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                onclick="navigator.clipboard.writeText(<?= json_encode($cron_url) ?>);this.innerHTML='<i class=\'bi bi-check-lg\'></i> Skopiowano';setTimeout(()=>this.innerHTML='<i class=\'bi bi-clipboard\'></i> Kopiuj',2000)">
+          <i class="bi bi-clipboard"></i> Kopiuj
+        </button>
+      </div>
+    </details>
 
     <div class="mt-3 pt-3 border-top d-flex align-items-center gap-2">
       <span class="small text-muted">Token: <code><?= h(substr($cron_token, 0, 8)) ?>…</code></span>
