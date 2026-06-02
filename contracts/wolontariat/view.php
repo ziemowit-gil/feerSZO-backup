@@ -623,6 +623,32 @@ $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 ?>
 
+<?php
+// ── Banner po przedłużeniu — pobierz aneks ────────────────────────────────────
+if (!empty($_GET['show_aneks'])): ?>
+<div class="alert alert-success d-flex align-items-center gap-3 flex-wrap mb-3 no-print" role="alert">
+  <i class="bi bi-arrow-repeat fs-4 flex-shrink-0"></i>
+  <div class="flex-grow-1">
+    <strong>Umowa przedłużona!</strong>
+    Nowy numer: <code class="ms-1"><?= h($row['numer_umowy']) ?></code>
+    — pobierz aneks do podpisania:
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="aneks.php?id=<?= $id ?>&format=pdf&preview=1" target="_blank"
+       class="btn btn-sm btn-danger">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF / Wydruk
+    </a>
+    <a href="aneks.php?id=<?= $id ?>&format=docx"
+       class="btn btn-sm btn-primary">
+      <i class="bi bi-file-earmark-word me-1"></i>DOCX (Word)
+    </a>
+    <a href="view.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-x"></i>
+    </a>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- ── Styles widoku umowy ──────────────────────────────────────────────────── -->
 <style>
 /* Zakładki — nowoczesny styl */

@@ -197,7 +197,8 @@ HTML;
             }
         }
 
-        header('Location: view.php?id=' . $new_id);
+        // Przekieruj na stronę przedłużenia z proponowanym pobraniem aneksu
+        header('Location: view.php?id=' . $new_id . '&show_aneks=1&orig_id=' . $id);
         exit;
     }
 }
