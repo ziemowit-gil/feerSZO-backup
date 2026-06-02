@@ -41,10 +41,28 @@ $AGENTS = [
         'interval' => 604800,       // raz w tygodniu
         'schedule' => [2, 4],       // między 2:00 a 4:00
     ],
+    'bulk_email' => [
+        'file'     => __DIR__ . '/bulk_email_process.php',
+        'interval' => 60,           // co minutę
+    ],
+    'contract_expiry' => [
+        'file'     => __DIR__ . '/contract_expiry_reminder.php',
+        'interval' => 86400,
+        'schedule' => [8, 10],
+    ],
+    'process_m365_queue' => [
+        'file'     => __DIR__ . '/process_m365_queue.php',
+        'interval' => 300,          // co 5 min
+    ],
+    'sync_m365_reverse' => [
+        'file'     => __DIR__ . '/sync_m365_reverse.php',
+        'interval' => 3600,         // co godzinę
+        'schedule' => [1, 23],
+    ],
     'backup' => [
         'file'     => __DIR__ . '/agents/backup.php',
         'interval' => 86400,
-        'schedule' => [1, 3],       // między 1:00 a 3:00
+        'schedule' => [1, 3],
     ],
 ];
 
