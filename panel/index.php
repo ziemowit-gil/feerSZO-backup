@@ -250,35 +250,41 @@ if ($_is_volunteer_only) {
 <?php if ($_is_volunteer_only): ?>
 <?php /* ═══ NOWY WIDOK: PANEL WOLONTARIUSZA ═══════════════════════════════════ */ ?>
 <style>
-/* Zmienne kolorów z vol-color (topbar) */
+/* Nagłówek strony */
 .pv-page-header { margin-bottom: 1.5rem; }
 .pv-page-title  { font-size: 1.3rem; font-weight: 800; color: #111827; margin: 0 0 .2rem; }
 .pv-page-sub    { font-size: .88rem; color: #6B7280; }
+.pv-page-warmup { font-size: .9rem; color: color-mix(in srgb, var(--vol-color) 80%, #374151); font-weight: 500; margin-top: .25rem; }
 
 /* Karta umowy — hero */
 .vol-contract-hero {
   background: linear-gradient(135deg, var(--vol-color) 0%, color-mix(in srgb, var(--vol-color) 70%, #000) 100%);
-  border-radius: 14px; color: #fff; padding: 1.5rem;
+  border-radius: 16px; color: #fff; padding: 1.75rem;
   margin-bottom: 1rem; position: relative; overflow: hidden;
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--vol-color) 35%, transparent);
+}
+.vol-contract-hero::before {
+  content: ''; position: absolute; width: 320px; height: 320px; border-radius: 50%;
+  background: rgba(255,255,255,.07); bottom: -120px; right: -80px; pointer-events: none;
 }
 .vol-contract-hero::after {
-  content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%;
-  background: rgba(255,255,255,.06); top: -60px; right: -60px; pointer-events: none;
+  content: ''; position: absolute; width: 160px; height: 160px; border-radius: 50%;
+  background: rgba(255,255,255,.05); top: -50px; right: 100px; pointer-events: none;
 }
-.vol-contract-hero-num    { font-size: .8rem; opacity: .7; font-weight: 600; letter-spacing: .04em; margin-bottom: .3rem; }
-.vol-contract-hero-type   { font-size: 1.15rem; font-weight: 800; margin-bottom: .3rem; }
-.vol-contract-hero-status { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .75rem; border-radius: 2rem; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3); font-size: .8rem; font-weight: 600; }
-.vol-contract-hero-dates  { font-size: .82rem; opacity: .8; margin-top: .65rem; }
+.vol-contract-hero-num    { font-size: .82rem; opacity: .8; font-weight: 500; margin-bottom: .25rem; }
+.vol-contract-hero-type   { font-size: 1.2rem; font-weight: 800; margin-bottom: .35rem; line-height: 1.3; }
+.vol-contract-hero-status { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .85rem; border-radius: 2rem; background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.35); font-size: .82rem; font-weight: 600; }
+.vol-contract-hero-dates  { font-size: .82rem; opacity: .82; margin-top: .75rem; }
 
 /* Progress bar */
-.vol-progress-wrap { background: rgba(255,255,255,.2); border-radius: 4px; height: 6px; margin-top: .75rem; }
+.vol-progress-wrap { background: rgba(255,255,255,.2); border-radius: 4px; height: 6px; margin-top: .85rem; }
 .vol-progress-fill { background: #fff; height: 6px; border-radius: 4px; transition: width .5s; }
-.vol-progress-label { display: flex; justify-content: space-between; font-size: .76rem; opacity: .8; margin-top: .35rem; }
+.vol-progress-label { display: flex; justify-content: space-between; font-size: .76rem; opacity: .82; margin-top: .35rem; }
 
 /* Data grid */
 .vol-data-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; }
-.vol-data-item { background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; padding: .65rem .85rem; }
-.vol-data-lbl  { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; margin-bottom: .2rem; }
+.vol-data-item { background: #fff; border-radius: 12px; padding: .85rem 1rem; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
+.vol-data-lbl  { font-size: .75rem; color: #9CA3AF; margin-bottom: .2rem; }
 .vol-data-val  { font-size: .9rem; font-weight: 600; color: #111827; }
 .vol-data-val.monospace { font-family: monospace; letter-spacing: .05em; }
 
@@ -287,14 +293,14 @@ if ($_is_volunteer_only) {
 .vol-action-btn {
   display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
   gap: .5rem; padding: 1.1rem 1.15rem 1rem;
-  background: #fff; border: 1.5px solid #E5E7EB; border-radius: 14px;
+  background: #fff; border: 1.5px solid transparent; border-radius: 16px;
   text-decoration: none; color: #1E293B;
-  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
   transition: box-shadow .15s, transform .12s, border-color .12s, background .12s;
   position: relative; min-height: 100px;
 }
 .vol-action-btn:hover {
-  box-shadow: 0 6px 18px rgba(0,0,0,.1);
+  box-shadow: 0 8px 24px rgba(0,0,0,.1);
   transform: translateY(-2px);
   border-color: var(--vol-color);
   background: color-mix(in srgb, var(--vol-color) 5%, #fff);
@@ -315,10 +321,11 @@ if ($_is_volunteer_only) {
 }
 
 /* Szczegóły wolontariatu (tylko dla wolontariat type) */
-.vol-detail-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; margin-bottom: 1rem; }
-.vol-detail-header { display: flex; align-items: center; gap: .5rem; padding: .7rem 1rem; border-bottom: 1px solid #F3F4F6; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6B7280; }
-.vol-detail-body { padding: .85rem 1rem; }
-.vol-detail-row { display: flex; align-items: baseline; gap: .5rem; padding: .3rem 0; border-bottom: 1px solid #F9FAFB; font-size: .88rem; }
+.vol-detail-card { background: #fff; border-radius: 16px; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.vol-detail-header { display: flex; align-items: center; gap: .5rem; padding: .85rem 1.1rem; border-bottom: 1px solid #F3F4F6; font-size: .88rem; font-weight: 700; color: #374151; }
+.vol-detail-header i { color: var(--vol-color); }
+.vol-detail-body { padding: .9rem 1.1rem; }
+.vol-detail-row { display: flex; align-items: baseline; gap: .5rem; padding: .35rem 0; border-bottom: 1px solid #F9FAFB; font-size: .88rem; }
 .vol-detail-row:last-child { border-bottom: none; }
 .vol-detail-row-lbl { color: #9CA3AF; min-width: 140px; flex-shrink: 0; font-size: .8rem; }
 .vol-detail-row-val { color: #111827; font-weight: 500; }
@@ -328,8 +335,8 @@ if ($_is_volunteer_only) {
 .vol-badge-no  { display: inline-flex; align-items: center; gap: .25rem; color: #9CA3AF; font-size: .82rem; }
 
 /* Panel aktywności */
-.vol-activity { background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; }
-.vol-activity-header { display: flex; align-items: center; justify-content: space-between; padding: .7rem 1rem; border-bottom: 1px solid #F3F4F6; }
+.vol-activity { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+.vol-activity-header { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1rem; border-bottom: 1px solid #F3F4F6; }
 .vol-activity-title  { font-size: .82rem; font-weight: 600; color: #374151; }
 .vol-activity-row {
   display: flex; align-items: center; gap: .65rem;
@@ -350,6 +357,14 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
   <div>
     <h1 class="pv-page-title"><?= h($_greet) ?>, <?= h($_fname_first) ?> 👋</h1>
     <div class="pv-page-sub"><?= h(ORG_NAME) ?> · <?= date('d F Y') ?></div>
+    <?php if (!empty($_active_contract) && in_array($_active_contract['status'] ?? '', ['podpisana','w realizacji'])): ?>
+    <div class="pv-page-warmup">Cieszmy się, że jesteś z nami!<?php
+      if (!empty($_active_row['data_zawarcia'])) {
+        $_days_together = (int)floor((time() - strtotime($_active_row['data_zawarcia'])) / 86400);
+        if ($_days_together > 0) echo ' Współpracujemy już <strong>'.$_days_together.'</strong> '.($_days_together === 1 ? 'dzień' : ($_days_together < 5 ? 'dni' : 'dni')).'.';
+      }
+    ?></div>
+    <?php endif; ?>
   </div>
   <?php if (count($contracts) > 1): ?>
   <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#contractPickerModal">
@@ -510,8 +525,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
 ?>
 <div class="vol-contract-hero" role="region" aria-label="Karta umowy">
   <div class="vol-contract-hero-num">
-    <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>
-    <?= h($_ct_label) ?> &nbsp;·&nbsp; <?= h($_active_row['numer_umowy'] ?? '') ?>
+    Twoje porozumienie wolontariackie
     <?php if ($_is_guardian): ?>
     <span style="margin-left:.5rem;background:rgba(251,191,36,.3);border:1px solid rgba(251,191,36,.5);border-radius:2rem;padding:.1rem .5rem;font-size:.75rem">
       <i class="bi bi-person-hearts" aria-hidden="true"></i> Opiekun
@@ -524,14 +538,14 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
   <?php endif; ?>
 
   <?php
-  $_status_labels = ['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'];
+  $_status_labels_human = ['projekt'=>'W przygotowaniu','podpisana'=>'Aktywne 🌱','w realizacji'=>'Aktywne 🌱','zakończona'=>'Zakończone','rozwiązana'=>'Zakończone','anulowana'=>'Anulowane'];
   $_status_icons  = ['podpisana'=>'bi-check-circle','w realizacji'=>'bi-play-circle','zakończona'=>'bi-flag','rozwiązana'=>'bi-x-circle','anulowana'=>'bi-slash-circle','projekt'=>'bi-clock'];
   $_st = $_active_contract['status'] ?? '';
   ?>
   <div>
     <span class="vol-contract-hero-status">
       <i class="bi <?= $_status_icons[$_st] ?? 'bi-circle' ?>" aria-hidden="true"></i>
-      <?= h($_status_labels[$_st] ?? ucfirst($_st)) ?>
+      <?= h($_status_labels_human[$_st] ?? ucfirst($_st)) ?>
     </span>
   </div>
 
@@ -722,7 +736,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
     <div class="vol-action-icon-wrap"><i class="bi bi-chat-left-text vol-action-icon" aria-hidden="true"></i></div>
     <div>
       <div class="vol-action-count"><?= $msg_unread ?: '0' ?></div>
-      <div class="vol-action-label">Wiadomości</div>
+      <div class="vol-action-label">Napisz do nas</div>
       <div class="vol-action-sub"><?= $msg_unread ? "$msg_unread nowych" : 'brak nowych' ?></div>
     </div>
   </a>
@@ -735,7 +749,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
     <div class="vol-action-icon-wrap"><i class="bi bi-send vol-action-icon" aria-hidden="true"></i></div>
     <div>
       <div class="vol-action-count"><?= count($my_apps) ?></div>
-      <div class="vol-action-label">Wnioski i pisma</div>
+      <div class="vol-action-label">Złóż wniosek</div>
       <div class="vol-action-sub"><?= $my_apps_new ? "$my_apps_new oczekuje" : 'złożone wnioski' ?></div>
     </div>
   </a>
@@ -750,7 +764,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
     </div>
     <div>
       <div class="vol-action-count" style="color:#D97706"><?= count($my_certs) ?></div>
-      <div class="vol-action-label">Zaświadczenia</div>
+      <div class="vol-action-label">Poproś o zaświadczenie</div>
       <div class="vol-action-sub"><?= $my_certs_pending ? "$my_certs_pending w toku" : 'wszystkie gotowe' ?></div>
     </div>
   </a>
@@ -766,7 +780,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
     </div>
     <div>
       <div class="vol-action-count" style="color:#16A34A"><?= $_zwroty_pending ?: '0' ?></div>
-      <div class="vol-action-label">Zwroty kosztów</div>
+      <div class="vol-action-label">Rozlicz koszty</div>
       <div class="vol-action-sub"><?= $_zwroty_pending ? "oczekuje zwrotu" : 'do złożenia' ?></div>
     </div>
   </a>
@@ -807,7 +821,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
     </div>
     <div>
       <div class="vol-action-count" style="color:#DC2626"><?= count($my_terms) ?></div>
-      <div class="vol-action-label">Rozwiązanie</div>
+      <div class="vol-action-label">Zakończ współpracę</div>
       <div class="vol-action-sub">wnioski złożone</div>
     </div>
   </a>
