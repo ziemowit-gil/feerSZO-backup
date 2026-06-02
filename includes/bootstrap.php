@@ -38,52 +38,87 @@ function _bootstrap_halt(string $title, string $message, string $hint = ''): nev
 
     $hint_html = $hint ? '<div class="cmd">' . $hint . '</div>' : '';
 
+    $rows = [
+        'certs/app.crt' => [$crt_ok === 'present' ? 'OK' : 'FAIL', $crt_ok === 'present'],
+        'certs/app.sig' => [$sig_ok === 'present' ? 'OK' : 'FAIL', $sig_ok === 'present'],
+        'php openssl'   => [$ssl_ok === 'loaded'  ? 'OK' : 'FAIL', $ssl_ok === 'loaded'],
+        'php version'   => [$php_ver, true],
+        'app_key'       => [$app_key, true],
+        'timestamp'     => [$ts, true],
+    ];
+
+    $rows_html = '';
+    foreach ($rows as $k => $v) {
+        $col   = $v[1] ? '#33ff33' : '#ff3333';
+        $blink = !$v[1] ? ' class="blink"' : '';
+        $rows_html .= '<tr><td>' . htmlspecialchars(str_pad($k, 16)) . '</td>'
+                    . '<td>........</td>'
+                    . '<td' . $blink . ' style="color:' . $col . '">' . htmlspecialchars($v[0]) . '</td></tr>';
+    }
+
     echo '<!doctype html><html lang="pl"><head>'
        . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-       . '<title>503 License Error</title>'
+       . '<title>** SYSTEM HALT **</title>'
        . '<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{min-height:100vh;background:#0a0a0a;color:#c8c8c8;font-family:"Courier New",Courier,monospace;font-size:13px;line-height:1.7}
-.wrap{max-width:720px;margin:0 auto;padding:3rem 1.5rem}
-.top{color:#555;font-size:.8rem;margin-bottom:2rem}
-.top b{color:#888}
-h1{font-size:1rem;color:#e8e8e8;font-weight:700;margin-bottom:.25rem}
-.err-code{color:#c0392b;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1.5rem}
-p{color:#888;font-size:.85rem;margin-bottom:.75rem}
-.section{border-top:1px solid #1a1a1a;margin-top:1.5rem;padding-top:1rem}
-.section-title{color:#555;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem}
-.kv{width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:.75rem}
-.kv td{padding:.25rem 0;vertical-align:top}
-.kv td:first-child{color:#555;width:38%;padding-right:1rem;white-space:nowrap}
-.ok{color:#3d9970}.err{color:#c0392b}.warn{color:#c9a227}
-.cmd{background:#111;border-left:2px solid #333;padding:.6rem .9rem;font-size:.8rem;color:#7dd3fc;margin:.75rem 0;word-break:break-all}
-.link{display:inline-block;margin-top:1rem;color:#7dd3fc;font-size:.82rem;text-decoration:none;border-bottom:1px solid #334}
-.link:hover{color:#93c5fd}
-.foot{color:#2a2a2a;font-size:.72rem;margin-top:2.5rem}
+@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap");
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:#000;color:#33ff33;font-family:"Share Tech Mono","Courier New",monospace;font-size:14px;line-height:1.8;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.15) 0px,rgba(0,0,0,.15) 1px,transparent 1px,transparent 2px);pointer-events:none;z-index:9999}
+body::after{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.7) 100%);pointer-events:none;z-index:9998}
+.wrap{max-width:780px;margin:0 auto;padding:2.5rem 1.5rem;position:relative;z-index:1}
+.scanline{position:fixed;top:0;left:0;width:100%;height:3px;background:rgba(51,255,51,.08);animation:scan 6s linear infinite;z-index:10000;pointer-events:none}
+@keyframes scan{0%{top:0}100%{top:100%}}
+.blink{animation:blink .8s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.dim{color:#1a8c1a}
+.hi{color:#ccffcc;font-weight:bold}
+.err{color:#ff3333}
+.warn{color:#ffaa00}
+pre{white-space:pre-wrap;word-break:break-all}
+table{border-collapse:collapse;width:100%}
+td{padding:.1rem 0;vertical-align:top;font-size:.88rem}
+td:first-child{color:#1a8c1a;white-space:pre}
+td:nth-child(2){color:#0d440d;padding:0 .5rem}
+hr{border:none;border-top:1px solid #0d440d;margin:1rem 0}
+a{color:#33ff33;text-decoration:none;border-bottom:1px solid #1a8c1a}
+a:hover{color:#ccffcc;border-color:#33ff33}
+.box{border:1px solid #1a8c1a;padding:.75rem 1rem;margin:.75rem 0}
+.box-err{border-color:#ff3333}
 </style>'
-       . '</head><body><div class="wrap">'
-       . '<div class="top"><b>platforma-ngo</b> · ' . htmlspecialchars($org) . ' · ' . htmlspecialchars($ts) . '</div>'
-       . '<div class="err-code">503 · license_error</div>'
-       . '<h1>' . htmlspecialchars($title) . '</h1>'
-       . '<p>' . htmlspecialchars($message) . '</p>'
-       . $hint_html
-       . '<div class="section"><div class="section-title">diagnostics</div>'
-       . '<table class="kv">'
-       . '<tr><td>certs/app.crt</td><td class="' . ($crt_ok === 'present' ? 'ok' : 'err') . '">' . $crt_ok . '</td></tr>'
-       . '<tr><td>certs/app.sig</td><td class="' . ($sig_ok === 'present' ? 'ok' : 'err') . '">' . $sig_ok . '</td></tr>'
-       . '<tr><td>php_openssl</td><td class="' . ($ssl_ok === 'loaded' ? 'ok' : 'err') . '">' . $ssl_ok . '</td></tr>'
-       . '<tr><td>php</td><td>' . htmlspecialchars($php_ver) . ' (' . htmlspecialchars($sapi) . ')</td></tr>'
-       . '<tr><td>app_key</td><td>' . htmlspecialchars($app_key) . '</td></tr>'
-       . '<tr><td>app_url</td><td>' . htmlspecialchars($app_url ?: '—') . '</td></tr>'
-       . '<tr><td>certs_dir</td><td style="font-size:.75rem">' . htmlspecialchars($certs_dir) . '</td></tr>'
-       . '</table></div>'
-       . '<div class="section"><div class="section-title">resolve</div>'
-       . '<div class="cmd">// Opcja 1 — panel twórcy (przeglądarka)<br>'
-       . '<a href="' . htmlspecialchars($creator) . '" class="link" style="margin:0">' . htmlspecialchars($creator) . '</a></div>'
-       . '<div class="cmd">// Opcja 2 — CLI (SSH)<br>'
-       . 'php ' . htmlspecialchars(dirname(__DIR__)) . '/cli/generatorCertyfikatu.php</div>'
-       . '</div>'
-       . '<div class="foot">platforma-ngo · bootstrap_halt · ' . htmlspecialchars($ts) . '</div>'
+       . '</head><body>'
+       . '<div class="scanline"></div>'
+       . '<div class="wrap">'
+       . '<pre class="dim">================================================================================</pre>'
+       . '<pre class="hi">  PLATFORMA NGO &mdash; SYSTEM BOOT FAILURE                          v503</pre>'
+       . '<pre class="dim">================================================================================</pre>'
+       . '<br>'
+       . '<pre class="dim">SYSTEM  : ' . htmlspecialchars($org) . '</pre>'
+       . '<pre class="dim">HOST    : ' . htmlspecialchars($app_url ?: 'unknown') . '</pre>'
+       . '<pre class="dim">TIME    : ' . htmlspecialchars($ts) . '</pre>'
+       . '<br>'
+       . '<pre class="box box-err">'
+       . '  !! FATAL ERROR: LICENSE_VERIFICATION_FAILED' . "\n"
+       . '  !! ' . htmlspecialchars(strtoupper($title)) . "\n"
+       . '  !!' . "\n"
+       . '  !! ' . htmlspecialchars($message)
+       . '</pre>'
+       . '<br>'
+       . '<pre class="dim">POST DIAGNOSTICS:</pre>'
+       . '<table>' . $rows_html . '</table>'
+       . '<br>'
+       . '<hr>'
+       . '<pre class="dim">RECOMMENDED ACTION:</pre>'
+       . '<br>'
+       . '<pre class="dim">  [1] BROWSER (creator panel):</pre>'
+       . '<pre>      <a href="' . htmlspecialchars($creator) . '">' . htmlspecialchars($creator) . '</a></pre>'
+       . '<br>'
+       . '<pre class="dim">  [2] SSH / CLI:</pre>'
+       . '<pre>      php ' . htmlspecialchars(dirname(__DIR__)) . '/cli/generatorCertyfikatu.php</pre>'
+       . '<br>'
+       . '<hr>'
+       . '<pre class="dim">System halted. Press [1] or run CLI to regenerate certificate.</pre>'
+       . '<pre class="dim">================================================================================</pre>'
+       . '<pre class="dim blink">_</pre>'
        . '</div></body></html>';
     exit;
 }
