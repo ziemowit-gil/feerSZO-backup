@@ -142,6 +142,43 @@ function cpc_migrate(): void {
     }
 
     // -------------------------------------------------------------------------
+    // Tabela sesji QR check-in
+    // -------------------------------------------------------------------------
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS checkin_sessions (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id  INTEGER NOT NULL,
+            user_id      INTEGER NOT NULL,
+            date         TEXT    NOT NULL,
+            time_start   TEXT    NOT NULL,
+            time_end     TEXT    NULL,
+            date_end     TEXT    NULL,
+            hours_total  REAL    NULL,
+            status       TEXT    NOT NULL DEFAULT 'open',
+            created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+        )");
+    } catch (\PDOException $e) {}
+
+    try {
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_checkin_contract_user
+            ON checkin_sessions(contract_id, user_id, status)");
+    } catch (\PDOException $e) {}
+
+    // Dodatkowe kolumny timesheets (QR check-in)
+    $timesheets_extra = [
+        'hours_start' => "ALTER TABLE timesheets ADD COLUMN hours_start TEXT NULL",
+        'hours_end'   => "ALTER TABLE timesheets ADD COLUMN hours_end TEXT NULL",
+        'ts_status'   => "ALTER TABLE timesheets ADD COLUMN status TEXT NOT NULL DEFAULT 'zatwierdzone'",
+    ];
+    foreach ($timesheets_extra as $col => $sql) {
+        try {
+            $pdo->exec($sql);
+        } catch (\PDOException $e) {
+            // Kolumna już istnieje — ignorujemy
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Seedowanie tabeli settings
     // -------------------------------------------------------------------------
     $seeds = [

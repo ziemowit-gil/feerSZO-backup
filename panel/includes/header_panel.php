@@ -50,6 +50,10 @@ function _pv_nav_active(string $path): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= h($_pv_title) ?> — Panel<?= $_pv_org ? ' · '.h($_pv_org) : '' ?></title>
+<link rel="manifest" href="<?= APP_URL ?>/manifest.php">
+<meta name="theme-color" content="<?= h($_vol_color) ?>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
@@ -114,6 +118,12 @@ body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;display:f
 @media(prefers-contrast:high){.pv-nav-link{border-left-width:5px}.pv-nav-link.pv-active{border-left-width:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('<?= APP_URL ?>/sw.js')
+    .catch(e => console.warn('SW:', e));
+}
+</script>
 </head>
 <body>
 <a href="#pv-main" class="pv-skip">Przejdź do treści</a>
