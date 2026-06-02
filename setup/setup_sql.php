@@ -369,6 +369,14 @@ function setup_tenant_db(PDO $pdo): void {
         from_value TEXT, to_value TEXT, metadata TEXT,
         occurred_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )",
+    "CREATE TABLE IF NOT EXISTS task_time_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL, started_at TEXT NOT NULL,
+        ended_at TEXT, duration_seconds INTEGER, note TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_tlog_task ON task_time_logs(task_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tlog_user ON task_time_logs(user_id)",
     "CREATE TABLE IF NOT EXISTS task_list_time (
         id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
         list_id INTEGER NOT NULL, list_name TEXT NOT NULL,

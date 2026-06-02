@@ -117,12 +117,67 @@ if ($installed_ver && $changelog) {
 }
 $up_to_date = $installed_ver && empty($new_commits) && $installed_ver === $current_ver['hash'];
 
+// ── Backup SQLite ─────────────────────────────────────────────────────────────
+function upg_backup(): array {
+    if (!defined('DB_TYPE') || DB_TYPE !== 'sqlite') return ['ok' => false, 'msg' => 'Backup dostępny tylko dla SQLite.'];
+    $db_path  = defined('DB_PATH') ? DB_PATH : __DIR__ . '/umowy.db';
+    $bak_dir  = __DIR__ . '/backups';
+    if (!is_dir($bak_dir)) @mkdir($bak_dir, 0755, true);
+    $bak_file = $bak_dir . '/upgrade_' . date('Ymd_His') . '.db';
+    if (!file_exists($db_path)) return ['ok' => false, 'msg' => 'Plik bazy nie istnieje.'];
+    $ok = @copy($db_path, $bak_file);
+    return $ok
+        ? ['ok' => true,  'file' => $bak_file, 'size' => round(filesize($bak_file) / 1024, 1) . ' KB']
+        : ['ok' => false, 'msg'  => 'Nie można skopiować pliku bazy.'];
+}
+
+// ── Sprawdź pokrycie tabel ────────────────────────────────────────────────────
+function upg_check_tables(): array {
+    $db_tables = [];
+    try {
+        if (defined('DB_TYPE') && DB_TYPE === 'sqlite') {
+            $rows = db()->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+        } else {
+            $rows = db()->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+        }
+        $db_tables = $rows ?: [];
+    } catch (\Throwable $e) { return []; }
+
+    // Zbierz wszystkie CREATE TABLE IF NOT EXISTS z plików PHP
+    $root = __DIR__;
+    $php_tables = [];
+    $iter = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    foreach ($iter as $f) {
+        if ($f->getExtension() !== 'php') continue;
+        $path = $f->getPathname();
+        // Pomiń vendor, feerSZO, submodule
+        if (str_contains($path, '/vendor/') || str_contains($path, '/feerSZO/') || str_contains($path, '/.git/')) continue;
+        $src = @file_get_contents($path);
+        if (!$src) continue;
+        preg_match_all('/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?([a-zA-Z_0-9]+)`?/i', $src, $m);
+        foreach ($m[1] as $t) $php_tables[$t] = true;
+    }
+
+    $missing = [];
+    foreach ($db_tables as $t) {
+        if (!isset($php_tables[$t])) $missing[] = $t;
+    }
+    return ['db' => count($db_tables), 'covered' => count($db_tables) - count($missing), 'missing' => $missing];
+}
+
+// ── Chronione klucze ustawień M365/SMTP — NIE usuwaj podczas upgrade ─────────
+// (upgrade.php nigdy nie kasuje settings — migracje tylko dodają, nie usuwają)
+
 // ── POST: uruchom migracje ────────────────────────────────────────────────────
 $migration_results = null;
+$backup_result     = null;
 if ($is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'run_upgrade') {
     if (($_POST['_csrf'] ?? '') !== ($_SESSION['upgrade_csrf'] ?? '')) {
         $error = 'CSRF error.';
     } else {
+        // 1. Backup przed migracją
+        $backup_result = upg_backup();
+
         try {
             $migration_results = migrate_tenant_db(db());
             upg_save_version($current_ver['hash']);
@@ -130,6 +185,7 @@ if ($is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '
             $skip_count = count(array_filter($migration_results, fn($r) => $r[0] === 'skip'));
             $err_count  = count(array_filter($migration_results, fn($r) => $r[0] === 'err'));
             $success    = "Aktualizacja zakończona. Nowych zmian: {$ok_count}, pominięto: {$skip_count}" . ($err_count ? ", błędy: {$err_count}" : '') . ".";
+            if ($backup_result['ok']) $success .= " Backup: " . basename($backup_result['file']);
             $installed_ver = $current_ver['hash'];
             $new_commits   = [];
             $up_to_date    = true;
@@ -138,6 +194,9 @@ if ($is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '
         }
     }
 }
+
+// Sprawdź pokrycie tabel (leniwe — tylko gdy zalogowany)
+$table_coverage = $is_auth ? upg_check_tables() : null;
 
 $type_badge = [
     'feat'     => ['#2563eb', 'Nowa funkcja'],
@@ -299,6 +358,49 @@ body { background: #f1f5f9; }
     <?php endforeach; ?>
   </div>
   <?php endif; ?>
+
+  <!-- Pokrycie tabel -->
+  <?php if ($table_coverage): ?>
+  <div class="card-upg">
+    <h2 class="fw-bold mb-1" style="font-size:1rem">
+      <i class="bi bi-table me-2 text-secondary"></i>Pokrycie schematu bazy danych
+    </h2>
+    <?php $miss = $table_coverage['missing']; ?>
+    <div class="d-flex align-items-center gap-3 mb-2">
+      <span class="small text-muted">Tabel w bazie: <strong><?= $table_coverage['db'] ?></strong></span>
+      <span class="small text-muted">Pokrytych: <strong class="text-success"><?= $table_coverage['covered'] ?></strong></span>
+      <?php if ($miss): ?>
+      <span class="badge bg-warning text-dark"><?= count($miss) ?> bez definicji</span>
+      <?php else: ?>
+      <span class="badge bg-success">Wszystkie pokryte</span>
+      <?php endif; ?>
+    </div>
+    <?php if ($miss): ?>
+    <details>
+      <summary class="small text-muted" style="cursor:pointer">Pokaż tabele bez <code>CREATE TABLE IF NOT EXISTS</code> w kodzie</summary>
+      <div class="mt-2 d-flex flex-wrap gap-1">
+        <?php foreach ($miss as $t): ?>
+        <code class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.72rem"><?= upg_h($t) ?></code>
+        <?php endforeach; ?>
+      </div>
+      <div class="form-text mt-1">Te tabele istnieją w bazie ale ich definicja CREATE TABLE nie została znaleziona w żadnym pliku PHP. Prawdopodobnie są tworzone przez zewnętrzny skrypt SQL lub starą migrację.</div>
+    </details>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+  <!-- Ochrona konfiguracji -->
+  <div class="card-upg" style="border-left:3px solid #16a34a">
+    <h2 class="fw-bold mb-1" style="font-size:.95rem"><i class="bi bi-shield-check me-1 text-success"></i>Co jest chronione podczas aktualizacji</h2>
+    <p class="text-muted small mb-0">Migracje <strong>tylko dodają</strong> nowe kolumny i tabele — nigdy nie usuwają istniejących danych ani ustawień.</p>
+    <div class="mt-2 d-flex flex-wrap gap-2" style="font-size:.78rem">
+      <?php
+      $protected = ['Microsoft 365 (tenant_id, client_id, client_secret)', 'SMTP / e-mail', 'SMS API', 'Konfiguracja brandingu', 'APP_KEY', 'Certyfikat instalacyjny', 'Dane organizacji', 'Konta użytkowników', 'Wszystkie umowy i dane'];
+      foreach ($protected as $p): ?>
+      <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25"><?= upg_h($p) ?></span>
+      <?php endforeach; ?>
+    </div>
+  </div>
 
   <!-- Akcja aktualizacji -->
   <div class="card-upg <?= $up_to_date && !$migration_results ? 'border-success' : '' ?>">
