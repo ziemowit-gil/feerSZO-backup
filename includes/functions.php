@@ -114,9 +114,55 @@ function flash_get(): ?array {
 function flash_html(): string {
     $f = flash_get();
     if (!$f) return '';
-    return '<div class="alert alert-' . h($f['type']) . ' alert-dismissible fade show" role="alert">'
-         . h($f['msg'])
-         . '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+    // Zamień typ Bootstrap na dane toastu
+    $type = $f['type'];
+    $cfg = match($type) {
+        'success' => ['icon' => 'bi-check-circle-fill', 'color' => '#16A34A', 'bg' => '#F0FDF4', 'border' => '#86EFAC', 'delay' => 4000],
+        'danger',
+        'error'   => ['icon' => 'bi-x-circle-fill',     'color' => '#DC2626', 'bg' => '#FEF2F2', 'border' => '#FCA5A5', 'delay' => 7000],
+        'warning' => ['icon' => 'bi-exclamation-triangle-fill', 'color' => '#D97706', 'bg' => '#FFFBEB', 'border' => '#FCD34D', 'delay' => 6000],
+        default   => ['icon' => 'bi-info-circle-fill',  'color' => '#0284C7', 'bg' => '#F0F9FF', 'border' => '#7DD3FC', 'delay' => 4500],
+    };
+    $msg   = h($f['msg']);
+    $icon  = $cfg['icon'];
+    $color = $cfg['color'];
+    $bg    = $cfg['bg'];
+    $brd   = $cfg['border'];
+    $delay = $cfg['delay'];
+    return <<<HTML
+<div id="_flash_toast_wrap" aria-live="polite" aria-atomic="true"
+     style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;min-width:300px;max-width:440px">
+  <div id="_flash_toast"
+       role="alert" aria-live="assertive"
+       style="background:{$bg};border:1px solid {$brd};border-radius:12px;
+              box-shadow:0 4px 24px rgba(0,0,0,.13);padding:.85rem 1.1rem;
+              display:flex;align-items:flex-start;gap:.7rem;
+              animation:_toastIn .25s cubic-bezier(.34,1.56,.64,1) both">
+    <i class="bi {$icon}" style="color:{$color};font-size:1.15rem;flex-shrink:0;margin-top:.05rem"></i>
+    <div style="flex:1;font-size:.88rem;color:#1E293B;line-height:1.4">{$msg}</div>
+    <button type="button" onclick="document.getElementById('_flash_toast_wrap').remove()"
+            style="background:none;border:none;padding:0;color:#94A3B8;cursor:pointer;font-size:1rem;line-height:1;flex-shrink:0;margin-top:.1rem">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+</div>
+<style>
+@keyframes _toastIn  { from { opacity:0; transform:translateY(12px) scale(.96); } to { opacity:1; transform:none; } }
+@keyframes _toastOut { from { opacity:1; transform:none; } to { opacity:0; transform:translateY(8px) scale(.97); } }
+</style>
+<script>
+(function() {
+  var delay = {$delay};
+  var wrap  = document.getElementById('_flash_toast_wrap');
+  if (!wrap) return;
+  setTimeout(function() {
+    var t = document.getElementById('_flash_toast');
+    if (t) t.style.animation = '_toastOut .2s ease forwards';
+    setTimeout(function() { if (wrap && wrap.parentNode) wrap.remove(); }, 220);
+  }, delay);
+})();
+</script>
+HTML;
 }
 
 function table_for_type(string $type): string {
