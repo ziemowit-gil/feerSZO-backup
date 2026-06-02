@@ -1176,28 +1176,30 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <div id="content">
   <?= flash_html() ?>
 
-<?php if ($_user && in_array($_user['role'] ?? '', ['admin', 'editor'], true)): ?>
-<div id="mvpBanner" class="alert alert-warning alert-dismissible d-flex gap-2 align-items-start mb-3 py-2"
+<?php
+// Banner systemowy — konfigurowalny przez admina w ustawieniach
+$_sys_banner_text = org_setting('system_banner_text');
+$_sys_banner_type = org_setting('system_banner_type') ?: 'warning'; // info|warning|danger|success
+if ($_sys_banner_text && $_user):
+    $banner_icons = ['warning'=>'bi-exclamation-triangle-fill','info'=>'bi-info-circle-fill','danger'=>'bi-exclamation-octagon-fill','success'=>'bi-check-circle-fill'];
+    $banner_icon  = $banner_icons[$_sys_banner_type] ?? 'bi-info-circle-fill';
+    $banner_key   = 'sysbanner_' . md5($_sys_banner_text);
+?>
+<div id="sysBanner" class="alert alert-<?= h($_sys_banner_type) ?> alert-dismissible d-flex gap-2 align-items-start mb-3 py-2"
      role="alert" style="display:none!important">
-  <i class="bi bi-cone-striped flex-shrink-0 mt-1"></i>
-  <div style="font-size:.875rem">
-    <strong>Wersja MVP (Minimum Viable Product)</strong> — system jest w fazie wczesnego wdrożenia.
-    Niektóre funkcje mogą działać niestabilnie lub być jeszcze rozwijane. W razie błędów prosimy o kontakt z administratorem.
-  </div>
-  <button type="button" class="btn-close btn-sm" onclick="mvpDismiss()" aria-label="Zamknij"></button>
+  <i class="bi <?= h($banner_icon) ?> flex-shrink-0 mt-1"></i>
+  <div style="font-size:.875rem"><?= nl2br(h($_sys_banner_text)) ?></div>
+  <button type="button" class="btn-close btn-sm" onclick="sysBannerDismiss()" aria-label="Zamknij"></button>
 </div>
 <script>
-(function () {
-  var KEY = 'mvp_banner_dismissed_v1';
-  var el  = document.getElementById('mvpBanner');
-  if (!el) return;
-  if (!localStorage.getItem(KEY)) {
-    el.style.removeProperty('display');
-  }
+(function(){
+  var KEY = <?= json_encode($banner_key) ?>;
+  var el  = document.getElementById('sysBanner');
+  if (el && !localStorage.getItem(KEY)) el.style.removeProperty('display');
 })();
-function mvpDismiss() {
-  localStorage.setItem('mvp_banner_dismissed_v1', '1');
-  var el = document.getElementById('mvpBanner');
+function sysBannerDismiss() {
+  localStorage.setItem(<?= json_encode($banner_key) ?>, '1');
+  var el = document.getElementById('sysBanner');
   if (el) el.style.display = 'none';
 }
 </script>

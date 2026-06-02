@@ -160,6 +160,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . APP_URL . '/admin/org_settings.php#branding');
             exit;
         }
+    } elseif (isset($_POST['save_banner'])) {
+        $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
+        $stmt->execute(['system_banner_text', trim($_POST['system_banner_text'] ?? '')]);
+        $stmt->execute(['system_banner_type', in_array($_POST['system_banner_type']??'',['info','warning','danger','success']) ? $_POST['system_banner_type'] : 'warning']);
+        flash_set('success', trim($_POST['system_banner_text'] ?? '') ? 'Banner systemowy zapisany i aktywny.' : 'Banner systemowy wyłączony.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php#banner'); exit;
+
     } elseif (isset($_POST['save_mail'])) {
         $mail_keys = ['notify_from_name','notify_from_email',
                       'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
@@ -692,6 +699,56 @@ document.getElementById('logo_file_input')?.addEventListener('change', function(
   </form>
 
 </div>
+</div>
+
+<!-- ── Banner systemowy ────────────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-4" id="banner">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-megaphone text-primary"></i> Banner systemowy
+    <?php $cur_banner = org_setting('system_banner_text'); ?>
+    <?php if ($cur_banner): ?>
+    <span class="badge bg-success ms-1" style="font-size:.7rem">Aktywny</span>
+    <?php else: ?>
+    <span class="badge bg-secondary ms-1" style="font-size:.7rem">Wyłączony</span>
+    <?php endif; ?>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Komunikat wyświetlany wszystkim zalogowanym użytkownikom na górze strony.
+      Każdy użytkownik może go zamknąć — po zmianie treści pojawi się ponownie.
+      <strong>Zostaw puste aby wyłączyć.</strong>
+    </p>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold small">Typ bannera</label>
+          <select name="system_banner_type" class="form-select form-select-sm">
+            <?php foreach (['info'=>'ℹ Informacja','warning'=>'⚠ Ostrzeżenie','danger'=>'🔴 Alert','success'=>'✓ Sukces'] as $v => $l): ?>
+            <option value="<?= $v ?>" <?= (org_setting('system_banner_type') ?: 'warning') === $v ? 'selected' : '' ?>><?= $l ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-9">
+          <label class="form-label fw-semibold small">Treść komunikatu (puste = brak bannera)</label>
+          <textarea name="system_banner_text" class="form-control form-control-sm" rows="2"
+                    placeholder="np. System działa w trybie produkcyjnym. W razie problemów kontaktuj się z administratorem."><?= h(org_setting('system_banner_text')) ?></textarea>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" name="save_banner" class="btn btn-sm btn-primary">
+            <i class="bi bi-save me-1"></i>Zapisz
+          </button>
+          <?php if ($cur_banner): ?>
+          <button type="submit" name="save_banner" value="1"
+                  onclick="document.querySelector('[name=system_banner_text]').value=''"
+                  class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-x me-1"></i>Wyłącz banner
+          </button>
+          <?php endif; ?>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
