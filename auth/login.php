@@ -665,61 +665,117 @@ html, body { height: 100%; margin: 0; padding: 0; }
 </head>
 <body>
 
-<!-- ══ Wykrywanie przeglądarki ══════════════════════════════════════════════ -->
-<div id="browser-warn" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
-     background:#1e293b;color:#e2e8f0;padding:.6rem 1.25rem;font-size:.82rem;
-     display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.3)">
-  <span style="font-size:1rem">⚠️</span>
-  <span id="browser-warn-msg" style="flex:1"></span>
-  <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0">
-    <a href="https://www.mozilla.org/firefox/" target="_blank" rel="noopener"
-       style="background:#ff9500;color:#fff;border-radius:6px;padding:.25rem .65rem;text-decoration:none;font-weight:600;font-size:.78rem">
-      🦊 Firefox
-    </a>
-    <a href="https://www.apple.com/safari/" target="_blank" rel="noopener"
-       style="background:#0071e3;color:#fff;border-radius:6px;padding:.25rem .65rem;text-decoration:none;font-weight:600;font-size:.78rem">
-      🧭 Safari
-    </a>
-    <button onclick="document.getElementById('browser-warn').style.display='none';sessionStorage.setItem('bw_ok','1')"
-            style="background:none;border:1.5px solid rgba(255,255,255,.3);color:#94a3b8;border-radius:5px;
-                   padding:.2rem .55rem;cursor:pointer;font-size:.78rem;line-height:1.4">
-      Rozumiem
-    </button>
+<!-- ══ Wykrywanie przeglądarki — modal ══════════════════════════════════════ -->
+<div id="browser-warn-overlay" style="display:none;position:fixed;inset:0;z-index:99999;
+     background:rgba(15,23,42,.82);backdrop-filter:blur(6px);
+     align-items:center;justify-content:center;padding:1rem">
+  <div style="background:#fff;border-radius:20px;max-width:480px;width:100%;
+              box-shadow:0 24px 64px rgba(0,0,0,.35);overflow:hidden;
+              animation:_bwIn .3s cubic-bezier(.34,1.56,.64,1) both">
+
+    <!-- Kolorowy nagłówek -->
+    <div style="background:linear-gradient(135deg,#7f1d1d,#dc2626);padding:1.75rem 1.5rem 1.25rem;text-align:center">
+      <div style="font-size:2.75rem;margin-bottom:.5rem">⚠️</div>
+      <div style="color:#fff;font-size:1.15rem;font-weight:800;letter-spacing:-.02em">
+        Nieobsługiwana przeglądarka
+      </div>
+      <div id="bw-browser-name" style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:.25rem"></div>
+    </div>
+
+    <!-- Treść -->
+    <div style="padding:1.75rem 1.75rem 1.5rem">
+      <p id="bw-msg" style="font-size:.95rem;color:#111827;line-height:1.7;margin:0 0 1.25rem;text-align:center;font-weight:500"></p>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1rem;margin-bottom:1.25rem">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;text-align:center;margin-bottom:.75rem">
+          Zalecane przeglądarki
+        </div>
+        <div style="display:flex;gap:.75rem;justify-content:center">
+          <a href="https://www.mozilla.org/firefox/" target="_blank" rel="noopener"
+             style="display:flex;flex-direction:column;align-items:center;gap:.35rem;
+                    background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;
+                    padding:.75rem 1.25rem;text-decoration:none;color:#374151;
+                    font-size:.8rem;font-weight:600;transition:border-color .1s;min-width:100px"
+             onmouseover="this.style.borderColor='#ff9500'" onmouseout="this.style.borderColor='#e2e8f0'">
+            <span style="font-size:2rem">🦊</span>
+            <span>Firefox</span>
+            <span style="font-size:.68rem;color:#94a3b8;font-weight:400">mozilla.org</span>
+          </a>
+          <a href="https://www.apple.com/safari/" target="_blank" rel="noopener"
+             style="display:flex;flex-direction:column;align-items:center;gap:.35rem;
+                    background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;
+                    padding:.75rem 1.25rem;text-decoration:none;color:#374151;
+                    font-size:.8rem;font-weight:600;transition:border-color .1s;min-width:100px"
+             onmouseover="this.style.borderColor='#0071e3'" onmouseout="this.style.borderColor='#e2e8f0'">
+            <span style="font-size:2rem">🧭</span>
+            <span>Safari</span>
+            <span style="font-size:.68rem;color:#94a3b8;font-weight:400">apple.com</span>
+          </a>
+        </div>
+      </div>
+
+      <button id="bw-dismiss"
+              style="width:100%;background:#f1f5f9;border:1.5px solid #d1d5db;border-radius:10px;
+                     padding:.9rem 1rem;font-size:.9rem;font-weight:700;color:#374151;
+                     cursor:pointer;transition:all .1s;letter-spacing:-.01em"
+              onmouseover="this.style.background='#e5e7eb';this.style.borderColor='#9ca3af'" onmouseout="this.style.background='#f1f5f9';this.style.borderColor='#d1d5db'">
+        Rozumiem ryzyko — kontynuuj mimo to →
+      </button>
+    </div>
+
   </div>
 </div>
+<style>
+@keyframes _bwIn {
+  from { opacity:0; transform:scale(.9) translateY(20px); }
+  to   { opacity:1; transform:none; }
+}
+</style>
 <script>
 (function() {
-  if (sessionStorage.getItem('bw_ok')) return;
+  var KEY = 'bw_ok_v2';
+  if (sessionStorage.getItem(KEY)) return;
   var ua = navigator.userAgent;
-  var msg = null;
+  var info = null; // { browser, msg }
 
-  // Vivaldi
   if (/Vivaldi/i.test(ua)) {
-    msg = 'Używasz przeglądarki <strong>Vivaldi</strong> — może nie działać poprawnie z tym systemem. Zalecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
-  }
-  // Opera (nieoficjalne Chromium forki)
-  else if (/OPR\//i.test(ua) || /Opera/i.test(ua)) {
-    msg = 'Używasz przeglądarki <strong>Opera</strong> — dla najlepszego działania systemu polecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
-  }
-  // Internet Explorer
-  else if (/Trident\/|MSIE /i.test(ua)) {
-    msg = 'Używasz przeglądarki <strong>Internet Explorer</strong>, która nie jest obsługiwana. Zainstaluj <strong>Firefox</strong> lub <strong>Safari</strong>.';
-  }
-  // Brave (blokuje zasoby — może powodować problemy)
-  else if (navigator.brave !== undefined) {
-    msg = 'Używasz przeglądarki <strong>Brave</strong> — jej agresywne blokowanie może powodować problemy. Polecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
-  }
-  // Edge i Chrome działają — brak ostrzeżenia
-  // Samsung Browser
-  else if (/SamsungBrowser/i.test(ua)) {
-    msg = 'Dla najlepszego działania systemu zalecamy <strong>Firefox</strong> lub <strong>Safari</strong> zamiast przeglądarki Samsung.';
+    info = {
+      browser: 'Vivaldi',
+      msg: 'Przeglądarka <strong>Vivaldi</strong> nie jest oficjalnie obsługiwana przez ten system. Mogą wystąpić problemy z logowaniem, formularzami i wyświetlaniem stron.'
+    };
+  } else if (/Trident\/|MSIE /i.test(ua)) {
+    info = {
+      browser: 'Internet Explorer',
+      msg: '<strong>Internet Explorer</strong> nie jest obsługiwany i nie otrzymuje już aktualizacji bezpieczeństwa. System może nie działać w ogóle.'
+    };
+  } else if (/OPR\//i.test(ua)) {
+    info = {
+      browser: 'Opera',
+      msg: 'Przeglądarka <strong>Opera</strong> może powodować problemy z niektórymi funkcjami systemu. Dla pewności użyj Firefox lub Safari.'
+    };
+  } else if (navigator.brave !== undefined) {
+    info = {
+      browser: 'Brave',
+      msg: 'Przeglądarka <strong>Brave</strong> agresywnie blokuje zasoby, co może utrudniać pracę z systemem (blokowanie formularzy, skryptów, plików).'
+    };
+  } else if (/SamsungBrowser/i.test(ua)) {
+    info = {
+      browser: 'Samsung Browser',
+      msg: 'Przeglądarka <strong>Samsung</strong> może nie obsługiwać wszystkich funkcji systemu. Dla najlepszego doświadczenia użyj Firefox lub Safari.'
+    };
   }
 
-  if (msg) {
-    var el = document.getElementById('browser-warn');
-    document.getElementById('browser-warn-msg').innerHTML = msg;
-    el.style.display = 'flex';
-  }
+  if (!info) return;
+
+  var overlay = document.getElementById('browser-warn-overlay');
+  document.getElementById('bw-browser-name').textContent = 'Wykryta: ' + info.browser;
+  document.getElementById('bw-msg').innerHTML = info.msg;
+  overlay.style.display = 'flex';
+
+  document.getElementById('bw-dismiss').addEventListener('click', function() {
+    overlay.style.display = 'none';
+    sessionStorage.setItem(KEY, '1');
+  });
 })();
 </script>
 

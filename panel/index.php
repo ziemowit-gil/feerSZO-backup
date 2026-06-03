@@ -322,6 +322,17 @@ if ($_is_volunteer_only) {
 }
 .vol-activity-row:last-child { border-bottom: none; }
 .vol-activity-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; flex-shrink: 0; }
+.pv-stats-bar { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.1rem; }
+.pv-stat-pill {
+  display:inline-flex; align-items:center; gap:.35rem;
+  padding:.3rem .7rem; border-radius:2rem;
+  background:#fff; border:1px solid #E5E7EB;
+  font-size:.79rem; font-weight:500; color:#374151;
+  box-shadow:0 1px 3px rgba(0,0,0,.05);
+  text-decoration:none;
+}
+.pv-stat-pill:hover { border-color:var(--vol-color); color:var(--vol-color); }
+.pv-stat-num { font-weight:700; color:var(--vol-color); }
 </style>
 
 <!-- Nagłówek -->
@@ -704,6 +715,30 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
 <?php endif; // _active_row ?>
 
 <!-- ═══ SZYBKIE AKCJE — duże karty ══════════════════════════════════════════ -->
+<div class="pv-stats-bar" role="list" aria-label="Podsumowanie">
+  <?php if ($msg_unread): ?>
+  <a href="<?= APP_URL ?>/panel/messages.php" class="pv-stat-pill" role="listitem"
+     aria-label="<?= $msg_unread ?> nieprzeczytanych wiadomości">
+    <i class="bi bi-chat-left-text" aria-hidden="true" style="color:var(--vol-color)"></i>
+    <span class="pv-stat-num"><?= $msg_unread ?></span>
+    <span>nowych</span>
+  </a>
+  <?php endif; ?>
+  <?php if (count($my_apps) > 0): ?>
+  <span class="pv-stat-pill" role="listitem">
+    <i class="bi bi-send" aria-hidden="true" style="color:#7C3AED"></i>
+    <span class="pv-stat-num"><?= count($my_apps) ?></span>
+    <span><?= count($my_apps) === 1 ? 'wniosek' : 'wniosków' ?></span>
+  </span>
+  <?php endif; ?>
+  <?php if (count($my_certs) > 0): ?>
+  <span class="pv-stat-pill" role="listitem">
+    <i class="bi bi-award" aria-hidden="true" style="color:#D97706"></i>
+    <span class="pv-stat-num"><?= count($my_certs) ?></span>
+    <span><?= count($my_certs) === 1 ? 'zaświadczenie' : 'zaświadczeń' ?></span>
+  </span>
+  <?php endif; ?>
+</div>
 <div class="vol-actions" role="list" aria-label="Szybkie akcje">
 
   <a href="<?= APP_URL ?>/panel/messages.php" class="vol-action-btn" role="listitem"
@@ -876,27 +911,6 @@ $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
   </div>
 </div>
 <?php endif; ?>
-
-<!-- ── Skrzynka pocztowa FEER ─────────────────────────────────────────────── -->
-<a href="https://poczta.feer.org.pl"
-   target="_blank"
-   rel="noopener noreferrer"
-   class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3 text-decoration-none"
-   style="background:linear-gradient(135deg,#0f4c81 0%,#1a6fad 100%);color:#fff;
-          transition:opacity .15s;border:none"
-   onmouseover="this.style.opacity='.88'"
-   onmouseout="this.style.opacity='1'"
-   aria-label="Otwórz skrzynkę pocztową FEER — poczta.feer.org.pl">
-  <span style="width:38px;height:38px;background:rgba(255,255,255,.18);border-radius:50%;
-               display:flex;align-items:center;justify-content:center;flex-shrink:0">
-    <i class="bi bi-envelope-at-fill" style="font-size:1.1rem" aria-hidden="true"></i>
-  </span>
-  <div style="flex:1;min-width:0">
-    <div style="font-size:.82rem;font-weight:700;line-height:1.2">Szukasz poczty?</div>
-    <div style="font-size:.76rem;opacity:.85">poczta.feer.org.pl</div>
-  </div>
-  <i class="bi bi-box-arrow-up-right" style="font-size:.9rem;opacity:.7" aria-hidden="true"></i>
-</a>
 
 <!-- ═══ PANEL AKTYWNOŚCI ════════════════════════════════════════════════════ -->
 <?php if ($my_apps): ?>
