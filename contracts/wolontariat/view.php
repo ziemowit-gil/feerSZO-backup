@@ -703,81 +703,59 @@ if (!empty($_GET['show_aneks'])): ?>
   border: 1px solid #E2E8F0 !important;
   border-top: none !important;
   border-radius: 0 0 12px 12px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 
 /* Animacja przełączania — NIE nadpisujemy Bootstrap fade/show (to psuje przełączanie) */
 #wolontariatTabsContent .tab-pane.fade.show.active { opacity: 1; }
 
-/* Karty sekcji wewnątrz zakładek */
-.tab-pane .card {
-  border: 1px solid #E2E8F0 !important;
-  border-radius: 12px !important;
-  box-shadow: 0 1px 6px rgba(0,0,0,.05) !important;
-  overflow: hidden;
-  transition: box-shadow .15s ease;
+/* Sekcja */
+.cv-section { padding: 1.2rem 0; border-bottom: 1px solid #F1F5F9; }
+.cv-section:last-child { border-bottom: none; padding-bottom: 0; }
+.cv-section-head {
+  display: flex; align-items: center; gap: .5rem;
+  margin-bottom: .9rem;
 }
-.tab-pane .card:hover {
-  box-shadow: 0 3px 12px rgba(0,0,0,.08) !important;
+.cv-section-icon {
+  width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem;
 }
-.tab-pane .card-header {
-  background: linear-gradient(to bottom, #F8FAFC, #F1F5F9) !important;
-  border-bottom: 1px solid #E2E8F0 !important;
-  padding: .9rem 1.3rem !important;
-  font-size: .88rem !important;
-  font-weight: 700 !important;
-  color: #1E293B !important;
-  display: flex; align-items: center; gap: .4rem;
-}
-.tab-pane .card-body { padding: 1.2rem 1.4rem !important; }
-
-/* Detail label/value */
-.detail-label {
+.cv-section-title {
   font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: #94A3B8; flex: 1;
+}
+.cv-section-action { margin-left: auto; }
+
+/* Siatka pól */
+.cv-fields {
+  display: flex; flex-wrap: wrap; gap: .8rem 2rem;
+}
+.cv-field { min-width: 130px; flex: 0 1 auto; }
+.cv-field-wide { flex: 1 1 260px; }
+.cv-field-full { flex: 1 1 100%; }
+.cv-label {
+  font-size: .68rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: .07em; color: #94A3B8; margin-bottom: .2rem;
 }
-.detail-value { font-size: .9rem; color: #1E293B; line-height: 1.4; }
+.cv-value { font-size: .9rem; color: #1E293B; line-height: 1.4; }
 
-/* ── Poziome karty sekcji (tab Umowa) ──────────────────────────── */
-.irow {
-  display: flex; align-items: stretch;
-  background: #fff; border: 1px solid #E2E8F0;
-  border-radius: 12px; margin-bottom: .8rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,.04); overflow: hidden;
-  transition: box-shadow .15s ease, border-color .15s ease;
+/* Tabele bez karty */
+.cv-table { width: 100%; font-size: .85rem; }
+.cv-table th {
+  font-size: .68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: #94A3B8; padding: .5rem 0;
+  border-bottom: 1px solid #E2E8F0;
 }
-.irow:hover {
-  box-shadow: 0 3px 14px rgba(30,109,255,.09);
-  border-color: #C7D8FF;
+.cv-table td {
+  padding: .55rem 0; border-bottom: 1px solid #F8FAFC;
+  color: #374151; vertical-align: middle;
 }
-.irow-head {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: flex-start;
-  gap: .5rem; padding: 1.1rem .95rem 1rem;
-  background: linear-gradient(to bottom, #F8FAFC, #EEF2F7);
-  border-right: 1px solid #E2E8F0;
-  min-width: 96px; text-align: center; flex-shrink: 0;
-}
-.irow-head-icon {
-  width: 40px; height: 40px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.1rem; flex-shrink: 0;
-}
-.irow-head-label {
-  font-size: .63rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: #7C8FA8; line-height: 1.35;
-}
-.irow-body {
-  flex: 1; padding: 1rem 1.5rem;
-  display: flex; flex-wrap: wrap; gap: .65rem 2.5rem; align-items: flex-start;
-}
-.ifield { min-width: 120px; flex: 0 1 auto; }
-.ifield-wide { flex: 1 1 280px; }
-.ifield-full { flex: 1 1 100%; }
-@media (max-width: 576px) {
-  .irow { flex-direction: column; }
-  .irow-head { flex-direction: row; min-width: unset; border-right: none; border-bottom: 1px solid #E2E8F0; padding: .7rem 1rem; }
-  .irow-head-label { font-size: .72rem; }
-}
+.cv-table tr:last-child td { border-bottom: none; }
+
+/* Stary .detail-label/.detail-value — zachowaj kompatybilność */
+.detail-label { font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94A3B8;margin-bottom:.2rem; }
+.detail-value { font-size:.9rem;color:#1E293B;line-height:1.4; }
 </style>
 
 <?php
@@ -903,27 +881,27 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <div class="tab-pane<?= ($_tab==='umowa'||$_tab==='all')?' active':'' ?>" id="tab-umowa" role="tabpanel">
 
   <!-- Dane podstawowe -->
-  <div class="irow">
-    <div class="irow-head">
-      <div class="irow-head-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
-      <div class="irow-head-label">Dane<br>umowy</div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
+      <span class="cv-section-title">Dane umowy</span>
     </div>
-    <div class="irow-body">
-      <div class="ifield">
-        <div class="detail-label">Opiekun wolontariusza</div>
-        <div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div>
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Opiekun wolontariusza</div>
+        <div class="cv-value"><?= h($row['opiekun']) ?: '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Data zawarcia</div>
-        <div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Data zawarcia</div>
+        <div class="cv-value"><?= date_pl($row['data_zawarcia']) ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Data rozpoczęcia</div>
-        <div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Data rozpoczęcia</div>
+        <div class="cv-value"><?= date_pl($row['data_rozpoczecia']) ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Data zakończenia</div>
-        <div class="detail-value">
+      <div class="cv-field">
+        <div class="cv-label">Data zakończenia</div>
+        <div class="cv-value">
           <?php if ($row['bezterminowa']): ?>
             <span class="badge bg-info text-dark">Bezterminowe</span>
           <?php else: ?>
@@ -931,93 +909,93 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
           <?php endif; ?>
         </div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Projekt / program</div>
-        <div class="detail-value"><?= h($row['projekt_program']) ?: '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Projekt / program</div>
+        <div class="cv-value"><?= h($row['projekt_program']) ?: '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Miejsce wolontariatu</div>
-        <div class="detail-value"><?= h($row['miejsce_wolontariatu']) ?: '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Miejsce wolontariatu</div>
+        <div class="cv-value"><?= h($row['miejsce_wolontariatu']) ?: '—' ?></div>
       </div>
     </div>
   </div>
 
   <!-- Szczegóły wolontariatu -->
-  <div class="irow">
-    <div class="irow-head">
-      <div class="irow-head-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-heart-fill"></i></div>
-      <div class="irow-head-label">Szczegóły</div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-heart-fill"></i></div>
+      <span class="cv-section-title">Szczegóły wolontariatu</span>
     </div>
-    <div class="irow-body">
-      <div class="ifield-full">
-        <div class="detail-label">Przedmiot porozumienia</div>
-        <div class="detail-value"><?= nl2br(h($row['przedmiot_porozumienia'])) ?: '—' ?></div>
+    <div class="cv-fields">
+      <div class="cv-field-full">
+        <div class="cv-label">Przedmiot porozumienia</div>
+        <div class="cv-value"><?= nl2br(h($row['przedmiot_porozumienia'])) ?: '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Godzin / tydzień</div>
-        <div class="detail-value"><?= ($row['godzin_tygodniowo'] !== null && $row['godzin_tygodniowo'] !== '') ? h($row['godzin_tygodniowo']) . ' h' : '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Godzin / tydzień</div>
+        <div class="cv-value"><?= ($row['godzin_tygodniowo'] !== null && $row['godzin_tygodniowo'] !== '') ? h($row['godzin_tygodniowo']) . ' h' : '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Godzin przepracowanych</div>
-        <div class="detail-value"><?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h($row['godzin_przepracowanych']) . ' h' : '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Godzin przepracowanych</div>
+        <div class="cv-value"><?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h($row['godzin_przepracowanych']) . ' h' : '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Zwrot kosztów</div>
-        <div class="detail-value"><?= yn($row['zwrot_kosztow']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Zwrot kosztów</div>
+        <div class="cv-value"><?= yn($row['zwrot_kosztow']) ?></div>
       </div>
       <?php if ($row['zwrot_kosztow'] && $row['zwrot_kosztow_opis']): ?>
-      <div class="ifield-wide">
-        <div class="detail-label">Opis zwrotu kosztów</div>
-        <div class="detail-value"><?= h($row['zwrot_kosztow_opis']) ?></div>
+      <div class="cv-field-wide">
+        <div class="cv-label">Opis zwrotu kosztów</div>
+        <div class="cv-value"><?= h($row['zwrot_kosztow_opis']) ?></div>
       </div>
       <?php endif; ?>
     </div>
   </div>
 
   <!-- BHP i ubezpieczenia -->
-  <div class="irow">
-    <div class="irow-head">
-      <div class="irow-head-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-shield-check"></i></div>
-      <div class="irow-head-label">BHP<br>i ubezp.</div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-shield-check"></i></div>
+      <span class="cv-section-title">BHP i ubezpieczenia</span>
     </div>
-    <div class="irow-body">
-      <div class="ifield">
-        <div class="detail-label">Szkolenie BHP</div>
-        <div class="detail-value"><?= yn($row['szkolenie_bhp']) ?></div>
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Szkolenie BHP</div>
+        <div class="cv-value"><?= yn($row['szkolenie_bhp']) ?></div>
       </div>
       <?php if ($row['szkolenie_bhp']): ?>
-      <div class="ifield">
-        <div class="detail-label">Data szkolenia BHP</div>
-        <div class="detail-value"><?= date_pl($row['data_szkolenia_bhp']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Data szkolenia BHP</div>
+        <div class="cv-value"><?= date_pl($row['data_szkolenia_bhp']) ?></div>
       </div>
       <?php endif; ?>
-      <div class="ifield">
-        <div class="detail-label">Ubezpieczenie NNW</div>
-        <div class="detail-value"><?= yn($row['ubezpieczenie_nnw']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Ubezpieczenie NNW</div>
+        <div class="cv-value"><?= yn($row['ubezpieczenie_nnw']) ?></div>
       </div>
       <?php if ($row['ubezpieczenie_nnw'] && $row['numer_polisy_nnw']): ?>
-      <div class="ifield">
-        <div class="detail-label">Nr polisy NNW</div>
-        <div class="detail-value"><?= h($row['numer_polisy_nnw']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Nr polisy NNW</div>
+        <div class="cv-value"><?= h($row['numer_polisy_nnw']) ?></div>
       </div>
       <?php endif; ?>
-      <div class="ifield">
-        <div class="detail-label">Ubezpieczenie OC</div>
-        <div class="detail-value"><?= yn($row['ubezpieczenie_oc']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Ubezpieczenie OC</div>
+        <div class="cv-value"><?= yn($row['ubezpieczenie_oc']) ?></div>
       </div>
     </div>
   </div>
 
   <!-- Podpisanie -->
-  <div class="irow">
-    <div class="irow-head">
-      <div class="irow-head-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
-      <div class="irow-head-label">Podpi-<br>sanie</div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
+      <span class="cv-section-title">Podpisanie</span>
     </div>
-    <div class="irow-body">
-      <div class="ifield">
-        <div class="detail-label">Forma podpisania</div>
-        <div class="detail-value">
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Forma podpisania</div>
+        <div class="cv-value">
           <?php
           $forma_labels = [
             'papierowa'             => '<i class="bi bi-pen text-secondary"></i> Papierowa',
@@ -1029,30 +1007,30 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
         </div>
       </div>
       <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
-      <div class="ifield">
-        <div class="detail-label">Platforma</div>
-        <div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Platforma</div>
+        <div class="cv-value"><?= h($row['platforma_el']) ?: '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">ID dokumentu</div>
-        <div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">ID dokumentu</div>
+        <div class="cv-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Plik potwierdzenia</div>
-        <div class="detail-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Plik potwierdzenia</div>
+        <div class="cv-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
       </div>
       <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
-      <div class="ifield">
-        <div class="detail-label">Dostawca (TSP)</div>
-        <div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Dostawca (TSP)</div>
+        <div class="cv-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Nr seryjny certyfikatu</div>
-        <div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Nr seryjny certyfikatu</div>
+        <div class="cv-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div>
       </div>
-      <div class="ifield">
-        <div class="detail-label">Ważność certyfikatu</div>
-        <div class="detail-value">
+      <div class="cv-field">
+        <div class="cv-label">Ważność certyfikatu</div>
+        <div class="cv-value">
           <?php
           $waz = $row['epodpis_data_waznosci'] ?? '';
           if ($waz) {
@@ -1075,15 +1053,15 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
   $all_reps = org_representatives();
   ?>
   <?php if ($all_reps || $rep): ?>
-  <div class="irow">
-    <div class="irow-head">
-      <div class="irow-head-icon" style="background:#F0FDF4;color:#16a34a"><i class="bi bi-person-badge-fill"></i></div>
-      <div class="irow-head-label">Podpisu-<br>jący</div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16a34a"><i class="bi bi-person-badge-fill"></i></div>
+      <span class="cv-section-title">Podpisujący</span>
     </div>
-    <div class="irow-body">
-      <div class="ifield">
-        <div class="detail-label">Ze strony organizacji</div>
-        <div class="detail-value">
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Ze strony organizacji</div>
+        <div class="cv-value">
           <?php if ($rep): ?>
           <strong><?= h($rep['name']) ?></strong>
           <?php if ($rep['title']): ?><span class="text-muted small"> — <?= h($rep['title']) ?></span><?php endif; ?>
@@ -1105,42 +1083,38 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
   <?php endif; ?>
 
   <?php if ($row['uwagi']): ?>
-  <div class="irow">
-    <div class="irow-head">
-      <div class="irow-head-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
-      <div class="irow-head-label">Uwagi</div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
+      <span class="cv-section-title">Uwagi</span>
     </div>
-    <div class="irow-body">
-      <div class="ifield-full">
-        <div class="detail-value" style="font-size:.88rem;color:#374151"><?= nl2br(h($row['uwagi'])) ?></div>
-      </div>
-    </div>
+    <div class="cv-value" style="font-size:.88rem;color:#374151"><?= nl2br(h($row['uwagi'])) ?></div>
   </div>
   <?php endif; ?>
 
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
-  <div class="irow">
-    <div class="irow-head">
-      <div class="irow-head-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
-      <div class="irow-head-label">Numery<br>ref.</div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
+      <span class="cv-section-title">Numery referencyjne</span>
     </div>
-    <div class="irow-body">
+    <div class="cv-fields">
       <?php if ($row['nr_roboczy']): ?>
-      <div class="ifield">
-        <div class="detail-label">Nr roboczy</div>
-        <div class="detail-value"><?= h($row['nr_roboczy']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Nr roboczy</div>
+        <div class="cv-value"><?= h($row['nr_roboczy']) ?></div>
       </div>
       <?php endif; ?>
       <?php if ($row['nr_system']): ?>
-      <div class="ifield">
-        <div class="detail-label">Nr ogólny (webNGO)</div>
-        <div class="detail-value"><?= h($row['nr_system']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Nr ogólny (webNGO)</div>
+        <div class="cv-value"><?= h($row['nr_system']) ?></div>
       </div>
       <?php endif; ?>
       <?php if ($row['nr_rejestru']): ?>
-      <div class="ifield">
-        <div class="detail-label">Nr rejestru</div>
-        <div class="detail-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Nr rejestru</div>
+        <div class="cv-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div>
       </div>
       <?php endif; ?>
     </div>
@@ -1154,25 +1128,38 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
      ════════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-pane<?= ($_tab==='wolontariusz'||$_tab==='all')?' active':'' ?>" id="tab-wolontariusz" role="tabpanel">
 
-  <div class="row g-3">
-  <div class="col-lg-8">
-
-    <!-- Dane osobowe -->
-    <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane osobowe</div>
-    <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-6"><div class="detail-label">Imię i nazwisko</div><div class="detail-value fw-semibold"><?= h($row['imie_nazwisko']) ?: '—' ?></div></div>
-      <div class="col-md-3"><div class="detail-label">PESEL</div><div class="detail-value font-monospace"><?= h($row['pesel']) ?: '—' ?></div></div>
-      <div class="col-md-3"><div class="detail-label">Data urodzenia</div><div class="detail-value"><?= date_pl($row['data_urodzenia']) ?></div></div>
-      <div class="col-md-8"><div class="detail-label">Adres zamieszkania</div><div class="detail-value"><?= address_format($row, true) ?: '—' ?></div></div>
-      <div class="col-md-4"><div class="detail-label">Telefon</div>
-        <div class="detail-value">
+  <!-- Dane osobowe -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
+      <span class="cv-section-title">Dane osobowe</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field-wide">
+        <div class="cv-label">Imię i nazwisko</div>
+        <div class="cv-value fw-semibold"><?= h($row['imie_nazwisko']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">PESEL</div>
+        <div class="cv-value font-monospace"><?= h($row['pesel']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Data urodzenia</div>
+        <div class="cv-value"><?= date_pl($row['data_urodzenia']) ?></div>
+      </div>
+      <div class="cv-field-wide">
+        <div class="cv-label">Adres zamieszkania</div>
+        <div class="cv-value"><?= address_format($row, true) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Telefon</div>
+        <div class="cv-value">
           <?= $row['telefon'] ? '<a href="tel:' . h($row['telefon']) . '">' . h($row['telefon']) . '</a>' : '—' ?>
         </div>
       </div>
-      <div class="col-md-6"><div class="detail-label">Adres e-mail</div>
-        <div class="detail-value">
+      <div class="cv-field-wide">
+        <div class="cv-label">Adres e-mail</div>
+        <div class="cv-value">
           <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
 
           <?php if ($row['email'] && can_edit()): ?>
@@ -1216,32 +1203,38 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
           <?php endif; ?>
         </div>
       </div>
-      <div class="col-md-3"><div class="detail-label">Niepełnoletni</div><div class="detail-value"><?= yn($row['niepelnoletni']) ?></div></div>
+      <div class="cv-field">
+        <div class="cv-label">Niepełnoletni</div>
+        <div class="cv-value"><?= yn($row['niepelnoletni']) ?></div>
+      </div>
       <?php if ($row['niepelnoletni'] && $row['zgoda_opiekuna']): ?>
-      <div class="col-md-3"><div class="detail-label">Zgoda opiekuna</div><div class="detail-value"><?= upload_link($row['zgoda_opiekuna']) ?></div></div>
+      <div class="cv-field">
+        <div class="cv-label">Zgoda opiekuna</div>
+        <div class="cv-value"><?= upload_link($row['zgoda_opiekuna']) ?></div>
+      </div>
       <?php endif; ?>
 
       <?php if ($row['niepelnoletni'] && ($row['rodzic_imie_nazwisko'] || $row['rodzic_email'])): ?>
-      <div class="col-12 mt-1">
+      <div class="cv-field-full mt-1">
         <div class="border rounded p-2 bg-warning-subtle small">
           <div class="fw-semibold mb-1 text-warning-emphasis">
             <i class="bi bi-person-hearts"></i> Rodzic / opiekun prawny
           </div>
-          <div class="row g-2">
+          <div class="d-flex flex-wrap gap-3">
             <?php if ($row['rodzic_imie_nazwisko']): ?>
-            <div class="col-md-4">
+            <div>
               <span class="text-muted">Imię i nazwisko</span><br>
               <strong><?= h($row['rodzic_imie_nazwisko']) ?></strong>
             </div>
             <?php endif; ?>
             <?php if ($row['rodzic_email']): ?>
-            <div class="col-md-4">
+            <div>
               <span class="text-muted">E-mail</span><br>
               <a href="mailto:<?= h($row['rodzic_email']) ?>"><?= h($row['rodzic_email']) ?></a>
             </div>
             <?php endif; ?>
             <?php if ($row['rodzic_telefon']): ?>
-            <div class="col-md-4">
+            <div>
               <span class="text-muted">Telefon</span><br>
               <a href="tel:<?= h($row['rodzic_telefon']) ?>"><?= h($row['rodzic_telefon']) ?></a>
             </div>
@@ -1252,65 +1245,79 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
       <?php endif; ?>
 
       <?php if ($row['adres_linia1'] || $row['adres_odbiorca']): ?>
-      <div class="col-12"><hr class="my-1"></div>
-      <div class="col-12"><div class="detail-label"><i class="bi bi-mailbox"></i> Adres do korespondencji</div></div>
-      <div class="col-md-6"><div class="detail-label">Odbiorca</div><div class="detail-value"><?= h($row['adres_odbiorca']) ?: h($row['imie_nazwisko']) ?: '—' ?></div></div>
-      <div class="col-md-6"><div class="detail-label">Kraj</div><div class="detail-value"><?= h($row['adres_kraj']) ?: 'PL' ?></div></div>
-      <div class="col-md-8"><div class="detail-label">Adres linia 1</div><div class="detail-value"><?= h($row['adres_linia1']) ?: '—' ?></div></div>
-      <?php if ($row['adres_linia2']): ?>
-      <div class="col-md-4"><div class="detail-label">Adres linia 2</div><div class="detail-value"><?= h($row['adres_linia2']) ?></div></div>
-      <?php endif; ?>
-      <div class="col-md-4"><div class="detail-label">Kod pocztowy</div><div class="detail-value font-monospace"><?= h($row['adres_kod_pocztowy']) ?: '—' ?></div></div>
-      <div class="col-md-8"><div class="detail-label">Miasto</div><div class="detail-value"><?= h($row['adres_miasto']) ?: '—' ?></div></div>
-      <?php endif; ?>
-    </div>
-    </div>
-    </div>
-
-    <!-- Godziny pracy -->
-    <div class="card shadow-sm">
-    <div class="card-header fw-semibold"><i class="bi bi-clock-history"></i> Godziny pracy</div>
-    <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-4">
-        <div class="text-center p-3 border rounded">
-          <div class="fs-2 fw-bold text-primary">
-            <?= ($row['godzin_tygodniowo'] !== null && $row['godzin_tygodniowo'] !== '') ? h($row['godzin_tygodniowo']) : '—' ?>
-          </div>
-          <div class="text-muted small">godz. / tydzień</div>
-        </div>
+      <div class="cv-field-full"><hr class="my-1">
+        <div class="cv-label"><i class="bi bi-mailbox"></i> Adres do korespondencji</div>
       </div>
-      <div class="col-md-4">
-        <div class="text-center p-3 border rounded">
-          <div class="fs-2 fw-bold text-success">
-            <?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h($row['godzin_przepracowanych']) : '—' ?>
-          </div>
-          <div class="text-muted small">godz. przepracowanych</div>
+      <div class="cv-field">
+        <div class="cv-label">Odbiorca</div>
+        <div class="cv-value"><?= h($row['adres_odbiorca']) ?: h($row['imie_nazwisko']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Kraj</div>
+        <div class="cv-value"><?= h($row['adres_kraj']) ?: 'PL' ?></div>
+      </div>
+      <div class="cv-field-wide">
+        <div class="cv-label">Adres linia 1</div>
+        <div class="cv-value"><?= h($row['adres_linia1']) ?: '—' ?></div>
+      </div>
+      <?php if ($row['adres_linia2']): ?>
+      <div class="cv-field">
+        <div class="cv-label">Adres linia 2</div>
+        <div class="cv-value"><?= h($row['adres_linia2']) ?></div>
+      </div>
+      <?php endif; ?>
+      <div class="cv-field">
+        <div class="cv-label">Kod pocztowy</div>
+        <div class="cv-value font-monospace"><?= h($row['adres_kod_pocztowy']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Miasto</div>
+        <div class="cv-value"><?= h($row['adres_miasto']) ?: '—' ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Godziny pracy -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-clock-history"></i></div>
+      <span class="cv-section-title">Godziny pracy</span>
+    </div>
+    <div class="d-flex flex-wrap gap-3">
+      <div class="text-center p-3 border rounded" style="min-width:120px">
+        <div class="fs-2 fw-bold text-primary">
+          <?= ($row['godzin_tygodniowo'] !== null && $row['godzin_tygodniowo'] !== '') ? h($row['godzin_tygodniowo']) : '—' ?>
         </div>
+        <div class="text-muted small">godz. / tydzień</div>
+      </div>
+      <div class="text-center p-3 border rounded" style="min-width:120px">
+        <div class="fs-2 fw-bold text-success">
+          <?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h($row['godzin_przepracowanych']) : '—' ?>
+        </div>
+        <div class="text-muted small">godz. przepracowanych</div>
       </div>
       <?php if ($row['godzin_tygodniowo'] && $row['data_rozpoczecia'] && !$row['bezterminowa'] && $row['data_zakonczenia']): ?>
       <?php
         $tygodni = round((strtotime($row['data_zakonczenia']) - strtotime($row['data_rozpoczecia'])) / (7 * 86400));
         $planowane = $tygodni * floatval($row['godzin_tygodniowo']);
       ?>
-      <div class="col-md-4">
-        <div class="text-center p-3 border rounded border-secondary">
-          <div class="fs-2 fw-bold text-secondary"><?= number_format($planowane, 0) ?></div>
-          <div class="text-muted small">godz. planowanych (<?= $tygodni ?> tyg.)</div>
-        </div>
+      <div class="text-center p-3 border rounded border-secondary" style="min-width:120px">
+        <div class="fs-2 fw-bold text-secondary"><?= number_format($planowane, 0) ?></div>
+        <div class="text-muted small">godz. planowanych (<?= $tygodni ?> tyg.)</div>
       </div>
       <?php endif; ?>
     </div>
-    </div>
-    </div>
-
   </div>
-  <div class="col-lg-4">
 
-    <?php if ($person): ?>
-    <div class="card shadow-sm mb-3 border-primary border-opacity-25">
-    <div class="card-header fw-semibold text-primary"><i class="bi bi-person-vcard"></i> Karta osoby</div>
-    <div class="card-body small">
+  <?php if ($person): ?>
+  <!-- Karta osoby -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
+      <span class="cv-section-title">Karta osoby</span>
+    </div>
+    <div class="small">
       <div class="fw-semibold mb-1">
         <a href="<?= APP_URL ?>/persons/view.php?id=<?= $person['id'] ?>" class="text-decoration-none">
           <?= h($person['imie_nazwisko']) ?>
@@ -1326,21 +1333,29 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
         </a>
       </div>
     </div>
+  </div>
+  <?php elseif ($unit_name): ?>
+  <!-- Komórka organizacyjna -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-diagram-3"></i></div>
+      <span class="cv-section-title">Komórka organizacyjna</span>
     </div>
-    <?php elseif ($unit_name): ?>
-    <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-diagram-3"></i> Komórka organizacyjna</div>
-    <div class="card-body small"><span class="badge bg-secondary"><?= h($unit_name) ?></span></div>
-    </div>
-    <?php endif; ?>
+    <span class="badge bg-secondary"><?= h($unit_name) ?></span>
+  </div>
+  <?php endif; ?>
 
-    <?php if ($linked_action || $linked_grant): ?>
-    <div class="card shadow-sm mb-3 border-success border-opacity-25">
-    <div class="card-header fw-semibold text-success"><i class="bi bi-link-45deg"></i> Powiązania</div>
-    <div class="card-body small">
+  <?php if ($linked_action || $linked_grant): ?>
+  <!-- Powiązania -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-link-45deg"></i></div>
+      <span class="cv-section-title">Powiązania</span>
+    </div>
+    <div class="small">
       <?php if ($linked_action): ?>
       <div class="mb-2">
-        <div class="text-muted mb-1">Działanie</div>
+        <div class="cv-label">Działanie</div>
         <a href="<?= APP_URL ?>/actions/view.php?id=<?= $linked_action['id'] ?>" class="text-decoration-none fw-semibold">
           <i class="bi bi-calendar-event me-1 text-success"></i><?= h($linked_action['nazwa']) ?>
         </a>
@@ -1349,7 +1364,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
       <?php endif; ?>
       <?php if ($linked_grant): ?>
       <div class="<?= $linked_action ? 'border-top pt-2' : '' ?>">
-        <div class="text-muted mb-1">Grant</div>
+        <div class="cv-label">Grant</div>
         <a href="<?= APP_URL ?>/grants/view.php?id=<?= $linked_grant['id'] ?>" class="text-decoration-none fw-semibold">
           <i class="bi bi-cash-coin me-1 text-success"></i><?= h($linked_grant['nazwa']) ?>
         </a>
@@ -1357,61 +1372,74 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
       </div>
       <?php endif; ?>
     </div>
-    </div>
-    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
-    <!-- Pliki -->
-    <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
-    <div class="card-body">
-      <div class="mb-2"><div class="detail-label">Plik porozumienia</div><?= upload_link($row['plik_umowy']) ?></div>
+  <!-- Pliki -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-paperclip"></i></div>
+      <span class="cv-section-title">Pliki</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Plik porozumienia</div>
+        <div class="cv-value"><?= upload_link($row['plik_umowy']) ?></div>
+      </div>
       <?php if ($row['plik_potwierdzenia']): ?>
-      <div class="mb-2"><div class="detail-label">Potwierdzenie podpisania</div><?= upload_link($row['plik_potwierdzenia']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Potwierdzenie podpisania</div>
+        <div class="cv-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+      </div>
       <?php endif; ?>
       <?php if ($row['zgoda_opiekuna']): ?>
-      <div class="mb-2"><div class="detail-label">Zgoda opiekuna</div><?= upload_link($row['zgoda_opiekuna']) ?></div>
+      <div class="cv-field">
+        <div class="cv-label">Zgoda opiekuna</div>
+        <div class="cv-value"><?= upload_link($row['zgoda_opiekuna']) ?></div>
+      </div>
       <?php endif; ?>
     </div>
-    </div>
+  </div>
 
-    <!-- Opiekun umowy -->
-    <?php $sup = supervisor_get($TYPE, $id); ?>
-    <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-person-check"></i> Opiekun umowy</div>
-    <div class="card-body">
-      <?php if ($sup): ?>
-        <div class="fw-semibold small"><?= h($sup['user_name']) ?></div>
-        <div class="text-muted" style="font-size:.8rem"><?= h($sup['user_email']) ?></div>
-      <?php else: ?>
-        <div class="text-muted small">Nieprzypisany</div>
-      <?php endif; ?>
-      <?php if (can_edit()): ?>
-      <form method="post" class="mt-2">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_set_supervisor" value="1">
-        <select name="sup_user_id" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">— brak —</option>
-          <?php foreach (supervisors_all_editors() as $_se): ?>
-          <option value="<?= (int)$_se['id'] ?>" <?= ($sup && (int)$sup['user_id']===(int)$_se['id']) ? 'selected' : '' ?>>
-            <?= h($_se['name']) ?>
-          </option>
-          <?php endforeach; ?>
-        </select>
-      </form>
-      <?php endif; ?>
+  <!-- Opiekun umowy -->
+  <?php $sup = supervisor_get($TYPE, $id); ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-person-check"></i></div>
+      <span class="cv-section-title">Opiekun umowy</span>
     </div>
-    </div>
+    <?php if ($sup): ?>
+      <div class="fw-semibold small"><?= h($sup['user_name']) ?></div>
+      <div class="text-muted" style="font-size:.8rem"><?= h($sup['user_email']) ?></div>
+    <?php else: ?>
+      <div class="text-muted small">Nieprzypisany</div>
+    <?php endif; ?>
+    <?php if (can_edit()): ?>
+    <form method="post" class="mt-2">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_set_supervisor" value="1">
+      <select name="sup_user_id" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">— brak —</option>
+        <?php foreach (supervisors_all_editors() as $_se): ?>
+        <option value="<?= (int)$_se['id'] ?>" <?= ($sup && (int)$sup['user_id']===(int)$_se['id']) ? 'selected' : '' ?>>
+          <?= h($_se['name']) ?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+    </form>
+    <?php endif; ?>
+  </div>
 
-    <!-- Historia zmian -->
-    <div class="card shadow-sm">
-    <div class="card-header fw-semibold">Metadata</div>
-    <div class="card-body small text-muted">
+  <!-- Metadata -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-info-circle"></i></div>
+      <span class="cv-section-title">Metadata</span>
+    </div>
+    <div class="small text-muted">
       <div class="mb-1"><i class="bi bi-calendar-plus"></i> Dodano: <?= date_pl($row['created_at']) ?></div>
       <div><i class="bi bi-calendar-check"></i> Zmodyfikowano: <?= date_pl($row['updated_at']) ?></div>
     </div>
-    </div>
-
-  </div>
   </div>
 
 </div><!-- /tab-wolontariusz -->
@@ -1422,21 +1450,23 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <div class="tab-pane<?= ($_tab==='docs'||$_tab==='all')?' active':'' ?>" id="tab-docs" role="tabpanel">
 
   <!-- ── Dokumenty umowy ─────────────────────────────────────────────────── -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-file-earmark-text"></i> Dokumenty umowy i osoby</span>
-    <?php if (can_edit()): ?>
-    <button class="btn btn-sm btn-outline-primary" type="button"
-            data-bs-toggle="collapse" data-bs-target="#uploadDocCollapse">
-      <i class="bi bi-upload me-1"></i>Dodaj plik
-    </button>
-    <?php endif; ?>
-  </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-earmark-text"></i></div>
+      <span class="cv-section-title">Dokumenty umowy i osoby</span>
+      <?php if (can_edit()): ?>
+      <div class="cv-section-action">
+        <button class="btn btn-sm btn-outline-primary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#uploadDocCollapse">
+          <i class="bi bi-upload me-1"></i>Dodaj plik
+        </button>
+      </div>
+      <?php endif; ?>
+    </div>
 
-  <?php if (can_edit()): ?>
-  <div class="collapse" id="uploadDocCollapse">
-    <div class="card-body border-bottom">
-      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+    <?php if (can_edit()): ?>
+    <div class="collapse mb-3" id="uploadDocCollapse">
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end border-bottom pb-3">
         <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="upload_contract_doc">
         <div class="col-sm-6">
@@ -1454,194 +1484,198 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
         </div>
       </form>
     </div>
-  </div>
-  <?php endif; ?>
+    <?php endif; ?>
 
-  <?php
-  // Pliki uploadowane ręcznie
-  $_cdocs = db_all(
-      "SELECT * FROM contract_extra_docs WHERE contract_type=? AND contract_id=? ORDER BY uploaded_at DESC",
-      [$TYPE, $id]
-  );
-  // Szablony dostępne dla tego typu
-  $_cte_templates = cte_list($TYPE);
-  ?>
+    <?php
+    // Pliki uploadowane ręcznie
+    $_cdocs = db_all(
+        "SELECT * FROM contract_extra_docs WHERE contract_type=? AND contract_id=? ORDER BY uploaded_at DESC",
+        [$TYPE, $id]
+    );
+    // Szablony dostępne dla tego typu
+    $_cte_templates = cte_list($TYPE);
+    ?>
 
-  <div class="table-responsive">
-  <table class="table table-sm align-middle mb-0">
-    <thead class="table-light">
-      <tr>
-        <th class="ps-3">Dokument</th>
-        <th>Typ</th>
-        <th>Data</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
+    <div class="table-responsive">
+    <table class="cv-table">
+      <thead>
+        <tr>
+          <th>Dokument</th>
+          <th>Typ</th>
+          <th>Data</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
 
-      <?php
-      // Wbudowane pliki umowy
-      $builtin = [
-          ['label' => 'Plik porozumienia',       'path' => $row['plik_umowy']         ?? ''],
-          ['label' => 'Potwierdzenie podpisania', 'path' => $row['plik_potwierdzenia'] ?? ''],
-          ['label' => 'Zgoda opiekuna',           'path' => $row['zgoda_opiekuna']     ?? ''],
-      ];
-      foreach ($builtin as $b):
-          if (!$b['path']) continue;
-      ?>
-      <tr>
-        <td class="ps-3"><i class="bi bi-file-earmark-pdf text-danger me-1"></i><?= h($b['label']) ?></td>
-        <td><span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.68rem">Skan</span></td>
-        <td class="small text-muted">—</td>
-        <td class="text-end pe-3">
-          <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" target="_blank"
-             class="btn btn-sm btn-outline-secondary py-0 px-2">
-            <i class="bi bi-eye"></i>
-          </a>
-          <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" download
-             class="btn btn-sm btn-outline-primary py-0 px-2">
-            <i class="bi bi-download"></i>
-          </a>
-        </td>
-      </tr>
+        <?php
+        // Wbudowane pliki umowy
+        $builtin = [
+            ['label' => 'Plik porozumienia',       'path' => $row['plik_umowy']         ?? ''],
+            ['label' => 'Potwierdzenie podpisania', 'path' => $row['plik_potwierdzenia'] ?? ''],
+            ['label' => 'Zgoda opiekuna',           'path' => $row['zgoda_opiekuna']     ?? ''],
+        ];
+        foreach ($builtin as $b):
+            if (!$b['path']) continue;
+        ?>
+        <tr>
+          <td><i class="bi bi-file-earmark-pdf text-danger me-1"></i><?= h($b['label']) ?></td>
+          <td><span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.68rem">Skan</span></td>
+          <td class="small text-muted">—</td>
+          <td class="text-end">
+            <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" target="_blank"
+               class="btn btn-sm btn-outline-secondary py-0 px-2">
+              <i class="bi bi-eye"></i>
+            </a>
+            <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" download
+               class="btn btn-sm btn-outline-primary py-0 px-2">
+              <i class="bi bi-download"></i>
+            </a>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+
+        <?php foreach ($_cdocs as $cd): ?>
+        <tr>
+          <td>
+            <i class="bi bi-file-earmark me-1 text-muted"></i>
+            <?= h($cd['label'] ?: basename($cd['stored_path'])) ?>
+          </td>
+          <td><span class="badge bg-info bg-opacity-25 text-info" style="font-size:.68rem">Upload</span></td>
+          <td class="small text-muted"><?= date('d.m.Y', strtotime($cd['uploaded_at'])) ?></td>
+          <td class="text-end">
+            <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" target="_blank"
+               class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-eye"></i></a>
+            <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" download
+               class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-download"></i></a>
+            <?php if (can_edit()): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
+              <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="delete_contract_doc">
+              <input type="hidden" name="doc_id"  value="<?= $cd['id'] ?>">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash3"></i></button>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+
+        <?php if (!$builtin[0]['path'] && !$_cdocs): ?>
+        <tr><td colspan="4" class="text-center text-muted small py-3">Brak plików.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+    </div>
+
+    <?php if ($_cte_templates): ?>
+    <div class="mt-2 pt-2 border-top">
+      <span class="small fw-semibold text-muted me-2">Generuj z wzoru:</span>
+      <?php foreach ($_cte_templates as $tpl): ?>
+      <a href="<?= h(APP_URL . '/contracts/print_template.php?template_id=' . $tpl['id'] . '&contract_id=' . $id . '&type=' . $TYPE . '&preview=1') ?>"
+         target="_blank"
+         class="btn btn-sm btn-outline-secondary me-1 mb-1"
+         style="font-size:.75rem">
+        <i class="bi bi-file-earmark-text me-1"></i><?= h($tpl['name']) ?>
+      </a>
       <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
 
-      <?php foreach ($_cdocs as $cd): ?>
+  <!-- ── Pisma -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-envelope-paper"></i></div>
+      <span class="cv-section-title">Pisma</span>
+      <?php if (can_edit()): ?>
+      <div class="cv-section-action">
+        <a href="<?= APP_URL ?>/contracts/letters/add.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus-lg"></i> Dodaj pismo
+        </a>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php if ($_letters): ?>
+    <div class="table-responsive">
+    <table class="cv-table">
+      <thead>
+        <tr><th>Kierunek</th><th>Typ</th><th>Tytuł</th><th>Data</th><th>Strona</th><th></th></tr>
+      </thead>
+      <tbody>
+      <?php foreach ($_letters as $_l): ?>
       <tr>
-        <td class="ps-3">
-          <i class="bi bi-file-earmark me-1 text-muted"></i>
-          <?= h($cd['label'] ?: basename($cd['stored_path'])) ?>
+        <td><?= letter_direction_badge($_l['kierunek']) ?></td>
+        <td><?= letter_type_badge($_l['typ_pisma']) ?></td>
+        <td>
+          <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $_l['id'] ?>" class="text-decoration-none">
+            <?= h($_l['tytul']) ?>
+          </a>
+          <?php if ($_l['email_sent']): ?><i class="bi bi-envelope-check text-success ms-1" title="E-mail wysłany"></i><?php endif; ?>
+          <?php if ($_l['plik']): ?><i class="bi bi-paperclip text-muted ms-1" title="Z plikiem"></i><?php endif; ?>
         </td>
-        <td><span class="badge bg-info bg-opacity-25 text-info" style="font-size:.68rem">Upload</span></td>
-        <td class="small text-muted"><?= date('d.m.Y', strtotime($cd['uploaded_at'])) ?></td>
-        <td class="text-end pe-3">
-          <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" target="_blank"
-             class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-eye"></i></a>
-          <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" download
-             class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-download"></i></a>
-          <?php if (can_edit()): ?>
-          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
-            <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="delete_contract_doc">
-            <input type="hidden" name="doc_id"  value="<?= $cd['id'] ?>">
-            <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash3"></i></button>
-          </form>
+        <td class="small text-nowrap"><?= date_pl($_l['data_pisma']) ?></td>
+        <td class="small"><?= h($_l['kierunek'] === 'wychodzące' ? ($_l['odbiorca'] ?: '—') : ($_l['nadawca'] ?: '—')) ?></td>
+        <td class="text-end text-nowrap">
+          <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $_l['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+          <?php if ($_l['plik']): ?>
+          <a href="<?= h(letter_file_url($_l['plik'])) ?>" download class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>
           <?php endif; ?>
         </td>
       </tr>
       <?php endforeach; ?>
-
-      <?php if (!$builtin[0]['path'] && !$_cdocs): ?>
-      <tr><td colspan="4" class="text-center text-muted small py-3">Brak plików.</td></tr>
-      <?php endif; ?>
-    </tbody>
-  </table>
-  </div>
-
-  <?php if ($_cte_templates): ?>
-  <div class="card-footer bg-transparent py-2">
-    <span class="small fw-semibold text-muted me-2">Generuj z wzoru:</span>
-    <?php foreach ($_cte_templates as $tpl): ?>
-    <a href="<?= h(APP_URL . '/contracts/print_template.php?template_id=' . $tpl['id'] . '&contract_id=' . $id . '&type=' . $TYPE . '&preview=1') ?>"
-       target="_blank"
-       class="btn btn-sm btn-outline-secondary me-1 mb-1"
-       style="font-size:.75rem">
-      <i class="bi bi-file-earmark-text me-1"></i><?= h($tpl['name']) ?>
-    </a>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-
-  </div><!-- /card dokumenty -->
-
-  <!-- ── Pisma -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-envelope-paper"></i> Pisma</span>
-    <?php if (can_edit()): ?>
-    <a href="<?= APP_URL ?>/contracts/letters/add.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-plus-lg"></i> Dodaj pismo
-    </a>
+      </tbody>
+    </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted small">Brak pism dla tej umowy.</div>
     <?php endif; ?>
-  </div>
-  <?php if ($_letters): ?>
-  <div class="table-responsive">
-  <table class="table table-sm table-hover mb-0 align-middle">
-    <thead class="table-light">
-      <tr><th>Kierunek</th><th>Typ</th><th>Tytuł</th><th>Data</th><th>Strona</th><th></th></tr>
-    </thead>
-    <tbody>
-    <?php foreach ($_letters as $_l): ?>
-    <tr>
-      <td><?= letter_direction_badge($_l['kierunek']) ?></td>
-      <td><?= letter_type_badge($_l['typ_pisma']) ?></td>
-      <td>
-        <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $_l['id'] ?>" class="text-decoration-none">
-          <?= h($_l['tytul']) ?>
-        </a>
-        <?php if ($_l['email_sent']): ?><i class="bi bi-envelope-check text-success ms-1" title="E-mail wysłany"></i><?php endif; ?>
-        <?php if ($_l['plik']): ?><i class="bi bi-paperclip text-muted ms-1" title="Z plikiem"></i><?php endif; ?>
-      </td>
-      <td class="small text-nowrap"><?= date_pl($_l['data_pisma']) ?></td>
-      <td class="small"><?= h($_l['kierunek'] === 'wychodzące' ? ($_l['odbiorca'] ?: '—') : ($_l['nadawca'] ?: '—')) ?></td>
-      <td class="text-end text-nowrap">
-        <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $_l['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
-        <?php if ($_l['plik']): ?>
-        <a href="<?= h(letter_file_url($_l['plik'])) ?>" download class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>
-        <?php endif; ?>
-      </td>
-    </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-  </div>
-  <?php else: ?>
-  <div class="card-body text-muted small">Brak pism dla tej umowy.</div>
-  <?php endif; ?>
   </div>
 
   <!-- Zaświadczenia -->
-  <div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-award"></i> Zaświadczenia</span>
-    <?php if (!$cert_has_pending): ?>
-    <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-plus-lg"></i> Złóż wniosek
-    </a>
-    <?php else: ?>
-    <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Wniosek w toku</span>
-    <?php endif; ?>
-  </div>
-  <?php if ($cert_requests): ?>
-  <div class="table-responsive">
-  <table class="table table-sm table-hover mb-0">
-    <thead class="table-light"><tr><th>Wnioskodawca</th><th>Cel</th><th>Data</th><th>Status</th><th></th></tr></thead>
-    <tbody>
-    <?php foreach ($cert_requests as $cr): ?>
-    <tr>
-      <td><?= h($cr['requester_name']) ?></td>
-      <td class="small text-truncate" style="max-width:200px"><?= h($cr['cel']) ?></td>
-      <td class="small text-nowrap"><?= date_pl($cr['created_at']) ?></td>
-      <td><?= certificate_status_badge($cr['status']) ?></td>
-      <td class="text-end text-nowrap">
-        <?php if ($cr['status'] === 'oczekuje' && is_admin()): ?>
-        <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $cr['id'] ?>" class="btn btn-sm btn-success">
-          <i class="bi bi-award"></i> Wydaj
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-award"></i></div>
+      <span class="cv-section-title">Zaświadczenia</span>
+      <div class="cv-section-action">
+        <?php if (!$cert_has_pending): ?>
+        <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus-lg"></i> Złóż wniosek
         </a>
-        <?php elseif ($cr['status'] === 'wydane'): ?>
-        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success">
-          <i class="bi bi-printer"></i> Drukuj
-        </a>
+        <?php else: ?>
+        <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Wniosek w toku</span>
         <?php endif; ?>
-      </td>
-    </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-  </div>
-  <?php else: ?>
-  <div class="card-body text-muted small">Brak wniosków o zaświadczenia.</div>
-  <?php endif; ?>
+      </div>
+    </div>
+    <?php if ($cert_requests): ?>
+    <div class="table-responsive">
+    <table class="cv-table">
+      <thead><tr><th>Wnioskodawca</th><th>Cel</th><th>Data</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($cert_requests as $cr): ?>
+      <tr>
+        <td><?= h($cr['requester_name']) ?></td>
+        <td class="small text-truncate" style="max-width:200px"><?= h($cr['cel']) ?></td>
+        <td class="small text-nowrap"><?= date_pl($cr['created_at']) ?></td>
+        <td><?= certificate_status_badge($cr['status']) ?></td>
+        <td class="text-end text-nowrap">
+          <?php if ($cr['status'] === 'oczekuje' && is_admin()): ?>
+          <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $cr['id'] ?>" class="btn btn-sm btn-success">
+            <i class="bi bi-award"></i> Wydaj
+          </a>
+          <?php elseif ($cr['status'] === 'wydane'): ?>
+          <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-printer"></i> Drukuj
+          </a>
+          <?php endif; ?>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted small">Brak wniosków o zaświadczenia.</div>
+    <?php endif; ?>
   </div>
 
 </div><!-- /tab-docs -->
@@ -1652,174 +1686,192 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <div class="tab-pane<?= ($_tab==='obieg'||$_tab==='all')?' active':'' ?>" id="tab-obieg" role="tabpanel">
 
   <!-- Akceptacja -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-check2-circle"></i> Akceptacja</span>
-    <?php if ($approval): echo approval_badge($approval['status']); else: ?>
-    <span class="badge bg-secondary">Nie złożono</span>
-    <?php endif; ?>
-  </div>
-  <div class="card-body">
-
-  <?php if ($approval): ?>
-  <div class="row g-2 mb-3">
-    <div class="col-md-4"><div class="detail-label">Wnioskujący</div><div class="detail-value"><?= h($approval['requested_by_name'] ?? '—') ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data wniosku</div><div class="detail-value"><?= date_pl($approval['requested_at']) ?></div></div>
-    <?php if ($approval['decided_at']): ?>
-    <div class="col-md-4"><div class="detail-label">Data decyzji</div><div class="detail-value"><?= date_pl($approval['decided_at']) ?></div></div>
-    <?php if ($approval['decision_note']): ?>
-    <div class="col-12"><div class="detail-label">Uwaga</div><div class="detail-value"><?= h($approval['decision_note']) ?></div></div>
-    <?php endif; ?>
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
-
-  <?php if ($approval && $approval['status'] === 'oczekuje' && is_admin()): ?>
-  <form method="post" action="<?= APP_URL ?>/contracts/approvals/approve.php" class="mb-3">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <input type="hidden" name="approval_id" value="<?= $approval['id'] ?>">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-8">
-        <label class="form-label small">Uwaga (opcjonalne)</label>
-        <input type="text" name="decision_note" class="form-control form-control-sm">
-      </div>
-      <div class="col-auto">
-        <button name="decision" value="zaakceptowana" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Zaakceptuj</button>
-        <button name="decision" value="odrzucona" class="btn btn-sm btn-danger"><i class="bi bi-x-lg"></i> Odrzuć</button>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-check2-circle"></i></div>
+      <span class="cv-section-title">Akceptacja</span>
+      <div class="cv-section-action">
+        <?php if ($approval): echo approval_badge($approval['status']); else: ?>
+        <span class="badge bg-secondary">Nie złożono</span>
+        <?php endif; ?>
       </div>
     </div>
-  </form>
-  <?php endif; ?>
 
-  <div class="d-flex gap-2 flex-wrap">
-    <?php if (can_edit() && (!$approval || $approval['status'] !== 'oczekuje')): ?>
-    <form method="post" action="<?= APP_URL ?>/contracts/approvals/submit.php">
+    <?php if ($approval): ?>
+    <div class="cv-fields mb-3">
+      <div class="cv-field">
+        <div class="cv-label">Wnioskujący</div>
+        <div class="cv-value"><?= h($approval['requested_by_name'] ?? '—') ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Data wniosku</div>
+        <div class="cv-value"><?= date_pl($approval['requested_at']) ?></div>
+      </div>
+      <?php if ($approval['decided_at']): ?>
+      <div class="cv-field">
+        <div class="cv-label">Data decyzji</div>
+        <div class="cv-value"><?= date_pl($approval['decided_at']) ?></div>
+      </div>
+      <?php if ($approval['decision_note']): ?>
+      <div class="cv-field-full">
+        <div class="cv-label">Uwaga</div>
+        <div class="cv-value"><?= h($approval['decision_note']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($approval && $approval['status'] === 'oczekuje' && is_admin()): ?>
+    <form method="post" action="<?= APP_URL ?>/contracts/approvals/approve.php" class="mb-3">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="type" value="<?= $TYPE ?>">
-      <input type="hidden" name="id" value="<?= $id ?>">
-      <button class="btn btn-sm btn-outline-warning"><i class="bi bi-send"></i> Złóż do akceptacji</button>
+      <input type="hidden" name="approval_id" value="<?= $approval['id'] ?>">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label small">Uwaga (opcjonalne)</label>
+          <input type="text" name="decision_note" class="form-control form-control-sm">
+        </div>
+        <div class="col-auto">
+          <button name="decision" value="zaakceptowana" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Zaakceptuj</button>
+          <button name="decision" value="odrzucona" class="btn btn-sm btn-danger"><i class="bi bi-x-lg"></i> Odrzuć</button>
+        </div>
+      </div>
     </form>
     <?php endif; ?>
-    <?php if (is_admin()): ?>
-    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
-      <i class="bi bi-trash3"></i> Usuń umowę
-    </button>
-    <?php endif; ?>
-  </div>
 
-  </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <?php if (can_edit() && (!$approval || $approval['status'] !== 'oczekuje')): ?>
+      <form method="post" action="<?= APP_URL ?>/contracts/approvals/submit.php">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="type" value="<?= $TYPE ?>">
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <button class="btn btn-sm btn-outline-warning"><i class="bi bi-send"></i> Złóż do akceptacji</button>
+      </form>
+      <?php endif; ?>
+      <?php if (is_admin()): ?>
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+        <i class="bi bi-trash3"></i> Usuń umowę
+      </button>
+      <?php endif; ?>
+    </div>
   </div>
 
   <!-- Aneksy -->
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-file-earmark-diff"></i> Aneksy</span>
-    <?php if (can_edit()): ?>
-    <a href="<?= APP_URL ?>/contracts/approvals/amendments_submit.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-plus-lg"></i> Nowy aneks
-    </a>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-earmark-diff"></i></div>
+      <span class="cv-section-title">Aneksy</span>
+      <?php if (can_edit()): ?>
+      <div class="cv-section-action">
+        <a href="<?= APP_URL ?>/contracts/approvals/amendments_submit.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus-lg"></i> Nowy aneks
+        </a>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php if ($amendments): ?>
+    <div class="table-responsive">
+    <table class="cv-table">
+      <thead><tr><th>Nr</th><th>Opis zmian</th><th>Złożono</th><th>Status</th><th>Plik</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($amendments as $am): ?>
+      <tr>
+        <td><span class="badge bg-secondary">#<?= $am['numer_aneksu'] ?></span></td>
+        <td style="max-width:250px">
+          <?= h($am['opis_zmian']) ?>
+          <?php if (!empty($am['proposed_changes'])): ?>
+          <br><button class="btn btn-link btn-sm p-0 mt-1" type="button"
+            data-bs-toggle="collapse" data-bs-target="#am-changes-<?= $am['id'] ?>">
+            <i class="bi bi-table"></i> Pokaż zmiany pól
+          </button>
+          <div class="collapse mt-1" id="am-changes-<?= $am['id'] ?>">
+            <?= render_amendment_changes($am['proposed_changes']) ?>
+          </div>
+          <?php endif; ?>
+        </td>
+        <td><?= date_pl($am['requested_at']) ?></td>
+        <td><?= amendment_badge($am['status']) ?></td>
+        <td><?= upload_link($am['plik_aneksu'] ?? '') ?></td>
+        <td class="text-end">
+          <?php if ($am['status'] === 'oczekuje' && is_admin()): ?>
+          <form method="post" action="<?= APP_URL ?>/contracts/approvals/amendments_approve.php" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="amendment_id" value="<?= $am['id'] ?>">
+            <input type="hidden" name="decision" value="zaakceptowany">
+            <button class="btn btn-sm btn-success" title="Zatwierdź"><i class="bi bi-check-lg"></i></button>
+          </form>
+          <form method="post" action="<?= APP_URL ?>/contracts/approvals/amendments_approve.php" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="amendment_id" value="<?= $am['id'] ?>">
+            <input type="hidden" name="decision" value="odrzucony">
+            <button class="btn btn-sm btn-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
+          </form>
+          <?php endif; ?>
+          <?php if ($am['decision_note']): ?>
+          <span class="text-muted small ms-1" title="<?= h($am['decision_note']) ?>"><i class="bi bi-chat-text"></i></span>
+          <?php endif; ?>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted small">Brak aneksów.</div>
     <?php endif; ?>
-  </div>
-  <?php if ($amendments): ?>
-  <div class="table-responsive">
-  <table class="table table-sm table-hover mb-0">
-    <thead class="table-light"><tr><th>Nr</th><th>Opis zmian</th><th>Złożono</th><th>Status</th><th>Plik</th><th></th></tr></thead>
-    <tbody>
-    <?php foreach ($amendments as $am): ?>
-    <tr>
-      <td><span class="badge bg-secondary">#<?= $am['numer_aneksu'] ?></span></td>
-      <td style="max-width:250px">
-        <?= h($am['opis_zmian']) ?>
-        <?php if (!empty($am['proposed_changes'])): ?>
-        <br><button class="btn btn-link btn-sm p-0 mt-1" type="button"
-          data-bs-toggle="collapse" data-bs-target="#am-changes-<?= $am['id'] ?>">
-          <i class="bi bi-table"></i> Pokaż zmiany pól
-        </button>
-        <div class="collapse mt-1" id="am-changes-<?= $am['id'] ?>">
-          <?= render_amendment_changes($am['proposed_changes']) ?>
-        </div>
-        <?php endif; ?>
-      </td>
-      <td><?= date_pl($am['requested_at']) ?></td>
-      <td><?= amendment_badge($am['status']) ?></td>
-      <td><?= upload_link($am['plik_aneksu'] ?? '') ?></td>
-      <td class="text-end">
-        <?php if ($am['status'] === 'oczekuje' && is_admin()): ?>
-        <form method="post" action="<?= APP_URL ?>/contracts/approvals/amendments_approve.php" class="d-inline">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="amendment_id" value="<?= $am['id'] ?>">
-          <input type="hidden" name="decision" value="zaakceptowany">
-          <button class="btn btn-sm btn-success" title="Zatwierdź"><i class="bi bi-check-lg"></i></button>
-        </form>
-        <form method="post" action="<?= APP_URL ?>/contracts/approvals/amendments_approve.php" class="d-inline">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="amendment_id" value="<?= $am['id'] ?>">
-          <input type="hidden" name="decision" value="odrzucony">
-          <button class="btn btn-sm btn-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
-        </form>
-        <?php endif; ?>
-        <?php if ($am['decision_note']): ?>
-        <span class="text-muted small ms-1" title="<?= h($am['decision_note']) ?>"><i class="bi bi-chat-text"></i></span>
-        <?php endif; ?>
-      </td>
-    </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-  </div>
-  <?php else: ?>
-  <div class="card-body text-muted small">Brak aneksów.</div>
-  <?php endif; ?>
   </div>
 
   <!-- Wnioski o edycję -->
-  <div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-pencil-square"></i> Wnioski o edycję</span>
-    <?php if (can_edit() && !$has_pending_edit): ?>
-    <a href="<?= APP_URL ?>/contracts/approvals/changes_request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-pencil"></i> Złóż wniosek
-    </a>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-pencil-square"></i></div>
+      <span class="cv-section-title">Wnioski o edycję</span>
+      <?php if (can_edit() && !$has_pending_edit): ?>
+      <div class="cv-section-action">
+        <a href="<?= APP_URL ?>/contracts/approvals/changes_request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-pencil"></i> Złóż wniosek
+        </a>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php if ($edit_requests): ?>
+    <div class="table-responsive">
+    <table class="cv-table">
+      <thead><tr><th>Opis żądanej zmiany</th><th>Złożono przez</th><th>Data</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($edit_requests as $er): ?>
+      <tr>
+        <td class="text-truncate" style="max-width:280px"><?= h($er['opis_zmian']) ?></td>
+        <td><?= h($er['requested_by_name'] ?? '—') ?></td>
+        <td><?= date_pl($er['requested_at']) ?></td>
+        <td><?= edit_request_badge($er['status']) ?></td>
+        <td class="text-end">
+          <?php if ($er['status'] === 'oczekuje' && is_admin()): ?>
+          <form method="post" action="<?= APP_URL ?>/contracts/approvals/changes_approve.php" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="request_id" value="<?= $er['id'] ?>">
+            <input type="hidden" name="decision" value="zaakceptowany">
+            <button class="btn btn-sm btn-success" title="Zatwierdź"><i class="bi bi-check-lg"></i></button>
+          </form>
+          <form method="post" action="<?= APP_URL ?>/contracts/approvals/changes_approve.php" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="request_id" value="<?= $er['id'] ?>">
+            <input type="hidden" name="decision" value="odrzucony">
+            <button class="btn btn-sm btn-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
+          </form>
+          <?php endif; ?>
+          <?php if ($er['decision_note']): ?>
+          <span class="text-muted small" title="<?= h($er['decision_note']) ?>"><i class="bi bi-chat-text"></i></span>
+          <?php endif; ?>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted small">Brak wniosków o edycję.</div>
     <?php endif; ?>
-  </div>
-  <?php if ($edit_requests): ?>
-  <div class="table-responsive">
-  <table class="table table-sm table-hover mb-0">
-    <thead class="table-light"><tr><th>Opis żądanej zmiany</th><th>Złożono przez</th><th>Data</th><th>Status</th><th></th></tr></thead>
-    <tbody>
-    <?php foreach ($edit_requests as $er): ?>
-    <tr>
-      <td class="text-truncate" style="max-width:280px"><?= h($er['opis_zmian']) ?></td>
-      <td><?= h($er['requested_by_name'] ?? '—') ?></td>
-      <td><?= date_pl($er['requested_at']) ?></td>
-      <td><?= edit_request_badge($er['status']) ?></td>
-      <td class="text-end">
-        <?php if ($er['status'] === 'oczekuje' && is_admin()): ?>
-        <form method="post" action="<?= APP_URL ?>/contracts/approvals/changes_approve.php" class="d-inline">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="request_id" value="<?= $er['id'] ?>">
-          <input type="hidden" name="decision" value="zaakceptowany">
-          <button class="btn btn-sm btn-success" title="Zatwierdź"><i class="bi bi-check-lg"></i></button>
-        </form>
-        <form method="post" action="<?= APP_URL ?>/contracts/approvals/changes_approve.php" class="d-inline">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="request_id" value="<?= $er['id'] ?>">
-          <input type="hidden" name="decision" value="odrzucony">
-          <button class="btn btn-sm btn-danger" title="Odrzuć"><i class="bi bi-x-lg"></i></button>
-        </form>
-        <?php endif; ?>
-        <?php if ($er['decision_note']): ?>
-        <span class="text-muted small" title="<?= h($er['decision_note']) ?>"><i class="bi bi-chat-text"></i></span>
-        <?php endif; ?>
-      </td>
-    </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-  </div>
-  <?php else: ?>
-  <div class="card-body text-muted small">Brak wniosków o edycję.</div>
-  <?php endif; ?>
   </div>
 
 </div><!-- /tab-obieg -->
@@ -1829,18 +1881,21 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
      ════════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-pane<?= ($_tab==='m365'||$_tab==='all')?' active':'' ?>" id="tab-m365" role="tabpanel">
 
-  <div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-microsoft"></i> Microsoft 365</span>
-    <?php if ($row['m365_konto']): ?>
-    <span class="badge bg-<?= $row['m365_konto_aktywne'] ? 'success' : 'secondary' ?>">
-      <?= $row['m365_konto_aktywne'] ? 'Konto aktywne' : 'Konto nieaktywne' ?>
-    </span>
-    <?php else: ?>
-    <span class="badge bg-light text-dark border">Brak konta</span>
-    <?php endif; ?>
-  </div>
-  <div class="card-body">
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-microsoft"></i></div>
+      <span class="cv-section-title">Microsoft 365</span>
+      <div class="cv-section-action">
+        <?php if ($row['m365_konto']): ?>
+        <span class="badge bg-<?= $row['m365_konto_aktywne'] ? 'success' : 'secondary' ?>">
+          <?= $row['m365_konto_aktywne'] ? 'Konto aktywne' : 'Konto nieaktywne' ?>
+        </span>
+        <?php else: ?>
+        <span class="badge bg-light text-dark border">Brak konta</span>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div>
 
   <?php if ($row['m365_konto']): ?>
   <div class="row g-3 mb-3">
@@ -2030,7 +2085,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
   </p>
   <?php endif; ?>
 
-  </div>
+    </div>
   </div>
 
   <!-- ── Sekcja Canva ──────────────────────────────────────────────────────── -->
@@ -2040,26 +2095,27 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
   $canva_invited_at = $row['canva_invited_at'] ?? null;
   $has_m365_for_canva = !empty($row['m365_login']) || !empty($row['m365_user_id']);
   ?>
-  <div class="card shadow-sm mt-3">
-  <div class="card-header fw-semibold d-flex align-items-center justify-content-between"
-       style="background:#fdf4ff;border-bottom:1px solid #e9d5ff">
-    <span style="color:#7c3aed">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/></svg>
-      Canva Pro
-    </span>
-    <?php if ($canva_access && $canva_invited_at): ?>
-    <span class="badge bg-success" style="font-size:.72rem">
-      <i class="bi bi-check-lg me-1"></i>Zaproszony <?= date_pl($canva_invited_at) ?>
-    </span>
-    <?php elseif ($canva_access): ?>
-    <span class="badge bg-warning text-dark" style="font-size:.72rem">
-      <i class="bi bi-hourglass-split me-1"></i>Oczekuje na zaproszenie
-    </span>
-    <?php else: ?>
-    <span class="badge bg-light text-secondary border" style="font-size:.72rem">Brak dostępu</span>
-    <?php endif; ?>
-  </div>
-  <div class="card-body py-3">
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#fdf4ff;color:#7c3aed">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/></svg>
+      </div>
+      <span class="cv-section-title">Canva Pro</span>
+      <div class="cv-section-action">
+        <?php if ($canva_access && $canva_invited_at): ?>
+        <span class="badge bg-success" style="font-size:.72rem">
+          <i class="bi bi-check-lg me-1"></i>Zaproszony <?= date_pl($canva_invited_at) ?>
+        </span>
+        <?php elseif ($canva_access): ?>
+        <span class="badge bg-warning text-dark" style="font-size:.72rem">
+          <i class="bi bi-hourglass-split me-1"></i>Oczekuje na zaproszenie
+        </span>
+        <?php else: ?>
+        <span class="badge bg-light text-secondary border" style="font-size:.72rem">Brak dostępu</span>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div>
 
     <?php if (!$has_m365_for_canva): ?>
     <div class="alert alert-warning py-2 small mb-0 d-flex gap-2">
@@ -2125,7 +2181,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
     </form>
     <?php endif; ?>
 
-  </div>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -2171,28 +2227,29 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
   </div>
   <?php endif; ?>
 
-  <div class="row g-3">
-  <!-- Formularz nowego zadania -->
-  <div class="col-lg-5">
-    <div class="card shadow-sm">
-    <div class="card-header fw-semibold"><i class="bi bi-plus-circle text-primary me-1"></i> Dodaj na tablicę</div>
-    <div class="card-body">
-      <?php if (!$_contract_workspaces): ?>
-      <div class="alert alert-warning small py-2 mb-0">
-        <i class="bi bi-exclamation-triangle"></i>
-        Brak aktywnych obszarów (workspace). Utwórz obszar w
-        <a href="<?= APP_URL ?>/admin/tasks_workspaces.php">Zarządzaniu zadaniami</a>.
-      </div>
-      <?php else: ?>
-      <form method="post" id="addTaskForm">
-        <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
-        <input type="hidden" name="_add_task" value="1">
-        <div class="mb-2">
+  <!-- Dodaj na tablicę -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-plus-circle"></i></div>
+      <span class="cv-section-title">Dodaj na tablicę</span>
+    </div>
+    <?php if (!$_contract_workspaces): ?>
+    <div class="alert alert-warning small py-2 mb-0">
+      <i class="bi bi-exclamation-triangle"></i>
+      Brak aktywnych obszarów (workspace). Utwórz obszar w
+      <a href="<?= APP_URL ?>/admin/tasks_workspaces.php">Zarządzaniu zadaniami</a>.
+    </div>
+    <?php else: ?>
+    <form method="post" id="addTaskForm">
+      <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
+      <input type="hidden" name="_add_task" value="1">
+      <div class="row g-2">
+        <div class="col-12">
           <label class="form-label fw-semibold small">Tytuł zadania <span class="text-danger">*</span></label>
           <input type="text" name="task_title" class="form-control form-control-sm" required
                  value="<?= h($row['imie_nazwisko']) ?>" placeholder="np. Onboarding wolontariusza">
         </div>
-        <div class="mb-2">
+        <div class="col-md-6">
           <label class="form-label fw-semibold small">Obszar (workspace) <span class="text-danger">*</span></label>
           <select name="task_ws_id" id="wsSelect" class="form-select form-select-sm" required
                   onchange="loadLists(this.value)">
@@ -2202,48 +2259,51 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="mb-2">
+        <div class="col-md-6">
           <label class="form-label fw-semibold small">Kolumna (lista) <span class="text-danger">*</span></label>
           <select name="task_list_id" id="listSelect" class="form-select form-select-sm" required>
             <option value="">— najpierw wybierz obszar —</option>
           </select>
         </div>
-        <div class="row g-2 mb-2">
-          <div class="col-7">
-            <label class="form-label fw-semibold small">Priorytet</label>
-            <select name="task_priority" class="form-select form-select-sm">
-              <?php foreach ([1=>'Niski',2=>'Normalny',3=>'Wysoki',4=>'Krytyczny'] as $pv => $pl): ?>
-              <option value="<?= $pv ?>" <?= $pv === 2 ? 'selected' : '' ?>><?= $pl ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-5">
-            <label class="form-label fw-semibold small">Termin</label>
-            <input type="date" name="task_due" class="form-control form-control-sm">
-          </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Priorytet</label>
+          <select name="task_priority" class="form-select form-select-sm">
+            <?php foreach ([1=>'Niski',2=>'Normalny',3=>'Wysoki',4=>'Krytyczny'] as $pv => $pl): ?>
+            <option value="<?= $pv ?>" <?= $pv === 2 ? 'selected' : '' ?>><?= $pl ?></option>
+            <?php endforeach; ?>
+          </select>
         </div>
-        <div class="mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Termin</label>
+          <input type="date" name="task_due" class="form-control form-control-sm">
+        </div>
+        <div class="col-12">
           <label class="form-label fw-semibold small">Opis <span class="text-muted fw-normal">(opcjonalny)</span></label>
           <textarea name="task_desc" class="form-control form-control-sm" rows="2"
                     placeholder="Wolontariusz: <?= h($row['imie_nazwisko']) ?> · Umowa: <?= h($row['numer_umowy']) ?>"></textarea>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm w-100">
-          <i class="bi bi-plus-circle"></i> Dodaj na tablicę
-        </button>
-      </form>
-      <?php endif; ?>
-    </div>
-    </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle"></i> Dodaj na tablicę
+          </button>
+        </div>
+      </div>
+    </form>
+    <?php endif; ?>
+  </div>
 
-    <?php if (wa_enabled()): ?>
-    <!-- WhatsApp -->
-    <div class="card shadow-sm mt-3">
-    <div class="card-header fw-semibold"><i class="bi bi-whatsapp text-success me-1"></i> Wyślij na WhatsApp</div>
-    <div class="card-body">
-      <form method="post">
-        <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
-        <input type="hidden" name="_wa_send" value="1">
-        <div class="mb-2">
+  <?php if (wa_enabled()): ?>
+  <!-- WhatsApp -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-whatsapp"></i></div>
+      <span class="cv-section-title">Wyślij na WhatsApp</span>
+    </div>
+    <form method="post">
+      <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+      <input type="hidden" name="_wa_send" value="1">
+      <div class="row g-2">
+        <div class="col-md-5">
           <label class="form-label fw-semibold small">Numer telefonu</label>
           <div class="input-group input-group-sm">
             <span class="input-group-text">+48</span>
@@ -2252,76 +2312,76 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
                    placeholder="123456789" required>
           </div>
         </div>
-        <div class="mb-2">
+        <div class="col-md-7">
           <label class="form-label fw-semibold small">Wiadomość <span class="text-danger">*</span></label>
-          <textarea name="wa_message" class="form-control form-control-sm" rows="3" required
+          <textarea name="wa_message" class="form-control form-control-sm" rows="2" required
                     placeholder="Wpisz wiadomość WhatsApp..."></textarea>
         </div>
-        <button type="submit" class="btn btn-success btn-sm w-100">
-          <i class="bi bi-whatsapp"></i> Wyślij WhatsApp
-        </button>
-      </form>
-    </div>
-    </div>
-    <?php endif; ?>
-  </div><!-- /col-lg-5 -->
+        <div class="col-12">
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="bi bi-whatsapp"></i> Wyślij WhatsApp
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+  <?php endif; ?>
 
   <!-- Lista zadań powiązanych z umową -->
-  <div class="col-lg-7">
-    <div class="card shadow-sm">
-    <div class="card-header fw-semibold d-flex align-items-center justify-content-between">
-      <span><i class="bi bi-list-task me-1"></i> Powiązane zadania</span>
-      <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-kanban"></i> Otwórz tablicę
-      </a>
-    </div>
-    <div class="card-body p-0">
-      <?php if (!$_contract_tasks): ?>
-      <div class="text-center text-muted py-4 small">
-        <i class="bi bi-kanban display-6 opacity-25"></i><br>
-        Brak zadań powiązanych z tą umową.
-      </div>
-      <?php else: ?>
-      <div class="list-group list-group-flush">
-        <?php foreach ($_contract_tasks as $ct):
-          $p = TASK_PRIORITIES[$ct['priority']] ?? TASK_PRIORITIES[2];
-        ?>
-        <a href="<?= APP_URL ?>/tasks/detail.php?id=<?= (int)$ct['id'] ?>"
-           class="list-group-item list-group-item-action py-2 px-3 <?= $ct['completed_at'] ? 'text-muted' : '' ?>">
-          <div class="d-flex align-items-center gap-2">
-            <?php if ($ct['completed_at']): ?>
-            <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
-            <?php else: ?>
-            <i class="bi bi-circle text-muted flex-shrink-0"></i>
-            <?php endif; ?>
-            <div class="flex-grow-1 min-w-0">
-              <div class="fw-semibold small text-truncate <?= $ct['completed_at'] ? 'text-decoration-line-through' : '' ?>">
-                <?= h($ct['title']) ?>
-              </div>
-              <div class="d-flex align-items-center gap-2 mt-1">
-                <span class="badge bg-<?= $p['class'] ?> small" style="font-size:.65rem">
-                  <i class="bi <?= $p['icon'] ?> me-1"></i><?= $p['label'] ?>
-                </span>
-                <span class="text-muted" style="font-size:.75rem">
-                  <?= h($ct['workspace_name']) ?> › <?= h($ct['list_name']) ?>
-                </span>
-                <?php if ($ct['due_date']): ?>
-                <span class="text-muted" style="font-size:.75rem">
-                  <i class="bi bi-calendar2"></i> <?= date_pl($ct['due_date']) ?>
-                </span>
-                <?php endif; ?>
-              </div>
-            </div>
-            <i class="bi bi-arrow-right text-muted flex-shrink-0"></i>
-          </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-list-task"></i></div>
+      <span class="cv-section-title">Powiązane zadania</span>
+      <div class="cv-section-action">
+        <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-kanban"></i> Otwórz tablicę
         </a>
-        <?php endforeach; ?>
       </div>
-      <?php endif; ?>
     </div>
+    <?php if (!$_contract_tasks): ?>
+    <div class="text-center text-muted py-4 small">
+      <i class="bi bi-kanban display-6 opacity-25"></i><br>
+      Brak zadań powiązanych z tą umową.
     </div>
-  </div><!-- /col-lg-7 -->
-  </div><!-- /row -->
+    <?php else: ?>
+    <div class="list-group list-group-flush">
+      <?php foreach ($_contract_tasks as $ct):
+        $p = TASK_PRIORITIES[$ct['priority']] ?? TASK_PRIORITIES[2];
+      ?>
+      <a href="<?= APP_URL ?>/tasks/detail.php?id=<?= (int)$ct['id'] ?>"
+         class="list-group-item list-group-item-action py-2 px-0 <?= $ct['completed_at'] ? 'text-muted' : '' ?>"
+         style="border-left:none;border-right:none">
+        <div class="d-flex align-items-center gap-2">
+          <?php if ($ct['completed_at']): ?>
+          <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
+          <?php else: ?>
+          <i class="bi bi-circle text-muted flex-shrink-0"></i>
+          <?php endif; ?>
+          <div class="flex-grow-1 min-w-0">
+            <div class="fw-semibold small text-truncate <?= $ct['completed_at'] ? 'text-decoration-line-through' : '' ?>">
+              <?= h($ct['title']) ?>
+            </div>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <span class="badge bg-<?= $p['class'] ?> small" style="font-size:.65rem">
+                <i class="bi <?= $p['icon'] ?> me-1"></i><?= $p['label'] ?>
+              </span>
+              <span class="text-muted" style="font-size:.75rem">
+                <?= h($ct['workspace_name']) ?> › <?= h($ct['list_name']) ?>
+              </span>
+              <?php if ($ct['due_date']): ?>
+              <span class="text-muted" style="font-size:.75rem">
+                <i class="bi bi-calendar2"></i> <?= date_pl($ct['due_date']) ?>
+              </span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <i class="bi bi-arrow-right text-muted flex-shrink-0"></i>
+        </div>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
 
 </div><!-- /tab-tasks -->
 <?php endif; ?>
@@ -2361,8 +2421,8 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
   <!-- Lista wniosków -->
   <?php if ($_zwroty): ?>
   <div class="table-responsive">
-  <table class="table table-hover align-middle mb-0" style="font-size:.85rem">
-    <thead class="table-light">
+  <table class="cv-table">
+    <thead>
       <tr>
         <th>Numer wniosku</th>
         <th>Tytuł</th>
@@ -2398,10 +2458,10 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
     </tr>
     <?php endforeach; ?>
     </tbody>
-    <tfoot class="table-light">
+    <tfoot style="border-top:1px solid #E2E8F0">
       <tr>
-        <td colspan="2" class="fw-semibold small">Razem (wszystkie wnioski)</td>
-        <td class="text-end fw-bold"><?= number_format(array_sum(array_column($_zwroty,'kwota')),2,',',' ') ?> PLN</td>
+        <td colspan="2" class="fw-semibold small" style="padding:.55rem 0">Razem (wszystkie wnioski)</td>
+        <td class="text-end fw-bold" style="padding:.55rem 0"><?= number_format(array_sum(array_column($_zwroty,'kwota')),2,',',' ') ?> PLN</td>
         <td colspan="3"></td>
       </tr>
     </tfoot>
@@ -2444,7 +2504,6 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
      TAB PRZESYŁKI
      ════════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-pane<?= ($_tab==='shipments'||$_tab==='all')?' active':'' ?>" id="tab-shipments" role="tabpanel">
-  <div class="p-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="mb-0 fw-bold"><i class="bi bi-box-seam me-2 text-primary"></i>Przesyłki dla tej umowy</h6>
       <div class="d-flex gap-2">
@@ -2460,8 +2519,8 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
     </div>
 
     <?php if ($_ship_rows): ?>
-    <table class="table table-sm table-hover align-middle">
-      <thead class="table-light">
+    <table class="cv-table">
+      <thead>
         <tr><th>Kierunek</th><th>Cel</th><th>Nr WB</th><th>Status</th><th>Data</th><th></th></tr>
       </thead>
       <tbody>
@@ -2502,7 +2561,6 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
       <div class="mt-2 small">Brak przesyłek dla tej umowy.</div>
     </div>
     <?php endif; ?>
-  </div>
 </div><!-- /tab-shipments -->
 <?php endif; /* apaczka_enabled */ ?>
 
@@ -2511,7 +2569,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
      TAB GODZINY — Ewidencja godzin wolontariatu
      ════════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-pane<?= ($_tab==='godziny'||$_tab==='all')?' active':'' ?>" id="tab-godziny" role="tabpanel">
-  <div class="p-3">
+  <div>
 
     <?php
     $_ts_approved = ts_total_approved($id);
@@ -2551,8 +2609,8 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 
     <?php if ($ts_full): ?>
     <!-- Tabela wpisów -->
-    <table class="table table-sm table-hover align-middle">
-      <thead class="table-light">
+    <table class="cv-table">
+      <thead>
         <tr>
           <th>Miesiąc</th>
           <th class="text-end">Godziny</th>
@@ -2617,10 +2675,10 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
       <?php
       $ts_zatw = array_filter($ts_full, fn($r) => $r['status'] === 'zatwierdzone');
       if (count($ts_zatw) > 1): ?>
-      <tfoot class="table-secondary fw-bold">
+      <tfoot style="border-top:1px solid #E2E8F0">
         <tr>
-          <td>Razem zatwierdzonych</td>
-          <td class="text-end text-success"><?= number_format($_ts_approved, 1, ',', ' ') ?> h</td>
+          <td class="fw-bold" style="padding:.55rem 0">Razem zatwierdzonych</td>
+          <td class="text-end text-success fw-bold" style="padding:.55rem 0"><?= number_format($_ts_approved, 1, ',', ' ') ?> h</td>
           <td colspan="<?= can_edit() ? 3 : 2 ?>"></td>
         </tr>
       </tfoot>
