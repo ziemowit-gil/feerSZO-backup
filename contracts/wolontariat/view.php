@@ -900,7 +900,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 1 — UMOWA
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-umowa" style="<?= _tab_show('umowa') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='umowa'||$_tab==='all')?' show':'' ?>" id="tab-umowa" role="tabpanel">
 
   <!-- Dane podstawowe -->
   <div class="irow">
@@ -1152,7 +1152,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 2 — WOLONTARIUSZ
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-wolontariusz" style="<?= _tab_show('wolontariusz') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='wolontariusz'||$_tab==='all')?' show':'' ?>" id="tab-wolontariusz" role="tabpanel">
 
   <div class="row g-3">
   <div class="col-lg-8">
@@ -1419,7 +1419,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 3 — DOKUMENTY (Pisma + Zaświadczenia)
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-docs" style="<?= _tab_show('docs') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='docs'||$_tab==='all')?' show':'' ?>" id="tab-docs" role="tabpanel">
 
   <!-- ── Dokumenty umowy ─────────────────────────────────────────────────── -->
   <div class="card shadow-sm mb-3">
@@ -1649,7 +1649,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 4 — OBIEG (Akceptacja + Aneksy + Wnioski o edycję)
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-obieg" style="<?= _tab_show('obieg') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='obieg'||$_tab==='all')?' show':'' ?>" id="tab-obieg" role="tabpanel">
 
   <!-- Akceptacja -->
   <div class="card shadow-sm mb-3">
@@ -1827,7 +1827,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 5 — M365
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-m365" style="<?= _tab_show('m365') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='m365'||$_tab==='all')?' show':'' ?>" id="tab-m365" role="tabpanel">
 
   <div class="card shadow-sm">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
@@ -2134,7 +2134,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 6 — HISTORIA ZDARZEŃ
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-historia" style="<?= _tab_show('historia') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='historia'||$_tab==='all')?' show':'' ?>" id="tab-historia" role="tabpanel">
 
   <?php if ($audit_log): ?>
   <ul class="list-group list-group-flush rounded">
@@ -2161,7 +2161,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
      TAB — ZADANIA
      ════════════════════════════════════════════════════════════════════════════ -->
 <?php if ($_tasks_enabled && can_edit()): ?>
-<div id="tab-tasks" style="<?= _tab_show('tasks') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='tasks'||$_tab==='all')?' show':'' ?>" id="tab-tasks" role="tabpanel">
   <a id="tab-tasks-anchor"></a>
 
   <?php if ($_wa_send_result): ?>
@@ -2327,7 +2327,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <?php endif; ?>
 
 <!-- ══ TAB: Zwroty kosztów ═══════════════════════════════════════════════════ -->
-<div id="tab-zwroty" style="<?= _tab_show('zwroty') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='zwroty'||$_tab==='all')?' show':'' ?>" id="tab-zwroty" role="tabpanel">
 
   <!-- Nagłówek + przycisk -->
   <div class="d-flex align-items-center justify-content-between mb-3">
@@ -2424,7 +2424,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 
 </div><!-- /tab-zwroty -->
 
-<div id="tab-messages" style="<?= _tab_show('messages') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='messages'||$_tab==='all')?' show':'' ?>" id="tab-messages" role="tabpanel">
   <a id="tab-messages-anchor"></a>
   <?php
     $u = current_user();
@@ -2443,7 +2443,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB PRZESYŁKI
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-shipments" style="<?= _tab_show('shipments') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='shipments'||$_tab==='all')?' show':'' ?>" id="tab-shipments" role="tabpanel">
   <div class="p-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="mb-0 fw-bold"><i class="bi bi-box-seam me-2 text-primary"></i>Przesyłki dla tej umowy</h6>
@@ -2510,7 +2510,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB GODZINY — Ewidencja godzin wolontariatu
      ════════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-godziny" style="<?= _tab_show('godziny') ?>" role="tabpanel">
+<div class="tab-pane<?= ($_tab==='godziny'||$_tab==='all')?' show':'' ?>" id="tab-godziny" role="tabpanel">
   <div class="p-3">
 
     <?php
