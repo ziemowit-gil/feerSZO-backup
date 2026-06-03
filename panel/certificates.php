@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/amendments.php';
 require_once dirname(__DIR__) . '/includes/certificates.php';
 
 require_login();
+panel_require_enabled('zaswiadczenia', 'Zaświadczenia');
 $PAGE_TITLE = 'Moje zaświadczenia';
 $user = current_user();
 

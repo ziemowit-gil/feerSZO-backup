@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/messages.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 
 require_login();
+panel_require_enabled('wiadomosci', 'Wiadomości');
 $PAGE_TITLE = 'Moje wiadomości';
 $user = current_user();
 
@@ -154,7 +155,76 @@ if ($_is_volunteer_only) {
 ?>
 
 <style>
-/* ── Q&A cards ──────────────────────────────────────────────────────── */
+/* ── Chat bubbles (widok wolontariusza) ─────────────────────────────── */
+.chat-wrap { display:flex; flex-direction:column; gap:1.25rem; padding:.25rem 0 1rem; }
+.msg-row { display:flex; align-items:flex-end; gap:.6rem; }
+.msg-out { flex-direction:row-reverse; }
+.msg-bubble {
+  max-width: 80%; padding: .65rem .9rem;
+  font-size: .9rem; line-height: 1.6; word-break: break-word;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.msg-out .msg-bubble {
+  background: var(--vol-color); color: #fff;
+  border-radius: 18px 18px 4px 18px;
+}
+.msg-in .msg-bubble {
+  background: #F3F4F6; color: #111827;
+  border-radius: 18px 18px 18px 4px;
+}
+.msg-in.unread .msg-bubble { background: #dcfce7; }
+.msg-avatar {
+  width:32px; height:32px; border-radius:50%; flex-shrink:0;
+  background: linear-gradient(135deg,#2563eb,#7c3aed);
+  color:#fff; font-size:.72rem; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.msg-meta { font-size:.7rem; color:#9CA3AF; margin-top:.25rem; }
+.msg-out .msg-meta { text-align:right; }
+.msg-subject-chip {
+  display:inline-flex; align-items:center; gap:.3rem;
+  font-size:.73rem; font-weight:600; padding:.15rem .6rem;
+  border-radius:2rem; background:#EFF6FF; color:#2563eb;
+  border:1px solid #BFDBFE; margin-bottom:.35rem;
+}
+.msg-subject-chip.to-opiekun { background:#FFFBEB; color:#92400E; border-color:#FDE68A; }
+.msg-thread-group { display:flex; flex-direction:column; gap:.5rem; }
+.msg-typing {
+  display:inline-flex; align-items:center; gap:.25rem;
+  padding:.5rem .75rem; background:#F3F4F6; border-radius:18px;
+  font-size:.78rem; color:#9CA3AF;
+}
+.msg-typing span { width:6px;height:6px;border-radius:50%;background:#CBD5E1;animation:pulse 1.2s infinite; }
+.msg-typing span:nth-child(2){animation-delay:.2s}
+.msg-typing span:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,80%,100%{transform:scale(.8);opacity:.5}40%{transform:scale(1);opacity:1}}
+.msg-new-badge {
+  text-align:center; font-size:.72rem; color:#16A34A; font-weight:600;
+  padding:.25rem 0; margin:.25rem 0;
+}
+/* Form */
+.msg-compose { background:#fff; border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,.07); overflow:hidden; }
+.msg-compose-header { padding:.75rem 1rem .5rem; border-bottom:1px solid #F3F4F6; }
+.msg-compose-body { padding:.75rem 1rem 1rem; }
+.msg-recipient-btn {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.35rem .8rem; border-radius:2rem; border:2px solid #E5E7EB;
+  background:#fff; font-size:.8rem; font-weight:500; color:#374151;
+  cursor:pointer; transition:all .12s; white-space:nowrap;
+}
+.msg-recipient-btn.active { border-color:var(--vol-color); background:color-mix(in srgb,var(--vol-color) 8%,#fff); color:var(--vol-color); font-weight:600; }
+.msg-compose textarea { resize:none; border-radius:10px; border:2px solid #E5E7EB; font-size:.9rem; }
+.msg-compose textarea:focus { border-color:var(--vol-color); box-shadow:0 0 0 3px color-mix(in srgb,var(--vol-color) 15%,transparent); }
+.msg-send-btn {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.55rem 1.25rem; border-radius:10px; border:none;
+  background:var(--vol-color); color:#fff; font-weight:600; font-size:.9rem; cursor:pointer;
+  transition:background .12s, transform .1s;
+}
+.msg-send-btn:hover { filter:brightness(1.1); transform:translateY(-1px); }
+@media(prefers-reduced-motion:reduce){.msg-send-btn,.msg-typing span{animation:none;transition:none}}
+
+/* ── Q&A cards (widok admin/editor) ─────────────────────────────────── */
 .qa-question {
   border-left: 4px solid #2563eb;
   background: #fff;
@@ -185,7 +255,9 @@ if ($_is_volunteer_only) {
 <?php if ($_is_volunteer_only): ?>
 
 <div class="pv-page-header">
-  <h1 class="pv-page-title"><i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>Wiadomości</h1>
+  <h1 class="pv-page-title">
+    <i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>Wiadomości
+  </h1>
   <p class="pv-page-sub">Korespondencja z organizacją</p>
 </div>
 
@@ -201,173 +273,142 @@ if ($_is_volunteer_only) {
 <?php else: ?>
 
 <?php if (count($contracts) > 1): ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-arrow-left-right me-2"></i>Wybierz umowę</div>
-  <div class="vol-detail-body">
-    <div class="d-flex gap-2 flex-wrap">
-      <?php foreach ($contracts as $c):
-        $is_active = $_active
-          && $c['contract_type'] === $_active['contract_type']
-          && (int) $c['id'] === (int) $_active['id'];
-        $unr = msg_unread_thread('contract', (int)$c['id'], 'user');
-      ?>
-      <a href="?cid=<?= (int)$c['id'] ?>&ctype=<?= h($c['contract_type']) ?>"
-         class="btn btn-sm <?= $is_active ? 'btn-primary' : 'btn-outline-secondary' ?>">
-        <?= h($c['numer_umowy']) ?>
-        <?php if ($unr): ?>
-        <span class="badge bg-danger ms-1"><?= $unr ?></span>
-        <?php endif; ?>
-      </a>
-      <?php endforeach; ?>
-    </div>
-  </div>
+<div class="d-flex gap-2 flex-wrap mb-3">
+  <?php foreach ($contracts as $c):
+    $is_active = $_active && $c['contract_type'] === $_active['contract_type'] && (int)$c['id'] === (int)$_active['id'];
+    $unr = msg_unread_thread('contract', (int)$c['id'], 'user');
+  ?>
+  <a href="?cid=<?= (int)$c['id'] ?>&ctype=<?= h($c['contract_type']) ?>"
+     class="msg-recipient-btn <?= $is_active ? 'active' : '' ?>">
+    <i class="bi bi-file-text" aria-hidden="true"></i>
+    <?= h($c['numer_umowy']) ?>
+    <?php if ($unr): ?><span class="badge bg-danger"><?= $unr ?></span><?php endif; ?>
+  </a>
+  <?php endforeach; ?>
 </div>
 <?php endif; ?>
 
 <?php if ($_active): ?>
 
 <?php if (!$messages): ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-chat-left-dots me-2"></i>Wiadomości</div>
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-chat-left-dots" style="font-size:3rem;opacity:.25"></i>
-    <div class="mt-3 fw-semibold">Brak wiadomości</div>
-    <div class="small mt-1">Wyślij swoje pierwsze pytanie korzystając z formularza poniżej.</div>
-  </div>
+<div class="text-center py-5 text-muted" role="status">
+  <i class="bi bi-chat-left-dots" style="font-size:3rem;opacity:.2;display:block;margin-bottom:.75rem" aria-hidden="true"></i>
+  <p class="fw-semibold mb-1">Brak wiadomości</p>
+  <p class="small">Wyślij swoje pierwsze pytanie korzystając z formularza poniżej.</p>
 </div>
 <?php else: ?>
-<div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-chat-left-text me-2"></i>Korespondencja</div>
-  <div class="vol-detail-body">
-    <div class="d-flex flex-column gap-3">
-      <?php
-      $grouped = [];
-      $current_q = null;
-      foreach ($messages as $m) {
-          if ($m['sender_type'] === 'user') {
-              if ($current_q !== null) $grouped[] = $current_q;
-              $current_q = ['question' => $m, 'answers' => []];
-          } else {
-              if ($current_q === null) {
-                  $current_q = ['question' => null, 'answers' => [$m]];
-              } else {
-                  $current_q['answers'][] = $m;
-              }
-          }
-      }
-      if ($current_q !== null) $grouped[] = $current_q;
-
-      foreach ($grouped as $pair):
-          $q = $pair['question'];
-          $answers = $pair['answers'];
-      ?>
+<?php
+// Grupowanie: pytania + odpowiedzi
+$grouped = [];
+$current_q = null;
+foreach ($messages as $m) {
+    if ($m['sender_type'] === 'user') {
+        if ($current_q !== null) $grouped[] = $current_q;
+        $current_q = ['question' => $m, 'answers' => []];
+    } else {
+        if ($current_q === null) $current_q = ['question' => null, 'answers' => [$m]];
+        else $current_q['answers'][] = $m;
+    }
+}
+if ($current_q !== null) $grouped[] = $current_q;
+$_first_unread_shown = false;
+?>
+<div class="chat-wrap mb-3" role="log" aria-label="Historia korespondencji" aria-live="polite">
+<?php foreach ($grouped as $pair):
+    $q = $pair['question'];
+    $answers = $pair['answers'];
+?>
+<div class="msg-thread-group">
+  <?php if ($q): ?>
+  <?php
+    $rt = $q['recipient_type'] ?? 'admin';
+    $rt_label = $rt === 'opiekun' ? 'Opiekun umowy' : 'Administrator';
+    $subj = trim($q['subject'] ?? '');
+  ?>
+  <div>
+    <?php if ($subj): ?>
+    <div class="text-end mb-1">
+      <span class="msg-subject-chip <?= $rt === 'opiekun' ? 'to-opiekun' : '' ?>">
+        <i class="bi <?= $rt === 'opiekun' ? 'bi-person-check' : 'bi-shield-check' ?>" aria-hidden="true"></i>
+        <?= h($subj) ?> → <?= h($rt_label) ?>
+      </span>
+    </div>
+    <?php endif; ?>
+    <div class="msg-row msg-out" role="listitem">
       <div>
-        <?php if ($q): ?>
-        <?php
-          $rt       = $q['recipient_type'] ?? 'admin';
-          $rt_label = $rt === 'opiekun' ? 'Opiekun umowy' : 'Administrator';
-          $rt_cls   = $rt === 'opiekun' ? 'rt-opiekun' : 'rt-admin';
-          $rt_icon  = $rt === 'opiekun' ? 'bi-person-check' : 'bi-shield-check';
-          $subj     = $q['subject'] ?? '';
-        ?>
-        <div class="card shadow-sm qa-question mb-2">
-          <div class="card-header py-2 qa-hdr-q d-flex align-items-center gap-2 flex-wrap">
-            <i class="bi bi-question-circle-fill text-primary"></i>
-            <?php if ($subj): ?>
-            <span class="qa-subject"><?= h($subj) ?></span>
-            <?php else: ?>
-            <span class="text-muted small">Pytanie</span>
-            <?php endif; ?>
-            <span class="badge <?= $rt_cls ?> ms-1">
-              <i class="bi <?= $rt_icon ?> me-1"></i>Do: <?= $rt_label ?>
-            </span>
-            <span class="text-muted small ms-auto" style="font-size:.71rem">
-              <?= date('d.m.Y, H:i', strtotime($q['created_at'])) ?>
-            </span>
-          </div>
-          <div class="card-body py-2 px-3" style="font-size:.9rem;line-height:1.6;white-space:pre-line">
-            <?= h($q['body']) ?>
-          </div>
-        </div>
-        <?php endif; ?>
-        <?php foreach ($answers as $ans):
-            $is_unread = !(int)($ans['is_read']);
-            $subj_a    = $ans['subject'] ?? '';
-        ?>
-        <div class="card shadow-sm qa-answer ms-4 <?= $is_unread ? 'unread-ans' : '' ?>">
-          <div class="card-header py-2 qa-hdr-a d-flex align-items-center gap-2 flex-wrap">
-            <i class="bi bi-check-circle-fill text-success"></i>
-            <?php if ($subj_a): ?>
-            <span class="qa-subject text-success"><?= h($subj_a) ?></span>
-            <?php else: ?>
-            <span class="fw-semibold small text-success">Odpowiedź</span>
-            <?php endif; ?>
-            <?php if ($ans['sender_name']): ?>
-            <span class="text-muted small">— <?= h($ans['sender_name']) ?></span>
-            <?php endif; ?>
-            <?php if ($is_unread): ?>
-            <span class="badge bg-success ms-1" style="font-size:.65rem">Nowa</span>
-            <?php endif; ?>
-            <span class="text-muted small ms-auto" style="font-size:.71rem">
-              <?= date('d.m.Y, H:i', strtotime($ans['created_at'])) ?>
-            </span>
-          </div>
-          <div class="card-body py-2 px-3" style="font-size:.9rem;line-height:1.6">
-            <?php if ($ans['sender_type'] === 'admin'): ?>
-              <?= $ans['body'] ?>
-            <?php else: ?>
-              <?= nl2br(h($ans['body'])) ?>
-            <?php endif; ?>
-          </div>
-        </div>
-        <?php endforeach; ?>
-        <?php if ($q && !$answers): ?>
-        <div class="ms-4 text-muted small d-flex align-items-center gap-1 mt-1 mb-1">
-          <i class="bi bi-hourglass-split"></i> Oczekuje na odpowiedź…
-        </div>
-        <?php endif; ?>
+        <div class="msg-bubble"><?= nl2br(h($q['body'])) ?></div>
+        <div class="msg-meta"><?= date('d.m.Y, H:i', strtotime($q['created_at'])) ?><?= !$subj ? ' → '.$rt_label : '' ?></div>
       </div>
-      <?php endforeach; ?>
     </div>
   </div>
+  <?php endif; ?>
+
+  <?php foreach ($answers as $ans):
+    $is_unread = !(int)($ans['is_read']);
+    if ($is_unread && !$_first_unread_shown): $_first_unread_shown = true; ?>
+    <div class="msg-new-badge" role="status">
+      <i class="bi bi-arrow-down-circle me-1" aria-hidden="true"></i>Nowa odpowiedź
+    </div>
+    <?php endif; ?>
+  <div class="msg-row msg-in <?= $is_unread ? 'unread' : '' ?>" role="listitem">
+    <div class="msg-avatar" aria-hidden="true">
+      <?= h(mb_strtoupper(mb_substr($ans['sender_name'] ?? 'A', 0, 2))) ?>
+    </div>
+    <div>
+      <div class="msg-bubble">
+        <?php if ($ans['sender_type'] === 'admin'): ?>
+          <?= $ans['body'] ?>
+        <?php else: ?>
+          <?= nl2br(h($ans['body'])) ?>
+        <?php endif; ?>
+      </div>
+      <div class="msg-meta"><?= h($ans['sender_name'] ?? '') ?> · <?= date('d.m.Y, H:i', strtotime($ans['created_at'])) ?><?= $is_unread ? ' · <span style="color:#16A34A">nowa</span>' : '' ?></div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+
+  <?php if ($q && !$answers): ?>
+  <div class="msg-row msg-in" role="status" aria-label="Oczekuje na odpowiedź">
+    <div class="msg-avatar" aria-hidden="true">?</div>
+    <div class="msg-typing" aria-hidden="true">
+      <span></span><span></span><span></span>
+      <span style="width:auto;height:auto;background:none;font-size:.78rem;color:#9CA3AF">Oczekuje na odpowiedź…</span>
+    </div>
+  </div>
+  <?php endif; ?>
+</div>
+<?php endforeach; ?>
 </div>
 <?php endif; /* messages */ ?>
 
-<div class="vol-detail-card">
-  <div class="vol-detail-header"><i class="bi bi-pencil-square me-2"></i>Zadaj nowe pytanie</div>
-  <div class="vol-detail-body">
-    <form method="post" action="<?= APP_URL ?>/panel/messages.php">
+<!-- Formularz -->
+<div class="msg-compose" role="region" aria-label="Nowa wiadomość">
+  <div class="msg-compose-header">
+    <div class="fw-semibold" style="font-size:.88rem;margin-bottom:.5rem">
+      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zadaj nowe pytanie
+    </div>
+    <form method="post" action="<?= APP_URL ?>/panel/messages.php" id="msg-form">
       <input type="hidden" name="_csrf"            value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="_msg_send"         value="1">
-      <input type="hidden" name="msg_ctx_id"        value="<?= (int) $_active['id'] ?>">
+      <input type="hidden" name="msg_ctx_id"        value="<?= (int)$_active['id'] ?>">
       <input type="hidden" name="msg_contract_type" value="<?= h($_active['contract_type']) ?>">
-
-      <div class="mb-3">
-        <label class="form-label fw-semibold small mb-2">Adresuj do <span class="text-danger">*</span></label>
-        <div class="d-flex gap-4">
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="recipient_type" id="rt_opiekun" value="opiekun" checked>
-            <label class="form-check-label" for="rt_opiekun">
-              <i class="bi bi-person-check text-warning me-1"></i>
-              <strong>Opiekun umowy</strong>
-              <div class="text-muted" style="font-size:.75rem;margin-top:1px">Pytania dot. realizacji umowy, harmonogramu, zadań</div>
-            </label>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="recipient_type" id="rt_admin" value="admin">
-            <label class="form-check-label" for="rt_admin">
-              <i class="bi bi-shield-check text-info me-1"></i>
-              <strong>Administrator</strong>
-              <div class="text-muted" style="font-size:.75rem;margin-top:1px">Zmiany danych, wynagrodzenie, dokumenty, konto M365</div>
-            </label>
-          </div>
-        </div>
+      <input type="hidden" name="recipient_type"    id="recipient_type_hidden" value="opiekun">
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="msg-recipient-btn active" id="btn-opiekun"
+                onclick="selectRecipient('opiekun')" aria-pressed="true">
+          <i class="bi bi-person-check" aria-hidden="true"></i>Opiekun umowy
+        </button>
+        <button type="button" class="msg-recipient-btn" id="btn-admin"
+                onclick="selectRecipient('admin')" aria-pressed="false">
+          <i class="bi bi-shield-check" aria-hidden="true"></i>Administrator
+        </button>
       </div>
-
+  </div>
+  <div class="msg-compose-body">
       <?php if ($_msg_types): ?>
-      <div class="mb-3">
-        <label for="msg_type_id" class="form-label small fw-semibold">Rodzaj pytania <span class="text-muted fw-normal">(opcjonalnie)</span></label>
-        <select id="msg_type_id" name="msg_type_id" class="form-select form-select-sm">
+      <div class="mb-2">
+        <label for="msg_type_id" class="form-label small fw-semibold mb-1">Rodzaj <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+        <select id="msg_type_id" name="msg_type_id" class="form-select form-select-sm" style="border-radius:8px">
           <option value="">— wybierz rodzaj —</option>
           <?php foreach ($_msg_types as $_mt): ?>
           <option value="<?= (int)$_mt['id'] ?>"><?= h($_mt['name']) ?></option>
@@ -375,30 +416,42 @@ if ($_is_volunteer_only) {
         </select>
       </div>
       <?php endif; ?>
-
-      <div class="mb-3">
-        <label for="msg_subject" class="form-label small fw-semibold">Temat <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+      <div class="mb-2">
+        <label for="msg_subject" class="form-label small fw-semibold mb-1">Temat <span class="text-muted fw-normal">(opcjonalnie)</span></label>
         <input type="text" id="msg_subject" name="msg_subject" class="form-control form-control-sm"
-               placeholder="Np. Pytanie o harmonogram, Zmiana adresu…" maxlength="120">
+               style="border-radius:8px;border:2px solid #E5E7EB" placeholder="Np. Pytanie o harmonogram…" maxlength="120">
       </div>
-
       <div class="mb-3">
-        <label for="msg_body" class="form-label small fw-semibold">Treść <span class="text-danger">*</span></label>
-        <textarea id="msg_body" name="msg_body" class="form-control" rows="5"
-                  placeholder="Opisz szczegółowo swoje pytanie lub prośbę…" required></textarea>
+        <label for="msg_body" class="form-label small fw-semibold mb-1">Wiadomość <span class="text-danger">*</span></label>
+        <textarea id="msg_body" name="msg_body" class="form-control" rows="4"
+                  placeholder="Opisz swoje pytanie lub prośbę…" required></textarea>
       </div>
-
-      <div class="d-flex align-items-center gap-3">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-send me-1"></i> Wyślij pytanie
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <button type="submit" class="msg-send-btn">
+          <i class="bi bi-send-fill" aria-hidden="true"></i>Wyślij
         </button>
-        <span class="text-muted small">
-          <i class="bi bi-clock me-1"></i>Odpowiadamy zwykle w ciągu 1–2 dni roboczych
+        <span class="text-muted" style="font-size:.76rem">
+          <i class="bi bi-clock me-1" aria-hidden="true"></i>Odpowiadamy w ciągu 1–2 dni
         </span>
       </div>
     </form>
   </div>
 </div>
+
+<script>
+function selectRecipient(val) {
+  document.getElementById('recipient_type_hidden').value = val;
+  document.getElementById('btn-opiekun').classList.toggle('active', val==='opiekun');
+  document.getElementById('btn-opiekun').setAttribute('aria-pressed', val==='opiekun');
+  document.getElementById('btn-admin').classList.toggle('active', val==='admin');
+  document.getElementById('btn-admin').setAttribute('aria-pressed', val==='admin');
+}
+// Scroll to bottom of chat on load
+document.addEventListener('DOMContentLoaded', function() {
+  var chat = document.querySelector('.chat-wrap');
+  if (chat) chat.scrollIntoView({behavior:'smooth', block:'end'});
+});
+</script>
 
 <?php endif; /* $_active */ ?>
 <?php endif; /* contracts */ ?>

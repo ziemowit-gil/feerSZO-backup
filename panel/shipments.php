@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/apaczka.php';
 
 require_login();
+panel_require_enabled('przesylki', 'Przesyłki');
 
 $enabled = apaczka_setting('apaczka_enabled') !== '0';
 if (!$enabled) {

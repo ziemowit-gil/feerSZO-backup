@@ -235,6 +235,55 @@ function require_module_enabled(string $key, string $module_name = 'Ten moduł')
     }
 }
 
+// ── System widoczności menu ───────────────────────────────────────────────────
+
+/** Ładuje konfigurację menu z bazy (raz na request, cached statycznie). */
+function _menu_config_load(): void {
+    static $loaded = false;
+    if ($loaded) return;
+    $loaded = true;
+    global $_menu_hidden, $_panel_disabled;
+    $_menu_hidden    = $_menu_hidden    ?? [];
+    $_panel_disabled = $_panel_disabled ?? [];
+    try {
+        $rows = db_all("SELECT key_, value FROM settings WHERE key_ LIKE 'menu_hide_%' OR key_ LIKE 'panel_disable_%'");
+        foreach ($rows as $r) {
+            if ($r['value'] !== '1') continue;
+            if (str_starts_with($r['key_'], 'menu_hide_')) {
+                $_menu_hidden[substr($r['key_'], 10)] = true;
+            } elseif (str_starts_with($r['key_'], 'panel_disable_')) {
+                $_panel_disabled[substr($r['key_'], 14)] = true;
+            }
+        }
+    } catch (\Throwable $e) {}
+}
+
+/** Zwraca true jeśli pozycja menu admina/edytora jest widoczna. */
+function menu_visible(string $key): bool {
+    _menu_config_load();
+    global $_menu_hidden;
+    return empty($_menu_hidden[$key]);
+}
+
+/** Zwraca true jeśli pozycja panelu wolontariusza jest widoczna (nie ukryta). */
+function panel_visible(string $key): bool {
+    _menu_config_load();
+    global $_panel_disabled;
+    return empty($_panel_disabled[$key]);
+}
+
+/**
+ * Wywołaj na początku strony panelu wolontariusza — redirect z komunikatem
+ * jeśli moduł jest wyłączony przez admina dla wolontariuszy.
+ */
+function panel_require_enabled(string $key, string $module_name = 'Ta sekcja'): void {
+    if (!panel_visible($key)) {
+        flash_set('warning', $module_name . ' jest niedostępna dla wolontariuszy.');
+        header('Location: ' . APP_URL . '/panel/index.php');
+        exit;
+    }
+}
+
 /**
  * Odczytuje datę urodzenia z numeru PESEL.
  * Obsługuje urodzonych w latach 1800–2299 (standardowe kodowanie miesiąca).

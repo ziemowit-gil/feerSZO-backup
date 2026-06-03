@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/letters.php';
 require_once dirname(__DIR__) . '/includes/applications.php';
 
 require_login();
+panel_require_enabled('wnioski', 'Wnioski');
 $PAGE_TITLE = 'Wyślij pismo / Złóż wniosek';
 $user = current_user();
 

@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/amendments.php';
 require_once dirname(__DIR__) . '/includes/letters.php';
 
 require_login();
+panel_require_enabled('pisma', 'Pisma');
 $PAGE_TITLE = 'Moje pisma';
 $user = current_user();
 

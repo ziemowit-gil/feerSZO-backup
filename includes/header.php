@@ -488,15 +488,18 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     $_unread_rules = count(org_rules_unread((int)($_user['id'] ?? 0)));
   } catch (\Throwable $e) { $_unread_rules = 0; }
   ?>
+  <?php if (panel_visible('zasady')): ?>
   <a class="sb-link<?= _nav_active('/org_intro/') ?>" href="<?= APP_URL ?>/org_intro/index.php">
     <i class="bi bi-building-heart"></i> Zasady organizacji
     <?php if ($_unread_rules > 0): ?>
     <span class="badge bg-danger ms-auto"><?= $_unread_rules ?></span>
     <?php endif; ?>
   </a>
+  <?php endif; ?>
   <a class="sb-link<?= _nav_active('/panel/profile_edit') ?>" href="<?= APP_URL ?>/panel/profile_edit.php">
     <i class="bi bi-person-badge"></i> Mój profil
   </a>
+  <?php if (panel_visible('komunikaty')): ?>
   <a class="sb-link<?= _nav_active('/komunikaty/') ?>" href="<?= APP_URL ?>/komunikaty/index.php">
     <i class="bi bi-megaphone" style="color:#F59E0B"></i> Komunikaty
     <?php try {
@@ -505,10 +508,13 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <span class="badge bg-warning text-dark ms-auto" style="font-size:.65rem"><?= $_v_ann_count ?></span>
     <?php endif; } catch (\Throwable $e) {} ?>
   </a>
+  <?php endif; ?>
+  <?php if (panel_visible('katalog')): ?>
   <a class="sb-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
     <i class="bi bi-person-lines-fill"></i> Książka telefoniczna
   </a>
-  <?php if (module_enabled('messages_enabled')): ?>
+  <?php endif; ?>
+  <?php if (module_enabled('messages_enabled') && panel_visible('wiadomosci')): ?>
   <a class="sb-link<?= _nav_active('/panel/messages') ?>" href="<?= APP_URL ?>/panel/messages.php">
     <i class="bi bi-chat-left-text"></i> Wiadomości
     <?php $_pnl_unread = 0;
@@ -527,12 +533,14 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
                || str_contains($_uri, '/panel/certificates')
                || str_contains($_uri, '/panel/terminations')
                || str_contains($_uri, '/panel/timesheets');
-  $_sprawy_has  = module_enabled('letters_enabled')
-               || module_enabled('certificates_enabled')
-               || module_enabled('terminations_enabled')
-               || module_enabled('timesheets_enabled');
+  // Sprawy — uwzględnij też wyłączenia dla panelu
+  $_sprawy_panel_has = (module_enabled('letters_enabled') && panel_visible('pisma'))
+               || panel_visible('wnioski')
+               || (module_enabled('certificates_enabled') && panel_visible('zaswiadczenia'))
+               || (module_enabled('terminations_enabled') && panel_visible('rozwiazanie'))
+               || (module_enabled('timesheets_enabled') && panel_visible('godziny'));
   ?>
-  <?php /* "Wyślij pismo/wniosek" zawsze widoczne — blok zawsze renderujemy */ if (true): ?>
+  <?php if ($_sprawy_panel_has): ?>
   <button type="button"
           class="sb-type-btn <?= $_sprawy_open ? 'type-open' : '' ?>"
           data-bs-toggle="collapse" data-bs-target="#sb-sprawy"
@@ -541,38 +549,40 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <i class="bi bi-chevron-right sb-chevron"></i>
   </button>
   <div class="collapse sb-sub <?= $_sprawy_open ? 'show' : '' ?>" id="sb-sprawy">
-    <?php if (module_enabled('letters_enabled')): ?>
+    <?php if (module_enabled('letters_enabled') && panel_visible('pisma')): ?>
     <a class="sb-sub-link<?= _nav_active('/panel/letters') ?>" href="<?= APP_URL ?>/panel/letters.php">
       <i class="bi bi-archive"></i> Moje pisma
     </a>
     <?php endif; ?>
+    <?php if (panel_visible('wnioski')): ?>
     <a class="sb-sub-link<?= _nav_active('/panel/apply') ?>" href="<?= APP_URL ?>/panel/apply.php">
       <i class="bi bi-send"></i> Wyślij pismo / wniosek
     </a>
-    <?php if (module_enabled('certificates_enabled')): ?>
+    <?php endif; ?>
+    <?php if (module_enabled('certificates_enabled') && panel_visible('zaswiadczenia')): ?>
     <a class="sb-sub-link<?= _nav_active('/panel/certificates') ?>" href="<?= APP_URL ?>/panel/certificates.php">
       <i class="bi bi-award"></i> Zaświadczenia
     </a>
     <?php endif; ?>
-    <?php if (module_enabled('terminations_enabled')): ?>
+    <?php if (module_enabled('terminations_enabled') && panel_visible('rozwiazanie')): ?>
     <a class="sb-sub-link<?= _nav_active('/panel/terminations') ?>" href="<?= APP_URL ?>/panel/terminations.php">
       <i class="bi bi-file-earmark-x"></i> Rozwiązanie umowy
     </a>
     <?php endif; ?>
-    <?php if (module_enabled('timesheets_enabled')): ?>
+    <?php if (module_enabled('timesheets_enabled') && panel_visible('godziny')): ?>
     <a class="sb-sub-link<?= _nav_active('/panel/timesheets') ?>" href="<?= APP_URL ?>/panel/timesheets.php">
       <i class="bi bi-clock-history"></i> Ewidencja godzin
     </a>
     <?php endif; ?>
     <?php require_once __DIR__ . '/apaczka.php';
-    if (apaczka_setting('apaczka_enabled') !== '0'): ?>
+    if (apaczka_setting('apaczka_enabled') !== '0' && panel_visible('przesylki')): ?>
     <a class="sb-sub-link<?= _nav_active('/panel/shipments') ?>" href="<?= APP_URL ?>/panel/shipments.php">
       <i class="bi bi-box-seam"></i> Przesyłki
     </a>
     <?php endif; ?>
   </div>
   <?php endif; ?>
-  <?php if (module_enabled('moodle_enabled')): ?>
+  <?php if (module_enabled('moodle_enabled') && panel_visible('kursy')): ?>
   <a class="sb-link<?= _nav_active('/panel/moodle') ?>" href="<?= APP_URL ?>/panel/moodle.php">
     <i class="bi bi-mortarboard"></i> Moje kursy
   </a>
@@ -781,12 +791,16 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <div class="sb-label">Finanse i zasoby</div>
 
   <?php if (can_edit()): ?>
+  <?php if (menu_visible('grants')): ?>
   <a class="sb-link<?= _nav_active('/grants/') ?>" href="<?= APP_URL ?>/grants/index.php">
     <i class="bi bi-cash-coin"></i> Granty
   </a>
+  <?php endif; ?>
+  <?php if (menu_visible('actions')): ?>
   <a class="sb-link<?= _nav_active('/actions/') ?>" href="<?= APP_URL ?>/actions/index.php">
     <i class="bi bi-calendar-event"></i> Działania
   </a>
+  <?php endif; ?>
   <?php endif; ?>
 
   <a class="sb-link<?= _nav_active('/contracts/zwroty/') ?>" href="<?= APP_URL ?>/contracts/zwroty/index.php">
@@ -848,7 +862,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <div class="sb-label">Admin</div>
   <a class="sb-link<?= str_contains($_uri,'/admin/') && !$_obsługa_active ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
     <i class="bi bi-shield-shaded"></i> Panel admina
-    <?php if ($_adm_badge): ?><span class="badge bg-danger ms-auto"><?= $_adm_badge ?></span><?php endif; ?>
+  </a>
+  <a class="sb-link<?= _nav_active('/admin/menu_config') ?>" href="<?= APP_URL ?>/admin/menu_config.php">
+    <i class="bi bi-layout-sidebar"></i> Konfiguracja menu
   </a>
   <div class="sb-sep"></div>
   <?php endif; ?>

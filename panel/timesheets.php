@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/timesheets.php';
 
 require_login();
+panel_require_enabled('godziny', 'Ewidencja godzin');
 require_module_enabled('timesheets_enabled', 'Ewidencja godzin');
 
 $PAGE_TITLE = 'Ewidencja godzin';
