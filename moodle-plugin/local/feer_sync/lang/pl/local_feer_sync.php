@@ -29,3 +29,5 @@ $string['sync_standalone']         = 'Synchronizuj wolontariuszy bez umowy';
 $string['sync_standalone_desc']    = 'Gdy włączone, konta oznaczone jako "wolontariusz bez umowy" w systemie FEER również zostaną zsynchronizowane z Moodle.';
 $string['writeback_login']         = 'Zapisz login Moodle z powrotem do FEER';
 $string['writeback_login_desc']    = 'Po utworzeniu konta Moodle, wyślij nazwę użytkownika z powrotem do systemu FEER (endpoint /api/v1/moodle_user_update.php). Wolontariusz zobaczy swój login Moodle w panelu.';
+$string['callback_url']            = 'Callback URL (writeback)';
+$string['callback_url_desc']       = 'Ten adres jest wywoływany automatycznie przez wtyczkę po utworzeniu konta Moodle. Wyliczany z pola "Adres URL systemu FEER" powyżej — nie wymaga ręcznej konfiguracji.';

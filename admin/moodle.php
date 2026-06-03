@@ -714,6 +714,25 @@ $plugin_dir = 'local/feer_sync';
               <td class="fw-semibold">Klucz API</td>
               <td><em class="text-muted">klucz wygenerowany w kroku 2</em></td>
             </tr>
+            <tr class="table-warning">
+              <td class="fw-semibold">
+                <i class="bi bi-arrow-return-left me-1 text-warning"></i>
+                Callback URL (writeback)
+              </td>
+              <td>
+                <code id="callbackUrl"><?= h($feer_url) ?>/api/v1/moodle_user_update.php</code>
+                <button class="btn btn-sm btn-link p-0 ms-1"
+                        onclick="navigator.clipboard.writeText(<?= json_encode($feer_url . '/api/v1/moodle_user_update.php') ?>);this.innerHTML='<i class=\'bi bi-check-lg text-success\'></i>'"
+                        title="Kopiuj URL">
+                  <i class="bi bi-copy"></i>
+                </button>
+                <div class="text-muted mt-1" style="font-size:.76rem">
+                  Wklej ten adres w ustawieniu <strong>„Callback URL (writeback)"</strong>
+                  w panelu wtyczki Moodle. Wtyczka wyśle tu login Moodle po utworzeniu konta —
+                  wolontariusz zobaczy go w swoim panelu.
+                </div>
+              </td>
+            </tr>
             <tr>
               <td class="fw-semibold">Utwórz konto jeśli brak</td>
               <td><code>✓ włączone</code> (zalecane)</td>

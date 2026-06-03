@@ -29,3 +29,5 @@ $string['sync_standalone']         = 'Sync standalone volunteers (without contra
 $string['sync_standalone_desc']    = 'When enabled, accounts flagged as "standalone volunteer" in FEER will also be synced to Moodle.';
 $string['writeback_login']         = 'Write Moodle login back to FEER';
 $string['writeback_login_desc']    = 'After creating a Moodle account, post the username back to the FEER system (/api/v1/moodle_user_update.php). The volunteer will then see their Moodle login in the FEER panel.';
+$string['callback_url']            = 'Callback URL (writeback)';
+$string['callback_url_desc']       = 'This URL is called automatically by the plugin after creating a Moodle account. It is derived from the FEER system URL above — no manual configuration needed.';

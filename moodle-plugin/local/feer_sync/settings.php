@@ -96,4 +96,19 @@ if ($hassiteconfig) {
         get_string('writeback_login_desc', 'local_feer_sync'),
         1
     ));
+
+    // Callback URL — wyświetlany tylko informacyjnie (wyliczany automatycznie z feer_url)
+    $feer_url_now = rtrim(get_config('local_feer_sync', 'feer_url') ?: '', '/');
+    $callback_url = $feer_url_now ? ($feer_url_now . '/api/v1/moodle_user_update.php') : '— ustaw najpierw adres URL systemu FEER —';
+    $settings->add(new admin_setting_heading(
+        'local_feer_sync/heading_callback',
+        get_string('callback_url', 'local_feer_sync'),
+        html_writer::tag('div',
+            html_writer::tag('code', s($callback_url),
+                ['style' => 'word-break:break-all;font-size:.85rem']) .
+            html_writer::tag('p',
+                get_string('callback_url_desc', 'local_feer_sync'),
+                ['class' => 'text-muted small mt-1']),
+            ['class' => 'p-2 bg-light border rounded mt-1'])
+    ));
 }
