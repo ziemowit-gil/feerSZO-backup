@@ -25,7 +25,8 @@ _org_reps_migrate();
 $branding_keys = ['org_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
-                  'm365_send_from_email'];
+                  'm365_send_from_email',
+                  'login_layout','login_tagline','login_bg_color'];
 $saved = [];
 foreach ($branding_keys as $k) {
     $r = db_one("SELECT value FROM settings WHERE key_=?", [$k]);
@@ -154,6 +155,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute(['org_logo', '']);
             $saved['org_logo'] = '';
         }
+
+        // Ekran logowania
+        $login_layout   = in_array($_POST['login_layout'] ?? '', ['split','simple'], true) ? $_POST['login_layout'] : 'split';
+        $login_tagline  = mb_substr(trim($_POST['login_tagline'] ?? ''), 0, 120);
+        $login_bg_color = trim($_POST['login_bg_color'] ?? '#EEF2F7');
+        if (!preg_match('/^#[0-9a-fA-F]{3,6}$/', $login_bg_color)) $login_bg_color = '#EEF2F7';
+        $stmt->execute(['login_layout',   $login_layout]);
+        $stmt->execute(['login_tagline',  $login_tagline]);
+        $stmt->execute(['login_bg_color', $login_bg_color]);
+        $saved['login_layout']   = $login_layout;
+        $saved['login_tagline']  = $login_tagline;
+        $saved['login_bg_color'] = $login_bg_color;
 
         if (!$error) {
             flash_set('success', 'Ustawienia brandingu zapisane.');
@@ -331,6 +344,131 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </div>
     </div>
+
+    <!-- ── Ekran logowania ──────────────────────────────────────────── -->
+    <hr class="my-4">
+    <div class="fw-semibold mb-3"><i class="bi bi-door-open text-primary me-1"></i> Ekran logowania (splash screen)</div>
+
+    <!-- Layout -->
+    <div class="mb-4">
+      <label class="form-label fw-semibold">Układ ekranu logowania</label>
+      <div class="d-flex gap-3 flex-wrap" id="login-layout-picker">
+        <?php
+        $ll = $saved['login_layout'] ?: 'split';
+        foreach ([
+          'split'  => ['label' => 'Podzielony', 'sub' => 'Panel z logo po lewej + formularz po prawej', 'icon' => 'bi-layout-split'],
+          'simple' => ['label' => 'Prosty',      'sub' => 'Wyśrodkowana karta, brak panelu bocznego',    'icon' => 'bi-card-text'],
+        ] as $val => $opt): ?>
+        <label class="login-layout-card <?= $ll === $val ? 'active' : '' ?>" style="cursor:pointer">
+          <input type="radio" name="login_layout" value="<?= $val ?>"
+                 <?= $ll === $val ? 'checked' : '' ?>
+                 class="visually-hidden"
+                 onchange="document.querySelectorAll('.login-layout-card').forEach(c=>c.classList.remove('active'));this.closest('.login-layout-card').classList.add('active')">
+          <div class="login-layout-preview <?= $val ?>-preview" aria-hidden="true">
+            <?php if ($val === 'split'): ?>
+              <div class="lp-left"></div><div class="lp-right"><div class="lp-card"></div></div>
+            <?php else: ?>
+              <div class="lp-center"><div class="lp-card"></div></div>
+            <?php endif; ?>
+          </div>
+          <div class="login-layout-label">
+            <i class="bi <?= $opt['icon'] ?> me-1"></i><?= $opt['label'] ?>
+          </div>
+          <div class="login-layout-sub"><?= $opt['sub'] ?></div>
+        </label>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <!-- Tagline -->
+    <div class="mb-3">
+      <label for="login_tagline" class="form-label fw-semibold">Tagline (podtytuł pod nazwą org)</label>
+      <input type="text" id="login_tagline" name="login_tagline"
+             class="form-control" maxlength="120"
+             placeholder="np. System Zarządzania Organizacją i Wolontariatem"
+             value="<?= h($saved['login_tagline'] ?? '') ?>">
+      <div class="form-text">Widoczny na panelu lewym (split) lub pod logo (simple). Zostaw puste = ukryty.</div>
+    </div>
+
+    <!-- Kolor tła prawej strony / proste tło -->
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Kolor tła ekranu logowania</label>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <input type="color" name="login_bg_color" id="login_bg_input"
+               value="<?= h($saved['login_bg_color'] ?: '#EEF2F7') ?>"
+               style="width:48px;height:38px;padding:2px;border-radius:8px;border:1px solid #dee2e6;cursor:pointer">
+        <div class="d-flex flex-wrap gap-1">
+          <?php foreach ([
+            '#EEF2F7' => 'Jasnoszary (domyślny)',
+            '#F8FAFC' => 'Prawie biały',
+            '#F0FDF4' => 'Miętowy',
+            '#EFF6FF' => 'Błękitny',
+            '#FDF4FF' => 'Lawendowy',
+            '#FFFBEB' => 'Kremowy',
+            '#ffffff' => 'Biały',
+          ] as $hex => $label): ?>
+          <button type="button" class="btn btn-sm p-0 border login-bg-preset"
+                  data-color="<?= $hex ?>" title="<?= $label ?>"
+                  style="width:28px;height:28px;background:<?= $hex ?>;border-radius:6px !important;border:1px solid #dee2e6 !important">
+          </button>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <div class="form-text">Tło prawej strony (split) lub całego ekranu (simple).</div>
+    </div>
+
+    <!-- Podgląd ekranu logowania -->
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Podgląd ekranu logowania</label>
+      <div id="login-screen-preview" style="
+        border:1px solid #dee2e6; border-radius:10px; overflow:hidden;
+        height:160px; display:flex; transition:background .3s;
+        background: var(--lp-bg, #EEF2F7);
+      ">
+        <!-- split: left panel -->
+        <div id="lp-panel" style="
+          width:120px; flex-shrink:0;
+          background: linear-gradient(155deg, <?= color_darken($saved['volunteer_color']??'#2563eb',40) ?> 0%, <?= $saved['volunteer_color']??'#2563eb' ?> 60%, <?= color_lighten($saved['volunteer_color']??'#2563eb',30) ?> 100%);
+          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:12px 8px;
+        ">
+          <?php if ($saved['org_logo'] && file_exists($_logo_dir . '/' . $saved['org_logo'])): ?>
+          <img src="<?= APP_URL ?>/assets/logo/<?= h($saved['org_logo']) ?>" style="max-height:28px;filter:brightness(0) invert(1);opacity:.9" alt="">
+          <?php else: ?>
+          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff"><i class="bi bi-building-heart"></i></div>
+          <?php endif; ?>
+          <div style="font-size:.55rem;color:rgba(255,255,255,.9);font-weight:700;text-align:center;line-height:1.2;word-break:break-word"><?= h(mb_substr($org_name ?? ORG_NAME,0,20)) ?></div>
+        </div>
+        <!-- right: form card -->
+        <div id="lp-right" style="flex:1;display:flex;align-items:center;justify-content:center;padding:16px">
+          <div style="background:#fff;border-radius:10px;padding:14px 16px;width:100%;max-width:180px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+            <div style="font-size:.6rem;font-weight:700;color:#0F172A;margin-bottom:8px">Zaloguj się</div>
+            <div style="height:8px;background:#f1f5f9;border-radius:4px;margin-bottom:6px"></div>
+            <div style="height:8px;background:#f1f5f9;border-radius:4px;margin-bottom:10px"></div>
+            <div style="height:16px;border-radius:5px;background:<?= h($saved['volunteer_color']??'#2563eb') ?>;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <style>
+    .login-layout-card {
+      border: 2px solid #dee2e6; border-radius: 10px; padding: 12px 14px;
+      min-width: 170px; transition: border-color .15s, box-shadow .15s;
+      background: #fff;
+    }
+    .login-layout-card.active { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+    .login-layout-preview {
+      width: 100%; height: 64px; border-radius: 6px; overflow: hidden;
+      border: 1px solid #e2e8f0; background: #f8fafc;
+      display: flex; margin-bottom: 8px;
+    }
+    .lp-left  { width: 35%; background: #334155; }
+    .lp-right { flex:1; display:flex; align-items:center; justify-content:center; padding: 6px; }
+    .lp-center{ flex:1; display:flex; align-items:center; justify-content:center; padding: 6px; }
+    .lp-card  { background:#fff; border-radius:5px; width:100%; height:42px; box-shadow:0 1px 6px rgba(0,0,0,.1); }
+    .login-layout-label { font-size:.82rem; font-weight:600; color:#1e293b; }
+    .login-layout-sub   { font-size:.72rem; color:#64748b; margin-top:2px; line-height:1.3; }
+    </style>
 
     <button type="submit" name="save_branding" class="btn btn-primary">
       <i class="bi bi-floppy me-1"></i>Zapisz branding
@@ -567,6 +705,42 @@ const volColorInput = document.getElementById('vol_color_input');
 document.querySelectorAll('.vol-preset').forEach(btn =>
     btn.addEventListener('click', () => { if(volColorInput) volColorInput.value = btn.dataset.color; })
 );
+
+// ── Login bg color presets ───────────────────────────────────────────────────
+const loginBgInput = document.getElementById('login_bg_input');
+document.querySelectorAll('.login-bg-preset').forEach(btn =>
+    btn.addEventListener('click', () => {
+        if (loginBgInput) loginBgInput.value = btn.dataset.color;
+        document.getElementById('login-screen-preview')?.style.setProperty('--lp-bg', btn.dataset.color);
+    })
+);
+if (loginBgInput) {
+    loginBgInput.addEventListener('input', () => {
+        document.getElementById('login-screen-preview')?.style.setProperty('--lp-bg', loginBgInput.value);
+    });
+    document.getElementById('login-screen-preview')?.style.setProperty('--lp-bg', loginBgInput.value);
+}
+
+// ── Login layout toggle preview ──────────────────────────────────────────────
+document.querySelectorAll('input[name="login_layout"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        const panel = document.getElementById('lp-panel');
+        if (!panel) return;
+        if (radio.value === 'simple') {
+            panel.style.display = 'none';
+        } else {
+            panel.style.display = '';
+        }
+    });
+});
+// Initial state
+(function() {
+    const checked = document.querySelector('input[name="login_layout"]:checked');
+    if (checked?.value === 'simple') {
+        const p = document.getElementById('lp-panel');
+        if (p) p.style.display = 'none';
+    }
+})();
 
 // ── Podgląd nowego logo ──────────────────────────────────────────────────────
 document.getElementById('logo_file_input')?.addEventListener('change', function() {

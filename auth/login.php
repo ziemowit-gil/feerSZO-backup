@@ -180,8 +180,13 @@ if ($sms_available)  $valid_tabs[] = 'sms';
 if ($ms_available)   $valid_tabs[] = 'ms365';
 if (!in_array($active_tab, $valid_tabs, true)) $active_tab = $default_tab;
 
-// ── Branding ─────────────────────────────────────────────────────────────
-$_b = branding_load();
+// ── Branding + layout ─────────────────────────────────────────────────────
+$_b           = branding_load();
+$_login_layout   = org_setting('login_layout')   ?: 'split';
+if (!in_array($_login_layout, ['split','simple'], true)) $_login_layout = 'split';
+$_login_tagline  = org_setting('login_tagline')  ?: '';
+$_login_bg       = org_setting('login_bg_color') ?: '#EEF2F7';
+if (!preg_match('/^#[0-9a-fA-F]{3,6}$/', $_login_bg)) $_login_bg = '#EEF2F7';
 
 // ── Kontekst organizacji i link powrotu ──────────────────────────────────
 $is_tenant  = defined('TENANT_SLUG') && TENANT_SLUG !== '';
@@ -401,7 +406,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
 /* ── Prawa strona — karta formularza ────────────────────────────── */
 .login-right {
   flex: 1;
-  background: #EEF2F7;
+  background: var(--login-bg, #EEF2F7);
   display: flex; align-items: center; justify-content: center;
   padding: 2.5rem 2rem; overflow-y: auto;
 }
@@ -549,7 +554,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
 /* Microsoft logo */
 .ms-logo { flex-shrink: 0; }
 
-/* Responsive */
+/* Responsive — split layout */
 @media (max-width: 780px) {
   .login-split { flex-direction: column; }
   .login-left {
@@ -586,14 +591,76 @@ html, body { height: 100%; margin: 0; padding: 0; }
   .login-col-ms { padding-right: 0; padding-bottom: 1.5rem; border-bottom: 1px solid #E2E8F0; }
   .login-col-local { padding-left: 0; }
 }
+
+/* ── Layout: simple ────────────────────────────────────────────── */
+.login-simple-wrap {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 2rem 1rem;
+  background: var(--login-bg, #EEF2F7);
+}
+.login-simple-box {
+  width: 100%; max-width: 420px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 40px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.05);
+  overflow: hidden;
+}
+.login-simple-box.has-ms-split { max-width: 640px; }
+.login-simple-header {
+  padding: 2rem 2rem 1.5rem;
+  text-align: center;
+  background: linear-gradient(155deg, var(--c-darker) 0%, var(--c) 55%, var(--c-light) 100%);
+  color: var(--c-text, #fff);
+}
+.login-simple-logo {
+  max-height: 60px; max-width: 180px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); opacity: .92;
+  display: block; margin: 0 auto 1rem;
+}
+.login-simple-icon {
+  width: 64px; height: 64px; border-radius: 16px;
+  background: rgba(255,255,255,.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem; color: #fff;
+  margin: 0 auto 1rem;
+}
+.login-simple-orgname {
+  font-size: 1.15rem; font-weight: 800; color: #fff;
+  text-shadow: 0 1px 8px rgba(0,0,0,.18);
+  margin: 0; line-height: 1.2;
+}
+.login-simple-tagline {
+  font-size: .78rem; color: rgba(255,255,255,.6);
+  margin: .4rem 0 0; line-height: 1.4;
+}
+.login-simple-change {
+  display: inline-flex; align-items: center; gap: .3rem;
+  margin-top: .85rem; font-size: .73rem; color: rgba(255,255,255,.5);
+  text-decoration: none; padding: .25rem .6rem;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 2rem;
+  transition: color .15s, border-color .15s;
+}
+.login-simple-change:hover { color: #fff; border-color: rgba(255,255,255,.5); }
+.login-simple-body { padding: 2rem; }
+@media (max-width: 480px) {
+  .login-simple-box { border-radius: 12px; }
+  .login-simple-body { padding: 1.5rem 1.25rem; }
+}
+
 @media (prefers-contrast: high) {
-  .login-box .form-control { border-width: 3px; border-color: #000; }
+  .login-box .form-control,
+  .login-simple-box .form-control { border-width: 3px; border-color: #000; }
   .btn-login { background: #000 !important; border-color: #000 !important; color: #fff !important; }
   .a11y-alert-danger { border-width: 3px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
 }
+</style>
+<style>
+  :root { --login-bg: <?= h($_login_bg) ?>; }
 </style>
 </head>
 <body>
@@ -607,7 +674,70 @@ html, body { height: 100%; margin: 0; padding: 0; }
 <div role="alert" aria-live="assertive" aria-atomic="true"
      style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" id="login-alert"></div>
 
-<div class="login-split">
+<?php if ($_login_layout === 'simple'): ?>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     LAYOUT: SIMPLE — wyśrodkowana karta
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="login-simple-wrap">
+  <main class="login-simple-box <?= $ms_available ? 'has-ms-split' : '' ?>" id="login-main" role="main" tabindex="-1">
+
+    <!-- Kolorowy nagłówek z logo + nazwą org -->
+    <div class="login-simple-header">
+      <?php if ($_b['logo_url']): ?>
+        <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" class="login-simple-logo">
+      <?php else: ?>
+        <div class="login-simple-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></div>
+      <?php endif; ?>
+      <h1 class="login-simple-orgname"><?= h($org_name) ?></h1>
+      <?php if ($_login_tagline): ?>
+        <p class="login-simple-tagline"><?= h($_login_tagline) ?></p>
+      <?php endif; ?>
+      <?php if ($sel_url): ?>
+        <a href="<?= h($sel_url) ?>" class="login-simple-change">
+          <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+          <?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?>
+        </a>
+      <?php endif; ?>
+    </div>
+
+    <!-- Formularz -->
+    <div class="login-simple-body">
+      <p class="form-sub" style="margin-bottom:1.25rem">
+        <?php if ($ms_available): ?>
+          Wybierz metodę logowania dla swojej roli.
+        <?php elseif (count($login_guide) > 1): ?>
+          Wybierz odpowiednią metodę logowania.
+        <?php else: ?>
+          Zaloguj się do systemu.
+        <?php endif; ?>
+      </p>
+
+      <?php if ($error): ?>
+      <div class="a11y-alert a11y-alert-danger" role="alert" aria-label="Błąd logowania: <?= h($error) ?>">
+        <i class="bi bi-exclamation-triangle-fill a11y-alert-icon" aria-hidden="true"></i>
+        <span><?= h($error) ?></span>
+      </div>
+      <?php endif; ?>
+      <?php if ($info): ?>
+      <div class="a11y-alert a11y-alert-success" role="status">
+        <i class="bi bi-check-circle-fill a11y-alert-icon" aria-hidden="true"></i>
+        <span><?= h($info) ?></span>
+      </div>
+      <?php endif; ?>
+
+      <?php include __DIR__ . '/_login_form_body.php'; ?>
+
+    </div><!-- /login-simple-body -->
+  </main>
+</div><!-- /login-simple-wrap -->
+<?php else: ?>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     LAYOUT: SPLIT — lewa dekoracja + prawa forma
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="login-split" style="background: <?= h($_login_bg) ?>"><?php
+// Tagline override (zamiast hardcoded "System Zarządzania...")
+$_left_tagline = $_login_tagline ?: 'System Zarządzania<br>Organizacją i Wolontariatem';
+?>
 
 <!-- ══ Lewa — dekoracyjna, aria-hidden ═════════════════════════════════════ -->
 <aside class="login-left" aria-hidden="true">
@@ -625,7 +755,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
     </div>
 
     <div class="left-org-name"><?= h($org_name) ?></div>
-    <div class="left-org-tagline">System Zarządzania<br>Organizacją i Wolontariatem</div>
+    <?php if ($_left_tagline): ?><div class="left-org-tagline"><?= $_left_tagline ?></div><?php endif; ?>
 
     <?php if ($sel_url): ?>
     <a href="<?= h($sel_url) ?>" class="left-change-org">
@@ -717,266 +847,12 @@ html, body { height: 100%; margin: 0; padding: 0; }
   </div>
   <?php endif; ?>
 
-  <?php if ($ms_available): ?>
-  <!-- ══ DWUKOLUMNOWY UKŁAD: MS365 | E-mail+hasło ══════════════════════════ -->
-  <div class="login-cols">
-
-    <!-- Lewa — Microsoft 365 (metoda główna) -->
-    <div class="login-col-ms">
-      <div class="ms-col-heading">
-        <i class="bi bi-microsoft me-1" aria-hidden="true"></i>Konto organizacyjne
-      </div>
-      <a href="<?= h(ms_auth_url($redirect)) ?>"
-         class="btn-login"
-         aria-label="Zaloguj się przez konto Microsoft 365 — zostaniesz przekierowany na stronę Microsoft">
-        <svg class="ms-logo" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true">
-          <path fill="#f35325" d="M1 1h10v10H1z"/>
-          <path fill="#81bc06" d="M12 1h10v10H12z"/>
-          <path fill="#05a6f0" d="M1 12h10v10H12z"/>
-          <path fill="#ffba08" d="M12 12h10v10H12z"/>
-        </svg>
-        Zaloguj przez Microsoft 365
-      </a>
-      <p class="ms-col-note">
-        Dla pracowników, wolontariuszy, zarządu i koordynatorów z kontem Microsoft.
-      </p>
-    </div>
-
-    <!-- Separator pionowy -->
-    <div class="login-col-divider" role="separator" aria-hidden="true"></div>
-
-    <!-- Prawa — E-mail + hasło (zapasowa) -->
-    <div class="login-col-local">
-      <div class="local-col-heading">
-        <i class="bi bi-person-fill me-1" aria-hidden="true"></i>Pierwsze logowanie / bez MS
-      </div>
-      <form method="post" novalidate aria-label="Formularz logowania — e-mail i hasło" autocomplete="on">
-        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-        <input type="hidden" name="_method" value="local">
-        <div class="mb-3">
-          <label class="form-label" for="f-email">Adres e-mail</label>
-          <input type="email" name="email" id="f-email"
-                 class="form-control"
-                 placeholder="nazwa@domena.pl"
-                 autocomplete="email"
-                 required aria-required="true"
-                 <?= $error ? 'aria-invalid="true" aria-describedby="email-err"' : '' ?>>
-          <?php if ($error && str_contains($error, 'mail')): ?>
-          <div id="email-err" class="form-hint" style="color:#DC2626"><?= h($error) ?></div>
-          <?php endif; ?>
-        </div>
-        <div class="mb-4">
-          <label class="form-label" for="f-pass">Hasło</label>
-          <div class="pass-wrap">
-            <input type="password" name="password" id="f-pass"
-                   class="form-control"
-                   autocomplete="current-password"
-                   required aria-required="true"
-                   aria-describedby="pass-hint">
-            <button type="button" class="pass-toggle"
-                    aria-label="Pokaż hasło"
-                    aria-pressed="false"
-                    onclick="togglePass('f-pass', this)">
-              <i class="bi bi-eye" aria-hidden="true"></i>
-            </button>
-          </div>
-          <div id="pass-hint" class="form-hint">
-            Pierwsze logowanie lub gdy konto Microsoft nie działa.
-          </div>
-        </div>
-        <button type="submit" class="btn-login">
-          Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
-        </button>
-        <div class="text-center mt-3">
-          <a href="<?= APP_URL ?>/user/verify_reset.php"
-             style="font-size:.84rem;color:#4B5563;text-decoration:none"
-             aria-label="Zresetuj zapomniane hasło">
-            <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Zapomniałem hasła
-          </a>
-        </div>
-      </form>
-    </div>
-
-  </div><!-- /login-cols -->
-
-  <?php else: ?>
-  <!-- ══ JEDNOKOLUMNOWY UKŁAD (bez MS365) ══════════════════════════════════ -->
-  <form method="post" novalidate aria-label="Formularz logowania — e-mail i hasło" autocomplete="on">
-    <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-    <input type="hidden" name="_method" value="local">
-    <div class="mb-3">
-      <label class="form-label" for="f-email">Adres e-mail</label>
-      <input type="email" name="email" id="f-email"
-             class="form-control"
-             placeholder="nazwa@domena.pl"
-             autocomplete="email"
-             required aria-required="true"
-             autofocus
-             <?= $error ? 'aria-invalid="true" aria-describedby="email-err"' : '' ?>>
-      <?php if ($error && str_contains($error, 'mail')): ?>
-      <div id="email-err" class="form-hint" style="color:#DC2626"><?= h($error) ?></div>
-      <?php endif; ?>
-    </div>
-    <div class="mb-4">
-      <label class="form-label" for="f-pass">Hasło</label>
-      <div class="pass-wrap">
-        <input type="password" name="password" id="f-pass"
-               class="form-control"
-               autocomplete="current-password"
-               required aria-required="true"
-               aria-describedby="pass-hint">
-        <button type="button" class="pass-toggle"
-                aria-label="Pokaż hasło"
-                aria-pressed="false"
-                onclick="togglePass('f-pass', this)">
-          <i class="bi bi-eye" aria-hidden="true"></i>
-        </button>
-      </div>
-      <div id="pass-hint" class="form-hint">
-        Hasło ustawione podczas rejestracji lub przez administratora.
-      </div>
-    </div>
-    <button type="submit" class="btn-login">
-      Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
-    </button>
-    <div class="text-center mt-3">
-      <a href="<?= APP_URL ?>/user/verify_reset.php"
-         style="font-size:.84rem;color:#4B5563;text-decoration:none"
-         aria-label="Zresetuj zapomniane hasło">
-        <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Zapomniałem hasła
-      </a>
-    </div>
-  </form>
-  <?php endif; ?>
-
-  <!-- ══ Alternatywne metody (kod jednorazowy, SMS) ════════════════════════ -->
-  <?php
-  $alt_tabs = [];
-  if ($code_available) $alt_tabs['code'] = ['icon' => 'bi-key-fill',   'label' => 'Kod jednorazowy', 'for' => 'Goście i nowi pracownicy'];
-  if ($sms_available)  $alt_tabs['sms']  = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS',         'for' => 'Wolontariusze bez konta Microsoft'];
-  $active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
-  ?>
-  <?php if (!empty($alt_tabs)): ?>
-  <div class="or-div" aria-hidden="true"><span>inne metody logowania</span></div>
-  <nav aria-label="Alternatywne metody logowania" id="tab-nav">
-    <div role="tablist" aria-label="Wybierz alternatywną metodę logowania">
-      <?php foreach ($alt_tabs as $key => $m): ?>
-      <button role="tab"
-              id="tab-btn-<?= $key ?>"
-              aria-selected="<?= $active_alt === $key ? 'true' : 'false' ?>"
-              aria-controls="tab-<?= $key ?>"
-              onclick="switchAltTab('<?= $key ?>')"
-              <?= $active_alt === $key ? '' : 'tabindex="-1"' ?>>
-        <i class="bi <?= $m['icon'] ?>" aria-hidden="true"></i>
-        <span><?= h($m['label']) ?><small style="display:block;font-size:.7em;font-weight:400;opacity:.65;margin-top:.05rem"><?= h($m['for']) ?></small></span>
-      </button>
-      <?php endforeach; ?>
-    </div>
-  </nav>
-
-  <!-- Kod jednorazowy -->
-  <?php if ($code_available): ?>
-  <section id="tab-code" style="margin-top:1rem" aria-labelledby="tab-btn-code"
-           <?= $active_alt !== 'code' ? 'hidden' : '' ?>>
-    <form method="post" novalidate aria-label="Formularz logowania — jednorazowy kod dostępu" autocomplete="off">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_method" value="code">
-      <div class="mb-4">
-        <label class="form-label" for="f-code">Kod jednorazowy</label>
-        <input type="text" name="login_code" id="f-code"
-               class="form-control"
-               style="font-family:monospace;letter-spacing:.1em;text-align:center;font-size:1.1rem"
-               placeholder="XXXXXXXX"
-               spellcheck="false"
-               autocomplete="one-time-code"
-               required aria-required="true"
-               aria-describedby="code-hint"
-               <?= $active_alt === 'code' ? 'autofocus' : '' ?>>
-        <div id="code-hint" class="form-hint">
-          Dla gości i nowych pracowników — jednorazowy kod dostępu nadany przez administratora systemu.
-        </div>
-      </div>
-      <button type="submit" class="btn-login">
-        Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
-      </button>
-    </form>
-  </section>
-  <?php endif; ?>
-
-  <!-- SMS -->
-  <?php if ($sms_available): ?>
-  <section id="tab-sms" style="margin-top:1rem" aria-labelledby="tab-btn-sms"
-           <?= $active_alt !== 'sms' ? 'hidden' : '' ?>>
-    <?php if ($sms_step === 1): ?>
-    <form method="post" novalidate aria-label="Formularz logowania — krok 1: podaj numer telefonu" autocomplete="off">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_method" value="sms_send">
-      <div class="mb-4">
-        <label class="form-label" for="f-sms-phone">Numer telefonu</label>
-        <div class="input-group">
-          <span class="input-group-text fw-semibold" style="border:2px solid #6B7280;border-right:none;color:#374151">+48</span>
-          <input type="tel" name="sms_phone" id="f-sms-phone"
-                 class="form-control"
-                 style="border-left:none"
-                 placeholder="123 456 789"
-                 value="<?= h($sms_phone) ?>"
-                 inputmode="numeric" pattern="[0-9 ]{9,11}"
-                 autocomplete="tel-national"
-                 required aria-required="true"
-                 aria-describedby="sms-phone-hint"
-                 <?= $active_alt === 'sms' ? 'autofocus' : '' ?>>
-        </div>
-        <div id="sms-phone-hint" class="form-hint">
-          Dla wolontariuszy bez konta Microsoft — podaj numer z umowy wolontariackiej (9 cyfr).
-        </div>
-      </div>
-      <button type="submit" class="btn-login">
-        <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij kod SMS
-      </button>
-    </form>
-    <?php else: ?>
-    <form method="post" novalidate aria-label="Formularz logowania — krok 2: wpisz kod SMS" autocomplete="off">
-      <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
-      <input type="hidden" name="_method"   value="sms_verify">
-      <input type="hidden" name="sms_phone" value="<?= h($sms_phone) ?>">
-      <p style="font-size:.88rem;color:#374151;margin-bottom:1rem">
-        Kod wysłany na numer <strong><?= h($sms_phone) ?></strong>. Ważny 5 minut.
-      </p>
-      <div class="mb-4">
-        <label class="form-label" for="f-sms-code">6-cyfrowy kod SMS</label>
-        <input type="text" name="sms_code" id="f-sms-code"
-               class="form-control sms-code"
-               inputmode="numeric"
-               pattern="[0-9]{6}"
-               maxlength="6"
-               placeholder="• • • • • •"
-               autocomplete="one-time-code"
-               required aria-required="true"
-               aria-describedby="sms-code-hint"
-               autofocus>
-        <div id="sms-code-hint" class="form-hint">
-          Wpisz 6 cyfr z otrzymanego SMS. Kod wygaśnie za 5 minut.
-        </div>
-      </div>
-      <button type="submit" class="btn-login mb-3">
-        Zaloguj się <i class="bi bi-arrow-right" aria-hidden="true"></i>
-      </button>
-      <button type="button"
-              style="background:none;border:none;color:#4B5563;font-size:.84rem;cursor:pointer;padding:.4rem;text-decoration:underline;width:100%;text-align:center"
-              aria-label="Wróć — zmień numer telefonu"
-              onclick="document.querySelector('[name=_method]').value='sms_send';this.closest('form').submit()">
-        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Zmień numer telefonu
-      </button>
-    </form>
-    <?php endif; ?>
-  </section>
-  <?php endif; ?>
-
-  <?php endif; ?>
+  <?php include __DIR__ . '/_login_form_body.php'; ?>
 
 </main>
 </div><!-- /login-right -->
 </div><!-- /login-split -->
+<?php endif; // end layout split vs simple ?>
 
 <script>
 function switchAltTab(name) {
