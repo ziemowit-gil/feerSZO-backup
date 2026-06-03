@@ -1134,7 +1134,16 @@ if ($_tasks_panel_enabled):
         [$uid_panel]
     );
 
-    // Wolne zadania — BEZ wymogu workspace membership (wolontariusz może wziąć każde wolne)
+    // Dostępne zadania — BEZ wymogu workspace membership (wolontariusz może wziąć każde dostępne)
+    $_open_tasks_total = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM tasks t
+         JOIN task_lists tl ON tl.id = t.list_id
+         JOIN task_workspaces tw ON tw.id = t.workspace_id AND tw.is_active = 1
+         WHERE t.deleted_at IS NULL AND t.completed_at IS NULL
+           AND tl.is_done_state = 0
+           AND (SELECT COUNT(*) FROM task_assignments ta WHERE ta.task_id = t.id) = 0",
+        []
+    )['c'] ?? 0);
     $_open_tasks = db_all(
         "SELECT t.id, t.title, t.priority, t.due_date,
                 tl.name AS list_name, tw.name AS ws_name, tw.color AS ws_color
@@ -1168,9 +1177,10 @@ if ($_tasks_panel_enabled):
     </a>
     <?php endif; ?>
 
-    <?php if ($_open_tasks): ?>
-    <span class="badge" style="background:#dcfce7;color:#15803d;font-size:.72rem">
-      <?= count($_open_tasks) ?> wolnych
+    <?php if ($_open_tasks_total > 0): ?>
+    <span class="badge" id="panel-open-tasks-badge" style="background:#dcfce7;color:#15803d;font-size:.72rem"
+          aria-label="<?= $_open_tasks_total ?> dostępnych zadań do wzięcia">
+      <?= $_open_tasks_total ?> dostępnych
     </span>
     <?php endif; ?>
 
@@ -1193,7 +1203,7 @@ if ($_tasks_panel_enabled):
       <?php endif; ?>
       <a href="<?= APP_URL ?>/tasks/index.php?status=open"
          class="btn btn-sm btn-outline-success">
-        <i class="bi bi-hand-index me-1" aria-hidden="true"></i>Przeglądaj wolne zadania
+        <i class="bi bi-hand-index me-1" aria-hidden="true"></i>Przeglądaj dostępne zadania
       </a>
     </div>
 
@@ -1266,14 +1276,14 @@ if ($_tasks_panel_enabled):
     </ul>
     <?php endif; ?>
 
-    <!-- ── Wolne zadania do wzięcia ── -->
+    <!-- ── Dostępne zadania do wzięcia ── -->
     <?php if ($_open_tasks): ?>
     <div style="padding:.55rem 1rem .2rem;margin-top:.25rem">
       <p class="text-muted" style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.4rem">
-        Wolne — możesz wziąć
+        Dostępne — możesz wziąć
       </p>
     </div>
-    <ul class="list-unstyled mb-0" role="list" aria-label="Wolne zadania do wzięcia">
+    <ul class="list-unstyled mb-0" role="list" aria-label="Dostępne zadania do wzięcia">
       <?php foreach ($_open_tasks as $ot):
         $pc2 = $pri_colors[$ot['priority']] ?? '#94a3b8';
       ?>
@@ -1437,7 +1447,18 @@ if ($_tasks_panel_enabled):
           li.style.textDecoration = 'line-through';
           btn.innerHTML = '<i class="bi bi-check2-circle text-success"></i>';
           srAnnounce('Zadanie oznaczone jako ukończone.');
-          setTimeout(() => li.remove(), 1500);
+          setTimeout(() => {
+            li.remove();
+            // Aktualizuj licznik zadań w nagłówku karty
+            const ul = document.querySelector('[aria-label="Moje zadania"]');
+            if (ul) {
+              const remaining = ul.querySelectorAll('li[role="listitem"]').length;
+              const hdr = document.querySelector('#panel-tasks-card .card-header .h6');
+              if (hdr) hdr.textContent = remaining > 0
+                ? `Moje zadania (${remaining})`
+                : 'Moje zadania';
+            }
+          }, 1500);
         }
       } else {
         btn.disabled = false;

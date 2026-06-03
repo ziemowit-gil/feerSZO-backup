@@ -519,8 +519,8 @@ require_once __DIR__ . '/includes/header_tasks.php';
     <?php
     $sp = [
       'all'   => ['Wszystkie', 'bi-list-ul'],
-      'open'  => ['Wolne',     'bi-circle'],
-      'taken' => ['Zajęte',    'bi-person-fill'],
+      'open'  => ['Do zrobienia', 'bi-circle'],
+      'taken' => ['Przydzielone', 'bi-person-fill'],
       'done'  => ['Ukończone', 'bi-check-circle-fill'],
       'mine'  => ['Moje',      'bi-person-check-fill'],
     ];
@@ -737,10 +737,10 @@ require_once __DIR__ . '/includes/header_tasks.php';
         $st_pct   = $st_total ? round($st_done/$st_total*100) : 0;
 
         $status_info = match($task['_status']) {
-          'open'  => ['s-open',  'Wolne',     'bi-circle'],
-          'taken' => ['s-taken', 'Zajęte',    'bi-person-fill'],
-          'done'  => ['s-done',  'Ukończone', 'bi-check-circle-fill'],
-          default => ['s-open',  'Wolne',     'bi-circle'],
+          'open'  => ['s-open',  'Do zrobienia', 'bi-circle'],
+          'taken' => ['s-taken', 'Przydzielone', 'bi-person-fill'],
+          'done'  => ['s-done',  'Ukończone',    'bi-check-circle-fill'],
+          default => ['s-open',  'Do zrobienia', 'bi-circle'],
         };
 
         $row_label = h($task['title'])

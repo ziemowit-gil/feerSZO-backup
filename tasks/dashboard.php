@@ -240,22 +240,22 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 
   <div class="col-6 col-md-4 col-lg-2">
     <a class="tsk-kpi" href="<?= APP_URL ?>/tasks/index.php?status=open"
-       aria-label="Wolne zadania: <?= $kpi['open'] ?>">
+       aria-label="Do zrobienia: <?= $kpi['open'] ?>">
       <div class="tsk-kpi-stripe" style="background:#16a34a"></div>
       <div class="tsk-kpi-val" style="color:<?= $kpi['open'] > 0 ? '#16a34a' : 'inherit' ?>">
         <?= $kpi['open'] ?>
       </div>
-      <div class="tsk-kpi-label">Wolne</div>
+      <div class="tsk-kpi-label">Do zrobienia</div>
       <i class="bi bi-circle tsk-kpi-icon" aria-hidden="true"></i>
     </a>
   </div>
 
   <div class="col-6 col-md-4 col-lg-2">
     <a class="tsk-kpi" href="<?= APP_URL ?>/tasks/index.php?status=taken"
-       aria-label="Zajęte zadania: <?= $kpi['taken'] ?>">
+       aria-label="Przydzielone zadania: <?= $kpi['taken'] ?>">
       <div class="tsk-kpi-stripe" style="background:#2563eb"></div>
       <div class="tsk-kpi-val"><?= $kpi['taken'] ?></div>
-      <div class="tsk-kpi-label">Zajęte</div>
+      <div class="tsk-kpi-label">Przydzielone</div>
       <i class="bi bi-person-fill tsk-kpi-icon" aria-hidden="true"></i>
     </a>
   </div>
@@ -345,13 +345,13 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
     </div>
   </div>
 
-  <!-- Wolne zadania do wzięcia -->
+  <!-- Dostępne zadania do wzięcia -->
   <div class="col-lg-4">
     <div class="tsk-section h-100">
       <div class="tsk-section-head">
         <h2 class="tsk-section-title">
           <i class="bi bi-circle" aria-hidden="true"></i>
-          Wolne — do wzięcia
+          Dostępne — do wzięcia
           <?php if ($kpi['open'] > 0): ?>
           <span class="badge rounded-pill ms-1" style="background:#dcfce7;color:#15803d;font-size:.65rem">
             <?= $kpi['open'] ?>
@@ -370,7 +370,7 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
       <a class="tsk-task-row"
          href="<?= APP_URL ?>/tasks/index.php?status=open"
          onclick="event.preventDefault(); window.taskOpenById(<?= $t['id'] ?>)"
-         aria-label="Wolne zadanie: <?= h($t['title']) ?>">
+         aria-label="Dostępne zadanie: <?= h($t['title']) ?>">
         <span class="tsk-task-pri" style="background:<?= $pc ?>" aria-hidden="true"></span>
         <span class="tsk-task-title"><?= h($t['title']) ?></span>
         <?php if ($t['due_date']): ?>
