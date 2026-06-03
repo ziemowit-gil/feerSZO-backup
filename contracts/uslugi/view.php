@@ -27,9 +27,9 @@ $PAGE_TITLE = 'Umowa o świadczenie usług ' . $row['numer_umowy'];
 // ── Szybka zmiana statusu ─────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
     csrf_check();
-    if (can_edit()) {
+    if (can_edit() && !contract_is_locked($row)) {
         $new_status = $_POST['status'] ?? '';
-        if (isset(STATUS_LABELS[$new_status])) {
+        if (isset(STATUS_LABELS[$new_status]) && $new_status !== 'aneks') {
             $old_status = $row['status'];
             db_update($TABLE, ['status' => $new_status], $id);
             log_contract_action($TYPE, $id, (int)current_user()['id'], 'status_change',

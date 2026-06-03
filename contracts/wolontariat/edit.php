@@ -12,6 +12,10 @@ $TABLE = 'umowy_wolontariat';
 $id    = intval($_GET['id'] ?? 0);
 $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono porozumienia.'); }
+if (contract_is_locked($row)) {
+    flash_set('warning', 'Umowa jest zablokowana (zawarty aneks) — edycja niedostępna.');
+    header('Location: view.php?id=' . $id); exit;
+}
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
 
@@ -95,6 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'limit_zwrotu_kosztow',
             // ePodpis
             'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
+            // Podpisujący
+            'podpisujacy_fundacja', 'podpisujacy_stanowisko',
         ];
         $save = array_intersect_key($data, array_flip($allowed));
 
@@ -667,6 +673,19 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   </div>
 
   <div class="row g-3">
+    <div class="col-md-4 fgroup">
+      <label>Podpisuje ze strony fundacji</label>
+      <?= org_representative_select_by_name('podpisujacy_fundacja', $row['podpisujacy_fundacja'] ?? '', 'form-select') ?>
+    </div>
+    <div class="col-md-4 fgroup">
+      <label>Stanowisko / funkcja <span class="text-muted small">(uzupełnia się automatycznie)</span></label>
+      <input name="podpisujacy_stanowisko" class="form-control"
+             id="podpisujacy_stanowisko"
+             value="<?= h($row['podpisujacy_stanowisko'] ?? '') ?>"
+             placeholder="np. Prezes Zarządu">
+    </div>
+  </div>
+  <div class="row g-3 mt-1">
     <div class="col-md-4 fgroup">
       <label>Forma podpisania</label>
       <select name="forma_podpisania" class="form-select" id="forma_podpisania">

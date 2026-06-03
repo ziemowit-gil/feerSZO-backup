@@ -751,6 +751,25 @@ function migrate_tenant_db(PDO $pdo): array {
     $run('org_units.supervisor_unit_id', "ALTER TABLE org_units ADD COLUMN supervisor_unit_id INTEGER REFERENCES org_units(id) ON DELETE SET NULL");
     $run('org_units.supervisor_user_id', "ALTER TABLE org_units ADD COLUMN supervisor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
 
+    // ── Schema v8: osoba podpisująca ze strony fundacji ───────────────────────
+    foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_praca','umowy_inne'] as $t) {
+        $run("$t.podpisujacy_fundacja", "ALTER TABLE $t ADD COLUMN podpisujacy_fundacja VARCHAR(255)");
+        $run("$t.podpisujacy_stanowisko", "ALTER TABLE $t ADD COLUMN podpisujacy_stanowisko VARCHAR(255)");
+    }
+
+    // ── Schema v8: org_representatives ────────────────────────────────────────
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS org_representatives (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL,
+            title      TEXT NOT NULL DEFAULT '',
+            is_active  INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+        )");
+        $results[] = ['ok', 'org_representatives'];
+    } catch (\Throwable $e) { $results[] = ['skip', 'org_representatives']; }
+
     // ── Nowe domyślne settings ─────────────────────────────────────────────────
     $new_settings = [
         'wa_enabled' => '0', 'tasks_enabled' => '1',

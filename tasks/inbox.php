@@ -148,6 +148,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Pobierz wiadomości ────────────────────────────────────────────────────
 $messages = task_msg_inbox($uid, 80);
 
+// Pobierz liderów workspace dla zadań z wątków
+$_task_ids = array_unique(array_column($messages, 'context_id'));
+$_task_leaders = []; // task_id => ['id'=>..., 'name'=>...]
+if ($_task_ids) {
+    try {
+        $placeholders = implode(',', array_fill(0, count($_task_ids), '?'));
+        $_leader_rows = db_all(
+            "SELECT t.id AS task_id, u.id AS leader_id, u.name AS leader_name
+             FROM tasks t
+             JOIN task_workspaces tw ON tw.id = t.workspace_id
+             JOIN users u ON u.id = tw.created_by
+             WHERE t.id IN ({$placeholders})",
+            $_task_ids
+        );
+        foreach ($_leader_rows as $_lr) {
+            $_task_leaders[(int)$_lr['task_id']] = ['id' => (int)$_lr['leader_id'], 'name' => $_lr['leader_name']];
+        }
+    } catch (\Throwable $e) {}
+}
+
+// Pobierz wszystkich uczestników wątków (do wyboru odbiorcy)
+$_all_users_map = [];
+try {
+    $_urows = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name", []);
+    foreach ($_urows as $_ur) $_all_users_map[(int)$_ur['id']] = $_ur['name'];
+} catch (\Throwable $e) {}
+
 // Pogrupuj wg zadania
 $threads = [];
 foreach ($messages as $m) {
@@ -155,6 +182,7 @@ foreach ($messages as $m) {
     $threads[$key]['task_title'] = $m['task_title'] ?? '(zadanie usunięte)';
     $threads[$key]['task_id']    = $key;
     $threads[$key]['msgs'][]     = $m;
+    $threads[$key]['leader']     = $_task_leaders[$key] ?? null;
     if (!$m['is_read'] && (int)$m['recipient_id'] === $uid) {
         $threads[$key]['has_unread'] = true;
     }
@@ -432,6 +460,7 @@ const CSRF     = <?= json_encode($csrf) ?>;
 const BASE     = <?= json_encode(rtrim(APP_URL,'/')) ?>;
 const ME_ID    = <?= (int)$uid ?>;
 const ME_NAME  = <?= json_encode(current_user()['name'] ?? '') ?>;
+const ALL_USERS = <?= json_encode($_all_users_map, JSON_UNESCAPED_UNICODE) ?>;
 
 // Dane wątków przekazane z PHP
 const THREADS  = <?= json_encode(array_values($threads), JSON_UNESCAPED_UNICODE) ?>;
@@ -570,8 +599,39 @@ function renderThread(thread) {
         </div>`;
     }
 
+    // Zbuduj opcje dla selecta odbiorcy
+    const leader = thread.leader;
+    const defaultTarget = leader ? leader.id : 0;
+    // Unikalni rozmówcy (nie ja)
+    const partners = {};
+    thread.msgs.forEach(m => {
+      if (parseInt(m.sender_id) !== ME_ID) partners[parseInt(m.sender_id)] = m.sender_name;
+      if (m.recipient_id && parseInt(m.recipient_id) !== ME_ID) partners[parseInt(m.recipient_id)] = ALL_USERS[parseInt(m.recipient_id)] || m.sender_name;
+    });
+    if (leader) partners[leader.id] = leader.name;
+    let recipientOpts = '';
+    Object.keys(partners).forEach(pid => {
+      const isLeader = leader && parseInt(pid) === leader.id;
+      const sel = (parseInt(pid) === defaultTarget) ? ' selected' : '';
+      recipientOpts += `<option value="${escHtml(pid)}"${sel}>${escHtml(partners[pid])}${isLeader ? ' (Lider)' : ''}</option>`;
+    });
+    // Jeśli brak partnerów — dodaj wszystkich
+    if (!recipientOpts) {
+      Object.keys(ALL_USERS).forEach(uid => {
+        if (parseInt(uid) !== ME_ID) {
+          recipientOpts += `<option value="${escHtml(uid)}">${escHtml(ALL_USERS[uid])}</option>`;
+        }
+      });
+    }
+
     html += `</div>
     <div class="inbox-reply-bar" id="inbox-reply-bar">
+      <div class="d-flex align-items-center gap-2 mb-2 px-3 pt-2">
+        <label class="form-label mb-0 small fw-semibold text-nowrap" for="inbox-reply-to">Do:</label>
+        <select id="inbox-reply-to" class="form-select form-select-sm" required aria-label="Odbiorca">
+          ${recipientOpts}
+        </select>
+      </div>
       <div class="inbox-reply-inner">
         <label class="visually-hidden" for="inbox-reply-ta">Odpowiedz</label>
         <textarea id="inbox-reply-ta"
@@ -587,7 +647,7 @@ function renderThread(thread) {
           <i class="bi bi-send" aria-hidden="true"></i>
         </button>
       </div>
-      <p class="text-muted mb-0 mt-1" style="font-size:.72rem">
+      <p class="text-muted mb-0 mt-1 px-3 pb-2" style="font-size:.72rem">
         Ctrl+Enter aby wysłać · odpowiedź dotrze e-mailem i do skrzynki odbiorcy
       </p>
     </div>`;
@@ -603,17 +663,22 @@ function renderThread(thread) {
 
 function inboxSendReply() {
     if (!_activeTask) return;
-    const ta  = document.getElementById('inbox-reply-ta');
-    const msg = (ta?.value || '').trim();
+    const ta       = document.getElementById('inbox-reply-ta');
+    const toSel    = document.getElementById('inbox-reply-to');
+    const msg      = (ta?.value || '').trim();
     if (!msg) { ta?.focus(); return; }
+
+    const target_id = toSel ? parseInt(toSel.value) : 0;
+    if (!target_id) {
+        toSel?.focus();
+        toSel?.setCustomValidity('Wybierz odbiorcę wiadomości.');
+        toSel?.reportValidity();
+        return;
+    }
+    toSel?.setCustomValidity('');
 
     const thread = THREADS.find(t => t.task_id === _activeTask);
     if (!thread) return;
-
-    // Znajdź rozmówcę (pierwsza osoba która nie jest mną)
-    const other = thread.msgs.find(m => parseInt(m.sender_id) !== ME_ID);
-    const target_id = other ? parseInt(other.sender_id) : 0;
-    if (!target_id) { alert('Brak odbiorcy.'); return; }
 
     // Ustaw subject jako Reply
     const orig_subject = thread.msgs[0]?.subject || 'Wiadomość zadaniowa';

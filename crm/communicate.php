@@ -92,6 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($channel === 'email' && $subject === '') $errors[] = 'Temat wiadomości jest wymagany dla e-maila.';
 
     if (!$errors) {
+        // < 10 odbiorców → natychmiast; >= 10 → kolejka CRON
+        $immediate = count($recipient_ids) < 10;
         $user_id = (int)(current_user()['id'] ?? 0);
         foreach ($recipient_ids as $cid) {
             if (!crm_can_access_contact($cid)) continue;
@@ -106,11 +108,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $rendered_body,
                 $rendered_subject,
                 $tpl_name,
-                $do_send
+                $do_send && $immediate
             );
+            if ($do_send && !$immediate && $channel === 'email' && !empty($contact['email'])) {
+                // Wysyłka wsadowa — dodaj do kolejki bez natychmiastowego procesu
+                $is_html   = strip_tags($rendered_body) !== $rendered_body;
+                $html_body = $is_html ? $rendered_body : nl2br(htmlspecialchars($rendered_body));
+                $crm_footer = trim(org_setting('crm_email_footer') ?? '');
+                if ($crm_footer) $html_body .= "\n<hr>\n" . $crm_footer;
+                mail_queue_add($contact['email'], $contact['imie_nazwisko'] ?? '', $rendered_subject ?: 'Wiadomość', $html_body, $rendered_body, 'crm', $cid);
+            }
             $sent_count++;
         }
-        flash_set('success', "Wiadomość " . ($do_send ? 'wysłana' : 'zalogowana') . " do {$sent_count} odbiorców.");
+        if ($do_send && !$immediate) {
+            $msg = "Zakolejkowano {$sent_count} wiadomości — zostaną wysłane przez harmonogram (CRON).";
+        } else {
+            $msg = "Wiadomość " . ($do_send ? 'wysłana' : 'zalogowana') . " do {$sent_count} odbiorców.";
+        }
+        flash_set('success', $msg);
         header('Location: ' . APP_URL . '/crm/communicate.php');
         exit;
     }

@@ -21,8 +21,9 @@
  *   $_m365_creds     array|null — jednorazowe dane logowania M365 (opcjonalnie)
  */
 
-$_cvh_st     = STATUS_LABELS[$_cvh_row['status']] ?? ['label' => $_cvh_row['status'], 'class' => 'secondary'];
-$_cvh_status = $_cvh_row['status'];
+$_cvh_st       = STATUS_LABELS[$_cvh_row['status']] ?? ['label' => $_cvh_row['status'], 'class' => 'secondary'];
+$_cvh_status   = $_cvh_row['status'];
+$_cvh_locked   = contract_is_locked($_cvh_row); // status 'aneks' = blokada
 
 // Pasek postępu trwania umowy
 $_cvh_prog = null;
@@ -100,16 +101,20 @@ $_cvh_accent = match($_cvh_st['class']) {
 
     <!-- Right: actions -->
     <div class="contract-hero-actions">
-      <?php if (can_edit()): ?>
+      <?php if (can_edit() && !$_cvh_locked): ?>
       <a href="<?= h($_cvh_edit_url) ?>" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Edytuj</span>
       </a>
-      <?php if (($_cvh_type ?? '') === 'wolontariat'): ?>
+      <?php elseif ($_cvh_locked): ?>
+      <span class="btn btn-sm btn-outline-secondary disabled" title="Umowa zablokowana — zawarty aneks">
+        <i class="bi bi-lock-fill"></i> <span class="d-none d-sm-inline">Zablokowana</span>
+      </span>
+      <?php endif; ?>
+      <?php if (can_edit() && ($_cvh_type ?? '') === 'wolontariat'): ?>
       <a href="<?= APP_URL ?>/contracts/wolontariat/renew.php?id=<?= (int)($_cvh_id ?? 0) ?>"
          class="btn btn-sm btn-outline-success" title="Przedłuż umowę">
         <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Przedłuż</span>
       </a>
-      <?php endif; ?>
       <?php endif; ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark">
         <i class="bi bi-printer"></i>
@@ -127,14 +132,15 @@ $_cvh_accent = match($_cvh_st['class']) {
     <!-- Status (quick-change for editors) -->
     <div class="contract-hero-stat">
       <div class="cvh-stat-label">Status</div>
-      <?php if (can_edit()): ?>
+      <?php if (can_edit() && !$_cvh_locked): ?>
       <span class="d-inline-flex align-items-center gap-2">
         <select id="cvhStatusSelect"
                 class="cvh-status-select cvh-status-<?= h($_cvh_st['class']) ?>"
                 data-contract-id="<?= (int)$_cvh_row['id'] ?>"
                 data-contract-type="<?= h($_cvh_type) ?>"
                 onchange="cvhSetStatus(this)">
-          <?php foreach (STATUS_LABELS as $_sv => $_sm): ?>
+          <?php foreach (STATUS_LABELS as $_sv => $_sm):
+            if ($_sv === 'aneks') continue; // nie można ręcznie ustawić aneksu ?>
           <option value="<?= h($_sv) ?>" <?= $_cvh_status === $_sv ? 'selected' : '' ?>>
             <?= h($_sm['label']) ?>
           </option>
@@ -181,6 +187,10 @@ $_cvh_accent = match($_cvh_st['class']) {
         });
       }
       </script>
+      <?php elseif ($_cvh_locked): ?>
+      <span class="badge fs-6" style="background:#7c3aed">
+        <i class="bi bi-file-earmark-diff me-1"></i><?= h($_cvh_st['label']) ?>
+      </span>
       <?php else: ?>
       <span class="badge bg-<?= h($_cvh_st['class']) ?> fs-6"><?= h($_cvh_st['label']) ?></span>
       <?php if (!empty($_cvh_row['is_technical'])): ?>

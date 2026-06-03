@@ -178,6 +178,11 @@ function _ann_get_audience_users(string $audience): array {
                 [$unit_id]
             );
         }
+        if (str_starts_with($audience, 'user:')) {
+            $uid = (int)substr($audience, 5);
+            $r = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$uid]);
+            return $r ? [$r] : [];
+        }
     } catch (\Throwable $e) {}
     return [];
 }
@@ -216,6 +221,9 @@ function _ann_user_can_see(string $audience, int $user_id, string $role): bool {
             return (bool)$r;
         } catch (\Throwable $e) {}
     }
+    if (str_starts_with($audience, 'user:')) {
+        return (int)substr($audience, 5) === $user_id;
+    }
     return false;
 }
 
@@ -240,6 +248,14 @@ function ann_audience_label(string $audience): string {
             if ($u) return 'Jednostka: ' . $u['name'];
         } catch (\Throwable $e) {}
         return 'Jednostka #' . $unit_id;
+    }
+    if (str_starts_with($audience, 'user:')) {
+        $uid = (int)substr($audience, 5);
+        try {
+            $u = db_one("SELECT name FROM users WHERE id=?", [$uid]);
+            if ($u) return 'Osoba: ' . $u['name'];
+        } catch (\Throwable $e) {}
+        return 'Osoba #' . $uid;
     }
     return $audience;
 }

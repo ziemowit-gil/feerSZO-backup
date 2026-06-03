@@ -15,9 +15,11 @@ if (!is_admin()) {
 
 $_cu = current_user();
 
-// Pobierz org_units
+// Pobierz org_units i użytkowników
 $org_units = [];
 try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); } catch (\Throwable $e) {}
+$all_users = [];
+try { $all_users = db_all("SELECT id, name, email FROM users WHERE is_active=1 ORDER BY name", []); } catch (\Throwable $e) {}
 
 $errors = [];
 $values = [
@@ -47,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $valid_audiences = ['all', 'role:admin', 'role:editor', 'role:viewer'];
     foreach ($org_units as $ou) {
         $valid_audiences[] = 'unit:' . $ou['id'];
+    }
+    foreach ($all_users as $au) {
+        $valid_audiences[] = 'user:' . $au['id'];
     }
     if (!in_array($values['audience'], $valid_audiences, true)) {
         $errors[] = 'Nieprawidłowy odbiorca.';
@@ -125,6 +130,16 @@ require_once dirname(__DIR__) . '/includes/header.php';
                 <option value="unit:<?= (int)$ou['id'] ?>"
                   <?= $values['audience'] === 'unit:' . $ou['id'] ? 'selected' : '' ?>>
                   <?= h($ou['name']) ?>
+                </option>
+                <?php endforeach; ?>
+              </optgroup>
+              <?php endif; ?>
+              <?php if (!empty($all_users)): ?>
+              <optgroup label="Konkretna osoba">
+                <?php foreach ($all_users as $au): ?>
+                <option value="user:<?= (int)$au['id'] ?>"
+                  <?= $values['audience'] === 'user:' . $au['id'] ? 'selected' : '' ?>>
+                  <?= h($au['name']) ?><?= $au['email'] ? ' &lt;' . h($au['email']) . '&gt;' : '' ?>
                 </option>
                 <?php endforeach; ?>
               </optgroup>

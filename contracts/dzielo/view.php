@@ -29,9 +29,9 @@ $PAGE_TITLE = 'Umowa o dzieło ' . $row['numer_umowy'];
 // ── Szybka zmiana statusu ─────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
     csrf_check();
-    if (can_edit()) {
+    if (can_edit() && !contract_is_locked($row)) {
         $new_status = $_POST['status'] ?? '';
-        if (isset(STATUS_LABELS[$new_status])) {
+        if (isset(STATUS_LABELS[$new_status]) && $new_status !== 'aneks') {
             $old_status = $row['status'];
             db_update($TABLE, ['status' => $new_status], $id);
             log_contract_action($TYPE, $id, (int)current_user()['id'], 'status_change',
@@ -236,6 +236,15 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
     <div class="col-md-4"><div class="detail-label">Dostawca podpisu</div><div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
     <div class="col-md-4"><div class="detail-label">Nr certyfikatu</div><div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
     <div class="col-md-4"><div class="detail-label">Ważność certyfikatu</div><div class="detail-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
+    <?php endif; ?>
+    <?php if (!empty($row['podpisujacy_fundacja'])): ?>
+    <div class="col-md-4">
+      <div class="detail-label">Podpisuje ze strony fundacji</div>
+      <div class="detail-value fw-semibold"><?= h($row['podpisujacy_fundacja']) ?></div>
+      <?php if (!empty($row['podpisujacy_stanowisko'])): ?>
+      <div class="text-muted" style="font-size:.8rem"><?= h($row['podpisujacy_stanowisko']) ?></div>
+      <?php endif; ?>
+    </div>
     <?php endif; ?>
   </div>
   </div>

@@ -19,6 +19,10 @@ $TABLE = 'umowy_dzielo';
 $id = intval($_GET['id'] ?? 0);
 $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono.'); }
+if (contract_is_locked($row)) {
+    flash_set('warning', 'Umowa jest zablokowana (zawarty aneks) — edycja niedostępna.');
+    header('Location: view.php?id=' . $id); exit;
+}
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
 
@@ -57,7 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'numer_projektu','opiekun','forma_podpisania','platforma_el','id_dokumentu_el',
             'plik_potwierdzenia','plik_umowy','uwagi','updated_at',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
-            'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id'];
+            'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id',
+            'podpisujacy_fundacja','podpisujacy_stanowisko'];
         $save = array_intersect_key($data, array_flip($allowed));
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
         $diff = format_field_diff($row, $save);
@@ -293,6 +298,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold">Forma podpisania</div>
 <div class="card-body">
+<div class="row">
+  <div class="col-md-4 mb-3"><label class="form-label">Podpisuje ze strony fundacji</label>
+    <input name="podpisujacy_fundacja" class="form-control" value="<?= h($row['podpisujacy_fundacja'] ?? '') ?>" placeholder="Imię i nazwisko"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Stanowisko / funkcja</label>
+    <input name="podpisujacy_stanowisko" class="form-control" value="<?= h($row['podpisujacy_stanowisko'] ?? '') ?>" placeholder="np. Prezes Zarządu"></div>
+</div>
 <div class="row">
   <div class="col-md-4 mb-3"><label class="form-label">Forma podpisania</label>
     <select name="forma_podpisania" class="form-select" id="forma_podpisania">

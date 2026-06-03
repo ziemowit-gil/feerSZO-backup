@@ -17,10 +17,19 @@ const STATUS_LABELS = [
     'anulowana'    => ['label' => 'Anulowana',     'class' => 'danger'],
     'obowiązująca' => ['label' => 'Obowiązująca',  'class' => 'success'],
     'wygasła'      => ['label' => 'Wygasła',       'class' => 'secondary'],
+    'aneks'        => ['label' => 'Aneks',         'class' => 'purple'],
 ];
+
+/** Zwraca true jeśli umowa jest zablokowana (status aneks). */
+function contract_is_locked(array $row): bool {
+    return ($row['status'] ?? '') === 'aneks';
+}
 
 function status_badge(string $status): string {
     $s = STATUS_LABELS[$status] ?? ['label' => $status, 'class' => 'secondary'];
+    if ($status === 'aneks') {
+        return '<span class="badge" style="background:#7c3aed">' . htmlspecialchars($s['label']) . '</span>';
+    }
     return '<span class="badge bg-' . $s['class'] . '">' . htmlspecialchars($s['label']) . '</span>';
 }
 
@@ -199,6 +208,24 @@ function org_representative_select(string $name = 'representative_id', ?int $sel
     foreach ($reps as $r) {
         $sel  = ($selected === (int)$r['id']) ? ' selected' : '';
         $html .= '<option value="' . (int)$r['id'] . '"' . $sel . '>'
+               . h($r['name']) . ($r['title'] ? ' (' . h($r['title']) . ')' : '')
+               . '</option>';
+    }
+    $html .= '</select>';
+    return $html;
+}
+
+/** Select HTML z przedstawicielami — wartość to name (do pola podpisujacy_fundacja). */
+function org_representative_select_by_name(string $field_name, string $selected_name = '', string $class = 'form-select form-select-sm'): string {
+    $reps = org_representatives();
+    if (!$reps) {
+        return '<input type="text" name="' . h($field_name) . '" class="' . h($class) . '" value="' . h($selected_name) . '" placeholder="Imię i nazwisko podpisującego">';
+    }
+    $html = '<select name="' . h($field_name) . '" class="' . h($class) . '">';
+    $html .= '<option value="">— wybierz podpisującego —</option>';
+    foreach ($reps as $r) {
+        $sel  = ($selected_name === $r['name']) ? ' selected' : '';
+        $html .= '<option value="' . h($r['name']) . '"' . $sel . '>'
                . h($r['name']) . ($r['title'] ? ' (' . h($r['title']) . ')' : '')
                . '</option>';
     }

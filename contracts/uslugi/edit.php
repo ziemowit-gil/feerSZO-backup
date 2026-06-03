@@ -10,6 +10,10 @@ $TABLE = 'umowy_uslugi';
 $id = intval($_GET['id'] ?? 0);
 $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono umowy.'); }
+if (contract_is_locked($row)) {
+    flash_set('warning', 'Umowa jest zablokowana (zawarty aneks) — edycja niedostępna.');
+    header('Location: view.php?id=' . $id); exit;
+}
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
 

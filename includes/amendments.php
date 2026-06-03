@@ -177,17 +177,21 @@ function decide_amendment(int $id, string $decision, string $note, ?int $user_id
         "UPDATE contract_amendments SET status=?,decided_by=?,decided_at=?,decision_note=?,via_email=? WHERE id=?"
     )->execute([$decision, $user_id, $now, $note, $via_email ? 1 : 0, $id]);
 
-    // Zastosuj zmiany do umowy po akceptacji
-    if ($decision === 'zaakceptowany' && !empty($a['proposed_changes'])) {
-        $changes = json_decode($a['proposed_changes'], true) ?? [];
-        if ($changes) {
-            $tbl     = table_for_type($a['contract_type']);
-            $setCols = implode(',', array_map(fn($ch) => $ch['field'] . '=?', $changes));
-            $vals    = array_map(fn($ch) => $ch['new'], $changes);
-            $vals[]  = $a['contract_id'];
-            db()->prepare("UPDATE {$tbl} SET {$setCols} WHERE id=?")->execute($vals);
-            db()->prepare("UPDATE contract_amendments SET applied_at=? WHERE id=?")->execute([$now, $id]);
+    // Zastosuj zmiany do umowy po akceptacji i ustaw status "aneks"
+    if ($decision === 'zaakceptowany') {
+        $tbl = table_for_type($a['contract_type']);
+        if (!empty($a['proposed_changes'])) {
+            $changes = json_decode($a['proposed_changes'], true) ?? [];
+            if ($changes) {
+                $setCols = implode(',', array_map(fn($ch) => $ch['field'] . '=?', $changes));
+                $vals    = array_map(fn($ch) => $ch['new'], $changes);
+                $vals[]  = $a['contract_id'];
+                db()->prepare("UPDATE {$tbl} SET {$setCols} WHERE id=?")->execute($vals);
+                db()->prepare("UPDATE contract_amendments SET applied_at=? WHERE id=?")->execute([$now, $id]);
+            }
         }
+        // Zablokuj umowę — status aneks
+        db()->prepare("UPDATE {$tbl} SET status='aneks' WHERE id=?")->execute([$a['contract_id']]);
     }
 
     require_once __DIR__ . '/approval.php';
