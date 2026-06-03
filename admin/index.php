@@ -120,6 +120,22 @@ if ($_is_service_account) {
 // ── Grupy kafelków ────────────────────────────────────────────────────────────
 $groups = [
 
+    'CRM' => [
+        'icon'  => 'bi-diagram-2-fill',
+        'color' => 'green',
+        'items' => [
+            ['icon'=>'bi-person-lines-fill',  'label'=>'Ustawienia CRM',      'url'=>'/crm/settings/'],
+            ['icon'=>'bi-bookmark-fill',      'label'=>'Statusy CRM',         'url'=>'/crm/settings/statuses.php'],
+            ['icon'=>'bi-layers',             'label'=>'Grupy pól',           'url'=>'/crm/settings/field_groups.php'],
+            ['icon'=>'bi-list-columns',       'label'=>'Pola formularza',     'url'=>'/crm/settings/fields.php'],
+            ['icon'=>'bi-diagram-2',          'label'=>'Dostęp CRM-only',     'url'=>'/admin/crm_access.php'],
+            ['icon'=>'bi-database-gear',      'label'=>'Baza danych CRM',     'url'=>'/admin/crm_database.php'],
+            ['icon'=>'bi-geo-alt-fill',       'label'=>'Import TERYT',        'url'=>'/admin/teryt_import.php'],
+            ['icon'=>'bi-check2-square',      'label'=>'Nozbe',               'url'=>'/crm/settings/nozbe.php'],
+            ['icon'=>'bi-window-split',       'label'=>'Formularze webowe',   'url'=>'/crm/form/manage.php'],
+        ],
+    ],
+
     'Użytkownicy i bezpieczeństwo' => [
         'icon'  => 'bi-shield-person',
         'color' => 'blue',
@@ -149,6 +165,7 @@ $groups = [
             ['icon'=>'bi-ui-checks',       'label'=>'Pola w formularzach','url'=>'/admin/form_fields.php'],
             ['icon'=>'bi-file-earmark-text','label'=>'Wzory dokumentów', 'url'=>'/admin/contract_templates.php'],
             ['icon'=>'bi-stars',           'label'=>'Ustawienia AI',     'url'=>'/admin/ai_settings.php'],
+            ['icon'=>'bi-layout-sidebar',  'label'=>'Konfiguracja menu', 'url'=>'/admin/menu_config.php'],
         ],
     ],
 

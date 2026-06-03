@@ -21,14 +21,39 @@ const CRM_RELATION_TYPES = [
     'współpracuje' => 'Współpracuje',
 ];
 
-const CRM_STATUSES = [
-    'prospect'   => ['label' => 'Prospect',   'color' => '#0176D3'],
-    'aktywny'    => ['label' => 'Aktywny',    'color' => '#2E844A'],
-    'partner'    => ['label' => 'Partner',    'color' => '#7F2B8B'],
-    'darczyńca'  => ['label' => 'Darczyńca',  'color' => '#FE9339'],
-    'klient'     => ['label' => 'Klient',     'color' => '#032D60'],
-    'nieaktywny' => ['label' => 'Nieaktywny', 'color' => '#939393'],
+/** Wbudowane domyślne statusy — używane jako seed i fallback. */
+const CRM_DEFAULT_STATUSES = [
+    'prospect'   => ['label' => 'Prospect',   'color' => '#0176D3', 'sort_order' => 1],
+    'aktywny'    => ['label' => 'Aktywny',    'color' => '#2E844A', 'sort_order' => 2],
+    'partner'    => ['label' => 'Partner',    'color' => '#7F2B8B', 'sort_order' => 3],
+    'darczyńca'  => ['label' => 'Darczyńca',  'color' => '#FE9339', 'sort_order' => 4],
+    'klient'     => ['label' => 'Klient',     'color' => '#032D60', 'sort_order' => 5],
+    'nieaktywny' => ['label' => 'Nieaktywny', 'color' => '#939393', 'sort_order' => 6],
 ];
+
+/**
+ * Zwraca aktywne statusy CRM z bazy (lub wbudowane jeśli tabela pusta).
+ * Zamiennik dla stałej CRM_STATUSES.
+ */
+function crm_statuses(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $rows = crm_db()->query(
+            "SELECT slug, label, color FROM crm_statuses WHERE is_active=1 ORDER BY sort_order, id"
+        )->fetchAll(\PDO::FETCH_ASSOC);
+        if ($rows) {
+            $cache = [];
+            foreach ($rows as $r) {
+                $cache[$r['slug']] = ['label' => $r['label'], 'color' => $r['color']];
+            }
+            return $cache;
+        }
+    } catch (\Throwable $e) {}
+    // Fallback do wbudowanych
+    $cache = array_map(fn($v) => ['label'=>$v['label'],'color'=>$v['color']], CRM_DEFAULT_STATUSES);
+    return $cache;
+}
 
 const CRM_CHANNELS = [
     'email'   => ['label' => 'E-mail',    'icon' => 'bi-envelope-fill'],
@@ -36,6 +61,117 @@ const CRM_CHANNELS = [
     'telefon' => ['label' => 'Telefon',   'icon' => 'bi-telephone-fill'],
     'osobisty'=> ['label' => 'Osobisty',  'icon' => 'bi-person-fill'],
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OSOBNA BAZA CRM — opcjonalna konfiguracja
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Zwraca połączenie PDO dla tabel CRM.
+ * Domyślnie = main db(). Gdy skonfigurowano osobną bazę w settings, zwraca osobny singleton.
+ */
+function crm_db(): \PDO {
+    static $pdo = null;
+    if ($pdo !== null) return $pdo;
+
+    try {
+        $type = crm_setting('crm_db_type');
+        if (!$type || $type === 'main') {
+            $pdo = db();
+            return $pdo;
+        }
+        if ($type === 'sqlite') {
+            $path = crm_setting('crm_db_path');
+            if (!$path) { $pdo = db(); return $pdo; }
+            // Ścieżka względna → względem katalogu głównego
+            if (!str_starts_with($path, '/')) $path = dirname(__DIR__) . '/' . $path;
+            $pdo = new \PDO('sqlite:' . $path);
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            $pdo->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
+            $pdo->exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;");
+            return $pdo;
+        }
+        if ($type === 'mysql') {
+            $host   = crm_setting('crm_db_host') ?: '127.0.0.1';
+            $port   = crm_setting('crm_db_port') ?: '3306';
+            $name   = crm_setting('crm_db_name');
+            $user   = crm_setting('crm_db_user');
+            $pass   = crm_setting('crm_db_pass');
+            $dsn    = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+            $pdo = new \PDO($dsn, $user, $pass, [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+                \PDO::ATTR_EMULATE_PREPARES   => false,
+            ]);
+            return $pdo;
+        }
+    } catch (\Throwable $e) {
+        error_log('[crm_db] Błąd połączenia z bazą CRM: ' . $e->getMessage() . ' — fallback na główną bazę');
+    }
+
+    $pdo = db();
+    return $pdo;
+}
+
+/** Odczytaj ustawienie CRM z tabeli settings w GŁÓWNEJ bazie. */
+function crm_setting(string $key): string {
+    static $cache = [];
+    if (array_key_exists($key, $cache)) return $cache[$key];
+    try {
+        $r = db_one("SELECT value FROM settings WHERE key_=?", [$key]);
+        $cache[$key] = $r['value'] ?? '';
+    } catch (\Throwable $e) {
+        $cache[$key] = '';
+    }
+    return $cache[$key];
+}
+
+/** Zapisz ustawienie CRM w GŁÓWNEJ bazie. */
+function crm_setting_save(string $key, string $value): void {
+    if (DB_TYPE === 'sqlite') {
+        db()->prepare("INSERT OR REPLACE INTO settings (key_, value) VALUES (?,?)")->execute([$key, $value]);
+    } else {
+        db()->prepare("INSERT INTO settings (key_,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=?")->execute([$key,$value,$value]);
+    }
+}
+
+/** Sprawdź połączenie z bazą CRM i zwróć diagnostykę. */
+function crm_db_status(): array {
+    try {
+        $pdo   = crm_db();
+        $type  = crm_setting('crm_db_type') ?: 'main';
+        $tables = array_column($pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'crm_%'")->fetchAll() ?: [], 'name');
+        // MySQL fallback
+        if (empty($tables)) {
+            try {
+                $tables = array_column($pdo->query("SHOW TABLES LIKE 'crm_%'")->fetchAll(\PDO::FETCH_NUM) ?: [], 0);
+            } catch (\Throwable $e) {}
+        }
+        return ['ok' => true, 'type' => $type, 'tables' => count($tables), 'msg' => 'Połączono'];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'type' => 'error', 'tables' => 0, 'msg' => $e->getMessage()];
+    }
+}
+
+// Wrappers CRM DB — używaj zamiast db_one/db_all gdy operujesz na tabelach crm_*
+function crm_one(string $sql, array $p = []): ?array {
+    $st = crm_db()->prepare($sql); $st->execute($p);
+    $r  = $st->fetch(); return $r ?: null;
+}
+function crm_all(string $sql, array $p = []): array {
+    $st = crm_db()->prepare($sql); $st->execute($p);
+    return $st->fetchAll() ?: [];
+}
+function crm_insert(string $table, array $data): int {
+    $cols = implode(',', array_map(fn($k) => "`$k`", array_keys($data)));
+    $vals = implode(',', array_fill(0, count($data), '?'));
+    crm_db()->prepare("INSERT INTO `$table` ($cols) VALUES ($vals)")->execute(array_values($data));
+    return (int)crm_db()->lastInsertId();
+}
+function crm_update(string $table, array $data, int $id): void {
+    $set = implode(',', array_map(fn($k) => "`$k`=?", array_keys($data)));
+    crm_db()->prepare("UPDATE `$table` SET $set WHERE id=?")->execute([...array_values($data), $id]);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MIGRACJA — uruchamiana raz na żądanie HTTP
@@ -46,7 +182,7 @@ function crm_migrate(): void {
     if ($done) return;
     $done = true;
 
-    $pdo = db();
+    $pdo = crm_db();
 
     // Kontakty CRM
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contacts (
@@ -77,15 +213,20 @@ function crm_migrate(): void {
 
     // Dodatkowe kolumny (dla istniejących baz — idempotentne ALTER TABLE)
     $extra_cols = [
-        "ALTER TABLE crm_contacts ADD COLUMN imie            TEXT",           // imię (osoby)
-        "ALTER TABLE crm_contacts ADD COLUMN nazwisko        TEXT",           // nazwisko (osoby)
-        "ALTER TABLE crm_contacts ADD COLUMN pesel           TEXT",           // PESEL
-        "ALTER TABLE crm_contacts ADD COLUMN data_urodzenia  DATE",           // data urodzenia
-        "ALTER TABLE crm_contacts ADD COLUMN regon           TEXT",           // REGON (firmy)
-        "ALTER TABLE crm_contacts ADD COLUMN branza          TEXT",           // branża (firmy)
-        "ALTER TABLE crm_contacts ADD COLUMN strona_www      TEXT",           // strona www (firmy)
-        "ALTER TABLE crm_contacts ADD COLUMN osoba_kontaktowa TEXT",          // osoba kontaktowa (firmy)
-        "ALTER TABLE crm_contacts ADD COLUMN forma_prawna    TEXT",           // sp. z o.o., fundacja…
+        "ALTER TABLE crm_contacts ADD COLUMN imie            TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN nazwisko        TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN pesel           TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN data_urodzenia  DATE",
+        "ALTER TABLE crm_contacts ADD COLUMN regon           TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN branza          TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN strona_www      TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN osoba_kontaktowa TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN forma_prawna    TEXT",
+        // Terytorium
+        "ALTER TABLE crm_contacts ADD COLUMN wojewodztwo     TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN powiat          TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN gmina           TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN teryt_kod       TEXT",
     ];
     foreach ($extra_cols as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
@@ -342,8 +483,40 @@ function crm_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_events_contact ON crm_events(contact_id)");
 
     // ── Dodatkowe pola kontaktów ───────────────────────────────────────────────
+    // Statusy CRM (edytowalne przez admina)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_statuses (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug        TEXT    NOT NULL UNIQUE,
+        label       TEXT    NOT NULL,
+        color       TEXT    NOT NULL DEFAULT '#6B7280',
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Seed domyślnych statusów (tylko raz)
+    $has_statuses = (int)($pdo->query("SELECT COUNT(*) FROM crm_statuses")->fetchColumn() ?? 0);
+    if (!$has_statuses) {
+        $ins_st = $pdo->prepare("INSERT INTO crm_statuses (slug,label,color,sort_order) VALUES (?,?,?,?)");
+        foreach (CRM_DEFAULT_STATUSES as $slug => $s) {
+            try { $ins_st->execute([$slug, $s['label'], $s['color'], $s['sort_order']]); } catch (\Throwable $e) {}
+        }
+    }
+
+    // Grupy pól (sekcje formularza kontaktu)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_field_groups (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        label       TEXT    NOT NULL,
+        icon        TEXT    NOT NULL DEFAULT 'bi-card-list',
+        applies_to  TEXT    NOT NULL DEFAULT 'both',
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Pola kontaktów (custom)
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contact_field_defs (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id    INTEGER REFERENCES crm_field_groups(id) ON DELETE SET NULL,
         label       TEXT    NOT NULL,
         field_type  TEXT    NOT NULL DEFAULT 'text',
         options     TEXT    NOT NULL DEFAULT '',
@@ -352,6 +525,8 @@ function crm_migrate(): void {
         is_active   INTEGER NOT NULL DEFAULT 1,
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // Dodaj group_id do starych tabel (idempotentne)
+    try { $pdo->exec("ALTER TABLE crm_contact_field_defs ADD COLUMN group_id INTEGER REFERENCES crm_field_groups(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contact_field_values (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         contact_id   INTEGER NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
@@ -515,6 +690,22 @@ class CrmManager
         if (!empty($filters['group'])) {
             $where[]  = "EXISTS (SELECT 1 FROM crm_group_members gm WHERE gm.contact_id=c.id AND gm.group_id=?)";
             $params[] = (int)$filters['group'];
+        }
+        if (!empty($filters['wojewodztwo'])) {
+            $where[]  = "c.wojewodztwo = ?";
+            $params[] = $filters['wojewodztwo'];
+        }
+        if (!empty($filters['powiat'])) {
+            $where[]  = "c.powiat LIKE ?";
+            $params[] = '%' . $filters['powiat'] . '%';
+        }
+        if (!empty($filters['gmina'])) {
+            $where[]  = "c.gmina LIKE ?";
+            $params[] = '%' . $filters['gmina'] . '%';
+        }
+        if (!empty($filters['action_id'])) {
+            $where[]  = "EXISTS (SELECT 1 FROM crm_action_links al WHERE al.contact_id=c.id AND al.action_id=?)";
+            $params[] = (int)$filters['action_id'];
         }
 
         $sql_where = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -794,13 +985,16 @@ class CrmManager
     public static function renderTemplate(string $tpl, array $contact): string
     {
         $vars = [
-            '{imie}'         => explode(' ', $contact['imie_nazwisko'] ?? '')[0] ?? '',
-            '{imie_nazwisko}'=> $contact['imie_nazwisko'] ?? '',
-            '{email}'        => $contact['email'] ?? '',
-            '{telefon}'      => $contact['telefon'] ?? '',
-            '{organizacja}'  => $contact['organizacja'] ?? '',
-            '{stanowisko}'   => $contact['stanowisko'] ?? '',
-            '{data}'         => date('d.m.Y'),
+            '{imie}'          => explode(' ', $contact['imie_nazwisko'] ?? '')[0] ?? '',
+            '{imie_nazwisko}' => $contact['imie_nazwisko'] ?? '',
+            '{email}'         => $contact['email'] ?? '',
+            '{telefon}'       => $contact['telefon'] ?? '',
+            '{organizacja}'   => $contact['organizacja'] ?? '',
+            '{stanowisko}'    => $contact['stanowisko'] ?? '',
+            '{wojewodztwo}'   => $contact['wojewodztwo'] ?? '',
+            '{powiat}'        => $contact['powiat'] ?? '',
+            '{gmina}'         => $contact['gmina'] ?? '',
+            '{data}'          => date('d.m.Y'),
         ];
         return str_replace(array_keys($vars), array_values($vars), $tpl);
     }
@@ -1333,11 +1527,12 @@ class CrmManager
                               ? $data['applies_to'] : 'both',
             'sort_order' => (int)($data['sort_order'] ?? 0),
             'is_active'  => isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1,
+            'group_id'   => isset($data['group_id']) && $data['group_id'] ? (int)$data['group_id'] : null,
         ];
         if ($id) {
             db()->prepare(
-                "UPDATE crm_contact_field_defs SET label=?,field_type=?,options=?,applies_to=?,sort_order=?,is_active=? WHERE id=?"
-            )->execute(array_merge(array_values($fields), [$id]));
+                "UPDATE crm_contact_field_defs SET label=?,field_type=?,options=?,applies_to=?,sort_order=?,is_active=?,group_id=? WHERE id=?"
+            )->execute([...array_values($fields), $id]);
             return $id;
         }
         return db_insert('crm_contact_field_defs', $fields);

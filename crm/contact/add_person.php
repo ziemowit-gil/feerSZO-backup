@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'imie'           => $imie ?: null,
         'nazwisko'       => $nazwisko ?: null,
         'imie_nazwisko'  => $full ?: trim($_POST['imie_nazwisko'] ?? ''),
-        'status'         => array_key_exists($_POST['status'] ?? '', CRM_STATUSES) ? $_POST['status'] : 'prospect',
+        'status'         => array_key_exists($_POST['status'] ?? '', crm_statuses()) ? $_POST['status'] : 'prospect',
         'email'          => trim($_POST['email'] ?? '')          ?: null,
         'telefon'        => trim($_POST['telefon'] ?? '')         ?: null,
         'adres'          => trim($_POST['adres'] ?? '')           ?: null,
@@ -56,6 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'stanowisko'     => trim($_POST['stanowisko'] ?? '')      ?: null,
         'organizacja'    => trim($_POST['organizacja'] ?? '')     ?: null,
         'notatka'        => trim($_POST['notatka'] ?? '')         ?: null,
+        'wojewodztwo'    => trim($_POST['wojewodztwo'] ?? '')    ?: null,
+        'powiat'         => trim($_POST['powiat'] ?? '')         ?: null,
+        'gmina'          => trim($_POST['gmina'] ?? '')          ?: null,
     ];
 
     // Walidacja
@@ -288,6 +291,37 @@ include __DIR__ . '/../includes/header_crm.php';
     </div>
   </div>
 
+  <!-- 3b. Terytorium -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="step-label"><i class="bi bi-map" style="color:#059669" aria-hidden="true"></i>Terytorium</div>
+      <?php
+      $woj_list_p = ['dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie','małopolskie','mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','śląskie','świętokrzyskie','warmińsko-mazurskie','wielkopolskie','zachodniopomorskie'];
+      ?>
+      <div class="row g-2">
+        <div class="col-md-5">
+          <label class="form-label small mb-1">Województwo</label>
+          <select name="wojewodztwo" class="form-select form-select-sm">
+            <option value="">— wybierz —</option>
+            <?php foreach ($woj_list_p as $w): ?>
+            <option value="<?= h($w) ?>" <?= ($row['wojewodztwo']??'') === $w ? 'selected' : '' ?>><?= h(ucfirst($w)) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-1">Powiat</label>
+          <input type="text" name="powiat" class="form-control form-control-sm"
+                 value="<?= h($row['powiat'] ?? '') ?>" placeholder="np. warszawa">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Gmina</label>
+          <input type="text" name="gmina" class="form-control form-control-sm"
+                 value="<?= h($row['gmina'] ?? '') ?>" placeholder="gmina">
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 4. Notatka -->
   <div class="card border-0 shadow-sm">
     <div class="card-body">
@@ -309,7 +343,7 @@ include __DIR__ . '/../includes/header_crm.php';
     <div class="card-body">
       <div class="step-label">Status w CRM</div>
       <div class="d-flex flex-column gap-2" role="radiogroup" aria-label="Wybierz status kontaktu">
-        <?php foreach (CRM_STATUSES as $sk => $sv): ?>
+        <?php foreach (crm_statuses() as $sk => $sv): ?>
         <label class="d-flex align-items-center gap-2 p-2 border rounded"
                style="cursor:pointer;font-size:.84rem;border-radius:.4rem!important;
                       <?= ($row['status'] ?? 'prospect') === $sk ? 'background:var(--crm-primary-bg);border-color:var(--crm-primary)!important;font-weight:600' : '' ?>">

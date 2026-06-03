@@ -33,8 +33,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
 
     if (!$errors) {
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'z_webngo', 'canva_access'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'z_webngo', 'canva_access', 'email_consent'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
+        }
+        // Dostępność — serialize jako JSON
+        $data['dostepnosc_dni']  = json_encode(array_values(array_filter((array)($_POST['dostepnosc_dni']  ?? []))));
+        $data['dostepnosc_pora'] = json_encode(array_values(array_filter((array)($_POST['dostepnosc_pora'] ?? []))));
+        $data['obszar_dzialania'] = json_encode(array_values(array_filter((array)($_POST['obszar_dzialania'] ?? []))));
+        // Zgoda RODO — zapisz datę udzielenia jeśli zaznaczono po raz pierwszy
+        if ($data['email_consent'] && !$row['email_consent']) {
+            $data['email_consent_at'] = date('Y-m-d H:i:s');
+        } elseif (!$data['email_consent']) {
+            $data['email_consent_at'] = null;
         }
         // Guardian initials — przelicz gdy zmieniono guardian_editor_id
         if (!empty($data['guardian_editor_id'])) {
@@ -101,6 +111,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
             // Podpisujący
             'podpisujacy_fundacja', 'podpisujacy_stanowisko',
+            // Terytorium
+            'gmina', 'powiat', 'wojewodztwo', 'teryt_kod',
+            // Profil wolontariusza
+            'wolontariat_typ', 'obszar_dzialania', 'kompetencje', 'jezyki', 'wyksztalcenie',
+            // Dostępność
+            'dostepnosc_dni', 'dostepnosc_pora',
+            // RODO
+            'email_consent', 'email_consent_at',
         ];
         $save = array_intersect_key($data, array_flip($allowed));
 
@@ -310,6 +328,7 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 <nav id="sec-nav" aria-label="Sekcje formularza">
   <a href="#sec-podstawowe">📋 Porozumienie</a>
   <a href="#sec-wolontariusz">👤 Wolontariusz</a>
+  <a href="#sec-profil">🗂 Profil</a>
   <a href="#sec-szczegoly">📍 Szczegóły</a>
   <a href="#sec-bhp">🛡 BHP &amp; Ubezpieczenia</a>
   <a href="#sec-podpisanie">✍ Podpisanie</a>
@@ -549,6 +568,167 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
                    value="<?= h($row['rodzic_telefon'] ?? '') ?>">
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SEKCJA 2b — PROFIL WOLONTARIUSZA
+     ══════════════════════════════════════════════════════════ -->
+<section id="sec-profil" class="esec">
+  <div class="esec-head">
+    <i class="bi bi-person-lines-fill"></i>
+    <h6>Profil wolontariusza <span class="esec-sub">segmentacja, terytorium, dostępność</span></h6>
+  </div>
+
+  <?php
+  $woj_list = ['dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie','małopolskie','mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','śląskie','świętokrzyskie','warmińsko-mazurskie','wielkopolskie','zachodniopomorskie'];
+  $typ_list  = ['stały' => 'Stały', 'jednorazowy' => 'Jednorazowy', 'projektowy' => 'Projektowy', 'akcyjny' => 'Akcyjny / eventowy', 'wakacyjny' => 'Wakacyjny'];
+  $obszar_all = ['społeczny' => 'Społeczny', 'edukacyjny' => 'Edukacyjny', 'zdrowotny' => 'Zdrowotny', 'ekologiczny' => 'Ekologiczny', 'kulturalny' => 'Kulturalny', 'sportowy' => 'Sportowy', 'pomocowy' => 'Pomocowy / humanitarny', 'zwierzeta' => 'Ochrona zwierząt', 'cyfrowy' => 'Cyfrowy / IT', 'inny' => 'Inny'];
+  $wyksztalcenie_list = ['podstawowe' => 'Podstawowe', 'zawodowe' => 'Zawodowe', 'srednie' => 'Średnie', 'wyzsze_lic' => 'Wyższe — licencjat', 'wyzsze_mgr' => 'Wyższe — magister', 'doktorat' => 'Doktorat / dr', 'student' => 'Student'];
+  $current_obszar = json_decode($row['obszar_dzialania'] ?? '[]', true) ?: [];
+  $current_dni    = json_decode($row['dostepnosc_dni']   ?? '[]', true) ?: [];
+  $current_pora   = json_decode($row['dostepnosc_pora']  ?? '[]', true) ?: [];
+  ?>
+
+  <div class="row g-3 mb-3">
+    <!-- Typ wolontariatu -->
+    <div class="col-md-4 fgroup">
+      <label>Typ wolontariatu</label>
+      <select name="wolontariat_typ" class="form-select form-select-sm">
+        <option value="">— nie określono —</option>
+        <?php foreach ($typ_list as $v => $l): ?>
+        <option value="<?= h($v) ?>" <?= ($row['wolontariat_typ'] ?? '') === $v ? 'selected' : '' ?>><?= h($l) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <!-- Wykształcenie -->
+    <div class="col-md-4 fgroup">
+      <label>Wykształcenie</label>
+      <select name="wyksztalcenie" class="form-select form-select-sm">
+        <option value="">— nie określono —</option>
+        <?php foreach ($wyksztalcenie_list as $v => $l): ?>
+        <option value="<?= h($v) ?>" <?= ($row['wyksztalcenie'] ?? '') === $v ? 'selected' : '' ?>><?= h($l) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <!-- Języki -->
+    <div class="col-md-4 fgroup">
+      <label>Języki <span class="text-muted fw-normal">(oddziel przecinkiem)</span></label>
+      <input name="jezyki" class="form-control form-control-sm"
+             placeholder="polski, angielski, ukraiński…"
+             value="<?= h($row['jezyki'] ?? '') ?>">
+    </div>
+    <!-- Kompetencje -->
+    <div class="col-12 fgroup">
+      <label>Kompetencje / specjalizacje <span class="text-muted fw-normal">(swobodny opis)</span></label>
+      <textarea name="kompetencje" class="form-control form-control-sm" rows="2"
+                placeholder="np. grafika komputerowa, pierwsza pomoc, obsługa mediów społecznościowych…"><?= h($row['kompetencje'] ?? '') ?></textarea>
+    </div>
+  </div>
+
+  <!-- Obszar działania (multi-select checkboxes) -->
+  <div class="mb-3">
+    <label class="form-label small fw-semibold mb-1">Obszar działania</label>
+    <div class="d-flex flex-wrap gap-2">
+      <?php foreach ($obszar_all as $v => $l): ?>
+      <label class="badge fw-normal border text-dark d-flex align-items-center gap-1"
+             style="cursor:pointer;padding:.35em .7em;background:<?= in_array($v, $current_obszar) ? '#fff3e0;border-color:#fd7e14!important' : '#f8fafc' ?>">
+        <input type="checkbox" name="obszar_dzialania[]" value="<?= h($v) ?>"
+               class="form-check-input mt-0" style="width:13px;height:13px"
+               <?= in_array($v, $current_obszar) ? 'checked' : '' ?>>
+        <?= h($l) ?>
+      </label>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+  <!-- Terytorium -->
+  <div class="p-3 rounded mb-3" style="background:#f8fafc;border:1px solid #e2e8f0">
+    <div class="fw-semibold small mb-2"><i class="bi bi-map me-1 text-secondary"></i>Terytorium działania / zamieszkania</div>
+    <div class="row g-2">
+      <div class="col-md-4 fgroup">
+        <label>Województwo</label>
+        <select name="wojewodztwo" class="form-select form-select-sm">
+          <option value="">— wybierz —</option>
+          <?php foreach ($woj_list as $w): ?>
+          <option value="<?= h($w) ?>" <?= ($row['wojewodztwo'] ?? '') === $w ? 'selected' : '' ?>><?= h(ucfirst($w)) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-4 fgroup">
+        <label>Powiat</label>
+        <input name="powiat" class="form-control form-control-sm"
+               placeholder="np. powiat warszawski zachodni"
+               value="<?= h($row['powiat'] ?? '') ?>">
+      </div>
+      <div class="col-md-3 fgroup">
+        <label>Gmina / miejscowość</label>
+        <input name="gmina" class="form-control form-control-sm"
+               placeholder="np. Ożarów Mazowiecki"
+               value="<?= h($row['gmina'] ?? '') ?>">
+      </div>
+      <div class="col-md-1 fgroup">
+        <label>Kod TERYT</label>
+        <input name="teryt_kod" class="form-control form-control-sm font-monospace"
+               maxlength="10" placeholder="1461011"
+               value="<?= h($row['teryt_kod'] ?? '') ?>">
+      </div>
+    </div>
+  </div>
+
+  <!-- Dostępność -->
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <label class="form-label small fw-semibold mb-1">Dostępne dni tygodnia</label>
+      <div class="d-flex flex-wrap gap-2">
+        <?php foreach (['pon' => 'Pon', 'wt' => 'Wt', 'sr' => 'Śr', 'czw' => 'Czw', 'pt' => 'Pt', 'sob' => 'Sob', 'ndz' => 'Ndz'] as $v => $l): ?>
+        <label class="badge fw-normal border text-dark d-flex align-items-center gap-1"
+               style="cursor:pointer;padding:.4em .75em;background:<?= in_array($v, $current_dni) ? '#e0f2fe;border-color:#0ea5e9!important' : '#f8fafc' ?>">
+          <input type="checkbox" name="dostepnosc_dni[]" value="<?= $v ?>"
+                 class="form-check-input mt-0" style="width:13px;height:13px"
+                 <?= in_array($v, $current_dni) ? 'checked' : '' ?>>
+          <?= $l ?>
+        </label>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small fw-semibold mb-1">Pora dnia</label>
+      <div class="d-flex flex-wrap gap-2">
+        <?php foreach (['rano' => 'Rano', 'popoludnie' => 'Południe', 'wieczor' => 'Wieczór', 'weekend' => 'Weekend'] as $v => $l): ?>
+        <label class="badge fw-normal border text-dark d-flex align-items-center gap-1"
+               style="cursor:pointer;padding:.4em .75em;background:<?= in_array($v, $current_pora) ? '#e0f2fe;border-color:#0ea5e9!important' : '#f8fafc' ?>">
+          <input type="checkbox" name="dostepnosc_pora[]" value="<?= $v ?>"
+                 class="form-check-input mt-0" style="width:13px;height:13px"
+                 <?= in_array($v, $current_pora) ? 'checked' : '' ?>>
+          <?= $l ?>
+        </label>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zgoda RODO -->
+  <div class="p-3 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
+    <div class="toggle-row">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch"
+               name="email_consent" id="emailConsent" value="1"
+               <?= !empty($row['email_consent']) ? 'checked' : '' ?>>
+      </div>
+      <div>
+        <label for="emailConsent" class="mb-0 fw-semibold">
+          <i class="bi bi-shield-check text-success me-1"></i>Zgoda na komunikację e-mail (RODO)
+        </label>
+        <div class="ts-sub">Wolontariusz wyraził zgodę na otrzymywanie wiadomości e-mail z organizacji</div>
+        <?php if (!empty($row['email_consent_at'])): ?>
+        <div class="text-success small mt-1">
+          <i class="bi bi-check-circle me-1"></i>Zgoda udzielona: <?= date_pl(substr($row['email_consent_at'],0,10)) ?>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>

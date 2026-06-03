@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
+require_once dirname(__DIR__) . '/includes/nozbe.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -125,7 +126,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $msg = "Wiadomość " . ($do_send ? 'wysłana' : 'zalogowana') . " do {$sent_count} odbiorców.";
         }
-        flash_set('success', $msg);
+        // ── Nozbe follow-up task ────────────────────────────────────────────
+        if (!empty($_POST['nozbe_task']) && nozbe_setting('nozbe_enabled') === '1') {
+            try {
+                $nozbe      = NozbeAPI::from_settings();
+                $project_id = trim($_POST['nozbe_project_id'] ?? nozbe_setting('nozbe_default_project_id'));
+                $due        = trim($_POST['nozbe_due_date'] ?? '');
+                $task_name  = trim($_POST['nozbe_task_name'] ?? '') ?: 'Follow-up: ' . implode(', ', array_map(function($cid) {
+                    $c = db_one("SELECT imie_nazwisko FROM crm_contacts WHERE id=?", [(int)$cid]);
+                    return $c['imie_nazwisko'] ?? "#$cid";
+                }, array_slice($recipient_ids, 0, 3))) . (count($recipient_ids) > 3 ? ' +'.( count($recipient_ids)-3).' więcej' : '');
+
+                if ($nozbe->is_configured() && $project_id) {
+                    $desc = "Wysłano wiadomość CRM (" . date('d.m.Y H:i') . ")\n"
+                          . "Temat: $subject\n"
+                          . "Odbiorców: " . count($recipient_ids);
+                    $task = $nozbe->create_task($task_name, $project_id, $desc, $due ?: null);
+                    flash_set('success', $msg . " · Zadanie Nozbe utworzone: <strong>" . h($task_name) . "</strong>");
+                } else {
+                    flash_set('success', $msg);
+                }
+            } catch (\Throwable $e) {
+                flash_set('success', $msg);
+                flash_set('warning', 'Nozbe: ' . $e->getMessage());
+            }
+        } else {
+            flash_set('success', $msg);
+        }
         header('Location: ' . APP_URL . '/crm/communicate.php');
         exit;
     }
@@ -247,22 +274,33 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
 
         <?php else: ?>
-        <!-- Multi-select -->
-        <label class="form-label visually-hidden" for="recipient_ids">Wybierz odbiorców</label>
-        <select name="recipient_ids[]" id="recipient_ids"
-                class="form-select"
-                multiple
-                size="8"
-                aria-label="Wybierz odbiorców (możesz zaznaczyć wielu)">
-          <?php foreach ($contacts as $c):
-            $label = h($c['imie_nazwisko']) . ($c['organizacja'] ? ' (' . h($c['organizacja']) . ')' : '');
-          ?>
-          <option value="<?= (int)$c['id'] ?>"><?= $label ?></option>
-          <?php endforeach; ?>
-        </select>
-        <div class="form-text" style="font-size:.75rem">
-          Przytrzymaj Ctrl/Cmd, aby zaznaczyć wielu odbiorców.
+        <!-- Live search odbiorców -->
+        <div id="comm-recipient-wrap">
+          <div class="position-relative mb-2">
+            <div class="input-group">
+              <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+              <input type="text" id="comm-search" class="form-control"
+                     placeholder="Szukaj po imieniu, e-mailu lub organizacji…"
+                     autocomplete="off">
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      onclick="CommRecip.selectAll()" title="Zaznacz wszystkich z bieżącego wyszukiwania">
+                <i class="bi bi-check-all"></i>
+              </button>
+            </div>
+            <div id="comm-dropdown"
+                 style="display:none;position:absolute;z-index:1050;background:#fff;border:1px solid #E5E7EB;
+                        border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);width:100%;
+                        max-height:220px;overflow-y:auto;top:calc(100%+4px)">
+            </div>
+          </div>
+
+          <!-- Wybrani odbiorcy jako chips + hidden inputs -->
+          <div id="comm-chips" class="d-flex flex-wrap gap-1 mb-1"></div>
+
+          <!-- Licznik -->
+          <div class="text-muted" id="comm-count" style="font-size:.75rem"></div>
         </div>
+        <div id="comm-hidden-inputs"></div>
         <?php endif; ?>
       </div>
     </div>
@@ -418,6 +456,55 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
     </div>
 
+    <?php if (nozbe_setting('nozbe_enabled') === '1' && nozbe_setting('nozbe_api_token')): ?>
+    <!-- Nozbe follow-up -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-2">
+        <div class="form-check mb-2">
+          <input type="checkbox" class="form-check-input" name="nozbe_task" id="nozbeTaskChk"
+                 value="1" onchange="document.getElementById('nozbeTaskDetails').style.display=this.checked?'':'none'">
+          <label class="form-check-label small fw-semibold" for="nozbeTaskChk">
+            <img src="https://nozbe.com/favicon.ico" style="width:14px;height:14px;margin-right:4px;vertical-align:middle" alt="">
+            Utwórz zadanie follow-up w Nozbe
+          </label>
+        </div>
+        <div id="nozbeTaskDetails" style="display:none">
+          <?php
+          $nozbe_projects = [];
+          try {
+              $nz = NozbeAPI::from_settings();
+              if ($nz->is_configured()) $nozbe_projects = $nz->get_projects();
+          } catch (\Throwable $e) {}
+          $default_project = nozbe_setting('nozbe_default_project_id');
+          ?>
+          <div class="row g-2">
+            <div class="col-md-5">
+              <label class="form-label small mb-1">Nazwa zadania</label>
+              <input type="text" name="nozbe_task_name" class="form-control form-control-sm"
+                     placeholder="np. Follow-up po kampanii…">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Projekt</label>
+              <select name="nozbe_project_id" class="form-select form-select-sm">
+                <option value="">— domyślny —</option>
+                <?php foreach ($nozbe_projects as $p): ?>
+                <option value="<?= h($p['id']) ?>" <?= $default_project===$p['id']?'selected':'' ?>>
+                  <?= h($p['name'] ?? $p['id']) ?>
+                </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Termin</label>
+              <input type="date" name="nozbe_due_date" class="form-control form-control-sm"
+                     value="<?= date('Y-m-d', strtotime('+7 days')) ?>">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
     </form>
   </div><!-- /col-8 -->
 
@@ -533,6 +620,29 @@ include __DIR__ . '/includes/header_crm.php';
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
 <style>
+/* Chip odbiorcy */
+.comm-chip {
+  display:inline-flex;align-items:center;gap:.3rem;
+  background:#EFF7ED;border:1px solid #A7F3D0;border-radius:2rem;
+  padding:.2rem .5rem .2rem .65rem;font-size:.76rem;color:#065F46;
+}
+.comm-chip button {
+  background:none;border:none;color:#6B7280;padding:0 .1rem;
+  line-height:1;font-size:.95rem;cursor:pointer;
+}
+.comm-chip button:hover { color:#DC2626; }
+/* Dropdown item */
+.comm-di {
+  display:flex;flex-direction:column;padding:.45rem .75rem;
+  cursor:pointer;border-bottom:1px solid #F3F4F6;
+}
+.comm-di:last-child { border-bottom:none; }
+.comm-di:hover { background:#F9FAFB; }
+.comm-di-name { font-size:.82rem;font-weight:600;color:#111827; }
+.comm-di-sub  { font-size:.72rem;color:#6B7280; }
+.comm-di.already  { opacity:.45;cursor:default;pointer-events:none; }
+.comm-di.disabled { opacity:.55;cursor:not-allowed;background:#FEF3E2; }
+.comm-di.disabled .comm-di-name { color:#92400E; }
 /* Quill customizacja */
 #quillWrapper .ql-toolbar.ql-snow {
   border: 1px solid #E5E7EB; border-bottom: none;
@@ -880,5 +990,171 @@ function aiApply() {
     bootstrap.Modal.getInstance(document.getElementById('aiModal')).hide();
 }
 </script>
+
+<?php if (!$preselect_contact_id && !$preselect_group): ?>
+<script>
+/* ── Live search odbiorców w communicate.php ────────────────────────────── */
+const CommRecip = (function () {
+  const SEARCH_URL = '<?= APP_URL ?>/crm/api/contacts_search.php';
+  const selected   = new Map(); // id → {id, name, email, telefon, org}
+  let   timer      = null;
+
+  const inp      = document.getElementById('comm-search');
+  const dropdown = document.getElementById('comm-dropdown');
+  const chips    = document.getElementById('comm-chips');
+  const hiddens  = document.getElementById('comm-hidden-inputs');
+  const counter  = document.getElementById('comm-count');
+  const chanSel  = document.getElementById('channel');
+
+  if (!inp) return {};
+
+  // Aktualny kanał
+  function getChannel() { return chanSel ? chanSel.value : 'email'; }
+
+  // Czy kontakt ma wymagane pole dla danego kanału
+  function contactOk(c, ch) {
+    if (ch === 'email')    return !!c.email;
+    if (ch === 'sms')      return !!c.telefon;
+    if (ch === 'telefon')  return !!c.telefon;
+    return true; // osobisty, inne — zawsze ok
+  }
+
+  function missingField(ch) {
+    if (ch === 'email')   return 'brak adresu e-mail';
+    if (ch === 'sms')     return 'brak numeru telefonu';
+    if (ch === 'telefon') return 'brak numeru telefonu';
+    return '';
+  }
+
+  inp.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = inp.value.trim();
+    if (!q) { dropdown.style.display = 'none'; return; }
+    timer = setTimeout(() => search(q), 200);
+  });
+
+  // Przelicz dropdown gdy zmienia się kanał
+  if (chanSel) chanSel.addEventListener('change', () => {
+    if (dropdown.style.display !== 'none') renderDropdown(_lastRows);
+    // Odśwież chipy — wyszarz te które nie pasują do nowego kanału
+    renderChips();
+  });
+
+  let _lastRows = [];
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#comm-search') && !e.target.closest('#comm-dropdown'))
+      dropdown.style.display = 'none';
+  });
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function search(q) {
+    const excl = [...selected.keys()].join(',');
+    fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}&limit=25&exclude=${excl}`)
+      .then(r => r.json())
+      .then(rows => {
+        _lastRows = rows;
+        renderDropdown(rows);
+      });
+  }
+
+  function renderDropdown(rows) {
+    if (!rows.length) { dropdown.style.display = 'none'; return; }
+    const ch = getChannel();
+    dropdown.innerHTML = rows.map(c => {
+      const ok      = contactOk(c, ch);
+      const missing = ok ? '' : missingField(ch);
+      const contact = c.email || c.telefon ? (c.email || '') + (c.telefon ? (c.email?' · ':'')+c.telefon : '') : 'brak danych';
+      return `
+        <div class="comm-di${ok ? '' : ' disabled'}"
+             data-id="${c.id}" data-name="${esc(c.name)}"
+             data-email="${esc(c.email||'')}" data-telefon="${esc(c.telefon||'')}"
+             data-org="${esc(c.organizacja||'')}"
+             ${ok ? `onclick="CommRecip.add(${c.id},'${esc(c.name)}','${esc(c.email||'')}','${esc(c.telefon||'')}','${esc(c.organizacja||'')}')"` : ''}
+             title="${ok ? '' : 'Nie można wybrać — '+missing}">
+          <div class="comm-di-name">
+            ${esc(c.name)}
+            ${c.organizacja ? `<span style="font-weight:400;color:#9CA3AF"> · ${esc(c.organizacja)}</span>` : ''}
+            <span class="badge bg-light text-dark border ms-1" style="font-size:.62rem">${c.type==='organizacja'?'org':'os.'}</span>
+            ${!ok ? `<span class="badge bg-warning text-dark ms-1" style="font-size:.6rem"><i class="bi bi-exclamation-triangle-fill me-1"></i>${missing}</span>` : ''}
+          </div>
+          <div class="comm-di-sub" style="${ok?'':'color:#D97706'}">
+            ${ok ? esc(contact) : '<i>'+esc(missing)+'</i>'}
+          </div>
+        </div>`;
+    }).join('');
+    dropdown.style.display = 'block';
+  }
+
+  function add(id, name, email, telefon, org) {
+    if (selected.has(id)) return;
+    // Sprawdź czy kontakt pasuje do aktualnego kanału
+    const ch = getChannel();
+    if (!contactOk({email, telefon}, ch)) return;
+    selected.set(id, {id, name, email, telefon, org});
+    inp.value = '';
+    dropdown.style.display = 'none';
+    render();
+  }
+
+  function remove(id) {
+    selected.delete(id);
+    render();
+  }
+
+  function renderChips() {
+    chips.innerHTML = '';
+    const ch = getChannel();
+    selected.forEach(({id, name, email, telefon}) => {
+      const ok = contactOk({email, telefon}, ch);
+      const ch_el = document.createElement('span');
+      ch_el.className = 'comm-chip' + (ok ? '' : ' opacity-50');
+      ch_el.title = ok ? '' : 'Ten kontakt nie ma ' + missingField(ch) + ' — nie zostanie wysłany';
+      ch_el.innerHTML = `<i class="bi bi-person-fill" style="font-size:.75rem"></i>`
+        + `<span>${esc(name)}</span>`
+        + (ch === 'email' && email ? `<span class="text-muted" style="font-size:.7rem">&lt;${esc(email)}&gt;</span>` : '')
+        + (ch !== 'email' && telefon ? `<span class="text-muted" style="font-size:.7rem">${esc(telefon)}</span>` : '')
+        + (!ok ? `<i class="bi bi-exclamation-triangle-fill text-warning ms-1" style="font-size:.7rem"></i>` : '')
+        + `<button type="button" onclick="CommRecip.remove(${id})"><i class="bi bi-x"></i></button>`;
+      chips.appendChild(ch_el);
+    });
+  }
+
+  function render() {
+    renderChips();
+
+    // Hidden inputs — tylko kontakty pasujące do kanału
+    const ch = getChannel();
+    hiddens.innerHTML = '';
+    selected.forEach(({id, email, telefon}) => {
+      if (!contactOk({email, telefon}, ch)) return;
+      const inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'recipient_ids[]'; inp.value = id;
+      hiddens.appendChild(inp);
+    });
+
+    // Licznik — tylko pasujących
+    const valid = [...selected.values()].filter(c => contactOk(c, ch)).length;
+    const total = selected.size;
+    if (total === 0) { counter.textContent = ''; return; }
+    counter.textContent = `Wybrano ${valid} z ${total} kontaktów`
+      + (valid < total ? ` (${total-valid} bez wymaganego pola — zostaną pominięci)` : '');
+    counter.style.color = valid < total ? '#D97706' : '';
+  }
+
+  function selectAll() {
+    const ch = getChannel();
+    dropdown.querySelectorAll('.comm-di:not(.disabled)').forEach(el => {
+      add(parseInt(el.dataset.id), el.dataset.name, el.dataset.email, el.dataset.telefon, el.dataset.org);
+    });
+  }
+
+  return { add, remove, selectAll };
+})();
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>

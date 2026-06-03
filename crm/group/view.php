@@ -229,7 +229,7 @@ tr:hover .member-row-actions { opacity: 1; }
             <?php foreach ($group['members'] as $m):
               $is_org  = $m['type'] === 'organizacja';
               $ini     = $m['avatar_initials'] ?: CrmManager::makeInitials($m['imie_nazwisko']);
-              $sc      = CRM_STATUSES[$m['status']] ?? ['label' => $m['status']];
+              $sc      = crm_statuses()[$m['status']] ?? ['label' => $m['status']];
             ?>
             <tr data-name="<?= h(mb_strtolower($m['imie_nazwisko'])) ?>">
               <td>
@@ -525,7 +525,7 @@ tr:hover .member-row-actions { opacity: 1; }
           <span style="font-size:.84rem"><i class="bi bi-building me-1 text-muted"></i><?= $by_type['organizacja'] ?> firm</span>
         </div>
         <?php foreach ($by_status as $sk => $cnt):
-          $sc = CRM_STATUSES[$sk] ?? ['label'=>$sk];
+          $sc = crm_statuses()[$sk] ?? ['label'=>$sk];
         ?>
         <div class="d-flex align-items-center justify-content-between mb-1" style="font-size:.82rem">
           <span class="crm-badge crm-badge-<?= h($sk) ?>"><?= h($sc['label']) ?></span>

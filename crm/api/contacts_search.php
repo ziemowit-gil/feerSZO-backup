@@ -1,0 +1,53 @@
+<?php
+/**
+ * crm/api/contacts_search.php — Szybkie wyszukiwanie kontaktów CRM.
+ * GET ?q=... — zwraca JSON [{id, name, email, telefon, organizacja}]
+ */
+require_once dirname(dirname(__DIR__)) . '/config.php';
+require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+
+header('Content-Type: application/json; charset=utf-8');
+
+if (!current_user()) { http_response_code(401); echo json_encode([]); exit; }
+if (!can_write('crm') && !is_admin()) { http_response_code(403); echo json_encode([]); exit; }
+
+$q      = trim($_GET['q'] ?? '');
+$limit  = min(30, max(1, (int)($_GET['limit'] ?? 20)));
+$exclude = array_filter(array_map('intval', explode(',', $_GET['exclude'] ?? '')));
+
+if (strlen($q) < 1) { echo json_encode([]); exit; }
+
+$like   = '%' . $q . '%';
+$params = [$like, $like, $like, $like];
+
+$excl_sql = '';
+if ($exclude) {
+    $placeholders = implode(',', array_fill(0, count($exclude), '?'));
+    $excl_sql = " AND id NOT IN ({$placeholders})";
+    $params = array_merge($params, $exclude);
+}
+
+$params[] = $limit;
+
+$rows = db_all(
+    "SELECT id, imie_nazwisko, email, telefon, organizacja, type
+     FROM crm_contacts
+     WHERE crm_active=1
+       AND (imie_nazwisko LIKE ? OR email LIKE ? OR organizacja LIKE ? OR telefon LIKE ?)
+       {$excl_sql}
+     ORDER BY imie_nazwisko
+     LIMIT ?",
+    $params
+);
+
+echo json_encode(array_map(fn($r) => [
+    'id'          => (int)$r['id'],
+    'name'        => $r['imie_nazwisko'],
+    'email'       => $r['email'] ?: null,
+    'telefon'     => $r['telefon'] ?: null,
+    'organizacja' => $r['organizacja'] ?: null,
+    'type'        => $r['type'],
+], $rows), JSON_UNESCAPED_UNICODE);

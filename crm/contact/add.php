@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
         'imie_nazwisko' => trim($_POST['imie_nazwisko'] ?? ''),
         'type'          => in_array($_POST['type'] ?? '', ['osoba','organizacja'], true) ? $_POST['type'] : 'osoba',
-        'status'        => array_key_exists($_POST['status'] ?? '', CRM_STATUSES) ? $_POST['status'] : 'prospect',
+        'status'        => array_key_exists($_POST['status'] ?? '', crm_statuses()) ? $_POST['status'] : 'prospect',
         'email'         => trim($_POST['email'] ?? '') ?: null,
         'telefon'       => trim($_POST['telefon'] ?? '') ?: null,
         'adres'         => trim($_POST['adres'] ?? '') ?: null,
@@ -325,7 +325,7 @@ include __DIR__ . '/../includes/header_crm.php';
         <div class="crm-section-title">Status i widoczność</div>
         <label class="form-label" for="status">Status kontaktu</label>
         <select name="status" id="status" class="form-select" aria-label="Status kontaktu">
-          <?php foreach (CRM_STATUSES as $sk => $sv): ?>
+          <?php foreach (crm_statuses() as $sk => $sv): ?>
           <option value="<?= h($sk) ?>" <?= ($row['status'] ?? 'prospect') === $sk ? 'selected' : '' ?>>
             <?= h($sv['label']) ?>
           </option>

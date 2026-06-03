@@ -50,13 +50,34 @@ function require_login(): void {
         header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($full_uri));
         exit;
     }
-    // Użytkownicy crm_user mają dostęp wyłącznie do /crm/ i /auth/
+    // Użytkownicy crm_user / crm_only — ograniczone ścieżki
     if (is_crm_only()) {
         $uri = $_SERVER['REQUEST_URI'] ?? '';
         $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
         $rel = ($base && $base !== '/') ? substr($uri, strlen($base)) : $uri;
         $rel = strtolower(preg_replace('/\?.*/', '', $rel));
-        $allowed_prefixes = ['/crm/', '/auth/', '/api/krs', '/api/ceidg', '/user/first_login_consent'];
+
+        // Podstawowe ścieżki zawsze dostępne
+        $allowed_prefixes = [
+            '/crm/', '/auth/', '/api/krs', '/api/ceidg',
+            '/user/first_login_consent',
+            '/contracts/ika_gate',  // wymagane dla CRM-only + IKA
+        ];
+
+        // Opcjonalne rozszerzenia — konfigurowane w Adminie → Dostęp CRM
+        try {
+            $extra = db_one("SELECT value FROM settings WHERE key_='crm_extra_modules'");
+            $modules = $extra ? array_filter(explode(',', $extra['value'])) : [];
+            foreach ($modules as $m) {
+                $m = trim($m);
+                if ($m === 'actions')   $allowed_prefixes[] = '/actions/';
+                if ($m === 'grants')    $allowed_prefixes[] = '/grants/';
+                if ($m === 'persons')   $allowed_prefixes[] = '/persons/';
+                if ($m === 'reports')   $allowed_prefixes[] = '/reports/';
+                if ($m === 'directory') $allowed_prefixes[] = '/directory/';
+            }
+        } catch (\Throwable $e) {}
+
         $is_allowed = false;
         foreach ($allowed_prefixes as $p) {
             if (str_starts_with($rel, $p)) { $is_allowed = true; break; }
@@ -347,4 +368,8 @@ function csrf_check(): void {
         http_response_code(403);
         die('Błąd CSRF. Odśwież stronę i spróbuj ponownie.');
     }
+}
+
+function csrf_field(): string {
+    return '<input type="hidden" name="_csrf" value="' . htmlspecialchars(csrf_token(), ENT_QUOTES) . '">';
 }

@@ -21,16 +21,32 @@ $user    = current_user();
 $role    = $user['role'] ?? '';
 $user_id = (int)$user['id'];
 
-// IKA wymagana dla admin, editor, crm_user oraz doradców K30 (k30_consultant=1)
+// IKA wymagana dla admin, editor, crm_user oraz ról crm_only i doradców K30
 $_ika_k30 = false;
+$_is_crm_only_role = false;
 if (!in_array($role, ['admin', 'editor', 'crm_user'], true)) {
+    // Sprawdź własne role z flagą crm_only
     try {
-        $row = db_one("SELECT k30_consultant FROM users WHERE id=?", [$user_id]);
-        $_ika_k30 = !empty($row['k30_consultant']);
+        $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$role]);
+        $_is_crm_only_role = !empty($r['crm_only']);
     } catch (\Throwable $e) {}
 
-    if (!$_ika_k30) {
-        header('Location: ' . APP_URL . '/index.php');
+    if (!$_is_crm_only_role) {
+        try {
+            $row = db_one("SELECT k30_consultant FROM users WHERE id=?", [$user_id]);
+            $_ika_k30 = !empty($row['k30_consultant']);
+        } catch (\Throwable $e) {}
+    }
+
+    if (!$_ika_k30 && !$_is_crm_only_role) {
+        // crm_only przez is_crm_only() — sprawdź funkcją
+        $_ika_k30 = is_crm_only();
+    }
+
+    if (!$_ika_k30 && !$_is_crm_only_role) {
+        // Nie ma uprawnień do IKA — przekieruj
+        $dest = is_crm_only() ? '/crm/dashboard.php' : '/index.php';
+        header('Location: ' . APP_URL . $dest);
         exit;
     }
 }
@@ -57,7 +73,10 @@ if ($raw_to !== '') {
     }
 }
 if ($return_to === '') {
-    $return_to = APP_URL . '/index.php';
+    // crm_only → domyślnie CRM, nie main index
+    $return_to = is_crm_only()
+        ? APP_URL . '/crm/dashboard.php'
+        : APP_URL . '/index.php';
 }
 
 // Wykryj kontekst i nazwę modułu — po ustaleniu $return_to

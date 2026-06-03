@@ -56,6 +56,7 @@ try {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/crm-module.css">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <style>
 /* ── CRM Shell ───────────────────────────────────────────────────────── */
 :root {
@@ -455,6 +456,14 @@ window.openCommModal = function(contactId, channel) {
       <i class="bi bi-megaphone-fill"></i>
       <span>Wysyłka masowa</span>
     </a>
+
+    <?php if ($_crm_can_write): ?>
+    <a href="<?= APP_URL ?>/crm/form/manage.php"
+       class="crm-nav-item<?= _crm_nav_active('/crm/form/') ?>">
+      <i class="bi bi-window-split"></i>
+      <span>Formularze</span>
+    </a>
+    <?php endif; ?>
 
     <a href="<?= APP_URL ?>/crm/calendar.php"
        class="crm-nav-item<?= _crm_nav_active('/crm/calendar') ?>">

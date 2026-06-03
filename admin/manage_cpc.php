@@ -30,9 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action    = $_POST['_action'] ?? '';
     $target_id = (int) ($_POST['user_id'] ?? 0);
 
-    // Fetch target user (must be admin or editor, active)
+    // Fetch target user — admin/editor/crm_user + role z flagą crm_only
     $target = $target_id ? db_one(
-        "SELECT id, name, first_name, last_name, role FROM users WHERE id = ? AND role IN ('admin','editor') AND is_active = 1",
+        "SELECT u.id, u.name, u.first_name, u.last_name, u.role
+         FROM users u
+         LEFT JOIN roles r ON r.name=u.role
+         WHERE u.id=? AND u.is_active=1
+           AND (u.role IN ('admin','editor','crm_user') OR r.crm_only=1)",
         [$target_id]
     ) : null;
 
@@ -301,6 +305,15 @@ $users = db_all(
      ORDER BY role='admin' DESC, name ASC"
 );
 
+// CRM-only użytkownicy wymagający IKA
+$crm_only_no_ika = db_all(
+    "SELECT u.id, u.name, u.first_name, u.last_name, u.email, u.role, u.cpc_code
+     FROM users u
+     LEFT JOIN roles r ON r.name=u.role
+     WHERE u.is_active=1 AND (u.role='crm_user' OR r.crm_only=1) AND (u.cpc_code IS NULL OR u.cpc_code='')
+     ORDER BY u.name"
+);
+
 // Doradcy K30 (dowolna rola, k30_consultant=1) + ich certyfikaty
 $k30_users = db_all(
     "SELECT u.id, u.name, u.first_name, u.last_name, u.email, u.role,
@@ -332,6 +345,29 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<?php if ($crm_only_no_ika): ?>
+<div class="alert alert-warning d-flex gap-2 align-items-start mb-3" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
+  <div>
+    <strong><?= count($crm_only_no_ika) ?> użytkownicy CRM-only bez kodu IKA</strong>
+    — Ci użytkownicy <strong>nie będą mogli się zalogować</strong> do modułu CRM dopóki nie otrzymają kodu IKA.
+    <div class="mt-2 d-flex flex-wrap gap-2">
+      <?php foreach ($crm_only_no_ika as $u): ?>
+      <form method="post" class="d-inline">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="set_cpc">
+        <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+        <input type="hidden" name="auto_generate" value="1">
+        <button class="btn btn-sm btn-warning">
+          <i class="bi bi-key me-1"></i>Nadaj IKA dla <?= h($u['first_name'] ?: $u['name']) ?>
+        </button>
+      </form>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="alert alert-info d-flex gap-2 align-items-start mb-4" role="alert">
   <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1"></i>

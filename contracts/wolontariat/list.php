@@ -17,20 +17,39 @@ $PAGE_TITLE = 'Porozumienia wolontariackie';
 $TYPE  = 'wolontariat';
 $TABLE = 'umowy_wolontariat';
 
+// ── Bezpieczeństwo: per-opiekun visibility ────────────────────────────────────
+// Editor (nie admin) widzi tylko "swoje" umowy jeśli ustawiono filtr opiekuna
+$_cur_user    = current_user();
+$_is_my_only  = !is_admin() && !can_delete('wolontariat')
+                && org_setting('wolontariat_opiekun_only') === '1';
+
 // Filtry
 $search    = trim($_GET['q']        ?? '');
 $status    = $_GET['status']        ?? '';
 $opiekun   = trim($_GET['opiekun']  ?? '');
 $projekt   = trim($_GET['projekt']  ?? '');
+$wojewodztwo = trim($_GET['woj']    ?? '');
+$obszar    = trim($_GET['obszar']   ?? '');
+$typ       = trim($_GET['typ']      ?? '');
+$email_consent_only = !empty($_GET['zgoda']);
 $page      = max(1, intval($_GET['page'] ?? 1));
 $per       = 20;
 $view_mode = in_array($_GET['view'] ?? 'table', ['table','cards']) ? ($_GET['view'] ?? 'table') : 'table';
 
 $where  = '1=1';
 $params = [];
+
+// Per-opiekun: editor widzi tylko swoje gdy włączone
+if ($_is_my_only) {
+    $my_name = trim(($_cur_user['first_name'] ?? '') . ' ' . ($_cur_user['last_name'] ?? ''));
+    if (!$my_name) $my_name = $_cur_user['name'] ?? '';
+    $where .= " AND opiekun LIKE ?";
+    $params[] = '%' . $my_name . '%';
+}
+
 if ($search) {
-    $where .= " AND (numer_umowy LIKE ? OR imie_nazwisko LIKE ? OR nr_rejestru LIKE ? OR pesel LIKE ?)";
-    $params = array_merge($params, ["%$search%", "%$search%", "%$search%", "%$search%"]);
+    $where .= " AND (numer_umowy LIKE ? OR imie_nazwisko LIKE ? OR nr_rejestru LIKE ? OR pesel LIKE ? OR email LIKE ?)";
+    $params = array_merge($params, ["%$search%", "%$search%", "%$search%", "%$search%", "%$search%"]);
 }
 if ($status) {
     $where .= " AND status = ?";
@@ -44,10 +63,37 @@ if ($projekt) {
     $where .= " AND projekt_program LIKE ?";
     $params[] = "%$projekt%";
 }
+// Nowe filtry segmentacji
+if ($wojewodztwo) {
+    $where .= " AND wojewodztwo = ?";
+    $params[] = $wojewodztwo;
+}
+if ($typ) {
+    $where .= " AND wolontariat_typ = ?";
+    $params[] = $typ;
+}
+if ($obszar) {
+    $where .= " AND obszar_dzialania LIKE ?";
+    $params[] = '%"' . $obszar . '"%';
+}
+if ($email_consent_only) {
+    $where .= " AND email_consent = 1";
+}
 
 $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $params)['c'] ?? 0);
-$pag    = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query(array_filter(['q' => $search, 'status' => $status, 'opiekun' => $opiekun, 'projekt' => $projekt, 'view' => $view_mode !== 'table' ? $view_mode : null])));
+$pag    = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query(array_filter([
+    'q' => $search, 'status' => $status, 'opiekun' => $opiekun, 'projekt' => $projekt,
+    'woj' => $wojewodztwo, 'obszar' => $obszar, 'typ' => $typ,
+    'zgoda' => $email_consent_only ? '1' : null,
+    'view' => $view_mode !== 'table' ? $view_mode : null,
+])));
 $rows   = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY created_at DESC LIMIT {$per} OFFSET {$pag['offset']}", $params);
+
+// Dane do filtrów select
+$woj_in_db   = db_all("SELECT DISTINCT wojewodztwo FROM {$TABLE} WHERE wojewodztwo IS NOT NULL AND wojewodztwo != '' ORDER BY wojewodztwo");
+$typ_in_db   = db_all("SELECT DISTINCT wolontariat_typ FROM {$TABLE} WHERE wolontariat_typ IS NOT NULL AND wolontariat_typ != '' ORDER BY wolontariat_typ");
+$_typ_labels = ['stały'=>'Stały','jednorazowy'=>'Jednorazowy','projektowy'=>'Projektowy','akcyjny'=>'Akcyjny','wakacyjny'=>'Wakacyjny'];
+$_obs_labels = ['społeczny'=>'Społeczny','edukacyjny'=>'Edukacyjny','zdrowotny'=>'Zdrowotny','ekologiczny'=>'Ekologiczny','kulturalny'=>'Kulturalny','sportowy'=>'Sportowy','pomocowy'=>'Pomocowy','zwierzeta'=>'Ochrona zwierząt','cyfrowy'=>'Cyfrowy / IT','inny'=>'Inny'];
 
 // Statystyki globalne
 $status_counts = [];
@@ -178,18 +224,25 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 
 <!-- ── Pasek filtrów ──────────────────────────────────────────────────────── -->
+<?php if ($_is_my_only): ?>
+<div class="alert alert-info py-2 px-3 small mb-2">
+  <i class="bi bi-shield-lock me-1"></i>
+  Widzisz tylko <strong>swoje</strong> umowy wolontariatu (tryb per-opiekun). Skontaktuj się z administratorem aby zobaczyć wszystkie.
+</div>
+<?php endif; ?>
 <form method="get" class="wol-filter-bar mb-3">
   <?php if ($status): ?><input type="hidden" name="status" value="<?= h($status) ?>"><?php endif; ?>
   <?php if ($view_mode !== 'table'): ?><input type="hidden" name="view" value="<?= h($view_mode) ?>"><?php endif; ?>
   <div class="row g-2 align-items-center">
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="input-group input-group-sm">
         <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-        <input name="q" class="form-control" placeholder="Numer, nazwisko, PESEL, nr rej.…"
+        <input name="q" class="form-control" placeholder="Numer, nazwisko, PESEL, email…"
                value="<?= h($search) ?>" autocomplete="off">
       </div>
     </div>
-    <div class="col-md-3">
+    <?php if (!$_is_my_only): ?>
+    <div class="col-md-2">
       <select name="opiekun" class="form-select form-select-sm">
         <option value="">— wszyscy opiekunowie —</option>
         <?php foreach ($opiekunowie as $op): ?>
@@ -199,13 +252,40 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="col-md-3">
-      <input name="projekt" class="form-control form-control-sm" placeholder="Projekt/program…"
-             value="<?= h($projekt) ?>">
+    <?php endif; ?>
+    <!-- Nowe filtry segmentacji -->
+    <div class="col-md-2">
+      <select name="woj" class="form-select form-select-sm">
+        <option value="">— województwo —</option>
+        <?php foreach ($woj_in_db as $w): ?>
+        <option value="<?= h($w['wojewodztwo']) ?>" <?= $wojewodztwo===$w['wojewodztwo']?'selected':'' ?>>
+          <?= h(ucfirst($w['wojewodztwo'])) ?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select name="typ" class="form-select form-select-sm">
+        <option value="">— typ wolontariatu —</option>
+        <?php foreach ($typ_in_db as $t): ?>
+        <option value="<?= h($t['wolontariat_typ']) ?>" <?= $typ===$t['wolontariat_typ']?'selected':'' ?>>
+          <?= h($_typ_labels[$t['wolontariat_typ']] ?? $t['wolontariat_typ']) ?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-auto">
+      <div class="form-check form-check-sm mb-0 d-flex align-items-center gap-1">
+        <input type="checkbox" name="zgoda" value="1" id="f_zgoda" class="form-check-input"
+               <?= $email_consent_only ? 'checked' : '' ?>>
+        <label for="f_zgoda" class="form-check-label small" style="cursor:pointer">
+          <i class="bi bi-shield-check text-success"></i> RODO
+        </label>
+      </div>
     </div>
     <div class="col-auto">
       <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-funnel"></i> Filtruj</button>
-      <?php if ($search || $status || $opiekun || $projekt): ?>
+      <?php if ($search || $status || $opiekun || $projekt || $wojewodztwo || $typ || $obszar || $email_consent_only): ?>
       <a href="?" class="btn btn-outline-secondary btn-sm ms-1"><i class="bi bi-x"></i> Wyczyść</a>
       <?php endif; ?>
     </div>

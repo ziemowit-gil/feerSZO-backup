@@ -11,7 +11,6 @@ $_pv_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
   </span>
 </footer>
 </div><!-- /pv-shell -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (function(){
   var btn=document.createElement('button');

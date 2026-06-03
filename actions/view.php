@@ -276,7 +276,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <?php foreach ($crm_participants as $p):
             $is_org  = $p['type'] === 'organizacja';
             $ini     = $p['avatar_initials'] ?: CrmManager::makeInitials($p['imie_nazwisko']);
-            $sc      = CRM_STATUSES[$p['status']] ?? ['label' => $p['status']];
+            $sc      = crm_statuses()[$p['status']] ?? ['label' => $p['status']];
             $badge_colors = [
               'prospect'   => '#0176D3','aktywny'  => '#2E844A','partner'   => '#7F2B8B',
               'darczyńca'  => '#FE9339','klient'   => '#032D60','nieaktywny'=> '#939393',

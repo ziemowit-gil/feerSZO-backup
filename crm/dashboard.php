@@ -150,7 +150,7 @@ include __DIR__ . '/includes/header_crm.php';
       <div class="crm-panel-body p-0">
         <?php foreach ($recent as $r):
           $ini    = $r['avatar_initials'] ?: CrmManager::makeInitials($r['imie_nazwisko']);
-          $sc     = CRM_STATUSES[$r['status']] ?? ['label' => $r['status']];
+          $sc     = crm_statuses()[$r['status']] ?? ['label' => $r['status']];
           $is_org = $r['type'] === 'organizacja';
         ?>
         <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$r['id'] ?>"

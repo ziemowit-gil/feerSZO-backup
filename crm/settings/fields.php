@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'applies_to' => $_POST['applies_to'] ?? 'both',
             'sort_order' => (int)($_POST['sort_order'] ?? 0),
             'is_active'  => isset($_POST['is_active']) ? 1 : 0,
+            'group_id'   => (int)($_POST['group_id'] ?? 0) ?: null,
         ], $id ?: null);
         flash_set('success', $id ? 'Pole zaktualizowane.' : 'Pole dodane.');
         header('Location: ' . APP_URL . '/crm/settings/fields.php');
@@ -142,7 +143,7 @@ include __DIR__ . '/../includes/header_crm.php';
       </div>
 
       <div class="row g-3 mb-3">
-        <div class="col-sm-6">
+        <div class="col-sm-4">
           <label class="form-label fw-semibold" for="f_type">Typ pola</label>
           <select class="form-select" id="f_type" name="field_type">
             <?php foreach ($FIELD_TYPES as $k => $v): ?>
@@ -150,11 +151,23 @@ include __DIR__ . '/../includes/header_crm.php';
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-sm-6">
+        <div class="col-sm-4">
           <label class="form-label fw-semibold" for="f_applies">Dotyczy</label>
           <select class="form-select" id="f_applies" name="applies_to">
             <?php foreach ($APPLIES_TO as $k => $v): ?>
             <option value="<?= h($k) ?>" <?= $f['applies_to'] === $k ? 'selected' : '' ?>><?= h($v) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label fw-semibold" for="f_group">Grupa pól</label>
+          <?php $field_groups = crm_all("SELECT id, label FROM crm_field_groups WHERE is_active=1 ORDER BY sort_order, id"); ?>
+          <select class="form-select" id="f_group" name="group_id">
+            <option value="">— bez grupy —</option>
+            <?php foreach ($field_groups as $fg): ?>
+            <option value="<?= $fg['id'] ?>" <?= (int)($f['group_id'] ?? 0) === (int)$fg['id'] ? 'selected' : '' ?>>
+              <?= h($fg['label']) ?>
+            </option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -210,7 +223,7 @@ document.getElementById('f_type').addEventListener('change', function() {
     <table class="table table-sm table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>#</th><th>Nazwa</th><th>Typ</th><th>Dotyczy</th><th>Kolejność</th><th>Status</th>
+          <th>#</th><th>Nazwa</th><th>Typ</th><th>Dotyczy</th><th>Grupa</th><th>Kolejność</th><th>Status</th>
           <th class="text-end">Akcje</th>
         </tr>
       </thead>
@@ -221,6 +234,11 @@ document.getElementById('f_type').addEventListener('change', function() {
           <td class="fw-semibold"><?= h($d['label']) ?></td>
           <td><span class="badge bg-light text-dark border"><?= h($FIELD_TYPES[$d['field_type']] ?? $d['field_type']) ?></span></td>
           <td><?= h($APPLIES_TO[$d['applies_to']] ?? $d['applies_to']) ?></td>
+          <td class="text-muted small">
+            <?php if ($d['group_id']): $grp = crm_one("SELECT label FROM crm_field_groups WHERE id=?",[(int)$d['group_id']]); ?>
+            <?= $grp ? h($grp['label']) : '<span class="text-muted">—</span>' ?>
+            <?php else: ?>—<?php endif; ?>
+          </td>
           <td><?= (int)$d['sort_order'] ?></td>
           <td>
             <?= $d['is_active']

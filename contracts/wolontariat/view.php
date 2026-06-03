@@ -217,9 +217,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_portal_pass']) &
 </div></body></html>
 HTML;
             require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
-            mail_queue_add($email, $row['imie_nazwisko'] ?? $email, "Nowe hasło do portalu — {$org}", $body);
-            mail_queue_process();
-            flash_set('success', 'Hasło zostało zmienione i wysłane na adres ' . $email . '.');
+            require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
+            if (!email_rate_limit_ok($email, 3)) {
+                flash_set('warning', 'Hasło zmienione, ale mail nie wysłany — osiągnięto limit 3 wiadomości dziennie do tego adresu.');
+            } else {
+                mail_queue_add($email, $row['imie_nazwisko'] ?? $email, "Nowe hasło do portalu — {$org}", $body, '', 'wolontariat', $id, '', true);
+                email_log($email, "Nowe hasło do portalu — {$org}", 'wolontariat', $id);
+                flash_set('success', 'Hasło zostało zmienione i wysłane na adres ' . $email . '.');
+            }
         }
     }
     header('Location: view.php?id=' . $id); exit;
@@ -304,11 +309,16 @@ HTML;
 HTML;
 
             require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
-            mail_queue_add($email, $row['imie_nazwisko'] ?? $email, $subject, $body);
-            mail_queue_process();
-            log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
-                'Ponownie wysłano e-mail powitalny z nowym hasłem na: ' . $email);
-            flash_set('success', 'E-mail powitalny wysłany na ' . $email . '. Hasło zostało zresetowane.');
+            require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
+            if (!email_rate_limit_ok($email, 3)) {
+                flash_set('warning', 'Hasło zresetowane, ale mail nie wysłany — osiągnięto limit 3 wiadomości dziennie do tego adresu.');
+            } else {
+                mail_queue_add($email, $row['imie_nazwisko'] ?? $email, $subject, $body, '', 'wolontariat', $id, '', true);
+                email_log($email, $subject, 'wolontariat', $id);
+                log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
+                    'Ponownie wysłano e-mail powitalny z nowym hasłem na: ' . $email);
+                flash_set('success', 'E-mail powitalny wysłany na ' . $email . '. Hasło zostało zresetowane.');
+            }
         }
     }
     header('Location: view.php?id=' . $id); exit;
@@ -792,6 +802,14 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
     <a class="nav-link <?= $_tab==='obieg' ? 'active':'' ?>" href="<?= $_turl ?>obieg">
       <i class="bi bi-arrow-repeat"></i> Obieg
       <?php if ($_badge_obieg): ?><span class="badge bg-danger ms-1"><?= $_badge_obieg ?></span><?php endif; ?>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link <?= $_tab==='profil' ? 'active':'' ?>" href="<?= $_turl ?>profil">
+      <i class="bi bi-person-lines-fill"></i> Profil
+      <?php if (!empty($row['wojewodztwo']) || !empty($row['wolontariat_typ'])): ?>
+      <span class="badge bg-secondary ms-1" style="font-size:.6rem">●</span>
+      <?php endif; ?>
     </a>
   </li>
   <li class="nav-item">
@@ -1877,9 +1895,212 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 </div><!-- /tab-obieg -->
 
 <!-- ════════════════════════════════════════════════════════════════════════════
-     TAB 5 — M365
+     TAB — PROFIL WOLONTARIUSZA
      ════════════════════════════════════════════════════════════════════════════ -->
+<?php
+$_profil_typ_labels  = ['stały'=>'Stały','jednorazowy'=>'Jednorazowy','projektowy'=>'Projektowy','akcyjny'=>'Akcyjny / eventowy','wakacyjny'=>'Wakacyjny'];
+$_profil_obszar_all  = ['społeczny'=>'Społeczny','edukacyjny'=>'Edukacyjny','zdrowotny'=>'Zdrowotny','ekologiczny'=>'Ekologiczny','kulturalny'=>'Kulturalny','sportowy'=>'Sportowy','pomocowy'=>'Pomocowy / humanitarny','zwierzeta'=>'Ochrona zwierząt','cyfrowy'=>'Cyfrowy / IT','inny'=>'Inny'];
+$_profil_wyksztalcenie = ['podstawowe'=>'Podstawowe','zawodowe'=>'Zawodowe','srednie'=>'Średnie','wyzsze_lic'=>'Wyższe — licencjat','wyzsze_mgr'=>'Wyższe — magister','doktorat'=>'Doktorat','student'=>'Student'];
+$_profil_obszary  = json_decode($row['obszar_dzialania'] ?? '[]', true) ?: [];
+$_profil_dni      = json_decode($row['dostepnosc_dni']   ?? '[]', true) ?: [];
+$_profil_pora     = json_decode($row['dostepnosc_pora']  ?? '[]', true) ?: [];
+$_dni_labels      = ['pon'=>'Pon','wt'=>'Wt','sr'=>'Śr','czw'=>'Czw','pt'=>'Pt','sob'=>'Sob','ndz'=>'Ndz'];
+$_pora_labels     = ['rano'=>'Rano','popoludnie'=>'Południe','wieczor'=>'Wieczór','weekend'=>'Weekend'];
+$_has_profil      = !empty($row['wolontariat_typ']) || !empty($row['wojewodztwo']) || !empty($_profil_obszary) || !empty($row['kompetencje']) || !empty($_profil_dni);
+?>
+<div class="tab-pane<?= ($_tab==='profil'||$_tab==='all')?' active':'' ?>" id="tab-profil" role="tabpanel">
+
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#fff3e0;color:#fd7e14"><i class="bi bi-person-lines-fill"></i></div>
+      <span class="cv-section-title">Profil wolontariusza</span>
+      <div class="cv-section-action">
+        <?php if (can_edit()): ?>
+        <a href="edit.php?id=<?= $id ?>#sec-profil" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-pencil me-1"></i>Edytuj profil
+        </a>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <?php if (!$_has_profil): ?>
+    <div class="text-muted small py-2">
+      <i class="bi bi-info-circle me-1"></i>Profil wolontariusza nie uzupełniony.
+      <?php if (can_edit()): ?>
+      <a href="edit.php?id=<?= $id ?>#sec-profil">Uzupełnij →</a>
+      <?php endif; ?>
+    </div>
+    <?php else: ?>
+
+    <div class="row g-3 mb-3">
+      <?php if (!empty($row['wolontariat_typ'])): ?>
+      <div class="col-md-3">
+        <div class="detail-label">Typ wolontariatu</div>
+        <div class="detail-value"><?= h($_profil_typ_labels[$row['wolontariat_typ']] ?? $row['wolontariat_typ']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($row['wyksztalcenie'])): ?>
+      <div class="col-md-3">
+        <div class="detail-label">Wykształcenie</div>
+        <div class="detail-value"><?= h($_profil_wyksztalcenie[$row['wyksztalcenie']] ?? $row['wyksztalcenie']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($row['jezyki'])): ?>
+      <div class="col-md-6">
+        <div class="detail-label">Języki</div>
+        <div class="detail-value"><?= h($row['jezyki']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($row['kompetencje'])): ?>
+      <div class="col-12">
+        <div class="detail-label">Kompetencje</div>
+        <div class="detail-value"><?= nl2br(h($row['kompetencje'])) ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <?php if (!empty($_profil_obszary)): ?>
+    <div class="mb-3">
+      <div class="detail-label mb-1">Obszar działania</div>
+      <div class="d-flex flex-wrap gap-1">
+        <?php foreach ($_profil_obszary as $_o): ?>
+        <span class="badge" style="background:#fff3e0;color:#c05000;border:1px solid #fed7aa;font-weight:500">
+          <?= h($_profil_obszar_all[$_o] ?? $_o) ?>
+        </span>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php endif; /* has_profil */ ?>
+  </div>
+
+  <!-- Terytorium -->
+  <?php if (!empty($row['wojewodztwo']) || !empty($row['powiat']) || !empty($row['gmina'])): ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#f0fdf4;color:#16a34a"><i class="bi bi-map"></i></div>
+      <span class="cv-section-title">Terytorium</span>
+    </div>
+    <div class="row g-3">
+      <?php if (!empty($row['wojewodztwo'])): ?>
+      <div class="col-md-4">
+        <div class="detail-label">Województwo</div>
+        <div class="detail-value"><?= h(ucfirst($row['wojewodztwo'])) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($row['powiat'])): ?>
+      <div class="col-md-4">
+        <div class="detail-label">Powiat</div>
+        <div class="detail-value"><?= h($row['powiat']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($row['gmina'])): ?>
+      <div class="col-md-3">
+        <div class="detail-label">Gmina / miejscowość</div>
+        <div class="detail-value"><?= h($row['gmina']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($row['teryt_kod'])): ?>
+      <div class="col-md-1">
+        <div class="detail-label">TERYT</div>
+        <div class="detail-value font-monospace small"><?= h($row['teryt_kod']) ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Dostępność -->
+  <?php if (!empty($_profil_dni) || !empty($_profil_pora)): ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#eff6ff;color:#2563eb"><i class="bi bi-calendar-week"></i></div>
+      <span class="cv-section-title">Dostępność</span>
+    </div>
+    <div class="row g-3">
+      <?php if (!empty($_profil_dni)): ?>
+      <div class="col-md-6">
+        <div class="detail-label mb-1">Dni tygodnia</div>
+        <div class="d-flex flex-wrap gap-1">
+          <?php foreach ($_profil_dni as $_d): ?>
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><?= h($_dni_labels[$_d] ?? $_d) ?></span>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($_profil_pora)): ?>
+      <div class="col-md-6">
+        <div class="detail-label mb-1">Pora dnia</div>
+        <div class="d-flex flex-wrap gap-1">
+          <?php foreach ($_profil_pora as $_p): ?>
+          <span class="badge bg-info-subtle text-info border border-info-subtle"><?= h($_pora_labels[$_p] ?? $_p) ?></span>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Zgoda RODO -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:<?= !empty($row['email_consent']) ? '#f0fdf4;color:#16a34a' : '#f8fafc;color:#94a3b8' ?>"><i class="bi bi-shield-<?= !empty($row['email_consent']) ? 'check' : 'x' ?>"></i></div>
+      <span class="cv-section-title">Zgoda RODO — komunikacja e-mail</span>
+      <div class="cv-section-action">
+        <?php if (!empty($row['email_consent'])): ?>
+        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Wyrażona</span>
+        <?php if (!empty($row['email_consent_at'])): ?>
+        <span class="text-muted small ms-2"><?= date_pl(substr($row['email_consent_at'],0,10)) ?></span>
+        <?php endif; ?>
+        <?php else: ?>
+        <span class="badge bg-secondary">Brak zgody</span>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php if (!empty($row['email']) && empty($row['email_consent'])): ?>
+    <div class="alert alert-warning py-2 px-3 small mb-0">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      Wolontariusz ma adres e-mail (<strong><?= h($row['email']) ?></strong>), ale <strong>nie wyraził zgody</strong> na komunikację.
+      Wysyłanie maili marketingowych/informacyjnych może naruszać RODO.
+    </div>
+    <?php endif; ?>
+  </div>
+
+</div><!-- /tab-profil -->
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     TAB 5 — IT (Dostępy i Infrastruktura)
+     ════════════════════════════════════════════════════════════════════════════ -->
+<?php
+require_once dirname(dirname(__DIR__)) . '/includes/it_helpers.php';
+$_it_accounts_tab = it_accounts_for_contract('wolontariat', $id);
+it_sync_from_contract('wolontariat', $row); // upewnij się że it_accounts jest aktualny
+$_it_m365_acc = null;
+foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_m365_acc = $_a; break; } }
+?>
 <div class="tab-pane<?= ($_tab==='m365'||$_tab==='all')?' active':'' ?>" id="tab-m365" role="tabpanel">
+
+  <!-- Baner: zarządzaj w module IT -->
+  <div class="alert py-2 px-3 mb-3 d-flex align-items-center gap-2" style="background:#fff3e0;border:1px solid #fd7e14;border-radius:8px">
+    <i class="bi bi-hdd-network" style="color:#fd7e14;font-size:1.1rem"></i>
+    <div class="small">
+      <strong style="color:#e65100">Dostępy IT</strong> są zarządzane w module
+      <a href="<?= APP_URL ?>/it/index.php" style="color:#e65100">Dostępy i Infrastruktura</a>.
+    </div>
+    <div class="ms-auto d-flex gap-2">
+      <?php if ($_it_m365_acc): ?>
+      <a href="<?= APP_URL ?>/it/accounts.php?id=<?= $_it_m365_acc['id'] ?>"
+         class="btn btn-sm" style="background:#fd7e14;color:#fff;border:none">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Zarządzaj kontem
+      </a>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/it/accounts.php?service=m365" class="btn btn-sm btn-outline-secondary">
+        Wszystkie konta M365
+      </a>
+    </div>
+  </div>
 
   <div class="cv-section">
     <div class="cv-section-head">
@@ -1909,55 +2130,40 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 
   <?php if (can_edit()): ?>
   <div class="d-flex gap-2 flex-wrap mb-3">
-    <?php if ($row['m365_konto_aktywne']): ?>
-    <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="type" value="wolontariat">
-      <input type="hidden" name="id" value="<?= $id ?>">
-      <input type="hidden" name="action" value="disable">
-      <button class="btn btn-sm btn-warning" data-confirm="Wyłączyć konto M365?">
-        <i class="bi bi-pause-circle"></i> Wyłącz konto
-      </button>
-    </form>
-    <?php else: ?>
-    <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="type" value="wolontariat">
-      <input type="hidden" name="id" value="<?= $id ?>">
-      <input type="hidden" name="action" value="enable">
-      <button class="btn btn-sm btn-success"><i class="bi bi-play-circle"></i> Włącz konto</button>
-    </form>
-    <?php endif; ?>
-    <?php if ($row['email']): ?>
-    <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="type" value="wolontariat">
-      <input type="hidden" name="id" value="<?= $id ?>">
-      <input type="hidden" name="action" value="send_email">
-      <button class="btn btn-sm btn-outline-primary"><i class="bi bi-envelope"></i> Wyślij mail z hasłem</button>
-    </form>
-    <?php endif; ?>
-    <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="type" value="wolontariat">
-      <input type="hidden" name="id" value="<?= $id ?>">
-      <input type="hidden" name="action" value="unlink">
-      <button class="btn btn-sm btn-outline-danger" data-confirm="Odpiąć konto? Konto w Azure AD NIE zostanie usunięte.">
-        <i class="bi bi-unlink"></i> Odepnij
-      </button>
-    </form>
-    <?php if (is_admin()):
-      $_del_login = addslashes($row['m365_login'] ?? ''); ?>
-    <button type="button" class="btn btn-sm btn-danger"
-      onclick="if(confirm('Trwale usunąć konto M365 <?= h($_del_login) ?> z Azure AD?\n\nTej operacji nie można cofnąć.\nPowiązane konto lokalne zostanie dezaktywowane.')) { document.getElementById('form_delete_m365_<?= $id ?>').submit(); }">
-      <i class="bi bi-trash3"></i> Usuń konto M365
-    </button>
-    <form id="form_delete_m365_<?= $id ?>" method="post" action="<?= APP_URL ?>/contracts/m365_action.php" class="d-none">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="type"    value="wolontariat">
-      <input type="hidden" name="id"      value="<?= $id ?>">
-      <input type="hidden" name="action"  value="delete_m365">
-    </form>
+    <?php if ($_it_m365_acc): ?>
+      <?php if ($_it_m365_acc['is_active']): ?>
+      <form method="post" action="<?= APP_URL ?>/it/action.php">
+        <?= csrf_field() ?>
+        <input type="hidden" name="account_id" value="<?= $_it_m365_acc['id'] ?>">
+        <input type="hidden" name="action" value="disable">
+        <input type="hidden" name="back" value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=m365') ?>">
+        <button class="btn btn-sm btn-warning" data-confirm="Wyłączyć konto M365?">
+          <i class="bi bi-pause-circle"></i> Wyłącz konto
+        </button>
+      </form>
+      <?php else: ?>
+      <form method="post" action="<?= APP_URL ?>/it/action.php">
+        <?= csrf_field() ?>
+        <input type="hidden" name="account_id" value="<?= $_it_m365_acc['id'] ?>">
+        <input type="hidden" name="action" value="enable">
+        <input type="hidden" name="back" value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=m365') ?>">
+        <button class="btn btn-sm btn-success"><i class="bi bi-play-circle"></i> Włącz konto</button>
+      </form>
+      <?php endif; ?>
+      <?php if ($row['email']): ?>
+      <form method="post" action="<?= APP_URL ?>/it/action.php">
+        <?= csrf_field() ?>
+        <input type="hidden" name="account_id" value="<?= $_it_m365_acc['id'] ?>">
+        <input type="hidden" name="action" value="reset_password">
+        <input type="hidden" name="back" value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=m365') ?>">
+        <button class="btn btn-sm btn-outline-primary" data-confirm="Zresetować hasło i wysłać nowe na <?= h($row['email']) ?>?">
+          <i class="bi bi-envelope"></i> Reset hasła + mail
+        </button>
+      </form>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/it/accounts.php?id=<?= $_it_m365_acc['id'] ?>" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-hdd-network me-1" style="color:#fd7e14"></i> Zarządzaj w IT
+      </a>
     <?php endif; ?>
   </div>
   <?php endif; ?>
@@ -2064,11 +2270,11 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
   <?php elseif ($m365_enabled && can_edit()): ?>
   <p class="text-muted mb-2">Brak powiązanego konta Microsoft 365.</p>
   <div class="d-flex gap-2 align-items-center flex-wrap">
-    <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="type" value="wolontariat">
-      <input type="hidden" name="id" value="<?= $id ?>">
-      <input type="hidden" name="action" value="create">
+    <form method="post" action="<?= APP_URL ?>/it/action.php">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="create_m365">
+      <input type="hidden" name="contract_type" value="wolontariat">
+      <input type="hidden" name="contract_id" value="<?= $id ?>">
       <button class="btn btn-primary"><i class="bi bi-microsoft"></i> Utwórz konto M365</button>
     </form>
     <?php if ($row['email']): ?>

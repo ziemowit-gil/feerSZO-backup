@@ -117,10 +117,39 @@ if (!$error) {
 
     // Zaloguj i przekieruj tylko gdy nie ma błędu
     if (!$error && isset($user)) {
-        log_auth_action((int)$user['id'], 'login_ms', 'Logowanie Microsoft: ' . ($user['email'] ?? ''));
-        login_user($user);
-        header('Location: ' . $redirect_after);
-        exit;
+        // Sprawdź czy crm_only — czy ma kod IKA (wymagany)
+        $u_crm_only = ($user['role'] === 'crm_user');
+        if (!$u_crm_only) {
+            try {
+                $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$user['role']]);
+                $u_crm_only = !empty($r['crm_only']);
+            } catch (\Throwable $e) {}
+        }
+
+        if ($u_crm_only && empty($user['cpc_code'])) {
+            // Brak kodu IKA — nie loguj, pokaż błąd
+            $error = 'Twoje konto wymaga aktywacji kodu IKA przed pierwszym logowaniem. Skontaktuj się z administratorem.';
+        } else {
+            log_auth_action((int)$user['id'], 'login_ms', 'Logowanie Microsoft: ' . ($user['email'] ?? ''));
+            login_user($user);
+
+            // crm_only → zawsze do CRM
+            $final_redirect = $redirect_after;
+            if ($u_crm_only) {
+                $crm_base = APP_URL . '/crm/';
+                if (!str_starts_with($final_redirect, $crm_base) && $final_redirect !== APP_URL . '/crm') {
+                    $final_redirect = APP_URL . '/crm/dashboard.php';
+                }
+            }
+
+            // Przez IKA gate jeśli kod ustawiony
+            if (!empty($user['cpc_code'])) {
+                header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($final_redirect));
+            } else {
+                header('Location: ' . $final_redirect);
+            }
+            exit;
+        }
     }
 }
 ?>

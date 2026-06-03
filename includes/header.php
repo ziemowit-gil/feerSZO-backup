@@ -143,6 +143,9 @@ function _nav_active(string $needle): string {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="<?= APP_URL ?>/assets/css/app.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= APP_URL ?>/assets/js/app.js" defer></script>
+<script src="<?= APP_URL ?>/assets/js/utils.js" defer></script>
 <style>
 /* ── Layout ───────────────────────────────── */
 body { display:flex; min-height:100vh; background:#f8fafc; }
@@ -602,6 +605,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <!-- ══ WIDOK EDYTORA / ADMINA — 4 GRUPY ════════════════════════ -->
   <?php
   // Pomocnicze zmienne aktywności
+  $_on_it       = str_contains($_uri, '/it/');
   $_on_people   = str_contains($_uri,'/persons/') || str_contains($_uri,'/contracts/wolontariat') || str_contains($_uri,'/onboarding/') || str_contains($_uri,'/contracts/rekrutacja') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/admin/certificates') || str_contains($_uri,'/admin/onboarding');
   $_on_docs     = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/reports/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters');
   $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/actions/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/admin/timesheets') || str_contains($_uri,'/admin/shipments') || str_contains($_uri,'/resources/') || str_contains($_uri,'/panel/timesheets');
@@ -709,6 +713,40 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       <i class="bi bi-person-lines-fill"></i> Katalog osób
     </a>
   </div>
+
+  <div class="sb-sep"></div>
+
+  <!-- ════════════════════════════════════════
+       IT — Dostępy i Infrastruktura
+  ════════════════════════════════════════ -->
+  <?php if (can_edit()): ?>
+  <?php
+  $_it_active = str_contains($_uri, '/it/');
+  ?>
+  <button type="button" class="sb-type-btn <?= $_it_active ? 'type-open' : '' ?>"
+          data-bs-toggle="collapse" data-bs-target="#sb-it"
+          aria-expanded="<?= $_it_active ? 'true' : 'false' ?>">
+    <i class="bi bi-hdd-network" style="color:#fd7e14"></i>
+    <span style="<?= $_it_active ? '' : '' ?>">Dostępy IT</span>
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_it_active ? 'show' : '' ?>" id="sb-it">
+    <a class="sb-sub-link<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php">
+      <i class="bi bi-grid-1x2" style="color:#fd7e14"></i> Dashboard IT
+    </a>
+    <a class="sb-sub-link<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php">
+      <i class="bi bi-person-badge"></i> Konta
+    </a>
+    <a class="sb-sub-link<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php">
+      <i class="bi bi-key" style="color:#fd7e14"></i> Hasła
+    </a>
+    <?php if (is_admin()): ?>
+    <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php">
+      <i class="bi bi-gear"></i> Serwisy IT
+    </a>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
   <div class="sb-sep"></div>
 
@@ -862,9 +900,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <div class="sb-label">Admin</div>
   <a class="sb-link<?= str_contains($_uri,'/admin/') && !$_obsługa_active ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
     <i class="bi bi-shield-shaded"></i> Panel admina
-  </a>
-  <a class="sb-link<?= _nav_active('/admin/menu_config') ?>" href="<?= APP_URL ?>/admin/menu_config.php">
-    <i class="bi bi-layout-sidebar"></i> Konfiguracja menu
   </a>
   <div class="sb-sep"></div>
   <?php endif; ?>

@@ -25,6 +25,30 @@ if (current_user()) {
 $_b = branding_load();
 $org_name = $_b['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : 'System');
 
+// Microsoft 365 login — dostępny jeśli skonfigurowany
+$ms_crm_available = ms_login_available();
+$ms_crm_url       = $ms_crm_available
+    ? ms_auth_url(APP_URL . '/crm/dashboard.php')
+    : '';
+
+// Dodatkowe moduły dla CRM-only (do wyświetlenia)
+$crm_modules_raw = '';
+try {
+    $r = db_one("SELECT value FROM settings WHERE key_='crm_extra_modules'");
+    $crm_modules_raw = $r['value'] ?? '';
+} catch (\Throwable $e) {}
+$crm_module_labels = [
+    'actions'   => 'Działania',
+    'grants'    => 'Granty',
+    'persons'   => 'Osoby',
+    'reports'   => 'Raporty',
+    'directory' => 'Katalog osób',
+];
+$crm_extra = array_filter(array_map('trim', explode(',', $crm_modules_raw)));
+$crm_scope_label = 'CRM' . ($crm_extra
+    ? ' + ' . implode(', ', array_map(fn($m) => $crm_module_labels[$m] ?? $m, $crm_extra))
+    : '');
+
 // URL powrotu po zalogowaniu
 $redirect = APP_URL . '/crm/dashboard.php';
 
@@ -47,13 +71,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = db_one("SELECT * FROM users WHERE email=? AND is_active=1", [$email]);
         if ($user && $user['password'] && password_verify($pass, $user['password'])) {
             // Sprawdź uprawnienia CRM
-            if (!in_array($user['role'], ['admin', 'editor', 'viewer', 'crm_user'], true)) {
+            $allowed_roles = ['admin', 'editor', 'viewer', 'crm_user'];
+            $role_ok = in_array($user['role'], $allowed_roles, true);
+            // Sprawdź też role z flagą crm_only (własne role)
+            if (!$role_ok) {
+                try {
+                    $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$user['role']]);
+                    $role_ok = !empty($r['crm_only']);
+                } catch (\Throwable $e) {}
+            }
+            if (!$role_ok) {
                 $error = 'Twoje konto nie ma uprawnień do modułu CRM.';
             } else {
-                login_user($user);
-                crm_migrate(); // upewnij się że tabele istnieją
-                header('Location: ' . $redirect);
-                exit;
+                // Sprawdź czy crm_only i czy ma kod IKA
+                $is_crm_only_user = ($user['role'] === 'crm_user');
+                if (!$is_crm_only_user) {
+                    try {
+                        $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$user['role']]);
+                        $is_crm_only_user = !empty($r['crm_only']);
+                    } catch (\Throwable $e) {}
+                }
+
+                // Wymuś IKA dla crm_only — musi mieć ustawiony kod
+                if ($is_crm_only_user && empty($user['cpc_code'])) {
+                    $error = 'Twoje konto wymaga aktywacji kodu IKA przed pierwszym logowaniem. Skontaktuj się z administratorem systemu.';
+                } else {
+                    login_user($user);
+                    crm_migrate();
+                    // Przekieruj przez IKA jeśli kod ustawiony
+                    if (!empty($user['cpc_code'])) {
+                        header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($redirect));
+                    } else {
+                        header('Location: ' . $redirect);
+                    }
+                    exit;
+                }
             }
         } else {
             $error = 'Nieprawidłowy adres e-mail lub hasło.';
@@ -160,6 +212,16 @@ html, body { height: 100%; margin: 0; padding: 0; }
 }
 .btn-crm-login:hover { background: var(--c-dark); box-shadow: 0 2px 8px var(--c-ring); }
 
+.btn-ms-login {
+  display: flex; align-items: center; justify-content: center; gap: .65rem;
+  width: 100%; padding: .68rem 1.25rem; border-radius: .5rem;
+  background: #fff; color: #3c4043; font-size: .9rem; font-weight: 600;
+  border: 1.5px solid #dadce0; text-decoration: none;
+  transition: background .15s, box-shadow .15s;
+}
+.btn-ms-login:hover { background: #f8f9fa; box-shadow: 0 1px 6px rgba(60,64,67,.2); color: #3c4043; }
+.btn-ms-login:focus { outline: 3px solid #2563eb; outline-offset: 2px; }
+
 .pass-wrap { position: relative; }
 .pass-toggle { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 0; color: #9ca3af; cursor: pointer; font-size: 1rem; }
 .pass-toggle:hover { color: #374151; }
@@ -199,13 +261,21 @@ html, body { height: 100%; margin: 0; padding: 0; }
       <div class="brand-name">System <span>CRM</span><br>Zarządzania Kontaktami</div>
 
       <div class="crm-info-box">
-        <div class="crm-info-box-label"><i class="bi bi-people-fill me-1"></i>Funkcje modułu</div>
+        <div class="crm-info-box-label"><i class="bi bi-grid-fill me-1"></i>Twój dostęp</div>
         <ul>
-          <li>Kartoteki osób i firm</li>
-          <li>Powiązania i relacje</li>
-          <li>Historia komunikacji SMS/email</li>
-          <li>Szablony i synchronizacja</li>
+          <li><i class="bi bi-diagram-2-fill me-1"></i>CRM — kontakty, grupy, komunikacja</li>
+          <?php foreach ($crm_extra as $m): ?>
+          <li><i class="bi bi-check-circle me-1"></i><?= h($crm_module_labels[$m] ?? $m) ?></li>
+          <?php endforeach; ?>
+          <?php if (!$crm_extra): ?>
+          <li><i class="bi bi-info-circle me-1" style="opacity:.6"></i><span style="opacity:.75">tylko moduł CRM</span></li>
+          <?php endif; ?>
         </ul>
+        <?php if ($crm_extra): ?>
+        <div style="font-size:.72rem;margin-top:.5rem;opacity:.7">
+          Skonfigurowane przez administratora systemu
+        </div>
+        <?php endif; ?>
       </div>
 
       <div class="org-box">
@@ -234,7 +304,11 @@ html, body { height: 100%; margin: 0; padding: 0; }
     </div>
 
     <div class="form-heading">Logowanie do CRM</div>
-    <div class="form-sub">Wprowadź dane konta, aby zarządzać kontaktami.</div>
+    <div class="form-sub">
+      <?= $ms_crm_available
+        ? 'Zaloguj się kontem Microsoft 365 Twojej organizacji.'
+        : 'Wprowadź dane konta, aby zarządzać kontaktami.' ?>
+    </div>
 
     <?php if ($error): ?>
     <div class="alert alert-danger d-flex align-items-center gap-2 py-2 mb-3"
@@ -244,39 +318,66 @@ html, body { height: 100%; margin: 0; padding: 0; }
     </div>
     <?php endif; ?>
 
-    <form method="post" autocomplete="on" novalidate>
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <?php if ($ms_crm_available): ?>
+    <!-- ── Microsoft 365 — główna metoda ── -->
+    <a href="<?= h($ms_crm_url) ?>"
+       class="btn-ms-login"
+       aria-label="Zaloguj się kontem Microsoft 365 swojej organizacji">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" style="flex-shrink:0">
+        <path fill="#f3f3f3" d="M0 0h23v23H0z"/>
+        <path fill="#f35325" d="M1 1h10v10H1z"/>
+        <path fill="#81bc06" d="M12 1h10v10H12z"/>
+        <path fill="#05a6f0" d="M1 12h10v10H1z"/>
+        <path fill="#ffba08" d="M12 12h10v10H12z"/>
+      </svg>
+      <span>Zaloguj przez Microsoft 365</span>
+    </a>
 
-      <div class="mb-3">
-        <label class="form-label" for="email">Adres e-mail</label>
-        <input type="email" name="email" id="email"
-               class="form-control"
-               value="<?= h($_POST['email'] ?? '') ?>"
-               placeholder="nazwa@domena.pl"
-               autocomplete="email"
-               autofocus required>
-      </div>
+    <!-- Separator — fallback dla adminów -->
+    <div style="display:flex;align-items:center;gap:.75rem;margin:1.5rem 0">
+      <div style="flex:1;height:1px;background:#E5E7EB"></div>
+      <span style="font-size:.72rem;color:#9CA3AF;white-space:nowrap">administrator? logowanie lokalne</span>
+      <div style="flex:1;height:1px;background:#E5E7EB"></div>
+    </div>
+    <?php endif; ?>
 
-      <div class="mb-4">
-        <label class="form-label" for="password">Hasło</label>
-        <div class="pass-wrap">
-          <input type="password" name="password" id="password"
-                 class="form-control"
-                 autocomplete="current-password" required>
-          <button type="button" class="pass-toggle" tabindex="-1"
-                  onclick="var i=document.getElementById('password');
-                           i.type=i.type==='password'?'text':'password';
-                           this.querySelector('i').className=i.type==='password'?'bi bi-eye':'bi bi-eye-slash';"
-                  aria-label="Pokaż/ukryj hasło">
-            <i class="bi bi-eye"></i>
+    <!-- ── Email + hasło — fallback / admini ── -->
+    <details <?= $ms_crm_available ? '' : 'open' ?> style="border:1px solid #E5E7EB;border-radius:.5rem">
+      <summary style="padding:.65rem 1rem;cursor:pointer;font-size:.84rem;font-weight:600;color:#374151;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between">
+        <span><i class="bi bi-envelope me-2" style="color:#6B7280"></i>Logowanie e-mail + hasło</span>
+        <i class="bi bi-chevron-down" style="color:#9CA3AF;font-size:.75rem"></i>
+      </summary>
+      <div style="padding:.75rem 1rem 1rem;border-top:1px solid #F3F4F6">
+        <form method="post" autocomplete="on" novalidate>
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <div class="mb-3">
+            <label class="form-label" for="email">Adres e-mail</label>
+            <input type="email" name="email" id="email"
+                   class="form-control"
+                   value="<?= h($_POST['email'] ?? '') ?>"
+                   placeholder="nazwa@domena.pl"
+                   autocomplete="email"
+                   <?= !$ms_crm_available ? 'autofocus' : '' ?> required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="password">Hasło</label>
+            <div class="pass-wrap">
+              <input type="password" name="password" id="password"
+                     class="form-control"
+                     autocomplete="current-password" required>
+              <button type="button" class="pass-toggle" tabindex="-1"
+                      onclick="var i=document.getElementById('password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className=i.type==='password'?'bi bi-eye':'bi bi-eye-slash';"
+                      aria-label="Pokaż/ukryj hasło">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
+          </div>
+          <button type="submit" class="btn-crm-login" style="font-size:.88rem;padding:.6rem 1rem">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Zaloguj
           </button>
-        </div>
+        </form>
       </div>
-
-      <button type="submit" class="btn-crm-login">
-        <i class="bi bi-diagram-2-fill me-1"></i>Zaloguj do CRM
-      </button>
-    </form>
+    </details>
 
     <?php if (!defined('CRM_STANDALONE') || !CRM_STANDALONE): ?>
     <div class="system-login-link">

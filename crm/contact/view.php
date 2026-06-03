@@ -174,7 +174,7 @@ include __DIR__ . '/../includes/header_crm.php';
     </div>
     <div class="d-flex flex-column align-items-end gap-2">
       <?php
-        $sc = CRM_STATUSES[$contact['status']] ?? ['label' => $contact['status'], 'color' => '#939393'];
+        $sc = crm_statuses()[$contact['status']] ?? ['label' => $contact['status'], 'color' => '#939393'];
       ?>
       <span class="crm-badge crm-badge-<?= h($contact['status']) ?>" style="font-size:.8rem">
         <?= h($sc['label']) ?>

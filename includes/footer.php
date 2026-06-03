@@ -20,9 +20,6 @@
 </div><!-- /main -->
 
 <?php require_once __DIR__ . '/chat_widget.php'; ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="<?= APP_URL ?>/assets/js/app.js"></script>
-<script src="<?= APP_URL ?>/assets/js/utils.js" defer></script>
 <script>
 // Mobile sidebar toggle
 const _tog = document.getElementById('sidebarToggle');

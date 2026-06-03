@@ -65,9 +65,26 @@ include __DIR__ . '/../includes/header_crm.php';
     <a href="<?= APP_URL ?>/crm/settings/roles.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-people-fill me-1"></i>Role CRM
     </a>
-    <a href="<?= APP_URL ?>/crm/settings/fields.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola kontaktów
+    <a href="<?= APP_URL ?>/crm/settings/statuses.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-bookmark-fill me-1"></i>Statusy
     </a>
+    <a href="<?= APP_URL ?>/crm/settings/field_groups.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-layers me-1"></i>Grupy pól
+    </a>
+    <a href="<?= APP_URL ?>/crm/settings/fields.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola formularza
+    </a>
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/admin/teryt_import.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-geo-alt me-1"></i>Import TERYT
+    </a>
+    <a href="<?= APP_URL ?>/admin/crm_database.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-database-gear me-1"></i>Baza danych CRM
+    </a>
+    <a href="<?= APP_URL ?>/crm/settings/nozbe.php" class="btn btn-sm btn-outline-secondary">
+      <img src="https://nozbe.com/favicon.ico" style="width:13px;height:13px;margin-right:4px" alt="">Nozbe
+    </a>
+    <?php endif; ?>
   </div>
 </div>
 

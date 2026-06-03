@@ -22,8 +22,17 @@ require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 
 $sms_ok   = sms_is_enabled();
-$email_ok = true;
 $m365_ok  = _mail_m365_configured();
+$smtp_ok  = (bool)_mail_setting('smtp_host');
+
+// Diagnostyka poczty — sprawdź czy jakakolwiek metoda jest dostępna
+$mail_method = 'php_mail'; // fallback zawsze dostępny
+if ($m365_ok)  $mail_method = 'm365';
+elseif ($smtp_ok) $mail_method = 'smtp';
+
+// Ostrzeżenie gdy ani M365 ani SMTP nie skonfigurowane
+$mail_warning = !$m365_ok && !$smtp_ok;
+$email_ok     = true; // email zawsze "możliwy" (PHP mail() jako fallback)
 
 // Grupy z liczbą członków
 $groups = db_all(
@@ -63,6 +72,31 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-progress-bar { height:8px;background:#E5E7EB;border-radius:4px;overflow:hidden }
 .ms-progress-fill { height:100%;border-radius:4px;background:linear-gradient(90deg,#2E844A,#16A34A);transition:width .4s }
 .recipient-preview { background:#F9FAFB;border-radius:8px;padding:.75rem;max-height:200px;overflow-y:auto;font-size:.8rem }
+/* Kontakt chip */
+.contact-chip { display:inline-flex;align-items:center;gap:.3rem;background:#EFF7ED;border:1px solid #A7F3D0;border-radius:2rem;padding:.2rem .5rem .2rem .6rem;font-size:.76rem;color:#065F46;margin:.15rem }
+.contact-chip button { background:none;border:none;color:#6B7280;padding:0 .1rem;line-height:1;font-size:.9rem;cursor:pointer }
+.contact-chip button:hover { color:#DC2626 }
+/* DW chip */
+.dw-chip { display:inline-flex;align-items:center;gap:.3rem;background:#EEF4FF;border:1px solid #BFDBFE;border-radius:2rem;padding:.2rem .5rem .2rem .6rem;font-size:.76rem;color:#1E40AF;margin:.15rem }
+.dw-chip button { background:none;border:none;color:#6B7280;padding:0 .1rem;line-height:1;font-size:.9rem;cursor:pointer }
+.dw-chip button:hover { color:#DC2626 }
+/* Dropdown kontaktów */
+.contact-dropdown { position:absolute;z-index:1050;background:#fff;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:240px;overflow-y:auto;min-width:320px;left:0;top:calc(100% + 4px) }
+.contact-dropdown-item { display:flex;flex-direction:column;padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #F3F4F6;transition:background .1s }
+.contact-dropdown-item:last-child { border-bottom:none }
+.contact-dropdown-item:hover { background:#F3F4F6 }
+.contact-dropdown-item.ms-disabled { background:#FEF3E2;cursor:not-allowed;opacity:.7; }
+.contact-dropdown-item.ms-disabled:hover { background:#FEF3E2; }
+.contact-dropdown-item .ci-name { font-size:.82rem;font-weight:600;color:#111827 }
+.contact-dropdown-item .ci-sub { font-size:.72rem;color:#6B7280 }
+/* Wybierz grupę dropdown */
+.group-select-dropdown { position:absolute;z-index:1050;background:#fff;border:1px solid #E5E7EB;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.13);padding:.5rem 0;min-width:260px;max-height:320px;overflow-y:auto }
+.group-select-item { display:flex;align-items:center;gap:.5rem;padding:.45rem .85rem;cursor:pointer;font-size:.82rem;transition:background .1s }
+.group-select-item:hover { background:#F9FAFB }
+.group-select-item.is-child { padding-left:2rem;font-size:.78rem;color:#4B5563 }
+.group-select-item .gsi-check { width:14px;height:14px;border:2px solid #D1D5DB;border-radius:3px;flex-shrink:0;transition:all .12s;display:flex;align-items:center;justify-content:center }
+.group-select-item.selected .gsi-check { background:#0176D3;border-color:#0176D3 }
+.group-select-count { font-size:.68rem;color:#9CA3AF;margin-left:auto }
 .channel-btn { display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.85rem 1.25rem;border-radius:10px;border:2px solid #E5E7EB;cursor:pointer;transition:all .15s;flex:1;text-align:center }
 .channel-btn.active { border-color:var(--ch-color);background:var(--ch-bg);color:var(--ch-color) }
 .channel-btn i { font-size:1.5rem }
@@ -86,12 +120,31 @@ include __DIR__ . '/includes/header_crm.php';
   <!-- Kanał -->
   <div class="ms-section">
     <div class="ms-section-title">1. Kanał wysyłki</div>
+
+    <?php if ($mail_warning): ?>
+    <div class="alert alert-warning py-2 px-3 small mb-3 d-flex align-items-center gap-2">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+      <div>
+        <strong>Brak skonfigurowanego serwera poczty.</strong>
+        E-maile będą wysyłane przez PHP mail() (zawodne).
+        Skonfiguruj <a href="<?= APP_URL ?>/admin/m365_settings.php">Microsoft 365</a>
+        lub <a href="<?= APP_URL ?>/admin/settings.php">SMTP</a> dla pewnej dostarczalności.
+      </div>
+    </div>
+    <?php endif; ?>
+
     <div class="d-flex gap-2">
       <div class="channel-btn active" id="ch-email" data-channel="email"
            style="--ch-color:#0176D3;--ch-bg:#EEF4FF" onclick="MS.setChannel('email')">
         <i class="bi bi-envelope-fill" style="color:#0176D3"></i>
         <span>E-mail</span>
-        <small class="text-muted" style="font-size:.68rem"><?= $m365_ok ? 'Microsoft 365' : (_mail_setting('smtp_host') ? 'SMTP' : 'PHP mail()') ?></small>
+        <?php if ($m365_ok): ?>
+        <small style="color:#0078d4;font-size:.68rem;font-weight:600"><i class="bi bi-microsoft"></i> Microsoft 365</small>
+        <?php elseif ($smtp_ok): ?>
+        <small style="color:#059669;font-size:.68rem;font-weight:600"><i class="bi bi-server"></i> SMTP</small>
+        <?php else: ?>
+        <small class="text-warning" style="font-size:.68rem"><i class="bi bi-exclamation-triangle"></i> PHP mail()</small>
+        <?php endif; ?>
       </div>
       <?php if ($sms_ok): ?>
       <div class="channel-btn" id="ch-sms" data-channel="sms"
@@ -111,74 +164,146 @@ include __DIR__ . '/includes/header_crm.php';
     <input type="hidden" id="ms_channel" value="email">
   </div>
 
-  <!-- Odbiorcy: grupy -->
+  <!-- Odbiorcy -->
   <div class="ms-section">
     <div class="ms-section-title d-flex align-items-center justify-content-between">
-      2. Odbiorcy — grupy
-      <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;font-size:.75rem">kliknij grupę lub podgrupę, by wybrać</span>
+      2. Odbiorcy
+      <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;font-size:.75rem">grupy + indywidualni kontakci</span>
     </div>
 
     <?php
-    // Grupuj: rodzice i dzieci
-    $parent_groups = array_filter($groups, fn($g)=>!$g['parent_id']);
+    $parent_groups = array_filter($groups, fn($g) => !$g['parent_id']);
     $child_groups  = [];
     foreach ($groups as $g) {
       if ($g['parent_id']) $child_groups[$g['parent_id']][] = $g;
     }
+    $groups_json = json_encode(array_values($groups), JSON_UNESCAPED_UNICODE);
     ?>
 
-    <div id="groupPills" class="mb-2">
-      <?php foreach ($parent_groups as $g): ?>
-      <div style="margin-bottom:.35rem">
-        <button type="button" class="group-pill" data-id="<?= (int)$g['id'] ?>"
-                style="background:<?= h($g['color']) ?>1A;border-color:<?= h($g['color']) ?>55"
-                onclick="MS.toggleGroup(this)">
-          <i class="bi <?= h($g['icon']) ?>" style="color:<?= h($g['color']) ?>"></i>
-          <?= h($g['name']) ?>
-          <span class="badge bg-light text-dark border ms-1" style="font-size:.65rem"><?= (int)$g['member_count'] ?></span>
+    <!-- ─── Wybór grupy: przycisk + dropdown ─── -->
+    <div class="mb-3">
+      <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2">
+        <i class="bi bi-people-fill text-primary"></i> Grupy
+      </label>
+      <div class="position-relative d-inline-block">
+        <button type="button" id="groupPickerBtn" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
+                onclick="MS.toggleGroupPicker(event)">
+          <i class="bi bi-people"></i>
+          <span id="groupPickerLabel">Wybierz grupę…</span>
+          <i class="bi bi-chevron-down ms-1" style="font-size:.7rem"></i>
         </button>
-        <?php foreach (($child_groups[$g['id']] ?? []) as $cg): ?>
-        <button type="button" class="group-pill ms-2" data-id="<?= (int)$cg['id'] ?>"
-                style="background:<?= h($cg['color']) ?>0D;border-color:<?= h($cg['color']) ?>33;font-size:.73rem"
-                onclick="MS.toggleGroup(this)">
-          <i class="bi <?= h($cg['icon']) ?>" style="color:<?= h($cg['color']) ?>;font-size:.8rem"></i>
-          <?= h($cg['name']) ?>
-          <span class="badge bg-light text-dark border ms-1" style="font-size:.62rem"><?= (int)$cg['member_count'] ?></span>
-        </button>
-        <?php endforeach; ?>
+        <div id="groupPickerDropdown" class="group-select-dropdown" style="display:none">
+          <div class="px-2 py-1 border-bottom" style="position:sticky;top:0;background:#fff;z-index:1">
+            <input type="text" id="groupPickerSearch" class="form-control form-control-sm"
+                   placeholder="Szukaj grupy…" oninput="MS.filterGroupPicker(this.value)">
+          </div>
+          <?php if (!$groups): ?>
+          <div class="px-3 py-2 text-muted small">Brak grup. <a href="<?= APP_URL ?>/crm/groups.php">Utwórz →</a></div>
+          <?php endif; ?>
+          <?php foreach ($parent_groups as $g): ?>
+          <div class="group-select-item" data-id="<?= (int)$g['id'] ?>"
+               data-name="<?= h($g['name']) ?>"
+               data-color="<?= h($g['color']) ?>"
+               data-icon="<?= h($g['icon']) ?>"
+               data-count="<?= (int)$g['member_count'] ?>"
+               onclick="MS.pickGroup(this)">
+            <div class="gsi-check"><i class="bi bi-check" style="font-size:.7rem;color:#fff;display:none"></i></div>
+            <i class="bi <?= h($g['icon']) ?>" style="color:<?= h($g['color']) ?>"></i>
+            <span><?= h($g['name']) ?></span>
+            <span class="group-select-count"><?= (int)$g['member_count'] ?></span>
+          </div>
+          <?php foreach (($child_groups[$g['id']] ?? []) as $cg): ?>
+          <div class="group-select-item is-child" data-id="<?= (int)$cg['id'] ?>"
+               data-name="<?= h($cg['name']) ?>"
+               data-color="<?= h($cg['color']) ?>"
+               data-icon="<?= h($cg['icon']) ?>"
+               data-count="<?= (int)$cg['member_count'] ?>"
+               onclick="MS.pickGroup(this)">
+            <div class="gsi-check"><i class="bi bi-check" style="font-size:.7rem;color:#fff;display:none"></i></div>
+            <i class="bi <?= h($cg['icon']) ?>" style="color:<?= h($cg['color']) ?>;font-size:.85rem"></i>
+            <span><?= h($cg['name']) ?></span>
+            <span class="group-select-count"><?= (int)$cg['member_count'] ?></span>
+          </div>
+          <?php endforeach; ?>
+          <?php endforeach; ?>
+        </div>
       </div>
-      <?php endforeach; ?>
-      <?php if (!$groups): ?>
-      <div class="text-muted small">Brak grup. <a href="<?= APP_URL ?>/crm/groups.php">Utwórz grupę →</a></div>
-      <?php endif; ?>
+      <!-- Wybrane grupy jako pills -->
+      <div id="selectedGroupPills" class="mt-2 d-flex flex-wrap gap-1"></div>
     </div>
 
-    <!-- Filtry tagów -->
+    <!-- ─── Filtry tagów ─── -->
     <?php if ($tags): ?>
-    <div class="ms-section-title mt-3" style="margin-top:.75rem">lub filtruj wg tagów</div>
-    <div id="tagChips">
-      <?php foreach ($tags as $t): ?>
-      <span class="tag-chip" data-tag="<?= h($t['tag']) ?>" onclick="MS.toggleTag(this)">
-        <i class="bi bi-tag" style="font-size:.65rem"></i><?= h($t['tag']) ?>
-        <span class="text-muted" style="font-size:.65rem">(<?= (int)$t['cnt'] ?>)</span>
-      </span>
-      <?php endforeach; ?>
+    <div class="mb-3">
+      <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2">
+        <i class="bi bi-tags text-secondary"></i> Tagi
+      </label>
+      <div id="tagChips">
+        <?php foreach ($tags as $t): ?>
+        <span class="tag-chip" data-tag="<?= h($t['tag']) ?>" onclick="MS.toggleTag(this)">
+          <i class="bi bi-tag" style="font-size:.65rem"></i><?= h($t['tag']) ?>
+          <span class="text-muted" style="font-size:.65rem">(<?= (int)$t['cnt'] ?>)</span>
+        </span>
+        <?php endforeach; ?>
+      </div>
     </div>
     <?php endif; ?>
 
-    <!-- Podgląd odbiorców -->
-    <div class="mt-3" id="recipientPreviewBox" style="display:none">
+    <!-- ─── Dodaj kontakt ─── -->
+    <div class="mb-3">
+      <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2">
+        <i class="bi bi-person-plus text-success"></i> Dodaj kontakt indywidualnie
+      </label>
+      <div class="position-relative">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" id="contactSearchInput" class="form-control"
+                 placeholder="Szukaj po imieniu, e-mailu lub organizacji…"
+                 autocomplete="off" oninput="MS.searchContacts(this.value)">
+        </div>
+        <div id="contactDropdown" class="contact-dropdown" style="display:none"></div>
+      </div>
+      <div id="selectedContactChips" class="mt-2 d-flex flex-wrap"></div>
+    </div>
+
+    <!-- ─── Podgląd odbiorców ─── -->
+    <div id="recipientPreviewBox" style="display:none">
       <div class="d-flex align-items-center justify-content-between mb-1">
         <span class="fw-semibold" style="font-size:.82rem">
-          Podgląd odbiorców: <span id="recipientCount" class="text-primary">0</span>
+          Podgląd: <span id="recipientCount" class="text-primary fw-bold">0</span> odbiorców
         </span>
         <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.72rem"
                 onclick="MS.preview()"><i class="bi bi-arrow-repeat me-1"></i>Odśwież</button>
       </div>
       <div class="recipient-preview" id="recipientList">
-        <div class="text-muted">Kliknij grupę lub tag, by zobaczyć odbiorców.</div>
+        <div class="text-muted">Wybierz grupę, tag lub kontakt.</div>
       </div>
     </div>
+  </div>
+
+  <!-- ─── DW (Do Wiadomości / CC) ─── -->
+  <div class="ms-section">
+    <div class="ms-section-title d-flex align-items-center gap-2">
+      <i class="bi bi-person-check" style="font-size:.9rem"></i> DW — Do Wiadomości
+      <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;font-size:.72rem">
+        osoby otrzymają podsumowanie wysyłki (jeden mail)
+      </span>
+    </div>
+    <div class="position-relative">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+        <input type="text" id="dwSearchInput" class="form-control"
+               placeholder="Szukaj kontaktu lub wpisz e-mail ręcznie…"
+               autocomplete="off" oninput="MS.searchDw(this.value)"
+               onkeydown="MS.dwKeydown(event)">
+        <button class="btn btn-outline-secondary" type="button" onclick="MS.addDwManual()">
+          <i class="bi bi-plus"></i>
+        </button>
+      </div>
+      <div id="dwDropdown" class="contact-dropdown" style="display:none"></div>
+    </div>
+    <div id="dwChips" class="mt-2 d-flex flex-wrap"></div>
+    <div class="form-text">Wpisz Enter lub kliknij + aby dodać adres ręcznie. Kontakty bez e-maila są pomijane.</div>
   </div>
 
   <!-- Temat i treść -->
@@ -305,13 +430,18 @@ include __DIR__ . '/includes/header_crm.php';
 <script>
 const MS = (function() {
   'use strict';
-  const API = '<?= APP_URL ?>/crm/api/mass_send.php';
+  const API        = '<?= APP_URL ?>/crm/api/mass_send.php';
+  const SEARCH_API = '<?= APP_URL ?>/crm/api/contacts_search.php';
 
-  let _channel     = 'email';
-  let _group_ids   = new Set();
-  let _tag_filters = new Set();
-  let _quill       = null;
-  let _total       = 0;
+  let _channel      = 'email';
+  let _group_ids    = new Set();
+  let _tag_filters  = new Set();
+  let _contact_ids  = new Map(); // id → {name, email}
+  let _dw_emails    = new Map(); // email → label
+  let _quill        = null;
+  let _total        = 0;
+  let _searchTimer  = null;
+  let _dwTimer      = null;
 
   function initQuill() {
     _quill = new Quill('#ms_quill', {
@@ -328,6 +458,217 @@ const MS = (function() {
   }
   initQuill();
 
+  // ── Group picker ────────────────────────────────────────────────────────────
+  function toggleGroupPicker(e) {
+    e.stopPropagation();
+    const dd = document.getElementById('groupPickerDropdown');
+    const open = dd.style.display !== 'none';
+    dd.style.display = open ? 'none' : 'block';
+    if (!open) document.getElementById('groupPickerSearch').focus();
+  }
+
+  function filterGroupPicker(q) {
+    const items = document.querySelectorAll('#groupPickerDropdown .group-select-item');
+    q = q.toLowerCase();
+    items.forEach(el => {
+      el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+
+  function pickGroup(el) {
+    const id = parseInt(el.dataset.id);
+    if (_group_ids.has(id)) {
+      _group_ids.delete(id);
+      el.classList.remove('selected');
+      el.querySelector('.gsi-check i').style.display = 'none';
+    } else {
+      _group_ids.add(id);
+      el.classList.add('selected');
+      el.querySelector('.gsi-check i').style.display = '';
+    }
+    renderGroupPills();
+    preview();
+  }
+
+  function renderGroupPills() {
+    const box = document.getElementById('selectedGroupPills');
+    box.innerHTML = '';
+    _group_ids.forEach(id => {
+      const el = document.querySelector(`#groupPickerDropdown [data-id="${id}"]`);
+      if (!el) return;
+      const pill = document.createElement('span');
+      pill.className = 'group-pill selected';
+      pill.style.cssText = `background:${el.dataset.color};color:#fff;border-color:transparent`;
+      pill.innerHTML = `<i class="bi ${el.dataset.icon}"></i>${esc(el.dataset.name)}<span class="badge ms-1" style="background:rgba(255,255,255,.3);color:#fff;font-size:.62rem">${el.dataset.count}</span>`;
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.innerHTML = '<i class="bi bi-x"></i>';
+      rm.style.cssText = 'background:none;border:none;color:rgba(255,255,255,.8);padding:0 0 0 .25rem;cursor:pointer;line-height:1;font-size:.9rem';
+      rm.onclick = (e) => { e.stopPropagation(); _group_ids.delete(id); el.classList.remove('selected'); el.querySelector('.gsi-check i').style.display='none'; renderGroupPills(); preview(); };
+      pill.appendChild(rm);
+      box.appendChild(pill);
+    });
+    const label = document.getElementById('groupPickerLabel');
+    label.textContent = _group_ids.size ? `${_group_ids.size} grup(y) wybrano` : 'Wybierz grupę…';
+  }
+
+  // ── Contact search ───────────────────────────────────────────────────────────
+  // Sprawdź czy kontakt ma pole wymagane przez aktualny kanał
+  function contactValidForChannel(c) {
+    if (_channel === 'email') return !!c.email;
+    if (_channel === 'sms')   return !!c.telefon;
+    return true;
+  }
+  function channelMissingLabel() {
+    return _channel === 'email' ? 'brak e-mail' : (_channel === 'sms' ? 'brak telefonu' : '');
+  }
+
+  function searchContacts(q) {
+    clearTimeout(_searchTimer);
+    const dd = document.getElementById('contactDropdown');
+    if (!q || q.length < 1) { dd.style.display='none'; return; }
+    _searchTimer = setTimeout(() => {
+      const excl = [..._contact_ids.keys()].join(',');
+      fetch(`${SEARCH_API}?q=${encodeURIComponent(q)}&exclude=${excl}`)
+        .then(r=>r.json()).then(rows=>{
+          if (!rows.length) { dd.style.display='none'; return; }
+          dd.innerHTML = rows.map(c=>{
+            const ok      = contactValidForChannel(c);
+            const missing = channelMissingLabel();
+            return `
+            <div class="contact-dropdown-item${ok?'':' ms-disabled'}"
+                 data-id="${c.id}" data-name="${esc(c.name)}"
+                 data-email="${esc(c.email||'')}" data-telefon="${esc(c.telefon||'')}"
+                 ${ok?`onclick="MS.addContact(${c.id},'${esc(c.name)}','${esc(c.email||'')}','${esc(c.telefon||'')}')"`:``}
+                 title="${ok?'':('Nie można wybrać — '+missing)}">
+              <div class="ci-name">
+                ${esc(c.name)}${c.organizacja?` <span style="font-weight:400;color:#9CA3AF">· ${esc(c.organizacja)}</span>`:''}
+                <span class="badge bg-light text-dark border ms-1" style="font-size:.62rem">${c.type==='organizacja'?'org':'os.'}</span>
+                ${!ok?`<span class="badge bg-warning text-dark ms-1" style="font-size:.62rem"><i class="bi bi-exclamation-triangle-fill"></i> ${esc(missing)}</span>`:''}
+              </div>
+              <div class="ci-sub" style="${ok?'':'color:#D97706'}">
+                ${ok ? (esc(c.email||'')+( c.telefon?' · '+esc(c.telefon):'')) : '<i>'+esc(missing)+'</i>'}
+              </div>
+            </div>`;
+          }).join('');
+          dd.style.display = 'block';
+        });
+    }, 220);
+  }
+
+  function addContact(id, name, email, telefon) {
+    if (_contact_ids.has(id)) return;
+    if (!contactValidForChannel({email, telefon})) return; // guard
+    _contact_ids.set(id, {name, email, telefon});
+    document.getElementById('contactSearchInput').value = '';
+    document.getElementById('contactDropdown').style.display = 'none';
+    renderContactChips();
+    preview();
+  }
+
+  function removeContact(id) {
+    _contact_ids.delete(id);
+    renderContactChips();
+    preview();
+  }
+
+  function renderContactChips() {
+    const box = document.getElementById('selectedContactChips');
+    box.innerHTML = '';
+    _contact_ids.forEach(({name, email, telefon}, id) => {
+      const ok   = contactValidForChannel({email, telefon});
+      const chip = document.createElement('span');
+      chip.className = 'contact-chip' + (ok ? '' : ' opacity-50');
+      chip.title = ok ? '' : 'Ten kontakt nie ma wymaganego pola dla wybranego kanału';
+      const contact_field = _channel === 'email' ? email : telefon;
+      chip.innerHTML = `<i class="bi bi-person-fill" style="font-size:.75rem"></i><span>${esc(name)}</span>`
+        + (contact_field ? `<span class="text-muted" style="font-size:.7rem">${esc(contact_field)}</span>` : '')
+        + (!ok ? `<i class="bi bi-exclamation-triangle-fill text-warning ms-1" style="font-size:.7rem"></i>` : '');
+      const rm = document.createElement('button');
+      rm.type='button'; rm.innerHTML='<i class="bi bi-x"></i>';
+      rm.onclick = () => removeContact(id);
+      chip.appendChild(rm);
+      box.appendChild(chip);
+    });
+  }
+
+  // ── DW (Do Wiadomości) ───────────────────────────────────────────────────────
+  function searchDw(q) {
+    clearTimeout(_dwTimer);
+    const dd = document.getElementById('dwDropdown');
+    if (!q || q.length < 2) { dd.style.display='none'; return; }
+    _dwTimer = setTimeout(() => {
+      fetch(`${SEARCH_API}?q=${encodeURIComponent(q)}&limit=10`)
+        .then(r=>r.json()).then(rows=>{
+          const withEmail = rows.filter(c=>c.email);
+          if (!withEmail.length) { dd.style.display='none'; return; }
+          dd.innerHTML = withEmail.map(c=>`
+            <div class="contact-dropdown-item"
+                 onclick="MS.addDw('${esc(c.email)}','${esc(c.name)}')">
+              <div class="ci-name">${esc(c.name)}</div>
+              <div class="ci-sub">${esc(c.email)}</div>
+            </div>`).join('');
+          dd.style.display = 'block';
+        });
+    }, 220);
+  }
+
+  function dwKeydown(e) {
+    if (e.key === 'Enter') { e.preventDefault(); addDwManual(); }
+  }
+
+  function addDwManual() {
+    const inp = document.getElementById('dwSearchInput');
+    const val = inp.value.trim();
+    if (!val) return;
+    // Może być surowy email lub wybrany kontakt
+    const emails = val.split(/[,;\s]+/).filter(v=>v.includes('@'));
+    emails.forEach(email => addDw(email, email));
+    inp.value = '';
+    document.getElementById('dwDropdown').style.display = 'none';
+  }
+
+  function addDw(email, label) {
+    if (!email || _dw_emails.has(email)) return;
+    _dw_emails.set(email, label || email);
+    document.getElementById('dwSearchInput').value = '';
+    document.getElementById('dwDropdown').style.display = 'none';
+    renderDwChips();
+  }
+
+  function removeDw(email) {
+    _dw_emails.delete(email);
+    renderDwChips();
+  }
+
+  function renderDwChips() {
+    const box = document.getElementById('dwChips');
+    box.innerHTML = '';
+    _dw_emails.forEach((label, email) => {
+      const chip = document.createElement('span');
+      chip.className = 'dw-chip';
+      chip.innerHTML = `<i class="bi bi-person-check-fill" style="font-size:.75rem"></i><span>${esc(label !== email ? label : email)}</span>${label !== email ? `<span class="text-muted" style="font-size:.7rem">&lt;${esc(email)}&gt;</span>` : ''}`;
+      const rm = document.createElement('button');
+      rm.type='button'; rm.innerHTML='<i class="bi bi-x"></i>';
+      rm.onclick = () => removeDw(email);
+      chip.appendChild(rm);
+      box.appendChild(chip);
+    });
+  }
+
+  // Zamknij dropdowny po kliknięciu poza
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#groupPickerBtn') && !e.target.closest('#groupPickerDropdown')) {
+      document.getElementById('groupPickerDropdown').style.display = 'none';
+    }
+    if (!e.target.closest('#contactSearchInput') && !e.target.closest('#contactDropdown')) {
+      document.getElementById('contactDropdown').style.display = 'none';
+    }
+    if (!e.target.closest('#dwSearchInput') && !e.target.closest('#dwDropdown')) {
+      document.getElementById('dwDropdown').style.display = 'none';
+    }
+  });
+
   function setChannel(ch) {
     _channel = ch;
     ['email','sms'].forEach(c => {
@@ -338,6 +679,7 @@ const MS = (function() {
     document.getElementById('emailSubjectRow').style.display= ch==='email' ? '' : 'none';
     document.getElementById('sendChannel').textContent = ch==='email' ? 'E-mail' : 'SMS';
     updateSmsCount();
+    renderContactChips(); // odśwież chipy — wyszarz bez wymaganego pola
     preview();
   }
 
@@ -371,9 +713,10 @@ const MS = (function() {
   }
 
   function preview() {
-    const groups = [..._group_ids];
-    const tags   = [..._tag_filters].join(',');
-    if (!groups.length && !tags) {
+    const groups  = [..._group_ids];
+    const tags    = [..._tag_filters].join(',');
+    const c_ids   = [..._contact_ids.keys()];
+    if (!groups.length && !tags && !c_ids.length) {
       _total = 0;
       document.getElementById('recipientPreviewBox').style.display='none';
       document.getElementById('recipientCount').textContent='0';
@@ -388,24 +731,28 @@ const MS = (function() {
       action: 'preview',
       group_id: groups[0] || 0,
       tag_filter: tags,
-      contact_ids: [],
+      contact_ids: c_ids,
       channel: _channel
     };
 
-    // If multiple groups, collect all separately and merge
-    if (groups.length > 1) {
-      Promise.all(groups.map(gid =>
-        fetch(API, { method:'POST', headers:{'Content-Type':'application/json'},
-                     body: JSON.stringify({action:'preview',group_id:gid,channel:_channel}) })
-          .then(r=>r.json())
-          .then(res=>res.ok ? res.data.contacts.map(c=>c.id) : [])
-      )).then(arrays => {
-        const unique = [...new Set(arrays.flat())];
-        _total = unique.length;
-        updateCounters();
-        document.getElementById('recipientList').innerHTML =
-          '<span class="text-success fw-semibold">'+unique.length+' unikalnych odbiorców</span> ze wszystkich wybranych grup.';
-      });
+    // Multiple groups: merge all
+    if (groups.length > 1 || c_ids.length) {
+      const allPayload = { action:'preview', group_id: groups[0]||0, tag_filter: tags, contact_ids: c_ids, channel: _channel, group_ids: groups };
+      fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(allPayload) })
+        .then(r=>r.json()).then(res=>{
+          if (!res.ok) return;
+          _total = res.data.total;
+          updateCounters();
+          const list = res.data.contacts.slice(0,15).map(c=>
+            `<div class="d-flex gap-2 py-1 border-bottom" style="border-color:#F3F4F6">
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${esc(c.name)}</span>
+              <span class="text-muted">${esc(_channel==='sms'?c.telefon||'—brak tel.':c.email||'—brak e-mail')}</span>
+            </div>`
+          ).join('');
+          document.getElementById('recipientList').innerHTML = list +
+            (res.data.total > 15 ? `<div class="text-muted mt-1" style="font-size:.72rem">… i ${res.data.total-15} więcej</div>` : '');
+          document.getElementById('recipientCount').textContent = res.data.total;
+        });
       return;
     }
 
@@ -486,53 +833,66 @@ const MS = (function() {
   function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
   async function send() {
-    const body = getBody();
+    const msgBody = getBody();
     const subject = document.getElementById('ms_subject').value.trim();
-    const groups = [..._group_ids];
-    const tags   = [..._tag_filters].join(',');
+    const groups  = [..._group_ids];
+    const tags    = [..._tag_filters].join(',');
+    const c_ids   = [..._contact_ids.keys()];
+    const dw      = [..._dw_emails.keys()];
 
-    if (!body) { alert('Wpisz treść wiadomości.'); return; }
+    if (!msgBody) { alert('Wpisz treść wiadomości.'); return; }
     if (_channel==='email'&&!subject) { alert('Podaj temat e-maila.'); return; }
-    if (!groups.length&&!tags) { alert('Wybierz grupę lub tag.'); return; }
+    if (!groups.length&&!tags&&!c_ids.length) { alert('Wybierz grupę, tag lub dodaj kontakty.'); return; }
     if (_total===0) { alert('Brak odbiorców dla wybranego kanału.'); return; }
-    if (!confirm('Wysłać '+_channel.toUpperCase()+' do '+_total+' odbiorców?')) return;
+
+    const dwNote = dw.length ? `\nDW: ${dw.join(', ')}` : '';
+    if (!confirm(`Wysłać ${_channel.toUpperCase()} do ${_total} odbiorców?${dwNote}`)) return;
 
     document.getElementById('sendBtn').disabled=true;
     document.getElementById('progressSection').style.display='';
     document.getElementById('progressLabel').textContent='Przygotowywanie wysyłki…';
-    document.getElementById('progressFill').style.width='10%';
+    document.getElementById('progressFill').style.width='5%';
 
     const tplText = document.getElementById('ms_tpl_select').options[document.getElementById('ms_tpl_select').selectedIndex]?.text||'';
 
-    // Startuj dla każdej grupy osobno i zbieraj send_ids
-    const payloads = groups.length
-      ? groups.map(gid=>({ action:'start',group_id:gid,tag_filter:tags,channel:_channel,subject,body,template_name:tplText }))
-      : [{ action:'start',group_id:0,tag_filter:tags,channel:_channel,subject,body }];
+    // Jedna wysyłka łącząca wszystkie grupy + indywidualne kontakty
+    const startPayload = {
+      action: 'start',
+      group_ids: groups,
+      group_id:  groups[0] || 0,
+      tag_filter: tags,
+      contact_ids: c_ids,
+      channel: _channel,
+      subject,
+      body: msgBody,
+      template_name: tplText,
+      dw: dw,
+    };
 
-    let totalOk=0,totalFail=0;
+    const startRes = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(startPayload)}).then(r=>r.json());
+    if (!startRes.ok) { alert('Błąd: '+startRes.error); document.getElementById('sendBtn').disabled=false; return; }
 
-    for (let i=0;i<payloads.length;i++) {
-      const startRes = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payloads[i])}).then(r=>r.json());
-      if (!startRes.ok) { alert('Błąd: '+startRes.error); break; }
+    document.getElementById('progressLabel').textContent='Wysyłanie…';
+    document.getElementById('progressFill').style.width='30%';
 
-      document.getElementById('progressLabel').textContent=`Wysyłanie (${i+1}/${payloads.length})…`;
-      document.getElementById('progressFill').style.width = (10+80*(i+1)/payloads.length)+'%';
-
-      const execRes = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'execute',send_id:startRes.data.send_id})}).then(r=>r.json());
-      totalOk   += execRes.data?.sent_ok   || 0;
-      totalFail += execRes.data?.sent_fail || 0;
-    }
+    const execRes = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'execute',send_id:startRes.data.send_id})}).then(r=>r.json());
+    const totalOk   = execRes.data?.sent_ok   || 0;
+    const totalFail = execRes.data?.sent_fail || 0;
 
     document.getElementById('progressFill').style.width='100%';
     document.getElementById('progressLabel').textContent='Zakończono!';
     document.getElementById('progressResult').innerHTML =
       `<span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>${totalOk} wysłano</span>` +
-      (totalFail ? ` <span class="text-danger ms-2"><i class="bi bi-x-circle me-1"></i>${totalFail} błędów</span>` : '');
+      (totalFail ? ` <span class="text-danger ms-2"><i class="bi bi-x-circle me-1"></i>${totalFail} błędów</span>` : '') +
+      (dw.length ? ` <span class="text-info ms-2"><i class="bi bi-person-check me-1"></i>DW wysłane do ${dw.length}</span>` : '');
 
     setTimeout(()=>location.reload(), 2500);
   }
 
-  return { setChannel, toggleGroup, toggleTag, preview, send, insertVar, loadTemplate };
+  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag,
+           searchContacts, addContact, removeContact,
+           searchDw, dwKeydown, addDwManual, addDw, removeDw,
+           preview, send, insertVar, loadTemplate };
 })();
 </script>
 

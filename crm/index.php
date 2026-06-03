@@ -25,11 +25,13 @@ $PAGE_TITLE = 'CRM — Kontakty';
 
 // ── Filtry ────────────────────────────────────────────────────────────────────
 $filters = [
-    'q'      => trim($_GET['q']      ?? ''),
-    'status' => trim($_GET['status'] ?? ''),
-    'type'   => trim($_GET['type']   ?? ''),
-    'tag'    => trim($_GET['tag']    ?? ''),
-    'group'  => (int)($_GET['group'] ?? 0) ?: '',
+    'q'           => trim($_GET['q']           ?? ''),
+    'status'      => trim($_GET['status']      ?? ''),
+    'type'        => trim($_GET['type']        ?? ''),
+    'tag'         => trim($_GET['tag']         ?? ''),
+    'group'       => (int)($_GET['group']      ?? 0) ?: '',
+    'wojewodztwo' => trim($_GET['wojewodztwo'] ?? ''),
+    'action_id'   => (int)($_GET['action_id']  ?? 0) ?: '',
 ];
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $per_page = 25;
@@ -48,6 +50,16 @@ $all_tags   = db_all("SELECT tag, COUNT(*) AS cnt FROM crm_tags
                       GROUP BY tag ORDER BY cnt DESC LIMIT 30");
 $all_groups = CrmManager::getGroups();
 
+// Działania (actions) powiązane z kontaktami CRM
+$crm_actions = [];
+try {
+    $crm_actions = db_all(
+        "SELECT DISTINCT a.id, a.nazwa FROM actions a
+         JOIN crm_action_links al ON al.action_id=a.id
+         ORDER BY a.nazwa"
+    );
+} catch (\Throwable $e) {}
+
 // ── POST: szybkie akcje (status, delete) ──────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
     csrf_check();
@@ -56,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
     if ($action === 'quick_status' && !empty($_POST['contact_id'])) {
         $cid    = (int)$_POST['contact_id'];
         $status = trim($_POST['new_status'] ?? '');
-        if (array_key_exists($status, CRM_STATUSES)) {
+        if (array_key_exists($status, crm_statuses())) {
             CrmManager::updateContact($cid, ['status' => $status]);
             flash_set('success', 'Status kontaktu zaktualizowany.');
         }
@@ -93,7 +105,7 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
   </div>
   <?php foreach (array_slice($stats['by_status'], 0, 3) as $bs):
-    $sc = CRM_STATUSES[$bs['status']] ?? ['label' => $bs['status'], 'color' => '#939393'];
+    $sc = crm_statuses()[$bs['status']] ?? ['label' => $bs['status'], 'color' => '#939393'];
   ?>
   <div class="col-6 col-md-3">
     <div class="crm-stat-card">
@@ -115,10 +127,15 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
   <div class="crm-object-actions">
     <?php if ($crm_can_write): ?>
-    <a href="<?= APP_URL ?>/crm/contact/add.php"
+    <a href="<?= APP_URL ?>/crm/contact/quick_add.php"
        class="btn btn-crm-primary btn-sm"
-       aria-label="Dodaj nowy kontakt CRM">
-      <i class="bi bi-plus-lg me-1"></i>Nowy kontakt
+       aria-label="Szybkie dodawanie kontaktu">
+      <i class="bi bi-lightning-fill me-1"></i>Szybkie +
+    </a>
+    <a href="<?= APP_URL ?>/crm/contact/add.php"
+       class="btn btn-crm-outline btn-sm"
+       aria-label="Pełny formularz kontaktu">
+      <i class="bi bi-person-plus me-1"></i>Pełny
     </a>
     <?php endif; ?>
     <a href="<?= APP_URL ?>/crm/communicate.php"
@@ -126,6 +143,21 @@ include __DIR__ . '/includes/header_crm.php';
        aria-label="Wyślij wiadomość do kontaktów">
       <i class="bi bi-send me-1"></i>Wyślij wiadomość
     </a>
+    <?php $export_q = http_build_query(array_filter($filters)); ?>
+    <div class="dropdown">
+      <button class="btn btn-crm-outline btn-sm dropdown-toggle" data-bs-toggle="dropdown"
+              title="Eksportuj <?= $total ?> kontaktów">
+        <i class="bi bi-download me-1"></i>Eksport
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.83rem">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/export.php?<?= $export_q ?>">
+          <i class="bi bi-filetype-csv me-2 text-muted"></i>CSV (Excel-kompatybilny)
+        </a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/export.php?format=xlsx&<?= $export_q ?>">
+          <i class="bi bi-file-earmark-spreadsheet me-2 text-success"></i>Excel (.xlsx)
+        </a></li>
+      </ul>
+    </div>
     <!-- Sync status -->
     <div class="crm-sync-label ms-2" id="crmSyncStatus" title="Synchronizacja heartbeat co 50 sekund" aria-live="polite">
       <span class="crm-sync-dot" id="crmSyncDot"></span>
@@ -152,7 +184,7 @@ include __DIR__ . '/includes/header_crm.php';
   <!-- Status -->
   <select name="status" class="form-select" style="width:auto;min-width:130px" aria-label="Filtruj po statusie">
     <option value="">Wszystkie statusy</option>
-    <?php foreach (CRM_STATUSES as $key => $s): ?>
+    <?php foreach (crm_statuses() as $key => $s): ?>
     <option value="<?= h($key) ?>" <?= $filters['status'] === $key ? 'selected' : '' ?>>
       <?= h($s['label']) ?>
     </option>
@@ -165,6 +197,33 @@ include __DIR__ . '/includes/header_crm.php';
     <option value="osoba"       <?= $filters['type'] === 'osoba'       ? 'selected' : '' ?>>Osoba</option>
     <option value="organizacja" <?= $filters['type'] === 'organizacja' ? 'selected' : '' ?>>Organizacja</option>
   </select>
+
+  <!-- Województwo -->
+  <?php
+  $woj_in_crm = db_all("SELECT DISTINCT wojewodztwo FROM crm_contacts WHERE crm_active=1 AND wojewodztwo IS NOT NULL AND wojewodztwo != '' ORDER BY wojewodztwo");
+  if ($woj_in_crm):
+  ?>
+  <select name="wojewodztwo" class="form-select" style="width:auto;min-width:150px" aria-label="Filtruj po województwie">
+    <option value="">Wszystkie woj.</option>
+    <?php foreach ($woj_in_crm as $w): ?>
+    <option value="<?= h($w['wojewodztwo']) ?>" <?= $filters['wojewodztwo'] === $w['wojewodztwo'] ? 'selected' : '' ?>>
+      <?= h(ucfirst($w['wojewodztwo'])) ?>
+    </option>
+    <?php endforeach; ?>
+  </select>
+  <?php endif; ?>
+
+  <!-- Działanie -->
+  <?php if ($crm_actions): ?>
+  <select name="action_id" class="form-select" style="width:auto;min-width:160px" aria-label="Filtruj po działaniu">
+    <option value="">Wszystkie działania</option>
+    <?php foreach ($crm_actions as $a): ?>
+    <option value="<?= (int)$a['id'] ?>" <?= (int)$filters['action_id'] === (int)$a['id'] ? 'selected' : '' ?>>
+      <?= h($a['nazwa']) ?>
+    </option>
+    <?php endforeach; ?>
+  </select>
+  <?php endif; ?>
 
   <!-- Grupa -->
   <?php if ($all_groups): ?>
@@ -246,9 +305,13 @@ include __DIR__ . '/includes/header_crm.php';
 
   <?php if ($rows): ?>
   <div class="table-responsive">
-    <table class="crm-table" aria-label="Kontakty CRM — <?= $total ?> rekordów">
+    <table class="crm-table" id="crmContactTable" aria-label="Kontakty CRM — <?= $total ?> rekordów">
       <thead>
         <tr>
+          <th scope="col" style="width:36px">
+            <input type="checkbox" id="chk-all" class="form-check-input" title="Zaznacz wszystkie"
+                   onchange="Bulk.toggleAll(this.checked)">
+          </th>
           <th scope="col">
             <span>Kontakt</span>
             <i class="bi bi-arrow-down-up sort-icon ms-1" aria-hidden="true"></i>
@@ -265,10 +328,12 @@ include __DIR__ . '/includes/header_crm.php';
         <?php foreach ($rows as $row):
           $initials = $row['avatar_initials'] ?: CrmManager::makeInitials($row['imie_nazwisko']);
           $tags     = $row['tags_csv'] ? array_filter(explode(',', $row['tags_csv'])) : [];
-          $sc       = CRM_STATUSES[$row['status']] ?? ['label' => $row['status'], 'color' => '#939393'];
+          $sc       = crm_statuses()[$row['status']] ?? ['label' => $row['status'], 'color' => '#939393'];
           $is_org   = $row['type'] === 'organizacja';
         ?>
-        <tr>
+        <tr data-id="<?= (int)$row['id'] ?>">
+          <td><input type="checkbox" class="form-check-input crm-row-chk"
+                     value="<?= (int)$row['id'] ?>" onchange="Bulk.update()"></td>
           <!-- Kontakt -->
           <td>
             <div class="crm-name-cell">
@@ -305,7 +370,7 @@ include __DIR__ . '/includes/header_crm.php';
                 <?= h($sc['label']) ?>
               </button>
               <ul class="dropdown-menu shadow-sm" style="font-size:.83rem">
-                <?php foreach (CRM_STATUSES as $sk => $sv): ?>
+                <?php foreach (crm_statuses() as $sk => $sv): ?>
                 <li>
                   <form method="post" class="d-inline">
                     <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
@@ -535,6 +600,152 @@ include __DIR__ . '/includes/header_crm.php';
   setTimeout(doSync, 2000);
   // Następne co 50s
   setInterval(doSync, INTERVAL);
+})();
+</script>
+
+<?php
+// Dane dla bulk actions JS
+$all_groups_bulk = CrmManager::getGroups();
+?>
+<!-- Pasek bulk actions (ukryty domyślnie) -->
+<div id="bulk-bar" style="display:none;position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);
+     z-index:1060;background:#1e293b;color:#fff;border-radius:12px;padding:.65rem 1.25rem;
+     box-shadow:0 8px 32px rgba(0,0,0,.28);display:none;align-items:center;gap:.75rem;flex-wrap:wrap;min-width:340px">
+  <span id="bulk-count" class="fw-semibold" style="font-size:.85rem;white-space:nowrap">0 zaznaczonych</span>
+
+  <!-- Zmień status -->
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-light" data-bs-toggle="dropdown">
+      <i class="bi bi-bookmark me-1"></i>Status
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark">
+      <?php foreach (crm_statuses() as $sk => $sv): ?>
+      <li><a class="dropdown-item" href="#"
+             onclick="Bulk.do('set_status','<?= h($sk) ?>');return false">
+        <span class="badge me-2" style="background:<?= h($sv['color']) ?>;width:10px;height:10px;padding:0;border-radius:50%;display:inline-block"></span>
+        <?= h($sv['label']) ?>
+      </a></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+
+  <!-- Dodaj tag -->
+  <div class="d-flex gap-1">
+    <input type="text" id="bulk-tag-inp" placeholder="Tag…" class="form-control form-control-sm"
+           style="width:110px;background:#334155;border-color:#475569;color:#fff"
+           onkeydown="if(event.key==='Enter'){Bulk.do('add_tag',this.value);this.value='';}"
+           placeholder="Wpisz tag + Enter">
+    <button class="btn btn-sm btn-outline-light" onclick="Bulk.do('add_tag',document.getElementById('bulk-tag-inp').value);document.getElementById('bulk-tag-inp').value=''">
+      <i class="bi bi-tag"></i>
+    </button>
+  </div>
+
+  <!-- Dodaj do grupy -->
+  <?php if ($all_groups_bulk): ?>
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-light" data-bs-toggle="dropdown">
+      <i class="bi bi-people me-1"></i>Grupa
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark" style="max-height:220px;overflow-y:auto">
+      <?php foreach ($all_groups_bulk as $g): ?>
+      <li><a class="dropdown-item" href="#"
+             onclick="Bulk.do('add_to_group',<?= (int)$g['id'] ?>);return false">
+        <i class="bi <?= h($g['icon']) ?>" style="color:<?= h($g['color']) ?>"></i>
+        <?= h($g['name']) ?>
+      </a></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($crm_can_delete): ?>
+  <button class="btn btn-sm btn-outline-danger"
+          onclick="Bulk.do('delete',null)"
+          title="Usuń zaznaczone kontakty">
+    <i class="bi bi-trash3"></i>
+  </button>
+  <?php endif; ?>
+
+  <button class="btn btn-sm btn-link text-light p-0 ms-1" onclick="Bulk.clear()" title="Odznacz wszystkie">
+    <i class="bi bi-x-lg"></i>
+  </button>
+</div>
+
+<script>
+const Bulk = (function() {
+  const bar   = document.getElementById('bulk-bar');
+  const count = document.getElementById('bulk-count');
+  const API   = '<?= APP_URL ?>/crm/api/bulk.php';
+  const CSRF  = '<?= csrf_token() ?>';
+
+  function getChecked() {
+    return [...document.querySelectorAll('.crm-row-chk:checked')].map(c => parseInt(c.value));
+  }
+
+  function update() {
+    const ids = getChecked();
+    const n   = ids.length;
+    bar.style.display = n ? 'flex' : 'none';
+    count.textContent = n + ' zaznaczon' + (n===1?'y':n>=2&&n<=4?'ych':'ych');
+    document.getElementById('chk-all').indeterminate =
+      n > 0 && n < document.querySelectorAll('.crm-row-chk').length;
+    document.getElementById('chk-all').checked =
+      n === document.querySelectorAll('.crm-row-chk').length && n > 0;
+  }
+
+  function toggleAll(checked) {
+    document.querySelectorAll('.crm-row-chk').forEach(c => c.checked = checked);
+    update();
+  }
+
+  function clear() {
+    document.querySelectorAll('.crm-row-chk, #chk-all').forEach(c => c.checked = false);
+    update();
+  }
+
+  async function doAction(action, value) {
+    const ids = getChecked();
+    if (!ids.length) return;
+
+    if (action === 'delete' && !confirm('Usunąć ' + ids.length + ' kontaktów? Operacja jest odwracalna przez administratora.')) return;
+    if (action === 'add_tag' && !value?.trim()) return;
+
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action, ids, value: value ?? '', _csrf: CSRF})
+    }).then(r => r.json());
+
+    if (res.ok) {
+      const msgs = {
+        set_status:   `Zmieniono status dla ${res.affected} kontaktów.`,
+        add_tag:      `Dodano tag do ${res.affected} kontaktów.`,
+        remove_tag:   `Usunięto tag z ${res.affected} kontaktów.`,
+        add_to_group: `Dodano ${res.affected} kontaktów do grupy.`,
+        delete:       `Usunięto ${res.affected} kontaktów.`,
+      };
+      // Odśwież stronę z komunikatem
+      const url = new URL(location.href);
+      url.searchParams.set('_bulk_ok', msgs[action] || 'Operacja wykonana.');
+      location.replace(url.toString());
+    } else {
+      alert('Błąd: ' + (res.error || 'Nieznany błąd'));
+    }
+  }
+
+  // Pokaż flash z bulk_ok
+  const bp = new URLSearchParams(location.search).get('_bulk_ok');
+  if (bp) {
+    const div = document.createElement('div');
+    div.className = 'alert alert-success alert-dismissible py-2 px-3 mb-2';
+    div.innerHTML = `<i class="bi bi-check-circle me-1"></i>${bp}<button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>`;
+    document.querySelector('.crm-object-header')?.insertAdjacentElement('afterend', div);
+    // Wyczyść parametr z URL
+    const clean = new URL(location.href); clean.searchParams.delete('_bulk_ok');
+    history.replaceState({}, '', clean.toString());
+  }
+
+  return { update, toggleAll, clear, do: doAction };
 })();
 </script>
 

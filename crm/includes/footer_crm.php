@@ -27,7 +27,6 @@ $_org_name_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 
 </div><!-- /crm-shell -->
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // Mobile: hamburger toggle sidebara
 (function() {

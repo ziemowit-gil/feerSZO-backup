@@ -203,6 +203,20 @@ class M365Graph {
 
     // ── Wyślij maila powitalnego ─────────────────────────────────────────────
 
+    public function send_raw_email(string $sender_user_id, string $to, string $subject, string $html_body): void {
+        $this->http_post(
+            "https://graph.microsoft.com/v1.0/users/{$sender_user_id}/sendMail",
+            [
+                'message' => [
+                    'subject' => $subject,
+                    'body'    => ['contentType' => 'HTML', 'content' => $html_body],
+                    'toRecipients' => [['emailAddress' => ['address' => $to]]],
+                ],
+                'saveToSentItems' => false,
+            ]
+        );
+    }
+
     public function send_welcome_email(string $sender_user_id, string $to_email, string $display_name, string $login, string $password): void {
         $body = [
             'message' => [

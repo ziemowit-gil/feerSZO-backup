@@ -377,7 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
 
                         // Normalizuj status
-                        $validStatuses = array_keys(CRM_STATUSES);
+                        $validStatuses = array_keys(crm_statuses());
                         if (isset($contact['status']) && !in_array($contact['status'], $validStatuses, true)) {
                             unset($contact['status']);
                         }

@@ -144,8 +144,44 @@ function log_system_action(int $user_id, string $action, string $note = ''): voi
 
 // ── Wysyłka maili ─────────────────────────────────────────────────────────────
 
-function approval_send_email(string $to, string $subject, string $html_body): bool {
-    // Próbuj przez Graph API (M365)
+/**
+ * Sprawdź rate-limit: max $max wiadomości do tego samego adresu w ciągu $window sekund.
+ * Zwraca true jeśli wysyłka jest dozwolona.
+ */
+function email_rate_limit_ok(string $to, int $max = 3, int $window = 86400): bool {
+    try {
+        $since = date('Y-m-d H:i:s', time() - $window);
+        $r = db_one(
+            "SELECT COUNT(*) AS c FROM email_send_log WHERE to_email=? AND sent_at >= ? AND result='sent'",
+            [$to, $since]
+        );
+        return ((int)($r['c'] ?? 0)) < $max;
+    } catch (\Throwable $e) {
+        return true; // tabela może nie istnieć w starych instalacjach
+    }
+}
+
+/**
+ * Zapisz wysyłkę w logu.
+ */
+function email_log(string $to, string $subject, string $ctx_type = '', ?int $ctx_id = null, string $result = 'sent'): void {
+    try {
+        db()->prepare(
+            "INSERT INTO email_send_log (to_email, subject, context_type, context_id, sent_by, result)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        )->execute([$to, $subject, $ctx_type, $ctx_id, current_user()['id'] ?? null, $result]);
+    } catch (\Throwable $e) {}
+}
+
+function approval_send_email(string $to, string $subject, string $html_body, string $ctx_type = '', ?int $ctx_id = null): bool {
+    // Rate-limit: max 5 maili do tego samego adresu na dobę (systemowe/akceptacyjne)
+    if (!email_rate_limit_ok($to, 5)) {
+        error_log("[approval_send_email] Rate limit osiągnięty dla: {$to}");
+        email_log($to, $subject, $ctx_type, $ctx_id, 'rate_limited');
+        return false;
+    }
+
+    // Próbuj przez Graph API (M365) — używa publicznej metody
     if (function_exists('m365_setting')) {
         require_once __DIR__ . '/m365.php';
         $sender = m365_setting('m365_sender_user_id');
@@ -153,30 +189,29 @@ function approval_send_email(string $to, string $subject, string $html_body): bo
             try {
                 $graph = new M365Graph();
                 if ($graph->is_configured()) {
-                    // Użyj send_welcome_email jako wzorzec - tu robimy bezpośrednio
-                    _graph_send_mail($graph, $sender, $to, $subject, $html_body);
+                    $graph->send_raw_email($sender, $to, $subject, $html_body);
+                    email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
                     return true;
                 }
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+                error_log("[approval_send_email] Graph API failed: " . $e->getMessage());
+            }
         }
     }
-    // Fallback: PHP mail()
-    $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
-    return @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html_body, $headers);
-}
 
-function _graph_send_mail(object $graph, string $sender_id, string $to, string $subject, string $body): void {
-    // Bezpośrednie wywołanie Graph — reużywa prywatnej infrastruktury przez refleksję
-    $ref = new ReflectionMethod($graph, 'http_post');
-    $ref->setAccessible(true);
-    $ref->invoke($graph, "https://graph.microsoft.com/v1.0/users/{$sender_id}/sendMail", [
-        'message' => [
-            'subject' => $subject,
-            'body'    => ['contentType' => 'HTML', 'content' => $body],
-            'toRecipients' => [['emailAddress' => ['address' => $to]]],
-        ],
-        'saveToSentItems' => false,
-    ]);
+    // Fallback: mail_queue (SMTP lub PHP mail)
+    try {
+        require_once __DIR__ . '/mail_queue.php';
+        mail_queue_add($to, '', $subject, $html_body, '', $ctx_type, $ctx_id, '', true);
+        email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
+        return true;
+    } catch (\Throwable $e) {}
+
+    // Ostateczny fallback: PHP mail()
+    $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
+    $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html_body, $headers);
+    email_log($to, $subject, $ctx_type, $ctx_id, $ok ? 'sent' : 'failed');
+    return $ok;
 }
 
 function approval_send_request_email(array $admin, string $type, int $id, string $numer, string $token): bool {
