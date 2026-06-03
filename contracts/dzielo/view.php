@@ -848,28 +848,23 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <?php endif; ?>
 
 <script>
-(function () {
+document.addEventListener('DOMContentLoaded', function () {
   var STORAGE_KEY = 'dzielo_tab_<?= $id ?>';
   var tabs = document.getElementById('dzieloTabs');
   if (!tabs) return;
+  function showTab(btn) { if (btn) new bootstrap.Tab(btn).show(); }
+  var hash = location.hash;
+  if (hash && hash.startsWith('#tab-')) {
+    var hashBtn = document.querySelector('[data-bs-target="' + hash + '"]');
+    if (hashBtn) { showTab(hashBtn); return; }
+  }
   var saved = localStorage.getItem(STORAGE_KEY) || 'tab-umowa';
   var target = document.querySelector('[data-bs-target="#' + saved + '"]');
-  if (target) {
-    new bootstrap.Tab(target).show();
-  } else {
-    new bootstrap.Tab(tabs.querySelector('[data-bs-toggle="tab"]')).show();
-  }
-  if (location.hash && location.hash.startsWith('#tab-')) {
-    var hashTarget = document.querySelector('[data-bs-target="' + location.hash + '"]');
-    if (hashTarget) {
-      setTimeout(function () { new bootstrap.Tab(hashTarget).show(); }, 50);
-    }
-  }
+  showTab(target || tabs.querySelector('[data-bs-toggle="tab"]'));
   tabs.addEventListener('shown.bs.tab', function (e) {
-    var id = e.target.dataset.bsTarget.replace('#', '');
-    localStorage.setItem(STORAGE_KEY, id);
+    localStorage.setItem(STORAGE_KEY, e.target.dataset.bsTarget.replace('#', ''));
   });
-})();
+});
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

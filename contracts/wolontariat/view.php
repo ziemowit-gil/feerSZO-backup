@@ -2674,45 +2674,40 @@ if (!empty($_GET['show_aneks'])): ?>
 
 <script>
 // ── Zapamiętaj aktywną zakładkę ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
 (function () {
   var STORAGE_KEY = 'wolontariat_tab_<?= $id ?>';
   var CONTRACT_ID = <?= (int)$id ?>;
   var tabs = document.getElementById('wolontariatTabs');
   if (!tabs) return;
 
-  // Upewnij się że Bootstrap nie napotka na konflikt z Bootstrap nav-tabs
-  // (force proper init by removing Bootstrap's default active border styling)
-  tabs.querySelectorAll('.nav-link').forEach(function(btn) {
-    btn.style.outline = 'none';
-  });
+  function showTab(btn) { if (btn) new bootstrap.Tab(btn).show(); }
+
+  var hash = location.hash;
+
+  // Hash URL ma priorytet
+  if (hash && hash.startsWith('#tab-')) {
+    var hashBtn = document.querySelector('[data-bs-target="' + hash + '"]');
+    if (hashBtn) { showTab(hashBtn); }
+  }
+
+  // Anchor wiadomości
+  if (hash === '#tab-messages-anchor' || location.search.includes('msg=1')) {
+    var msgBtn = document.getElementById('tab-messages-btn');
+    if (msgBtn) { showTab(msgBtn); localStorage.setItem(STORAGE_KEY,'tab-messages'); }
+  }
+
+  // Anchor zadań
+  if (hash === '#tab-tasks-anchor') {
+    var tasksBtn = document.getElementById('tab-tasks-btn');
+    if (tasksBtn) { showTab(tasksBtn); localStorage.setItem(STORAGE_KEY,'tab-tasks'); }
+  }
 
   // Przywróć z localStorage lub otwórz pierwszą
-  var saved = localStorage.getItem(STORAGE_KEY) || 'tab-umowa';
-  var target = document.querySelector('[data-bs-target="#' + saved + '"]');
-  if (target) {
-    new bootstrap.Tab(target).show();
-  } else {
-    new bootstrap.Tab(tabs.querySelector('[data-bs-toggle="tab"]')).show();
-  }
-
-  // Obsługa URL hash (#tab-obieg itp.)
-  if (location.hash && location.hash.startsWith('#tab-')) {
-    var hashTarget = document.querySelector('[data-bs-target="' + location.hash + '"]');
-    if (hashTarget) {
-      setTimeout(function () { new bootstrap.Tab(hashTarget).show(); }, 50);
-    }
-  }
-
-  // Otwórz zakładkę wiadomości jeśli URL zawiera anchor
-  if (window.location.hash === '#tab-messages-anchor' || window.location.search.includes('msg=1')) {
-    var msgBtn = document.getElementById('tab-messages-btn');
-    if (msgBtn) { new bootstrap.Tab(msgBtn).show(); localStorage.setItem(STORAGE_KEY,'tab-messages'); }
-  }
-
-  // Otwórz zakładkę zadań jeśli URL zawiera anchor
-  if (window.location.hash === '#tab-tasks-anchor') {
-    var tasksBtn = document.getElementById('tab-tasks-btn');
-    if (tasksBtn) { setTimeout(function(){ new bootstrap.Tab(tasksBtn).show(); localStorage.setItem(STORAGE_KEY,'tab-tasks'); }, 50); }
+  if (!hash || !hash.startsWith('#tab-')) {
+    var saved = localStorage.getItem(STORAGE_KEY) || 'tab-umowa';
+    var target = document.querySelector('[data-bs-target="#' + saved + '"]');
+    showTab(target || tabs.querySelector('[data-bs-toggle="tab"]'));
   }
 
   // ── AJAX odświeżanie odznak ──────────────────────────────────────────────
@@ -2765,6 +2760,7 @@ if (!empty($_GET['show_aneks'])): ?>
     _badgeRefreshTimer = setTimeout(refreshBadges, 300);
   });
 })();
+}); // DOMContentLoaded
 
 // ── Dynamiczne listy zadań po wyborze workspace ────────────────────────────
 function loadLists(wsId) {
