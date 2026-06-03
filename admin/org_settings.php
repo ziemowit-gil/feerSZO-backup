@@ -23,14 +23,7 @@ function _org_reps_migrate(): void {
 }
 _org_reps_migrate();
 
-// ── Helper luminancji ────────────────────────────────────────────────────────
-function _sb_luminance(string $hex): float {
-    $hex = ltrim($hex, '#');
-    if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
-    $r = hexdec(substr($hex,0,2))/255; $g = hexdec(substr($hex,2,2))/255; $b = hexdec(substr($hex,4,2))/255;
-    $lin = fn($c) => $c <= .03928 ? $c/12.92 : (($c+.055)/1.055)**2.4;
-    return .2126*$lin($r) + .7152*$lin($g) + .0722*$lin($b);
-}
+
 
 $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
