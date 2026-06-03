@@ -2673,94 +2673,69 @@ if (!empty($_GET['show_aneks'])): ?>
 <?php endif; ?>
 
 <script>
-// ── Zapamiętaj aktywną zakładkę ─────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function () {
+// ── Zakładki — click-based (bez bootstrap.Tab API) ──────────────────────────
 (function () {
-  var STORAGE_KEY = 'wolontariat_tab_<?= $id ?>';
-  var CONTRACT_ID = <?= (int)$id ?>;
-  var tabs = document.getElementById('wolontariatTabs');
-  if (!tabs) return;
+  var KEY = 'wolontariat_tab_<?= $id ?>';
+  var CID = <?= (int)$id ?>;
 
-  function showTab(btn) { if (btn) new bootstrap.Tab(btn).show(); }
+  function activate(tabId) {
+    var btn = document.querySelector('[data-bs-target="#' + tabId + '"]');
+    if (btn && !btn.classList.contains('active')) btn.click();
+  }
 
+  // Natychmiastowe przełączenie — click działa bez Bootstrap JS API
   var hash = location.hash;
-
-  // Hash URL ma priorytet
-  if (hash && hash.startsWith('#tab-')) {
-    var hashBtn = document.querySelector('[data-bs-target="' + hash + '"]');
-    if (hashBtn) { showTab(hashBtn); }
-  }
-
-  // Anchor wiadomości
   if (hash === '#tab-messages-anchor' || location.search.includes('msg=1')) {
-    var msgBtn = document.getElementById('tab-messages-btn');
-    if (msgBtn) { showTab(msgBtn); localStorage.setItem(STORAGE_KEY,'tab-messages'); }
+    activate('tab-messages'); localStorage.setItem(KEY, 'tab-messages');
+  } else if (hash === '#tab-tasks-anchor') {
+    activate('tab-tasks'); localStorage.setItem(KEY, 'tab-tasks');
+  } else if (hash && hash.startsWith('#tab-')) {
+    activate(hash.slice(1));
+  } else {
+    var saved = localStorage.getItem(KEY);
+    if (saved && saved !== 'tab-umowa') activate(saved);
   }
 
-  // Anchor zadań
-  if (hash === '#tab-tasks-anchor') {
-    var tasksBtn = document.getElementById('tab-tasks-btn');
-    if (tasksBtn) { showTab(tasksBtn); localStorage.setItem(STORAGE_KEY,'tab-tasks'); }
-  }
-
-  // Przywróć z localStorage lub otwórz pierwszą
-  if (!hash || !hash.startsWith('#tab-')) {
-    var saved = localStorage.getItem(STORAGE_KEY) || 'tab-umowa';
-    var target = document.querySelector('[data-bs-target="#' + saved + '"]');
-    showTab(target || tabs.querySelector('[data-bs-toggle="tab"]'));
-  }
+  // Zapisz przy zmianie
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-bs-toggle="tab"]');
+    if (!btn) return;
+    var t = (btn.dataset.bsTarget || '').replace('#', '');
+    if (t) localStorage.setItem(KEY, t);
+  });
 
   // ── AJAX odświeżanie odznak ──────────────────────────────────────────────
-  var _badgeRefreshTimer = null;
-  function refreshBadges() {
-    fetch('view.php?id=' + CONTRACT_ID + '&_badges=1', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(data) {
-        if (!data) return;
-        // Wiadomości
-        var msgBadge = document.querySelector('#tab-messages-btn .badge');
-        if (data.msg_unread > 0) {
-          if (!msgBadge) {
-            msgBadge = document.createElement('span');
-            msgBadge.className = 'badge bg-danger ms-1';
-            document.getElementById('tab-messages-btn').appendChild(msgBadge);
-          }
-          msgBadge.textContent = data.msg_unread;
-        } else if (msgBadge) { msgBadge.remove(); }
-        // Obieg
-        var obiegBadge = document.querySelector('#tab-obieg-btn .badge');
-        if (data.badge_obieg > 0) {
-          if (!obiegBadge) {
-            obiegBadge = document.createElement('span');
-            obiegBadge.className = 'badge bg-danger ms-1';
-            document.getElementById('tab-obieg-btn').appendChild(obiegBadge);
-          }
-          obiegBadge.textContent = data.badge_obieg;
-        } else if (obiegBadge) { obiegBadge.remove(); }
-        // Zwroty kosztów
-        var zwrotyBadge = document.querySelector('#tab-zwroty-btn .badge');
-        if (data.zwroty_pending > 0) {
-          if (!zwrotyBadge) {
-            zwrotyBadge = document.createElement('span');
-            zwrotyBadge.className = 'badge bg-warning text-dark ms-1';
-            document.getElementById('tab-zwroty-btn').appendChild(zwrotyBadge);
-          }
-          zwrotyBadge.textContent = data.zwroty_pending;
-        } else if (zwrotyBadge) { zwrotyBadge.remove(); }
-      })
-      .catch(function() {});
+  function updateBadge(selector, count, cls) {
+    var el = document.querySelector(selector);
+    if (count > 0) {
+      if (!el) {
+        el = document.createElement('span');
+        el.className = cls;
+        var btn = document.querySelector(selector.split(' ')[0]);
+        if (btn) btn.appendChild(el);
+      }
+      if (el) el.textContent = count;
+    } else if (el) { el.remove(); }
   }
 
-  // Zapisz przy zmianie + odśwież odznaki co zmianę zakładki
-  tabs.addEventListener('shown.bs.tab', function (e) {
-    var id = e.target.dataset.bsTarget.replace('#', '');
-    localStorage.setItem(STORAGE_KEY, id);
-    // Odśwież odznaki z 300ms opóźnienia (nie blokuj animacji)
-    clearTimeout(_badgeRefreshTimer);
-    _badgeRefreshTimer = setTimeout(refreshBadges, 300);
+  function refreshBadges() {
+    fetch('view.php?id=' + CID + '&_badges=1', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        updateBadge('#tab-messages-btn .badge', d.msg_unread,    'badge bg-danger ms-1');
+        updateBadge('#tab-obieg-btn .badge',    d.badge_obieg,   'badge bg-danger ms-1');
+        updateBadge('#tab-zwroty-btn .badge',   d.zwroty_pending,'badge bg-warning text-dark ms-1');
+      }).catch(function () {});
+  }
+
+  var _t = null;
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-bs-toggle="tab"]')) {
+      clearTimeout(_t); _t = setTimeout(refreshBadges, 400);
+    }
   });
 })();
-}); // DOMContentLoaded
 
 // ── Dynamiczne listy zadań po wyborze workspace ────────────────────────────
 function loadLists(wsId) {
