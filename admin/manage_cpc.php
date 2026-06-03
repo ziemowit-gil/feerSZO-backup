@@ -369,6 +369,121 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 <?php endif; ?>
 
+<?php
+// Wszyscy użytkownicy CRM-only (z kodami i bez)
+$crm_only_all = db_all(
+    "SELECT u.id, u.name, u.first_name, u.last_name, u.email, u.role,
+            u.cpc_code, u.cpc_fails, u.cpc_blocked_until
+     FROM users u
+     LEFT JOIN roles r ON r.name = u.role
+     WHERE u.is_active = 1 AND (u.role = 'crm_user' OR r.crm_only = 1)
+     ORDER BY u.name"
+);
+?>
+<?php if ($crm_only_all): ?>
+<div class="card shadow-sm mb-4" id="crm-ika-section">
+  <div class="card-header fw-semibold d-flex align-items-center justify-content-between">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-diagram-2-fill text-primary"></i>
+      Kody IKA — użytkownicy CRM-only
+      <span class="badge bg-secondary"><?= count($crm_only_all) ?></span>
+    </div>
+    <span class="text-muted small fw-normal">Kod widoczny tylko po kliknięciu — admin jest odpowiedzialny za bezpieczne przekazanie</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 small align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Użytkownik</th>
+          <th>E-mail</th>
+          <th>Rola</th>
+          <th>Kod IKA</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($crm_only_all as $cu):
+          $cuid    = (int)$cu['id'];
+          $cuname  = _display_name($cu);
+          $blocked = !empty($cu['cpc_blocked_until']) && $cu['cpc_blocked_until'] > $now;
+        ?>
+        <tr>
+          <td class="fw-semibold"><?= h($cuname) ?></td>
+          <td class="text-muted"><?= h($cu['email'] ?? '') ?></td>
+          <td><span class="badge bg-light text-dark border"><?= h($cu['role']) ?></span></td>
+          <td>
+            <?php if (empty($cu['cpc_code'])): ?>
+            <span class="badge bg-danger">Brak kodu</span>
+            <?php elseif ($blocked): ?>
+            <span class="badge bg-warning text-dark">Zablokowany</span>
+            <?php else: ?>
+            <!-- Maskowany kod z przyciskiem reveal -->
+            <span class="font-monospace ika-masked" id="ika-val-<?= $cuid ?>"
+                  style="letter-spacing:.2em;color:#9CA3AF">●●●●●●</span>
+            <button type="button" class="btn btn-xs btn-outline-secondary ms-2"
+                    style="font-size:.7rem;padding:1px 7px"
+                    onclick="toggleIka(<?= $cuid ?>, this)"
+                    data-code="<?= h($cu['cpc_code']) ?>"
+                    data-shown="0">
+              <i class="bi bi-eye"></i>
+            </button>
+            <?php endif; ?>
+          </td>
+          <td class="d-flex gap-1">
+            <!-- Nadaj nowy kod -->
+            <form method="post" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action"      value="set_cpc">
+              <input type="hidden" name="user_id"      value="<?= $cuid ?>">
+              <input type="hidden" name="auto_generate" value="1">
+              <button class="btn btn-xs btn-outline-primary"
+                      style="font-size:.7rem;padding:1px 7px"
+                      title="Wygeneruj nowy losowy kod IKA">
+                <i class="bi bi-arrow-clockwise"></i> Nowy kod
+              </button>
+            </form>
+            <!-- Drukuj kartę -->
+            <?php if (!empty($cu['cpc_code'])): ?>
+            <a href="<?= APP_URL ?>/admin/ika_karta.php?user_id=<?= $cuid ?>"
+               target="_blank"
+               class="btn btn-xs btn-outline-secondary"
+               style="font-size:.7rem;padding:1px 7px"
+               title="Drukuj kartę IKA">
+              <i class="bi bi-printer"></i>
+            </a>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function toggleIka(uid, btn) {
+  var span = document.getElementById('ika-val-' + uid);
+  if (!span) return;
+  if (btn.dataset.shown === '1') {
+    span.textContent = '●●●●●●';
+    span.style.color = '#9CA3AF';
+    btn.innerHTML = '<i class="bi bi-eye"></i>';
+    btn.dataset.shown = '0';
+  } else {
+    span.textContent = btn.dataset.code;
+    span.style.color = '#111827';
+    span.style.fontWeight = '700';
+    btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+    btn.dataset.shown = '1';
+    // Auto-ukryj po 30 sekundach
+    setTimeout(function() {
+      if (btn.dataset.shown === '1') toggleIka(uid, btn);
+    }, 30000);
+  }
+}
+</script>
+<?php endif; ?>
+
 <div class="alert alert-info d-flex gap-2 align-items-start mb-4" role="alert">
   <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1"></i>
   <div>

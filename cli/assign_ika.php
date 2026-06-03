@@ -23,15 +23,16 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/cpc.php';
 
 // ── Parse args ────────────────────────────────────────────────────────────────
-$opts = getopt('', ['list', 'user:', 'code:', 'all', 'help']);
+$opts = getopt('', ['list', 'show', 'user:', 'code:', 'all', 'help']);
 
 if (isset($opts['help'])) {
     echo <<<HELP
-Nadaj kody IKA użytkownikom CRM-only
+Zarządzaj kodami IKA użytkowników CRM-only
 
 Użycie:
-  php cli/assign_ika.php                     Pokaż crm_only bez kodu IKA
-  php cli/assign_ika.php --list              Pokaż wszystkich crm_only (z kodami)
+  php cli/assign_ika.php                     Pokaż crm_only BEZ kodu IKA
+  php cli/assign_ika.php --list              Pokaż wszystkich crm_only (bez kodów)
+  php cli/assign_ika.php --show              Pokaż wszystkich crm_only Z kodami IKA
   php cli/assign_ika.php --user=ID|EMAIL     Nadaj losowy kod
   php cli/assign_ika.php --user=ID --code=XXXXXX  Nadaj konkretny kod (6 cyfr)
   php cli/assign_ika.php --all               Nadaj kody wszystkim bez IKA
@@ -65,7 +66,30 @@ function assign_ika(int $uid, string $code): void {
     )->execute([$code, $uid]);
 }
 
-// ── --list ────────────────────────────────────────────────────────────────────
+// ── --show : lista z kodami ───────────────────────────────────────────────────
+if (isset($opts['show'])) {
+    $users = get_crm_only_users(true);
+    if (!$users) {
+        echo "Brak użytkowników CRM-only.\n";
+        exit(0);
+    }
+    echo "\033[1;33mUWAGA: poniżej widoczne są kody IKA w jawnej postaci.\033[0m\n\n";
+    printf("%-5s %-25s %-35s %-10s %s\n", 'ID', 'Imię i nazwisko', 'E-mail', 'Rola', 'Kod IKA');
+    echo str_repeat('-', 95) . "\n";
+    foreach ($users as $u) {
+        $code = !empty($u['cpc_code']) ? "\033[1;32m" . $u['cpc_code'] . "\033[0m" : "\033[1;31mBRAK\033[0m";
+        printf("%-5d %-25s %-35s %-10s %s\n",
+            $u['id'],
+            mb_substr(display_name($u), 0, 24),
+            mb_substr($u['email'] ?? '', 0, 34),
+            $u['role'],
+            $code
+        );
+    }
+    exit(0);
+}
+
+// ── --list : lista bez kodów ──────────────────────────────────────────────────
 if (isset($opts['list'])) {
     $users = get_crm_only_users(true);
     if (!$users) {
