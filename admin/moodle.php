@@ -205,6 +205,11 @@ include dirname(__DIR__) . '/includes/header.php';
       <?php endif; ?>
     </a>
   </li>
+  <li class="nav-item">
+    <a class="nav-link<?= $tab === 'plugin' ? ' active' : '' ?>" href="?tab=plugin">
+      <i class="bi bi-puzzle me-1"></i>Wtyczka FEER
+    </a>
+  </li>
 </ul>
 
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
@@ -617,6 +622,232 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 <?php endif; ?>
+
+<?php elseif ($tab === 'plugin'): ?>
+
+<?php
+// Zbierz dane do instrukcji
+$feer_url   = rtrim(APP_URL, '/');
+$api_key_ex = '••••••••••••••••••••';
+$moodle_url_ex = rtrim(moodle_setting('url'), '/') ?: 'https://moodle.twojafundacja.pl';
+$plugin_dir = 'local/feer_sync';
+?>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+
+    <!-- Intro -->
+    <div class="alert alert-primary d-flex gap-3 align-items-start mb-4">
+      <i class="bi bi-puzzle-fill fs-4 flex-shrink-0 mt-1"></i>
+      <div>
+        <div class="fw-semibold mb-1">Wtyczka Moodle — Synchronizacja wolontariuszy</div>
+        Wtyczka automatycznie tworzy konta Moodle dla wolontariuszy z aktywnymi umowami,
+        zapisuje ich na kursy i zawiesza konta gdy umowa się kończy.
+        Działa codziennie o 03:00 lub ręcznie z panelu Moodle.
+      </div>
+    </div>
+
+    <!-- Krok 1 -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-white">
+        <span class="badge bg-primary me-2">1</span>Pobierz i zainstaluj wtyczkę
+      </div>
+      <div class="card-body">
+        <p class="mb-2" style="font-size:.9rem">
+          Wtyczka znajduje się w katalogu <code>moodle-plugin/local/feer_sync/</code>
+          w repozytorium systemu FEER. Skopiuj ją do Moodle:
+        </p>
+        <pre class="bg-light border rounded p-3" style="font-size:.82rem">cp -r moodle-plugin/local/feer_sync /var/www/html/moodle/local/</pre>
+        <p class="mt-2 mb-0 text-muted" style="font-size:.83rem">
+          Następnie zaloguj się jako administrator Moodle i wejdź w
+          <strong>Admin → Powiadomienia</strong> — Moodle wykryje nową wtyczkę
+          i zainstaluje tabele bazy danych.
+        </p>
+      </div>
+    </div>
+
+    <!-- Krok 2 -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-white">
+        <span class="badge bg-primary me-2">2</span>Utwórz klucz API w tym systemie
+      </div>
+      <div class="card-body">
+        <p style="font-size:.9rem;margin-bottom:.75rem">
+          Przejdź do
+          <a href="<?= APP_URL ?>/admin/api_keys.php" class="fw-semibold">
+            Admin → Klucze API
+          </a>
+          i utwórz nowy klucz z uprawnieniem <code class="bg-light px-1 rounded">volunteers:read</code>.
+        </p>
+        <div class="d-flex align-items-center gap-2 bg-light border rounded p-2 mb-2" style="font-size:.83rem">
+          <i class="bi bi-info-circle text-primary"></i>
+          Klucz jest widoczny <strong>tylko raz</strong> po utworzeniu — skopiuj go od razu.
+        </div>
+        <a href="<?= APP_URL ?>/admin/api_keys.php" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-key me-1"></i>Otwórz zarządzanie kluczami API
+        </a>
+      </div>
+    </div>
+
+    <!-- Krok 3 -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-white">
+        <span class="badge bg-primary me-2">3</span>Skonfiguruj wtyczkę w Moodle
+      </div>
+      <div class="card-body" style="font-size:.88rem">
+        <p class="mb-3">
+          W Moodle: <strong>Admin → Wtyczki → Lokalne → FEER NGO — Synchronizacja wolontariuszy</strong>
+        </p>
+        <table class="table table-sm table-bordered mb-3">
+          <thead class="table-light"><tr><th>Pole</th><th>Wartość</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="fw-semibold">Adres URL systemu FEER</td>
+              <td>
+                <code><?= h($feer_url) ?></code>
+                <button class="btn btn-sm btn-link p-0 ms-1" onclick="navigator.clipboard.writeText(<?= json_encode($feer_url) ?>);this.textContent='✓'" title="Kopiuj">
+                  <i class="bi bi-copy"></i>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Klucz API</td>
+              <td><em class="text-muted">klucz wygenerowany w kroku 2</em></td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Utwórz konto jeśli brak</td>
+              <td><code>✓ włączone</code> (zalecane)</td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Zawieś konto gdy umowa się kończy</td>
+              <td><code>✓ włączone</code> (zalecane)</td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Synchronizuj wolontariuszy bez umowy</td>
+              <td>Opcjonalnie — gdy używasz kont bez umów</td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Automatyczny zapis na kursy</td>
+              <td>ID kursów Moodle po przecinku, np. <code>3,7</code></td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Mapowanie Działanie → Kurs</td>
+              <td><code>{"42": 5, "43": 8}</code> — action_id z FEER → course_id w Moodle</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Krok 4 -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-white">
+        <span class="badge bg-primary me-2">4</span>Utwórz token Web Service w Moodle
+      </div>
+      <div class="card-body" style="font-size:.88rem">
+        <p class="mb-2">
+          Wtyczka używa <strong>Moodle Web Services</strong> do tworzenia kont i zapisów.
+          Token potrzebny w ustawieniach zakładki <a href="?tab=settings">Ustawienia</a> tego widoku.
+        </p>
+        <ol class="mb-2">
+          <li>Admin → Wtyczki → Web services → Zarządzaj tokenami</li>
+          <li>Utwórz token dla użytkownika z rolą administratora</li>
+          <li>Upewnij się że serwis <code>moodle_mobile_app</code> lub dedykowany jest aktywny</li>
+          <li>Wklej token w polu <strong>Token Web Service</strong> w zakładce Ustawienia</li>
+        </ol>
+        <div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.82rem">
+          <i class="bi bi-shield-exclamation me-1"></i>
+          Token Web Service daje szeroki dostęp do Moodle — przechowuj go bezpiecznie,
+          nie umieszczaj w kodzie ani publicznych repozytoriach.
+        </div>
+      </div>
+    </div>
+
+    <!-- Krok 5 - uruchomienie -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-white">
+        <span class="badge bg-success me-2">5</span>Uruchom synchronizację
+      </div>
+      <div class="card-body" style="font-size:.88rem">
+        <p class="mb-2"><strong>Ręcznie (test):</strong></p>
+        <p class="mb-3">
+          W Moodle: <strong>Admin → Wtyczki → Lokalne → FEER NGO → Synchronizuj teraz</strong>
+          — pojawi się log z wynikami.
+        </p>
+        <p class="mb-1"><strong>Z linii poleceń:</strong></p>
+        <pre class="bg-light border rounded p-2 mb-3" style="font-size:.8rem">php admin/cli/scheduled_task.php --execute='\local_feer_sync\task\sync_task'</pre>
+        <p class="mb-1"><strong>Automatycznie (CRON):</strong></p>
+        <p class="mb-0 text-muted">
+          Zadanie uruchamia się codziennie o 03:00 przez standardowy CRON Moodle.
+          Upewnij się że CRON jest skonfigurowany:
+        </p>
+        <pre class="bg-light border rounded p-2 mt-1 mb-0" style="font-size:.8rem">* * * * * /usr/bin/php /var/www/html/moodle/admin/cli/cron.php >> /dev/null</pre>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Prawy panel: szybki status i linki -->
+  <div class="col-lg-4">
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-white"><i class="bi bi-lightning-fill text-warning me-1"></i>Szybki start</div>
+      <div class="card-body d-flex flex-column gap-2">
+        <a href="<?= APP_URL ?>/admin/api_keys.php" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-key me-1"></i>1. Wygeneruj klucz API
+        </a>
+        <a href="?tab=settings" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-gear me-1"></i>2. Konfiguracja Moodle (token WS)
+        </a>
+        <div class="text-muted" style="font-size:.78rem;padding:.2rem .4rem">
+          3. W Moodle: Wtyczki → FEER NGO → wklej URL + klucz API
+        </div>
+        <div class="text-muted" style="font-size:.78rem;padding:.2rem .4rem">
+          4. Kliknij „Synchronizuj teraz" w Moodle
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold bg-white"><i class="bi bi-link-45deg me-1"></i>Endpointy API</div>
+      <div class="card-body" style="font-size:.8rem">
+        <?php foreach ([
+            ['GET', '/api/v1/moodle_sync.php', 'Lista wolontariuszy'],
+            ['GET', '/api/v1/moodle_sync.php?include_standalone=1', '+ konta bez umowy'],
+            ['POST', '/api/v1/moodle_user_update.php', 'Writeback loginu Moodle'],
+        ] as [$m, $p, $d]): ?>
+        <div class="d-flex gap-1 align-items-start mb-2">
+          <span class="badge bg-<?= $m === 'GET' ? 'success' : 'warning text-dark' ?> flex-shrink-0" style="font-size:.65rem"><?= $m ?></span>
+          <div>
+            <code style="font-size:.75rem;word-break:break-all"><?= h($feer_url . $p) ?></code>
+            <div class="text-muted" style="font-size:.72rem"><?= $d ?></div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <div class="alert alert-light border py-1 px-2 mb-0 mt-1" style="font-size:.75rem">
+          <i class="bi bi-lock me-1"></i>Nagłówek: <code>Authorization: Bearer &lt;klucz&gt;</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold bg-white"><i class="bi bi-folder2-open me-1"></i>Struktura wtyczki</div>
+      <div class="card-body" style="font-size:.78rem;font-family:monospace;line-height:1.7;color:#475569">
+        local/feer_sync/<br>
+        ├── version.php<br>
+        ├── settings.php<br>
+        ├── db/install.xml<br>
+        ├── db/tasks.php<br>
+        ├── classes/<br>
+        │&nbsp;&nbsp; ├── api/feer_client.php<br>
+        │&nbsp;&nbsp; └── task/sync_task.php<br>
+        ├── admin/sync.php<br>
+        └── lang/{en,pl}/
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <?php endif; // tab ?>
 
