@@ -665,6 +665,64 @@ html, body { height: 100%; margin: 0; padding: 0; }
 </head>
 <body>
 
+<!-- ══ Wykrywanie przeglądarki ══════════════════════════════════════════════ -->
+<div id="browser-warn" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
+     background:#1e293b;color:#e2e8f0;padding:.6rem 1.25rem;font-size:.82rem;
+     display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <span style="font-size:1rem">⚠️</span>
+  <span id="browser-warn-msg" style="flex:1"></span>
+  <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0">
+    <a href="https://www.mozilla.org/firefox/" target="_blank" rel="noopener"
+       style="background:#ff9500;color:#fff;border-radius:6px;padding:.25rem .65rem;text-decoration:none;font-weight:600;font-size:.78rem">
+      🦊 Firefox
+    </a>
+    <a href="https://www.apple.com/safari/" target="_blank" rel="noopener"
+       style="background:#0071e3;color:#fff;border-radius:6px;padding:.25rem .65rem;text-decoration:none;font-weight:600;font-size:.78rem">
+      🧭 Safari
+    </a>
+    <button onclick="document.getElementById('browser-warn').style.display='none';sessionStorage.setItem('bw_ok','1')"
+            style="background:none;border:1.5px solid rgba(255,255,255,.3);color:#94a3b8;border-radius:5px;
+                   padding:.2rem .55rem;cursor:pointer;font-size:.78rem;line-height:1.4">
+      Rozumiem
+    </button>
+  </div>
+</div>
+<script>
+(function() {
+  if (sessionStorage.getItem('bw_ok')) return;
+  var ua = navigator.userAgent;
+  var msg = null;
+
+  // Vivaldi
+  if (/Vivaldi/i.test(ua)) {
+    msg = 'Używasz przeglądarki <strong>Vivaldi</strong> — może nie działać poprawnie z tym systemem. Zalecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
+  }
+  // Opera (nieoficjalne Chromium forki)
+  else if (/OPR\//i.test(ua) || /Opera/i.test(ua)) {
+    msg = 'Używasz przeglądarki <strong>Opera</strong> — dla najlepszego działania systemu polecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
+  }
+  // Internet Explorer
+  else if (/Trident\/|MSIE /i.test(ua)) {
+    msg = 'Używasz przeglądarki <strong>Internet Explorer</strong>, która nie jest obsługiwana. Zainstaluj <strong>Firefox</strong> lub <strong>Safari</strong>.';
+  }
+  // Brave (blokuje zasoby — może powodować problemy)
+  else if (navigator.brave !== undefined) {
+    msg = 'Używasz przeglądarki <strong>Brave</strong> — jej agresywne blokowanie może powodować problemy. Polecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
+  }
+  // Edge i Chrome działają — brak ostrzeżenia
+  // Samsung Browser
+  else if (/SamsungBrowser/i.test(ua)) {
+    msg = 'Dla najlepszego działania systemu zalecamy <strong>Firefox</strong> lub <strong>Safari</strong> zamiast przeglądarki Samsung.';
+  }
+
+  if (msg) {
+    var el = document.getElementById('browser-warn');
+    document.getElementById('browser-warn-msg').innerHTML = msg;
+    el.style.display = 'flex';
+  }
+})();
+</script>
+
 <!-- ══ Skip link ═══════════════════════════════════════════════════════════ -->
 <a href="#login-main" class="skip-link">Przejdź do formularza logowania</a>
 

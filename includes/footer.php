@@ -58,5 +58,50 @@ document.querySelectorAll('.sb-type-btn[data-bs-toggle="collapse"]').forEach(fun
   });
 })();
 </script>
+<script>
+// ── Wykrywanie przeglądarki (SZO) ────────────────────────────────────────────
+(function() {
+  var KEY = 'szo_browser_ok_v1';
+  if (sessionStorage.getItem(KEY)) return;
+  var ua = navigator.userAgent;
+  var msg = null;
+  var sev = 'warn'; // 'warn' | 'block'
+
+  if (/Vivaldi/i.test(ua)) {
+    msg = '⚠️ <strong>Vivaldi</strong> nie jest oficjalnie wspierany — mogą wystąpić błędy wyświetlania i problemy z formularzami. Zalecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
+    sev = 'block';
+  } else if (/Trident\/|MSIE /i.test(ua)) {
+    msg = '🚫 <strong>Internet Explorer</strong> nie jest obsługiwany. System może nie działać prawidłowo. Użyj <strong>Firefox</strong> lub <strong>Safari</strong>.';
+    sev = 'block';
+  } else if (/OPR\//i.test(ua)) {
+    msg = '⚠️ <strong>Opera</strong> może powodować drobne problemy. Dla pewności użyj <strong>Firefox</strong> lub <strong>Safari</strong>.';
+  } else if (navigator.brave !== undefined) {
+    msg = '⚠️ <strong>Brave</strong> — agresywne blokowanie zasobów może utrudniać pracę z systemem. Polecamy <strong>Firefox</strong> lub <strong>Safari</strong>.';
+  } else if (/SamsungBrowser/i.test(ua)) {
+    msg = '⚠️ Używasz przeglądarki <strong>Samsung</strong> — dla lepszego doświadczenia polecamy <strong>Firefox</strong>.';
+  }
+
+  if (!msg) return;
+
+  var bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9998;padding:.6rem 1.25rem;'
+    + (sev === 'block'
+        ? 'background:#7f1d1d;color:#fecaca;'
+        : 'background:#1c1917;color:#d4d4d4;')
+    + 'font-size:.8rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;'
+    + 'box-shadow:0 -2px 10px rgba(0,0,0,.25);';
+  bar.innerHTML = '<span style="flex:1;line-height:1.5">' + msg + '</span>'
+    + '<div style="display:flex;gap:.4rem;flex-shrink:0">'
+    + '<a href="https://www.mozilla.org/firefox/" target="_blank" rel="noopener" '
+    + 'style="background:#ff9500;color:#fff;border-radius:5px;padding:.22rem .6rem;text-decoration:none;font-weight:600;font-size:.75rem">🦊 Firefox</a>'
+    + '<a href="https://www.apple.com/safari/" target="_blank" rel="noopener" '
+    + 'style="background:#0071e3;color:#fff;border-radius:5px;padding:.22rem .6rem;text-decoration:none;font-weight:600;font-size:.75rem">🧭 Safari</a>'
+    + '<button onclick="this.closest(\'div[style]\').remove();sessionStorage.setItem(\'' + KEY + '\',\'1\')" '
+    + 'style="background:none;border:1px solid rgba(255,255,255,.25);color:inherit;border-radius:5px;'
+    + 'padding:.2rem .55rem;cursor:pointer;font-size:.75rem">OK, rozumiem</button>'
+    + '</div>';
+  document.body.appendChild(bar);
+})();
+</script>
 </body>
 </html>
