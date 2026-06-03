@@ -192,6 +192,34 @@ class MoodleAPI {
         ]);
     }
 
+    /** Zawieś (lub przywróć) konto użytkownika w Moodle. */
+    public function suspend_user(int $moodle_user_id, bool $suspend = true): void {
+        $this->call('core_user_update_users', [
+            'users[0][id]'        => $moodle_user_id,
+            'users[0][suspended]' => $suspend ? 1 : 0,
+        ]);
+    }
+
+    /** Zaktualizuj dane użytkownika (imię, nazwisko, email). */
+    public function update_user(int $moodle_user_id, array $fields): void {
+        $params = ['users[0][id]' => $moodle_user_id];
+        $i = 0;
+        foreach ($fields as $k => $v) {
+            $params["users[0][{$k}]"] = $v;
+            $i++;
+        }
+        $this->call('core_user_update_users', $params);
+    }
+
+    /** Wypisz użytkownika z kursu. */
+    public function unenroll_user(int $moodle_user_id, int $moodle_course_id, int $role_id = 5): void {
+        $this->call('enrol_manual_unenrol_users', [
+            'enrolments[0][roleid]'   => $role_id,
+            'enrolments[0][userid]'   => $moodle_user_id,
+            'enrolments[0][courseid]' => $moodle_course_id,
+        ]);
+    }
+
     /** Sprawdź połączenie — zwraca dane serwisu lub rzuca wyjątek. */
     public function site_info(): array {
         return $this->call('core_webservice_get_site_info') ?? [];

@@ -17,7 +17,7 @@ if (is_viewer()) {
     try {
         $__sv = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)current_user()['id']]);
         if (!empty($__sv['is_standalone_volunteer'])) {
-            header('Location: ' . APP_URL . '/tasks/index.php'); exit;
+            header('Location: ' . APP_URL . '/panel/standalone.php'); exit;
         }
     } catch (\Throwable $e) {}
     header('Location: ' . APP_URL . '/panel/index.php'); exit;

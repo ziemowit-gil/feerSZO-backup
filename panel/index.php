@@ -65,7 +65,7 @@ function panel_contracts(array $user): array {
 try {
     $__sv_check = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)$user['id']]);
     if (!empty($__sv_check['is_standalone_volunteer'])) {
-        header('Location: ' . APP_URL . '/tasks/index.php'); exit;
+        header('Location: ' . APP_URL . '/panel/standalone.php'); exit;
     }
 } catch (\Throwable $e) {}
 

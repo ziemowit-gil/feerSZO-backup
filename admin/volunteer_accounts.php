@@ -328,6 +328,61 @@ HTML;
         }
         header('Location: ' . APP_URL . '/admin/volunteer_accounts.php'); exit;
     }
+
+    // ── Usuń konto ─────────────────────────────────────────────────────────────
+    if ($action === 'delete') {
+        $uid = (int)($_POST['user_id'] ?? 0);
+        if ($uid && $uid !== (int)$me['id']) {
+            $u = db_one(
+                "SELECT id, name, first_name, last_name, email, microsoft_id, m365_security_group_id
+                 FROM users WHERE id=? AND is_standalone_volunteer=1",
+                [$uid]
+            );
+            if ($u) {
+                $dn = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?: ($u['name'] ?? '');
+
+                // Usuń z grupy CRM "Wolontariusze"
+                try {
+                    if (module_enabled('crm_enabled')) {
+                        require_once dirname(__DIR__) . '/includes/crm.php';
+                        $grp = db_one("SELECT id FROM crm_groups WHERE auto_source='wolontariusze'");
+                        if ($grp && $u['email']) {
+                            $contact = db_one(
+                                "SELECT id FROM crm_contacts WHERE LOWER(email)=LOWER(?) AND crm_active=1 LIMIT 1",
+                                [trim($u['email'])]
+                            );
+                            if ($contact) {
+                                CrmManager::removeFromGroup((int)$grp['id'], (int)$contact['id']);
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {}
+
+                // Usuń z Security Group M365
+                if (!empty($u['microsoft_id']) && !empty($u['m365_security_group_id'])) {
+                    try {
+                        require_once dirname(__DIR__) . '/includes/m365.php';
+                        $graph = new M365Graph();
+                        if ($graph->is_configured()) {
+                            $graph->remove_from_group($u['microsoft_id'], $u['m365_security_group_id']);
+                        }
+                    } catch (\Throwable $e) {}
+                }
+
+                // Usuń powiązane sesje
+                try {
+                    db()->prepare("DELETE FROM user_sessions WHERE user_id=?")->execute([$uid]);
+                } catch (\Throwable $e) {}
+
+                // Usuń konto
+                db()->prepare("DELETE FROM users WHERE id=? AND is_standalone_volunteer=1")->execute([$uid]);
+                log_user_action(0, (int)$me['id'], 'user_delete',
+                    'Usunieto konto wolontariusza bez umowy: ' . $dn . ' (' . ($u['email'] ?? '') . ')');
+                flash_set('success', 'Konto "' . $dn . '" zostalo usuniete.');
+            }
+        }
+        header('Location: ' . APP_URL . '/admin/volunteer_accounts.php'); exit;
+    }
 }
 
 // ── Wyswietl info o resecie hasla (jednorazowe) ───────────────────────────────
@@ -539,10 +594,21 @@ include dirname(__DIR__) . '/includes/header.php';
                 <input type="hidden" name="_action"  value="toggle_active">
                 <input type="hidden" name="user_id"  value="<?= (int)$u['id'] ?>">
                 <button type="submit"
-                        class="btn btn-sm <?= $active ? 'btn-outline-danger' : 'btn-outline-success' ?>"
+                        class="btn btn-sm <?= $active ? 'btn-outline-warning' : 'btn-outline-success' ?>"
                         title="<?= $active ? 'Dezaktywuj' : 'Aktywuj' ?>"
                         onclick="return confirm('<?= $active ? 'Dezaktywowac' : 'Aktywowac' ?> konto <?= h(addslashes($dn)) ?>?')">
                   <i class="bi bi-<?= $active ? 'person-dash' : 'person-check' ?>"></i>
+                </button>
+              </form>
+              <!-- Usuń konto -->
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+                <input type="hidden" name="_action"  value="delete">
+                <input type="hidden" name="user_id"  value="<?= (int)$u['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger"
+                        title="Usuń konto na stałe"
+                        onclick="return confirm('USUNĄĆ na stałe konto <?= h(addslashes($dn)) ?>?\n\nKonto zostanie usunięte z systemu, CRM i grup M365.\nOperacja jest nieodwracalna.')">
+                  <i class="bi bi-trash"></i>
                 </button>
               </form>
             </div>

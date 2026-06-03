@@ -60,6 +60,7 @@ function cpc_migrate(): void {
         'ika_email_otp'             => "ALTER TABLE users ADD COLUMN ika_email_otp TEXT NULL",
         'ika_email_otp_expires'     => "ALTER TABLE users ADD COLUMN ika_email_otp_expires DATETIME NULL",
         'm365_login'                => "ALTER TABLE users ADD COLUMN m365_login TEXT NULL",
+        'moodle_login'              => "ALTER TABLE users ADD COLUMN moodle_login TEXT NULL",
         'm365_security_group_id'    => "ALTER TABLE users ADD COLUMN m365_security_group_id TEXT NULL",
         'm365_security_group_name'  => "ALTER TABLE users ADD COLUMN m365_security_group_name TEXT NULL",
         'org_unit_id'               => "ALTER TABLE users ADD COLUMN org_unit_id INTEGER NULL",
