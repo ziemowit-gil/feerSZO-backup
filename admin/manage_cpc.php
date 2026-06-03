@@ -356,7 +356,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <?php foreach ($crm_only_no_ika as $u): ?>
       <form method="post" class="d-inline">
         <?= csrf_field() ?>
-        <input type="hidden" name="action" value="set_cpc">
+        <input type="hidden" name="_action" value="set_cpc">
         <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
         <input type="hidden" name="auto_generate" value="1">
         <button class="btn btn-sm btn-warning">
