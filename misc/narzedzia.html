@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Narzędzia i dostęp · SZO · Fundacja FEER</title>
+<meta name="description" content="SZO automatyzuje dostęp do narzędzi — Canva, Microsoft 365, OneDrive i więcej. Dołączasz do zespołu, dostajesz dostęp. Odchodzisz, dostęp wygasa. Zero ręcznej roboty.">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#F0F4F8;color:#1E293B}
+:focus-visible{outline:3px solid #2563EB;outline-offset:3px;border-radius:4px}
+
+.skip{position:absolute;top:-100%;left:.5rem;z-index:9999;background:#2563EB;color:#fff;padding:.4rem 1rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none}
+.skip:focus{top:0}
+
+/* Topbar */
+.pt{height:54px;background:#fff;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;padding:0 1.5rem;gap:.75rem;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.pt-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:inherit;flex:1}
+.pt-logo{height:32px;max-width:120px;object-fit:contain}
+.pt-logo-fb{width:32px;height:32px;border-radius:8px;background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.pt-name{font-weight:700;font-size:.86rem}
+.pt-right{display:flex;align-items:center;gap:.4rem;margin-left:auto;flex-wrap:wrap}
+.pt-nav{display:inline-flex;align-items:center;gap:.3rem;background:none;border:1.5px solid #E2E8F0;color:#64748B;font-size:.74rem;font-weight:600;padding:.26rem .6rem;border-radius:8px;text-decoration:none;transition:all .1s;white-space:nowrap}
+.pt-nav:hover,.pt-nav:focus{border-color:#2563EB;color:#2563EB;background:#EFF6FF}
+.pt-nav-active{border-color:#7C3AED;color:#7C3AED;background:#F5F3FF}
+.pt-nav-active:hover,.pt-nav-active:focus{border-color:#6D28D9;color:#6D28D9;background:#EDE9FE}
+.pt-wcag{display:inline-flex;align-items:center;gap:.25rem;background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;font-size:.65rem;font-weight:700;padding:.18rem .5rem;border-radius:20px;white-space:nowrap}
+
+.pw{max-width:860px;margin:0 auto;padding:2rem 1.25rem 5rem}
+.sec-label{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94A3B8;margin-bottom:.5rem}
+
+/* Hero */
+.hero{background:linear-gradient(140deg,#2D1B69,#7C3AED 60%,#4F46E5);border-radius:18px;padding:2rem 2.25rem 1.75rem;margin-bottom:1rem;color:#fff;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(196,181,253,.15) 0%,transparent 70%);top:-120px;right:-120px}
+.hero-tag{display:inline-flex;align-items:center;gap:.3rem;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.88);font-size:.68rem;font-weight:700;padding:.18rem .6rem;border-radius:20px;margin-bottom:.7rem;letter-spacing:.05em}
+.hero-h1{font-size:2rem;font-weight:900;letter-spacing:-.04em;line-height:1.1;margin-bottom:.4rem}
+.hero-sub{font-size:.88rem;color:rgba(255,255,255,.74);line-height:1.65;max-width:500px;margin-bottom:1.25rem}
+.btn-lg{display:inline-flex;align-items:center;gap:.45rem;background:#fff;color:#7C3AED;font-size:.95rem;font-weight:800;padding:.72rem 1.6rem;border-radius:10px;text-decoration:none;box-shadow:0 4px 18px rgba(0,0,0,.2);transition:all .14s}
+.btn-lg:hover,.btn-lg:focus{background:#F5F3FF;color:#6D28D9;transform:translateY(-2px)}
+
+/* Jak to działa — flow */
+.flow{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:1.5rem 1.75rem;margin-bottom:1.1rem}
+.flow-h2{font-size:1.1rem;font-weight:900;color:#0F172A;margin-bottom:.25rem;letter-spacing:-.02em}
+.flow-sub{font-size:.82rem;color:#64748B;margin-bottom:1.25rem}
+.flow-steps{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;position:relative}
+.flow-steps::before{content:'';position:absolute;top:20px;left:calc(12.5%);right:calc(12.5%);height:2px;background:linear-gradient(90deg,#7C3AED,#4F46E5);z-index:0}
+.flow-step{text-align:center;padding:.25rem .5rem;position:relative;z-index:1}
+.flow-step-n{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;margin:0 auto .6rem;position:relative;z-index:1}
+.flow-step-label{font-size:.77rem;font-weight:700;color:#0F172A;line-height:1.3;margin-bottom:.15rem}
+.flow-step-desc{font-size:.7rem;color:#64748B;line-height:1.35}
+
+/* Narzędzia grid */
+.tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1.1rem}
+.tool-card{background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;transition:transform .12s,box-shadow .12s}
+.tool-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.09)}
+.tool-h{padding:.9rem 1.1rem;display:flex;align-items:center;gap:.75rem}
+.tool-logo{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.35rem;flex-shrink:0}
+.tool-h-text{}
+.tool-name{font-size:.95rem;font-weight:800;color:#0F172A;line-height:1.2}
+.tool-tagline{font-size:.73rem;color:#64748B;margin-top:.08rem}
+.tool-status{display:inline-flex;align-items:center;gap:.2rem;font-size:.63rem;font-weight:700;padding:.1rem .4rem;border-radius:20px;margin-top:.25rem}
+.s-ok{background:#DCFCE7;color:#15803D}
+.s-wip{background:#FEF9C3;color:#92400E}
+.s-soon{background:#E0F2FE;color:#0369A1}
+.tool-body{padding:.65rem 1.1rem;border-top:1px solid #F1F5F9}
+.tool-feat{display:flex;align-items:flex-start;gap:.45rem;font-size:.78rem;color:#374151;margin-bottom:.3rem;line-height:1.4}
+.tool-feat:last-child{margin-bottom:0}
+.tool-feat i{font-size:.8rem;flex-shrink:0;margin-top:.1rem}
+
+/* Korzyści */
+.ben{background:linear-gradient(135deg,#F5F3FF,#EDE9FE);border:1.5px solid #C4B5FD;border-radius:14px;padding:1.1rem 1.35rem;margin-bottom:1.1rem}
+.ben-h2{font-size:.95rem;font-weight:800;color:#4C1D95;margin-bottom:.75rem;display:flex;align-items:center;gap:.4rem}
+.ben-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem}
+.ben-item{display:flex;align-items:flex-start;gap:.45rem;font-size:.81rem;color:#3B0764;line-height:1.45}
+.ben-item i{color:#7C3AED;font-size:.85rem;flex-shrink:0;margin-top:.1rem}
+
+/* Wkrótce */
+.soon-card{background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:1rem 1.25rem;margin-bottom:1.1rem}
+.soon-h{font-size:.82rem;font-weight:800;color:#0F172A;margin-bottom:.65rem;display:flex;align-items:center;gap:.4rem}
+.soon-row{display:flex;align-items:center;gap:.6rem;padding:.45rem .5rem;border-radius:9px;font-size:.79rem;color:#374151;margin-bottom:.25rem;background:#F8FAFC}
+.soon-row:last-child{margin-bottom:0}
+.soon-ico{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0}
+
+/* Nota bezpieczeństwo */
+.sec-note{display:flex;align-items:flex-start;gap:.7rem;background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:.8rem 1.05rem;margin-bottom:1.1rem;font-size:.81rem;color:#14532D}
+.sec-note i{color:#16A34A;flex-shrink:0;margin-top:.1rem}
+
+/* CTA */
+.cta{background:linear-gradient(135deg,#2D1B69,#7C3AED);border-radius:13px;padding:1.2rem 1.5rem;margin-bottom:1rem;display:flex;align-items:center;flex-wrap:wrap;gap:1rem}
+.cta-text{color:#fff;flex:1}
+.cta-h{font-size:.95rem;font-weight:800;margin-bottom:.22rem}
+.cta-sub{font-size:.78rem;color:rgba(255,255,255,.7)}
+.cta-btns{display:flex;flex-wrap:wrap;gap:.4rem;flex-shrink:0}
+.cta-btn{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;padding:.45rem 1rem;border-radius:9px;text-decoration:none;transition:all .1s;white-space:nowrap}
+.cta-btn.main{background:#fff;color:#7C3AED}
+.cta-btn.main:hover{background:#F5F3FF}
+.cta-btn.sec{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.22);color:#fff}
+.cta-btn.sec:hover{background:rgba(255,255,255,.25);color:#fff}
+
+/* Kontakt */
+.contact{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:.8rem 1.1rem;font-size:.82rem}
+.contact-lbl{font-weight:700;color:#0F172A;flex:1}
+.contact-lbl span{font-weight:400;color:#64748B;display:block;font-size:.74rem}
+.contact-links{display:flex;flex-wrap:wrap;gap:.4rem}
+.contact-a{display:inline-flex;align-items:center;gap:.32rem;background:#F8FAFC;border:1.5px solid #E2E8F0;color:#374151;font-size:.78rem;font-weight:600;padding:.32rem .75rem;border-radius:8px;text-decoration:none;transition:all .1s}
+.contact-a:hover,.contact-a:focus{border-color:#7C3AED;color:#7C3AED;background:#F5F3FF}
+
+/* Responsive */
+@media(max-width:680px){.tools-grid{grid-template-columns:1fr}.flow-steps{grid-template-columns:1fr 1fr}.flow-steps::before{display:none}.ben-grid{grid-template-columns:1fr}.cta{flex-direction:column}.hero-h1{font-size:1.6rem}.pt{padding:0 .9rem}.pt-right{gap:.3rem}}
+
+@keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.hero{animation:fi .3s ease both}
+.flow,.tools-grid{animation:fi .34s .04s ease both}
+.ben,.soon-card,.sec-note{animation:fi .38s .08s ease both}
+.cta,.contact{animation:fi .42s .11s ease both}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Przejdź do treści</a>
+
+<header class="pt" role="banner">
+  <a class="pt-brand" href="https://panel.feer.org.pl" aria-label="Strona główna – Fundacja FEER · SZO">
+    <img src="/assets/logo/logo_1780058399.png" alt="Logo Fundacji FEER" class="pt-logo"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div class="pt-logo-fb" aria-hidden="true" style="display:none"><i class="bi bi-building-heart"></i></div>
+    <span class="pt-name">Fundacja FEER · SZO</span>
+  </a>
+  <nav class="pt-right" aria-label="Nawigacja">
+    <a href="informacja.html" class="pt-nav">O systemie</a>
+    <a href="wspolpracownik.html" class="pt-nav">Dla Ciebie</a>
+    <a href="narzedzia.html" class="pt-nav pt-nav-active" aria-current="page">Narzędzia</a>
+    <a href="technicznie.html" class="pt-nav">Technicznie</a>
+    <div class="pt-wcag" aria-label="Zgodność z WCAG 2.1 AA"><i class="bi bi-universal-access" aria-hidden="true"></i> WCAG 2.1 AA</div>
+  </nav>
+</header>
+
+<main id="main" class="pw">
+
+  <!-- Hero -->
+  <section aria-labelledby="page-title">
+    <div class="hero">
+      <div class="hero-tag" aria-hidden="true"><i class="bi bi-plug-fill"></i> Automatyzacja dostępu</div>
+      <h1 class="hero-h1" id="page-title">SZO daje Ci dostęp<br>do narzędzi pracy</h1>
+      <p class="hero-sub">Dołączasz do Fundacji — dostajesz dostęp do Canvy, Office i innych narzędzi automatycznie. Odchodzisz — dostęp wygasa. Zero ręcznego nadawania uprawnień, zero gubionych kont.</p>
+      <a href="https://szo.feer.org.pl" class="btn-lg" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj się do SZO
+      </a>
+    </div>
+  </section>
+
+  <!-- Jak to działa -->
+  <section aria-labelledby="flow-title">
+    <div class="flow">
+      <h2 class="flow-h2" id="flow-title">Jak działa automatyczny dostęp?</h2>
+      <p class="flow-sub">Jedno konto w SZO otwiera drzwi do całego ekosystemu narzędzi Fundacji.</p>
+      <div class="flow-steps" role="list">
+        <div class="flow-step" role="listitem">
+          <div class="flow-step-n" style="background:#7C3AED;color:#fff" aria-hidden="true"><i class="bi bi-person-plus-fill"></i></div>
+          <div class="flow-step-label">Dołączasz do zespołu</div>
+          <div class="flow-step-desc">Podpisujesz umowę w SZO</div>
+        </div>
+        <div class="flow-step" role="listitem">
+          <div class="flow-step-n" style="background:#7C3AED;color:#fff" aria-hidden="true"><i class="bi bi-key-fill"></i></div>
+          <div class="flow-step-label">Konto aktywowane</div>
+          <div class="flow-step-desc">SZO tworzy lub łączy Twoje konto</div>
+        </div>
+        <div class="flow-step" role="listitem">
+          <div class="flow-step-n" style="background:#7C3AED;color:#fff" aria-hidden="true"><i class="bi bi-grid-fill"></i></div>
+          <div class="flow-step-label">Dostęp do narzędzi</div>
+          <div class="flow-step-desc">Canva, Office, OneDrive — gotowe</div>
+        </div>
+        <div class="flow-step" role="listitem">
+          <div class="flow-step-n" style="background:#7C3AED;color:#fff" aria-hidden="true"><i class="bi bi-shield-check-fill"></i></div>
+          <div class="flow-step-label">Koniec współpracy</div>
+          <div class="flow-step-desc">Dostęp wygasa automatycznie</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Narzędzia -->
+  <section aria-labelledby="tools-title">
+    <p class="sec-label" id="tools-title" aria-label="Narzędzia dostępne przez SZO">Narzędzia w ekosystemie SZO</p>
+    <div class="tools-grid">
+
+      <div class="tool-card">
+        <div class="tool-h">
+          <div class="tool-logo" style="background:#1ABCFE22" aria-hidden="true">🎨</div>
+          <div class="tool-h-text">
+            <div class="tool-name">Canva</div>
+            <div class="tool-tagline">Projektowanie grafik i materiałów</div>
+            <span class="tool-status s-wip"><i class="bi bi-tools" aria-hidden="true"></i> W trakcie wdrożenia</span>
+          </div>
+        </div>
+        <div class="tool-body">
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Jedno konto dla całego zespołu — bez osobnych rejestracji</div>
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Dostęp do wspólnych szablonów i zasobów Fundacji</div>
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> SZO nadaje i cofa dostęp automatycznie wraz z umową</div>
+        </div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-h">
+          <div class="tool-logo" style="background:#D83B0122" aria-hidden="true">🟦</div>
+          <div class="tool-h-text">
+            <div class="tool-name">Microsoft 365 / Office</div>
+            <div class="tool-tagline">Poczta, dokumenty, kalendarz</div>
+            <span class="tool-status s-ok"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span>
+          </div>
+        </div>
+        <div class="tool-body">
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Logowanie do SZO tym samym kontem co Office — SSO</div>
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Poczta @feer.org.pl zintegrowana z systemem</div>
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Powiadomienia z SZO trafiają na Twoją skrzynkę Office</div>
+        </div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-h">
+          <div class="tool-logo" style="background:#0078D422" aria-hidden="true">☁️</div>
+          <div class="tool-h-text">
+            <div class="tool-name">OneDrive i SharePoint</div>
+            <div class="tool-tagline">Pliki i dokumenty w chmurze</div>
+            <span class="tool-status s-ok"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span>
+          </div>
+        </div>
+        <div class="tool-body">
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Załącz plik z OneDrive bezpośrednio do zadania w SZO</div>
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Dokumenty organizacji w SharePoint dostępne z panelu</div>
+          <div class="tool-feat"><i class="bi bi-check-circle-fill" style="color:#7C3AED" aria-hidden="true"></i> Webhooks — SZO reaguje na zmiany w plikach organizacji</div>
+        </div>
+      </div>
+
+      <div class="tool-card" style="border-style:dashed;opacity:.85">
+        <div class="tool-h">
+          <div class="tool-logo" style="background:#64748B22" aria-hidden="true">🔧</div>
+          <div class="tool-h-text">
+            <div class="tool-name">Kolejne narzędzia</div>
+            <div class="tool-tagline">Ekosystem rośnie na bieżąco</div>
+            <span class="tool-status s-soon"><i class="bi bi-hourglass-split" aria-hidden="true"></i> Wkrótce</span>
+          </div>
+        </div>
+        <div class="tool-body">
+          <div class="tool-feat"><i class="bi bi-arrow-right-circle" style="color:#94A3B8" aria-hidden="true"></i> Integracje zgłaszaj przez Komunikaty lub do administratora</div>
+          <div class="tool-feat"><i class="bi bi-arrow-right-circle" style="color:#94A3B8" aria-hidden="true"></i> SZO ma otwarte API do podłączenia kolejnych narzędzi</div>
+          <div class="tool-feat"><i class="bi bi-arrow-right-circle" style="color:#94A3B8" aria-hidden="true"></i> Priorytetyzujemy to, czego zespół używa najczęściej</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Korzyści -->
+  <section aria-labelledby="ben-title">
+    <div class="ben">
+      <h2 class="ben-h2" id="ben-title"><i class="bi bi-stars" aria-hidden="true"></i> Dlaczego to ma znaczenie</h2>
+      <div class="ben-grid">
+        <div class="ben-item"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Nowy wolontariusz nie czeka tygodnia na dostępy — dostaje je automatycznie po podpisaniu umowy</div>
+        <div class="ben-item"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Koniec rozsypanych kont — jedno konto SZO, jedno hasło, wszystkie narzędzia</div>
+        <div class="ben-item"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Zero ręcznej roboty dla administracji — SZO sam nadaje i cofa uprawnienia</div>
+        <div class="ben-item"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Bezpieczeństwo danych — gdy ktoś kończy współpracę, dostęp wygasa razem z umową</div>
+        <div class="ben-item"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Spójny ekosystem — cały zespół pracuje na tych samych narzędziach i szablonach</div>
+        <div class="ben-item"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Bez licencji per użytkownik — Fundacja nie płaci za każde konto osobno</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Wkrótce -->
+  <section aria-labelledby="soon-title">
+    <div class="soon-card">
+      <h2 class="soon-h" id="soon-title"><i class="bi bi-hourglass-split" style="color:#7C3AED" aria-hidden="true"></i> W kolejce do integracji</h2>
+      <div class="soon-row">
+        <div class="soon-ico" style="background:#FFF7ED;color:#EA580C" aria-hidden="true"><i class="bi bi-phone"></i></div>
+        <div><strong>Aplikacja mobilna SZO</strong> — jedno kliknięcie, wszystkie narzędzia w telefonie</div>
+      </div>
+      <div class="soon-row">
+        <div class="soon-ico" style="background:#F5F3FF;color:#7C3AED" aria-hidden="true">🎨</div>
+        <div><strong>Canva — pełna integracja</strong> — szablony fundacyjne, automatyczny dostęp przez SZO</div>
+      </div>
+      <div class="soon-row">
+        <div class="soon-ico" style="background:#F0FDF4;color:#16A34A" aria-hidden="true"><i class="bi bi-calendar-event"></i></div>
+        <div><strong>Kalendarz Teams / Google</strong> — spotkania i działania widoczne w SZO</div>
+      </div>
+      <div class="soon-row">
+        <div class="soon-ico" style="background:#EFF6FF;color:#2563EB" aria-hidden="true"><i class="bi bi-envelope-paper"></i></div>
+        <div><strong>Mailing i newsletter</strong> — wysyłka do bazy kontaktów bezpośrednio z CRM</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bezpieczeństwo -->
+  <div class="sec-note" role="note">
+    <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
+    <div><strong>Dane zostają u nas.</strong> SZO działa na własnym serwerze Fundacji FEER. Żadne dane nie trafiają do zewnętrznych dostawców analityki ani reklam. Integracje z Microsoft 365 i Canva korzystają z oficjalnych API z ograniczonymi zakresami uprawnień.</div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta">
+    <div class="cta-text">
+      <h2 class="cta-h">Chcesz wiedzieć więcej lub zgłosić narzędzie?</h2>
+      <p class="cta-sub">Napisz do administratora — rozważamy każdą integrację, która realnie ułatwia pracę zespołu.</p>
+    </div>
+    <div class="cta-btns">
+      <a href="https://szo.feer.org.pl" class="cta-btn main" target="_blank" rel="noopener"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj się do SZO</a>
+      <a href="informacja.html" class="cta-btn sec"><i class="bi bi-info-circle" aria-hidden="true"></i> O systemie</a>
+    </div>
+  </div>
+
+  <div class="contact" role="complementary" aria-label="Kontakt">
+    <div class="contact-lbl">Pytania lub pomysły na integracje?<span>Administrator odpowie szybko.</span></div>
+    <div class="contact-links">
+      <a href="mailto:admin@feer.org.pl" class="contact-a"><i class="bi bi-envelope-fill" aria-hidden="true"></i> admin@feer.org.pl</a>
+      <a href="tel:+48601350487" class="contact-a"><i class="bi bi-telephone-fill" aria-hidden="true"></i> 601 350 487</a>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SZO dla Ciebie · Fundacja FEER</title>
+<meta name="description" content="Co możesz zrobić w SZO jako wolontariusz lub współpracownik Fundacji FEER — umowy, zadania, zaświadczenia, szkolenia.">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#F0F4F8;color:#1E293B}
+:focus-visible{outline:3px solid #2563EB;outline-offset:3px;border-radius:4px}
+
+/* Skip link */
+.skip{position:absolute;top:-100%;left:.5rem;z-index:9999;background:#2563EB;color:#fff;padding:.4rem 1rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none}
+.skip:focus{top:0}
+
+/* Topbar */
+.pt{height:54px;background:#fff;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;padding:0 1.5rem;gap:.75rem;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.pt-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:inherit;flex:1}
+.pt-logo{height:32px;max-width:120px;object-fit:contain}
+.pt-logo-fb{width:32px;height:32px;border-radius:8px;background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.pt-name{font-weight:700;font-size:.86rem}
+.pt-right{display:flex;align-items:center;gap:.5rem;margin-left:auto}
+.pt-nav{display:inline-flex;align-items:center;gap:.3rem;background:none;border:1.5px solid #E2E8F0;color:#64748B;font-size:.76rem;font-weight:600;padding:.28rem .65rem;border-radius:8px;text-decoration:none;transition:all .1s}
+.pt-nav:hover,.pt-nav:focus{border-color:#2563EB;color:#2563EB;background:#EFF6FF}
+.pt-nav-active{border-color:#2563EB;color:#2563EB;background:#EFF6FF}
+.pt-wcag{display:inline-flex;align-items:center;gap:.25rem;background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;font-size:.65rem;font-weight:700;padding:.18rem .5rem;border-radius:20px}
+
+/* Layout */
+.pw{max-width:860px;margin:0 auto;padding:2rem 1.25rem 5rem}
+
+/* Section title */
+.sec-label{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94A3B8;margin-bottom:.5rem}
+
+/* ══ Hero — zwięzły, osobisty ══ */
+.hero{background:linear-gradient(140deg,#0F172A,#1D4ED8 70%);border-radius:18px;padding:2rem 2rem 1.75rem;margin-bottom:1rem;color:#fff;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(99,179,237,.1) 0%,transparent 70%);top:-120px;right:-120px}
+.hero-tag{display:inline-flex;align-items:center;gap:.3rem;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.88);font-size:.68rem;font-weight:700;padding:.18rem .6rem;border-radius:20px;margin-bottom:.7rem;letter-spacing:.05em}
+.hero-h1{font-size:2rem;font-weight:900;letter-spacing:-.04em;line-height:1.1;margin-bottom:.35rem}
+.hero-sub{font-size:.87rem;color:rgba(255,255,255,.72);line-height:1.65;margin-bottom:1.25rem;max-width:480px}
+.btn-lg{display:inline-flex;align-items:center;gap:.45rem;background:#fff;color:#1D4ED8;font-size:1rem;font-weight:800;padding:.75rem 1.7rem;border-radius:10px;text-decoration:none;box-shadow:0 4px 18px rgba(0,0,0,.2);transition:all .14s}
+.btn-lg:hover,.btn-lg:focus{background:#EFF6FF;color:#1E40AF;transform:translateY(-2px)}
+
+/* ══ Karty akcji — duże ══ */
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1.1rem}
+.ac{border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;display:block;transition:transform .13s,box-shadow .13s}
+.ac:hover,.ac:focus{transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,0,0,.14)}
+.ac-h{padding:1.15rem 1.3rem 1rem;position:relative;overflow:hidden}
+.ac-h::after{content:'';position:absolute;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.07);right:-30px;bottom:-55px;pointer-events:none}
+.ac-icon{width:42px;height:42px;border-radius:11px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:#fff;margin-bottom:.6rem}
+.ac-title{font-size:1.05rem;font-weight:900;color:#fff;line-height:1.15;margin-bottom:.3rem}
+.ac-desc{font-size:.77rem;color:rgba(255,255,255,.73);line-height:1.45}
+.ac-steps{display:flex;gap:.35rem;margin-top:.75rem;flex-wrap:wrap}
+.ac-step{display:inline-flex;align-items:center;gap:.2rem;background:rgba(255,255,255,.15);color:#fff;font-size:.68rem;font-weight:600;padding:.17rem .5rem;border-radius:20px}
+.ac-step-n{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;flex-shrink:0}
+.ac-foot{background:#fff;border:1px solid #E2E8F0;border-top:none;padding:.6rem .9rem;display:flex;align-items:center;justify-content:space-between;font-size:.74rem;color:#475569}
+.ac-foot-badge{display:inline-flex;align-items:center;gap:.2rem;font-size:.65rem;font-weight:700;padding:.1rem .38rem;border-radius:20px}
+.badge-ok{background:#DCFCE7;color:#15803D}
+.badge-soon{background:#FEF9C3;color:#92400E}
+.badge-wip{background:#E0F2FE;color:#0369A1}
+
+/* ══ Małe karty ══ */
+.mini-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.85rem;margin-bottom:1.1rem}
+.mc{background:#fff;border:1px solid #E2E8F0;border-radius:13px;overflow:hidden;text-decoration:none;color:inherit;transition:transform .12s,box-shadow .12s}
+.mc:hover,.mc:focus{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.09)}
+.mc-h{padding:.8rem .95rem .7rem;position:relative;overflow:hidden}
+.mc-h::after{content:'';position:absolute;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.1);right:-15px;bottom:-30px}
+.mc-icon{width:30px;height:30px;border-radius:7px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:.9rem;color:#fff;margin-bottom:.4rem}
+.mc-title{font-size:.85rem;font-weight:800;color:#fff;line-height:1.2}
+.mc-desc{font-size:.7rem;color:rgba(255,255,255,.72);margin-top:.18rem;line-height:1.35}
+.mc-body{padding:.55rem .95rem;font-size:.75rem;color:#64748B;line-height:1.45;border-top:1px solid #F1F5F9}
+
+/* ══ Powiadomienia ══ */
+.notif{background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border:1.5px solid #BFDBFE;border-radius:13px;padding:1rem 1.25rem;margin-bottom:1.1rem;display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:start}
+.notif-icon{width:40px;height:40px;border-radius:10px;background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.notif-h{font-size:.9rem;font-weight:800;color:#1E3A8A;margin-bottom:.4rem}
+.notif-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.2rem .75rem}
+.notif-list li{display:flex;align-items:center;gap:.28rem;font-size:.78rem;color:#1E40AF}
+
+/* ══ Dostęp ══ */
+.acc{background:#fff;border:1px solid #E2E8F0;border-radius:13px;overflow:hidden;margin-bottom:1.1rem}
+.acc-head{padding:.58rem 1.1rem;border-bottom:1px solid #F1F5F9;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94A3B8;display:flex;align-items:center;gap:.3rem}
+.acc-row{display:flex;align-items:center;gap:.65rem;padding:.6rem 1.1rem;border-bottom:1px solid #F8FAFC}
+.acc-row:last-child{border-bottom:none}
+.acc-ico{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.82rem;flex-shrink:0}
+.acc-title{font-weight:600;color:#0F172A;font-size:.82rem}
+.acc-sub{font-size:.71rem;color:#64748B;margin-top:.05rem}
+
+/* ══ Migracja ══ */
+.migr{display:flex;align-items:flex-start;gap:.7rem;background:#F0F9FF;border:1.5px solid #BAE6FD;border-radius:12px;padding:.8rem 1.05rem;margin-bottom:1.1rem;font-size:.82rem;color:#0C4A6E}
+.migr i{font-size:.95rem;flex-shrink:0;margin-top:.1rem;color:#0284C7}
+
+/* ══ CTA dolny ══ */
+.cta{background:linear-gradient(135deg,#1E3A5F,#1D6EF9);border-radius:13px;padding:1.2rem 1.5rem;margin-bottom:1rem;display:flex;align-items:center;flex-wrap:wrap;gap:1rem}
+.cta-text{color:#fff;flex:1}
+.cta-h{font-size:.95rem;font-weight:800;margin-bottom:.22rem}
+.cta-sub{font-size:.78rem;color:rgba(255,255,255,.7)}
+.cta-btns{display:flex;flex-wrap:wrap;gap:.4rem;flex-shrink:0}
+.cta-btn{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;padding:.45rem 1rem;border-radius:9px;text-decoration:none;transition:all .1s;white-space:nowrap}
+.cta-btn.main{background:#fff;color:#1D4ED8}
+.cta-btn.main:hover{background:#EFF6FF}
+.cta-btn.sec{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.22);color:#fff}
+.cta-btn.sec:hover{background:rgba(255,255,255,.25);color:#fff}
+
+/* Kontakt */
+.contact{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:.8rem 1.1rem;font-size:.82rem}
+.contact-lbl{font-weight:700;color:#0F172A;flex:1}
+.contact-lbl span{font-weight:400;color:#64748B;display:block;font-size:.74rem}
+.contact-links{display:flex;flex-wrap:wrap;gap:.4rem}
+.contact-a{display:inline-flex;align-items:center;gap:.32rem;background:#F8FAFC;border:1.5px solid #E2E8F0;color:#374151;font-size:.78rem;font-weight:600;padding:.32rem .75rem;border-radius:8px;text-decoration:none;transition:all .1s}
+.contact-a:hover,.contact-a:focus{border-color:#2563EB;color:#2563EB;background:#EFF6FF}
+
+/* Zadania detail */
+.tasks-detail{background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;margin-bottom:1.1rem}
+.tasks-detail-h{padding:.85rem 1.1rem;background:linear-gradient(135deg,#1E3A5F,#1D6EF9);color:#fff;display:flex;align-items:center;gap:.55rem}
+.tasks-detail-icon{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.tasks-detail-title{font-size:.92rem;font-weight:800}
+.tasks-detail-sub{font-size:.73rem;color:rgba(255,255,255,.72);margin-top:.08rem}
+.tasks-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.tasks-feat{padding:.75rem .95rem;border-right:1px solid #F1F5F9;border-bottom:1px solid #F1F5F9}
+.tasks-feat:nth-child(3n){border-right:none}
+.tasks-feat:nth-last-child(-n+3){border-bottom:none}
+.tasks-feat-icon{font-size:1.1rem;margin-bottom:.3rem;display:block}
+.tasks-feat-title{font-size:.79rem;font-weight:700;color:#0F172A;margin-bottom:.15rem}
+.tasks-feat-desc{font-size:.72rem;color:#64748B;line-height:1.4}
+
+/* Admin moduł */
+.admin-card{background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;margin-bottom:1.1rem}
+.admin-h{padding:.85rem 1.1rem;background:linear-gradient(135deg,#1E293B,#475569);color:#fff;display:flex;align-items:center;gap:.55rem}
+.admin-h-icon{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.admin-h-title{font-size:.92rem;font-weight:800}
+.admin-h-sub{font-size:.73rem;color:rgba(255,255,255,.65);margin-top:.08rem}
+.admin-row{display:flex;align-items:flex-start;gap:.6rem;padding:.65rem 1.1rem;border-bottom:1px solid #F8FAFC;font-size:.8rem;color:#374151;line-height:1.4}
+.admin-row:last-child{border-bottom:none}
+.admin-row i{color:#475569;font-size:.88rem;flex-shrink:0;margin-top:.1rem}
+
+/* Responsive */
+@media(max-width:680px){.actions{grid-template-columns:1fr}.mini-row{grid-template-columns:1fr 1fr}.notif-list{grid-template-columns:1fr}.hero-h1{font-size:1.6rem}.cta{flex-direction:column}.pt{padding:0 .9rem}.tasks-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:420px){.mini-row{grid-template-columns:1fr}}
+
+/* Animacje */
+@keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.hero{animation:fi .3s ease both}
+.actions{animation:fi .34s .04s ease both}
+.mini-row{animation:fi .37s .07s ease both}
+.notif,.migr{animation:fi .4s .09s ease both}
+.acc,.cta,.contact{animation:fi .42s .11s ease both}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Przejdź do treści</a>
+
+<header class="pt" role="banner">
+  <a class="pt-brand" href="https://panel.feer.org.pl" aria-label="Strona główna – Fundacja FEER · SZO">
+    <img src="/assets/logo/logo_1780058399.png" alt="Logo Fundacji FEER" class="pt-logo"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div class="pt-logo-fb" aria-hidden="true" style="display:none"><i class="bi bi-building-heart"></i></div>
+    <span class="pt-name">Fundacja FEER · SZO</span>
+  </a>
+  <nav class="pt-right" aria-label="Nawigacja">
+    <a href="informacja.html" class="pt-nav">O systemie</a>
+    <a href="wspolpracownik.html" class="pt-nav pt-nav-active" aria-current="page">Dla Ciebie</a>
+    <a href="narzedzia.html" class="pt-nav">Narzędzia</a>
+    <a href="technicznie.html" class="pt-nav">Technicznie</a>
+    <div class="pt-wcag" aria-label="Zgodność z WCAG 2.1 AA"><i class="bi bi-universal-access" aria-hidden="true"></i> WCAG 2.1 AA</div>
+  </nav>
+</header>
+
+<main id="main" class="pw">
+
+  <!-- Hero -->
+  <section aria-labelledby="page-title">
+    <div class="hero">
+      <div class="hero-tag"><i class="bi bi-person-check" aria-hidden="true"></i> Dla współpracownika i wolontariusza</div>
+      <h1 class="hero-h1" id="page-title">Co możesz zrobić<br>w SZO?</h1>
+      <p class="hero-sub">Wszystko, co wcześniej wymagało e-maili, wizyt w biurze lub szukania w kilku miejscach — teraz w jednym panelu, z każdego urządzenia.</p>
+      <a href="https://szo.feer.org.pl" class="btn-lg" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj się do SZO
+      </a>
+    </div>
+  </section>
+
+  <!-- Karty akcji -->
+  <section aria-labelledby="actions-title">
+    <p class="sec-label" id="actions-title" aria-label="Sekcja: główne funkcje">Główne funkcje</p>
+    <div class="actions">
+
+      <a href="https://szo.feer.org.pl" class="ac" target="_blank" rel="noopener" aria-label="Umowy zdalnie — podpisz, aneksuj, wypowiedz">
+        <div class="ac-h" style="background:linear-gradient(135deg,#14532D,#16A34A)">
+          <div class="ac-icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></div>
+          <div class="ac-title">Umowy — zdalnie</div>
+          <p class="ac-desc">Podpisz, aneksuj lub wypowiedz umowę bez dojazdu do biura. System, który wcześniej działał osobno, jest teraz w pełni zintegrowany z SZO — efekt 2 miesięcy pracy naszego zespołu.</p>
+          <div class="ac-steps" aria-label="Jak to zrobić">
+            <div class="ac-step"><div class="ac-step-n" aria-hidden="true">1</div> Zaloguj się</div>
+            <div class="ac-step"><div class="ac-step-n" aria-hidden="true">2</div> Otwórz umowę</div>
+            <div class="ac-step"><div class="ac-step-n" aria-hidden="true">3</div> Podpisz lub złóż wniosek</div>
+          </div>
+        </div>
+        <div class="ac-foot">
+          Wolontariat · Zlecenie · Praca · Dzieło
+          <span class="ac-foot-badge badge-soon" aria-label="Status: za 2-3 tygodnie"><i class="bi bi-clock" aria-hidden="true"></i> Za 2–3 tyg.</span>
+        </div>
+      </a>
+
+      <a href="https://szo.feer.org.pl" class="ac" target="_blank" rel="noopener" aria-label="Zadania — nowe Trello z powiadomieniami">
+        <div class="ac-h" style="background:linear-gradient(135deg,#1E3A5F,#1D6EF9)">
+          <div class="ac-icon" aria-hidden="true"><i class="bi bi-kanban"></i></div>
+          <div class="ac-title">Zadania — nowe Trello</div>
+          <p class="ac-desc">Twoje przypisane zadania, terminy, statusy. Dostajesz e-mail gdy coś trafi do Ciebie — nie musisz sprawdzać codziennie.</p>
+          <div class="ac-steps" aria-label="Jak to zrobić">
+            <div class="ac-step"><div class="ac-step-n" aria-hidden="true">1</div> Zaloguj się</div>
+            <div class="ac-step"><div class="ac-step-n" aria-hidden="true">2</div> Sprawdź zadania</div>
+            <div class="ac-step"><div class="ac-step-n" aria-hidden="true">3</div> Oznacz jako zrobione</div>
+          </div>
+        </div>
+        <div class="ac-foot">
+          Zastępuje Trello · e-mail przy nowym zadaniu
+          <span class="ac-foot-badge badge-ok" aria-label="Status: działa"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- Zadania — szczegóły -->
+  <section aria-labelledby="tasks-detail-title">
+    <div class="tasks-detail">
+      <div class="tasks-detail-h">
+        <div class="tasks-detail-icon" aria-hidden="true"><i class="bi bi-kanban"></i></div>
+        <div>
+          <div class="tasks-detail-title" id="tasks-detail-title">Co potrafią zadania w SZO?</div>
+          <div class="tasks-detail-sub">Więcej niż Trello — zbudowane z myślą o organizacji NGO</div>
+        </div>
+      </div>
+      <div class="tasks-grid" role="list">
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">📋</span>
+          <div class="tasks-feat-title">Tablice kanban i listy</div>
+          <div class="tasks-feat-desc">Przestrzenie robocze z kolumnami. Przeciągaj zadania między statusami, filtruj i szukaj.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">👥</span>
+          <div class="tasks-feat-title">Przypisania i przejęcia</div>
+          <div class="tasks-feat-desc">Wiele osób na zadanie. Przejęcie zadania z puli, przekazanie z akceptacją lub odrzuceniem.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">⚡</span>
+          <div class="tasks-feat-title">Priorytety i terminy</div>
+          <div class="tasks-feat-desc">4 poziomy priorytetu (Krytyczny → Normalny). Termin, data startu, automatyczne oznaczanie przeterminowanych.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">✅</span>
+          <div class="tasks-feat-title">Podzadania</div>
+          <div class="tasks-feat-desc">Rozbij zadanie na kroki. Pasek postępu pokazuje ile % podzadań ukończone.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">⏱️</span>
+          <div class="tasks-feat-title">Śledzenie czasu</div>
+          <div class="tasks-feat-desc">Timer w zadaniu + ręczny wpis godzin. Estymacja czasu i raport spędzonego.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">📎</span>
+          <div class="tasks-feat-title">Załączniki i pliki</div>
+          <div class="tasks-feat-desc">Pliki do 10 MB bezpośrednio w zadaniu. Integracja z OneDrive i SharePoint.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">💬</span>
+          <div class="tasks-feat-title">Komentarze i @wzmianki</div>
+          <div class="tasks-feat-desc">Dyskusja przy zadaniu. Wspomnij osobę przez @, dostanie powiadomienie e-mail.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">🔁</span>
+          <div class="tasks-feat-title">Zadania cykliczne</div>
+          <div class="tasks-feat-desc">Powtarzaj automatycznie: codziennie, tygodniowo, miesięcznie, rocznie — z opcjonalną datą końca.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">📜</span>
+          <div class="tasks-feat-title">Historia zmian</div>
+          <div class="tasks-feat-desc">Pełny audit trail — kto, kiedy, co zmienił. Zmiany priorytetu, terminu, przypisań, komentarze.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">🏷️</span>
+          <div class="tasks-feat-title">Tagi i obszary</div>
+          <div class="tasks-feat-desc">Grupuj zadania tagami i przypisuj do obszarów działania organizacji.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">📦</span>
+          <div class="tasks-feat-title">Akcje masowe</div>
+          <div class="tasks-feat-desc">Zaznacz wiele zadań i jednym ruchem: przypisz, zmień priorytet, przenieś, ukończ lub usuń.</div>
+        </div>
+        <div class="tasks-feat" role="listitem">
+          <span class="tasks-feat-icon" aria-hidden="true">📨</span>
+          <div class="tasks-feat-title">Skrzynka odbiorcza</div>
+          <div class="tasks-feat-desc">Wbudowana skrzynka wiadomości — wszystkie wątki przy zadaniach w jednym miejscu + badge nieprzeczytanych.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Małe karty -->
+  <section aria-labelledby="more-title">
+    <p class="sec-label" id="more-title" aria-label="Sekcja: pozostałe funkcje">Pozostałe funkcje</p>
+    <div class="mini-row">
+
+      <a href="https://szo.feer.org.pl" class="mc" target="_blank" rel="noopener" aria-label="Zaświadczenia online">
+        <div class="mc-h" style="background:linear-gradient(135deg,#5B21B6,#7C3AED)">
+          <div class="mc-icon" aria-hidden="true"><i class="bi bi-award"></i></div>
+          <div class="mc-title">Zaświadczenia</div>
+          <div class="mc-desc">Poproś i odbierz online</div>
+        </div>
+        <div class="mc-body">Wniosek w systemie → zaświadczenie wraca elektronicznie. Mail gdy gotowe. <span aria-label="Status: działa" class="ac-foot-badge badge-ok" style="font-size:.65rem"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span></div>
+      </a>
+
+      <a href="https://szo.feer.org.pl" class="mc" target="_blank" rel="noopener" aria-label="Szkolenia na jednym koncie">
+        <div class="mc-h" style="background:linear-gradient(135deg,#9A3412,#EA580C)">
+          <div class="mc-icon" aria-hidden="true"><i class="bi bi-mortarboard"></i></div>
+          <div class="mc-title">Szkolenia</div>
+          <div class="mc-desc">Jedno konto, historia ukończeń</div>
+        </div>
+        <div class="mc-body">Szkolenia wstępne i dedykowane. Cała historia na Twoim profilu. <span class="ac-foot-badge badge-ok" style="font-size:.65rem"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span></div>
+      </a>
+
+      <a href="https://szo.feer.org.pl" class="mc" target="_blank" rel="noopener" aria-label="Komunikaty — ogłoszenia z powiadomieniem">
+        <div class="mc-h" style="background:linear-gradient(135deg,#0E7490,#0891B2)">
+          <div class="mc-icon" aria-hidden="true"><i class="bi bi-megaphone"></i></div>
+          <div class="mc-title">Komunikaty</div>
+          <div class="mc-desc">Ogłoszenia + mail przy każdym</div>
+        </div>
+        <div class="mc-body">Formalna tablica zamiast grup WhatsApp. Nowy komunikat → e-mail. <span class="ac-foot-badge badge-ok" style="font-size:.65rem"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span></div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- Powiadomienia -->
+  <section aria-labelledby="notif-title">
+    <div class="notif" role="note">
+      <div class="notif-icon" aria-hidden="true"><i class="bi bi-envelope-fill"></i></div>
+      <div>
+        <h2 class="notif-h" id="notif-title">Nie musisz zaglądać — system sam Cię informuje</h2>
+        <ul class="notif-list">
+          <li><i class="bi bi-check-circle-fill" style="color:#2563EB" aria-hidden="true"></i> Nowy komunikat</li>
+          <li><i class="bi bi-check-circle-fill" style="color:#2563EB" aria-hidden="true"></i> Zadanie do Ciebie</li>
+          <li><i class="bi bi-check-circle-fill" style="color:#2563EB" aria-hidden="true"></i> Koniec umowy</li>
+          <li><i class="bi bi-check-circle-fill" style="color:#2563EB" aria-hidden="true"></i> Zaświadczenie gotowe</li>
+          <li><i class="bi bi-check-circle-fill" style="color:#2563EB" aria-hidden="true"></i> Ogłoszenie od Zarządu</li>
+          <li><i class="bi bi-check-circle-fill" style="color:#2563EB" aria-hidden="true"></i> Termin szkolenia</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Administracja i księgowość -->
+  <section aria-labelledby="admin-title">
+    <p class="sec-label" id="admin-title" aria-label="Sekcja: administracja i księgowość">Cały urząd w systemie</p>
+    <div class="admin-card">
+      <div class="admin-h">
+        <div class="admin-h-icon" aria-hidden="true"><i class="bi bi-building"></i></div>
+        <div>
+          <div class="admin-h-title">Administracja i księgowość są w SZO</div>
+          <div class="admin-h-sub">Nie tylko wolontariusze — cała organizacja pracuje w jednym systemie</div>
+        </div>
+      </div>
+      <div class="admin-row"><i class="bi bi-file-earmark-ruled" aria-hidden="true"></i><div><strong>Umowy wszystkich typów</strong> — wolontariat, zlecenia, umowy o pracę, dzieło, usługi. Zarząd podpisuje i akceptuje elektronicznie.</div></div>
+      <div class="admin-row"><i class="bi bi-receipt" aria-hidden="true"></i><div><strong>Granty i projekty</strong> — śledzenie budżetów, terminów i sprawozdawczości w module grantów.</div></div>
+      <div class="admin-row"><i class="bi bi-envelope-paper" aria-hidden="true"></i><div><strong>Korespondencja</strong> — rejestr pism wychodzących i przychodzących, archiwum dokumentów.</div></div>
+      <div class="admin-row"><i class="bi bi-people" aria-hidden="true"></i><div><strong>Baza osób i CRM</strong> — darczyńcy, partnerzy, instytucje, historia kontaktów. Każda relacja zapamiętana.</div></div>
+      <div class="admin-row"><i class="bi bi-calendar-check" aria-hidden="true"></i><div><strong>Działania i wydarzenia</strong> — planowanie, realizacja, rozliczenie działań organizacyjnych z kalendarzem.</div></div>
+      <div class="admin-row"><i class="bi bi-shield-lock" aria-hidden="true"></i><div><strong>Dostęp kaskadowy</strong> — administracja i księgowość widzą to, co potrzebują. Wolontariusz — tylko swój panel. Zarząd — całość.</div></div>
+    </div>
+  </section>
+
+  <!-- Migracja -->
+  <div class="migr" role="status">
+    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+    <div><strong>Migracja danych trwa.</strong> Spinamy dane z różnych systemów etapami. Jeśli czegoś jeszcze nie widzisz — to normalne. Wróć za kilka dni lub <a href="mailto:admin@feer.org.pl" style="color:inherit;font-weight:700">zapytaj administratora</a>.</div>
+  </div>
+
+  <!-- Jak się zalogować -->
+  <section aria-labelledby="acc-title">
+    <div class="acc">
+      <div class="acc-head" id="acc-title"><i class="bi bi-key" aria-hidden="true"></i> Jak się zalogować</div>
+      <div class="acc-row">
+        <div class="acc-ico" style="background:#EFF6FF;color:#2563EB" aria-hidden="true"><i class="bi bi-microsoft"></i></div>
+        <div>
+          <div class="acc-title">Konto Microsoft 365 / Office</div>
+          <div class="acc-sub">Te same dane co do poczty i pakietu Office — zaloguj się jednym kliknięciem.</div>
+        </div>
+      </div>
+      <div class="acc-row">
+        <div class="acc-ico" style="background:#F0FDF4;color:#16A34A" aria-hidden="true"><i class="bi bi-envelope-at"></i></div>
+        <div>
+          <div class="acc-title">Login i hasło na prywatny e-mail</div>
+          <div class="acc-sub">Jeśli nie masz konta Office — dostaniesz dane na swój prywatny adres.</div>
+        </div>
+      </div>
+      <div class="acc-row">
+        <div class="acc-ico" style="background:#FFFBEB;color:#D97706" aria-hidden="true"><i class="bi bi-qr-code"></i></div>
+        <div>
+          <div class="acc-title">Problem z dostępem?</div>
+          <div class="acc-sub">Skontaktuj się — przekażemy Ci kod logowania, który działa bez hasła.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="cta">
+    <div class="cta-text">
+      <h2 class="cta-h">Gotowy? Zaloguj się teraz.</h2>
+      <p class="cta-sub">Wszystko czeka na Ciebie w SZO. Więcej o systemie → strona "O systemie".</p>
+    </div>
+    <div class="cta-btns">
+      <a href="https://szo.feer.org.pl" class="cta-btn main" target="_blank" rel="noopener"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj się</a>
+      <a href="informacja.html" class="cta-btn sec"><i class="bi bi-info-circle" aria-hidden="true"></i> O systemie</a>
+    </div>
+  </div>
+
+  <div class="contact" role="complementary" aria-label="Kontakt">
+    <div class="contact-lbl">Pytania lub problem z dostępem?<span>Administrator odpowie szybko.</span></div>
+    <div class="contact-links">
+      <a href="mailto:admin@feer.org.pl" class="contact-a"><i class="bi bi-envelope-fill" aria-hidden="true"></i> admin@feer.org.pl</a>
+      <a href="tel:+48601350487" class="contact-a"><i class="bi bi-telephone-fill" aria-hidden="true"></i> 601 350 487</a>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

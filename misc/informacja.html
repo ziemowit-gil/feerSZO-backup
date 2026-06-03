@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SZO · Fundacja FEER — System Zarządzania Organizacją</title>
+<meta name="description" content="SZO zastępuje Trello i spinuje nasze narzędzia w jedno. Umowy, zadania, szkolenia, komunikaty — wszystko w jednym miejscu.">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+/* ── Reset & base ─── */
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#F0F4F8;color:#1E293B}
+:focus-visible{outline:3px solid #2563EB;outline-offset:3px;border-radius:4px}
+
+/* ── Skip link (WCAG) ─── */
+.skip{position:absolute;top:-100%;left:.5rem;z-index:9999;background:#2563EB;color:#fff;padding:.4rem 1rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none}
+.skip:focus{top:0}
+
+/* ── Topbar ─── */
+.pt{height:54px;background:#fff;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;padding:0 1.5rem;gap:.75rem;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.pt-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:inherit;flex:1}
+.pt-logo{height:32px;max-width:120px;object-fit:contain}
+.pt-logo-fb{width:32px;height:32px;border-radius:8px;background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.pt-name{font-weight:700;font-size:.86rem}
+.pt-right{display:flex;align-items:center;gap:.5rem;margin-left:auto}
+.pt-nav{display:inline-flex;align-items:center;gap:.3rem;background:none;border:1.5px solid #E2E8F0;color:#64748B;font-size:.76rem;font-weight:600;padding:.28rem .65rem;border-radius:8px;text-decoration:none;transition:all .1s}
+.pt-nav:hover{border-color:#2563EB;color:#2563EB;background:#EFF6FF}
+.pt-nav-active{border-color:#2563EB;color:#2563EB;background:#EFF6FF}
+.pt-wcag{display:inline-flex;align-items:center;gap:.25rem;background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;font-size:.65rem;font-weight:700;padding:.18rem .5rem;border-radius:20px;white-space:nowrap}
+
+/* ── Layout ─── */
+.pw{max-width:860px;margin:0 auto;padding:2rem 1.25rem 5rem}
+
+/* ══ A — ATTENTION ══ */
+.hero{background:linear-gradient(140deg,#0F172A 0%,#1D4ED8 60%,#1E3A5F 100%);border-radius:20px;padding:2.5rem 2.25rem 2rem;margin-bottom:1.1rem;color:#fff;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(99,179,237,.12) 0%,transparent 70%);top:-150px;right:-150px;pointer-events:none}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:.35rem;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);font-size:.7rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;margin-bottom:.85rem;letter-spacing:.05em}
+.hero-h1{font-size:2.6rem;font-weight:900;letter-spacing:-.05em;line-height:1.05;margin-bottom:.5rem}
+.hero-h1 span{background:linear-gradient(90deg,#60A5FA,#a5f3fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-slogan{display:inline-flex;align-items:center;gap:.4rem;font-size:1rem;font-weight:800;color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:.3rem .85rem;border-radius:10px;margin-bottom:1rem}
+.hero-sub{font-size:.9rem;color:rgba(255,255,255,.72);line-height:1.65;max-width:520px;margin-bottom:1.5rem}
+.hero-cta-row{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem}
+.btn-primary-lg{display:inline-flex;align-items:center;gap:.5rem;background:#fff;color:#1D4ED8;font-size:1rem;font-weight:800;padding:.8rem 1.8rem;border-radius:11px;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,.22);transition:all .15s;letter-spacing:-.01em}
+.btn-primary-lg:hover,.btn-primary-lg:focus{background:#EFF6FF;color:#1E40AF;transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.28)}
+.btn-secondary-lg{display:inline-flex;align-items:center;gap:.4rem;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);color:#fff;font-size:.85rem;font-weight:600;padding:.7rem 1.2rem;border-radius:11px;text-decoration:none;transition:background .1s}
+.btn-secondary-lg:hover,.btn-secondary-lg:focus{background:rgba(255,255,255,.22);color:#fff}
+.hero-urls{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1.1rem}
+.hero-url{display:inline-flex;align-items:center;gap:.25rem;color:rgba(255,255,255,.55);font-size:.72rem}
+.hero-pills{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.75rem}
+.hero-pill{display:inline-flex;align-items:center;gap:.22rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.72);font-size:.65rem;font-weight:600;padding:.15rem .45rem;border-radius:20px}
+
+/* ══ I — INTEREST ══ */
+.story{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:1.75rem 2rem;margin-bottom:1.1rem}
+.story-label{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94A3B8;margin-bottom:.65rem}
+.story-h2{font-size:1.35rem;font-weight:900;color:#0F172A;line-height:1.25;margin-bottom:.75rem;letter-spacing:-.02em}
+.story-body{font-size:.88rem;color:#475569;line-height:1.75;display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.story-body p{margin:0}
+
+/* ══ D — DESIRE ══ */
+.desire-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:1.1rem}
+.dc{border-radius:14px;overflow:hidden;position:relative}
+.dc-h{padding:1.2rem 1.3rem 1rem;position:relative;overflow:hidden}
+.dc-h::after{content:'';position:absolute;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.07);right:-35px;bottom:-55px;pointer-events:none}
+.dc-icon{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.15rem;color:#fff;margin-bottom:.6rem}
+.dc-h2{font-size:1rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:.25rem}
+.dc-p{font-size:.76rem;color:rgba(255,255,255,.73);line-height:1.45}
+.dc-foot{background:#fff;border:1px solid #E2E8F0;border-top:none;padding:.6rem .9rem;display:flex;align-items:center;justify-content:space-between;font-size:.74rem;color:#475569}
+.dc-status{display:inline-flex;align-items:center;gap:.2rem;font-size:.65rem;font-weight:700;padding:.1rem .38rem;border-radius:20px}
+.dc-status.ok{background:#DCFCE7;color:#15803D}
+.dc-status.soon{background:#FEF9C3;color:#92400E}
+.dc-status.wip{background:#E0F2FE;color:#0369A1}
+
+/* Migracja banner */
+.migr{display:flex;align-items:flex-start;gap:.75rem;background:#F0F9FF;border:1.5px solid #BAE6FD;border-radius:12px;padding:.85rem 1.1rem;margin-bottom:1.1rem;font-size:.83rem;color:#0C4A6E}
+.migr i{font-size:1rem;flex-shrink:0;margin-top:.1rem;color:#0284C7}
+.migr strong{color:#0369A1}
+
+/* ══ A — ACTION ══ */
+.action-row{display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:center;background:linear-gradient(135deg,#1E3A5F,#1D6EF9);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1.1rem}
+.action-text{color:#fff}
+.action-h3{font-size:1rem;font-weight:800;margin-bottom:.25rem}
+.action-sub{font-size:.79rem;color:rgba(255,255,255,.7)}
+.action-btns{display:flex;flex-direction:column;gap:.4rem;flex-shrink:0}
+.action-btn{display:inline-flex;align-items:center;gap:.35rem;font-size:.81rem;font-weight:700;padding:.45rem 1rem;border-radius:9px;text-decoration:none;transition:all .1s;white-space:nowrap}
+.action-btn.main{background:#fff;color:#1D4ED8}
+.action-btn.main:hover{background:#EFF6FF}
+.action-btn.sec{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff}
+.action-btn.sec:hover{background:rgba(255,255,255,.25);color:#fff}
+
+/* Kontakt */
+.contact{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:.85rem 1.1rem;margin-bottom:1.1rem;font-size:.83rem}
+.contact-lbl{font-weight:700;color:#0F172A;flex:1}
+.contact-lbl span{font-weight:400;color:#64748B;display:block;font-size:.76rem}
+.contact-links{display:flex;flex-wrap:wrap;gap:.4rem}
+.contact-a{display:inline-flex;align-items:center;gap:.35rem;background:#F8FAFC;border:1.5px solid #E2E8F0;color:#374151;font-size:.8rem;font-weight:600;padding:.35rem .8rem;border-radius:8px;text-decoration:none;transition:all .1s}
+.contact-a:hover,.contact-a:focus{border-color:#2563EB;color:#2563EB;background:#EFF6FF}
+
+/* Responsive */
+@media(max-width:680px){.hero-h1{font-size:1.9rem}.story-body{grid-template-columns:1fr}.desire-grid{grid-template-columns:1fr}.action-row{grid-template-columns:1fr}.action-btns{flex-direction:row}.pt{padding:0 .9rem}}
+
+/* Animacje */
+@keyframes fi{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.hero{animation:fi .3s ease both}
+.story{animation:fi .34s .04s ease both}
+.desire-grid{animation:fi .37s .07s ease both}
+.migr{animation:fi .4s .09s ease both}
+.action-row,.contact{animation:fi .42s .11s ease both}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Przejdź do treści</a>
+
+<header class="pt" role="banner">
+  <a class="pt-brand" href="https://panel.feer.org.pl" aria-label="Strona główna – Fundacja FEER · SZO">
+    <img src="/assets/logo/logo_1780058399.png" alt="Logo Fundacji FEER" class="pt-logo"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div class="pt-logo-fb" aria-hidden="true" style="display:none"><i class="bi bi-building-heart"></i></div>
+    <span class="pt-name">Fundacja FEER · SZO</span>
+  </a>
+  <nav class="pt-right" aria-label="Nawigacja">
+    <a href="informacja.html" class="pt-nav pt-nav-active" aria-current="page">O systemie</a>
+    <a href="wspolpracownik.html" class="pt-nav">Dla Ciebie</a>
+    <a href="narzedzia.html" class="pt-nav">Narzędzia</a>
+    <a href="technicznie.html" class="pt-nav">Technicznie</a>
+    <div class="pt-wcag" aria-label="Zgodność z WCAG 2.1 AA"><i class="bi bi-universal-access" aria-hidden="true"></i> WCAG 2.1 AA</div>
+  </nav>
+</header>
+
+<main id="main" class="pw">
+
+  <!-- ══ A — ATTENTION ══ -->
+  <section aria-labelledby="hero-title">
+    <div class="hero">
+      <div class="hero-eyebrow" aria-hidden="true"><i class="bi bi-stars"></i> Własne · Bezlicencyjne · Nasze</div>
+      <h1 class="hero-h1" id="hero-title">SZO — <span>jeden system</span><br>dla całej Fundacji</h1>
+      <div class="hero-slogan" aria-label="Hasło fundacji"><i class="bi bi-rocket-takeoff-fill" aria-hidden="true"></i> SZOrujemy do przodu!</div>
+      <p class="hero-sub">Umowy, zadania, szkolenia, komunikaty — wszystko w jednym miejscu. Koniec z rozsypanymi narzędziami. Dla Zarządu pełna automatyzacja, dla Ciebie wygoda z każdego urządzenia.</p>
+      <div class="hero-cta-row">
+        <a href="https://szo.feer.org.pl" class="btn-primary-lg" target="_blank" rel="noopener">
+          <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj się do SZO
+        </a>
+        <a href="wspolpracownik.html" class="btn-secondary-lg">
+          <i class="bi bi-person-check" aria-hidden="true"></i> Co zyskujesz?
+        </a>
+      </div>
+      <div class="hero-urls" aria-label="Adresy systemu">
+        <span class="hero-url"><i class="bi bi-info-circle" aria-hidden="true"></i> panel.feer.org.pl — ta strona</span>
+        <span class="hero-url" aria-hidden="true">·</span>
+        <span class="hero-url"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> szo.feer.org.pl — system</span>
+      </div>
+      <div class="hero-pills" aria-label="Cechy systemu">
+        <span class="hero-pill"><i class="bi bi-shield-check" aria-hidden="true"></i> Własne autorskie rozwiązanie</span>
+        <span class="hero-pill"><i class="bi bi-person-x" aria-hidden="true"></i> Bez opłat za użytkownika</span>
+        <span class="hero-pill"><i class="bi bi-phone" aria-hidden="true"></i> Aplikacja mobilna wkrótce</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ I — INTEREST ══ -->
+  <section aria-labelledby="story-title">
+    <div class="story">
+      <p class="story-label" aria-hidden="true">Dlaczego i skąd</p>
+      <h2 class="story-h2" id="story-title">Przez lata nasze narzędzia rosły osobno.<br>Czas to zmienić.</h2>
+      <div class="story-body">
+        <p>Zadania w Trello, umowy w biurze, ogłoszenia przez WhatsAppa, szkolenia na osobnych platformach. Kiedy Trello padło, nie szukaliśmy zamiennika — zbudowaliśmy coś swojego. <strong>SZO to jeden system, który rozumie jak działamy.</strong></p>
+        <p>W systemie pracuje cała organizacja — wolontariusze, współpracownicy, <strong>administracja i księgowość</strong>. Granty, korespondencja, baza osób, działania. Przestój był — z różnych względów. Wracamy z nowym silnikiem. <em>„Edukujemy, by oswajać niepełnosprawność. Wspieramy, by budować niezależność."</em></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ D — DESIRE ══ -->
+  <section aria-labelledby="desire-title">
+    <h2 class="visually-hidden" id="desire-title">Co daje SZO</h2>
+    <div class="desire-grid">
+
+      <div class="dc">
+        <div class="dc-h" style="background:linear-gradient(135deg,#1E3A5F,#1D6EF9)">
+          <div class="dc-icon" aria-hidden="true"><i class="bi bi-kanban"></i></div>
+          <div class="dc-h2">Zadania zamiast Trello</div>
+          <p class="dc-p">Przypisane, z terminem, z powiadomieniem e-mail. Nie musisz zaglądać — system sam Cię informuje.</p>
+        </div>
+        <div class="dc-foot">Zastępuje Trello <span class="dc-status ok"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span></div>
+      </div>
+
+      <div class="dc">
+        <div class="dc-h" style="background:linear-gradient(135deg,#14532D,#16A34A)">
+          <div class="dc-icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></div>
+          <div class="dc-h2">Umowy — teraz zintegrowane</div>
+          <p class="dc-p">System umów działał już wcześniej osobno. Teraz jest w pełni wbudowany w SZO — efekt 2 miesięcy pracy naszego zespołu. Podpisz, aneksuj, wypowiedz bez wychodzenia z domu.</p>
+        </div>
+        <div class="dc-foot">Wolontariat · Zlecenie · Praca · Dzieło <span class="dc-status soon"><i class="bi bi-clock" aria-hidden="true"></i> Za 2–3 tyg.</span></div>
+      </div>
+
+      <div class="dc">
+        <div class="dc-h" style="background:linear-gradient(135deg,#5B21B6,#7C3AED)">
+          <div class="dc-icon" aria-hidden="true"><i class="bi bi-award"></i></div>
+          <div class="dc-h2">Zaświadczenia online</div>
+          <p class="dc-p">Poproś w systemie, odbierz elektronicznie. Mail gdy gotowe. Zero papieru, zero czekania.</p>
+        </div>
+        <div class="dc-foot">Wniosek i odbiór w SZO <span class="dc-status ok"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span></div>
+      </div>
+
+      <div class="dc">
+        <div class="dc-h" style="background:linear-gradient(135deg,#0E7490,#0891B2)">
+          <div class="dc-icon" aria-hidden="true"><i class="bi bi-bell"></i></div>
+          <div class="dc-h2">Nie musisz zaglądać</div>
+          <p class="dc-p">Każde ważne zdarzenie — komunikat, zadanie, koniec umowy, gotowe zaświadczenie — ląduje na Twojej skrzynce.</p>
+        </div>
+        <div class="dc-foot">Powiadomienia e-mail <span class="dc-status ok"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span></div>
+      </div>
+
+      <div class="dc" style="grid-column:1/-1">
+        <div class="dc-h" style="background:linear-gradient(135deg,#1E293B,#475569);display:grid;grid-template-columns:auto 1fr;gap:1.25rem;align-items:start">
+          <div>
+            <div class="dc-icon" aria-hidden="true"><i class="bi bi-building"></i></div>
+            <div class="dc-h2">Cała organizacja<br>w jednym systemie</div>
+            <p class="dc-p" style="max-width:340px">Administracja, księgowość, Zarząd, wolontariusze i współpracownicy — każdy widzi to, co potrzebuje. Dostęp kaskadowy, role, uprawnienia.</p>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;align-content:start;padding-top:.25rem">
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:rgba(255,255,255,.75)"><i class="bi bi-check-circle-fill" style="color:#60A5FA;font-size:.8rem" aria-hidden="true"></i>Granty i budżety</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:rgba(255,255,255,.75)"><i class="bi bi-check-circle-fill" style="color:#60A5FA;font-size:.8rem" aria-hidden="true"></i>Korespondencja</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:rgba(255,255,255,.75)"><i class="bi bi-check-circle-fill" style="color:#60A5FA;font-size:.8rem" aria-hidden="true"></i>CRM i baza osób</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:rgba(255,255,255,.75)"><i class="bi bi-check-circle-fill" style="color:#60A5FA;font-size:.8rem" aria-hidden="true"></i>Działania i wydarzenia</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:rgba(255,255,255,.75)"><i class="bi bi-check-circle-fill" style="color:#60A5FA;font-size:.8rem" aria-hidden="true"></i>Raportowanie umów</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:rgba(255,255,255,.75)"><i class="bi bi-check-circle-fill" style="color:#60A5FA;font-size:.8rem" aria-hidden="true"></i>Akceptacje i workflow</div>
+          </div>
+        </div>
+        <div class="dc-foot">Administracja · Księgowość · Zarząd · Wolontariusze <span class="dc-status ok"><i class="bi bi-check2" aria-hidden="true"></i> Działa</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Migracja -->
+  <div class="migr" role="status">
+    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+    <div><strong>Migracja danych trwa.</strong> Spinamy dane z różnych systemów etapami. Jeśli czegoś jeszcze nie widzisz — to normalne. Wróć za kilka dni lub <a href="mailto:admin@feer.org.pl" style="color:inherit;font-weight:700">zapytaj administratora</a>. Działamy na bieżąco.</div>
+  </div>
+
+  <!-- ══ A — ACTION ══ -->
+  <section aria-label="Zaloguj się">
+    <div class="action-row">
+      <div class="action-text">
+        <h2 class="action-h3">Gotowy? Zaloguj się do SZO.</h2>
+        <p class="action-sub">Konto Microsoft 365 lub dane wysłane na prywatny e-mail. Problem? Zadzwoń lub napisz — przekażemy kod dostępu.</p>
+      </div>
+      <div class="action-btns">
+        <a href="https://szo.feer.org.pl" class="action-btn main" target="_blank" rel="noopener"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj się</a>
+        <a href="wspolpracownik.html" class="action-btn sec"><i class="bi bi-person-check" aria-hidden="true"></i> Co zyskuję?</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="contact" role="complementary" aria-label="Kontakt z administratorem">
+    <div class="contact-lbl">Pytania lub problem z dostępem?<span>Administrator odpowie szybko.</span></div>
+    <div class="contact-links">
+      <a href="mailto:admin@feer.org.pl" class="contact-a"><i class="bi bi-envelope-fill" aria-hidden="true"></i> admin@feer.org.pl</a>
+      <a href="tel:+48601350487" class="contact-a"><i class="bi bi-telephone-fill" aria-hidden="true"></i> 601 350 487</a>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>
