@@ -8,25 +8,34 @@ require_once dirname(__DIR__) . '/includes/krs.php';
 require_role('admin');
 $PAGE_TITLE = 'Dane organizacji';
 
+// ── Migracja org_representatives ────────────────────────────────────────────
 function _org_reps_migrate(): void {
     static $done = false;
     if ($done) return; $done = true;
     db()->exec("CREATE TABLE IF NOT EXISTS org_representatives (
-        id        INTEGER PRIMARY KEY AUTOINCREMENT,
-        name      TEXT NOT NULL,
-        title     TEXT NOT NULL DEFAULT '',
-        is_active INTEGER NOT NULL DEFAULT 1,
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT NOT NULL,
+        title      TEXT NOT NULL DEFAULT '',
+        is_active  INTEGER NOT NULL DEFAULT 1,
         sort_order INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
     )");
 }
 _org_reps_migrate();
 
-$branding_keys = ['org_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres','sidebar_color','volunteer_color','org_logo',
+// ── Helper luminancji ────────────────────────────────────────────────────────
+function _sb_luminance(string $hex): float {
+    $hex = ltrim($hex, '#');
+    if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+    $r = hexdec(substr($hex,0,2))/255; $g = hexdec(substr($hex,2,2))/255; $b = hexdec(substr($hex,4,2))/255;
+    $lin = fn($c) => $c <= .03928 ? $c/12.92 : (($c+.055)/1.055)**2.4;
+    return .2126*$lin($r) + .7152*$lin($g) + .0722*$lin($b);
+}
+
+$branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
-                  'm365_send_from_email',
-                  'login_layout','login_tagline','login_bg_color'];
+                  'm365_send_from_email'];
 $saved = [];
 foreach ($branding_keys as $k) {
     $r = db_one("SELECT value FROM settings WHERE key_=?", [$k]);
@@ -45,7 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
     if (isset($_POST['fetch_krs'])) {
-        // Zaciągnij dane z KRS
         $krs_nr = preg_replace('/\D/', '', $_POST['org_krs'] ?? '');
         if (!$krs_nr) {
             $error = 'Podaj numer KRS organizacji.';
@@ -54,16 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($data['error'])) {
                 $error = $data['error'];
             } else {
-                // Wyciągnij miejscowość z adresu
                 $adres = $data['adres'] ?? '';
                 $miejscowosc = '';
-                // Adres format: "ul. Przykładowa 1, 00-001 Warszawa" — bierzemy miasto po kodzie pocztowym
                 if (preg_match('/\d{2}-\d{3}\s+(.+)$/', $adres, $m)) {
                     $miejscowosc = trim($m[1]);
                 } elseif (preg_match('/,\s*([^,]+)$/', $adres, $m)) {
                     $miejscowosc = trim($m[1]);
                 }
-
                 $update = [
                     'org_krs'         => $data['krs'],
                     'org_miejscowosc' => $miejscowosc,
@@ -81,13 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $saved[$k] = $v;
                 }
                 flash_set('success', 'Dane organizacji zaciągnięte z KRS: ' . ($data['nazwa'] ?? ''));
-                header('Location: ' . APP_URL . '/admin/org_settings.php');
-                exit;
+                header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rejestrowe'); exit;
             }
         }
     } elseif (isset($_POST['save_manual'])) {
-        // Ręczny zapis danych org
-        $fields = ['org_name','org_short_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres'];
+        $fields = ['org_name','org_krs','org_miejscowosc','org_nip','org_regon','org_adres'];
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
         foreach ($fields as $k) {
             $v = trim($_POST[$k] ?? '');
@@ -95,29 +98,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $saved[$k] = $v;
         }
         flash_set('success', 'Dane organizacji zostały zapisane.');
-        header('Location: ' . APP_URL . '/admin/org_settings.php');
-        exit;
-
-    } elseif (isset($_POST['save_representative'])) {
-        // Dodaj osobę do reprezentacji
-        _org_reps_migrate();
-        $name  = trim($_POST['rep_name']  ?? '');
-        $title = trim($_POST['rep_title'] ?? '');
-        if ($name) {
-            db()->prepare("INSERT INTO org_representatives (name, title) VALUES (?,?)")->execute([$name, $title]);
-            flash_set('success', 'Dodano: ' . $name);
-        }
-        header('Location: ' . APP_URL . '/admin/org_settings.php#representatives'); exit;
-
-    } elseif (isset($_POST['delete_representative'])) {
-        _org_reps_migrate();
-        $rid = (int)($_POST['rep_id'] ?? 0);
-        if ($rid) db()->prepare("DELETE FROM org_representatives WHERE id=?")->execute([$rid]);
-        flash_set('success', 'Usunięto.');
-        header('Location: ' . APP_URL . '/admin/org_settings.php#representatives'); exit;
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rejestrowe'); exit;
 
     } elseif (isset($_POST['save_branding'])) {
-        // Kolor sidebara
         $color = trim($_POST['sidebar_color'] ?? '#1e293b');
         if (!preg_match('/^#[0-9a-fA-F]{3,6}$/', $color)) $color = '#1e293b';
 
@@ -125,17 +108,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute(['sidebar_color', $color]);
         $saved['sidebar_color'] = $color;
 
-        // Kolor panelu wolontariusza
         $vol_color = trim($_POST['volunteer_color'] ?? '#2563eb');
         if (!preg_match('/^#[0-9a-fA-F]{3,6}$/', $vol_color)) $vol_color = '#2563eb';
         $stmt->execute(['volunteer_color', $vol_color]);
         $saved['volunteer_color'] = $vol_color;
 
-        // Upload logo
         if (!empty($_FILES['org_logo']['tmp_name']) && $_FILES['org_logo']['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($_FILES['org_logo']['name'], PATHINFO_EXTENSION));
             if (in_array($ext, ['png','jpg','jpeg','gif','svg','webp'])) {
-                // Usuń stare logo
                 if ($saved['org_logo'] && file_exists($_logo_dir . '/' . $saved['org_logo'])) {
                     @unlink($_logo_dir . '/' . $saved['org_logo']);
                 }
@@ -149,37 +129,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Usuń logo
         if (isset($_POST['remove_logo']) && $saved['org_logo']) {
             @unlink($_logo_dir . '/' . $saved['org_logo']);
             $stmt->execute(['org_logo', '']);
             $saved['org_logo'] = '';
         }
 
-        // Ekran logowania
-        $login_layout   = in_array($_POST['login_layout'] ?? '', ['split','simple'], true) ? $_POST['login_layout'] : 'split';
-        $login_tagline  = mb_substr(trim($_POST['login_tagline'] ?? ''), 0, 120);
-        $login_bg_color = trim($_POST['login_bg_color'] ?? '#EEF2F7');
-        if (!preg_match('/^#[0-9a-fA-F]{3,6}$/', $login_bg_color)) $login_bg_color = '#EEF2F7';
-        $stmt->execute(['login_layout',   $login_layout]);
-        $stmt->execute(['login_tagline',  $login_tagline]);
-        $stmt->execute(['login_bg_color', $login_bg_color]);
-        $saved['login_layout']   = $login_layout;
-        $saved['login_tagline']  = $login_tagline;
-        $saved['login_bg_color'] = $login_bg_color;
-
         if (!$error) {
             flash_set('success', 'Ustawienia brandingu zapisane.');
-            header('Location: ' . APP_URL . '/admin/org_settings.php#branding');
-            exit;
+            header('Location: ' . APP_URL . '/admin/org_settings.php?tab=branding'); exit;
         }
-    } elseif (isset($_POST['save_banner'])) {
-        $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
-        $stmt->execute(['system_banner_text', trim($_POST['system_banner_text'] ?? '')]);
-        $stmt->execute(['system_banner_type', in_array($_POST['system_banner_type']??'',['info','warning','danger','success']) ? $_POST['system_banner_type'] : 'warning']);
-        flash_set('success', trim($_POST['system_banner_text'] ?? '') ? 'Banner systemowy zapisany i aktywny.' : 'Banner systemowy wyłączony.');
-        header('Location: ' . APP_URL . '/admin/org_settings.php#banner'); exit;
-
     } elseif (isset($_POST['save_mail'])) {
         $mail_keys = ['notify_from_name','notify_from_email',
                       'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
@@ -190,8 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$k, $v]);
         }
         flash_set('success', 'Ustawienia poczty zapisane.');
-        header('Location: ' . APP_URL . '/admin/org_settings.php#mail');
-        exit;
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=mail'); exit;
     } elseif (isset($_POST['test_mail'])) {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
         $to = trim($_POST['test_to'] ?? current_user()['email'] ?? '');
@@ -203,10 +161,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($res['sent']) flash_set('success', "Testowy e-mail wysłany na {$to}.");
             else flash_set('error', 'Wysyłka nie powiodła się — sprawdź logi serwera.');
         }
-        header('Location: ' . APP_URL . '/admin/org_settings.php#mail');
-        exit;
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=mail'); exit;
+    } elseif (isset($_POST['save_representative'])) {
+        _org_reps_migrate();
+        $name  = trim($_POST['rep_name']  ?? '');
+        $title = trim($_POST['rep_title'] ?? '');
+        if ($name) {
+            db()->prepare("INSERT INTO org_representatives (name, title) VALUES (?,?)")->execute([$name, $title]);
+            flash_set('success', 'Dodano: ' . $name);
+        }
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rejestrowe'); exit;
+    } elseif (isset($_POST['delete_representative'])) {
+        _org_reps_migrate();
+        $rid = (int)($_POST['rep_id'] ?? 0);
+        if ($rid) db()->prepare("DELETE FROM org_representatives WHERE id=?")->execute([$rid]);
+        flash_set('success', 'Usunięto.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rejestrowe'); exit;
     }
 }
+
+// Załaduj listę reprezentantów
+_org_reps_migrate();
+$representatives = db()->query("SELECT * FROM org_representatives ORDER BY sort_order ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -218,439 +194,481 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> <?= h($error) ?></div>
 <?php endif; ?>
 
-<div class="row">
-<div class="col-lg-5">
-
-<!-- ── Branding ──────────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3" id="branding">
-<div class="card-header fw-semibold"><i class="bi bi-palette2 text-primary me-1"></i> Wygląd i branding</div>
-<div class="card-body">
-  <form method="post" enctype="multipart/form-data">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-
-    <!-- Kolor sidebara -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Kolor bocznego paska</label>
-      <div class="d-flex align-items-center gap-3 flex-wrap">
-        <input type="color" name="sidebar_color" id="sb_color_input"
-               value="<?= h($saved['sidebar_color']) ?>"
-               style="width:48px;height:38px;padding:2px;border-radius:8px;border:1px solid #dee2e6;cursor:pointer">
-        <div class="d-flex flex-wrap gap-1">
-          <?php foreach ([
-            '#1e293b' => 'Granatowy (domyślny)',
-            '#0f172a' => 'Czarny',
-            '#1a3a5c' => 'Granatowy',
-            '#1e3a2f' => 'Ciemnozielony',
-            '#2d1b4e' => 'Fioletowy',
-            '#7c2d12' => 'Bordowy',
-            '#374151' => 'Szary',
-          ] as $hex => $label): ?>
-          <button type="button" class="btn btn-sm p-0 border sb-preset"
-                  data-color="<?= $hex ?>" title="<?= $label ?>"
-                  style="width:28px;height:28px;background:<?= $hex ?>;border-radius:6px !important">
-          </button>
-          <?php endforeach; ?>
-        </div>
-      </div>
-      <div class="form-text">Wybierz gotowy kolor lub użyj pickera. Zalecane ciemne odcienie.</div>
-    </div>
-
-    <!-- Kolor panelu wolontariusza -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Kolor panelu wolontariusza</label>
-      <div class="d-flex align-items-center gap-3 flex-wrap">
-        <input type="color" name="volunteer_color" id="vol_color_input"
-               value="<?= h($saved['volunteer_color']) ?>"
-               style="width:48px;height:38px;padding:2px;border-radius:8px;border:1px solid #dee2e6;cursor:pointer">
-        <div class="d-flex flex-wrap gap-1">
-          <?php foreach ([
-            '#2563eb' => 'Niebieski (domyślny)',
-            '#0f766e' => 'Turkusowy',
-            '#7C3AED' => 'Fioletowy',
-            '#dc2626' => 'Czerwony',
-            '#16a34a' => 'Zielony',
-            '#d97706' => 'Pomarańczowy',
-            '#374151' => 'Szary',
-          ] as $hex => $label): ?>
-          <button type="button" class="btn btn-sm p-0 border vol-preset"
-                  data-color="<?= $hex ?>" title="<?= $label ?>"
-                  style="width:28px;height:28px;background:<?= $hex ?>;border-radius:6px !important">
-          </button>
-          <?php endforeach; ?>
-        </div>
-      </div>
-      <div class="form-text">Kolor akcentu w panelu wolontariusza (topbar, aktywne linki).</div>
-    </div>
-
-    <!-- Logo -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Logo organizacji</label>
-      <?php if ($saved['org_logo'] && file_exists($_logo_dir . '/' . $saved['org_logo'])): ?>
-      <div class="d-flex align-items-center gap-3 mb-2">
-        <div style="background:<?= h($saved['sidebar_color']) ?>;padding:10px 14px;border-radius:10px;display:inline-block">
-          <img src="<?= APP_URL ?>/assets/logo/<?= h($saved['org_logo']) ?>" alt="Logo"
-               style="height:40px;width:auto;max-width:120px;object-fit:contain" id="logo-preview-current">
-        </div>
-        <div>
-          <div class="small text-muted mb-1"><?= h($saved['org_logo']) ?></div>
-          <button type="submit" name="remove_logo" value="1"
-                  class="btn btn-sm btn-outline-danger"
-                  onclick="return confirm('Usunąć logo?')">
-            <i class="bi bi-trash3"></i> Usuń logo
-          </button>
-        </div>
-      </div>
-      <?php endif; ?>
-      <input type="file" name="org_logo" class="form-control form-control-sm" id="logo_file_input"
-             accept=".png,.jpg,.jpeg,.gif,.svg,.webp">
-      <div class="form-text">PNG, SVG, JPG · maks. 2 MB · Zalecany format: przezroczysty PNG lub SVG</div>
-      <!-- Podgląd nowego logo przed uplodem -->
-      <div id="logo-new-preview" class="mt-2" style="display:none">
-        <div style="background:<?= h($saved['sidebar_color']) ?>;padding:10px 14px;border-radius:10px;display:inline-block" id="logo-preview-bg">
-          <img id="logo-preview-img" src="" alt="Podgląd"
-               style="height:40px;width:auto;max-width:120px;object-fit:contain">
-        </div>
-        <div class="small text-muted mt-1">Podgląd przed zapisem</div>
-      </div>
-    </div>
-
-    <!-- Podgląd sidebara -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Podgląd paska</label>
-      <?php
-        $pv_dark = _sb_luminance($saved['sidebar_color']) < 0.35;
-        $pv_text  = $pv_dark ? '#fff'     : '#111827';
-        $pv_muted = $pv_dark ? '#94a3b8'  : '#374151';
-        $pv_icon  = $pv_dark ? 'rgba(255,220,0,.9)' : '#2563eb';
-        $pv_border= $pv_dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
-      ?>
-      <div id="sb-preview" style="background:<?= h($saved['sidebar_color']) ?>;border-radius:10px;padding:12px 14px;width:210px;transition:background .3s">
-        <div data-sb-border style="color:<?= $pv_text ?>;font-weight:700;font-size:.9rem;display:flex;align-items:center;gap:8px;border-bottom:1px solid <?= $pv_border ?>;padding-bottom:8px;margin-bottom:8px" data-sb-text="text">
-          <?php if ($saved['org_logo'] && file_exists($_logo_dir . '/' . $saved['org_logo'])): ?>
-          <img src="<?= APP_URL ?>/assets/logo/<?= h($saved['org_logo']) ?>" style="height:22px;width:auto;border-radius:3px">
-          <?php else: ?>
-          <i class="bi bi-file-earmark-text-fill" style="color:<?= $pv_icon ?>;font-size:1.1rem" data-sb-text="icon"></i>
-          <?php endif; ?>
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem"><?= h(ORG_NAME) ?></span>
-        </div>
-        <div style="color:<?= $pv_muted ?>;font-size:.7rem;padding:.3rem .4rem;border-radius:5px" data-sb-text="muted">
-          <i class="bi bi-person-circle me-1"></i>Mój panel
-        </div>
-        <div style="color:<?= $pv_muted ?>;font-size:.7rem;padding:.3rem .4rem;border-radius:5px" data-sb-text="muted">
-          <i class="bi bi-microsoft me-1" style="color:#00a4ef"></i>Microsoft 365
-        </div>
-        <div style="background:#2563eb;color:#fff;font-size:.7rem;padding:.3rem .6rem;border-radius:5px;margin-top:2px">
-          <i class="bi bi-building me-1"></i>Aktywna strona
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Ekran logowania ──────────────────────────────────────────── -->
-    <hr class="my-4">
-    <div class="fw-semibold mb-3"><i class="bi bi-door-open text-primary me-1"></i> Ekran logowania (splash screen)</div>
-
-    <!-- Layout -->
-    <div class="mb-4">
-      <label class="form-label fw-semibold">Układ ekranu logowania</label>
-      <div class="d-flex gap-3 flex-wrap" id="login-layout-picker">
-        <?php
-        $ll = $saved['login_layout'] ?: 'split';
-        foreach ([
-          'split'  => ['label' => 'Podzielony', 'sub' => 'Panel z logo po lewej + formularz po prawej', 'icon' => 'bi-layout-split'],
-          'simple' => ['label' => 'Prosty',      'sub' => 'Wyśrodkowana karta, brak panelu bocznego',    'icon' => 'bi-card-text'],
-        ] as $val => $opt): ?>
-        <label class="login-layout-card <?= $ll === $val ? 'active' : '' ?>" style="cursor:pointer">
-          <input type="radio" name="login_layout" value="<?= $val ?>"
-                 <?= $ll === $val ? 'checked' : '' ?>
-                 class="visually-hidden"
-                 onchange="document.querySelectorAll('.login-layout-card').forEach(c=>c.classList.remove('active'));this.closest('.login-layout-card').classList.add('active')">
-          <div class="login-layout-preview <?= $val ?>-preview" aria-hidden="true">
-            <?php if ($val === 'split'): ?>
-              <div class="lp-left"></div><div class="lp-right"><div class="lp-card"></div></div>
-            <?php else: ?>
-              <div class="lp-center"><div class="lp-card"></div></div>
-            <?php endif; ?>
-          </div>
-          <div class="login-layout-label">
-            <i class="bi <?= $opt['icon'] ?> me-1"></i><?= $opt['label'] ?>
-          </div>
-          <div class="login-layout-sub"><?= $opt['sub'] ?></div>
-        </label>
-        <?php endforeach; ?>
-      </div>
-    </div>
-
-    <!-- Tagline -->
-    <div class="mb-3">
-      <label for="login_tagline" class="form-label fw-semibold">Tagline (podtytuł pod nazwą org)</label>
-      <input type="text" id="login_tagline" name="login_tagline"
-             class="form-control" maxlength="120"
-             placeholder="np. System Zarządzania Organizacją i Wolontariatem"
-             value="<?= h($saved['login_tagline'] ?? '') ?>">
-      <div class="form-text">Widoczny na panelu lewym (split) lub pod logo (simple). Zostaw puste = ukryty.</div>
-    </div>
-
-    <!-- Kolor tła prawej strony / proste tło -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Kolor tła ekranu logowania</label>
-      <div class="d-flex align-items-center gap-3 flex-wrap">
-        <input type="color" name="login_bg_color" id="login_bg_input"
-               value="<?= h($saved['login_bg_color'] ?: '#EEF2F7') ?>"
-               style="width:48px;height:38px;padding:2px;border-radius:8px;border:1px solid #dee2e6;cursor:pointer">
-        <div class="d-flex flex-wrap gap-1">
-          <?php foreach ([
-            '#EEF2F7' => 'Jasnoszary (domyślny)',
-            '#F8FAFC' => 'Prawie biały',
-            '#F0FDF4' => 'Miętowy',
-            '#EFF6FF' => 'Błękitny',
-            '#FDF4FF' => 'Lawendowy',
-            '#FFFBEB' => 'Kremowy',
-            '#ffffff' => 'Biały',
-          ] as $hex => $label): ?>
-          <button type="button" class="btn btn-sm p-0 border login-bg-preset"
-                  data-color="<?= $hex ?>" title="<?= $label ?>"
-                  style="width:28px;height:28px;background:<?= $hex ?>;border-radius:6px !important;border:1px solid #dee2e6 !important">
-          </button>
-          <?php endforeach; ?>
-        </div>
-      </div>
-      <div class="form-text">Tło prawej strony (split) lub całego ekranu (simple).</div>
-    </div>
-
-    <!-- Podgląd ekranu logowania -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Podgląd ekranu logowania</label>
-      <div id="login-screen-preview" style="
-        border:1px solid #dee2e6; border-radius:10px; overflow:hidden;
-        height:160px; display:flex; transition:background .3s;
-        background: var(--lp-bg, #EEF2F7);
-      ">
-        <!-- split: left panel -->
-        <div id="lp-panel" style="
-          width:120px; flex-shrink:0;
-          background: linear-gradient(155deg, <?= color_darken($saved['volunteer_color']??'#2563eb',40) ?> 0%, <?= $saved['volunteer_color']??'#2563eb' ?> 60%, <?= color_lighten($saved['volunteer_color']??'#2563eb',30) ?> 100%);
-          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:12px 8px;
-        ">
-          <?php if ($saved['org_logo'] && file_exists($_logo_dir . '/' . $saved['org_logo'])): ?>
-          <img src="<?= APP_URL ?>/assets/logo/<?= h($saved['org_logo']) ?>" style="max-height:28px;filter:brightness(0) invert(1);opacity:.9" alt="">
-          <?php else: ?>
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff"><i class="bi bi-building-heart"></i></div>
-          <?php endif; ?>
-          <div style="font-size:.55rem;color:rgba(255,255,255,.9);font-weight:700;text-align:center;line-height:1.2;word-break:break-word"><?= h(mb_substr($org_name ?? ORG_NAME,0,20)) ?></div>
-        </div>
-        <!-- right: form card -->
-        <div id="lp-right" style="flex:1;display:flex;align-items:center;justify-content:center;padding:16px">
-          <div style="background:#fff;border-radius:10px;padding:14px 16px;width:100%;max-width:180px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-            <div style="font-size:.6rem;font-weight:700;color:#0F172A;margin-bottom:8px">Zaloguj się</div>
-            <div style="height:8px;background:#f1f5f9;border-radius:4px;margin-bottom:6px"></div>
-            <div style="height:8px;background:#f1f5f9;border-radius:4px;margin-bottom:10px"></div>
-            <div style="height:16px;border-radius:5px;background:<?= h($saved['volunteer_color']??'#2563eb') ?>;"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <style>
-    .login-layout-card {
-      border: 2px solid #dee2e6; border-radius: 10px; padding: 12px 14px;
-      min-width: 170px; transition: border-color .15s, box-shadow .15s;
-      background: #fff;
-    }
-    .login-layout-card.active { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
-    .login-layout-preview {
-      width: 100%; height: 64px; border-radius: 6px; overflow: hidden;
-      border: 1px solid #e2e8f0; background: #f8fafc;
-      display: flex; margin-bottom: 8px;
-    }
-    .lp-left  { width: 35%; background: #334155; }
-    .lp-right { flex:1; display:flex; align-items:center; justify-content:center; padding: 6px; }
-    .lp-center{ flex:1; display:flex; align-items:center; justify-content:center; padding: 6px; }
-    .lp-card  { background:#fff; border-radius:5px; width:100%; height:42px; box-shadow:0 1px 6px rgba(0,0,0,.1); }
-    .login-layout-label { font-size:.82rem; font-weight:600; color:#1e293b; }
-    .login-layout-sub   { font-size:.72rem; color:#64748b; margin-top:2px; line-height:1.3; }
-    </style>
-
-    <button type="submit" name="save_branding" class="btn btn-primary">
-      <i class="bi bi-floppy me-1"></i>Zapisz branding
+<!-- ── Zakładki ──────────────────────────────────────────────────────────── -->
+<ul class="nav nav-tabs mb-3" id="orgTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-btn-rejestrowe" data-bs-toggle="tab" data-bs-target="#tab-rejestrowe"
+            type="button" role="tab">
+      <i class="bi bi-card-list me-1"></i>Dane Rejestrowe
     </button>
-  </form>
-</div>
-</div>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-btn-branding" data-bs-toggle="tab" data-bs-target="#tab-branding"
+            type="button" role="tab">
+      <i class="bi bi-palette2 me-1"></i>Branding
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-btn-mail" data-bs-toggle="tab" data-bs-target="#tab-mail"
+            type="button" role="tab">
+      <i class="bi bi-envelope-at me-1"></i>Poczta e-mail
+    </button>
+  </li>
+</ul>
 
-</div><!-- /col-5 -->
-<div class="col-lg-7">
+<div class="tab-content" id="orgTabsContent">
 
-<!-- Zaciągnij z KRS -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-cloud-download"></i> Zaciągnij dane z KRS</div>
-<div class="card-body">
-  <p class="text-muted small mb-3">
-    Podaj numer KRS organizacji, aby automatycznie pobrać dane (nazwa, NIP, REGON, adres siedziby, miejscowość).
-    Dane będą używane m.in. w nagłówku pism jako <em>„Miejscowość, dnia …"</em>.
-  </p>
-  <form method="post">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <div class="row g-2 align-items-end">
-      <div class="col-sm-7">
-        <label class="form-label fw-semibold">Numer KRS organizacji</label>
-        <input type="text" name="org_krs" class="form-control font-monospace"
-               value="<?= h($saved['org_krs']) ?>" placeholder="np. 0000123456" maxlength="10">
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: Dane Rejestrowe
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-rejestrowe" role="tabpanel">
+
+  <!-- Zaciągnij z KRS -->
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-cloud-download"></i> Zaciągnij dane z KRS</div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Podaj numer KRS organizacji, aby automatycznie pobrać dane (nazwa, NIP, REGON, adres siedziby, miejscowość).
+      Dane będą używane m.in. w nagłówku pism jako <em>„Miejscowość, dnia …"</em>.
+    </p>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-7">
+          <label class="form-label fw-semibold">Numer KRS organizacji</label>
+          <input type="text" name="org_krs" class="form-control font-monospace"
+                 value="<?= h($saved['org_krs']) ?>" placeholder="np. 0000123456" maxlength="10">
+        </div>
+        <div class="col-sm-5">
+          <button type="submit" name="fetch_krs" class="btn btn-primary w-100">
+            <i class="bi bi-cloud-download"></i> Pobierz z KRS
+          </button>
+        </div>
       </div>
-      <div class="col-sm-5">
-        <button type="submit" name="fetch_krs" class="btn btn-primary w-100">
-          <i class="bi bi-cloud-download"></i> Pobierz z KRS
-        </button>
-      </div>
+    </form>
+    <?php if ($saved['org_krs']): ?>
+    <div class="alert alert-success mt-3 mb-0 py-2 small">
+      <i class="bi bi-check-circle"></i>
+      Dane pobrane — KRS <strong><?= h($saved['org_krs']) ?></strong>
+      <?php if ($saved['org_miejscowosc']): ?>
+      · Miejscowość: <strong><?= h($saved['org_miejscowosc']) ?></strong>
+      <?php endif; ?>
     </div>
-  </form>
-
-  <?php if ($saved['org_krs']): ?>
-  <div class="alert alert-success mt-3 mb-0 py-2 small">
-    <i class="bi bi-check-circle"></i>
-    Dane pobrane — KRS <strong><?= h($saved['org_krs']) ?></strong>
-    <?php if ($saved['org_miejscowosc']): ?>
-    · Miejscowość: <strong><?= h($saved['org_miejscowosc']) ?></strong>
     <?php endif; ?>
   </div>
-  <?php endif; ?>
-</div>
-</div>
-
-<!-- Dane ręczne -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-pencil"></i> Dane szczegółowe (edycja ręczna)</div>
-<div class="card-body">
-  <form method="post">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <div class="row g-3">
-      <div class="col-md-8">
-        <label class="form-label fw-semibold">Pełna nazwa organizacji <span class="text-muted small">(wyświetlana w dokumentach i mailach)</span></label>
-        <input type="text" name="org_name" class="form-control"
-               value="<?= h($saved['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : '')) ?>"
-               placeholder="np. Fundacja Edukacji Empatii Rozwoju FEER">
-        <div class="form-text">Jeśli puste — używana wartość z config.php: <code><?= h(defined('ORG_NAME') ? ORG_NAME : '—') ?></code></div>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label fw-semibold">Krótka nazwa <span class="text-muted small">(w topbarze, aplikacji)</span></label>
-        <input type="text" name="org_short_name" class="form-control"
-               value="<?= h($saved['org_short_name'] ?? org_setting('org_short_name')) ?>"
-               placeholder="np. FEER" maxlength="30">
-        <div class="form-text">Wyświetlana w pasku nawigacji i nagłówku portalu.</div>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Numer KRS</label>
-        <input type="text" name="org_krs" class="form-control font-monospace"
-               value="<?= h($saved['org_krs']) ?>" placeholder="0000000000">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">Miejscowość siedziby <span class="text-muted small">(używana w nagłówku pism)</span></label>
-        <input type="text" name="org_miejscowosc" class="form-control"
-               value="<?= h($saved['org_miejscowosc']) ?>" placeholder="np. Warszawa">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">NIP</label>
-        <input type="text" name="org_nip" class="form-control font-monospace"
-               value="<?= h($saved['org_nip']) ?>" placeholder="0000000000">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">REGON</label>
-        <input type="text" name="org_regon" class="form-control font-monospace"
-               value="<?= h($saved['org_regon']) ?>" placeholder="">
-      </div>
-      <div class="col-12">
-        <label class="form-label">Adres siedziby</label>
-        <input type="text" name="org_adres" class="form-control"
-               value="<?= h($saved['org_adres']) ?>" placeholder="ul. Przykładowa 1, 00-001 Warszawa">
-      </div>
-    </div>
-    <div class="mt-3">
-      <button type="submit" name="save_manual" class="btn btn-outline-primary">
-        <i class="bi bi-floppy"></i> Zapisz ręcznie
-      </button>
-    </div>
-  </form>
-</div>
-</div>
-
-<!-- ── Osoby do reprezentacji ──────────────────────────────────────────── -->
-<?php $reps = db_all("SELECT * FROM org_representatives WHERE is_active=1 ORDER BY sort_order, name"); ?>
-<div class="card shadow-sm mb-3" id="representatives">
-<div class="card-header fw-semibold d-flex align-items-center justify-content-between">
-  <span><i class="bi bi-person-badge me-1"></i>Osoby do reprezentacji organizacji</span>
-  <span class="text-muted small">Używane jako podpisujący na umowach i dokumentach</span>
-</div>
-<div class="card-body">
-
-  <!-- Dodaj nową osobę -->
-  <form method="post" class="row g-2 align-items-end mb-3">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <div class="col-sm-5">
-      <label class="form-label small fw-semibold">Imię i nazwisko <span class="text-danger">*</span></label>
-      <input type="text" name="rep_name" class="form-control form-control-sm"
-             placeholder="np. Jan Kowalski" required maxlength="120">
-    </div>
-    <div class="col-sm-5">
-      <label class="form-label small fw-semibold">Stanowisko / funkcja</label>
-      <input type="text" name="rep_title" class="form-control form-control-sm"
-             placeholder="np. Prezes Zarządu" maxlength="120">
-    </div>
-    <div class="col-sm-2">
-      <button type="submit" name="save_representative" class="btn btn-primary btn-sm w-100">
-        <i class="bi bi-plus-lg me-1"></i>Dodaj
-      </button>
-    </div>
-  </form>
-
-  <!-- Lista -->
-  <?php if ($reps): ?>
-  <table class="table table-sm align-middle mb-0">
-    <thead class="table-light">
-      <tr>
-        <th>Imię i nazwisko</th>
-        <th>Stanowisko</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($reps as $r): ?>
-      <tr>
-        <td class="fw-semibold small"><?= h($r['name']) ?></td>
-        <td class="text-muted small"><?= h($r['title']) ?></td>
-        <td class="text-end">
-          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć?')">
-            <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-            <input type="hidden" name="rep_id"  value="<?= $r['id'] ?>">
-            <button type="submit" name="delete_representative"
-                    class="btn btn-outline-danger btn-sm py-0 px-2">
-              <i class="bi bi-trash3"></i>
-            </button>
-          </form>
-        </td>
-      </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
-  <?php else: ?>
-  <p class="text-muted small mb-0">Brak zdefiniowanych przedstawicieli. Dodaj pierwszego powyżej.</p>
-  <?php endif; ?>
-
-</div>
-</div>
-
-<!-- Podgląd użycia -->
-<?php if ($saved['org_miejscowosc']): ?>
-<div class="card shadow-sm border-info mb-3">
-<div class="card-header fw-semibold text-info-emphasis"><i class="bi bi-eye"></i> Podgląd nagłówka pisma</div>
-<div class="card-body" style="font-family:'Times New Roman',serif;font-size:12pt">
-  <div style="text-align:right">
-    <?= h($saved['org_miejscowosc']) ?>, dnia <?= date_pl(date('Y-m-d')) ?>
   </div>
-</div>
-</div>
-<?php endif; ?>
 
-</div><!-- /col-7 -->
-</div><!-- /row -->
+  <!-- Dane ręczne -->
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-pencil"></i> Dane szczegółowe (edycja ręczna)</div>
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Pełna nazwa organizacji</label>
+          <input type="text" name="org_name" class="form-control"
+                 value="<?= h($saved['org_name']) ?>" placeholder="np. Fundacja im. Jana Kowalskiego">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Numer KRS</label>
+          <input type="text" name="org_krs" class="form-control font-monospace"
+                 value="<?= h($saved['org_krs']) ?>" placeholder="0000000000">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Miejscowość siedziby <span class="text-muted small">(używana w nagłówku pism)</span></label>
+          <input type="text" name="org_miejscowosc" class="form-control"
+                 value="<?= h($saved['org_miejscowosc']) ?>" placeholder="np. Warszawa">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">NIP</label>
+          <input type="text" name="org_nip" class="form-control font-monospace"
+                 value="<?= h($saved['org_nip']) ?>" placeholder="0000000000">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">REGON</label>
+          <input type="text" name="org_regon" class="form-control font-monospace"
+                 value="<?= h($saved['org_regon']) ?>" placeholder="">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Adres siedziby</label>
+          <input type="text" name="org_adres" class="form-control"
+                 value="<?= h($saved['org_adres']) ?>" placeholder="ul. Przykładowa 1, 00-001 Warszawa">
+        </div>
+      </div>
+      <div class="mt-3">
+        <button type="submit" name="save_manual" class="btn btn-outline-primary">
+          <i class="bi bi-floppy"></i> Zapisz ręcznie
+        </button>
+      </div>
+    </form>
+  </div>
+  </div>
+
+  <!-- Podgląd nagłówka pisma -->
+  <?php if ($saved['org_miejscowosc']): ?>
+  <div class="card shadow-sm border-info mb-3">
+  <div class="card-header fw-semibold text-info-emphasis"><i class="bi bi-eye"></i> Podgląd nagłówka pisma</div>
+  <div class="card-body" style="font-family:'Times New Roman',serif;font-size:12pt">
+    <div style="text-align:right">
+      <?= h($saved['org_miejscowosc']) ?>, dnia <?= date_pl(date('Y-m-d')) ?>
+    </div>
+  </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Osoby do reprezentacji -->
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-people text-primary me-1"></i> Osoby do reprezentacji</div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      <i class="bi bi-info-circle me-1"></i>Używane jako podpisujący na umowach i dokumentach.
+    </p>
+
+    <!-- Formularz dodawania -->
+    <form method="post" class="mb-3">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-5">
+          <label class="form-label small fw-semibold">Imię i nazwisko</label>
+          <input type="text" name="rep_name" class="form-control form-control-sm"
+                 placeholder="np. Jan Kowalski" required>
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label small fw-semibold">Stanowisko / funkcja</label>
+          <input type="text" name="rep_title" class="form-control form-control-sm"
+                 placeholder="np. Prezes Zarządu">
+        </div>
+        <div class="col-sm-3">
+          <button type="submit" name="save_representative" class="btn btn-sm btn-primary w-100">
+            <i class="bi bi-plus-lg me-1"></i>Dodaj
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Lista reprezentantów -->
+    <?php if ($representatives): ?>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Imię i nazwisko</th>
+            <th>Stanowisko</th>
+            <th class="text-end"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($representatives as $rep): ?>
+          <tr>
+            <td class="fw-semibold"><?= h($rep['name']) ?></td>
+            <td class="text-muted"><?= h($rep['title']) ?></td>
+            <td class="text-end">
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Usunąć <?= h(addslashes($rep['name'])) ?>?')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="rep_id" value="<?= (int)$rep['id'] ?>">
+                <button type="submit" name="delete_representative"
+                        class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted small"><i class="bi bi-person-x me-1"></i>Brak dodanych osób.</div>
+    <?php endif; ?>
+  </div>
+  </div>
+
+</div><!-- /tab-rejestrowe -->
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: Branding
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-branding" role="tabpanel">
+
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-palette2 text-primary me-1"></i> Wygląd i branding</div>
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+
+      <div class="row g-4">
+
+        <!-- Prawa kolumna: kolory + podgląd paska -->
+        <div class="col-lg-7 order-lg-2">
+
+          <!-- Kolor sidebara -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Kolor bocznego paska</label>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <input type="color" name="sidebar_color" id="sb_color_input"
+                     value="<?= h($saved['sidebar_color']) ?>"
+                     style="width:48px;height:38px;padding:2px;border-radius:8px;border:1px solid #dee2e6;cursor:pointer">
+              <div class="d-flex flex-wrap gap-1">
+                <?php foreach ([
+                  '#1e293b' => 'Granatowy (domyślny)',
+                  '#0f172a' => 'Czarny',
+                  '#1a3a5c' => 'Granatowy',
+                  '#1e3a2f' => 'Ciemnozielony',
+                  '#2d1b4e' => 'Fioletowy',
+                  '#7c2d12' => 'Bordowy',
+                  '#374151' => 'Szary',
+                ] as $hex => $label): ?>
+                <button type="button" class="btn btn-sm p-0 border sb-preset"
+                        data-color="<?= $hex ?>" title="<?= $label ?>"
+                        style="width:28px;height:28px;background:<?= $hex ?>;border-radius:6px !important">
+                </button>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <div class="form-text">Wybierz gotowy kolor lub użyj pickera. Zalecane ciemne odcienie.</div>
+          </div>
+
+          <!-- Kolor panelu wolontariusza -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Kolor panelu wolontariusza</label>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <input type="color" name="volunteer_color" id="vol_color_input"
+                     value="<?= h($saved['volunteer_color']) ?>"
+                     style="width:48px;height:38px;padding:2px;border-radius:8px;border:1px solid #dee2e6;cursor:pointer">
+              <div class="d-flex flex-wrap gap-1">
+                <?php foreach ([
+                  '#2563eb' => 'Niebieski (domyślny)',
+                  '#0f766e' => 'Turkusowy',
+                  '#7C3AED' => 'Fioletowy',
+                  '#dc2626' => 'Czerwony',
+                  '#16a34a' => 'Zielony',
+                  '#d97706' => 'Pomarańczowy',
+                  '#374151' => 'Szary',
+                ] as $hex => $label): ?>
+                <button type="button" class="btn btn-sm p-0 border vol-preset"
+                        data-color="<?= $hex ?>" title="<?= $label ?>"
+                        style="width:28px;height:28px;background:<?= $hex ?>;border-radius:6px !important">
+                </button>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <div class="form-text">Kolor akcentu w panelu wolontariusza (topbar, aktywne linki).</div>
+          </div>
+
+          <!-- Podgląd sidebara -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Podgląd paska</label>
+            <?php
+              $pv_dark  = _sb_luminance($saved['sidebar_color']) < 0.35;
+              $pv_text  = $pv_dark ? '#fff'     : '#111827';
+              $pv_muted = $pv_dark ? '#94a3b8'  : '#374151';
+              $pv_icon  = $pv_dark ? 'rgba(255,220,0,.9)' : '#2563eb';
+              $pv_border= $pv_dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
+            ?>
+            <div id="sb-preview" style="background:<?= h($saved['sidebar_color']) ?>;border-radius:10px;padding:12px 14px;width:210px;transition:background .3s">
+              <div data-sb-border style="color:<?= $pv_text ?>;font-weight:700;font-size:.9rem;display:flex;align-items:center;gap:8px;border-bottom:1px solid <?= $pv_border ?>;padding-bottom:8px;margin-bottom:8px" data-sb-text="text">
+                <?php if ($saved['org_logo'] && file_exists($_logo_dir . '/' . $saved['org_logo'])): ?>
+                <img src="<?= APP_URL ?>/assets/logo/<?= h($saved['org_logo']) ?>" style="height:22px;width:auto;border-radius:3px">
+                <?php else: ?>
+                <i class="bi bi-file-earmark-text-fill" style="color:<?= $pv_icon ?>;font-size:1.1rem" data-sb-text="icon"></i>
+                <?php endif; ?>
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem"><?= h(ORG_NAME) ?></span>
+              </div>
+              <div style="color:<?= $pv_muted ?>;font-size:.7rem;padding:.3rem .4rem;border-radius:5px" data-sb-text="muted">
+                <i class="bi bi-person-circle me-1"></i>Mój panel
+              </div>
+              <div style="color:<?= $pv_muted ?>;font-size:.7rem;padding:.3rem .4rem;border-radius:5px" data-sb-text="muted">
+                <i class="bi bi-microsoft me-1" style="color:#00a4ef"></i>Microsoft 365
+              </div>
+              <div style="background:#2563eb;color:#fff;font-size:.7rem;padding:.3rem .6rem;border-radius:5px;margin-top:2px">
+                <i class="bi bi-building me-1"></i>Aktywna strona
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /prawa kolumna -->
+
+        <!-- Lewa kolumna: logo -->
+        <div class="col-lg-5 order-lg-1">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Logo organizacji</label>
+            <?php if ($saved['org_logo'] && file_exists($_logo_dir . '/' . $saved['org_logo'])): ?>
+            <div class="d-flex align-items-center gap-3 mb-2">
+              <div style="background:<?= h($saved['sidebar_color']) ?>;padding:10px 14px;border-radius:10px;display:inline-block">
+                <img src="<?= APP_URL ?>/assets/logo/<?= h($saved['org_logo']) ?>" alt="Logo"
+                     style="height:40px;width:auto;max-width:120px;object-fit:contain" id="logo-preview-current">
+              </div>
+              <div>
+                <div class="small text-muted mb-1"><?= h($saved['org_logo']) ?></div>
+                <button type="submit" name="remove_logo" value="1"
+                        class="btn btn-sm btn-outline-danger"
+                        onclick="return confirm('Usunąć logo?')">
+                  <i class="bi bi-trash3"></i> Usuń logo
+                </button>
+              </div>
+            </div>
+            <?php endif; ?>
+            <input type="file" name="org_logo" class="form-control form-control-sm" id="logo_file_input"
+                   accept=".png,.jpg,.jpeg,.gif,.svg,.webp">
+            <div class="form-text">PNG, SVG, JPG · maks. 2 MB · Zalecany format: przezroczysty PNG lub SVG</div>
+            <!-- Podgląd nowego logo przed uplodem -->
+            <div id="logo-new-preview" class="mt-2" style="display:none">
+              <div style="background:<?= h($saved['sidebar_color']) ?>;padding:10px 14px;border-radius:10px;display:inline-block" id="logo-preview-bg">
+                <img id="logo-preview-img" src="" alt="Podgląd"
+                     style="height:40px;width:auto;max-width:120px;object-fit:contain">
+              </div>
+              <div class="small text-muted mt-1">Podgląd przed zapisem</div>
+            </div>
+          </div>
+        </div><!-- /lewa kolumna -->
+
+      </div><!-- /row -->
+
+      <button type="submit" name="save_branding" class="btn btn-primary mt-2">
+        <i class="bi bi-floppy me-1"></i>Zapisz branding
+      </button>
+    </form>
+  </div>
+  </div>
+
+</div><!-- /tab-branding -->
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: Poczta e-mail
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-mail" role="tabpanel">
+
+  <div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold"><i class="bi bi-envelope-at text-primary me-1"></i> Wysyłka poczty e-mail</div>
+  <div class="card-body">
+
+    <p class="text-muted small mb-3">
+      Priorytet wysyłki: <strong>M365 Graph API</strong> → <strong>SMTP</strong> → PHP <code>mail()</code>.
+      Jeśli M365 jest skonfigurowane globalnie (w ustawieniach Microsoft 365) i podasz adres nadawcy poniżej — system użyje Graph API.
+    </p>
+
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+
+      <!-- Nadawca domyślny -->
+      <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Domyślny nadawca</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Nazwa nadawcy</label>
+          <input type="text" name="notify_from_name" class="form-control form-control-sm"
+                 value="<?= h($saved['notify_from_name'] ?? '') ?>" placeholder="np. Fundacja XYZ">
+        </div>
+        <div class="col-md-7">
+          <label class="form-label small fw-semibold">Adres e-mail nadawcy</label>
+          <input type="email" name="notify_from_email" class="form-control form-control-sm"
+                 value="<?= h($saved['notify_from_email'] ?? '') ?>" placeholder="no-reply@fundacja.pl">
+          <div class="form-text">Używany gdy nie ma M365 ani SMTP lub jako Reply-To.</div>
+        </div>
+      </div>
+
+      <!-- M365 -->
+      <h6 class="fw-semibold mb-2 text-muted d-flex align-items-center gap-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
+        <i class="bi bi-microsoft text-primary"></i> Microsoft 365 Graph API
+      </h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-8">
+          <label class="form-label small fw-semibold">Adres skrzynki nadawczej (send_from_email)</label>
+          <input type="email" name="m365_send_from_email" class="form-control form-control-sm"
+                 value="<?= h($saved['m365_send_from_email'] ?? '') ?>"
+                 placeholder="np. noreply@fundacja.onmicrosoft.com">
+          <div class="form-text">
+            Skrzynka musi mieć uprawnienie <code>Mail.Send</code> w aplikacji Azure AD.
+            Tenant ID / Client ID / Secret konfiguruj w
+            <a href="<?= APP_URL ?>/admin/m365_settings.php">Ustawieniach Microsoft 365</a>.
+          </div>
+        </div>
+        <?php
+          $m365_ok = !empty($saved['m365_send_from_email'])
+              && !empty(db_one("SELECT value FROM settings WHERE key_='m365_graph_client_id'")['value'] ?? '');
+        ?>
+        <div class="col-md-4 d-flex align-items-end">
+          <?php if ($m365_ok): ?>
+          <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 px-3 py-2">
+            <i class="bi bi-check-circle me-1"></i>Gotowe
+          </span>
+          <?php else: ?>
+          <span class="badge bg-warning bg-opacity-15 text-warning border border-warning border-opacity-25 px-3 py-2">
+            <i class="bi bi-exclamation-circle me-1"></i>Nie skonfigurowane
+          </span>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <!-- SMTP -->
+      <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
+        <i class="bi bi-hdd-network me-1"></i>SMTP (fallback)
+      </h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Serwer SMTP</label>
+          <input type="text" name="smtp_host" class="form-control form-control-sm"
+                 value="<?= h($saved['smtp_host'] ?? '') ?>" placeholder="smtp.gmail.com">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Port</label>
+          <input type="number" name="smtp_port" class="form-control form-control-sm"
+                 value="<?= h($saved['smtp_port'] ?? '587') ?>" placeholder="587">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Szyfrowanie</label>
+          <select name="smtp_encryption" class="form-select form-select-sm">
+            <?php foreach (['tls'=>'STARTTLS (TLS)','ssl'=>'SSL','none'=>'Brak'] as $v=>$l): ?>
+            <option value="<?= $v ?>" <?= ($saved['smtp_encryption']??'tls')===$v?'selected':'' ?>><?= $l ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Login SMTP</label>
+          <input type="text" name="smtp_user" class="form-control form-control-sm" autocomplete="off"
+                 value="<?= h($saved['smtp_user'] ?? '') ?>" placeholder="user@gmail.com">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Hasło SMTP</label>
+          <input type="password" name="smtp_pass" class="form-control form-control-sm" autocomplete="new-password"
+                 value="<?= h($saved['smtp_pass'] ?? '') ?>" placeholder="••••••••">
+        </div>
+        <div class="col-md-7">
+          <label class="form-label small fw-semibold">Adres e-mail nadawcy SMTP</label>
+          <input type="email" name="smtp_from_email" class="form-control form-control-sm"
+                 value="<?= h($saved['smtp_from_email'] ?? '') ?>" placeholder="no-reply@fundacja.pl">
+          <div class="form-text">Pozostaw puste, aby użyć domyślnego nadawcy powyżej.</div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="submit" name="save_mail" class="btn btn-primary btn-sm">
+          <i class="bi bi-check-lg me-1"></i>Zapisz ustawienia poczty
+        </button>
+      </div>
+    </form>
+
+    <!-- Test -->
+    <hr class="my-3">
+    <form method="post" class="d-flex align-items-end gap-2 flex-wrap">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div>
+        <label class="form-label small fw-semibold mb-1">Testowy e-mail — wyślij na adres:</label>
+        <input type="email" name="test_to" class="form-control form-control-sm" style="min-width:220px"
+               value="<?= h(current_user()['email'] ?? '') ?>" required>
+      </div>
+      <button type="submit" name="test_mail" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-send me-1"></i>Wyślij test
+      </button>
+    </form>
+
+  </div>
+  </div>
+
+</div><!-- /tab-mail -->
+
+</div><!-- /tab-content -->
 
 <script>
 // ── Oblicz luminancję hex ────────────────────────────────────────────────────
@@ -673,14 +691,12 @@ function applyColor(hex) {
     colorInput.value = hex;
     const dark = hexLuminance(hex) < 0.35;
 
-    // Tokeny
     const tokens = dark ? {
         text: '#fff', muted: '#94a3b8', label: '#475569', icon: 'rgba(255,220,0,.9)'
     } : {
         text: '#111827', muted: '#374151', label: '#6b7280', icon: '#2563eb'
     };
 
-    // Aktualizuj podgląd paska
     if (sbPreview) {
         sbPreview.style.background = hex;
         sbPreview.querySelectorAll('[data-sb-text]').forEach(el => {
@@ -690,7 +706,6 @@ function applyColor(hex) {
         if (border) border.style.borderBottomColor = dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
     }
 
-    // Tło podglądu logo
     if (previewBg) previewBg.style.background = hex;
     if (previewBgCurrent) previewBgCurrent.style.background = hex;
 }
@@ -706,42 +721,6 @@ document.querySelectorAll('.vol-preset').forEach(btn =>
     btn.addEventListener('click', () => { if(volColorInput) volColorInput.value = btn.dataset.color; })
 );
 
-// ── Login bg color presets ───────────────────────────────────────────────────
-const loginBgInput = document.getElementById('login_bg_input');
-document.querySelectorAll('.login-bg-preset').forEach(btn =>
-    btn.addEventListener('click', () => {
-        if (loginBgInput) loginBgInput.value = btn.dataset.color;
-        document.getElementById('login-screen-preview')?.style.setProperty('--lp-bg', btn.dataset.color);
-    })
-);
-if (loginBgInput) {
-    loginBgInput.addEventListener('input', () => {
-        document.getElementById('login-screen-preview')?.style.setProperty('--lp-bg', loginBgInput.value);
-    });
-    document.getElementById('login-screen-preview')?.style.setProperty('--lp-bg', loginBgInput.value);
-}
-
-// ── Login layout toggle preview ──────────────────────────────────────────────
-document.querySelectorAll('input[name="login_layout"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-        const panel = document.getElementById('lp-panel');
-        if (!panel) return;
-        if (radio.value === 'simple') {
-            panel.style.display = 'none';
-        } else {
-            panel.style.display = '';
-        }
-    });
-});
-// Initial state
-(function() {
-    const checked = document.querySelector('input[name="login_layout"]:checked');
-    if (checked?.value === 'simple') {
-        const p = document.getElementById('lp-panel');
-        if (p) p.style.display = 'none';
-    }
-})();
-
 // ── Podgląd nowego logo ──────────────────────────────────────────────────────
 document.getElementById('logo_file_input')?.addEventListener('change', function() {
     const file = this.files[0];
@@ -753,183 +732,19 @@ document.getElementById('logo_file_input')?.addEventListener('change', function(
     };
     reader.readAsDataURL(file);
 });
+
+// ── Aktywacja zakładki przez URL / localStorage ──────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    var tab = new URLSearchParams(location.search).get('tab') || localStorage.getItem('org_settings_tab') || 'rejestrowe';
+    var btn = document.querySelector('[data-bs-target="#tab-' + tab + '"]');
+    if (btn) new bootstrap.Tab(btn).show();
+    document.querySelectorAll('#orgTabs [data-bs-toggle="tab"]').forEach(function(b) {
+        b.addEventListener('shown.bs.tab', function(e) {
+            var id = e.target.dataset.bsTarget.replace('#tab-', '');
+            localStorage.setItem('org_settings_tab', id);
+        });
+    });
+});
 </script>
-
-<!-- ── Ustawienia poczty ──────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-4" id="mail">
-<div class="card-header fw-semibold"><i class="bi bi-envelope-at text-primary me-1"></i> Wysyłka poczty e-mail</div>
-<div class="card-body">
-
-  <p class="text-muted small mb-3">
-    Priorytet wysyłki: <strong>M365 Graph API</strong> → <strong>SMTP</strong> → PHP <code>mail()</code>.
-    Jeśli M365 jest skonfigurowane globalnie (w ustawieniach Microsoft 365) i podasz adres nadawcy poniżej — system użyje Graph API.
-  </p>
-
-  <form method="post">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-
-    <!-- Nadawca domyślny -->
-    <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Domyślny nadawca</h6>
-    <div class="row g-3 mb-4">
-      <div class="col-md-5">
-        <label class="form-label small fw-semibold">Nazwa nadawcy</label>
-        <input type="text" name="notify_from_name" class="form-control form-control-sm"
-               value="<?= h($saved['notify_from_name'] ?? '') ?>" placeholder="np. Fundacja XYZ">
-      </div>
-      <div class="col-md-7">
-        <label class="form-label small fw-semibold">Adres e-mail nadawcy</label>
-        <input type="email" name="notify_from_email" class="form-control form-control-sm"
-               value="<?= h($saved['notify_from_email'] ?? '') ?>" placeholder="no-reply@fundacja.pl">
-        <div class="form-text">Używany gdy nie ma M365 ani SMTP lub jako Reply-To.</div>
-      </div>
-    </div>
-
-    <!-- M365 -->
-    <h6 class="fw-semibold mb-2 text-muted d-flex align-items-center gap-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
-      <i class="bi bi-microsoft text-primary"></i> Microsoft 365 Graph API
-    </h6>
-    <div class="row g-3 mb-4">
-      <div class="col-md-8">
-        <label class="form-label small fw-semibold">Adres skrzynki nadawczej (send_from_email)</label>
-        <input type="email" name="m365_send_from_email" class="form-control form-control-sm"
-               value="<?= h($saved['m365_send_from_email'] ?? '') ?>"
-               placeholder="np. noreply@fundacja.onmicrosoft.com">
-        <div class="form-text">
-          Skrzynka musi mieć uprawnienie <code>Mail.Send</code> w aplikacji Azure AD.
-          Tenant ID / Client ID / Secret konfiguruj w
-          <a href="<?= APP_URL ?>/admin/m365_settings.php">Ustawieniach Microsoft 365</a>.
-        </div>
-      </div>
-      <?php
-        $m365_ok = !empty($saved['m365_send_from_email'])
-            && !empty(db_one("SELECT value FROM settings WHERE key_='m365_graph_client_id'")['value'] ?? '');
-      ?>
-      <div class="col-md-4 d-flex align-items-end">
-        <?php if ($m365_ok): ?>
-        <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 px-3 py-2">
-          <i class="bi bi-check-circle me-1"></i>Gotowe
-        </span>
-        <?php else: ?>
-        <span class="badge bg-warning bg-opacity-15 text-warning border border-warning border-opacity-25 px-3 py-2">
-          <i class="bi bi-exclamation-circle me-1"></i>Nie skonfigurowane
-        </span>
-        <?php endif; ?>
-      </div>
-    </div>
-
-    <!-- SMTP -->
-    <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
-      <i class="bi bi-hdd-network me-1"></i>SMTP (fallback)
-    </h6>
-    <div class="row g-3 mb-4">
-      <div class="col-md-5">
-        <label class="form-label small fw-semibold">Serwer SMTP</label>
-        <input type="text" name="smtp_host" class="form-control form-control-sm"
-               value="<?= h($saved['smtp_host'] ?? '') ?>" placeholder="smtp.gmail.com">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label small fw-semibold">Port</label>
-        <input type="number" name="smtp_port" class="form-control form-control-sm"
-               value="<?= h($saved['smtp_port'] ?? '587') ?>" placeholder="587">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label small fw-semibold">Szyfrowanie</label>
-        <select name="smtp_encryption" class="form-select form-select-sm">
-          <?php foreach (['tls'=>'STARTTLS (TLS)','ssl'=>'SSL','none'=>'Brak'] as $v=>$l): ?>
-          <option value="<?= $v ?>" <?= ($saved['smtp_encryption']??'tls')===$v?'selected':'' ?>><?= $l ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-md-5">
-        <label class="form-label small fw-semibold">Login SMTP</label>
-        <input type="text" name="smtp_user" class="form-control form-control-sm" autocomplete="off"
-               value="<?= h($saved['smtp_user'] ?? '') ?>" placeholder="user@gmail.com">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label small fw-semibold">Hasło SMTP</label>
-        <input type="password" name="smtp_pass" class="form-control form-control-sm" autocomplete="new-password"
-               value="<?= h($saved['smtp_pass'] ?? '') ?>" placeholder="••••••••">
-      </div>
-      <div class="col-md-7">
-        <label class="form-label small fw-semibold">Adres e-mail nadawcy SMTP</label>
-        <input type="email" name="smtp_from_email" class="form-control form-control-sm"
-               value="<?= h($saved['smtp_from_email'] ?? '') ?>" placeholder="no-reply@fundacja.pl">
-        <div class="form-text">Pozostaw puste, aby użyć domyślnego nadawcy powyżej.</div>
-      </div>
-    </div>
-
-    <div class="d-flex gap-2 flex-wrap">
-      <button type="submit" name="save_mail" class="btn btn-primary btn-sm">
-        <i class="bi bi-check-lg me-1"></i>Zapisz ustawienia poczty
-      </button>
-    </div>
-  </form>
-
-  <!-- Test -->
-  <hr class="my-3">
-  <form method="post" class="d-flex align-items-end gap-2 flex-wrap">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <div>
-      <label class="form-label small fw-semibold mb-1">Testowy e-mail — wyślij na adres:</label>
-      <input type="email" name="test_to" class="form-control form-control-sm" style="min-width:220px"
-             value="<?= h(current_user()['email'] ?? '') ?>" required>
-    </div>
-    <button type="submit" name="test_mail" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-send me-1"></i>Wyślij test
-    </button>
-  </form>
-
-</div>
-</div>
-
-<!-- ── Banner systemowy ────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-4" id="banner">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-megaphone text-primary"></i> Banner systemowy
-    <?php $cur_banner = org_setting('system_banner_text'); ?>
-    <?php if ($cur_banner): ?>
-    <span class="badge bg-success ms-1" style="font-size:.7rem">Aktywny</span>
-    <?php else: ?>
-    <span class="badge bg-secondary ms-1" style="font-size:.7rem">Wyłączony</span>
-    <?php endif; ?>
-  </div>
-  <div class="card-body">
-    <p class="text-muted small mb-3">
-      Komunikat wyświetlany wszystkim zalogowanym użytkownikom na górze strony.
-      Każdy użytkownik może go zamknąć — po zmianie treści pojawi się ponownie.
-      <strong>Zostaw puste aby wyłączyć.</strong>
-    </p>
-    <form method="post">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <div class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label fw-semibold small">Typ bannera</label>
-          <select name="system_banner_type" class="form-select form-select-sm">
-            <?php foreach (['info'=>'ℹ Informacja','warning'=>'⚠ Ostrzeżenie','danger'=>'🔴 Alert','success'=>'✓ Sukces'] as $v => $l): ?>
-            <option value="<?= $v ?>" <?= (org_setting('system_banner_type') ?: 'warning') === $v ? 'selected' : '' ?>><?= $l ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-9">
-          <label class="form-label fw-semibold small">Treść komunikatu (puste = brak bannera)</label>
-          <textarea name="system_banner_text" class="form-control form-control-sm" rows="2"
-                    placeholder="np. System działa w trybie produkcyjnym. W razie problemów kontaktuj się z administratorem."><?= h(org_setting('system_banner_text')) ?></textarea>
-        </div>
-        <div class="col-12 d-flex gap-2">
-          <button type="submit" name="save_banner" class="btn btn-sm btn-primary">
-            <i class="bi bi-save me-1"></i>Zapisz
-          </button>
-          <?php if ($cur_banner): ?>
-          <button type="submit" name="save_banner" value="1"
-                  onclick="document.querySelector('[name=system_banner_text]').value=''"
-                  class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-x me-1"></i>Wyłącz banner
-          </button>
-          <?php endif; ?>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

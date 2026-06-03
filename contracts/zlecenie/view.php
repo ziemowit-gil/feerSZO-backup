@@ -836,23 +836,14 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <?php endif; ?>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-  var STORAGE_KEY = 'zlecenie_tab_<?= $id ?>';
-  var tabs = document.getElementById('zlecenieTabs');
-  if (!tabs) return;
-  function showTab(btn) { if (btn) new bootstrap.Tab(btn).show(); }
-  var hash = location.hash;
-  if (hash && hash.startsWith('#tab-')) {
-    var hashBtn = document.querySelector('[data-bs-target="' + hash + '"]');
-    if (hashBtn) { showTab(hashBtn); return; }
-  }
-  var saved = localStorage.getItem(STORAGE_KEY) || 'tab-umowa';
-  var target = document.querySelector('[data-bs-target="#' + saved + '"]');
-  showTab(target || tabs.querySelector('[data-bs-toggle="tab"]'));
-  tabs.addEventListener('shown.bs.tab', function (e) {
-    localStorage.setItem(STORAGE_KEY, e.target.dataset.bsTarget.replace('#', ''));
-  });
-});
+window.CVTabsConfig = {
+  tabsId:     'zlecenieTabs',
+  storageKey: 'zlecenie_tab_<?= $id ?>',
+  defaultTab: 'tab-umowa',
+  appUrl:     <?= json_encode(rtrim(APP_URL, '/')) ?>,
+  csrf:       <?= json_encode(csrf_token()) ?>
+};
 </script>
+<script src="<?= APP_URL ?>/assets/js/contract-view-tabs.js" defer></script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
