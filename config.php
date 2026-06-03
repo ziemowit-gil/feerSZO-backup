@@ -1,4 +1,9 @@
 <?php
+// Composer autoloader (SDK-i zewnętrzne, m.in. KSeF PHP Client)
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
 // ---- SaaS multi-tenant detection ----
 $_saas_slug = $_SERVER['REDIRECT_TENANT_SLUG'] ?? $_SERVER['TENANT_SLUG'] ?? '';
 

@@ -779,99 +779,66 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
          . '<i class="bi ' . $icon . '"></i> ' . $label . $b . '</a></li>';
 }
 ?>
-<!-- ── ZAKŁADKI — zwykłe linki, PHP decyduje co aktywne ─────────────────── -->
-<ul class="nav nav-tabs mb-0 no-print" id="wolontariatTabs">
+<!-- ── ZAKŁADKI — Bootstrap JS tabs (client-side, bez przeładowania) ───────── -->
+<?php
+$_tabs_def = [];
+$_tabs_def['umowa']        = ['Umowa',        'bi-file-text',         ''];
+$_tabs_def['wolontariusz'] = ['Wolontariusz', 'bi-person',            ''];
+$_tabs_def['docs']         = ['Dokumenty',    'bi-folder2-open',
+    $_badge_docs ? '<span class="badge bg-warning text-dark ms-1">'.$_badge_docs.'</span>' : ''];
+$_tabs_def['obieg']        = ['Obieg',        'bi-arrow-repeat',
+    $_badge_obieg ? '<span class="badge bg-danger ms-1">'.$_badge_obieg.'</span>' : ''];
+$_tabs_def['profil']       = ['Profil',       'bi-person-lines-fill',
+    (!empty($row['wojewodztwo'])||!empty($row['wolontariat_typ'])) ? '<span class="badge bg-secondary ms-1" style="font-size:.6rem">●</span>' : ''];
+$_tabs_def['m365']         = ['M365',         'bi-microsoft',
+    $row['m365_konto'] ? '<span class="badge '.($row['m365_konto_aktywne']?'bg-success':'bg-secondary').' ms-1">'.($row['m365_konto_aktywne']?'●':'○').'</span>' : ''];
+$_tabs_def['historia']     = ['Historia',     'bi-journal-text',
+    $audit_log ? '<span class="badge bg-secondary ms-1">'.count($audit_log).'</span>' : ''];
+if ($_tasks_enabled && can_edit()) {
+    $_tabs_def['tasks']    = ['Zadania',      'bi-kanban',
+        $_contract_tasks ? '<span class="badge bg-primary ms-1">'.count($_contract_tasks).'</span>' : ''];
+}
+$_tabs_def['zwroty']       = ['Zwroty',       'bi-receipt-cutoff',
+    $_zwroty_cnt_pending ? '<span class="badge bg-warning text-dark ms-1">'.$_zwroty_cnt_pending.'</span>'
+    : (count($_zwroty) ? '<span class="badge bg-secondary ms-1">'.count($_zwroty).'</span>' : '')];
+if (apaczka_setting('apaczka_enabled') !== '0' && can_edit()) {
+    $_ship_rows        = shipments_for_contract($id, 'wolontariat');
+    $_ship_pending_tab = count(array_filter($_ship_rows, fn($r) => $r['status'] === 'requested'));
+    $_tabs_def['shipments'] = ['Przesyłki', 'bi-box-seam',
+        $_ship_pending_tab ? '<span class="badge bg-warning text-dark ms-1">'.$_ship_pending_tab.'</span>'
+        : (count($_ship_rows) ? '<span class="badge bg-secondary ms-1">'.count($_ship_rows).'</span>' : '')];
+}
+if (module_enabled('timesheets_enabled')) {
+    $_ts_rows        = ts_contract_summary($id);
+    $_ts_pending_tab = count(array_filter($_ts_rows, fn($r) => $r['status'] === 'złożone'));
+    $_tabs_def['godziny'] = ['Godziny', 'bi-clock-history',
+        $_ts_pending_tab ? '<span class="badge bg-warning text-dark ms-1">'.$_ts_pending_tab.'</span>'
+        : (count($_ts_rows) ? '<span class="badge bg-secondary ms-1">'.count($_ts_rows).'</span>' : '')];
+}
+$_msg_unread = msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user');
+$_tabs_def['messages']     = ['Wiadomości',   'bi-chat-dots',
+    $_msg_unread ? '<span class="badge bg-danger ms-1">'.$_msg_unread.'</span>' : ''];
 
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='umowa' ? 'active':'' ?>" href="<?= $_turl ?>umowa">
-      <i class="bi bi-file-text"></i> Umowa
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='wolontariusz' ? 'active':'' ?>" href="<?= $_turl ?>wolontariusz">
-      <i class="bi bi-person"></i> Wolontariusz
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='docs' ? 'active':'' ?>" href="<?= $_turl ?>docs">
-      <i class="bi bi-folder2-open"></i> Dokumenty
-      <?php if ($_badge_docs): ?><span class="badge bg-warning text-dark ms-1"><?= $_badge_docs ?></span><?php endif; ?>
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='obieg' ? 'active':'' ?>" href="<?= $_turl ?>obieg">
-      <i class="bi bi-arrow-repeat"></i> Obieg
-      <?php if ($_badge_obieg): ?><span class="badge bg-danger ms-1"><?= $_badge_obieg ?></span><?php endif; ?>
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='profil' ? 'active':'' ?>" href="<?= $_turl ?>profil">
-      <i class="bi bi-person-lines-fill"></i> Profil
-      <?php if (!empty($row['wojewodztwo']) || !empty($row['wolontariat_typ'])): ?>
-      <span class="badge bg-secondary ms-1" style="font-size:.6rem">●</span>
-      <?php endif; ?>
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='m365' ? 'active':'' ?>" href="<?= $_turl ?>m365">
-      <i class="bi bi-microsoft"></i> M365
-      <?php if ($row['m365_konto']): ?>
-      <span class="badge <?= $row['m365_konto_aktywne'] ? 'bg-success':'bg-secondary' ?> ms-1"><?= $row['m365_konto_aktywne'] ? '●':'○' ?></span>
-      <?php endif; ?>
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='historia' ? 'active':'' ?>" href="<?= $_turl ?>historia">
-      <i class="bi bi-journal-text"></i> Historia
-      <?php if ($audit_log): ?><span class="badge bg-secondary ms-1"><?= count($audit_log) ?></span><?php endif; ?>
-    </a>
-  </li>
-  <?php if ($_tasks_enabled && can_edit()): ?>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='tasks' ? 'active':'' ?>" href="<?= $_turl ?>tasks">
-      <i class="bi bi-kanban"></i> Zadania
-      <?php if ($_contract_tasks): ?><span class="badge bg-primary ms-1"><?= count($_contract_tasks) ?></span><?php endif; ?>
-    </a>
-  </li>
-  <?php endif; ?>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='zwroty' ? 'active':'' ?>" href="<?= $_turl ?>zwroty">
-      <i class="bi bi-receipt-cutoff"></i> Zwroty
-      <?php if ($_zwroty_cnt_pending): ?><span class="badge bg-warning text-dark ms-1"><?= $_zwroty_cnt_pending ?></span>
-      <?php elseif (count($_zwroty)): ?><span class="badge bg-secondary ms-1"><?= count($_zwroty) ?></span><?php endif; ?>
-    </a>
-  </li>
-  <?php if (apaczka_setting('apaczka_enabled') !== '0' && can_edit()):
-    $_ship_rows = shipments_for_contract($id, 'wolontariat');
-    $_ship_pending_tab = count(array_filter($_ship_rows, fn($r) => $r['status'] === 'requested')); ?>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='shipments' ? 'active':'' ?>" href="<?= $_turl ?>shipments">
-      <i class="bi bi-box-seam"></i> Przesyłki
-      <?php if ($_ship_pending_tab): ?><span class="badge bg-warning text-dark ms-1"><?= $_ship_pending_tab ?></span>
-      <?php elseif (count($_ship_rows)): ?><span class="badge bg-secondary ms-1"><?= count($_ship_rows) ?></span><?php endif; ?>
-    </a>
-  </li>
-  <?php endif; ?>
-  <?php if (module_enabled('timesheets_enabled')):
-    $_ts_rows = ts_contract_summary($id);
-    $_ts_pending_tab = count(array_filter($_ts_rows, fn($r) => $r['status'] === 'złożone')); ?>
-  <li class="nav-item">
-    <a class="nav-link <?= $_tab==='godziny' ? 'active':'' ?>" href="<?= $_turl ?>godziny">
-      <i class="bi bi-clock-history"></i> Godziny
-      <?php if ($_ts_pending_tab): ?><span class="badge bg-warning text-dark ms-1"><?= $_ts_pending_tab ?></span>
-      <?php elseif (count($_ts_rows)): ?><span class="badge bg-secondary ms-1"><?= count($_ts_rows) ?></span><?php endif; ?>
-    </a>
-  </li>
-  <?php endif; ?>
-  <li class="nav-item">
-    <?php $_msg_unread = msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user'); ?>
-    <a class="nav-link <?= $_tab==='messages' ? 'active':'' ?>" href="<?= $_turl ?>messages">
-      <i class="bi bi-chat-dots"></i> Wiadomości
-      <?php if ($_msg_unread): ?><span class="badge bg-danger ms-1"><?= $_msg_unread ?></span><?php endif; ?>
-    </a>
-  </li>
+$_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key_first($_tabs_def);
+?>
 
-  <li class="nav-item ms-auto">
+<ul class="nav nav-tabs mb-0 no-print" id="wolontariatTabs" role="tablist">
+  <?php foreach ($_tabs_def as $tkey => [$tlabel, $ticon, $tbadge]): ?>
+  <li class="nav-item" role="presentation">
+    <a class="nav-link <?= ($tkey === $_active_tab && $_tab !== 'all') ? 'active' : '' ?>"
+       id="tab-btn-<?= $tkey ?>"
+       data-bs-toggle="tab"
+       data-bs-target="#tab-<?= $tkey ?>"
+       href="#tab-<?= $tkey ?>"
+       role="tab"
+       aria-controls="tab-<?= $tkey ?>"
+       aria-selected="<?= ($tkey === $_active_tab && $_tab !== 'all') ? 'true' : 'false' ?>"
+       data-tab-key="<?= $tkey ?>">
+      <i class="bi <?= $ticon ?>"></i> <?= $tlabel ?><?= $tbadge ?>
+    </a>
+  </li>
+  <?php endforeach; ?>
+  <li class="nav-item ms-auto" role="presentation">
     <?php if ($_tab === 'all'): ?>
     <a class="nav-link text-secondary" href="<?= $_turl ?>umowa" title="Wróć do widoku zakładek">
       <i class="bi bi-layout-tabs"></i> Zakładki
@@ -882,8 +849,30 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
     </a>
     <?php endif; ?>
   </li>
-
 </ul>
+
+<script>
+(function () {
+  var baseUrl = '<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= $id ?>&tab=';
+  // Sync URL z zakładką bez przeładowania
+  document.querySelectorAll('#wolontariatTabs [data-bs-toggle="tab"]').forEach(function (el) {
+    el.addEventListener('shown.bs.tab', function (e) {
+      var key = e.target.getAttribute('data-tab-key');
+      if (key && window.history && history.pushState) {
+        history.pushState({ tab: key }, '', baseUrl + key);
+      }
+    });
+  });
+  // Przywróć zakładkę po Wstecz
+  window.addEventListener('popstate', function (e) {
+    var key = (e.state && e.state.tab) || (location.search.match(/[?&]tab=([a-z_-]+)/) || [])[1];
+    if (key) {
+      var btn = document.getElementById('tab-btn-' + key);
+      if (btn) { try { bootstrap.Tab.getOrCreateInstance(btn).show(); } catch(e){} }
+    }
+  });
+})();
+</script>
 
 <?php if ($_tab === 'all'): ?>
 <style>
@@ -896,7 +885,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 1 — UMOWA
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='umowa'||$_tab==='all')?' active':'' ?>" id="tab-umowa" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='umowa'||$_tab==='all')?' show active':'' ?>" id="tab-umowa" role="tabpanel">
 
   <!-- Dane podstawowe -->
   <div class="cv-section">
@@ -1144,7 +1133,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 2 — WOLONTARIUSZ
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='wolontariusz'||$_tab==='all')?' active':'' ?>" id="tab-wolontariusz" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='wolontariusz'||$_tab==='all')?' show active':'' ?>" id="tab-wolontariusz" role="tabpanel">
 
   <!-- Dane osobowe -->
   <div class="cv-section">
@@ -1465,7 +1454,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 3 — DOKUMENTY (Pisma + Zaświadczenia)
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='docs'||$_tab==='all')?' active':'' ?>" id="tab-docs" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='docs'||$_tab==='all')?' show active':'' ?>" id="tab-docs" role="tabpanel">
 
   <!-- ── Dokumenty umowy ─────────────────────────────────────────────────── -->
   <div class="cv-section">
@@ -1701,7 +1690,7 @@ function _tab_link(string $key, string $label, string $icon, string $badge = '',
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 4 — OBIEG (Akceptacja + Aneksy + Wnioski o edycję)
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='obieg'||$_tab==='all')?' active':'' ?>" id="tab-obieg" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='obieg'||$_tab==='all')?' show active':'' ?>" id="tab-obieg" role="tabpanel">
 
   <!-- Akceptacja -->
   <div class="cv-section">
@@ -1908,7 +1897,7 @@ $_dni_labels      = ['pon'=>'Pon','wt'=>'Wt','sr'=>'Śr','czw'=>'Czw','pt'=>'Pt'
 $_pora_labels     = ['rano'=>'Rano','popoludnie'=>'Południe','wieczor'=>'Wieczór','weekend'=>'Weekend'];
 $_has_profil      = !empty($row['wolontariat_typ']) || !empty($row['wojewodztwo']) || !empty($_profil_obszary) || !empty($row['kompetencje']) || !empty($_profil_dni);
 ?>
-<div class="tab-pane<?= ($_tab==='profil'||$_tab==='all')?' active':'' ?>" id="tab-profil" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='profil'||$_tab==='all')?' show active':'' ?>" id="tab-profil" role="tabpanel">
 
   <div class="cv-section">
     <div class="cv-section-head">
@@ -2080,7 +2069,7 @@ it_sync_from_contract('wolontariat', $row); // upewnij się że it_accounts jest
 $_it_m365_acc = null;
 foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_m365_acc = $_a; break; } }
 ?>
-<div class="tab-pane<?= ($_tab==='m365'||$_tab==='all')?' active':'' ?>" id="tab-m365" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='m365'||$_tab==='all')?' show active':'' ?>" id="tab-m365" role="tabpanel">
 
   <!-- Baner: zarządzaj w module IT -->
   <div class="alert py-2 px-3 mb-3 d-flex align-items-center gap-2" style="background:#fff3e0;border:1px solid #fd7e14;border-radius:8px">
@@ -2396,7 +2385,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 6 — HISTORIA ZDARZEŃ
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='historia'||$_tab==='all')?' active':'' ?>" id="tab-historia" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='historia'||$_tab==='all')?' show active':'' ?>" id="tab-historia" role="tabpanel">
 
   <?php if ($audit_log): ?>
   <ul class="list-group list-group-flush rounded">
@@ -2423,7 +2412,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
      TAB — ZADANIA
      ════════════════════════════════════════════════════════════════════════════ -->
 <?php if ($_tasks_enabled && can_edit()): ?>
-<div class="tab-pane<?= ($_tab==='tasks'||$_tab==='all')?' active':'' ?>" id="tab-tasks" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='tasks'||$_tab==='all')?' show active':'' ?>" id="tab-tasks" role="tabpanel">
   <a id="tab-tasks-anchor"></a>
 
   <?php if ($_wa_send_result): ?>
@@ -2593,7 +2582,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 <?php endif; ?>
 
 <!-- ══ TAB: Zwroty kosztów ═══════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='zwroty'||$_tab==='all')?' active':'' ?>" id="tab-zwroty" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='zwroty'||$_tab==='all')?' show active':'' ?>" id="tab-zwroty" role="tabpanel">
 
   <!-- Nagłówek + przycisk -->
   <div class="d-flex align-items-center justify-content-between mb-3">
@@ -2690,7 +2679,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 
 </div><!-- /tab-zwroty -->
 
-<div class="tab-pane<?= ($_tab==='messages'||$_tab==='all')?' active':'' ?>" id="tab-messages" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='messages'||$_tab==='all')?' show active':'' ?>" id="tab-messages" role="tabpanel">
   <a id="tab-messages-anchor"></a>
   <?php
     $u = current_user();
@@ -2709,7 +2698,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB PRZESYŁKI
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='shipments'||$_tab==='all')?' active':'' ?>" id="tab-shipments" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='shipments'||$_tab==='all')?' show active':'' ?>" id="tab-shipments" role="tabpanel">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="mb-0 fw-bold"><i class="bi bi-box-seam me-2 text-primary"></i>Przesyłki dla tej umowy</h6>
       <div class="d-flex gap-2">
@@ -2774,7 +2763,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB GODZINY — Ewidencja godzin wolontariatu
      ════════════════════════════════════════════════════════════════════════════ -->
-<div class="tab-pane<?= ($_tab==='godziny'||$_tab==='all')?' active':'' ?>" id="tab-godziny" role="tabpanel">
+<div class="tab-pane fade<?= ($_tab==='godziny'||$_tab==='all')?' show active':'' ?>" id="tab-godziny" role="tabpanel">
   <div>
 
     <?php

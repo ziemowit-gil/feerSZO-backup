@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
+require_once __DIR__ . '/../includes/kdok_archive.php';
 
 require_login();
 kdok_migrate();
@@ -38,23 +39,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (in_array($action, ['meryt', 'formal', 'zatwierdza'], true)) {
         kdok_require_role($action);
 
+        // Blokada: dokument już zaakceptowany lub odrzucony
+        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
+            $errors[] = 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony') . ' — decyzja jest zablokowana.';
+        }
+
+        // Blokada wycofania: krok już podjęty
+        $existing_step = $doc['steps'][$action] ?? null;
+        if (!$errors && $existing_step && in_array($existing_step['status'], ['ok', 'uwagi', 'odrzucono'], true)) {
+            $errors[] = 'Decyzja dla tego etapu została już podjęta i nie może być zmieniona.';
+        }
+
         $status = $_POST['step_status'] ?? '';
         $notes  = trim($_POST['step_notes'] ?? '');
         $auth   = null;
 
-        if (!in_array($status, ['ok', 'uwagi'], true)) {
-            $errors[] = 'Wybierz decyzję.';
-        } else {
-            // Weryfikacja IKAKS + certyfikat X.509
-            $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '');
-            if (!$auth['ok']) {
-                $errors[] = $auth['error'];
+        if (!$errors) {
+            if (!in_array($status, ['ok', 'uwagi', 'odrzucono'], true)) {
+                $errors[] = 'Wybierz decyzję.';
+            } else {
+                // Weryfikacja IKAKS + certyfikat X.509
+                $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '');
+                if (!$auth['ok']) {
+                    $errors[] = $auth['error'];
+                }
             }
         }
 
         if (!$errors) {
             $cert     = $auth['cert'];
             $step_row = $doc['steps'][$action] ?? null;
+            $dec_label = match($status) { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', 'odrzucono' => 'ODRZUCONO', default => $status };
             if ($step_row) {
                 kdok_exec(
                     "UPDATE kdok_steps SET status=?, user_id=?, user_name=?, cert_cn=?, cert_fingerprint=?, cert_subject=?, decided_at=datetime('now'), notes=? WHERE id=?",
@@ -77,16 +92,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
 
-            kdok_log($id, KDOK_STEPS[$action] . ' → ' . ($status === 'ok' ? 'TAK' : 'Z uwagami'), $notes);
+            kdok_log($id, KDOK_STEPS[$action] . ' → ' . $dec_label, $notes);
 
-            $doc = kdok_get($id);
-            $new_status = kdok_is_complete($doc) ? 'zaakceptowany' : 'w_obiegu';
-            kdok_exec("UPDATE kdok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
-            if ($new_status === 'zaakceptowany') {
-                kdok_log($id, 'Obieg zakończony — dokument zaakceptowany');
+            if ($status === 'odrzucono') {
+                kdok_exec("UPDATE kdok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
+                kdok_log($id, 'Dokument odrzucony na etapie: ' . KDOK_STEPS[$action], $notes);
+                flash_set('warning', 'Dokument odrzucony.');
+            } else {
+                $doc = kdok_get($id);
+                $new_status = kdok_is_complete($doc) ? 'zaakceptowany' : 'w_obiegu';
+                kdok_exec("UPDATE kdok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
+                if ($new_status === 'zaakceptowany') {
+                    kdok_log($id, 'Obieg zakończony — dokument zaakceptowany');
+                    // Auto-push do eArchiwum jeśli włączone
+                    if (org_setting('kdok_archive_enabled') === '1') {
+                        try {
+                            kdok_archive_push($id);
+                        } catch (\Throwable $arch_e) {
+                            kdok_log($id, 'eArchiwum: błąd wysyłki', $arch_e->getMessage());
+                        }
+                    }
+                }
+                flash_set('success', 'Decyzja zapisana.');
             }
-
-            flash_set('success', 'Decyzja zapisana.');
             header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
             exit;
         }
@@ -254,8 +282,8 @@ require_once __DIR__ . '/../includes/header.php';
     <?php foreach ($steps_config as $step_key => $cfg): ?>
     <?php
     $step    = $doc['steps'][$step_key] ?? null;
-    $decided = $step && in_array($step['status'], ['ok', 'uwagi'], true);
-    $can_act = kdok_has_role($step_key) && $doc['status'] !== 'odrzucony';
+    $decided = $step && in_array($step['status'], ['ok', 'uwagi', 'odrzucono'], true);
+    $can_act = !$decided && kdok_has_role($step_key) && !in_array($doc['status'], ['odrzucony', 'zaakceptowany']);
     ?>
     <div class="card shadow-sm mb-3">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
@@ -266,6 +294,8 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if ($decided): ?>
           <?php if ($step['status'] === 'ok'): ?>
           <span class="badge bg-success"><i class="bi bi-check-lg"></i> Tak</span>
+          <?php elseif ($step['status'] === 'odrzucono'): ?>
+          <span class="badge bg-danger"><i class="bi bi-x-lg"></i> Odrzucono</span>
           <?php else: ?>
           <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Z uwagami</span>
           <?php endif; ?>
@@ -301,32 +331,36 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="action" value="<?= $step_key ?>">
             <input type="hidden" name="ikaks" value="" class="kdok-ikaks-value">
-            <div class="d-flex gap-3 mb-2">
+            <div class="d-flex gap-3 mb-2 flex-wrap">
               <div class="form-check">
                 <input class="form-check-input" type="radio" name="step_status"
-                  id="<?= $step_key ?>_ok" value="ok"
-                  <?= ($step['status'] ?? '') === 'ok' ? 'checked' : '' ?>>
+                  id="<?= $step_key ?>_ok" value="ok">
                 <label class="form-check-label text-success fw-semibold" for="<?= $step_key ?>_ok">
                   <i class="bi bi-check-circle-fill"></i> Tak / OK
                 </label>
               </div>
               <div class="form-check">
                 <input class="form-check-input" type="radio" name="step_status"
-                  id="<?= $step_key ?>_uwagi" value="uwagi"
-                  <?= ($step['status'] ?? '') === 'uwagi' ? 'checked' : '' ?>>
+                  id="<?= $step_key ?>_uwagi" value="uwagi">
                 <label class="form-check-label text-warning fw-semibold" for="<?= $step_key ?>_uwagi">
                   <i class="bi bi-exclamation-circle-fill"></i> Z uwagami
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="step_status"
+                  id="<?= $step_key ?>_odrzucono" value="odrzucono">
+                <label class="form-check-label text-danger fw-semibold" for="<?= $step_key ?>_odrzucono">
+                  <i class="bi bi-x-circle-fill"></i> Odrzuć
                 </label>
               </div>
             </div>
             <div class="mb-2">
               <textarea name="step_notes" class="form-control form-control-sm" rows="2"
-                placeholder="Ewentualne uwagi (opcjonalne)…"><?= h($step['notes'] ?? '') ?></textarea>
+                placeholder="Ewentualne uwagi lub powód odrzucenia…"></textarea>
             </div>
             <button type="button" class="btn btn-sm btn-<?= $cfg['color'] ?> kdok-open-ikaks"
               data-form="form_<?= $step_key ?>" data-label="<?= h($cfg['label']) ?>">
-              <i class="bi bi-shield-lock"></i>
-              <?= $decided ? 'Zmień decyzję' : 'Autoryzuj i zapisz' ?>
+              <i class="bi bi-shield-lock"></i> Autoryzuj i zapisz
             </button>
           </form>
         </div>
@@ -350,9 +384,9 @@ require_once __DIR__ . '/../includes/header.php';
         </button>
       </form>
       <?php endif; ?>
-      <?php if (is_admin() && $doc['status'] !== 'odrzucony'): ?>
+      <?php if (is_admin() && !in_array($doc['status'], ['odrzucony'])): ?>
       <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
-        <i class="bi bi-x-circle"></i> Odrzuć dokument
+        <i class="bi bi-x-circle"></i> Odrzuć dokument (admin)
       </button>
       <?php endif; ?>
     </div>
@@ -545,6 +579,11 @@ window.addEventListener('load', function () {
           wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         return;
+      }
+      // Ostrzeżenie przy wyborze "Odrzuć"
+      var selected = Array.from(radios).find(function(r){ return r.checked; });
+      if (selected && selected.value === 'odrzucono') {
+        if (!confirm('Czy na pewno chcesz ODRZUCIĆ dokument? Tej decyzji nie można cofnąć.')) return;
       }
 
       _targetForm = form;

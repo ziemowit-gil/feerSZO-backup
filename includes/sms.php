@@ -1,8 +1,15 @@
 <?php
 /**
- * SMS integration — obsługuje smsapi.pl i Twilio.
+ * SMS integration — obsługuje smsapi.pl (SDK OAuth) i Twilio.
  * Dostawca wybierany przez ustawienie `sms_provider` ('smsapi' lub 'twilio').
+ *
+ * SMSAPI.pl: preferowany token OAuth (sms_api_token).
+ * Fallback:  login + hasło MD5 (sms_api_login + sms_api_password).
  */
+
+use Nyholm\Psr7\Factory\Psr17Factory;
+use Smsapi\Client\SmsapiHttpClient;
+use Smsapi\Client\Feature\Sms\Bag\SendSmsBag;
 
 function sms_setting(string $key): string {
     static $cache = [];
@@ -144,12 +151,40 @@ function _sms_http(string $url, string $method, array $headers, string $body = '
 }
 
 function _sms_send_smsapi(string $phone, string $message): void {
+    $token  = sms_setting('sms_api_token');
+    $sender = sms_setting('sms_sender_name') ?: '';
+
+    // Fallback: jeśli brak nowego tokenu OAuth — użyj starego API (login+hasło)
+    if (!$token) {
+        _sms_send_smsapi_legacy($phone, $message);
+        return;
+    }
+
+    $factory = new Psr17Factory();
+    $client  = new SmsapiHttpClient(
+        new \Http\Client\Curl\Client($factory, $factory),
+        $factory,
+        $factory
+    );
+
+    $service = $client->smsapiPlService($token);
+
+    $bag = SendSmsBag::withMessage($phone, $message);
+    if ($sender) $bag->from = $sender;
+
+    $result = $service->smsFeature()->sendSms($bag);
+
+    // SDK rzuca wyjątek przy błędzie — jeśli doszło tutaj, wysyłka OK
+}
+
+/** Stara metoda login+hasło MD5 — jako fallback gdy brak tokenu OAuth. */
+function _sms_send_smsapi_legacy(string $phone, string $message): void {
     $login  = sms_setting('sms_api_login');
     $pass   = sms_setting('sms_api_password');
     $sender = sms_setting('sms_sender_name') ?: 'INFO';
 
     if (!$login || !$pass) {
-        throw new RuntimeException('Brak loginu lub hasła smsapi.pl. Skonfiguruj w: Administracja → Ustawienia SMS.');
+        throw new RuntimeException('Brak tokenu OAuth lub loginu/hasła smsapi.pl. Skonfiguruj w: Administracja → Ustawienia SMS.');
     }
 
     $body = http_build_query([
@@ -164,21 +199,16 @@ function _sms_send_smsapi(string $phone, string $message): void {
     [$resp, $code] = _sms_http(
         'https://ssl.smsapi.pl/sms.do',
         'POST',
-        [
-            'Content-Type: application/x-www-form-urlencoded',
-            'Content-Length: ' . strlen($body),
-        ],
+        ['Content-Type: application/x-www-form-urlencoded', 'Content-Length: ' . strlen($body)],
         $body
     );
 
     $data = json_decode($resp, true) ?? [];
     if ($code !== 200 || isset($data['error'])) {
-        $msg = $data['message'] ?? $data['invalid_number'] ?? "HTTP $code";
-        throw new RuntimeException("Błąd smsapi.pl: $msg");
+        throw new RuntimeException('Błąd smsapi.pl: ' . ($data['message'] ?? "HTTP $code"));
     }
-    if (!empty($data['list'][0]['status'])
-        && in_array($data['list'][0]['status'], ['ERROR', 'FAILED'], true)) {
-        throw new RuntimeException('Wysyłka nie powiodła się (smsapi status: ' . $data['list'][0]['status'] . ')');
+    if (!empty($data['list'][0]['status']) && in_array($data['list'][0]['status'], ['ERROR', 'FAILED'], true)) {
+        throw new RuntimeException('smsapi: wysyłka nie powiodła się (status: ' . $data['list'][0]['status'] . ')');
     }
 }
 

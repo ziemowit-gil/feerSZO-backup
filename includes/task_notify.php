@@ -49,6 +49,7 @@ w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>
     if (_tn_send($user['email'], $subject, $html)) {
         _tn_log($assigned_uid, 'assigned', $task_id);
     }
+    _tn_sms($assigned_uid, 'FEER SZO. Przypisano Cie do zadania: "' . mb_substr($task['title'], 0, 80) . '".');
 }
 
 /**
@@ -94,6 +95,7 @@ do którego jesteś przypisany/a.</p>
         if (_tn_send($u['email'], $subject, $html)) {
             _tn_log((int)$u['id'], 'comment', $comment_id);
         }
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' skomentował zadanie: "' . mb_substr($task['title'], 0, 60) . '".');
     }
 
     // ── 2. @wzmianki (notify_mentioned) ───────────────────────────────────
@@ -120,6 +122,7 @@ do zadania w systemie <strong>' . htmlspecialchars($org) . '</strong>.</p>
         if (_tn_send($u['email'], $subject, $html)) {
             _tn_log((int)$u['id'], 'mention', $comment_id);
         }
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($author_name, 0, 20) . ' wspomniał Cię w zadaniu: "' . mb_substr($task['title'], 0, 60) . '".');
     }
 }
 
@@ -158,6 +161,8 @@ function task_notify_due(int $task_id, string $event): void {
         if (_tn_send($u['email'], $subject, $html)) {
             _tn_log((int)$u['id'], $event, $task_id);
         }
+        $sms_when = $event === 'due_today' ? 'DZISIAJ' : 'JUTRO';
+        _tn_sms((int)$u['id'], 'FEER SZO. Termin zadania ' . $sms_when . ': "' . mb_substr($task['title'], 0, 80) . '" (' . $due_str . ').');
     }
 }
 
@@ -178,7 +183,7 @@ function task_notify_get_pref(int $user_id): array {
 
 function task_notify_save_pref(int $user_id, array $data): void {
     $fields  = ['notify_assigned', 'notify_mentioned', 'notify_comment',
-                'notify_due_1day', 'notify_due_today'];
+                'notify_due_1day', 'notify_due_today', 'notify_sms'];
     $values  = [];
     foreach ($fields as $f) {
         $values[$f] = isset($data[$f]) ? (int)(bool)$data[$f] : 0;
@@ -205,7 +210,22 @@ function _tn_default_prefs(): array {
         'notify_comment'   => 0,
         'notify_due_1day'  => 1,
         'notify_due_today' => 1,
+        'notify_sms'       => 0,
     ];
+}
+
+/** Wysyła SMS powiadomienie jeśli użytkownik ma włączone notify_sms i podany numer. */
+function _tn_sms(int $user_id, string $message): void {
+    try {
+        require_once __DIR__ . '/sms.php';
+        if (!sms_is_enabled()) return;
+        $pref = task_notify_get_pref($user_id);
+        if (empty($pref['notify_sms'])) return;
+        $u = db_one("SELECT phone_number FROM users WHERE id=?", [$user_id]);
+        $phone = $u['phone_number'] ?? '';
+        if (!$phone) return;
+        sms_send($phone, $message);
+    } catch (\Throwable $_) {}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

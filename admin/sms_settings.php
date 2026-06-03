@@ -43,8 +43,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         // smsapi fields (keep existing if left blank)
-        $api_login = trim($_POST['sms_api_login'] ?? '');
+        $api_token = trim($_POST['sms_api_token']    ?? '');
+        $api_login = trim($_POST['sms_api_login']    ?? '');
         $api_pass  = trim($_POST['sms_api_password'] ?? '');
+        $save['sms_api_token']    = $api_token ?: sms_setting('sms_api_token');
         $save['sms_api_login']    = $api_login ?: $cfg['sms_api_login'];
         $save['sms_api_password'] = $api_pass  ?: $cfg['sms_api_password'];
         $save['sms_sender_name']  = substr(trim($_POST['sms_sender_name'] ?? 'INFO'), 0, 11);
@@ -80,8 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$phone) {
             $test_result = ['ok' => false, 'msg' => 'Podaj numer telefonu do testu.'];
-        } elseif ($provider === 'smsapi' && (!$cfg['sms_api_login'] || !$cfg['sms_api_password'])) {
-            $test_result = ['ok' => false, 'msg' => 'Brak loginu lub hasła smsapi.pl — najpierw zapisz konfigurację.'];
+        } elseif ($provider === 'smsapi' && !sms_setting('sms_api_token') && (!$cfg['sms_api_login'] || !$cfg['sms_api_password'])) {
+            $test_result = ['ok' => false, 'msg' => 'Brak tokenu OAuth lub loginu/hasła smsapi.pl — najpierw zapisz konfigurację.'];
         } elseif ($provider === 'twilio' && (!$cfg['sms_twilio_sid'] || !$cfg['sms_twilio_token'] || !$cfg['sms_twilio_from'])) {
             $test_result = ['ok' => false, 'msg' => 'Niekompletna konfiguracja Twilio — najpierw zapisz wszystkie pola.'];
         } elseif ($provider === 'httprequest' && !$cfg['sms_http_url']) {
@@ -100,7 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(__DIR__) . '/includes/header.php';
 
 // Pomocnik: czy dana konfiguracja jest kompletna
-$smsapi_ok = (bool)$cfg['sms_api_login'] && (bool)$cfg['sms_api_password'];
+$smsapi_ok = (bool)sms_setting('sms_api_token')
+          || ((bool)$cfg['sms_api_login'] && (bool)$cfg['sms_api_password']);
 $twilio_ok = $cfg['sms_twilio_sid'] && $cfg['sms_twilio_token'] && $cfg['sms_twilio_from'];
 $http_ok   = (bool)$cfg['sms_http_url'];
 $active_ok = match($cfg['sms_provider']) {
@@ -256,8 +259,33 @@ $provider_label = match($cfg['sms_provider']) {
   Konfiguracja smsapi.pl
 </div>
 <div class="card-body">
+  <!-- Token OAuth (nowa metoda — zalecana) -->
+  <?php $smsapi_token = sms_setting('sms_api_token'); ?>
   <div class="mb-3">
-    <label class="form-label fw-semibold small">Login <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold small">
+      Token OAuth
+      <span class="badge bg-success ms-1 fw-normal" style="font-size:.65rem">Zalecane</span>
+    </label>
+    <input type="password" name="sms_api_token" class="form-control form-control-sm font-monospace"
+           placeholder="<?= $smsapi_token ? '(zapisany — zostaw puste by nie zmieniać)' : 'Token OAuth z panelu smsapi.pl → API → Tokeny' ?>"
+           autocomplete="new-password">
+    <?php if ($smsapi_token): ?>
+    <div class="form-text text-success"><i class="bi bi-check-circle"></i> Token OAuth zapisany — używa oficjalnego SDK smsapi/php-client.</div>
+    <?php else: ?>
+    <div class="form-text">
+      Pobierz token w panelu smsapi.pl: <strong>API → Tokeny dostępu</strong>.
+      Jeśli brak tokenu, system użyje loginu i hasła jako fallback.
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <details class="mb-3">
+    <summary class="text-muted small" style="cursor:pointer">
+      <i class="bi bi-chevron-right me-1"></i>Fallback: login + hasło (stara metoda)
+    </summary>
+    <div class="mt-2">
+  <div class="mb-3">
+    <label class="form-label fw-semibold small">Login</label>
     <input type="text" name="sms_api_login" class="form-control form-control-sm font-monospace"
            value="<?= h($cfg['sms_api_login']) ?>"
            placeholder="Login do konta smsapi.pl" autocomplete="off">
@@ -266,16 +294,18 @@ $provider_label = match($cfg['sms_provider']) {
     <?php endif; ?>
   </div>
   <div class="mb-3">
-    <label class="form-label fw-semibold small">Hasło <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold small">Hasło</label>
     <input type="password" name="sms_api_password" class="form-control form-control-sm font-monospace"
            placeholder="<?= $cfg['sms_api_password'] ? '(zapisane — zostaw puste by nie zmieniać)' : 'Hasło do konta smsapi.pl' ?>"
            autocomplete="new-password">
     <?php if ($cfg['sms_api_password']): ?>
     <div class="form-text text-success"><i class="bi bi-check-circle"></i> Hasło zapisane.</div>
     <?php else: ?>
-    <div class="form-text">Hasło jest przechowywane w bazie i wysyłane jako MD5 do API.</div>
+    <div class="form-text">Hasło wysyłane jako MD5 (stare API).</div>
     <?php endif; ?>
   </div>
+    </div>
+  </details>
   <div class="mb-0">
     <label class="form-label fw-semibold small">
       Nazwa nadawcy

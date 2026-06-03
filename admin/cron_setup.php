@@ -46,7 +46,7 @@ $agents = [
     ['script' => 'cron/tasks_recurring.php',        'freq' => 'codziennie 6:00','tag'=> 'Zadania',        'desc' => 'Zadania cykliczne'],
     ['script' => 'cron/process_m365_queue.php',     'freq' => 'co 5 minut',   'tag' => 'Microsoft 365',  'desc' => 'Kolejka synchronizacji M365'],
     ['script' => 'cron/sync_m365_reverse.php',      'freq' => 'co godzinę',   'tag' => 'Microsoft 365',  'desc' => 'Synchronizacja odwrotna Azure AD → DB'],
-    ['script' => 'cron/kdok_cleanup.php',           'freq' => 'raz w tygodniu','tag'=> 'Dokumenty',       'desc' => 'Czyszczenie dokumentów eObieg DK'],
+    ['script' => 'cron/kdok_cleanup.php',           'freq' => 'raz w tygodniu','tag'=> 'Dokumenty',       'desc' => 'Czyszczenie dokumentów EOD Dokumentów Księgowych'],
 ];
 
 

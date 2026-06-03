@@ -176,9 +176,11 @@ $groups = [
         'icon'  => 'bi-envelope',
         'color' => 'green',
         'items' => [
-            ['icon'=>'bi-bell',            'label'=>'Powiadomienia e-mail','url'=>'/admin/msg_settings.php'],
-            ['icon'=>'bi-send-check',      'label'=>'Kolejka e-mail',    'url'=>'/admin/mail_queue.php',    'badge'=>$cnt['mail_failed'] ?: null,'badge_type'=>'danger'],
-            ['icon'=>'bi-tags',            'label'=>'Typy wiadomości',   'url'=>'/admin/message_types.php'],
+            ['icon'=>'bi-megaphone',        'label'=>'Komunikaty / ogłoszenia','url'=>'/komunikaty/index.php'],
+            ['icon'=>'bi-megaphone-fill',   'label'=>'Nowe ogłoszenie',   'url'=>'/komunikaty/compose.php'],
+            ['icon'=>'bi-bell',             'label'=>'Powiadomienia e-mail','url'=>'/admin/msg_settings.php'],
+            ['icon'=>'bi-send-check',       'label'=>'Kolejka e-mail',    'url'=>'/admin/mail_queue.php',    'badge'=>$cnt['mail_failed'] ?: null,'badge_type'=>'danger'],
+            ['icon'=>'bi-tags',             'label'=>'Typy wiadomości',   'url'=>'/admin/message_types.php'],
         ],
     ],
 
@@ -229,14 +231,18 @@ $groups = [
         ],
     ],
 
-    'eObieg DK' => [
+    'EOD Dokumentów Księgowych' => [
         'icon'  => 'bi-file-earmark-check',
         'color' => 'green',
         'items' => [
-            ['icon'=>'bi-shield-lock',   'label'=>'Role dostępu',        'url'=>'/admin/ksiegowosc_roles.php'],
-            ['icon'=>'bi-patch-check',   'label'=>'Certyfikaty X.509 i IKA', 'url'=>'/admin/kdok_certs.php'],
-            ['icon'=>'bi-gear',          'label'=>'Ustawienia (baza, MPK)', 'url'=>'/admin/ksiegowosc_settings.php'],
-            ['icon'=>'bi-arrow-repeat',  'label'=>'Wyczyść stare PDF',  'url'=>'/admin/kdok_cleanup_run.php'],
+            ['icon'=>'bi-shield-lock',     'label'=>'Role dostępu',               'url'=>'/admin/ksiegowosc_roles.php'],
+            ['icon'=>'bi-patch-check',     'label'=>'Certyfikaty X.509 i IKAKS',  'url'=>'/admin/kdok_certs.php'],
+            ['icon'=>'bi-gear',            'label'=>'Ustawienia (baza, MPK)',      'url'=>'/admin/ksiegowosc_settings.php'],
+            ['icon'=>'bi-grid-3x2',        'label'=>'Macierz uprawnień',          'url'=>'/admin/kdok_matrix.php'],
+            ['icon'=>'bi-cloud-arrow-up',  'label'=>'eArchiwum (FTP / R2)',       'url'=>'/admin/kdok_archive_settings.php'],
+            ['icon'=>'bi-receipt-cutoff',  'label'=>'KSeF — ustawienia',          'url'=>'/admin/kdok_ksef_settings.php'],
+            ['icon'=>'bi-arrow-repeat',    'label'=>'Wyczyść stare PDF',          'url'=>'/admin/kdok_cleanup_run.php'],
+            ['icon'=>'bi-trash3',          'label'=>'Wyczyść dane obiegu',        'url'=>'/admin/kdok_clear.php'],
         ],
     ],
 

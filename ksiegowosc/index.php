@@ -9,14 +9,16 @@ require_once __DIR__ . '/../includes/ksiegowosc.php';
 require_login();
 kdok_migrate();
 
-$PAGE_TITLE = 'Dokumenty księgowe';
+$PAGE_TITLE = 'EOD Dokumentów Księgowych';
 
 // Filtry
-$filter_type   = $_GET['type']   ?? '';
-$filter_status = $_GET['status'] ?? '';
-$filter_q      = trim($_GET['q'] ?? '');
-$page          = max(1, (int)($_GET['page'] ?? 1));
-$per_page      = 20;
+$filter_type    = $_GET['type']    ?? '';
+$filter_status  = $_GET['status']  ?? '';
+$filter_q       = trim($_GET['q']  ?? '');
+$filter_miesiac = (int)($_GET['miesiac'] ?? 0);
+$filter_rok     = (int)($_GET['rok']     ?? 0);
+$page           = max(1, (int)($_GET['page'] ?? 1));
+$per_page       = 20;
 
 $where = ['1=1'];
 $params = [];
@@ -34,6 +36,11 @@ if ($filter_q) {
     $params[] = "%$filter_q%";
     $params[] = "%$filter_q%";
     $params[] = "%$filter_q%";
+}
+if ($filter_miesiac && $filter_rok) {
+    $where[] = '((miesiac IS NOT NULL AND rok IS NOT NULL AND miesiac = ? AND rok = ?) OR (miesiac IS NULL AND CAST(SUBSTR(created_at,6,2) AS INTEGER) = ? AND CAST(SUBSTR(created_at,1,4) AS INTEGER) = ?))';
+    $params[] = $filter_miesiac; $params[] = $filter_rok;
+    $params[] = $filter_miesiac; $params[] = $filter_rok;
 }
 
 $where_sql = implode(' AND ', $where);
@@ -57,18 +64,29 @@ unset($doc);
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0"><i class="bi bi-file-earmark-check"></i> eObieg DK</h4>
-  <?php if (kdok_has_role('upload')): ?>
-  <a href="<?= APP_URL ?>/ksiegowosc/add.php" class="btn btn-primary btn-sm">
-    <i class="bi bi-plus-lg"></i> Nowy dokument
-  </a>
-  <?php endif; ?>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="bi bi-file-earmark-check"></i> EOD Dokumentów Księgowych</h4>
+  <div class="d-flex gap-2">
+    <?php if (is_admin() || kdok_has_role('zatwierdza')): ?>
+    <a href="<?= APP_URL ?>/ksiegowosc/zip.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-file-zip"></i> Pobierz ZIP miesiąca
+    </a>
+    <?php endif; ?>
+    <?php if (kdok_has_role('upload')): ?>
+    <a href="<?= APP_URL ?>/ksiegowosc/add.php" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg"></i> Nowy dokument
+    </a>
+    <?php endif; ?>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
 <!-- Filtry -->
+<?php
+$months_pl = ['','Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+$years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
+?>
 <form method="get" class="row g-2 mb-3">
   <div class="col-sm-3">
     <select name="type" class="form-select form-select-sm">
@@ -86,12 +104,34 @@ require_once __DIR__ . '/../includes/header.php';
       <?php endforeach; ?>
     </select>
   </div>
-  <div class="col-sm-4">
+  <div class="col-sm-2">
+    <select name="miesiac" class="form-select form-select-sm">
+      <option value="">Miesiąc</option>
+      <?php for ($m = 1; $m <= 12; $m++): ?>
+      <option value="<?= $m ?>" <?= $filter_miesiac === $m ? 'selected' : '' ?>><?= $months_pl[$m] ?></option>
+      <?php endfor; ?>
+    </select>
+  </div>
+  <div class="col-sm-1">
+    <select name="rok" class="form-select form-select-sm">
+      <option value="">Rok</option>
+      <?php foreach ($years_range as $yr): ?>
+      <option value="<?= $yr ?>" <?= $filter_rok === $yr ? 'selected' : '' ?>><?= $yr ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-sm-2">
     <input type="text" name="q" class="form-control form-control-sm" placeholder="Szukaj…" value="<?= h($filter_q) ?>">
   </div>
-  <div class="col-auto">
+  <div class="col-auto d-flex gap-1 align-items-center flex-wrap">
     <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-search"></i></button>
     <a href="<?= APP_URL ?>/ksiegowosc/index.php" class="btn btn-outline-secondary btn-sm">Wyczyść</a>
+    <?php if ($filter_miesiac && $filter_rok && (is_admin() || kdok_has_role('zatwierdza'))): ?>
+    <a href="<?= APP_URL ?>/ksiegowosc/zip.php?miesiac=<?= $filter_miesiac ?>&rok=<?= $filter_rok ?>"
+       class="btn btn-sm btn-outline-success" title="Pobierz ZIP PDF zaakceptowanych z <?= $months_pl[$filter_miesiac] ?> <?= $filter_rok ?>">
+      <i class="bi bi-file-zip"></i> ZIP <?= $months_pl[$filter_miesiac] ?> <?= $filter_rok ?>
+    </a>
+    <?php endif; ?>
   </div>
 </form>
 
@@ -148,6 +188,6 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<?= pagination_html($pag, '?type=' . urlencode($filter_type) . '&status=' . urlencode($filter_status) . '&q=' . urlencode($filter_q) . '&') ?>
+<?= pagination_html($pag, '?type=' . urlencode($filter_type) . '&status=' . urlencode($filter_status) . '&q=' . urlencode($filter_q) . '&miesiac=' . $filter_miesiac . '&rok=' . $filter_rok . '&') ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

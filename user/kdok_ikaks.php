@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $has_ika  = kdok_ikaks_has((int)$user['id']);
 $cert     = kdok_cert_get((int)$user['id']);
-$PAGE_TITLE = 'Mój IKAKS — eObieg DK';
+$PAGE_TITLE = 'Mój IKAKS — EOD Dokumentów Księgowych';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">

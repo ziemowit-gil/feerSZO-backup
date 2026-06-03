@@ -231,12 +231,7 @@ HTML;
             // Wyslij SMS z danymi logowania
             if ($send_sms) {
                 try {
-                    $login_url_short = parse_url(APP_URL, PHP_URL_HOST) ?: APP_URL;
-                    $sms_text = "Konto {$org}: login: {$email} / haslo: {$new_pass}\nZaloguj: {$login_url_short}";
-                    // Sms max 160 znaków — przytnij URL jesli potrzeba
-                    if (mb_strlen($sms_text) > 160) {
-                        $sms_text = "Konto {$org}: {$email} / {$new_pass}\n{$login_url_short}";
-                    }
+                    $sms_text = "FEER. Dostep do konta SZO dla {$email}. Haslo: {$new_pass}.";
                     sms_send($phone, $sms_text);
                 } catch (\Throwable $e) {
                     flash_set('warning', 'Konto utworzone, ale SMS nie zostal wyslany: ' . $e->getMessage());

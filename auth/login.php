@@ -180,6 +180,14 @@ if ($sms_available)  $valid_tabs[] = 'sms';
 if ($ms_available)   $valid_tabs[] = 'ms365';
 if (!in_array($active_tab, $valid_tabs, true)) $active_tab = $default_tab;
 
+// ── Publiczne komunikaty administratora ──────────────────────────────────
+$_login_notices = [];
+try {
+    require_once dirname(__DIR__) . '/includes/notifications.php';
+    notif_migrate();
+    $_login_notices = ann_public_list();
+} catch (\Throwable $_) {}
+
 // ── Branding + layout ─────────────────────────────────────────────────────
 $_b           = branding_load();
 $_login_layout   = org_setting('login_layout')   ?: 'split';
@@ -826,6 +834,26 @@ html, body { height: 100%; margin: 0; padding: 0; }
         <?php endif; ?>
       </p>
 
+      <!-- Komunikaty administratora (publiczne) — layout simple -->
+      <?php if ($_login_notices): ?>
+      <div style="margin-bottom:1.25rem">
+        <?php foreach ($_login_notices as $_ln):
+          $ln_pinned = (int)($_ln['is_pinned'] ?? 0);
+          $ln_color  = $ln_pinned ? '#F59E0B' : '#2563EB';
+          $ln_bg     = $ln_pinned ? '#FFFBEB' : '#EFF6FF';
+        ?>
+        <div style="background:<?= $ln_bg ?>;border-left:3px solid <?= $ln_color ?>;border-radius:8px;padding:.75rem 1rem;margin-bottom:.6rem;font-size:.84rem;color:#1e293b">
+          <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;flex-wrap:wrap">
+            <i class="bi bi-<?= $ln_pinned ? 'pin-angle-fill' : 'megaphone-fill' ?>" style="color:<?= $ln_color ?>"></i>
+            <strong style="font-size:.88rem"><?= h($_ln['title']) ?></strong>
+            <span style="font-size:.7rem;color:#94a3b8;margin-left:auto"><?= h(substr($_ln['created_at'] ?? '', 0, 10)) ?></span>
+          </div>
+          <?php if ($_ln['body']): ?><div style="color:#374151;margin-top:.15rem;line-height:1.5"><?= nl2br(h($_ln['body'])) ?></div><?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+
       <?php if ($error): ?>
       <div class="a11y-alert a11y-alert-danger" role="alert" aria-label="Błąd logowania: <?= h($error) ?>">
         <i class="bi bi-exclamation-triangle-fill a11y-alert-icon" aria-hidden="true"></i>
@@ -946,6 +974,29 @@ $_left_tagline = $_login_tagline ?: 'System Zarządzania<br>Organizacją i Wolon
       Wprowadź adres e-mail i hasło do swojego konta.
     <?php endif; ?>
   </p>
+
+  <!-- Komunikaty administratora (publiczne) -->
+  <?php if ($_login_notices): ?>
+  <div style="margin-bottom:1.25rem">
+    <?php foreach ($_login_notices as $_ln):
+      $ln_body   = nl2br(h($_ln['body']));
+      $ln_pinned = (int)($_ln['is_pinned'] ?? 0);
+      $ln_color  = $ln_pinned ? '#F59E0B' : '#2563EB';
+      $ln_bg     = $ln_pinned ? '#FFFBEB' : '#EFF6FF';
+    ?>
+    <div style="background:<?= $ln_bg ?>;border-left:3px solid <?= $ln_color ?>;border-radius:8px;padding:.75rem 1rem;margin-bottom:.6rem;font-size:.84rem;color:#1e293b">
+      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;flex-wrap:wrap">
+        <i class="bi bi-<?= $ln_pinned ? 'pin-angle-fill' : 'megaphone-fill' ?>" style="color:<?= $ln_color ?>"></i>
+        <strong style="font-size:.88rem"><?= h($_ln['title']) ?></strong>
+        <span style="font-size:.7rem;color:#94a3b8;margin-left:auto"><?= h(substr($_ln['created_at'] ?? '', 0, 10)) ?></span>
+      </div>
+      <?php if ($_ln['body']): ?>
+      <div style="color:#374151;margin-top:.15rem;line-height:1.5"><?= $ln_body ?></div>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
 
   <!-- Komunikaty błędów i sukcesu -->
   <?php if ($error): ?>

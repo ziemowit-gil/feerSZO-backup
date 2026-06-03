@@ -511,6 +511,11 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <span class="badge bg-warning text-dark ms-auto" style="font-size:.65rem"><?= $_v_ann_count ?></span>
     <?php endif; } catch (\Throwable $e) {} ?>
   </a>
+  <?php if (panel_visible('komunikaty') && is_admin()): ?>
+  <a class="sb-sub-link<?= _nav_active('/komunikaty/compose') ?>" href="<?= APP_URL ?>/komunikaty/compose.php">
+    <i class="bi bi-plus-circle"></i> Nowe ogłoszenie
+  </a>
+  <?php endif; ?>
   <?php endif; ?>
   <?php if (panel_visible('katalog')): ?>
   <a class="sb-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
@@ -853,10 +858,39 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <?php endif; ?>
 
-  <?php if ($_has_kdok): ?>
+  <?php if ($_has_kdok):
+    $_kdok_active = str_contains($_uri, '/ksiegowosc/');
+    $_kdok_sub_has = (is_admin() || kdok_has_role('zatwierdza'))
+                  || ((is_admin() || kdok_has_role('upload')) && org_setting('kdok_ksef_enabled') === '1');
+  ?>
+  <?php if ($_kdok_sub_has): ?>
+  <button type="button" class="sb-type-btn <?= $_kdok_active ? 'type-open' : '' ?>"
+          data-bs-toggle="collapse" data-bs-target="#sb-eod"
+          aria-expanded="<?= $_kdok_active ? 'true' : 'false' ?>">
+    <i class="bi bi-file-earmark-check"></i> EOD Dok. Księgowych
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_kdok_active ? 'show' : '' ?>" id="sb-eod">
+    <a class="sb-sub-link<?= _nav_active('/ksiegowosc/index') . (_nav_active('/ksiegowosc/view') ?: _nav_active('/ksiegowosc/add') ?: _nav_active('/ksiegowosc/zip')) ?>"
+       href="<?= APP_URL ?>/ksiegowosc/index.php">
+      <i class="bi bi-list-ul"></i> Lista dokumentów
+    </a>
+    <?php if (is_admin() || kdok_has_role('zatwierdza')): ?>
+    <a class="sb-sub-link<?= _nav_active('/ksiegowosc/przegladaj') ?>" href="<?= APP_URL ?>/ksiegowosc/przegladaj.php">
+      <i class="bi bi-archive"></i> Archiwum EOD
+    </a>
+    <?php endif; ?>
+    <?php if ((is_admin() || kdok_has_role('upload')) && org_setting('kdok_ksef_enabled') === '1'): ?>
+    <a class="sb-sub-link<?= _nav_active('/ksiegowosc/ksef_sync') ?>" href="<?= APP_URL ?>/ksiegowosc/ksef_sync.php">
+      <i class="bi bi-receipt-cutoff"></i> KSeF synchronizacja
+    </a>
+    <?php endif; ?>
+  </div>
+  <?php else: ?>
   <a class="sb-link<?= _nav_active('/ksiegowosc/') ?>" href="<?= APP_URL ?>/ksiegowosc/index.php">
-    <i class="bi bi-file-earmark-check"></i> eObieg DK
+    <i class="bi bi-file-earmark-check"></i> EOD Dok. Księgowych
   </a>
+  <?php endif; ?>
   <?php endif; ?>
 
   <?php

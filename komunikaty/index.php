@@ -67,14 +67,17 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
       $is_pinned  = (int)($ann['is_pinned']     ?? 0);
       $is_read    = (int)($ann['is_read_by_me'] ?? 0);
       $ann_id     = (int)$ann['id'];
-      $short_body = mb_strlen($ann['body']) > 200 ? mb_substr($ann['body'], 0, 200) . '…' : $ann['body'];
+      $body_len   = mb_strlen($ann['body']);
+      $collapsed  = $body_len > 300 && !$is_pinned;
+      $border_clr = $is_pinned ? '#F59E0B' : ($is_read ? '#E2E8F0' : '#2563EB');
+      $bg_clr     = $is_pinned ? '#FFFBEB' : ($is_read ? '' : '#EFF6FF');
     ?>
     <div class="card border-0 shadow-sm rounded-3 mb-3"
-         style="<?= $is_pinned
-            ? 'background:#FFFBEB;border-left:3px solid #F59E0B!important'
-            : (!$is_read ? 'background:#f0f5ff;border-left:3px solid #2563EB!important' : '') ?>">
-      <div class="card-body">
-        <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
+         style="border-left:3px solid <?= $border_clr ?>!important;<?= $bg_clr ? 'background:'.$bg_clr : '' ?>">
+      <div class="card-body pb-2">
+
+        <!-- Nagłówek karty -->
+        <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <?php if ($is_pinned): ?>
             <span class="badge" style="background:#F59E0B;font-size:.68rem"><i class="bi bi-pin-angle-fill me-1"></i>Przypięte</span>
@@ -83,39 +86,60 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
             <span class="badge bg-primary" style="font-size:.68rem">Nowe</span>
             <?php endif; ?>
             <span class="badge bg-light text-secondary border" style="font-size:.67rem">
-              <?= h(ann_audience_label($ann['audience'] ?? 'all')) ?>
+              <i class="bi bi-<?= ($ann['audience'] ?? '') === 'public' ? 'globe2' : 'people-fill' ?> me-1"></i><?= h(ann_audience_label($ann['audience'] ?? 'all')) ?>
             </span>
+            <?php if (!empty($ann['expires_at'])): ?>
+            <span class="badge bg-light text-warning border" style="font-size:.67rem">
+              <i class="bi bi-clock me-1"></i>Wygasa: <?= h(date('d.m.Y', strtotime($ann['expires_at']))) ?>
+            </span>
+            <?php endif; ?>
           </div>
-          <span class="text-muted" style="font-size:.75rem;white-space:nowrap"><?= h(substr($ann['created_at'] ?? '', 0, 10)) ?></span>
+          <span class="text-muted" style="font-size:.73rem;white-space:nowrap"><?= h(date('d.m.Y', strtotime($ann['created_at'] ?? 'now'))) ?></span>
         </div>
 
-        <h6 class="fw-semibold mb-1<?= !$is_read ? ' fw-bold' : '' ?>">
-          <a href="<?= APP_URL ?>/komunikaty/announcement.php?id=<?= $ann_id ?>"
-             class="text-decoration-none text-dark stretched-link" style="position:relative;z-index:1">
-            <?= h($ann['title']) ?>
-          </a>
+        <!-- Tytuł -->
+        <h6 class="<?= !$is_read ? 'fw-bold' : 'fw-semibold' ?> mb-2" style="font-size:.95rem">
+          <?= h($ann['title']) ?>
         </h6>
-        <p class="mb-2 text-muted" style="font-size:.85rem;white-space:pre-wrap"><?= h($short_body) ?></p>
-        <?php if (mb_strlen($ann['body']) > 200): ?>
-        <a href="<?= APP_URL ?>/komunikaty/announcement.php?id=<?= $ann_id ?>"
-           class="btn btn-link btn-sm p-0" style="font-size:.8rem;position:relative;z-index:1">
-          Czytaj więcej <i class="bi bi-arrow-right"></i>
-        </a>
+
+        <!-- Treść — pełna lub kolapsowalna -->
+        <?php if ($ann['body']): ?>
+        <?php if ($collapsed): ?>
+        <div class="ann-body-collapse" id="ann-body-<?= $ann_id ?>" style="overflow:hidden;max-height:5.5rem;position:relative;transition:max-height .3s ease">
+          <div style="font-size:.875rem;color:#374151;line-height:1.65;white-space:pre-wrap"><?= h($ann['body']) ?></div>
+          <div class="ann-fade" id="ann-fade-<?= $ann_id ?>" style="position:absolute;bottom:0;left:0;right:0;height:2rem;background:linear-gradient(transparent,<?= $bg_clr ?: '#fff' ?>)"></div>
+        </div>
+        <button type="button" class="btn btn-link btn-sm p-0 mt-1 ann-toggle" data-id="<?= $ann_id ?>"
+                style="font-size:.8rem;text-decoration:none;color:#2563EB">
+          <i class="bi bi-chevron-down me-1" id="ann-icon-<?= $ann_id ?>"></i><span id="ann-lbl-<?= $ann_id ?>">Rozwiń treść</span>
+        </button>
+        <?php else: ?>
+        <div style="font-size:.875rem;color:#374151;line-height:1.65;white-space:pre-wrap"><?= h($ann['body']) ?></div>
+        <?php endif; ?>
         <?php endif; ?>
 
-        <div class="d-flex align-items-center justify-content-between mt-2 flex-wrap gap-2">
-          <small class="text-muted"><i class="bi bi-person me-1"></i><?= h($ann['author_name'] ?? '') ?></small>
-          <?php if (!$is_read): ?>
-          <form method="post" class="d-inline" style="position:relative;z-index:1">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="mark_ann" value="<?= $ann_id ?>">
-            <button type="submit" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
-              <i class="bi bi-check2 me-1"></i>Oznacz jako przeczytane
-            </button>
-          </form>
-          <?php else: ?>
-          <small class="text-success" style="font-size:.75rem"><i class="bi bi-check2-all me-1"></i>Przeczytane</small>
-          <?php endif; ?>
+        <!-- Stopka karty -->
+        <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top flex-wrap gap-2">
+          <small class="text-muted">
+            <i class="bi bi-person me-1"></i><?= h($ann['author_name'] ?? '') ?>
+          </small>
+          <div class="d-flex gap-2 align-items-center">
+            <a href="<?= APP_URL ?>/komunikaty/announcement.php?id=<?= $ann_id ?>"
+               class="btn btn-sm btn-outline-secondary" style="font-size:.78rem;padding:.2rem .65rem">
+              <i class="bi bi-eye me-1"></i>Otwórz
+            </a>
+            <?php if (!$is_read): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="mark_ann" value="<?= $ann_id ?>">
+              <button type="submit" class="btn btn-sm btn-primary" style="font-size:.78rem;padding:.2rem .65rem">
+                <i class="bi bi-check2 me-1"></i>Przeczytane
+              </button>
+            </form>
+            <?php else: ?>
+            <small class="text-success" style="font-size:.78rem"><i class="bi bi-check2-all me-1"></i>Przeczytane</small>
+            <?php endif; ?>
+          </div>
         </div>
       </div>
     </div>
@@ -173,6 +197,30 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
 
 <script>
 var APP_URL = '<?= APP_URL ?>';
+
+// Kolapsowanie treści ogłoszeń
+document.querySelectorAll('.ann-toggle').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var id   = btn.dataset.id;
+    var wrap = document.getElementById('ann-body-' + id);
+    var fade = document.getElementById('ann-fade-' + id);
+    var icon = document.getElementById('ann-icon-' + id);
+    var lbl  = document.getElementById('ann-lbl-' + id);
+    if (!wrap) return;
+    var expanded = wrap.style.maxHeight !== '5.5rem';
+    if (expanded) {
+      wrap.style.maxHeight = '5.5rem';
+      if (fade) fade.style.display = '';
+      if (icon) { icon.classList.remove('bi-chevron-up'); icon.classList.add('bi-chevron-down'); }
+      if (lbl)  lbl.textContent = 'Rozwiń treść';
+    } else {
+      wrap.style.maxHeight = wrap.scrollHeight + 'px';
+      if (fade) fade.style.display = 'none';
+      if (icon) { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
+      if (lbl)  lbl.textContent = 'Zwiń';
+    }
+  });
+});
 
 // Kliknięcie w powiadomienie → oznacz jako przeczytane
 document.querySelectorAll('[data-notif-id]').forEach(function(el) {

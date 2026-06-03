@@ -210,7 +210,8 @@ function ann_list_for_user(int $user_id, string $role): array {
 }
 
 function _ann_user_can_see(string $audience, int $user_id, string $role): bool {
-    if ($audience === 'all') return true;
+    if ($audience === 'all')    return true;
+    if ($audience === 'public') return $role === 'admin'; // zalogowani admini też widzą
     if (str_starts_with($audience, 'role:')) {
         return $role === substr($audience, 5);
     }
@@ -236,8 +237,28 @@ function ann_mark_read(int $ann_id, int $user_id): void {
     } catch (\Throwable $e) {}
 }
 
+/**
+ * Publiczne ogłoszenia — widoczne bez logowania (na stronie logowania).
+ * Tylko audience='public', aktywne i nie-wygasłe.
+ */
+function ann_public_list(): array {
+    try {
+        return db_all(
+            "SELECT * FROM announcements
+             WHERE is_active=1 AND audience='public'
+               AND (expires_at IS NULL OR expires_at >= date('now'))
+             ORDER BY is_pinned DESC, created_at DESC
+             LIMIT 5",
+            []
+        );
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
 function ann_audience_label(string $audience): string {
-    if ($audience === 'all') return 'Wszyscy użytkownicy';
+    if ($audience === 'all')    return 'Wszyscy użytkownicy';
+    if ($audience === 'public') return 'Strona logowania (publiczne)';
     if ($audience === 'role:admin')  return 'Administratorzy';
     if ($audience === 'role:editor') return 'Edytorzy';
     if ($audience === 'role:viewer') return 'Przeglądający';

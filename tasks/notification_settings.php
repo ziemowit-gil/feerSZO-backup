@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'notify_comment'   => isset($_POST['notify_comment'])   ? 1 : 0,
                 'notify_due_1day'  => isset($_POST['notify_due_1day'])  ? 1 : 0,
                 'notify_due_today' => isset($_POST['notify_due_today']) ? 1 : 0,
+                'notify_sms'       => isset($_POST['notify_sms'])       ? 1 : 0,
             ]);
             $saved = true;
         } catch (\Throwable $e) {
@@ -39,6 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $pref     = task_notify_get_pref($uid);
 $csrf     = csrf_token();
 $has_mail = !empty($user['email']);
+require_once dirname(__DIR__) . '/includes/sms.php';
+$has_sms  = sms_is_enabled() && !empty($user['phone_number']);
 
 $page_title = 'Powiadomienia — Zadania';
 require_once dirname(__DIR__) . '/includes/header.php';
@@ -271,6 +274,46 @@ require_once dirname(__DIR__) . '/includes/header.php';
         </div>
       </div>
       <?php endforeach; ?>
+    </div>
+
+    <!-- ══ Sekcja: SMS ══════════════════════════════════════════════ -->
+    <div class="ns-card mb-4">
+      <div class="ns-card-header">
+        <i class="bi bi-phone-fill" style="color:#16a34a"></i>
+        Powiadomienia SMS
+        <?php if (!sms_is_enabled()): ?>
+          <span class="sec-badge" style="background:#fee2e2;color:#dc2626">SMS wyłączony</span>
+        <?php elseif (!$has_sms): ?>
+          <span class="sec-badge" style="background:#fef9c3;color:#ca8a04">Brak nr telefonu</span>
+        <?php else: ?>
+          <span class="sec-badge" style="background:#dcfce7;color:#16a34a">Aktywne</span>
+        <?php endif; ?>
+      </div>
+      <div class="ns-row">
+        <div class="ns-icon" style="background:#dcfce7;color:#16a34a">
+          <i class="bi bi-chat-dots-fill"></i>
+        </div>
+        <div class="ns-label">
+          <div class="ns-label-title">Powiadomienia SMS</div>
+          <div class="ns-label-desc">
+            Otrzymuj SMS przy przypisaniu, komentarzu i terminach.
+            <?php if (!$has_sms && sms_is_enabled()): ?>
+              <a href="<?= APP_URL ?>/panel/settings.php" class="text-warning">Dodaj numer telefonu w profilu →</a>
+            <?php elseif (!sms_is_enabled()): ?>
+              SMS wymaga konfiguracji w panelu admina.
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="ns-switch">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox"
+                   id="notify_sms" name="notify_sms" role="switch"
+                   <?= ($pref['notify_sms'] ?? 0) ? 'checked' : '' ?>
+                   <?= !$has_sms ? 'disabled' : '' ?>>
+            <label class="visually-hidden" for="notify_sms">SMS</label>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Footer z przyciskami ──────────────────────────────────────── -->

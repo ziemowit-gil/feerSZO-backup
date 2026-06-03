@@ -26,7 +26,7 @@ $gen_count = (int)(db_one("SELECT COUNT(*) AS c FROM kdok_generated_pdf")['c'] ?
 $gen_size  = (int)(db_one("SELECT SUM(file_size) AS s FROM kdok_generated_pdf")['s'] ?? 0);
 $doc_count = (int)(db_one("SELECT COUNT(*) AS c FROM kdok_documents")['c'] ?? 0);
 
-$PAGE_TITLE = 'Czyszczenie — eObieg DK';
+$PAGE_TITLE = 'Czyszczenie — EOD Dokumentów Księgowych';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">

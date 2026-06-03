@@ -1,9 +1,9 @@
 <?php
 /**
- * Moduł Akceptacji Dokumentów Księgowych (KDOK).
+ * EOD Dokumentów Księgowych (KDOK).
  *
  * Obsługuje oddzielną bazę danych (SQLite lub MySQL),
- * konfigurowaną przez admin → eObieg DK → Ustawienia.
+ * konfigurowaną przez admin → EOD Dokumentów Księgowych → Ustawienia.
  * Gdy kdok_db_type = 'main' (domyślnie), używa głównej bazy aplikacji.
  *
  * Role (tabela kdok_user_roles, zawsze w głównej bazie):
@@ -203,6 +203,8 @@ function kdok_migrate(): void {
         'mpk'          => "TEXT NOT NULL DEFAULT ''",
         'kwota'        => "TEXT NOT NULL DEFAULT ''",
         'creator_name' => "TEXT NOT NULL DEFAULT ''",
+        'miesiac'      => "INTEGER",
+        'rok'          => "INTEGER",
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",
@@ -234,6 +236,7 @@ function kdok_migrate(): void {
 
     // Domyślne ustawienia w głównej bazie
     foreach ([
+        // Baza danych
         'kdok_db_type'          => 'main',
         'kdok_db_sqlite_path'   => '',
         'kdok_db_mysql_host'    => 'localhost',
@@ -243,6 +246,45 @@ function kdok_migrate(): void {
         'kdok_db_mysql_pass'    => '',
         'kdok_mpk_enabled'      => '0',
         'kdok_mpk_list'         => '',
+        // eArchiwum (FTP + R2)
+        'kdok_archive_enabled'  => '0',
+        'kdok_ftp_enabled'      => '0',
+        'kdok_ftp_host'         => '',
+        'kdok_ftp_port'         => '21',
+        'kdok_ftp_user'         => '',
+        'kdok_ftp_pass'         => '',
+        'kdok_ftp_path'         => '/kdok',
+        'kdok_ftp_passive'      => '1',
+        'kdok_r2_enabled'       => '0',
+        'kdok_r2_account_id'    => '',
+        'kdok_r2_access_key'    => '',
+        'kdok_r2_secret_key'    => '',
+        'kdok_r2_bucket'        => '',
+        'kdok_r2_prefix'        => 'kdok',
+        // Archiwum — PIN dostępu do przegladaj.php
+        'kdok_przeglad_pin_hash'=> '',
+        // KSeF
+        'kdok_ksef_enabled'               => '0',
+        'kdok_ksef_env'                   => 'production',
+        'kdok_ksef_nip'                   => '',
+        'kdok_ksef_token'                 => '',
+        'kdok_ksef_last_sync'             => '',
+        'kdok_ksef_public_key_cache_prod'  => '',
+        'kdok_ksef_public_key_ts_prod'     => '',
+        'kdok_ksef_public_key_cache_test'  => '',
+        'kdok_ksef_public_key_ts_test'     => '',
+        'kdok_ksef_pubkey_manual_production' => '',
+        'kdok_ksef_pubkey_manual_demo'       => '',
+        'kdok_ksef_pubkey_manual_test'       => '',
+        'kdok_ksef_cert_pem_production'      => '',
+        'kdok_ksef_key_pem_production'       => '',
+        'kdok_ksef_key_pass_production'      => '',
+        'kdok_ksef_cert_pem_demo'            => '',
+        'kdok_ksef_key_pem_demo'             => '',
+        'kdok_ksef_key_pass_demo'            => '',
+        'kdok_ksef_cert_pem_test'            => '',
+        'kdok_ksef_key_pem_test'             => '',
+        'kdok_ksef_key_pass_test'            => '',
     ] as $key => $default) {
         if (!db_one("SELECT 1 FROM settings WHERE key_=?", [$key])) {
             $mdb->prepare("INSERT INTO settings (key_,value) VALUES (?,?)")->execute([$key, $default]);
@@ -590,7 +632,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->SetFont('DejaVu', 'B', 12);
     $pdf->SetTextColor(255, 255, 255);
     $pdf->SetXY(15, 15);
-    $pdf->Cell($W, 10, _pdf('KARTA OBIEGU DOKUMENTU KSIĘGOWEGO'), 0, 1, 'C');
+    $pdf->Cell($W, 10, _pdf('KARTA OBIEGU — EOD DOKUMENTÓW KSIĘGOWYCH'), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);
 
     // Dane: lewa kolumna (dane dokumentu) + prawa kolumna (status/kwota)
@@ -669,7 +711,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
               'formal'     => 'Sprawdzono formalnie i rachunkowo',
               'zatwierdza' => 'Zatwierdzono do wyplaty'] as $key => $label) {
         $step = $doc['steps'][$key] ?? null;
-        $dec  = match($step['status'] ?? '') { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', default => 'Oczekuje' };
+        $dec  = match($step['status'] ?? '') { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', 'odrzucono' => 'ODRZUCONO', default => 'Oczekuje' };
         $dt   = ($step && $step['decided_at']) ? date('d.m.Y H:i', strtotime($step['decided_at'])) : '—';
         $cn   = ($step['cert_cn'] ?? '') ?: ($step['user_name'] ?? '—');
         $fp   = $step['cert_fingerprint'] ?? ''; // pełny SHA-256 z dwukropkami
@@ -744,7 +786,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->Cell($W, 5.5, _pdf('KLAUZULA ZATWIERDZENIA ELEKTRONICZNEGO'), 1, 1, 'C', true);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFillColor(248, 248, 252);
     $pdf->SetFont('DejaVu', '', 7);
-    $klauzula = 'Niniejszy dokument zostal zatwierdzony elektronicznie w systemie obiegu dokumentow ksiegowych ' . $org
+    $klauzula = 'Niniejszy dokument zostal zatwierdzony elektronicznie w systemie EOD Dokumentow Ksiegowych ' . $org
         . '. Elektroniczne zatwierdzenie jest rownowazne z podpisem wlasnorecznym (art. 7 ustawy o rachunkowosci,'
         . ' Dz.U. 2023 poz. 120). Kazdy etap akceptacji wymagal certyfikatu X.509 oraz kodu IKAKS.';
     $pdf->MultiCell($W, 4, _pdf($klauzula), 1, 'J', true);
@@ -794,6 +836,70 @@ function kdok_generate_final_pdf(int $doc_id): string {
 }
 
 // ── Czyszczenie ───────────────────────────────────────────────────────────────
+
+/**
+ * Tworzy plik ZIP ze wszystkimi finalnymi PDF-ami dla danego miesiąca i roku.
+ * Zwraca ścieżkę do pliku ZIP lub rzuca RuntimeException.
+ */
+function kdok_zip_month(int $miesiac, int $rok): string {
+    if (!class_exists('ZipArchive')) {
+        throw new RuntimeException('Brak rozszerzenia ZipArchive w PHP.');
+    }
+
+    // Pobierz wszystkie zaakceptowane dokumenty z danego miesiąca/roku
+    $docs = kdok_all(
+        "SELECT id, number, miesiac, rok, created_at FROM kdok_documents
+         WHERE status = 'zaakceptowany'
+           AND (
+               (miesiac IS NOT NULL AND rok IS NOT NULL AND miesiac = ? AND rok = ?)
+               OR
+               (miesiac IS NULL AND CAST(SUBSTR(created_at,6,2) AS INTEGER) = ? AND CAST(SUBSTR(created_at,1,4) AS INTEGER) = ?)
+           )
+         ORDER BY id",
+        [$miesiac, $rok, $miesiac, $rok]
+    );
+
+    if (!$docs) {
+        throw new RuntimeException('Brak zaakceptowanych dokumentów dla wybranego miesiąca.');
+    }
+
+    $dir = UPLOAD_DIR . 'kdok_generated/';
+    $zip_name = 'EOD_DK_' . sprintf('%04d_%02d', $rok, $miesiac) . '_' . date('Ymd_His') . '.zip';
+    $zip_path = sys_get_temp_dir() . '/' . $zip_name;
+
+    $zip = new ZipArchive();
+    if ($zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('Nie można utworzyć pliku ZIP.');
+    }
+
+    $added = 0;
+    $seen_docs = [];
+    foreach ($docs as $doc) {
+        $doc_id = $doc['id'];
+        if (isset($seen_docs[$doc_id])) continue;
+        // Pobierz najnowszy wygenerowany PDF
+        $gen = kdok_one(
+            "SELECT file_path FROM kdok_generated_pdf WHERE doc_id = ? ORDER BY id DESC LIMIT 1",
+            [$doc_id]
+        );
+        if (!$gen) continue;
+        $full = UPLOAD_DIR . $gen['file_path'];
+        if (!is_file($full)) continue;
+        $safe = preg_replace('/[^a-zA-Z0-9_.\-]/', '_', $doc['number']);
+        $zip->addFile($full, $safe . '.pdf');
+        $seen_docs[$doc_id] = true;
+        $added++;
+    }
+
+    $zip->close();
+
+    if ($added === 0) {
+        @unlink($zip_path);
+        throw new RuntimeException('Brak wygenerowanych PDF-ów dla zaakceptowanych dokumentów z tego miesiąca.');
+    }
+
+    return $zip_path;
+}
 
 function kdok_cleanup_old_generated(int $keep_per_doc = 3, int $older_than_days = 90): array {
     $stats = ['deleted_files' => 0, 'freed_bytes' => 0, 'errors' => []];

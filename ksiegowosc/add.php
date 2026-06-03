@@ -5,9 +5,13 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
+require_once __DIR__ . '/../includes/kdok_ksef.php';
 
 kdok_require_role('upload');
 kdok_migrate();
+kdok_ksef_migrate();
+
+$ksef_enabled = org_setting('kdok_ksef_enabled') === '1';
 
 $errors = [];
 
@@ -37,36 +41,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $grant_name  = trim($_POST['grant_name']  ?? '');
     $mpk         = trim($_POST['mpk']         ?? '');
 
-    if (!isset(KDOK_TYPES[$type]))    $errors[] = 'Wybierz typ dokumentu.';
-    if ($title === '')                $errors[] = 'Tytuł jest wymagany.';
-    if (empty($_FILES['file']['tmp_name'])) $errors[] = 'Plik PDF jest wymagany.';
+    $ksef_ref = trim($_POST['ksef_reference'] ?? '');
+    $is_ksef  = ($type === 'ksef');
+
+    if (!isset(KDOK_TYPES[$type]))  $errors[] = 'Wybierz typ dokumentu.';
+    if ($title === '')              $errors[] = 'Tytuł jest wymagany.';
+    if ($is_ksef && $ksef_ref === '') $errors[] = 'Podaj numer referencyjny KSeF.';
+    if (!$is_ksef && empty($_FILES['file']['tmp_name'])) $errors[] = 'Plik PDF jest wymagany.';
+
+    $file_path = null; $file_sha256 = null; $file_size = null;
 
     if (!$errors) {
-        // Upload pliku
-        $file_path = null;
-        $file_sha256 = null;
-        $file_size = null;
+        $dir = UPLOAD_DIR . 'kdok_docs/';
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
 
-        $f = $_FILES['file'];
-        if ($f['error'] !== UPLOAD_ERR_OK) {
-            $errors[] = 'Błąd uploadu pliku (kod: ' . $f['error'] . ').';
-        } else {
-            $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-            if ($ext !== 'pdf') {
-                $errors[] = 'Dozwolony jest tylko format PDF.';
-            } elseif ($f['size'] > 30 * 1024 * 1024) {
-                $errors[] = 'Plik nie może przekraczać 30 MB.';
+        if ($is_ksef) {
+            // Pobierz wizualizację z KSeF automatycznie
+            $nip = org_setting('kdok_ksef_nip');
+            if (!$nip) {
+                $errors[] = 'Brak konfiguracji KSeF (NIP). Skonfiguruj w panelu admina.';
             } else {
-                $dir = UPLOAD_DIR . 'kdok_docs/';
-                if (!is_dir($dir)) mkdir($dir, 0755, true);
-                $name = date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.pdf';
-                $dest = $dir . $name;
-                if (!move_uploaded_file($f['tmp_name'], $dest)) {
-                    $errors[] = 'Nie można zapisać pliku.';
-                } else {
+                try {
+                    $auth = kdok_ksef_authenticate_auto($nip);
+                    if (!$auth['ok']) throw new RuntimeException($auth['error'] ?? 'Błąd autoryzacji');
+                    $jwt = $auth['token'];
+                    $vis = kdok_ksef_get_visualisation($jwt, $ksef_ref);
+                    kdok_ksef_session_terminate($jwt);
+
+                    $ext  = $vis['ext'];
+                    $name = date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+                    $dest = $dir . $name;
+                    if (file_put_contents($dest, $vis['content']) === false) {
+                        throw new RuntimeException('Nie można zapisać pliku wizualizacji.');
+                    }
                     $file_path   = 'kdok_docs/' . $name;
                     $file_sha256 = hash_file('sha256', $dest);
                     $file_size   = filesize($dest);
+                } catch (\Throwable $e) {
+                    if (!empty($jwt)) { try { kdok_ksef_session_terminate($jwt); } catch (\Throwable $_) {} }
+                    $errors[] = 'Błąd pobierania z KSeF: ' . $e->getMessage();
+                }
+            }
+        } else {
+            // Normalny upload pliku
+            $f = $_FILES['file'];
+            if ($f['error'] !== UPLOAD_ERR_OK) {
+                $errors[] = 'Błąd uploadu pliku (kod: ' . $f['error'] . ').';
+            } else {
+                $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+                if ($ext !== 'pdf') {
+                    $errors[] = 'Dozwolony jest tylko format PDF.';
+                } elseif ($f['size'] > 30 * 1024 * 1024) {
+                    $errors[] = 'Plik nie może przekraczać 30 MB.';
+                } else {
+                    $name = date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.pdf';
+                    $dest = $dir . $name;
+                    if (!move_uploaded_file($f['tmp_name'], $dest)) {
+                        $errors[] = 'Nie można zapisać pliku.';
+                    } else {
+                        $file_path   = 'kdok_docs/' . $name;
+                        $file_sha256 = hash_file('sha256', $dest);
+                        $file_size   = filesize($dest);
+                    }
                 }
             }
         }
@@ -90,6 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'file_size'    => $file_size,
             'status'       => 'w_obiegu',
             'created_by'   => $cu['id'],
+            'miesiac'      => (int)date('n'),
+            'rok'          => (int)date('Y'),
         ]);
 
         foreach (array_keys(KDOK_STEPS) as $step) {
@@ -134,8 +172,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card shadow-sm" style="max-width:680px">
   <div class="card-body">
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" id="add-form">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="ksef_reference" id="ksef-reference-hidden" value="<?= h($_POST['ksef_reference'] ?? '') ?>">
 
       <div class="mb-3">
         <label class="form-label fw-semibold">Typ dokumentu <span class="text-danger">*</span></label>
@@ -212,10 +251,34 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <?php endif; ?>
 
-      <div class="mb-4">
+      <!-- Sekcja KSeF (widoczna tylko dla typu ksef) -->
+      <div class="mb-3" id="ksef-section" style="display:none">
+        <label class="form-label fw-semibold">
+          <i class="bi bi-receipt-cutoff text-primary"></i>
+          Numer referencyjny KSeF <span class="text-danger">*</span>
+        </label>
+        <div class="d-flex gap-2">
+          <input type="text" id="ksef-ref-input" class="form-control font-monospace"
+                 placeholder="np. 1234560000-20260604-ABC123DEF456-AA"
+                 autocomplete="off" value="<?= h($_POST['ksef_reference'] ?? '') ?>">
+          <?php if ($ksef_enabled): ?>
+          <button type="button" id="ksef-fetch-btn" class="btn btn-primary text-nowrap">
+            <i class="bi bi-cloud-download"></i> Pobierz dane
+          </button>
+          <?php endif; ?>
+        </div>
+        <div id="ksef-result" class="mt-2" style="display:none"></div>
+        <div class="form-text mt-1">
+          <i class="bi bi-info-circle text-primary"></i>
+          Wizualizacja faktury zostanie pobrana automatycznie z KSeF — nie trzeba uploadować pliku.
+        </div>
+      </div>
+
+      <!-- Sekcja upload pliku (widoczna dla typów innych niż ksef) -->
+      <div class="mb-4" id="file-section">
         <label for="file" class="form-label fw-semibold">Plik PDF <span class="text-danger">*</span></label>
-        <input type="file" id="file" name="file" class="form-control" accept=".pdf" required>
-        <div class="form-text">Maks. 64 MB. Wyłącznie PDF. Suma SHA-256 zostanie wyliczona automatycznie.</div>
+        <input type="file" id="file" name="file" class="form-control" accept=".pdf">
+        <div class="form-text">Maks. 30 MB. Wyłącznie PDF. Suma SHA-256 zostanie wyliczona automatycznie.</div>
       </div>
 
       <div class="d-flex gap-2">
@@ -225,5 +288,92 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
   </div>
 </div>
+
+<script>
+(function () {
+  var ksefSection = document.getElementById('ksef-section');
+  var fileSection = document.getElementById('file-section');
+  var fileInput   = document.getElementById('file');
+  var radios      = document.querySelectorAll('input[name="type"]');
+
+  function toggleSections() {
+    var selected = document.querySelector('input[name="type"]:checked');
+    var isKsef   = selected && selected.value === 'ksef';
+    if (ksefSection) ksefSection.style.display = isKsef ? '' : 'none';
+    if (fileSection) fileSection.style.display = isKsef ? 'none' : '';
+    // required tylko na aktywnym polu
+    if (fileInput) fileInput.required = !isKsef;
+  }
+
+  radios.forEach(function(r) { r.addEventListener('change', toggleSections); });
+  toggleSections(); // ustaw stan przy ładowaniu strony
+
+  <?php if ($ksef_enabled): ?>
+  // ── Pobieranie danych z KSeF ────────────────────────────────────────────────
+  var btn    = document.getElementById('ksef-fetch-btn');
+  var input  = document.getElementById('ksef-ref-input');
+  var result = document.getElementById('ksef-result');
+  var hidden = document.getElementById('ksef-reference-hidden');
+
+  function setResult(html) { result.innerHTML = html; result.style.display = ''; }
+  function fillField(id, v) { var el = document.getElementById(id); if (el && v) el.value = v; }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var ref = input.value.trim();
+      if (!ref) { input.focus(); input.classList.add('is-invalid'); return; }
+      input.classList.remove('is-invalid');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Pobieranie…';
+      result.style.display = 'none';
+
+      var fd = new FormData();
+      fd.append('_csrf', '<?= csrf_token() ?>');
+      fd.append('ksef_reference', ref);
+
+      fetch('<?= APP_URL ?>/ksiegowosc/ksef_fetch.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(json) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-cloud-download"></i> Pobierz dane';
+
+          if (!json.ok) {
+            setResult('<div class="alert alert-danger py-2 mb-0 small"><i class="bi bi-x-circle me-1"></i>' + esc(json.error) + '</div>');
+            return;
+          }
+          var d = json.data;
+          fillField('title',       d.title);
+          fillField('kwota',       d.kwota);
+          fillField('description', d.description);
+          if (hidden) hidden.value = d.ksef_reference;
+
+          var info = '';
+          if (d.invoice_number) info += '<strong>' + esc(d.invoice_number) + '</strong>';
+          if (d.seller_name)    info += (info ? ' &mdash; ' : '') + esc(d.seller_name);
+          if (d.seller_nip)     info += ' <span class="text-muted">NIP: ' + esc(d.seller_nip) + '</span>';
+          if (d.kwota)          info += ' · ' + esc(d.kwota) + ' ' + esc(d.currency || 'PLN');
+          if (d.issue_date)     info += ' · ' + esc(d.issue_date);
+
+          setResult('<div class="alert alert-success py-2 mb-0 small">'
+            + '<i class="bi bi-check-circle-fill text-success me-1"></i>'
+            + 'Dane pobrane. Wizualizacja zostanie pobrana z KSeF przy zapisie. ' + info
+            + '</div>');
+        })
+        .catch(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-cloud-download"></i> Pobierz dane';
+          setResult('<div class="alert alert-danger py-2 mb-0 small"><i class="bi bi-x-circle me-1"></i>Błąd sieci: ' + esc(err.message) + '</div>');
+        });
+    });
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
+    });
+  }
+  <?php endif; ?>
+})();
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

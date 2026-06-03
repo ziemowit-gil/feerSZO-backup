@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (mb_strlen($values['body']) < 1) $errors[] = 'Treść jest wymagana.';
 
     // Walidacja audience
-    $valid_audiences = ['all', 'role:admin', 'role:editor', 'role:viewer'];
+    $valid_audiences = ['all', 'public', 'role:admin', 'role:editor', 'role:viewer'];
     foreach ($org_units as $ou) {
         $valid_audiences[] = 'unit:' . $ou['id'];
     }
@@ -118,7 +118,8 @@ require_once dirname(__DIR__) . '/includes/header.php';
           <div class="mb-3">
             <label class="form-label fw-semibold">Odbiorca</label>
             <select name="audience" class="form-select" id="ann-audience">
-              <option value="all" <?= $values['audience'] === 'all' ? 'selected' : '' ?>>Wszyscy aktywni użytkownicy</option>
+              <option value="all"    <?= $values['audience'] === 'all'    ? 'selected' : '' ?>>Wszyscy aktywni użytkownicy</option>
+              <option value="public" <?= $values['audience'] === 'public' ? 'selected' : '' ?>>🌐 Strona logowania (przed zalogowaniem)</option>
               <optgroup label="Rola">
                 <option value="role:admin"  <?= $values['audience'] === 'role:admin'  ? 'selected' : '' ?>>Administratorzy</option>
                 <option value="role:editor" <?= $values['audience'] === 'role:editor' ? 'selected' : '' ?>>Edytorzy</option>
