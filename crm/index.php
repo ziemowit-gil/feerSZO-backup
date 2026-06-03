@@ -505,6 +505,9 @@ include __DIR__ . '/includes/header_crm.php';
     <?php if (array_filter($filters)): ?>
     <h5>Brak wyników dla wybranych filtrów</h5>
     <p class="text-muted">Spróbuj zmienić kryteria wyszukiwania lub <a href="<?= APP_URL ?>/crm/index.php">wyczyść filtry</a>.</p>
+    <?php elseif (!crm_access_unrestricted() && empty(crm_accessible_group_ids())): ?>
+    <h5>Brak dostępu do kontaktów</h5>
+    <p class="text-muted">Twoje konto nie jest przypisane do żadnej grupy CRM. Skontaktuj się z administratorem, aby uzyskać dostęp.</p>
     <?php else: ?>
     <h5>Brak kontaktów w systemie CRM</h5>
     <p class="text-muted">Zacznij od dodania pierwszego kontaktu lub zaimportuj dane.</p>

@@ -55,6 +55,7 @@ function cpc_migrate(): void {
         'activation_token'          => "ALTER TABLE users ADD COLUMN activation_token TEXT NULL",
         'ika_revoked_at'            => "ALTER TABLE users ADD COLUMN ika_revoked_at DATETIME NULL",
         'portal_scope'              => "ALTER TABLE users ADD COLUMN portal_scope TEXT NULL",
+        'crm_ika_required'          => "ALTER TABLE users ADD COLUMN crm_ika_required INTEGER NULL",
     ];
 
     foreach ($users_columns as $col => $sql) {

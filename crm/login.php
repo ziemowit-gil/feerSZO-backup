@@ -92,14 +92,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } catch (\Throwable $e) {}
                 }
 
-                // Wymuś IKA dla crm_only — musi mieć ustawiony kod
-                if ($is_crm_only_user && empty($user['cpc_code'])) {
+                // Nadpisanie per-user: crm_ika_required=0 zwalnia z IKA nawet dla crm_only
+                $crm_ika_flag = isset($user['crm_ika_required']) && $user['crm_ika_required'] !== null
+                    ? (int)$user['crm_ika_required'] : null;
+                $ika_exempt   = ($crm_ika_flag === 0);
+                $ika_forced   = ($crm_ika_flag === 1);
+
+                // Wymuś IKA dla crm_only — musi mieć ustawiony kod (chyba że admin zwolnił)
+                if (!$ika_exempt && ($is_crm_only_user || $ika_forced) && empty($user['cpc_code'])) {
                     $error = 'Twoje konto wymaga aktywacji kodu IKA przed pierwszym logowaniem. Skontaktuj się z administratorem systemu.';
                 } else {
                     login_user($user);
                     crm_migrate();
-                    // Przekieruj przez IKA jeśli kod ustawiony
-                    if (!empty($user['cpc_code'])) {
+                    // Przekieruj przez IKA jeśli kod ustawiony i nie jest zwolniony
+                    if (!$ika_exempt && !empty($user['cpc_code'])) {
                         header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($redirect));
                     } else {
                         header('Location: ' . $redirect);

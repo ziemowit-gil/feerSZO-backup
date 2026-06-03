@@ -422,6 +422,19 @@ function ika_require(string $return_url = '', int $ttl = 1800): void {
         }
     }
 
+    // Nadpisanie per-user dla kontekstu CRM (crm_ika_required: NULL=domyślnie, 0=zwolniony, 1=wymuś)
+    $uri_check = $return_url ?: ($_SERVER['REQUEST_URI'] ?? '');
+    $in_crm = str_contains($uri_check, '/crm/') || str_contains($uri_check, '/crm?');
+    if ($in_crm) {
+        try {
+            $ov = db_one("SELECT crm_ika_required FROM users WHERE id=?", [(int)$user['id']]);
+            $flag = isset($ov['crm_ika_required']) && $ov['crm_ika_required'] !== null
+                ? (int)$ov['crm_ika_required'] : null;
+            if ($flag === 0) return;         // admin zwolnił z IKA w CRM
+            if ($flag === 1) $requires_ika = true; // admin wymusił IKA w CRM
+        } catch (\Throwable $e) {}
+    }
+
     if (!$requires_ika) return;
 
     // Sprawdź token IKA w sesji

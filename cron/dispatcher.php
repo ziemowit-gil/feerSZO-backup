@@ -64,6 +64,11 @@ $AGENTS = [
         'interval' => 86400,
         'schedule' => [1, 3],
     ],
+    'sync_crm_volunteers' => [
+        'file'     => __DIR__ . '/sync_crm_volunteers.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [3, 5],       // między 3:00 a 5:00
+    ],
 ];
 
 $lock_dir = sys_get_temp_dir();

@@ -134,6 +134,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db_update($TABLE, $save, $id);
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'edit', $diff ?: 'Edytowano umowę');
+
+        // Sync grupy CRM "Wolontariusze" gdy zmienił się status lub e-mail
+        $status_changed = isset($save['status']) && ($save['status'] !== ($row['status'] ?? ''));
+        $email_changed  = isset($save['email'])  && ($save['email']  !== ($row['email']  ?? ''));
+        if (($status_changed || $email_changed) && !empty($save['email'])) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+                CrmManager::syncVolunteerGroupMember(
+                    $save['email'],
+                    $save['status'] ?? ($row['status'] ?? '')
+                );
+            } catch (\Throwable $e) {}
+        }
+
         flash_set('success', 'Zmiany zapisane.');
         header('Location: view.php?id=' . $id);
         exit;

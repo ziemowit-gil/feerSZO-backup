@@ -32,6 +32,7 @@ function current_user(): ?array {
 function is_crm_only(): bool {
     $u = current_user();
     if (!$u) return false;
+    if (($u['portal_scope'] ?? '') === 'crm_only') return true;
     if ($u['role'] === 'crm_user') return true;
     try {
         $r = db_one("SELECT crm_only FROM roles WHERE name=?", [$u['role']]);

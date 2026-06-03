@@ -75,6 +75,9 @@ include __DIR__ . '/../includes/header_crm.php';
       <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola formularza
     </a>
     <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/crm/settings/ika.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-shield-lock me-1"></i>Wymaganie IKA
+    </a>
     <a href="<?= APP_URL ?>/admin/teryt_import.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-geo-alt me-1"></i>Import TERYT
     </a>

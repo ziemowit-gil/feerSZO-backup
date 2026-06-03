@@ -10,10 +10,10 @@ require_once __DIR__ . '/includes/functions.php';
 require_login();
 
 if (defined('CRM_STANDALONE') && CRM_STANDALONE) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
-if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
-if (is_crm_only()) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 if (($_SESSION['user']['portal_scope'] ?? '') === 'tasks_only') { header('Location: ' . APP_URL . '/tasks/inbox.php'); exit; }
 if (($_SESSION['user']['portal_scope'] ?? '') === 'crm_only') { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
+if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
+if (is_crm_only()) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 
 $_u   = current_user();
 $_fn  = explode(' ', trim($_u['first_name'] ?? $_u['name'] ?? $_u['email'] ?? 'Użytkowniku'))[0];
