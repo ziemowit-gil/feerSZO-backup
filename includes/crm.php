@@ -1414,7 +1414,7 @@ class CrmManager
             if ($existing) $contact_id = (int)$existing['id'];
         }
         if (!$contact_id) {
-            $contact_id = self::createContact([
+            $contact_payload = [
                 'type'         => 'osoba',
                 'imie_nazwisko'=> $name,
                 'email'        => $email ?: null,
@@ -1422,12 +1422,25 @@ class CrmManager
                 'status'       => 'aktywny',
                 'source'       => 'wolontariat_auto',
                 'created_by'   => $created_by,
-            ]);
+            ];
+            // Oddzielne imię/nazwisko jeśli dostarczone
+            if (!empty($row['imie']))    $contact_payload['imie']    = $row['imie'];
+            if (!empty($row['nazwisko'])) $contact_payload['nazwisko'] = $row['nazwisko'];
+            // Dodatkowe pola z kartoteki
+            foreach (['adres','stanowisko','organizacja','pesel','data_urodzenia','wojewodztwo'] as $f) {
+                if (!empty($row[$f])) $contact_payload[$f] = $row[$f];
+            }
+            $contact_id = self::createContact($contact_payload);
         } else {
             // Zaktualizuj dane jeśli są nowe
             $upd = [];
-            if ($email) $upd['email']  = $email;
+            if ($email) $upd['email'] = $email;
             if ($row['telefon'] ?? '') $upd['telefon'] = $row['telefon'];
+            if (!empty($row['imie']))    $upd['imie']    = $row['imie'];
+            if (!empty($row['nazwisko'])) $upd['nazwisko'] = $row['nazwisko'];
+            foreach (['adres','stanowisko','organizacja','pesel','data_urodzenia','wojewodztwo'] as $f) {
+                if (!empty($row[$f])) $upd[$f] = $row[$f];
+            }
             if ($upd) self::updateContact($contact_id, $upd);
         }
 

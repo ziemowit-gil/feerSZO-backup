@@ -170,6 +170,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($rid) db()->prepare("DELETE FROM org_representatives WHERE id=?")->execute([$rid]);
         flash_set('success', 'Usunięto.');
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rejestrowe'); exit;
+    } elseif (isset($_POST['save_portal'])) {
+        $keys = ['allow_standalone_vol_accounts'];
+        foreach ($keys as $k) {
+            $val = isset($_POST[$k]) ? '1' : '0';
+            try {
+                db()->prepare("INSERT INTO settings (key_, value) VALUES (?,?) ON CONFLICT(key_) DO UPDATE SET value=excluded.value")
+                    ->execute([$k, $val]);
+            } catch (\Throwable $e) {
+                try {
+                    $ex = db_one("SELECT key_ FROM settings WHERE key_=?", [$k]);
+                    if ($ex) db()->prepare("UPDATE settings SET value=? WHERE key_=?")->execute([$val, $k]);
+                    else     db_insert('settings', ['key_' => $k, 'value' => $val]);
+                } catch (\Throwable $e2) {}
+            }
+        }
+        flash_set('success', 'Ustawienia portalu zapisane.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=portal'); exit;
     }
 }
 
@@ -199,6 +216,12 @@ include dirname(__DIR__) . '/includes/header.php';
     <button class="nav-link" id="tab-btn-branding" data-bs-toggle="tab" data-bs-target="#tab-branding"
             type="button" role="tab">
       <i class="bi bi-palette2 me-1"></i>Branding
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-btn-portal" data-bs-toggle="tab" data-bs-target="#tab-portal"
+            type="button" role="tab">
+      <i class="bi bi-people me-1"></i>Portal
     </button>
   </li>
   <li class="nav-item" role="presentation">
@@ -660,6 +683,57 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 
 </div><!-- /tab-mail -->
+
+<!-- ══ Portal ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-portal" role="tabpanel">
+
+  <div class="card shadow-sm mb-4" style="max-width:680px">
+    <div class="card-header fw-semibold">
+      <i class="bi bi-people text-primary me-1"></i> Konta wolontariuszy bez umowy
+    </div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+
+        <div class="d-flex align-items-start gap-3 p-3 border rounded mb-3">
+          <div class="form-check form-switch mt-1 flex-shrink-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="allow_standalone_vol_accounts" name="allow_standalone_vol_accounts"
+                   <?= (org_setting('allow_standalone_vol_accounts') === '1') ? 'checked' : '' ?>>
+          </div>
+          <div>
+            <label class="fw-semibold d-block mb-1" for="allow_standalone_vol_accounts"
+                   style="font-size:.9rem;cursor:pointer">
+              Zezwól na tworzenie kont wolontariuszy bez umowy
+            </label>
+            <div class="text-muted" style="font-size:.8rem;line-height:1.5">
+              Gdy włączone, administatror może tworzyć konta z rolą <strong>wolontariusza</strong>
+              bez powiązanej umowy. Konto daje dostęp do portalu (zadania, wiadomości, panel)
+              — identyczny z kontem tworzonym przez porozumienie wolontariackie.<br>
+              Konta te są widoczne w sekcji
+              <a href="<?= APP_URL ?>/admin/volunteer_accounts.php">Konta bez umowy</a>.
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" name="save_portal" class="btn btn-primary btn-sm">
+          <i class="bi bi-floppy me-1"></i>Zapisz ustawienia portalu
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <?php if (org_setting('allow_standalone_vol_accounts') === '1'): ?>
+  <div class="alert alert-success d-flex align-items-center gap-2" style="max-width:680px">
+    <i class="bi bi-check-circle-fill"></i>
+    Funkcja aktywna.
+    <a href="<?= APP_URL ?>/admin/volunteer_accounts.php" class="ms-2 btn btn-sm btn-outline-success">
+      <i class="bi bi-person-plus me-1"></i>Zarządzaj kontami bez umowy
+    </a>
+  </div>
+  <?php endif; ?>
+
+</div><!-- /tab-portal -->
 
 </div><!-- /tab-content -->
 

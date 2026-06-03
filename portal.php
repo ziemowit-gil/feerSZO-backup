@@ -12,7 +12,16 @@ require_login();
 if (defined('CRM_STANDALONE') && CRM_STANDALONE) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 if (($_SESSION['user']['portal_scope'] ?? '') === 'tasks_only') { header('Location: ' . APP_URL . '/tasks/inbox.php'); exit; }
 if (($_SESSION['user']['portal_scope'] ?? '') === 'crm_only') { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
-if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
+if (is_viewer()) {
+    // Standalone volunteer (bez umowy) → tablica zadań, nie panel umów
+    try {
+        $__sv = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)current_user()['id']]);
+        if (!empty($__sv['is_standalone_volunteer'])) {
+            header('Location: ' . APP_URL . '/tasks/index.php'); exit;
+        }
+    } catch (\Throwable $e) {}
+    header('Location: ' . APP_URL . '/panel/index.php'); exit;
+}
 if (is_crm_only()) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 
 $_u   = current_user();

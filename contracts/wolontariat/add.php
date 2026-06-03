@@ -426,7 +426,10 @@ auth_start();
 if (!empty($_SESSION['ob_prefill']) && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $row = array_merge($row, $_SESSION['ob_prefill']);
     unset($_SESSION['ob_prefill']);
-    flash_set('info', 'Dane zostały wstępnie uzupełnione z kwestionariusza wolontariusza. Sprawdź i uzupełnij brakujące pola.');
+    $prefill_msg = !empty($_SESSION['standalone_migration_uid'])
+        ? 'Dane uzupełnione z konta wolontariusza bez umowy. Wypełnij pozostałe pola i zapisz, aby przekształcić konto na pełnoprawne porozumienie.'
+        : 'Dane zostały wstępnie uzupełnione z kwestionariusza wolontariusza. Sprawdź i uzupełnij brakujące pola.';
+    flash_set('info', $prefill_msg);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -587,6 +590,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             CrmManager::autoAddVolunteer($data, (int)(current_user()['id'] ?? 0));
         } catch (\Throwable $e) {
             error_log('[crm_auto] ' . $e->getMessage());
+        }
+
+        // Migracja ze standalone — wyczyść flagę is_standalone_volunteer
+        auth_start();
+        if (!empty($_SESSION['standalone_migration_uid'])) {
+            $mig_uid = (int)$_SESSION['standalone_migration_uid'];
+            unset($_SESSION['standalone_migration_uid']);
+            try {
+                db()->prepare("UPDATE users SET is_standalone_volunteer=0 WHERE id=?")
+                    ->execute([$mig_uid]);
+            } catch (\Throwable $e) {}
+            flash_set('success', 'Umowa wolontariacka zapisana. Konto wolontariusza zostało przekształcone — nie jest już oznaczone jako "bez umowy".');
         }
 
         // Uzasadnienie statusu terminalnego

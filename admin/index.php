@@ -141,6 +141,9 @@ $groups = [
         'color' => 'blue',
         'items' => [
             ['icon'=>'bi-people',          'label'=>'Użytkownicy',       'url'=>'/admin/users.php',         'badge'=>$cnt['users'] ?: null,   'badge_type'=>'secondary'],
+            ...(org_setting('allow_standalone_vol_accounts') === '1' ? [
+                ['icon'=>'bi-person-plus', 'label'=>'Wolontariusze bez umowy', 'url'=>'/admin/volunteer_accounts.php'],
+            ] : []),
             ['icon'=>'bi-shield-lock',     'label'=>'Role i uprawnienia','url'=>'/admin/roles.php'],
             ['icon'=>'bi-key',             'label'=>'Kody IKA',          'url'=>'/admin/manage_cpc.php'],
             ['icon'=>'bi-door-open',       'label'=>'Metody logowania',  'url'=>'/admin/login_settings.php'],

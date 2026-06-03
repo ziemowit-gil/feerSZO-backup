@@ -56,6 +56,13 @@ function cpc_migrate(): void {
         'ika_revoked_at'            => "ALTER TABLE users ADD COLUMN ika_revoked_at DATETIME NULL",
         'portal_scope'              => "ALTER TABLE users ADD COLUMN portal_scope TEXT NULL",
         'crm_ika_required'          => "ALTER TABLE users ADD COLUMN crm_ika_required INTEGER NULL",
+        'is_standalone_volunteer'   => "ALTER TABLE users ADD COLUMN is_standalone_volunteer INTEGER NOT NULL DEFAULT 0",
+        'ika_email_otp'             => "ALTER TABLE users ADD COLUMN ika_email_otp TEXT NULL",
+        'ika_email_otp_expires'     => "ALTER TABLE users ADD COLUMN ika_email_otp_expires DATETIME NULL",
+        'm365_login'                => "ALTER TABLE users ADD COLUMN m365_login TEXT NULL",
+        'm365_security_group_id'    => "ALTER TABLE users ADD COLUMN m365_security_group_id TEXT NULL",
+        'm365_security_group_name'  => "ALTER TABLE users ADD COLUMN m365_security_group_name TEXT NULL",
+        'org_unit_id'               => "ALTER TABLE users ADD COLUMN org_unit_id INTEGER NULL",
     ];
 
     foreach ($users_columns as $col => $sql) {

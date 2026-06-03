@@ -61,6 +61,14 @@ function panel_contracts(array $user): array {
     return $results;
 }
 
+// Konto standalone volunteer — przekieruj do zadań (brak umów do pokazania)
+try {
+    $__sv_check = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)$user['id']]);
+    if (!empty($__sv_check['is_standalone_volunteer'])) {
+        header('Location: ' . APP_URL . '/tasks/index.php'); exit;
+    }
+} catch (\Throwable $e) {}
+
 $contracts = panel_contracts($user);
 
 // ── Wybór aktywnej umowy ──────────────────────────────────────────────────────

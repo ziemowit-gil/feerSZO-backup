@@ -394,6 +394,47 @@ class M365Graph {
         ]]);
         @file_get_contents($url, false, $ctx);
     }
+
+    /**
+     * Dodaje użytkownika do grupy (Security Group lub Microsoft 365 Group).
+     * Graph API: POST /groups/{group_id}/members/$ref
+     *
+     * @param string $user_id   Azure AD User ID (GUID)
+     * @param string $group_id  Azure AD Group ID (GUID)
+     * @throws \RuntimeException gdy odpowiedź API sygnalizuje błąd (poza 204 i 409 — 409 = już w grupie)
+     */
+    public function add_to_group(string $user_id, string $group_id): void {
+        $url  = "https://graph.microsoft.com/v1.0/groups/{$group_id}/members/\$ref";
+        $body = json_encode([
+            '@odata.id' => "https://graph.microsoft.com/v1.0/directoryObjects/{$user_id}",
+        ]);
+        $ctx  = stream_context_create(['http' => [
+            'method'        => 'POST',
+            'header'        => "Content-Type: application/json\r\nAuthorization: Bearer {$this->token()}\r\n",
+            'content'       => $body,
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents($url, false, $ctx);
+        $code = (int)explode(' ', $http_response_header[0] ?? 'HTTP/1.1 0')[1];
+        // 204 = OK, 409 = Conflict (already member) — both are acceptable
+        if ($code !== 204 && $code !== 409 && $code !== 0) {
+            throw new \RuntimeException("Błąd dodawania do grupy M365 (HTTP {$code}).");
+        }
+    }
+
+    /**
+     * Usuwa użytkownika z grupy.
+     * Graph API: DELETE /groups/{group_id}/members/{user_id}/$ref
+     */
+    public function remove_from_group(string $user_id, string $group_id): void {
+        $url = "https://graph.microsoft.com/v1.0/groups/{$group_id}/members/{$user_id}/\$ref";
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'DELETE',
+            'header'        => "Authorization: Bearer {$this->token()}\r\n",
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents($url, false, $ctx);
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
