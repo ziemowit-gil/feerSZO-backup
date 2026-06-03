@@ -696,13 +696,8 @@ if (!empty($_GET['show_aneks'])): ?>
   border-radius: 0 0 12px 12px !important;
 }
 
-/* Animacja przełączania zakładek */
-#wolontariatTabsContent .tab-pane {
-  animation-duration: .18s;
-  animation-fill-mode: both;
-}
-#wolontariatTabsContent .tab-pane.fade { opacity: 0; transition: opacity .18s ease; }
-#wolontariatTabsContent .tab-pane.fade.show { opacity: 1; }
+/* Animacja przełączania — NIE nadpisujemy Bootstrap fade/show (to psuje przełączanie) */
+#wolontariatTabsContent .tab-pane.fade.show.active { opacity: 1; }
 
 /* Karty sekcji wewnątrz zakładek */
 .tab-pane .card {
