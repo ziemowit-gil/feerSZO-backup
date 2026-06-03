@@ -775,22 +775,19 @@ if (!empty($_GET['show_aneks'])): ?>
 <ul class="nav nav-tabs mb-0 no-print" id="wolontariatTabs" role="tablist">
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="tab-umowa-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-umowa" type="button" role="tab" aria-selected="true">
+    <button class="nav-link active" id="tab-umowa-btn" data-tab="tab-umowa" type="button" role="tab" aria-selected="true">
       <i class="bi bi-file-text"></i> Umowa
     </button>
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-wolontariusz-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-wolontariusz" type="button" role="tab">
+    <button class="nav-link" id="tab-wolontariusz-btn" data-tab="tab-wolontariusz" type="button" role="tab">
       <i class="bi bi-person"></i> Wolontariusz
     </button>
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-docs-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-docs" type="button" role="tab">
+    <button class="nav-link" id="tab-docs-btn" data-tab="tab-docs" type="button" role="tab">
       <i class="bi bi-folder2-open"></i> Dokumenty
       <?php if ($_badge_docs): ?>
       <span class="badge bg-warning text-dark ms-1"><?= $_badge_docs ?></span>
@@ -799,8 +796,7 @@ if (!empty($_GET['show_aneks'])): ?>
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-obieg-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-obieg" type="button" role="tab">
+    <button class="nav-link" id="tab-obieg-btn" data-tab="tab-obieg" type="button" role="tab">
       <i class="bi bi-arrow-repeat"></i> Obieg
       <?php if ($_badge_obieg): ?>
       <span class="badge bg-danger ms-1"><?= $_badge_obieg ?></span>
@@ -809,8 +805,7 @@ if (!empty($_GET['show_aneks'])): ?>
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-m365-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-m365" type="button" role="tab">
+    <button class="nav-link" id="tab-m365-btn" data-tab="tab-m365" type="button" role="tab">
       <i class="bi bi-microsoft"></i> M365
       <?php if ($row['m365_konto']): ?>
       <span class="badge <?= $row['m365_konto_aktywne'] ? 'bg-success' : 'bg-secondary' ?> ms-1">
@@ -821,8 +816,7 @@ if (!empty($_GET['show_aneks'])): ?>
   </li>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-historia-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-historia" type="button" role="tab">
+    <button class="nav-link" id="tab-historia-btn" data-tab="tab-historia" type="button" role="tab">
       <i class="bi bi-journal-text"></i> Historia
       <?php if ($audit_log): ?>
       <span class="badge bg-secondary ms-1"><?= count($audit_log) ?></span>
@@ -832,8 +826,7 @@ if (!empty($_GET['show_aneks'])): ?>
 
   <?php if ($_tasks_enabled && can_edit()): ?>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-tasks-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-tasks" type="button" role="tab">
+    <button class="nav-link" id="tab-tasks-btn" data-tab="tab-tasks" type="button" role="tab">
       <i class="bi bi-kanban"></i> Zadania
       <?php if ($_contract_tasks): ?>
       <span class="badge bg-primary ms-1"><?= count($_contract_tasks) ?></span>
@@ -843,8 +836,7 @@ if (!empty($_GET['show_aneks'])): ?>
   <?php endif; ?>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-zwroty-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-zwroty" type="button" role="tab">
+    <button class="nav-link" id="tab-zwroty-btn" data-tab="tab-zwroty" type="button" role="tab">
       <i class="bi bi-receipt-cutoff"></i> Zwroty kosztów
       <?php if ($_zwroty_cnt_pending): ?>
       <span class="badge bg-warning text-dark ms-1"><?= $_zwroty_cnt_pending ?></span>
@@ -857,8 +849,7 @@ if (!empty($_GET['show_aneks'])): ?>
   <?php if (apaczka_setting('apaczka_enabled') !== '0' && can_edit()): ?>
   <?php $_ship_rows = shipments_for_contract($id, 'wolontariat'); $_ship_pending_tab = count(array_filter($_ship_rows, fn($r) => $r['status'] === 'requested')); ?>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-shipments-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-shipments" type="button" role="tab">
+    <button class="nav-link" id="tab-shipments-btn" data-tab="tab-shipments" type="button" role="tab">
       <i class="bi bi-box-seam"></i> Przesyłki
       <?php if ($_ship_pending_tab): ?>
       <span class="badge bg-warning text-dark ms-1"><?= $_ship_pending_tab ?></span>
@@ -872,8 +863,7 @@ if (!empty($_GET['show_aneks'])): ?>
   <?php if (module_enabled('timesheets_enabled')): ?>
   <?php $_ts_rows = ts_contract_summary($id); $_ts_pending_tab = count(array_filter($_ts_rows, fn($r) => $r['status'] === 'złożone')); ?>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-godziny-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-godziny" type="button" role="tab">
+    <button class="nav-link" id="tab-godziny-btn" data-tab="tab-godziny" type="button" role="tab">
       <i class="bi bi-clock-history"></i> Godziny
       <?php if ($_ts_pending_tab): ?>
       <span class="badge bg-warning text-dark ms-1"><?= $_ts_pending_tab ?></span>
@@ -885,8 +875,7 @@ if (!empty($_GET['show_aneks'])): ?>
   <?php endif; ?>
 
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-messages-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-messages" type="button" role="tab">
+    <button class="nav-link" id="tab-messages-btn" data-tab="tab-messages" type="button" role="tab">
       <i class="bi bi-chat-dots"></i> Wiadomości
       <?php
         $_msg_unread = msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user');
@@ -2673,49 +2662,59 @@ if (!empty($_GET['show_aneks'])): ?>
 <?php endif; ?>
 
 <script>
-// ── Zakładki — click-based (bez bootstrap.Tab API) ──────────────────────────
+// ── Własny silnik zakładek — zero Bootstrap JS ───────────────────────────────
 (function () {
   var KEY = 'wolontariat_tab_<?= $id ?>';
   var CID = <?= (int)$id ?>;
 
-  function activate(tabId) {
-    var btn = document.querySelector('[data-bs-target="#' + tabId + '"]');
-    if (btn && !btn.classList.contains('active')) btn.click();
+  function showTab(tabId) {
+    // Schowaj wszystkie panele i odznacz wszystkie przyciski
+    document.querySelectorAll('#wolontariatTabsContent .tab-pane').forEach(function (p) {
+      p.classList.remove('show', 'active');
+    });
+    document.querySelectorAll('#wolontariatTabs [data-tab]').forEach(function (b) {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
+    // Pokaż wybrany panel i aktywuj przycisk
+    var pane = document.getElementById(tabId);
+    var btn  = document.querySelector('[data-tab="' + tabId + '"]');
+    if (pane) { pane.classList.add('show', 'active'); }
+    if (btn)  { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+    localStorage.setItem(KEY, tabId);
   }
 
-  // Natychmiastowe przełączenie — click działa bez Bootstrap JS API
-  var hash = location.hash;
-  if (hash === '#tab-messages-anchor' || location.search.includes('msg=1')) {
-    activate('tab-messages'); localStorage.setItem(KEY, 'tab-messages');
-  } else if (hash === '#tab-tasks-anchor') {
-    activate('tab-tasks'); localStorage.setItem(KEY, 'tab-tasks');
-  } else if (hash && hash.startsWith('#tab-')) {
-    activate(hash.slice(1));
-  } else {
-    var saved = localStorage.getItem(KEY);
-    if (saved && saved !== 'tab-umowa') activate(saved);
-  }
-
-  // Zapisz przy zmianie
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-bs-toggle="tab"]');
-    if (!btn) return;
-    var t = (btn.dataset.bsTarget || '').replace('#', '');
-    if (t) localStorage.setItem(KEY, t);
+  // Klik na przycisk zakładki
+  document.querySelectorAll('#wolontariatTabs [data-tab]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      showTab(this.dataset.tab);
+      setTimeout(refreshBadges, 400);
+    });
   });
 
+  // Przywróć aktywną zakładkę (hash → localStorage → domyślna)
+  var hash = location.hash;
+  if (hash === '#tab-messages-anchor' || location.search.includes('msg=1')) {
+    showTab('tab-messages');
+  } else if (hash === '#tab-tasks-anchor') {
+    showTab('tab-tasks');
+  } else if (hash && hash.startsWith('#tab-') && document.getElementById(hash.slice(1))) {
+    showTab(hash.slice(1));
+  } else {
+    var saved = localStorage.getItem(KEY);
+    if (saved && document.getElementById(saved)) showTab(saved);
+    // else: pierwsza zakładka już ma active w HTML
+  }
+
   // ── AJAX odświeżanie odznak ──────────────────────────────────────────────
-  function updateBadge(selector, count, cls) {
-    var el = document.querySelector(selector);
+  function updateBadge(btnId, count, cls) {
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    var badge = btn.querySelector('.badge');
     if (count > 0) {
-      if (!el) {
-        el = document.createElement('span');
-        el.className = cls;
-        var btn = document.querySelector(selector.split(' ')[0]);
-        if (btn) btn.appendChild(el);
-      }
-      if (el) el.textContent = count;
-    } else if (el) { el.remove(); }
+      if (!badge) { badge = document.createElement('span'); badge.className = cls; btn.appendChild(badge); }
+      badge.textContent = count;
+    } else if (badge) { badge.remove(); }
   }
 
   function refreshBadges() {
@@ -2723,18 +2722,11 @@ if (!empty($_GET['show_aneks'])): ?>
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d) return;
-        updateBadge('#tab-messages-btn .badge', d.msg_unread,    'badge bg-danger ms-1');
-        updateBadge('#tab-obieg-btn .badge',    d.badge_obieg,   'badge bg-danger ms-1');
-        updateBadge('#tab-zwroty-btn .badge',   d.zwroty_pending,'badge bg-warning text-dark ms-1');
+        updateBadge('tab-messages-btn', d.msg_unread,    'badge bg-danger ms-1');
+        updateBadge('tab-obieg-btn',    d.badge_obieg,   'badge bg-danger ms-1');
+        updateBadge('tab-zwroty-btn',   d.zwroty_pending,'badge bg-warning text-dark ms-1');
       }).catch(function () {});
   }
-
-  var _t = null;
-  document.addEventListener('click', function (e) {
-    if (e.target.closest('[data-bs-toggle="tab"]')) {
-      clearTimeout(_t); _t = setTimeout(refreshBadges, 400);
-    }
-  });
 })();
 
 // ── Dynamiczne listy zadań po wyborze workspace ────────────────────────────
