@@ -796,6 +796,166 @@ html, body { height: 100%; margin: 0; padding: 0; }
 <div role="alert" aria-live="assertive" aria-atomic="true"
      style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" id="login-alert"></div>
 
+<!-- ══ Baner: technologia asystująca ════════════════════════════════════════ -->
+<div id="at-banner" role="region" aria-label="Informacja o dostępności"
+     style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
+            background:#1e40af;color:#fff;padding:.65rem 1.25rem;
+            font-size:.88rem;line-height:1.4;box-shadow:0 2px 8px rgba(0,0,0,.25)">
+  <div style="max-width:860px;margin:0 auto;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+    <span style="font-size:1.2rem" aria-hidden="true">♿</span>
+    <div style="flex:1;min-width:200px">
+      <strong id="at-banner-title">Wykryto technologię asystującą</strong>
+      <div id="at-banner-msg" style="opacity:.92;margin-top:.1rem">
+        System SZO jest w pełni dostosowany do pracy z czytnikami ekranu JAWS, NVDA i VoiceOver —
+        wszystkie elementy mają etykiety ARIA, kolejność fokusa i ogłoszenia na żywo.
+      </div>
+    </div>
+    <button id="at-banner-close"
+            style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);
+                   color:#fff;border-radius:6px;padding:.3rem .8rem;cursor:pointer;
+                   font-size:.82rem;white-space:nowrap;flex-shrink:0"
+            aria-label="Zamknij powiadomienie o technologii asystującej">
+      Rozumiem ✕
+    </button>
+  </div>
+</div>
+
+<!-- Przycisk ułatwień dostępu (zawsze widoczny w rogu) -->
+<button id="at-toggle-btn"
+        aria-label="Informacja o dostępności i technologiach asystujących"
+        title="Dostępność — JAWS, NVDA, VoiceOver"
+        style="position:fixed;bottom:1rem;left:1rem;z-index:9998;
+               background:#1e40af;color:#fff;border:none;border-radius:50%;
+               width:2.4rem;height:2.4rem;font-size:1.1rem;cursor:pointer;
+               box-shadow:0 2px 8px rgba(0,0,0,.3);line-height:1;
+               display:flex;align-items:center;justify-content:center"
+        aria-pressed="false">
+  ♿
+</button>
+
+<style>
+@media (prefers-reduced-motion: no-preference) {
+  #at-banner { transition: transform .2s ease; }
+  #at-banner.at-hidden { transform: translateY(-100%); }
+}
+</style>
+
+<script>
+(function () {
+  var STORAGE_KEY  = 'szo_at_acknowledged';
+  var ACTIVE_KEY   = 'szo_at_active';
+  var banner       = document.getElementById('at-banner');
+  var closeBtn     = document.getElementById('at-banner-close');
+  var toggleBtn    = document.getElementById('at-toggle-btn');
+  var liveRegion   = document.getElementById('login-live');
+  var titleEl      = document.getElementById('at-banner-title');
+  var msgEl        = document.getElementById('at-banner-msg');
+
+  /* ── Sygnały detekcji ────────────────────────────────────────────── */
+  var mq = window.matchMedia;
+  var signals = {
+    forcedColors:   mq && mq('(forced-colors: active)').matches,       // Windows HC → JAWS/NVDA
+    highContrastMS: mq && mq('(-ms-high-contrast: active)').matches,   // IE/Edge HC
+    moreContrast:   mq && mq('(prefers-contrast: more)').matches,      // systemowe ułatwienia
+    lessMotion:     mq && mq('(prefers-reduced-motion: reduce)').matches,
+    isIOS: /iPhone|iPad|iPod/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1,
+    isMacOS: /Macintosh/i.test(navigator.userAgent) && !('ontouchend' in document),
+  };
+
+  /* Etykieta wykrytego czytnika */
+  function detectedLabel() {
+    if (signals.forcedColors || signals.highContrastMS) {
+      return { who: 'JAWS lub NVDA', hint: 'Wykryto Tryb wysokiego kontrastu Windows.' };
+    }
+    if (signals.isIOS) {
+      return { who: 'VoiceOver (iOS)', hint: 'Wykryto urządzenie iOS.' };
+    }
+    if (signals.isMacOS && signals.lessMotion) {
+      return { who: 'VoiceOver (macOS)', hint: 'Wykryto macOS z włączonymi ułatwieniami dostępu.' };
+    }
+    if (signals.moreContrast) {
+      return { who: 'czytnik ekranu lub technologię asystującą', hint: 'Wykryto systemowe ustawienie wyższego kontrastu.' };
+    }
+    return null;
+  }
+
+  /* ── Pokaż/ukryj baner ───────────────────────────────────────────── */
+  function showBanner(label, reason) {
+    if (label) {
+      titleEl.textContent = 'Wykryto: ' + label.who;
+      if (reason) {
+        msgEl.innerHTML = '<em style="opacity:.7;font-size:.8rem">' + reason + '</em><br>'
+          + 'System SZO jest w pełni dostosowany do współpracy z czytnikami ekranu '
+          + '— etykiety ARIA, zarządzanie fokusem, ogłoszenia na żywo.';
+      }
+    } else {
+      titleEl.textContent = 'Tryb dostępności';
+      msgEl.innerHTML = 'System SZO obsługuje czytniki ekranu JAWS, NVDA i VoiceOver. '
+        + 'Wszystkie elementy mają etykiety ARIA i ogłoszenia na żywo.';
+    }
+    banner.style.display = 'block';
+    toggleBtn.setAttribute('aria-pressed', 'true');
+    /* Ogłoś przez live region po chwili (żeby strona zdążyła się załadować) */
+    setTimeout(function () {
+      if (liveRegion) liveRegion.textContent = titleEl.textContent + '. ' + msgEl.textContent;
+    }, 600);
+  }
+
+  function hideBanner() {
+    banner.style.display = 'none';
+    toggleBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  /* ── Init ────────────────────────────────────────────────────────── */
+  var acknowledged = sessionStorage.getItem(STORAGE_KEY);
+  var manualActive = localStorage.getItem(ACTIVE_KEY) === '1';
+  var detected     = detectedLabel();
+
+  if (manualActive) {
+    showBanner(null);
+  } else if (detected && !acknowledged) {
+    showBanner(detected, detected.hint);
+  }
+
+  /* ── Zamknij ─────────────────────────────────────────────────────── */
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function () {
+      hideBanner();
+      sessionStorage.setItem(STORAGE_KEY, '1');
+      /* Nie czyść manualActive — tylko ukryj na tę sesję */
+    });
+  }
+
+  /* ── Przycisk ♿ — toggle ─────────────────────────────────────────── */
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function () {
+      var isVisible = banner.style.display !== 'none';
+      if (isVisible) {
+        hideBanner();
+        localStorage.removeItem(ACTIVE_KEY);
+        sessionStorage.setItem(STORAGE_KEY, '1');
+      } else {
+        localStorage.setItem(ACTIVE_KEY, '1');
+        sessionStorage.removeItem(STORAGE_KEY);
+        showBanner(detected);
+      }
+    });
+  }
+
+  /* ── Nasłuchuj zmiany trybu HC (np. user włącza HC podczas sesji) ─── */
+  if (mq) {
+    try {
+      mq('(forced-colors: active)').addEventListener('change', function (e) {
+        if (e.matches && !sessionStorage.getItem(STORAGE_KEY)) {
+          signals.forcedColors = true;
+          showBanner(detectedLabel());
+        }
+      });
+    } catch (_) {}
+  }
+})();
+</script>
+
 <?php if ($_login_layout === 'simple'): ?>
 <!-- ══════════════════════════════════════════════════════════════════════════
      LAYOUT: SIMPLE — wyśrodkowana karta

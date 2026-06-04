@@ -16,7 +16,7 @@ $download_html = isset($_GET['dl']) && $_GET['dl'] === 'html';
 
 // Wszyscy aktywni użytkownicy
 $all_users = db_all(
-    "SELECT id, name, email, role, is_admin, kdok_ikaks_hash, kdok_ikaks_set_at
+    "SELECT id, name, email, role, kdok_ikaks_hash, kdok_ikaks_set_at
      FROM users WHERE is_active = 1 ORDER BY name"
 );
 
@@ -56,7 +56,7 @@ $users = [];
 foreach ($all_users as $u) {
     $uid = (int)$u['id'];
     $has_kdok_role = !empty($kdok_roles_map[$uid]);
-    $is_admin_user = ($u['role'] === 'admin') || !empty($u['is_admin']);
+    $is_admin_user = ($u['role'] === 'admin') ;
     if ($has_kdok_role || $is_admin_user) {
         $u['_kdok_roles']    = $kdok_roles_map[$uid] ?? [];
         $u['_cert']          = $certs_map[$uid] ?? null;
@@ -111,7 +111,7 @@ ob_start();
     $roles     = $u['_kdok_roles'];
     $cert      = $u['_cert'];
     $last_act  = $u['_last_action'];
-    $is_adm    = ($u['role'] === 'admin') || !empty($u['is_admin']);
+    $is_adm    = ($u['role'] === 'admin') ;
 
     // IKAKS
     $has_ika   = !empty($u['kdok_ikaks_hash']);
