@@ -13,12 +13,13 @@ $row = $id ? db_one("SELECT * FROM rodo_authorizations WHERE id=?", [$id]) : nul
 if (!$row) { http_response_code(404); die('Brak danych.'); }
 
 $scope    = json_decode($row['scope_items'] ?? '[]', true) ?: [];
-$org_city = org_setting('org_miejscowosc') ?: '_______________';
+$org_city = org_setting('org_miejscowosc') ?: (org_setting('org_name') ? '' : '_______________');
 $org_krs  = org_setting('org_krs') ?: '';
 
-$signed_date     = $row['signed_at']     ? date('d.m.Y', strtotime($row['signed_at']))     : '_______________';
-$vol_signed_date = $row['vol_signed_at'] ? date('d.m.Y', strtotime($row['vol_signed_at'])) : '_______________';
-$from_date       = $row['authorized_from']  ? date('d.m.Y', strtotime($row['authorized_from']))  : '_______________';
+$today           = date('d.m.Y');
+$signed_date     = $row['signed_at']     ? date('d.m.Y', strtotime($row['signed_at']))     : $today;
+$vol_signed_date = $row['vol_signed_at'] ? date('d.m.Y', strtotime($row['vol_signed_at'])) : $today;
+$from_date       = $row['authorized_from']  ? date('d.m.Y', strtotime($row['authorized_from']))  : $today;
 $until_date      = $row['authorized_until'] ? date('d.m.Y', strtotime($row['authorized_until'])) : '';
 $contract_date_fmt = $row['contract_date'] ? date('d.m.Y', strtotime($row['contract_date'])) : '';
 ?>

@@ -12,33 +12,34 @@ $id  = (int)($_GET['id'] ?? 0);
 $row = $id ? db_one("SELECT * FROM rodo_authorizations WHERE id=?", [$id]) : null;
 if (!$row) { http_response_code(404); die('Brak danych.'); }
 
-// Ostatnie cofnięcie
+// Ostatnie odwołanie
 $rev = db_one(
     "SELECT * FROM rodo_revocations WHERE authorization_id=? ORDER BY revoked_at DESC LIMIT 1",
     [$id]
 );
 
-$org_city = org_setting('org_miejscowosc') ?: '_______________';
+$org_city = org_setting('org_miejscowosc') ?: (org_setting('org_name') ? '' : '_______________');
 $org_krs  = org_setting('org_krs') ?: '';
+$today    = date('d.m.Y');
 
-$revoked_date    = $rev ? date('d.m.Y', strtotime($rev['revoked_at'])) : date('d.m.Y');
+$revoked_date    = $rev ? date('d.m.Y', strtotime($rev['revoked_at'])) : $today;
 $revoked_by_name = $rev ? ($rev['revoked_by_name'] ?: '') : ($row['signed_by_name'] ?: '');
 $reason          = $rev ? ($rev['reason'] ?? '') : '';
 
-// Numer dokumentu cofnięcia: [nr_upoważnienia]/COF
-$cof_number = $row['number'] . '/COF';
+// Numer dokumentu odwołania: [nr_upoważnienia]/ODW
+$cof_number = $row['number'] . '/ODW';
 
 $contract_date_fmt = $row['contract_date'] ? date('d.m.Y', strtotime($row['contract_date'])) : '';
-$auth_from_fmt     = $row['authorized_from'] ? date('d.m.Y', strtotime($row['authorized_from'])) : '_______________';
+$auth_from_fmt     = $row['authorized_from'] ? date('d.m.Y', strtotime($row['authorized_from'])) : $today;
 ?>
 <!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>Cofnięcie upoważnienia RODO — <?= h($cof_number) ?></title>
+<title>Odwołanie upoważnienia RODO — <?= h($cof_number) ?></title>
 <style>
 /* ════════════════════════════════════════════════════════
-   COFNIĘCIE UPOWAŻNIENIA RODO  ·  druk / PDF  ·  A4
+   ODWOŁANIE UPOWAŻNIENIA RODO  ·  druk / PDF  ·  A4
    ════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -196,10 +197,10 @@ body {
 
 <!-- Tytuł -->
 <div class="doc-title-wrap">
-  <div class="doc-title">Cofnięcie upoważnienia do przetwarzania danych osobowych</div>
+  <div class="doc-title">Odwołanie upoważnienia do przetwarzania danych osobowych</div>
   <div class="doc-subtitle">wydane na podstawie art. 29 Rozporządzenia (UE) 2016/679 (RODO)</div>
   <div class="doc-ref-orig">
-    dotyczy upoważnienia nr <strong><?= h($row['number']) ?></strong>
+    odwołanie upoważnienia nr <strong><?= h($row['number']) ?></strong>
     z dnia <?= $auth_from_fmt ?>
   </div>
 </div>
@@ -217,7 +218,7 @@ body {
       </div>
     </td>
     <td>
-      <div class="party-head">Osoba, której cofnięto upoważnienie</div>
+      <div class="party-head">Osoba, której odwołano upoważnienie</div>
       <div class="party-val"><?= h($row['person_name']) ?></div>
       <div class="party-sub">
         <?php if ($row['person_pesel']): ?>PESEL: <strong><?= h($row['person_pesel']) ?></strong><br><?php endif; ?>
@@ -227,7 +228,7 @@ body {
   </tr>
 </table>
 
-<!-- § 1 — Cofnięcie -->
+<!-- § 1 — Odwołanie -->
 <div class="section">
   <div class="section-title"><span class="para-num">§ 1</span></div>
   <div class="section-body">
@@ -236,7 +237,7 @@ body {
     upoważnienie do przetwarzania danych osobowych nr <strong><?= h($row['number']) ?></strong>
     z dnia <?= $auth_from_fmt ?>,
     wydane przez <?= h($row['org_name']) ?>.
-    Z chwilą cofnięcia niniejszego upoważnienia osoba traci prawo do przetwarzania danych osobowych
+    Z chwilą odwołania niniejszego upoważnienia osoba traci prawo do przetwarzania danych osobowych
     we wszystkich zbiorach prowadzonych przez Administratora.
   </div>
 </div>
@@ -246,29 +247,29 @@ body {
   <div class="section-title"><span class="para-num">§ 2</span></div>
   <div class="section-body">
     <?php if ($reason): ?>
-    Cofnięcie upoważnienia następuje z powodu: <strong><?= h($reason) ?></strong>.
+    Odwołanie upoważnienia następuje z powodu: <strong><?= h($reason) ?></strong>.
     <?php else: ?>
-    Cofnięcie upoważnienia następuje z powodu ustania stosunku wolontariatu lub zakończenia
+    Odwołanie upoważnienia następuje z powodu ustania stosunku wolontariatu lub zakończenia
     porozumienia o wolontariacie<?php if ($row['contract_number']): ?> nr&nbsp;<strong><?= h($row['contract_number']) ?></strong><?php endif; ?>,
     w związku z którym zostało ono wydane.
     <?php endif; ?>
   </div>
 </div>
 
-<!-- § 3 — Obowiązki po cofnięciu -->
+<!-- § 3 — Obowiązki po odwołaniu -->
 <div class="section">
   <div class="section-title"><span class="para-num">§ 3</span></div>
   <div class="section-body">
-    Osoba, której cofnięto upoważnienie, jest zobowiązana do:
+    Osoba, której odwołano upoważnienie, jest zobowiązana do:
     <ol class="oblig-list">
       <li>Niezwłocznego zaprzestania przetwarzania danych osobowych we wszystkich zbiorach
-          objętych cofniętym upoważnieniem.</li>
+          objętych odwołanym upoważnieniem.</li>
       <li>Usunięcia lub zwrotu wszelkich danych osobowych pobranych ze zbiorów Administratora,
           w tym kopii papierowych i elektronicznych.</li>
       <li>Zachowania w pełnej poufności informacji uzyskanych w trakcie obowiązywania upoważnienia,
           zgodnie z przepisami Rozporządzenia (UE) 2016/679 (RODO).</li>
       <li>Wydania Administratorowi wszelkich nośników i dokumentów zawierających dane osobowe
-          w terminie niezwłocznym, nie dłuższym niż 3 dni robocze od dnia cofnięcia upoważnienia.</li>
+          w terminie niezwłocznym, nie dłuższym niż 3 dni robocze od dnia odwołania upoważnienia.</li>
     </ol>
   </div>
 </div>
@@ -277,7 +278,7 @@ body {
 <div class="section">
   <div class="section-title"><span class="para-num">§ 4</span></div>
   <div class="section-body">
-    Niniejsze cofnięcie upoważnienia wchodzi w życie z dniem <strong><?= $revoked_date ?></strong>
+    Niniejsze odwołanie upoważnienia wchodzi w życie z dniem <strong><?= $revoked_date ?></strong>
     i podlega odnotowaniu w Rejestrze osób upoważnionych do przetwarzania danych osobowych
     prowadzonym przez <?= h($row['org_name']) ?> zgodnie z art. 5 ust. 2 RODO.
   </div>
@@ -301,20 +302,20 @@ body {
 
 <!-- Potwierdzenie odbioru -->
 <div class="receipt-box">
-  <div class="receipt-title">Potwierdzenie odbioru i zapoznania się z treścią cofnięcia</div>
+  <div class="receipt-title">Potwierdzenie odbioru i zapoznania się z treścią odwołania</div>
   <div class="receipt-body">
-    Oświadczam, że w dniu <strong>_______________</strong> otrzymałem/am niniejszy dokument i zapoznałem/am się
+    Oświadczam, że w dniu <strong><?= $today ?></strong> otrzymałem/am niniejszy dokument i zapoznałem/am się
     z jego treścią. Zobowiązuję się do niezwłocznego zaprzestania przetwarzania danych osobowych
-    oraz usunięcia wszelkich kopii danych uzyskanych w ramach cofniętego upoważnienia.
+    oraz usunięcia wszelkich kopii danych uzyskanych w ramach odwołanego upoważnienia.
   </div>
   <div class="sign-row" style="margin-top:.5rem">
     <div class="sign-block" style="flex:1.3">
       <div style="font-size:.82rem;margin-bottom:.8rem">
-        <?= h($org_city) ?>, dnia _______________
+        <?= h($org_city) ?>, dnia <?= $today ?>
       </div>
       <div class="sign-line" style="height:1.8rem"></div>
       <div class="sign-label">
-        (podpis osoby, której cofnięto upoważnienie — <?= h($row['person_name']) ?>)
+        (podpis osoby, której odwołano upoważnienie — <?= h($row['person_name']) ?>)
       </div>
     </div>
     <div style="flex:.4"></div>

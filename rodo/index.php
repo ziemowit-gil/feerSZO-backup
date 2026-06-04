@@ -101,7 +101,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <select name="status" class="form-select form-select-sm">
       <option value="">Wszystkie statusy</option>
       <option value="aktywne"  <?= $f_status==='aktywne'  ?'selected':'' ?>>Aktywne</option>
-      <option value="cofnięte" <?= $f_status==='cofnięte' ?'selected':'' ?>>Cofnięte</option>
+      <option value="cofnięte" <?= $f_status==='cofnięte' ?'selected':'' ?>>Odwołane</option>
       <option value="wygasłe"  <?= $f_status==='wygasłe'  ?'selected':'' ?>>Wygasłe</option>
     </select>
   </div>

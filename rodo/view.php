@@ -152,7 +152,7 @@ include dirname(__DIR__) . '/includes/header.php';
     </a>
     <?php if (in_array($row['status'], ['cofnięte','wygasłe'])): ?>
     <a href="<?= APP_URL ?>/rodo/print_revoke.php?id=<?= $id ?>" target="_blank" class="btn btn-outline-danger btn-sm">
-      <i class="bi bi-file-earmark-x me-1"></i>Cofnięcie
+      <i class="bi bi-file-earmark-x me-1"></i>Odwołanie
     </a>
     <?php endif; ?>
     <a href="<?= APP_URL ?>/rodo/new.php" class="btn btn-outline-secondary btn-sm">
@@ -287,14 +287,14 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
 
-  <!-- Historia cofnięć -->
+  <!-- Historia odwołań -->
   <?php if ($revocs): ?>
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header py-2 fw-semibold text-danger d-flex align-items-center" style="font-size:.85rem">
-      <span><i class="bi bi-x-circle me-1"></i>Historia cofnięcia upoważnienia</span>
+      <span><i class="bi bi-x-circle me-1"></i>Historia odwołania upoważnienia</span>
       <a href="<?= APP_URL ?>/rodo/print_revoke.php?id=<?= $id ?>" target="_blank"
          class="btn btn-sm btn-outline-danger py-0 px-2 ms-auto">
-        <i class="bi bi-printer me-1"></i>Drukuj cofnięcie
+        <i class="bi bi-printer me-1"></i>Drukuj odwołanie
       </a>
     </div>
     <div class="card-body">
@@ -329,12 +329,12 @@ include dirname(__DIR__) . '/includes/header.php';
         <input type="hidden" name="_op" value="set_status">
         <input type="hidden" name="status" value="cofnięte">
         <div class="mb-2">
-          <label class="form-label small">Powód cofnięcia</label>
+          <label class="form-label small">Powód odwołania</label>
           <input name="reason" class="form-control form-control-sm" placeholder="opcjonalnie">
         </div>
         <button type="submit" class="btn btn-sm btn-outline-danger w-100"
                 onclick="return confirm('Cofnąć upoważnienie?')">
-          <i class="bi bi-x-circle me-1"></i>Cofnij upoważnienie
+          <i class="bi bi-x-circle me-1"></i>Odwołaj upoważnienie
         </button>
       </form>
       <?php elseif ($row['status'] === 'cofnięte'): ?>
@@ -385,7 +385,7 @@ include dirname(__DIR__) . '/includes/header.php';
       $doc_slots = [
         ['col'=>'signed_doc_path',     'op'=>'upload_signed',     'label'=>'Upoważnienie (podpis adm.)', 'icon'=>'bi-shield-check'],
         ['col'=>'vol_signed_doc_path', 'op'=>'upload_vol_signed', 'label'=>'Oświadczenie wolontariusza', 'icon'=>'bi-person-check'],
-        ['col'=>'revoke_doc_path',     'op'=>'upload_revoke',     'label'=>'Cofnięcie upoważnienia',    'icon'=>'bi-file-earmark-x'],
+        ['col'=>'revoke_doc_path',     'op'=>'upload_revoke',     'label'=>'Odwołanie upoważnienia',    'icon'=>'bi-file-earmark-x'],
       ];
       foreach ($doc_slots as $slot):
         $col  = $slot['col'];

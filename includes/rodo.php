@@ -157,7 +157,7 @@ function rodo_org_data(): array {
 function rodo_status_badge(string $status): string {
     $map = [
         'aktywne'  => ['bg-success',   'Aktywne'],
-        'cofnięte' => ['bg-danger',    'Cofnięte'],
+        'cofnięte' => ['bg-danger',    'Odwołane'],
         'wygasłe'  => ['bg-secondary', 'Wygasłe'],
     ];
     [$cls, $lbl] = $map[$status] ?? ['bg-light text-dark border', $status];
