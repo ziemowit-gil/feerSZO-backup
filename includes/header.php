@@ -1146,19 +1146,176 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <?php endif; ?>
 
     <?php if ($_user): ?>
-    <!-- Kompaktowe wyszukiwanie -->
-    <div class="tb-search-wrap d-none d-md-block">
-      <i class="tb-search-icon bi bi-search"></i>
-      <form method="get" action="<?= APP_URL ?>/search.php">
+    <!-- Szukajka modułów z live-search dropdown -->
+    <div class="tb-search-wrap d-none d-md-block" id="qs-wrap" style="position:relative">
+      <i class="tb-search-icon bi bi-search" aria-hidden="true"></i>
+      <form method="get" action="<?= APP_URL ?>/search.php" id="qs-form" autocomplete="off">
         <input type="search" name="q" id="topbar-search"
-               placeholder="Szukaj… (Ctrl+K)"
+               placeholder="Szukaj modułu lub danych… (Ctrl+K)"
                autocomplete="off"
-               aria-label="Globalne wyszukiwanie"
+               aria-label="Szukajka modułów i danych"
+               aria-expanded="false"
+               aria-controls="qs-dropdown"
+               aria-autocomplete="list"
                style="padding-left:1.8rem"
                onfocus="this.classList.add('expanded')"
                onblur="if(!this.value)this.classList.remove('expanded')">
       </form>
+      <!-- Dropdown wyników -->
+      <div id="qs-dropdown"
+           role="listbox"
+           aria-label="Wyniki wyszukiwania"
+           style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
+                  background:#fff;border:1px solid #E2E8F0;border-radius:10px;
+                  box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:2000;
+                  max-height:420px;overflow-y:auto;font-family:system-ui,sans-serif">
+      </div>
     </div>
+    <style>
+    #qs-dropdown .qs-section-head {
+      font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+      color:#94A3B8;padding:.55rem .85rem .2rem;
+    }
+    #qs-dropdown .qs-item {
+      display:flex;align-items:center;gap:.6rem;
+      padding:.5rem .85rem;cursor:pointer;text-decoration:none;color:#1E293B;
+      border-radius:0;transition:background .08s;
+    }
+    #qs-dropdown .qs-item:hover,
+    #qs-dropdown .qs-item.qs-active { background:#F1F5F9; }
+    #qs-dropdown .qs-item .qs-icon {
+      width:26px;height:26px;border-radius:6px;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;font-size:.85rem;
+    }
+    #qs-dropdown .qs-item .qs-label { font-size:.84rem;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    #qs-dropdown .qs-item .qs-sub  { font-size:.73rem;color:#6B7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    #qs-dropdown .qs-item .qs-badge{ font-size:.65rem;flex-shrink:0; }
+    #qs-dropdown .qs-footer {
+      font-size:.75rem;text-align:center;padding:.45rem;border-top:1px solid #F1F5F9;
+      color:#94A3B8;
+    }
+    #qs-dropdown .qs-footer a { color:#3B82F6;text-decoration:none; }
+    #qs-dropdown .qs-footer a:hover { text-decoration:underline; }
+    </style>
+    <script>
+    (function(){
+      var inp    = document.getElementById('topbar-search');
+      var wrap   = document.getElementById('qs-wrap');
+      var drop   = document.getElementById('qs-dropdown');
+      var active = -1;
+      var items  = [];
+      var timer  = null;
+      var API    = '<?= APP_URL ?>/api/search_quick.php';
+      var SRCH   = '<?= APP_URL ?>/search.php';
+
+      var colorMap = {
+        success:'#16A34A',primary:'#2563EB',warning:'#D97706',
+        danger:'#DC2626',info:'#0891B2',secondary:'#6B7280',dark:'#1E293B'
+      };
+      var bgMap = {
+        success:'#F0FDF4',primary:'#EFF6FF',warning:'#FFFBEB',
+        danger:'#FEF2F2',info:'#F0F9FF',secondary:'#F8FAFC',dark:'#F1F5F9'
+      };
+
+      function buildItem(data, isModule) {
+        var a = document.createElement('a');
+        a.href = data.url;
+        a.className = 'qs-item';
+        a.setAttribute('role','option');
+        var color = colorMap[data.color] || '#6B7280';
+        var bg    = bgMap[data.color]   || '#F8FAFC';
+        var body  = '<div class="qs-icon" style="background:' + bg + ';color:' + color + '">'
+                  + '<i class="bi ' + data.icon + '"></i></div>'
+                  + '<div style="flex:1;min-width:0">'
+                  + '<div class="qs-label">' + esc(data.label) + '</div>';
+        if (data.sub) body += '<div class="qs-sub">' + esc(data.sub) + '</div>';
+        body += '</div>';
+        if (data.badge) body += '<span class="badge qs-badge" style="background:' + bg + ';color:' + color + ';border:1px solid ' + color + '40">' + esc(data.badge) + '</span>';
+        a.innerHTML = body;
+        return a;
+      }
+
+      function esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
+      function render(data) {
+        drop.innerHTML = '';
+        items = [];
+        var any = false;
+
+        if (data.modules && data.modules.length) {
+          any = true;
+          var h = document.createElement('div');
+          h.className = 'qs-section-head';
+          h.textContent = 'Moduły';
+          drop.appendChild(h);
+          data.modules.forEach(function(m) {
+            var el = buildItem(m, true);
+            drop.appendChild(el);
+            items.push(el);
+          });
+        }
+
+        if (data.results && data.results.length) {
+          any = true;
+          var h2 = document.createElement('div');
+          h2.className = 'qs-section-head';
+          h2.textContent = 'Wyniki';
+          drop.appendChild(h2);
+          data.results.forEach(function(r) {
+            var el = buildItem(r, false);
+            drop.appendChild(el);
+            items.push(el);
+          });
+        }
+
+        if (any) {
+          var foot = document.createElement('div');
+          foot.className = 'qs-footer';
+          foot.innerHTML = '<a href="' + SRCH + '?q=' + encodeURIComponent(data.query) + '">Pełne wyniki wyszukiwania →</a>';
+          drop.appendChild(foot);
+        } else {
+          drop.innerHTML = '<div style="padding:.75rem .85rem;font-size:.84rem;color:#6B7280">Brak wyników dla <strong>' + esc(data.query) + '</strong></div>';
+        }
+
+        active = -1;
+        show();
+      }
+
+      function show() { drop.style.display = ''; inp.setAttribute('aria-expanded','true'); }
+      function hide() { drop.style.display = 'none'; inp.setAttribute('aria-expanded','false'); active = -1; }
+
+      function setActive(i) {
+        items.forEach(function(el,j){ el.classList.toggle('qs-active', j===i); });
+        active = i;
+      }
+
+      inp.addEventListener('input', function() {
+        var q = this.value.trim();
+        clearTimeout(timer);
+        if (q.length < 2) { hide(); return; }
+        timer = setTimeout(function() {
+          fetch(API + '?q=' + encodeURIComponent(q))
+            .then(function(r){ return r.json(); })
+            .then(render)
+            .catch(function(){ hide(); });
+        }, 160);
+      });
+
+      inp.addEventListener('keydown', function(e) {
+        if (drop.style.display === 'none') return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(active+1, items.length-1)); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(active-1, 0)); }
+        else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); items[active].click(); }
+        else if (e.key === 'Escape') { hide(); inp.blur(); }
+      });
+
+      document.addEventListener('click', function(e) {
+        if (!wrap.contains(e.target)) hide();
+      });
+    })();
+    </script>
     <?php endif; ?>
 
     <?php if ($_user):

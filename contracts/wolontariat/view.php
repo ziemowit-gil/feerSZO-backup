@@ -1740,12 +1740,18 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <div class="cv-section-head">
       <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-award"></i></div>
       <span class="cv-section-title">Zaświadczenia</span>
-      <div class="cv-section-action">
-        <?php if (!$cert_has_pending): ?>
+      <div class="cv-section-action d-flex gap-1 flex-wrap">
+        <?php if (is_admin()): ?>
+        <a href="<?= APP_URL ?>/certificates/issue_direct.php?type=<?= $TYPE ?>&id=<?= $id ?>"
+           class="btn btn-sm btn-success">
+          <i class="bi bi-award me-1"></i>Wydaj zaświadczenie
+        </a>
+        <?php endif; ?>
+        <?php if (!$cert_has_pending && !is_admin()): ?>
         <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
           <i class="bi bi-plus-lg"></i> Złóż wniosek
         </a>
-        <?php else: ?>
+        <?php elseif ($cert_has_pending && !is_admin()): ?>
         <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Wniosek w toku</span>
         <?php endif; ?>
       </div>
