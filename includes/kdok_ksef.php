@@ -135,6 +135,88 @@ function kdok_ksef_client_with_key(): array {
     return [$builder->build(), $encKey];
 }
 
+// ── Bramka IKA + IKAKS dla operacji KSeF ─────────────────────────────────────
+
+/**
+ * Weryfikuje tożsamość użytkownika przed operacją KSeF.
+ * Sprawdza IKA (kod sesyjny) + IKAKS (indywidualny kod autoryzacyjny).
+ *
+ * @param string $ikaks_plain  Kod IKAKS wpisany przez użytkownika (może być pusty)
+ * @param string $ika_plain    Kod IKA wpisany przez użytkownika (może być pusty)
+ * @return array ['ok'=>bool, 'error'=>string|null, 'method'=>string]
+ */
+function kdok_ksef_auth_gate(string $ikaks_plain = '', string $ika_plain = ''): array {
+    $user    = current_user();
+    $user_id = (int)($user['id'] ?? 0);
+    if (!$user_id) return ['ok' => false, 'error' => 'Brak sesji użytkownika.', 'method' => ''];
+
+    // ── Sprawdź sesyjny token IKA (już zweryfikowany wcześniej) ──────────────
+    $ika_session_ok = false;
+    if (!isset($_SESSION)) @session_start();
+    $ika_ts = (int)($_SESSION['_ika_ts'] ?? 0);
+    if ($ika_ts > 0 && (time() - $ika_ts) < 3600) {
+        $ika_session_ok = true;
+    }
+
+    // ── Weryfikuj IKA jeśli nie ma ważnej sesji i podano kod ─────────────────
+    if (!$ika_session_ok && $ika_plain !== '') {
+        try {
+            require_once __DIR__ . '/cpc.php';
+            $ok = cpc_verify_ika($user_id, $ika_plain);
+            if ($ok) {
+                $ika_session_ok = true;
+                $_SESSION['_ika_ts'] = time();
+            } else {
+                return ['ok' => false, 'error' => 'Nieprawidłowy kod IKA.', 'method' => 'ika'];
+            }
+        } catch (\Throwable $e) {
+            // Brak modułu CPC — pomiń IKA
+            $ika_session_ok = true;
+        }
+    }
+
+    // ── Sprawdź IKAKS ─────────────────────────────────────────────────────────
+    $has_ikaks = kdok_ikaks_has($user_id);
+
+    if ($has_ikaks) {
+        // Użytkownik ma IKAKS — musi go podać
+        if ($ikaks_plain === '') {
+            return ['ok' => false, 'error' => 'Wymagany kod IKAKS.', 'method' => 'ikaks'];
+        }
+        if (!kdok_ikaks_verify($user_id, $ikaks_plain)) {
+            return ['ok' => false, 'error' => 'Nieprawidłowy kod IKAKS.', 'method' => 'ikaks'];
+        }
+        return ['ok' => true, 'error' => null, 'method' => 'ikaks'];
+    }
+
+    // ── Brak IKAKS — wymagaj IKA ──────────────────────────────────────────────
+    if (!$ika_session_ok) {
+        if ($ika_plain === '') {
+            return ['ok' => false, 'error' => 'Wymagany kod IKA (nie masz ustawionego IKAKS).', 'method' => 'ika'];
+        }
+        return ['ok' => false, 'error' => 'Kod IKA nieprawidłowy lub brak sesji.', 'method' => 'ika'];
+    }
+
+    return ['ok' => true, 'error' => null, 'method' => 'ika_session'];
+}
+
+/**
+ * Sprawdza czy bieżący użytkownik ma ważną bramkę KSeF (sesja IKA lub IKAKS ustawiony).
+ * Zwraca ['verified'=>bool, 'has_ikaks'=>bool, 'has_ika_session'=>bool]
+ */
+function kdok_ksef_gate_status(): array {
+    $user_id = (int)((current_user()['id'] ?? 0));
+    if (!isset($_SESSION)) @session_start();
+    $ika_ts  = (int)($_SESSION['_ika_ts'] ?? 0);
+    $ika_ok  = $ika_ts > 0 && (time() - $ika_ts) < 3600;
+    $has_ika = kdok_ikaks_has($user_id);
+    return [
+        'verified'        => $has_ika || $ika_ok,
+        'has_ikaks'       => $has_ika,
+        'has_ika_session' => $ika_ok,
+    ];
+}
+
 // ── Metoda autoryzacji ────────────────────────────────────────────────────────
 
 function kdok_ksef_auth_method(): string {

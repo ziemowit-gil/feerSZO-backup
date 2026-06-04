@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Test Suite">
+            <directory suffix="Test.php">./tests</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+    <php>
+        <env name="NIP_1" value="6669666924" />
+        <env name="PESEL_1" value="90051701234" />
+        <env name="CERTIFICATE_PATH_1" value="config/certificates/testing/6669666924/certificate.p12" />
+        <env name="CERTIFICATE_PASSPHRASE_1" value="password" />
+        <env name="KSEF_AUTH_CERTIFICATE_PATH_1" value="config/certificates/testing/6669666924/ksef-auth-certificate.p12" />
+        <env name="KSEF_AUTH_CERTIFICATE_PASSPHRASE_1" value="password" />
+        <env name="KSEF_OFFLINE_CERTIFICATE_PATH_1" value="config/certificates/testing/6669666924/ksef-offline-certificate.p12" />
+        <env name="KSEF_OFFLINE_CERTIFICATE_PASSPHRASE_1" value="password" />        
+
+        <env name="NIP_2" value="6669666922" />
+        <env name="PESEL_2" value="90051701232" />
+        <env name="FIRST_NAME_2" value="Bożydar" />
+        <env name="LAST_NAME_2" value="Kowalski" />
+        <env name="CERTIFICATE_PATH_2" value="config/certificates/testing/6669666922/certificate.p12" />
+        <env name="CERTIFICATE_PASSPHRASE_2" value="password" />
+
+        <env name="NIP_3" value="6669666923" />
+        <env name="CERTIFICATE_PATH_3" value="config/certificates/testing/6669666923/certificate.p12" />
+        <env name="CERTIFICATE_PASSPHRASE_3" value="password" />        
+    </php>
+</phpunit>

@@ -8,6 +8,11 @@ require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_login();
 require_role('admin');
 
+// Idempotentna migracja — bezterminowa może nie istnieć w starszych tabelach
+foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_inne'] as $_mt) {
+    try { db()->exec("ALTER TABLE {$_mt} ADD COLUMN bezterminowa INTEGER NOT NULL DEFAULT 0"); } catch(\Throwable $e) {}
+}
+
 // ── Akcja: wyślij przypomnienia teraz ─────────────────────────────────────────
 $send_result = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_reminders') {

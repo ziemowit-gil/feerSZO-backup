@@ -1,0 +1,11 @@
+/.playground
+/.vscode
+/.phpunit.cache
+/scripts
+/config
+/vendor
+/var
+/docs
+.env
+.env.testing
+.php-cs-fixer.cache

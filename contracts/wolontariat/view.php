@@ -561,6 +561,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_canva_toggle']) && c
     header('Location: view.php?id=' . $id . '#tab-m365-anchor'); exit;
 }
 
+// ── Ustawienia portalu i Security Group (inline z zakładki m365) ─────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'save_it_settings' && can_edit()) {
+    csrf_check();
+    $ps = in_array($_POST['portal_scope'] ?? '', ['', 'tasks_only', 'crm_only'], true)
+        ? ($_POST['portal_scope'] ?? '') : '';
+    db_update($TABLE, [
+        'portal_scope'             => $ps,
+        'm365_security_group_name' => trim($_POST['m365_security_group_name'] ?? '') ?: null,
+        'm365_security_group_id'   => trim($_POST['m365_security_group_id']   ?? '') ?: null,
+    ], $id);
+    log_contract_action($TYPE, $id, (int)current_user()['id'], 'note',
+        'Zaktualizowano ustawienia portalu i Security Group M365');
+    flash_set('success', 'Ustawienia IT zaktualizowane.');
+    header('Location: view.php?id=' . $id . '&tab=m365'); exit;
+}
+
 // ── Utwórz / podepnij konto lokalne na podstawie M365 (dla umów przed 01.06) ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_create_local_from_m365']) && can_edit()) {
     csrf_check();
@@ -2281,6 +2297,82 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <?php endif; ?>
 
     </div>
+  </div>
+
+  <!-- ── Sekcja Portal i Dostęp IT ─────────────────────────────────────────── -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-display"></i></div>
+      <span class="cv-section-title">Portal i Dostęp IT</span>
+    </div>
+    <?php if (can_edit()): ?>
+    <div class="alert alert-primary d-flex gap-2 py-2 mb-3" style="font-size:.83rem;background:#eff6ff;border-color:#bfdbfe;color:#1e40af">
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+      <div>
+        <strong>Uprawnienia przez Security Group:</strong>
+        Wszelkie ścieżki uprawnień (SharePoint, Teams, aplikacje M365) przypisywane są przez <strong>Security Group</strong> w Azure AD.
+      </div>
+    </div>
+    <form method="post">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="save_it_settings">
+
+      <!-- Zakres portalu -->
+      <div class="mb-3">
+        <div class="fw-semibold small mb-2"><i class="bi bi-grid-3x3-gap me-1"></i>Zakres dostępu do portalu</div>
+        <div class="d-flex flex-column gap-2">
+          <?php foreach ([
+            ''           => ['label'=>'Pełny dostęp',   'sub'=>'Wolontariusz widzi wszystkie dostępne moduły',      'icon'=>'bi-grid-3x3-gap-fill','color'=>'#1d6ef9'],
+            'tasks_only' => ['label'=>'Tylko zadania',   'sub'=>'Przekierowanie bezpośrednio do tablicy zadań',       'icon'=>'bi-kanban',           'color'=>'#0ea5e9'],
+            'crm_only'   => ['label'=>'Tylko CRM',       'sub'=>'Przekierowanie bezpośrednio do systemu CRM',        'icon'=>'bi-diagram-2-fill',   'color'=>'#16a34a'],
+          ] as $val => $opt): $checked = ($row['portal_scope']??'') === $val; ?>
+          <label style="display:flex;align-items:flex-start;gap:.75rem;padding:.5rem .85rem;border-radius:9px;border:1.5px solid <?= $checked?$opt['color']:'#E2E8F0' ?>;background:<?= $checked?'#F8FBFF':'#fff' ?>;cursor:pointer">
+            <input type="radio" name="portal_scope" value="<?= h($val) ?>" <?= $checked?'checked':'' ?> style="margin-top:.2rem;flex-shrink:0">
+            <div>
+              <div style="font-weight:600;font-size:.84rem;color:<?= $opt['color'] ?>">
+                <i class="bi <?= $opt['icon'] ?> me-1"></i><?= $opt['label'] ?>
+              </div>
+              <div style="font-size:.74rem;color:#64748B"><?= $opt['sub'] ?></div>
+            </div>
+          </label>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <!-- Security Group M365 -->
+      <div class="mb-3">
+        <label class="fw-semibold small d-block mb-1"><i class="bi bi-people-fill text-primary me-1"></i>Security Group M365</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white border-end-0"><i class="bi bi-microsoft text-primary"></i></span>
+          <input name="m365_security_group_name" class="form-control border-start-0"
+                 value="<?= h($row['m365_security_group_name']??'') ?>"
+                 placeholder="np. Wolontariusze-Aktywni" style="font-family:monospace;font-size:.85rem">
+        </div>
+        <input type="hidden" name="m365_security_group_id" value="<?= h($row['m365_security_group_id']??'') ?>">
+        <div class="form-text">Zmiana grupy wymaga ręcznej aktualizacji w Azure AD — system zapisuje tylko metadane.</div>
+      </div>
+
+      <button type="submit" class="btn btn-sm btn-primary">
+        <i class="bi bi-check-lg me-1"></i>Zapisz ustawienia
+      </button>
+    </form>
+    <?php else: ?>
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Zakres portalu</div>
+        <div class="cv-value"><?php
+          $ps_labels = ['' => 'Pełny dostęp', 'tasks_only' => 'Tylko zadania', 'crm_only' => 'Tylko CRM'];
+          echo h($ps_labels[$row['portal_scope']??''] ?? ($row['portal_scope'] ?? '—'));
+        ?></div>
+      </div>
+      <?php if ($row['m365_security_group_name']??''): ?>
+      <div class="cv-field">
+        <div class="cv-label">Security Group M365</div>
+        <div class="cv-value font-monospace small"><?= h($row['m365_security_group_name']) ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- ── Sekcja Canva ──────────────────────────────────────────────────────── -->
