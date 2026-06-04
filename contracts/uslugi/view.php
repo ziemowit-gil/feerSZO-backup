@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+require_once dirname(dirname(__DIR__)) . '/includes/docusign.php';
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 
@@ -153,6 +154,23 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
       <?php endif; ?>
     </button>
   </li>
+
+  <?php if (docusign_is_enabled() || current_user()['role'] === 'admin'): ?>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-docusign-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-docusign" type="button" role="tab">
+      <i class="bi bi-pen-fill"></i> DocuSign
+      <?php $__ds = $row['docusign_status'] ?? ''; ?>
+      <?php if (in_array($__ds, ['sent','delivered'])): ?>
+      <span class="badge bg-warning text-dark ms-1">●</span>
+      <?php elseif ($__ds === 'completed'): ?>
+      <span class="badge bg-success ms-1">✓</span>
+      <?php elseif (in_array($__ds, ['declined','voided'])): ?>
+      <span class="badge bg-danger ms-1">✗</span>
+      <?php endif; ?>
+    </button>
+  </li>
+  <?php endif; ?>
 
 </ul>
 
@@ -769,6 +787,10 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <?php endif; ?>
 
 </div><!-- /tab-historia -->
+
+<?php if (docusign_is_enabled() || current_user()['role'] === 'admin'): ?>
+<?php include dirname(dirname(__DIR__)) . '/includes/docusign_tab.php'; ?>
+<?php endif; ?>
 
 </div><!-- /tab-content -->
 
