@@ -18,11 +18,26 @@ $type      = $req['contract_type'];
 $cid       = $req['contract_id'];
 $TABLE     = table_for_type($type);
 $row       = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$cid]);
-$org       = defined('ORG_NAME') ? ORG_NAME : org_setting('org_name');
+$stored_name = org_setting('org_name');
+$const_name  = defined('ORG_NAME') ? ORG_NAME : '';
+$org       = (strlen($const_name) > strlen($stored_name)) ? $const_name : ($stored_name ?: $const_name);
 $org_city  = org_setting('org_miejscowosc') ?: '';
 $org_nip   = org_setting('org_nip') ?: '';
 $org_krs   = org_setting('org_krs') ?: '';
 $org_adres = org_setting('org_adres') ?: '';
+
+// Logo org — base64 dla pewności druku
+$_logo_file = org_setting('org_logo');
+$_logo_b64  = '';
+$_logo_mime = '';
+if ($_logo_file) {
+    $lpath = dirname(__DIR__) . '/assets/logo/' . basename($_logo_file);
+    if (file_exists($lpath) && filesize($lpath) < 500_000) {
+        $_logo_b64  = base64_encode(file_get_contents($lpath));
+        $_logo_mime = str_ends_with(strtolower($_logo_file), '.png') ? 'image/png'
+                    : (str_ends_with(strtolower($_logo_file), '.svg') ? 'image/svg+xml' : 'image/jpeg');
+    }
+}
 
 $issued_date = $req['issued_at'] ? date('d.m.Y', strtotime($req['issued_at'])) : date('d.m.Y');
 $cert_number = $req['cert_number'] ?: ('ZAWOL/' . str_pad($req_id, 4, '0', STR_PAD_LEFT) . '/' . date('Y'));
@@ -40,6 +55,8 @@ $is_pdf      = $has_file && str_ends_with(strtolower($req['certificate_file']), 
 <head>
 <meta charset="UTF-8">
 <title>Zaświadczenie <?= h($cert_number) ?></title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
 /* ════════════════════════════════════════════════════════
    ZAŚWIADCZENIE  ·  druk / PDF  ·  format A4
@@ -80,10 +97,13 @@ body {
 .org-header {
   display: flex; justify-content: space-between; align-items: flex-start;
   padding-bottom: .55rem; border-bottom: 2px solid #000; margin-bottom: .7rem;
+  gap: 1rem;
 }
-.org-name { font-size: 1.1rem; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; }
-.org-meta  { font-size: .8rem; color: #333; margin-top: .15rem; line-height: 1.4; }
-.doc-ref   { text-align: right; }
+.org-logo  { height: 42px; width: auto; display: block; object-fit: contain; flex-shrink: 0; }
+.org-left  { display: flex; align-items: center; gap: .85rem; }
+.org-name  { font-size: 1rem; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; line-height: 1.3; }
+.org-meta  { font-size: .78rem; color: #333; margin-top: .12rem; line-height: 1.4; }
+.doc-ref   { text-align: right; flex-shrink: 0; }
 .doc-ref-num {
   font-size: .82rem; font-weight: bold; letter-spacing: .03em;
   border: 1.5px solid #14532d; padding: .15rem .5rem;
@@ -93,13 +113,15 @@ body {
 
 /* ── Tytuł ────────────────────────────────────────────── */
 .doc-title-wrap {
-  text-align: center; margin: .7rem 0 .8rem;
-  padding: .65rem 0;
+  text-align: center; margin: .7rem 0 .75rem;
+  padding: .6rem 0;
   border-top: 1px solid #888; border-bottom: 1px solid #888;
 }
 .doc-title {
-  font-size: 1.5rem; font-weight: bold;
-  text-transform: uppercase; letter-spacing: .15em;
+  font-family: 'Montserrat', 'Arial Black', Arial, sans-serif;
+  font-size: 1.7rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .18em;
+  color: #14532d;
 }
 .doc-subtitle { font-size: .78rem; color: #555; margin-top: .25rem; }
 
@@ -180,11 +202,17 @@ body {
 
 <!-- Nagłówek org -->
 <div class="org-header">
-  <div>
-    <div class="org-name"><?= h($org) ?></div>
-    <div class="org-meta">
-      <?php if ($org_adres): ?><?= h($org_adres) ?><br><?php endif; ?>
-      <?php if ($org_nip): ?>NIP: <?= h($org_nip) ?><?php if ($org_krs): ?> &nbsp;·&nbsp; KRS: <?= h($org_krs) ?><?php endif; ?><?php endif; ?>
+  <div class="org-left">
+    <?php if ($_logo_b64): ?>
+    <img src="data:<?= $_logo_mime ?>;base64,<?= $_logo_b64 ?>"
+         alt="Logo <?= h($org) ?>" class="org-logo">
+    <?php endif; ?>
+    <div>
+      <div class="org-name"><?= h($org) ?></div>
+      <div class="org-meta">
+        <?php if ($org_adres): ?><?= h($org_adres) ?><br><?php endif; ?>
+        <?php if ($org_nip): ?>NIP: <?= h($org_nip) ?><?php if ($org_krs): ?> &nbsp;·&nbsp; KRS: <?= h($org_krs) ?><?php endif; ?><?php endif; ?>
+      </div>
     </div>
   </div>
   <div class="doc-ref">
