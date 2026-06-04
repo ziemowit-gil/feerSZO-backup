@@ -234,99 +234,117 @@ if ($_is_volunteer_only) {
 ?>
 
 <?php if ($_is_volunteer_only): ?>
-<?php /* ═══ NOWY WIDOK: PANEL WOLONTARIUSZA ═══════════════════════════════════ */ ?>
+<?php /* ═══ PANEL WOLONTARIUSZA — nowy layout + WCAG 2.1 AA ══════════════════ */ ?>
+<?php
+// RGB składowe koloru bez color-mix() — dla rgba() w CSS
+$_vol_rgb = (function(string $hex): string {
+    $hex = ltrim($hex, '#');
+    if (strlen($hex) === 3) $hex = str_repeat($hex[0],2).str_repeat($hex[1],2).str_repeat($hex[2],2);
+    return hexdec(substr($hex,0,2)).','.hexdec(substr($hex,2,2)).','.hexdec(substr($hex,4,2));
+})($_vol_color ?? '#1D4ED8');
+// Ciemniejszy wariant koloru (70%) do gradientu hero
+$_vol_dark = (function(string $hex): string {
+    $hex = ltrim($hex, '#');
+    if (strlen($hex) === 3) $hex = str_repeat($hex[0],2).str_repeat($hex[1],2).str_repeat($hex[2],2);
+    return sprintf('#%02x%02x%02x',
+        (int)(hexdec(substr($hex,0,2))*.70),
+        (int)(hexdec(substr($hex,2,2))*.70),
+        (int)(hexdec(substr($hex,4,2))*.70));
+})($_vol_color ?? '#1D4ED8');
+?>
 <style>
-/* Nagłówek strony */
-.pv-page-header { margin-bottom: 1.5rem; }
-.pv-page-title  { font-size: 1.3rem; font-weight: 800; color: #111827; margin: 0 0 .2rem; }
-.pv-page-sub    { font-size: .88rem; color: #6B7280; }
-.pv-page-warmup { font-size: .9rem; color: color-mix(in srgb, var(--vol-color) 80%, #374151); font-weight: 500; margin-top: .25rem; }
+/* ══ Panel wolontariusza — WCAG 2.1 AA ══════════════════════════════════ */
 
-/* Karta umowy — hero */
+/* Nagłówek strony */
+.pv-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1.4rem; }
+.pv-page-title  { font-size:1.2rem; font-weight:800; color:#111827; margin:0 0 .15rem; line-height:1.3; }
+.pv-page-sub    { font-size:.84rem; color:#4B5563; margin:0; }
+.pv-page-warmup { font-size:.87rem; font-weight:500; margin-top:.3rem; color:var(--vol-color); }
+
+/* Karta umowy — hero (bez color-mix) */
 .vol-contract-hero {
-  background: linear-gradient(135deg, var(--vol-color) 0%, color-mix(in srgb, var(--vol-color) 70%, #000) 100%);
-  border-radius: 16px; color: #fff; padding: 1.75rem;
+  background: linear-gradient(135deg, var(--vol-color) 0%, <?= h($_vol_dark) ?> 100%);
+  border-radius: 14px; color: #fff; padding: 1.5rem;
   margin-bottom: 1rem; position: relative; overflow: hidden;
-  box-shadow: 0 6px 24px color-mix(in srgb, var(--vol-color) 35%, transparent);
+  box-shadow: 0 6px 20px rgba(<?= h($_vol_rgb) ?>,.30);
 }
 .vol-contract-hero::before {
-  content: ''; position: absolute; width: 320px; height: 320px; border-radius: 50%;
-  background: rgba(255,255,255,.07); bottom: -120px; right: -80px; pointer-events: none;
+  content:''; position:absolute; width:240px; height:240px; border-radius:50%;
+  background:rgba(255,255,255,.06); bottom:-90px; right:-60px; pointer-events:none;
 }
-.vol-contract-hero::after {
-  content: ''; position: absolute; width: 160px; height: 160px; border-radius: 50%;
-  background: rgba(255,255,255,.05); top: -50px; right: 100px; pointer-events: none;
-}
-.vol-contract-hero-num    { font-size: .82rem; opacity: .8; font-weight: 500; margin-bottom: .25rem; }
-.vol-contract-hero-type   { font-size: 1.2rem; font-weight: 800; margin-bottom: .35rem; line-height: 1.3; }
-.vol-contract-hero-status { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .85rem; border-radius: 2rem; background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.35); font-size: .82rem; font-weight: 600; }
-.vol-contract-hero-dates  { font-size: .82rem; opacity: .82; margin-top: .75rem; }
+.vol-contract-hero-num    { font-size:.8rem; opacity:.85; font-weight:500; margin-bottom:.2rem; }
+.vol-contract-hero-type   { font-size:1.1rem; font-weight:800; margin-bottom:.45rem; line-height:1.3; }
+.vol-contract-hero-status { display:inline-flex; align-items:center; gap:.3rem; padding:.28rem .75rem; border-radius:2rem; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35); font-size:.8rem; font-weight:600; }
+.vol-contract-hero-dates  { font-size:.8rem; opacity:.85; margin-top:.65rem; }
 
 /* Progress bar */
-.vol-progress-wrap { background: rgba(255,255,255,.2); border-radius: 4px; height: 6px; margin-top: .85rem; }
-.vol-progress-fill { background: #fff; height: 6px; border-radius: 4px; transition: width .5s; }
-.vol-progress-label { display: flex; justify-content: space-between; font-size: .76rem; opacity: .82; margin-top: .35rem; }
+.vol-progress-wrap { background:rgba(255,255,255,.22); border-radius:4px; height:6px; margin-top:.85rem; overflow:hidden; }
+.vol-progress-fill { background:#fff; height:6px; border-radius:4px; }
+.vol-progress-label { display:flex; justify-content:space-between; font-size:.76rem; opacity:.85; margin-top:.3rem; }
 
-/* Data grid */
-.vol-data-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; }
-.vol-data-item { background: #fff; border-radius: 12px; padding: .85rem 1rem; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
-.vol-data-lbl  { font-size: .75rem; color: #9CA3AF; margin-bottom: .2rem; }
-.vol-data-val  { font-size: .9rem; font-weight: 600; color: #111827; }
-.vol-data-val.monospace { font-family: monospace; letter-spacing: .05em; }
-
-/* Szybkie akcje — duże karty */
-.vol-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: .85rem; margin-bottom: 1.4rem; }
-.vol-action-btn {
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
-  gap: .5rem; padding: 1.1rem 1.15rem 1rem;
-  background: #fff; border: 1.5px solid transparent; border-radius: 16px;
-  text-decoration: none; color: #1E293B;
-  box-shadow: 0 2px 8px rgba(0,0,0,.06);
-  transition: box-shadow .15s, transform .12s, border-color .12s, background .12s;
-  position: relative; min-height: 100px;
+/* Dane umowy — definition grid */
+.vol-data-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(135px,1fr)); gap:.65rem;
+  margin-bottom:1rem; list-style:none; padding:0;
 }
-.vol-action-btn:hover {
-  box-shadow: 0 8px 24px rgba(0,0,0,.1);
-  transform: translateY(-2px);
-  border-color: var(--vol-color);
-  background: color-mix(in srgb, var(--vol-color) 5%, #fff);
-  color: #1E293B;
+.vol-data-item { background:#fff; border-radius:10px; padding:.75rem .9rem; box-shadow:0 1px 5px rgba(0,0,0,.06); }
+.vol-data-lbl  { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:#6B7280; margin-bottom:.2rem; display:block; }
+.vol-data-val  { font-size:.88rem; font-weight:600; color:#111827; }
+.vol-data-val.monospace { font-family:monospace; letter-spacing:.05em; }
+
+/* Szybkie akcje — bez transform/onmouseenter */
+.vol-actions {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr));
+  gap:.75rem; margin-bottom:1.25rem; list-style:none; padding:0;
+}
+.vol-action-btn {
+  display:flex; flex-direction:column; align-items:flex-start;
+  gap:.4rem; padding:1rem 1.05rem;
+  background:#fff; border:1.5px solid #E5E7EB; border-radius:14px;
+  text-decoration:none; color:#1E293B;
+  box-shadow:0 1px 5px rgba(0,0,0,.05);
+  transition:border-color .12s, box-shadow .12s;
+  position:relative; min-height:88px;
+}
+.vol-action-btn:hover,
+.vol-action-btn:focus-visible {
+  border-color:var(--vol-color);
+  box-shadow:0 4px 14px rgba(<?= h($_vol_rgb) ?>,.18);
+  color:#1E293B; outline-offset:2px;
 }
 .vol-action-icon-wrap {
-  width: 40px; height: 40px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  background: color-mix(in srgb, var(--vol-color) 12%, #fff);
+  width:36px; height:36px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(<?= h($_vol_rgb) ?>,.10);
 }
-.vol-action-icon      { font-size: 1.25rem; color: var(--vol-color); }
-.vol-action-label     { font-size: .82rem; font-weight: 700; line-height: 1.25; color: #1E293B; }
-.vol-action-count     { font-size: 1.4rem; font-weight: 900; line-height: 1; color: var(--vol-color); }
-.vol-action-sub       { font-size: .72rem; color: #94A3B8; margin-top: .1rem; }
-.vol-action-badge     { position: absolute; top: .5rem; right: .6rem; font-size: .67rem; }
-@media (max-width: 400px) {
-  .vol-actions { grid-template-columns: repeat(2, 1fr); }
-}
+.vol-action-icon      { font-size:1.1rem; color:var(--vol-color); }
+.vol-action-label     { font-size:.82rem; font-weight:700; line-height:1.25; color:#1E293B; }
+.vol-action-count     { font-size:1.3rem; font-weight:900; line-height:1; color:var(--vol-color); }
+.vol-action-sub       { font-size:.72rem; color:#6B7280; }
+.vol-action-badge     { position:absolute; top:.5rem; right:.6rem; font-size:.65rem; }
+@media(max-width:380px) { .vol-actions { grid-template-columns:repeat(2,1fr); } }
 
-/* Szczegóły wolontariatu (tylko dla wolontariat type) */
-.vol-detail-card { background: #fff; border-radius: 16px; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-.vol-detail-header { display: flex; align-items: center; gap: .5rem; padding: .85rem 1.1rem; border-bottom: 1px solid #F3F4F6; font-size: .88rem; font-weight: 700; color: #374151; }
-.vol-detail-header i { color: var(--vol-color); }
-.vol-detail-body { padding: .9rem 1.1rem; }
-.vol-detail-row { display: flex; align-items: baseline; gap: .5rem; padding: .35rem 0; border-bottom: 1px solid #F9FAFB; font-size: .88rem; }
-.vol-detail-row:last-child { border-bottom: none; }
-.vol-detail-row-lbl { color: #9CA3AF; min-width: 140px; flex-shrink: 0; font-size: .8rem; }
-.vol-detail-row-val { color: #111827; font-weight: 500; }
+/* Szczegóły — karty */
+.vol-detail-card { background:#fff; border-radius:12px; overflow:hidden; margin-bottom:1rem; box-shadow:0 1px 6px rgba(0,0,0,.06); }
+.vol-detail-header { display:flex; align-items:center; gap:.4rem; padding:.75rem 1rem; border-bottom:1px solid #F3F4F6; font-size:.85rem; font-weight:700; color:#374151; }
+.vol-detail-header i { color:var(--vol-color); }
+.vol-detail-body { padding:.6rem 1rem; }
+.vol-detail-row { display:flex; justify-content:space-between; align-items:baseline; gap:.5rem; padding:.38rem 0; border-bottom:1px solid #F9FAFB; font-size:.86rem; }
+.vol-detail-row:last-child { border-bottom:none; }
+.vol-detail-row-lbl { color:#6B7280; min-width:130px; flex-shrink:0; font-size:.8rem; }
+.vol-detail-row-val { color:#111827; font-weight:500; text-align:right; }
 
-/* Badge check / x */
-.vol-badge-yes { display: inline-flex; align-items: center; gap: .25rem; color: #16A34A; font-weight: 600; font-size: .82rem; }
-.vol-badge-no  { display: inline-flex; align-items: center; gap: .25rem; color: #9CA3AF; font-size: .82rem; }
+/* Znaczniki tak/nie */
+.vol-badge-yes { display:inline-flex; align-items:center; gap:.25rem; color:#15803D; font-weight:600; font-size:.82rem; }
+.vol-badge-no  { display:inline-flex; align-items:center; gap:.25rem; color:#6B7280; font-size:.82rem; }
 
 /* Panel aktywności */
-.vol-activity { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
-.vol-activity-header { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1rem; border-bottom: 1px solid #F3F4F6; }
-.vol-activity-title  { font-size: .82rem; font-weight: 600; color: #374151; }
+.vol-activity { background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,.05); }
+.vol-activity-header { display:flex; align-items:center; justify-content:space-between; padding:.75rem 1rem; border-bottom:1px solid #F3F4F6; }
+.vol-activity-title  { font-size:.83rem; font-weight:700; color:#374151; }
 .vol-activity-row {
-  display: flex; align-items: center; gap: .65rem;
-  padding: .55rem 1rem; border-bottom: 1px solid #F9FAFB; font-size: .83rem;
+  display:flex; align-items:center; gap:.65rem;
+  padding:.55rem 1rem; border-bottom:1px solid #F9FAFB; font-size:.83rem;
 }
 .vol-activity-row:last-child { border-bottom: none; }
 .vol-activity-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; flex-shrink: 0; }
@@ -364,7 +382,8 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
     <?php endif; ?>
   </div>
   <?php if (count($contracts) > 1): ?>
-  <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#contractPickerModal">
+  <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#contractPickerModal"
+          aria-haspopup="dialog">
     <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Zmień umowę
   </button>
   <?php endif; ?>
@@ -373,27 +392,40 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
 <?= flash_html() ?>
 
 <!-- ── Baner: poczta organizacji ─────────────────────────────────────────── -->
-<a href="https://poczta.feer.org.pl" target="_blank" rel="noopener"
-   style="display:flex;align-items:center;gap:1rem;
-          background:linear-gradient(135deg,#1e40af 0%,#1d6ef9 100%);
-          border-radius:14px;padding:1rem 1.4rem;margin-bottom:1.1rem;
-          text-decoration:none;color:#fff;
-          box-shadow:0 4px 18px rgba(30,110,255,.25);
-          transition:box-shadow .15s,transform .12s"
-   onmouseenter="this.style.boxShadow='0 6px 24px rgba(30,110,255,.38)';this.style.transform='translateY(-1px)'"
-   onmouseleave="this.style.boxShadow='0 4px 18px rgba(30,110,255,.25)';this.style.transform=''">
-  <div style="width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-    <i class="bi bi-envelope-fill" style="font-size:1.3rem"></i>
+<style>
+.pvp-mail-baner {
+  display:flex; align-items:center; gap:1rem;
+  background:linear-gradient(135deg,#1e40af 0%,#2563eb 100%);
+  border-radius:12px; padding:.9rem 1.25rem; margin-bottom:1rem;
+  text-decoration:none; color:#fff;
+  box-shadow:0 4px 16px rgba(30,64,175,.3);
+  transition:opacity .15s;
+}
+.pvp-mail-baner:hover, .pvp-mail-baner:focus-visible {
+  opacity:.9; color:#fff; outline-offset:2px;
+}
+.pvp-mail-baner-icon {
+  width:40px; height:40px; border-radius:10px; flex-shrink:0;
+  background:rgba(255,255,255,.16); display:flex; align-items:center;
+  justify-content:center; font-size:1.2rem;
+}
+</style>
+<a href="https://poczta.feer.org.pl" target="_blank" rel="noopener noreferrer"
+   class="pvp-mail-baner"
+   aria-label="Poczta organizacji — poczta.feer.org.pl (otwiera w nowej karcie)">
+  <div class="pvp-mail-baner-icon" aria-hidden="true">
+    <i class="bi bi-envelope-fill"></i>
   </div>
   <div style="flex:1;min-width:0">
-    <div style="font-size:.72rem;font-weight:600;opacity:.75;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.15rem">
+    <div style="font-size:.72rem;font-weight:600;opacity:.78;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.1rem">
       Szukasz poczty?
     </div>
-    <div style="font-size:1.1rem;font-weight:800;letter-spacing:-.01em">
+    <div style="font-size:1rem;font-weight:800;letter-spacing:-.01em">
       poczta.feer.org.pl
     </div>
   </div>
-  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.5rem;opacity:.7;flex-shrink:0"></i>
+  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.4rem;opacity:.7;flex-shrink:0" aria-hidden="true"></i>
+  <span class="visually-hidden">(otwiera w nowej karcie)</span>
 </a>
 
 <?php
@@ -450,53 +482,25 @@ if (!empty($_SESSION['_panel_dir_invited'])) {
 
 <style>
 .dir-invite {
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--vol-color) 0%, color-mix(in srgb, var(--vol-color) 75%, #000) 100%);
-  overflow: hidden;
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--vol-color) 35%, transparent);
-  animation: slideDown .4s ease;
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--vol-color) 0%,<?= h($_vol_dark) ?> 100%);
+  overflow:hidden;
+  box-shadow:0 4px 16px rgba(<?= h($_vol_rgb) ?>,.28);
+  animation:pvDirSlide .35s ease;
 }
-@keyframes slideDown {
-  from { opacity:0; transform:translateY(-12px); }
-  to   { opacity:1; transform:none; }
-}
-.dir-invite-inner {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  flex-wrap: wrap;
-}
-.dir-invite-icon {
-  width: 48px; height: 48px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.18);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; color: #fff; flex-shrink: 0;
-}
-.dir-invite-content { flex: 1; min-width: 180px; }
-.dir-invite-title   { font-weight: 800; font-size: .97rem; color: #fff; margin-bottom: .2rem; }
-.dir-invite-sub     { font-size: .81rem; color: rgba(255,255,255,.8); line-height: 1.45; }
-.dir-invite-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
-.dir-invite-btn {
-  display: inline-flex; align-items: center;
-  padding: .5rem 1.1rem; border-radius: 8px;
-  background: rgba(255,255,255,.95); color: var(--vol-color);
-  font-size: .85rem; font-weight: 700; text-decoration: none;
-  white-space: nowrap; transition: background .15s;
-}
-.dir-invite-btn:hover { background: #fff; color: var(--vol-color); }
-.dir-invite-dismiss {
-  background: rgba(255,255,255,.15); border: 1.5px solid rgba(255,255,255,.25);
-  border-radius: 7px; color: rgba(255,255,255,.8);
-  padding: .4rem .55rem; cursor: pointer; transition: background .12s;
-  font-size: .9rem; line-height: 1;
-}
-.dir-invite-dismiss:hover { background: rgba(255,255,255,.25); color: #fff; }
-@media (max-width: 500px) {
-  .dir-invite-inner { gap: .75rem; }
-  .dir-invite-btn   { font-size: .8rem; padding: .45rem .85rem; }
-}
+@media(prefers-reduced-motion:reduce){.dir-invite{animation:none}}
+@keyframes pvDirSlide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.dir-invite-inner  { display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; flex-wrap:wrap; }
+.dir-invite-icon   { width:44px; height:44px; border-radius:10px; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:1.35rem; color:#fff; flex-shrink:0; }
+.dir-invite-content{ flex:1; min-width:180px; }
+.dir-invite-title  { font-weight:800; font-size:.94rem; color:#fff; margin-bottom:.15rem; }
+.dir-invite-sub    { font-size:.8rem; color:rgba(255,255,255,.82); line-height:1.45; }
+.dir-invite-actions{ display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
+.dir-invite-btn    { display:inline-flex; align-items:center; gap:.35rem; padding:.45rem 1rem; border-radius:7px; background:rgba(255,255,255,.95); color:var(--vol-color); font-size:.83rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:background .15s; border:2px solid transparent; }
+.dir-invite-btn:hover,.dir-invite-btn:focus-visible { background:#fff; color:var(--vol-color); outline-offset:2px; }
+.dir-invite-dismiss{ background:rgba(255,255,255,.15); border:1.5px solid rgba(255,255,255,.3); border-radius:7px; color:rgba(255,255,255,.85); padding:.4rem .5rem; cursor:pointer; font-size:.9rem; line-height:1; transition:background .12s; }
+.dir-invite-dismiss:hover,.dir-invite-dismiss:focus-visible{ background:rgba(255,255,255,.28); color:#fff; outline-offset:2px; }
+@media(max-width:500px){ .dir-invite-inner{gap:.75rem} .dir-invite-btn{font-size:.8rem;padding:.4rem .8rem} }
 </style>
 <?php endif; ?>
 
@@ -520,7 +524,9 @@ $_is_wolontariat = $_ct_type === 'wolontariat';
 $_pesel = $_active_row['pesel'] ?? '';
 $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) : '';
 ?>
-<div class="vol-contract-hero" role="region" aria-label="Karta umowy">
+<section aria-labelledby="pvp-contract-heading">
+<h2 id="pvp-contract-heading" class="visually-hidden">Twoja umowa</h2>
+<div class="vol-contract-hero">
   <div class="vol-contract-hero-num">
     Twoje porozumienie wolontariackie
     <?php if ($_is_guardian): ?>
@@ -561,10 +567,22 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
   <?php endif; ?>
 
   <?php if ($contract_progress): ?>
-  <div class="vol-progress-wrap" role="progressbar" aria-valuenow="<?= $contract_progress['pct'] ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Postęp umowy">
-    <div class="vol-progress-fill" style="width:<?= $contract_progress['pct'] ?>%"></div>
+  <?php
+  $_pct = $contract_progress['pct'];
+  $_vtext = $contract_progress['ended']
+    ? 'Umowa zakończona — 100%'
+    : ('Postęp ' . $_pct . '%, pozostało ' . $contract_progress['days_left'] . ' dni');
+  ?>
+  <div class="vol-progress-wrap"
+       role="progressbar"
+       aria-valuenow="<?= $_pct ?>"
+       aria-valuemin="0"
+       aria-valuemax="100"
+       aria-valuetext="<?= h($_vtext) ?>"
+       aria-label="Czas trwania umowy">
+    <div class="vol-progress-fill" style="width:<?= $_pct ?>%"></div>
   </div>
-  <div class="vol-progress-label">
+  <div class="vol-progress-label" aria-hidden="true">
     <span>
       <?php if ($contract_progress['ended']): ?>
         <strong>Umowa zakończona</strong>
@@ -572,68 +590,82 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
         Pozostało <strong><?= $contract_progress['days_left'] ?></strong> dni
       <?php endif; ?>
     </span>
-    <span><?= $contract_progress['pct'] ?>%</span>
+    <span><?= $_pct ?>%</span>
   </div>
   <?php endif; ?>
 </div>
+</section>
 
-<!-- Dane podstawowe — siatka -->
-<div class="vol-data-grid mb-3" role="list" aria-label="Dane umowy">
+<!-- Dane podstawowe — lista definicji -->
+<ul class="vol-data-grid mb-3" aria-label="Twoje dane z umowy">
   <?php if ($_pesel): ?>
-  <div class="vol-data-item" role="listitem">
-    <div class="vol-data-lbl">PESEL</div>
+  <li class="vol-data-item">
+    <span class="vol-data-lbl" id="pesel-lbl">PESEL</span>
     <div class="vol-data-val monospace d-flex align-items-center gap-1">
-      <span id="peselVal" data-masked="<?= h($_pesel_masked) ?>" data-full="<?= h($_pesel) ?>"><?= h($_pesel_masked) ?></span>
-      <button type="button" class="btn btn-link btn-sm p-0 text-muted" onclick="togglePesel()"
-              aria-label="Pokaż lub ukryj PESEL" style="font-size:.85rem;line-height:1">
+      <span id="peselVal"
+            data-masked="<?= h($_pesel_masked) ?>"
+            data-full="<?= h($_pesel) ?>"
+            aria-labelledby="pesel-lbl"><?= h($_pesel_masked) ?></span>
+      <button type="button"
+              id="peselToggle"
+              class="btn btn-link btn-sm p-0 ms-1"
+              style="color:#6B7280;font-size:.85rem;line-height:1;text-decoration:none"
+              aria-pressed="false"
+              aria-label="Pokaż pełny PESEL"
+              onclick="togglePesel()">
         <i class="bi bi-eye" id="peselIcon" aria-hidden="true"></i>
       </button>
     </div>
-  </div>
+  </li>
   <?php endif; ?>
 
   <?php if ($_active_row['data_urodzenia'] ?? null): ?>
-  <div class="vol-data-item" role="listitem">
-    <div class="vol-data-lbl">Data urodzenia</div>
+  <li class="vol-data-item">
+    <span class="vol-data-lbl">Data urodzenia</span>
     <div class="vol-data-val"><?= date('d.m.Y', strtotime($_active_row['data_urodzenia'])) ?></div>
-  </div>
+  </li>
   <?php endif; ?>
 
   <?php if ($_active_row['telefon'] ?? null): ?>
-  <div class="vol-data-item" role="listitem">
-    <div class="vol-data-lbl">Telefon</div>
-    <div class="vol-data-val"><a href="tel:+<?= h($_active_row['telefon']) ?>" style="color:inherit">+<?= h($_active_row['telefon']) ?></a></div>
-  </div>
+  <li class="vol-data-item">
+    <span class="vol-data-lbl">Telefon</span>
+    <div class="vol-data-val">
+      <a href="tel:+<?= h($_active_row['telefon']) ?>" style="color:inherit;text-decoration:underline;text-decoration-color:transparent"
+         onmouseover="this.style.textDecorationColor=''" onmouseout="this.style.textDecorationColor='transparent'">
+        +<?= h($_active_row['telefon']) ?>
+      </a>
+    </div>
+  </li>
   <?php endif; ?>
 
   <?php if ($_is_wolontariat && ($_active_row['miejsce_wolontariatu'] ?? null)): ?>
-  <div class="vol-data-item" role="listitem">
-    <div class="vol-data-lbl">Miejsce wolontariatu</div>
+  <li class="vol-data-item">
+    <span class="vol-data-lbl">Miejsce wolontariatu</span>
     <div class="vol-data-val"><?= h($_active_row['miejsce_wolontariatu']) ?></div>
-  </div>
+  </li>
   <?php endif; ?>
 
   <?php if ($_is_wolontariat && ($_active_row['godzin_tygodniowo'] ?? null)): ?>
-  <div class="vol-data-item" role="listitem">
-    <div class="vol-data-lbl">Godz./tydzień</div>
+  <li class="vol-data-item">
+    <span class="vol-data-lbl">Godz. / tydzień</span>
     <div class="vol-data-val"><?= h($_active_row['godzin_tygodniowo']) ?> h</div>
-  </div>
+  </li>
   <?php endif; ?>
 
   <?php if ($_is_wolontariat && ($_active_row['opiekun'] ?? null)): ?>
-  <div class="vol-data-item" role="listitem">
-    <div class="vol-data-lbl">Opiekun</div>
+  <li class="vol-data-item">
+    <span class="vol-data-lbl">Opiekun</span>
     <div class="vol-data-val"><?= h($_active_row['opiekun']) ?></div>
-  </div>
+  </li>
   <?php endif; ?>
 
   <?php if ($_active_row['adres'] ?? null): ?>
-  <div class="vol-data-item" style="grid-column:span 2" role="listitem">
-    <div class="vol-data-lbl">Adres</div>
+  <li class="vol-data-item" style="grid-column:span 2">
+    <span class="vol-data-lbl">Adres</span>
     <div class="vol-data-val"><?= h($_active_row['adres']) ?></div>
-  </div>
+  </li>
   <?php endif; ?>
-</div>
+</ul>
 
 <!-- Szczegóły wolontariatu: BHP, ubezpieczenia, projekt -->
 <?php if ($_is_wolontariat): ?>
@@ -747,9 +779,10 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
   </span>
   <?php endif; ?>
 </div>
-<div class="vol-actions" role="list" aria-label="Szybkie akcje">
+<nav aria-label="Szybkie akcje">
+<ul class="vol-actions">
 
-  <a href="<?= APP_URL ?>/panel/messages.php" class="vol-action-btn" role="listitem"
+  <li><a href="<?= APP_URL ?>/panel/messages.php" class="vol-action-btn"
      aria-label="Wiadomości<?= $msg_unread ? " — $msg_unread nieprzeczytanych" : '' ?>">
     <?php if ($msg_unread): ?>
     <span class="vol-action-badge badge rounded-pill bg-danger"><?= $msg_unread ?></span>
@@ -760,95 +793,99 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
       <div class="vol-action-label">Napisz do nas</div>
       <div class="vol-action-sub"><?= $msg_unread ? "$msg_unread nowych" : 'brak nowych' ?></div>
     </div>
-  </a>
+  </a></li>
 
-  <a href="<?= APP_URL ?>/panel/apply.php" class="vol-action-btn" role="listitem"
-     aria-label="Wnioski i pisma">
+  <li><a href="<?= APP_URL ?>/panel/apply.php" class="vol-action-btn"
+     aria-label="Wnioski i pisma<?= $my_apps_new ? " — $my_apps_new nowych" : '' ?>">
     <?php if ($my_apps_new): ?>
-    <span class="vol-action-badge badge rounded-pill bg-danger"><?= $my_apps_new ?></span>
+    <span class="vol-action-badge badge rounded-pill bg-danger" aria-hidden="true"><?= $my_apps_new ?></span>
     <?php endif; ?>
-    <div class="vol-action-icon-wrap"><i class="bi bi-send vol-action-icon" aria-hidden="true"></i></div>
+    <div class="vol-action-icon-wrap" aria-hidden="true"><i class="bi bi-send vol-action-icon"></i></div>
     <div>
-      <div class="vol-action-count"><?= count($my_apps) ?></div>
+      <div class="vol-action-count" aria-hidden="true"><?= count($my_apps) ?></div>
       <div class="vol-action-label">Złóż wniosek</div>
       <div class="vol-action-sub"><?= $my_apps_new ? "$my_apps_new oczekuje" : 'złożone wnioski' ?></div>
     </div>
-  </a>
+  </a></li>
 
   <?php if (module_enabled('certificates_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/certificates.php" class="vol-action-btn" role="listitem">
+  <li><a href="<?= APP_URL ?>/panel/certificates.php" class="vol-action-btn"
+     aria-label="Zaświadczenia<?= $my_certs_pending ? " — $my_certs_pending w toku" : '' ?>">
     <?php if ($my_certs_pending): ?>
-    <span class="vol-action-badge badge rounded-pill bg-warning text-dark"><?= $my_certs_pending ?></span>
+    <span class="vol-action-badge badge rounded-pill bg-warning text-dark" aria-hidden="true"><?= $my_certs_pending ?></span>
     <?php endif; ?>
-    <div class="vol-action-icon-wrap" style="background:#FFF8E7">
-      <i class="bi bi-award vol-action-icon" style="color:#D97706" aria-hidden="true"></i>
+    <div class="vol-action-icon-wrap" style="background:#FFF8E7" aria-hidden="true">
+      <i class="bi bi-award vol-action-icon" style="color:#D97706"></i>
     </div>
     <div>
-      <div class="vol-action-count" style="color:#D97706"><?= count($my_certs) ?></div>
-      <div class="vol-action-label">Poproś o zaświadczenie</div>
+      <div class="vol-action-count" style="color:#D97706" aria-hidden="true"><?= count($my_certs) ?></div>
+      <div class="vol-action-label">Zaświadczenia</div>
       <div class="vol-action-sub"><?= $my_certs_pending ? "$my_certs_pending w toku" : 'wszystkie gotowe' ?></div>
     </div>
-  </a>
+  </a></li>
   <?php endif; ?>
 
   <?php if ($_active_zwroty): ?>
-  <a href="<?= APP_URL ?>/panel/zwroty.php" class="vol-action-btn" role="listitem">
+  <li><a href="<?= APP_URL ?>/panel/zwroty.php" class="vol-action-btn"
+     aria-label="Zwrot kosztów<?= $_zwroty_pending ? " — $_zwroty_pending oczekuje" : '' ?>">
     <?php if ($_zwroty_pending): ?>
-    <span class="vol-action-badge badge rounded-pill bg-warning text-dark"><?= $_zwroty_pending ?></span>
+    <span class="vol-action-badge badge rounded-pill bg-warning text-dark" aria-hidden="true"><?= $_zwroty_pending ?></span>
     <?php endif; ?>
-    <div class="vol-action-icon-wrap" style="background:#F0FDF4">
-      <i class="bi bi-receipt vol-action-icon" style="color:#16A34A" aria-hidden="true"></i>
+    <div class="vol-action-icon-wrap" style="background:#F0FDF4" aria-hidden="true">
+      <i class="bi bi-receipt vol-action-icon" style="color:#16A34A"></i>
     </div>
     <div>
-      <div class="vol-action-count" style="color:#16A34A"><?= $_zwroty_pending ?: '0' ?></div>
+      <div class="vol-action-count" style="color:#16A34A" aria-hidden="true"><?= $_zwroty_pending ?: '0' ?></div>
       <div class="vol-action-label">Rozlicz koszty</div>
-      <div class="vol-action-sub"><?= $_zwroty_pending ? "oczekuje zwrotu" : 'do złożenia' ?></div>
+      <div class="vol-action-sub"><?= $_zwroty_pending ? 'oczekuje zwrotu' : 'do złożenia' ?></div>
     </div>
-  </a>
+  </a></li>
   <?php endif; ?>
 
   <?php if (module_enabled('timesheets_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/timesheets.php" class="vol-action-btn" role="listitem">
-    <div class="vol-action-icon-wrap" style="background:#F5F3FF">
-      <i class="bi bi-clock-history vol-action-icon" style="color:#7C3AED" aria-hidden="true"></i>
+  <li><a href="<?= APP_URL ?>/panel/timesheets.php" class="vol-action-btn" aria-label="Ewidencja godzin pracy">
+    <div class="vol-action-icon-wrap" style="background:#F5F3FF" aria-hidden="true">
+      <i class="bi bi-clock-history vol-action-icon" style="color:#7C3AED"></i>
     </div>
     <div>
       <div class="vol-action-label">Ewidencja godzin</div>
       <div class="vol-action-sub">arkusze czasu</div>
     </div>
-  </a>
+  </a></li>
   <?php endif; ?>
 
   <?php if (module_enabled('letters_enabled') && $my_letters_count): ?>
-  <a href="<?= APP_URL ?>/panel/letters.php" class="vol-action-btn" role="listitem">
-    <div class="vol-action-icon-wrap" style="background:#EFF6FF">
-      <i class="bi bi-archive vol-action-icon" style="color:#0176D3" aria-hidden="true"></i>
+  <li><a href="<?= APP_URL ?>/panel/letters.php" class="vol-action-btn" aria-label="Pisma i korespondencja — <?= $my_letters_count ?> pism">
+    <div class="vol-action-icon-wrap" style="background:#EFF6FF" aria-hidden="true">
+      <i class="bi bi-archive vol-action-icon" style="color:#0176D3"></i>
     </div>
     <div>
-      <div class="vol-action-count" style="color:#0176D3"><?= $my_letters_count ?></div>
+      <div class="vol-action-count" style="color:#0176D3" aria-hidden="true"><?= $my_letters_count ?></div>
       <div class="vol-action-label">Pisma</div>
       <div class="vol-action-sub">korespondencja</div>
     </div>
-  </a>
+  </a></li>
   <?php endif; ?>
 
   <?php if (module_enabled('terminations_enabled') && count($my_terms)): ?>
-  <a href="<?= APP_URL ?>/panel/terminations.php" class="vol-action-btn" role="listitem">
+  <li><a href="<?= APP_URL ?>/panel/terminations.php" class="vol-action-btn"
+     aria-label="Rozwiązanie umowy<?= $my_terms_pending ? " — $my_terms_pending oczekuje" : '' ?>">
     <?php if ($my_terms_pending): ?>
-    <span class="vol-action-badge badge rounded-pill bg-warning text-dark"><?= $my_terms_pending ?></span>
+    <span class="vol-action-badge badge rounded-pill bg-warning text-dark" aria-hidden="true"><?= $my_terms_pending ?></span>
     <?php endif; ?>
-    <div class="vol-action-icon-wrap" style="background:#FEF2F2">
-      <i class="bi bi-file-earmark-x vol-action-icon" style="color:#DC2626" aria-hidden="true"></i>
+    <div class="vol-action-icon-wrap" style="background:#FEF2F2" aria-hidden="true">
+      <i class="bi bi-file-earmark-x vol-action-icon" style="color:#DC2626"></i>
     </div>
     <div>
-      <div class="vol-action-count" style="color:#DC2626"><?= count($my_terms) ?></div>
+      <div class="vol-action-count" style="color:#DC2626" aria-hidden="true"><?= count($my_terms) ?></div>
       <div class="vol-action-label">Zakończ współpracę</div>
       <div class="vol-action-sub">wnioski złożone</div>
     </div>
-  </a>
+  </a></li>
   <?php endif; ?>
 
-</div>
+</ul>
+</nav>
 
 <!-- ── Canva Pro — prośba o dostęp ──────────────────────────────────────────── -->
 <?php
@@ -904,15 +941,17 @@ $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
         Organizacja korzysta z <strong>Canva Pro</strong>. Złóż prośbę, a administrator
         wyśle Ci zaproszenie do wspólnej przestrzeni z szablonami i brandingiem.
       </div>
-      <form method="post" onsubmit="return confirm('Wysłać prośbę o dostęp do Canva?')">
+      <form method="post" id="canvaRequestForm">
         <?php if (function_exists('csrf_token')): ?>
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <?php endif; ?>
         <input type="hidden" name="_request_canva" value="1">
         <input type="hidden" name="canva_contract_id" value="<?= $_canva_contract_id ?>">
         <button type="submit"
-                style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:.5rem 1.1rem;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem">
-          <i class="bi bi-send-fill"></i> Poproś o dostęp do Canva
+                class="btn"
+                style="background:#7c3aed;color:#fff;font-size:.83rem;font-weight:600;border-radius:8px"
+                aria-describedby="canva-desc">
+          <i class="bi bi-send-fill me-1" aria-hidden="true"></i>Poproś o dostęp do Canva
         </button>
       </form>
     </div>
@@ -922,11 +961,15 @@ $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
 
 <!-- ═══ PANEL AKTYWNOŚCI ════════════════════════════════════════════════════ -->
 <?php if ($my_apps): ?>
-<div class="vol-activity mb-3" role="region" aria-label="Ostatnie wnioski i pisma">
+<section class="vol-activity mb-3" aria-labelledby="pvp-activity-heading">
   <div class="vol-activity-header">
-    <span class="vol-activity-title"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Ostatnie wnioski i pisma</span>
-    <a href="<?= APP_URL ?>/panel/apply.php" class="btn btn-sm py-0 px-2"
-       style="background:var(--vol-color);color:#fff;font-size:.75rem;border-radius:5px">
+    <h2 id="pvp-activity-heading" class="vol-activity-title">
+      <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Ostatnie wnioski i pisma
+    </h2>
+    <a href="<?= APP_URL ?>/panel/apply.php"
+       class="btn btn-sm py-0 px-2"
+       style="background:var(--vol-color);color:#fff;font-size:.75rem;border-radius:5px"
+       aria-label="Złóż nowy wniosek">
       <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowy
     </a>
   </div>
@@ -954,14 +997,17 @@ $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
     </span>
   </div>
   <?php endforeach; ?>
-</div>
+</section>
 <?php elseif ($contracts): ?>
 <!-- CTA jeśli brak wniosków -->
-<div style="background:#fff;border:2px dashed #E5E7EB;border-radius:12px;text-align:center;padding:2rem 1rem" role="complementary" aria-label="Szybki dostęp do wniosków">
+<div style="background:#fff;border:2px dashed #E5E7EB;border-radius:12px;text-align:center;padding:2rem 1rem">
   <i class="bi bi-send" style="font-size:2rem;color:var(--vol-color);opacity:.5;display:block;margin-bottom:.75rem" aria-hidden="true"></i>
   <p class="fw-semibold mb-1">Masz pytanie lub prośbę?</p>
-  <p class="text-muted small mb-3">Złóż wniosek lub wyślij pismo bezpośrednio do organizacji.</p>
-  <a href="<?= APP_URL ?>/panel/apply.php" class="btn" style="background:var(--vol-color);color:#fff;border-radius:8px;font-weight:600">
+  <p class="text-muted small mb-3" id="pvp-cta-desc">Złóż wniosek lub wyślij pismo bezpośrednio do organizacji.</p>
+  <a href="<?= APP_URL ?>/panel/apply.php"
+     class="btn"
+     style="background:var(--vol-color);color:#fff;border-radius:8px;font-weight:600"
+     aria-describedby="pvp-cta-desc">
     <i class="bi bi-send me-2" aria-hidden="true"></i>Wyślij pismo / złóż wniosek
   </a>
 </div>
@@ -1639,12 +1685,17 @@ try {
 
 <!-- ── Modal wyboru umowy ─────────────────────────────────────────────────── -->
 <?php if (count($contracts) > 1): ?>
-<div class="modal fade" id="contractPickerModal" tabindex="-1">
+<div class="modal fade" id="contractPickerModal"
+     tabindex="-1" role="dialog"
+     aria-labelledby="contractPickerModalTitle"
+     aria-modal="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title fw-bold"><i class="bi bi-briefcase me-2"></i>Wybierz umowę</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title fw-bold h5" id="contractPickerModalTitle">
+          <i class="bi bi-briefcase me-2" aria-hidden="true"></i>Wybierz umowę
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij okno wyboru umowy"></button>
       </div>
       <div class="modal-body pt-2">
         <?php foreach ($contracts as $c):
@@ -1685,14 +1736,25 @@ try {
 
 <script>
 function togglePesel() {
-    const el   = document.getElementById('peselVal');
-    const icon = document.getElementById('peselIcon');
+    var el  = document.getElementById('peselVal');
+    var btn = document.getElementById('peselToggle');
+    var ico = document.getElementById('peselIcon');
     if (!el) return;
-    const showing = el.dataset.showing === '1';
-    el.textContent     = showing ? el.dataset.masked : el.dataset.full;
-    el.dataset.showing = showing ? '0' : '1';
-    icon.className     = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+    var showing = el.dataset.showing === '1';
+    el.textContent      = showing ? el.dataset.masked : el.dataset.full;
+    el.dataset.showing  = showing ? '0' : '1';
+    ico.className       = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+    btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
+    btn.setAttribute('aria-label',   showing ? 'Pokaż pełny PESEL' : 'Ukryj PESEL');
 }
+// Canva: potwierdzenie bez onsubmit — ARIA-friendly dialog zastąpiony prostą akcją
+(function() {
+    var f = document.getElementById('canvaRequestForm');
+    if (!f) return;
+    f.addEventListener('submit', function(e) {
+        if (!window.confirm('Wysłać prośbę o dostęp do Canva Pro?')) e.preventDefault();
+    });
+})();
 </script>
 
 <?php if ($_is_volunteer_only): ?>
