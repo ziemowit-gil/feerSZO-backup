@@ -684,6 +684,22 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </div>
   <?php endif; ?>
 
+  <!-- ════════════════════════════════════════
+       REJESTRY — zaświadczenia, RODO
+  ════════════════════════════════════════ -->
+  <?php if (can_edit()): ?>
+  <div class="sb-label">Rejestry</div>
+  <?php if (module_enabled('certificates_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>" href="<?= APP_URL ?>/admin/certificates.php">
+    <i class="bi bi-award"></i> Zaświadczenia
+    <?php if ($_cert_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_cert_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <a class="sb-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php">
+    <i class="bi bi-shield-lock"></i> Rejestr RODO
+  </a>
+  <?php endif; ?>
+
   <?php
   $_hd_open = 0;
   try {
@@ -698,8 +714,8 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
           }
       }
   } catch (\Throwable $e) {}
-  $_obsługa_active = str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/admin/certificates') || str_contains($_uri,'/helpdesk/');
-  $_obs_badge = $_msg_unread_total + $_term_pending + $_cert_pending;
+  $_obsługa_active = str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/helpdesk/');
+  $_obs_badge = $_msg_unread_total + $_term_pending;
   ?>
   <button type="button" class="sb-type-btn <?= $_obsługa_active ? 'type-open' : '' ?>"
           data-bs-toggle="collapse" data-bs-target="#sb-obsluga"
@@ -715,9 +731,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
     </a>
     <?php endif; ?>
-    <a class="sb-sub-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php">
-      <i class="bi bi-shield-lock"></i> Rejestr RODO
-    </a>
     <?php if (module_enabled('messages_enabled')): ?>
     <a class="sb-sub-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
       <i class="bi bi-chat-dots"></i> Wiadomości
@@ -728,12 +741,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <a class="sb-sub-link<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php">
       <i class="bi bi-file-earmark-x"></i> Rozwiązania
       <?php if ($_term_pending): ?><span class="badge bg-danger ms-auto"><?= $_term_pending ?></span><?php endif; ?>
-    </a>
-    <?php endif; ?>
-    <?php if (module_enabled('certificates_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>" href="<?= APP_URL ?>/admin/certificates.php">
-      <i class="bi bi-award"></i> Zaświadczenia
-      <?php if ($_cert_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_cert_pending ?></span><?php endif; ?>
     </a>
     <?php endif; ?>
     <a class="sb-sub-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">

@@ -204,6 +204,30 @@ if ('serviceWorker' in navigator) {
   </a>
   <?php endif; ?>
 
+  <?php
+  // Pokaż link do RODO jeśli użytkownik ma aktywne upoważnienie
+  $_has_rodo = false;
+  try {
+      $_pv_email = $_pu['email'] ?? '';
+      if ($_pv_email) {
+          $_wol_ids = db_all("SELECT id FROM umowy_wolontariat WHERE email=? OR m365_login=? LIMIT 5", [$_pv_email, $_pv_email]);
+          if ($_wol_ids) {
+              $_wol_ph = implode(',', array_fill(0, count($_wol_ids), '?'));
+              $_rodo_check = db_one(
+                  "SELECT id FROM rodo_authorizations WHERE contract_type='wolontariat' AND contract_id IN ({$_wol_ph}) LIMIT 1",
+                  array_column($_wol_ids, 'id')
+              );
+              $_has_rodo = (bool)$_rodo_check;
+          }
+      }
+  } catch (\Throwable $e) {}
+  ?>
+  <?php if ($_has_rodo): ?>
+  <a href="<?= APP_URL ?>/panel/rodo.php" class="pv-nav-link<?= _pv_nav_active('/panel/rodo') ?>">
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>Upoważnienie RODO
+  </a>
+  <?php endif; ?>
+
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Konto</div>
 
