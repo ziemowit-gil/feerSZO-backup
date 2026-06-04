@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Preview</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F8FAFC; margin: 0; }
+
+.adm-page  { max-width: 1200px; padding: 2rem 1.5rem; margin: 0 auto; }
+.adm-title { font-size: 1.5rem; font-weight: 800; color: #0F172A; margin-bottom: .2rem; display:flex;align-items:center;gap:.6rem; }
+.adm-sub   { font-size: .875rem; color: #64748B; margin-bottom: 1.75rem; }
+
+.adm-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: .75rem;
+    margin-bottom: 1.75rem;
+}
+.adm-stat {
+    background: #fff;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: .9rem 1.1rem;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .15s, border-color .15s;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+.adm-stat:hover { box-shadow: 0 3px 12px rgba(0,0,0,.08); border-color: #CBD5E1; color: inherit; }
+.adm-stat-icon {
+    width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+}
+.adm-stat-val  { font-size: 1.25rem; font-weight: 800; line-height: 1; }
+.adm-stat-lbl  { font-size: .72rem; color: #64748B; margin-top: .15rem; }
+.adm-stat-alert .adm-stat-val { color: #DC2626; }
+
+.adm-search-wrap {
+    position: relative;
+    margin-bottom: 1.5rem;
+    max-width: 420px;
+}
+.adm-search-wrap > i {
+    position: absolute; left: .85rem; top: 50%; transform: translateY(-50%);
+    color: #94A3B8; font-size: .95rem; pointer-events: none;
+}
+#admSearch {
+    width: 100%;
+    padding: .55rem .9rem .55rem 2.4rem;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    font-size: .88rem;
+    background: #fff;
+    outline: none;
+    box-sizing: border-box;
+}
+#admSearch:focus { border-color: #93C5FD; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.adm-search-clear {
+    position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
+    display: none; background: none; border: none; color: #94A3B8; cursor: pointer;
+    font-size: .95rem; padding: 0; line-height: 1;
+}
+
+.adm-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; }
+.adm-card {
+    background: #fff;
+    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    transition: box-shadow .15s;
+}
+.adm-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.adm-card.adm-hidden { display: none; }
+
+.adm-card-head {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .85rem 1.1rem;
+    border-bottom: 1px solid #F1F5F9;
+}
+.adm-card-head-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .95rem; flex-shrink: 0;
+}
+.adm-card-head-label {
+    font-size: .78rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.adm-items { padding: .3rem 0; }
+.adm-item {
+    display: flex; align-items: center; gap: .65rem;
+    padding: .5rem 1.1rem;
+    font-size: .875rem; font-weight: 500; color: #334155;
+    text-decoration: none;
+    transition: background .1s, color .1s;
+    border-left: 3px solid transparent;
+}
+.adm-item i { font-size: .9rem; width: 17px; text-align: center; color: #94A3B8; flex-shrink: 0; }
+.adm-item:hover { background: #F8FAFC; color: #0F172A; border-left-color: #2563EB; }
+.adm-item:hover i { color: #2563EB; }
+.adm-item.adm-item-hidden { display: none; }
+.adm-item.danger { color: #DC2626; }
+.adm-item.danger i { color: #FCA5A5; }
+.adm-badge {
+    margin-left: auto; font-size: .65rem; font-weight: 700;
+    padding: .15rem .45rem; border-radius: 10px; line-height: 1.4;
+}
+.adm-badge-danger    { background: #FEE2E2; color: #DC2626; }
+.adm-badge-warning   { background: #FEF9C3; color: #A16207; }
+.adm-badge-info      { background: #DBEAFE; color: #1D4ED8; }
+.adm-badge-secondary { background: #F1F5F9; color: #475569; }
+#admNoResults {
+    display: none; grid-column: 1 / -1; text-align: center;
+    padding: 3rem 1rem; color: #94A3B8; font-size: .9rem;
+}
+</style>
+</head>
+<body>
+<div class="adm-page">
+
+  <div class="adm-title">
+    <i class="bi bi-shield-shaded" style="color:#2563eb"></i>
+    Administrator
+  </div>
+  <p class="adm-sub">Centrum zarządzania systemem — użytkownicy, ustawienia, integracje i narzędzia.</p>
+
+  <!-- Stats bar -->
+  <div class="adm-stats">
+    <a href="#" class="adm-stat">
+      <div class="adm-stat-icon" style="background:#EFF6FF;color:#2563EB"><i class="bi bi-people"></i></div>
+      <div><div class="adm-stat-val">47</div><div class="adm-stat-lbl">Aktywnych użytkowników</div></div>
+    </a>
+    <a href="#" class="adm-stat adm-stat-alert">
+      <div class="adm-stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="bi bi-inbox"></i></div>
+      <div><div class="adm-stat-val">3</div><div class="adm-stat-lbl">Nowych wniosków</div></div>
+    </a>
+    <a href="#" class="adm-stat">
+      <div class="adm-stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="bi bi-envelope-x"></i></div>
+      <div><div class="adm-stat-val">0</div><div class="adm-stat-lbl">Błędnych maili</div></div>
+    </a>
+    <a href="#" class="adm-stat adm-stat-alert">
+      <div class="adm-stat-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-calendar-x"></i></div>
+      <div><div class="adm-stat-val">12</div><div class="adm-stat-lbl">Umów wygasa (30 dni)</div></div>
+    </a>
+    <a href="#" class="adm-stat">
+      <div class="adm-stat-icon" style="background:#EEF2FF;color:#4F46E5"><i class="bi bi-calendar-check"></i></div>
+      <div><div class="adm-stat-val">2</div><div class="adm-stat-lbl">Oczekujących rezerwacji</div></div>
+    </a>
+    <a href="#" class="adm-stat">
+      <div class="adm-stat-icon" style="background:#F0FDFA;color:#0D9488"><i class="bi bi-journal-text"></i></div>
+      <div><div class="adm-stat-val">18</div><div class="adm-stat-lbl">Zdarzeń dzisiaj</div></div>
+    </a>
+  </div>
+
+  <!-- Search -->
+  <div class="adm-search-wrap">
+    <i class="bi bi-search"></i>
+    <input id="admSearch" type="search" placeholder="Szukaj funkcji…" autocomplete="off">
+    <button class="adm-search-clear" id="admSearchClear"><i class="bi bi-x"></i></button>
+  </div>
+
+  <!-- Grid of 9 groups -->
+  <div class="adm-grid" id="admGrid">
+
+    <!-- 1. Użytkownicy -->
+    <div class="adm-card" data-group="Użytkownicy i bezpieczeństwo">
+      <div class="adm-card-head" style="background:#EFF6FF;border-bottom-color:#BFDBFE">
+        <div class="adm-card-head-icon" style="background:#2563EB;color:#fff"><i class="bi bi-shield-person"></i></div>
+        <div class="adm-card-head-label" style="color:#1E40AF">Użytkownicy i bezpieczeństwo</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="użytkownicy"><i class="bi bi-people"></i>Użytkownicy<span class="adm-badge adm-badge-secondary">47</span></a>
+        <a href="#" class="adm-item" data-label="role i uprawnienia"><i class="bi bi-shield-lock"></i>Role i uprawnienia</a>
+        <a href="#" class="adm-item" data-label="kody ika"><i class="bi bi-key"></i>Kody IKA</a>
+        <a href="#" class="adm-item" data-label="metody logowania"><i class="bi bi-door-open"></i>Metody logowania</a>
+        <a href="#" class="adm-item" data-label="dziennik zdarzeń"><i class="bi bi-journal-text"></i>Dziennik zdarzeń<span class="adm-badge adm-badge-info">18</span></a>
+        <a href="#" class="adm-item" data-label="audit log"><i class="bi bi-shield-exclamation"></i>Audit log</a>
+        <a href="#" class="adm-item" data-label="podszywanie"><i class="bi bi-person-badge"></i>Podszywanie</a>
+      </div>
+    </div>
+
+    <!-- 2. Organizacja -->
+    <div class="adm-card" data-group="Organizacja i konfiguracja">
+      <div class="adm-card-head" style="background:#F5F3FF;border-bottom-color:#DDD6FE">
+        <div class="adm-card-head-icon" style="background:#7C3AED;color:#fff"><i class="bi bi-building"></i></div>
+        <div class="adm-card-head-label" style="color:#5B21B6">Organizacja i konfiguracja</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="dane organizacji"><i class="bi bi-building"></i>Dane organizacji</a>
+        <a href="#" class="adm-item" data-label="moduły"><i class="bi bi-toggles2"></i>Moduły</a>
+        <a href="#" class="adm-item" data-label="ustawienia wydarzeń"><i class="bi bi-calendar-event-fill"></i>Ustawienia wydarzeń</a>
+        <a href="#" class="adm-item" data-label="workflow akceptacji"><i class="bi bi-diagram-3"></i>Workflow akceptacji</a>
+        <a href="#" class="adm-item" data-label="selfservice"><i class="bi bi-ui-checks-grid"></i>SelfService</a>
+        <a href="#" class="adm-item" data-label="obszary zadań"><i class="bi bi-kanban"></i>Obszary zadań</a>
+        <a href="#" class="adm-item" data-label="tagi zadań"><i class="bi bi-tag"></i>Tagi zadań</a>
+        <a href="#" class="adm-item" data-label="pola profilu"><i class="bi bi-person-lines-fill"></i>Pola profilu</a>
+        <a href="#" class="adm-item" data-label="pola w formularzach"><i class="bi bi-ui-checks"></i>Pola w formularzach</a>
+        <a href="#" class="adm-item" data-label="ustawienia ai"><i class="bi bi-stars"></i>Ustawienia AI</a>
+        <a href="#" class="adm-item" data-label="konfiguracja menu"><i class="bi bi-layout-sidebar"></i>Konfiguracja menu</a>
+      </div>
+    </div>
+
+    <!-- 3. CRM -->
+    <div class="adm-card" data-group="CRM">
+      <div class="adm-card-head" style="background:#F0FDF4;border-bottom-color:#BBF7D0">
+        <div class="adm-card-head-icon" style="background:#16A34A;color:#fff"><i class="bi bi-diagram-2-fill"></i></div>
+        <div class="adm-card-head-label" style="color:#15803D">CRM</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="ustawienia crm"><i class="bi bi-person-lines-fill"></i>Ustawienia CRM</a>
+        <a href="#" class="adm-item" data-label="statusy crm"><i class="bi bi-bookmark-fill"></i>Statusy CRM</a>
+        <a href="#" class="adm-item" data-label="grupy pól"><i class="bi bi-layers"></i>Grupy pól</a>
+        <a href="#" class="adm-item" data-label="pola formularza"><i class="bi bi-list-columns"></i>Pola formularza</a>
+        <a href="#" class="adm-item" data-label="dostęp crm-only"><i class="bi bi-diagram-2"></i>Dostęp CRM-only</a>
+        <a href="#" class="adm-item" data-label="baza danych crm"><i class="bi bi-database-gear"></i>Baza danych CRM</a>
+        <a href="#" class="adm-item" data-label="import teryt"><i class="bi bi-geo-alt-fill"></i>Import TERYT</a>
+        <a href="#" class="adm-item" data-label="nozbe"><i class="bi bi-check2-square"></i>Nozbe</a>
+        <a href="#" class="adm-item" data-label="formularze webowe"><i class="bi bi-window-split"></i>Formularze webowe</a>
+      </div>
+    </div>
+
+    <!-- 4. Komunikacja -->
+    <div class="adm-card" data-group="Komunikacja">
+      <div class="adm-card-head" style="background:#F0FDFA;border-bottom-color:#99F6E4">
+        <div class="adm-card-head-icon" style="background:#0D9488;color:#fff"><i class="bi bi-envelope"></i></div>
+        <div class="adm-card-head-label" style="color:#0F766E">Komunikacja</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="komunikaty ogłoszenia"><i class="bi bi-megaphone"></i>Komunikaty / ogłoszenia</a>
+        <a href="#" class="adm-item" data-label="nowe ogłoszenie"><i class="bi bi-megaphone-fill"></i>Nowe ogłoszenie</a>
+        <a href="#" class="adm-item" data-label="powiadomienia e-mail"><i class="bi bi-bell"></i>Powiadomienia e-mail</a>
+        <a href="#" class="adm-item" data-label="kolejka e-mail"><i class="bi bi-send-check"></i>Kolejka e-mail</a>
+        <a href="#" class="adm-item" data-label="typy wiadomości"><i class="bi bi-tags"></i>Typy wiadomości</a>
+        <a href="#" class="adm-item" data-label="masowe maile"><i class="bi bi-envelope-check"></i>Masowe maile</a>
+        <a href="#" class="adm-item" data-label="sms"><i class="bi bi-chat-dots"></i>SMS</a>
+        <a href="#" class="adm-item" data-label="whatsapp"><i class="bi bi-whatsapp"></i>WhatsApp</a>
+        <a href="#" class="adm-item" data-label="postivo"><i class="bi bi-envelope-at"></i>Postivo</a>
+        <a href="#" class="adm-item" data-label="wysyłka powitalna"><i class="bi bi-envelope-heart"></i>Wysyłka powitalna</a>
+      </div>
+    </div>
+
+    <!-- 5. Dokumenty i umowy -->
+    <div class="adm-card" data-group="Dokumenty i umowy">
+      <div class="adm-card-head" style="background:#FFF7ED;border-bottom-color:#FED7AA">
+        <div class="adm-card-head-icon" style="background:#EA580C;color:#fff"><i class="bi bi-file-earmark-text"></i></div>
+        <div class="adm-card-head-label" style="color:#9A3412">Dokumenty i umowy</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="pisma wnioski"><i class="bi bi-inbox"></i>Pisma / wnioski<span class="adm-badge adm-badge-danger">3</span></a>
+        <a href="#" class="adm-item" data-label="typy wniosków"><i class="bi bi-ui-checks-grid"></i>Typy wniosków</a>
+        <a href="#" class="adm-item" data-label="wzory dokumentów"><i class="bi bi-file-earmark-text"></i>Wzory dokumentów</a>
+        <a href="#" class="adm-item" data-label="wygasające umowy"><i class="bi bi-calendar-x"></i>Wygasające umowy<span class="adm-badge adm-badge-warning">12</span></a>
+        <a href="#" class="adm-item" data-label="kalendarz umów"><i class="bi bi-calendar3"></i>Kalendarz umów</a>
+        <a href="#" class="adm-item" data-label="statystyki"><i class="bi bi-bar-chart-line"></i>Statystyki</a>
+      </div>
+    </div>
+
+    <!-- 6. E-learning i zasoby -->
+    <div class="adm-card" data-group="E-learning i zasoby">
+      <div class="adm-card-head" style="background:#EEF2FF;border-bottom-color:#C7D2FE">
+        <div class="adm-card-head-icon" style="background:#4F46E5;color:#fff"><i class="bi bi-mortarboard"></i></div>
+        <div class="adm-card-head-label" style="color:#3730A3">E-learning i zasoby</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="moodle"><i class="bi bi-mortarboard"></i>Moodle</a>
+        <a href="#" class="adm-item" data-label="zasady i wprowadzenie"><i class="bi bi-building-heart"></i>Zasady i Wprowadzenie</a>
+        <a href="#" class="adm-item" data-label="rezerwacje zasobów"><i class="bi bi-calendar-check"></i>Rezerwacje zasobów<span class="adm-badge adm-badge-warning">2</span></a>
+        <a href="#" class="adm-item" data-label="zasoby"><i class="bi bi-box"></i>Zasoby</a>
+        <a href="#" class="adm-item" data-label="kategorie zasobów"><i class="bi bi-tags"></i>Kategorie zasobów</a>
+      </div>
+    </div>
+
+    <!-- 7. Integracje -->
+    <div class="adm-card" data-group="Integracje">
+      <div class="adm-card-head" style="background:#F8FAFC;border-bottom-color:#CBD5E1">
+        <div class="adm-card-head-icon" style="background:#475569;color:#fff"><i class="bi bi-plug"></i></div>
+        <div class="adm-card-head-label" style="color:#1E293B">Integracje</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="microsoft 365"><i class="bi bi-microsoft"></i>Microsoft 365</a>
+        <a href="#" class="adm-item" data-label="canva pro"><i class="bi bi-palette2"></i>Canva Pro</a>
+        <a href="#" class="adm-item" data-label="import z trello"><i class="bi bi-trello"></i>Import z Trello</a>
+        <a href="#" class="adm-item" data-label="klucze api"><i class="bi bi-key-fill"></i>Klucze API</a>
+        <a href="#" class="adm-item" data-label="ceidg"><i class="bi bi-building-check"></i>CEIDG</a>
+        <a href="#" class="adm-item" data-label="apaczka"><i class="bi bi-box-seam"></i>Apaczka</a>
+        <a href="#" class="adm-item" data-label="furgonetka"><i class="bi bi-truck"></i>Furgonetka</a>
+        <a href="#" class="adm-item" data-label="import csv"><i class="bi bi-file-earmark-arrow-up"></i>Import CSV</a>
+        <a href="#" class="adm-item" data-label="webhooki"><i class="bi bi-webhook"></i>Webhooki</a>
+      </div>
+    </div>
+
+    <!-- 8. EOD -->
+    <div class="adm-card" data-group="EOD Dokumentów Księgowych">
+      <div class="adm-card-head" style="background:#ECFEFF;border-bottom-color:#A5F3FC">
+        <div class="adm-card-head-icon" style="background:#0891B2;color:#fff"><i class="bi bi-file-earmark-check"></i></div>
+        <div class="adm-card-head-label" style="color:#155E75">EOD Dokumentów Księgowych</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="role dostępu eod"><i class="bi bi-shield-lock"></i>Role dostępu</a>
+        <a href="#" class="adm-item" data-label="certyfikaty x.509"><i class="bi bi-patch-check"></i>Certyfikaty X.509</a>
+        <a href="#" class="adm-item" data-label="ustawienia baza mpk"><i class="bi bi-gear"></i>Ustawienia (baza, MPK)</a>
+        <a href="#" class="adm-item" data-label="macierz uprawnień"><i class="bi bi-grid-3x2"></i>Macierz uprawnień</a>
+        <a href="#" class="adm-item" data-label="eArchiwum ftp r2"><i class="bi bi-cloud-arrow-up"></i>eArchiwum (FTP / R2)</a>
+        <a href="#" class="adm-item" data-label="ksef ustawienia"><i class="bi bi-receipt-cutoff"></i>KSeF — ustawienia</a>
+        <a href="#" class="adm-item danger" data-label="wyczyść stare pdf"><i class="bi bi-arrow-repeat"></i>Wyczyść stare PDF</a>
+        <a href="#" class="adm-item danger" data-label="wyczyść dane obiegu"><i class="bi bi-trash3"></i>Wyczyść dane obiegu</a>
+      </div>
+    </div>
+
+    <!-- 9. Narzędzia -->
+    <div class="adm-card" data-group="Narzędzia">
+      <div class="adm-card-head" style="background:#FFF1F2;border-bottom-color:#FECDD3">
+        <div class="adm-card-head-icon" style="background:#DC2626;color:#fff"><i class="bi bi-tools"></i></div>
+        <div class="adm-card-head-label" style="color:#991B1B">Narzędzia</div>
+      </div>
+      <div class="adm-items">
+        <a href="#" class="adm-item" data-label="certyfikat i licencja"><i class="bi bi-shield-lock"></i>Certyfikat i licencja</a>
+        <a href="#" class="adm-item" data-label="aktualizacja systemu"><i class="bi bi-arrow-repeat"></i>Aktualizacja systemu</a>
+        <a href="#" class="adm-item" data-label="wersja i historia zmian"><i class="bi bi-git"></i>Wersja i historia zmian</a>
+        <a href="#" class="adm-item" data-label="konfiguracja cron"><i class="bi bi-clock-history"></i>Konfiguracja CRON</a>
+        <a href="#" class="adm-item" data-label="informacje o systemie"><i class="bi bi-info-circle"></i>Informacje o systemie</a>
+        <a href="#" class="adm-item" data-label="kopie zapasowe"><i class="bi bi-archive"></i>Kopie zapasowe</a>
+        <a href="#" class="adm-item" data-label="narzędzia bazy danych"><i class="bi bi-database-fill-gear"></i>Narzędzia bazy danych</a>
+        <a href="#" class="adm-item" data-label="przeglądarka logów"><i class="bi bi-journal-text"></i>Przeglądarka logów</a>
+        <a href="#" class="adm-item" data-label="zarządzanie migracjami"><i class="bi bi-database-gear"></i>Zarządzanie migracjami</a>
+        <a href="#" class="adm-item" data-label="krótkie linki"><i class="bi bi-link-45deg"></i>Krótkie linki</a>
+        <a href="#" class="adm-item danger" data-label="czyszczenie przed wdrożeniem"><i class="bi bi-rocket-takeoff"></i>Czyszczenie przed wdrożeniem</a>
+        <a href="#" class="adm-item danger" data-label="wyczyść bazę"><i class="bi bi-trash3"></i>Wyczyść bazę</a>
+      </div>
+    </div>
+
+    <div id="admNoResults">
+      <i class="bi bi-search" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
+      Nie znaleziono funkcji pasujących do zapytania.
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const input = document.getElementById('admSearch');
+  const clear = document.getElementById('admSearchClear');
+  const noRes = document.getElementById('admNoResults');
+  const cards = document.querySelectorAll('.adm-card[data-group]');
+
+  function filter(q) {
+    q = q.trim().toLowerCase();
+    clear.style.display = q ? 'block' : 'none';
+    let anyVisible = false;
+    cards.forEach(card => {
+      const items = card.querySelectorAll('.adm-item[data-label]');
+      let cardVisible = false;
+      items.forEach(item => {
+        const match = !q || item.dataset.label.includes(q);
+        item.classList.toggle('adm-item-hidden', !match);
+        if (match) cardVisible = true;
+      });
+      card.classList.toggle('adm-hidden', !cardVisible);
+      if (cardVisible) anyVisible = true;
+    });
+    noRes.style.display = anyVisible ? 'none' : 'block';
+  }
+
+  input.addEventListener('input', () => filter(input.value));
+  clear.addEventListener('click', () => { input.value = ''; input.focus(); filter(''); });
+})();
+</script>
+</body>
+</html>

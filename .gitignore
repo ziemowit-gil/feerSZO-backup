@@ -12,3 +12,6 @@ tenants/*/uploads/
 .env
 *.log
 .install.lock
+*.db
+.claude
+*.db
