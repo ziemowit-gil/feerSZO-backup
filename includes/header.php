@@ -607,7 +607,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
 
   <?php else: ?>
-  <!-- ══ WIDOK EDYTORA / ADMINA — 4 GRUPY ════════════════════════ -->
+  <!-- ══ WIDOK EDYTORA / ADMINA ════════════════════════════════════ -->
   <?php
   // Pomocnicze zmienne aktywności
   $_on_it       = str_contains($_uri, '/it/');
@@ -629,6 +629,20 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   $_adm_badge = 0;
   try { $r = db_one("SELECT COUNT(*) AS c FROM mail_queue WHERE status='failed'"); $_adm_badge += (int)($r['c'] ?? 0); } catch(\Throwable $e) {}
   try { $r = db_one("SELECT COUNT(*) AS c FROM user_applications WHERE status='nowy'"); $_adm_badge += (int)($r['c'] ?? 0); } catch(\Throwable $e) {}
+  // Helpdesk badge — computed here because Obsługa is no longer collapsible
+  $_hd_open = 0;
+  try {
+      if (module_enabled('helpdesk_enabled')) {
+          $_hd_u = current_user();
+          if ($_hd_u) {
+              if (is_admin() || !empty($_hd_u['helpdesk_operator'])) {
+                  $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE status NOT IN ('zamknięte')")['c'] ?? 0);
+              } else {
+                  $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')", [(int)$_hd_u['id']])['c'] ?? 0);
+              }
+          }
+      }
+  } catch (\Throwable $e) {}
 
   $_people_badge = $_msg_unread_total + $_term_pending + $_cert_pending + $_rek_new + $_ob_new;
   $_fin_badge    = $_zwr_pending + $_ts_pending + $_ship_pending + $_res_badge;
@@ -638,9 +652,13 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   ?>
 
   <!-- ════════════════════════════════════════
-       LUDZIE — wolontariat, osoby, CRM, obsługa
+       1. LUDZIE — osoby, wolontariat, CRM, katalog, rekrutacja
   ════════════════════════════════════════ -->
   <div class="sb-label">Ludzie</div>
+
+  <a class="sb-link<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php">
+    <i class="bi bi-people"></i> Osoby
+  </a>
 
   <?php if (module_enabled('contract_wolontariat')): ?>
   <a class="sb-link<?= _nav_active('/contracts/wolontariat/') ?>" href="<?= APP_URL ?>/contracts/wolontariat/list.php">
@@ -648,15 +666,15 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <?php endif; ?>
 
-  <a class="sb-link<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php">
-    <i class="bi bi-people"></i> Osoby
-  </a>
-
   <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
   <a class="sb-link<?= _nav_active('/crm/') ?>" href="<?= APP_URL ?>/crm/dashboard.php">
     <i class="bi bi-diagram-2"></i> CRM
   </a>
   <?php endif; ?>
+
+  <a class="sb-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
+    <i class="bi bi-person-lines-fill"></i> Katalog osób
+  </a>
 
   <?php
   $_rek_ob_active = str_contains($_uri,'/contracts/rekrutacja') || str_contains($_uri,'/onboarding/');
@@ -685,107 +703,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <?php endif; ?>
 
   <!-- ════════════════════════════════════════
-       REJESTRY — zaświadczenia, RODO
-  ════════════════════════════════════════ -->
-  <?php if (can_edit()): ?>
-  <div class="sb-label">Rejestry</div>
-  <?php if (module_enabled('certificates_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>" href="<?= APP_URL ?>/admin/certificates.php">
-    <i class="bi bi-award"></i> Zaświadczenia
-    <?php if ($_cert_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_cert_pending ?></span><?php endif; ?>
-  </a>
-  <?php endif; ?>
-  <a class="sb-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php">
-    <i class="bi bi-shield-lock"></i> Rejestr RODO
-  </a>
-  <?php endif; ?>
-
-  <?php
-  $_hd_open = 0;
-  try {
-      if (module_enabled('helpdesk_enabled')) {
-          $_hd_u = current_user();
-          if ($_hd_u) {
-              if (is_admin() || !empty($_hd_u['helpdesk_operator'])) {
-                  $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE status NOT IN ('zamknięte')")['c'] ?? 0);
-              } else {
-                  $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')", [(int)$_hd_u['id']])['c'] ?? 0);
-              }
-          }
-      }
-  } catch (\Throwable $e) {}
-  $_obsługa_active = str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/helpdesk/');
-  $_obs_badge = $_msg_unread_total + $_term_pending;
-  ?>
-  <button type="button" class="sb-type-btn <?= $_obsługa_active ? 'type-open' : '' ?>"
-          data-bs-toggle="collapse" data-bs-target="#sb-obsluga"
-          aria-expanded="<?= $_obsługa_active ? 'true' : 'false' ?>">
-    <i class="bi bi-headset"></i> Obsługa
-    <?php if ($_obs_badge): ?><span class="badge bg-danger ms-auto" style="font-size:.62rem"><?= $_obs_badge ?></span><?php endif; ?>
-    <i class="bi bi-chevron-right sb-chevron"></i>
-  </button>
-  <div class="collapse sb-sub <?= $_obsługa_active ? 'show' : '' ?>" id="sb-obsluga">
-    <?php if (module_enabled('helpdesk_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php">
-      <i class="bi bi-ticket-perforated"></i> Helpdesk IT
-      <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
-    </a>
-    <?php endif; ?>
-    <?php if (module_enabled('messages_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
-      <i class="bi bi-chat-dots"></i> Wiadomości
-      <span class="badge bg-danger ms-auto" data-msg-sb-badge style="<?= $_msg_unread_total > 0 ? '' : 'display:none' ?>"><?= $_msg_unread_total ?></span>
-    </a>
-    <?php endif; ?>
-    <?php if (module_enabled('terminations_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php">
-      <i class="bi bi-file-earmark-x"></i> Rozwiązania
-      <?php if ($_term_pending): ?><span class="badge bg-danger ms-auto"><?= $_term_pending ?></span><?php endif; ?>
-    </a>
-    <?php endif; ?>
-    <a class="sb-sub-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
-      <i class="bi bi-person-lines-fill"></i> Katalog osób
-    </a>
-  </div>
-
-  <div class="sb-sep"></div>
-
-  <!-- ════════════════════════════════════════
-       IT — Dostępy i Infrastruktura
-  ════════════════════════════════════════ -->
-  <?php if (can_edit()): ?>
-  <?php
-  $_it_active = str_contains($_uri, '/it/');
-  ?>
-  <button type="button" class="sb-type-btn <?= $_it_active ? 'type-open' : '' ?>"
-          data-bs-toggle="collapse" data-bs-target="#sb-it"
-          aria-expanded="<?= $_it_active ? 'true' : 'false' ?>">
-    <i class="bi bi-hdd-network" style="color:#fd7e14"></i>
-    <span style="<?= $_it_active ? '' : '' ?>">Dostępy IT</span>
-    <i class="bi bi-chevron-right sb-chevron"></i>
-  </button>
-  <div class="collapse sb-sub <?= $_it_active ? 'show' : '' ?>" id="sb-it">
-    <a class="sb-sub-link<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php">
-      <i class="bi bi-grid-1x2" style="color:#fd7e14"></i> Dashboard IT
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php">
-      <i class="bi bi-person-badge"></i> Konta
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php">
-      <i class="bi bi-key" style="color:#fd7e14"></i> Hasła
-    </a>
-    <?php if (is_admin()): ?>
-    <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php">
-      <i class="bi bi-gear"></i> Serwisy IT
-    </a>
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
-
-  <div class="sb-sep"></div>
-
-  <!-- ════════════════════════════════════════
-       DOKUMENTY — umowy, pisma, raporty
+       2. DOKUMENTY — umowy, akceptacje, pisma, archiwum
   ════════════════════════════════════════ -->
   <div class="sb-label">Dokumenty</div>
 
@@ -832,7 +750,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <button type="button" class="sb-type-btn <?= $_more_docs_active ? 'type-open' : '' ?>"
           data-bs-toggle="collapse" data-bs-target="#sb-docs-more"
           aria-expanded="<?= $_more_docs_active ? 'true' : 'false' ?>">
-    <i class="bi bi-folder2"></i> Więcej
+    <i class="bi bi-folder2"></i> Archiwum
     <i class="bi bi-chevron-right sb-chevron"></i>
   </button>
   <div class="collapse sb-sub <?= $_more_docs_active ? 'show' : '' ?>" id="sb-docs-more">
@@ -841,28 +759,71 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       <i class="bi bi-bar-chart-line"></i> Raporty
     </a>
     <?php endif; ?>
-    <a class="sb-sub-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php">
-      <i class="bi bi-file-ruled"></i> Uchwały
-    </a>
     <a class="sb-sub-link<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php">
       <i class="bi bi-mailbox"></i> Korespondencja
     </a>
     <a class="sb-sub-link<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php">
       <i class="bi bi-list-task"></i> Procedury
     </a>
+    <a class="sb-sub-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php">
+      <i class="bi bi-file-ruled"></i> Uchwały
+    </a>
     <a class="sb-sub-link<?= _nav_active('/ezd/') ?>" href="<?= APP_URL ?>/ezd/index.php">
       <i class="bi bi-archive"></i> EZD
     </a>
   </div>
 
+  <!-- ════════════════════════════════════════
+       3. OBSŁUGA — helpdesk, wiadomości, rozwiązania (flat, no collapsible)
+  ════════════════════════════════════════ -->
+  <?php
+  $_obs_has = module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('terminations_enabled');
+  if ($_obs_has):
+  ?>
+  <div class="sb-label">Obsługa</div>
+  <?php if (module_enabled('helpdesk_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php">
+    <i class="bi bi-ticket-perforated"></i> Helpdesk
+    <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('messages_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
+    <i class="bi bi-chat-dots"></i> Wiadomości
+    <span class="badge bg-danger ms-auto" data-msg-sb-badge style="<?= $_msg_unread_total > 0 ? '' : 'display:none' ?>"><?= $_msg_unread_total ?></span>
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('terminations_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php">
+    <i class="bi bi-file-earmark-x"></i> Rozwiązania
+    <?php if ($_term_pending): ?><span class="badge bg-danger ms-auto"><?= $_term_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <?php endif; ?>
+
+  <!-- ════════════════════════════════════════
+       4. REJESTRY — zaświadczenia, RODO [if can_edit]
+  ════════════════════════════════════════ -->
+  <?php if (can_edit()): ?>
+  <div class="sb-label">Rejestry</div>
+  <?php if (module_enabled('certificates_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>" href="<?= APP_URL ?>/admin/certificates.php">
+    <i class="bi bi-award"></i> Zaświadczenia
+    <?php if ($_cert_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_cert_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <a class="sb-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php">
+    <i class="bi bi-shield-lock"></i> Rejestr RODO
+  </a>
+  <?php endif; ?>
+
   <div class="sb-sep"></div>
 
   <!-- ════════════════════════════════════════
-       FINANSE — granty, zwroty, eObieg, zasoby
+       5. FINANSE I ZASOBY
   ════════════════════════════════════════ -->
   <div class="sb-label">Finanse i zasoby</div>
 
-  <?php if (can_edit()): ?>
   <?php if (menu_visible('grants')): ?>
   <a class="sb-link<?= _nav_active('/grants/') ?>" href="<?= APP_URL ?>/grants/index.php">
     <i class="bi bi-cash-coin"></i> Granty
@@ -872,7 +833,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <a class="sb-link<?= _nav_active('/actions/') ?>" href="<?= APP_URL ?>/actions/index.php">
     <i class="bi bi-calendar-event"></i> Działania
   </a>
-  <?php endif; ?>
   <?php endif; ?>
 
   <a class="sb-link<?= _nav_active('/contracts/zwroty/') ?>" href="<?= APP_URL ?>/contracts/zwroty/index.php">
@@ -957,43 +917,49 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <div class="sb-sep"></div>
 
   <!-- ════════════════════════════════════════
-       ADMIN — panel, ustawienia
+       6. DOSTĘPY IT — collapsible [if can_edit]
+  ════════════════════════════════════════ -->
+  <?php if (can_edit()): ?>
+  <?php
+  $_it_active = str_contains($_uri, '/it/');
+  ?>
+  <button type="button" class="sb-type-btn <?= $_it_active ? 'type-open' : '' ?>"
+          data-bs-toggle="collapse" data-bs-target="#sb-it"
+          aria-expanded="<?= $_it_active ? 'true' : 'false' ?>">
+    <i class="bi bi-hdd-network"></i>
+    <span>Dostępy IT</span>
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_it_active ? 'show' : '' ?>" id="sb-it">
+    <a class="sb-sub-link<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php">
+      <i class="bi bi-grid-1x2"></i> Dashboard IT
+    </a>
+    <a class="sb-sub-link<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php">
+      <i class="bi bi-person-badge"></i> Konta
+    </a>
+    <a class="sb-sub-link<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php">
+      <i class="bi bi-key"></i> Hasła
+    </a>
+    <?php if (is_admin()): ?>
+    <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php">
+      <i class="bi bi-gear"></i> Serwisy IT
+    </a>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+  <div class="sb-sep"></div>
+
+  <!-- ════════════════════════════════════════
+       7. ADMIN [if is_admin]
   ════════════════════════════════════════ -->
   <?php if (is_admin()): ?>
   <div class="sb-label">Admin</div>
-  <a class="sb-link<?= str_contains($_uri,'/admin/') && !$_obsługa_active ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
+  <a class="sb-link<?= str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding') ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
     <i class="bi bi-shield-shaded"></i> Panel admina
+    <?php if ($_adm_badge): ?><span class="badge bg-danger ms-auto"><?= $_adm_badge ?></span><?php endif; ?>
   </a>
-  <div class="sb-sep"></div>
   <?php endif; ?>
-
-  <!-- ════════════════════════════════════════
-       MÓJ OBSZAR — zwinięty domyślnie
-  ════════════════════════════════════════ -->
-  <?php
-  $_my_active = str_contains($_uri,'/panel/') || str_contains($_uri,'/komunikaty/');
-  ?>
-  <button type="button" class="sb-type-btn <?= $_my_active ? 'type-open' : '' ?>"
-          data-bs-toggle="collapse" data-bs-target="#sb-myarea"
-          aria-expanded="<?= $_my_active ? 'true' : 'false' ?>">
-    <i class="bi bi-person-circle"></i> Mój obszar
-    <i class="bi bi-chevron-right sb-chevron"></i>
-  </button>
-  <div class="collapse sb-sub <?= $_my_active ? 'show' : '' ?>" id="sb-myarea">
-    <a class="sb-sub-link<?= _nav_active('/panel/index') ?>" href="<?= APP_URL ?>/panel/index.php">
-      <i class="bi bi-house"></i> Mój panel
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/komunikaty/') ?>" href="<?= APP_URL ?>/komunikaty/index.php">
-      <i class="bi bi-megaphone"></i> Komunikaty
-      <?php try { $_e_ann_count = count(array_filter(ann_list_for_user((int)$_user['id'], $_user['role'] ?? 'editor'), fn($a) => !(int)($a['is_read_by_me'] ?? 0))); if ($_e_ann_count > 0): ?><span class="badge bg-warning text-dark ms-auto"><?= $_e_ann_count ?></span><?php endif; } catch(\Throwable $e) {} ?>
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/panel/profile_edit') ?>" href="<?= APP_URL ?>/panel/profile_edit.php">
-      <i class="bi bi-person-badge"></i> Mój profil
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/panel/m365') ?>" href="<?= APP_URL ?>/panel/m365.php">
-      <i class="bi bi-microsoft"></i> Microsoft 365
-    </a>
-  </div>
 
   <?php endif; /* can_edit */ ?>
   <?php endif; /* _user */ ?>
@@ -1164,12 +1130,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
             </a>
           </li>
           <?php endif; ?>
-          <li><hr class="dropdown-divider my-1"></li>
-          <li>
-            <a class="dropdown-item" href="<?= APP_URL ?>/search.php">
-              <i class="bi bi-search me-2"></i>Globalne wyszukiwanie
-            </a>
-          </li>
         </ul>
       </div>
       <!-- Szukajka — w ramach nawigacji modułów -->
