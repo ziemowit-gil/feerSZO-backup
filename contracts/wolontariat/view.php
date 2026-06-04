@@ -1793,6 +1793,36 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <?php endif; ?>
   </div>
 
+  <!-- Generowanie dokumentów z szablonu -->
+  <?php
+  require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
+  cte_migrate();
+  $_tpl_list = cte_list('wolontariat');
+  ?>
+  <?php if ($_tpl_list && can_edit()): ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0F4FF;color:#4F46E5"><i class="bi bi-file-earmark-text"></i></div>
+      <span class="cv-section-title">Wzory dokumentów</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <?php foreach ($_tpl_list as $_tpl): ?>
+      <div class="d-flex gap-1">
+        <a href="<?= APP_URL ?>/contracts/print_template.php?template_id=<?= $_tpl['id'] ?>&contract_id=<?= $id ?>&type=<?= $TYPE ?>&preview=1"
+           target="_blank"
+           class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-file-earmark-text me-1"></i><?= h($_tpl['name']) ?>
+        </a>
+        <a href="<?= APP_URL ?>/contracts/download_template_docx.php?template_id=<?= $_tpl['id'] ?>&contract_id=<?= $id ?>&type=<?= $TYPE ?>"
+           class="btn btn-sm btn-outline-secondary py-0 px-2" title="Pobierz DOCX">
+          <i class="bi bi-file-earmark-word"></i>
+        </a>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
 </div><!-- /tab-docs -->
 
 <!-- ════════════════════════════════════════════════════════════════════════════

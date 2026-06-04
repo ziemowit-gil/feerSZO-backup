@@ -364,37 +364,78 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
 
           <div class="row g-3">
-            <!-- Edytor -->
+            <!-- Edytor — zakładki Visual / HTML / Tekst -->
             <div class="col-lg-8">
-              <label class="form-label small fw-semibold">Treść dokumentu</label>
-              <div class="border rounded" style="overflow:hidden">
-                <div id="tplToolbar">
-                  <span class="ql-formats">
-                    <select class="ql-header"><option selected></option><option value="1"></option><option value="2"></option><option value="3"></option></select>
-                  </span>
-                  <span class="ql-formats">
-                    <button class="ql-bold"></button>
-                    <button class="ql-italic"></button>
-                    <button class="ql-underline"></button>
-                  </span>
-                  <span class="ql-formats">
-                    <select class="ql-align"></select>
-                  </span>
-                  <span class="ql-formats">
-                    <button class="ql-list" value="ordered"></button>
-                    <button class="ql-list" value="bullet"></button>
-                  </span>
-                  <span class="ql-formats">
-                    <button class="ql-indent" value="-1"></button>
-                    <button class="ql-indent" value="+1"></button>
-                  </span>
-                  <span class="ql-formats">
-                    <button class="ql-clean"></button>
-                  </span>
-                </div>
-                <div id="quillEditor"></div>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label small fw-semibold mb-0">Treść dokumentu</label>
+                <ul class="nav nav-pills nav-sm" id="editorTabs" style="gap:.25rem">
+                  <li class="nav-item">
+                    <button type="button" class="nav-link active py-0 px-2" style="font-size:.75rem" onclick="setEditorMode('visual')">
+                      <i class="bi bi-type me-1"></i>Wizualny
+                    </button>
+                  </li>
+                  <li class="nav-item">
+                    <button type="button" class="nav-link py-0 px-2" style="font-size:.75rem" onclick="setEditorMode('html')">
+                      <i class="bi bi-code me-1"></i>HTML
+                    </button>
+                  </li>
+                  <li class="nav-item">
+                    <button type="button" class="nav-link py-0 px-2" style="font-size:.75rem" onclick="setEditorMode('text')">
+                      <i class="bi bi-fonts me-1"></i>Tekst
+                    </button>
+                  </li>
+                </ul>
               </div>
-              <div class="form-text">Kliknij zmienną z listy po prawej, aby wstawić ją do dokumentu.</div>
+
+              <!-- Tryb Wizualny (Quill) -->
+              <div id="editorVisual">
+                <div class="border rounded" style="overflow:hidden">
+                  <div id="tplToolbar">
+                    <span class="ql-formats">
+                      <select class="ql-header"><option selected></option><option value="1"></option><option value="2"></option><option value="3"></option></select>
+                    </span>
+                    <span class="ql-formats">
+                      <button class="ql-bold"></button>
+                      <button class="ql-italic"></button>
+                      <button class="ql-underline"></button>
+                    </span>
+                    <span class="ql-formats">
+                      <select class="ql-align"></select>
+                    </span>
+                    <span class="ql-formats">
+                      <button class="ql-list" value="ordered"></button>
+                      <button class="ql-list" value="bullet"></button>
+                    </span>
+                    <span class="ql-formats">
+                      <button class="ql-indent" value="-1"></button>
+                      <button class="ql-indent" value="+1"></button>
+                    </span>
+                    <span class="ql-formats">
+                      <button class="ql-clean"></button>
+                    </span>
+                  </div>
+                  <div id="quillEditor"></div>
+                </div>
+              </div>
+
+              <!-- Tryb HTML -->
+              <div id="editorHtml" style="display:none">
+                <textarea id="tpl-html-src"
+                          class="form-control font-monospace"
+                          style="min-height:420px;font-size:.8rem;resize:vertical"
+                          placeholder="<p>Treść dokumentu w HTML...</p>&#10;<p>Zmienne: {imie_nazwisko}, {numer_umowy}</p>"></textarea>
+              </div>
+
+              <!-- Tryb Tekst -->
+              <div id="editorText" style="display:none">
+                <textarea id="tpl-text-src"
+                          class="form-control"
+                          style="min-height:420px;font-size:.88rem;resize:vertical;line-height:1.6"
+                          placeholder="Treść w formacie tekstowym...&#10;Zmienne: {imie_nazwisko}, {numer_umowy}&#10;&#10;Puste linie = nowe akapity."></textarea>
+                <div class="form-text">Tekst zostanie sformatowany automatycznie. Puste linie tworzą nowe akapity.</div>
+              </div>
+
+              <div class="form-text mt-1">Kliknij zmienną z listy po prawej, aby wstawić ją do dokumentu.</div>
             </div>
 
             <!-- Lista zmiennych -->
@@ -439,15 +480,74 @@ var quill = new Quill('#quillEditor', {
     placeholder: 'Wpisz treść dokumentu… Użyj zmiennych w formacie {zmienna}',
 });
 
+var _editorMode = 'visual'; // 'visual' | 'html' | 'text'
+
+function setEditorMode(mode) {
+    // Synchronizuj aktualną zawartość przed przełączeniem
+    var currentHtml = getEditorHtml();
+
+    _editorMode = mode;
+    document.getElementById('editorVisual').style.display = mode === 'visual' ? '' : 'none';
+    document.getElementById('editorHtml').style.display   = mode === 'html'   ? '' : 'none';
+    document.getElementById('editorText').style.display   = mode === 'text'   ? '' : 'none';
+
+    // Aktualizuj zakładki nav
+    document.querySelectorAll('#editorTabs .nav-link').forEach(function(btn, i) {
+        btn.classList.toggle('active', ['visual','html','text'][i] === mode);
+    });
+
+    // Wypełnij odpowiedni edytor
+    if (mode === 'html') {
+        document.getElementById('tpl-html-src').value = currentHtml;
+    } else if (mode === 'text') {
+        // Zamień HTML na tekst: usuń tagi, zdekoduj encje
+        var tmp = document.createElement('div');
+        tmp.innerHTML = currentHtml;
+        document.getElementById('tpl-text-src').value = (tmp.innerText || tmp.textContent || '').trim();
+    } else {
+        // Powrót do visual: załaduj HTML z aktywnego źródła
+        if (_editorMode !== 'visual') {
+            quill.root.innerHTML = currentHtml;
+        }
+    }
+}
+
+function getEditorHtml() {
+    if (_editorMode === 'visual') return quill.root.innerHTML;
+    if (_editorMode === 'html')   return document.getElementById('tpl-html-src').value;
+    if (_editorMode === 'text') {
+        // Tekst → HTML: puste linie = akapity
+        var txt = document.getElementById('tpl-text-src').value;
+        return txt.split(/\n{2,}/).map(function(p) {
+            return '<p>' + p.replace(/\n/g, '<br>').trim() + '</p>';
+        }).join('');
+    }
+    return '';
+}
+
 function syncBody() {
-    document.getElementById('tpl-body').value = quill.root.innerHTML;
+    document.getElementById('tpl-body').value = getEditorHtml();
 }
 
 function insertVar(varName) {
-    quill.focus();
-    const range = quill.getSelection() || { index: quill.getLength() - 1 };
-    quill.insertText(range.index, varName, 'user');
-    quill.setSelection(range.index + varName.length);
+    if (_editorMode === 'visual') {
+        quill.focus();
+        const range = quill.getSelection() || { index: quill.getLength() - 1 };
+        quill.insertText(range.index, varName, 'user');
+        quill.setSelection(range.index + varName.length);
+    } else if (_editorMode === 'html') {
+        var ta = document.getElementById('tpl-html-src');
+        var s = ta.selectionStart, e = ta.selectionEnd;
+        ta.value = ta.value.slice(0, s) + varName + ta.value.slice(e);
+        ta.selectionStart = ta.selectionEnd = s + varName.length;
+        ta.focus();
+    } else {
+        var ta = document.getElementById('tpl-text-src');
+        var s = ta.selectionStart, e = ta.selectionEnd;
+        ta.value = ta.value.slice(0, s) + varName + ta.value.slice(e);
+        ta.selectionStart = ta.selectionEnd = s + varName.length;
+        ta.focus();
+    }
 }
 
 function openCreate() {
@@ -458,6 +558,7 @@ function openCreate() {
     document.getElementById('tpl-desc').value   = '';
     document.getElementById('tpl-modal-title').textContent = 'Nowy wzór dokumentu';
     quill.root.innerHTML = '';
+    setEditorMode('visual');
 }
 
 function openEdit(id, name, type, desc, body) {
@@ -468,6 +569,7 @@ function openEdit(id, name, type, desc, body) {
     document.getElementById('tpl-desc').value   = desc;
     document.getElementById('tpl-modal-title').textContent = 'Edytuj wzór: ' + name;
     quill.root.innerHTML = body;
+    setEditorMode('visual');
     new bootstrap.Modal(document.getElementById('tplModal')).show();
 }
 

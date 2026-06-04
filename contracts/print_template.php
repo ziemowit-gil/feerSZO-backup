@@ -45,23 +45,71 @@ if ($contract_id && in_array($type, ['wolontariat', 'zlecenie', 'dzielo', 'praca
 $map  = cte_build_map($type, $row);
 $html = cte_render($tpl['body'], $map);
 
-$org_name = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
+$stored  = org_setting('org_name');
+$const   = defined('ORG_NAME') ? ORG_NAME : '';
+$org_name = (strlen($const) > strlen($stored)) ? $const : ($stored ?: $const);
+$org_adres = org_setting('org_adres') ?: '';
+$org_nip   = org_setting('org_nip') ?: '';
+$org_krs   = org_setting('org_krs') ?: '';
+$org_city  = org_setting('org_miejscowosc') ?: '';
+
+// Logo base64
+$_logo_b64  = ''; $_logo_mime = 'image/png';
+$_logo_file = org_setting('org_logo');
+if ($_logo_file) {
+    $lpath = dirname(__DIR__) . '/assets/logo/' . basename($_logo_file);
+    if (file_exists($lpath) && filesize($lpath) < 500_000) {
+        $_logo_b64  = base64_encode(file_get_contents($lpath));
+        $_logo_mime = str_ends_with(strtolower($_logo_file), '.svg') ? 'image/svg+xml'
+                    : (str_ends_with(strtolower($_logo_file), '.jpg') ? 'image/jpeg' : 'image/png');
+    }
+}
+
+$doc_date = date('d.m.Y');
+$doc_ref  = !empty($row['numer_umowy']) ? $row['numer_umowy'] : ($org_city ? $org_city . ', ' . $doc_date : $doc_date);
 ?>
 <!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
 <title><?= h($tpl['name']) ?><?= $row ? ' — ' . h($row['imie_nazwisko'] ?? '') : '' ?></title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; }
-html { font-size: 12pt; }
+html { font-size: 11pt; }
 body {
-    font-family: 'Georgia', 'Times New Roman', serif;
+    font-family: 'Lato', 'Segoe UI', Arial, sans-serif;
     color: #111;
     margin: 0;
     padding: 0;
     background: #fff;
 }
+
+/* ── Nagłówek organizacji (jak w zaświadczeniach) ── */
+.doc-org-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    border-bottom: 2px solid #000; padding-bottom: .6rem; margin-bottom: .75rem;
+    gap: 1rem;
+}
+.doc-org-left  { display: flex; align-items: center; gap: .8rem; }
+.doc-org-logo  { height: 40px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
+.doc-org-name  { font-size: .9rem; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; line-height: 1.2; }
+.doc-org-meta  { font-size: .74rem; color: #444; margin-top: .12rem; line-height: 1.4; }
+.doc-org-ref   { text-align: right; flex-shrink: 0; }
+.doc-org-ref-num {
+    font-size: .78rem; font-weight: 700; letter-spacing: .04em;
+    border: 1.5px solid #000; padding: .1rem .5rem;
+    display: inline-block; margin-bottom: .1rem;
+}
+.doc-org-ref-date { font-size: .73rem; color: #555; }
+
+/* ── Tytuł szablonu ── */
+.doc-title-wrap {
+    text-align: center; padding: .6rem 0 .5rem;
+    margin-bottom: .9rem; border-bottom: 1px solid #aaa;
+}
+.doc-title { font-size: 1.15rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
 
 /* ── Podgląd w przeglądarce ── */
 @media screen {
@@ -139,6 +187,7 @@ body {
   <?php endif; ?>
   <div class="pbar-actions">
     <a href="<?= h(APP_URL) ?>/admin/contract_templates.php">← Wróć</a>
+    <a href="<?= h(APP_URL) ?>/contracts/download_template_docx.php?template_id=<?= $template_id ?>&contract_id=<?= $contract_id ?>&type=<?= h($type) ?>">⬇ DOCX</a>
     <button onclick="window.print()">🖨 Drukuj / PDF</button>
   </div>
 </div>
@@ -147,7 +196,40 @@ body {
 
 <div class="page-wrap">
 <div class="page">
-<?= $html ?>
+
+  <!-- Nagłówek organizacji -->
+  <div class="doc-org-header">
+    <div class="doc-org-left">
+      <?php if ($_logo_b64): ?>
+      <img src="data:<?= h($_logo_mime) ?>;base64,<?= $_logo_b64 ?>"
+           alt="" role="presentation" class="doc-org-logo">
+      <?php endif; ?>
+      <div>
+        <div class="doc-org-name"><?= h($org_name) ?></div>
+        <?php if ($org_adres || $org_nip): ?>
+        <div class="doc-org-meta">
+          <?php if ($org_adres): ?><?= h($org_adres) ?><?php endif; ?>
+          <?php if ($org_nip): ?><br>NIP: <?= h($org_nip) ?><?php if ($org_krs): ?> · KRS: <?= h($org_krs) ?><?php endif; ?><?php endif; ?>
+        </div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div class="doc-org-ref">
+      <?php if (!empty($row['numer_umowy'])): ?>
+      <div class="doc-org-ref-num"><?= h($row['numer_umowy']) ?></div>
+      <?php endif; ?>
+      <div class="doc-org-ref-date"><?= h($org_city ?: 'Miejscowość') ?>, <?= $doc_date ?></div>
+    </div>
+  </div>
+
+  <!-- Tytuł dokumentu -->
+  <div class="doc-title-wrap">
+    <div class="doc-title"><?= h($tpl['name']) ?></div>
+  </div>
+
+  <!-- Treść z podstawionymi zmiennymi -->
+  <?= $html ?>
+
 </div>
 </div>
 
