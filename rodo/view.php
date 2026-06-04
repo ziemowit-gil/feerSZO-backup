@@ -70,7 +70,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'vol_sign
     header('Location: view.php?id=' . $id); exit;
 }
 
-// Usuń
+// ── Upload podpisanego dokumentu ─────────────────────────────────────────────
+$_doc_fields = [
+    'upload_signed'     => 'signed_doc_path',
+    'upload_vol_signed' => 'vol_signed_doc_path',
+    'upload_revoke'     => 'revoke_doc_path',
+];
+foreach ($_doc_fields as $_op_key => $_col) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === $_op_key) {
+        csrf_check();
+        $path = handle_upload('doc_file', 'rodo_docs');
+        if ($path) {
+            // Usuń stary plik jeśli był
+            $old = db_one("SELECT {$_col} FROM rodo_authorizations WHERE id=?", [$id]);
+            if (!empty($old[$_col])) @unlink(UPLOAD_DIR . $old[$_col]);
+            db()->prepare("UPDATE rodo_authorizations SET {$_col}=?, updated_at=? WHERE id=?")
+                ->execute([$path, date('Y-m-d H:i:s'), $id]);
+            flash_set('success', 'Plik zapisany.');
+        } else {
+            flash_set('danger', 'Błąd uploadu — sprawdź format (PDF/JPG/PNG/DOCX, max 20 MB).');
+        }
+        header('Location: view.php?id=' . $id); exit;
+    }
+}
+
+// ── Usuń plik ─────────────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete_doc') {
+    csrf_check();
+    $col_map = ['signed_doc_path'=>1,'vol_signed_doc_path'=>1,'revoke_doc_path'=>1];
+    $col = $_POST['col'] ?? '';
+    if (isset($col_map[$col])) {
+        $old = db_one("SELECT {$col} FROM rodo_authorizations WHERE id=?", [$id]);
+        if (!empty($old[$col])) @unlink(UPLOAD_DIR . $old[$col]);
+        db()->prepare("UPDATE rodo_authorizations SET {$col}=NULL, updated_at=? WHERE id=?")
+            ->execute([date('Y-m-d H:i:s'), $id]);
+        flash_set('success', 'Plik usunięty.');
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
+// Usuń upoważnienie
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete' && is_admin()) {
     csrf_check();
     db()->prepare("DELETE FROM rodo_authorizations WHERE id=?")->execute([$id]);
@@ -333,6 +372,63 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </form>
       <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Podpisane dokumenty -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-file-earmark-check me-1 text-success"></i>Podpisane dokumenty
+    </div>
+    <div class="card-body p-0">
+      <?php
+      $doc_slots = [
+        ['col'=>'signed_doc_path',     'op'=>'upload_signed',     'label'=>'Upoważnienie (podpis adm.)', 'icon'=>'bi-shield-check'],
+        ['col'=>'vol_signed_doc_path', 'op'=>'upload_vol_signed', 'label'=>'Oświadczenie wolontariusza', 'icon'=>'bi-person-check'],
+        ['col'=>'revoke_doc_path',     'op'=>'upload_revoke',     'label'=>'Cofnięcie upoważnienia',    'icon'=>'bi-file-earmark-x'],
+      ];
+      foreach ($doc_slots as $slot):
+        $col  = $slot['col'];
+        $path = $row[$col] ?? null;
+      ?>
+      <div class="px-3 py-2 border-bottom" style="font-size:.83rem">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <span class="fw-semibold text-muted">
+            <i class="bi <?= $slot['icon'] ?> me-1"></i><?= $slot['label'] ?>
+          </span>
+          <?php if ($path): ?>
+          <span class="badge bg-success-subtle text-success border border-success-subtle">
+            <i class="bi bi-check-lg me-1"></i>Wgrano
+          </span>
+          <?php else: ?>
+          <span class="badge bg-light text-muted border">Brak</span>
+          <?php endif; ?>
+        </div>
+        <?php if ($path): ?>
+        <div class="d-flex gap-1 flex-wrap">
+          <?= upload_link($path) ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_op"   value="delete_doc">
+            <input type="hidden" name="col"   value="<?= h($col) ?>">
+            <button type="submit" class="btn btn-link btn-sm p-0 text-danger" style="font-size:.8rem">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </form>
+        </div>
+        <?php else: ?>
+        <form method="post" enctype="multipart/form-data" class="d-flex gap-1 align-items-center mt-1">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_op"   value="<?= h($slot['op']) ?>">
+          <input name="doc_file" type="file" class="form-control form-control-sm"
+                 accept=".pdf,.jpg,.jpeg,.png,.docx" style="font-size:.78rem">
+          <button type="submit" class="btn btn-sm btn-outline-success flex-shrink-0 py-0 px-2">
+            <i class="bi bi-upload"></i>
+          </button>
+        </form>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
     </div>
   </div>
 

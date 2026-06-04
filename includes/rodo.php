@@ -64,6 +64,11 @@ function rodo_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rodo_contract ON rodo_authorizations(contract_type,contract_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_rodo_status   ON rodo_authorizations(status)");
 
+    // Pliki podpisanych dokumentów — idempotentne
+    try { $pdo->exec("ALTER TABLE rodo_authorizations ADD COLUMN signed_doc_path     TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE rodo_authorizations ADD COLUMN vol_signed_doc_path TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE rodo_authorizations ADD COLUMN revoke_doc_path     TEXT"); } catch (\Throwable $e) {}
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS rodo_trainings (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
         authorization_id INTEGER NOT NULL REFERENCES rodo_authorizations(id) ON DELETE CASCADE,
