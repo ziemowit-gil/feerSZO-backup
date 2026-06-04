@@ -14,7 +14,7 @@
 
   <!-- Lewa — Microsoft 365 (metoda główna) -->
   <div class="login-col-ms">
-    <div class="ms-col-heading">
+    <div class="col-heading">
       <i class="bi bi-microsoft me-1" aria-hidden="true"></i>Konto Microsoft 365
     </div>
     <a href="<?= h(ms_auth_url($redirect)) ?>"
@@ -38,7 +38,7 @@
 
   <!-- Prawa — E-mail + hasło (zapasowa) -->
   <div class="login-col-local">
-    <div class="local-col-heading">
+    <div class="col-heading">
       <i class="bi bi-person-fill me-1" aria-hidden="true"></i>E-mail i hasło
     </div>
     <form method="post" novalidate aria-label="Formularz logowania — e-mail i hasło" autocomplete="on">
