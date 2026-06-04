@@ -839,6 +839,20 @@ $_tabs_def['profil']       = ['Profil',       'bi-person-lines-fill',
     (!empty($row['wojewodztwo'])||!empty($row['wolontariat_typ'])) ? '<span class="badge bg-secondary ms-1" style="font-size:.6rem">●</span>' : ''];
 $_tabs_def['m365']         = ['M365',         'bi-microsoft',
     $row['m365_konto'] ? '<span class="badge '.($row['m365_konto_aktywne']?'bg-success':'bg-secondary').' ms-1">'.($row['m365_konto_aktywne']?'●':'○').'</span>' : ''];
+// Zakładka RODO
+try {
+    require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
+    rodo_migrate();
+    $_rodo_rows = db_all("SELECT id, status, training_done FROM rodo_authorizations WHERE contract_type=? AND contract_id=?", [$TYPE, $id]);
+    $_rodo_active = count(array_filter($_rodo_rows, fn($r) => $r['status'] === 'aktywne'));
+    $_rodo_no_training = count(array_filter($_rodo_rows, fn($r) => $r['status'] === 'aktywne' && !$r['training_done']));
+} catch (\Throwable $e) { $_rodo_rows = []; $_rodo_active = 0; $_rodo_no_training = 0; }
+if (can_edit()) {
+    $rodo_badge = '';
+    if ($_rodo_no_training) $rodo_badge = '<span class="badge bg-warning text-dark ms-1"><i class="bi bi-exclamation-triangle"></i></span>';
+    elseif ($_rodo_active)  $rodo_badge = '<span class="badge bg-success ms-1">' . $_rodo_active . '</span>';
+    $_tabs_def['rodo'] = ['RODO', 'bi-shield-lock', $rodo_badge];
+}
 $_tabs_def['historia']     = ['Historia',     'bi-journal-text',
     $audit_log ? '<span class="badge bg-secondary ms-1">'.count($audit_log).'</span>' : ''];
 if ($_tasks_enabled && can_edit()) {
@@ -2540,6 +2554,105 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <?php endif; ?>
 
 </div><!-- /tab-m365 -->
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     TAB RODO — UPOWAŻNIENIA DO PRZETWARZANIA DANYCH
+     ════════════════════════════════════════════════════════════════════════════ -->
+<?php if (can_edit()): ?>
+<div class="tab-pane fade<?= ($_tab==='rodo'||$_tab==='all')?' show active':'' ?>" id="tab-rodo" role="tabpanel">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <div class="fw-semibold">Upoważnienia do przetwarzania danych osobowych</div>
+      <div class="text-muted small">art. 5 ust. 2 RODO — zasada rozliczalności</div>
+    </div>
+    <a href="<?= APP_URL ?>/rodo/new.php?contract_type=<?= $TYPE ?>&contract_id=<?= $id ?>"
+       class="btn btn-sm btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>Nowe upoważnienie
+    </a>
+  </div>
+
+  <?php if (!$_rodo_rows): ?>
+  <div class="text-center py-4 text-muted">
+    <i class="bi bi-shield-lock" style="font-size:2rem"></i>
+    <div class="mt-2 small">Brak upoważnień powiązanych z tą umową.</div>
+    <a href="<?= APP_URL ?>/rodo/new.php?contract_type=<?= $TYPE ?>&contract_id=<?= $id ?>"
+       class="btn btn-sm btn-primary mt-3">
+      <i class="bi bi-plus me-1"></i>Wystaw upoważnienie RODO
+    </a>
+  </div>
+  <?php else: ?>
+
+  <?php if ($_rodo_no_training): ?>
+  <div class="alert alert-warning py-2 small d-flex gap-2 mb-3">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+    <div>
+      <strong><?= $_rodo_no_training ?> upoważnien<?= $_rodo_no_training === 1 ? 'ie' : 'ia' ?></strong>
+      bez odnotowanego szkolenia RODO — uzupełnij przed przekazaniem danych.
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <div class="table-responsive">
+    <table class="table table-sm align-middle" style="font-size:.86rem">
+      <thead class="table-light">
+        <tr><th>Numer</th><th>Od</th><th>Status</th><th>Szkolenie</th><th>Oświadczenie</th><th class="text-end">Akcje</th></tr>
+      </thead>
+      <tbody>
+        <?php foreach ($_rodo_rows as $_rr):
+          $_rr_full = db_one("SELECT * FROM rodo_authorizations WHERE id=?", [(int)$_rr['id']]);
+        ?>
+        <tr class="<?= $_rr['status'] !== 'aktywne' ? 'text-muted' : '' ?>">
+          <td class="font-monospace small"><?= h($_rr_full['number']) ?></td>
+          <td class="text-nowrap small"><?= $_rr_full['authorized_from'] ? date('d.m.Y', strtotime($_rr_full['authorized_from'])) : '—' ?></td>
+          <td>
+            <?php
+            $rs_map = ['aktywne'=>'bg-success','cofnięte'=>'bg-danger','wygasłe'=>'bg-secondary'];
+            $rs_lbl = ['aktywne'=>'Aktywne','cofnięte'=>'Cofnięte','wygasłe'=>'Wygasłe'];
+            ?>
+            <span class="badge <?= $rs_map[$_rr['status']] ?? 'bg-light text-dark border' ?>">
+              <?= h($rs_lbl[$_rr['status']] ?? $_rr['status']) ?>
+            </span>
+          </td>
+          <td>
+            <?php if ($_rr['training_done']): ?>
+            <span class="badge bg-success-subtle text-success border border-success-subtle small">Tak</span>
+            <?php else: ?>
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle small">Brak</span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?php if ($_rr_full['vol_signed_at']): ?>
+            <span class="badge bg-success-subtle text-success border border-success-subtle small">
+              <?= date('d.m.Y', strtotime($_rr_full['vol_signed_at'])) ?>
+            </span>
+            <?php else: ?>
+            <span class="text-muted small">—</span>
+            <?php endif; ?>
+          </td>
+          <td class="text-end">
+            <a href="<?= APP_URL ?>/rodo/view.php?id=<?= $_rr['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1">
+              <i class="bi bi-eye"></i>
+            </a>
+            <a href="<?= APP_URL ?>/rodo/print.php?id=<?= $_rr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2">
+              <i class="bi bi-printer"></i>
+            </a>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt-2 text-end">
+    <a href="<?= APP_URL ?>/rodo/index.php" class="text-muted small">
+      <i class="bi bi-list-ul me-1"></i>Pełny rejestr upoważnień RODO →
+    </a>
+  </div>
+  <?php endif; ?>
+
+</div><!-- /tab-rodo -->
+<?php endif; ?>
 
 <!-- ════════════════════════════════════════════════════════════════════════════
      TAB 6 — HISTORIA ZDARZEŃ

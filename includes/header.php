@@ -715,6 +715,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
     </a>
     <?php endif; ?>
+    <a class="sb-sub-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php">
+      <i class="bi bi-shield-lock"></i> Rejestr RODO
+    </a>
     <?php if (module_enabled('messages_enabled')): ?>
     <a class="sb-sub-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
       <i class="bi bi-chat-dots"></i> Wiadomości
