@@ -255,8 +255,12 @@ if ($_is_volunteer_only) {
       <span class="text-muted" style="font-size:.77rem"><?= date_pl($r['created_at']) ?></span>
       <?php if ($r['status'] === 'wydane'): ?>
       <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $r['id'] ?>"
-         target="_blank" class="btn btn-sm btn-success py-0 px-2">
-        <i class="bi bi-download" aria-hidden="true"></i>
+         target="_blank" class="btn btn-sm btn-success py-0 px-2" title="Pobierz / drukuj PDF">
+        <i class="bi bi-printer" aria-hidden="true"></i>
+      </a>
+      <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $r['id'] ?>"
+         class="btn btn-sm btn-outline-secondary py-0 px-2" title="Pobierz DOCX (Word)">
+        <i class="bi bi-file-earmark-word" aria-hidden="true"></i>
       </a>
       <?php endif; ?>
     </div>

@@ -454,9 +454,13 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
           <i class="bi bi-award"></i> Wydaj
         </a>
         <?php elseif ($cr['status'] === 'wydane'): ?>
-        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success">
+        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success" title="Podgląd PDF">
           <i class="bi bi-printer"></i> Drukuj
         </a>
+          <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $cr['id'] ?>"
+             class="btn btn-sm btn-outline-secondary" title="Pobierz DOCX">
+            <i class="bi bi-file-earmark-word"></i> DOCX
+          </a>
         <?php endif; ?>
       </td>
     </tr>

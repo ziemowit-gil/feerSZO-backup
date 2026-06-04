@@ -91,8 +91,12 @@ include dirname(__DIR__) . '/includes/header.php';
             <i class="bi bi-eye"></i> Podgląd
           </a>
           <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $req['id'] ?>"
-             target="_blank" class="btn btn-sm btn-outline-success">
+             target="_blank" class="btn btn-sm btn-outline-success" title="Podgląd PDF">
             <i class="bi bi-printer"></i>
+          </a>
+          <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $req['id'] ?>"
+             class="btn btn-sm btn-outline-secondary" title="Pobierz DOCX">
+            <i class="bi bi-file-earmark-word"></i>
           </a>
           <?php else: ?>
           <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $req['id'] ?>"

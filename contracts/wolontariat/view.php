@@ -1773,8 +1773,13 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
             <i class="bi bi-award"></i> Wydaj
           </a>
           <?php elseif ($cr['status'] === 'wydane'): ?>
-          <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success">
+          <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank"
+             class="btn btn-sm btn-outline-success" title="Podgląd i druk PDF">
             <i class="bi bi-printer"></i> Drukuj
+          </a>
+          <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $cr['id'] ?>"
+             class="btn btn-sm btn-outline-secondary" title="Pobierz DOCX (Word)">
+            <i class="bi bi-file-earmark-word"></i> DOCX
           </a>
           <?php endif; ?>
         </td>
