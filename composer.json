@@ -7,6 +7,7 @@
         "n1ebieski/ksef-php-client": "*",
         "nyholm/psr7": "^1.8",
         "php-http/curl-client": "^2.4",
+        "phpoffice/phpword": "^1.4",
         "smsapi/php-client": "^4.0"
     },
     "config": {
