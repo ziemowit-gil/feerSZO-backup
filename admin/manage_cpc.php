@@ -30,13 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action    = $_POST['_action'] ?? '';
     $target_id = (int) ($_POST['user_id'] ?? 0);
 
-    // Fetch target user — admin/editor/crm_user + role z flagą crm_only
+    // Pobierz dowolnego aktywnego użytkownika (wszystkie role)
     $target = $target_id ? db_one(
         "SELECT u.id, u.name, u.first_name, u.last_name, u.role
-         FROM users u
-         LEFT JOIN roles r ON r.name=u.role
-         WHERE u.id=? AND u.is_active=1
-           AND (u.role IN ('admin','editor','crm_user') OR r.crm_only=1)",
+         FROM users u WHERE u.id=? AND u.is_active=1",
         [$target_id]
     ) : null;
 
@@ -69,10 +66,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_system_action(
             $me_id,
             'cpc_set',
-            "Admin nadał/zmienił kod CPC użytkownikowi ID:{$target_id} ({$target_name}). Wartość kodu nie jest logowana."
+            "Admin nadał/zmienił kod IKA użytkownikowi ID:{$target_id} ({$target_name})."
         );
-        flash_set('success', 'Kod IKA dla ' . $target_name . ' został zaktualizowany.');
-        header('Location: manage_cpc.php');
+        // Zapisz wygenerowany kod do sesji — pokazany jednorazowo na stronie
+        auth_start();
+        $_SESSION['_ika_generated'] = [
+            'uid'   => $target_id,
+            'name'  => $target_name,
+            'email' => db_one("SELECT email FROM users WHERE id=?", [$target_id])['email'] ?? '',
+            'code'  => $cpc_code,
+            'role'  => $target['role'] ?? '',
+        ];
+        header('Location: manage_cpc.php?ika_set=1#ika-result');
         exit;
     }
 
@@ -296,14 +301,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// ── Load users ─────────────────────────────────────────────────────────────────
+// ── Load users — wszyscy aktywni ───────────────────────────────────────────────
 $users = db_all(
-    "SELECT id, name, first_name, last_name, email, role, is_active, user_status,
+    "SELECT id, name, first_name, last_name, email, role, is_active,
             cpc_code, cpc_fails, cpc_blocked_until, ika_revoked_at
      FROM users
-     WHERE role IN ('admin','editor') AND is_active = 1
-     ORDER BY role='admin' DESC, name ASC"
+     WHERE is_active = 1
+     ORDER BY
+       CASE role WHEN 'admin' THEN 0 WHEN 'editor' THEN 1 WHEN 'crm_user' THEN 2 ELSE 3 END,
+       name ASC"
 );
+
+// Odczyt jednorazowego wyniku generowania IKA
+auth_start();
+$ika_result = null;
+if (!empty($_GET['ika_set'])) {
+    $ika_result = $_SESSION['_ika_generated'] ?? null;
+    unset($_SESSION['_ika_generated']);
+}
 
 // CRM-only użytkownicy wymagający IKA
 $crm_only_no_ika = db_all(
@@ -345,6 +360,51 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- ── Wygenerowany kod IKA — jednorazowy widok ──────────────────────────── -->
+<?php if ($ika_result): ?>
+<div class="card border-success shadow mb-4" id="ika-result">
+  <div class="card-header bg-success text-white fw-bold d-flex align-items-center gap-2">
+    <i class="bi bi-key-fill fs-5"></i>
+    Kod IKA wygenerowany — zapisz i przekaż użytkownikowi
+  </div>
+  <div class="card-body">
+    <div class="row align-items-center g-3">
+      <div class="col-md-6">
+        <div class="mb-1 text-muted small">Użytkownik</div>
+        <div class="fw-bold fs-6"><?= h($ika_result['name']) ?></div>
+        <div class="text-muted small"><?= h($ika_result['email']) ?> · <?= h($ika_result['role']) ?></div>
+      </div>
+      <div class="col-md-6 text-center">
+        <div class="mb-1 text-muted small">Kod IKA</div>
+        <div id="ika-result-code"
+             class="font-monospace fw-bold text-success"
+             style="font-size:2.8rem;letter-spacing:.35em;line-height:1">
+          <?= h($ika_result['code']) ?>
+        </div>
+        <div class="d-flex gap-2 justify-content-center mt-2 flex-wrap">
+          <button type="button" class="btn btn-sm btn-outline-success"
+                  onclick="navigator.clipboard.writeText('<?= h($ika_result['code']) ?>').then(()=>this.innerHTML='✓ Skopiowano').catch(()=>{})">
+            <i class="bi bi-clipboard me-1"></i>Kopiuj
+          </button>
+          <a href="<?= APP_URL ?>/admin/ika_karta.php?user_id=<?= $ika_result['uid'] ?>"
+             target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-printer me-1"></i>Drukuj kartę IKA
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-warning py-2 mb-0 mt-3 small d-flex gap-2">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+      <span>
+        <strong>Kod widoczny jednorazowo.</strong>
+        Po odświeżeniu strony nie będzie możliwy do odczytania z tego miejsca.
+        Przekaż go użytkownikowi osobiście lub szyfrowanym kanałem.
+      </span>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php if ($crm_only_no_ika): ?>
 <div class="alert alert-warning d-flex gap-2 align-items-start mb-3" role="alert">
@@ -496,9 +556,12 @@ function toggleIka(uid, btn) {
 </div>
 
 <div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-people"></i> Użytkownicy z dostępem IKA
+  <div class="card-header fw-semibold d-flex align-items-center gap-2 flex-wrap">
+    <span><i class="bi bi-people"></i> Wszyscy użytkownicy — kody IKA</span>
     <span class="badge bg-secondary ms-1"><?= count($users) ?></span>
+    <span class="ms-auto text-muted fw-normal small">
+      Kod widoczny przez 30 s po kliknięciu <i class="bi bi-eye"></i>
+    </span>
   </div>
 
   <div class="table-responsive">
@@ -563,12 +626,23 @@ function toggleIka(uid, btn) {
               </form>
             <?php elseif (!$has_code): ?>
               <span class="badge bg-warning text-dark">Brak kodu</span>
-            <?php elseif ($fails > 0): ?>
-              <span class="badge bg-warning text-dark">
-                <?= $fails ?> <?= $fails === 1 ? 'błędna próba' : ($fails < 5 ? 'błędne próby' : 'błędnych prób') ?>
-              </span>
             <?php else: ?>
-              <span class="badge bg-success">Aktywny &#x2713;</span>
+              <!-- Kod maskowany + reveal -->
+              <span class="font-monospace ika-masked" id="ika-val-<?= $uid ?>"
+                    style="letter-spacing:.18em;color:#9CA3AF">●●●●●●</span>
+              <button type="button" class="btn btn-xs btn-outline-secondary ms-1"
+                      style="font-size:.7rem;padding:1px 7px"
+                      onclick="toggleIka(<?= $uid ?>, this)"
+                      data-code="<?= h($has_code ? $u['cpc_code'] : '') ?>"
+                      data-shown="0"
+                      title="Pokaż kod IKA (30 s)">
+                <i class="bi bi-eye"></i>
+              </button>
+              <?php if ($fails > 0): ?>
+              <span class="badge bg-warning text-dark ms-1"><?= $fails ?> błąd<?= $fails>1?'y':'' ?></span>
+              <?php else: ?>
+              <span class="badge bg-success ms-1">✓</span>
+              <?php endif; ?>
             <?php endif; ?>
           </td>
           <td class="d-flex flex-wrap gap-1 align-items-center">
