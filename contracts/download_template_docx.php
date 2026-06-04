@@ -15,6 +15,7 @@ use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\SimpleType\Jc;
 use PhpOffice\PhpWord\Shared\Converter;
+use PhpOffice\PhpWord\Shared\Html as PhpWordHtml;
 
 require_login();
 
@@ -99,37 +100,10 @@ $section->addText($tpl['name'],
     ['bold' => true, 'size' => 14, 'name' => 'Calibri', 'allCaps' => true],
     ['alignment' => Jc::CENTER, 'spaceAfter' => 160, 'spaceBefore' => 60]);
 
-// ── Treść — parsuj uproszczony HTML → PHPWord ─────────────────────────────────
-// Dzielimy na bloki po tagach akapitowych
-$body_text = strip_tags($html, '<p><br><h1><h2><h3><h4><ul><ol><li><strong><b><em><i><u>');
-// Usuń resztki tagów HTML a zamień na tekstowe akapity
-$body_text = preg_replace('/<h[1-4][^>]*>(.*?)<\/h[1-4]>/si', "\n\n###H:\$1###\n\n", $body_text);
-$body_text = preg_replace('/<li[^>]*>(.*?)<\/li>/si',          "\n• \$1", $body_text);
-$body_text = preg_replace('/<\/?(ul|ol)[^>]*>/si',             "\n", $body_text);
-$body_text = preg_replace('/<br\s*\/?>/si',                    "\n", $body_text);
-$body_text = preg_replace('/<p[^>]*>(.*?)<\/p>/si',            "\$1\n\n", $body_text);
-$body_text = strip_tags($body_text);
-$body_text = html_entity_decode($body_text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-$paragraphs = array_filter(array_map('trim', preg_split('/\n{2,}/', $body_text)));
-
-foreach ($paragraphs as $p) {
-    if (str_starts_with($p, '###H:') && str_ends_with($p, '###')) {
-        $heading = trim(substr($p, 5, -3));
-        $section->addText($heading, ['bold' => true, 'size' => 12], ['spaceAfter' => 60, 'spaceBefore' => 120, 'alignment' => Jc::BOTH]);
-    } else {
-        $lines = explode("\n", $p);
-        $run = $section->addTextRun(['pNormal']);
-        $first = true;
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '') continue;
-            if (!$first) $run->addTextBreak();
-            $run->addText($line, ['size' => 11, 'name' => 'Calibri']);
-            $first = false;
-        }
-    }
-}
+// ── Treść — konwertuj HTML → PHPWord z zachowaniem formatowania ──────────────
+// Html::addHtml obsługuje: <p>, <h1-h6>, <strong>, <b>, <em>, <i>, <u>, <ul>, <ol>, <li>, <br>
+$htmlBody = '<div style="text-align:justify;font-family:Calibri;font-size:11pt">' . $html . '</div>';
+PhpWordHtml::addHtml($section, $htmlBody, false, false);
 
 // ── Wyślij DOCX ───────────────────────────────────────────────────────────────
 $safe_name = preg_replace('/[^A-Za-z0-9_-]/', '_', $tpl['name']);

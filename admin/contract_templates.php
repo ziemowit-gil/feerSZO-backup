@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/contract_template_engine.php';
+require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 require_role('admin');
 cte_migrate();
@@ -24,68 +25,104 @@ $type_labels = [
 ];
 
 /**
- * Parsuje plik DOCX (ZIP) do uproszczonego HTML.
- * Obsługuje akapity, pogrubienie, kursywę, podkreślenie, nagłówki, listy.
+ * Konwertuje plik DOCX do uproszczonego HTML używając PhpWord.
+ * Obsługuje akapity, nagłówki, listy, pogrubienie, kursywę, podkreślenie.
  */
 function cte_docx_to_html(string $path): string {
-    if (!class_exists('ZipArchive')) return '';
-    $zip = new ZipArchive();
-    if ($zip->open($path) !== true) return '';
-    $xml = $zip->getFromName('word/document.xml');
-    $zip->close();
-    if (!$xml) return '';
+    if (!file_exists($path)) return '';
 
-    // Usuń namespace prefixes aby ułatwić parsing
-    $xml = preg_replace('/\s+xmlns[^=]*="[^"]*"/', '', $xml);
-    $xml = preg_replace('/<\/?(w|r|mc|wp|a|v|o|m):/i', '<\1_', $xml); // w:p → w_p
-    $xml = preg_replace('/<(w|r|mc|wp|a|v|o|m):/i',     '<\1_', $xml);
-
-    $doc = new DOMDocument();
-    @$doc->loadXML($xml);
-    $xpath = new DOMXPath($doc);
-
-    $html  = '';
-
-    // Każdy akapit (w_p)
-    foreach ($xpath->query('//w_p') as $para) {
-        // Styl nagłówka
-        $styleNode = $xpath->query('.//w_pStyle/@w_val', $para);
-        $style = $styleNode->length ? strtolower($styleNode->item(0)->nodeValue) : '';
-        $isH1  = in_array($style, ['heading1','heading 1','nagwek1','nagłówek1']);
-        $isH2  = in_array($style, ['heading2','heading 2','nagwek2','nagłówek2']);
-        $isH3  = in_array($style, ['heading3','heading 3','nagwek3','nagłówek3']);
-        $isList = str_contains($style, 'list') || $xpath->query('.//w_numPr', $para)->length > 0;
-
-        $paraText = '';
-        foreach ($xpath->query('.//w_r', $para) as $run) {
-            $text = '';
-            foreach ($xpath->query('.//w_t', $run) as $t) $text .= $t->nodeValue;
-            if ($text === '') continue;
-            $text = htmlspecialchars($text, ENT_QUOTES);
-
-            $bold   = $xpath->query('.//w_b[not(@w_val="0")]', $run)->length > 0;
-            $italic = $xpath->query('.//w_i[not(@w_val="0")]', $run)->length > 0;
-            $under  = $xpath->query('.//w_u[not(@w_val="none")]', $run)->length > 0;
-
-            if ($bold)   $text = "<strong>$text</strong>";
-            if ($italic) $text = "<em>$text</em>";
-            if ($under)  $text = "<u>$text</u>";
-            $paraText .= $text;
-        }
-
-        if ($paraText === '') { $html .= '<p>&nbsp;</p>'; continue; }
-
-        if ($isH1)        $html .= "<h1>$paraText</h1>";
-        elseif ($isH2)    $html .= "<h2>$paraText</h2>";
-        elseif ($isH3)    $html .= "<h3>$paraText</h3>";
-        elseif ($isList)  $html .= "<li>$paraText</li>";
-        else              $html .= "<p>$paraText</p>";
+    try {
+        $phpWord = \PhpOffice\PhpWord\IOFactory::load($path, 'Word2007');
+    } catch (\Throwable $e) {
+        return '';
     }
 
-    // Owiń samotne <li> w <ul>
-    $html = preg_replace('/(<li>.*?<\/li>)+/s', '<ul>$0</ul>', $html);
+    $html      = '';
+    $listItems = '';
 
-    return $html;
+    $flushList = function () use (&$listItems, &$html) {
+        if ($listItems !== '') {
+            $html     .= "<ul>$listItems</ul>\n";
+            $listItems = '';
+        }
+    };
+
+    foreach ($phpWord->getSections() as $section) {
+        foreach ($section->getElements() as $el) {
+            $elName = substr(get_class($el), strrpos(get_class($el), '\\') + 1);
+
+            if ($elName === 'TextBreak') {
+                $flushList();
+                $html .= "<p>&nbsp;</p>\n";
+                continue;
+            }
+
+            if ($elName === 'ListItem') {
+                $listItems .= '<li>' . htmlspecialchars($el->getText() ?? '', ENT_QUOTES) . "</li>\n";
+                continue;
+            }
+
+            if ($elName === 'ListItemRun') {
+                $listItems .= '<li>' . _cte_runs_to_html($el) . "</li>\n";
+                continue;
+            }
+
+            $flushList();
+
+            if ($elName === 'Title') {
+                $depth = max(1, min(3, (int)($el->getDepth() ?: 1)));
+                $val   = $el->getText();
+                $inner = ($val instanceof \PhpOffice\PhpWord\Element\TextRun)
+                    ? _cte_runs_to_html($val)
+                    : htmlspecialchars((string)$val, ENT_QUOTES);
+                if ($inner) $html .= "<h{$depth}>$inner</h{$depth}>\n";
+                continue;
+            }
+
+            if ($elName === 'TextRun') {
+                $inner = _cte_runs_to_html($el);
+                $html .= $inner ? "<p>$inner</p>\n" : "<p>&nbsp;</p>\n";
+                continue;
+            }
+
+            if ($elName === 'Text') {
+                $inner = _cte_text_to_html($el);
+                if ($inner) $html .= "<p>$inner</p>\n";
+                continue;
+            }
+        }
+    }
+    $flushList();
+
+    return trim($html) ?: '';
+}
+
+/** Rekurencyjnie konwertuje zawartość kontenera (TextRun, ListItemRun) na HTML. */
+function _cte_runs_to_html($container): string {
+    $out = '';
+    foreach ($container->getElements() as $child) {
+        $name = substr(get_class($child), strrpos(get_class($child), '\\') + 1);
+        if ($name === 'Text')      $out .= _cte_text_to_html($child);
+        elseif ($name === 'TextBreak') $out .= '<br>';
+    }
+    return $out;
+}
+
+/** Konwertuje element Text na HTML z obsługą bold/italic/underline. */
+function _cte_text_to_html(\PhpOffice\PhpWord\Element\Text $el): string {
+    $text = htmlspecialchars($el->getText() ?? '', ENT_QUOTES);
+    if ($text === '') return '';
+
+    $font = $el->getFontStyle();
+    if (is_string($font)) $font = \PhpOffice\PhpWord\Style::getStyle($font);
+
+    if ($font instanceof \PhpOffice\PhpWord\Style\Font) {
+        if ($font->isBold())   $text = "<strong>$text</strong>";
+        if ($font->isItalic()) $text = "<em>$text</em>";
+        $u = $font->getUnderline();
+        if ($u && $u !== 'none') $text = "<u>$text</u>";
+    }
+    return $text;
 }
 
 // ── POST ──────────────────────────────────────────────────────────────────
@@ -482,7 +519,7 @@ var quill = new Quill('#quillEditor', {
 var _editorMode = 'visual'; // 'visual' | 'html' | 'text'
 
 function setEditorMode(mode) {
-    // Synchronizuj aktualną zawartość przed przełączeniem
+    // Odczytaj zawartość PRZED zmianą trybu
     var currentHtml = getEditorHtml();
 
     _editorMode = mode;
@@ -495,19 +532,16 @@ function setEditorMode(mode) {
         btn.classList.toggle('active', ['visual','html','text'][i] === mode);
     });
 
-    // Wypełnij odpowiedni edytor
+    // Załaduj zawartość do nowego trybu
     if (mode === 'html') {
         document.getElementById('tpl-html-src').value = currentHtml;
     } else if (mode === 'text') {
-        // Zamień HTML na tekst: usuń tagi, zdekoduj encje
         var tmp = document.createElement('div');
         tmp.innerHTML = currentHtml;
         document.getElementById('tpl-text-src').value = (tmp.innerText || tmp.textContent || '').trim();
     } else {
-        // Powrót do visual: załaduj HTML z aktywnego źródła
-        if (_editorMode !== 'visual') {
-            quill.root.innerHTML = currentHtml;
-        }
+        // Zawsze aktualizuj Quill przy przełączeniu na Wizualny
+        quill.root.innerHTML = currentHtml;
     }
 }
 
