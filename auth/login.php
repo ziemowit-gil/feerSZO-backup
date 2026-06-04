@@ -242,24 +242,24 @@ if ($ms_available) {
     $login_guide[] = [
         'icon'  => 'bi-microsoft',
         'color' => '#2563eb',
-        'who'   => 'Pracownicy, wolontariusze, zarząd',
-        'how'   => 'Konto Microsoft 365 organizacji',
+        'who'   => 'Masz konto Microsoft organizacji?',
+        'how'   => 'Użyj przycisku Microsoft 365 — jedno kliknięcie, bez hasła.',
         'tab'   => 'ms365',
     ];
 }
 $login_guide[] = [
     'icon'  => 'bi-person-lock',
     'color' => '#0f766e',
-    'who'   => 'Administratorzy i koordynatorzy',
-    'how'   => 'E-mail i hasło (konto lokalne)',
+    'who'   => 'Administrator lub koordynator?',
+    'how'   => 'Wpisz e-mail i hasło nadane przez system.',
     'tab'   => 'local',
 ];
 if ($code_available) {
     $login_guide[] = [
         'icon'  => 'bi-key',
         'color' => '#7c3aed',
-        'who'   => 'Goście, nowi pracownicy',
-        'how'   => 'Jednorazowy kod od administratora',
+        'who'   => 'Logujesz się po raz pierwszy?',
+        'how'   => 'Użyj kodu jednorazowego — otrzymałeś/aś go od administratora.',
         'tab'   => 'code',
     ];
 }
@@ -267,8 +267,8 @@ if ($sms_available) {
     $login_guide[] = [
         'icon'  => 'bi-phone',
         'color' => '#b45309',
-        'who'   => 'Wolontariusze bez konta Microsoft',
-        'how'   => 'Kod SMS na numer z umowy wolontariackiej',
+        'who'   => 'Wolontariusz bez konta Microsoft?',
+        'how'   => 'Wyślemy kod SMS na numer podany w umowie — nie potrzebujesz hasła.',
         'tab'   => 'sms',
     ];
 }
@@ -986,11 +986,12 @@ html, body { height: 100%; margin: 0; padding: 0; }
     <div class="login-simple-body">
       <p class="form-sub" style="margin-bottom:1.25rem">
         <?php if ($ms_available): ?>
-          Wybierz metodę logowania dla swojej roli.
+          Masz konto Microsoft organizacji? Użyj przycisku poniżej.
+          Nie masz konta MS? Wpisz e-mail i hasło lub użyj kodu jednorazowego.
         <?php elseif (count($login_guide) > 1): ?>
-          Wybierz odpowiednią metodę logowania.
+          Wybierz metodę pasującą do Twojej roli — każda jest opisana poniżej.
         <?php else: ?>
-          Zaloguj się do systemu.
+          Wpisz swój adres e-mail i hasło, aby wejść do systemu.
         <?php endif; ?>
       </p>
 
@@ -1070,7 +1071,7 @@ $_left_tagline = $_login_tagline ?: 'System Zarządzania<br>Organizacją i Wolon
   <!-- Przewodnik metod logowania -->
   <?php if (count($login_guide) > 1): ?>
   <div class="left-guide" aria-hidden="true">
-    <div class="left-guide-title">Kto jak się loguje?</div>
+    <div class="left-guide-title">Jak się zalogować?</div>
     <?php foreach ($login_guide as $g): ?>
     <div class="left-guide-item">
       <span class="left-guide-icon" style="background:<?= $g['color'] ?>22;color:<?= $g['color'] ?>">
@@ -1126,12 +1127,11 @@ $_left_tagline = $_login_tagline ?: 'System Zarządzania<br>Organizacją i Wolon
   <h1 class="form-heading" id="login-heading">Zaloguj się</h1>
   <p class="form-sub" id="login-sub" style="margin-bottom:1.5rem">
     <?php if ($ms_available): ?>
-      Wybierz metodę odpowiednią dla Twojej roli.
-      Nie wiesz której użyć? <strong>Sprawdź listę po lewej stronie.</strong>
+      Nie wiesz jak się zalogować? <strong>Sprawdź ściągawkę po lewej stronie.</strong>
     <?php elseif (count($login_guide) > 1): ?>
-      Wybierz odpowiednią metodę logowania dla swojej roli.
+      Dostępnych jest kilka metod logowania — wybierz tę pasującą do Twojej roli.
     <?php else: ?>
-      Wprowadź adres e-mail i hasło do swojego konta.
+      Wpisz swój adres e-mail i hasło, aby wejść do systemu.
     <?php endif; ?>
   </p>
 

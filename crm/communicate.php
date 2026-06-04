@@ -80,6 +80,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tpl_name  = trim($_POST['template_name'] ?? '');
     $do_send   = !empty($_POST['do_send']);
 
+    // Obsługa załączników (tylko dla e-mail)
+    $attachments = [];
+    if ($channel === 'email' && !empty($_FILES['crm_attachments']['name'][0])) {
+        $files = $_FILES['crm_attachments'];
+        $count = count($files['name']);
+        for ($fi = 0; $fi < $count; $fi++) {
+            if ($files['error'][$fi] !== UPLOAD_ERR_OK) continue;
+            $att = mail_queue_save_attachment([
+                'name'     => $files['name'][$fi],
+                'tmp_name' => $files['tmp_name'][$fi],
+                'error'    => $files['error'][$fi],
+                'size'     => $files['size'][$fi],
+            ]);
+            if ($att) $attachments[] = $att;
+        }
+    }
+
     // Odbiorcy: jeden lub wielu (checkbox list)
     $recipient_ids = array_map('intval', (array)($_POST['recipient_ids'] ?? []));
     // Opcjonalnie: pojedynczy contact_id
@@ -109,7 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $rendered_body,
                 $rendered_subject,
                 $tpl_name,
-                $do_send && $immediate
+                $do_send && $immediate,
+                $channel === 'email' ? $attachments : []
             );
             if ($do_send && !$immediate && $channel === 'email' && !empty($contact['email'])) {
                 // Wysyłka wsadowa — dodaj do kolejki bez natychmiastowego procesu
@@ -117,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $html_body = $is_html ? $rendered_body : nl2br(htmlspecialchars($rendered_body));
                 $crm_footer = trim(org_setting('crm_email_footer') ?? '');
                 if ($crm_footer) $html_body .= "\n<hr>\n" . $crm_footer;
-                mail_queue_add($contact['email'], $contact['imie_nazwisko'] ?? '', $rendered_subject ?: 'Wiadomość', $html_body, $rendered_body, 'crm', $cid);
+                mail_queue_add($contact['email'], $contact['imie_nazwisko'] ?? '', $rendered_subject ?: 'Wiadomość', $html_body, $rendered_body, 'crm', $cid, '', false, $attachments);
             }
             $sent_count++;
         }
@@ -211,7 +229,7 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- Formularz -->
   <div class="col-lg-8">
-    <form method="post" id="communicateForm" novalidate aria-label="Formularz wysyłania wiadomości CRM">
+    <form method="post" enctype="multipart/form-data" id="communicateForm" novalidate aria-label="Formularz wysyłania wiadomości CRM">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
     <!-- Odbiorcy -->
@@ -415,6 +433,20 @@ include __DIR__ . '/includes/header_crm.php';
     <!-- Opcje wysyłki -->
     <div class="card border-0 shadow-sm">
       <div class="card-body">
+
+        <!-- Załączniki (tylko e-mail) -->
+        <div id="attachments-section" style="display:none;margin-bottom:1rem">
+          <label class="form-label fw-semibold small mb-1">
+            <i class="bi bi-paperclip me-1"></i>Załączniki
+            <span class="text-muted fw-normal">(max 15 MB każdy, razem max 5 plików)</span>
+          </label>
+          <input type="file" name="crm_attachments[]" id="crm_attachments"
+                 class="form-control form-control-sm"
+                 multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.zip,.rar,.odt,.ods">
+          <div id="attachments-preview" class="d-flex flex-wrap gap-2 mt-2"></div>
+          <div class="form-text">Dozwolone: PDF, Word, Excel, obrazy, archiwa ZIP.</div>
+        </div>
+
         <div class="row g-3 align-items-center">
           <div class="col">
             <div class="form-check">
@@ -744,6 +776,9 @@ include __DIR__ . '/includes/header_crm.php';
       }
       toggleSubject();
       updateCharCount();
+      // Pokaż/ukryj załączniki
+      var attSec = document.getElementById('attachments-section');
+      if (attSec) attSec.style.display = (channelSel.value === 'email') ? '' : 'none';
     });
   }
 
@@ -840,6 +875,45 @@ include __DIR__ . '/includes/header_crm.php';
 
   toggleSubject();
   updateCharCount();
+
+  // ── Załączniki — init ────────────────────────────────────────────────────
+  (function() {
+    var attSec    = document.getElementById('attachments-section');
+    var attInput  = document.getElementById('crm_attachments');
+    var attPrev   = document.getElementById('attachments-preview');
+    var channelEl = document.getElementById('channel');
+
+    function refreshAttachSec() {
+      if (!attSec || !channelEl) return;
+      attSec.style.display = channelEl.value === 'email' ? '' : 'none';
+    }
+    refreshAttachSec();
+
+    if (!attInput || !attPrev) return;
+
+    attInput.addEventListener('change', function() {
+      attPrev.innerHTML = '';
+      var files = Array.from(attInput.files);
+      if (files.length > 5) {
+        attPrev.innerHTML = '<span class="text-danger small">Maksymalnie 5 załączników.</span>';
+        attInput.value = '';
+        return;
+      }
+      files.forEach(function(f) {
+        var size = f.size > 1048576
+          ? (f.size / 1048576).toFixed(1) + ' MB'
+          : Math.round(f.size / 1024) + ' KB';
+        var chip = document.createElement('span');
+        chip.style.cssText = 'background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:.25rem .6rem;font-size:.8rem;display:inline-flex;align-items:center;gap:.3rem';
+        chip.innerHTML = '<i class="bi bi-paperclip" style="font-size:.75rem"></i>'
+          + esc(f.name)
+          + ' <span style="color:#94a3b8">(' + size + ')</span>';
+        attPrev.appendChild(chip);
+      });
+    });
+
+    function esc(s) { var d=document.createElement('div');d.textContent=s;return d.innerHTML; }
+  })();
 })();
 </script>
 

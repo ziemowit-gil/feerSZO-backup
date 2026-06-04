@@ -15,7 +15,7 @@
   <!-- Lewa — Microsoft 365 (metoda główna) -->
   <div class="login-col-ms">
     <div class="ms-col-heading">
-      <i class="bi bi-microsoft me-1" aria-hidden="true"></i>Konto organizacyjne
+      <i class="bi bi-microsoft me-1" aria-hidden="true"></i>Konto Microsoft 365
     </div>
     <a href="<?= h(ms_auth_url($redirect)) ?>"
        class="btn-login"
@@ -29,7 +29,7 @@
       Zaloguj przez Microsoft 365
     </a>
     <p class="ms-col-note">
-      Dla pracowników, wolontariuszy, zarządu i koordynatorów z kontem Microsoft.
+      Jedno kliknięcie — bez wpisywania hasła. Zalecana metoda dla wszystkich osób z kontem organizacji Microsoft.
     </p>
   </div>
 
@@ -39,7 +39,7 @@
   <!-- Prawa — E-mail + hasło (zapasowa) -->
   <div class="login-col-local">
     <div class="local-col-heading">
-      <i class="bi bi-person-fill me-1" aria-hidden="true"></i>Pierwsze logowanie / bez MS
+      <i class="bi bi-person-fill me-1" aria-hidden="true"></i>E-mail i hasło
     </div>
     <form method="post" novalidate aria-label="Formularz logowania — e-mail i hasło" autocomplete="on">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
@@ -72,7 +72,7 @@
           </button>
         </div>
         <div id="pass-hint" class="form-hint">
-          Pierwsze logowanie lub gdy konto Microsoft nie działa.
+          Nie masz konta Microsoft? Użyj e-maila i hasła nadanego przez administratora.
         </div>
       </div>
       <button type="submit" class="btn-login">
@@ -124,7 +124,7 @@
       </button>
     </div>
     <div id="pass-hint" class="form-hint">
-      Hasło ustawione podczas rejestracji lub przez administratora.
+      Hasło nadane przez administratora lub zmienione po pierwszym logowaniu.
     </div>
   </div>
   <button type="submit" class="btn-login">
@@ -143,12 +143,12 @@
 <!-- ══ Alternatywne metody (kod jednorazowy, SMS) ════════════════════════ -->
 <?php
 $alt_tabs = [];
-if ($code_available) $alt_tabs['code'] = ['icon' => 'bi-key-fill',   'label' => 'Kod jednorazowy', 'for' => 'Goście i nowi pracownicy'];
-if ($sms_available)  $alt_tabs['sms']  = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS',         'for' => 'Wolontariusze bez konta Microsoft'];
+if ($code_available) $alt_tabs['code'] = ['icon' => 'bi-key-fill',   'label' => 'Kod jednorazowy', 'for' => 'Pierwsze logowanie lub gość'];
+if ($sms_available)  $alt_tabs['sms']  = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS',         'for' => 'Bez konta — tylko numer telefonu'];
 $active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
 ?>
 <?php if (!empty($alt_tabs)): ?>
-<div class="or-div" aria-hidden="true"><span>inne metody logowania</span></div>
+<div class="or-div" aria-hidden="true"><span>lub zaloguj inaczej</span></div>
 <nav aria-label="Alternatywne metody logowania" id="tab-nav">
   <div role="tablist" aria-label="Wybierz alternatywną metodę logowania">
     <?php foreach ($alt_tabs as $key => $m): ?>
@@ -184,7 +184,7 @@ $active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
              aria-describedby="code-hint"
              <?= $active_alt === 'code' ? 'autofocus' : '' ?>>
       <div id="code-hint" class="form-hint">
-        Dla gości i nowych pracowników — jednorazowy kod dostępu nadany przez administratora systemu.
+        Kod jednorazowy wysłany e-mailem lub podany przez administratora. Ważny tylko do pierwszego użycia.
       </div>
     </div>
     <button type="submit" class="btn-login">
@@ -218,7 +218,7 @@ $active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
                <?= $active_alt === 'sms' ? 'autofocus' : '' ?>>
       </div>
       <div id="sms-phone-hint" class="form-hint">
-        Dla wolontariuszy bez konta Microsoft — podaj numer z umowy wolontariackiej (9 cyfr).
+        Podaj numer telefonu, który wpisałeś/aś w umowie wolontariackiej. Wyślemy jednorazowy kod SMS.
       </div>
     </div>
     <button type="submit" class="btn-login">
@@ -246,7 +246,7 @@ $active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
              aria-describedby="sms-code-hint"
              autofocus>
       <div id="sms-code-hint" class="form-hint">
-        Wpisz 6 cyfr z otrzymanego SMS. Kod wygaśnie za 5 minut.
+        Sprawdź wiadomości SMS — wpisz 6-cyfrowy kod. Ważny przez 5 minut.
       </div>
     </div>
     <button type="submit" class="btn-login mb-3">

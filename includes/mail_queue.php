@@ -32,6 +32,8 @@
     try {
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_mq_status ON mail_queue(status,scheduled_at)");
     } catch (\Throwable $e) {}
+    // Kolumna attachments (JSON) — dodana w v1.6
+    try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); } catch (\Throwable $e) {}
 })();
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -45,6 +47,39 @@
  *
  * @param bool $immediate  Wymuś natychmiastową wysyłkę niezależnie od rozmiaru.
  */
+/**
+ * Zapisuje przesłany plik jako załącznik CRM.
+ * Zwraca ['path'=>string, 'name'=>string, 'mime'=>string, 'size'=>int] lub null przy błędzie.
+ */
+function mail_queue_save_attachment(array $uploaded_file): ?array {
+    $dir = UPLOAD_DIR . 'crm_attachments/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+    if ($uploaded_file['error'] !== UPLOAD_ERR_OK) return null;
+    if ($uploaded_file['size'] > 15 * 1024 * 1024) return null; // max 15 MB
+
+    $orig_name = basename($uploaded_file['name']);
+    $ext       = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
+
+    // Dozwolone typy
+    $allowed = ['pdf','doc','docx','xls','xlsx','csv','txt','png','jpg','jpeg','gif','zip','rar','7z','odt','ods'];
+    if (!in_array($ext, $allowed, true)) return null;
+
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $dest   = $dir . $stored;
+
+    if (!move_uploaded_file($uploaded_file['tmp_name'], $dest)) return null;
+
+    $mime = mime_content_type($dest) ?: 'application/octet-stream';
+
+    return [
+        'path' => 'crm_attachments/' . $stored,
+        'name' => $orig_name,
+        'mime' => $mime,
+        'size' => filesize($dest),
+    ];
+}
+
 function mail_queue_add(
     string $to_email,
     string $to_name,
@@ -54,20 +89,23 @@ function mail_queue_add(
     string $context_type = '',
     ?int   $context_id   = null,
     string $scheduled_at = '',
-    bool   $immediate    = false
+    bool   $immediate    = false,
+    array  $attachments  = []   // [['path'=>..., 'name'=>..., 'mime'=>..., 'size'=>...], ...]
 ): int {
     if (!$body_text) {
         $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_html));
         $body_text = preg_replace('/[ \t]+/', ' ', $body_text);
         $body_text = trim($body_text);
     }
+    $att_json = $attachments ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '[]';
     db()->prepare(
-        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at)
-         VALUES (?,?,?,?,?,?,?,?)"
+        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments)
+         VALUES (?,?,?,?,?,?,?,?,?)"
     )->execute([
         $to_email, $to_name, $subject, $body_html, $body_text,
         $context_type, $context_id,
         $scheduled_at ?: date('Y-m-d H:i:s'),
+        $att_json,
     ]);
     $mail_id = (int)db()->lastInsertId();
 
@@ -276,6 +314,24 @@ function _mail_send_m365(array $msg): bool {
         'saveToSentItems' => false,
     ];
 
+    // Załączniki M365
+    $attachments = json_decode($msg['attachments'] ?? '[]', true) ?: [];
+    if ($attachments) {
+        $payload['message']['attachments'] = [];
+        foreach ($attachments as $att) {
+            $full_path = UPLOAD_DIR . ($att['path'] ?? '');
+            if (!is_file($full_path)) continue;
+            $content = file_get_contents($full_path);
+            if ($content === false) continue;
+            $payload['message']['attachments'][] = [
+                '@odata.type'  => '#microsoft.graph.fileAttachment',
+                'name'         => $att['name'] ?? basename($full_path),
+                'contentType'  => $att['mime'] ?? 'application/octet-stream',
+                'contentBytes' => base64_encode($content),
+            ];
+        }
+    }
+
     $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
     $resp = _mail_http_post(
         "https://graph.microsoft.com/v1.0/users/" . urlencode($from) . "/sendMail",
@@ -349,10 +405,14 @@ function _mail_send_smtp(array $msg, string $host): bool {
     $send("RCPT TO:<{$msg['to_email']}>");
     $send("DATA");
 
+    // Załączniki
+    $attachments = json_decode($msg['attachments'] ?? '[]', true) ?: [];
+
     // Buduj wiadomość
-    $boundary = 'MP_' . md5(uniqid());
-    $date     = date('r');
-    $to_enc   = $msg['to_name']
+    $alt_boundary = 'ALT_' . md5(uniqid());
+    $mix_boundary = 'MIX_' . md5(uniqid() . 'x');
+    $date         = date('r');
+    $to_enc       = $msg['to_name']
         ? "=?UTF-8?B?" . base64_encode($msg['to_name']) . "?= <{$msg['to_email']}>"
         : $msg['to_email'];
     $from_enc = "=?UTF-8?B?" . base64_encode($from_name) . "?= <{$from}>";
@@ -363,20 +423,49 @@ function _mail_send_smtp(array $msg, string $host): bool {
     $data .= "To: {$to_enc}\r\n";
     $data .= "Subject: {$subj_enc}\r\n";
     $data .= "MIME-Version: 1.0\r\n";
-    $data .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
-    $data .= "\r\n";
 
+    if ($attachments) {
+        // multipart/mixed — zewnętrzna
+        $data .= "Content-Type: multipart/mixed; boundary=\"{$mix_boundary}\"\r\n\r\n";
+        $data .= "--{$mix_boundary}\r\n";
+        // wewnątrz: multipart/alternative (text+html)
+        $data .= "Content-Type: multipart/alternative; boundary=\"{$alt_boundary}\"\r\n\r\n";
+    } else {
+        $data .= "Content-Type: multipart/alternative; boundary=\"{$alt_boundary}\"\r\n\r\n";
+    }
+
+    // Treść tekstowa
     if ($msg['body_text']) {
-        $data .= "--{$boundary}\r\n";
+        $data .= "--{$alt_boundary}\r\n";
         $data .= "Content-Type: text/plain; charset=UTF-8\r\n";
         $data .= "Content-Transfer-Encoding: base64\r\n\r\n";
         $data .= chunk_split(base64_encode($msg['body_text'])) . "\r\n";
     }
-    $data .= "--{$boundary}\r\n";
+    // Treść HTML
+    $data .= "--{$alt_boundary}\r\n";
     $data .= "Content-Type: text/html; charset=UTF-8\r\n";
     $data .= "Content-Transfer-Encoding: base64\r\n\r\n";
     $data .= chunk_split(base64_encode($msg['body_html'] ?: nl2br(htmlspecialchars($msg['body_text'])))) . "\r\n";
-    $data .= "--{$boundary}--\r\n";
+    $data .= "--{$alt_boundary}--\r\n";
+
+    // Załączniki (tylko przy multipart/mixed)
+    foreach ($attachments as $att) {
+        $full_path = UPLOAD_DIR . ($att['path'] ?? '');
+        if (!is_file($full_path)) continue;
+        $content = file_get_contents($full_path);
+        if ($content === false) continue;
+        $att_name = "=?UTF-8?B?" . base64_encode($att['name'] ?? basename($full_path)) . "?=";
+        $mime     = $att['mime'] ?? 'application/octet-stream';
+        $data .= "\r\n--{$mix_boundary}\r\n";
+        $data .= "Content-Type: {$mime}; name=\"{$att_name}\"\r\n";
+        $data .= "Content-Transfer-Encoding: base64\r\n";
+        $data .= "Content-Disposition: attachment; filename=\"{$att_name}\"\r\n\r\n";
+        $data .= chunk_split(base64_encode($content)) . "\r\n";
+    }
+
+    if ($attachments) {
+        $data .= "--{$mix_boundary}--\r\n";
+    }
     $data .= ".";
 
     $r = $send($data);
