@@ -385,6 +385,27 @@ HTML;
     header('Location: view.php?id=' . $id); exit;
 }
 
+// ── Złóż wniosek o rozwiązanie ────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_submit_termination']) && can_edit()) {
+    csrf_check();
+    $powod         = trim($_POST['powod'] ?? '');
+    $proposed_date = trim($_POST['proposed_date'] ?? '') ?: null;
+    $existing_term = get_pending_termination_for_contract($TYPE, $id);
+    if (!$powod) {
+        flash_set('danger', 'Podaj powód rozwiązania umowy.');
+    } elseif ($existing_term) {
+        flash_set('warning', 'Istnieje już oczekujący wniosek o rozwiązanie tej umowy.');
+    } else {
+        $u = current_user();
+        create_termination_request($TYPE, $id, (int)$u['id'], $row['imie_nazwisko'], $powod, $proposed_date);
+        log_contract_action($TYPE, $id, (int)$u['id'], 'termination_request',
+            'Złożono wniosek o rozwiązanie przez: ' . $u['name']);
+        _termination_notify_admins($TYPE, $row, $row['imie_nazwisko'], $powod, $proposed_date);
+        flash_set('success', 'Wniosek o rozwiązanie umowy został złożony. Administrator rozpatrzy go wkrótce.');
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
 $PAGE_TITLE = 'Porozumienie ' . $row['numer_umowy'];
 
 // ── Dane do zakładek ──────────────────────────────────────────────────────────
@@ -1077,6 +1098,18 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
         </div>
       </div>
       <?php endif; ?>
+      <?php if (!empty($row['podpisujacy_fundacja']) || !empty($row['podpisujacy_stanowisko'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">Podpisujący (ze strony fundacji)</div>
+        <div class="cv-value"><?= h($row['podpisujacy_fundacja'] ?? '') ?: '—' ?></div>
+      </div>
+      <?php if (!empty($row['podpisujacy_stanowisko'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">Stanowisko / funkcja</div>
+        <div class="cv-value"><?= h($row['podpisujacy_stanowisko']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -1474,6 +1507,30 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <div><i class="bi bi-calendar-check"></i> Zmodyfikowano: <?= date_pl($row['updated_at']) ?></div>
     </div>
   </div>
+
+  <!-- webNGO -->
+  <?php if (!empty($row['z_webngo']) || !empty($row['webngo_id']) || !empty($row['webngo_numer_umowy'])): ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-box-arrow-in-down-right"></i></div>
+      <span class="cv-section-title">webNGO</span>
+    </div>
+    <div class="cv-fields">
+      <?php if (!empty($row['webngo_id'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">ID w webNGO</div>
+        <div class="cv-value font-monospace"><?= h($row['webngo_id']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($row['webngo_numer_umowy'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">Numer umowy w webNGO</div>
+        <div class="cv-value"><?= h($row['webngo_numer_umowy']) ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
 
 </div><!-- /tab-wolontariusz -->
 
@@ -2994,6 +3051,47 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 <?php endif; /* timesheets_enabled */ ?>
 
 </div><!-- /tab-content -->
+
+<!-- ── Modal rozwiązania umowy ──────────────────────────────────────────────── -->
+<?php if (can_edit() && in_array($row['status'], TERMINABLE_STATUSES) && !$_pending_term): ?>
+<div class="modal fade" id="terminateModal" tabindex="-1" aria-labelledby="terminateModalLabel">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="terminateModalLabel">
+          <i class="bi bi-x-circle me-2"></i>Rozwiąż porozumienie
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_submit_termination" value="1">
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Wniosek zostanie przesłany do administratora, który podejmie ostateczną decyzję.
+          </p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Powód rozwiązania <span class="text-danger">*</span></label>
+            <textarea name="powod" class="form-control" rows="3" required
+                      placeholder="Opisz powód rozwiązania porozumienia…"></textarea>
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold small">Proponowana data rozwiązania <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <input type="date" name="proposed_date" class="form-control"
+                   min="<?= date('Y-m-d') ?>">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-x-circle me-1"></i>Złóż wniosek
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── Modal usunięcia ──────────────────────────────────────────────────────── -->
 <?php if (is_admin()): ?>

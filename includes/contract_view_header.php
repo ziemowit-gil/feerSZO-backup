@@ -115,6 +115,15 @@ $_cvh_accent = match($_cvh_st['class']) {
          class="btn btn-sm btn-outline-success" title="Przedłuż umowę">
         <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Przedłuż</span>
       </a>
+      <?php if (empty($_pending_term) && defined('TERMINABLE_STATUSES') && in_array($_cvh_status, TERMINABLE_STATUSES)): ?>
+      <button type="button"
+              class="btn btn-sm btn-outline-danger"
+              data-bs-toggle="modal"
+              data-bs-target="#terminateModal"
+              title="Złóż wniosek o rozwiązanie umowy">
+        <i class="bi bi-x-circle"></i> <span class="d-none d-sm-inline">Rozwiąż</span>
+      </button>
+      <?php endif; ?>
       <?php endif; ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark">
         <i class="bi bi-printer"></i>
