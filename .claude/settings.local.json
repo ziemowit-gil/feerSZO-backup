@@ -699,7 +699,25 @@
       "Bash(identify /Users/zgil/webev-projects/feerSZO/assets/logo/logo_1780058399.png)",
       "Bash(php -l /Users/zgil/webev-projects/feerSZO/certificates/print.php)",
       "Bash(grep -E '\\\\.\\(js|ts|jsx|tsx|py|html\\)$')",
-      "Bash(php -l /Users/zgil/webev-projects/feerSZO/includes/certificates.php)"
+      "Bash(php -l /Users/zgil/webev-projects/feerSZO/includes/certificates.php)",
+      "Bash(php -l /Users/zgil/webev-projects/feerSZO/certificates/download_docx.php)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO log --oneline -3)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO show --stat HEAD)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO log --oneline admin/index.php)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO diff HEAD -- admin/index.php)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO check-ignore -v admin/index.php)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO status admin/index.php)",
+      "Bash(chmod +x /Users/zgil/webev-projects/feerSZO/cli/gen_ika.php)",
+      "Bash(php -l /Users/zgil/webev-projects/feerSZO/cli/gen_ika.php)",
+      "Bash(php cli/gen_ika.php --list --no-ika)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO show f87494f -- admin/index.php)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO show f87494f --name-only)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO log --oneline --all -- admin/index.php)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO show f87494f:admin/index.php)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO add .claude/settings.local.json)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO rm --cached admin/_preview_test.html)",
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO status --short)"
     ]
   }
 }
