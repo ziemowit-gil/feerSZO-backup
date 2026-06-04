@@ -188,6 +188,22 @@ body {
   <div class="pbar-actions">
     <a href="<?= h(APP_URL) ?>/admin/contract_templates.php">← Wróć</a>
     <a href="<?= h(APP_URL) ?>/contracts/download_template_docx.php?template_id=<?= $template_id ?>&contract_id=<?= $contract_id ?>&type=<?= h($type) ?>">⬇ DOCX</a>
+    <?php if ($contract_id && !empty($row['email'])): ?>
+    <button onclick="document.getElementById('emailSendForm').submit()" style="background:rgba(255,255,255,.15)">
+      📧 Wyślij na e-mail
+    </button>
+    <form id="emailSendForm" method="post"
+          action="<?= APP_URL ?>/contracts/email_template_doc.php"
+          style="display:none">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="template_id"  value="<?= $template_id ?>">
+      <input type="hidden" name="contract_id"  value="<?= $contract_id ?>">
+      <input type="hidden" name="type"         value="<?= h($type) ?>">
+      <input type="hidden" name="return_url"   value="<?= h($_SERVER['REQUEST_URI'] ?? APP_URL) ?>">
+    </form>
+    <?php elseif ($contract_id && empty($row['email'])): ?>
+    <span style="opacity:.5;font-size:.78rem" title="Brak e-mail w umowie">📧 brak e-mail</span>
+    <?php endif; ?>
     <button onclick="window.print()">🖨 Drukuj / PDF</button>
   </div>
 </div>
