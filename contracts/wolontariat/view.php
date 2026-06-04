@@ -81,6 +81,16 @@ if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'X
 
 // ── Migracja kolumny representative_id ───────────────────────────────────────
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN representative_id INTEGER NULL"); } catch(\Throwable $e) {}
+// ── Migracja tabeli dodatkowych plików umów ───────────────────────────────────
+try { db()->exec("CREATE TABLE IF NOT EXISTS contract_extra_docs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_type TEXT    NOT NULL,
+    contract_id   INTEGER NOT NULL,
+    label         TEXT    NULL,
+    stored_path   TEXT    NOT NULL,
+    uploaded_by   INTEGER NULL,
+    uploaded_at   DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+)"); db()->exec("CREATE INDEX IF NOT EXISTS idx_ced_ctype_cid ON contract_extra_docs (contract_type, contract_id)"); } catch(\Throwable $e) {}
 
 // ── Zmiana podpisującego ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'set_representative' && can_edit()) {

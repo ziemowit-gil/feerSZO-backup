@@ -1,0 +1,411 @@
+<?php
+require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/db.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/helpdesk.php';
+helpdesk_migrate();
+require_login();
+
+$u   = current_user();
+$uid = (int)$u['id'];
+$id  = (int)($_GET['id'] ?? 0);
+
+$ticket = $id ? db_one("SELECT t.*, op.name AS assigned_name, op.email AS assigned_email
+    FROM helpdesk_tickets t
+    LEFT JOIN users op ON op.id = t.assigned_to
+    WHERE t.id = ?", [$id]) : null;
+
+if (!$ticket) { http_response_code(404); die('Zgłoszenie nie istnieje.'); }
+if (!hd_can_view_ticket($ticket)) {
+    flash_set('danger', 'Brak dostępu do tego zgłoszenia.');
+    header('Location: ' . APP_URL . '/helpdesk/index.php'); exit;
+}
+
+$is_op  = hd_is_operator();
+
+// ── Zmiana statusu ────────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status']) && $is_op) {
+    csrf_check();
+    $new_status = $_POST['status'] ?? '';
+    $note       = trim($_POST['status_note'] ?? '');
+    if (isset(HD_STATUSES[$new_status]) && $new_status !== $ticket['status']) {
+        $old_status = $ticket['status'];
+        $extra = [];
+        if ($new_status === 'rozwiązane') $extra['resolved_at'] = date('Y-m-d H:i:s');
+        if ($new_status === 'zamknięte')  $extra['closed_at']   = date('Y-m-d H:i:s');
+        db_update('helpdesk_tickets', array_merge(['status' => $new_status, 'updated_at' => date('Y-m-d H:i:s')], $extra), $id);
+        if ($note) {
+            db_insert('helpdesk_messages', [
+                'ticket_id'   => $id,
+                'user_id'     => $uid,
+                'user_name'   => $u['name'] ?? '',
+                'body'        => $note,
+                'is_internal' => 1,
+            ]);
+        }
+        $ticket = array_merge($ticket, ['status' => $new_status]);
+        hd_notify_status_change($ticket, $old_status, $new_status, $note);
+        flash_set('success', 'Status zmieniony: ' . (HD_STATUSES[$new_status]['label'] ?? $new_status));
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
+// ── Przypisanie operatora ─────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_assign']) && $is_op) {
+    csrf_check();
+    $assign_to = (int)($_POST['assign_to'] ?? 0) ?: null;
+    db_update('helpdesk_tickets', ['assigned_to' => $assign_to, 'updated_at' => date('Y-m-d H:i:s'),
+        'status' => $ticket['status'] === 'nowe' ? 'otwarte' : $ticket['status']], $id);
+    if ($assign_to) {
+        $op = db_one("SELECT email, name FROM users WHERE id=?", [$assign_to]);
+        if ($op) hd_notify_assigned($ticket, $op);
+        if ($ticket['status'] === 'nowe') hd_notify_status_change($ticket, 'nowe', 'otwarte');
+    }
+    flash_set('success', $assign_to ? 'Przypisano operatora.' : 'Usunięto przypisanie.');
+    header('Location: view.php?id=' . $id); exit;
+}
+
+// ── Przypisz do siebie ────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_take']) && $is_op) {
+    csrf_check();
+    $old_status = $ticket['status'];
+    $new_status = $old_status === 'nowe' ? 'otwarte' : $old_status;
+    db_update('helpdesk_tickets', ['assigned_to' => $uid, 'status' => $new_status, 'updated_at' => date('Y-m-d H:i:s')], $id);
+    if ($old_status === 'nowe') hd_notify_status_change($ticket, 'nowe', 'otwarte');
+    flash_set('success', 'Zgłoszenie przypisane do Ciebie.');
+    header('Location: view.php?id=' . $id); exit;
+}
+
+// ── Dodaj wiadomość ───────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
+    csrf_check();
+    $body        = trim($_POST['msg_body'] ?? '');
+    $is_internal = $is_op && !empty($_POST['is_internal']) ? 1 : 0;
+    if ($body) {
+        $msg_id = db_insert('helpdesk_messages', [
+            'ticket_id'   => $id,
+            'user_id'     => $uid,
+            'user_name'   => $u['name'] ?? '',
+            'body'        => $body,
+            'is_internal' => $is_internal,
+        ]);
+        db_update('helpdesk_tickets', ['updated_at' => date('Y-m-d H:i:s')], $id);
+
+        // Załączniki do wiadomości
+        if (!empty($_FILES['msg_attachments']['name'][0])) {
+            $dir = UPLOAD_DIR . 'helpdesk/';
+            if (!is_dir($dir)) @mkdir($dir, 0755, true);
+            foreach ($_FILES['msg_attachments']['name'] as $i => $orig_name) {
+                if ($_FILES['msg_attachments']['error'][$i] !== UPLOAD_ERR_OK) continue;
+                $ext   = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
+                $allow = ['pdf','doc','docx','xls','xlsx','jpg','jpeg','png','gif','zip','txt','csv'];
+                if (!in_array($ext, $allow, true)) continue;
+                $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                if (@move_uploaded_file($_FILES['msg_attachments']['tmp_name'][$i], $dir . $stored)) {
+                    db_insert('helpdesk_attachments', [
+                        'ticket_id'     => $id,
+                        'message_id'    => $msg_id,
+                        'original_name' => $orig_name,
+                        'stored_path'   => 'helpdesk/' . $stored,
+                        'file_size'     => $_FILES['msg_attachments']['size'][$i],
+                        'uploaded_by'   => $uid,
+                    ]);
+                }
+            }
+        }
+
+        // Jeśli użytkownik odpowiada → auto otwórz z oczekuje
+        if (!$is_op && $ticket['status'] === 'oczekuje') {
+            db_update('helpdesk_tickets', ['status' => 'otwarte', 'updated_at' => date('Y-m-d H:i:s')], $id);
+        }
+
+        if (!$is_internal) {
+            $fresh = db_one("SELECT t.*, op.email AS assigned_email FROM helpdesk_tickets t LEFT JOIN users op ON op.id=t.assigned_to WHERE t.id=?", [$id]);
+            hd_notify_new_message($fresh ?? $ticket, ['user_id' => $uid, 'user_name' => $u['name'] ?? '', 'body' => $body, 'is_internal' => 0]);
+        }
+
+        flash_set('success', 'Wiadomość dodana.');
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
+// ── Usuń zgłoszenie (admin) ───────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_delete']) && is_admin()) {
+    csrf_check();
+    db()->prepare("DELETE FROM helpdesk_tickets WHERE id=?")->execute([$id]);
+    flash_set('success', 'Zgłoszenie usunięte.');
+    header('Location: ' . APP_URL . '/helpdesk/index.php'); exit;
+}
+
+// ── Dane do widoku ────────────────────────────────────────────────────────────
+$ticket    = db_one("SELECT t.*, op.name AS assigned_name
+    FROM helpdesk_tickets t LEFT JOIN users op ON op.id=t.assigned_to WHERE t.id=?", [$id]);
+$messages  = db_all("SELECT m.*, u.email AS user_email
+    FROM helpdesk_messages m LEFT JOIN users u ON u.id=m.user_id
+    WHERE m.ticket_id=? " . ($is_op ? '' : "AND m.is_internal=0") . "
+    ORDER BY m.created_at ASC", [$id]);
+$atts      = db_all("SELECT * FROM helpdesk_attachments WHERE ticket_id=? ORDER BY uploaded_at ASC", [$id]);
+$operators = $is_op ? db_all(
+    "SELECT id, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 ORDER BY name", []
+) : [];
+
+$PAGE_TITLE = $ticket['number'] . ' — ' . $ticket['title'];
+include dirname(__DIR__) . '/includes/header.php';
+?>
+
+<style>
+.hd-msg { border-radius:10px; padding:14px 18px; margin-bottom:12px; }
+.hd-msg-user   { background:#EEF4FF; border-left:3px solid #2563EB; }
+.hd-msg-op     { background:#F0FDF4; border-left:3px solid #16A34A; }
+.hd-msg-intern { background:#FFF7ED; border-left:3px dashed #EA580C; }
+</style>
+
+<!-- Nagłówek -->
+<div class="d-flex align-items-start gap-2 mb-3 flex-wrap">
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-sm btn-outline-secondary mt-1">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div class="flex-grow-1">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="font-monospace fw-bold text-muted"><?= h($ticket['number']) ?></span>
+      <?= hd_status_badge($ticket['status']) ?>
+      <?= hd_priority_badge($ticket['priority']) ?>
+      <span class="badge bg-light text-dark border small"><?= h(HD_CATEGORIES[$ticket['category']] ?? $ticket['category']) ?></span>
+    </div>
+    <h4 class="mb-0 mt-1 fw-bold"><?= h($ticket['title']) ?></h4>
+    <div class="text-muted small mt-1">
+      Zgłoszono przez <strong><?= h($ticket['requester_name']) ?></strong>
+      · <?= date_pl(substr($ticket['created_at'], 0, 10)) ?>
+      <?= $ticket['assigned_name']
+        ? ' · <i class="bi bi-person-check text-success me-1"></i>Operator: <strong>' . h($ticket['assigned_name']) . '</strong>'
+        : ' · <span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Nieprzypisane</span>' ?>
+    </div>
+  </div>
+</div>
+
+<?= flash_html() ?>
+
+<div class="row g-3">
+
+<!-- ── Kolumna główna — wiadomości ────────────────────────────────────────── -->
+<div class="col-lg-8">
+
+  <!-- Wiadomości -->
+  <div class="mb-3">
+    <?php foreach ($messages as $m):
+      $is_mine     = (int)$m['user_id'] === $uid;
+      $is_req      = (int)$m['user_id'] === (int)$ticket['requester_id'];
+      $msg_class   = $m['is_internal'] ? 'hd-msg-intern' : ($is_req ? 'hd-msg-user' : 'hd-msg-op');
+      $msg_atts    = array_filter($atts, fn($a) => (int)$a['message_id'] === (int)$m['id']);
+    ?>
+    <div class="hd-msg <?= $msg_class ?>">
+      <div class="d-flex justify-content-between align-items-start mb-1">
+        <div>
+          <strong><?= h($m['user_name'] ?: 'System') ?></strong>
+          <?php if ($m['is_internal']): ?>
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.68rem">wewn.</span>
+          <?php endif; ?>
+        </div>
+        <small class="text-muted"><?= date('d.m.Y H:i', strtotime($m['created_at'])) ?></small>
+      </div>
+      <div style="white-space:pre-wrap;font-size:.9rem"><?= nl2br(h($m['body'])) ?></div>
+      <?php if ($msg_atts): ?>
+      <div class="mt-2 d-flex flex-wrap gap-1">
+        <?php foreach ($msg_atts as $a): ?>
+        <a href="<?= APP_URL ?>/helpdesk/attachment.php?id=<?= $a['id'] ?>"
+           class="badge bg-light text-dark border text-decoration-none" style="font-size:.78rem">
+          <i class="bi bi-paperclip me-1"></i><?= h($a['original_name']) ?>
+        </a>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+
+    <!-- Załączniki bez wiadomości (z pierwotnego zgłoszenia) -->
+    <?php $init_atts = array_filter($atts, fn($a) => $a['message_id'] === null); ?>
+    <?php if ($init_atts): ?>
+    <div class="mt-1 mb-2">
+      <div class="text-muted small mb-1"><i class="bi bi-paperclip me-1"></i>Załączniki ze zgłoszenia:</div>
+      <div class="d-flex flex-wrap gap-1">
+        <?php foreach ($init_atts as $a): ?>
+        <a href="<?= APP_URL ?>/helpdesk/attachment.php?id=<?= $a['id'] ?>"
+           class="badge bg-light text-dark border text-decoration-none">
+          <?= h($a['original_name']) ?>
+          <span class="text-muted ms-1">(<?= round($a['file_size'] / 1024) ?> KB)</span>
+        </a>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <!-- Formularz odpowiedzi -->
+  <?php if ($ticket['status'] !== 'zamknięte'): ?>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-reply me-1"></i>Dodaj wiadomość
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <textarea name="msg_body" class="form-control mb-2" rows="4" required
+                  placeholder="Wpisz odpowiedź…"></textarea>
+        <?php if ($is_op): ?>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="is_internal" id="is_internal" value="1">
+          <label class="form-check-label small" for="is_internal">
+            <i class="bi bi-lock me-1 text-warning"></i>Notatka wewnętrzna
+            <span class="text-muted">(widoczna tylko dla operatorów)</span>
+          </label>
+        </div>
+        <?php endif; ?>
+        <div class="mb-2">
+          <input name="msg_attachments[]" type="file" class="form-control form-control-sm" multiple
+                 accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv">
+        </div>
+        <button type="submit" name="_add_msg" class="btn btn-primary btn-sm">
+          <i class="bi bi-send me-1"></i>Wyślij
+        </button>
+      </form>
+    </div>
+  </div>
+  <?php else: ?>
+  <div class="alert alert-secondary py-2 small">
+    <i class="bi bi-lock me-1"></i>Zgłoszenie zamknięte. Nie można dodawać wiadomości.
+    <?php if ($is_op): ?>
+    <form method="post" class="d-inline ms-2">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_set_status" value="1">
+      <input type="hidden" name="status" value="otwarte">
+      <button type="submit" class="btn btn-sm btn-outline-primary py-0">Otwórz ponownie</button>
+    </form>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+</div><!-- /col-8 -->
+
+<!-- ── Sidebar ────────────────────────────────────────────────────────────── -->
+<div class="col-lg-4">
+
+  <!-- Zmiana statusu (operatorzy) -->
+  <?php if ($is_op): ?>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-arrow-repeat me-1"></i>Status zgłoszenia
+    </div>
+    <div class="card-body">
+      <div class="mb-2"><?= hd_status_badge($ticket['status']) ?></div>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_set_status" value="1">
+        <div class="d-flex flex-column gap-1 mb-2">
+          <?php foreach (HD_STATUSES as $k => $s):
+            if ($k === $ticket['status']) continue; ?>
+          <button type="submit" name="status" value="<?= h($k) ?>"
+                  class="btn btn-sm btn-outline-<?= $s['class'] ?> text-start py-1">
+            <i class="bi <?= $s['icon'] ?> me-1"></i><?= h($s['label']) ?>
+          </button>
+          <?php endforeach; ?>
+        </div>
+        <textarea name="status_note" class="form-control form-control-sm mb-1" rows="2"
+                  placeholder="Notatka do zmiany (opcjonalnie, wewnętrzna)"></textarea>
+      </form>
+    </div>
+  </div>
+
+  <!-- Przypisanie -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-person-check me-1"></i>Operator
+    </div>
+    <div class="card-body">
+      <?php if ($ticket['assigned_to']): ?>
+      <div class="mb-2">
+        <span class="badge bg-success-subtle text-success border border-success-subtle">
+          <i class="bi bi-person-check me-1"></i><?= h($ticket['assigned_name']) ?>
+        </span>
+      </div>
+      <?php else: ?>
+      <div class="mb-2 text-muted small">
+        <i class="bi bi-exclamation-circle text-danger me-1"></i>Brak przypisania
+      </div>
+      <?php endif; ?>
+
+      <?php if ((int)($ticket['assigned_to'] ?? 0) !== $uid): ?>
+      <form method="post" class="mb-2">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <button type="submit" name="_take" class="btn btn-sm btn-primary w-100">
+          <i class="bi bi-hand-index-thumb me-1"></i>Przypisz do mnie
+        </button>
+      </form>
+      <?php endif; ?>
+
+      <?php if (is_admin() && $operators): ?>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_assign" value="1">
+        <div class="input-group input-group-sm">
+          <select name="assign_to" class="form-select form-select-sm">
+            <option value="">— bez przypisania —</option>
+            <?php foreach ($operators as $op): ?>
+            <option value="<?= $op['id'] ?>" <?= (int)($ticket['assigned_to'] ?? 0) === (int)$op['id'] ? 'selected' : '' ?>>
+              <?= h($op['name']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <button class="btn btn-outline-secondary btn-sm">Przypisz</button>
+        </div>
+      </form>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Szczegóły zgłoszenia -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-info-circle me-1"></i>Szczegóły
+    </div>
+    <div class="card-body small">
+      <table class="w-100" style="border-collapse:collapse">
+        <?php foreach ([
+          ['Numer',      '<span class="font-monospace">' . h($ticket['number']) . '</span>'],
+          ['Kategoria',  h(HD_CATEGORIES[$ticket['category']] ?? $ticket['category'])],
+          ['Priorytet',  hd_priority_badge($ticket['priority'])],
+          ['Zgłaszający',h($ticket['requester_name'])],
+          ['E-mail',     $ticket['requester_email'] ? '<a href="mailto:'.h($ticket['requester_email']).'">' . h($ticket['requester_email']) . '</a>' : '—'],
+          ['Telefon',    $ticket['requester_phone'] ? h($ticket['requester_phone']) : '—'],
+          ['Zgłoszono',  date('d.m.Y H:i', strtotime($ticket['created_at']))],
+          ['Zaktualizowano', date('d.m.Y H:i', strtotime($ticket['updated_at']))],
+          ['Rozwiązano', $ticket['resolved_at'] ? date('d.m.Y H:i', strtotime($ticket['resolved_at'])) : '—'],
+        ] as [$lbl, $val]): ?>
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#6c757d;white-space:nowrap;vertical-align:top"><?= $lbl ?></td>
+          <td style="padding:4px 0"><?= $val ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    </div>
+  </div>
+
+  <!-- Admin: usuń -->
+  <?php if (is_admin()): ?>
+  <div class="card border-danger border-opacity-25 border mb-3">
+    <div class="card-body py-2">
+      <form method="post" onsubmit="return confirm('Usunąć zgłoszenie <?= h($ticket['number']) ?>?')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <button type="submit" name="_delete" class="btn btn-sm btn-outline-danger w-100">
+          <i class="bi bi-trash3 me-1"></i>Usuń zgłoszenie
+        </button>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
+
+</div><!-- /col-4 -->
+</div><!-- /row -->
+
+<?php include dirname(__DIR__) . '/includes/footer.php'; ?>

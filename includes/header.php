@@ -685,7 +685,20 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <?php endif; ?>
 
   <?php
-  $_obsługa_active = str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/admin/certificates');
+  $_hd_open = 0;
+  try {
+      if (module_enabled('helpdesk_enabled')) {
+          $_hd_u = current_user();
+          if ($_hd_u) {
+              if (is_admin() || !empty($_hd_u['helpdesk_operator'])) {
+                  $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE status NOT IN ('zamknięte')")['c'] ?? 0);
+              } else {
+                  $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')", [(int)$_hd_u['id']])['c'] ?? 0);
+              }
+          }
+      }
+  } catch (\Throwable $e) {}
+  $_obsługa_active = str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/admin/certificates') || str_contains($_uri,'/helpdesk/');
   $_obs_badge = $_msg_unread_total + $_term_pending + $_cert_pending;
   ?>
   <button type="button" class="sb-type-btn <?= $_obsługa_active ? 'type-open' : '' ?>"
@@ -696,6 +709,12 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <i class="bi bi-chevron-right sb-chevron"></i>
   </button>
   <div class="collapse sb-sub <?= $_obsługa_active ? 'show' : '' ?>" id="sb-obsluga">
+    <?php if (module_enabled('helpdesk_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php">
+      <i class="bi bi-ticket-perforated"></i> Helpdesk IT
+      <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
+    </a>
+    <?php endif; ?>
     <?php if (module_enabled('messages_enabled')): ?>
     <a class="sb-sub-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
       <i class="bi bi-chat-dots"></i> Wiadomości
