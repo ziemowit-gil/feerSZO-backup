@@ -1057,15 +1057,18 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
         array_slice(explode(' ', $_user['name']), 0, 2)
       ));
       // Oblicz aktywne sekcje raz
-      $_on_szo     = (!str_contains($_uri,'/crm/') && !str_contains($_uri,'/actions/') && !str_contains($_uri,'/events/') && !str_contains($_uri,'/directory/') && !str_contains($_uri,'/karty30/') && !str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/') && !$_is_panel_view);
       $_on_crm     = str_contains($_uri,'/crm/');
       $_on_tasks   = str_contains($_uri,'/tasks/') && !str_contains($_uri,'/admin/');
-      $_on_admin   = str_contains($_uri,'/admin/');
+      $_on_admin   = str_contains($_uri,'/admin/') && !str_contains($_uri,'/rodo/') && !str_contains($_uri,'/certificates/') && !str_contains($_uri,'/helpdesk/');
       $_on_actions = str_contains($_uri,'/actions/');
       $_on_events  = str_contains($_uri,'/events/');
       $_on_dir     = str_contains($_uri,'/directory/');
       $_on_k30     = str_contains($_uri,'/karty30/');
-      $_has_more_active = $_on_actions || $_on_events || $_on_dir || $_on_k30;
+      $_on_rodo    = str_contains($_uri,'/rodo/');
+      $_on_certs   = str_contains($_uri,'/certificates/') || str_contains($_uri,'/admin/certificates');
+      $_on_wol     = str_contains($_uri,'/contracts/wolontariat/');
+      $_on_szo     = (!$_on_crm && !$_on_actions && !$_on_events && !$_on_dir && !$_on_k30 && !$_on_tasks && !$_on_admin && !$_on_rodo && !$_on_certs && !$_on_wol && !$_is_panel_view);
+      $_has_more_active = $_on_actions || $_on_events || $_on_dir || $_on_k30 || $_on_rodo || $_on_certs || $_on_wol;
     ?>
     <!-- Moduły główne — kompaktowe -->
     <nav class="tb-mods" aria-label="Moduły systemu">
@@ -1102,6 +1105,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
           elseif ($_on_events) echo '<i class="bi bi-calendar-event-fill"></i><span class="tb-label">Wydarzenia</span>';
           elseif ($_on_dir) echo '<i class="bi bi-person-lines-fill"></i><span class="tb-label">Katalog</span>';
           elseif ($_on_k30) echo '<i class="bi bi-card-checklist"></i><span class="tb-label">Karty30</span>';
+          elseif ($_on_wol) echo '<i class="bi bi-heart-fill"></i><span class="tb-label">Wolontariat</span>';
+          elseif ($_on_certs) echo '<i class="bi bi-award-fill"></i><span class="tb-label">Zaświadczenia</span>';
+          elseif ($_on_rodo) echo '<i class="bi bi-shield-lock-fill"></i><span class="tb-label">RODO</span>';
           ?>
           <?php else: ?>
           <i class="bi bi-grid-3x3-gap"></i>
@@ -1109,6 +1115,23 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
           <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.6"></i>
         </button>
         <ul class="dropdown-menu shadow" style="min-width:175px;font-size:.83rem">
+          <li><h6 class="dropdown-header py-1" style="font-size:.68rem">Rejestry</h6></li>
+          <li>
+            <a class="dropdown-item <?= $_on_wol ? 'active' : '' ?>" href="<?= APP_URL ?>/contracts/wolontariat/list.php">
+              <i class="bi bi-heart-fill me-2 text-success"></i>Umowy wolontariackie
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item <?= $_on_certs ? 'active' : '' ?>" href="<?= APP_URL ?>/admin/certificates.php">
+              <i class="bi bi-award-fill me-2 text-warning"></i>Zaświadczenia
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item <?= $_on_rodo ? 'active' : '' ?>" href="<?= APP_URL ?>/rodo/index.php">
+              <i class="bi bi-shield-lock-fill me-2 text-primary"></i>Rejestr RODO
+            </a>
+          </li>
+          <li><hr class="dropdown-divider my-1"></li>
           <li><h6 class="dropdown-header py-1" style="font-size:.68rem">Więcej modułów</h6></li>
           <li>
             <a class="dropdown-item <?= $_on_actions ? 'active' : '' ?>" href="<?= APP_URL ?>/actions/index.php">
@@ -1142,12 +1165,8 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
           </li>
         </ul>
       </div>
-    </nav>
-    <?php endif; ?>
-
-    <?php if ($_user): ?>
-    <!-- Szukajka modułów z live-search dropdown -->
-    <div class="tb-search-wrap d-none d-md-block" id="qs-wrap" style="position:relative">
+      <!-- Szukajka — w ramach nawigacji modułów -->
+      <div class="tb-search-wrap d-none d-md-block" id="qs-wrap" style="position:relative;margin-left:.25rem">
       <i class="tb-search-icon bi bi-search" aria-hidden="true"></i>
       <form method="get" action="<?= APP_URL ?>/search.php" id="qs-form" autocomplete="off">
         <input type="search" name="q" id="topbar-search"
@@ -1316,7 +1335,8 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       });
     })();
     </script>
-    <?php endif; ?>
+    </nav><!-- /tb-mods -->
+    <?php endif; // can_edit ?>
 
     <?php if ($_user):
     $_notif_count  = notif_unread_count((int)$_user['id']);
