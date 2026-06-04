@@ -107,10 +107,15 @@ include dirname(__DIR__) . '/includes/header.php';
       <?= $row['authorized_until'] ? ' do ' . date('d.m.Y', strtotime($row['authorized_until'])) : ' (do wygaśnięcia umowy)' ?>
     </div>
   </div>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     <a href="<?= APP_URL ?>/rodo/print.php?id=<?= $id ?>" target="_blank" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-printer me-1"></i>Drukuj / PDF
+      <i class="bi bi-printer me-1"></i>Upoważnienie
     </a>
+    <?php if (in_array($row['status'], ['cofnięte','wygasłe'])): ?>
+    <a href="<?= APP_URL ?>/rodo/print_revoke.php?id=<?= $id ?>" target="_blank" class="btn btn-outline-danger btn-sm">
+      <i class="bi bi-file-earmark-x me-1"></i>Cofnięcie
+    </a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/rodo/new.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-plus me-1"></i>Nowe
     </a>
@@ -246,8 +251,12 @@ include dirname(__DIR__) . '/includes/header.php';
   <!-- Historia cofnięć -->
   <?php if ($revocs): ?>
   <div class="card border-0 shadow-sm mb-3">
-    <div class="card-header py-2 fw-semibold text-danger" style="font-size:.85rem">
-      <i class="bi bi-x-circle me-1"></i>Historia cofnięcia upoważnienia
+    <div class="card-header py-2 fw-semibold text-danger d-flex align-items-center" style="font-size:.85rem">
+      <span><i class="bi bi-x-circle me-1"></i>Historia cofnięcia upoważnienia</span>
+      <a href="<?= APP_URL ?>/rodo/print_revoke.php?id=<?= $id ?>" target="_blank"
+         class="btn btn-sm btn-outline-danger py-0 px-2 ms-auto">
+        <i class="bi bi-printer me-1"></i>Drukuj cofnięcie
+      </a>
     </div>
     <div class="card-body">
       <?php foreach ($revocs as $rv): ?>
