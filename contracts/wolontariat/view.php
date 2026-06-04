@@ -117,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'uplo
         db()->exec("CREATE INDEX IF NOT EXISTS idx_ced_ctype_cid ON contract_extra_docs (contract_type, contract_id)");
     } catch (\Throwable $e) {}
 
-    $path = save_uploaded_file('contract_doc_file', 'contract_docs');
+    $path = handle_upload('contract_doc_file', 'contract_docs');
     if ($path) {
         db()->prepare(
             "INSERT INTO contract_extra_docs (contract_type, contract_id, label, stored_path, uploaded_by) VALUES (?,?,?,?,?)"
@@ -1793,58 +1793,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <?php endif; ?>
   </div>
 
-  <!-- Generowanie dokumentów z szablonu -->
-  <?php
-  require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
-  cte_migrate();
-  $_tpl_list = cte_list('wolontariat');
-  ?>
-  <?php if ($_tpl_list && can_edit()): ?>
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0F4FF;color:#4F46E5"><i class="bi bi-file-earmark-text"></i></div>
-      <span class="cv-section-title">Wzory dokumentów</span>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-      <?php
-      $_wol_email = $row['email'] ?? '';
-      $_wol_pesel = preg_replace('/\D/', '', $row['pesel'] ?? '');
-      $_can_email = $_wol_email && strlen($_wol_pesel) >= 5;
-      ?>
-      <?php foreach ($_tpl_list as $_tpl): ?>
-      <div class="d-flex gap-1 align-items-center">
-        <a href="<?= APP_URL ?>/contracts/print_template.php?template_id=<?= $_tpl['id'] ?>&contract_id=<?= $id ?>&type=<?= $TYPE ?>&preview=1"
-           target="_blank"
-           class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-file-earmark-text me-1"></i><?= h($_tpl['name']) ?>
-        </a>
-        <a href="<?= APP_URL ?>/contracts/download_template_docx.php?template_id=<?= $_tpl['id'] ?>&contract_id=<?= $id ?>&type=<?= $TYPE ?>"
-           class="btn btn-sm btn-outline-secondary py-0 px-2" title="Pobierz DOCX">
-          <i class="bi bi-file-earmark-word"></i>
-        </a>
-        <?php if ($_can_email): ?>
-        <form method="post" action="<?= APP_URL ?>/contracts/email_template_doc.php" class="d-inline">
-          <input type="hidden" name="_csrf"        value="<?= csrf_token() ?>">
-          <input type="hidden" name="template_id"  value="<?= $_tpl['id'] ?>">
-          <input type="hidden" name="contract_id"  value="<?= $id ?>">
-          <input type="hidden" name="type"         value="<?= $TYPE ?>">
-          <input type="hidden" name="return_url"   value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=docs') ?>">
-          <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-2"
-                  title="Wyślij na e-mail wolontariusza (zaszyfrowany ZIP, hasło: 5 ostatnich cyfr PESEL)"
-                  onclick="return confirm('Wysłać dokument „<?= h(addslashes($_tpl['name'])) ?>" na <?= h($_wol_email) ?>?\nPliku ZIP będzie zaszyfrowany — hasło: 5 ostatnich cyfr PESEL.')">
-            <i class="bi bi-envelope-arrow-up"></i>
-          </button>
-        </form>
-        <?php else: ?>
-        <span class="text-muted" style="font-size:.72rem" title="Brak e-mail lub PESEL w umowie">
-          <i class="bi bi-envelope-slash"></i>
-        </span>
-        <?php endif; ?>
-      </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
-  <?php endif; ?>
+  <?php if (can_edit()): include __DIR__ . '/../includes/template_section.php'; endif; ?>
 
 </div><!-- /tab-docs -->
 

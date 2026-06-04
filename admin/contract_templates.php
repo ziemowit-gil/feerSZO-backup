@@ -206,10 +206,9 @@ include dirname(__DIR__) . '/includes/header.php';
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importDocxModal">
       <i class="bi bi-file-earmark-word me-1"></i>Import DOCX
     </button>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#tplModal"
-            onclick="openCreate()">
+    <a href="<?= APP_URL ?>/admin/template_editor.php?new=1" class="btn btn-primary btn-sm">
       <i class="bi bi-plus-lg me-1"></i>Nowy wzór
-    </button>
+    </a>
   </div>
 </div>
 
@@ -246,11 +245,11 @@ include dirname(__DIR__) . '/includes/header.php';
           </td>
           <td class="pe-3">
             <div class="d-flex gap-1 justify-content-end">
-              <button class="btn btn-outline-primary btn-sm py-0 px-2"
-                      onclick="openEdit(<?= $t['id'] ?>, <?= json_encode($t['name']) ?>, <?= json_encode($t['type']) ?>, <?= json_encode($t['description'] ?? '') ?>, <?= json_encode($t['body']) ?>)"
-                      aria-label="Edytuj <?= h($t['name']) ?>">
+              <a href="<?= APP_URL ?>/admin/template_editor.php?id=<?= $t['id'] ?>"
+                 class="btn btn-outline-primary btn-sm py-0 px-2"
+                 aria-label="Edytuj <?= h($t['name']) ?>">
                 <i class="bi bi-pencil"></i>
-              </button>
+              </a>
               <a href="<?= APP_URL ?>/contracts/print_template.php?template_id=<?= $t['id'] ?>&preview=1"
                  target="_blank"
                  class="btn btn-outline-secondary btn-sm py-0 px-2"

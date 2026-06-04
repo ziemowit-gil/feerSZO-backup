@@ -532,6 +532,9 @@ $cert_has_pending = !empty(array_filter($cert_requests, fn($r) => $r['status'] =
 <?php endif; ?>
 </div>
 
+<?php if (can_edit()): include dirname(__DIR__) . '/includes/template_section.php'; endif; ?>
+
+
 <?php if ($audit_log): ?>
 <div class="card shadow-sm mb-3 no-print">
 <div class="card-header fw-semibold"><i class="bi bi-journal-text"></i> Historia zdarzeń</div>

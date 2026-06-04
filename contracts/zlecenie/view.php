@@ -461,6 +461,9 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <?php endif; ?>
   </div>
 
+
+  <?php if (can_edit()): include dirname(__DIR__) . '/includes/template_section.php'; endif; ?>
+
 </div><!-- /tab-docs -->
 
 <!-- ═══════════════════ TAB 4 — OBIEG ═══════════════════ -->
