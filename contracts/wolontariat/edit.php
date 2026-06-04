@@ -12,6 +12,8 @@ $TABLE = 'umowy_wolontariat';
 $id    = intval($_GET['id'] ?? 0);
 $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono porozumienia.'); }
+// Idempotentna migracja pola
+try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN przetwarza_dane_osobowe INTEGER NOT NULL DEFAULT 0"); } catch(\Throwable $e) {}
 if (contract_is_locked($row)) {
     flash_set('warning', 'Umowa jest zablokowana (zawarty aneks) — edycja niedostępna.');
     header('Location: view.php?id=' . $id); exit;
@@ -33,9 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
 
     if (!$errors) {
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'z_webngo', 'canva_access', 'email_consent'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
         }
+        // Wykryj nowe zaznaczenie „przetwarza dane osobowe"
+        $_rodo_was = (int)($row['przetwarza_dane_osobowe'] ?? 0);
+        $_rodo_now = $data['przetwarza_dane_osobowe'];
         // Dostępność — serialize jako JSON
         $data['dostepnosc_dni']  = json_encode(array_values(array_filter((array)($_POST['dostepnosc_dni']  ?? []))));
         $data['dostepnosc_pora'] = json_encode(array_values(array_filter((array)($_POST['dostepnosc_pora'] ?? []))));
@@ -117,8 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'wolontariat_typ', 'obszar_dzialania', 'kompetencje', 'jezyki', 'wyksztalcenie',
             // Dostępność
             'dostepnosc_dni', 'dostepnosc_pora',
-            // RODO
+            // RODO zgody i upoważnienia
             'email_consent', 'email_consent_at',
+            'przetwarza_dane_osobowe',
         ];
         $save = array_intersect_key($data, array_flip($allowed));
 
@@ -148,6 +154,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (\Throwable $e) {}
         }
 
+        // ── Nowe upoważnienie RODO wymagane po zaznaczeniu checkbox ──────────
+        if ($_rodo_now && !$_rodo_was) {
+            // Sprawdź czy nie ma już aktywnego upoważnienia
+            require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
+            rodo_migrate();
+            $_has_rodo = db_one(
+                "SELECT id FROM rodo_authorizations WHERE contract_type='wolontariat' AND contract_id=? AND status='aktywne' LIMIT 1",
+                [$id]
+            );
+            if (!$_has_rodo) {
+                // Zbuduj URL do tworzenia RODO
+                $_rodo_url = APP_URL . '/rodo/new.php?contract_type=wolontariat&contract_id=' . $id . '&_from_edit=1';
+                flash_set('success', 'Zmiany zapisane. Wymagane jest wygenerowanie upoważnienia RODO — potwierdź kodem IKA.');
+                // IKA gate przekieruje na $_rodo_url
+                auth_start();
+                ika_require($_rodo_url);
+                // Jeśli IKA jest już ważne — idź od razu do RODO
+                header('Location: ' . $_rodo_url); exit;
+            }
+        }
         flash_set('success', 'Zmiany zapisane.');
         header('Location: view.php?id=' . $id);
         exit;
@@ -725,8 +751,8 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
     </div>
   </div>
 
-  <!-- Zgoda RODO -->
-  <div class="p-3 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
+  <!-- Zgoda RODO email -->
+  <div class="p-3 rounded mb-2" style="background:#f0fdf4;border:1px solid #bbf7d0">
     <div class="toggle-row">
       <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" role="switch"
@@ -742,6 +768,51 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
         <div class="text-success small mt-1">
           <i class="bi bi-check-circle me-1"></i>Zgoda udzielona: <?= date_pl(substr($row['email_consent_at'],0,10)) ?>
         </div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upoważnienie do przetwarzania danych osobowych -->
+  <?php
+  try { require_once dirname(dirname(__DIR__)) . '/includes/rodo.php'; rodo_migrate(); } catch(\Throwable $e) {}
+  $_has_active_rodo = false;
+  try {
+      $_has_active_rodo = (bool)db_one(
+          "SELECT id FROM rodo_authorizations WHERE contract_type='wolontariat' AND contract_id=? AND status='aktywne'",
+          [$id]
+      );
+  } catch(\Throwable $e) {}
+  ?>
+  <div class="p-3 rounded" style="background:#fff3e0;border:1px solid #fed7aa">
+    <div class="toggle-row">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch"
+               name="przetwarza_dane_osobowe" id="przetwarzaDane" value="1"
+               <?= !empty($row['przetwarza_dane_osobowe']) ? 'checked' : '' ?>>
+      </div>
+      <div class="flex-grow-1">
+        <label for="przetwarzaDane" class="mb-0 fw-semibold">
+          <i class="bi bi-shield-lock text-warning me-1"></i>
+          <?= h($row['imie_nazwisko'] ?: 'Wolontariusz') ?> przetwarza dane osobowe
+        </label>
+        <div class="ts-sub">
+          Zaznacz jeśli wolontariusz ma dostęp do danych osobowych — wymagane upoważnienie RODO (§ 29 RODO).
+          Po zapisaniu zostaniesz poproszony o kod IKA i wygenerowanie upoważnienia.
+        </div>
+        <?php if (!empty($row['przetwarza_dane_osobowe'])): ?>
+          <?php if ($_has_active_rodo): ?>
+          <div class="text-success small mt-1">
+            <i class="bi bi-check-circle-fill me-1"></i>
+            Upoważnienie RODO aktywne ·
+            <a href="<?= APP_URL ?>/rodo/index.php?type=wolontariat&q=<?= urlencode($row['numer_umowy']) ?>">podgląd</a>
+          </div>
+          <?php else: ?>
+          <div class="text-warning small mt-1">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            Brak aktywnego upoważnienia RODO — wygeneruj po zapisaniu.
+          </div>
+          <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>

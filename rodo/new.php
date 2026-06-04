@@ -8,22 +8,34 @@ rodo_migrate();
 require_login();
 require_role('admin', 'editor');
 
+// ── IKA — przetwarzanie danych osobowych wymaga weryfikacji ───────────────────
+auth_start();
+$_return = APP_URL . '/rodo/new.php?' . http_build_query($_GET);
+ika_require($_return);
+
 // Prefill z umowy (jeśli przekazano parametry)
 $_ct   = preg_replace('/[^a-z]/', '', $_GET['contract_type'] ?? '');
 $_cid  = (int)($_GET['contract_id'] ?? 0);
+$_from_edit = !empty($_GET['_from_edit']); // Przekierowanie z edit.php
+$_crow = null; // pełny wiersz umowy
 $_prefill = [];
+$_contract_max_date = ''; // max authorized_until (data_zakonczenia umowy)
+$_bezterminowa = false;
+
 if ($_ct && $_cid) {
     try {
         $_table = 'umowy_' . $_ct;
         $_crow  = db_one("SELECT * FROM {$_table} WHERE id=?", [$_cid]);
         if ($_crow) {
+            $_bezterminowa      = !empty($_crow['bezterminowa']);
+            $_contract_max_date = $_crow['data_zakonczenia'] ?? '';
             $_prefill = [
                 'person_name'     => $_crow['imie_nazwisko'] ?? '',
                 'person_pesel'    => $_crow['pesel'] ?? '',
                 'contract_number' => $_crow['numer_umowy'] ?? '',
                 'contract_date'   => $_crow['data_zawarcia'] ?? '',
                 'authorized_from' => $_crow['data_rozpoczecia'] ?? ($_crow['data_zawarcia'] ?? date('Y-m-d')),
-                'authorized_until'=> $_crow['data_zakonczenia'] ?? '',
+                'authorized_until'=> $_bezterminowa ? '' : ($_crow['data_zakonczenia'] ?? ''),
             ];
         }
     } catch (\Throwable $e) {}
@@ -53,8 +65,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$authorized_from) $errors[] = 'Data upoważnienia jest wymagana.';
     if (empty($scope_items) && !$scope_custom) $errors[] = 'Wybierz co najmniej jeden zakres (§ 2).';
 
+    // Walidacja okresu dla wolontariatu
+    if ($authorized_until && $contract_type === 'wolontariat' && $contract_id) {
+        $period_err = rodo_validate_period($contract_type, $contract_id, $authorized_until);
+        if ($period_err) $errors[] = $period_err;
+    }
+    // Nie może zaczynać się przed datą umowy
+    if ($authorized_from && $_crow && !empty($_crow['data_zawarcia']) && $authorized_from < $_crow['data_zawarcia']) {
+        $errors[] = 'Data upoważnienia nie może być wcześniejsza niż data zawarcia porozumienia (' . date('d.m.Y', strtotime($_crow['data_zawarcia'])) . ').';
+    }
+
     if (!$errors) {
-        $number   = rodo_next_number();
+        $number   = rodo_next_number($contract_number);
         $uid      = (int)current_user()['id'];
         $org      = rodo_org_data();
 
@@ -81,7 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_by'      => $uid,
         ]);
 
-        flash_set('success', "Upoważnienie {$number} zostało zarejestrowane.");
+        flash_set('success', "Upoważnienie {$number} zostało zarejestrowane. Wydrukuj dokument i odbierz podpisy.");
+        // Powróć do widoku umowy jeśli przyszło z edit.php
+        if ($_from_edit && $contract_id && $contract_type === 'wolontariat') {
+            header('Location: ' . APP_URL . '/contracts/wolontariat/view.php?id=' . $contract_id . '&tab=rodo'); exit;
+        }
         header('Location: ' . APP_URL . '/rodo/view.php?id=' . $id); exit;
     }
 }
@@ -104,10 +130,42 @@ $_d = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : array_merge([
 ], $_prefill);
 ?>
 
+<!-- Alert kontekstowy gdy przyszło z edit.php -->
+<?php if ($_from_edit): ?>
+<div class="alert alert-info d-flex gap-2 py-2 mb-3" style="font-size:.88rem">
+  <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+  <div>
+    <strong>Kod IKA zweryfikowany.</strong>
+    Dane zostały przeniesione z porozumienia. Uzupełnij zakres § 2, a następnie zarejestruj upoważnienie i wydrukuj dokument.
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($_contract_max_date && !$_bezterminowa): ?>
+<div class="alert alert-warning d-flex gap-2 py-2 mb-3" style="font-size:.88rem">
+  <i class="bi bi-calendar-x flex-shrink-0 mt-1"></i>
+  <div>
+    <strong>Zasada RODO:</strong> Upoważnienie nie może być dłuższe niż porozumienie wolontariackie.
+    Maksymalna data zakończenia: <strong><?= date('d.m.Y', strtotime($_contract_max_date)) ?></strong>.
+  </div>
+</div>
+<?php elseif ($_bezterminowa): ?>
+<div class="alert alert-info d-flex gap-2 py-2 mb-3" style="font-size:.88rem">
+  <i class="bi bi-infinity flex-shrink-0 mt-1"></i>
+  <div>Porozumienie bezterminowe — upoważnienie RODO może być bezterminowe (zostaw datę końcową pustą).</div>
+</div>
+<?php endif; ?>
+
 <div class="d-flex align-items-center gap-2 mb-3">
+  <?php if ($_from_edit && $_cid): ?>
+  <a href="<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= $_cid ?>&tab=rodo" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <?php else: ?>
   <a href="<?= APP_URL ?>/rodo/index.php" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
+  <?php endif; ?>
   <h4 class="mb-0 fw-bold"><i class="bi bi-shield-plus text-primary me-2"></i>Nowe upoważnienie RODO</h4>
 </div>
 
@@ -163,7 +221,17 @@ $_d = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : array_merge([
     </div>
     <div class="col-md-5">
       <label class="form-label small fw-semibold">Nr porozumienia / umowy</label>
-      <input name="contract_number" class="form-control" value="<?= h($_d['contract_number']) ?>">
+      <?php if ($_cid && !empty($_d['contract_number'])): ?>
+      <input name="contract_number" class="form-control font-monospace fw-bold"
+             value="<?= h($_d['contract_number']) ?>" readonly
+             title="Numer pobierany automatycznie z powiązanej umowy">
+      <div class="form-text text-success"><i class="bi bi-link-45deg"></i> Przeniesione z porozumienia</div>
+      <?php else: ?>
+      <input name="contract_number" class="form-control font-monospace"
+             value="<?= h($_d['contract_number']) ?>"
+             placeholder="np. WOL/2026/0001 — wpisz ręcznie lub zostaw puste">
+      <div class="form-text">Numer używany jako podstawa numeru upoważnienia.</div>
+      <?php endif; ?>
     </div>
     <div class="col-md-3">
       <label class="form-label small fw-semibold">Data porozumienia</label>
@@ -174,10 +242,22 @@ $_d = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : array_merge([
       <input name="authorized_from" type="date" class="form-control" required value="<?= h($_d['authorized_from']) ?>">
     </div>
     <div class="col-md-4">
-      <label class="form-label small fw-semibold">Upoważnienie do
+      <label class="form-label small fw-semibold">
+        Upoważnienie do
+        <?php if ($_contract_max_date && !$_bezterminowa): ?>
+        <span class="badge bg-warning text-dark ms-1" style="font-size:.7rem">
+          max <?= date('d.m.Y', strtotime($_contract_max_date)) ?>
+        </span>
+        <?php else: ?>
         <span class="text-muted fw-normal">(puste = do wygaśnięcia umowy)</span>
+        <?php endif; ?>
       </label>
-      <input name="authorized_until" type="date" class="form-control" value="<?= h($_d['authorized_until']) ?>">
+      <input name="authorized_until" type="date" class="form-control"
+             value="<?= h($_d['authorized_until']) ?>"
+             <?= $_contract_max_date && !$_bezterminowa ? 'max="' . h($_contract_max_date) . '"' : '' ?>>
+      <?php if ($_contract_max_date && !$_bezterminowa): ?>
+      <div class="form-text text-warning"><i class="bi bi-exclamation-triangle me-1"></i>RODO nie może być dłuższe niż porozumienie</div>
+      <?php endif; ?>
     </div>
   </div>
 </div>

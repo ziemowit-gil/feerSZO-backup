@@ -2572,6 +2572,35 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
     </a>
   </div>
 
+  <?php
+  // Czy checkbox przetwarza_dane_osobowe jest zaznaczony
+  $_pdane = !empty($row['przetwarza_dane_osobowe']);
+  ?>
+  <?php if ($_pdane && !$_rodo_active): ?>
+  <div class="alert alert-danger d-flex gap-3 mb-3">
+    <i class="bi bi-exclamation-octagon-fill fs-4 flex-shrink-0 mt-1"></i>
+    <div>
+      <div class="fw-bold">Wymagane upoważnienie RODO!</div>
+      <div class="small mt-1">
+        Wolontariusz <strong><?= h($row['imie_nazwisko']) ?></strong> ma zaznaczone „przetwarza dane osobowe",
+        ale <strong>nie ma aktywnego upoważnienia RODO</strong>. Bez upoważnienia przetwarzanie jest niezgodne
+        z art. 29 i art. 32 ust. 4 RODO.
+      </div>
+      <a href="<?= APP_URL ?>/rodo/new.php?contract_type=<?= $TYPE ?>&contract_id=<?= $id ?>&_from_edit=1"
+         class="btn btn-danger btn-sm mt-2">
+        <i class="bi bi-shield-lock me-1"></i>Wystaw upoważnienie RODO teraz
+        <span class="badge bg-light text-danger ms-1">wymaga kodu IKA</span>
+      </a>
+    </div>
+  </div>
+  <?php elseif (!$_pdane && !$_rodo_rows): ?>
+  <div class="alert alert-secondary py-2 small d-flex gap-2 mb-3">
+    <i class="bi bi-info-circle flex-shrink-0 mt-1"></i>
+    <div>Wolontariusz nie ma zaznaczonego „przetwarza dane osobowe" w edycji umowy.
+    Jeśli ma dostęp do danych — zaznacz pole i wygeneruj upoważnienie.</div>
+  </div>
+  <?php endif; ?>
+
   <?php if (!$_rodo_rows): ?>
   <div class="text-center py-4 text-muted">
     <i class="bi bi-shield-lock" style="font-size:2rem"></i>

@@ -87,18 +87,54 @@ function rodo_migrate(): void {
 }
 
 // ── Numer upoważnienia ────────────────────────────────────────────────────────
-function rodo_next_number(): string {
+/**
+ * Generuje numer upoważnienia.
+ * Jeśli podano numer umowy: [nr_umowy]/RODO (+ sufiks gdy istnieje kilka)
+ * Jeśli nie podano: RODO/RRRR/NNNN
+ */
+function rodo_next_number(string $contract_number = ''): string {
+    $contract_number = trim($contract_number);
+    if ($contract_number !== '') {
+        // Format pochodny od numeru umowy
+        $base = $contract_number . '/RODO';
+        $exists = db_one("SELECT COUNT(*) AS c FROM rodo_authorizations WHERE number LIKE ?", [$base . '%']);
+        $cnt = (int)($exists['c'] ?? 0);
+        return $cnt === 0 ? $base : $base . '-' . ($cnt + 1);
+    }
+    // Bez umowy — sekwencyjny
     $year = date('Y');
     $last = db_one(
         "SELECT number FROM rodo_authorizations WHERE number LIKE ? ORDER BY id DESC LIMIT 1",
         ["RODO/{$year}/%"]
     );
     if ($last) {
-        $seq = (int)explode('/', $last['number'])[2] + 1;
+        $parts = explode('/', $last['number']);
+        $seq   = (int)($parts[2] ?? 0) + 1;
     } else {
         $seq = 1;
     }
     return "RODO/{$year}/" . str_pad($seq, 4, '0', STR_PAD_LEFT);
+}
+
+// ── Walidacja okresu upoważnienia ─────────────────────────────────────────────
+/**
+ * Dla wolontariatu: authorized_until nie może przekroczyć data_zakonczenia umowy.
+ * Zwraca null gdy OK, string z komunikatem błędu gdy naruszenie.
+ */
+function rodo_validate_period(string $contract_type, int $contract_id, string $authorized_until): ?string {
+    if ($contract_type !== 'wolontariat' || !$contract_id || !$authorized_until) return null;
+    try {
+        $c = db_one("SELECT data_zakonczenia, bezterminowa FROM umowy_wolontariat WHERE id=?", [$contract_id]);
+        if (!$c) return null;
+        if (!empty($c['bezterminowa'])) return null; // bezterminowa — bez ograniczenia
+        $max = $c['data_zakonczenia'] ?? '';
+        if (!$max) return null;
+        if ($authorized_until > $max) {
+            return 'Upoważnienie RODO nie może być dłuższe niż porozumienie wolontariackie '
+                 . '(max. ' . date('d.m.Y', strtotime($max)) . ').';
+        }
+    } catch (\Throwable $e) {}
+    return null;
 }
 
 // ── Dane organizacji ──────────────────────────────────────────────────────────
