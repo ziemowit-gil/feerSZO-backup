@@ -8,8 +8,10 @@
  *   php cli/gen_ika.php --list --role=admin             # filtruj po roli
  *   php cli/gen_ika.php --list --no-ika                 # tylko użytkownicy bez kodu
  *   php cli/gen_ika.php --show                          # lista z kodami IKA (UWAGA!)
- *   php cli/gen_ika.php --user=ID|email|"imię"         # generuj nowy kod
- *   php cli/gen_ika.php --user=ID --code=123456         # ustaw konkretny kod
+ *   php cli/gen_ika.php --user=ID|email|"imię"         # generuj nowy kod IKA
+ *   php cli/gen_ika.php --user=ID --code=123456         # ustaw konkretny kod IKA
+ *   php cli/gen_ika.php --user=ID --password            # generuj losowe hasło do konta
+ *   php cli/gen_ika.php --user=ID --password=MojeHaslo1 # ustaw konkretne hasło
  *   php cli/gen_ika.php --user=ID --show                # pokaż kod danego użytkownika
  *   php cli/gen_ika.php --user=ID --revoke              # unieważnij sesję IKA
  *   php cli/gen_ika.php --user=ID --unblock             # odblokuj (po 3 błędnych próbach)
@@ -20,8 +22,8 @@
 
 if (PHP_SAPI !== 'cli') { http_response_code(403); die("Tylko CLI.\n"); }
 
-$opts = getopt('', ['list', 'show', 'user:', 'code:', 'all', 'role:', 'no-ika',
-                    'revoke', 'unblock', 'tenant:', 'yes', 'help']);
+$opts = getopt('', ['list', 'show', 'user:', 'code:', 'password::', 'all', 'role:',
+                    'no-ika', 'revoke', 'unblock', 'tenant:', 'yes', 'help']);
 
 if (isset($opts['help'])) { echo <<<H
 gen_ika.php — Zarządzanie kodami IKA/CPC dla dowolnych kont
@@ -37,7 +39,9 @@ DLA KONKRETNEGO UŻYTKOWNIKA:
   --user=ID           Wyszukaj po ID
   --user=email        Wyszukaj po adresie e-mail (pełny)
   --user="Imię Naz"   Wyszukaj po nazwie (fragment, case-insensitive)
-  --code=123456       Ustaw konkretny 6-cyfrowy kod (z --user=)
+  --code=123456       Ustaw konkretny 6-cyfrowy kod IKA (z --user=)
+  --password          Wygeneruj losowe hasło do konta (14 znaków)
+  --password=Hasło1   Ustaw konkretne hasło (min. 8 znaków)
   --show              Pokaż istniejący kod (z --user=)
   --revoke            Unieważnij sesję IKA — wymusi ponowną weryfikację
   --unblock           Odblokuj po 3 nieudanych próbach
@@ -150,6 +154,27 @@ function ika_generate(): string {
     return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 }
 
+function gen_password(int $len = 14): string {
+    $upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    $lower   = 'abcdefghjkmnpqrstuvwxyz';
+    $digits  = '23456789';
+    $special = '!@#$%&*';
+    $all     = $upper . $lower . $digits . $special;
+    $pass    = $upper[random_int(0, strlen($upper)-1)]
+             . $lower[random_int(0, strlen($lower)-1)]
+             . $digits[random_int(0, strlen($digits)-1)]
+             . $special[random_int(0, strlen($special)-1)];
+    for ($i = 4; $i < $len; $i++) $pass .= $all[random_int(0, strlen($all)-1)];
+    return str_shuffle($pass);
+}
+
+function set_password(int $uid, string $plain): void {
+    $hash = password_hash($plain, PASSWORD_BCRYPT);
+    _db()->prepare(
+        "UPDATE users SET password=?, must_change_password=0, locked_until=NULL WHERE id=?"
+    )->execute([$hash, $uid]);
+}
+
 // ── Główna logika ─────────────────────────────────────────────────────────────
 $noask    = isset($opts['yes']);
 $show_all = isset($opts['show']);
@@ -194,7 +219,25 @@ if (isset($opts['user'])) {
         exit(0);
     }
 
-    // --show (bez generowania)
+    // --password [=wartość]
+    if (array_key_exists('password', $opts)) {
+        $plain = is_string($opts['password']) && $opts['password'] !== ''
+            ? $opts['password']
+            : gen_password();
+        if (strlen($plain) < 8) { err("Hasło musi mieć co najmniej 8 znaków."); exit(1); }
+        if ($noask || confirm("Ustawić nowe hasło dla {$u['name']} <{$u['email']}>?")) {
+            set_password((int)$u['id'], $plain);
+            out('');
+            ok("Hasło zmienione!");
+            printf("  Użytkownik:  %s <%s>\n", $u['name'], $u['email']);
+            printf("  Nowe hasło:  \033[1;32m%s\033[0m\n", $plain);
+            out('');
+            warn("Przekaż hasło użytkownikowi bezpiecznym kanałem i poproś o zmianę po pierwszym logowaniu.");
+        }
+        exit(0);
+    }
+
+    // --show (bez generowania IKA)
     if ($show_all && !isset($opts['code']) && !$noask) {
         if (!empty($u['cpc_code'])) {
             warn("Kod IKA (JAWNY): " . $u['cpc_code']);
@@ -204,7 +247,7 @@ if (isset($opts['user'])) {
         exit(0);
     }
 
-    // Generuj / ustaw kod
+    // Generuj / ustaw kod IKA
     $code = isset($opts['code']) ? (string)$opts['code'] : ika_generate();
 
     // Walidacja gdy ręczny kod
