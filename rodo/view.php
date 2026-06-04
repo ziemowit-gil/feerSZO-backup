@@ -109,11 +109,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete_d
     header('Location: view.php?id=' . $id); exit;
 }
 
-// Usuń upoważnienie
+// Usuń upoważnienie (tylko admin) — z logem audytowym
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete' && is_admin()) {
     csrf_check();
+    $u          = current_user();
+    $del_reason = trim($_POST['delete_reason'] ?? '');
+    $del_date   = trim($_POST['delete_date']   ?? date('Y-m-d'));
+    // Zapisz do logu przed usunięciem
+    db_insert('rodo_deletion_log', [
+        'auth_number'     => $row['number'],
+        'auth_person'     => $row['person_name'],
+        'auth_pesel'      => $row['person_pesel'] ?: null,
+        'auth_contract'   => $row['contract_number'] ?: null,
+        'reason'          => $del_reason ?: null,
+        'deleted_by_id'   => (int)$u['id'],
+        'deleted_by_name' => $u['name'] ?? '',
+        'deleted_at'      => $del_date . ' ' . date('H:i:s'),
+    ]);
+    // Usuń pliki z dysku
+    foreach (['signed_doc_path','vol_signed_doc_path','revoke_doc_path'] as $col) {
+        if (!empty($row[$col])) @unlink(UPLOAD_DIR . $row[$col]);
+    }
     db()->prepare("DELETE FROM rodo_authorizations WHERE id=?")->execute([$id]);
-    flash_set('success', 'Upoważnienie usunięte z rejestru.');
+    flash_set('success', 'Upoważnienie ' . h($row['number']) . ' usunięte i odnotowane w logu.');
     header('Location: ' . APP_URL . '/rodo/index.php'); exit;
 }
 
@@ -457,22 +475,73 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
   <?php endif; ?>
 
-  <!-- Usuń -->
+  <!-- Usuń (tylko admin) -->
   <?php if (is_admin()): ?>
   <div class="card border-danger border-opacity-25 border">
     <div class="card-body py-2">
-      <form method="post" onsubmit="return confirm('Trwale usunąć upoważnienie z rejestru?')">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_op" value="delete">
-        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-          <i class="bi bi-trash3 me-1"></i>Usuń z rejestru
-        </button>
-      </form>
+      <button type="button" class="btn btn-sm btn-outline-danger w-100"
+              data-bs-toggle="modal" data-bs-target="#deleteRodoModal">
+        <i class="bi bi-trash3 me-1"></i>Usuń z rejestru
+      </button>
+      <div class="mt-1 text-muted" style="font-size:.72rem;text-align:center">
+        Wymaga podania powodu · Akcja jest logowana
+      </div>
     </div>
   </div>
   <?php endif; ?>
 
 </div><!-- /col-4 -->
 </div><!-- /row -->
+
+<!-- ── Modal usuwania ─────────────────────────────────────────────────────── -->
+<?php if (is_admin()): ?>
+<div class="modal fade" id="deleteRodoModal" tabindex="-1" role="dialog"
+     aria-labelledby="deleteRodoModalTitle" aria-modal="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h2 class="modal-title h5 text-danger" id="deleteRodoModalTitle">
+          <i class="bi bi-trash3 me-2"></i>Usuń upoważnienie z rejestru
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body pt-0">
+        <div class="alert alert-warning py-2 small mb-3">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>
+          Usunięcie jest <strong>nieodwracalne</strong>. Dane osoby upoważnionej zostaną usunięte
+          zgodnie z RODO. Fakt usunięcia zostanie odnotowany w logu audytowym.
+        </div>
+        <div class="mb-2 p-2 bg-light rounded" style="font-size:.85rem">
+          <strong><?= h($row['number']) ?></strong> · <?= h($row['person_name']) ?>
+          <?php if ($row['person_pesel']): ?>
+          <span class="text-muted">· PESEL: <?= h(substr($row['person_pesel'],0,2)) ?>…</span>
+          <?php endif; ?>
+        </div>
+        <form method="post" id="deleteRodoForm">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_op"   value="delete">
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Data usunięcia <span class="text-danger">*</span></label>
+            <input name="delete_date" type="date" class="form-control form-control-sm"
+                   value="<?= date('Y-m-d') ?>" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Powód usunięcia <span class="text-danger">*</span></label>
+            <textarea name="delete_reason" class="form-control form-control-sm" rows="3" required
+                      placeholder="np. Realizacja prawa do bycia zapomnianym (art. 17 RODO), zakończenie stosunku wolontariatu, …"></textarea>
+            <div class="form-text">Odnotowane w logu — wymagane art. 5 ust. 2 RODO (rozliczalność).</div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" form="deleteRodoForm" class="btn btn-danger btn-sm">
+          <i class="bi bi-trash3 me-1"></i>Usuń trwale i odnotuj w logu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

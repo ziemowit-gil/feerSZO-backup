@@ -89,6 +89,34 @@ function rodo_migrate(): void {
         revoked_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
         reason           TEXT
     )");
+
+    // Log usunięć (audit trail — dane osobowe muszą być usuwane ale usunięcie musi być odnotowane)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS rodo_deletion_log (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        auth_number     TEXT    NOT NULL,
+        auth_person     TEXT    NOT NULL,
+        auth_pesel      TEXT,
+        auth_contract   TEXT,
+        reason          TEXT,
+        deleted_by_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        deleted_by_name TEXT    NOT NULL DEFAULT '',
+        deleted_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Auto-update org_name w settings → pełna nazwa z konstant ORG_NAME jeśli krótsza
+    if (defined('ORG_NAME') && ORG_NAME !== '') {
+        try {
+            $stored = db_one("SELECT value FROM settings WHERE key_='org_name'");
+            $current = $stored['value'] ?? '';
+            if (strlen(ORG_NAME) > strlen($current)) {
+                if ($stored) {
+                    $pdo->prepare("UPDATE settings SET value=? WHERE key_='org_name'")->execute([ORG_NAME]);
+                } else {
+                    $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['org_name', ORG_NAME]);
+                }
+            }
+        } catch (\Throwable $e) {}
+    }
 }
 
 // ── Numer upoważnienia ────────────────────────────────────────────────────────
@@ -144,8 +172,12 @@ function rodo_validate_period(string $contract_type, int $contract_id, string $a
 
 // ── Dane organizacji ──────────────────────────────────────────────────────────
 function rodo_org_data(): array {
+    $stored = org_setting('org_name');
+    $const  = defined('ORG_NAME') ? ORG_NAME : '';
+    // Preferuj pełną nazwę — jeśli stała jest dłuższa niż zapisana w settings, użyj stałej
+    $name = (strlen($const) > strlen($stored)) ? $const : ($stored ?: $const);
     return [
-        'name'    => org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''),
+        'name'    => $name,
         'address' => org_setting('org_adres') ?: '',
         'city'    => org_setting('org_miejscowosc') ?: '',
         'nip'     => org_setting('org_nip') ?: '',

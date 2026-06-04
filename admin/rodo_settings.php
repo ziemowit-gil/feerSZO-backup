@@ -51,8 +51,12 @@ include dirname(__DIR__) . '/includes/header.php';
 
       <div class="mb-3">
         <label class="form-label fw-semibold">Pełna nazwa organizacji <span class="text-danger">*</span></label>
-        <input name="org_name" class="form-control" required
-               value="<?= h(org_setting('org_name')) ?>">
+        <?php
+        $stored_name = org_setting('org_name');
+        $const_name  = defined('ORG_NAME') ? ORG_NAME : '';
+        $show_name   = (strlen($const_name) > strlen($stored_name)) ? $const_name : ($stored_name ?: $const_name);
+        ?>
+        <input name="org_name" class="form-control" required value="<?= h($show_name) ?>">
         <div class="form-text">Pojawia się w nagłówku upoważnienia jako „Administrator danych".</div>
       </div>
 

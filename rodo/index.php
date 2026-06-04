@@ -62,6 +62,11 @@ include dirname(__DIR__) . '/includes/header.php';
     <a href="<?= APP_URL ?>/rodo/new.php" class="btn btn-primary">
       <i class="bi bi-plus-lg me-1"></i>Nowe upoważnienie
     </a>
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/rodo/deletion_log.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-journal-x me-1"></i>Log usunięć
+    </a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/admin/rodo_settings.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-gear me-1"></i>Ustawienia RODO
     </a>
