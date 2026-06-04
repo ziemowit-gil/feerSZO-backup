@@ -38,11 +38,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($need_file && !$file_path) {
             $error = 'Nie udało się zapisać pliku. Sprawdź, czy załączyłeś/aś plik PDF/JPG/PNG (max 30 MB).';
         } else {
+            $sign_type = in_array($_POST['sign_type'] ?? '', ['elektroniczne','papierowe'], true)
+                ? $_POST['sign_type'] : 'papierowe';
             issue_certificate(
                 $req_id,
                 $user['id'],
                 $need_text ? $content : '',
-                $need_file ? $file_path : null
+                $need_file ? $file_path : null,
+                $sign_type
             );
             flash_set('success', 'Zaświadczenie zostało wydane i wysłane na adres e-mail wnioskodawcy.');
             header('Location: ' . APP_URL . '/admin/certificates.php');
@@ -137,6 +140,22 @@ include dirname(__DIR__) . '/includes/header.php';
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="req_id" value="<?= $req_id ?>">
         <input type="hidden" name="action" value="issue">
+
+        <!-- Forma podpisania -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Forma podpisania</label>
+          <div class="d-flex gap-3 flex-wrap">
+            <?php $sel_sign = $_POST['sign_type'] ?? 'papierowe'; ?>
+            <label class="d-flex align-items-center gap-2 p-2 border rounded" style="cursor:pointer;font-size:.88rem">
+              <input type="radio" name="sign_type" value="papierowe" <?= $sel_sign === 'papierowe' ? 'checked' : '' ?>>
+              <span><i class="bi bi-pen me-1"></i>Papierowe</span>
+            </label>
+            <label class="d-flex align-items-center gap-2 p-2 border rounded" style="cursor:pointer;font-size:.88rem">
+              <input type="radio" name="sign_type" value="elektroniczne" <?= $sel_sign === 'elektroniczne' ? 'checked' : '' ?>>
+              <span><i class="bi bi-shield-lock me-1"></i>Elektroniczne (ePodpis)</span>
+            </label>
+          </div>
+        </div>
 
         <!-- Tryb wydania -->
         <div class="mb-4">

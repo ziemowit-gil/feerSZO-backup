@@ -18,120 +18,239 @@ $type      = $req['contract_type'];
 $cid       = $req['contract_id'];
 $TABLE     = table_for_type($type);
 $row       = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$cid]);
-$org       = defined('ORG_NAME') ? ORG_NAME : '';
-$issued    = date_pl($req['issued_at']);
-$typ_label = CONTRACT_TYPES[$type] ?? $type;
-$has_file  = !empty($req['certificate_file']);
-$has_text  = !empty($req['certificate_content']);
-$file_url  = $has_file ? certificate_file_url($req['certificate_file']) : '';
-$is_pdf    = $has_file && str_ends_with(strtolower($req['certificate_file']), '.pdf');
+$org       = defined('ORG_NAME') ? ORG_NAME : org_setting('org_name');
+$org_city  = org_setting('org_miejscowosc') ?: '';
+$org_nip   = org_setting('org_nip') ?: '';
+$org_krs   = org_setting('org_krs') ?: '';
+$org_adres = org_setting('org_adres') ?: '';
+
+$issued_date = $req['issued_at'] ? date('d.m.Y', strtotime($req['issued_at'])) : date('d.m.Y');
+$cert_number = $req['cert_number'] ?: ('ZAWOL/' . str_pad($req_id, 4, '0', STR_PAD_LEFT) . '/' . date('Y'));
+$sign_type   = $req['sign_type'] ?? 'papierowe';
+$issuer_name = $req['issued_by_name'] ?? '';
+$typ_label   = CONTRACT_TYPES[$type] ?? $type;
+
+$has_file    = !empty($req['certificate_file']);
+$has_text    = !empty($req['certificate_content']);
+$file_url    = $has_file ? certificate_file_url($req['certificate_file']) : '';
+$is_pdf      = $has_file && str_ends_with(strtolower($req['certificate_file']), '.pdf');
 ?>
 <!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>Zaświadczenie — <?= h($row['numer_umowy'] ?? '') ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<title>Zaświadczenie <?= h($cert_number) ?></title>
 <style>
-@page { size: A4; margin: 2cm; }
-body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; background: #fff; }
-.certificate-page { max-width: 800px; margin: 0 auto; padding: 2rem; }
-.cert-header { text-align: center; margin-bottom: 2rem; border-bottom: 2px solid #000; padding-bottom: 1rem; }
-.cert-org   { font-size: 16pt; font-weight: bold; }
-.cert-title { font-size: 22pt; font-weight: bold; text-transform: uppercase; letter-spacing: .15em; margin: 1.5rem 0 .5rem; }
-.cert-nr    { font-size: 10pt; color: #555; }
-.cert-body  { white-space: pre-wrap; line-height: 1.8; font-size: 12pt; margin: 2rem 0; }
-.cert-signature { margin-top: 3rem; display: flex; justify-content: flex-end; }
-.cert-sign-block { text-align: center; min-width: 220px; }
-.cert-sign-line { border-top: 1px solid #000; margin-bottom: .4rem; padding-top: .4rem; font-size: 10pt; }
-.no-print { background: #f0f4f8; border-bottom: 1px solid #dee2e6; padding: .75rem 1.5rem; }
-.pdf-embed { width: 100%; height: 85vh; border: none; display: block; }
+/* ════════════════════════════════════════════════════════
+   ZAŚWIADCZENIE  ·  druk / PDF  ·  format A4
+   ════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 10.5pt; }
+
+body {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 1rem;
+  color: #000;
+  background: #fff;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 16mm 18mm 14mm 25mm;
+  line-height: 1.45;
+}
+
+/* ── Toolbar (ekran) ──────────────────────────────────── */
+.toolbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+  background: #14532d; color: #fff;
+  padding: .6rem 1.5rem;
+  display: flex; align-items: center; gap: 1rem;
+  font-family: system-ui, sans-serif; font-size: .88rem;
+}
+.toolbar button {
+  background: #fff; color: #14532d; border: none;
+  padding: .4rem 1.2rem; border-radius: 4px;
+  font-weight: 700; cursor: pointer; font-size: .88rem;
+}
+.toolbar a { color: rgba(255,255,255,.8); font-size: .83rem; text-decoration: none; }
+.toolbar a:hover { color: #fff; }
+
+/* ── Nagłówek org ─────────────────────────────────────── */
+.org-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding-bottom: .55rem; border-bottom: 2px solid #000; margin-bottom: .7rem;
+}
+.org-name { font-size: 1.1rem; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; }
+.org-meta  { font-size: .8rem; color: #333; margin-top: .15rem; line-height: 1.4; }
+.doc-ref   { text-align: right; }
+.doc-ref-num {
+  font-size: .82rem; font-weight: bold; letter-spacing: .03em;
+  border: 1.5px solid #14532d; padding: .15rem .5rem;
+  display: inline-block; margin-bottom: .2rem; color: #14532d;
+}
+.doc-ref-date { font-size: .75rem; color: #444; }
+
+/* ── Tytuł ────────────────────────────────────────────── */
+.doc-title-wrap {
+  text-align: center; margin: .7rem 0 .8rem;
+  padding: .65rem 0;
+  border-top: 1px solid #888; border-bottom: 1px solid #888;
+}
+.doc-title {
+  font-size: 1.5rem; font-weight: bold;
+  text-transform: uppercase; letter-spacing: .15em;
+}
+.doc-subtitle { font-size: .78rem; color: #555; margin-top: .25rem; }
+
+/* ── Treść zaświadczenia ──────────────────────────────── */
+.cert-body {
+  white-space: pre-wrap; line-height: 1.7;
+  font-size: .98rem; text-align: justify;
+  margin: .8rem 0 1rem;
+}
+
+/* ── Ramka ePodpisu ───────────────────────────────────── */
+.epodpis-note {
+  border: 1px solid #14532d; padding: .5rem .75rem;
+  border-radius: 3px; font-size: .82rem; margin: .6rem 0;
+  display: flex; gap: .6rem; align-items: center;
+}
+
+/* ── Separator ────────────────────────────────────────── */
+.hr-thin { border: none; border-top: 1px solid #bbb; margin: .7rem 0; }
+
+/* ── Podpisy ──────────────────────────────────────────── */
+.sign-row { display: flex; gap: 2rem; margin-top: .5rem; }
+.sign-block { flex: 1; }
+.sign-city  { font-size: .85rem; margin-bottom: .8rem; }
+.sign-line  { border-bottom: 1px solid #000; margin-bottom: .2rem; height: 2.2rem; }
+.sign-label { font-size: .72rem; text-align: center; color: #333; line-height: 1.35; }
+
+/* ── Stopka ───────────────────────────────────────────── */
+.doc-footer {
+  margin-top: .7rem; padding-top: .4rem; border-top: 1px solid #ccc;
+  font-size: .7rem; color: #777; display: flex; justify-content: space-between;
+}
+
+/* ── PDF embed ────────────────────────────────────────── */
+.pdf-wrap { width: 100%; height: 80vh; border: 1px solid #dee2e6; display: block; margin-bottom: 1rem; }
+
+/* ── Druk ─────────────────────────────────────────────── */
+@media screen {
+  body { margin-top: 3rem; box-shadow: 0 0 20px rgba(0,0,0,.18); }
+}
 @media print {
-  .no-print  { display: none !important; }
-  .certificate-page { padding: 0; }
-  .pdf-embed-wrap { display: none !important; }
-  body { background: #fff; }
+  body { margin: 0; padding: 12mm 16mm 10mm 22mm; box-shadow: none; }
+  .toolbar, .pdf-wrap-screen { display: none !important; }
+  @page { size: A4 portrait; margin: 0; }
 }
 </style>
 </head>
 <body>
 
-<!-- Pasek akcji — tylko ekran -->
-<div class="no-print d-flex justify-content-between align-items-center flex-wrap gap-2">
-  <span class="fw-semibold text-muted small">
-    <i class="bi bi-award"></i>
-    Zaświadczenie · <?= h($typ_label) ?> <?= h($row['numer_umowy'] ?? '') ?>
-    · wydane <?= h($issued) ?>
-  </span>
-  <div class="d-flex gap-2 flex-wrap">
-    <?php if ($has_file): ?>
-    <a href="<?= h($file_url) ?>" download class="btn btn-sm btn-primary">
-      <i class="bi bi-download"></i> Pobierz plik
-    </a>
-    <?php endif; ?>
-    <?php if ($has_text): ?>
-    <button onclick="window.print()" class="btn btn-sm btn-outline-dark">
-      <i class="bi bi-printer"></i> Drukuj tekst
-    </button>
-    <?php endif; ?>
-    <a href="<?= h(contract_url($type, $cid)) ?>" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Wróć do umowy
-    </a>
-  </div>
+<!-- Toolbar -->
+<div class="toolbar" aria-hidden="true">
+  <button onclick="window.print()">🖨 Drukuj / PDF</button>
+  <?php if ($has_file): ?>
+  <a href="<?= h($file_url) ?>" download>⬇ Pobierz plik</a>
+  <?php endif; ?>
+  <a href="<?= h(contract_url($type, $cid)) ?>">← Wróć do umowy</a>
+  <span style="margin-left:auto;opacity:.7"><?= h($cert_number) ?></span>
 </div>
 
 <?php if ($has_file && $is_pdf): ?>
-<!-- PDF wbudowany (skan / ePodpis) -->
-<div class="pdf-embed-wrap no-print">
-  <iframe src="<?= h($file_url) ?>" class="pdf-embed"
-          title="Zaświadczenie PDF"></iframe>
+<!-- PDF embed — tylko ekran -->
+<div class="pdf-wrap-screen" style="margin-bottom:1rem">
+  <iframe src="<?= h($file_url) ?>" class="pdf-wrap"
+          title="Zaświadczenie — plik PDF z ePodpisem"></iframe>
+  <div style="font-family:system-ui,sans-serif;font-size:.82rem;text-align:center;color:#555;padding:.5rem">
+    Powyżej: plik PDF z podpisem elektronicznym.
+    Poniżej: wersja do wydruku.
+    <a href="<?= h($file_url) ?>" download style="color:#14532d">Pobierz plik ↓</a>
+  </div>
 </div>
 <?php elseif ($has_file): ?>
-<!-- Obraz (JPG/PNG) -->
-<div class="no-print text-center p-4">
+<div class="pdf-wrap-screen no-print text-center p-3">
   <img src="<?= h($file_url) ?>" alt="Zaświadczenie" style="max-width:100%;border:1px solid #dee2e6">
 </div>
 <?php endif; ?>
 
+<!-- ═══ DOKUMENT ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Nagłówek org -->
+<div class="org-header">
+  <div>
+    <div class="org-name"><?= h($org) ?></div>
+    <div class="org-meta">
+      <?php if ($org_adres): ?><?= h($org_adres) ?><br><?php endif; ?>
+      <?php if ($org_nip): ?>NIP: <?= h($org_nip) ?><?php if ($org_krs): ?> &nbsp;·&nbsp; KRS: <?= h($org_krs) ?><?php endif; ?><?php endif; ?>
+    </div>
+  </div>
+  <div class="doc-ref">
+    <div class="doc-ref-num">Nr <?= h($cert_number) ?></div>
+    <div class="doc-ref-date">
+      <?= h($org_city) ?>, dnia <?= $issued_date ?>
+    </div>
+  </div>
+</div>
+
+<!-- Tytuł -->
+<div class="doc-title-wrap">
+  <div class="doc-title">Zaświadczenie</div>
+  <div class="doc-subtitle">
+    <?= h($typ_label) ?> · <?= h($row['numer_umowy'] ?? '') ?>
+    <?php if ($req['cel']): ?> · cel: <?= h($req['cel']) ?><?php endif; ?>
+  </div>
+</div>
+
+<!-- Treść -->
 <?php if ($has_text): ?>
-<!-- Wersja tekstowa / druk -->
-<div class="certificate-page <?= $has_file ? 'mt-4 border-top pt-4' : '' ?>">
+<div class="cert-body"><?= h($req['certificate_content']) ?></div>
+<?php endif; ?>
 
-  <?php if ($has_file): ?>
-  <div class="no-print alert alert-secondary small">
-    <i class="bi bi-info-circle"></i>
-    Poniżej wersja tekstowa zaświadczenia — możesz ją wydrukować klikając „Drukuj tekst".
+<!-- Forma podpisania -->
+<?php if ($sign_type === 'elektroniczne'): ?>
+<div class="epodpis-note">
+  <span style="font-size:1.1rem">🔐</span>
+  <div>
+    <strong>Dokument podpisany elektronicznie</strong> (ePodpis kwalifikowany) —
+    podpis weryfikowalny w pliku PDF dołączonym powyżej.
+    Dokument papierowy nie wymaga odręcznego podpisu.
   </div>
-  <?php endif; ?>
-
-  <div class="cert-header">
-    <div class="cert-org"><?= h($org) ?></div>
-    <div class="cert-title">Zaświadczenie</div>
-    <div class="cert-nr">
-      Nr: <?= h($typ_label) ?> / <?= h($row['numer_umowy'] ?? '') ?> / <?= date('Y', strtotime($req['issued_at'])) ?>
-    </div>
-    <div style="font-size:10pt;color:#555">Data wydania: <?= h($issued) ?></div>
-  </div>
-
-  <div class="cert-body"><?= h($req['certificate_content']) ?></div>
-
-  <div class="cert-signature">
-    <div class="cert-sign-block">
-      <br><br>
-      <div class="cert-sign-line">Podpis osoby upoważnionej</div>
-      <div style="font-size:10pt"><?= h($req['issued_by_name'] ?? '') ?></div>
-    </div>
-  </div>
-
-  <hr style="margin-top:3rem;border-color:#ccc">
-  <div style="font-size:9pt;color:#888;text-align:center">
-    Dokument wygenerowany przez system Rejestru Umów <?= h($org) ?> · <?= h($issued) ?>
-    <?php if ($req['cel']): ?> · Cel: <?= h($req['cel']) ?><?php endif; ?>
-  </div>
-
 </div>
 <?php endif; ?>
+
+<!-- Podpis -->
+<hr class="hr-thin">
+<div class="sign-row">
+  <div class="sign-block" style="flex:1.3">
+    <div class="sign-city">
+      <?= h($org_city) ?>, dnia <?= $issued_date ?>
+    </div>
+    <?php if ($sign_type === 'papierowe'): ?>
+    <div class="sign-line"></div>
+    <div class="sign-label">
+      (podpis osoby upoważnionej do wystawienia zaświadczenia)
+      <?php if ($issuer_name): ?><br><strong><?= h($issuer_name) ?></strong><?php endif; ?>
+    </div>
+    <?php else: ?>
+    <div class="sign-label" style="padding-top:.3rem;border-top:1px solid #888;text-align:left">
+      <strong>ePodpis:</strong> <?= $issuer_name ? h($issuer_name) : 'podpisano elektronicznie' ?>
+    </div>
+    <?php endif; ?>
+  </div>
+  <div style="flex:.4"></div>
+</div>
+
+<!-- Stopka -->
+<div class="doc-footer">
+  <span>
+    <?= h($org) ?>
+    · zaświadczenie wydane dla: <?= h($req['requester_name']) ?>
+  </span>
+  <span><?= h($cert_number) ?> · <?= $issued_date ?></span>
+</div>
 
 </body>
 </html>

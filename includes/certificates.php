@@ -1,4 +1,30 @@
 <?php
+
+// ── Migracja kolumn ───────────────────────────────────────────────────────────
+(function () {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN cert_number  TEXT"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN sign_type    TEXT NOT NULL DEFAULT 'papierowe'"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN issued_by_name TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+})();
+
+// ── Numeracja: ZAWOL/NNNN/RRRR ───────────────────────────────────────────────
+function cert_next_number(string $prefix = 'ZAWOL'): string {
+    $year = date('Y');
+    $last = db_one(
+        "SELECT cert_number FROM certificate_requests WHERE cert_number LIKE ? ORDER BY id DESC LIMIT 1",
+        ["{$prefix}/%/{$year}"]
+    );
+    if ($last) {
+        $seq = (int)explode('/', $last['cert_number'])[1] + 1;
+    } else {
+        $seq = 1;
+    }
+    return "{$prefix}/" . str_pad($seq, 4, '0', STR_PAD_LEFT) . "/{$year}";
+}
+
 const CERTIFICATE_STATUSES = [
     'oczekuje'   => ['label' => 'Oczekuje',  'class' => 'warning'],
     'wydane'     => ['label' => 'Wydane',    'class' => 'success'],
@@ -91,16 +117,21 @@ function create_certificate_request(string $type, int $id, ?int $user_id, string
  * Wydaje zaświadczenie. Przyjmuje treść tekstową i/lub ścieżkę do uploadowanego pliku.
  * Przynajmniej jedno z $content / $file_path musi być niepuste.
  */
-function issue_certificate(int $req_id, int $admin_id, string $content, ?string $file_path = null): bool {
+function issue_certificate(int $req_id, int $admin_id, string $content, ?string $file_path = null, string $sign_type = 'papierowe'): bool {
     $req = get_certificate_request($req_id);
     if (!$req || $req['status'] !== 'oczekuje') return false;
     if (!$content && !$file_path) return false;
 
+    $number    = $req['cert_number'] ?: cert_next_number();
+    $issuer    = db_one("SELECT name FROM users WHERE id=?", [$admin_id]);
+    $issuer_nm = $issuer['name'] ?? '';
+
     db()->prepare(
         "UPDATE certificate_requests
-         SET status='wydane', issued_by=?, issued_at=?, certificate_content=?, certificate_file=?
+         SET status='wydane', issued_by=?, issued_by_name=?, issued_at=?,
+             certificate_content=?, certificate_file=?, cert_number=?, sign_type=?
          WHERE id=?"
-    )->execute([$admin_id, date('Y-m-d H:i:s'), $content ?: null, $file_path, $req_id]);
+    )->execute([$admin_id, $issuer_nm, date('Y-m-d H:i:s'), $content ?: null, $file_path, $number, $sign_type, $req_id]);
 
     require_once __DIR__ . '/approval.php';
     $note = 'Wydano zaświadczenie dla: ' . $req['requester_name'];
