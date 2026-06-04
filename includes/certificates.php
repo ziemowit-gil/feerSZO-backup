@@ -165,44 +165,59 @@ function get_contract_person_name(string $type, array $row): string {
     return $row['imie_nazwisko'] ?? $row['nazwa_firmy'] ?? '';
 }
 
+/**
+ * Generuje treść zaświadczenia (wyłącznie akapity merytoryczne).
+ * Nie zawiera tytułu, daty ani linii podpisu — za to odpowiada print.php.
+ * Akapity oddzielone pustą linią (\n\n).
+ */
 function generate_certificate_content(string $type, array $row, array $req): string {
     $org  = defined('ORG_NAME') ? ORG_NAME : '';
-    $typ  = CONTRACT_TYPES[$type] ?? $type;
     $name = get_contract_person_name($type, $row);
     $nr   = $row['numer_umowy'] ?? '';
     $od   = !empty($row['data_rozpoczecia']) ? date_pl($row['data_rozpoczecia']) : '—';
     $do   = !empty($row['data_zakonczenia']) ? date_pl($row['data_zakonczenia']) : '—';
     $dz   = !empty($row['data_zawarcia'])    ? date_pl($row['data_zawarcia'])    : '—';
-    $today = date_pl(date('Y-m-d'));
 
     $przedmiot = '';
-    if (!empty($row['przedmiot_zlecenia']))  $przedmiot = $row['przedmiot_zlecenia'];
-    elseif (!empty($row['przedmiot_dziela'])) $przedmiot = $row['przedmiot_dziela'];
-    elseif (!empty($row['zakres_dzialan']))   $przedmiot = $row['zakres_dzialan'];
-    elseif (!empty($row['stanowisko']))       $przedmiot = $row['stanowisko'];
-    elseif (!empty($row['zakres_uslug']))     $przedmiot = $row['zakres_uslug'];
+    if (!empty($row['przedmiot_porozumienia'])) $przedmiot = $row['przedmiot_porozumienia'];
+    elseif (!empty($row['przedmiot_zlecenia'])) $przedmiot = $row['przedmiot_zlecenia'];
+    elseif (!empty($row['przedmiot_dziela']))   $przedmiot = $row['przedmiot_dziela'];
+    elseif (!empty($row['zakres_dzialan']))      $przedmiot = $row['zakres_dzialan'];
+    elseif (!empty($row['stanowisko']))          $przedmiot = $row['stanowisko'];
+    elseif (!empty($row['zakres_uslug']))        $przedmiot = $row['zakres_uslug'];
 
-    $wynagrodzenie = !empty($row['wynagrodzenie_brutto'])
-        ? "\n\nWynagrodzenie brutto: " . money($row['wynagrodzenie_brutto'])
-        : '';
+    // Akapit 1 — kto, co, kiedy
+    $p1 = "Niniejszym zaświadcza się, że Pan/Pani {$name} był/była wolontariuszem/wolontariuszką "
+        . "w {$org} na podstawie Porozumienia o Wolontariacie nr {$nr}, "
+        . "zawartego w dniu {$dz}.";
 
-    $przedmiot_line = $przedmiot ? "\n\nPrzedmiot: " . $przedmiot : '';
+    // Akapit 2 — okres
+    if (!empty($row['bezterminowa'])) {
+        $p2 = "Porozumienie zawarto na czas nieokreślony, obowiązujące od dnia {$od}.";
+    } else {
+        $p2 = "Okres wolontariatu: od {$od} do {$do}.";
+    }
 
-    $text  = "ZAŚWIADCZENIE\n\n";
-    $text .= "Niniejszym zaświadcza się, że Pan/Pani {$name}\n";
-    $text .= "zawarł/zawarła z {$org} {$typ} nr {$nr}\n";
-    $text .= "w dniu {$dz}, na okres od {$od} do {$do}.";
-    $text .= $przedmiot_line;
-    $text .= $wynagrodzenie;
-    $text .= "\n\nUmowa miała status: " . ($row['status'] ?? '—') . ".";
-    $text .= "\n\nZaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej\n";
-    $text .= "w celu: " . $req['cel'] . ".\n\n";
-    $text .= $today . "\n\n";
-    $text .= "............................................\n";
-    $text .= "Podpis osoby upoważnionej\n";
-    $text .= $org;
+    // Akapit 3 — zakres (opcjonalnie)
+    $p3 = $przedmiot ? "Zakres działań wolontariackich:\n{$przedmiot}" : '';
 
-    return $text;
+    // Akapit 4 — godziny (opcjonalnie)
+    $p4 = '';
+    $h_week = $row['godzin_tygodniowo'] ?? '';
+    $h_tot  = $row['godzin_przepracowanych'] ?? '';
+    if ($h_week || $h_tot) {
+        $parts = [];
+        if ($h_week) $parts[] = "wymiar: {$h_week} godz./tydzień";
+        if ($h_tot)  $parts[] = "przepracowanych łącznie: {$h_tot} godz.";
+        $p4 = 'Ewidencja czasu pracy wolontariusza: ' . implode(', ', $parts) . '.';
+    }
+
+    // Akapit 5 — cel
+    $p5 = $req['cel']
+        ? "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej w celu: {$req['cel']}."
+        : "Zaświadczenie wydaje się na wniosek zainteresowanego/zainteresowanej.";
+
+    return implode("\n\n", array_filter([$p1, $p2, $p3, $p4, $p5]));
 }
 
 /**
