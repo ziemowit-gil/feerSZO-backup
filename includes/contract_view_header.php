@@ -66,7 +66,21 @@ $_cvh_accent = match($_cvh_st['class']) {
 <?php if (!empty($_m365_creds)): ?>
 <div class="alert alert-warning border-warning mb-2 small">
   <strong><i class="bi bi-key-fill"></i> Hasło jednorazowe (zapisz teraz!):</strong><br>
-  <code><?= h($_m365_creds['login']) ?></code> / <code><?= h($_m365_creds['pass']) ?></code>
+  <span class="d-inline-flex align-items-center gap-1 mt-1">
+    Login: <code><?= h($_m365_creds['login']) ?></code>
+    <button type="button" data-copy="<?= h($_m365_creds['login']) ?>" title="Kopiuj login"
+            style="background:none;border:none;padding:0;color:#92400e;cursor:pointer;font-size:.85rem;line-height:1">
+      <i class="bi bi-copy"></i>
+    </button>
+  </span>
+  &nbsp;/&nbsp;
+  <span class="d-inline-flex align-items-center gap-1">
+    Hasło: <code><?= h($_m365_creds['pass']) ?></code>
+    <button type="button" data-copy="<?= h($_m365_creds['pass']) ?>" title="Kopiuj hasło"
+            style="background:none;border:none;padding:0;color:#92400e;cursor:pointer;font-size:.85rem;line-height:1">
+      <i class="bi bi-copy"></i>
+    </button>
+  </span>
   <?php if ($_m365_creds['sent']): ?>
   <br><span class="text-success"><i class="bi bi-check-circle"></i> Mail wysłany na: <?= h($_m365_creds['email']) ?></span>
   <?php else: ?>
@@ -87,6 +101,14 @@ $_cvh_accent = match($_cvh_st['class']) {
         <i class="bi <?= h($_cvh_icon) ?>"></i>
         <?= h($_cvh_label) ?>
         <span style="font-weight:400;opacity:.55;margin-left:.5rem;letter-spacing:0"><?= h($_cvh_row['numer_umowy']) ?></span>
+        <?php if (!empty($_cvh_row['numer_umowy'])): ?>
+        <button type="button"
+                data-copy="<?= h($_cvh_row['numer_umowy']) ?>"
+                title="Kopiuj numer umowy"
+                style="background:none;border:none;padding:0 0 0 .3rem;color:#94a3b8;cursor:pointer;font-size:.85rem;line-height:1;vertical-align:middle">
+          <i class="bi bi-copy"></i>
+        </button>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -207,7 +229,17 @@ $_cvh_accent = match($_cvh_st['class']) {
       <div class="cvh-stat-label">Strona umowy</div>
       <div class="cvh-stat-val fw-semibold"><?= h($_cvh_person) ?></div>
       <?php if ($_cvh_person_sub): ?>
-      <div class="cvh-stat-sub"><?= h($_cvh_person_sub) ?></div>
+      <div class="cvh-stat-sub" style="display:inline-flex;align-items:center;gap:.25rem">
+        <?= h($_cvh_person_sub) ?>
+        <?php if (filter_var($_cvh_person_sub, FILTER_VALIDATE_EMAIL)): ?>
+        <button type="button"
+                data-copy="<?= h($_cvh_person_sub) ?>"
+                title="Kopiuj e-mail"
+                style="background:none;border:none;padding:0;color:#94a3b8;cursor:pointer;font-size:.8rem;line-height:1;flex-shrink:0">
+          <i class="bi bi-copy"></i>
+        </button>
+        <?php endif; ?>
+      </div>
       <?php endif; ?>
     </div>
     <?php endif; ?>

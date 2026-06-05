@@ -1310,6 +1310,16 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     })();
     </script>
     </nav><!-- /tb-mods -->
+    <button type="button"
+            id="shortcuts-hint"
+            onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}))"
+            title="Skróty klawiaturowe (?)"
+            aria-label="Skróty klawiaturowe"
+            style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:.18rem .45rem;font-size:.72rem;color:#94a3b8;cursor:pointer;line-height:1.4;transition:all .1s;white-space:nowrap;flex-shrink:0"
+            onmouseover="this.style.borderColor='#94a3b8';this.style.color='#475569'"
+            onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#94a3b8'">
+      <kbd style="background:none;border:none;padding:0;font-size:inherit;color:inherit;font-family:inherit">?</kbd>
+    </button>
     <?php endif; // can_edit ?>
 
     <?php if ($_user):
