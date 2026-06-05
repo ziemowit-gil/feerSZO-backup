@@ -25,30 +25,62 @@ if (PHP_SAPI !== 'cli') { http_response_code(403); die("Tylko CLI.\n"); }
 $opts = getopt('', ['list', 'show', 'user:', 'code:', 'password::', 'all', 'role:',
                     'no-ika', 'revoke', 'unblock', 'tenant:', 'yes', 'help']);
 
-if (isset($opts['help'])) { echo <<<H
-gen_ika.php — Zarządzanie kodami IKA/CPC dla dowolnych kont
+if (isset($opts['help']) || (!array_diff(array_keys($opts), ['tenant']) && empty($opts))) {
+    $is_help = isset($opts['help']);
+    echo <<<H
 
-TRYBY:
-  --list              Lista użytkowników (bez kodów)
-  --list --no-ika     Tylko użytkownicy bez przypisanego kodu IKA
-  --list --role=ROLA  Filtruj po roli (admin, editor, viewer, crm_user, ...)
-  --show              Lista z kodami IKA w jawnej postaci [⚠ wrażliwe dane]
-  --all               Generuj kody dla wszystkich bez IKA (lub + --role=)
 
-DLA KONKRETNEGO UŻYTKOWNIKA:
-  --user=ID           Wyszukaj po ID
-  --user=email        Wyszukaj po adresie e-mail (pełny)
-  --user="Imię Naz"   Wyszukaj po nazwie (fragment, case-insensitive)
-  --code=123456       Ustaw konkretny 6-cyfrowy kod IKA (z --user=)
-  --password          Wygeneruj losowe hasło do konta (14 znaków)
-  --password=Hasło1   Ustaw konkretne hasło (min. 8 znaków)
-  --show              Pokaż istniejący kod (z --user=)
-  --revoke            Unieważnij sesję IKA — wymusi ponowną weryfikację
-  --unblock           Odblokuj po 3 nieudanych próbach
+  \033[1;34mgen_ika.php\033[0m — Zarządzanie kodami IKA/hasłami dla kont w systemie SZO
+  ════════════════════════════════════════════════════════════════════
 
-INNE:
-  --tenant=SLUG       Baza wybranego tenanta SaaS
-  --yes               Pomiń interaktywne potwierdzenia
+  \033[1mUŻYCIE:\033[0m
+    php cli/gen_ika.php \033[2m[TRYB] [OPCJE]\033[0m
+
+  \033[1mPRZEGLĄD I FILTROWANIE:\033[0m
+    \033[32m--list\033[0m                     Lista wszystkich użytkowników (kod IKA ukryty)
+    \033[32m--list --no-ika\033[0m            Tylko użytkownicy BEZ przypisanego kodu IKA
+    \033[32m--list --role=\033[0m\033[3mROLA\033[0m          Filtruj po roli: admin | editor | viewer | crm_user
+    \033[32m--show\033[0m                     Lista z kodami IKA w jawnej postaci \033[31m[⚠ wrażliwe]\033[0m
+
+  \033[1mDLA KONKRETNEGO UŻYTKOWNIKA:\033[0m
+    \033[32m--user=\033[0m\033[3mID\033[0m                  Znajdź po numerze ID
+    \033[32m--user=\033[0m\033[3memail@domena.pl\033[0m     Znajdź po pełnym adresie e-mail
+    \033[32m--user=\033[0m\033[3m"Jan Kow"\033[0m           Znajdź po fragmencie imienia (case-insensitive)
+
+    \033[32m--user=ID\033[0m                  Wygeneruj nowy losowy 6-cyfrowy kod IKA
+    \033[32m--user=ID --code=\033[0m\033[3m123456\033[0m    Ustaw konkretny kod (4–10 cyfr)
+    \033[32m--user=ID --show\033[0m           Pokaż aktualny kod IKA \033[31m[⚠ wrażliwe]\033[0m
+    \033[32m--user=ID --password\033[0m       Wygeneruj losowe hasło (14 znaków, ze znakami spec.)
+    \033[32m--user=ID --password=\033[0m\033[3mHasło1!\033[0m Ustaw własne hasło (min. 8 znaków)
+    \033[32m--user=ID --revoke\033[0m         Unieważnij aktywną sesję IKA — wymuś ponowną weryfikację
+    \033[32m--user=ID --unblock\033[0m        Odblokuj konto po zbyt wielu błędnych próbach IKA
+
+  \033[1mGENEROWANIE MASOWE:\033[0m
+    \033[32m--all\033[0m                      Generuj kody dla WSZYSTKICH bez IKA
+    \033[32m--all --role=\033[0m\033[3mROLA\033[0m          Generuj dla wszystkich bez IKA w danej roli
+
+  \033[1mINNE OPCJE:\033[0m
+    \033[32m--tenant=\033[0m\033[3mSLUG\033[0m              Pracuj na bazie tenanta SaaS (tenants/SLUG/umowy.db)
+    \033[32m--yes\033[0m                      Pomiń wszystkie interaktywne potwierdzenia (tryb batch)
+    \033[32m--help\033[0m                     Wyświetl tę pomoc
+
+  \033[1mPRZYKŁADY:\033[0m
+    php cli/gen_ika.php --list --no-ika          # kto nie ma jeszcze kodu IKA?
+    php cli/gen_ika.php --user=jan@org.pl        # generuj kod dla Jana
+    php cli/gen_ika.php --user=5 --code=842917   # ustaw konkretny kod dla ID=5
+    php cli/gen_ika.php --user=5 --show          # podgląd kodu ID=5
+    php cli/gen_ika.php --user=5 --password      # resetuj hasło (losowe)
+    php cli/gen_ika.php --user=5 --revoke        # wymuś ponowną weryfikację IKA
+    php cli/gen_ika.php --all --yes              # masowy reset IKA bez pytania
+    php cli/gen_ika.php --all --role=editor      # masowy reset dla edytorów
+    php cli/gen_ika.php --tenant=ngo1 --list     # lista dla tenanta "ngo1"
+
+  \033[1mCO TO JEST KOD IKA?\033[0m
+    IKA (Identyfikator Kodu Autoryzacyjnego) to jednorazowy lub stały
+    kod PIN umożliwiający dostęp do portalu wolontariusza bez hasła.
+    Przechowywany jako \033[3mcpc_code\033[0m w tabeli \033[3musers\033[0m.
+    \033[31mNIGDY nie udostępniaj kodów przez nieszyfrowane kanały.\033[0m
+
 
 H;
     exit(0);
