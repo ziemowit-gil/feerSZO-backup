@@ -54,6 +54,20 @@ include dirname(__DIR__) . '/includes/header.php';
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 
+<!-- ── Informacja o module Strategii ──────────────────────────────────────── -->
+<div class="alert alert-primary d-flex align-items-center gap-3 py-2 mb-3" style="border-left:4px solid #7c3aed;background:#f5f3ff;border-color:#7c3aed">
+  <i class="bi bi-bullseye fs-5 flex-shrink-0" style="color:#7c3aed"></i>
+  <div class="flex-grow-1 small">
+    <strong>Moduł Strategii Rozwoju NGO</strong> został przeniesiony jako osobny moduł.
+    Cele strategiczne, sfery pożytku publicznego i sprawozdawczość znajdziesz teraz w dedykowanym panelu.
+  </div>
+  <a href="<?= APP_URL ?>/strategy/index.php"
+     class="btn btn-sm flex-shrink-0"
+     style="background:#7c3aed;color:#fff;border:none;white-space:nowrap">
+    <i class="bi bi-arrow-right me-1"></i>Przejdź do Strategii
+  </a>
+</div>
+
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0"><i class="bi bi-calendar-event text-primary"></i> Działania</h4>
   <div class="d-flex gap-2">
