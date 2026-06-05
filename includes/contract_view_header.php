@@ -86,6 +86,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       <div class="contract-hero-type">
         <i class="bi <?= h($_cvh_icon) ?>"></i>
         <?= h($_cvh_label) ?>
+        <span style="font-weight:400;opacity:.55;margin-left:.5rem;letter-spacing:0"><?= h($_cvh_row['numer_umowy']) ?></span>
       </div>
     </div>
 
