@@ -189,9 +189,9 @@ $groups = [
         'icon'  => 'bi-bullseye',
         'color' => 'purple',
         'items' => [
-            ['icon'=>'bi-bullseye',              'label'=>'Strategia Rozwoju NGO',    'url'=>'/admin/strategy.php'],
-            ['icon'=>'bi-globe2',                'label'=>'Sfery Pożytku Publicznego','url'=>'/admin/strategy_sphere.php'],
-            ['icon'=>'bi-bar-chart-line',        'label'=>'Statystyki strategiczne',  'url'=>'/reports/volunteer_stats.php'],
+            ['icon'=>'bi-bullseye',              'label'=>'Strategia Rozwoju NGO',    'url'=>'/strategy/index.php'],
+            ['icon'=>'bi-globe2',                'label'=>'Sfery Pożytku Publicznego','url'=>'/strategy/spheres/index.php'],
+            ['icon'=>'bi-bar-chart-line',        'label'=>'Raporty strategiczne',     'url'=>'/strategy/reports/index.php'],
         ],
     ],
 
