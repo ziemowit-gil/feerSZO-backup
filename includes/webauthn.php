@@ -22,17 +22,21 @@ function webauthn_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
-    db()->exec("CREATE TABLE IF NOT EXISTS webauthn_credentials (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        credential_id TEXT NOT NULL UNIQUE,
-        public_key TEXT NOT NULL,
-        sign_count INTEGER NOT NULL DEFAULT 0,
-        alg INTEGER NOT NULL DEFAULT -7,
-        name TEXT NOT NULL DEFAULT 'Klucz sprzętowy',
-        created_at TEXT NOT NULL,
-        last_used_at TEXT NULL
-    )");
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS webauthn_credentials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            credential_id TEXT NOT NULL UNIQUE,
+            public_key TEXT NOT NULL,
+            sign_count INTEGER NOT NULL DEFAULT 0,
+            alg INTEGER NOT NULL DEFAULT -7,
+            name TEXT NOT NULL DEFAULT 'Klucz sprzętowy',
+            created_at TEXT NOT NULL,
+            last_used_at TEXT NULL
+        )");
+    } catch (\Throwable $e) {
+        error_log('[webauthn] migrate: ' . $e->getMessage());
+    }
 }
 
 function webauthn_b64u_encode(string $data): string {

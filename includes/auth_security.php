@@ -14,28 +14,29 @@ function _auth_security_init(): void {
     $pdo = db();
 
     // Tabela prób logowania (brute-force)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
-        identifier TEXT NOT NULL,  -- email lub IP
+        identifier TEXT NOT NULL,
         ip         TEXT NOT NULL DEFAULT '',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_attempts_ident ON login_attempts(identifier, created_at)");
+    )"); } catch (\Throwable $e) { error_log('[auth_security] login_attempts: ' . $e->getMessage()); }
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_attempts_ident ON login_attempts(identifier, created_at)");
+    } catch (\Throwable $e) {}
 
     // Tabela historii logowań
-    $pdo->exec("CREATE TABLE IF NOT EXISTS login_log (
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS login_log (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id    INTEGER DEFAULT NULL,
         email      TEXT NOT NULL DEFAULT '',
         ip         TEXT NOT NULL DEFAULT '',
         user_agent TEXT NOT NULL DEFAULT '',
-        action     TEXT NOT NULL DEFAULT 'login',  -- login|logout|login_fail|login_blocked|login_2fa|login_sms|login_code
+        action     TEXT NOT NULL DEFAULT 'login',
         detail     TEXT NOT NULL DEFAULT '',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
+    )"); } catch (\Throwable $e) { error_log('[auth_security] login_log: ' . $e->getMessage()); }
 
     // Aktywne sesje
-    $pdo->exec("CREATE TABLE IF NOT EXISTS user_sessions (
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_sessions (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id     INTEGER NOT NULL,
         token       TEXT NOT NULL UNIQUE,
@@ -43,9 +44,11 @@ function _auth_security_init(): void {
         user_agent  TEXT NOT NULL DEFAULT '',
         last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id)");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token)");
+    )"); } catch (\Throwable $e) { error_log('[auth_security] user_sessions: ' . $e->getMessage()); }
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id)");
+    } catch (\Throwable $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token)");
+    } catch (\Throwable $e) {}
 
     // Kolumna must_change_password w users
     try { $pdo->exec("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"); }

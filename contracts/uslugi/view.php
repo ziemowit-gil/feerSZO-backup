@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
 require_once dirname(dirname(__DIR__)) . '/includes/docusign.php';
+require_once dirname(dirname(__DIR__)) . '/includes/autenti.php';
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 
@@ -155,7 +156,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
     </button>
   </li>
 
-  <?php if (docusign_is_enabled() || current_user()['role'] === 'admin'): ?>
+  <?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (docusign_is_enabled() || current_user()['role'] === 'admin')): ?>
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="tab-docusign-btn" data-bs-toggle="tab"
             data-bs-target="#tab-docusign" type="button" role="tab">
@@ -166,6 +167,23 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
       <?php elseif ($__ds === 'completed'): ?>
       <span class="badge bg-success ms-1">✓</span>
       <?php elseif (in_array($__ds, ['declined','voided'])): ?>
+      <span class="badge bg-danger ms-1">✗</span>
+      <?php endif; ?>
+    </button>
+  </li>
+  <?php endif; ?>
+
+  <?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (autenti_is_enabled() || current_user()['role'] === 'admin')): ?>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-autenti-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-autenti" type="button" role="tab">
+      <i class="bi bi-pen-fill"></i> Autenti
+      <?php $__at = $row['autenti_status'] ?? ''; ?>
+      <?php if ($__at === 'IN_PROGRESS'): ?>
+      <span class="badge bg-warning text-dark ms-1">●</span>
+      <?php elseif ($__at === 'COMPLETED'): ?>
+      <span class="badge bg-success ms-1">✓</span>
+      <?php elseif (in_array($__at, ['DECLINED','CANCELLED','EXPIRED'])): ?>
       <span class="badge bg-danger ms-1">✗</span>
       <?php endif; ?>
     </button>
@@ -788,8 +806,12 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 
 </div><!-- /tab-historia -->
 
-<?php if (docusign_is_enabled() || current_user()['role'] === 'admin'): ?>
+<?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (docusign_is_enabled() || current_user()['role'] === 'admin')): ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/docusign_tab.php'; ?>
+<?php endif; ?>
+
+<?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (autenti_is_enabled() || current_user()['role'] === 'admin')): ?>
+<?php include dirname(dirname(__DIR__)) . '/includes/autenti_tab.php'; ?>
 <?php endif; ?>
 
 </div><!-- /tab-content -->

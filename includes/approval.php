@@ -105,17 +105,21 @@ function decide_approval(int $appr_id, string $decision, string $note, ?int $use
 }
 
 function log_contract_action(string $type, int $id, int $user_id, string $action, string $note = ''): void {
-    $user = $user_id ? db_one("SELECT name FROM users WHERE id=?", [$user_id]) : null;
-    db_insert('contract_audit_log', [
-        'contract_type'  => $type,
-        'contract_id'    => $id,
-        'user_id'        => $user_id ?: null,
-        'user_snapshot'  => $user['name'] ?? 'System',
-        'action'         => $action,
-        'note'           => $note,
-        'ip_address'     => $_SERVER['REMOTE_ADDR'] ?? '',
-        'created_at'     => date('Y-m-d H:i:s'),
-    ]);
+    try {
+        $user = $user_id ? db_one("SELECT name FROM users WHERE id=?", [$user_id]) : null;
+        db_insert('contract_audit_log', [
+            'contract_type'  => $type,
+            'contract_id'    => $id,
+            'user_id'        => $user_id ?: null,
+            'user_snapshot'  => $user['name'] ?? 'System',
+            'action'         => $action,
+            'note'           => $note,
+            'ip_address'     => $_SERVER['REMOTE_ADDR'] ?? '',
+            'created_at'     => date('Y-m-d H:i:s'),
+        ]);
+    } catch (\Throwable $e) {
+        error_log('[log_contract_action] ' . $type . '/' . $id . ': ' . $e->getMessage());
+    }
 }
 
 function get_audit_log(string $type, int $id): array {

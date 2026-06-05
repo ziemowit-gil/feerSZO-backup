@@ -980,18 +980,65 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
     </div>
   </div>
 
-  <div id="epodpis_fields" class="row g-3 mt-1" style="display:<?= $row['forma_podpisania'] === 'epodpis_kwalifikowany' ? '' : 'none' ?>">
-    <div class="col-md-4 fgroup">
-      <label>Dostawca podpisu (TSP)</label>
-      <input name="epodpis_dostawca" class="form-control" placeholder="Certum, SimplySign…" value="<?= h($row['epodpis_dostawca'] ?? '') ?>">
-    </div>
-    <div class="col-md-4 fgroup">
-      <label>Numer certyfikatu</label>
-      <input name="epodpis_nr_certyfikatu" class="form-control font-monospace" value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>">
-    </div>
-    <div class="col-md-4 fgroup">
-      <label>Ważność certyfikatu</label>
-      <input name="epodpis_data_waznosci" type="date" class="form-control" value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>">
+  <div id="epodpis_fields" class="mt-2" style="display:<?= $row['forma_podpisania'] === 'epodpis_kwalifikowany' ? '' : 'none' ?>">
+    <div class="card border-0 shadow-sm" style="border-left:4px solid #16a34a!important;background:#f0fdf4">
+      <div class="card-body py-3 px-4">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <i class="bi bi-shield-lock-fill text-success fs-5"></i>
+          <span class="fw-bold" style="color:#16a34a">Podpis kwalifikowany (X.509 / eIDAS)</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-4">
+            <label class="form-label small fw-semibold">Dostawca podpisu (TSP)</label>
+            <input name="epodpis_dostawca" class="form-control form-control-sm"
+                   placeholder="Certum, SimplySign, mSzafir…"
+                   value="<?= h($row['epodpis_dostawca'] ?? '') ?>">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small fw-semibold">Numer certyfikatu</label>
+            <input name="epodpis_nr_certyfikatu" class="form-control form-control-sm font-monospace"
+                   value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small fw-semibold">Ważność certyfikatu</label>
+            <input name="epodpis_data_waznosci" type="date" class="form-control form-control-sm"
+                   value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>">
+          </div>
+        </div>
+        <div class="row g-3 mt-1">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">
+              <i class="bi bi-cloud-upload me-1"></i>Podpisany dokument
+              <?php if ($row['plik_potwierdzenia']): ?>
+              <span class="text-muted fw-normal">(aktualny: <?= upload_link($row['plik_potwierdzenia']) ?>)</span>
+              <?php endif; ?>
+            </label>
+            <input name="plik_potwierdzenia" type="file" class="form-control form-control-sm"
+                   accept=".pdf,.docx,.xades,.p7m">
+            <div class="form-text">Wgraj plik podpisany kwalifikowanym podpisem (PAdES / XAdES / CAdES).</div>
+          </div>
+        </div>
+        <?php
+        require_once dirname(dirname(dirname(__FILE__))) . '/includes/contract_template_engine.php';
+        $_epodpis_edit_tpls = cte_list('wolontariat');
+        if ($_epodpis_edit_tpls):
+        ?>
+        <div class="mt-3 pt-2 border-top border-success border-opacity-25">
+          <div class="small fw-semibold text-success mb-2">
+            <i class="bi bi-file-earmark-word me-1"></i>Pobierz wzór do podpisu:
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <?php foreach ($_epodpis_edit_tpls as $_etpl): ?>
+            <a href="<?= h(APP_URL . '/contracts/download_template_docx.php?template_id=' . $_etpl['id'] . '&contract_id=' . $id . '&type=wolontariat') ?>"
+               class="btn btn-sm btn-outline-secondary"
+               title="Pobierz DOCX do podpisu kwalifikowanego">
+              <i class="bi bi-file-earmark-word me-1"></i><?= h($_etpl['name']) ?>
+            </a>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 </section>

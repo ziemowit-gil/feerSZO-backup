@@ -511,6 +511,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'zwrot_kosztow', 'zwrot_kosztow_opis', 'limit_zwrotu_kosztow', 'opiekun', 'projekt_program',
             'forma_podpisania', 'platforma_el', 'id_dokumentu_el', 'plik_potwierdzenia',
             'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
+            'docusign_signer_email', 'docusign_signer_name',
             'plik_umowy', 'uwagi', 'created_by', 'created_at', 'updated_at',
             'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne', 'm365_data_utworzenia', 'm365_licencja_przypisana',
             'nr_roboczy', 'nr_system', 'nr_rejestru',
@@ -1579,49 +1580,101 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <label class="form-label fw-semibold">Forma</label>
           <select name="forma_podpisania" class="form-select" id="forma_podpisania">
             <option value="">— nie wybrano —</option>
-            <?php foreach (['papier'=>'Papierowa','elektroniczna'=>'Elektroniczna','epodpis_kwalifikowany'=>'ePodpis kwalifikowany'] as $_fv=>$_fl):
-              $sel = ($row['forma_podpisania']??'')===$_fv?'selected':''; ?>
+            <?php foreach ([
+              'papierowa'             => 'Papierowa',
+              'elektroniczna'         => 'Elektroniczna (DocuSign / Autenti)',
+              'epodpis_kwalifikowany' => 'ePodpis kwalifikowany (X.509)',
+            ] as $_fv => $_fl):
+              $sel = ($row['forma_podpisania']??'')===$_fv ? 'selected' : ''; ?>
             <option value="<?= $_fv ?>" <?= $sel ?>><?= $_fl ?></option>
             <?php endforeach; ?>
           </select>
         </div>
       </div>
 
-      <!-- Elektroniczna -->
-      <div id="el_fields" class="row g-3 mt-2"
+      <!-- Elektroniczna (DocuSign / Autenti) -->
+      <div id="el_fields" class="mt-3"
            style="display:<?= ($row['forma_podpisania']??'')==='elektroniczna'?'':'none' ?>">
-        <div class="col-sm-4">
-          <label class="form-label">Platforma</label>
-          <input name="platforma_el" class="form-control" placeholder="Autenti, Signaturely…"
-                 value="<?= h($row['platforma_el'] ?? '') ?>">
-        </div>
-        <div class="col-sm-4">
-          <label class="form-label">ID dokumentu</label>
-          <input name="id_dokumentu_el" class="form-control font-monospace"
-                 value="<?= h($row['id_dokumentu_el'] ?? '') ?>">
-        </div>
-        <div class="col-sm-4">
-          <label class="form-label">Plik potwierdzenia</label>
-          <input name="plik_potwierdzenia" type="file" class="form-control form-control-sm" accept=".pdf">
+        <div class="alert alert-primary py-2 mb-0 small d-flex align-items-start gap-2">
+          <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+          <div>
+            <strong>Podpis niekwalifikowany (DocuSign / Autenti)</strong><br>
+            Po zapisaniu umowy wyślij dokument do podpisu bezpośrednio z widoku umowy —
+            sekcja <em>Podpisanie</em> → przyciski <strong>DocuSign</strong> lub <strong>Autenti</strong>.
+          </div>
         </div>
       </div>
 
-      <!-- ePodpis -->
-      <div id="epodpis_fields" class="row g-3 mt-2" style="display:none">
-        <div class="col-sm-4">
-          <label class="form-label">Dostawca (TSP)</label>
-          <input name="epodpis_dostawca" class="form-control" placeholder="Certum, SimplySign…"
-                 value="<?= h($row['epodpis_dostawca'] ?? '') ?>">
-        </div>
-        <div class="col-sm-4">
-          <label class="form-label">Nr seryjny certyfikatu</label>
-          <input name="epodpis_nr_certyfikatu" class="form-control font-monospace"
-                 value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>">
-        </div>
-        <div class="col-sm-4">
-          <label class="form-label">Ważność certyfikatu</label>
-          <input name="epodpis_data_waznosci" type="date" class="form-control"
-                 value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>">
+      <!-- ePodpis kwalifikowany -->
+      <div id="epodpis_fields" class="mt-3" style="display:<?= ($row['forma_podpisania']??'')==='epodpis_kwalifikowany'?'':'none' ?>">
+        <div class="card border-0 shadow-sm"
+             style="border-left:4px solid #16a34a!important;background:#f0fdf4">
+          <div class="card-body py-3 px-4">
+
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <i class="bi bi-shield-lock-fill text-success fs-5"></i>
+              <span class="fw-bold" style="color:#16a34a">Podpis kwalifikowany (X.509 / eIDAS)</span>
+            </div>
+            <div class="small text-muted mb-3">
+              Pobierz wzór DOCX, podpisz kwalifikowanym podpisem elektronicznym (Certum, SimplySign, mSzafir itp.),
+              następnie wgraj podpisany plik. Jeśli umowa była podpisana poza systemem — wgraj plik bezpośrednio.
+            </div>
+
+            <div class="row g-3">
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold">Dostawca (TSP)</label>
+                <input name="epodpis_dostawca" class="form-control form-control-sm"
+                       placeholder="Certum, SimplySign, mSzafir…"
+                       value="<?= h($row['epodpis_dostawca'] ?? '') ?>">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold">Nr seryjny certyfikatu</label>
+                <input name="epodpis_nr_certyfikatu" class="form-control form-control-sm font-monospace"
+                       placeholder="np. 1A:2B:3C:…"
+                       value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold">Ważność certyfikatu</label>
+                <input name="epodpis_data_waznosci" type="date" class="form-control form-control-sm"
+                       value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>">
+              </div>
+            </div>
+
+            <div class="row g-3 mt-1">
+              <div class="col-12">
+                <label class="form-label small fw-semibold">
+                  <i class="bi bi-cloud-upload me-1"></i>Wgraj podpisany dokument
+                  <span class="text-muted fw-normal">(opcjonalne przy tworzeniu — możesz dodać później)</span>
+                </label>
+                <input name="plik_potwierdzenia" type="file" class="form-control form-control-sm"
+                       accept=".pdf,.docx,.xades,.p7m">
+                <div class="form-text">
+                  PDF lub DOCX z osadzonym podpisem kwalifikowanym (PAdES / XAdES / CAdES).
+                </div>
+              </div>
+            </div>
+
+            <?php
+            require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
+            $_epodpis_add_tpls = cte_list('wolontariat');
+            if ($_epodpis_add_tpls):
+            ?>
+            <div class="mt-3 pt-2 border-top border-success border-opacity-25">
+              <div class="small fw-semibold text-success mb-2">
+                <i class="bi bi-file-earmark-word me-1"></i>Pobierz wzór do podpisu:
+              </div>
+              <div class="d-flex flex-wrap gap-2">
+                <?php foreach ($_epodpis_add_tpls as $_etpl): ?>
+                <span class="text-muted small">
+                  <i class="bi bi-info-circle me-1"></i><?= h($_etpl['name']) ?>
+                  <span class="text-muted">(dostępny po zapisaniu umowy)</span>
+                </span>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <?php endif; ?>
+
+          </div>
         </div>
       </div>
 
@@ -2279,7 +2332,7 @@ updateSummary();
 
 document.getElementById('forma_podpisania')?.addEventListener('change', function() {
   var v = this.value;
-  document.getElementById('el_fields').style.display      = v === 'elektroniczna' ? '' : 'none';
+  document.getElementById('el_fields').style.display      = v === 'elektroniczna'         ? '' : 'none';
   document.getElementById('epodpis_fields').style.display = v === 'epodpis_kwalifikowany' ? '' : 'none';
 });
 document.getElementById('niepelnoletni')?.addEventListener('change', function() {

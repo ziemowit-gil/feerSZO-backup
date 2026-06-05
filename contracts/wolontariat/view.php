@@ -9,6 +9,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+require_once dirname(dirname(__DIR__)) . '/includes/docusign.php';
+require_once dirname(dirname(__DIR__)) . '/includes/autenti.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
 cte_migrate();
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
@@ -91,6 +93,20 @@ try { db()->exec("CREATE TABLE IF NOT EXISTS contract_extra_docs (
     uploaded_by   INTEGER NULL,
     uploaded_at   DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
 )"); db()->exec("CREATE INDEX IF NOT EXISTS idx_ced_ctype_cid ON contract_extra_docs (contract_type, contract_id)"); } catch(\Throwable $e) {}
+
+// ── Upload podpisanego pliku (ePodpis kwalifikowany) ─────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'upload_epodpis' && can_edit()) {
+    csrf_check();
+    $path = handle_upload('epodpis_plik', 'wolontariat');
+    if ($path) {
+        db_update($TABLE, ['plik_potwierdzenia' => $path, 'updated_at' => date('Y-m-d H:i:s')], $id);
+        log_contract_action($TYPE, $id, (int)current_user()['id'], 'epodpis_upload', 'Wgrano podpisany dokument (ePodpis).');
+        flash_set('success', 'Podpisany dokument zapisany.');
+    } else {
+        flash_set('error', 'Błąd uploadu — sprawdź format i rozmiar pliku.');
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
 
 // ── Zmiana podpisującego ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'set_representative' && can_edit()) {
@@ -880,6 +896,7 @@ $_msg_unread = msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user')
 $_tabs_def['messages']     = ['Wiadomości',   'bi-chat-dots',
     $_msg_unread ? '<span class="badge bg-danger ms-1">'.$_msg_unread.'</span>' : ''];
 
+// DocuSign i Autenti jako modale — nie jako zakładki (widoczne z sekcji Podpisanie)
 $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key_first($_tabs_def);
 ?>
 
@@ -1074,6 +1091,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
           ?>
         </div>
       </div>
+
       <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
       <div class="cv-field">
         <div class="cv-label">Platforma</div>
@@ -1083,10 +1101,13 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
         <div class="cv-label">ID dokumentu</div>
         <div class="cv-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div>
       </div>
+      <?php if ($row['plik_potwierdzenia']): ?>
       <div class="cv-field">
         <div class="cv-label">Plik potwierdzenia</div>
         <div class="cv-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
       </div>
+      <?php endif; ?>
+
       <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
       <div class="cv-field">
         <div class="cv-label">Dostawca (TSP)</div>
@@ -1111,7 +1132,14 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
           ?>
         </div>
       </div>
+      <?php if ($row['plik_potwierdzenia']): ?>
+      <div class="cv-field">
+        <div class="cv-label">Podpisany dokument</div>
+        <div class="cv-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+      </div>
       <?php endif; ?>
+      <?php endif; ?>
+
       <?php if (!empty($row['podpisujacy_fundacja']) || !empty($row['podpisujacy_stanowisko'])): ?>
       <div class="cv-field">
         <div class="cv-label">Podpisujący (ze strony fundacji)</div>
@@ -1125,6 +1153,64 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <?php endif; ?>
       <?php endif; ?>
     </div>
+
+    <?php if ($row['forma_podpisania'] === 'elektroniczna' && can_edit()): ?>
+    <div class="d-flex flex-wrap gap-2 pt-2 border-top mt-2">
+      <?php if (docusign_is_enabled() || current_user()['role'] === 'admin'): ?>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#dsModal">
+        <?php $__ds = $row['docusign_status'] ?? ''; ?>
+        <i class="bi bi-pen-fill me-1"></i>DocuSign
+        <?php if (in_array($__ds, ['sent','delivered'])): ?>
+        <span class="badge bg-warning text-dark ms-1">●</span>
+        <?php elseif ($__ds === 'completed'): ?>
+        <span class="badge bg-success ms-1">✓</span>
+        <?php elseif (in_array($__ds, ['declined','voided'])): ?>
+        <span class="badge bg-danger ms-1">✗</span>
+        <?php endif; ?>
+      </button>
+      <?php endif; ?>
+      <?php if (autenti_is_enabled() || current_user()['role'] === 'admin'): ?>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#atModal">
+        <?php $__at = $row['autenti_status'] ?? ''; ?>
+        <i class="bi bi-pen-fill me-1"></i>Autenti
+        <?php if ($__at === 'IN_PROGRESS'): ?>
+        <span class="badge bg-warning text-dark ms-1">●</span>
+        <?php elseif ($__at === 'COMPLETED'): ?>
+        <span class="badge bg-success ms-1">✓</span>
+        <?php elseif (in_array($__at, ['DECLINED','CANCELLED','EXPIRED'])): ?>
+        <span class="badge bg-danger ms-1">✗</span>
+        <?php endif; ?>
+      </button>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($row['forma_podpisania'] === 'epodpis_kwalifikowany' && can_edit()): ?>
+    <?php $_epodpis_tpls = cte_list($TYPE); ?>
+    <div class="pt-2 border-top mt-2">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#epodpisUploadModal">
+          <i class="bi bi-cloud-upload me-1"></i>Wgraj podpisany plik
+        </button>
+        <?php foreach ($_epodpis_tpls as $_etpl): ?>
+        <a href="<?= h(APP_URL . '/contracts/download_template_docx.php?template_id=' . $_etpl['id'] . '&contract_id=' . $id . '&type=' . $TYPE) ?>"
+           class="btn btn-sm btn-outline-secondary"
+           title="Pobierz DOCX do podpisu kwalifikowanego">
+          <i class="bi bi-file-earmark-word me-1"></i><?= h($_etpl['name']) ?>
+        </a>
+        <?php endforeach; ?>
+        <?php if (!$_epodpis_tpls && is_admin()): ?>
+        <a href="<?= APP_URL ?>/admin/template_editor.php?new=1&type=<?= $TYPE ?>" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-plus-lg me-1"></i>Utwórz wzór DOCX
+        </a>
+        <?php endif; ?>
+      </div>
+      <div class="small text-muted mt-1">
+        <i class="bi bi-info-circle me-1"></i>Pobierz DOCX, podpisz kwalifikowanym podpisem elektronicznym (X.509), następnie wgraj podpisany plik.
+      </div>
+    </div>
+    <?php endif; ?>
+
   </div>
 
   <!-- Podpisujący ze strony organizacji -->
@@ -1793,7 +1879,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <?php endif; ?>
   </div>
 
-  <?php if (can_edit()): include __DIR__ . '/../includes/template_section.php'; endif; ?>
 
 </div><!-- /tab-docs -->
 
@@ -3205,7 +3290,107 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 </div><!-- /tab-godziny -->
 <?php endif; /* timesheets_enabled */ ?>
 
+
 </div><!-- /tab-content -->
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODALE: DocuSign i Autenti (widoczne tylko gdy forma=elektroniczna)
+     ══════════════════════════════════════════════════════════════════════════ -->
+<?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (docusign_is_enabled() || current_user()['role'] === 'admin')): ?>
+<div class="modal fade" id="dsModal" tabindex="-1" aria-labelledby="dsModalLabel">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dsModalLabel">
+          <i class="bi bi-pen-fill text-primary me-2"></i>Podpis elektroniczny — DocuSign
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3">
+        <?php $_ds_mode = 'card'; include dirname(dirname(__DIR__)) . '/includes/docusign_tab.php'; ?>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (autenti_is_enabled() || current_user()['role'] === 'admin')): ?>
+<div class="modal fade" id="atModal" tabindex="-1" aria-labelledby="atModalLabel">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="atModalLabel">
+          <i class="bi bi-pen-fill text-primary me-2"></i>Podpis elektroniczny — Autenti
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3">
+        <?php $_at_mode = 'card'; include dirname(dirname(__DIR__)) . '/includes/autenti_tab.php'; ?>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- ── Modal upload podpisanego pliku (ePodpis kwalifikowany) ─────────────── -->
+<?php if (($row['forma_podpisania'] ?? '') === 'epodpis_kwalifikowany' && can_edit()): ?>
+<div class="modal fade" id="epodpisUploadModal" tabindex="-1" aria-labelledby="epodpisUploadLabel">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="epodpisUploadLabel">
+          <i class="bi bi-shield-lock text-success me-2"></i>Wgraj podpisany dokument (ePodpis)
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="upload_epodpis">
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Wgraj plik podpisany kwalifikowanym podpisem elektronicznym (X.509/eIDAS).
+            Akceptowane formaty: PDF, DOCX (z osadzonym podpisem XAdES/PAdES/CAdES).
+          </p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Plik podpisanego dokumentu <span class="text-danger">*</span></label>
+            <input type="file" name="epodpis_plik" class="form-control" accept=".pdf,.docx,.xades,.p7m" required>
+          </div>
+          <?php if ($row['plik_potwierdzenia']): ?>
+          <div class="alert alert-info py-2 small">
+            <i class="bi bi-info-circle me-1"></i>Aktualny plik: <?= upload_link($row['plik_potwierdzenia']) ?>
+            <br>Wgranie nowego pliku zastąpi aktualny.
+          </div>
+          <?php endif; ?>
+          <?php if ($row['epodpis_nr_certyfikatu'] || $row['epodpis_dostawca']): ?>
+          <div class="card bg-light border-0 p-2 small mt-2">
+            <div class="fw-semibold mb-1"><i class="bi bi-shield-check me-1 text-success"></i>Dane certyfikatu z umowy</div>
+            <?php if ($row['epodpis_dostawca']): ?>
+            <div>Dostawca (TSP): <strong><?= h($row['epodpis_dostawca']) ?></strong></div>
+            <?php endif; ?>
+            <?php if ($row['epodpis_nr_certyfikatu']): ?>
+            <div class="font-monospace">Nr seryjny: <?= h($row['epodpis_nr_certyfikatu']) ?></div>
+            <?php endif; ?>
+            <?php if ($row['epodpis_data_waznosci']): ?>
+            <?php $__waz = $row['epodpis_data_waznosci']; $__past = strtotime($__waz) < time(); ?>
+            <div class="<?= $__past ? 'text-danger' : 'text-success' ?>">
+              Ważność: <?= date_pl($__waz) ?>
+              <i class="bi bi-<?= $__past ? 'exclamation-circle' : 'check-circle' ?>"></i>
+            </div>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="bi bi-cloud-upload me-1"></i>Wgraj plik
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── Modal rozwiązania umowy ──────────────────────────────────────────────── -->
 <?php if (can_edit() && in_array($row['status'], TERMINABLE_STATUSES) && !$_pending_term): ?>
