@@ -8,9 +8,37 @@ require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_login();
 require_role('admin');
 
-// Idempotentna migracja — bezterminowa może nie istnieć w starszych tabelach
+// Idempotentna migracja — wyrównaj schematy tabel umów
+$_expiry_cols = [
+    'bezterminowa INTEGER NOT NULL DEFAULT 0',
+    'data_zakonczenia DATE',
+    'guardian_editor_id INTEGER',
+    'imie_nazwisko TEXT',   // uslugi/inne używają nazwa_wykonawcy — dodaj alias
+];
 foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_inne'] as $_mt) {
-    try { db()->exec("ALTER TABLE {$_mt} ADD COLUMN bezterminowa INTEGER NOT NULL DEFAULT 0"); } catch(\Throwable $e) {}
+    foreach ($_expiry_cols as $_col_def) {
+        try { db()->exec("ALTER TABLE {$_mt} ADD COLUMN {$_col_def}"); } catch(\Throwable $e) {}
+    }
+}
+
+// Pomocnik: zwraca SELECT wyrażenie dla nazwy osoby — obsługuje różne kolumny w tabelach
+function _expiry_name_expr(string $table): string {
+    static $cache = [];
+    if (isset($cache[$table])) return $cache[$table];
+    $cols = db()->query("PRAGMA table_info({$table})")->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (in_array('imie_nazwisko', $cols)) return $cache[$table] = 'imie_nazwisko';
+    if (in_array('nazwa_wykonawcy', $cols)) return $cache[$table] = 'nazwa_wykonawcy';
+    if (in_array('firma_nazwa', $cols)) return $cache[$table] = 'firma_nazwa';
+    return $cache[$table] = "''";
+}
+
+function _expiry_email_expr(string $table): string {
+    static $cache = [];
+    if (isset($cache[$table])) return $cache[$table];
+    $cols = db()->query("PRAGMA table_info({$table})")->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (in_array('email', $cols)) return $cache[$table] = 'email';
+    if (in_array('kontakt_email', $cols)) return $cache[$table] = 'kontakt_email';
+    return $cache[$table] = "''";
 }
 
 // ── Akcja: wyślij przypomnienia teraz ─────────────────────────────────────────
@@ -33,8 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_
     $log  = [];
 
     foreach ($contract_tables as $type => $table) {
+        $_name  = _expiry_name_expr($table);
+        $_email = _expiry_email_expr($table);
         $contracts = db_all(
-            "SELECT id, numer_umowy, imie_nazwisko, data_zakonczenia, opiekun, email, guardian_editor_id
+            "SELECT id, numer_umowy,
+                    {$_name}  AS imie_nazwisko,
+                    data_zakonczenia, opiekun,
+                    {$_email} AS email,
+                    guardian_editor_id
              FROM {$table}
              WHERE bezterminowa = 0
                AND data_zakonczenia IS NOT NULL
@@ -130,8 +164,11 @@ $all_contracts = [];
 foreach ($contract_tables as $type => $table) {
     if ($filter_type && $filter_type !== $type) continue;
 
+    $_name = _expiry_name_expr($table);
     $rows = db_all(
-        "SELECT id, numer_umowy, imie_nazwisko, data_zakonczenia, opiekun, guardian_editor_id
+        "SELECT id, numer_umowy,
+                {$_name} AS imie_nazwisko,
+                data_zakonczenia, opiekun, guardian_editor_id
          FROM {$table}
          WHERE bezterminowa = 0
            AND data_zakonczenia IS NOT NULL
@@ -149,12 +186,12 @@ foreach ($contract_tables as $type => $table) {
         $opiekun_email = '';
         if (!empty($row['guardian_editor_id'])) {
             $u = db_one(
-                "SELECT email, imie_nazwisko FROM users WHERE id = ?",
+                "SELECT email, name FROM users WHERE id = ?",
                 [(int) $row['guardian_editor_id']]
             );
             if ($u) {
                 $opiekun_email = $u['email'] ?? '';
-                if (empty($opiekun_name)) $opiekun_name = $u['imie_nazwisko'] ?? '';
+                if (empty($opiekun_name)) $opiekun_name = $u['name'] ?? '';
             }
         }
 
