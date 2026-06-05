@@ -48,6 +48,18 @@ if ($k30_enabled) { try { $k30_today = (int)(db_one("SELECT COUNT(*) AS c FROM k
 
 $crm_enabled = module_enabled('crm_enabled') && (can_read('crm') || is_admin());
 
+// Moduł Strategii
+require_once __DIR__ . '/includes/strategy.php';
+$strategy_enabled = can_read('umowy') || is_admin();
+$strat_active = 0; $strat_at_risk = 0;
+if ($strategy_enabled) {
+    try {
+        $strat_objs = db_all("SELECT * FROM v_strategy_dashboard WHERE status='aktywny'");
+        $strat_active = count($strat_objs);
+        foreach ($strat_objs as $_o) { if (strategy_health_score($_o) === 'red') $strat_at_risk++; }
+    } catch(\Throwable $e) {}
+}
+
 require_once __DIR__ . '/includes/notifications.php'; notif_migrate();
 $_notif_unread = notif_unread_count((int)$_u['id']);
 $_ann_list     = ann_list_for_user((int)$_u['id'], $_u['role'] ?? '');
@@ -347,6 +359,27 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
         <div class="pm-f">
           <div class="pm-s"><div class="pm-sv" <?= $stats['approvals'] ? 'style="color:#D97706"' : '' ?>><?= $stats['approvals'] ?></div><div class="pm-sl">Do akceptacji</div></div>
           <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Powiadomień sys.</div></div>
+        </div>
+      </a>
+      <?php endif; ?>
+
+      <?php if ($strategy_enabled): ?>
+      <a href="<?= APP_URL ?>/strategy/index.php" class="pm">
+        <div class="pm-h" style="background:linear-gradient(135deg,#4C1D95,#7C3AED)">
+          <?php if ($strat_at_risk > 0): ?>
+          <div class="pm-badge"><i class="bi bi-exclamation-triangle-fill"></i><?= $strat_at_risk ?> zagrożone</div>
+          <?php endif; ?>
+          <div class="pm-icon"><i class="bi bi-bullseye"></i></div>
+          <div class="pm-title">Strategia NGO</div>
+          <div class="pm-desc">Cele strategiczne, sfery pożytku, sprawozdawczość</div>
+          <div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div>
+        </div>
+        <div class="pm-f">
+          <div class="pm-s"><div class="pm-sv"><?= $strat_active ?></div><div class="pm-sl">Aktywnych celów</div></div>
+          <div class="pm-s">
+            <div class="pm-sv" <?= $strat_at_risk > 0 ? 'style="color:#DC2626"' : '' ?>><?= $strat_at_risk ?></div>
+            <div class="pm-sl">Zagrożonych</div>
+          </div>
         </div>
       </a>
       <?php endif; ?>
