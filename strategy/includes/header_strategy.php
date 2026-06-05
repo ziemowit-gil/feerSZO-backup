@@ -364,9 +364,15 @@ body {
   </a>
 
   <a href="<?= APP_URL ?>/strategy/reports/index.php" class="strat-nav-link"
-     <?= _strat_active('/strategy/reports') ? 'aria-current="page"' : '' ?>>
+     <?= _strat_active('/strategy/reports/index') ? 'aria-current="page"' : '' ?>>
     <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
-    Raporty
+    Raporty strategiczne
+  </a>
+
+  <a href="<?= APP_URL ?>/strategy/reports/foundation_report.php" class="strat-nav-link"
+     <?= _strat_active('/strategy/reports/foundation_report') ? 'aria-current="page"' : '' ?>>
+    <i class="bi bi-file-earmark-ruled" aria-hidden="true"></i>
+    Sprawozdanie fundacji
   </a>
 
   <?php if (is_admin()): ?>
