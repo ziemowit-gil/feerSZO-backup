@@ -12,7 +12,7 @@ require_role('admin');
 $PAGE_TITLE = 'Dostęp CRM-only';
 
 $MODULES = [
-    'actions'   => ['label'=>'Działania',          'icon'=>'bi-calendar-event',     'desc'=>'Moduł działań i projektów (/actions/)'],
+    'actions'   => ['label'=>'Działania',          'icon'=>'bi-calendar-event',     'desc'=>'Moduł działań i projektów (/strategy/actions/)'],
     'grants'    => ['label'=>'Granty',              'icon'=>'bi-cash-coin',          'desc'=>'Moduł grantów (/grants/)'],
     'persons'   => ['label'=>'Osoby',               'icon'=>'bi-people',             'desc'=>'Rejestr osób (/persons/)'],
     'reports'   => ['label'=>'Raporty',             'icon'=>'bi-bar-chart-line',     'desc'=>'Raporty systemowe (/reports/)'],

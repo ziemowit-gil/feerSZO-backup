@@ -613,7 +613,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   $_on_it       = str_contains($_uri, '/it/');
   $_on_people   = str_contains($_uri,'/persons/') || str_contains($_uri,'/contracts/wolontariat') || str_contains($_uri,'/onboarding/') || str_contains($_uri,'/contracts/rekrutacja') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/admin/certificates') || str_contains($_uri,'/admin/onboarding');
   $_on_docs     = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/reports/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters');
-  $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/actions/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/admin/timesheets') || str_contains($_uri,'/admin/shipments') || str_contains($_uri,'/resources/') || str_contains($_uri,'/panel/timesheets');
+  $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/actions/') || str_contains($_uri,'/strategy/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/admin/timesheets') || str_contains($_uri,'/admin/shipments') || str_contains($_uri,'/resources/') || str_contains($_uri,'/panel/timesheets');
   $_on_admin    = str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding');
 
   // Badges
@@ -830,8 +830,15 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <?php endif; ?>
   <?php if (menu_visible('actions')): ?>
-  <a class="sb-link<?= _nav_active('/actions/') ?>" href="<?= APP_URL ?>/actions/index.php">
+  <a class="sb-link<?= _nav_active('/strategy/actions/') . _nav_active('/actions/') ?>"
+     href="<?= APP_URL ?>/strategy/actions/index.php">
     <i class="bi bi-calendar-event"></i> Działania
+  </a>
+  <?php endif; ?>
+  <?php if (can_read('umowy') || is_admin()): ?>
+  <a class="sb-link<?= _nav_active('/strategy/') && !str_contains($_uri,'/strategy/actions/') ? ' active' : '' ?>"
+     href="<?= APP_URL ?>/strategy/index.php">
+    <i class="bi bi-bullseye"></i> Strategia
   </a>
   <?php endif; ?>
 

@@ -148,7 +148,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <!-- Linked actions -->
 <div class="d-flex justify-content-between align-items-center mb-2">
   <h5 class="mb-0"><i class="bi bi-calendar-event text-primary"></i> Powiązane działania (<?= count($linked_actions) ?>)</h5>
-  <a href="<?= APP_URL ?>/actions/add.php?grant_id=<?= $id ?>" class="btn btn-outline-primary btn-sm">
+  <a href="<?= APP_URL ?>/strategy/actions/add.php?grant_id=<?= $id ?>" class="btn btn-outline-primary btn-sm">
     <i class="bi bi-plus-lg"></i> Dodaj działanie z tym grantem
   </a>
 </div>
@@ -173,14 +173,14 @@ include dirname(__DIR__) . '/includes/header.php';
   ?>
   <tr>
     <td>
-      <a href="<?= APP_URL ?>/actions/view.php?id=<?= $a['id'] ?>" class="fw-semibold text-decoration-none"><?= h($a['nazwa']) ?></a>
+      <a href="<?= APP_URL ?>/strategy/actions/view.php?id=<?= $a['id'] ?>" class="fw-semibold text-decoration-none"><?= h($a['nazwa']) ?></a>
     </td>
     <td><span class="badge bg-<?= $ast['class'] ?>"><?= h($ast['label']) ?></span></td>
     <td class="small text-nowrap"><?= date_pl($a['data_od']) ?><?= $a['data_do'] ? ' – ' . date_pl($a['data_do']) : '' ?></td>
     <td class="text-end small"><?= $a['udzial_procent'] !== null ? h($a['udzial_procent']) . '%' : '—' ?></td>
     <td class="text-end small"><?= $a['ag_kwota'] !== null ? money((float)$a['ag_kwota'], $grant['waluta']) : '—' ?></td>
     <td class="text-end">
-      <a href="<?= APP_URL ?>/actions/view.php?id=<?= $a['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+      <a href="<?= APP_URL ?>/strategy/actions/view.php?id=<?= $a['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
     </td>
   </tr>
   <?php endforeach; ?>
@@ -190,7 +190,7 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 <?php else: ?>
 <div class="alert alert-secondary">Brak powiązanych działań.
-  <a href="<?= APP_URL ?>/actions/add.php?grant_id=<?= $id ?>">Dodaj pierwsze działanie</a>.
+  <a href="<?= APP_URL ?>/strategy/actions/add.php?grant_id=<?= $id ?>">Dodaj pierwsze działanie</a>.
 </div>
 <?php endif; ?>
 

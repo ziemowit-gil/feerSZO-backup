@@ -319,7 +319,7 @@ include __DIR__ . '/../includes/header_crm.php';
         <?php else: ?>
         <div class="text-muted small mb-3">
           <i class="bi bi-info-circle me-1"></i>Brak aktywnych działań.
-          <a href="<?= APP_URL ?>/actions/index.php">Utwórz działanie →</a>
+          <a href="<?= APP_URL ?>/strategy/actions/index.php">Utwórz działanie →</a>
         </div>
         <?php endif; ?>
 

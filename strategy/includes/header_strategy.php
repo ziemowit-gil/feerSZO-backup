@@ -338,6 +338,23 @@ body {
   </a>
 
   <div class="strat-nav-divider" aria-hidden="true"></div>
+  <div class="strat-nav-label" aria-hidden="true">Działania</div>
+
+  <a href="<?= APP_URL ?>/strategy/actions/index.php" class="strat-nav-link"
+     <?= _strat_active('/strategy/actions/index') ? 'aria-current="page"' : '' ?>>
+    <i class="bi bi-calendar-event" aria-hidden="true"></i>
+    Lista działań
+  </a>
+
+  <?php if ($_can_edit): ?>
+  <a href="<?= APP_URL ?>/strategy/actions/add.php" class="strat-nav-link"
+     <?= _strat_active('/strategy/actions/add') ? 'aria-current="page"' : '' ?>>
+    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+    Nowe działanie
+  </a>
+  <?php endif; ?>
+
+  <div class="strat-nav-divider" aria-hidden="true"></div>
   <div class="strat-nav-label" aria-hidden="true">Cele strategiczne</div>
 
   <a href="<?= APP_URL ?>/strategy/objectives/index.php" class="strat-nav-link"

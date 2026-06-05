@@ -405,7 +405,7 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
   <nav class="qa">
     <a href="<?= APP_URL ?>/contracts/wolontariat/add.php" class="qa-btn"><i class="bi bi-plus-circle text-primary"></i>Nowa umowa wolontariatu</a>
     <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="qa-btn"><i class="bi bi-heart" style="color:#EF4444"></i>Wolontariusze</a>
-    <a href="<?= APP_URL ?>/actions/index.php" class="qa-btn"><i class="bi bi-lightning-charge text-primary"></i>Działania</a>
+    <a href="<?= APP_URL ?>/strategy/actions/index.php" class="qa-btn"><i class="bi bi-lightning-charge text-primary"></i>Działania</a>
     <a href="<?= APP_URL ?>/grants/index.php" class="qa-btn"><i class="bi bi-cash-coin text-success"></i>Granty</a>
     <?php if ($crm_enabled): ?><a href="<?= APP_URL ?>/crm/index.php" class="qa-btn"><i class="bi bi-people" style="color:#16A34A"></i>Kontakty CRM</a><?php endif; ?>
     <a href="<?= APP_URL ?>/reports/index.php" class="qa-btn"><i class="bi bi-bar-chart-line text-primary"></i>Raporty</a>

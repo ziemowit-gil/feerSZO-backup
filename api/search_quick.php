@@ -43,7 +43,7 @@ $all_modules = [
 
     // Zadania i projekty
     ['label'=>'Tablica zadań',   'icon'=>'bi-kanban-fill',          'url'=>'/tasks/index.php',                 'color'=>'secondary', 'kw'=>['zadania','tablica','kanban']],
-    ['label'=>'Działania',       'icon'=>'bi-calendar-event-fill',  'url'=>'/actions/index.php',               'color'=>'danger',    'kw'=>['działanie','projekt','event']],
+    ['label'=>'Działania',       'icon'=>'bi-calendar-event-fill',  'url'=>'/strategy/actions/index.php',      'color'=>'danger',    'kw'=>['działanie','projekt','event']],
     ['label'=>'Granty',          'icon'=>'bi-coin',                 'url'=>'/grants/index.php',                'color'=>'warning',   'kw'=>['grant','dotacja','projekt']],
 
     // Admin

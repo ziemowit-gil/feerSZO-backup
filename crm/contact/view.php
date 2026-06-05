@@ -609,7 +609,7 @@ include __DIR__ . '/../includes/header_crm.php';
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           <span><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Działania</span>
-          <a href="<?= APP_URL ?>/actions/index.php" class="text-muted" style="font-size:.72rem;text-decoration:none"
+          <a href="<?= APP_URL ?>/strategy/actions/index.php" class="text-muted" style="font-size:.72rem;text-decoration:none"
              aria-label="Lista działań">Wszystkie</a>
         </div>
 
@@ -631,7 +631,7 @@ include __DIR__ . '/../includes/header_crm.php';
             <i class="bi bi-calendar-event mt-1 flex-shrink-0"
                style="color:<?= h($ast['color']) ?>" aria-hidden="true"></i>
             <div class="flex-grow-1 overflow-hidden">
-              <a href="<?= APP_URL ?>/actions/view.php?id=<?= (int)$ca['id'] ?>"
+              <a href="<?= APP_URL ?>/strategy/actions/view.php?id=<?= (int)$ca['id'] ?>"
                  class="fw-semibold text-dark text-decoration-none d-block"
                  style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
                  title="<?= h($ca['nazwa']) ?>">
@@ -699,7 +699,7 @@ include __DIR__ . '/../includes/header_crm.php';
           </button>
         </form>
         <?php elseif ($crm_can_write && !$all_actions_raw): ?>
-        <a href="<?= APP_URL ?>/actions/add.php" class="btn btn-sm btn-crm-outline w-100">
+        <a href="<?= APP_URL ?>/strategy/actions/add.php" class="btn btn-sm btn-crm-outline w-100">
           <i class="bi bi-plus me-1"></i>Utwórz działanie
         </a>
         <?php endif; ?>
