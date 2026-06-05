@@ -196,11 +196,13 @@ document.querySelectorAll('textarea[maxlength], textarea[data-maxlength]').forEa
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 8. DOUBLE-CLICK na wierszu tabeli → otwórz link [data-row-href]
+// 8. KLIKNIĘCIE na wierszu tabeli → otwórz link [data-row-href]
+//    Ignoruje kliknięcia w przyciski, linki i checkboxy wewnątrz wiersza
 // ═══════════════════════════════════════════════════════════════════════════
 document.querySelectorAll('tr[data-row-href]').forEach(function(tr) {
   tr.style.cursor = 'pointer';
-  tr.addEventListener('dblclick', function() {
+  tr.addEventListener('click', function(e) {
+    if (e.target.closest('a,button,input,label,[data-copy]')) return;
     window.location.href = tr.dataset.rowHref;
   });
 });
@@ -223,3 +225,95 @@ document.addEventListener('keydown', function(e) {
   var toast = document.getElementById('_flash_toast_wrap');
   if (toast) { toast.remove(); return; }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 11. CTRL+K — focus pola wyszukiwania w topbarze
+// ═══════════════════════════════════════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  if (!((e.ctrlKey || e.metaKey) && e.key === 'k')) return;
+  var inp = document.getElementById('topbar-search');
+  if (!inp) return;
+  e.preventDefault();
+  inp.classList.add('expanded');
+  inp.focus();
+  inp.select();
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 12. AUTO-FOCUS — pierwsze widoczne pole tekstowe na stronach add/edit
+// ═══════════════════════════════════════════════════════════════════════════
+(function() {
+  var path = window.location.pathname;
+  if (!/\/(add|edit|compose|nowy|new)\.php/.test(path)) return;
+  // Nie nadpisuj jeśli ktoś już ma focus (np. pole z autofocus="")
+  if (document.activeElement && document.activeElement !== document.body) return;
+  var first = document.querySelector(
+    'input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]):not([readonly]):not([disabled]),' +
+    'select:not([disabled]),textarea:not([readonly]):not([disabled])'
+  );
+  if (first) {
+    setTimeout(function() { first.focus(); }, 60);
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 13. SKRÓTY KLAWIATUROWE — klawisz "?" otwiera panel pomocy
+// ═══════════════════════════════════════════════════════════════════════════
+(function() {
+  document.addEventListener('keydown', function(e) {
+    // Ignoruj gdy focus jest w polu tekstowym
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.key !== '?') return;
+    e.preventDefault();
+
+    // Usuń poprzedni modal jeśli istnieje
+    var existing = document.getElementById('_shortcuts_modal');
+    if (existing) { existing.remove(); return; }
+
+    var modal = document.createElement('div');
+    modal.id = '_shortcuts_modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Skróty klawiaturowe');
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10500;display:flex;align-items:center;justify-content:center;padding:1rem';
+
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)';
+    overlay.addEventListener('click', function() { modal.remove(); });
+
+    var shortcuts = [
+      ['Ctrl + K',  'Otwórz wyszukiwanie'],
+      ['Ctrl + S',  'Zapisz formularz'],
+      ['?',         'Ten panel skrótów'],
+      ['Esc',       'Zamknij powiadomienie / wyszukiwanie'],
+      ['↑ ↓',       'Nawigacja w wynikach wyszukiwania'],
+      ['Enter',     'Otwórz zaznaczony wynik wyszukiwania'],
+    ];
+
+    var rows = shortcuts.map(function(s) {
+      return '<tr><td style="padding:.35rem .6rem .35rem 0;white-space:nowrap">'
+        + '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:5px;padding:.15rem .45rem;font-size:.8rem;color:#1e293b;font-family:monospace">'
+        + s[0] + '</kbd></td>'
+        + '<td style="padding:.35rem 0;color:#475569;font-size:.84rem">' + s[1] + '</td></tr>';
+    }).join('');
+
+    var box = document.createElement('div');
+    box.style.cssText = 'position:relative;background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.2);padding:1.4rem 1.6rem;min-width:320px;max-width:440px;width:100%;animation:_toastIn .2s ease both';
+    box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">'
+      + '<h2 style="margin:0;font-size:1rem;font-weight:700;color:#0f172a"><i class="bi bi-keyboard me-2" style="color:#94a3b8"></i>Skróty klawiaturowe</h2>'
+      + '<button style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:1.1rem;padding:0;line-height:1" onclick="document.getElementById(\'_shortcuts_modal\').remove()" aria-label="Zamknij"><i class="bi bi-x-lg"></i></button>'
+      + '</div>'
+      + '<table style="width:100%;border-collapse:collapse">' + rows + '</table>'
+      + '<div style="margin-top:.9rem;padding-top:.75rem;border-top:1px solid #f1f5f9;font-size:.74rem;color:#94a3b8;text-align:center">Naciśnij <kbd style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:.1rem .35rem;font-size:.75rem;color:#475569">Esc</kbd> lub kliknij tło, aby zamknąć</div>';
+
+    // Zamknij przez Esc
+    document.addEventListener('keydown', function closeOnEsc(ev) {
+      if (ev.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', closeOnEsc); }
+    });
+
+    modal.appendChild(overlay);
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+  });
+})();
