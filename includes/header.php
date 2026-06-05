@@ -379,31 +379,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     min-width: 0;
 }
 
-/* Moduły główne — kompaktowe */
-.tb-mods {
-    display: inline-flex; align-items: center; gap: 2px;
-    background: #f8fafc; border: 1px solid #e2e8f0;
-    border-radius: 10px; padding: 3px;
-}
-.tb-mod {
-    display: inline-flex; align-items: center; gap: .3rem;
-    padding: .28rem .55rem; border-radius: 7px;
-    font-size: .78rem; font-weight: 500;
-    text-decoration: none; color: #64748b;
-    transition: background .1s, color .1s;
-    white-space: nowrap;
-}
-.tb-mod i { font-size: .95rem; }
-/* Domyślnie: tylko ikona */
-.tb-mod .tb-label { display: none; }
-/* Aktywny: ikona + etykieta */
-.tb-mod.active-mode {
-    background: #fff; color: #2563eb; font-weight: 700;
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
-}
-.tb-mod.active-mode .tb-label { display: inline; }
-.tb-mod:hover:not(.active-mode) { background: #fff; color: #334155; }
-
 /* Kompaktowe wyszukiwanie */
 .tb-search-wrap { position: relative; }
 .tb-search-wrap input {
@@ -423,15 +398,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     color: #94a3b8; font-size: .82rem; pointer-events: none;
 }
 
-/* Dropdown Więcej */
-.tb-more-btn {
-    display: inline-flex; align-items: center; gap: .25rem;
-    padding: .28rem .55rem; border-radius: 7px;
-    font-size: .78rem; font-weight: 500; color: #64748b;
-    background: none; border: none; cursor: pointer;
-    transition: background .1s;
-}
-.tb-more-btn:hover { background: #f1f5f9; color: #334155; }
 .topbar-user-chip {
     display: inline-flex; align-items: center; gap: .4rem;
     background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px;
@@ -1050,95 +1016,181 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       $_on_szo     = (!$_on_crm && !$_on_actions && !$_on_events && !$_on_dir && !$_on_k30 && !$_on_tasks && !$_on_admin && !$_on_rodo && !$_on_certs && !$_on_wol && !$_is_panel_view);
       $_has_more_active = $_on_actions || $_on_events || $_on_dir || $_on_k30 || $_on_rodo || $_on_certs || $_on_wol;
     ?>
-    <!-- Moduły główne — kompaktowe -->
-    <nav class="tb-mods" aria-label="Moduły systemu">
-      <a href="<?= APP_URL ?>/index.php" class="tb-mod <?= $_on_szo ? 'active-mode' : '' ?>"
-         title="SZO — System Zarządzania Organizacją">
-        <i class="bi bi-building"></i><span class="tb-label">SZO</span>
-      </a>
-      <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
-      <a href="<?= APP_URL ?>/crm/dashboard.php" class="tb-mod <?= $_on_crm ? 'active-mode' : '' ?>"
-         title="CRM">
-        <i class="bi bi-diagram-2-fill"></i><span class="tb-label">CRM</span>
-      </a>
-      <?php endif; ?>
-      <?php if (module_enabled('tasks_enabled')): ?>
-      <a href="<?= APP_URL ?>/tasks/dashboard.php" class="tb-mod <?= $_on_tasks ? 'active-mode' : '' ?>"
-         title="Zadania">
-        <i class="bi bi-kanban"></i><span class="tb-label">Zadania</span>
-      </a>
-      <?php endif; ?>
-      <?php if (is_admin()): ?>
-      <a href="<?= APP_URL ?>/admin/index.php" class="tb-mod <?= $_on_admin ? 'active-mode' : '' ?>"
-         title="Panel admina">
-        <i class="bi bi-gear-fill"></i><span class="tb-label">Admin</span>
-      </a>
-      <?php endif; ?>
+    <!-- ── Waffle switcher modułów ─────────────────────────────── -->
+    <?php
+    // Aktywny moduł — etykieta i ikona dla przycisku
+    $_sw_icon = 'bi-building'; $_sw_label = 'SZO';
+    if ($_on_crm)       { $_sw_icon = 'bi-diagram-2-fill';    $_sw_label = 'CRM'; }
+    elseif ($_on_tasks)   { $_sw_icon = 'bi-kanban';          $_sw_label = 'Zadania'; }
+    elseif ($_on_admin)   { $_sw_icon = 'bi-gear-fill';       $_sw_label = 'Admin'; }
+    elseif ($_on_wol)     { $_sw_icon = 'bi-heart-fill';      $_sw_label = 'Wolontariat'; }
+    elseif ($_on_dir)     { $_sw_icon = 'bi-person-lines-fill'; $_sw_label = 'Katalog'; }
+    elseif ($_on_actions) { $_sw_icon = 'bi-calendar-event';  $_sw_label = 'Działania'; }
+    elseif ($_on_events)  { $_sw_icon = 'bi-calendar-event-fill'; $_sw_label = 'Wydarzenia'; }
+    elseif ($_on_k30)     { $_sw_icon = 'bi-card-checklist';  $_sw_label = 'Karty 30'; }
+    elseif ($_on_certs)   { $_sw_icon = 'bi-award-fill';      $_sw_label = 'Zaświadczenia'; }
+    elseif ($_on_rodo)    { $_sw_icon = 'bi-shield-lock-fill'; $_sw_label = 'RODO'; }
+    ?>
+    <div class="dropdown" id="mod-sw">
+      <button type="button" class="mod-sw-btn"
+              data-bs-toggle="dropdown" data-bs-auto-close="outside"
+              aria-expanded="false"
+              aria-label="Przełącz moduł — aktualnie: <?= h($_sw_label) ?>">
+        <i class="bi <?= $_sw_icon ?>"></i>
+        <span class="mod-sw-cur"><?= h($_sw_label) ?></span>
+        <i class="bi bi-chevron-down" style="font-size:.55rem;opacity:.45;margin-left:.05rem"></i>
+      </button>
 
-      <!-- Więcej ▾ -->
-      <div class="dropdown">
-        <button type="button" class="tb-more-btn <?= $_has_more_active ? 'active-mode' : '' ?>"
-                data-bs-toggle="dropdown" aria-expanded="false" title="Więcej modułów">
-          <?php if ($_has_more_active): ?>
-          <?php // pokaż aktywną ikonę
-          if ($_on_actions) echo '<i class="bi bi-calendar-event"></i><span class="tb-label">Działania</span>';
-          elseif ($_on_events) echo '<i class="bi bi-calendar-event-fill"></i><span class="tb-label">Wydarzenia</span>';
-          elseif ($_on_dir) echo '<i class="bi bi-person-lines-fill"></i><span class="tb-label">Katalog</span>';
-          elseif ($_on_k30) echo '<i class="bi bi-card-checklist"></i><span class="tb-label">Karty30</span>';
-          elseif ($_on_wol) echo '<i class="bi bi-heart-fill"></i><span class="tb-label">Wolontariat</span>';
-          elseif ($_on_certs) echo '<i class="bi bi-award-fill"></i><span class="tb-label">Zaświadczenia</span>';
-          elseif ($_on_rodo) echo '<i class="bi bi-shield-lock-fill"></i><span class="tb-label">RODO</span>';
-          ?>
-          <?php else: ?>
-          <i class="bi bi-grid-3x3-gap"></i>
+      <div class="dropdown-menu p-0 shadow mod-sw-panel">
+        <div class="mod-sw-head">Przejdź do modułu</div>
+        <div class="mod-sw-grid">
+
+          <a href="<?= APP_URL ?>/index.php"
+             class="msw-tile <?= $_on_szo ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#2563eb;--mb:#eff6ff"><i class="bi bi-building"></i></div>
+            <span>SZO</span>
+          </a>
+
+          <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
+          <a href="<?= APP_URL ?>/crm/dashboard.php"
+             class="msw-tile <?= $_on_crm ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#16a34a;--mb:#f0fdf4"><i class="bi bi-diagram-2-fill"></i></div>
+            <span>CRM</span>
+          </a>
           <?php endif; ?>
-          <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.6"></i>
-        </button>
-        <ul class="dropdown-menu shadow" style="min-width:175px;font-size:.83rem">
-          <li><h6 class="dropdown-header py-1" style="font-size:.68rem">Rejestry</h6></li>
-          <li>
-            <a class="dropdown-item <?= $_on_wol ? 'active' : '' ?>" href="<?= APP_URL ?>/contracts/wolontariat/list.php">
-              <i class="bi bi-heart-fill me-2 text-success"></i>Umowy wolontariackie
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item <?= $_on_certs ? 'active' : '' ?>" href="<?= APP_URL ?>/admin/certificates.php">
-              <i class="bi bi-award-fill me-2 text-warning"></i>Zaświadczenia
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item <?= $_on_rodo ? 'active' : '' ?>" href="<?= APP_URL ?>/rodo/index.php">
-              <i class="bi bi-shield-lock-fill me-2 text-primary"></i>Rejestr RODO
-            </a>
-          </li>
-          <li><hr class="dropdown-divider my-1"></li>
-          <li><h6 class="dropdown-header py-1" style="font-size:.68rem">Więcej modułów</h6></li>
-          <li>
-            <a class="dropdown-item <?= $_on_actions ? 'active' : '' ?>" href="<?= APP_URL ?>/actions/index.php">
-              <i class="bi bi-calendar-event me-2"></i>Działania
-            </a>
-          </li>
-          <?php if (module_enabled('events_enabled')): ?>
-          <li>
-            <a class="dropdown-item <?= $_on_events ? 'active' : '' ?>" href="<?= APP_URL ?>/events/dashboard.php">
-              <i class="bi bi-calendar-event-fill me-2"></i>Wydarzenia
-            </a>
-          </li>
+
+          <?php if (module_enabled('tasks_enabled')): ?>
+          <a href="<?= APP_URL ?>/tasks/dashboard.php"
+             class="msw-tile <?= $_on_tasks ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#ea580c;--mb:#fff7ed"><i class="bi bi-kanban"></i></div>
+            <span>Zadania</span>
+          </a>
           <?php endif; ?>
-          <li>
-            <a class="dropdown-item <?= $_on_dir ? 'active' : '' ?>" href="<?= APP_URL ?>/directory/">
-              <i class="bi bi-person-lines-fill me-2"></i>Katalog osób
-            </a>
-          </li>
+
+          <a href="<?= APP_URL ?>/contracts/wolontariat/list.php"
+             class="msw-tile <?= $_on_wol ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#e11d48;--mb:#fff1f2"><i class="bi bi-heart-fill"></i></div>
+            <span>Wolontariusze</span>
+          </a>
+
+          <a href="<?= APP_URL ?>/strategy/actions/index.php"
+             class="msw-tile <?= $_on_actions ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#0891b2;--mb:#ecfeff"><i class="bi bi-calendar-event"></i></div>
+            <span>Działania</span>
+          </a>
+
+          <a href="<?= APP_URL ?>/grants/index.php"
+             class="msw-tile <?= str_contains($_uri,'/grants/') ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#15803d;--mb:#f0fdf4"><i class="bi bi-cash-coin"></i></div>
+            <span>Granty</span>
+          </a>
+
+          <a href="<?= APP_URL ?>/directory/"
+             class="msw-tile <?= $_on_dir ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#4338ca;--mb:#eef2ff"><i class="bi bi-person-lines-fill"></i></div>
+            <span>Katalog</span>
+          </a>
+
+          <a href="<?= APP_URL ?>/strategy/index.php"
+             class="msw-tile <?= (str_contains($_uri,'/strategy/') && !str_contains($_uri,'/strategy/actions/')) ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#7c3aed;--mb:#f5f3ff"><i class="bi bi-bullseye"></i></div>
+            <span>Strategia</span>
+          </a>
+
+          <a href="<?= APP_URL ?>/reports/index.php"
+             class="msw-tile <?= str_contains($_uri,'/reports/') ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#0284c7;--mb:#f0f9ff"><i class="bi bi-bar-chart-line"></i></div>
+            <span>Raporty</span>
+          </a>
+
           <?php if (can_read('karty30')): ?>
-          <li>
-            <a class="dropdown-item <?= $_on_k30 ? 'active' : '' ?>" href="<?= APP_URL ?>/karty30/index.php">
-              <i class="bi bi-card-checklist me-2"></i>Karty 30
-            </a>
-          </li>
+          <a href="<?= APP_URL ?>/karty30/index.php"
+             class="msw-tile <?= $_on_k30 ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#6d28d9;--mb:#f5f3ff"><i class="bi bi-card-checklist"></i></div>
+            <span>Karty 30</span>
+          </a>
           <?php endif; ?>
-        </ul>
-      </div>
+
+          <?php if (module_enabled('helpdesk_enabled')): ?>
+          <a href="<?= APP_URL ?>/helpdesk/index.php"
+             class="msw-tile <?= str_contains($_uri,'/helpdesk/') ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#b45309;--mb:#fffbeb"><i class="bi bi-ticket-perforated"></i></div>
+            <span>Helpdesk</span>
+          </a>
+          <?php endif; ?>
+
+          <a href="<?= APP_URL ?>/rodo/index.php"
+             class="msw-tile <?= $_on_rodo ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#475569;--mb:#f8fafc"><i class="bi bi-shield-lock"></i></div>
+            <span>RODO</span>
+          </a>
+
+          <?php if (is_admin()): ?>
+          <a href="<?= APP_URL ?>/admin/index.php"
+             class="msw-tile <?= $_on_admin ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#1e293b;--mb:#f1f5f9"><i class="bi bi-gear-fill"></i></div>
+            <span>Admin</span>
+          </a>
+          <?php endif; ?>
+
+        </div><!-- /mod-sw-grid -->
+
+        <div class="mod-sw-footer">
+          <a href="<?= APP_URL ?>/portal.php">
+            <i class="bi bi-grid-3x3-gap me-1"></i>Portal — wszystkie moduły
+          </a>
+        </div>
+      </div><!-- /mod-sw-panel -->
+
+    </div><!-- /#mod-sw -->
+    <style>
+    /* ── Waffle module switcher ───────────────────────────────── */
+    .mod-sw-btn {
+      display:inline-flex;align-items:center;gap:.3rem;
+      background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+      padding:.28rem .6rem;font-size:.8rem;font-weight:500;color:#334155;
+      cursor:pointer;line-height:1.4;transition:all .12s;white-space:nowrap;flex-shrink:0;
+    }
+    .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] {
+      background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;
+    }
+    .mod-sw-cur { max-width:80px;overflow:hidden;text-overflow:ellipsis; }
+    .mod-sw-panel { border-radius:14px !important;min-width:0 !important; }
+    .mod-sw-head {
+      padding:.6rem .7rem .25rem;
+      font-size:.63rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.09em;color:#94a3b8;
+    }
+    .mod-sw-grid {
+      display:grid;grid-template-columns:repeat(3,1fr);
+      gap:.15rem;padding:.15rem .45rem .35rem;
+    }
+    .msw-tile {
+      display:flex;flex-direction:column;align-items:center;gap:.28rem;
+      padding:.5rem .25rem;border-radius:10px;text-decoration:none;
+      color:#374151;font-size:.7rem;font-weight:500;text-align:center;
+      transition:background .1s,color .1s;line-height:1.25;
+    }
+    .msw-tile:hover { background:#f8fafc;color:#1e293b; }
+    .msw-tile.msw-on { background:#eff6ff;color:#1d4ed8; }
+    .msw-ic {
+      width:38px;height:38px;border-radius:10px;
+      background:var(--mb,#f8fafc);color:var(--mc,#64748b);
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.05rem;transition:transform .12s;flex-shrink:0;
+    }
+    .msw-tile:hover .msw-ic { transform:scale(1.08); }
+    .msw-tile.msw-on .msw-ic { background:#dbeafe;color:#1d4ed8; }
+    .mod-sw-footer {
+      padding:.4rem .7rem .55rem;
+      border-top:1px solid #f1f5f9;margin-top:.15rem;
+    }
+    .mod-sw-footer a {
+      font-size:.74rem;color:#64748b;text-decoration:none;
+      display:inline-flex;align-items:center;gap:.25rem;
+    }
+    .mod-sw-footer a:hover { color:#1e293b; }
+    </style>
       <!-- Szukajka — w ramach nawigacji modułów -->
       <div class="tb-search-wrap d-none d-md-block" id="qs-wrap" style="position:relative;margin-left:.25rem">
       <i class="tb-search-icon bi bi-search" aria-hidden="true"></i>
@@ -1309,7 +1361,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       });
     })();
     </script>
-    </nav><!-- /tb-mods -->
     <button type="button"
             id="shortcuts-hint"
             onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}))"
