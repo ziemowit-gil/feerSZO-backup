@@ -2,11 +2,11 @@
 /**
  * strategy/admin/settings.php — Ustawienia modułu Strategii.
  */
-require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/strategy.php';
+require_once dirname(dirname(__DIR__)) . '/config.php';
+require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/strategy.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Ustawienia modułu Strategii';
