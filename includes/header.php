@@ -928,9 +928,15 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   ════════════════════════════════════════ -->
   <?php if (is_admin()): ?>
   <div class="sb-label">Admin</div>
-  <a class="sb-link<?= str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding') ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
+  <a class="sb-link<?= str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding') && !str_contains($_uri,'/admin/sharepoint') && !str_contains($_uri,'/admin/m365') ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
     <i class="bi bi-shield-shaded"></i> Panel admina
     <?php if ($_adm_badge): ?><span class="badge bg-danger ms-auto"><?= $_adm_badge ?></span><?php endif; ?>
+  </a>
+  <a class="sb-link<?= _nav_active('/admin/m365') ?>" href="<?= APP_URL ?>/admin/m365_settings.php">
+    <i class="bi bi-microsoft"></i> Microsoft 365
+  </a>
+  <a class="sb-link<?= _nav_active('/admin/sharepoint') ?>" href="<?= APP_URL ?>/admin/sharepoint_settings.php">
+    <i class="bi bi-cloud-upload"></i> SharePoint
   </a>
   <?php endif; ?>
 
