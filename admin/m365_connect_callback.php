@@ -48,27 +48,37 @@ if (!$error) {
     }
 }
 
-$code      = trim($_GET['code'] ?? '');
-$verifier  = $_SESSION['m365_pkce_verifier']  ?? '';
-$client_id = $_SESSION['m365_pkce_client_id'] ?? m365_setting('m365_graph_client_id');
+$code          = trim($_GET['code'] ?? '');
+$verifier      = $_SESSION['m365_pkce_verifier']      ?? '';
+$client_id     = $_SESSION['m365_pkce_client_id']     ?? m365_setting('m365_graph_client_id');
+// Secret z sesji (podany w formularzu connect.php) lub z wcześniej zapisanych ustawień
+$client_secret = $_SESSION['m365_pkce_client_secret'] ?? '';
+if (!$client_secret) {
+    $client_secret = m365_setting('m365_graph_client_secret') ?: (defined('MS_CLIENT_SECRET') ? MS_CLIENT_SECRET : '');
+}
 
 if (!$error && !$code)     $error = 'Brak kodu autoryzacyjnego w odpowiedzi Microsoft.';
 if (!$error && !$verifier) $error = 'Brak code_verifier w sesji — sesja mogła wygasnąć.';
 
-// ── Wymień kod na token (PKCE — bez client_secret) ───────────────────────────
+// ── Wymień kod na token (PKCE + opcjonalny client_secret dla confidential clients) ──
 $token_resp = [];
 if (!$error) {
     $redirect_uri = APP_URL . '/admin/m365_connect_callback.php';
+    $post_data = [
+        'client_id'     => $client_id,
+        'code'          => $code,
+        'redirect_uri'  => $redirect_uri,
+        'grant_type'    => 'authorization_code',
+        'code_verifier' => $verifier,
+    ];
+    // Confidential client (domyślny w Azure) wymaga client_secret
+    if ($client_secret) {
+        $post_data['client_secret'] = $client_secret;
+    }
     $ctx = stream_context_create(['http' => [
         'method'        => 'POST',
         'header'        => "Content-Type: application/x-www-form-urlencoded\r\n",
-        'content'       => http_build_query([
-            'client_id'     => $client_id,
-            'code'          => $code,
-            'redirect_uri'  => $redirect_uri,
-            'grant_type'    => 'authorization_code',
-            'code_verifier' => $verifier,
-        ]),
+        'content'       => http_build_query($post_data),
         'ignore_errors' => true,
     ]]);
     $body = @file_get_contents('https://login.microsoftonline.com/common/oauth2/v2.0/token', false, $ctx);
@@ -77,6 +87,10 @@ if (!$error) {
     if (empty($token_resp['access_token'])) {
         $err_desc = $token_resp['error_description'] ?? $token_resp['error'] ?? 'nieznany błąd';
         $error = 'Błąd wymiany kodu na token: ' . h($err_desc);
+        // Podpowiedź gdy brakuje sekretu
+        if (str_contains($err_desc, 'AADSTS7000218')) {
+            $error .= '<br><small class="text-muted">Wskazówka: podaj Client Secret w formularzu połączenia lub włącz <strong>Allow public client flows</strong> w ustawieniach Authentication aplikacji Azure.</small>';
+        }
     }
 }
 
@@ -138,7 +152,8 @@ if (!$error) {
     ];
 
     // Wyczyść dane PKCE z sesji
-    unset($_SESSION['m365_pkce_verifier'], $_SESSION['m365_pkce_state'], $_SESSION['m365_pkce_client_id']);
+    unset($_SESSION['m365_pkce_verifier'], $_SESSION['m365_pkce_state'],
+          $_SESSION['m365_pkce_client_id'], $_SESSION['m365_pkce_client_secret']);
 
     $msg = $conn['ok']
         ? 'Połączono z Microsoft 365! Tenant ID i dane organizacji wykryte automatycznie.'

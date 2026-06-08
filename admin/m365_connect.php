@@ -19,20 +19,26 @@ $saved_client_id = m365_setting('m365_graph_client_id');
 // POST: zapisz Client ID i przekieruj do MS
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    $client_id = trim($_POST['client_id'] ?? '');
+    $client_id     = trim($_POST['client_id']     ?? '');
+    $client_secret = trim($_POST['client_secret'] ?? '');
     if (!$client_id) {
         $error = 'Podaj Client ID aplikacji Azure.';
     } else {
         m365_save_setting('m365_graph_client_id', $client_id);
+        if ($client_secret) {
+            m365_save_setting('m365_graph_client_secret', $client_secret);
+        }
 
-        // PKCE — nie wymaga client_secret przy wymianie kodu
+        // PKCE — nie wymaga client_secret przy wymianie kodu (public client)
+        // Przy confidential client (domyślnym) secret jest wymagany → zapisz w sesji
         $verifier  = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
         $state     = bin2hex(random_bytes(16));
 
-        $_SESSION['m365_pkce_verifier']  = $verifier;
-        $_SESSION['m365_pkce_state']     = $state;
-        $_SESSION['m365_pkce_client_id'] = $client_id;
+        $_SESSION['m365_pkce_verifier']       = $verifier;
+        $_SESSION['m365_pkce_state']          = $state;
+        $_SESSION['m365_pkce_client_id']      = $client_id;
+        $_SESSION['m365_pkce_client_secret']  = $client_secret;
 
         $scopes = implode(' ', [
             'openid', 'email', 'profile', 'offline_access',
@@ -102,7 +108,14 @@ include dirname(__DIR__) . '/includes/header.php';
       <code>Organization.Read.All</code>
     </li>
     <li class="mb-2">Kliknij <strong>Grant admin consent</strong></li>
-    <li>Skopiuj <strong>Application (client) ID</strong> z ekranu Overview</li>
+    <li class="mb-2">
+      Skopiuj <strong>Application (client) ID</strong> z ekranu Overview.<br>
+      Przejdź do <strong>Certificates &amp; secrets</strong> → <em>New client secret</em> → skopiuj wartość sekretu.
+    </li>
+    <li>
+      <em>(Opcjonalnie, jeśli nie podajesz sekretu)</em>: <strong>Authentication</strong>
+      → <em>Advanced settings</em> → <strong>Allow public client flows → Yes</strong>
+    </li>
   </ol>
 
   <?php if (!empty($error)): ?>
@@ -118,10 +131,26 @@ include dirname(__DIR__) . '/includes/header.php';
         value="<?= h($_POST['client_id'] ?? $saved_client_id) ?>"
         placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
     </div>
-    <p class="small text-muted">
+
+    <?php $saved_secret_set = (bool)m365_setting('m365_graph_client_secret'); ?>
+    <label class="form-label fw-semibold">
+      Client Secret
+      <span class="text-muted fw-normal">(wymagany dla confidential clients)</span>
+    </label>
+    <div class="input-group mb-1">
+      <span class="input-group-text"><i class="bi bi-key"></i></span>
+      <input type="password" name="client_secret" class="form-control"
+        placeholder="<?= $saved_secret_set ? '(skonfigurowany — zostaw puste by nie zmieniać)' : 'Wklej Client Secret z Azure' ?>">
+    </div>
+    <p class="small text-muted mb-3">
       <i class="bi bi-info-circle"></i>
+      Wymagany jeśli aplikacja Azure jest <em>confidential client</em> (domyślnie).
+      Alternatywnie: włącz <strong>Allow public client flows → Yes</strong> w ustawieniach Authentication aplikacji Azure.
+    </p>
+
+    <p class="small text-muted mb-3">
+      <i class="bi bi-check-circle text-success"></i>
       Tenant ID i wszystkie pozostałe dane zostaną <strong>wykryte automatycznie</strong> po zalogowaniu.
-      Nie musisz nic więcej wpisywać.
     </p>
     <button type="submit" class="btn btn-primary btn-lg w-100">
       <i class="bi bi-microsoft me-2"></i>Zaloguj się przez Microsoft 365 →
@@ -147,13 +176,16 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <div class="card shadow-sm">
-<div class="card-header fw-semibold"><i class="bi bi-question-circle"></i> Dlaczego tylko Client ID?</div>
+<div class="card-header fw-semibold"><i class="bi bi-question-circle"></i> Confidential vs Public Client</div>
 <div class="card-body small text-muted">
-  <p>Używamy przepływu <strong>PKCE</strong> — bezpiecznego standardu OAuth 2.0,
-  który nie wymaga wpisywania Client Secret do logowania. Secret potrzebujesz
-  tylko do operacji działających w tle (tworzenie kont, synchronizacja).</p>
-  <p class="mb-0">Po zalogowaniu i auto-wykryciu wszystkich danych, zostaniesz
-  poproszony/a o podanie Client Secret do konfiguracji zadań w tle.</p>
+  <p>Azure domyślnie tworzy aplikacje jako <strong>confidential client</strong>, który wymaga
+  Client Secret przy każdym żądaniu tokenu (nawet w PKCE). Masz dwie opcje:</p>
+  <ul class="mb-2">
+    <li><strong>Podaj Client Secret</strong> — w formularzu po lewej. Bezpieczniej dla serwerów.</li>
+    <li><strong>Włącz public client flows</strong> — w Azure Portal → Authentication →
+    <em>Allow public client flows → Yes</em>. Nie wymaga sekretu.</li>
+  </ul>
+  <p class="mb-0">Secret jest też potrzebny do operacji w tle (tworzenie kont, synchronizacja).</p>
 </div>
 </div>
 
