@@ -83,6 +83,8 @@ if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'X
 
 // ── Migracja kolumny representative_id ───────────────────────────────────────
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN representative_id INTEGER NULL"); } catch(\Throwable $e) {}
+// ── Migracja kolumny template_id ─────────────────────────────────────────────
+try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN template_id INTEGER NULL"); } catch(\Throwable $e) {}
 // ── Migracja tabeli dodatkowych plików umów ───────────────────────────────────
 try { db()->exec("CREATE TABLE IF NOT EXISTS contract_extra_docs (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,7 +168,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
     if (can_edit() && !contract_is_locked($row)) {
         $new_status = $_POST['status'] ?? '';
         if (isset(STATUS_LABELS[$new_status]) && $new_status !== 'aneks') {
-            $old_status = $row['status'];
+            $old_status  = $row['status'];
+            $_is_adm     = (current_user()['role'] ?? '') === 'admin';
+            $_next_ok    = status_allowed_next($old_status, $_is_adm);
+            if ($new_status !== $old_status && !in_array($new_status, $_next_ok, true)) {
+                $from_lbl = STATUS_LABELS[$old_status]['label']  ?? $old_status;
+                $to_lbl   = STATUS_LABELS[$new_status]['label']  ?? $new_status;
+                flash_set('error', 'Niedozwolona zmiana statusu: ' . $from_lbl . ' → ' . $to_lbl . '.');
+                header('Location: view.php?id=' . $id); exit;
+            }
             db_update($TABLE, ['status' => $new_status], $id);
             log_contract_action($TYPE, $id, (int)current_user()['id'], 'status_change',
                 'Zmiana statusu: ' . $old_status . ' → ' . $new_status);
@@ -196,46 +206,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_msg_send'])) {
     exit;
 }
 
-// ── Nadanie hasła do konta portalu ───────────────────────────────────────────
+// ── Reset hasła — wyślij link do ustawienia hasła ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_portal_pass']) && can_edit()) {
     csrf_check();
     $email = trim($row['email'] ?? '');
-    $new_pass = trim($_POST['new_pass'] ?? '');
     if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         flash_set('danger', 'Brak adresu e-mail — nie można znaleźć konta.');
-    } elseif (strlen($new_pass) < 6) {
-        flash_set('danger', 'Hasło musi mieć co najmniej 6 znaków.');
     } else {
         $portal_user = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$email]);
         if (!$portal_user) {
             flash_set('warning', 'Wolontariusz nie ma konta w portalu.');
         } else {
-            $hash = password_hash($new_pass, PASSWORD_BCRYPT);
-            db()->prepare("UPDATE users SET password=?, login_code=NULL WHERE id=?")->execute([$hash, (int)$portal_user['id']]);
-            log_contract_action($TYPE, $id, (int)current_user()['id'], 'note', 'Nadano nowe hasło do konta portalu dla: ' . $email);
-            // Wyślij email z nowym hasłem
-            $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-            $name = h($row['imie_nazwisko'] ?? $email);
+            $setup_tok = auth_generate_setup_token((int)$portal_user['id']);
+            $setup_url = APP_URL . '/auth/set_password.php?token=' . $setup_tok;
+            log_contract_action($TYPE, $id, (int)current_user()['id'], 'note', 'Wysłano link do ustawienia hasła portalu dla: ' . $email);
+            $org   = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+            $name  = h($row['imie_nazwisko'] ?? $email);
             $numer = h($row['numer_umowy']);
-            $login_url = APP_URL . '/auth/login.php';
             $body = <<<HTML
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
 <div style="background:#0d6efd;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.2rem">🔑 Nowe hasło do portalu — {$org}</h2>
+  <h2 style="color:#fff;margin:0;font-size:1.2rem">🔑 Ustaw hasło do portalu — {$org}</h2>
 </div>
 <div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
   <p>Witaj, <strong>{$name}</strong>!</p>
-  <p>Administrator nadał Ci nowe hasło do portalu wolontariusza (umowa <strong>{$numer}</strong>).</p>
+  <p>Administrator wysłał Ci link do ustawienia hasła do portalu wolontariusza (umowa <strong>{$numer}</strong>).</p>
   <table style="background:#f8f9fa;border-radius:6px;padding:16px;width:100%;margin:12px 0;border-collapse:collapse">
     <tr><td style="padding:4px 12px;color:#6c757d;width:120px">Login</td>
         <td style="padding:4px 12px"><strong>{$email}</strong></td></tr>
-    <tr><td style="padding:4px 12px;color:#6c757d">Hasło</td>
-        <td style="padding:4px 12px"><strong style="font-family:monospace;font-size:1.15em">{$new_pass}</strong></td></tr>
   </table>
   <div style="margin:20px 0;text-align:center">
-    <a href="{$login_url}" style="background:#0d6efd;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;display:inline-block">
-      Zaloguj się do portalu →
+    <a href="{$setup_url}" style="background:#16a34a;color:#fff;padding:13px 28px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700">
+      🔑 Ustaw hasło →
     </a>
+    <p style="margin:10px 0 0;font-size:.8em;color:#6c757d">Link jest jednorazowy. Po kliknięciu zostaniesz zalogowany/a automatycznie.</p>
   </div>
   <p style="color:#6c757d;font-size:.85em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
     Jeśli nie spodziewałeś/aś się tej wiadomości, skontaktuj się z organizacją.
@@ -245,11 +249,11 @@ HTML;
             require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
             require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
             if (!email_rate_limit_ok($email, 3)) {
-                flash_set('warning', 'Hasło zmienione, ale mail nie wysłany — osiągnięto limit 3 wiadomości dziennie do tego adresu.');
+                flash_set('warning', 'Link wygenerowany, ale mail nie wysłany — osiągnięto limit 3 wiadomości dziennie do tego adresu.');
             } else {
-                mail_queue_add($email, $row['imie_nazwisko'] ?? $email, "Nowe hasło do portalu — {$org}", $body, '', 'wolontariat', $id, '', true);
-                email_log($email, "Nowe hasło do portalu — {$org}", 'wolontariat', $id);
-                flash_set('success', 'Hasło zostało zmienione i wysłane na adres ' . $email . '.');
+                mail_queue_add($email, $row['imie_nazwisko'] ?? $email, "Ustaw hasło do portalu — {$org}", $body, '', 'wolontariat', $id, '', true);
+                email_log($email, "Link do ustawienia hasła portalu — {$org}", 'wolontariat', $id);
+                flash_set('success', 'Link do ustawienia hasła wysłany na adres ' . $email . '.');
             }
         }
     }
@@ -1211,6 +1215,23 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     </div>
     <?php endif; ?>
 
+    <?php
+    // Wzorzec powiązany z umową
+    $_tpl_linked = !empty($row['template_id']) ? cte_get((int)$row['template_id']) : null;
+    if ($_tpl_linked): ?>
+    <div class="pt-2 border-top mt-2 d-flex align-items-center gap-2 flex-wrap">
+      <span class="small text-muted fw-semibold"><i class="bi bi-file-earmark-text me-1"></i>Wzorzec:</span>
+      <a href="<?= h(APP_URL . '/contracts/print_template.php?template_id=' . $_tpl_linked['id'] . '&contract_id=' . $id . '&type=' . $TYPE . '&preview=1') ?>"
+         target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.8rem">
+        <i class="bi bi-eye me-1"></i><?= h($_tpl_linked['name']) ?>
+      </a>
+      <a href="<?= h(APP_URL . '/contracts/download_template_docx.php?template_id=' . $_tpl_linked['id'] . '&contract_id=' . $id . '&type=' . $TYPE) ?>"
+         class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.8rem">
+        <i class="bi bi-file-earmark-word me-1"></i>DOCX
+      </a>
+    </div>
+    <?php endif; ?>
+
   </div>
 
   <!-- Podpisujący ze strony organizacji -->
@@ -1352,16 +1373,14 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
               </button>
             </form>
 
-            <!-- Nadaj hasło -->
-            <form method="post" class="d-flex gap-1" id="form_set_pass_<?= $id ?>">
+            <!-- Link do ustawienia hasła -->
+            <form method="post"
+                  onsubmit="return confirm('Wysłać link do ustawienia hasła na e-mail wolontariusza?')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <input type="password" name="new_pass" class="form-control form-control-sm"
-                     placeholder="Nowe hasło" minlength="6" required
-                     style="font-family:monospace;width:130px">
               <button type="submit" name="_set_portal_pass" value="1"
                       class="btn btn-sm btn-warning"
-                      title="Zapisz hasło i wyślij e-mailem">
-                <i class="bi bi-key me-1"></i>Ustaw
+                      title="Wyślij link do ustawienia hasła na e-mail">
+                <i class="bi bi-key me-1"></i>Wyślij link do hasła
               </button>
             </form>
 

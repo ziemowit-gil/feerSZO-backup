@@ -161,8 +161,13 @@ $_cvh_accent = match($_cvh_st['class']) {
                 data-contract-id="<?= (int)$_cvh_row['id'] ?>"
                 data-contract-type="<?= h($_cvh_type) ?>"
                 onchange="cvhSetStatus(this)">
-          <?php foreach (STATUS_LABELS as $_sv => $_sm):
-            if ($_sv === 'aneks') continue; // nie można ręcznie ustawić aneksu ?>
+          <?php
+          $_cvh_is_admin   = (current_user()['role'] ?? '') === 'admin';
+          $_cvh_next_ok    = status_allowed_next($_cvh_status, $_cvh_is_admin);
+          foreach (STATUS_LABELS as $_sv => $_sm):
+            if ($_sv === 'aneks') continue; // nie można ręcznie ustawić aneksu
+            if ($_sv !== $_cvh_status && !in_array($_sv, $_cvh_next_ok, true)) continue;
+          ?>
           <option value="<?= h($_sv) ?>" <?= $_cvh_status === $_sv ? 'selected' : '' ?>>
             <?= h($_sm['label']) ?>
           </option>

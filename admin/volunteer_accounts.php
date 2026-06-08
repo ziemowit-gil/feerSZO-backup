@@ -76,11 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$errors) {
-            // Generuj haslo
-            $chars    = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            $new_pass = '';
-            for ($i = 0; $i < 10; $i++) $new_pass .= $chars[random_int(0, strlen($chars) - 1)];
-
             $full_name = trim($first_name . ' ' . $last_name);
 
             db_insert('users', [
@@ -88,11 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'first_name'             => $first_name,
                 'last_name'              => $last_name,
                 'email'                  => $email,
-                'password'               => password_hash($new_pass, PASSWORD_BCRYPT),
+                'password'               => password_hash(bin2hex(random_bytes(24)), PASSWORD_BCRYPT),
                 'role'                   => 'viewer',
                 'is_active'              => 1,
                 'is_standalone_volunteer'=> 1,
-                'must_change_password'   => 1,
+                'must_change_password'   => 0,
                 'created_at'             => date('Y-m-d H:i:s'),
             ]);
             $new_uid = (int)db()->lastInsertId();
@@ -102,6 +97,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     db()->prepare("UPDATE users SET phone_number=? WHERE id=?")->execute([$phone, $new_uid]);
                 } catch (\Throwable $e) {}
             }
+
+            // Token do ustawienia hasła
+            $setup_tok = auth_generate_setup_token($new_uid);
+            $setup_url = APP_URL . '/auth/set_password.php?token=' . $setup_tok;
 
             log_user_action($new_uid, (int)$me['id'], 'user_create',
                 'Utworzono konto wolontariusza bez umowy: ' . $full_name . ' (' . $email . ')');
@@ -174,9 +173,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Wyslij e-mail z danymi logowania
+            // Wyslij e-mail z linkiem do ustawienia hasla
             if ($send_email && $email) {
-                $login_url = APP_URL . '/auth/login.php';
                 $panel_url = APP_URL . '/panel/index.php';
                 $body = <<<HTML
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
@@ -191,18 +189,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <td style="padding:5px 14px;color:#6c757d;width:130px;font-size:.9em">Adres e-mail</td>
       <td style="padding:5px 14px"><strong>{$email}</strong></td>
     </tr>
-    <tr>
-      <td style="padding:5px 14px;color:#6c757d;font-size:.9em">Haslo startowe</td>
-      <td style="padding:5px 14px"><strong style="font-family:monospace;font-size:1.15em;letter-spacing:.05em">{$new_pass}</strong></td>
-    </tr>
   </table>
-  <div style="background:#eff6ff;border-left:4px solid #2563eb;border-radius:4px;padding:12px 16px;margin:16px 0;font-size:.88em">
-    Po zalogowaniu zostaniesz poproszony/a o zmiane hasla.
-  </div>
   <div style="margin:22px 0;text-align:center">
-    <a href="{$login_url}" style="background:#2563eb;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Zaloguj sie do portalu &rarr;
+    <a href="{$setup_url}" style="background:#16a34a;color:#fff;padding:13px 32px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:700;font-size:1em">
+      🔑 Ustaw swoje haslo &rarr;
     </a>
+    <p style="margin:10px 0 0;font-size:.8em;color:#6c757d">Link jest jednorazowy. Po kliknieciu zostaniesz zalogowany/a automatycznie.</p>
   </div>
   <p style="font-size:.9em">W portalu mozesz:</p>
   <ul style="font-size:.9em;padding-left:18px">
@@ -228,10 +220,10 @@ HTML;
                 } catch (\Throwable $e) {}
             }
 
-            // Wyslij SMS z danymi logowania
+            // Wyslij SMS z linkiem do ustawienia hasla
             if ($send_sms) {
                 try {
-                    $sms_text = "FEER. Dostep do konta SZO dla {$email}. Haslo: {$new_pass}.";
+                    $sms_text = "FEER. Konto SZO dla {$email}. Ustaw haslo: {$setup_url}";
                     sms_send($phone, $sms_text);
                 } catch (\Throwable $e) {
                     flash_set('warning', 'Konto utworzone, ale SMS nie zostal wyslany: ' . $e->getMessage());

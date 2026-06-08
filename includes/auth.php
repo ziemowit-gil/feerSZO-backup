@@ -142,6 +142,18 @@ function viewer_owns_contract(string $type, array $row): bool {
     return false;
 }
 
+/**
+ * Generuje jednorazowy token aktywacyjny do ustawienia hasła.
+ * Otwórz: APP_URL . '/auth/set_password.php?token=' . $token
+ */
+function auth_generate_setup_token(int $user_id): string {
+    try { db()->exec("ALTER TABLE users ADD COLUMN activation_token TEXT NULL"); } catch (\Throwable $e) {}
+    try { db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_activation_token ON users(activation_token) WHERE activation_token IS NOT NULL"); } catch (\Throwable $e) {}
+    $token = bin2hex(random_bytes(32));
+    db()->prepare("UPDATE users SET activation_token = ? WHERE id = ?")->execute([$token, $user_id]);
+    return $token;
+}
+
 function login_user(array $user): void {
     auth_start();
     session_regenerate_id(true);

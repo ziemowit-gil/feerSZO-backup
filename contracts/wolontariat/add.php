@@ -14,6 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
 $PAGE_TITLE = 'Nowe porozumienie wolontariackie';
 cpc_migrate(); // ensure new columns exist
+try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN template_id INTEGER NULL"); } catch (\Throwable $e) {}
 
 // Wymagaj weryfikacji IKA przed otwarciem formularza (GET)
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -65,8 +66,8 @@ function _wolontariat_provision_account(
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
     if (db_one("SELECT id FROM users WHERE email = ?", [$email])) return null;
 
-    $plain = $plain_pass ?? substr(str_replace(['+', '/', '='], '', base64_encode(random_bytes(18))), 0, 12);
-    $hash  = password_hash($plain, PASSWORD_BCRYPT);
+    // Tworzymy konto z losowym hasłem — użytkownik ustawia własne przez link
+    $hash = password_hash(bin2hex(random_bytes(24)), PASSWORD_BCRYPT);
     db_insert('users', [
         'name'       => $name ?: $email,
         'email'      => $email,
@@ -75,9 +76,11 @@ function _wolontariat_provision_account(
         'is_active'  => 1,
         'created_at' => date('Y-m-d H:i:s'),
     ]);
+    $new_uid   = (int)db()->lastInsertId();
+    $setup_tok = auth_generate_setup_token($new_uid);
+    $setup_url = APP_URL . '/auth/set_password.php?token=' . $setup_tok;
 
     $org       = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-    $login_url = APP_URL . '/auth/login.php';
     $panel_url = APP_URL . '/panel/index.php';
 
     // ── Blok logowania (wspólny dla wszystkich wariantów) ──────────────────────
@@ -87,11 +90,14 @@ function _wolontariat_provision_account(
     <td style="padding:5px 14px;color:#6c757d;width:130px;font-size:.9em">Adres e-mail</td>
     <td style="padding:5px 14px"><strong>{$email}</strong></td>
   </tr>
-  <tr>
-    <td style="padding:5px 14px;color:#6c757d;font-size:.9em">Hasło</td>
-    <td style="padding:5px 14px"><strong style="font-family:monospace;font-size:1.15em;letter-spacing:.05em">{$plain}</strong></td>
-  </tr>
 </table>
+<div style="margin:18px 0;text-align:center">
+  <a href="{$setup_url}"
+     style="background:#16a34a;color:#fff;padding:13px 32px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:700;font-size:1em">
+    🔑 Ustaw swoje hasło →
+  </a>
+  <p style="margin:10px 0 0;font-size:.8em;color:#6c757d">Link jest jednorazowy. Po kliknięciu zostaniesz zalogowany/a automatycznie.</p>
+</div>
 HTML;
 
     // ── Blok M365 (jeśli dotyczy) ──────────────────────────────────────────────
@@ -99,23 +105,17 @@ HTML;
     if ($m365_login) {
         $m365_block = <<<HTML
 <div style="background:#f0f7ff;border:1px solid #b6d4fe;border-radius:8px;padding:16px;margin:16px 0">
-  <div style="font-weight:700;color:#0d6efd;margin-bottom:10px;font-size:.95em">
+  <div style="font-weight:700;color:#0d6efd;margin-bottom:8px;font-size:.95em">
     🖥️ Konto Microsoft 365
   </div>
-  <p style="margin:0 0 10px;font-size:.9em">Masz również konto w pakiecie Microsoft 365 (Outlook, Teams, OneDrive):</p>
   <table style="border-collapse:collapse;width:100%">
     <tr>
       <td style="padding:4px 12px;color:#6c757d;width:140px;font-size:.88em">Login M365</td>
       <td style="padding:4px 12px"><strong style="font-family:monospace">{$m365_login}</strong></td>
     </tr>
-    <tr>
-      <td style="padding:4px 12px;color:#6c757d;font-size:.88em">Hasło startowe</td>
-      <td style="padding:4px 12px"><strong style="font-family:monospace;font-size:1.1em">{$plain}</strong></td>
-    </tr>
   </table>
   <p style="margin:10px 0 0;font-size:.83em;color:#555">
-    To samo hasło działa w portalu <strong>i</strong> w Microsoft 365.<br>
-    Przy pierwszym logowaniu do Office zostaniesz poproszony/a o jego zmianę.
+    Przy pierwszym logowaniu do Microsoft 365 zostaniesz poproszony/a o ustawienie hasła.
     Zaloguj się na: <a href="https://portal.office.com" style="color:#0d6efd">portal.office.com</a>
   </p>
 </div>
@@ -284,7 +284,7 @@ HTML;
     }
 
     approval_send_email($email, $subject, $body);
-    return $plain;
+    return $setup_url;
 }
 
 // ── Powiadomienia Canva ───────────────────────────────────────────────────────
@@ -489,6 +489,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (['godzin_tygodniowo', 'godzin_przepracowanych', 'limit_zwrotu_kosztow'] as $f) {
             if (isset($row[$f]) && $row[$f] === '') $row[$f] = null;
         }
+        // template_id: zamień pusty string na null, zachowaj jako int gdy wybrano
+        $row['template_id'] = !empty($row['template_id']) ? (int)$row['template_id'] : null;
 
         // Upload plików → finalna lokalizacja (przed redirectem)
         $plik_umowy = handle_upload('plik_umowy',         $TYPE);
@@ -523,7 +525,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'guardian_editor_id', 'guardian_initials',
             'id_document_type', 'id_document_number', 'no_pesel_reason',
             'm365_security_group_id', 'm365_security_group_name',
-            'portal_scope'];
+            'portal_scope',
+            'template_id'];
 
         $data = array_intersect_key($row, array_flip($allowed));
 
@@ -660,22 +663,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // ── Konto portalu wolontariusza ──────────────────────────────────────
         if (!empty($data['email'])) {
-            $plain = _wolontariat_provision_account(
+            $setup_result = _wolontariat_provision_account(
                 $data['email'],
                 $data['imie_nazwisko'] ?? '',
                 $data['numer_umowy']   ?? '',
-                $m365_pass_created,
+                null,                          // hasło ustawia użytkownik przez link
                 $m365_login_created,
                 $is_technical,
                 ($data['portal_scope'] ?? '')
             );
-            if ($plain !== null) {
+            if ($setup_result !== null) {
                 $_SESSION['new_portal_account'] = [
-                    'email'    => $data['email'],
-                    'password' => $plain,
-                    'name'     => $data['imie_nazwisko'] ?? '',
+                    'email'          => $data['email'],
+                    'setup_link_sent'=> true,
+                    'name'           => $data['imie_nazwisko'] ?? '',
                 ];
-                log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Utworzono konto portalu i wysłano hasło na ' . $data['email']);
+                log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Utworzono konto portalu i wysłano link aktywacyjny na ' . $data['email']);
             }
             // Ustaw portal_scope na koncie użytkownika (nowym lub istniejącym)
             $portal_scope_val = ($data['portal_scope'] ?? '') ?: null;
@@ -687,13 +690,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // ── Konto rodzica/opiekuna ───────────────────────────────────────────
         if (!empty($data['rodzic_email']) && !empty($data['niepelnoletni'])) {
-            $rodzic_plain = _wolontariat_provision_account(
+            $rodzic_result = _wolontariat_provision_account(
                 $data['rodzic_email'],
                 $data['rodzic_imie_nazwisko'] ?? '',
                 $data['numer_umowy'] ?? ''
             );
-            if ($rodzic_plain !== null) {
-                log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Utworzono konto rodzica/opiekuna: ' . $data['rodzic_email']);
+            if ($rodzic_result !== null) {
+                log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Utworzono konto rodzica/opiekuna i wysłano link aktywacyjny: ' . $data['rodzic_email']);
             }
         }
 
@@ -1654,28 +1657,45 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               </div>
             </div>
 
-            <?php
-            require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
-            $_epodpis_add_tpls = cte_list('wolontariat');
-            if ($_epodpis_add_tpls):
-            ?>
-            <div class="mt-3 pt-2 border-top border-success border-opacity-25">
-              <div class="small fw-semibold text-success mb-2">
-                <i class="bi bi-file-earmark-word me-1"></i>Pobierz wzór do podpisu:
-              </div>
-              <div class="d-flex flex-wrap gap-2">
-                <?php foreach ($_epodpis_add_tpls as $_etpl): ?>
-                <span class="text-muted small">
-                  <i class="bi bi-info-circle me-1"></i><?= h($_etpl['name']) ?>
-                  <span class="text-muted">(dostępny po zapisaniu umowy)</span>
-                </span>
-                <?php endforeach; ?>
-              </div>
-            </div>
-            <?php endif; ?>
-
           </div>
         </div>
+      </div>
+
+      <!-- Wzorzec umowy -->
+      <?php
+      require_once dirname(dirname(__DIR__)) . '/includes/contract_template_engine.php';
+      cte_migrate();
+      $_add_tpls = cte_list('wolontariat');
+      ?>
+      <div class="mt-3 pt-3 border-top">
+        <label class="form-label fw-semibold">
+          <i class="bi bi-file-earmark-text me-1"></i>Wzorzec umowy
+          <span class="text-muted fw-normal small">(opcjonalne)</span>
+        </label>
+        <?php if ($_add_tpls): ?>
+        <select name="template_id" class="form-select">
+          <option value="">— bez wzorca —</option>
+          <?php foreach ($_add_tpls as $_atpl): ?>
+          <option value="<?= (int)$_atpl['id'] ?>"
+                  <?= ((int)($row['template_id'] ?? 0) === (int)$_atpl['id']) ? 'selected' : '' ?>>
+            <?= h($_atpl['name']) ?>
+            <?php if ($_atpl['type'] !== 'universal'): ?>
+              <span class="text-muted">(<?= h($_atpl['type']) ?>)</span>
+            <?php endif; ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text">Wzorzec zostanie powiązany z umową — łatwy dostęp do podglądu i DOCX z widoku.</div>
+        <?php else: ?>
+        <div class="alert alert-light border py-2 mb-0 small">
+          <i class="bi bi-info-circle me-1 text-muted"></i>Brak zdefiniowanych wzorców dla tego typu umowy.
+          <?php if (is_admin()): ?>
+          <a href="<?= APP_URL ?>/admin/template_editor.php?new=1&type=wolontariat" target="_blank">
+            Utwórz wzorzec →
+          </a>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
       </div>
 
       <!-- Upload pliku umowy -->

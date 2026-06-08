@@ -88,6 +88,17 @@ switch ($action) {
             ], 'Status niezmieniony');
         }
 
+        // Walidacja dozwolonych przejść — edytorzy tylko do przodu, admini bez ograniczeń
+        $is_admin = (current_user()['role'] ?? '') === 'admin';
+        if (!$is_admin) {
+            $allowed_next = STATUS_TRANSITIONS[$old_status] ?? [];
+            if (!in_array($value, $allowed_next, true)) {
+                $from_lbl = STATUS_LABELS[$old_status]['label'] ?? $old_status;
+                $to_lbl   = STATUS_LABELS[$value]['label']      ?? $value;
+                ajax_err('Niedozwolona zmiana: ' . $from_lbl . ' → ' . $to_lbl, 403);
+            }
+        }
+
         try {
             db_update($table, ['status' => $value], $id);
             log_contract_action(

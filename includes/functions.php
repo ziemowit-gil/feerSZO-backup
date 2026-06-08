@@ -9,16 +9,43 @@ const CONTRACT_TYPES = [
 ];
 
 const STATUS_LABELS = [
-    'projekt'      => ['label' => 'Projekt',      'class' => 'secondary'],
-    'podpisana'    => ['label' => 'Podpisana',     'class' => 'primary'],
-    'w realizacji' => ['label' => 'W trakcie',  'class' => 'info'],
-    'zakończona'   => ['label' => 'Zakończona',    'class' => 'success'],
-    'rozwiązana'   => ['label' => 'Rozwiązana',    'class' => 'warning'],
-    'anulowana'    => ['label' => 'Anulowana',     'class' => 'danger'],
-    'obowiązująca' => ['label' => 'Obowiązująca',  'class' => 'success'],
-    'wygasła'      => ['label' => 'Wygasła',       'class' => 'secondary'],
-    'aneks'        => ['label' => 'Aneks',         'class' => 'purple'],
+    'projekt'      => ['label' => 'Projekt',       'class' => 'secondary'],
+    'podpisana'    => ['label' => 'Podpisana',      'class' => 'primary'],
+    'w realizacji' => ['label' => 'W realizacji',   'class' => 'info'],
+    'zakończona'   => ['label' => 'Zakończona',     'class' => 'success'],
+    'rozwiązana'   => ['label' => 'Rozwiązana',     'class' => 'warning'],
+    'anulowana'    => ['label' => 'Anulowana',      'class' => 'danger'],
+    'obowiązująca' => ['label' => 'Obowiązująca',   'class' => 'success'],
+    'wygasła'      => ['label' => 'Wygasła',        'class' => 'secondary'],
+    'aneks'        => ['label' => 'Aneks',          'class' => 'purple'],
 ];
+
+/**
+ * Dozwolone przejścia między statusami dla zwykłych edytorów.
+ * Admini mogą ustawić dowolny status (oprócz 'aneks').
+ */
+const STATUS_TRANSITIONS = [
+    'projekt'      => ['podpisana', 'anulowana'],
+    'podpisana'    => ['w realizacji', 'zakończona', 'rozwiązana', 'anulowana'],
+    'w realizacji' => ['zakończona', 'rozwiązana'],
+    'obowiązująca' => ['zakończona', 'rozwiązana'],
+    'zakończona'   => [],
+    'rozwiązana'   => [],
+    'anulowana'    => [],
+    'wygasła'      => [],
+    'aneks'        => [],
+];
+
+/**
+ * Zwraca listę statusów, na które można przejść z podanego statusu.
+ * Admini widzą wszystkie statusy (bez 'aneks').
+ */
+function status_allowed_next(string $current, bool $is_admin = false): array {
+    if ($is_admin) {
+        return array_keys(array_filter(STATUS_LABELS, static fn($_, $k) => $k !== 'aneks', ARRAY_FILTER_USE_BOTH));
+    }
+    return STATUS_TRANSITIONS[$current] ?? [];
+}
 
 /** Zwraca true jeśli umowa jest zablokowana (status aneks). */
 function contract_is_locked(array $row): bool {
@@ -71,7 +98,19 @@ function handle_upload(string $field, string $subfolder = ''): ?string {
     $dest = $dir . $name;
     if (!move_uploaded_file($f['tmp_name'], $dest)) return null;
 
-    return ($subfolder ? $subfolder . '/' : '') . $name;
+    $result = ($subfolder ? $subfolder . '/' : '') . $name;
+
+    // SharePoint sync — fire-and-forget; błędy nie blokują uploadu
+    if (!function_exists('sp_sync_upload')) {
+        @require_once __DIR__ . '/m365.php';
+    }
+    if (function_exists('sp_sync_upload')) {
+        try { sp_sync_upload($result); } catch (\Throwable $e) {
+            error_log('[SP sync] ' . $e->getMessage());
+        }
+    }
+
+    return $result;
 }
 
 function upload_link(?string $path): string {
