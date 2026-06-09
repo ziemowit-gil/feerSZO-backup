@@ -77,7 +77,8 @@ $PERMISSION_GROUPS = [
 $check_result = null;
 $check_error  = null;
 
-if ($configured && ($_POST['_action'] ?? '') === 'check' && csrf_verify($_POST['_csrf'] ?? '')) {
+if ($configured && ($_POST['_action'] ?? '') === 'check') {
+    csrf_check();
     try {
         $check_result = $graph->get_granted_permissions();
         if (!empty($check_result['error'])) {
@@ -315,7 +316,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
   <?php if ($configured): ?>
   <form method="post" class="d-flex gap-2 align-items-center">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <?= csrf_field() ?>
     <input type="hidden" name="_action" value="check">
     <button type="submit" class="btn btn-primary">
       <i class="bi bi-arrow-repeat me-1"></i>Sprawdź przez Graph API
