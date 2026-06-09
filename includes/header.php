@@ -1512,6 +1512,13 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
             <i class="bi bi-people me-2 text-muted"></i>Użytkownicy
           </a>
         </li>
+        <?php if (is_admin()): ?>
+        <li>
+          <a class="dropdown-item py-2" href="<?= APP_URL ?>/admin/prod_check.php">
+            <i class="bi bi-clipboard2-check me-2 text-success"></i>Lista kontrolna wdrożenia
+          </a>
+        </li>
+        <?php endif; ?>
         <?php endif; ?>
 
         <li><hr class="dropdown-divider my-1"></li>
