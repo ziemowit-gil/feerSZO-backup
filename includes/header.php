@@ -582,8 +582,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     $_ika_sb_missing = empty($_ika_sb_fresh['cpc_code']) || empty($_ika_sb_fresh['kdok_ikaks_hash']);
   } catch (\Throwable $_ika_ex) {}
   if ($_ika_sb_has_token || $_ika_sb_missing): ?>
-  <a class="sb-link<?= _nav_active('/panel/set_my_codes') ?>"
-     href="<?= APP_URL ?>/panel/set_my_codes.php"
+  <?php $_ika_setup_url = APP_URL . '/contracts/ika_gate.php?mode=setup&to=' . urlencode(APP_URL . '/index.php'); ?>
+  <a class="sb-link<?= _nav_active('/contracts/ika_gate') ?>"
+     href="<?= $_ika_setup_url ?>"
      style="<?= $_ika_sb_has_token ? 'color:#F59E0B!important' : '' ?>">
     <i class="bi bi-shield-plus<?= $_ika_sb_has_token ? ' text-warning' : '' ?>"></i>
     Kody autoryzacyjne<?= $_ika_sb_has_token ? ' <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Token!</span>' : '' ?>

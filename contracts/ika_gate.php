@@ -13,6 +13,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/cpc.php';
 require_once dirname(__DIR__) . '/includes/branding.php';
+require_once dirname(__DIR__) . '/includes/ksiegowosc.php';
 
 require_login();
 cpc_migrate();
@@ -78,6 +79,15 @@ $u_fresh    = db_one("SELECT cpc_code, cpc_fails, cpc_blocked_until, email,
 $has_code   = !empty($u_fresh['cpc_code']);
 $is_blocked = !empty($u_fresh['cpc_blocked_until']) && $u_fresh['cpc_blocked_until'] > date('Y-m-d H:i:s');
 $user_email = trim($u_fresh['email'] ?? '');
+
+// ── Setup token (AdminCode do self-service ustawiania IKA + IKAKS) ────────────
+$has_setup_token = false;
+try {
+    $u_token = db_one("SELECT ika_setup_token, ika_setup_token_expires FROM users WHERE id=?", [$user_id]);
+    $has_setup_token = !empty($u_token['ika_setup_token'])
+        && !empty($u_token['ika_setup_token_expires'])
+        && $u_token['ika_setup_token_expires'] > date('Y-m-d H:i:s');
+} catch (\Throwable $e) {}
 
 // ── PESEL z kartoteki umów ─────────────────────────────────────────────────────
 function _ika_find_pesel(int $uid): ?string {
@@ -253,7 +263,42 @@ HTML;
         header('Location: ' . $return_to); exit;
     }
 
-    // ── 4. Weryfikacja PESEL ────────────────────────────────────────────────
+    // ── 4. Ustawienie kodów IKA + IKAKS (AdminCode) ────────────────────────────
+    if ($mode === 'setup') {
+        $admin_code = strtoupper(trim($_POST['admin_code'] ?? ''));
+        $cpc1       = trim($_POST['cpc_code'] ?? '');
+        $ikaks1     = $_POST['ikaks1'] ?? '';
+        $ikaks2     = $_POST['ikaks2'] ?? '';
+        $page_mode  = 'setup';
+
+        $errs = [];
+        if (!preg_match('/^[0-9A-F]{10}$/', $admin_code)) {
+            $errs[] = 'Nieprawidłowy format AdminCode (10 znaków, cyfry i litery A–F).';
+        }
+        if (!preg_match('/^\d{6}$/', $cpc1)) {
+            $errs[] = 'Kod IKA musi składać się dokładnie z 6 cyfr.';
+        }
+        if (strlen($ikaks1) < 6) {
+            $errs[] = 'IKAKS musi mieć minimum 6 znaków.';
+        } elseif ($ikaks1 !== $ikaks2) {
+            $errs[] = 'Oba pola IKAKS muszą być identyczne.';
+        }
+        if ($errs) {
+            $error = implode(' ', $errs);
+            goto render;
+        }
+        if (!cpc_setup_token_verify($user_id, $admin_code)) {
+            $error = 'AdminCode jest nieprawidłowy lub wygasł. Poproś administratora o wygenerowanie nowego.';
+            goto render;
+        }
+        db()->prepare("UPDATE users SET cpc_code=?, cpc_fails=0, cpc_blocked_until=NULL WHERE id=?")
+            ->execute([$cpc1, $user_id]);
+        kdok_ikaks_set($user_id, $ikaks1);
+        ika_set_verified();
+        header('Location: ' . $return_to); exit;
+    }
+
+    // ── 5. Weryfikacja PESEL ────────────────────────────────────────────────
     if ($mode === 'verify_pesel') {
         $challenge = $_SESSION['ika_pesel_ch'] ?? null;
 
@@ -317,6 +362,16 @@ if ($_GET['mode'] ?? '' === 'pesel') {
 // ── GET: tryb email_verify ────────────────────────────────────────────────────
 if ($_GET['mode'] ?? '' === 'email_verify') {
     $page_mode = 'email_verify';
+}
+
+// ── GET: tryb setup ───────────────────────────────────────────────────────────
+if ($_GET['mode'] ?? '' === 'setup') {
+    $page_mode = 'setup';
+}
+
+// Auto-switch: brak kodu + aktywny token konfiguracyjny → setup mode
+if ($page_mode === 'ika' && !$has_code && $has_setup_token) {
+    $page_mode = 'setup';
 }
 
 render:
@@ -423,28 +478,37 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 
 /* ── Prawa strona ────────────────────────────────────────────── */
 .gate-right{
-  flex:1;background:#EEF2F7;
+  flex:1;background:#F1F5F9;
   display:flex;align-items:center;justify-content:center;
   padding:2rem 1.5rem;overflow-y:auto;
 }
 .gate-box{
-  width:100%;max-width:430px;
-  background:#fff;border-radius:16px;
-  box-shadow:0 8px 40px rgba(0,0,0,.1),0 1px 4px rgba(0,0,0,.05);
+  width:100%;max-width:440px;
+  background:#fff;border-radius:18px;
+  border:1px solid rgba(100,116,139,.12);
+  box-shadow:0 12px 48px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.06);
   overflow:hidden;
 }
 
 /* ── Header boksa ────────────────────────────────────────────── */
 .gate-box-head{
-  background:linear-gradient(135deg,#0f172a,#1e3a5f);
+  background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
   padding:1.25rem 1.5rem;
   display:flex;align-items:center;gap:.85rem;
+  border-bottom:1px solid rgba(37,99,235,.2);
+}
+.gate-box-head.mode-setup{
+  background:linear-gradient(135deg,#78350f 0%,#b45309 100%);
+  border-bottom:1px solid rgba(245,158,11,.25);
 }
 .gate-box-head-icon{
   width:40px;height:40px;border-radius:10px;
-  background:rgba(37,99,235,.35);
+  background:rgba(37,99,235,.3);
   display:flex;align-items:center;justify-content:center;
   font-size:1.15rem;color:#93c5fd;flex-shrink:0;
+}
+.mode-setup .gate-box-head-icon{
+  background:rgba(245,158,11,.25);color:#fcd34d;
 }
 .gate-box-head-title{font-size:1rem;font-weight:700;color:#fff}
 .gate-box-head-sub{font-size:.77rem;color:rgba(255,255,255,.55);margin-top:.15rem}
@@ -456,7 +520,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 .user-chip{
   display:flex;align-items:center;gap:.75rem;
   background:#f8fafc;border:1.5px solid #e2e8f0;
-  border-radius:.6rem;padding:.6rem .9rem;margin-bottom:1.25rem;
+  border-radius:.75rem;padding:.6rem .9rem;margin-bottom:1.25rem;
 }
 .user-avatar{
   width:36px;height:36px;border-radius:50%;
@@ -471,13 +535,13 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 /* ── 6 boxów na cyfry IKA ────────────────────────────────────── */
 .digit-row{display:flex;gap:.45rem;justify-content:center;margin:1rem 0}
 .digit-box{
-  width:48px;height:60px;
+  width:52px;height:64px;
   border:2px solid #CBD5E1;border-radius:.6rem;
   background:#F8FAFC;
-  font-size:1.8rem;font-weight:700;font-family:monospace;
+  font-size:1.9rem;font-weight:700;font-family:monospace;
   text-align:center;outline:none;
   transition:border-color .15s,box-shadow .15s,background .15s;
-  color:#0f172a;
+  color:#0f172a;caret-color:transparent;
 }
 .digit-box:focus{
   border-color:var(--c,#2563eb);
@@ -504,14 +568,22 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 
 /* ── Przycisk główny ─────────────────────────────────────────── */
 .btn-gate{
-  background:var(--c,#2563eb);color:#fff;border:none;
-  border-radius:.5rem;padding:.75rem 1.25rem;
+  background:linear-gradient(135deg,var(--c,#2563eb) 0%,var(--c-dark,#1d4ed8) 100%);
+  color:#fff;border:none;
+  border-radius:.6rem;padding:.75rem 1.25rem;
   font-size:.92rem;font-weight:600;width:100%;
-  transition:background .15s,box-shadow .15s;cursor:pointer;
+  transition:all .15s;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:.5rem;
 }
-.btn-gate:hover:not(:disabled){background:var(--c-dark,#1d4ed8);box-shadow:0 2px 8px var(--c-ring,rgba(37,99,235,.25))}
-.btn-gate:disabled{opacity:.45;cursor:not-allowed}
+.btn-gate:hover:not(:disabled){
+  background:linear-gradient(135deg,var(--c-dark,#1d4ed8) 0%,#1e40af 100%);
+  box-shadow:0 4px 14px var(--c-ring,rgba(37,99,235,.35));
+  transform:translateY(-1px);
+}
+.btn-gate:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-gate.btn-setup{
+  --c:#d97706;--c-dark:#b45309;--c-ring:rgba(217,119,6,.35);
+}
 
 /* ── Separator ───────────────────────────────────────────────── */
 .or-sep{display:flex;align-items:center;gap:.75rem;margin:1rem 0;color:#94a3b8;font-size:.75rem}
@@ -521,13 +593,35 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 .recovery-links{display:flex;flex-direction:column;gap:.4rem}
 .recovery-btn{
   display:flex;align-items:center;gap:.6rem;
-  padding:.55rem .9rem;border:1.5px solid #e2e8f0;border-radius:.5rem;
+  padding:.6rem 1rem;border:1.5px solid #e2e8f0;border-radius:.65rem;
   background:#fff;color:#374151;font-size:.81rem;text-decoration:none;
-  cursor:pointer;transition:all .1s;width:100%;text-align:left;
+  cursor:pointer;transition:all .12s;width:100%;text-align:left;
 }
-.recovery-btn:hover{border-color:var(--c,#2563eb);color:var(--c,#2563eb);background:#f0f7ff}
-.recovery-btn i{color:#94a3b8;font-size:.9rem;flex-shrink:0;transition:color .1s}
+.recovery-btn:hover{border-color:var(--c,#2563eb);color:var(--c,#2563eb);background:#f0f7ff;transform:translateX(2px)}
+.recovery-btn i{color:#94a3b8;font-size:.9rem;flex-shrink:0;transition:color .12s}
 .recovery-btn:hover i{color:var(--c,#2563eb)}
+
+/* ── Setup form ──────────────────────────────────────────────── */
+.setup-field{margin-bottom:1rem}
+.setup-label{font-size:.78rem;font-weight:600;color:#374151;margin-bottom:.35rem;display:block}
+.setup-label span{font-weight:400;color:#94a3b8;font-size:.73rem;margin-left:.3rem}
+.setup-input{
+  width:100%;border:1.5px solid #CBD5E1;border-radius:.6rem;
+  padding:.55rem .8rem;font-size:.9rem;color:#0f172a;
+  background:#F8FAFC;outline:none;
+  transition:border-color .15s,box-shadow .15s,background .15s;
+}
+.setup-input:focus{
+  border-color:#d97706;
+  box-shadow:0 0 0 3px rgba(217,119,6,.12);
+  background:#fff;
+}
+.setup-input.is-error{border-color:#ef4444;background:#fff5f5}
+.setup-code-input{
+  font-family:monospace;letter-spacing:.25em;font-size:1.1rem;font-weight:700;
+  text-align:center;text-transform:uppercase;
+}
+.setup-hint{font-size:.72rem;color:#94a3b8;margin-top:.3rem}
 
 /* ── Spinner ──────────────────────────────────────────────────── */
 @keyframes _spin{to{transform:rotate(360deg)}}
@@ -556,9 +650,9 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   .shield-ring{display:none}
   .shield-icon{width:40px;height:40px;border-radius:10px;font-size:1.1rem}
   .gate-sys-label,.gate-sys-name,.gate-info,.module-chip,.sec-level,.gate-left-footer{display:none}
-  .gate-right{padding:1.25rem 1rem;align-items:flex-start;background:#F8FAFC}
-  .gate-box{box-shadow:none}
-  .digit-box{width:42px;height:54px;font-size:1.5rem}
+  .gate-right{padding:1.25rem 1rem;align-items:flex-start;background:#F1F5F9}
+  .gate-box{box-shadow:none;border-radius:14px}
+  .digit-box{width:44px;height:56px;font-size:1.55rem}
 }
 </style>
 </head>
@@ -649,9 +743,11 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 <div class="gate-box">
 
   <!-- Header boksa — kontekstowy -->
-  <div class="gate-box-head">
+  <div class="gate-box-head<?= $page_mode === 'setup' ? ' mode-setup' : '' ?>">
     <div class="gate-box-head-icon">
-      <?php if ($page_mode === 'pesel'): ?>
+      <?php if ($page_mode === 'setup'): ?>
+        <i class="bi bi-shield-plus"></i>
+      <?php elseif ($page_mode === 'pesel'): ?>
         <i class="bi bi-card-text"></i>
       <?php elseif ($page_mode === 'email_verify' || $page_mode === 'email_sent'): ?>
         <i class="bi bi-envelope-check"></i>
@@ -665,12 +761,14 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     </div>
     <div>
       <div class="gate-box-head-title">
-        <?php if ($page_mode === 'pesel'): ?>Weryfikacja PESEL
+        <?php if ($page_mode === 'setup'): ?>Ustaw kody autoryzacyjne
+        <?php elseif ($page_mode === 'pesel'): ?>Weryfikacja PESEL
         <?php elseif ($page_mode === 'email_verify'): ?>Kod e-mail
         <?php else: ?>Weryfikacja IKA<?php endif; ?>
       </div>
       <div class="gate-box-head-sub">
-        <?php if ($page_mode === 'pesel'): ?>Podaj cyfry z numeru PESEL
+        <?php if ($page_mode === 'setup'): ?>Jednorazowy AdminCode od administratora
+        <?php elseif ($page_mode === 'pesel'): ?>Podaj cyfry z numeru PESEL
         <?php elseif ($page_mode === 'email_verify'): ?>Jednorazowy kod wysłany na e-mail
         <?php else: ?>Podaj kod IKA, aby przejść do: <strong style="color:#93c5fd"><?= h($_ika_module) ?></strong>
         <?php endif; ?>
@@ -740,11 +838,18 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     <div class="state-box">
       <span class="state-icon"><i class="bi bi-key text-secondary"></i></span>
       <p>Nie masz przypisanego kodu IKA.</p>
-      <p>Poproś administratora o nadanie kodu<br>w panelu <strong>Administracja → Kody IKA</strong>.</p>
+      <p>Poproś administratora o nadanie kodu<br>lub wygenerowanie <strong>AdminCode</strong>.</p>
     </div>
-    <?php if ($user_email || $pesel_available): ?>
-    <div class="or-sep">alternatywna weryfikacja</div>
+    <?php if ($has_setup_token || $user_email || $pesel_available): ?>
+    <div class="or-sep">dostępne opcje</div>
     <div class="recovery-links">
+      <?php if ($has_setup_token): ?>
+      <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fcd34d;background:#fffbeb;color:#92400e">
+        <i class="bi bi-shield-plus" style="color:#d97706"></i>
+        <span><strong>Mam AdminCode</strong> — ustaw kody samodzielnie</span>
+        <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
+      </a>
+      <?php endif; ?>
       <?php if ($user_email): ?>
       <a href="?to=<?= urlencode($return_to) ?>&mode=email_verify" class="recovery-btn">
         <i class="bi bi-envelope-arrow-down-fill"></i>
@@ -872,6 +977,69 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
       </button>
     </form>
 
+    <?php elseif ($page_mode === 'setup'): ?>
+    <!-- ══ Tryb: Setup (AdminCode) ══════════════════════════════ -->
+    <p style="font-size:.82rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:.6rem;padding:.6rem .85rem;margin-bottom:1.1rem;display:flex;gap:.5rem;align-items:flex-start">
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" style="color:#d97706"></i>
+      Wpisz <strong>AdminCode</strong> otrzymany od administratora oraz kody, które chcesz ustawić.
+      Po zapisaniu uzyskasz natychmiastowy dostęp.
+    </p>
+    <form method="post" id="setupForm" autocomplete="off">
+      <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
+      <input type="hidden" name="_mode" value="setup">
+      <input type="hidden" name="to"    value="<?= h($return_to) ?>">
+
+      <div class="setup-field">
+        <label class="setup-label" for="admin_code">AdminCode <span>(jednorazowy, od administratora)</span></label>
+        <input type="text"
+               id="admin_code" name="admin_code"
+               class="setup-input setup-code-input<?= ($page_mode==='setup'&&$error) ? ' is-error' : '' ?>"
+               maxlength="10" placeholder="np. A3B7C2D8E1"
+               autocomplete="off" spellcheck="false"
+               oninput="this.value=this.value.toUpperCase().replace(/[^0-9A-F]/g,'')">
+        <div class="setup-hint">10 znaków: cyfry i litery A–F</div>
+      </div>
+
+      <div class="or-sep" style="margin:.75rem 0"></div>
+
+      <div class="setup-field">
+        <label class="setup-label" for="setup_cpc">Nowy kod IKA <span>(dokładnie 6 cyfr)</span></label>
+        <input type="text"
+               id="setup_cpc" name="cpc_code"
+               class="setup-input setup-code-input<?= ($page_mode==='setup'&&$error) ? ' is-error' : '' ?>"
+               maxlength="6" placeholder="000000" inputmode="numeric"
+               pattern="\d{6}" autocomplete="new-password">
+        <div class="setup-hint">Wybierz 6-cyfrowy kod IKA — zapamiętaj go</div>
+      </div>
+
+      <div class="setup-field">
+        <label class="setup-label" for="ikaks1">Nowy IKAKS <span>(min. 6 znaków)</span></label>
+        <input type="password"
+               id="ikaks1" name="ikaks1"
+               class="setup-input<?= ($page_mode==='setup'&&$error) ? ' is-error' : '' ?>"
+               minlength="6" autocomplete="new-password" placeholder="min. 6 znaków">
+      </div>
+
+      <div class="setup-field" style="margin-bottom:1.25rem">
+        <label class="setup-label" for="ikaks2">Powtórz IKAKS</label>
+        <input type="password"
+               id="ikaks2" name="ikaks2"
+               class="setup-input<?= ($page_mode==='setup'&&$error) ? ' is-error' : '' ?>"
+               minlength="6" autocomplete="new-password" placeholder="powtórz IKAKS">
+      </div>
+
+      <button type="submit" class="btn-gate btn-setup">
+        <span class="spin-icon" id="spinSetup"></span>
+        <i class="bi bi-shield-check"></i>
+        Zapisz kody i wejdź do: <strong class="ms-1"><?= h($_ika_module) ?></strong>
+      </button>
+    </form>
+    <div style="margin-top:.75rem;text-align:center">
+      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.77rem;color:#94a3b8;text-decoration:none">
+        <i class="bi bi-arrow-left me-1"></i>Mam już kod IKA
+      </a>
+    </div>
+
     <?php else: ?>
     <!-- ══ Tryb domyślny: kod IKA ═══════════════════════════════ -->
     <form method="post" id="ikaForm" autocomplete="off">
@@ -902,9 +1070,16 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
       </button>
     </form>
 
-    <?php if ($user_email || $pesel_available): ?>
+    <?php if ($user_email || $pesel_available || $has_setup_token): ?>
     <div class="or-sep">nie pamiętasz kodu?</div>
     <div class="recovery-links">
+      <?php if ($has_setup_token): ?>
+      <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fcd34d;background:#fffbeb;color:#92400e">
+        <i class="bi bi-shield-plus" style="color:#d97706"></i>
+        <span><strong>Mam AdminCode</strong> — ustaw nowy kod IKA</span>
+        <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
+      </a>
+      <?php endif; ?>
       <?php if ($user_email): ?>
       <a href="?to=<?= urlencode($return_to) ?>&mode=email_verify" class="recovery-btn">
         <i class="bi bi-envelope-arrow-down-fill"></i>
@@ -1006,6 +1181,30 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   initDigitGroup('ikaDigits',    'ikaCodeHidden',  'btnVerify',   'ikaSpinner',    6);
   initDigitGroup('emailDigits',  'emailOtpHidden', 'btnEmailOtp', 'spinEmailOtp',  6);
   initDigitGroup('peselForm',    null,             'btnPesel',    'spinPesel',     3);
+
+  /* Setup form — spinner + uppercase AdminCode */
+  (function() {
+    var form = document.getElementById('setupForm');
+    if (!form) return;
+    var ac = document.getElementById('admin_code');
+    if (ac) {
+      ac.addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/[^0-9A-F]/g, '');
+      });
+      ac.addEventListener('paste', function(e) {
+        e.preventDefault();
+        var v = (e.clipboardData || window.clipboardData).getData('text');
+        this.value = v.toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 10);
+      });
+    }
+    var btnSetup  = form.querySelector('button[type=submit]');
+    var spinSetup = document.getElementById('spinSetup');
+    form.addEventListener('submit', function() {
+      if (btnSetup)  { btnSetup.disabled = true; }
+      if (spinSetup) { spinSetup.style.display = 'inline-block'; }
+    });
+    if (ac) ac.focus();
+  })();
 
   /* PESEL form — 3 osobne boxy (nie mają wspólnej grupy z id) */
   (function() {

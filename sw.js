@@ -3,7 +3,7 @@
  * Strategy: cache-first for static assets, network-first for PHP pages.
  */
 
-const CACHE_NAME = 'feer-panel-v1';
+const CACHE_NAME = 'feer-panel-v2';
 
 const PRECACHE_URLS = [
     '/',
@@ -77,7 +77,15 @@ self.addEventListener('fetch', event => {
                     caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
                     return response;
                 })
-                .catch(() => caches.match(request))
+                .catch(() =>
+                    caches.match(request).then(cached =>
+                        cached || new Response('Brak połączenia z serwerem.', {
+                            status: 503,
+                            statusText: 'Service Unavailable',
+                            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+                        })
+                    )
+                )
         );
     }
 });

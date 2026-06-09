@@ -61,6 +61,8 @@ function cpc_migrate(): void {
         'ika_email_otp_expires'     => "ALTER TABLE users ADD COLUMN ika_email_otp_expires DATETIME NULL",
         'ika_setup_token'           => "ALTER TABLE users ADD COLUMN ika_setup_token TEXT NULL",
         'ika_setup_token_expires'   => "ALTER TABLE users ADD COLUMN ika_setup_token_expires DATETIME NULL",
+        'kdok_ikaks_hash'           => "ALTER TABLE users ADD COLUMN kdok_ikaks_hash TEXT DEFAULT NULL",
+        'kdok_ikaks_set_at'         => "ALTER TABLE users ADD COLUMN kdok_ikaks_set_at TEXT DEFAULT NULL",
         'm365_login'                => "ALTER TABLE users ADD COLUMN m365_login TEXT NULL",
         'moodle_login'              => "ALTER TABLE users ADD COLUMN moodle_login TEXT NULL",
         'm365_security_group_id'    => "ALTER TABLE users ADD COLUMN m365_security_group_id TEXT NULL",

@@ -466,8 +466,8 @@ include dirname(__DIR__) . '/includes/header.php';
       <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
       <span>
         <strong>Token widoczny jednorazowo.</strong>
-        Przekaż go użytkownikowi — wpisze go na stronie
-        <a href="<?= APP_URL ?>/panel/set_my_codes.php" target="_blank">/panel/set_my_codes.php</a>
+        Przekaż go użytkownikowi — wpisze go na <strong>bramce IKA</strong>
+        (<a href="<?= APP_URL ?>/contracts/ika_gate.php?mode=setup" target="_blank">/contracts/ika_gate.php?mode=setup</a>)
         razem ze swoim nowym kodem IKA i IKAKS. Token wygasa po 48 godzinach lub po pierwszym użyciu.
       </span>
     </div>
