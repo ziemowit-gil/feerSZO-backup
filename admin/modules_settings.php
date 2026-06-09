@@ -10,6 +10,7 @@ $PAGE_TITLE = 'Moduły';
 
 $module_groups = [
     'Moduły systemu' => [
+        'crm_enabled'          => ['label' => 'CRM',                           'icon' => 'bi-people-fill',           'desc' => 'Zarządzanie kontaktami, sprawami CRM, notatkami, pismami i powiązaniami z EZD.',     'config' => 'crm_access.php'],
         'ezd_enabled'          => ['label' => 'Kancelaria EZD',                'icon' => 'bi-building-gear',         'desc' => 'Elektroniczne zarządzanie dokumentacją — Teczki, Sprawy, Pisma, Umowy, Dekretacje.'],
         'org_enabled'          => ['label' => 'Struktura Organizacyjna',       'icon' => 'bi-diagram-3',             'desc' => 'Hierarchia jednostek, stanowiska, przypisania osobowe, zastępstwa i historia zmian.'],
         'procedures_enabled'   => ['label' => 'Procedury wewnętrzne',          'icon' => 'bi-journal-bookmark-fill', 'desc' => 'Rejestr procedur z wersjonowaniem, powiązaniami i załącznikami.'],
