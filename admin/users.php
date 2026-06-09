@@ -10,6 +10,7 @@ require_role('admin');
 ika_require(APP_URL . '/admin/users.php', 3600);
 $PAGE_TITLE = 'Zarządzanie użytkownikami';
 $errors   = [];
+require_once dirname(__DIR__) . '/includes/user_delete.php';
 $new_pass = null;
 
 // Load roles from DB for validation and display
@@ -180,6 +181,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: users.php');
         exit;
+    }
+
+    // DELETE USER
+    elseif ($action === 'delete_user') {
+        $uid    = (int)($_POST['user_id'] ?? 0);
+        $confirm_email = trim($_POST['confirm_email'] ?? '');
+        $reason = trim($_POST['delete_reason'] ?? '');
+        $me     = current_user();
+
+        if (!$uid) {
+            flash_set('danger', 'Brak ID użytkownika.');
+            header('Location: users.php'); exit;
+        }
+
+        // Sprawdź czy e-mail potwierdzający zgadza się z emailem usuwanego
+        $target = db_one("SELECT email FROM users WHERE id = ?", [$uid]);
+        if (!$target || strtolower($confirm_email) !== strtolower($target['email'])) {
+            flash_set('danger', 'Potwierdzenie e-mail niezgodne — anulowano usunięcie.');
+            header('Location: users.php'); exit;
+        }
+
+        $check = user_delete_preflight($uid, (int)$me['id']);
+        if (!$check['ok']) {
+            flash_set('danger', $check['msg']);
+            header('Location: users.php'); exit;
+        }
+
+        $result = user_delete_execute($uid, (int)$me['id'], $reason);
+        if ($result['ok']) {
+            flash_set('success', $result['msg']);
+        } else {
+            flash_set('danger', $result['msg']);
+        }
+        header('Location: users.php'); exit;
     }
 }
 
@@ -525,6 +560,19 @@ include dirname(__DIR__) . '/includes/header.php';
                 </button>
               </form>
               <?php endif; ?>
+              <?php if ((int)$u['id'] !== (int)$me['id'] && $u['email'] !== 'serwis@local'): ?>
+              <button type="button"
+                      class="btn btn-sm btn-outline-danger"
+                      title="Usuń konto użytkownika"
+                      data-bs-toggle="modal" data-bs-target="#deleteUserModal"
+                      data-uid="<?= intval($u['id']) ?>"
+                      data-name="<?= h($u['name']) ?>"
+                      data-email="<?= h($u['email']) ?>"
+                      data-role="<?= h($u['role']) ?>"
+                      data-active="<?= $u['is_active'] ? '1' : '0' ?>">
+                <i class="bi bi-trash3"></i>
+              </button>
+              <?php endif; ?>
             </div>
           </td>
         </tr>
@@ -842,6 +890,155 @@ document.getElementById('passModal').addEventListener('show.bs.modal', function(
     document.getElementById('addUserPanel').addEventListener('hidden.bs.offcanvas', function () {
         delete name.dataset.manual;
     });
+})();
+</script>
+
+<!-- ══ MODAL: Usuń użytkownika ══════════════════════════════════════════════ -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="deleteUserModalLabel">
+          <i class="bi bi-trash3-fill me-2"></i>Trwałe usunięcie konta
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="deleteUserForm">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action"   value="delete_user">
+        <input type="hidden" name="user_id"  id="del-uid" value="">
+        <div class="modal-body">
+
+          <!-- Info o użytkowniku -->
+          <div id="del-user-info" class="alert alert-secondary py-2 mb-3">
+            <div class="d-flex gap-2 align-items-start">
+              <i class="bi bi-person-circle fs-4 flex-shrink-0"></i>
+              <div>
+                <div class="fw-bold" id="del-name"></div>
+                <div class="small text-muted" id="del-email-info"></div>
+                <div class="small" id="del-role-badge"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ostrzeżenie o aktywnym koncie -->
+          <div id="del-active-warn" class="alert alert-warning d-flex gap-2 py-2 mb-3 d-none">
+            <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+            <span class="small">Konto jest <strong>aktywne</strong>. Rozważ dezaktywację zamiast trwałego usunięcia.</span>
+          </div>
+
+          <!-- Powiązane dane (ładowane AJAX) -->
+          <div id="del-impact" class="mb-3">
+            <div class="text-center text-muted small py-2">
+              <span class="spinner-border spinner-border-sm me-1"></span>Analizuję powiązane dane…
+            </div>
+          </div>
+
+          <!-- Powód usunięcia -->
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="del-reason">
+              Powód usunięcia <span class="text-muted fw-normal">(opcjonalnie, zapisywany w logu)</span>
+            </label>
+            <input type="text" class="form-control form-control-sm"
+                   id="del-reason" name="delete_reason"
+                   placeholder="np. Konto testowe, duplikat…" maxlength="200">
+          </div>
+
+          <!-- Potwierdzenie przez wpisanie e-maila -->
+          <div class="mb-1">
+            <label class="form-label small fw-semibold text-danger" for="del-confirm">
+              Wpisz adres e-mail użytkownika aby potwierdzić:
+            </label>
+            <input type="email" class="form-control form-control-sm border-danger"
+                   id="del-confirm" name="confirm_email"
+                   placeholder="adres@email.pl" autocomplete="off" required>
+          </div>
+          <div class="form-text text-danger small">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Operacja jest <strong>nieodwracalna</strong>. Dane powiązane (sesje, preferencje) zostaną usunięte.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-danger btn-sm" id="del-submit-btn" disabled>
+            <i class="bi bi-trash3 me-1"></i>Usuń trwale
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('deleteUserModal');
+  if (!modal) return;
+
+  // Wypełnij modal danymi klikniętego użytkownika
+  modal.addEventListener('show.bs.modal', function (e) {
+    var btn     = e.relatedTarget;
+    var uid     = btn.dataset.uid;
+    var name    = btn.dataset.name;
+    var email   = btn.dataset.email;
+    var role    = btn.dataset.role;
+    var isActive= btn.dataset.active === '1';
+
+    document.getElementById('del-uid').value   = uid;
+    document.getElementById('del-name').textContent  = name;
+    document.getElementById('del-email-info').textContent = email;
+    document.getElementById('del-role-badge').innerHTML =
+      '<span class="badge bg-secondary">' + role + '</span>';
+
+    // Ostrzeżenie o aktywnym koncie
+    document.getElementById('del-active-warn').classList.toggle('d-none', !isActive);
+
+    // Reset formularza
+    document.getElementById('del-confirm').value = '';
+    document.getElementById('del-reason').value  = '';
+    document.getElementById('del-submit-btn').disabled = true;
+
+    // Załaduj impact AJAX
+    var impactEl = document.getElementById('del-impact');
+    impactEl.innerHTML = '<div class="text-center text-muted small py-2">' +
+      '<span class="spinner-border spinner-border-sm me-1"></span>Analizuję powiązane dane…</div>';
+
+    fetch('<?= APP_URL ?>/admin/users_ajax.php?action=delete_impact&uid=' + uid, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(json => {
+      if (!json.ok) { impactEl.innerHTML = ''; return; }
+      var html = '';
+      var d = json.data;
+
+      if (d.contracts && Object.keys(d.contracts).length) {
+        html += '<div class="alert alert-danger py-2 mb-2 small"><i class="bi bi-file-earmark-x me-1"></i>' +
+          '<strong>Aktywne umowy:</strong> ' +
+          Object.entries(d.contracts).map(([k,v]) => k + ' (' + v + ')').join(', ') +
+          '</div>';
+      }
+      if (d.cascade && Object.keys(d.cascade).length) {
+        html += '<div class="small mb-1"><strong class="text-danger">Zostanie usunięte:</strong><ul class="mb-1 mt-1">';
+        for (var k in d.cascade) html += '<li>' + k + ': ' + d.cascade[k] + '</li>';
+        html += '</ul></div>';
+      }
+      if (d.set_null && Object.keys(d.set_null).length) {
+        html += '<div class="small mb-1 text-muted"><strong>Pozostaje (user_id = NULL):</strong><ul class="mb-1 mt-1">';
+        for (var k in d.set_null) html += '<li>' + k + ': ' + d.set_null[k] + '</li>';
+        html += '</ul></div>';
+      }
+      if (!html) html = '<div class="text-muted small">Brak powiązanych danych.</div>';
+      impactEl.innerHTML = html;
+    })
+    .catch(() => { impactEl.innerHTML = ''; });
+  });
+
+  // Odblokuj przycisk gdy e-mail wpisany
+  document.getElementById('del-confirm').addEventListener('input', function () {
+    var emailInfo = document.getElementById('del-email-info').textContent.trim();
+    document.getElementById('del-submit-btn').disabled =
+      this.value.toLowerCase() !== emailInfo.toLowerCase();
+  });
 })();
 </script>
 
