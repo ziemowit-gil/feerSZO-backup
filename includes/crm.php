@@ -563,6 +563,25 @@ function crm_migrate(): void {
         if ($editor) $ins->execute([$editor['id'], 'crm', 1, 1, 0]);
         if ($viewer) $ins->execute([$viewer['id'], 'crm', 1, 0, 0]);
     } catch (\Throwable $e) {}
+
+    // Kolumna powiązania z EZD (idempotentna)
+    try {
+        $pdo->exec("ALTER TABLE crm_cases ADD COLUMN ezd_sprawa_id INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL");
+    } catch (\Throwable $e) {}
+
+    // Rozszerzone pola pisma (idempotentne)
+    foreach ([
+        "ALTER TABLE contract_letters ADD COLUMN sygnatura TEXT",
+        "ALTER TABLE contract_letters ADD COLUMN miejsce TEXT",
+        "ALTER TABLE contract_letters ADD COLUMN sposob_doreczenia TEXT DEFAULT 'email'",
+        "ALTER TABLE contract_letters ADD COLUMN pilnosc TEXT DEFAULT 'zwykłe'",
+        "ALTER TABLE contract_letters ADD COLUMN termin_odpowiedzi TEXT",
+        "ALTER TABLE contract_letters ADD COLUMN kopia_do TEXT",
+        "ALTER TABLE contract_letters ADD COLUMN podpisujacy_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE contract_letters ADD COLUMN podstawa_prawna TEXT",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

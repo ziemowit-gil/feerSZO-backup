@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -143,6 +144,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         }
         header('Location: view.php?id=' . $id . '#files'); exit;
     }
+
+    // Dodaj pismo
+    if ($action === 'add_pismo') {
+        $tytul      = trim($_POST['tytul']           ?? '');
+        $kierunek   = $_POST['kierunek']              ?? 'wychodzące';
+        $typ        = $_POST['typ_pisma']             ?? 'inne';
+        $tresc      = trim($_POST['tresc']            ?? '');
+        $nadawca    = trim($_POST['nadawca']          ?? '');
+        $odbiorca   = trim($_POST['odbiorca']         ?? '');
+        $data_p     = trim($_POST['data_pisma']       ?? '') ?: date('Y-m-d');
+
+        if (!$tytul) {
+            flash_set('danger', 'Tytuł pisma jest wymagany.');
+        } elseif (!array_key_exists($kierunek, LETTER_DIRECTIONS)) {
+            flash_set('danger', 'Nieprawidłowy kierunek pisma.');
+        } else {
+            $plik = handle_letter_upload('pismo_plik');
+            create_letter([
+                'contract_type'      => 'crm_case',
+                'contract_id'        => $id,
+                'kierunek'           => $kierunek,
+                'typ_pisma'          => array_key_exists($typ, LETTER_TYPES) ? $typ : 'inne',
+                'tytul'              => $tytul,
+                'tresc'              => $tresc ?: null,
+                'plik'               => $plik,
+                'data_pisma'         => $data_p,
+                'nadawca'            => $nadawca ?: null,
+                'odbiorca'           => $odbiorca ?: null,
+                'odbiorca_email'     => trim($_POST['odbiorca_email']    ?? '') ?: null,
+                'uwagi'              => trim($_POST['uwagi']              ?? '') ?: null,
+                'sygnatura'          => trim($_POST['sygnatura']          ?? '') ?: null,
+                'miejsce'            => trim($_POST['miejsce']            ?? '') ?: null,
+                'sposob_doreczenia'  => trim($_POST['sposob_doreczenia']  ?? '') ?: null,
+                'pilnosc'            => trim($_POST['pilnosc']            ?? '') ?: 'zwykłe',
+                'termin_odpowiedzi'  => trim($_POST['termin_odpowiedzi']  ?? '') ?: null,
+                'kopia_do'           => trim($_POST['kopia_do']           ?? '') ?: null,
+                'podpisujacy_id'     => ((int)($_POST['podpisujacy_id']   ?? 0)) ?: null,
+                'podstawa_prawna'    => trim($_POST['podstawa_prawna']    ?? '') ?: null,
+                'email_sent'         => 0,
+                'created_by'         => $uid,
+                'created_at'         => date('Y-m-d H:i:s'),
+            ]);
+            db()->prepare("UPDATE crm_cases SET updated_at=? WHERE id=?")->execute([date('Y-m-d H:i:s'), $id]);
+            flash_set('success', 'Pismo „' . h($tytul) . '" dodane.');
+        }
+        header('Location: view.php?id=' . $id . '#pisma'); exit;
+    }
+
+    // Usuń pismo
+    if ($action === 'delete_pismo') {
+        $lid    = (int)($_POST['letter_id'] ?? 0);
+        $letter = db_one("SELECT * FROM contract_letters WHERE id=? AND contract_type='crm_case' AND contract_id=?", [$lid, $id]);
+        if ($letter && ($letter['created_by'] == $uid || is_admin())) {
+            if ($letter['plik']) {
+                $fp = dirname(dirname(__DIR__)) . '/uploads/letters/' . $letter['plik'];
+                if (is_file($fp)) unlink($fp);
+            }
+            db()->prepare("DELETE FROM contract_letters WHERE id=?")->execute([$lid]);
+            flash_set('success', 'Pismo usunięte.');
+        }
+        header('Location: view.php?id=' . $id . '#pisma'); exit;
+    }
+
+    // Powiąż z EZD
+    if ($action === 'link_ezd') {
+        $sid = (int)($_POST['ezd_sprawa_id'] ?? 0);
+        if ($sid && module_enabled('ezd_enabled')) {
+            $sp = db_one("SELECT id FROM ezd_sprawy WHERE id=?", [$sid]);
+            if ($sp) {
+                db()->prepare("UPDATE crm_cases SET ezd_sprawa_id=?, updated_at=? WHERE id=?")
+                    ->execute([$sid, date('Y-m-d H:i:s'), $id]);
+                flash_set('success', 'Sprawa powiązana z EZD.');
+            }
+        }
+        header('Location: view.php?id=' . $id . '#ezd'); exit;
+    }
+
+    // Odepnij EZD
+    if ($action === 'unlink_ezd') {
+        db()->prepare("UPDATE crm_cases SET ezd_sprawa_id=NULL, updated_at=? WHERE id=?")
+            ->execute([date('Y-m-d H:i:s'), $id]);
+        flash_set('success', 'Powiązanie z EZD usunięte.');
+        header('Location: view.php?id=' . $id . '#ezd'); exit;
+    }
 }
 
 // Pobierz notatki i pliki
@@ -160,6 +245,25 @@ $files = db_all(
      WHERE f.case_id=? ORDER BY f.created_at DESC",
     [$id]
 );
+
+$letters     = get_contract_letters('crm_case', $id);
+$users_list  = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
+$ezd_sprawa  = null;
+$ezd_sprawy_list = [];
+if (module_enabled('ezd_enabled')) {
+    if (!empty($case['ezd_sprawa_id'])) {
+        $ezd_sprawa = db_one(
+            "SELECT s.*, t.symbol AS teczka_symbol
+             FROM ezd_sprawy s LEFT JOIN ezd_teczki t ON t.id=s.teczka_id
+             WHERE s.id=?", [(int)$case['ezd_sprawa_id']]
+        );
+    }
+    $ezd_sprawy_list = db_all(
+        "SELECT s.id, s.znak_sprawy, s.title, s.status
+         FROM ezd_sprawy s WHERE s.status != 'closed'
+         ORDER BY s.updated_at DESC LIMIT 200"
+    );
+}
 
 $sc = $status_cfg[$case['status']] ?? $status_cfg['open'];
 $pc = $priority_cfg[$case['priority']] ?? $priority_cfg['medium'];
@@ -187,42 +291,111 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </nav>
 
 <!-- Nagłówek sprawy -->
-<div class="card border-0 shadow-sm mb-3" style="border-radius:12px;overflow:hidden">
-  <div style="background:linear-gradient(90deg,#1E3A5F,#0176D3);padding:1.25rem 1.5rem;color:#fff">
-    <div class="d-flex align-items-start gap-3">
-      <div style="width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">
-        <i class="bi bi-briefcase-fill"></i>
+<div class="mb-3" id="case-header" style="border-radius:14px;overflow:hidden;border:1.5px solid #E5E7EB;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.06)">
+  <!-- Pasek statusu -->
+  <div style="height:4px;background:<?= $sc['color'] ?>"></div>
+
+  <div style="padding:1.1rem 1.4rem 1rem">
+    <div class="d-flex align-items-start gap-3 flex-wrap">
+
+      <!-- Ikona + status badge -->
+      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:.4rem;margin-top:.1rem">
+        <div style="width:42px;height:42px;border-radius:11px;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;display:flex;align-items:center;justify-content:center;font-size:1.25rem;border:1.5px solid <?= $sc['color'] ?>22">
+          <i class="bi bi-briefcase-fill"></i>
+        </div>
       </div>
+
+      <!-- Treść główna -->
       <div style="flex:1;min-width:0">
-        <h1 style="font-size:1.15rem;font-weight:700;margin:0 0 .3rem;color:#fff"><?= h($case['title']) ?></h1>
-        <div style="font-size:.82rem;opacity:.8">
-          <i class="bi bi-person me-1"></i>
-          <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= $case['ct_id'] ?>" style="color:#93C5FD">
-            <?= h($case['contact_name']) ?>
-          </a>
-          &nbsp;·&nbsp;
-          <i class="bi bi-calendar3 me-1"></i><?= date_pl($case['created_at']) ?>
+        <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+          <h1 style="font-size:1.1rem;font-weight:700;margin:0;color:#111827;line-height:1.3"><?= h($case['title']) ?></h1>
+          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .65rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;border:1px solid <?= $sc['color'] ?>44">
+            <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .65rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:#F9FAFB;color:<?= $pc['color'] ?>;border:1px solid <?= $pc['color'] ?>55">
+            <span style="width:6px;height:6px;border-radius:50%;background:<?= $pc['color'] ?>;display:inline-block"></span>
+            <?= $pc['label'] ?>
+          </span>
+        </div>
+
+        <!-- Metadane w wierszu -->
+        <div style="font-size:.79rem;color:#6B7280;display:flex;flex-wrap:wrap;gap:.1rem .9rem;margin-top:.25rem">
+          <span>
+            <i class="bi bi-person me-1" style="color:#9CA3AF"></i>
+            <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= $case['ct_id'] ?>" style="color:#0176D3;text-decoration:none;font-weight:500">
+              <?= h($case['contact_name']) ?>
+            </a>
+          </span>
+          <span><i class="bi bi-calendar3 me-1" style="color:#9CA3AF"></i><?= date('d.m.Y', strtotime($case['created_at'])) ?></span>
+          <span><i class="bi bi-chat me-1" style="color:#9CA3AF"></i><?= count($notes) ?> notatek</span>
+          <span><i class="bi bi-paperclip me-1" style="color:#9CA3AF"></i><?= count($files) ?> plików</span>
+          <span><i class="bi bi-envelope me-1" style="color:#9CA3AF"></i><?= count($letters) ?> pism</span>
           <?php if ($case['closed_at']): ?>
-          &nbsp;·&nbsp;<i class="bi bi-flag me-1"></i>Zamknięta <?= date_pl($case['closed_at']) ?>
+          <span style="color:#D97706"><i class="bi bi-flag me-1"></i>Zamknięta <?= date('d.m.Y', strtotime($case['closed_at'])) ?></span>
+          <?php endif; ?>
+          <?php if ($ezd_sprawa): ?>
+          <span><i class="bi bi-folder2-open me-1" style="color:#9CA3AF"></i>
+            <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$ezd_sprawa['id'] ?>" style="color:#0176D3;text-decoration:none">
+              <?= h($ezd_sprawa['znak_sprawy']) ?>
+            </a>
+          </span>
           <?php endif; ?>
         </div>
       </div>
-      <div class="d-flex align-items-center gap-2 flex-shrink-0">
-        <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .75rem;border-radius:2rem;font-size:.75rem;font-weight:600;background:rgba(255,255,255,.2);color:#fff">
-          <span style="width:7px;height:7px;border-radius:50%;background:<?= $pc['color'] ?>;display:inline-block"></span>
-          <?= $pc['label'] ?>
-        </span>
-        <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .75rem;border-radius:2rem;font-size:.75rem;font-weight:600;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>">
-          <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
-        </span>
+
+      <!-- Akcje -->
+      <?php if ($can_write): ?>
+      <div class="d-flex align-items-start gap-2 flex-shrink-0 flex-wrap">
+        <button type="button" class="btn btn-sm btn-warning"
+                data-bs-toggle="modal" data-bs-target="#modalPismo" style="font-size:.8rem">
+          <i class="bi bi-envelope-plus me-1"></i>Nowe pismo
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-bs-toggle="collapse" data-bs-target="#collapseEditMeta" style="font-size:.8rem">
+          <i class="bi bi-pencil me-1"></i>Edytuj
+        </button>
       </div>
+      <?php endif; ?>
     </div>
+
+    <!-- Opis -->
+    <?php if ($case['description']): ?>
+    <div style="margin-top:.75rem;padding:.6rem .8rem;background:#F8FAFF;border-radius:8px;font-size:.84rem;color:#374151;white-space:pre-wrap;border-left:3px solid <?= $sc['color'] ?>55">
+      <?= h($case['description']) ?>
+    </div>
+    <?php endif; ?>
+
+    <!-- Edycja inline (collapse) -->
+    <?php if ($can_write): ?>
+    <div class="collapse mt-3 pt-3 border-top" id="collapseEditMeta">
+      <form method="post" class="row g-2">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="edit_meta">
+        <div class="col-sm-8">
+          <input name="title" class="form-control form-control-sm" value="<?= h($case['title']) ?>" placeholder="Tytuł" required>
+        </div>
+        <div class="col-sm-4">
+          <select name="priority" class="form-select form-select-sm">
+            <?php foreach ($priority_cfg as $pv => $pd): ?>
+            <option value="<?= $pv ?>" <?= $case['priority']===$pv?'selected':'' ?>><?= $pd['label'] ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-12">
+          <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Opis (opcjonalny)"><?= h($case['description']) ?></textarea>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-floppy me-1"></i>Zapisz
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary ms-1" data-bs-toggle="collapse" data-bs-target="#collapseEditMeta">
+            Anuluj
+          </button>
+        </div>
+      </form>
+    </div>
+    <?php endif; ?>
   </div>
-  <?php if ($case['description']): ?>
-  <div class="card-body" style="font-size:.88rem;color:#374151;white-space:pre-wrap;background:#FAFAFA">
-    <?= h($case['description']) ?>
-  </div>
-  <?php endif; ?>
 </div>
 
 <div class="row g-3">
@@ -282,6 +455,92 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         }
       });
       </script>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- ── PISMA ─────────────────────────────────────────────────────────── -->
+  <div class="card border-0 shadow-sm mb-3" id="pisma">
+    <div class="card-body">
+      <div class="case-section-title d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-envelope me-1"></i>Pisma (<?= count($letters) ?>)</span>
+        <?php if ($can_write): ?>
+        <button type="button" class="btn btn-warning btn-sm py-0 px-2"
+                data-bs-toggle="modal" data-bs-target="#modalPismo" style="font-size:.75rem">
+          <i class="bi bi-plus me-1"></i>Nowe pismo
+        </button>
+        <?php endif; ?>
+      </div>
+
+      <?php if ($letters): ?>
+      <?php foreach ($letters as $l):
+        $lt = LETTER_TYPES[$l['typ_pisma']] ?? LETTER_TYPES['inne'];
+        $ld = LETTER_DIRECTIONS[$l['kierunek']] ?? ['label'=>$l['kierunek'],'class'=>'secondary','icon'=>'bi-arrow-right'];
+      ?>
+      <div style="background:#F8FAFF;border:1px solid #DBEAFE;border-radius:8px;padding:.65rem 1rem;margin-bottom:.5rem;font-size:.84rem">
+        <div class="d-flex align-items-start gap-2">
+          <div style="flex:1;min-width:0">
+            <div class="fw-semibold" style="color:#1E3A5F"><?= h($l['tytul']) ?></div>
+            <div class="d-flex flex-wrap gap-1 mt-1">
+              <span class="badge bg-<?= $ld['class'] ?> bg-opacity-15 text-<?= $ld['class'] ?> border border-<?= $ld['class'] ?>" style="font-size:.63rem">
+                <i class="bi <?= $ld['icon'] ?> me-1"></i><?= $ld['label'] ?>
+              </span>
+              <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:.63rem">
+                <i class="bi <?= $lt['icon'] ?> me-1"></i><?= $lt['label'] ?>
+              </span>
+              <?php if (!empty($l['pilnosc']) && $l['pilnosc'] !== 'zwykłe'): ?>
+              <?php $pilnosc_cls = ['pilne'=>'warning','poufne'=>'danger','ściśle_tajne'=>'danger'][$l['pilnosc']] ?? 'secondary'; ?>
+              <span class="badge bg-<?= $pilnosc_cls ?> bg-opacity-15 text-<?= $pilnosc_cls ?> border border-<?= $pilnosc_cls ?>" style="font-size:.63rem;text-transform:uppercase">
+                <?= h($l['pilnosc']) ?>
+              </span>
+              <?php endif; ?>
+              <?php if (!empty($l['sygnatura'])): ?>
+              <code style="font-size:.65rem;color:#6B7280;background:#F3F4F6;padding:.1rem .35rem;border-radius:4px"><?= h($l['sygnatura']) ?></code>
+              <?php endif; ?>
+            </div>
+            <div style="font-size:.72rem;color:#9CA3AF;margin-top:.25rem;display:flex;flex-wrap:wrap;gap:0 .75rem">
+              <?php if ($l['nadawca']): ?><span><?= h($l['nadawca']) ?> → <?= h($l['odbiorca'] ?? '—') ?></span><?php endif; ?>
+              <?= $l['data_pisma'] ? '<span><i class="bi bi-calendar3 me-1"></i>' . date('d.m.Y', strtotime($l['data_pisma'])) . '</span>' : '' ?>
+              <?php if (!empty($l['termin_odpowiedzi'])): ?>
+              <span style="color:<?= $l['termin_odpowiedzi'] < date('Y-m-d') ? '#DC2626' : '#D97706' ?>">
+                <i class="bi bi-alarm me-1"></i>do <?= date('d.m.Y', strtotime($l['termin_odpowiedzi'])) ?>
+              </span>
+              <?php endif; ?>
+              <?php if (!empty($l['sposob_doreczenia'])): ?>
+              <span><i class="bi bi-send me-1"></i><?= h($l['sposob_doreczenia']) ?></span>
+              <?php endif; ?>
+              <?= $l['created_by_name'] ? '<span>' . h($l['created_by_name']) . '</span>' : '' ?>
+            </div>
+            <?php if ($l['tresc']): ?>
+            <div style="font-size:.78rem;color:#374151;margin-top:.3rem;white-space:pre-wrap;max-height:3.5em;overflow:hidden"><?= h(mb_substr(strip_tags($l['tresc']),0,200)) ?></div>
+            <?php endif; ?>
+          </div>
+          <div class="d-flex gap-1 flex-shrink-0">
+            <?php if ($l['plik']): ?>
+            <a href="<?= h(letter_file_url($l['plik'])) ?>" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz załącznik">
+              <i class="bi bi-download"></i>
+            </a>
+            <?php endif; ?>
+            <?php if ($can_write && ($l['created_by']==$uid || is_admin())): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pismo?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="delete_pismo">
+              <input type="hidden" name="letter_id" value="<?= (int)$l['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+      <?php else: ?>
+      <div class="text-muted text-center py-3" style="font-size:.85rem">
+        <i class="bi bi-envelope d-block mb-2 opacity-25" style="font-size:1.5rem"></i>
+        Brak pism — użyj przycisku „Nowe pismo" aby dodać.
+      </div>
       <?php endif; ?>
     </div>
   </div>
@@ -401,57 +660,98 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
   <?php endif; ?>
 
-  <!-- Szczegóły sprawy -->
+  <!-- Aktywność -->
   <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-      <div class="case-section-title">Szczegóły</div>
-      <table class="table table-sm table-borderless mb-0" style="font-size:.82rem">
-        <tr><td class="text-muted ps-0">Kontakt</td>
-            <td><a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= $case['ct_id'] ?>"><?= h($case['contact_name']) ?></a></td></tr>
-        <tr><td class="text-muted ps-0">Priorytet</td>
-            <td><span style="color:<?= $pc['color'] ?>;font-weight:600">
-              <span style="width:7px;height:7px;border-radius:50%;background:<?= $pc['color'] ?>;display:inline-block;margin-right:4px"></span>
-              <?= $pc['label'] ?>
-            </span></td></tr>
-        <tr><td class="text-muted ps-0">Utworzona</td><td><?= date('d.m.Y H:i', strtotime($case['created_at'])) ?></td></tr>
-        <tr><td class="text-muted ps-0">Zmieniona</td><td><?= date('d.m.Y H:i', strtotime($case['updated_at'])) ?></td></tr>
+    <div class="card-body py-2 px-3">
+      <div class="case-section-title mb-2">Aktywność</div>
+      <div style="font-size:.79rem;display:flex;flex-direction:column;gap:.35rem">
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Utworzona</span>
+          <span><?= date('d.m.Y H:i', strtotime($case['created_at'])) ?></span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Zmieniona</span>
+          <span><?= date('d.m.Y H:i', strtotime($case['updated_at'])) ?></span>
+        </div>
         <?php if ($case['closed_at']): ?>
-        <tr><td class="text-muted ps-0">Zamknięta</td><td><?= date('d.m.Y H:i', strtotime($case['closed_at'])) ?></td></tr>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Zamknięta</span>
+          <span style="color:#D97706"><?= date('d.m.Y H:i', strtotime($case['closed_at'])) ?></span>
+        </div>
         <?php endif; ?>
-        <tr><td class="text-muted ps-0">Notatki</td><td><?= count($notes) ?></td></tr>
-        <tr><td class="text-muted ps-0">Pliki</td><td><?= count($files) ?></td></tr>
-      </table>
+        <hr class="my-1">
+        <div class="d-flex justify-content-between">
+          <span class="text-muted"><i class="bi bi-chat me-1"></i>Notatki</span>
+          <strong><?= count($notes) ?></strong>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted"><i class="bi bi-paperclip me-1"></i>Pliki</span>
+          <strong><?= count($files) ?></strong>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted"><i class="bi bi-envelope me-1"></i>Pisma</span>
+          <strong><?= count($letters) ?></strong>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Edycja tytułu/opisu -->
-  <?php if ($can_write): ?>
-  <div class="card border-0 shadow-sm mb-3">
+  <!-- EZD -->
+  <?php if (module_enabled('ezd_enabled')): ?>
+  <div class="card border-0 shadow-sm mb-3" id="ezd">
     <div class="card-body">
-      <div class="case-section-title">Edytuj sprawę</div>
-      <form method="post">
+      <div class="case-section-title"><i class="bi bi-folder2-open me-1"></i>Powiązanie z EZD</div>
+
+      <?php if ($ezd_sprawa): ?>
+      <div style="background:#FFFBF0;border:1px solid #FDE68A;border-radius:8px;padding:.65rem .85rem;font-size:.82rem;margin-bottom:.75rem">
+        <div class="fw-semibold">
+          <code style="font-size:.75rem;color:#1d4ed8"><?= h($ezd_sprawa['znak_sprawy']) ?></code>
+        </div>
+        <div style="color:#374151"><?= h($ezd_sprawa['title']) ?></div>
+        <div style="font-size:.72rem;color:#9CA3AF;margin-top:.2rem">
+          Status: <?= h($ezd_sprawa['status'] ?? '—') ?>
+          · <?= h($ezd_sprawa['teczka_symbol'] ?? '') ?>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+          <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$ezd_sprawa['id'] ?>"
+             class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size:.75rem">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz w EZD
+          </a>
+          <?php if ($can_write): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Odpiąć powiązanie z EZD?')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="unlink_ezd">
+            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:.75rem">
+              <i class="bi bi-x-lg me-1"></i>Odepnij
+            </button>
+          </form>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php else: ?>
+      <div class="text-muted mb-2" style="font-size:.8rem">Nie powiązano z żadną sprawą EZD.</div>
+      <?php endif; ?>
+
+      <?php if ($can_write && $ezd_sprawy_list): ?>
+      <form method="post" class="<?= $ezd_sprawa ? 'border-top pt-2 mt-1' : '' ?>">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action" value="edit_meta">
-        <div class="mb-2">
-          <label class="form-label small fw-semibold">Tytuł</label>
-          <input name="title" class="form-control form-control-sm" value="<?= h($case['title']) ?>" required>
-        </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold">Opis</label>
-          <textarea name="description" class="form-control form-control-sm" rows="3"><?= h($case['description']) ?></textarea>
-        </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold">Priorytet</label>
-          <select name="priority" class="form-select form-select-sm">
-            <?php foreach ($priority_cfg as $pv=>$pd): ?>
-            <option value="<?= $pv ?>" <?= $case['priority']===$pv?'selected':'' ?>><?= $pd['label'] ?></option>
+        <input type="hidden" name="_action" value="link_ezd">
+        <div class="d-flex gap-1">
+          <select name="ezd_sprawa_id" class="form-select form-select-sm" required style="font-size:.78rem">
+            <option value="">— wybierz sprawę EZD —</option>
+            <?php foreach ($ezd_sprawy_list as $es): ?>
+            <option value="<?= (int)$es['id'] ?>"
+                    <?= ((int)($case['ezd_sprawa_id'] ?? 0) === (int)$es['id']) ? 'selected' : '' ?>>
+              <?= h($es['znak_sprawy']) ?> — <?= h(mb_substr($es['title'],0,40)) ?>
+            </option>
             <?php endforeach; ?>
           </select>
+          <button type="submit" class="btn btn-sm btn-warning px-2" style="font-size:.75rem">
+            <i class="bi bi-link-45deg"></i>
+          </button>
         </div>
-        <button type="submit" class="btn btn-outline-primary btn-sm w-100">
-          <i class="bi bi-floppy me-1"></i>Zapisz zmiany
-        </button>
       </form>
+      <?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
@@ -471,5 +771,187 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 </div><!-- /col-4 -->
 </div><!-- /row -->
+
+<?php if ($can_write): ?>
+<!-- ══ MODAL: Nowe pismo ════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalPismo" tabindex="-1" aria-labelledby="modalPismoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1E3A5F;color:#fff;padding:.75rem 1.25rem">
+        <h5 class="modal-title fw-bold" id="modalPismoLabel" style="font-size:.95rem">
+          <i class="bi bi-envelope-plus me-2"></i>Nowe pismo do sprawy
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" enctype="multipart/form-data">
+        <div class="modal-body p-0" style="font-size:.86rem">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="add_pismo">
+
+          <!-- ── SEKCJA 1: Klasyfikacja ─────────────────────────────────── -->
+          <div class="px-3 pt-3 pb-2">
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.67rem;letter-spacing:.09em;color:#6B7280">
+              <i class="bi bi-tag me-1"></i>Klasyfikacja
+            </div>
+            <div class="row g-2">
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold mb-1">Kierunek <span class="text-danger">*</span></label>
+                <select name="kierunek" class="form-select form-select-sm" required>
+                  <?php foreach (LETTER_DIRECTIONS as $dk => $dv): ?>
+                  <option value="<?= $dk ?>"><?= h($dv['label']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold mb-1">Typ pisma</label>
+                <select name="typ_pisma" class="form-select form-select-sm">
+                  <?php foreach (LETTER_TYPES as $tk => $tv): ?>
+                  <option value="<?= $tk ?>"><?= h($tv['label']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold mb-1">Pilność</label>
+                <select name="pilnosc" class="form-select form-select-sm">
+                  <option value="zwykłe">Zwykłe</option>
+                  <option value="pilne">Pilne</option>
+                  <option value="poufne">Poufne</option>
+                  <option value="ściśle_tajne">Ściśle tajne</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold mb-1">Tytuł / przedmiot <span class="text-danger">*</span></label>
+                <input type="text" name="tytul" class="form-control form-control-sm"
+                       placeholder="np. Wezwanie do złożenia dokumentów" required>
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-0">
+
+          <!-- ── SEKCJA 2: Metadane pisma ───────────────────────────────── -->
+          <div class="px-3 py-2">
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.67rem;letter-spacing:.09em;color:#6B7280">
+              <i class="bi bi-info-circle me-1"></i>Metadane pisma
+            </div>
+            <div class="row g-2">
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold mb-1">Sygnatura / numer</label>
+                <input type="text" name="sygnatura" class="form-control form-control-sm"
+                       placeholder="np. CRM/2026/001">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold mb-1">Miejsce wystawienia</label>
+                <input type="text" name="miejsce" class="form-control form-control-sm"
+                       placeholder="np. Warszawa"
+                       value="<?= defined('ORG_CITY') ? h(ORG_CITY) : '' ?>">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold mb-1">Data pisma</label>
+                <input type="date" name="data_pisma" class="form-control form-control-sm"
+                       value="<?= date('Y-m-d') ?>">
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold mb-1">Sposób doręczenia</label>
+                <select name="sposob_doreczenia" class="form-select form-select-sm">
+                  <option value="email">E-mail</option>
+                  <option value="poczta">Poczta tradycyjna</option>
+                  <option value="kurier">Kurier</option>
+                  <option value="osobisty">Odbiór osobisty</option>
+                  <option value="epuap">ePUAP</option>
+                  <option value="fax">Fax</option>
+                  <option value="inny">Inny</option>
+                </select>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold mb-1">Termin odpowiedzi</label>
+                <input type="date" name="termin_odpowiedzi" class="form-control form-control-sm"
+                       min="<?= date('Y-m-d') ?>">
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-0">
+
+          <!-- ── SEKCJA 3: Strony ───────────────────────────────────────── -->
+          <div class="px-3 py-2">
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.67rem;letter-spacing:.09em;color:#6B7280">
+              <i class="bi bi-people me-1"></i>Strony
+            </div>
+            <div class="row g-2">
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold mb-1">Nadawca</label>
+                <input type="text" name="nadawca" class="form-control form-control-sm"
+                       value="<?= defined('ORG_NAME') ? h(ORG_NAME) : '' ?>">
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold mb-1">Odbiorca</label>
+                <input type="text" name="odbiorca" class="form-control form-control-sm"
+                       value="<?= h($case['contact_name'] ?? '') ?>">
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold mb-1">E-mail odbiorcy</label>
+                <input type="email" name="odbiorca_email" class="form-control form-control-sm"
+                       placeholder="opcjonalnie">
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold mb-1">Kopia do (DW)</label>
+                <input type="text" name="kopia_do" class="form-control form-control-sm"
+                       placeholder="imię, e-mail lub dział">
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold mb-1">Podpisujący</label>
+                <select name="podpisujacy_id" class="form-select form-select-sm">
+                  <option value="">— nie wskazano —</option>
+                  <?php foreach ($users_list as $u): ?>
+                  <option value="<?= (int)$u['id'] ?>"><?= h($u['name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-0">
+
+          <!-- ── SEKCJA 4: Treść ───────────────────────────────────────── -->
+          <div class="px-3 py-2">
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.67rem;letter-spacing:.09em;color:#6B7280">
+              <i class="bi bi-file-text me-1"></i>Treść i załączniki
+            </div>
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label small fw-semibold mb-1">Podstawa prawna</label>
+                <input type="text" name="podstawa_prawna" class="form-control form-control-sm"
+                       placeholder="np. Art. 14 RODO, §5 umowy nr …">
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold mb-1">Treść pisma</label>
+                <textarea name="tresc" class="form-control form-control-sm" rows="6"
+                          placeholder="Treść pisma (opcjonalna — możesz dołączyć plik poniżej)"></textarea>
+              </div>
+              <div class="col-sm-8">
+                <label class="form-label small fw-semibold mb-1">Załącznik (opcjonalny)</label>
+                <input type="file" name="pismo_plik" class="form-control form-control-sm"
+                       accept=".pdf,.docx,.doc,.png,.jpg,.jpeg">
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold mb-1">Uwagi wewnętrzne</label>
+                <input type="text" name="uwagi" class="form-control form-control-sm"
+                       placeholder="opcjonalnie — widoczne tylko wewnętrznie">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning btn-sm">
+            <i class="bi bi-envelope-check me-1"></i>Zapisz pismo
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>

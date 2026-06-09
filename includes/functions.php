@@ -216,6 +216,7 @@ HTML;
 function table_for_type(string $type): string {
     // Virtual types — mapuj na prawdziwą tabelę
     if ($type === 'canva_request') return 'umowy_wolontariat';
+    if ($type === 'crm_case')      return 'crm_cases';
     return 'umowy_' . $type;
 }
 
@@ -223,6 +224,9 @@ function contract_url(string $type, int $id, string $action = 'view'): string {
     // Virtual types — mapuj na właściwy URL
     if ($type === 'canva_request') {
         return APP_URL . "/contracts/wolontariat/view.php?id={$id}#tab-m365-anchor";
+    }
+    if ($type === 'crm_case') {
+        return APP_URL . "/crm/cases/view.php?id={$id}";
     }
     return APP_URL . "/contracts/{$type}/{$action}.php?id={$id}";
 }
