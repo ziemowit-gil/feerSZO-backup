@@ -33,6 +33,35 @@ $action = $body['action'] ?? '';
 
 try {
 
+// ── LIST SITES ────────────────────────────────────────────────────────────────
+if ($action === 'list_sites') {
+    $graph = new M365Graph();
+    if (!$graph->is_configured()) {
+        echo json_encode(['ok' => false, 'error' => 'Brak konfiguracji M365.', 'goto_m365' => true]);
+        exit;
+    }
+    try {
+        $search = trim($body['search'] ?? '*') ?: '*';
+        $sites  = $graph->sp_list_sites($search, 60);
+        // Normalizuj: usuń root (portal SharePoint) i artefakty systemowe
+        $sites = array_values(array_filter($sites, static function ($s) {
+            $url  = $s['webUrl'] ?? '';
+            $name = $s['name']   ?? '';
+            // Pomiń root tenant i ukryte/systemowe witryny
+            return $url !== '' && $name !== '' && !str_ends_with(rtrim($url, '/'), '.sharepoint.com');
+        }));
+        echo json_encode(['ok' => true, 'sites' => $sites, 'count' => count($sites)]);
+    } catch (\Throwable $e) {
+        $msg  = $e->getMessage();
+        $hint = '';
+        if (str_contains($msg, '403') || str_contains($msg, 'Forbidden')) {
+            $hint = 'Brak uprawnienia Sites.Read.All. Dodaj je w Azure AD → API permissions i udziel admin consent.';
+        }
+        echo json_encode(['ok' => false, 'error' => $msg, 'hint' => $hint]);
+    }
+    exit;
+}
+
 // ── TEST ─────────────────────────────────────────────────────────────────────
 if ($action === 'test') {
     $site_url = trim($body['site_url'] ?? '');

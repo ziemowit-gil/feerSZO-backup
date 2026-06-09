@@ -435,6 +435,151 @@ class M365Graph {
         ]]);
         @file_get_contents($url, false, $ctx);
     }
+
+    // ── SharePoint ───────────────────────────────────────────────────────────
+
+    /**
+     * Zwraca listę witryn SharePoint w tenancie.
+     * Wymaga Sites.Read.All (Application).
+     * Używa wyszukiwania Graph (?search=*) — standardowy endpoint v1.0.
+     *
+     * @param  string $search  Fraza wyszukiwania (domyślnie '*' = wszystkie)
+     * @param  int    $top     Max wyników
+     * @return array  [{id, displayName, webUrl, name, description}, ...]
+     */
+    public function sp_list_sites(string $search = '*', int $top = 50): array {
+        $url = 'https://graph.microsoft.com/v1.0/sites?' . http_build_query([
+            'search'  => $search,
+            '$top'    => $top,
+            '$select' => 'id,displayName,webUrl,name,description,siteCollection',
+        ]);
+        $resp = $this->http_get($url);
+        return $resp['value'] ?? [];
+    }
+
+    /**
+     * Zwraca ID witryny SharePoint na podstawie jej pełnego URL.
+     * Wymaga uprawnienia Sites.ReadWrite.All (Application).
+     * Cache w static — jedno zapytanie na request nawet przy wielu uploadach.
+     */
+    public function sp_site_id(string $site_url): string {
+        static $cache = [];
+        if (isset($cache[$site_url])) return $cache[$site_url];
+        $parts = parse_url(rtrim($site_url, '/'));
+        $host  = $parts['host'] ?? '';
+        $path  = ltrim($parts['path'] ?? '', '/');
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/sites/{$host}:/{$path}");
+        if (empty($r['id'])) {
+            throw new \RuntimeException("Nie znaleziono witryny SharePoint: {$site_url}. Błąd: " . json_encode($r));
+        }
+        return $cache[$site_url] = $r['id'];
+    }
+
+    /**
+     * Zwraca ID biblioteki dokumentów (drive) w witrynie.
+     * Jeśli $library_name puste — zwraca domyślny drive (defaultDrive).
+     */
+    public function sp_drive_id(string $site_id, string $library_name = ''): string {
+        static $cache = [];
+        $key = $site_id . '|' . $library_name;
+        if (isset($cache[$key])) return $cache[$key];
+
+        if ($library_name === '') {
+            $r = $this->http_get("https://graph.microsoft.com/v1.0/sites/{$site_id}/drive");
+            if (empty($r['id'])) {
+                throw new \RuntimeException("Brak domyślnej biblioteki w witrynie: {$site_id}");
+            }
+            return $cache[$key] = $r['id'];
+        }
+
+        $resp = $this->http_get("https://graph.microsoft.com/v1.0/sites/{$site_id}/drives");
+        foreach ($resp['value'] ?? [] as $d) {
+            if (strcasecmp($d['name'] ?? '', $library_name) === 0) {
+                return $cache[$key] = $d['id'];
+            }
+        }
+        throw new \RuntimeException("Nie znaleziono biblioteki \"{$library_name}\" w witrynie {$site_id}.");
+    }
+
+    /**
+     * Zwraca listę bibliotek dokumentów (drives) w witrynie — do podglądu w ustawieniach.
+     */
+    public function sp_list_drives(string $site_id): array {
+        try {
+            $resp = $this->http_get("https://graph.microsoft.com/v1.0/sites/{$site_id}/drives");
+            return $resp['value'] ?? [];
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Wgrywa plik na SharePoint.
+     * Pliki ≤ 4 MB — prosty PUT. Większe — upload session (chunked).
+     * $sp_path — ścieżka wewnątrz biblioteki łącznie z nazwą pliku,
+     *            np. "Rejestr Umów/dzielo/20250601_abc.pdf"
+     */
+    public function sp_upload_file(string $site_id, string $drive_id, string $sp_path, string $local_path): array {
+        if (!file_exists($local_path)) {
+            throw new \RuntimeException("Plik lokalny nie istnieje: {$local_path}");
+        }
+        $size        = filesize($local_path);
+        $encoded     = implode('/', array_map('rawurlencode', explode('/', $sp_path)));
+        $item_url    = "https://graph.microsoft.com/v1.0/sites/{$site_id}/drives/{$drive_id}/root:/{$encoded}";
+
+        if ($size <= 4 * 1024 * 1024) {
+            $ext  = strtolower(pathinfo($local_path, PATHINFO_EXTENSION));
+            $mime = $this->sp_mime($ext);
+            $ctx  = stream_context_create(['http' => [
+                'method'        => 'PUT',
+                'header'        => "Authorization: Bearer {$this->token()}\r\nContent-Type: {$mime}\r\n",
+                'content'       => file_get_contents($local_path),
+                'ignore_errors' => true,
+            ]]);
+            return json_decode(@file_get_contents("{$item_url}:/content", false, $ctx) ?: '{}', true) ?? [];
+        }
+
+        return $this->sp_upload_large("{$item_url}:/createUploadSession", $local_path, $size);
+    }
+
+    private function sp_upload_large(string $session_url, string $local_path, int $size): array {
+        $session = $this->http_post($session_url, ['item' => ['@microsoft.graph.conflictBehavior' => 'replace']]);
+        $upload_url = $session['uploadUrl'] ?? '';
+        if (!$upload_url) {
+            throw new \RuntimeException('Nie udało się utworzyć sesji uploadu na SharePoint.');
+        }
+        $chunk  = 320 * 1024 * 10; // 3,2 MB — musi być wielokrotność 320 KB
+        $fp     = fopen($local_path, 'rb');
+        $offset = 0;
+        $result = [];
+        while (!feof($fp)) {
+            $data = fread($fp, $chunk);
+            $len  = strlen($data);
+            $end  = $offset + $len - 1;
+            $ctx  = stream_context_create(['http' => [
+                'method'        => 'PUT',
+                'header'        => "Content-Length: {$len}\r\nContent-Range: bytes {$offset}-{$end}/{$size}\r\n",
+                'content'       => $data,
+                'ignore_errors' => true,
+            ]]);
+            $resp   = json_decode(@file_get_contents($upload_url, false, $ctx) ?: '{}', true) ?? [];
+            $offset += $len;
+            if ($offset >= $size) $result = $resp;
+        }
+        fclose($fp);
+        return $result;
+    }
+
+    private function sp_mime(string $ext): string {
+        return match($ext) {
+            'pdf'         => 'application/pdf',
+            'docx'        => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xlsx'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png'         => 'image/png',
+            default       => 'application/octet-stream',
+        };
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -467,4 +612,99 @@ function m365_should_be_active(array $row): bool {
     // Wyłącz konto w dniu wygaśnięcia umowy (włącznie) — nie dzień po
     if (!$bezterminowa && $end && $end <= $today) return false;
     return true;
+}
+
+// ── SharePoint helpers ────────────────────────────────────────────────────────
+
+/**
+ * Synchronizuje lokalny plik (ścieżka względna od UPLOAD_DIR) na SharePoint.
+ * Wywoływana z handle_upload() — błędy są logowane, nigdy nie blokują uploadu.
+ */
+function sp_sync_upload(string $rel_path): void {
+    if (m365_setting('sp_enabled') !== '1') return;
+
+    $site_url = m365_setting('sp_site_url');
+    if (!$site_url) return;
+
+    $local_path = UPLOAD_DIR . $rel_path;
+    if (!file_exists($local_path)) return;
+
+    $graph = new M365Graph();
+    if (!$graph->is_configured()) return;
+
+    $library     = m365_setting('sp_library') ?: '';
+    $base_folder = trim(m365_setting('sp_base_folder'), '/');
+    $sp_path     = $base_folder !== '' ? $base_folder . '/' . $rel_path : $rel_path;
+
+    $site_id  = $graph->sp_site_id($site_url);
+    $drive_id = $graph->sp_drive_id($site_id, $library);
+    $graph->sp_upload_file($site_id, $drive_id, $sp_path, $local_path);
+}
+
+/**
+ * Tworzy kopię zapasową bazy SQLite (VACUUM INTO + gzip) i wysyła na SharePoint.
+ * Wymaga: sp_enabled=1, sp_site_url, M365 credentials.
+ * Folder na SP: sp_backup_folder / YYYY-MM / umowy_TIMESTAMP.db.gz
+ */
+function sp_backup_db(): array {
+    if (m365_setting('sp_enabled') !== '1') {
+        return ['ok' => false, 'error' => 'SharePoint nie jest włączony. Włącz synchronizację SharePoint w ustawieniach.'];
+    }
+
+    $site_url = m365_setting('sp_site_url');
+    if (!$site_url) {
+        return ['ok' => false, 'error' => 'Brak URL witryny SharePoint w ustawieniach.'];
+    }
+
+    $graph = new M365Graph();
+    if (!$graph->is_configured()) {
+        return ['ok' => false, 'error' => 'Brak konfiguracji Microsoft 365 (Client ID / Secret).'];
+    }
+
+    $db_src = defined('DB_PATH') ? DB_PATH : (dirname(__DIR__) . '/umowy.db');
+    if (!file_exists($db_src)) {
+        return ['ok' => false, 'error' => "Baza danych nie istnieje: {$db_src}"];
+    }
+
+    $stamp  = date('Ymd_His');
+    $tmp_db = sys_get_temp_dir() . '/feer_bak_' . $stamp . '.db';
+    $tmp_gz = $tmp_db . '.gz';
+
+    try {
+        $pdo = new \PDO('sqlite:' . $db_src);
+        $pdo->exec('VACUUM INTO ' . $pdo->quote($tmp_db));
+        $pdo = null;
+
+        $gz = gzopen($tmp_gz, 'wb9');
+        $fh = fopen($tmp_db, 'rb');
+        while (!feof($fh)) gzwrite($gz, fread($fh, 65536));
+        fclose($fh);
+        gzclose($gz);
+        @unlink($tmp_db);
+
+        $gz_size = filesize($tmp_gz);
+        $size_h  = $gz_size > 1048576
+            ? round($gz_size / 1048576, 1) . ' MB'
+            : round($gz_size / 1024) . ' KB';
+
+        $library    = m365_setting('sp_library') ?: '';
+        $bak_folder = trim(m365_setting('sp_backup_folder') ?: 'Backup', '/');
+        $sp_path    = $bak_folder . '/' . date('Y-m') . '/umowy_' . $stamp . '.db.gz';
+
+        $site_id  = $graph->sp_site_id($site_url);
+        $drive_id = $graph->sp_drive_id($site_id, $library);
+        $resp     = $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_gz);
+        @unlink($tmp_gz);
+
+        return [
+            'ok'      => true,
+            'sp_path' => $sp_path,
+            'web_url' => $resp['webUrl'] ?? '',
+            'size_h'  => $size_h,
+        ];
+    } catch (\Throwable $e) {
+        @unlink($tmp_db);
+        @unlink($tmp_gz);
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
 }
