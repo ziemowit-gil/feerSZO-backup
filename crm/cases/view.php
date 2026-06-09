@@ -182,6 +182,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 'kopia_do'           => trim($_POST['kopia_do']           ?? '') ?: null,
                 'podpisujacy_id'     => ((int)($_POST['podpisujacy_id']   ?? 0)) ?: null,
                 'podstawa_prawna'    => trim($_POST['podstawa_prawna']    ?? '') ?: null,
+                'nr_nadania'         => trim($_POST['nr_nadania']         ?? '') ?: null,
+                'adres_edoreczenia'  => trim($_POST['adres_edoreczenia']  ?? '') ?: null,
+                'edoreczenia_ref'    => trim($_POST['edoreczenia_ref']    ?? '') ?: null,
                 'email_sent'         => 0,
                 'created_by'         => $uid,
                 'created_at'         => date('Y-m-d H:i:s'),
@@ -203,6 +206,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             }
             db()->prepare("DELETE FROM contract_letters WHERE id=?")->execute([$lid]);
             flash_set('success', 'Pismo usunięte.');
+        }
+        header('Location: view.php?id=' . $id . '#pisma'); exit;
+    }
+
+    // Edytuj pismo
+    if ($action === 'edit_pismo') {
+        $lid    = (int)($_POST['letter_id'] ?? 0);
+        $letter = db_one("SELECT * FROM contract_letters WHERE id=? AND contract_type='crm_case' AND contract_id=?", [$lid, $id]);
+        if ($letter && ($letter['created_by'] == $uid || is_admin())) {
+            $tytul    = trim($_POST['tytul'] ?? '');
+            $kierunek = $_POST['kierunek'] ?? $letter['kierunek'];
+            if ($tytul && array_key_exists($kierunek, LETTER_DIRECTIONS)) {
+                $typ = $_POST['typ_pisma'] ?? $letter['typ_pisma'];
+                $sd  = trim($_POST['sposob_doreczenia'] ?? '') ?: null;
+                db()->prepare(
+                    "UPDATE contract_letters SET
+                        kierunek=?, typ_pisma=?, tytul=?, tresc=?, data_pisma=?,
+                        nadawca=?, odbiorca=?, odbiorca_email=?, uwagi=?,
+                        sygnatura=?, miejsce=?, sposob_doreczenia=?, pilnosc=?,
+                        termin_odpowiedzi=?, kopia_do=?, podpisujacy_id=?,
+                        podstawa_prawna=?, nr_nadania=?, adres_edoreczenia=?, edoreczenia_ref=?
+                     WHERE id=?"
+                )->execute([
+                    $kierunek,
+                    array_key_exists($typ, LETTER_TYPES) ? $typ : 'inne',
+                    $tytul,
+                    trim($_POST['tresc']              ?? '') ?: null,
+                    trim($_POST['data_pisma']          ?? '') ?: date('Y-m-d'),
+                    trim($_POST['nadawca']             ?? '') ?: null,
+                    trim($_POST['odbiorca']            ?? '') ?: null,
+                    trim($_POST['odbiorca_email']      ?? '') ?: null,
+                    trim($_POST['uwagi']               ?? '') ?: null,
+                    trim($_POST['sygnatura']           ?? '') ?: null,
+                    trim($_POST['miejsce']             ?? '') ?: null,
+                    $sd,
+                    trim($_POST['pilnosc']             ?? '') ?: 'zwykłe',
+                    trim($_POST['termin_odpowiedzi']   ?? '') ?: null,
+                    trim($_POST['kopia_do']            ?? '') ?: null,
+                    ((int)($_POST['podpisujacy_id']    ?? 0)) ?: null,
+                    trim($_POST['podstawa_prawna']     ?? '') ?: null,
+                    trim($_POST['nr_nadania']          ?? '') ?: null,
+                    trim($_POST['adres_edoreczenia']   ?? '') ?: null,
+                    trim($_POST['edoreczenia_ref']     ?? '') ?: null,
+                    $lid,
+                ]);
+                // Nowy plik (jeśli wgrany)
+                $plik = handle_letter_upload('pismo_plik');
+                if ($plik) {
+                    if ($letter['plik']) {
+                        $old = dirname(dirname(__DIR__)) . '/uploads/letters/' . $letter['plik'];
+                        if (is_file($old)) unlink($old);
+                    }
+                    db()->prepare("UPDATE contract_letters SET plik=? WHERE id=?")->execute([$plik, $lid]);
+                }
+                db()->prepare("UPDATE crm_cases SET updated_at=? WHERE id=?")->execute([date('Y-m-d H:i:s'), $id]);
+                flash_set('success', 'Pismo zaktualizowane.');
+            }
         }
         header('Location: view.php?id=' . $id . '#pisma'); exit;
     }
@@ -474,8 +534,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
       <?php if ($letters): ?>
       <?php foreach ($letters as $l):
-        $lt = LETTER_TYPES[$l['typ_pisma']] ?? LETTER_TYPES['inne'];
-        $ld = LETTER_DIRECTIONS[$l['kierunek']] ?? ['label'=>$l['kierunek'],'class'=>'secondary','icon'=>'bi-arrow-right'];
+        $lt  = LETTER_TYPES[$l['typ_pisma']] ?? LETTER_TYPES['inne'];
+        $ld  = LETTER_DIRECTIONS[$l['kierunek']] ?? ['label'=>$l['kierunek'],'class'=>'secondary','icon'=>'bi-arrow-right'];
+        $is_edoreczenia = ($l['sposob_doreczenia'] === 'edoreczenia');
+        $has_nadania    = !empty($l['nr_nadania']) && in_array($l['sposob_doreczenia'], ['kurier','poczta']);
+        $ldata = json_encode($l, JSON_HEX_APOS | JSON_HEX_QUOT);
       ?>
       <div style="background:#F8FAFF;border:1px solid #DBEAFE;border-radius:8px;padding:.65rem 1rem;margin-bottom:.5rem;font-size:.84rem">
         <div class="d-flex align-items-start gap-2">
@@ -497,6 +560,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <?php if (!empty($l['sygnatura'])): ?>
               <code style="font-size:.65rem;color:#6B7280;background:#F3F4F6;padding:.1rem .35rem;border-radius:4px"><?= h($l['sygnatura']) ?></code>
               <?php endif; ?>
+              <?php if ($is_edoreczenia): ?>
+              <span class="badge" style="font-size:.63rem;background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE">
+                <i class="bi bi-shield-check me-1"></i>eDoręczenia
+              </span>
+              <?php endif; ?>
             </div>
             <div style="font-size:.72rem;color:#9CA3AF;margin-top:.25rem;display:flex;flex-wrap:wrap;gap:0 .75rem">
               <?php if ($l['nadawca']): ?><span><?= h($l['nadawca']) ?> → <?= h($l['odbiorca'] ?? '—') ?></span><?php endif; ?>
@@ -511,16 +579,42 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <?php endif; ?>
               <?= $l['created_by_name'] ? '<span>' . h($l['created_by_name']) . '</span>' : '' ?>
             </div>
+            <?php if ($has_nadania): ?>
+            <div style="margin-top:.35rem;display:inline-flex;align-items:center;gap:.4rem;background:#FFF7ED;border:1px solid #FED7AA;border-radius:6px;padding:.2rem .55rem;font-size:.73rem">
+              <i class="bi bi-truck text-warning"></i>
+              <span class="text-muted">Nr nadania:</span>
+              <strong style="color:#92400E;font-family:monospace"><?= h($l['nr_nadania']) ?></strong>
+            </div>
+            <?php endif; ?>
+            <?php if ($is_edoreczenia && (!empty($l['adres_edoreczenia']) || !empty($l['edoreczenia_ref']))): ?>
+            <div style="margin-top:.35rem;display:inline-flex;align-items:center;gap:.4rem;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;padding:.2rem .55rem;font-size:.73rem">
+              <i class="bi bi-shield-check" style="color:#4338CA"></i>
+              <?php if (!empty($l['adres_edoreczenia'])): ?>
+              <span class="text-muted">ADE:</span>
+              <code style="font-size:.7rem;color:#3730A3"><?= h($l['adres_edoreczenia']) ?></code>
+              <?php endif; ?>
+              <?php if (!empty($l['edoreczenia_ref'])): ?>
+              <span class="text-muted ms-1">Ref:</span>
+              <code style="font-size:.7rem;color:#3730A3"><?= h($l['edoreczenia_ref']) ?></code>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <?php if ($l['tresc']): ?>
             <div style="font-size:.78rem;color:#374151;margin-top:.3rem;white-space:pre-wrap;max-height:3.5em;overflow:hidden"><?= h(mb_substr(strip_tags($l['tresc']),0,200)) ?></div>
             <?php endif; ?>
           </div>
-          <div class="d-flex gap-1 flex-shrink-0">
+          <div class="d-flex gap-1 flex-shrink-0 align-items-start mt-1">
             <?php if ($l['plik']): ?>
             <a href="<?= h(letter_file_url($l['plik'])) ?>" target="_blank" rel="noopener"
                class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz załącznik">
               <i class="bi bi-download"></i>
             </a>
+            <?php endif; ?>
+            <?php if ($can_write): ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj"
+                    onclick="pismoEdit(<?= $ldata ?>)">
+              <i class="bi bi-pencil"></i>
+            </button>
             <?php endif; ?>
             <?php if ($can_write && ($l['created_by']==$uid || is_admin())): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pismo?')">

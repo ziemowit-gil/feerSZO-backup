@@ -579,6 +579,9 @@ function crm_migrate(): void {
         "ALTER TABLE contract_letters ADD COLUMN kopia_do TEXT",
         "ALTER TABLE contract_letters ADD COLUMN podpisujacy_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
         "ALTER TABLE contract_letters ADD COLUMN podstawa_prawna TEXT",
+        "ALTER TABLE contract_letters ADD COLUMN nr_nadania TEXT",
+        "ALTER TABLE contract_letters ADD COLUMN adres_edoreczenia TEXT",
+        "ALTER TABLE contract_letters ADD COLUMN edoreczenia_ref TEXT",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

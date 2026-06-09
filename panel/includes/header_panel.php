@@ -149,6 +149,19 @@ if ('serviceWorker' in navigator) {
   </a>
   <div class="pv-topbar-bc" aria-hidden="true"><strong><?= h($_pv_title) ?></strong></div>
   <nav class="pv-topbar-user" aria-label="Akcje użytkownika">
+    <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
+    <button type="button"
+            data-bs-toggle="modal" data-bs-target="#bugReportModal"
+            title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd"
+            style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.4);
+                   border-radius:6px;padding:.18rem .5rem;font-size:.78rem;
+                   color:rgba(255,255,255,.9);cursor:pointer;line-height:1.5;
+                   transition:all .12s;white-space:nowrap;flex-shrink:0;
+                   display:inline-flex;align-items:center;gap:.3rem">
+      <i class="bi bi-bug-fill" style="font-size:.85rem"></i>
+      <span class="d-none d-sm-inline">Zgłoś błąd</span>
+    </button>
+    <?php endif; ?>
     <?php if ($_pu): ?>
     <div class="dropdown">
       <button type="button" class="pv-avatar" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Menu użytkownika <?= h($_pu_name) ?>">
@@ -167,6 +180,7 @@ if ('serviceWorker' in navigator) {
     <?php endif; ?>
   </nav>
 </header>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 
 <!-- Sidebar -->
 <nav class="pv-sidebar" id="pv-sidebar" aria-label="Nawigacja panelu wolontariusza">

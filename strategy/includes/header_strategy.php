@@ -291,6 +291,19 @@ body {
   </div>
 
   <nav class="strat-topbar-nav" aria-label="Działania">
+    <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
+    <button type="button"
+            data-bs-toggle="modal" data-bs-target="#bugReportModal"
+            title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd"
+            style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.4);
+                   border-radius:6px;padding:.18rem .5rem;font-size:.78rem;
+                   color:rgba(255,255,255,.9);cursor:pointer;line-height:1.5;
+                   transition:all .12s;white-space:nowrap;flex-shrink:0;
+                   display:inline-flex;align-items:center;gap:.3rem">
+      <i class="bi bi-bug-fill" style="font-size:.85rem"></i>
+      <span class="d-none d-sm-inline">Zgłoś błąd</span>
+    </button>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/portal.php" class="strat-sys-link">
       <i class="bi bi-house" aria-hidden="true"></i>
       <span class="d-none d-md-inline">System</span>
@@ -322,6 +335,7 @@ body {
     <?php endif; ?>
   </nav>
 </header>
+<?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 
 <!-- Sidebar -->
 <nav class="strat-sidebar" id="strat-nav" aria-label="Nawigacja Strategia NGO">
