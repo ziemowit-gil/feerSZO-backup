@@ -386,15 +386,15 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <?= h($case['contact_name']) ?>
             </a>
           </span>
-          <span><i class="bi bi-calendar3 me-1" style="color:#9CA3AF"></i><?= date('d.m.Y', strtotime($case['created_at'])) ?></span>
-          <span><i class="bi bi-chat me-1" style="color:#9CA3AF"></i><?= count($notes) ?> notatek</span>
-          <span><i class="bi bi-paperclip me-1" style="color:#9CA3AF"></i><?= count($files) ?> plików</span>
-          <span><i class="bi bi-envelope me-1" style="color:#9CA3AF"></i><?= count($letters) ?> pism</span>
+          <span><i class="bi bi-calendar3 me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= date('d.m.Y', strtotime($case['created_at'])) ?></span>
+          <span><i class="bi bi-chat me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= count($notes) ?> notatek</span>
+          <span><i class="bi bi-paperclip me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= count($files) ?> plików</span>
+          <span><i class="bi bi-envelope me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= count($letters) ?> pism</span>
           <?php if ($case['closed_at']): ?>
-          <span style="color:#D97706"><i class="bi bi-flag me-1"></i>Zamknięta <?= date('d.m.Y', strtotime($case['closed_at'])) ?></span>
+          <span style="color:#D97706"><i class="bi bi-flag me-1" aria-hidden="true"></i>Zamknięta <?= date('d.m.Y', strtotime($case['closed_at'])) ?></span>
           <?php endif; ?>
           <?php if ($ezd_sprawa): ?>
-          <span><i class="bi bi-folder2-open me-1" style="color:#9CA3AF"></i>
+          <span><i class="bi bi-folder2-open me-1" style="color:#9CA3AF" aria-hidden="true"></i>
             <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$ezd_sprawa['id'] ?>" style="color:#0176D3;text-decoration:none">
               <?= h($ezd_sprawa['znak_sprawy']) ?>
             </a>
@@ -606,14 +606,16 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           <div class="d-flex gap-1 flex-shrink-0 align-items-start mt-1">
             <?php if ($l['plik']): ?>
             <a href="<?= h(letter_file_url($l['plik'])) ?>" target="_blank" rel="noopener"
-               class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz załącznik">
-              <i class="bi bi-download"></i>
+               class="btn btn-sm btn-outline-primary py-0 px-2"
+               aria-label="Pobierz załącznik: <?= h($l['temat'] ?: $l['typ']) ?>">
+              <i class="bi bi-download" aria-hidden="true"></i>
             </a>
             <?php endif; ?>
             <?php if ($can_write): ?>
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj"
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    aria-label="Edytuj pismo: <?= h($l['temat'] ?: $l['typ']) ?>"
                     onclick="pismoEdit(<?= $ldata ?>)">
-              <i class="bi bi-pencil"></i>
+              <i class="bi bi-pencil" aria-hidden="true"></i>
             </button>
             <?php endif; ?>
             <?php if ($can_write && ($l['created_by']==$uid || is_admin())): ?>
@@ -621,8 +623,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="delete_pismo">
               <input type="hidden" name="letter_id" value="<?= (int)$l['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń">
-                <i class="bi bi-trash"></i>
+              <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"
+                      aria-label="Usuń pismo: <?= h($l['temat'] ?: $l['typ']) ?>">
+                <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </form>
             <?php endif; ?>
@@ -663,7 +666,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         $size = $f['file_size'] ? (round($f['file_size']/1024, 1) . ' KB') : '';
       ?>
       <div class="file-row">
-        <div class="file-icon">
+        <div class="file-icon" aria-hidden="true">
           <i class="bi <?= $ic ?>"></i>
         </div>
         <div style="flex:1;min-width:0">
@@ -680,16 +683,18 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         </div>
         <div class="d-flex gap-1 flex-shrink-0">
           <a href="<?= APP_URL ?>/crm/cases/download.php?id=<?= (int)$f['id'] ?>"
-             class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz">
-            <i class="bi bi-download"></i>
+             class="btn btn-sm btn-outline-primary py-0 px-2"
+             aria-label="Pobierz plik: <?= h($disp) ?>">
+            <i class="bi bi-download" aria-hidden="true"></i>
           </a>
           <?php if ($can_write && ($f['created_by']==(current_user()['id']??0) || is_admin())): ?>
           <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="delete_file">
             <input type="hidden" name="file_id" value="<?= (int)$f['id'] ?>">
-            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń">
-              <i class="bi bi-trash"></i>
+            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"
+                    aria-label="Usuń plik: <?= h($disp) ?>">
+              <i class="bi bi-trash" aria-hidden="true"></i>
             </button>
           </form>
           <?php endif; ?>

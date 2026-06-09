@@ -164,28 +164,31 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     $sc = $status_cfg[$r['status']] ?? $status_cfg['open'];
     $pc = $priority_cfg[$r['priority']] ?? $priority_cfg['medium'];
   ?>
-  <a href="view.php?id=<?= (int)$r['id'] ?>" class="case-row">
-    <div class="case-priority-dot" style="background:<?= $pc['color'] ?>" title="Priorytet: <?= $pc['label'] ?>"></div>
+  <a href="view.php?id=<?= (int)$r['id'] ?>" class="case-row"
+     aria-label="<?= h($r['title']) ?><?= $r['contact_name'] ? ', '.h($r['contact_name']) : '' ?> — <?= h($sc['label']) ?>, priorytet: <?= h($pc['label']) ?>">
+    <div class="case-priority-dot" style="background:<?= $pc['color'] ?>" aria-hidden="true">
+      <span class="visually-hidden">Priorytet: <?= h($pc['label']) ?></span>
+    </div>
     <div style="flex:1;min-width:0">
-      <div class="fw-semibold" style="font-size:.88rem;color:#111827"><?= h($r['title']) ?></div>
-      <div class="case-meta">
-        <i class="bi bi-person me-1"></i><?= h($r['contact_name'] ?? '—') ?>
+      <div class="fw-semibold" style="font-size:.88rem;color:#111827" aria-hidden="true"><?= h($r['title']) ?></div>
+      <div class="case-meta" aria-hidden="true">
+        <i class="bi bi-person me-1" aria-hidden="true"></i><?= h($r['contact_name'] ?? '—') ?>
         <?php if ($r['notes_count']): ?>
-        <span class="ms-2"><i class="bi bi-chat me-1"></i><?= $r['notes_count'] ?></span>
+        <span class="ms-2"><i class="bi bi-chat me-1" aria-hidden="true"></i><?= $r['notes_count'] ?></span>
         <?php endif; ?>
         <?php if ($r['files_count']): ?>
-        <span class="ms-2"><i class="bi bi-paperclip me-1"></i><?= $r['files_count'] ?></span>
+        <span class="ms-2"><i class="bi bi-paperclip me-1" aria-hidden="true"></i><?= $r['files_count'] ?></span>
         <?php endif; ?>
       </div>
     </div>
-    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+    <div class="d-flex align-items-center gap-2 flex-shrink-0" aria-hidden="true">
       <span class="case-status-pill" style="background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>">
-        <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
+        <i class="bi <?= $sc['icon'] ?>" aria-hidden="true"></i><?= $sc['label'] ?>
       </span>
       <span class="case-meta d-none d-sm-inline" style="white-space:nowrap">
         <?= date_pl($r['updated_at']) ?>
       </span>
-      <i class="bi bi-chevron-right text-muted opacity-40" style="font-size:.7rem"></i>
+      <i class="bi bi-chevron-right text-muted opacity-40" style="font-size:.7rem" aria-hidden="true"></i>
     </div>
   </a>
   <?php endforeach; ?>
