@@ -1,0 +1,65 @@
+<?php
+/**
+ * config.local.php — Lokalna konfiguracja środowiskowa
+ *
+ * Skopiuj ten plik:
+ *   cp config.local.php.example config.local.php
+ *
+ * WAŻNE: config.local.php NIE jest wersjonowany w git.
+ * Nigdy nie commituj haseł, kluczy API ani danych produkcyjnych do repozytorium.
+ *
+ * Ten plik jest wczytywany PRZED domyślnymi wartościami w config.php,
+ * dzięki czemu każde define() tutaj nadpisuje domyślne ustawienie.
+ */
+
+// ── Środowisko ────────────────────────────────────────────────────────────────
+// define('APP_ENV', 'production');   // 'development' | 'production'
+
+// ── Klucz aplikacji (zmień na własny 64-znakowy hex!) ─────────────────────────
+// Wygeneruj: php -r "echo bin2hex(random_bytes(32));"
+// define('APP_KEY', 'wklej_tutaj_64_znakowy_klucz_hex');
+
+// ── Nazwa organizacji ─────────────────────────────────────────────────────────
+// define('ORG_NAME', 'Nazwa Twojej Organizacji');
+
+// ── URL aplikacji (jeśli autodetect nie działa) ───────────────────────────────
+// define('APP_URL', 'https://twoja-domena.pl');
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  BAZA DANYCH — SQLite (domyślne)
+// ══════════════════════════════════════════════════════════════════════════════
+// define('DB_TYPE', 'sqlite');
+// define('DB_PATH', __DIR__ . '/umowy.db');
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  BAZA DANYCH — MySQL / MariaDB
+// ══════════════════════════════════════════════════════════════════════════════
+// Odkomentuj poniższe i skomentuj sekcję SQLite powyżej.
+//
+// define('DB_TYPE', 'mysql');
+// define('DB_HOST', 'localhost');         // lub IP / socket: '/var/run/mysqld/mysqld.sock'
+// define('DB_PORT', 3306);
+// define('DB_NAME', 'feer');              // nazwa bazy danych
+// define('DB_USER', 'feer_user');         // użytkownik MySQL
+// define('DB_PASS', 'super_tajne_haslo'); // hasło MySQL
+//
+// Alternatywnie — z zmiennych środowiskowych (np. z .env lub docker-compose):
+// define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+// define('DB_PORT', (int)(getenv('DB_PORT') ?: 3306));
+// define('DB_NAME', getenv('DB_NAME') ?: 'feer');
+// define('DB_USER', getenv('DB_USER') ?: 'feer_user');
+// define('DB_PASS', getenv('DB_PASS') ?: '');
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MICROSOFT 365 / AZURE AD
+// ══════════════════════════════════════════════════════════════════════════════
+// define('MS_ENABLED',      true);
+// define('MS_TENANT_ID',    'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+// define('MS_CLIENT_ID',    'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+// define('MS_CLIENT_SECRET','twoj_client_secret');
+// define('MS_REDIRECT_URI', 'https://twoja-domena.pl/auth/microsoft.php');
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ŚCIEŻKI
+// ══════════════════════════════════════════════════════════════════════════════
+// define('UPLOAD_DIR', '/var/www/feer/uploads/');

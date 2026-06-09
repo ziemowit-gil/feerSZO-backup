@@ -47,31 +47,46 @@ if ($_saas_slug !== '') {
 unset($_saas_slug);
 // ---- koniec SaaS ----
 
+// ── Lokalna nadpisanie konfiguracji ───────────────────────────────────────────
+// Skopiuj config.local.php.example → config.local.php i dostosuj do środowiska.
+// config.local.php NIE jest wersjonowane w git (.gitignore).
+if (file_exists(__DIR__ . '/config.local.php')) {
+    require_once __DIR__ . '/config.local.php';
+}
+
 if (!defined('APP_INSTALLED'))  define('APP_INSTALLED',  false);
 if (!defined('CRM_STANDALONE')) define('CRM_STANDALONE', false);
-define('APP_KEY', '0d74d40a14da3673d68c6bd7094d4142f60d20eea6435eb99b567f232b4608d7');
-define('ORG_NAME', 'Fundacja Edukacji Empatii Rozwoju FEER');
+if (!defined('APP_KEY'))    define('APP_KEY',    '0d74d40a14da3673d68c6bd7094d4142f60d20eea6435eb99b567f232b4608d7');
+if (!defined('ORG_NAME'))   define('ORG_NAME',   'Fundacja Edukacji Empatii Rozwoju FEER');
 
 // Wersja i środowisko aplikacji
-define('APP_VERSION', '2.2.0');
-define('APP_ENV',     getenv('APP_ENV') ?: (
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.2.0');
+if (!defined('APP_ENV'))     define('APP_ENV',     getenv('APP_ENV') ?: (
     ($_SERVER['SERVER_NAME'] ?? 'localhost') === 'localhost' ? 'development' : 'production'
 ));
 
-// Baza danych
-define('DB_TYPE', 'sqlite');
-define('DB_PATH', __DIR__ . '/umowy.db');
+// ── Baza danych ───────────────────────────────────────────────────────────────
+// Domyślnie SQLite. Aby przełączyć na MySQL ustaw DB_TYPE='mysql' w config.local.php
+// lub zmień poniżej i uzupełnij pozostałe stałe.
+if (!defined('DB_TYPE'))  define('DB_TYPE',  'sqlite');
+if (!defined('DB_PATH'))  define('DB_PATH',  __DIR__ . '/umowy.db');
+// MySQL — wartości domyślne z zmiennych środowiskowych lub puste
+if (!defined('DB_HOST'))  define('DB_HOST',  getenv('DB_HOST') ?: 'localhost');
+if (!defined('DB_PORT'))  define('DB_PORT',  (int)(getenv('DB_PORT') ?: 3306));
+if (!defined('DB_NAME'))  define('DB_NAME',  getenv('DB_NAME') ?: '');
+if (!defined('DB_USER'))  define('DB_USER',  getenv('DB_USER') ?: '');
+if (!defined('DB_PASS'))  define('DB_PASS',  getenv('DB_PASS') ?: '');
 
-// Microsoft OAuth
-define('MS_ENABLED', false);
-define('MS_TENANT_ID', '');
-define('MS_CLIENT_ID', '');
-define('MS_CLIENT_SECRET', '');
-define('MS_REDIRECT_URI', 'http://localhost:3000/auth/microsoft.php');
+// ── Microsoft OAuth ───────────────────────────────────────────────────────────
+if (!defined('MS_ENABLED'))      define('MS_ENABLED',      false);
+if (!defined('MS_TENANT_ID'))    define('MS_TENANT_ID',    '');
+if (!defined('MS_CLIENT_ID'))    define('MS_CLIENT_ID',    '');
+if (!defined('MS_CLIENT_SECRET'))define('MS_CLIENT_SECRET','');
+if (!defined('MS_REDIRECT_URI')) define('MS_REDIRECT_URI', 'http://localhost:3000/auth/microsoft.php');
 
-// Ścieżki
-define('UPLOAD_DIR', __DIR__ . '/uploads/');
-define('APP_URL', (function() {
+// ── Ścieżki ───────────────────────────────────────────────────────────────────
+if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', __DIR__ . '/uploads/');
+if (!defined('APP_URL'))    define('APP_URL', (function() {
     $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host    = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $docRoot = rtrim(str_replace('\\', '/', realpath($_SERVER['DOCUMENT_ROOT'] ?? '')), '/');

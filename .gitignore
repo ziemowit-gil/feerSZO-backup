@@ -17,3 +17,4 @@ tenants/*/master.db
 .install.lock
 .claude
 docker/.env
+config.local.php
