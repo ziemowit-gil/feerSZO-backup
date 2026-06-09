@@ -235,6 +235,13 @@ if ($is_tenant) {
     }
 }
 
+// ── Opis systemu (konfigurowalny lub domyślny) ────────────────────────────
+$_login_welcome = '';
+try { $_login_welcome = trim(org_setting('login_welcome_text') ?: ''); } catch (\Throwable $e) {}
+if (!$_login_welcome) {
+    $_login_welcome = 'System służy do zarządzania pracą organizacji pozarządowej — rejestrowania umów z wolontariuszami i współpracownikami, prowadzenia kartoteki kontaktów i spraw w CRM, a także obsługi dokumentów, zasobów i działań. Dostępne funkcje zależą od roli, jaką pełnisz w organizacji.';
+}
+
 // ── Lista dostępnych metod do pokazania w lewym panelu ────────────────────
 $_avail_methods = [];
 if ($ms_available)   $_avail_methods[] = ['bi-microsoft',       'Microsoft 365',   'Konto organizacji — jedno kliknięcie'];
@@ -437,6 +444,41 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   font-family:monospace;font-weight:700;
 }
 
+/* ── Moduły systemu (lewa kolumna) ──────────────────────── */
+.left-about{margin:.85rem 0 1.35rem}
+.left-about-text{font-size:.79rem;color:rgba(255,255,255,.48);line-height:1.65;margin:0 0 .65rem}
+.left-modules{display:flex;flex-wrap:wrap;gap:.3rem}
+.left-module{
+  display:inline-flex;align-items:center;gap:.28rem;
+  font-size:.66rem;font-weight:600;
+  color:rgba(255,255,255,.42);background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.11);border-radius:2rem;
+  padding:.18rem .5rem;white-space:nowrap;
+}
+.left-module i{font-size:.7rem}
+
+/* ── Karta zaproszenia (prawa kolumna) ───────────────────── */
+.login-invite{
+  background:linear-gradient(135deg,#f0f7ff 0%,#eff6ff 100%);
+  border:1px solid #bfdbfe;border-radius:10px;
+  padding:1rem 1.1rem;margin-bottom:1.4rem;
+}
+.login-invite-head{
+  display:flex;align-items:center;gap:.5rem;
+  font-size:.88rem;font-weight:700;color:#1e3a5f;
+  margin-bottom:.5rem;
+}
+.login-invite-head i{color:#2563eb;font-size:1rem}
+.login-invite-text{font-size:.84rem;color:#475569;line-height:1.65;margin:0 0 .75rem}
+.login-invite-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.login-invite-chip{
+  display:inline-flex;align-items:center;gap:.28rem;
+  font-size:.7rem;font-weight:600;color:#3b82f6;
+  background:#dbeafe;border:1px solid #bfdbfe;border-radius:2rem;
+  padding:.2rem .6rem;
+}
+.login-invite-chip i{font-size:.72rem}
+
 /* ── Zapomniałem hasła ───────────────────────────────────── */
 .forgot-link{
   display:inline-flex;align-items:center;gap:.35rem;
@@ -469,6 +511,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   .login-left .left-methods-label,
   .login-left .left-method,
   .login-left .left-tagline,
+  .login-left .left-about,
   .login-left .left-footer{display:none}
   .login-left .left-org{font-size:.9rem;margin:0}
   .login-right{padding:1.25rem 1rem;align-items:flex-start;background:#F1F5F9}
@@ -503,6 +546,20 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     <?php endif; ?>
     <p class="left-org"><?= h($org_name) ?></p>
     <?php if ($_login_tagline): ?><p class="left-tagline"><?= h($_login_tagline) ?></p><?php endif; ?>
+
+    <!-- Czym jest system -->
+    <div class="left-about">
+      <p class="left-about-text">Zarządzaj umowami, kontaktami, dokumentami i zasobami organizacji NGO — wszystko w jednym miejscu.</p>
+      <div class="left-modules" aria-label="Moduły systemu">
+        <span class="left-module"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Umowy</span>
+        <span class="left-module"><i class="bi bi-diagram-2-fill" aria-hidden="true"></i>CRM</span>
+        <span class="left-module"><i class="bi bi-lock-fill" aria-hidden="true"></i>RODO</span>
+        <span class="left-module"><i class="bi bi-box-seam" aria-hidden="true"></i>Zasoby</span>
+        <span class="left-module"><i class="bi bi-card-checklist" aria-hidden="true"></i>K30</span>
+        <span class="left-module"><i class="bi bi-currency-euro" aria-hidden="true"></i>Granty</span>
+        <span class="left-module"><i class="bi bi-lightning-fill" aria-hidden="true"></i>Działania</span>
+      </div>
+    </div>
 
     <div>
       <div class="left-methods-label" aria-label="Dostępne metody logowania">Metody logowania</div>
@@ -546,6 +603,23 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   </div>
 
   <h1 class="login-heading" id="login-title">Zaloguj się</h1>
+
+  <!-- Zaproszenie: czym jest system i po co tu jesteś -->
+  <div class="login-invite" role="note" aria-label="Informacja o systemie">
+    <div class="login-invite-head">
+      <i class="bi bi-building-heart" aria-hidden="true"></i>
+      Panel pracy <?= h($org_name) ?>
+    </div>
+    <p class="login-invite-text"><?= nl2br(h($_login_welcome)) ?></p>
+    <div class="login-invite-chips" aria-label="Dostępne moduły">
+      <span class="login-invite-chip"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Umowy</span>
+      <span class="login-invite-chip"><i class="bi bi-diagram-2-fill" aria-hidden="true"></i>CRM</span>
+      <span class="login-invite-chip"><i class="bi bi-lock-fill" aria-hidden="true"></i>RODO</span>
+      <span class="login-invite-chip"><i class="bi bi-box-seam" aria-hidden="true"></i>Zasoby</span>
+      <span class="login-invite-chip"><i class="bi bi-card-checklist" aria-hidden="true"></i>K30</span>
+      <span class="login-invite-chip"><i class="bi bi-currency-euro" aria-hidden="true"></i>Granty</span>
+    </div>
+  </div>
 
   <?php if ($_login_notices): ?>
   <div role="region" aria-label="Komunikaty administratora" style="margin-bottom:1.25rem">
