@@ -59,6 +59,7 @@ function cpc_migrate(): void {
         'is_standalone_volunteer'   => "ALTER TABLE users ADD COLUMN is_standalone_volunteer INTEGER NOT NULL DEFAULT 0",
         'ika_email_otp'             => "ALTER TABLE users ADD COLUMN ika_email_otp TEXT NULL",
         'ika_email_otp_expires'     => "ALTER TABLE users ADD COLUMN ika_email_otp_expires DATETIME NULL",
+        'ika_email_method'          => "ALTER TABLE users ADD COLUMN ika_email_method INTEGER NOT NULL DEFAULT 0",
         'ika_setup_token'           => "ALTER TABLE users ADD COLUMN ika_setup_token TEXT NULL",
         'ika_setup_token_expires'   => "ALTER TABLE users ADD COLUMN ika_setup_token_expires DATETIME NULL",
         'kdok_ikaks_hash'           => "ALTER TABLE users ADD COLUMN kdok_ikaks_hash TEXT DEFAULT NULL",

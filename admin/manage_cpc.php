@@ -316,6 +316,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: manage_cpc.php?setup_token=1#ika-result'); exit;
     }
 
+    // ── toggle_email_method — przełącz metodę e-mail IKA ─────────────────────
+    if ($action === 'toggle_email_method') {
+        if (!$target) {
+            flash_set('danger', 'Nie znaleziono użytkownika.');
+            header('Location: manage_cpc.php'); exit;
+        }
+        $row = db_one("SELECT ika_email_method, email FROM users WHERE id=?", [$target_id]);
+        if (empty($row['email'])) {
+            flash_set('danger', 'Użytkownik nie ma adresu e-mail — nie można włączyć metody e-mail.');
+            header('Location: manage_cpc.php'); exit;
+        }
+        $new_val = ($row['ika_email_method'] ?? 0) ? 0 : 1;
+        db()->prepare("UPDATE users SET ika_email_method=? WHERE id=?")->execute([$new_val, $target_id]);
+        $target_name = _display_name($target);
+        log_system_action($me_id, 'ika_email_method_toggle',
+            "Admin " . ($new_val ? 'włączył' : 'wyłączył') . " metodę e-mail IKA dla ID:{$target_id} ({$target_name}).");
+        flash_set($new_val ? 'success' : 'info',
+            ($new_val ? 'Metoda e-mail IKA włączona' : 'Metoda e-mail IKA wyłączona') . ' dla ' . $target_name . '.');
+        header('Location: manage_cpc.php'); exit;
+    }
+
     // Unknown action
     flash_set('danger', 'Nieznana akcja.');
     header('Location: manage_cpc.php');
@@ -325,7 +346,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Load users — wszyscy aktywni ───────────────────────────────────────────────
 $users = db_all(
     "SELECT id, name, first_name, last_name, email, role, is_active,
-            cpc_code, cpc_fails, cpc_blocked_until, ika_revoked_at
+            cpc_code, cpc_fails, cpc_blocked_until, ika_revoked_at, ika_email_method
      FROM users
      WHERE is_active = 1
      ORDER BY
@@ -502,7 +523,7 @@ include dirname(__DIR__) . '/includes/header.php';
 // Wszyscy użytkownicy CRM-only (z kodami i bez)
 $crm_only_all = db_all(
     "SELECT u.id, u.name, u.first_name, u.last_name, u.email, u.role,
-            u.cpc_code, u.cpc_fails, u.cpc_blocked_until
+            u.cpc_code, u.cpc_fails, u.cpc_blocked_until, u.ika_email_method
      FROM users u
      LEFT JOIN roles r ON r.name = u.role
      WHERE u.is_active = 1 AND (u.role = 'crm_user' OR r.crm_only = 1)
@@ -527,14 +548,17 @@ $crm_only_all = db_all(
           <th>E-mail</th>
           <th>Rola</th>
           <th>Kod IKA</th>
+          <th>Metoda e-mail</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         <?php foreach ($crm_only_all as $cu):
-          $cuid    = (int)$cu['id'];
-          $cuname  = _display_name($cu);
-          $blocked = !empty($cu['cpc_blocked_until']) && $cu['cpc_blocked_until'] > $now;
+          $cuid         = (int)$cu['id'];
+          $cuname       = _display_name($cu);
+          $blocked      = !empty($cu['cpc_blocked_until']) && $cu['cpc_blocked_until'] > $now;
+          $cu_email_on  = !empty($cu['ika_email_method']);
+          $cu_has_email = !empty($cu['email']);
         ?>
         <tr>
           <td class="fw-semibold"><?= h($cuname) ?></td>
@@ -556,6 +580,24 @@ $crm_only_all = db_all(
                     data-shown="0">
               <i class="bi bi-eye"></i>
             </button>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?php if (!$cu_has_email): ?>
+            <span class="text-muted small">brak e-mail</span>
+            <?php else: ?>
+            <form method="post" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action" value="toggle_email_method">
+              <input type="hidden" name="user_id" value="<?= $cuid ?>">
+              <button type="submit"
+                      class="btn btn-xs <?= $cu_email_on ? 'btn-success' : 'btn-outline-secondary' ?>"
+                      style="font-size:.7rem;padding:2px 8px"
+                      title="<?= $cu_email_on ? 'Wyłącz metodę e-mail IKA' : 'Włącz metodę e-mail IKA (bez PESELA)' ?>">
+                <i class="bi <?= $cu_email_on ? 'bi-envelope-check-fill' : 'bi-envelope' ?>"></i>
+                <?= $cu_email_on ? 'Włączona' : 'Wyłączona' ?>
+              </button>
+            </form>
             <?php endif; ?>
           </td>
           <td class="d-flex gap-1">
@@ -661,6 +703,8 @@ function toggleIka(uid, btn) {
             $fails        = (int) ($u['cpc_fails'] ?? 0);
             $collapse_id  = 'cpc-form-' . $uid;
             $ika_revoked  = $u['ika_revoked_at'] ?? null;
+            $u_email_on   = !empty($u['ika_email_method']);
+            $u_has_email  = !empty($u['email']);
         ?>
         <tr>
           <td class="fw-semibold">
@@ -746,6 +790,20 @@ function toggleIka(uid, btn) {
                 <i class="bi bi-slash-circle"></i> Unieważnij sesję
               </button>
             </form>
+            <!-- Toggle metody e-mail IKA -->
+            <?php if ($u_has_email): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action"  value="toggle_email_method">
+              <input type="hidden" name="user_id"  value="<?= $uid ?>">
+              <button type="submit"
+                      class="btn btn-sm <?= $u_email_on ? 'btn-success' : 'btn-outline-secondary' ?>"
+                      title="<?= $u_email_on ? 'Metoda e-mail IKA: WŁĄCZONA — kliknij aby wyłączyć' : 'Metoda e-mail IKA: wyłączona — kliknij aby włączyć (bez PESELA)' ?>">
+                <i class="bi <?= $u_email_on ? 'bi-envelope-check-fill' : 'bi-envelope' ?>"></i>
+                E-mail IKA
+              </button>
+            </form>
+            <?php endif; ?>
           </td>
         </tr>
 

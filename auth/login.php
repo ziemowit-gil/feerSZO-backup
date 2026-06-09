@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/auth_security.php';
 require_once dirname(__DIR__) . '/includes/branding.php';
+require_once dirname(__DIR__) . '/includes/x509_login.php';
 
 auth_start();
 
@@ -29,13 +30,15 @@ function _login_method_enabled(string $key, bool $default = true): bool {
     } catch (\Throwable $e) { return $default; }
 }
 
-$ms_available  = ms_login_available() && _login_method_enabled('login_method_ms365', false);
-$sms_available = false;
+$ms_available   = ms_login_available() && _login_method_enabled('login_method_ms365', false);
+$sms_available  = false;
 try {
     require_once dirname(__DIR__) . '/includes/sms.php';
     $sms_available = sms_is_enabled() && _login_method_enabled('login_method_sms', false);
 } catch (\Throwable $e) {}
-$code_available = _login_method_enabled('login_method_code', true);
+$code_available  = _login_method_enabled('login_method_code', true);
+$x509_available  = false;
+try { $x509_available = x509_any_active(); } catch (\Throwable $e) {}
 
 // ── State ─────────────────────────────────────────────────────────────────
 $default_tab = $ms_available ? 'ms365' : 'local';
@@ -147,6 +150,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error    = 'Nieprawidłowy lub wygasły kod. Spróbuj ponownie.';
     }
 
+    elseif ($method === 'x509' && $x509_available) {
+        $active_tab = 'x509';
+        $p12_file   = $_FILES['p12_file'] ?? null;
+        $cert_pass  = $_POST['cert_password'] ?? '';
+
+        if (!$p12_file || $p12_file['error'] !== UPLOAD_ERR_OK || $p12_file['size'] === 0) {
+            $error = 'Nie przesłano pliku certyfikatu (.p12).';
+        } else {
+            $p12_data = file_get_contents($p12_file['tmp_name']);
+            $user     = null;
+            try { $user = x509_verify_login($p12_data, $cert_pass); } catch (\Throwable $e) {}
+            if ($user) {
+                log_auth_action((int)$user['id'], 'login_x509', 'Logowanie X.509: ' . $user['email']);
+                authlog_write((int)$user['id'], 'login_x509', $user['email'], 'Logowanie certyfikatem X.509');
+                login_user($user);
+                header('Location: ' . $redirect); exit;
+            }
+            $error = 'Nieprawidłowy certyfikat, błędne hasło lub certyfikat wygasł/unieważniony.';
+        }
+    }
+
     elseif ($method === 'code') {
         $code = trim($_POST['login_code'] ?? '');
         $user = auth_login_by_code($code);
@@ -166,9 +190,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $valid_tabs = ['local'];
-if ($code_available) $valid_tabs[] = 'code';
-if ($sms_available)  $valid_tabs[] = 'sms';
-if ($ms_available)   $valid_tabs[] = 'ms365';
+if ($code_available)  $valid_tabs[] = 'code';
+if ($sms_available)   $valid_tabs[] = 'sms';
+if ($ms_available)    $valid_tabs[] = 'ms365';
+if ($x509_available)  $valid_tabs[] = 'x509';
 if (!in_array($active_tab, $valid_tabs, true)) $active_tab = $default_tab;
 
 // ── Publiczne komunikaty administratora ──────────────────────────────────
@@ -428,7 +453,7 @@ html, body { min-height: 100%; margin: 0; background: var(--login-bg, #EEF2F7); 
 
 <script>
 function switchAltTab(name) {
-  ['code','sms'].forEach(function(k) {
+  ['code','sms','x509'].forEach(function(k) {
     var s = document.getElementById('tab-' + k);
     if (s) s.hidden = true;
   });
@@ -444,7 +469,7 @@ function switchAltTab(name) {
     btn.tabIndex = sel ? 0 : -1;
   });
   var live = document.getElementById('login-live');
-  var labels = {'code': 'Kod jednorazowy', 'sms': 'Kod SMS'};
+  var labels = {'code': 'Kod jednorazowy', 'sms': 'Kod SMS', 'x509': 'Certyfikat X.509'};
   if (live) live.textContent = 'Metoda logowania: ' + (labels[name] || name);
 }
 

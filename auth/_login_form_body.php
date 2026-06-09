@@ -143,9 +143,10 @@
 <!-- ══ Alternatywne metody (kod jednorazowy, SMS) ════════════════════════ -->
 <?php
 $alt_tabs = [];
-if ($code_available) $alt_tabs['code'] = ['icon' => 'bi-key-fill',   'label' => 'Kod jednorazowy', 'for' => 'Pierwsze logowanie lub gość'];
-if ($sms_available)  $alt_tabs['sms']  = ['icon' => 'bi-phone-fill', 'label' => 'Kod SMS',         'for' => 'Bez konta — tylko numer telefonu'];
-$active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
+if ($code_available) $alt_tabs['code'] = ['icon' => 'bi-key-fill',        'label' => 'Kod jednorazowy', 'for' => 'Pierwsze logowanie lub gość'];
+if ($sms_available)  $alt_tabs['sms']  = ['icon' => 'bi-phone-fill',      'label' => 'Kod SMS',         'for' => 'Bez konta — tylko numer telefonu'];
+if ($x509_available) $alt_tabs['x509'] = ['icon' => 'bi-patch-check-fill','label' => 'Certyfikat X.509','for' => 'Administrator z plikiem .p12'];
+$active_alt = in_array($active_tab, ['code','sms','x509'], true) ? $active_tab : null;
 ?>
 <?php if (!empty($alt_tabs)): ?>
 <div class="or-div" aria-hidden="true"><span>lub zaloguj inaczej</span></div>
@@ -260,6 +261,53 @@ $active_alt = in_array($active_tab, ['code','sms'], true) ? $active_tab : null;
     </button>
   </form>
   <?php endif; ?>
+</section>
+<?php endif; ?>
+
+<!-- Certyfikat X.509 -->
+<?php if ($x509_available): ?>
+<section id="tab-x509" style="margin-top:1rem" aria-labelledby="tab-btn-x509"
+         <?= $active_alt !== 'x509' ? 'hidden' : '' ?>>
+  <form method="post" enctype="multipart/form-data" novalidate
+        aria-label="Formularz logowania — certyfikat X.509">
+    <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+    <input type="hidden" name="_method" value="x509">
+    <div class="mb-3">
+      <label class="form-label" for="f-p12">Plik certyfikatu (.p12)</label>
+      <input type="file" name="p12_file" id="f-p12"
+             class="form-control"
+             accept=".p12,.pfx"
+             required aria-required="true"
+             aria-describedby="p12-hint"
+             <?= $active_alt === 'x509' ? 'autofocus' : '' ?>>
+      <div id="p12-hint" class="form-hint">
+        Plik PKCS#12 (.p12) wygenerowany przez administratora systemu.
+      </div>
+    </div>
+    <div class="mb-4">
+      <label class="form-label" for="f-cert-pass">Hasło certyfikatu</label>
+      <div class="pass-wrap">
+        <input type="password" name="cert_password" id="f-cert-pass"
+               class="form-control"
+               autocomplete="current-password"
+               required aria-required="true"
+               aria-describedby="cert-pass-hint">
+        <button type="button" class="pass-toggle"
+                aria-label="Pokaż hasło certyfikatu"
+                aria-pressed="false"
+                onclick="togglePass('f-cert-pass', this)">
+          <i class="bi bi-eye" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div id="cert-pass-hint" class="form-hint">
+        Hasło podane przez administratora przy generowaniu certyfikatu.
+      </div>
+    </div>
+    <button type="submit" class="btn-login">
+      <i class="bi bi-patch-check-fill me-1" aria-hidden="true"></i>
+      Zaloguj certyfikatem
+    </button>
+  </form>
 </section>
 <?php endif; ?>
 

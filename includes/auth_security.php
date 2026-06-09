@@ -266,6 +266,7 @@ function authlog_action_label(string $action): array {
         'login_sms'     => ['Logowanie SMS',         'success', 'bi-phone'],
         'login_code'    => ['Logowanie kodem',       'success', 'bi-key'],
         'login_ms'      => ['Logowanie Microsoft',   'primary', 'bi-microsoft'],
+        'login_x509'    => ['Logowanie X.509',       'success', 'bi-patch-check-fill'],
         'pwd_changed'   => ['Zmiana hasła',          'warning', 'bi-key-fill'],
         default         => [$action,                 'light',   'bi-circle'],
     };
