@@ -572,9 +572,15 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <i class="bi bi-gear"></i> Ustawienia konta
   </a>
   <?php
-  $_ika_sb_fresh = db_one("SELECT cpc_code, kdok_ikaks_hash, ika_setup_token, ika_setup_token_expires FROM users WHERE id=?", [(int)$_user['id']]);
-  $_ika_sb_has_token = !empty($_ika_sb_fresh['ika_setup_token']) && !empty($_ika_sb_fresh['ika_setup_token_expires']) && $_ika_sb_fresh['ika_setup_token_expires'] > date('Y-m-d H:i:s');
-  $_ika_sb_missing = empty($_ika_sb_fresh['cpc_code']) || empty($_ika_sb_fresh['kdok_ikaks_hash']);
+  $_ika_sb_has_token = false;
+  $_ika_sb_missing   = false;
+  try {
+    $_ika_sb_fresh = db_one("SELECT cpc_code, kdok_ikaks_hash, ika_setup_token, ika_setup_token_expires FROM users WHERE id=?", [(int)$_user['id']]);
+    $_ika_sb_has_token = !empty($_ika_sb_fresh['ika_setup_token'])
+        && !empty($_ika_sb_fresh['ika_setup_token_expires'])
+        && $_ika_sb_fresh['ika_setup_token_expires'] > date('Y-m-d H:i:s');
+    $_ika_sb_missing = empty($_ika_sb_fresh['cpc_code']) || empty($_ika_sb_fresh['kdok_ikaks_hash']);
+  } catch (\Throwable $_ika_ex) {}
   if ($_ika_sb_has_token || $_ika_sb_missing): ?>
   <a class="sb-link<?= _nav_active('/panel/set_my_codes') ?>"
      href="<?= APP_URL ?>/panel/set_my_codes.php"

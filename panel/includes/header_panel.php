@@ -243,6 +243,11 @@ if ('serviceWorker' in navigator) {
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Organizacja</div>
+  <?php if (module_enabled('org_calendar_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/calendar.php" class="pv-nav-link<?= _pv_nav_active('/panel/calendar') ?>">
+    <i class="bi bi-calendar3" aria-hidden="true"></i>Kalendarz organizacji
+  </a>
+  <?php endif; ?>
   <a href="<?= APP_URL ?>/org_intro/index.php" class="pv-nav-link<?= _pv_nav_active('/org_intro/index') ?>"
      aria-label="Zasady i wprowadzenie do organizacji">
     <i class="bi bi-building-heart" aria-hidden="true"></i>Zasady organizacji

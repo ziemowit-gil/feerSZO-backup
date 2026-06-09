@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
 
 require_role('admin');
+cpc_migrate();
 karty30_migrate();
 
 $PAGE_TITLE = 'Zarządzanie kodami IKA';

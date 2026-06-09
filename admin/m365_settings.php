@@ -112,6 +112,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="d-flex gap-2">
     <a href="m365_connect.php" class="btn btn-sm btn-outline-success"><i class="bi bi-plug"></i> Połącz przez OAuth</a>
     <a href="m365_sync.php" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Synchronizacja kont</a>
+    <a href="outlook_sync.php" class="btn btn-sm btn-outline-info"><i class="bi bi-calendar3"></i> Outlook sync</a>
     <a href="sharepoint_settings.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cloud-upload"></i> SharePoint</a>
   </div>
 </div>

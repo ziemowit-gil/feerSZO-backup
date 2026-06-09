@@ -14,11 +14,16 @@
  * Odpowiedź: JSON {ok, message, data}
  */
 
-require_once dirname(__DIR__, 2) . '/includes/init.php';
-require_once BASE_PATH . '/includes/crm.php';
-require_once BASE_PATH . '/includes/m365.php';
-require_once BASE_PATH . '/includes/outlook_sync.php';
+$_root = dirname(__DIR__, 2);
+require_once $_root . '/config.php';
+require_once $_root . '/includes/db.php';
+require_once $_root . '/includes/auth.php';
+require_once $_root . '/includes/functions.php';
+require_once $_root . '/includes/crm.php';
+require_once $_root . '/includes/m365.php';
+require_once $_root . '/includes/outlook_sync.php';
 
+auth_start();
 header('Content-Type: application/json; charset=utf-8');
 
 // ── Autoryzacja ────────────────────────────────────────────────────────────────
@@ -26,7 +31,7 @@ header('Content-Type: application/json; charset=utf-8');
 $auth_ok = false;
 
 // 1. Sesja CRM (admin)
-if (is_logged_in() && is_admin()) {
+if (current_user() && is_admin()) {
     $auth_ok = true;
 }
 
