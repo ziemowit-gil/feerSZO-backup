@@ -205,9 +205,7 @@ try {
 } catch (\Throwable $_) {}
 
 // ── Branding ─────────────────────────────────────────────────────────────
-$_b          = branding_load();
-$_login_bg   = org_setting('login_bg_color') ?: '#EEF2F7';
-if (!preg_match('/^#[0-9a-fA-F]{3,6}$/', $_login_bg)) $_login_bg = '#EEF2F7';
+$_b             = branding_load();
 $_login_tagline = org_setting('login_tagline') ?: '';
 
 $is_tenant = defined('TENANT_SLUG') && TENANT_SLUG !== '';
@@ -236,8 +234,15 @@ if ($is_tenant) {
         } catch (\Throwable $e) {}
     }
 }
-?>
-<!DOCTYPE html>
+
+// ── Lista dostępnych metod do pokazania w lewym panelu ────────────────────
+$_avail_methods = [];
+if ($ms_available)   $_avail_methods[] = ['bi-microsoft',       'Microsoft 365',   'Konto organizacji — jedno kliknięcie'];
+$_avail_methods[]                      = ['bi-envelope-at-fill','E-mail i hasło',   'Konto lokalne w systemie'];
+if ($sms_available)  $_avail_methods[] = ['bi-phone-fill',      'Kod SMS',          'Logowanie przez numer telefonu'];
+if ($code_available) $_avail_methods[] = ['bi-key-fill',        'Kod jednorazowy',  'Pierwsze logowanie lub gość'];
+if ($x509_available) $_avail_methods[] = ['bi-patch-check-fill','Certyfikat X.509', 'Plik .p12 dla administratora'];
+?><!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
@@ -247,260 +252,416 @@ if ($is_tenant) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php branding_css($_b); ?>
 <style>
-:root { --login-bg: <?= h($_login_bg) ?>; }
-*, *::before, *::after { box-sizing: border-box; }
-html, body { min-height: 100%; margin: 0; background: var(--login-bg, #EEF2F7); }
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0;background:#0f172a}
 
-.skip-link {
-  position: absolute; top: -100%; left: 1rem; z-index: 9999;
-  background: var(--c); color: var(--c-text);
-  padding: .5rem 1rem; border-radius: 0 0 6px 6px; font-weight: 700; text-decoration: none;
+/* ── Skip link ───────────────────────────────────────────── */
+.skip-link{
+  position:absolute;top:-100%;left:1rem;z-index:9999;
+  background:var(--c,#2563eb);color:#fff;
+  padding:.5rem 1.25rem;border-radius:0 0 8px 8px;
+  font-weight:700;text-decoration:none;font-size:.95rem;
 }
-.skip-link:focus { top: 0; outline: 3px solid #FBBF24; }
+.skip-link:focus{top:0;outline:3px solid #FBBF24;outline-offset:2px}
 
-*:focus-visible { outline: 3px solid #FBBF24 !important; outline-offset: 3px !important; }
-*:focus:not(:focus-visible) { outline: none; }
+/* ── Global focus ────────────────────────────────────────── */
+*:focus-visible{outline:3px solid #FBBF24!important;outline-offset:3px!important}
+*:focus:not(:focus-visible){outline:none}
 
-.page-wrap {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  padding: 2rem 1rem;
-}
-.login-card {
-  width: 100%; max-width: 420px;
-  background: #fff; border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,.1);
-  overflow: hidden;
-}
-.login-card.wide { max-width: 700px; }
+/* ── Shell ───────────────────────────────────────────────── */
+.login-shell{min-height:100vh;display:flex;align-items:stretch}
 
-.card-top {
-  background: linear-gradient(155deg, var(--c-darker) 0%, var(--c) 55%, var(--c-light) 100%);
-  padding: 1.75rem 2rem 1.5rem; text-align: center;
+/* ── Lewa (dark) ─────────────────────────────────────────── */
+.login-left{
+  width:300px;flex-shrink:0;
+  background:linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#1e3a5f 100%);
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:2.25rem 1.75rem;
+  border-right:1px solid rgba(255,255,255,.06);
+  position:relative;overflow:hidden;
 }
-.card-top img {
-  max-height: 56px; max-width: 160px; object-fit: contain;
-  filter: brightness(0) invert(1); opacity: .9;
-  display: block; margin: 0 auto .75rem;
+.login-left::after{
+  content:'';position:absolute;width:260px;height:260px;border-radius:50%;
+  border:55px solid rgba(255,255,255,.025);bottom:-80px;right:-80px;pointer-events:none;
 }
-.card-top-icon {
-  width: 56px; height: 56px; border-radius: 14px;
-  background: rgba(255,255,255,.15);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.6rem; color: #fff; margin: 0 auto .75rem;
-}
-.card-org { font-size: 1.1rem; font-weight: 800; color: #fff; margin: 0; }
-.card-tagline { font-size: .78rem; color: rgba(255,255,255,.65); margin: .35rem 0 0; }
-.change-org {
-  display: inline-flex; align-items: center; gap: .3rem;
-  margin-top: .75rem; font-size: .73rem; color: rgba(255,255,255,.55);
-  text-decoration: none; padding: .2rem .6rem;
-  border: 1px solid rgba(255,255,255,.2); border-radius: 2rem;
-  transition: color .15s, border-color .15s;
-}
-.change-org:hover { color: #fff; border-color: rgba(255,255,255,.5); }
 
-.card-body { padding: 2rem; }
+.left-logo{max-height:44px;max-width:140px;object-fit:contain;filter:brightness(0)invert(1);opacity:.85;display:block;margin-bottom:1rem}
+.left-icon{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#fff;margin-bottom:1rem}
+.left-org{font-size:1.05rem;font-weight:800;color:#fff;margin:0 0 .25rem;line-height:1.3}
+.left-tagline{font-size:.77rem;color:rgba(255,255,255,.45);margin:0 0 1.75rem;line-height:1.5}
 
-.form-heading { font-size: 1.2rem; font-weight: 700; color: #0F172A; margin-bottom: 1.5rem; }
-.form-label { font-size: .88rem; font-weight: 600; color: #1E293B; margin-bottom: .35rem; display: block; }
-.form-control {
-  border: 2px solid #6B7280; border-radius: 6px;
-  font-size: .97rem; padding: .6rem .9rem; min-height: 44px;
-  color: #0F172A; width: 100%; transition: border-color .15s; background: #fff;
+.left-methods-label{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:.65rem}
+.left-method{display:flex;align-items:flex-start;gap:.55rem;margin-bottom:.6rem}
+.left-method-icon{font-size:.9rem;color:rgba(255,255,255,.45);margin-top:.12rem;flex-shrink:0}
+.left-method-name{font-size:.81rem;font-weight:600;color:rgba(255,255,255,.7);line-height:1.3}
+.left-method-sub{font-size:.69rem;color:rgba(255,255,255,.32);margin-top:.06rem}
+
+.left-footer{position:relative;z-index:1}
+.left-change-org{
+  display:inline-flex;align-items:center;gap:.35rem;margin-bottom:.75rem;
+  font-size:.75rem;color:rgba(255,255,255,.4);text-decoration:none;
+  padding:.3rem .7rem;border:1px solid rgba(255,255,255,.15);border-radius:2rem;
+  transition:color .15s,border-color .15s;
 }
-.form-control:focus { border-color: var(--c); box-shadow: 0 0 0 3px var(--c-ring); outline: none; }
-.form-control[aria-invalid="true"] { border-color: #DC2626; background: #FFF5F5; }
-.form-hint { font-size: .8rem; color: #4B5563; margin-top: .3rem; }
+.left-change-org:hover{color:rgba(255,255,255,.8);border-color:rgba(255,255,255,.4)}
+.left-security{display:flex;align-items:center;gap:.4rem;font-size:.73rem;color:rgba(255,255,255,.3);margin-bottom:.4rem}
+.left-copyright{font-size:.68rem;color:rgba(255,255,255,.2)}
 
-.pass-wrap { position: relative; }
-.pass-toggle {
-  position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
-  background: none; border: 2px solid transparent; padding: .25rem;
-  color: #6B7280; cursor: pointer; font-size: 1rem; border-radius: 4px;
-  min-width: 36px; min-height: 36px; display: flex; align-items: center; justify-content: center;
+/* ── Prawa (light) ───────────────────────────────────────── */
+.login-right{
+  flex:1;background:#F1F5F9;
+  display:flex;align-items:center;justify-content:center;
+  padding:2.5rem 1.5rem;overflow-y:auto;
 }
-.pass-toggle:hover { color: var(--c); }
-
-.btn-login {
-  display: flex; align-items: center; justify-content: center; gap: .5rem;
-  background: var(--c); color: var(--c-text); border: 2px solid var(--c);
-  border-radius: 6px; padding: .72rem 1.25rem; font-size: .97rem; font-weight: 600;
-  width: 100%; min-height: 48px; cursor: pointer; transition: background .15s, border-color .15s;
-  text-decoration: none;
+.login-box{
+  width:100%;max-width:440px;
+  background:#fff;border-radius:16px;
+  box-shadow:0 8px 40px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.06);
+  padding:2rem 2.25rem;
 }
-.btn-login:hover { background: var(--c-dark); border-color: var(--c-dark); color: var(--c-text); }
 
-.or-div {
-  display: flex; align-items: center; gap: .75rem;
-  color: #94A3B8; font-size: .8rem; margin: 1.35rem 0 1rem;
+/* Mobile-only org name above the form */
+.mobile-top{
+  display:none;align-items:center;gap:.6rem;
+  padding-bottom:1.25rem;margin-bottom:1.5rem;
+  border-bottom:1px solid #e2e8f0;
 }
-.or-div::before, .or-div::after { content: ''; flex: 1; height: 1px; background: #E2E8F0; }
+.mobile-top-logo{max-height:26px;object-fit:contain;filter:none}
+.mobile-top-org{font-size:.9rem;font-weight:700;color:#0f172a}
 
-[role="tablist"] { display: flex; flex-wrap: wrap; gap: .4rem; }
-[role="tab"] {
-  display: inline-flex; align-items: center; gap: .35rem;
-  padding: .45rem .9rem; border: 2px solid #CBD5E1; border-radius: 2rem;
-  background: #fff; color: #374151; font-size: .82rem; font-weight: 500;
-  cursor: pointer; min-height: 40px; transition: all .12s; white-space: nowrap;
+/* ── Nagłówek formularza ─────────────────────────────────── */
+.login-heading{font-size:1.45rem;font-weight:800;color:#0f172a;margin:0 0 1.4rem;letter-spacing:-.01em}
+
+/* ── Komunikaty ──────────────────────────────────────────── */
+.login-notice{
+  display:flex;align-items:flex-start;gap:.6rem;
+  padding:.75rem .9rem;border-radius:8px;background:#eff6ff;
+  border-left:3px solid #2563eb;margin-bottom:.65rem;font-size:.85rem;color:#1e293b;line-height:1.5;
 }
-[role="tab"][aria-selected="true"] { background: var(--c-bg); border-color: var(--c); color: var(--c); font-weight: 600; }
-[role="tab"]:hover:not([aria-selected="true"]) { border-color: var(--c); color: var(--c); }
+.login-notice.pinned{background:#fffbeb;border-left-color:#f59e0b}
+.login-notice i{flex-shrink:0;color:#2563eb;margin-top:.15rem}
+.login-notice.pinned i{color:#d97706}
+.login-notice-title{font-weight:600}
 
-.sms-code { font-size: 1.9rem; letter-spacing: .45rem; text-align: center; font-family: monospace; font-weight: 700; }
-
-.a11y-alert {
-  display: flex; align-items: flex-start; gap: .65rem;
-  padding: .85rem 1rem; border-radius: 6px; border: 2px solid;
-  margin-bottom: 1.25rem; font-size: .9rem; line-height: 1.5;
+.login-alert{
+  display:flex;align-items:flex-start;gap:.7rem;
+  padding:.9rem 1rem;border-radius:8px;border:2px solid;
+  margin-bottom:1.25rem;font-size:.9rem;line-height:1.5;
 }
-.a11y-alert-danger  { background: #FEF2F2; border-color: #DC2626; color: #7F1D1D; }
-.a11y-alert-success { background: #F0FDF4; border-color: #16A34A; color: #14532D; }
-.a11y-alert-icon    { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
+.login-alert i{font-size:1.1rem;flex-shrink:0;margin-top:.05rem}
+.login-alert-danger {background:#fef2f2;border-color:#dc2626;color:#7f1d1d}
+.login-alert-success{background:#f0fdf4;border-color:#16a34a;color:#14532d}
 
-.ms-logo { flex-shrink: 0; }
-.login-cols { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0 2rem; margin-bottom: .5rem; }
-.login-col-divider { background: #E2E8F0; }
-.login-col-ms { display: flex; flex-direction: column; justify-content: center; padding-right: 1rem; }
-.login-col-local { padding-left: 1rem; }
-.col-heading { font-size: .82rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 1rem; }
-.ms-col-note { font-size: .8rem; color: #94A3B8; margin-top: .75rem; line-height: 1.5; text-align: center; }
+/* ── Pola formularza ─────────────────────────────────────── */
+.form-label{font-size:.9rem;font-weight:600;color:#1e293b;margin-bottom:.38rem;display:block}
+.form-control{
+  border:2px solid #94a3b8;border-radius:8px;
+  font-size:1rem;padding:.65rem .9rem;min-height:48px;
+  color:#0f172a;width:100%;background:#fff;
+  transition:border-color .15s,box-shadow .15s;
+}
+.form-control:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.15);outline:none}
+.form-control[aria-invalid="true"]{border-color:#dc2626;background:#fff8f8}
+.form-control[aria-invalid="true"]:focus{box-shadow:0 0 0 3px rgba(220,38,38,.15)}
+.form-hint{font-size:.8rem;color:#64748b;margin-top:.3rem;line-height:1.45}
+.form-error{font-size:.8rem;color:#b91c1c;margin-top:.3rem;font-weight:500;display:flex;align-items:center;gap:.3rem}
 
-@media (max-width: 600px) {
-  .login-cols { grid-template-columns: 1fr; gap: 1.5rem 0; }
-  .login-col-divider { display: none; }
-  .login-col-ms { padding-right: 0; padding-bottom: 1.5rem; border-bottom: 1px solid #E2E8F0; }
-  .login-col-local { padding-left: 0; }
-  .card-body { padding: 1.5rem 1.25rem; }
+/* ── Hasło — przycisk reveal ─────────────────────────────── */
+.pass-wrap{position:relative}
+.pass-toggle{
+  position:absolute;right:.65rem;top:50%;transform:translateY(-50%);
+  background:none;border:2px solid transparent;padding:0;
+  color:#64748b;cursor:pointer;font-size:1.05rem;border-radius:6px;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  transition:color .12s,border-color .12s;
 }
-@media (prefers-contrast: high) {
-  .form-control { border-width: 3px; border-color: #000; }
-  .btn-login { background: #000 !important; border-color: #000 !important; color: #fff !important; }
-  .a11y-alert-danger { border-width: 3px; }
+.pass-toggle:hover{color:var(--c,#2563eb);border-color:#e2e8f0}
+
+/* ── Przycisk główny ─────────────────────────────────────── */
+.btn-login{
+  display:flex;align-items:center;justify-content:center;gap:.55rem;
+  background:var(--c,#2563eb);color:var(--c-text,#fff);
+  border:2px solid var(--c,#2563eb);border-radius:8px;
+  padding:.8rem 1.25rem;font-size:1rem;font-weight:700;
+  width:100%;min-height:52px;cursor:pointer;
+  transition:background .15s,border-color .15s;
+  text-decoration:none;
 }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; }
+.btn-login:hover{background:var(--c-dark,#1d4ed8);border-color:var(--c-dark,#1d4ed8);color:var(--c-text,#fff)}
+
+/* ── Microsoft 365 ───────────────────────────────────────── */
+.btn-ms365{
+  display:flex;align-items:center;justify-content:center;gap:.75rem;
+  background:#fff;color:#1e293b;
+  border:2px solid #d1d5db;border-radius:8px;
+  padding:.85rem 1.25rem;font-size:1rem;font-weight:700;
+  width:100%;min-height:52px;cursor:pointer;
+  transition:border-color .15s,box-shadow .15s;
+  text-decoration:none;
+}
+.btn-ms365:hover{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);color:#1e293b}
+.ms-note{font-size:.8rem;color:#64748b;text-align:center;margin:.6rem 0 0;line-height:1.4}
+
+/* ── Separator ───────────────────────────────────────────── */
+.or-div{display:flex;align-items:center;gap:.75rem;color:#94a3b8;font-size:.8rem;margin:1.3rem 0}
+.or-div::before,.or-div::after{content:'';flex:1;height:1px;background:#e2e8f0}
+
+/* ── Alternatywne metody — zakładki ─────────────────────── */
+.method-tablist{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.65rem}
+.method-tab{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.45rem .95rem;border:2px solid #cbd5e1;border-radius:2rem;
+  background:#fff;color:#475569;font-size:.84rem;font-weight:500;
+  cursor:pointer;min-height:40px;transition:all .12s;white-space:nowrap;
+  line-height:1;
+}
+.method-tab[aria-selected="true"]{
+  background:var(--c-bg,#eff6ff);border-color:var(--c,#2563eb);
+  color:var(--c,#2563eb);font-weight:700;
+}
+.method-tab:hover:not([aria-selected="true"]){border-color:var(--c,#2563eb);color:var(--c,#2563eb)}
+
+.method-desc{font-size:.79rem;color:#94a3b8;margin-bottom:.75rem;line-height:1.4}
+
+/* ── Panele metod ────────────────────────────────────────── */
+.method-panel{
+  border:1px solid #e2e8f0;border-radius:10px;padding:1.1rem;
+  margin-top:.25rem;outline:none;
+  transition:box-shadow .15s;
+}
+.method-panel:focus{box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+
+/* ── SMS kode input ──────────────────────────────────────── */
+.sms-otp{
+  font-size:2rem;letter-spacing:.45rem;text-align:center;
+  font-family:monospace;font-weight:700;
+}
+
+/* ── Zapomniałem hasła ───────────────────────────────────── */
+.forgot-link{
+  display:inline-flex;align-items:center;gap:.35rem;
+  font-size:.83rem;color:#64748b;text-decoration:none;
+  padding:.3rem;border-radius:4px;
+  transition:color .12s;
+}
+.forgot-link:hover{color:var(--c,#2563eb)}
+
+/* ── High contrast ───────────────────────────────────────── */
+@media(prefers-contrast:high){
+  .form-control{border-width:3px;border-color:#000}
+  .btn-login,.btn-ms365{border-width:3px}
+  .btn-login{background:#000!important;border-color:#000!important;color:#fff!important}
+  .login-alert-danger{border-width:3px}
+  .method-tab{border-width:3px}
+}
+/* ── Reduced motion ──────────────────────────────────────── */
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media(max-width:680px){
+  .login-shell{flex-direction:column}
+  .login-left{
+    width:100%;padding:.9rem 1.25rem;
+    flex-direction:row;align-items:center;gap:.75rem;
+    border-right:none;border-bottom:1px solid rgba(255,255,255,.07);
+  }
+  .login-left::after{display:none}
+  .login-left .left-methods-label,
+  .login-left .left-method,
+  .login-left .left-tagline,
+  .login-left .left-footer{display:none}
+  .login-left .left-org{font-size:.9rem;margin:0}
+  .login-right{padding:1.25rem 1rem;align-items:flex-start;background:#F1F5F9}
+  .login-box{box-shadow:none;border-radius:12px;padding:1.5rem 1.25rem}
+  .mobile-top{display:flex}
+  .login-left .left-logo{margin-bottom:0;max-height:28px}
+  .login-left .left-icon{width:30px;height:30px;font-size:1rem;margin-bottom:0}
 }
 </style>
 </head>
 <body>
 
-<a href="#login-main" class="skip-link">Przejdź do formularza logowania</a>
+<a href="#login-form-area" class="skip-link">Przejdź do formularza logowania</a>
 
+<!-- Regiony ARIA live — ogłaszają zmiany dla czytników ekranu -->
 <div role="status" aria-live="polite" aria-atomic="true"
-     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" id="login-live"></div>
+     id="login-live"
+     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
 <div role="alert" aria-live="assertive" aria-atomic="true"
-     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" id="login-alert"></div>
+     id="login-alert"
+     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
 
-<div class="page-wrap">
-<main class="login-card <?= $ms_available ? 'wide' : '' ?>" id="login-main" role="main" tabindex="-1">
+<div class="login-shell">
 
-  <div class="card-top">
+<!-- ══ Lewa — branding ══════════════════════════════════════════════════════ -->
+<aside class="login-left" aria-label="Informacje o organizacji">
+  <div>
     <?php if ($_b['logo_url']): ?>
-      <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>">
+    <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" class="left-logo">
     <?php else: ?>
-      <div class="card-top-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></div>
+    <div class="left-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></div>
     <?php endif; ?>
-    <p class="card-org"><?= h($org_name) ?></p>
-    <?php if ($_login_tagline): ?><p class="card-tagline"><?= h($_login_tagline) ?></p><?php endif; ?>
-    <?php if ($sel_url): ?>
-      <a href="<?= h($sel_url) ?>" class="change-org">
-        <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
-        <?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?>
-      </a>
-    <?php endif; ?>
-  </div>
+    <p class="left-org"><?= h($org_name) ?></p>
+    <?php if ($_login_tagline): ?><p class="left-tagline"><?= h($_login_tagline) ?></p><?php endif; ?>
 
-  <div class="card-body">
-    <h1 class="form-heading">Zaloguj się</h1>
-
-    <?php if ($_login_notices): ?>
-    <div style="margin-bottom:1.25rem">
-      <?php foreach ($_login_notices as $_ln):
-        $ln_pinned = (int)($_ln['is_pinned'] ?? 0);
-        $ln_color  = $ln_pinned ? '#F59E0B' : '#2563EB';
-        $ln_bg     = $ln_pinned ? '#FFFBEB' : '#EFF6FF';
-      ?>
-      <div style="background:<?= $ln_bg ?>;border-left:3px solid <?= $ln_color ?>;border-radius:8px;padding:.75rem 1rem;margin-bottom:.6rem;font-size:.84rem;color:#1e293b">
-        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;flex-wrap:wrap">
-          <i class="bi bi-<?= $ln_pinned ? 'pin-angle-fill' : 'megaphone-fill' ?>" style="color:<?= $ln_color ?>"></i>
-          <strong><?= h($_ln['title']) ?></strong>
-          <span style="font-size:.7rem;color:#94a3b8;margin-left:auto"><?= h(substr($_ln['created_at'] ?? '', 0, 10)) ?></span>
+    <div>
+      <div class="left-methods-label" aria-label="Dostępne metody logowania">Metody logowania</div>
+      <?php foreach ($_avail_methods as [$icon, $name, $sub]): ?>
+      <div class="left-method">
+        <i class="bi <?= $icon ?> left-method-icon" aria-hidden="true"></i>
+        <div>
+          <div class="left-method-name"><?= h($name) ?></div>
+          <div class="left-method-sub"><?= h($sub) ?></div>
         </div>
-        <?php if ($_ln['body']): ?><div style="color:#374151;margin-top:.15rem;line-height:1.5"><?= nl2br(h($_ln['body'])) ?></div><?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
-    <?php endif; ?>
-
-    <?php if ($error): ?>
-    <div class="a11y-alert a11y-alert-danger" role="alert" aria-label="Błąd logowania: <?= h($error) ?>">
-      <i class="bi bi-exclamation-triangle-fill a11y-alert-icon" aria-hidden="true"></i>
-      <span><?= h($error) ?></span>
-    </div>
-    <?php endif; ?>
-    <?php if ($info): ?>
-    <div class="a11y-alert a11y-alert-success" role="status">
-      <i class="bi bi-check-circle-fill a11y-alert-icon" aria-hidden="true"></i>
-      <span><?= h($info) ?></span>
-    </div>
-    <?php endif; ?>
-
-    <?php include __DIR__ . '/_login_form_body.php'; ?>
-
   </div>
+
+  <div class="left-footer">
+    <?php if ($sel_url): ?>
+    <a href="<?= h($sel_url) ?>" class="left-change-org">
+      <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+      <?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?>
+    </a>
+    <?php endif; ?>
+    <div class="left-security">
+      <i class="bi bi-lock-fill" aria-hidden="true"></i>
+      Połączenie szyfrowane HTTPS
+    </div>
+    <div class="left-copyright">&copy; <?= date('Y') ?> · <?= h($org_name) ?></div>
+  </div>
+</aside>
+
+<!-- ══ Prawa — formularz ═════════════════════════════════════════════════════ -->
+<div class="login-right">
+<main class="login-box" id="login-form-area" tabindex="-1">
+
+  <!-- Miniaturowy nagłówek organizacji (mobile — gdy lewa kolumna zwinięta) -->
+  <div class="mobile-top" aria-hidden="true">
+    <?php if ($_b['logo_url']): ?>
+    <img src="<?= h($_b['logo_url']) ?>" alt="" class="mobile-top-logo">
+    <?php endif; ?>
+    <span class="mobile-top-org"><?= h($org_name) ?></span>
+  </div>
+
+  <h1 class="login-heading" id="login-title">Zaloguj się</h1>
+
+  <?php if ($_login_notices): ?>
+  <div role="region" aria-label="Komunikaty administratora" style="margin-bottom:1.25rem">
+    <?php foreach ($_login_notices as $_ln):
+      $ln_pinned = (int)($_ln['is_pinned'] ?? 0);
+    ?>
+    <div class="login-notice <?= $ln_pinned ? 'pinned' : '' ?>">
+      <i class="bi bi-<?= $ln_pinned ? 'pin-angle-fill' : 'megaphone-fill' ?>" aria-hidden="true"></i>
+      <div>
+        <div class="login-notice-title"><?= h($_ln['title']) ?></div>
+        <?php if ($_ln['body']): ?><div style="margin-top:.2rem;font-size:.84rem"><?= nl2br(h($_ln['body'])) ?></div><?php endif; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($error): ?>
+  <div class="login-alert login-alert-danger" role="alert" id="login-error-box">
+    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+    <span id="login-error-text"><?= h($error) ?></span>
+  </div>
+  <?php endif; ?>
+  <?php if ($info): ?>
+  <div class="login-alert login-alert-success" role="status">
+    <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+    <span><?= h($info) ?></span>
+  </div>
+  <?php endif; ?>
+
+  <?php include __DIR__ . '/_login_form_body.php'; ?>
+
 </main>
-</div>
+</div><!-- /login-right -->
+
+</div><!-- /login-shell -->
 
 <script>
+(function(){
+'use strict';
+
+// ── Ogłoszenie błędu przez ARIA live region ───────────────────────────────
+var errBox  = document.getElementById('login-error-text');
+var liveErr = document.getElementById('login-alert');
+if (errBox && liveErr) liveErr.textContent = errBox.textContent.trim();
+
+// ── Przełączanie alternatywnych metod (ARIA Tabs) ─────────────────────────
 function switchAltTab(name) {
-  ['code','sms','x509'].forEach(function(k) {
-    var s = document.getElementById('tab-' + k);
-    if (s) s.hidden = true;
+  var panels = document.querySelectorAll('.method-panel');
+  var tabs   = document.querySelectorAll('.method-tab');
+
+  panels.forEach(function(p) {
+    p.hidden = true;
+    p.tabIndex = -1;
   });
-  var section = document.getElementById('tab-' + name);
-  if (section) {
-    section.hidden = false;
-    var first = section.querySelector('input:not([type=hidden])');
-    if (first) setTimeout(function() { first.focus(); }, 60);
+  tabs.forEach(function(b) {
+    var sel = b.id === 'tab-btn-' + name;
+    b.setAttribute('aria-selected', sel ? 'true' : 'false');
+    b.tabIndex = sel ? 0 : -1;
+  });
+
+  var panel = document.getElementById('tab-panel-' + name);
+  if (panel) {
+    panel.hidden = false;
+    panel.tabIndex = 0;
+    // Focus na pierwszy input lub na panel sam w sobie
+    var first = panel.querySelector('input:not([type=hidden])');
+    if (first) {
+      setTimeout(function() { first.focus(); }, 60);
+    } else {
+      panel.focus();
+    }
   }
-  document.querySelectorAll('[role="tab"]').forEach(function(btn) {
-    var sel = btn.id === 'tab-btn-' + name;
-    btn.setAttribute('aria-selected', sel ? 'true' : 'false');
-    btn.tabIndex = sel ? 0 : -1;
-  });
+
+  // Powiedz czytnikowi ekranu co się zmieniło
+  var labels = {
+    code: 'Kod jednorazowy',
+    sms:  'Kod SMS',
+    x509: 'Certyfikat X.509',
+  };
   var live = document.getElementById('login-live');
-  var labels = {'code': 'Kod jednorazowy', 'sms': 'Kod SMS', 'x509': 'Certyfikat X.509'};
   if (live) live.textContent = 'Metoda logowania: ' + (labels[name] || name);
 }
+window.switchAltTab = switchAltTab;
 
+// ── Klawiatura: strzałki + Home/End w tablist ─────────────────────────────
 document.addEventListener('keydown', function(e) {
-  if (!e.target.matches('[role="tab"]')) return;
-  var tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+  if (!e.target.matches('.method-tab')) return;
+  var tabs = Array.from(document.querySelectorAll('.method-tab'));
   var idx  = tabs.indexOf(e.target);
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+  var next = -1;
+  if      (e.key === 'ArrowRight' || e.key === 'ArrowDown')  next = (idx + 1) % tabs.length;
+  else if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')    next = (idx - 1 + tabs.length) % tabs.length;
+  else if (e.key === 'Home')                                  next = 0;
+  else if (e.key === 'End')                                   next = tabs.length - 1;
+  if (next >= 0) {
     e.preventDefault();
-    tabs[(idx + 1) % tabs.length].focus();
-  }
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    tabs[(idx - 1 + tabs.length) % tabs.length].focus();
+    tabs[next].focus();
+    // Automatic activation (roving tabindex model)
+    var tid = tabs[next].id.replace('tab-btn-', '');
+    switchAltTab(tid);
   }
 });
 
-function togglePass(id, btn) {
-  var input = document.getElementById(id);
-  if (!input) return;
-  var showing = input.type === 'text';
-  input.type = showing ? 'password' : 'text';
-  btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
-  btn.setAttribute('aria-label', showing ? 'Pokaż hasło' : 'Ukryj hasło');
-  btn.querySelector('i').className = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+// ── Reveal hasła ──────────────────────────────────────────────────────────
+function togglePass(inputId, btn) {
+  var inp = document.getElementById(inputId);
+  if (!inp) return;
+  var nowHidden = inp.type !== 'password';
+  inp.type      = nowHidden ? 'password' : 'text';
+  btn.setAttribute('aria-pressed', nowHidden ? 'false' : 'true');
+  btn.setAttribute('aria-label',   nowHidden ? 'Pokaż hasło' : 'Ukryj hasło');
+  btn.querySelector('i').className = nowHidden ? 'bi bi-eye' : 'bi bi-eye-slash';
 }
+window.togglePass = togglePass;
 
-(function() {
-  var err = document.querySelector('.a11y-alert-danger');
-  var live = document.getElementById('login-alert');
-  if (err && live) live.textContent = err.textContent.trim();
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
