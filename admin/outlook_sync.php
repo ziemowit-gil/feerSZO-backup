@@ -51,7 +51,7 @@ $sync_calendar    = crm_setting('m365_sync_calendar')  !== '0';
 
 $m365_ok      = (bool)(crm_setting('m365_tenant_id') && crm_setting('m365_graph_client_id') && crm_setting('m365_graph_client_secret'));
 $sync_token   = crm_setting('crm_sync_token');
-$cron_cmd     = "php " . BASE_PATH . "/bin/outlook_sync.php";
+$cron_cmd     = "php " . dirname(__DIR__) . "/bin/outlook_sync.php";
 $api_url      = APP_URL . '/crm/api/outlook_sync.php';
 
 // ── Log synchronizacji ────────────────────────────────────────────────────────
