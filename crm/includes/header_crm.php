@@ -492,6 +492,17 @@ window.openCommModal = function(contactId, channel) {
       <i class="bi bi-calendar3-fill"></i>
       <span>Kalendarz</span>
     </a>
+    <?php
+    // Pokaż link sync tylko dla użytkowników z kontem Office 365
+    $_crm_has_ms = !empty($_cu['microsoft_id'] ?? '');
+    if ($_crm_has_ms): ?>
+    <a href="<?= APP_URL ?>/crm/calendar_settings.php"
+       class="crm-nav-item<?= _crm_nav_active('/crm/calendar_settings') ?>"
+       title="Synchronizuj swój kalendarz Outlook">
+      <i class="bi bi-microsoft"></i>
+      <span>Mój Outlook sync</span>
+    </a>
+    <?php endif; ?>
 
     <a href="<?= APP_URL ?>/crm/cases/index.php"
        class="crm-nav-item<?= _crm_nav_active('/crm/cases') ?>">

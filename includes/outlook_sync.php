@@ -378,6 +378,218 @@ class OutlookSync
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // PER-USER CALENDAR SYNC (CRM users z microsoft_id)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Zwraca (lub tworzy) rekord preferencji kalendarza dla użytkownika CRM.
+     */
+    public static function get_user_pref(int $crm_user_id): ?array
+    {
+        $pdo = crm_db();
+        $row = $pdo->prepare(
+            "SELECT ucp.*, u.microsoft_id, u.name AS user_name, u.email AS user_email
+               FROM crm_user_calendar_prefs ucp
+               JOIN users u ON u.id = ucp.user_id
+              WHERE ucp.user_id = ? LIMIT 1"
+        );
+        $row->execute([$crm_user_id]);
+        return $row->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Zapisuje preferencje kalendarza użytkownika CRM.
+     */
+    public static function save_user_pref(int $crm_user_id, string $calendar_id, string $calendar_name, bool $sync_enabled): void
+    {
+        crm_db()->prepare(
+            "INSERT INTO crm_user_calendar_prefs
+                (user_id, calendar_id, calendar_name, sync_enabled, updated_at)
+             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(user_id) DO UPDATE SET
+                calendar_id   = excluded.calendar_id,
+                calendar_name = excluded.calendar_name,
+                sync_enabled  = excluded.sync_enabled,
+                updated_at    = CURRENT_TIMESTAMP"
+        )->execute([$crm_user_id, $calendar_id, $calendar_name, $sync_enabled ? 1 : 0]);
+    }
+
+    /**
+     * Synchronizuje kalendarz jednego użytkownika CRM.
+     * Warunek: użytkownik musi mieć microsoft_id (zalogowany przez Office 365).
+     *
+     * @param int $crm_user_id  ID z tabeli users
+     * @return array{created:int, updated:int, removed:int, errors:string[], skipped:bool}
+     */
+    public function sync_user_calendar(int $crm_user_id): array
+    {
+        $empty = ['created'=>0,'updated'=>0,'removed'=>0,'errors'=>[],'skipped'=>false];
+
+        // Pobierz dane użytkownika
+        $user = $this->pdo->prepare(
+            "SELECT id, microsoft_id, name, email FROM users WHERE id = ? AND is_active = 1 LIMIT 1"
+        );
+        $user->execute([$crm_user_id]);
+        $user = $user->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$user || empty($user['microsoft_id'])) {
+            return array_merge($empty, ['skipped' => true,
+                'errors' => ['Użytkownik nie ma konta Office 365 (brak microsoft_id).']]);
+        }
+
+        // Pobierz preferencje kalendarza
+        $pref = $this->pdo->prepare(
+            "SELECT * FROM crm_user_calendar_prefs WHERE user_id = ? LIMIT 1"
+        );
+        $pref->execute([$crm_user_id]);
+        $pref = $pref->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$pref || !$pref['sync_enabled']) {
+            return array_merge($empty, ['skipped' => true]);
+        }
+
+        $ms_id       = $user['microsoft_id'];
+        $calendar_id = $pref['calendar_id'] ?? '';
+        $delta_key   = "user_{$crm_user_id}_cal";
+        $delta_link  = $pref['delta_link'] ?? null;
+
+        // Pobierz eventy via delta-sync
+        $result = $this->graph->get_calendar_events_delta($ms_id, $calendar_id, $delta_link ?: null);
+
+        $created = $updated = $removed = 0;
+        $errors  = [];
+
+        foreach ($result['events'] as $ev) {
+            try {
+                $outlook_id = $ev['id'] ?? null;
+                if (!$outlook_id) continue;
+
+                if (!empty($ev['@removed'])) {
+                    $this->pdo->prepare("DELETE FROM crm_events WHERE outlook_id = ? AND created_by = ?")
+                        ->execute([$outlook_id, $crm_user_id]);
+                    $removed++;
+                    continue;
+                }
+
+                $ev_type = $ev['type'] ?? 'singleInstance';
+                if (in_array($ev_type, ['occurrence', 'exception'], true)) continue;
+                if (!empty($ev['isCancelled'])) {
+                    $this->pdo->prepare("DELETE FROM crm_events WHERE outlook_id = ? AND created_by = ?")
+                        ->execute([$outlook_id, $crm_user_id]);
+                    $removed++;
+                    continue;
+                }
+
+                [$event_date, $event_time] = $this->parse_dt($ev['start'] ?? []);
+                [$end_date,   $end_time]   = $this->parse_dt($ev['end']   ?? []);
+                $all_day     = !empty($ev['isAllDay']) ? 1 : 0;
+                $title       = trim($ev['subject'] ?? '(brak tytułu)');
+                $description = $this->extract_body($ev['body'] ?? []);
+                $location    = trim($ev['location']['displayName'] ?? '');
+                if ($location) {
+                    $description = $description ? "{$description}\n\n📍 {$location}" : "📍 {$location}";
+                }
+                $color = $this->category_to_color($ev['categories'] ?? []);
+
+                // Sprawdź czy event istnieje dla tego usera
+                $s = $this->pdo->prepare(
+                    "SELECT id FROM crm_events WHERE outlook_id = ? AND created_by = ? LIMIT 1"
+                );
+                $s->execute([$outlook_id, $crm_user_id]);
+                $existing_id = $s->fetchColumn() ?: null;
+
+                if ($existing_id) {
+                    $this->pdo->prepare(
+                        "UPDATE crm_events
+                         SET title=?,description=?,event_date=?,event_time=?,
+                             event_end_date=?,event_end_time=?,all_day=?,color=?,
+                             outlook_synced_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
+                         WHERE id=?"
+                    )->execute([$title,$description,$event_date,$event_time,
+                                $end_date,$end_time,$all_day,$color,$existing_id]);
+                    $updated++;
+                } else {
+                    $this->pdo->prepare(
+                        "INSERT INTO crm_events
+                            (title,description,event_date,event_time,
+                             event_end_date,event_end_time,all_day,
+                             event_type,color,status,created_by,
+                             outlook_id,outlook_synced_at,created_at,updated_at)
+                         VALUES (?,?,?,?,?,?,?,
+                                 'spotkanie',?,'pending',?,
+                                 ?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"
+                    )->execute([$title,$description,$event_date,$event_time,
+                                $end_date,$end_time,$all_day,$color,$crm_user_id,
+                                $outlook_id]);
+                    $created++;
+                }
+            } catch (\Throwable $e) {
+                $errors[] = 'Event [' . ($ev['id'] ?? '?') . ']: ' . $e->getMessage();
+            }
+        }
+
+        // Zapisz nowy delta-link w preferencjach użytkownika
+        if (!empty($result['delta_link'])) {
+            $this->pdo->prepare(
+                "UPDATE crm_user_calendar_prefs
+                 SET delta_link=?, last_synced_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+                 WHERE user_id=?"
+            )->execute([$result['delta_link'], $crm_user_id]);
+        }
+
+        $this->log_sync('user_calendar_' . $crm_user_id, $created, $updated, $removed, $errors);
+
+        return compact('created','updated','removed','errors') + ['skipped' => false];
+    }
+
+    /**
+     * Synchronizuje kalendarze wszystkich użytkowników CRM z włączonym sync.
+     * Pomija użytkowników bez microsoft_id.
+     *
+     * @return array{users: int, created: int, updated: int, removed: int, errors: string[]}
+     */
+    public function sync_all_users(): array
+    {
+        $prefs = $this->pdo->query(
+            "SELECT ucp.user_id, u.microsoft_id, u.name, u.email
+               FROM crm_user_calendar_prefs ucp
+               JOIN users u ON u.id = ucp.user_id
+              WHERE ucp.sync_enabled = 1
+                AND u.is_active = 1
+                AND u.microsoft_id IS NOT NULL
+                AND u.microsoft_id != ''"
+        )->fetchAll(\PDO::FETCH_ASSOC);
+
+        $total_users = 0;
+        $total_created = $total_updated = $total_removed = 0;
+        $all_errors = [];
+
+        foreach ($prefs as $p) {
+            try {
+                $r = $this->sync_user_calendar((int)$p['user_id']);
+                if ($r['skipped']) continue;
+                $total_users++;
+                $total_created += $r['created'];
+                $total_updated += $r['updated'];
+                $total_removed += $r['removed'];
+                foreach ($r['errors'] as $e) {
+                    $all_errors[] = "[{$p['name']}] {$e}";
+                }
+            } catch (\Throwable $e) {
+                $all_errors[] = "[{$p['name']}] " . $e->getMessage();
+            }
+        }
+
+        return [
+            'users'   => $total_users,
+            'created' => $total_created,
+            'updated' => $total_updated,
+            'removed' => $total_removed,
+            'errors'  => $all_errors,
+        ];
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // MIGRACJE DB
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -397,6 +609,21 @@ class OutlookSync
                 ON crm_contacts(outlook_id)",
             "CREATE INDEX IF NOT EXISTS idx_crm_events_outlook_id
                 ON crm_events(outlook_id)",
+            // Preferencje kalendarza per-user CRM
+            "CREATE TABLE IF NOT EXISTS crm_user_calendar_prefs (
+                id            INTEGER  PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                calendar_id   TEXT     NOT NULL DEFAULT '',
+                calendar_name TEXT     NOT NULL DEFAULT '',
+                sync_enabled  INTEGER  NOT NULL DEFAULT 1,
+                delta_link    TEXT,
+                last_synced_at DATETIME,
+                created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id)
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_crm_user_cal_prefs_user
+                ON crm_user_calendar_prefs(user_id)",
         ];
         foreach ($migrations as $sql) {
             try { $this->pdo->exec($sql); } catch (\Throwable $e) { /* idempotentne */ }

@@ -130,7 +130,40 @@ try {
             ]);
             break;
 
+        case 'sync_user_calendar':
+            // Sync kalendarza zalogowanego użytkownika CRM (wymaga sesji)
+            if (!current_user()) {
+                http_response_code(403);
+                echo json_encode(['ok'=>false,'message'=>'Wymagane logowanie.']);
+                break;
+            }
+            crm_migrate();
+            $cu_id = (int)current_user()['id'];
+            $data  = $sync->sync_user_calendar($cu_id);
+            echo json_encode([
+                'ok'      => empty($data['errors']) && !$data['skipped'],
+                'message' => $data['skipped']
+                    ? 'Pominięto (brak konta M365 lub synchronizacja wyłączona).'
+                    : sprintf('+%d nowych, ~%d aktualizacji, -%d usuniętych',
+                        $data['created'], $data['updated'], $data['removed']),
+                'data' => $data,
+            ]);
+            break;
+
         case 'get_calendars':
+            // Dla per-user: pobierz kalendarze zalogowanego użytkownika
+            $cu = current_user();
+            $ms_id = trim($cu['microsoft_id'] ?? '');
+            if ($ms_id) {
+                // Użyj microsoft_id zalogowanego usera (jeśli nie jest adminem z org-wide sync)
+                $per_user_sync = new OutlookSync($ms_id);
+                $calendars = $per_user_sync->get_available_calendars();
+            } else {
+                $calendars = $sync->get_available_calendars();
+            }
+            echo json_encode(['ok' => true, 'data' => $calendars]);
+            break;
+        case 'get_calendars_raw': // legacy/admin — org-wide user
             $calendars = $sync->get_available_calendars();
             echo json_encode([
                 'ok'   => true,

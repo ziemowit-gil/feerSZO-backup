@@ -69,6 +69,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [3, 5],       // między 3:00 a 5:00
     ],
+    'outlook_calendar_sync' => [
+        'file'     => __DIR__ . '/outlook_calendar_sync.php',
+        'interval' => 3600,         // co godzinę
+        'schedule' => [6, 23],      // w godzinach pracy
+    ],
 ];
 
 $lock_dir = sys_get_temp_dir();
