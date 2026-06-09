@@ -18,3 +18,4 @@ tenants/*/master.db
 .claude
 docker/.env
 config.local.php
+docker/.env.prod

@@ -1,0 +1,17 @@
+# Cron dla FEER SZO — zadania cykliczne aplikacji
+# Format: min godz dzień-mies. miesiąc dzień-tyg. polecenie
+
+# Kolejka e-mail — co minutę
+* * * * * www-data php /var/www/html/cron/mail_queue.php >> /var/log/feer_cron.log 2>&1
+
+# Przypomnienia o umowach — codziennie o 7:00
+0 7 * * * www-data php /var/www/html/cron/contract_expiry_reminder.php >> /var/log/feer_cron.log 2>&1
+
+# Powiadomienia o zadaniach — codziennie o 7:05
+5 7 * * * www-data php /var/www/html/cron/tasks_due_reminder.php >> /var/log/feer_cron.log 2>&1
+
+# Zadania cykliczne — co godzinę
+0 * * * * www-data php /var/www/html/cron/tasks_recurring.php >> /var/log/feer_cron.log 2>&1
+
+# Dispatcher (orchestrator) — co 5 minut
+*/5 * * * * www-data php /var/www/html/cron/dispatcher.php >> /var/log/feer_cron.log 2>&1

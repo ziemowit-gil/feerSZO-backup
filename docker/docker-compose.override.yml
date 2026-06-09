@@ -1,0 +1,53 @@
+# ── DEV override — ładowany automatycznie przez `docker compose up` ───────────
+# Dodaje: Mailpit (catch-all SMTP), RabbitMQ, bezpośredni port 80.
+# W produkcji używaj docker-compose.prod.yml zamiast tego pliku.
+
+services:
+
+  app:
+    ports:
+      - "80:80"
+    environment:
+      APP_ENV: development
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: feer
+      RABBITMQ_PASS: feer
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: feer-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_HTTP_PORT:-8025}:8025"
+    networks:
+      - feer
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: feer-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: feer
+      RABBITMQ_DEFAULT_PASS: feer
+    ports:
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - feer
+
+volumes:
+  rabbitmq_data:

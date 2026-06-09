@@ -1,0 +1,50 @@
+# ── MySQL addon — dołącz do dev lub prod stack'a ──────────────────────────────
+#
+# DEV + MySQL:
+#   docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d
+#
+# PROD + MySQL:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.mysql.yml --env-file .env.prod up -d
+#
+# Przed uruchomieniem ustaw w .env lub .env.prod:
+#   DB_TYPE=mysql
+#   DB_NAME=feer
+#   DB_USER=feer
+#   DB_PASS=<haslo>
+#   MYSQL_ROOT_PASSWORD=<haslo_root>
+
+services:
+
+  mysql:
+    image: mysql:8.4
+    container_name: feer-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Ustaw MYSQL_ROOT_PASSWORD w .env}
+      MYSQL_DATABASE:      ${DB_NAME:-feer}
+      MYSQL_USER:          ${DB_USER:-feer}
+      MYSQL_PASSWORD:      ${DB_PASS:?Ustaw DB_PASS w .env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: >
+        mysqladmin ping -h localhost
+        -u root -p$$MYSQL_ROOT_PASSWORD --silent
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - feer
+
+  app:
+    environment:
+      DB_TYPE: mysql
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

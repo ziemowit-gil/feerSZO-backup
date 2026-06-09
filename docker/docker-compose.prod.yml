@@ -1,0 +1,82 @@
+# ── PRODUKCJA — Traefik + Let's Encrypt SSL ───────────────────────────────────
+#
+# Użycie:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --env-file .env.prod up -d
+#
+# Wymagania:
+#   - Plik .env.prod wypełniony (skopiuj z .env.prod.example)
+#   - DNS: ${DOMAIN} → IP serwera
+#   - Porty 80 i 443 otwarte w firewallu
+
+services:
+
+  # ── Traefik — reverse proxy + automatyczny SSL Let's Encrypt ─────────────
+  traefik:
+    image: traefik:v3
+    container_name: feer-traefik
+    restart: unless-stopped
+    command:
+      # Docker provider
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=feer_feer"
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Let's Encrypt (HTTP-01 challenge)
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      # Logi
+      - "--log.level=WARN"
+      - "--accesslog=false"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "letsencrypt_data:/letsencrypt"
+    networks:
+      - feer
+
+  # ── App — nadpisania dla produkcji ───────────────────────────────────────
+  app:
+    volumes:
+      # Nadpisuje dev php.ini plikiem produkcyjnym
+      - ./php.prod.ini:/usr/local/etc/php/conf.d/app.ini:ro
+    environment:
+      APP_ENV: production
+    labels:
+      - "traefik.enable=true"
+
+      # ── Router HTTPS ──────────────────────────────────────────────────────
+      - "traefik.http.routers.feer.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.feer.entrypoints=websecure"
+      - "traefik.http.routers.feer.tls=true"
+      - "traefik.http.routers.feer.tls.certresolver=le"
+      - "traefik.http.routers.feer.middlewares=sec-headers@docker"
+      - "traefik.http.services.feer.loadbalancer.server.port=80"
+
+      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
+      - "traefik.http.routers.feer-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.feer-http.entrypoints=web"
+      - "traefik.http.routers.feer-http.middlewares=https-redirect@docker"
+
+      # ── Middleware: HTTPS redirect ────────────────────────────────────────
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
+
+      # ── Middleware: nagłówki bezpieczeństwa ───────────────────────────────
+      - "traefik.http.middlewares.sec-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.sec-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.sec-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.sec-headers.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.sec-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.sec-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.sec-headers.headers.referrerPolicy=same-origin"
+      - "traefik.http.middlewares.sec-headers.headers.customResponseHeaders.X-Powered-By="
+
+volumes:
+  letsencrypt_data:

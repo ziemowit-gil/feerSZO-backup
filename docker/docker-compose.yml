@@ -1,0 +1,70 @@
+# ── FEER SZO — bazowy stack ───────────────────────────────────────────────────
+# Ten plik definiuje wspólne usługi dla dev i prod.
+#
+# Dev  (domyślnie, auto-ładuje override.yml):
+#   docker compose up -d
+#
+# Prod (wymaga pliku .env.prod):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --env-file .env.prod up -d
+#
+# Prod + MySQL:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.mysql.yml --env-file .env.prod up -d
+
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: feer-szo-app:latest
+    container_name: feer-app
+    restart: unless-stopped
+    volumes:
+      - ../:/var/www/html
+    environment:
+      APP_ENV:        ${APP_ENV:-development}
+      APP_KEY:        ${APP_KEY:-}
+      APP_URL:        ${APP_URL:-http://localhost}
+      ORG_NAME:       ${ORG_NAME:-FEER SZO}
+      # Baza danych
+      DB_TYPE:        ${DB_TYPE:-sqlite}
+      DB_HOST:        ${DB_HOST:-mysql}
+      DB_PORT:        ${DB_PORT:-3306}
+      DB_NAME:        ${DB_NAME:-feer}
+      DB_USER:        ${DB_USER:-feer}
+      DB_PASS:        ${DB_PASS:-}
+      # Microsoft 365
+      MS_ENABLED:     ${MS_ENABLED:-0}
+      MS_TENANT_ID:   ${MS_TENANT_ID:-}
+      MS_CLIENT_ID:   ${MS_CLIENT_ID:-}
+      MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
+      MS_REDIRECT_URI:  ${MS_REDIRECT_URI:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - feer
+
+  redis:
+    image: redis:7-alpine
+    container_name: feer-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - feer
+
+volumes:
+  redis_data:
+
+networks:
+  feer:
+    driver: bridge
