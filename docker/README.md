@@ -1,4 +1,100 @@
-# Docker — środowisko deweloperskie FEER SZO
+# Docker — FEER SZO
+
+## Szybka instalacja produkcyjna (Ubuntu 22.04 / 24.04)
+
+```bash
+curl -fsSL https://codeberg.org/ziemowitgil/feerSZO/raw/branch/main/docker/setup.sh \
+  | sudo bash
+```
+
+Z MySQL:
+
+```bash
+curl -fsSL https://codeberg.org/ziemowitgil/feerSZO/raw/branch/main/docker/setup.sh \
+  | sudo bash -s -- --mysql
+```
+
+Skrypt:
+- instaluje Docker Engine + UFW,
+- klonuje repo do `/opt/feer-szo`,
+- interaktywnie tworzy `.env.prod` (pyta o domenę, e-mail ACME, APP\_KEY generuje sam),
+- uruchamia stack: `app` + `redis` + `traefik` (SSL Let's Encrypt).
+
+> Szczegółowy opis kroków: [`DEPLOY.md`](DEPLOY.md)
+
+---
+
+## Konfiguracja Microsoft 365 (Azure Portal)
+
+Panel: `https://portal.azure.com` → **App registrations** → **New registration**
+
+### 1. Rejestracja aplikacji
+
+| Pole | Wartość |
+|------|---------|
+| Name | FEER SZO |
+| Supported account types | Single tenant |
+| Redirect URI (Web) | `https://szo.feer.org.pl/auth/microsoft.php` |
+
+Po zapisaniu skopiuj **Application (client) ID** i **Directory (tenant) ID**.
+
+### 2. Client Secret
+
+**Certificates & secrets** → **New client secret** → skopiuj wartość (widoczna raz).
+
+### 3. API Permissions → Add a permission → Microsoft Graph
+
+#### Application permissions (wymagane)
+
+| Permission | Do czego |
+|-----------|----------|
+| `User.ReadWrite.All` | Tworzenie i edycja kont M365 |
+| `Directory.ReadWrite.All` | Grupy, role, obiekty katalogu |
+| `Organization.Read.All` | Dane tenanta, domeny, licencje |
+| `Mail.Send` | Wysyłanie maili jako dowolny użytkownik |
+
+#### Application permissions (opcjonalne — włącz jeśli używasz modułu)
+
+| Permission | Moduł |
+|-----------|-------|
+| `Sites.ReadWrite.All` | SharePoint — pliki i backup |
+| `Contacts.Read` | Synchronizacja kontaktów |
+| `Calendars.Read` | Synchronizacja kalendarzy |
+| `GroupMember.ReadWrite.All` | Zarządzanie grupami M365 |
+
+#### Delegated permissions — Exchange Online (opcjonalne, dla Roundcube)
+
+`IMAP.AccessAsUser.All` · `SMTP.Send`
+
+#### Delegated permissions — Microsoft Graph (dla SSO)
+
+`openid` · `profile` · `email` · `offline_access`
+
+### 4. Grant Admin Consent
+
+**API permissions** → **Grant admin consent for [Twoja organizacja]** → Confirm.
+
+> Bez Admin Consent uprawnienia Application nie będą aktywne.
+
+### 5. Wpisz dane do systemu
+
+Panel aplikacji: `https://szo.feer.org.pl/admin/m365_settings.php`
+
+Lub w `.env.prod`:
+
+```dotenv
+MS_ENABLED=1
+MS_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MS_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MS_CLIENT_SECRET=twoj_secret
+MS_REDIRECT_URI=https://szo.feer.org.pl/auth/microsoft.php
+```
+
+Po zapisaniu: `https://szo.feer.org.pl/admin/graph_permissions.php` → weryfikacja uprawnień.
+
+---
+
+## Środowisko deweloperskie FEER SZO
 
 ## Wymagania
 
