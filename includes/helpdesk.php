@@ -22,6 +22,7 @@ const HD_CATEGORIES = [
     'it_backup'         => 'Kopia zapasowa / Dane',
     'it_inne'           => 'Inne IT',
     'inne'              => 'Inne (spoza IT)',
+    'bug_report'        => 'Zgłoszenie błędu',
 ];
 
 const HD_PRIORITIES = [
@@ -88,6 +89,11 @@ function helpdesk_migrate(): void {
     try {
         $s = db_one("SELECT id FROM settings WHERE key_='helpdesk_enabled'");
         if (!$s) $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['helpdesk_enabled', '1']);
+    } catch (\Throwable $e) {}
+
+    try {
+        $s = db_one("SELECT id FROM settings WHERE key_='bug_report_enabled'");
+        if (!$s) $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['bug_report_enabled', '1']);
     } catch (\Throwable $e) {}
 }
 

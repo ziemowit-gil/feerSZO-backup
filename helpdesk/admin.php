@@ -39,11 +39,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', $new === '1' ? 'Helpdesk włączony.' : 'Helpdesk wyłączony.');
     }
 
+    // Włącz/wyłącz formularz zgłoszenia błędu
+    if ($op === 'toggle_bug_report') {
+        $cur = db_one("SELECT value FROM settings WHERE key_='bug_report_enabled'");
+        $new = ($cur['value'] ?? '1') === '1' ? '0' : '1';
+        if ($cur) {
+            db()->prepare("UPDATE settings SET value=? WHERE key_='bug_report_enabled'")->execute([$new]);
+        } else {
+            db()->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['bug_report_enabled', $new]);
+        }
+        flash_set('success', $new === '1' ? 'Formularz zgłoszeń błędów włączony.' : 'Formularz zgłoszeń błędów wyłączony.');
+    }
+
     header('Location: admin.php'); exit;
 }
 
 // ── Dane ─────────────────────────────────────────────────────────────────────
-$hd_enabled  = (db_one("SELECT value FROM settings WHERE key_='helpdesk_enabled'")['value'] ?? '1') === '1';
+$hd_enabled         = (db_one("SELECT value FROM settings WHERE key_='helpdesk_enabled'")['value'] ?? '1') === '1';
+$bug_report_enabled = (db_one("SELECT value FROM settings WHERE key_='bug_report_enabled'")['value'] ?? '1') === '1';
 $operators   = db_all("SELECT id, name, email, role FROM users WHERE helpdesk_operator=1 AND is_active=1 ORDER BY name");
 $all_users   = db_all("SELECT id, name, email, role FROM users WHERE is_active=1 ORDER BY name");
 
@@ -116,6 +129,36 @@ include dirname(__DIR__) . '/includes/header.php';
       </div>
       <p class="text-muted small mt-2 mb-0">
         Wyłączenie modułu ukrywa link w menu — istniejące zgłoszenia pozostają w bazie.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Formularz zgłoszeń błędów -->
+<div class="col-md-6">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-bug-fill text-danger me-1"></i>Formularz zgłoszeń błędów
+    </div>
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-3">
+        <div>
+          Status:
+          <span class="badge bg-<?= $bug_report_enabled ? 'success' : 'secondary' ?>">
+            <?= $bug_report_enabled ? 'Włączony' : 'Wyłączony' ?>
+          </span>
+        </div>
+        <form method="post" class="ms-auto">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_op" value="toggle_bug_report">
+          <button class="btn btn-sm btn-<?= $bug_report_enabled ? 'outline-danger' : 'success' ?>">
+            <?= $bug_report_enabled ? '<i class="bi bi-pause-circle me-1"></i>Wyłącz' : '<i class="bi bi-play-circle me-1"></i>Włącz' ?>
+          </button>
+        </form>
+      </div>
+      <p class="text-muted small mt-2 mb-0">
+        Przycisk <i class="bi bi-bug-fill text-danger"></i>&nbsp;<em>Zgłoś błąd</em> widoczny jest w nagłówku każdej strony.
+        Wyłączenie usuwa go ze wszystkich widoków.
       </p>
     </div>
   </div>

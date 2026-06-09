@@ -14,7 +14,15 @@ require_login();
 $_pv_title  = $PAGE_TITLE ?? 'Panel wolontariusza';
 $_pv_uri    = $_SERVER['REQUEST_URI'] ?? '';
 $_pv_org    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
-$_vol_color = org_setting('volunteer_color') ?: '#1D4ED8';
+
+// Migracja kolumny per-user panel_color
+try { db()->exec("ALTER TABLE users ADD COLUMN panel_color TEXT"); } catch (\Throwable $e) {}
+
+// Kolor: najpierw per-user, fallback na org setting
+$_pv_user_row  = db_one("SELECT panel_color FROM users WHERE id=?", [(int)(current_user()['id'] ?? 0)]);
+$_vol_color    = (($_pv_user_row['panel_color'] ?? '') !== '')
+    ? $_pv_user_row['panel_color']
+    : (org_setting('volunteer_color') ?: '#1D4ED8');
 
 // Lekkie tło (10% krycia na białym) — bez zewnętrznych zależności
 function _pv_light_bg(string $hex): string {
@@ -239,6 +247,9 @@ if ('serviceWorker' in navigator) {
   </a>
   <a href="<?= APP_URL ?>/panel/password.php" class="pv-nav-link<?= _pv_nav_active('/panel/password') ?>">
     <i class="bi bi-gear" aria-hidden="true"></i>Ustawienia konta
+  </a>
+  <a href="<?= APP_URL ?>/panel/panel_color.php" class="pv-nav-link<?= _pv_nav_active('/panel/panel_color') ?>">
+    <i class="bi bi-palette2" aria-hidden="true"></i>Kolor panelu
   </a>
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
