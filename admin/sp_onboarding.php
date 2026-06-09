@@ -131,7 +131,9 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="onb-label <?= $sp_cfg['sp_site_url'] ? 'done' : ($m365_ok ? 'active' : '') ?>">
       Krok 2 — Witryna SharePoint
     </div>
-    <div class="mb-2">
+    <!-- URL row: widoczny tylko gdy witryna jest już wybrana lub tryb ręczny -->
+    <div id="sp-url-row" class="mb-2"
+         style="<?= $sp_cfg['sp_site_url'] ? '' : 'display:none' ?>">
       <div class="input-group input-group-sm">
         <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
         <input type="url" id="sp_site_url" class="form-control font-monospace"
@@ -139,9 +141,9 @@ include dirname(__DIR__) . '/includes/header.php';
           placeholder="https://twojorg.sharepoint.com/sites/Dokumenty"
           <?= !$m365_ok ? 'disabled' : '' ?>>
         <button class="btn btn-outline-secondary" type="button" id="btn-list-sites"
-                title="Pobierz listę dostępnych witryn z SharePoint"
+                title="Wybierz inną witrynę z listy"
                 <?= !$m365_ok ? 'disabled' : '' ?>>
-          <i class="bi bi-list-ul me-1"></i>Wybierz…
+          <i class="bi bi-arrow-repeat me-1"></i>Zmień
         </button>
         <button class="btn btn-outline-secondary" type="button" id="btn-test-sp"
                 <?= !$m365_ok ? 'disabled' : '' ?>>
@@ -149,18 +151,22 @@ include dirname(__DIR__) . '/includes/header.php';
         </button>
       </div>
       <div class="form-text">
-        Pełny URL witryny SharePoint lub <button type="button" class="btn btn-link p-0 small" id="btn-list-sites-inline" <?= !$m365_ok ? 'disabled' : '' ?>>wybierz z listy witryn tenanta</button>.
-        Wymagane uprawnienie: <code>Sites.ReadWrite.All</code>.
+        <code id="sp-url-display-text"><?= h($sp_cfg['sp_site_url']) ?></code>
       </div>
     </div>
 
     <!-- Panel wyboru witryny ------------------------------------------------- -->
-    <div id="sp-sites-panel" class="border rounded p-2 mb-2 bg-light" style="display:none">
+    <div id="sp-sites-panel" class="border rounded p-2 mb-2 bg-light"
+         style="<?= (!$sp_cfg['sp_site_url'] && $m365_ok) ? '' : 'display:none' ?>">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <span class="small fw-semibold text-secondary">
           <i class="bi bi-grid-1x2 me-1"></i>Witryny SharePoint w Twoim tenancie
         </span>
+        <?php if ($sp_cfg['sp_site_url']): ?>
         <button type="button" class="btn-close" id="btn-close-sites" style="font-size:.7rem" aria-label="Zamknij"></button>
+        <?php else: ?>
+        <span id="btn-close-sites" style="display:none"></span><!-- placeholder dla JS -->
+        <?php endif; ?>
       </div>
       <div class="input-group input-group-sm mb-2">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -168,10 +174,17 @@ include dirname(__DIR__) . '/includes/header.php';
                placeholder="Filtruj po nazwie lub URL…" autocomplete="off">
       </div>
       <div id="sp-sites-list"
-           style="max-height:200px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;background:#fff">
+           style="max-height:220px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;background:#fff">
         <!-- wypełniane przez JS -->
       </div>
       <div id="sp-sites-footer" class="text-muted mt-1" style="font-size:.78rem;display:none"></div>
+      <!-- Tryb ręczny — fallback gdy chcesz wpisać URL bezpośrednio -->
+      <div class="text-end mt-2" style="font-size:.8rem">
+        <button type="button" class="btn btn-link btn-sm p-0 text-muted" id="btn-manual-url"
+                <?= !$m365_ok ? 'disabled' : '' ?>>
+          <i class="bi bi-keyboard me-1"></i>Wpisz URL ręcznie…
+        </button>
+      </div>
     </div>
 
     <!-- Propozycja SZOSite (gdy brak URL i M365 skonfigurowane) -------------- -->
@@ -373,16 +386,18 @@ function setBtn(id, spin, label) {
 }
 
 // ── Picker witryn SharePoint ─────────────────────────────────────────────────
-let _spSitesCache = null;  // cache wyników po pierwszym pobraniu
+let _spSitesCache = null;
 
 async function openSitesPicker() {
     const panel = document.getElementById('sp-sites-panel');
     panel.style.display = 'block';
-    const list = document.getElementById('sp-sites-list');
 
     // Przy pierwszym otwarciu — pobierz listę
-    if (!_spSitesCache) {
-        list.innerHTML = '<div class="p-3 text-center text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Pobieranie listy witryn…</div>';
+    if (_spSitesCache === null) {
+        const list = document.getElementById('sp-sites-list');
+        list.innerHTML = '<div class="p-3 text-center text-muted small">'
+            + '<span class="spinner-border spinner-border-sm me-1"></span>Pobieranie listy witryn…</div>';
+
         const res = await fetch(API_WIZARD, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -390,34 +405,32 @@ async function openSitesPicker() {
         }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
 
         if (!res.ok) {
-            list.innerHTML = '<div class="p-2 text-danger small">'
-                + '<i class="bi bi-x-circle me-1"></i>' + (res.error || 'Błąd')
-                + (res.hint ? '<br><span class="text-muted">' + res.hint + '</span>' : '')
-                + '</div>';
+            list.innerHTML = '<div class="p-3 text-danger small">'
+                + '<i class="bi bi-x-circle me-1"></i><strong>Błąd:</strong> ' + (res.error || '?')
+                + (res.hint ? '<br><span class="text-muted">' + res.hint + '</span>' : '') + '</div>';
+            _spSitesCache = [];
             return;
         }
         _spSitesCache = res.sites || [];
 
         const footer = document.getElementById('sp-sites-footer');
         footer.style.display = 'block';
-        footer.textContent = 'Znaleziono ' + _spSitesCache.length + ' witryn.';
+        footer.textContent = 'Znaleziono ' + _spSitesCache.length + ' witryn w tenancie.';
 
         if (_spSitesCache.length === 0) {
             list.innerHTML = '<div class="p-3 text-center text-muted small">'
-                + '<i class="bi bi-info-circle me-1"></i>Brak witryn SharePoint w tenancie.<br>'
+                + '<i class="bi bi-cloud-slash me-1"></i>Brak witryn SharePoint w tenancie.<br>'
                 + '<a href="https://admin.microsoft.com/_layouts/15/online/AdminHome.aspx#/sharepoint/activeSites" '
-                + 'target="_blank" class="btn btn-sm btn-outline-primary mt-2">'
+                + 'target="_blank" class="btn btn-sm btn-outline-primary mt-2" rel="noopener">'
                 + '<i class="bi bi-plus me-1"></i>Utwórz witrynę w M365 Admin</a></div>';
-            // Ukryj propozycję SZOSite — już jest info w panelu
             return;
         }
     }
-
     renderSitesList(_spSitesCache, document.getElementById('sp-sites-filter').value);
 }
 
 function renderSitesList(sites, filterVal) {
-    const q   = (filterVal || '').toLowerCase().trim();
+    const q    = (filterVal || '').toLowerCase().trim();
     const list = document.getElementById('sp-sites-list');
     const filtered = q
         ? sites.filter(s =>
@@ -434,14 +447,17 @@ function renderSitesList(sites, filterVal) {
     list.innerHTML = filtered.map(s => {
         const name = s.displayName || s.name || '(bez nazwy)';
         const url  = s.webUrl || '';
-        const path = url ? new URL(url).pathname : '';
-        const desc = s.description ? '<br><span class="text-muted" style="font-size:.78rem">' + s.description.substring(0, 80) + '</span>' : '';
-        return '<button type="button" class="sp-site-item d-block w-100 text-start border-0 border-bottom px-2 py-2 bg-transparent" '
-             + 'style="cursor:pointer;transition:background .1s" '
-             + 'onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'\'" '
-             + 'data-url="' + url + '">'
+        const path = url ? (() => { try { return new URL(url).pathname; } catch(e) { return url; } })() : '';
+        const desc = s.description
+            ? '<br><span class="text-muted" style="font-size:.77rem">'
+              + s.description.substring(0, 90) + (s.description.length > 90 ? '…' : '') + '</span>'
+            : '';
+        return '<button type="button" class="sp-site-item d-block w-100 text-start border-0 border-bottom px-3 py-2 bg-transparent" '
+             + 'style="cursor:pointer;transition:background .12s" '
+             + 'onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'\'" '
+             + 'data-url="' + url.replace(/"/g, '&quot;') + '">'
              + '<div class="fw-semibold small">' + name + '</div>'
-             + '<div class="text-muted font-monospace" style="font-size:.75rem">' + path + '</div>'
+             + '<div class="text-muted font-monospace" style="font-size:.74rem">' + path + '</div>'
              + desc
              + '</button>';
     }).join('');
@@ -449,32 +465,52 @@ function renderSitesList(sites, filterVal) {
     list.querySelectorAll('.sp-site-item').forEach(btn => {
         btn.addEventListener('click', function () {
             const picked = this.dataset.url;
+            // Wstaw URL i pokaż URL row
             document.getElementById('sp_site_url').value = picked;
-            document.getElementById('sp-sites-panel').style.display = 'none';
+            const urlRow = document.getElementById('sp-url-row');
+            urlRow.style.display = '';
+            // Zamknij panel (tylko jeśli był otwarty jako "zmień")
+            const closeBtn = document.getElementById('btn-close-sites');
+            if (closeBtn && closeBtn.style.display !== 'none') {
+                document.getElementById('sp-sites-panel').style.display = 'none';
+            } else {
+                // Tryb pierwszego wyboru — schowaj picker po wyborze
+                document.getElementById('sp-sites-panel').style.display = 'none';
+            }
             // Ukryj propozycję SZOSite
             const proposal = document.getElementById('sp-szosite-proposal');
             if (proposal) proposal.style.display = 'none';
+            log('Wybrano witrynę: ' + picked);
             // Auto-testuj
             document.getElementById('btn-test-sp').click();
         });
     });
 }
 
-// Otwarcie pickera — przycisk "Wybierz…"
-['btn-list-sites', 'btn-list-sites-inline'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('click', openSitesPicker);
-});
+// "Zmień" — otwórz picker gdy URL już ustawiony
+const btnListSites = document.getElementById('btn-list-sites');
+if (btnListSites) btnListSites.addEventListener('click', openSitesPicker);
 
-// Zamknięcie panelu
+// Zamknięcie panelu (tylko gdy jest widoczny przycisk close)
 document.getElementById('btn-close-sites').addEventListener('click', function () {
     document.getElementById('sp-sites-panel').style.display = 'none';
 });
 
 // Filtrowanie listy on-the-fly
 document.getElementById('sp-sites-filter').addEventListener('input', function () {
-    if (_spSitesCache) renderSitesList(_spSitesCache, this.value);
+    if (_spSitesCache && _spSitesCache.length) renderSitesList(_spSitesCache, this.value);
 });
+
+// "Wpisz URL ręcznie…" — pokaż input i schowaj picker
+const btnManual = document.getElementById('btn-manual-url');
+if (btnManual) {
+    btnManual.addEventListener('click', function () {
+        document.getElementById('sp-sites-panel').style.display = 'none';
+        const urlRow = document.getElementById('sp-url-row');
+        urlRow.style.display = '';
+        document.getElementById('sp_site_url').focus();
+    });
+}
 
 // Ukryj propozycję SZOSite
 const _dismissProposal = document.getElementById('btn-szosite-dismiss');
@@ -485,11 +521,10 @@ if (_dismissProposal) {
     });
 }
 
-// Ukryj propozycję gdy wpisano URL ręcznie
-document.getElementById('sp_site_url').addEventListener('input', function () {
-    const p = document.getElementById('sp-szosite-proposal');
-    if (p && this.value.trim()) p.style.display = 'none';
-});
+// Auto-otwórz picker na starcie gdy M365 OK i brak URL
+if (<?= $m365_ok ? 'true' : 'false' ?> && !document.getElementById('sp_site_url').value.trim()) {
+    openSitesPicker();
+}
 
 // ── Test SharePoint ──────────────────────────────────────────────────────────
 document.getElementById('btn-test-sp').addEventListener('click', async function () {
