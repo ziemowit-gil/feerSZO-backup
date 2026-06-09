@@ -589,6 +589,19 @@ $_rc_url     = 'http://localhost:8880/';
 </div>
 </div>
 
+<!-- Szybki link do konfiguratora uprawnień Graph -->
+<div class="card shadow-sm mb-3 border-success">
+<div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div>
+    <h6 class="mb-1"><i class="bi bi-shield-lock text-success"></i> Uprawnienia Microsoft Graph</h6>
+    <small class="text-muted">Sprawdź i skonfiguruj uprawnienia Graph API wymagane przez poszczególne moduły systemu. Weryfikacja przez Azure AD.</small>
+  </div>
+  <a href="<?= APP_URL ?>/admin/graph_permissions.php" class="btn btn-outline-success">
+    <i class="bi bi-list-check me-1"></i>Konfigurator uprawnień
+  </a>
+</div>
+</div>
+
 <!-- Szybki link do kont bez umowy -->
 <div class="card shadow-sm mb-3 border-primary">
 <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">

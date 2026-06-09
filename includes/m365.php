@@ -730,6 +730,91 @@ class M365Graph {
             'delta_link' => $final_delta,
         ];
     }
+
+    // ── Weryfikacja uprawnień Graph ──────────────────────────────────────────
+
+    /**
+     * Zwraca listę aktualnie nadanych uprawnień (Application i Delegated)
+     * dla tej aplikacji w Azure AD.
+     *
+     * Wymaga co najmniej jednego z: Directory.ReadWrite.All, Application.Read.All
+     *
+     * @return array{
+     *   application: string[],
+     *   delegated: string[],
+     *   sp_id: string,
+     *   sp_display_name: string,
+     *   error: string
+     * }
+     */
+    public function get_granted_permissions(): array
+    {
+        $result = [
+            'application'    => [],
+            'delegated'      => [],
+            'sp_id'          => '',
+            'sp_display_name'=> '',
+            'error'          => '',
+        ];
+
+        // 1. Znajdź service principal naszej aplikacji
+        $sp_url  = 'https://graph.microsoft.com/v1.0/servicePrincipals'
+                 . '?$filter=' . rawurlencode("appId eq '{$this->client_id}'")
+                 . '&$select=id,displayName,appId';
+        $sp_resp = $this->http_get($sp_url);
+
+        if (!empty($sp_resp['error'])) {
+            $result['error'] = $sp_resp['error']['message'] ?? json_encode($sp_resp['error']);
+            return $result;
+        }
+        if (empty($sp_resp['value'][0]['id'])) {
+            $result['error'] = 'Nie znaleziono service principal dla podanego Client ID. '
+                             . 'Upewnij się, że aplikacja jest zarejestrowana w tym tenancie.';
+            return $result;
+        }
+
+        $sp = $sp_resp['value'][0];
+        $result['sp_id']           = $sp['id'];
+        $result['sp_display_name'] = $sp['displayName'] ?? '';
+
+        // 2. Pobierz listę ról z Microsoft Graph SP (potrzebna do mapowania GUID → nazwa)
+        $graph_sp_url  = 'https://graph.microsoft.com/v1.0/servicePrincipals'
+                       . '?$filter=' . rawurlencode("displayName eq 'Microsoft Graph'")
+                       . '&$select=id,appRoles,oauth2PermissionScopes&$top=1';
+        $graph_sp_resp = $this->http_get($graph_sp_url);
+        $role_map = [];   // appRole GUID → value (np. "User.ReadWrite.All")
+        $scope_map = [];  // oauth2 scope GUID → value (np. "offline_access")
+        if (!empty($graph_sp_resp['value'][0])) {
+            $gsp = $graph_sp_resp['value'][0];
+            foreach ($gsp['appRoles'] ?? [] as $r) {
+                $role_map[$r['id']] = $r['value'];
+            }
+            foreach ($gsp['oauth2PermissionScopes'] ?? [] as $s) {
+                $scope_map[$s['id']] = $s['value'];
+            }
+        }
+
+        // 3. appRoleAssignments = Application permissions z admin consent
+        $ars_url  = "https://graph.microsoft.com/v1.0/servicePrincipals/{$result['sp_id']}/appRoleAssignments";
+        $ars_resp = $this->http_get($ars_url);
+        foreach ($ars_resp['value'] ?? [] as $a) {
+            $name = $role_map[$a['appRoleId']] ?? $a['appRoleId'];
+            $result['application'][] = $name;
+        }
+
+        // 4. oauth2PermissionGrants = Delegated permissions (scope strings space-separated)
+        $og_url  = "https://graph.microsoft.com/v1.0/servicePrincipals/{$result['sp_id']}/oauth2PermissionGrants";
+        $og_resp = $this->http_get($og_url);
+        foreach ($og_resp['value'] ?? [] as $grant) {
+            foreach (array_filter(explode(' ', $grant['scope'] ?? '')) as $scope) {
+                if (!in_array($scope, $result['delegated'], true)) {
+                    $result['delegated'][] = $scope;
+                }
+            }
+        }
+
+        return $result;
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
