@@ -167,7 +167,7 @@ feer-redis      Up (healthy)
 https://szo.feer.org.pl
 ```
 
-> 🔒 Certyfikat SSL jest automatycznie pobierany z Let's Encrypt (~30 sekund).
+>  Certyfikat SSL jest automatycznie pobierany z Let's Encrypt (~30 sekund).
 > Jeśli widzisz błąd SSL przy pierwszym wejściu — odczekaj chwilę i odśwież.
 
 ---

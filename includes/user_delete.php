@@ -9,8 +9,8 @@
  *  - Nie można usunąć samego siebie (admin web)
  *  - Nie można usunąć ostatniego aktywnego administratora
  *  - Konta M365 — nie są usuwane z Azure AD, tylko rekord lokalny
- *  - Dane powiązane z ON DELETE CASCADE usuwane automatycznie przez SQLite
- *  - Dane z ON DELETE SET NULL — zostają, user_id = NULL
+ *  - Dane FK obsługiwane dynamicznie (PRAGMA foreign_key_list / INFORMATION_SCHEMA)
+ *  - CASCADE → DELETE, SET NULL → NULL, NO ACTION/RESTRICT → próba NULL, fallback DELETE
  */
 
 /**
@@ -172,9 +172,88 @@ function user_delete_execute(int $uid, int $by_uid = 0, string $reason = ''): ar
         }
     } catch (\Throwable $e) {}
 
-    // Usuń — SQLite FK cascades obsługują powiązane rekordy
+    // Usuń — obsługa FK dynamicznie (SQLite i MySQL)
     try {
-        db()->prepare("DELETE FROM users WHERE id = ?")->execute([$uid]);
+        $pdo = db();
+        $db_type = defined('DB_TYPE') ? strtolower(DB_TYPE) : 'sqlite';
+
+        if ($db_type === 'mysql') {
+            // MySQL: CASCADE i SET NULL działają automatycznie.
+            // Znajdź tabele z NO ACTION / RESTRICT które zablokują DELETE.
+            $stmt = $pdo->prepare(
+                "SELECT TABLE_NAME, COLUMN_NAME
+                   FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+                   JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+                     ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                    AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
+                  WHERE kcu.REFERENCED_TABLE_NAME = 'users'
+                    AND kcu.REFERENCED_COLUMN_NAME = 'id'
+                    AND kcu.TABLE_SCHEMA = DATABASE()
+                    AND rc.DELETE_RULE IN ('NO ACTION','RESTRICT')"
+            );
+            $stmt->execute();
+            $blocking = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $pdo->beginTransaction();
+            try {
+                foreach ($blocking as $row) {
+                    $t = $row['TABLE_NAME'];
+                    $c = $row['COLUMN_NAME'];
+                    // Próba SET NULL; jeśli kolumna NOT NULL — DELETE
+                    try {
+                        $pdo->prepare("UPDATE `{$t}` SET `{$c}` = NULL WHERE `{$c}` = ?")->execute([$uid]);
+                    } catch (\Throwable $inner) {
+                        $pdo->prepare("DELETE FROM `{$t}` WHERE `{$c}` = ?")->execute([$uid]);
+                    }
+                }
+                $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$uid]);
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+        } else {
+            // SQLite: wyłącz wymuszanie FK, ręcznie obsłuż wszystkie referencje
+            $pdo->exec('PRAGMA foreign_keys = OFF');
+            $pdo->beginTransaction();
+            try {
+                $tables = $pdo->query(
+                    "SELECT name FROM sqlite_master
+                      WHERE type='table'
+                        AND name NOT LIKE 'sqlite_%'
+                        AND name != 'users'"
+                )->fetchAll(\PDO::FETCH_COLUMN);
+
+                foreach ($tables as $table) {
+                    $fks = $pdo->query("PRAGMA foreign_key_list(`{$table}`)")->fetchAll(\PDO::FETCH_ASSOC);
+                    foreach ($fks as $fk) {
+                        if (strtolower($fk['table']) !== 'users') continue;
+                        $col    = $fk['from'];
+                        $action = strtoupper($fk['on_delete'] ?? 'NO ACTION');
+                        if ($action === 'CASCADE') {
+                            $pdo->prepare("DELETE FROM `{$table}` WHERE `{$col}` = ?")->execute([$uid]);
+                        } elseif ($action === 'SET NULL') {
+                            $pdo->prepare("UPDATE `{$table}` SET `{$col}` = NULL WHERE `{$col}` = ?")->execute([$uid]);
+                        } else {
+                            // NO ACTION / RESTRICT — próba SET NULL, fallback DELETE
+                            try {
+                                $pdo->prepare("UPDATE `{$table}` SET `{$col}` = NULL WHERE `{$col}` = ?")->execute([$uid]);
+                            } catch (\Throwable $inner) {
+                                $pdo->prepare("DELETE FROM `{$table}` WHERE `{$col}` = ?")->execute([$uid]);
+                            }
+                        }
+                    }
+                }
+
+                $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$uid]);
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
+            } finally {
+                $pdo->exec('PRAGMA foreign_keys = ON');
+            }
+        }
     } catch (\Throwable $e) {
         return ['ok' => false, 'msg' => 'Błąd usuwania: ' . $e->getMessage()];
     }
