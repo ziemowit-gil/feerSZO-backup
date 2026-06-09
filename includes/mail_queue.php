@@ -2,8 +2,12 @@
 /**
  * Mail Queue — kolejka asynchronicznych powiadomień e-mail.
  *
- * Tabela mail_queue tworzona przez auto-migrację poniżej.
- * Wywołaj mail_queue_process() z cron/mail_queue.php lub z admina.
+ * SQLite = źródło prawdy (historia, retry, anulowanie, panel admina).
+ * RabbitMQ = kanał dostarczania: po INSERT publikowany jest mail_id,
+ *            konsumer crona pobiera wiadomość z SQLite po id i wysyła.
+ *
+ * Gdy RabbitMQ jest niedostępny, mail_queue_process() odpada do
+ * pollingu SQLite — kolejka działa bez przerwy.
  */
 
 // ── Auto-migracja ─────────────────────────────────────────────────────────────
@@ -113,6 +117,7 @@ function mail_queue_add(
     //  a) flaga $immediate = true
     //  b) mała wiadomość (< 50 KB treści HTML) i brak zaplanowanego czasu
     $is_small = strlen($body_html) < 51200;
+    $sent_immediately = false;
     if (!$scheduled_at && ($immediate || $is_small)) {
         try {
             $msg = db_one("SELECT * FROM mail_queue WHERE id=?", [$mail_id]);
@@ -120,22 +125,59 @@ function mail_queue_add(
                 $ok = _mail_send($msg);
                 if ($ok) {
                     db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$mail_id]);
+                    $sent_immediately = true;
                 }
             }
         } catch (\Throwable $e) {
-            // Przy błędzie zostaje status='pending' — cron ponowi
+            // Przy błędzie zostaje status='pending' — RabbitMQ / cron ponowi
             db()->prepare("UPDATE mail_queue SET last_error=? WHERE id=?")->execute([$e->getMessage(), $mail_id]);
         }
+    }
+
+    // Jeśli nie wysłano natychmiast → opublikuj id w kolejce RabbitMQ
+    if (!$sent_immediately) {
+        _mail_queue_publish($mail_id);
     }
 
     return $mail_id;
 }
 
 /**
- * Przetwarza kolejkę — wysyła do $batch_size wiadomości.
- * Zwraca ['sent'=>N, 'failed'=>N].
+ * Przetwarza kolejkę — konsumuje z RabbitMQ (lub odpada do SQLite polling).
+ * Zwraca ['sent'=>N, 'failed'=>N, 'source'=>'rabbitmq'|'db'].
  */
-function mail_queue_process(int $batch_size = 20): array {
+function mail_queue_process(int $batch_size = 20): array
+{
+    // Próba konsumpcji z RabbitMQ
+    try {
+        if (file_exists(__DIR__ . '/rabbitmq.php')) {
+            require_once __DIR__ . '/rabbitmq.php';
+        }
+        $sent = $failed = 0;
+        rabbit_consume_batch('mail.send', function (array $payload) use (&$sent, &$failed): bool {
+            $mail_id = (int)($payload['id'] ?? 0);
+            if (!$mail_id) return true; // odrzuć uszkodzoną wiadomość
+
+            $msg = db_one("SELECT * FROM mail_queue WHERE id=? AND status='pending'", [$mail_id]);
+            if (!$msg) return true; // już wysłana lub anulowana
+
+            return _mail_queue_send_one($msg, $sent, $failed);
+        }, $batch_size);
+
+        return ['sent' => $sent, 'failed' => $failed, 'source' => 'rabbitmq'];
+    } catch (\Throwable $e) {
+        error_log('[mail_queue] RabbitMQ niedostępny, fallback na SQLite: ' . $e->getMessage());
+    }
+
+    // Fallback: polling SQLite
+    return mail_queue_process_db($batch_size);
+}
+
+/**
+ * Procesuje kolejkę wyłącznie przez polling SQLite (fallback / tryb bez RabbitMQ).
+ */
+function mail_queue_process_db(int $batch_size = 20): array
+{
     $pending = db_all(
         "SELECT * FROM mail_queue WHERE status='pending' AND scheduled_at <= datetime('now')
          ORDER BY scheduled_at LIMIT ?", [$batch_size]
@@ -143,29 +185,53 @@ function mail_queue_process(int $batch_size = 20): array {
 
     $sent = $failed = 0;
     foreach ($pending as $msg) {
-        db()->prepare("UPDATE mail_queue SET status='sending' WHERE id=?")->execute([$msg['id']]);
-        try {
-            $ok = _mail_send($msg);
-            if ($ok) {
-                db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$msg['id']]);
-                $sent++;
-            } else {
-                throw new \RuntimeException('mail() zwróciło false');
-            }
-        } catch (\Throwable $e) {
-            $retry = (int)$msg['retry_count'] + 1;
-            $new_status = $retry >= 5 ? 'failed' : 'pending';
-            // Exponential backoff: 5, 15, 60, 240 min
-            $delays = [0, 5, 15, 60, 240];
-            $delay  = $delays[min($retry, 4)];
-            db()->prepare(
-                "UPDATE mail_queue SET status=?,retry_count=?,last_error=?,
-                 scheduled_at=datetime('now','+'||?||' minutes') WHERE id=?"
-            )->execute([$new_status, $retry, $e->getMessage(), $delay, $msg['id']]);
-            $failed++;
-        }
+        _mail_queue_send_one($msg, $sent, $failed);
     }
-    return ['sent' => $sent, 'failed' => $failed];
+    return ['sent' => $sent, 'failed' => $failed, 'source' => 'db'];
+}
+
+/** Wysyła jedną wiadomość i aktualizuje status w SQLite. Modyfikuje $sent/$failed przez referencję. */
+function _mail_queue_send_one(array $msg, int &$sent, int &$failed): bool
+{
+    db()->prepare("UPDATE mail_queue SET status='sending' WHERE id=?")->execute([$msg['id']]);
+    try {
+        $ok = _mail_send($msg);
+        if ($ok) {
+            db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$msg['id']]);
+            $sent++;
+            return true;
+        }
+        throw new \RuntimeException('mail() zwróciło false');
+    } catch (\Throwable $e) {
+        $retry = (int)$msg['retry_count'] + 1;
+        $new_status = $retry >= 5 ? 'failed' : 'pending';
+        // Exponential backoff: 5, 15, 60, 240 min
+        $delays = [0, 5, 15, 60, 240];
+        $delay  = $delays[min($retry, 4)];
+        db()->prepare(
+            "UPDATE mail_queue SET status=?,retry_count=?,last_error=?,
+             scheduled_at=datetime('now','+'||?||' minutes') WHERE id=?"
+        )->execute([$new_status, $retry, $e->getMessage(), $delay, $msg['id']]);
+        $failed++;
+        // Przy retry < 5 wróć do RabbitMQ — cron ponowi
+        if ($new_status === 'pending') {
+            _mail_queue_publish((int)$msg['id']);
+        }
+        return false;
+    }
+}
+
+/** Publikuje mail_id do RabbitMQ; cicho ignoruje błąd (wiadomość zostaje w SQLite pending). */
+function _mail_queue_publish(int $mail_id): void
+{
+    try {
+        if (file_exists(__DIR__ . '/rabbitmq.php')) {
+            require_once __DIR__ . '/rabbitmq.php';
+        }
+        rabbit_publish('mail.send', ['id' => $mail_id]);
+    } catch (\Throwable $e) {
+        error_log('[mail_queue] publish RabbitMQ failed (id=' . $mail_id . '): ' . $e->getMessage());
+    }
 }
 
 function mail_queue_stats(): array {

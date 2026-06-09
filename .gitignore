@@ -16,3 +16,4 @@ tenants/*/master.db
 *.log
 .install.lock
 .claude
+docker/.env

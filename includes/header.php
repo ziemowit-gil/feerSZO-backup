@@ -571,6 +571,18 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
      href="<?= APP_URL ?>/panel/password.php">
     <i class="bi bi-gear"></i> Ustawienia konta
   </a>
+  <?php
+  $_ika_sb_fresh = db_one("SELECT cpc_code, kdok_ikaks_hash, ika_setup_token, ika_setup_token_expires FROM users WHERE id=?", [(int)$_user['id']]);
+  $_ika_sb_has_token = !empty($_ika_sb_fresh['ika_setup_token']) && !empty($_ika_sb_fresh['ika_setup_token_expires']) && $_ika_sb_fresh['ika_setup_token_expires'] > date('Y-m-d H:i:s');
+  $_ika_sb_missing = empty($_ika_sb_fresh['cpc_code']) || empty($_ika_sb_fresh['kdok_ikaks_hash']);
+  if ($_ika_sb_has_token || $_ika_sb_missing): ?>
+  <a class="sb-link<?= _nav_active('/panel/set_my_codes') ?>"
+     href="<?= APP_URL ?>/panel/set_my_codes.php"
+     style="<?= $_ika_sb_has_token ? 'color:#F59E0B!important' : '' ?>">
+    <i class="bi bi-shield-plus<?= $_ika_sb_has_token ? ' text-warning' : '' ?>"></i>
+    Kody autoryzacyjne<?= $_ika_sb_has_token ? ' <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Token!</span>' : '' ?>
+  </a>
+  <?php endif; ?>
 
   <?php else: ?>
   <!-- ══ WIDOK EDYTORA / ADMINA ════════════════════════════════════ -->

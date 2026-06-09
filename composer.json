@@ -7,6 +7,7 @@
         "bacon/bacon-qr-code": "^2.0",
         "n1ebieski/ksef-php-client": "*",
         "nyholm/psr7": "^1.8",
+        "php-amqplib/php-amqplib": "^3.7",
         "php-http/curl-client": "^2.4",
         "phpoffice/phpword": "^1.4",
         "picqer/php-barcode-generator": "^2.4",

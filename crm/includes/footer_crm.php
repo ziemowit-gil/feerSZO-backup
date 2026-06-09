@@ -28,21 +28,30 @@ $_org_name_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 </div><!-- /crm-shell -->
 
 <script>
-// Mobile: hamburger toggle sidebara
-(function() {
-  var btn = document.getElementById('crmSidebarToggle');
+(function () {
+  var btn     = document.getElementById('crmSidebarToggle');
   var sidebar = document.getElementById('crmSidebar');
+
+  // Mobile: hamburger toggle sidebara
   if (btn && sidebar) {
-    btn.addEventListener('click', function() {
-      sidebar.classList.toggle('open');
+    btn.addEventListener('click', function () {
+      var open = sidebar.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.setAttribute('aria-label', open ? 'Zamknij nawigację' : 'Otwórz nawigację');
     });
-    // Zamknij po kliknięciu poza sidebarem
-    document.addEventListener('click', function(e) {
-      if (!sidebar.contains(e.target) && !btn.contains(e.target)) {
+    document.addEventListener('click', function (e) {
+      if (!sidebar.contains(e.target) && !btn.contains(e.target) && sidebar.classList.contains('open')) {
         sidebar.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-label', 'Otwórz nawigację');
       }
     });
   }
+
+  // aria-current="page" na aktywnym linku nawigacyjnym
+  document.querySelectorAll('.crm-nav-item.active').forEach(function (a) {
+    a.setAttribute('aria-current', 'page');
+  });
 })();
 </script>
 </body>

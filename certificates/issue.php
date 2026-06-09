@@ -220,7 +220,7 @@ include dirname(__DIR__) . '/includes/header.php';
 
         <div class="d-flex gap-2 pt-1">
           <button type="submit" class="btn btn-success">
-            <i class="bi bi-send-check"></i> Wydaj i wyślij e-mailem
+            <i class="bi bi-send-check"></i> Wydaj zaświadczenie 
           </button>
         </div>
       </form>

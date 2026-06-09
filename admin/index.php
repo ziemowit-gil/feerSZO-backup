@@ -227,6 +227,8 @@ $groups = [
         'color' => 'slate',
         'items' => [
             ['icon'=>'bi-microsoft',            'label'=>'Microsoft 365',            'url'=>'/admin/m365.php'],
+            ['icon'=>'bi-cloud-arrow-up',       'label'=>'SharePoint Backup',        'url'=>'/admin/sp_onboarding.php'],
+            ['icon'=>'bi-cloud-upload',         'label'=>'SharePoint — pliki',       'url'=>'/admin/sharepoint_settings.php'],
             ['icon'=>'bi-palette2',             'label'=>'Canva Pro',                'url'=>'/admin/canva.php'],
             ['icon'=>'bi-trello',               'label'=>'Import z Trello',          'url'=>'/admin/trello_import.php'],
             ['icon'=>'bi-key-fill',             'label'=>'Klucze API',               'url'=>'/admin/api_keys.php'],

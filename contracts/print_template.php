@@ -107,7 +107,6 @@ body {
 /* ── Tytuł szablonu ── */
 .doc-title-wrap {
     text-align: center; padding: .6rem 0 .5rem;
-    margin-bottom: .9rem; border-bottom: 1px solid #aaa;
 }
 .doc-title { font-size: 1.15rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
 
@@ -231,9 +230,7 @@ body {
       </div>
     </div>
     <div class="doc-org-ref">
-      <?php if (!empty($row['numer_umowy'])): ?>
-      <div class="doc-org-ref-num"><?= h($row['numer_umowy']) ?></div>
-      <?php endif; ?>
+      
       <div class="doc-org-ref-date"><?= h($org_city ?: 'Miejscowość') ?>, <?= $doc_date ?></div>
     </div>
   </div>

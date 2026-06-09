@@ -580,6 +580,156 @@ class M365Graph {
             default       => 'application/octet-stream',
         };
     }
+
+    // ══ OUTLOOK CONTACTS (delta sync) ════════════════════════════════════════
+
+    /**
+     * Pobiera kontakty użytkownika z Outlooka (pełna lista lub delta).
+     * Wymaga uprawnienia aplikacji: Contacts.Read
+     *
+     * @param string      $user_id    Azure AD User ID (GUID) lub UPN
+     * @param string|null $delta_link URL z poprzedniej synch (null = pełna lista)
+     * @return array ['contacts' => [...], 'delta_link' => '...', 'next_link' => '...']
+     */
+    public function get_outlook_contacts(string $user_id, ?string $delta_link = null): array
+    {
+        $select = implode(',', [
+            'id','displayName','givenName','surname',
+            'emailAddresses','mobilePhone','businessPhones',
+            'jobTitle','companyName',
+            'homeAddress','businessAddress','otherAddress',
+            'birthday','personalNotes','lastModifiedDateTime',
+        ]);
+
+        $url = $delta_link
+            ?? "https://graph.microsoft.com/v1.0/users/{$user_id}/contacts/delta?\$select={$select}&\$top=100";
+
+        $all_contacts = [];
+        $next_link    = null;
+        $final_delta  = null;
+
+        while ($url) {
+            $resp = $this->http_get($url);
+            foreach ($resp['value'] ?? [] as $c) {
+                $all_contacts[] = $c;
+            }
+            if (!empty($resp['@odata.nextLink'])) {
+                $url = $resp['@odata.nextLink'];
+            } elseif (!empty($resp['@odata.deltaLink'])) {
+                $final_delta = $resp['@odata.deltaLink'];
+                $url = null;
+            } else {
+                $url = null;
+            }
+        }
+
+        return [
+            'contacts'   => $all_contacts,
+            'delta_link' => $final_delta,
+        ];
+    }
+
+    // ══ OUTLOOK CALENDARS ════════════════════════════════════════════════════
+
+    /**
+     * Pobiera listę kalendarzy użytkownika.
+     * Wymaga: Calendars.Read
+     */
+    public function get_calendars(string $user_id): array
+    {
+        $url  = "https://graph.microsoft.com/v1.0/users/{$user_id}/calendars?\$select=id,name,color,isDefaultCalendar&\$top=50";
+        $resp = $this->http_get($url);
+        return $resp['value'] ?? [];
+    }
+
+    /**
+     * Pobiera eventy kalendarza użytkownika w danym zakresie dat.
+     * Wymaga: Calendars.Read
+     *
+     * @param string $user_id     Azure AD User ID lub UPN
+     * @param string $start       ISO8601 np. "2025-01-01T00:00:00"
+     * @param string $end         ISO8601 np. "2026-12-31T23:59:59"
+     * @param string $calendar_id Puste = domyślny kalendarz
+     * @return array ['events' => [...], 'delta_link' => '...']
+     */
+    public function get_calendar_events(string $user_id, string $start, string $end, string $calendar_id = ''): array
+    {
+        $select = implode(',', [
+            'id','subject','body','start','end','location',
+            'isAllDay','isCancelled','sensitivity',
+            'organizer','attendees','categories',
+            'recurrence','seriesMasterId','type',
+            'lastModifiedDateTime','createdDateTime',
+        ]);
+
+        $filter = urlencode("start/dateTime ge '{$start}' and end/dateTime le '{$end}'");
+
+        $base = $calendar_id
+            ? "https://graph.microsoft.com/v1.0/users/{$user_id}/calendars/{$calendar_id}/events"
+            : "https://graph.microsoft.com/v1.0/users/{$user_id}/calendar/events";
+
+        $url = "{$base}?\$select={$select}&\$filter={$filter}&\$top=100&\$orderby=start/dateTime";
+
+        $all_events = [];
+        while ($url) {
+            $resp = $this->http_get($url);
+            foreach ($resp['value'] ?? [] as $ev) {
+                $all_events[] = $ev;
+            }
+            $url = $resp['@odata.nextLink'] ?? null;
+        }
+
+        return ['events' => $all_events];
+    }
+
+    /**
+     * Delta-sync kalendarza (pełna lista lub tylko zmiany od ostatniej synch).
+     * Wymaga: Calendars.Read
+     */
+    public function get_calendar_events_delta(string $user_id, string $calendar_id = '', ?string $delta_link = null): array
+    {
+        $select = implode(',', [
+            'id','subject','body','start','end','location',
+            'isAllDay','isCancelled','categories',
+            'recurrence','seriesMasterId','type',
+            'lastModifiedDateTime',
+        ]);
+
+        if ($delta_link) {
+            $url = $delta_link;
+        } else {
+            $base = $calendar_id
+                ? "https://graph.microsoft.com/v1.0/users/{$user_id}/calendarView/delta"
+                : "https://graph.microsoft.com/v1.0/users/{$user_id}/calendarView/delta";
+            // calendarView/delta wymaga startDateTime i endDateTime
+            $start = date('Y-m-d\T00:00:00', strtotime('-90 days'));
+            $end   = date('Y-m-d\T23:59:59', strtotime('+365 days'));
+            $url   = "{$base}?startDateTime={$start}&endDateTime={$end}&\$select={$select}&\$top=100";
+        }
+
+        $all_events  = [];
+        $final_delta = null;
+
+        while ($url) {
+            $resp = $this->http_get($url);
+            foreach ($resp['value'] ?? [] as $ev) {
+                $all_events[] = $ev;
+            }
+            if (!empty($resp['@odata.nextLink'])) {
+                $url = $resp['@odata.nextLink'];
+            } elseif (!empty($resp['@odata.deltaLink'])) {
+                $final_delta = $resp['@odata.deltaLink'];
+                $url = null;
+            } else {
+                $url = null;
+            }
+        }
+
+        return [
+            'events'     => $all_events,
+            'delta_link' => $final_delta,
+        ];
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

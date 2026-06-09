@@ -187,13 +187,13 @@ function generate_certificate_content(string $type, array $row, array $req): str
     elseif (!empty($row['zakres_uslug']))        $przedmiot = $row['zakres_uslug'];
 
     // Akapit 1 — kto, co, kiedy
-    $p1 = "Niniejszym zaświadcza się, że Pan/Pani {$name} był/była wolontariuszem/wolontariuszką "
-        . "w {$org} na podstawie Porozumienia o Wolontariacie nr {$nr}, "
+    $p1 = "Niniejszym zaświadcza się, że Pan/Pani {$name} jest wolontariuszem/wolontariuszką "
+        . "w {$org} na podstawie porozumienia o Wolontariacie nr {$nr}, "
         . "zawartego w dniu {$dz}.";
 
     // Akapit 2 — okres
     if (!empty($row['bezterminowa'])) {
-        $p2 = "Porozumienie zawarto na czas nieokreślony, obowiązujące od dnia {$od}.";
+        $p2 = "Porozumienie zawarto na czas nieokreślony,  od dnia {$od}.";
     } else {
         $p2 = "Okres wolontariatu: od {$od} do {$do}.";
     }
@@ -209,7 +209,6 @@ function generate_certificate_content(string $type, array $row, array $req): str
         $parts = [];
         if ($h_week) $parts[] = "wymiar: {$h_week} godz./tydzień";
         if ($h_tot)  $parts[] = "przepracowanych łącznie: {$h_tot} godz.";
-        $p4 = 'Ewidencja czasu pracy wolontariusza: ' . implode(', ', $parts) . '.';
     }
 
     // Akapit 5 — cel

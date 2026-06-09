@@ -295,6 +295,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: manage_cpc.php?cert_generated=1#k30-section'); exit;
     }
 
+    // ── gen_setup_token — jednorazowy AdminCode do self-service ustawiania IKA+IKAKS ─
+    if ($action === 'gen_setup_token') {
+        if (!$target) {
+            flash_set('danger', 'Nie znaleziono użytkownika.');
+            header('Location: manage_cpc.php'); exit;
+        }
+        $token = cpc_setup_token_generate($target_id);
+        $target_name = _display_name($target);
+        log_system_action($me_id, 'ika_setup_token_gen',
+            "Admin wygenerował token konfiguracyjny IKA/IKAKS dla użytkownika ID:{$target_id} ({$target_name}).");
+        auth_start();
+        $_SESSION['_ika_setup_token'] = [
+            'uid'   => $target_id,
+            'name'  => $target_name,
+            'email' => db_one("SELECT email FROM users WHERE id=?", [$target_id])['email'] ?? '',
+            'token' => $token,
+        ];
+        header('Location: manage_cpc.php?setup_token=1#ika-result'); exit;
+    }
+
     // Unknown action
     flash_set('danger', 'Nieznana akcja.');
     header('Location: manage_cpc.php');
@@ -318,6 +338,13 @@ $ika_result = null;
 if (!empty($_GET['ika_set'])) {
     $ika_result = $_SESSION['_ika_generated'] ?? null;
     unset($_SESSION['_ika_generated']);
+}
+
+// Odczyt jednorazowego tokenu konfiguracyjnego
+$setup_token_result = null;
+if (!empty($_GET['setup_token'])) {
+    $setup_token_result = $_SESSION['_ika_setup_token'] ?? null;
+    unset($_SESSION['_ika_setup_token']);
 }
 
 // CRM-only użytkownicy wymagający IKA
@@ -400,6 +427,47 @@ include dirname(__DIR__) . '/includes/header.php';
         <strong>Kod widoczny jednorazowo.</strong>
         Po odświeżeniu strony nie będzie możliwy do odczytania z tego miejsca.
         Przekaż go użytkownikowi osobiście lub szyfrowanym kanałem.
+      </span>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($setup_token_result): ?>
+<div class="card border-warning shadow mb-4" id="ika-result">
+  <div class="card-header bg-warning text-dark fw-bold d-flex align-items-center gap-2">
+    <i class="bi bi-qr-code fs-5"></i>
+    Token konfiguracyjny wygenerowany — przekaż użytkownikowi
+  </div>
+  <div class="card-body">
+    <div class="row align-items-center g-3">
+      <div class="col-md-6">
+        <div class="mb-1 text-muted small">Użytkownik</div>
+        <div class="fw-bold fs-6"><?= h($setup_token_result['name']) ?></div>
+        <div class="text-muted small"><?= h($setup_token_result['email']) ?></div>
+      </div>
+      <div class="col-md-6 text-center">
+        <div class="mb-1 text-muted small">AdminCode (jednorazowy, ważny 48 h)</div>
+        <div id="setup-token-val"
+             class="font-monospace fw-bold text-warning"
+             style="font-size:2.1rem;letter-spacing:.25em;line-height:1">
+          <?= h($setup_token_result['token']) ?>
+        </div>
+        <div class="d-flex gap-2 justify-content-center mt-2 flex-wrap">
+          <button type="button" class="btn btn-sm btn-outline-warning"
+                  onclick="navigator.clipboard.writeText('<?= h($setup_token_result['token']) ?>').then(()=>this.innerHTML='✓ Skopiowano').catch(()=>{})">
+            <i class="bi bi-clipboard me-1"></i>Kopiuj
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-warning py-2 mb-0 mt-3 small d-flex gap-2">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+      <span>
+        <strong>Token widoczny jednorazowo.</strong>
+        Przekaż go użytkownikowi — wpisze go na stronie
+        <a href="<?= APP_URL ?>/panel/set_my_codes.php" target="_blank">/panel/set_my_codes.php</a>
+        razem ze swoim nowym kodem IKA i IKAKS. Token wygasa po 48 godzinach lub po pierwszym użyciu.
       </span>
     </div>
   </div>
@@ -654,13 +722,24 @@ function toggleIka(uid, btn) {
                     aria-controls="<?= $collapse_id ?>">
               <i class="bi bi-key"></i> Zmień kod IKA
             </button>
+            <!-- Token konfiguracyjny do self-service -->
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="gen_setup_token">
+              <input type="hidden" name="user_id" value="<?= $uid ?>">
+              <button type="submit"
+                      class="btn btn-sm btn-outline-warning"
+                      title="Wygeneruj jednorazowy AdminCode — użytkownik sam ustawi IKA i IKAKS">
+                <i class="bi bi-qr-code"></i> Token konfiguracyjny
+              </button>
+            </form>
             <!-- Unieważnij sesję IKA -->
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
               <input type="hidden" name="_action"  value="revoke_ika">
               <input type="hidden" name="user_id"  value="<?= $uid ?>">
               <button type="submit"
-                      class="btn btn-sm btn-outline-warning"
+                      class="btn btn-sm btn-outline-secondary"
                       title="Wymusza ponowną weryfikację kodu IKA przy następnej operacji"
                       onclick="return confirm('Unieważnić sesję IKA dla <?= h(addslashes($display)) ?>?\nUżytkownik będzie musiał ponownie wpisać kod IKA.')">
                 <i class="bi bi-slash-circle"></i> Unieważnij sesję

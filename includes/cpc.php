@@ -59,6 +59,8 @@ function cpc_migrate(): void {
         'is_standalone_volunteer'   => "ALTER TABLE users ADD COLUMN is_standalone_volunteer INTEGER NOT NULL DEFAULT 0",
         'ika_email_otp'             => "ALTER TABLE users ADD COLUMN ika_email_otp TEXT NULL",
         'ika_email_otp_expires'     => "ALTER TABLE users ADD COLUMN ika_email_otp_expires DATETIME NULL",
+        'ika_setup_token'           => "ALTER TABLE users ADD COLUMN ika_setup_token TEXT NULL",
+        'ika_setup_token_expires'   => "ALTER TABLE users ADD COLUMN ika_setup_token_expires DATETIME NULL",
         'm365_login'                => "ALTER TABLE users ADD COLUMN m365_login TEXT NULL",
         'moodle_login'              => "ALTER TABLE users ADD COLUMN moodle_login TEXT NULL",
         'm365_security_group_id'    => "ALTER TABLE users ADD COLUMN m365_security_group_id TEXT NULL",
@@ -303,6 +305,40 @@ function cpc_verify(int $user_id, string $input_code): array {
  */
 function cpc_generate(): string {
     return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+}
+
+// =============================================================================
+// 2b. TOKEN KONFIGURACYJNY (AdminCode do samodzielnego ustawiania IKA + IKAKS)
+// =============================================================================
+
+/**
+ * Generuje jednorazowy token konfiguracyjny dla użytkownika.
+ * Token jest zapamiętywany w plain text (jednorazowy, krótkotrwały).
+ * Ważność: 48 h. Zwraca czytelny token do przekazania użytkownikowi.
+ */
+function cpc_setup_token_generate(int $user_id, int $hours = 48): string {
+    $token   = strtoupper(bin2hex(random_bytes(5))); // 10 hex chars, łatwe do przepisania
+    $expires = date('Y-m-d H:i:s', time() + $hours * 3600);
+    db()->prepare("UPDATE users SET ika_setup_token=?, ika_setup_token_expires=? WHERE id=?")
+        ->execute([$token, $expires, $user_id]);
+    return $token;
+}
+
+/**
+ * Weryfikuje token konfiguracyjny. Jeśli poprawny i aktualny — usuwa go i zwraca true.
+ */
+function cpc_setup_token_verify(int $user_id, string $input): bool {
+    $row = db_one("SELECT ika_setup_token, ika_setup_token_expires FROM users WHERE id=?", [$user_id]);
+    if (!$row || empty($row['ika_setup_token'])) return false;
+    if ($row['ika_setup_token_expires'] < date('Y-m-d H:i:s')) {
+        db()->prepare("UPDATE users SET ika_setup_token=NULL, ika_setup_token_expires=NULL WHERE id=?")
+            ->execute([$user_id]);
+        return false;
+    }
+    if (!hash_equals($row['ika_setup_token'], strtoupper(trim($input)))) return false;
+    db()->prepare("UPDATE users SET ika_setup_token=NULL, ika_setup_token_expires=NULL WHERE id=?")
+        ->execute([$user_id]);
+    return true;
 }
 
 // =============================================================================

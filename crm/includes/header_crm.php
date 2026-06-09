@@ -288,6 +288,9 @@ body {
 </head>
 <body>
 
+<!-- Skip link — ułatwia pominięcie nawigacji dla czytników ekranu i klawiatury -->
+<a href="#crmMain" class="skip-link">Przejdź do treści</a>
+
 <!-- ══ Modal: Compose (wyślij wiadomość) ══════════════════════════════════════ -->
 <div class="modal fade" id="crmComposeModal" tabindex="-1" aria-labelledby="crmComposeModalLabel">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -368,6 +371,16 @@ window.openCommModal = function(contactId, channel) {
 
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <header class="crm-topbar" role="banner">
+
+  <!-- Przycisk hamburger (tylko mobile) -->
+  <button type="button"
+          class="crm-sidebar-toggle"
+          id="crmSidebarToggle"
+          aria-controls="crmSidebar"
+          aria-expanded="false"
+          aria-label="Otwórz nawigację">
+    <i class="bi bi-list" aria-hidden="true"></i>
+  </button>
 
   <!-- Brand (lewa część topbara, nad sidebarem) -->
   <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-topbar-brand" aria-label="CRM — dashboard">
@@ -450,6 +463,15 @@ window.openCommModal = function(contactId, channel) {
       <i class="bi bi-send-fill"></i>
       <span>Komunikacja</span>
     </a>
+
+    <?php if (crm_setting('roundcube_url')): ?>
+    <a href="<?= APP_URL ?>/crm/webmail.php"
+       class="crm-nav-item<?= _crm_nav_active('/crm/webmail') ?>"
+       title="FEER Webmail (Roundcube)">
+      <i class="bi bi-envelope-at-fill"></i>
+      <span>Webmail</span>
+    </a>
+    <?php endif; ?>
 
     <a href="<?= APP_URL ?>/crm/mass_send.php"
        class="crm-nav-item<?= _crm_nav_active('/crm/mass_send') ?>">

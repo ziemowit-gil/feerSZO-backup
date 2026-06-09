@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/m365.php';
 
 require_role('admin');
 
@@ -130,9 +131,12 @@ include dirname(__DIR__) . '/includes/header.php';
   </ol>
 </nav>
 
+<?php
+$_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') === '1' && m365_setting('sp_site_url');
+?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-archive me-2 text-primary"></i>Kopie zapasowe</h4>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     <span class="badge bg-secondary align-self-center">Łącznie: <?= h($total_h) ?></span>
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -142,8 +146,21 @@ include dirname(__DIR__) . '/includes/header.php';
         <i class="bi bi-play-circle me-1"></i>Uruchom backup teraz
       </button>
     </form>
+    <button class="btn btn-sm <?= $_sp_enabled ? 'btn-primary' : 'btn-outline-secondary' ?>"
+            id="btn-sp-backup"
+            <?= !$_sp_enabled ? 'disabled' : '' ?>
+            title="<?= $_sp_enabled ? 'Backup bazy SQLite do SharePoint' : 'Skonfiguruj SharePoint, aby włączyć tę funkcję' ?>">
+      <i class="bi bi-cloud-arrow-up me-1"></i>Backup do SharePoint
+    </button>
+    <?php if (!$_sp_enabled): ?>
+    <a href="<?= APP_URL ?>/admin/sp_onboarding.php" class="btn btn-sm btn-outline-primary align-self-center"
+       title="Skonfiguruj SharePoint backup">
+      <i class="bi bi-gear me-1"></i>Skonfiguruj SP
+    </a>
+    <?php endif; ?>
   </div>
 </div>
+<div id="sp-backup-result" class="mb-3" style="display:none"></div>
 
 <?php if ($flash): ?>
 <div class="alert alert-<?= h($flash_type) ?> py-2 small"><?= $flash ?></div>
@@ -220,8 +237,45 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <div class="text-muted small mt-3">
   <i class="bi bi-info-circle me-1"></i>
-  Backupy są przechowywane w <code>backups/YYYY-MM/</code> i niedostępne przez HTTP.
-  Rotacja: pliki starsze niż 30 dni są usuwane automatycznie przez CRON.
+  Backupy lokalne w <code>backups/YYYY-MM/</code>, niedostępne przez HTTP.
+  Rotacja: pliki starsze niż 30 dni usuwane przez CRON.
+  <?php if ($_sp_enabled): ?>
+  &middot; <i class="bi bi-cloud-arrow-up text-primary"></i> SharePoint backup aktywny.
+  <?php else: ?>
+  &middot; <a href="<?= APP_URL ?>/admin/sp_onboarding.php"><i class="bi bi-cloud-arrow-up"></i> Włącz SharePoint backup</a>
+  <?php endif; ?>
 </div>
+
+<?php if ($_sp_enabled): ?>
+<script>
+document.getElementById('btn-sp-backup').addEventListener('click', async function () {
+    if (!confirm('Utworzyć backup bazy danych i wysłać na SharePoint?')) return;
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Tworzę backup…';
+
+    const res = await fetch('<?= APP_URL ?>/admin/api/sp_backup.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'backup' }),
+    }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-arrow-up me-1"></i>Backup do SharePoint';
+
+    const box = document.getElementById('sp-backup-result');
+    box.style.display = 'block';
+    if (res.ok) {
+        const link = res.web_url ? ' <a href="' + res.web_url + '" target="_blank" class="ms-1">Otwórz w SharePoint</a>' : '';
+        box.innerHTML = '<div class="alert alert-success py-2 small mb-0">'
+            + '<i class="bi bi-check-circle-fill me-1"></i>Backup wysłany: <code>'
+            + (res.sp_path || '?') + '</code> (' + (res.size_h || '?') + ')' + link + '</div>';
+    } else {
+        box.innerHTML = '<div class="alert alert-danger py-2 small mb-0">'
+            + '<i class="bi bi-x-circle-fill me-1"></i>' + (res.error || 'Nieznany błąd.') + '</div>';
+    }
+});
+</script>
+<?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

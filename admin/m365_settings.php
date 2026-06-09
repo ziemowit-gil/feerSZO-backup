@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && !empty($_SESSION['m365_autodetect'])
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
-    $tenant_id = m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
+    $tenant_id     = trim($post['m365_tenant_id'] ?? '') ?: m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
     $client_id     = trim($post['m365_graph_client_id']     ?? $cfg['m365_graph_client_id']);
     // Puste pole = zostaw stary secret
     $client_secret = trim($post['m365_graph_client_secret'] ?? '');
@@ -69,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         m365_save_setting('m365_enabled',             trim($post['m365_enabled']          ?? '0'));
         m365_save_setting('m365_graph_client_id',     $client_id);
         if ($client_secret) m365_save_setting('m365_graph_client_secret', $client_secret);
+        if ($tenant_id)     m365_save_setting('m365_tenant_id', $tenant_id);
         m365_save_setting('m365_domain',              $domain);
         m365_save_setting('m365_license_sku_id',      trim($post['m365_license_sku_id']   ?? ''));
         m365_save_setting('m365_sender_user_id',      trim($post['m365_sender_user_id']   ?? ''));
@@ -111,6 +112,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="d-flex gap-2">
     <a href="m365_connect.php" class="btn btn-sm btn-outline-success"><i class="bi bi-plug"></i> Połącz przez OAuth</a>
     <a href="m365_sync.php" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Synchronizacja kont</a>
+    <a href="sharepoint_settings.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cloud-upload"></i> SharePoint</a>
   </div>
 </div>
 
@@ -163,16 +165,17 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <div class="row g-3">
     <div class="col-12">
-      <label class="form-label fw-semibold small">Tenant ID
-        <span class="text-muted fw-normal">
-          <?= m365_setting('m365_tenant_id') ? '(wykryty przez OAuth)' : '(z config.php)' ?>
-        </span>
-      </label>
-      <input type="text" class="form-control form-control-sm font-monospace bg-light"
-        value="<?= h($tenant_id ?: '— nie ustawiono — kliknij „Połącz przez OAuth"') ?>" readonly>
-      <?php if (!$tenant_id): ?>
-      <div class="form-text"><a href="m365_connect.php"><i class="bi bi-plug"></i> Połącz przez OAuth</a>, aby wykryć Tenant ID automatycznie.</div>
-      <?php endif; ?>
+      <label class="form-label fw-semibold small" for="m365_tenant_id">Tenant ID</label>
+      <input type="text" name="m365_tenant_id" id="m365_tenant_id"
+             class="form-control form-control-sm font-monospace"
+             value="<?= h($tenant_id) ?>"
+             placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx lub feer.org.pl">
+      <div class="form-text">
+        Znajdziesz w <a href="https://portal.azure.com/#view/Microsoft_AAD_IAM/TenantPropertiesBlade" target="_blank" rel="noopener">Azure Portal → Azure AD → Properties → Tenant ID</a>.
+        Możesz też wpisać domenę (np. <code>feer.org.pl</code>).
+        Jeśli pole puste używany jest endpoint <code>common</code>.
+        <a href="m365_connect.php" class="ms-2"><i class="bi bi-plug"></i> Wykryj przez OAuth</a>
+      </div>
     </div>
     <div class="col-md-6">
       <label class="form-label fw-semibold small">Client ID (Application ID) <span class="text-danger">*</span></label>
@@ -504,6 +507,86 @@ document.getElementById('m365_enabled')?.addEventListener('change', function() {
     }
 });
 </script>
+
+<!-- ══ SEKCJA: ROUNDCUBE / IMAP OAuth2 ═══════════════════════════════════════ -->
+<?php
+$_rc_tenant  = m365_setting('m365_tenant_id') ?: '&lt;tenant-id&gt;';
+$_rc_cid     = m365_setting('m365_graph_client_id') ?: '&lt;client-id&gt;';
+$_rc_secret_ok = (bool)m365_setting('m365_graph_client_secret');
+$_rc_url     = 'http://localhost:8880/';
+?>
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold d-flex align-items-center gap-2">
+  <i class="bi bi-envelope-at text-primary"></i> Roundcube Webmail — konfiguracja OAuth2 (IMAP/SMTP)
+</div>
+<div class="card-body small">
+  <p class="mb-2 text-muted">
+    Roundcube używa tych samych credentials (Client ID / Secret / Tenant ID) co Graph API,
+    ale wymaga osobnych <strong>uprawnień delegowanych</strong> i <strong>redirect URI</strong> w Azure.
+  </p>
+
+  <h6 class="fw-semibold mb-2">1. Dodaj Redirect URI w Azure Portal</h6>
+  <p class="mb-1">
+    <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/<?= h($_rc_cid) ?>/isMSAApp~/false"
+       target="_blank" rel="noopener">
+      Azure Portal → App registrations → Twoja aplikacja → Authentication → Web → Add URI
+    </a>
+  </p>
+  <div class="d-flex align-items-center gap-2 mb-3 p-2 bg-light border rounded font-monospace">
+    <code class="flex-grow-1 user-select-all"><?= h($_rc_url) ?></code>
+    <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+            onclick="navigator.clipboard.writeText('<?= h($_rc_url) ?>').then(()=>this.textContent='✓').catch(()=>{})"
+            title="Skopiuj">
+      <i class="bi bi-clipboard"></i>
+    </button>
+  </div>
+
+  <h6 class="fw-semibold mb-2">2. Dodaj uprawnienia delegowane (nie Application)</h6>
+  <p class="mb-1 text-muted">Azure → App registrations → API permissions → Add a permission → APIs my organization uses →
+    <strong>Office 365 Exchange Online</strong>:</p>
+  <table class="table table-sm table-bordered mb-3" style="font-size:.8rem">
+    <thead class="table-light"><tr><th>Uprawnienie</th><th>Typ</th><th>Do czego</th></tr></thead>
+    <tbody>
+      <tr><td class="font-monospace">IMAP.AccessAsUser.All</td><td>Delegated</td><td>Odbieranie poczty IMAP</td></tr>
+      <tr><td class="font-monospace">SMTP.Send</td><td>Delegated</td><td>Wysyłanie przez SMTP</td></tr>
+      <tr><td class="font-monospace">offline_access</td><td>Delegated</td><td>Refresh token (długa sesja)</td></tr>
+    </tbody>
+  </table>
+  <div class="alert alert-warning py-2 mb-3 small">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    Po dodaniu uprawnień kliknij <strong>Grant admin consent</strong> (wymaga roli Global Administrator).
+  </div>
+
+  <h6 class="fw-semibold mb-2">3. Aktualny status konfiguracji</h6>
+  <ul class="list-unstyled mb-3" style="font-size:.82rem">
+    <li class="<?= m365_setting('m365_tenant_id') ? 'text-success' : 'text-danger' ?>">
+      <?= m365_setting('m365_tenant_id') ? '✓' : '✗' ?>
+      Tenant ID: <code><?= h(m365_setting('m365_tenant_id') ?: 'brak — wpisz powyżej') ?></code>
+    </li>
+    <li class="<?= m365_setting('m365_graph_client_id') ? 'text-success' : 'text-danger' ?>">
+      <?= m365_setting('m365_graph_client_id') ? '✓' : '✗' ?>
+      Client ID: <code><?= h(m365_setting('m365_graph_client_id') ?: 'brak') ?></code>
+    </li>
+    <li class="<?= $_rc_secret_ok ? 'text-success' : 'text-danger' ?>">
+      <?= $_rc_secret_ok ? '✓' : '✗' ?>
+      Client Secret: <?= $_rc_secret_ok ? 'skonfigurowany' : 'brak — wpisz w formularzu powyżej' ?>
+    </li>
+  </ul>
+
+  <h6 class="fw-semibold mb-1">4. Uruchomienie Roundcube</h6>
+  <div class="font-monospace bg-dark text-light rounded p-2 small mb-2">
+    <span class="text-muted"># W nowym terminalu:</span><br>
+    /Users/zgil/webev-projects/roundcube-src/start.sh
+  </div>
+  <?php if (m365_setting('m365_tenant_id') && m365_setting('m365_graph_client_id') && $_rc_secret_ok): ?>
+  <a href="http://localhost:8880/" target="_blank" rel="noopener" class="btn btn-sm btn-success">
+    <i class="bi bi-envelope-at me-1"></i>Otwórz FEER Webmail
+  </a>
+  <?php else: ?>
+  <div class="text-warning small"><i class="bi bi-exclamation-circle me-1"></i>Uzupełnij Tenant ID i Client Secret, żeby włączyć logowanie przez Microsoft.</div>
+  <?php endif; ?>
+</div>
+</div>
 
 <!-- Szybki link do kont bez umowy -->
 <div class="card shadow-sm mb-3 border-primary">

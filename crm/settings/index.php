@@ -35,12 +35,14 @@ function _crm_setting_save(string $key, string $value): void {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     _crm_setting_save('crm_email_footer', trim($_POST['crm_email_footer'] ?? ''));
+    _crm_setting_save('roundcube_url',    rtrim(trim($_POST['roundcube_url'] ?? ''), '/'));
     flash_set('success', 'Ustawienia CRM zostały zapisane.');
     header('Location: ' . APP_URL . '/crm/settings/');
     exit;
 }
 
 $crm_email_footer = org_setting('crm_email_footer');
+$roundcube_url    = crm_setting('roundcube_url');
 
 include __DIR__ . '/../includes/header_crm.php';
 ?>
@@ -125,6 +127,41 @@ include __DIR__ . '/../includes/header_crm.php';
 
       <button type="submit" class="btn btn-crm-primary">
         <i class="bi bi-check-lg me-1"></i>Zapisz stopkę
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4" style="max-width:780px">
+  <div class="card-body">
+    <div class="crm-section-title">
+      <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Roundcube Webmail
+    </div>
+    <p class="text-muted small mb-3">
+      Jeśli masz zainstalowany Roundcube, wpisz jego adres URL. Na karcie kontaktu pojawi się
+      przycisk <strong>Roundcube</strong>, który otworzy compositor maila z wypełnionym adresem.
+    </p>
+    <form method="post">
+      <input type="hidden" name="_csrf"            value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="crm_email_footer" value="<?= h(org_setting('crm_email_footer')) ?>">
+      <div class="mb-3">
+        <label for="roundcube_url" class="form-label fw-semibold">URL Roundcube</label>
+        <input type="url" class="form-control" id="roundcube_url" name="roundcube_url"
+               value="<?= h($roundcube_url) ?>"
+               placeholder="https://webmail.twojadomena.pl">
+        <div class="form-text">Zostaw puste, jeśli nie korzystasz z Roundcube.</div>
+      </div>
+      <?php if ($roundcube_url): ?>
+      <div class="mb-3">
+        <a href="<?= h($roundcube_url . '/?_task=mail&_action=compose&_to=test@example.com') ?>"
+           class="btn btn-sm btn-outline-secondary"
+           target="_blank" rel="noopener noreferrer">
+          <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Testuj link
+        </a>
+      </div>
+      <?php endif; ?>
+      <button type="submit" class="btn btn-crm-primary">
+        <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz
       </button>
     </form>
   </div>
