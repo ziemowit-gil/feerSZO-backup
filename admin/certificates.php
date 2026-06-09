@@ -13,7 +13,7 @@ $filter = $_GET['status'] ?? '';
 $requests = get_all_certificate_requests($filter);
 
 $counts = [];
-foreach (['', 'oczekuje', 'wydane', 'odrzucone'] as $s) {
+foreach (['', 'oczekuje', 'gotowe', 'esign_oczekuje', 'wydane', 'odrzucone'] as $s) {
     $counts[$s] = count(get_all_certificate_requests($s));
 }
 
@@ -29,10 +29,12 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="mb-3 d-flex gap-2 flex-wrap">
   <?php
   $tabs = [
-      '' => ['label' => 'Wszystkie', 'class' => 'secondary'],
-      'oczekuje'  => ['label' => 'Oczekujące', 'class' => 'warning'],
-      'wydane'    => ['label' => 'Wydane',     'class' => 'success'],
-      'odrzucone' => ['label' => 'Odrzucone',  'class' => 'danger'],
+      ''              => ['label' => 'Wszystkie',            'class' => 'secondary'],
+      'oczekuje'      => ['label' => 'Oczekujące',           'class' => 'warning'],
+      'gotowe'        => ['label' => 'Gotowe (nie wysłane)', 'class' => 'info'],
+      'esign_oczekuje'=> ['label' => 'eSign (oczekuje)',     'class' => 'primary'],
+      'wydane'        => ['label' => 'Wydane',               'class' => 'success'],
+      'odrzucone'     => ['label' => 'Odrzucone',            'class' => 'danger'],
   ];
   foreach ($tabs as $key => $tab):
       $active = $filter === $key ? '' : 'outline-';
@@ -84,6 +86,25 @@ include dirname(__DIR__) . '/includes/header.php';
           <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $req['id'] ?>"
              class="btn btn-sm btn-success">
             <i class="bi bi-award"></i> Wydaj
+          </a>
+          <?php elseif ($req['status'] === 'gotowe'): ?>
+          <form method="post" action="<?= APP_URL ?>/certificates/issue.php" class="d-inline"
+                onsubmit="return confirm('Wysłać zaświadczenie e-mailem do wnioskodawcy?')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="req_id" value="<?= $req['id'] ?>">
+            <input type="hidden" name="action" value="send_now">
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-send-check"></i> Wyślij
+            </button>
+          </form>
+          <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $req['id'] ?>"
+             class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-eye"></i>
+          </a>
+          <?php elseif ($req['status'] === 'esign_oczekuje'): ?>
+          <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $req['id'] ?>"
+             class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pen-fill"></i> DocuSign
           </a>
           <?php elseif ($req['status'] === 'wydane'): ?>
           <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $req['id'] ?>"

@@ -38,19 +38,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($need_file && !$file_path) {
             $error = 'Nie udało się zapisać pliku. Sprawdź, czy załączyłeś/aś plik PDF/JPG/PNG (max 30 MB).';
         } else {
-            $sign_type = in_array($_POST['sign_type'] ?? '', ['elektroniczne','papierowe'], true)
+            $sign_type = in_array($_POST['sign_type'] ?? '', ['elektroniczne','papierowe','esign'], true)
                 ? $_POST['sign_type'] : 'papierowe';
-            issue_certificate(
-                $req_id,
-                $user['id'],
-                $need_text ? $content : '',
-                $need_file ? $file_path : null,
-                $sign_type
-            );
-            flash_set('success', 'Zaświadczenie zostało wydane i wysłane na adres e-mail wnioskodawcy.');
-            header('Location: ' . APP_URL . '/admin/certificates.php');
-            exit;
+
+            if ($sign_type === 'esign' && !$file_path) {
+                $error = 'Tryb eSign (DocuSign) wymaga załączenia pliku PDF do podpisania.';
+            } else {
+                issue_certificate(
+                    $req_id,
+                    $user['id'],
+                    $need_text ? $content : '',
+                    $need_file ? $file_path : null,
+                    $sign_type
+                );
+                $msg = match ($sign_type) {
+                    'esign'         => 'Zaświadczenie przekazane do DocuSign — wnioskodawca otrzyma e-mail po podpisaniu.',
+                    'elektroniczne' => 'Zaświadczenie gotowe. Wysyłka nastąpi po Twojej decyzji.',
+                    default         => (($need_file || ($mode !== 'text')) ? 'Zaświadczenie gotowe. Wysyłka nastąpi po Twojej decyzji.' : 'Zaświadczenie zostało wydane i wysłane na adres e-mail wnioskodawcy.'),
+                };
+                flash_set('success', $msg);
+                header('Location: ' . APP_URL . '/admin/certificates.php');
+                exit;
+            }
         }
+    } elseif ($action === 'send_now') {
+        send_certificate_now($req_id, $user['id']);
+        flash_set('success', 'Zaświadczenie wysłane na adres e-mail wnioskodawcy.');
+        header('Location: ' . APP_URL . '/admin/certificates.php');
+        exit;
     } elseif ($action === 'reject') {
         $note = trim($_POST['rejection_note'] ?? '');
         reject_certificate_request($req_id, $user['id'], $note);
@@ -154,6 +169,14 @@ include dirname(__DIR__) . '/includes/header.php';
               <input type="radio" name="sign_type" value="elektroniczne" <?= $sel_sign === 'elektroniczne' ? 'checked' : '' ?>>
               <span><i class="bi bi-shield-lock me-1"></i>Elektroniczne (ePodpis)</span>
             </label>
+            <label class="d-flex align-items-center gap-2 p-2 border rounded border-primary" style="cursor:pointer;font-size:.88rem">
+              <input type="radio" name="sign_type" value="esign" <?= $sel_sign === 'esign' ? 'checked' : '' ?>>
+              <span><i class="bi bi-pen-fill text-primary me-1"></i>eSign (DocuSign)</span>
+            </label>
+          </div>
+          <div id="esign-info" class="alert alert-info mt-2 py-2 small <?= $sel_sign === 'esign' ? '' : 'd-none' ?>">
+            <i class="bi bi-info-circle"></i>
+            Dokument zostanie wysłany do wnioskodawcy przez DocuSign. E-mail z zaświadczeniem zostanie wysłany <strong>automatycznie po podpisaniu</strong>. Wymagany plik PDF.
           </div>
         </div>
 
@@ -218,9 +241,14 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
         </div>
 
+        <div id="hold-info-file" class="alert alert-warning py-2 small <?= ($sel_mode !== 'text' || ($sel_sign !== 'papierowe' && $sel_sign !== 'esign')) ? '' : 'd-none' ?>">
+          <i class="bi bi-hourglass-split"></i>
+          <strong>Wysyłka wstrzymana:</strong> zaświadczenie zostanie zapisane jako "Gotowe". Wyślesz je ręcznie z listy wniosków.
+        </div>
+
         <div class="d-flex gap-2 pt-1">
           <button type="submit" class="btn btn-success">
-            <i class="bi bi-send-check"></i> Wydaj zaświadczenie 
+            <i class="bi bi-check-circle"></i> Zapisz zaświadczenie
           </button>
         </div>
       </form>
@@ -250,6 +278,88 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <?php elseif ($req['status'] === 'gotowe'): ?>
+  <!-- Gotowe — oczekuje na ręczną wysyłkę przez admina -->
+  <div class="card shadow-sm mb-3 border-info-subtle">
+    <div class="card-header fw-semibold text-info-emphasis bg-info-subtle">
+      <i class="bi bi-hourglass-split"></i> Gotowe — oczekuje na wysyłkę
+      <?= certificate_status_badge($req['status']) ?>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Zaświadczenie zostało przygotowane, ale <strong>nie zostało jeszcze wysłane</strong> do wnioskodawcy.
+        Kliknij poniżej, gdy chcesz je dostarczyć.
+      </p>
+
+      <form method="post" class="mb-3">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="req_id" value="<?= $req_id ?>">
+        <input type="hidden" name="action" value="send_now">
+        <button type="submit" class="btn btn-primary"
+                onclick="return confirm('Wysłać zaświadczenie e-mailem do wnioskodawcy?')">
+          <i class="bi bi-send-check"></i> Wyślij teraz do wnioskodawcy
+        </button>
+      </form>
+
+      <?php if (!empty($req['certificate_file'])): ?>
+      <div class="mb-3">
+        <div class="fw-semibold small mb-2"><i class="bi bi-paperclip"></i> Plik</div>
+        <div class="d-flex gap-2">
+          <a href="<?= h(certificate_file_url($req['certificate_file'])) ?>"
+             target="_blank" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-download"></i> Pobierz plik
+          </a>
+          <?php if (str_ends_with(strtolower($req['certificate_file']), '.pdf')): ?>
+          <a href="<?= h(certificate_file_url($req['certificate_file'])) ?>"
+             target="_blank" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-eye"></i> Otwórz PDF
+          </a>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <?php if (!empty($req['certificate_content'])): ?>
+      <div class="mb-0">
+        <div class="fw-semibold small mb-2"><i class="bi bi-file-text"></i> Treść tekstowa</div>
+        <pre class="bg-light border rounded p-3" style="white-space:pre-wrap;font-size:.85rem"><?= h($req['certificate_content']) ?></pre>
+        <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $req_id ?>"
+           target="_blank" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-printer"></i> Podgląd wydruku
+        </a>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <?php elseif ($req['status'] === 'esign_oczekuje'): ?>
+  <!-- eSign — oczekuje na podpis w DocuSign -->
+  <div class="card shadow-sm mb-3 border-primary-subtle">
+    <div class="card-header fw-semibold text-primary-emphasis bg-primary-subtle">
+      <i class="bi bi-pen-fill"></i> eSign — oczekuje na podpis (DocuSign)
+      <?= certificate_status_badge($req['status']) ?>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Dokument został wysłany do wnioskodawcy przez <strong>DocuSign</strong>.
+        E-mail z zaświadczeniem zostanie wysłany automatycznie po złożeniu podpisu.
+      </p>
+      <?php if (!empty($req['docusign_envelope_id'])): ?>
+      <div class="small text-muted mb-3">
+        <i class="bi bi-tag me-1"></i>Envelope ID: <code><?= h($req['docusign_envelope_id']) ?></code>
+      </div>
+      <?php endif; ?>
+      <?php if (!empty($req['certificate_file'])): ?>
+      <div class="d-flex gap-2">
+        <a href="<?= h(certificate_file_url($req['certificate_file'])) ?>"
+           target="_blank" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-download"></i> Pobierz oryginalny plik
+        </a>
+      </div>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -315,7 +425,25 @@ function updateMode() {
         const radio = card.querySelector('input[type="radio"]');
         card.style.borderColor = radio.checked ? '#198754' : '#dee2e6';
     });
+
+    updateHoldInfo();
 }
+
+function updateHoldInfo() {
+    const mode  = document.querySelector('[name="issue_mode"]:checked')?.value  ?? 'text';
+    const sign  = document.querySelector('[name="sign_type"]:checked')?.value   ?? 'papierowe';
+    const hold  = document.getElementById('hold-info-file');
+    const esign = document.getElementById('esign-info');
+
+    // eSign info
+    if (esign) esign.classList.toggle('d-none', sign !== 'esign');
+
+    // Hold info: show when mode!=text OR sign!=papierowe (but not when esign — different message)
+    const willHold = sign !== 'esign' && (mode !== 'text' || sign !== 'papierowe');
+    if (hold) hold.classList.toggle('d-none', !willHold);
+}
+
+document.querySelectorAll('[name="sign_type"]').forEach(r => r.addEventListener('change', updateHoldInfo));
 
 function resetContent() {
     if (confirm('Przywrócić domyślny tekst? Zmiany zostaną utracone.')) {

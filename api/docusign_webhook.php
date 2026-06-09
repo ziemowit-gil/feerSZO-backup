@@ -12,6 +12,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/docusign.php';
+require_once dirname(__DIR__) . '/includes/certificates.php';
 
 // ── Obsługa redirect po consent ──────────────────────────────────────────────
 if (isset($_GET['consent'])) {
@@ -61,6 +62,53 @@ $status      = strtolower((string)($xml->EnvelopeStatus->Status ?? $xml->Status 
 if (!$envelope_id || !$status) {
     http_response_code(400);
     exit('Missing envelope data');
+}
+
+// ── Sprawdź najpierw zaświadczenia po envelope_id ────────────────────────────
+$cert_req = db_one(
+    "SELECT * FROM certificate_requests WHERE docusign_envelope_id = ?",
+    [$envelope_id]
+);
+if ($cert_req) {
+    if ($status === 'completed' && $cert_req['status'] === 'esign_oczekuje') {
+        try {
+            $ds       = new DocuSignClient();
+            $filename = 'docusign_cert_signed_' . date('Ymd_His') . '_' . substr(md5($envelope_id), 0, 6) . '.pdf';
+            $dir      = UPLOAD_DIR . 'certificates/';
+            if (!is_dir($dir)) mkdir($dir, 0755, true);
+            $save_path = $dir . $filename;
+
+            $ds->download_signed_document($envelope_id, $save_path);
+
+            db()->prepare(
+                "UPDATE certificate_requests
+                 SET certificate_file=?, status='gotowe'
+                 WHERE id=?"
+            )->execute(['certificates/' . $filename, $cert_req['id']]);
+
+            $cert_req['certificate_file'] = 'certificates/' . $filename;
+            send_certificate_now((int)$cert_req['id'], 0);
+        } catch (\Throwable $e) {
+            error_log('DocuSign cert download error for req #' . $cert_req['id'] . ': ' . $e->getMessage());
+        }
+    } elseif (in_array($status, ['declined', 'voided'], true) && $cert_req['status'] === 'esign_oczekuje') {
+        db()->prepare(
+            "UPDATE certificate_requests SET status='gotowe' WHERE id=?"
+        )->execute([$cert_req['id']]);
+    }
+
+    try {
+        require_once dirname(__DIR__) . '/includes/approval.php';
+        $label = DOCUSIGN_STATUS_LABELS[$status] ?? $status;
+        log_contract_action(
+            $cert_req['contract_type'], (int)$cert_req['contract_id'],
+            0, 'docusign_cert_webhook', 'DocuSign zaświadczenie: ' . $label
+        );
+    } catch (\Throwable) {}
+
+    http_response_code(200);
+    echo 'OK';
+    exit;
 }
 
 // ── Szukaj umowy po envelope_id ───────────────────────────────────────────────

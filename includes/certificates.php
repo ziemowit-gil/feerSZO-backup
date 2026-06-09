@@ -5,9 +5,11 @@
     static $done = false;
     if ($done) return;
     $done = true;
-    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN cert_number  TEXT"); } catch (\Throwable $e) {}
-    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN sign_type    TEXT NOT NULL DEFAULT 'papierowe'"); } catch (\Throwable $e) {}
-    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN issued_by_name TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN cert_number          TEXT"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN sign_type            TEXT NOT NULL DEFAULT 'papierowe'"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN issued_by_name       TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN send_at              TEXT"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN docusign_envelope_id TEXT"); } catch (\Throwable $e) {}
 })();
 
 // ── Numeracja: ZAWOL/NNNN/RRRR ───────────────────────────────────────────────
@@ -26,9 +28,11 @@ function cert_next_number(string $prefix = 'ZAWOL'): string {
 }
 
 const CERTIFICATE_STATUSES = [
-    'oczekuje'   => ['label' => 'Oczekuje',  'class' => 'warning'],
-    'wydane'     => ['label' => 'Wydane',    'class' => 'success'],
-    'odrzucone'  => ['label' => 'Odrzucone', 'class' => 'danger'],
+    'oczekuje'       => ['label' => 'Oczekuje',           'class' => 'warning'],
+    'gotowe'         => ['label' => 'Gotowe (nie wysłane)', 'class' => 'info'],
+    'esign_oczekuje' => ['label' => 'Oczekuje na podpis', 'class' => 'primary'],
+    'wydane'         => ['label' => 'Wydane',             'class' => 'success'],
+    'odrzucone'      => ['label' => 'Odrzucone',          'class' => 'danger'],
 ];
 
 function certificate_status_badge(string $status): string {
@@ -94,7 +98,9 @@ function get_certificate_request(int $req_id): ?array {
 
 function get_pending_certificates_count(): int {
     try {
-        return (int) (db_one("SELECT COUNT(*) AS c FROM certificate_requests WHERE status='oczekuje'")['c'] ?? 0);
+        return (int) (db_one(
+            "SELECT COUNT(*) AS c FROM certificate_requests WHERE status IN ('oczekuje','gotowe','esign_oczekuje')"
+        )['c'] ?? 0);
     } catch (\Exception $e) {
         return 0;
     }
@@ -116,6 +122,12 @@ function create_certificate_request(string $type, int $id, ?int $user_id, string
 /**
  * Wydaje zaświadczenie. Przyjmuje treść tekstową i/lub ścieżkę do uploadowanego pliku.
  * Przynajmniej jedno z $content / $file_path musi być niepuste.
+ *
+ * Logika wysyłki:
+ *  - sign_type = 'esign'         → status esign_oczekuje, dokument trafia do DocuSign; e-mail po podpisaniu (webhook)
+ *  - sign_type = 'elektroniczne' → status gotowe; admin decyduje kiedy wysłać
+ *  - file_path niepuste          → status gotowe; admin decyduje kiedy wysłać
+ *  - pozostałe (papierowe + tekst) → status wydane; e-mail wysyłany natychmiast
  */
 function issue_certificate(int $req_id, int $admin_id, string $content, ?string $file_path = null, string $sign_type = 'papierowe'): bool {
     $req = get_certificate_request($req_id);
@@ -126,23 +138,89 @@ function issue_certificate(int $req_id, int $admin_id, string $content, ?string 
     $issuer    = db_one("SELECT name FROM users WHERE id=?", [$admin_id]);
     $issuer_nm = $issuer['name'] ?? '';
 
+    if ($sign_type === 'esign') {
+        $new_status = 'esign_oczekuje';
+    } elseif ($sign_type === 'elektroniczne' || $file_path) {
+        $new_status = 'gotowe';
+    } else {
+        $new_status = 'wydane';
+    }
+
     db()->prepare(
         "UPDATE certificate_requests
-         SET status='wydane', issued_by=?, issued_by_name=?, issued_at=?,
+         SET status=?, issued_by=?, issued_by_name=?, issued_at=?,
              certificate_content=?, certificate_file=?, cert_number=?, sign_type=?
          WHERE id=?"
-    )->execute([$admin_id, $issuer_nm, date('Y-m-d H:i:s'), $content ?: null, $file_path, $number, $sign_type, $req_id]);
+    )->execute([$new_status, $admin_id, $issuer_nm, date('Y-m-d H:i:s'), $content ?: null, $file_path, $number, $sign_type, $req_id]);
 
     require_once __DIR__ . '/approval.php';
     $note = 'Wydano zaświadczenie dla: ' . $req['requester_name'];
     if ($file_path) $note .= ' [plik]';
     log_contract_action($req['contract_type'], $req['contract_id'], $admin_id, 'certificate_issued', $note);
 
-    // Odśwież req z nowymi danymi
     $req['certificate_content'] = $content;
     $req['certificate_file']    = $file_path;
+
+    if ($new_status === 'wydane') {
+        _certificate_send_issued_email($req);
+    } elseif ($new_status === 'esign_oczekuje') {
+        _certificate_send_to_docusign($req_id, $req, $file_path);
+    }
+
+    return true;
+}
+
+/**
+ * Wysyła gotowe (wstrzymane) zaświadczenie do wnioskodawcy.
+ * Zmienia status z 'gotowe' na 'wydane' i wysyła e-mail.
+ */
+function send_certificate_now(int $req_id, int $admin_id): bool {
+    $req = get_certificate_request($req_id);
+    if (!$req || $req['status'] !== 'gotowe') return false;
+
+    db()->prepare(
+        "UPDATE certificate_requests SET status='wydane', send_at=? WHERE id=?"
+    )->execute([date('Y-m-d H:i:s'), $req_id]);
+
+    require_once __DIR__ . '/approval.php';
+    log_contract_action($req['contract_type'], $req['contract_id'], $admin_id, 'certificate_sent',
+        'Wysłano zaświadczenie do: ' . $req['requester_email']);
+
     _certificate_send_issued_email($req);
     return true;
+}
+
+/**
+ * Wysyła plik zaświadczenia do DocuSign celem podpisania przez wnioskodawcę.
+ * Po podpisaniu webhook (api/docusign_webhook.php) automatycznie wyśle e-mail.
+ */
+function _certificate_send_to_docusign(int $req_id, array $req, ?string $file_path): void {
+    if (!$file_path) return;
+
+    require_once __DIR__ . '/docusign.php';
+    if (!docusign_is_enabled()) return;
+
+    try {
+        $ds = new DocuSignClient();
+        if (!$ds->is_configured()) return;
+
+        $full_path = UPLOAD_DIR . $file_path;
+        if (!file_exists($full_path)) return;
+
+        $envelope_id = $ds->send_envelope(
+            $full_path,
+            $req['requester_name'],
+            $req['requester_email'],
+            'Zaświadczenie nr ' . ($req['cert_number'] ?? "#{$req_id}")
+        );
+
+        db()->prepare(
+            "UPDATE certificate_requests SET docusign_envelope_id=? WHERE id=?"
+        )->execute([$envelope_id, $req_id]);
+
+    } catch (\Throwable $e) {
+        error_log('DocuSign certificate error for req #' . $req_id . ': ' . $e->getMessage());
+    }
 }
 
 function reject_certificate_request(int $req_id, int $admin_id, string $note): bool {
