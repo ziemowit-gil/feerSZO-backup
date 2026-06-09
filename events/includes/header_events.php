@@ -185,9 +185,7 @@ body { margin:0; background:var(--ev-bg); color:var(--ev-text);
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
-    <a class="ev-sys-link" href="<?= APP_URL ?>/index.php" aria-label="Wróć do systemu">
-      <i class="bi bi-arrow-left" aria-hidden="true"></i><span class="d-none d-sm-inline">System</span>
-    </a>
+    <?php $msw_active='events'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
     <span class="ev-user-btn" aria-label="Zalogowany: <?= h($_eu_name) ?>">
       <span class="ev-user-av" aria-hidden="true"><?= h($_eu_inits) ?></span>
       <span class="d-none d-sm-inline"><?= h($_eu_name) ?></span>

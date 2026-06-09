@@ -346,11 +346,7 @@ body {
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
-    <a class="tsk-sys-link" href="<?= APP_URL ?>/index.php"
-       aria-label="Wróć do systemu głównego">
-      <i class="bi bi-arrow-left" aria-hidden="true"></i>
-      <span class="d-none d-sm-inline">System</span>
-    </a>
+    <?php $msw_active='tasks'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
     <span class="tsk-user-btn" aria-label="Zalogowany: <?= h($_tu_name) ?>">
       <span class="tsk-user-av" aria-hidden="true"><?= h($_tu_initials) ?></span>
       <span class="d-none d-sm-inline"><?= h($_tu_name) ?></span>

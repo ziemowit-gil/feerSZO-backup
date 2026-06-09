@@ -304,10 +304,7 @@ body {
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/portal.php" class="strat-sys-link">
-      <i class="bi bi-house" aria-hidden="true"></i>
-      <span class="d-none d-md-inline">System</span>
-    </a>
+    <?php $msw_active='strategy'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
     <?php if ($_su): ?>
     <div class="dropdown">
       <button class="strat-user-btn dropdown-toggle"

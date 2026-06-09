@@ -135,10 +135,7 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/index.php" class="dir-topbar-sys-link">
-      <i class="bi bi-house" aria-hidden="true"></i>
-      <span>System główny</span>
-    </a>
+    <?php $msw_active='directory'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
     <?php if ($_cu): ?>
     <div class="dropdown">

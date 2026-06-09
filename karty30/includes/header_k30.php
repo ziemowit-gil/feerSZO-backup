@@ -604,11 +604,7 @@ body {
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/index.php" class="k30-sys-link"
-       aria-label="Wróć do systemu głównego">
-      <i class="bi bi-house" aria-hidden="true"></i>
-      <span class="d-none d-md-inline">System główny</span>
-    </a>
+    <?php $msw_active='k30'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
     <?php if ($_ku): ?>
     <div class="dropdown">

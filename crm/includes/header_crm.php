@@ -265,6 +265,7 @@ body {
   .crm-topbar-brand { width: auto; border-right: none; }
   .crm-topbar-username { display: none; }
   .crm-topbar-sys-link { display: none; }
+  #mod-sw { display: none; }
   .crm-shell { margin-left: 0; }
   .crm-content { padding: 1rem .75rem; }
 }
@@ -417,10 +418,7 @@ window.openCommModal = function(contactId, channel) {
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/index.php" class="crm-topbar-sys-link" title="Wróć do systemu głównego">
-      <i class="bi bi-house"></i>
-      <span>System</span>
-    </a>
+    <?php $msw_active='crm'; $msw_dark=false; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
     <?php if ($_cu): ?>
     <div class="dropdown">
