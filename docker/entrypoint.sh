@@ -27,6 +27,11 @@ EOF
 fi
 
 # ── SQLite — uprawnienia ──────────────────────────────────────────────────────
+# www-data musi mieć write na katalog aplikacji — SQLite tworzy w nim
+# pliki journal/WAL (-journal, -wal, -shm) nawet przy zwykłym SELECT (WAL mode).
+chown www-data:www-data "${APP_DIR}"
+chmod 775 "${APP_DIR}"
+
 if [ -f "${APP_DIR}/umowy.db" ]; then
     chown www-data:www-data "${APP_DIR}/umowy.db"
     chmod 664 "${APP_DIR}/umowy.db"
