@@ -175,50 +175,13 @@ if [[ "$INSTALL_MODE" == "4" ]]; then
     if [[ -f "${ENV_FILE}" ]]; then
         warn ".env.prod już istnieje — otwieram do edycji"
         ${EDITOR:-nano} "${ENV_FILE}"
+        ok "Konfiguracja zakończona"
     else
-        APP_KEY=$(openssl rand -hex 32)
-        echo
-        echo -e "${BOLD}Podaj ustawienia (Enter = wartość domyślna):${RESET}"
-        echo
-
-        read -rp "Domena [${DEFAULT_DOMAIN}]: " DOMAIN
-        DOMAIN="${DOMAIN:-$DEFAULT_DOMAIN}"
-
-        read -rp "E-mail Let's Encrypt [${DEFAULT_ACME_EMAIL}]: " ACME_EMAIL
-        ACME_EMAIL="${ACME_EMAIL:-$DEFAULT_ACME_EMAIL}"
-
-        read -rp "Nazwa organizacji [${DEFAULT_ORG}]: " ORG_NAME
-        ORG_NAME="${ORG_NAME:-$DEFAULT_ORG}"
-
-        cat > "${ENV_FILE}" <<EOF
-# FEER SZO — produkcja — wygenerowano $(date '+%Y-%m-%d %H:%M')
-DOMAIN=${DOMAIN}
-ACME_EMAIL=${ACME_EMAIL}
-DOMAIN_CRM=crm.feer.org.pl
-APP_ENV=production
-APP_URL=https://${DOMAIN}
-APP_KEY=${APP_KEY}
-ORG_NAME=${ORG_NAME}
-
-# Baza danych
-DB_TYPE=sqlite
-
-# Microsoft 365 (skonfiguruj przez /admin/m365_settings.php po wdrożeniu)
-MS_ENABLED=0
-MS_TENANT_ID=
-MS_CLIENT_ID=
-MS_CLIENT_SECRET=
-MS_REDIRECT_URI=https://${DOMAIN}/auth/microsoft.php
-EOF
-        chmod 600 "${ENV_FILE}"
-        ok ".env.prod zapisany → ${ENV_FILE}"
-        echo
-        info "Edytuj plik aby uzupełnić pozostałe ustawienia:"
-        echo -e "  ${CYAN}${EDITOR:-nano} ${ENV_FILE}${RESET}"
+        bash "${DOCKER_DIR}/make-env.sh"
     fi
 
     echo
-    ok "Konfiguracja zakończona — uruchom pełną instalację gdy gotowe"
+    ok "Uruchom pełną instalację gdy gotowe: sudo bash ${DOCKER_DIR}/setup.sh --mode=1"
     exit 0
 fi
 
@@ -288,68 +251,8 @@ section "5. Konfiguracja .env.prod"
 if [[ -f "${ENV_FILE}" ]]; then
     warn ".env.prod już istnieje — pomijam tworzenie (usuń plik ręcznie, by skonfigurować od nowa)"
 else
-    # Generuj APP_KEY
-    APP_KEY=$(openssl rand -hex 32)
-
-    echo
-    echo -e "${BOLD}Podaj ustawienia (Enter = wartość domyślna):${RESET}"
-    echo
-
-    read -rp "Domena [${DEFAULT_DOMAIN}]: " DOMAIN
-    DOMAIN="${DOMAIN:-$DEFAULT_DOMAIN}"
-
-    read -rp "E-mail Let's Encrypt [${DEFAULT_ACME_EMAIL}]: " ACME_EMAIL
-    ACME_EMAIL="${ACME_EMAIL:-$DEFAULT_ACME_EMAIL}"
-
-    read -rp "Nazwa organizacji [${DEFAULT_ORG}]: " ORG_NAME
-    ORG_NAME="${ORG_NAME:-$DEFAULT_ORG}"
-
-    if [[ $USE_MYSQL -eq 1 ]]; then
-        echo
-        warn "Tryb MySQL — podaj hasła bazy danych:"
-        read -rsp "  Hasło DB_PASS (użytkownik feer): " DB_PASS; echo
-        read -rsp "  Hasło MYSQL_ROOT_PASSWORD:       " MYSQL_ROOT_PASS; echo
-    fi
-
-    cat > "${ENV_FILE}" <<EOF
-# FEER SZO — produkcja — wygenerowano $(date '+%Y-%m-%d %H:%M')
-DOMAIN=${DOMAIN}
-ACME_EMAIL=${ACME_EMAIL}
-DOMAIN_CRM=crm.feer.org.pl
-APP_ENV=production
-APP_URL=https://${DOMAIN}
-APP_KEY=${APP_KEY}
-ORG_NAME=${ORG_NAME}
-
-# Baza danych
-EOF
-
-    if [[ $USE_MYSQL -eq 1 ]]; then
-        cat >> "${ENV_FILE}" <<EOF
-DB_TYPE=mysql
-DB_HOST=mysql
-DB_PORT=3306
-DB_NAME=feer
-DB_USER=feer
-DB_PASS=${DB_PASS}
-MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASS}
-EOF
-    else
-        echo "DB_TYPE=sqlite" >> "${ENV_FILE}"
-    fi
-
-    cat >> "${ENV_FILE}" <<EOF
-
-# Microsoft 365 (skonfiguruj przez /admin/m365_settings.php po wdrożeniu)
-MS_ENABLED=0
-MS_TENANT_ID=
-MS_CLIENT_ID=
-MS_CLIENT_SECRET=
-MS_REDIRECT_URI=https://${DOMAIN}/auth/microsoft.php
-EOF
-
-    chmod 600 "${ENV_FILE}"
-    ok ".env.prod zapisany (APP_KEY wygenerowany)"
+    # Uruchom interaktywny kreator (make-env.sh)
+    bash "${DOCKER_DIR}/make-env.sh"
 fi
 
 # Wczytaj zmienne do weryfikacji DNS
