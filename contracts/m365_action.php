@@ -73,13 +73,24 @@ try {
             'm365_licencja_przypisana'=> $lic_assigned,
         ], $id);
 
+        // Auto-powiąż / utwórz konto lokalne
+        $link_result = m365_auto_link_or_create_local($person_email ?? '', $person_name, $user_id);
+        if ($link_result['msg']) {
+            log_contract_action($type, $id, (int)current_user()['id'], 'note', $link_result['msg']);
+        }
+
         // Zapisz hasło jednorazowo w sesji (do wyświetlenia)
         auth_start();
         $_SESSION['m365_new_pass']  = $password;
         $_SESSION['m365_new_login'] = $login;
         $_SESSION['m365_sent']      = $sent;
 
-        flash_set('success', "Konto M365 utworzone: {$login}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail — mail nie wysłany)'));
+        $link_suffix = match($link_result['action']) {
+            'linked'  => ' · konto lokalne powiązane',
+            'created' => ' · konto lokalne utworzone',
+            default   => '',
+        };
+        flash_set('success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail — mail nie wysłany)'));
 
     } elseif ($action === 'enable' || ($action === 'toggle_active' && !$row['m365_konto_aktywne'])) {
         if (!$row['m365_user_id']) throw new RuntimeException('Brak ID użytkownika Azure AD.');
@@ -107,6 +118,64 @@ try {
         $_SESSION['m365_new_login'] = $row['m365_login'];
         $_SESSION['m365_sent']      = true;
         flash_set('success', 'Nowe hasło wygenerowane i mail wysłany.');
+
+    } elseif ($action === 'send_setup_email') {
+        // Wysyła e-mail z loginiem M365 i tymczasowym hasłem — forceChangePasswordNextSignIn=true
+        // Wolontariusz sam ustawia hasło przy pierwszym logowaniu.
+        if (!$row['m365_user_id']) throw new RuntimeException('Brak ID użytkownika Azure AD.');
+        if (!$person_email) throw new RuntimeException('Ta umowa nie zawiera adresu e-mail odbiorcy.');
+        $password = M365Graph::generate_password();
+        $graph->set_password($row['m365_user_id'], $password);
+        $org   = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+        $name  = htmlspecialchars($person_name ?: $person_email, ENT_QUOTES);
+        $login = htmlspecialchars($row['m365_login'], ENT_QUOTES);
+        $pass  = htmlspecialchars($password, ENT_QUOTES);
+        $mail_html = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#0078d4,#106ebe);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">&#128273; Ustaw hasło Microsoft 365 — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>Twoje konto Microsoft 365 jest gotowe. Zaloguj się poniższymi danymi — przy pierwszym logowaniu zostaniesz poproszony/a o <strong>ustawienie własnego hasła</strong>.</p>
+  <table style="background:#f8f9fa;border-radius:8px;padding:16px;width:100%;margin:16px 0;border-collapse:collapse">
+    <tr>
+      <td style="padding:5px 14px;color:#6c757d;width:140px;font-size:.9em">Login (e-mail)</td>
+      <td style="padding:5px 14px"><strong style="font-family:monospace">{$login}</strong></td>
+    </tr>
+    <tr>
+      <td style="padding:5px 14px;color:#6c757d;font-size:.9em">Hasło tymczasowe</td>
+      <td style="padding:5px 14px"><strong style="font-family:monospace;font-size:1.1em;letter-spacing:.05em">{$pass}</strong></td>
+    </tr>
+  </table>
+  <div style="background:#fff8e1;border-left:3px solid #f59e0b;border-radius:4px;padding:10px 14px;margin:14px 0;font-size:.88em">
+    To hasło jest jednorazowe. Po zalogowaniu system poprosi o zmianę na własne.
+  </div>
+  <div style="margin:20px 0;text-align:center">
+    <a href="https://portal.office.com" style="background:#0078d4;color:#fff;padding:13px 28px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:700">
+      Zaloguj się do Microsoft 365 &#8594;
+    </a>
+  </div>
+  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
+    Jeśli masz problem z logowaniem, skontaktuj się z {$org}.
+  </p>
+</div></body></html>
+HTML;
+        $sender = m365_setting('m365_sender_user_id');
+        if ($sender) {
+            $graph->send_raw_email($sender, $person_email, "Ustaw hasło Microsoft 365 — {$org}", $mail_html);
+        } else {
+            require_once dirname(__DIR__) . '/includes/mail_queue.php';
+            mail_queue_add($person_email, $person_name, "Ustaw hasło Microsoft 365 — {$org}", $mail_html, '', $type, $id, '', true);
+        }
+        auth_start();
+        $_SESSION['m365_new_pass']  = $password;
+        $_SESSION['m365_new_login'] = $row['m365_login'];
+        $_SESSION['m365_sent']      = true;
+        require_once dirname(__DIR__) . '/includes/approval.php';
+        log_contract_action($type, $id, (int)current_user()['id'], 'note',
+            'Wysłano link do ustawienia hasła M365 na: ' . $person_email);
+        flash_set('success', 'E-mail z danymi do ustawienia hasła Microsoft 365 wysłany na ' . $person_email . '.');
 
     } elseif ($action === 'toggle' && $row['m365_konto']) {
         // Przełącznik "konto utworzono" — wpisz ręcznie istniejący login

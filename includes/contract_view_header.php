@@ -128,6 +128,10 @@ $_cvh_accent = match($_cvh_st['class']) {
          class="btn btn-sm btn-outline-success" title="Przedłuż umowę">
         <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Przedłuż</span>
       </a>
+      <a href="<?= APP_URL ?>/contracts/wolontariat/potwierdzenie.php?id=<?= (int)($_cvh_id ?? 0) ?>&preview=1"
+         target="_blank" class="btn btn-sm btn-outline-secondary" title="Potwierdzenie rejestracji wolontariusza (PDF)">
+        <i class="bi bi-file-earmark-check"></i> <span class="d-none d-sm-inline">Potwierdzenie</span>
+      </a>
       <?php if (empty($_pending_term) && defined('TERMINABLE_STATUSES') && in_array($_cvh_status, TERMINABLE_STATUSES)): ?>
       <button type="button"
               class="btn btn-sm btn-outline-danger"

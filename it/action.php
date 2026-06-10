@@ -205,14 +205,25 @@ try {
             'issued_by'     => current_user()['id'],
         ]);
 
+        // Auto-powiąż / utwórz konto lokalne
+        $link_result = m365_auto_link_or_create_local($person_email ?? '', $person_name, $user_id);
+        if ($link_result['msg']) {
+            log_contract_action($ctype, $cid, current_user()['id'], 'note', $link_result['msg']);
+        }
+
         auth_start();
         $_SESSION['m365_new_pass']  = $password;
         $_SESSION['m365_new_login'] = $login;
         $_SESSION['m365_sent']      = $sent;
         $_SESSION['it_issued_pass'] = ['login'=>$login,'pass'=>$password,'sent'=>$sent];
 
-        log_contract_action($ctype, $cid, current_user()['id'], 'edit', "Utworzono konto M365: {$login}" . ($sent?' (mail wysłany)':''));
-        flash_set('success', "Konto M365 utworzone: {$login}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail)'));
+        $link_suffix = match($link_result['action']) {
+            'linked'  => ' · konto lokalne powiązane',
+            'created' => ' · konto lokalne utworzone',
+            default   => '',
+        };
+        log_contract_action($ctype, $cid, current_user()['id'], 'edit', "Utworzono konto M365: {$login}{$link_suffix}" . ($sent?' (mail wysłany)':''));
+        flash_set('success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail)'));
         header('Location: ' . APP_URL . "/contracts/{$ctype}/view.php?id={$cid}#tab-m365"); exit;
     }
 
@@ -236,6 +247,17 @@ try {
         $active = $action === 'enable' ? 1 : 0;
         db_update('it_accounts', ['is_active' => $active, 'updated_at' => date('Y-m-d H:i:s')], $account_id);
         if ($table && $cid) db_update($table, ['m365_konto_aktywne' => $active], $cid);
+
+        // Auto-powiąż / utwórz konto lokalne przy włączaniu konta M365
+        if ($action === 'enable' && $account['service_slug'] === 'm365' && $account['external_id']) {
+            $_ae = $crow['email'] ?? ($account['login'] ?? '');
+            $_an = $crow['imie_nazwisko'] ?? ($account['display_name'] ?? '');
+            $link_result = m365_auto_link_or_create_local($_ae, $_an, $account['external_id']);
+            if ($link_result['msg'] && $ctype && $cid) {
+                log_contract_action($ctype, $cid, current_user()['id'], 'note', $link_result['msg']);
+            }
+        }
+
         if ($ctype && $cid) log_contract_action($ctype, $cid, current_user()['id'], 'edit',
             ($action==='enable' ? 'Włączono' : 'Wyłączono') . ' konto ' . $account['service_name']);
         flash_set('success', 'Konto ' . ($active ? 'włączone' : 'wyłączone') . '.');

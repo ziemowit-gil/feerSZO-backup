@@ -1348,44 +1348,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
         <div class="cv-label">Adres e-mail</div>
         <div class="cv-value">
           <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
-
-          <?php if ($row['email'] && can_edit()): ?>
-          <div class="d-flex flex-wrap gap-1 mt-2">
-
-            <!-- E-mail powitalny -->
-            <form method="post" style="display:contents"
-                  onsubmit="return confirm('Wysłać e-mail powitalny do <?= h(addslashes($row['email'] ?? '')) ?>?\nHasło zostanie zresetowane.')">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <button type="submit" name="_resend_welcome" value="1"
-                      class="btn btn-sm btn-outline-success"
-                      title="Wyślij e-mail powitalny z nowym hasłem">
-                <i class="bi bi-envelope-heart me-1"></i>E-mail powitalny
-              </button>
-            </form>
-
-            <!-- Kod jednorazowy -->
-            <form method="post" style="display:contents">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <button type="submit" name="_resend_portal" value="1"
-                      class="btn btn-sm btn-outline-primary"
-                      title="Wyślij jednorazowy kod dostępu (ważny 7 dni)">
-                <i class="bi bi-send me-1"></i>Kod jednorazowy
-              </button>
-            </form>
-
-            <!-- Link do ustawienia hasła -->
-            <form method="post"
-                  onsubmit="return confirm('Wysłać link do ustawienia hasła na e-mail wolontariusza?')">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <button type="submit" name="_set_portal_pass" value="1"
-                      class="btn btn-sm btn-warning"
-                      title="Wyślij link do ustawienia hasła na e-mail">
-                <i class="bi bi-key me-1"></i>Wyślij link do hasła
-              </button>
-            </form>
-
-          </div>
-          <?php endif; ?>
         </div>
       </div>
       <div class="cv-field">
@@ -2368,6 +2330,69 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
         <i class="bi bi-hdd-network me-1" style="color:#fd7e14"></i> Zarządzaj w IT
       </a>
     <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($row['m365_konto'] && $row['email'] && can_edit()): ?>
+  <div class="border-top pt-3 mb-3">
+    <div class="small fw-semibold text-muted mb-2"><i class="bi bi-key-fill me-1 text-primary"></i>Wyślij link do ustawienia hasła Office</div>
+    <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php"
+          onsubmit="return confirm('Wysłać link do ustawienia hasła Microsoft 365 na <?= h(addslashes($row['email'])) ?>?\nZostanie wygenerowane nowe hasło tymczasowe.')">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="type"    value="wolontariat">
+      <input type="hidden" name="id"      value="<?= $id ?>">
+      <input type="hidden" name="action"  value="send_setup_email">
+      <button class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-microsoft me-1"></i>Wyślij link do ustawienia hasła Office
+      </button>
+    </form>
+    <div class="form-text mt-1">Wysyła e-mail z loginiem M365 i tymczasowym hasłem — wolontariusz sam ustawi własne hasło przy pierwszym logowaniu.</div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($row['email'] && can_edit()): ?>
+  <div class="border-top pt-3 mb-3">
+    <div class="small fw-semibold text-muted mb-2"><i class="bi bi-display me-1 text-primary"></i>Akcje portalu wolontariusza</div>
+    <div class="d-flex flex-wrap gap-2">
+
+      <!-- E-mail powitalny -->
+      <form method="post"
+            onsubmit="return confirm('Wysłać e-mail powitalny do <?= h(addslashes($row['email'] ?? '')) ?>?\nHasło zostanie zresetowane.')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <button type="submit" name="_resend_welcome" value="1"
+                class="btn btn-sm btn-outline-success"
+                title="Wyślij e-mail powitalny z nowym hasłem tymczasowym">
+          <i class="bi bi-envelope-heart me-1"></i>E-mail powitalny
+        </button>
+      </form>
+
+      <!-- Kod jednorazowy -->
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <button type="submit" name="_resend_portal" value="1"
+                class="btn btn-sm btn-outline-primary"
+                title="Wyślij jednorazowy kod dostępu do portalu (ważny 7 dni)">
+          <i class="bi bi-send me-1"></i>Kod jednorazowy
+        </button>
+      </form>
+
+      <!-- Zmiana hasła — link do ustawienia -->
+      <form method="post"
+            onsubmit="return confirm('Wysłać link do ustawienia hasła portalu na e-mail wolontariusza?')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <button type="submit" name="_set_portal_pass" value="1"
+                class="btn btn-sm btn-outline-warning"
+                title="Wyślij jednorazowy link do ustawienia hasła portalu">
+          <i class="bi bi-key me-1"></i>Zmiana hasła (portal)
+        </button>
+      </form>
+
+    </div>
+    <div class="form-text mt-1">
+      <strong>E-mail powitalny</strong> — resetuje hasło i wysyła nowe.
+      <strong>Kod jednorazowy</strong> — logowanie bez hasła (7 dni).
+      <strong>Zmiana hasła</strong> — jednorazowy link do ustawienia własnego hasła.
+    </div>
   </div>
   <?php endif; ?>
 

@@ -943,3 +943,35 @@ function sp_backup_db(): array {
         return ['ok' => false, 'error' => $e->getMessage()];
     }
 }
+
+/**
+ * Automatycznie powiąż lub utwórz konto lokalne dla konta M365.
+ * Szuka po microsoft_id, potem po e-mail; jeśli nie znajdzie — tworzy nowe.
+ * Zwraca ['action' => 'exists'|'linked'|'created', 'user_id' => int, 'msg' => string]
+ */
+function m365_auto_link_or_create_local(string $email, string $name, string $microsoft_id): array {
+    if ($microsoft_id) {
+        $u = db_one("SELECT id FROM users WHERE microsoft_id=?", [$microsoft_id]);
+        if ($u) return ['action' => 'exists', 'user_id' => (int)$u['id'], 'msg' => ''];
+    }
+    if ($email) {
+        $u = db_one("SELECT id FROM users WHERE LOWER(email)=LOWER(?)", [$email]);
+        if ($u) {
+            db()->prepare("UPDATE users SET microsoft_id=?, is_active=1 WHERE id=?")
+                ->execute([$microsoft_id ?: null, (int)$u['id']]);
+            return ['action' => 'linked', 'user_id' => (int)$u['id'],
+                    'msg' => 'Powiązano konto lokalne (' . $email . ') z M365.'];
+        }
+    }
+    $uid = db_insert('users', [
+        'name'         => $name ?: $email,
+        'email'        => $email ?: null,
+        'password'     => null,
+        'microsoft_id' => $microsoft_id ?: null,
+        'role'         => 'viewer',
+        'is_active'    => 1,
+        'created_at'   => date('Y-m-d H:i:s'),
+    ]);
+    return ['action' => 'created', 'user_id' => (int)$uid,
+            'msg' => 'Utworzono konto lokalne dla ' . ($email ?: $name) . '.'];
+}
