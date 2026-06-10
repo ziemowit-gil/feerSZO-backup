@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FEER SZO — skrypt wdrożeniowy (Ubuntu 22.04/24.04)
-# Użycie: bash setup.sh [--mysql] [--mode=1|2|3|4|5]
+# Użycie: bash setup.sh [--mysql] [--mode=1|2|3|4|5|6]
 set -euo pipefail
 
 # ── Kolory ────────────────────────────────────────────────────────────────────
@@ -39,6 +39,7 @@ if [[ -z "$INSTALL_MODE" ]]; then
     echo -e "  ${BOLD}3)${RESET} Instalacja testowa PHP 8.5"
     echo -e "  ${BOLD}4)${RESET} Tylko konfiguracja (bez Docker — edytuj .env.prod)"
     echo -e "  ${BOLD}5)${RESET} Wyczyść Docker (kontenery + obrazy FEER)"
+    echo -e "  ${BOLD}6)${RESET} ${RED}Pełny reset${RESET} — wyczyść Docker + usuń pliki + reinstalacja"
     echo -e "  ${BOLD}Q)${RESET} Wyjdź"
     echo
     read -rp "Wybór [1]: " INSTALL_MODE
@@ -47,9 +48,51 @@ fi
 
 case "${INSTALL_MODE^^}" in
     Q|q) echo -e "${CYAN}Anulowano.${RESET}"; exit 0 ;;
-    1|2|3|4|5) ;;
-    *) die "Nieznany tryb: '${INSTALL_MODE}'. Dozwolone: 1, 2, 3, 4, 5, Q" ;;
+    1|2|3|4|5|6) ;;
+    *) die "Nieznany tryb: '${INSTALL_MODE}'. Dozwolone: 1, 2, 3, 4, 5, 6, Q" ;;
 esac
+
+# ── Tryb 6 — pełny reset: Docker + pliki + reinstalacja ──────────────────────
+if [[ "$INSTALL_MODE" == "6" ]]; then
+    [[ $EUID -ne 0 ]] && die "Pełny reset wymaga roota: sudo bash setup.sh --mode=6"
+
+    section "Pełny reset FEER SZO"
+    warn "Spowoduje usunięcie:"
+    warn "  • Wszystkich kontenerów i obrazów Docker FEER"
+    warn "  • Katalogu instalacji: ${INSTALL_DIR}"
+    warn "  • Pliku .env.prod (konfiguracja — zrób backup!)"
+    echo
+    read -rp "Na pewno chcesz kontynuować? Wpisz 'RESET' aby potwierdzić: " _confirm
+    [[ "$_confirm" != "RESET" ]] && { warn "Anulowano."; exit 0; }
+
+    # Kopia setup.sh do /tmp — katalog instalacji zaraz zostanie usunięty
+    TMP_SETUP="$(mktemp /tmp/feer_setup_XXXXXX.sh)"
+    curl -fsSL "${REPO_URL}/raw/branch/main/docker/setup.sh" -o "$TMP_SETUP"
+    chmod +x "$TMP_SETUP"
+    ok "Pobrano świeży setup.sh do ${TMP_SETUP}"
+
+    # Krok 1: wyczyść Docker
+    section "Krok 1/3 — Czyszczenie Docker"
+    TMP_CLEAN="$(mktemp)"
+    if [[ -f "${DOCKER_DIR}/clean.sh" ]]; then
+        bash "${DOCKER_DIR}/clean.sh" --full --yes
+    else
+        curl -fsSL "${REPO_URL}/raw/branch/main/docker/clean.sh" -o "$TMP_CLEAN"
+        bash "$TMP_CLEAN" --full --yes
+    fi
+    rm -f "$TMP_CLEAN"
+    ok "Docker wyczyszczony"
+
+    # Krok 2: usuń pliki instalacji
+    section "Krok 2/3 — Usuwanie plików ${INSTALL_DIR}"
+    rm -rf "${INSTALL_DIR}"
+    ok "Katalog ${INSTALL_DIR} usunięty"
+
+    # Krok 3: reinstalacja
+    section "Krok 3/3 — Reinstalacja"
+    info "Uruchamiam świeżą instalację..."
+    exec bash "$TMP_SETUP" --mode=1 "$@"
+fi
 
 # ── Tryb 5 — czyszczenie Docker ───────────────────────────────────────────────
 if [[ "$INSTALL_MODE" == "5" ]]; then

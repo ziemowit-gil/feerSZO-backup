@@ -5,6 +5,7 @@
 #   bash clean.sh              # usuwa kontenery + obrazy feer-szo-app
 #   bash clean.sh --full       # j.w. + docker system prune (wszystkie nieużywane zasoby)
 #   bash clean.sh --full --yes # bez pytania o potwierdzenie
+#   bash clean.sh --purge      # j.w. + usuwa katalog /opt/feer-szo (pełny reset)
 
 set -euo pipefail
 
@@ -17,11 +18,12 @@ ok()      { echo -e "${GREEN}✔ $*${RESET}"; }
 warn()    { echo -e "${YELLOW}⚠ $*${RESET}"; }
 section() { echo -e "\n${BOLD}━━ $* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"; }
 
-FULL=0; AUTO_YES=0
+FULL=0; AUTO_YES=0; PURGE=0
 for arg in "$@"; do
-    [[ "$arg" == "--full"  ]] && FULL=1
-    [[ "$arg" == "--yes"   ]] && AUTO_YES=1
-    [[ "$arg" == "-y"      ]] && AUTO_YES=1
+    [[ "$arg" == "--full"   ]] && FULL=1
+    [[ "$arg" == "--yes"    ]] && AUTO_YES=1
+    [[ "$arg" == "-y"       ]] && AUTO_YES=1
+    [[ "$arg" == "--purge"  ]] && { PURGE=1; FULL=1; AUTO_YES=1; }
 done
 
 # ── 1. Zatrzymaj i usuń kontenery FEER ───────────────────────────────────────
@@ -93,4 +95,18 @@ fi
 echo
 docker system df 2>/dev/null || true
 echo
-ok "Czyszczenie zakończone. Uruchom teraz: bash rebuild.sh --no-cache"
+# ── 5. Opcjonalnie: usuń katalog instalacji ───────────────────────────────────
+INSTALL_DIR="/opt/feer-szo"
+if [[ $PURGE -eq 1 && -d "$INSTALL_DIR" ]]; then
+    section "5. Usuwanie plików instalacji"
+    warn "Usuwam katalog: ${INSTALL_DIR}"
+    rm -rf "$INSTALL_DIR"
+    ok "Katalog ${INSTALL_DIR} usunięty"
+fi
+
+ok "Czyszczenie zakończone."
+if [[ $PURGE -eq 0 ]]; then
+    echo -e "  Uruchom teraz: ${CYAN}bash rebuild.sh --no-cache${RESET}"
+else
+    echo -e "  Reinstalacja:  ${CYAN}curl -fsSL https://codeberg.org/ziemowitgil/feerSZO/raw/branch/main/docker/setup.sh | sudo bash${RESET}"
+fi
