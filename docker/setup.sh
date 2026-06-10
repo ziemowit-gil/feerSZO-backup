@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FEER SZO — skrypt wdrożeniowy (Ubuntu 22.04/24.04)
-# Użycie: bash setup.sh [--mysql]
+# Użycie: bash setup.sh [--mysql] [--mode=1|2|3|4]
 set -euo pipefail
 
 # ── Kolory ────────────────────────────────────────────────────────────────────
@@ -15,7 +15,11 @@ section() { echo -e "\n${BOLD}━━ $* ━━━━━━━━━━━━━�
 
 # ── Argumenty ─────────────────────────────────────────────────────────────────
 USE_MYSQL=0
-for arg in "$@"; do [[ "$arg" == "--mysql" ]] && USE_MYSQL=1; done
+INSTALL_MODE=""
+for arg in "$@"; do
+    [[ "$arg" == "--mysql"   ]] && USE_MYSQL=1
+    [[ "$arg" == --mode=*    ]] && INSTALL_MODE="${arg#--mode=}"
+done
 
 # ── Stałe ─────────────────────────────────────────────────────────────────────
 REPO_URL="https://codeberg.org/ziemowitgil/feerSZO"
@@ -25,6 +29,130 @@ ENV_FILE="${DOCKER_DIR}/.env.prod"
 DEFAULT_DOMAIN="szo.feer.org.pl"
 DEFAULT_ACME_EMAIL="admin@feer.org.pl"
 DEFAULT_ORG="Fundacja Edukacji Empatii Rozwoju FEER"
+
+# ── Menu wyboru trybu instalacji ──────────────────────────────────────────────
+if [[ -z "$INSTALL_MODE" ]]; then
+    echo
+    echo -e "${BOLD}━━ Tryb instalacji ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "  ${BOLD}1)${RESET} Pełna instalacja produkcyjna (domyślne)"
+    echo -e "  ${BOLD}2)${RESET} Instalacja testowa PHP 8.3"
+    echo -e "  ${BOLD}3)${RESET} Instalacja testowa PHP 8.5"
+    echo -e "  ${BOLD}4)${RESET} Tylko konfiguracja (bez Docker — edytuj .env.prod)"
+    echo -e "  ${BOLD}Q)${RESET} Wyjdź"
+    echo
+    read -rp "Wybór [1]: " INSTALL_MODE
+    INSTALL_MODE="${INSTALL_MODE:-1}"
+fi
+
+case "${INSTALL_MODE^^}" in
+    Q|q) echo -e "${CYAN}Anulowano.${RESET}"; exit 0 ;;
+    1|2|3|4) ;;
+    *) die "Nieznany tryb: '${INSTALL_MODE}'. Dozwolone: 1, 2, 3, 4, Q" ;;
+esac
+
+# Tryby testowe (2,3) nie wymagają roota ani pełnej instalacji systemowej
+if [[ "$INSTALL_MODE" == "2" || "$INSTALL_MODE" == "3" ]]; then
+    # ── Root check (opcjonalny dla testów) ────────────────────────────────────
+    [[ $EUID -ne 0 ]] && warn "Tryb testowy — zalecane uruchomienie jako root (sudo bash setup.sh)"
+
+    PHP_VER="8.3"; DOCKERFILE="Dockerfile.php83"; TEST_PORT=8083
+    [[ "$INSTALL_MODE" == "3" ]] && { PHP_VER="8.5"; DOCKERFILE="Dockerfile.php85"; TEST_PORT=8085; }
+
+    section "Instalacja testowa PHP ${PHP_VER}"
+
+    if ! docker compose version &>/dev/null; then
+        die "docker compose (v2) niedostępny — zainstaluj Docker Desktop lub docker-compose-plugin"
+    fi
+    ok "Docker Compose: $(docker compose version --short)"
+
+    # Klonuj/aktualizuj repo jeśli nie istnieje lokalnie
+    if [[ ! -d "${INSTALL_DIR}/.git" ]]; then
+        section "Repozytorium"
+        info "Klonuję ${REPO_URL} → ${INSTALL_DIR}"
+        git clone "${REPO_URL}" "${INSTALL_DIR}"
+        ok "Sklonowano"
+    fi
+
+    section "Uruchomienie PHP ${PHP_VER} na porcie ${TEST_PORT}"
+    cd "${DOCKER_DIR}"
+
+    SERVICE="app83"; [[ "$INSTALL_MODE" == "3" ]] && SERVICE="app85"
+    info "Buduję i uruchamiam kontener PHP ${PHP_VER} (pierwsze uruchomienie: ~5–8 min)..."
+    docker compose -f docker-compose.test.yml up -d --build "${SERVICE}"
+
+    ok "Kontener PHP ${PHP_VER} uruchomiony"
+    echo
+    echo -e "  ${BOLD}URL testowy:${RESET}  http://localhost:${TEST_PORT}"
+    echo -e "  ${BOLD}Logi:${RESET}         docker logs feer-test-${PHP_VER/./}"
+    echo -e "  ${BOLD}Stop:${RESET}         docker compose -f ${DOCKER_DIR}/docker-compose.test.yml stop ${SERVICE}"
+    echo
+    ok "Instalacja testowa PHP ${PHP_VER} zakończona"
+    exit 0
+fi
+
+# Tryb 4 — tylko konfiguracja .env.prod
+if [[ "$INSTALL_MODE" == "4" ]]; then
+    section "Konfiguracja .env.prod (bez Docker)"
+
+    # Klonuj/aktualizuj repo jeśli nie istnieje lokalnie
+    if [[ ! -d "${INSTALL_DIR}/.git" ]]; then
+        [[ $EUID -ne 0 ]] && die "Uruchom jako root do klonowania repozytorium: sudo bash setup.sh"
+        info "Klonuję ${REPO_URL} → ${INSTALL_DIR}"
+        git clone "${REPO_URL}" "${INSTALL_DIR}"
+        ok "Sklonowano"
+    fi
+
+    if [[ -f "${ENV_FILE}" ]]; then
+        warn ".env.prod już istnieje — otwieram do edycji"
+        ${EDITOR:-nano} "${ENV_FILE}"
+    else
+        APP_KEY=$(openssl rand -hex 32)
+        echo
+        echo -e "${BOLD}Podaj ustawienia (Enter = wartość domyślna):${RESET}"
+        echo
+
+        read -rp "Domena [${DEFAULT_DOMAIN}]: " DOMAIN
+        DOMAIN="${DOMAIN:-$DEFAULT_DOMAIN}"
+
+        read -rp "E-mail Let's Encrypt [${DEFAULT_ACME_EMAIL}]: " ACME_EMAIL
+        ACME_EMAIL="${ACME_EMAIL:-$DEFAULT_ACME_EMAIL}"
+
+        read -rp "Nazwa organizacji [${DEFAULT_ORG}]: " ORG_NAME
+        ORG_NAME="${ORG_NAME:-$DEFAULT_ORG}"
+
+        cat > "${ENV_FILE}" <<EOF
+# FEER SZO — produkcja — wygenerowano $(date '+%Y-%m-%d %H:%M')
+DOMAIN=${DOMAIN}
+ACME_EMAIL=${ACME_EMAIL}
+DOMAIN_CRM=crm.feer.org.pl
+APP_ENV=production
+APP_URL=https://${DOMAIN}
+APP_KEY=${APP_KEY}
+ORG_NAME=${ORG_NAME}
+
+# Baza danych
+DB_TYPE=sqlite
+
+# Microsoft 365 (skonfiguruj przez /admin/m365_settings.php po wdrożeniu)
+MS_ENABLED=0
+MS_TENANT_ID=
+MS_CLIENT_ID=
+MS_CLIENT_SECRET=
+MS_REDIRECT_URI=https://${DOMAIN}/auth/microsoft.php
+EOF
+        chmod 600 "${ENV_FILE}"
+        ok ".env.prod zapisany → ${ENV_FILE}"
+        echo
+        info "Edytuj plik aby uzupełnić pozostałe ustawienia:"
+        echo -e "  ${CYAN}${EDITOR:-nano} ${ENV_FILE}${RESET}"
+    fi
+
+    echo
+    ok "Konfiguracja zakończona — uruchom pełną instalację gdy gotowe"
+    exit 0
+fi
+
+# ── TRYB 1 — pełna instalacja produkcyjna ────────────────────────────────────
 
 # ── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && die "Uruchom jako root: sudo bash setup.sh"
@@ -117,6 +245,7 @@ else
 # FEER SZO — produkcja — wygenerowano $(date '+%Y-%m-%d %H:%M')
 DOMAIN=${DOMAIN}
 ACME_EMAIL=${ACME_EMAIL}
+DOMAIN_CRM=crm.feer.org.pl
 APP_ENV=production
 APP_URL=https://${DOMAIN}
 APP_KEY=${APP_KEY}

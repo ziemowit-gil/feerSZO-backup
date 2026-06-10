@@ -1,0 +1,101 @@
+# ── FEER SZO — testowy stack (PHP 8.3 i 8.5) ─────────────────────────────────
+#
+# Standalone — NIE wymaga .env.prod ani Traefika.
+# Bezpośredni port binding dla testów lokalnych.
+#
+# Uruchomienie obu wersji:
+#   docker compose -f docker-compose.test.yml up -d
+#
+# Tylko PHP 8.3:
+#   docker compose -f docker-compose.test.yml up -d app83
+#
+# Tylko PHP 8.5:
+#   docker compose -f docker-compose.test.yml up -d app85
+#
+# Adresy:
+#   PHP 8.3 → http://localhost:8083
+#   PHP 8.5 → http://localhost:8085
+
+services:
+
+  # ── PHP 8.3 ──────────────────────────────────────────────────────────────────
+  app83:
+    build:
+      context: .
+      dockerfile: Dockerfile.php83
+    image: feer-szo-app:php83
+    container_name: feer-test-83
+    restart: unless-stopped
+    ports:
+      - "8083:80"
+    volumes:
+      - ../:/var/www/html
+    environment:
+      TEST_PHP_VERSION: "8.3"
+      APP_ENV:        testing
+      APP_KEY:        test-key-php83
+      APP_URL:        http://localhost:8083
+      ORG_NAME:       "FEER SZO (TEST 8.3)"
+      DB_TYPE:        sqlite
+      MS_ENABLED:     "0"
+      SMTP_HOST:      localhost
+      SMTP_PORT:      "1025"
+      SMTP_FROM:      test@feer.local
+      SMTP_USER:      ""
+      SMTP_PASS:      ""
+      SMTP_TLS:       "off"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - feer-test
+
+  # ── PHP 8.5 (RC) ─────────────────────────────────────────────────────────────
+  app85:
+    build:
+      context: .
+      dockerfile: Dockerfile.php85
+    image: feer-szo-app:php85
+    container_name: feer-test-85
+    restart: unless-stopped
+    ports:
+      - "8085:80"
+    volumes:
+      - ../:/var/www/html
+    environment:
+      TEST_PHP_VERSION: "8.5"
+      APP_ENV:        testing
+      APP_KEY:        test-key-php85
+      APP_URL:        http://localhost:8085
+      ORG_NAME:       "FEER SZO (TEST 8.5)"
+      DB_TYPE:        sqlite
+      MS_ENABLED:     "0"
+      SMTP_HOST:      localhost
+      SMTP_PORT:      "1025"
+      SMTP_FROM:      test@feer.local
+      SMTP_USER:      ""
+      SMTP_PASS:      ""
+      SMTP_TLS:       "off"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - feer-test
+
+  # ── Redis (wspólny) ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: feer-test-redis
+    restart: unless-stopped
+    command: redis-server --save "" --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - feer-test
+
+networks:
+  feer-test:
+    driver: bridge

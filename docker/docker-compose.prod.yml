@@ -78,5 +78,35 @@ services:
       - "traefik.http.middlewares.sec-headers.headers.referrerPolicy=same-origin"
       - "traefik.http.middlewares.sec-headers.headers.customResponseHeaders.X-Powered-By="
 
+  # ── CRM redirect — crm.feer.org.pl → szo.feer.org.pl/crm ────────────────
+  # Używa wyłącznie Traefik middlewares (bez dodatkowego kontenera).
+  # Serwis "dummy" jest potrzebny tylko jako uchwyt dla labels Traefika.
+  crm-redirect:
+    image: traefik/whoami:latest
+    container_name: feer-crm-redirect
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+
+      # ── Middleware: 301 redirect crm.* → szo.feer.org.pl/crm ─────────────
+      - "traefik.http.middlewares.crm-redirect.redirectregex.regex=^https?://${DOMAIN_CRM:-crm.feer.org.pl}/(.*)"
+      - "traefik.http.middlewares.crm-redirect.redirectregex.replacement=https://${DOMAIN}/crm/$${1}"
+      - "traefik.http.middlewares.crm-redirect.redirectregex.permanent=true"
+
+      # ── Router HTTPS — crm.feer.org.pl ───────────────────────────────────
+      - "traefik.http.routers.crm-redirect.rule=Host(`${DOMAIN_CRM:-crm.feer.org.pl}`)"
+      - "traefik.http.routers.crm-redirect.entrypoints=websecure"
+      - "traefik.http.routers.crm-redirect.tls=true"
+      - "traefik.http.routers.crm-redirect.tls.certresolver=le"
+      - "traefik.http.routers.crm-redirect.middlewares=crm-redirect@docker"
+      - "traefik.http.services.crm-redirect.loadbalancer.server.port=80"
+
+      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
+      - "traefik.http.routers.crm-redirect-http.rule=Host(`${DOMAIN_CRM:-crm.feer.org.pl}`)"
+      - "traefik.http.routers.crm-redirect-http.entrypoints=web"
+      - "traefik.http.routers.crm-redirect-http.middlewares=https-redirect@docker"
+    networks:
+      - feer
+
 volumes:
   letsencrypt_data:

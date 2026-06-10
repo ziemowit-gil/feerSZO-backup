@@ -68,14 +68,12 @@ RewriteCond %{REQUEST_FILENAME} !-d
 
 # Blokuj dostęp do wrażliwych plików
 <FilesMatch "\.(sql|db|log|env|json|md)$">
-    Order Allow,Deny
-    Deny from all
+    Require all denied
 </FilesMatch>
 
 # Blokuj dostęp do config
 <Files "config.php">
-    Order Allow,Deny
-    Deny from all
+    Require all denied
 </Files>
 
 # Chroń katalogi wrażliwe przed bezpośrednim dostępem HTTP
