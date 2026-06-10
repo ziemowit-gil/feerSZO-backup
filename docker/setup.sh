@@ -82,7 +82,7 @@ else
     git clone "${REPO_URL}" "${INSTALL_DIR}"
     ok "Sklonowano"
 fi
-chmod 750 "${INSTALL_DIR}"
+chmod 755 "${INSTALL_DIR}"
 
 # ── 5. Konfiguracja .env.prod ────────────────────────────────────────────────
 section "5. Konfiguracja .env.prod"

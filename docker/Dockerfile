@@ -41,8 +41,6 @@ RUN a2enmod rewrite headers remoteip
 
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
 COPY php.ini     /usr/local/etc/php/conf.d/app.ini
-COPY msmtp.conf  /etc/msmtprc
-RUN chmod 600 /etc/msmtprc
 
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

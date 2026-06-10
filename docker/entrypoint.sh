@@ -3,6 +3,13 @@ set -euo pipefail
 
 APP_DIR="/var/www/html"
 
+# ── Uprawnienia plików aplikacji ──────────────────────────────────────────────
+# Apache (www-data) musi móc czytać .htaccess i PHP-ki.
+# Katalog może zostać sklonowany z chmod 750 lub restrictive umask.
+find "${APP_DIR}" -type d -exec chmod o+rx {} + 2>/dev/null || true
+find "${APP_DIR}" -type f -not -path "${APP_DIR}/uploads/*" -exec chmod o+r {} + 2>/dev/null || true
+echo "[entrypoint] Uprawnienia plików naprawione."
+
 # ── Uprawnienia katalogów ─────────────────────────────────────────────────────
 mkdir -p "${APP_DIR}/uploads"
 chown -R www-data:www-data "${APP_DIR}/uploads"
@@ -28,6 +35,37 @@ if [ -f "${APP_DIR}/umowy.db" ]; then
         [ -f "$f" ] && chown www-data:www-data "$f" && chmod 664 "$f" || true
     done
 fi
+
+# ── msmtp — dynamiczna konfiguracja ze zmiennych środowiskowych ───────────────
+_smtp_host="${SMTP_HOST:-mailpit}"
+_smtp_port="${SMTP_PORT:-1025}"
+_smtp_from="${SMTP_FROM:-no-reply@feer.local}"
+_smtp_user="${SMTP_USER:-}"
+_smtp_pass="${SMTP_PASS:-}"
+_smtp_tls="${SMTP_TLS:-off}"
+
+case "$_smtp_tls" in
+    tls)      _tls=on;  _starttls=off ;;
+    starttls) _tls=on;  _starttls=on  ;;
+    *)        _tls=off; _starttls=off ;;
+esac
+
+{
+    echo "defaults"
+    echo "logfile        /var/log/msmtp.log"
+    echo ""
+    echo "account        default"
+    echo "host           ${_smtp_host}"
+    echo "port           ${_smtp_port}"
+    echo "from           ${_smtp_from}"
+    echo "auth           $( [ -n "$_smtp_user" ] && echo on || echo off )"
+    echo "tls            ${_tls}"
+    echo "tls_starttls   ${_starttls}"
+    [ -n "$_smtp_user" ] && echo "user           ${_smtp_user}"
+    [ -n "$_smtp_pass" ] && echo "password       ${_smtp_pass}"
+} > /etc/msmtprc
+chmod 600 /etc/msmtprc
+echo "[entrypoint] SMTP: ${_smtp_host}:${_smtp_port}"
 
 # ── Logi ──────────────────────────────────────────────────────────────────────
 touch /var/log/feer_cron.log

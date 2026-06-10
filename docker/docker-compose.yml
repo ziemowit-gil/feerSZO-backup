@@ -41,6 +41,13 @@ services:
       MS_CLIENT_ID:   ${MS_CLIENT_ID:-}
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
       MS_REDIRECT_URI:  ${MS_REDIRECT_URI:-}
+      # SMTP (fallback dla mail(); w produkcji wypełnij lub używaj Graph API)
+      SMTP_HOST:  ${SMTP_HOST:-mailpit}
+      SMTP_PORT:  ${SMTP_PORT:-1025}
+      SMTP_FROM:  ${SMTP_FROM:-no-reply@feer.local}
+      SMTP_USER:  ${SMTP_USER:-}
+      SMTP_PASS:  ${SMTP_PASS:-}
+      SMTP_TLS:   ${SMTP_TLS:-off}
     depends_on:
       redis:
         condition: service_healthy
