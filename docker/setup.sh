@@ -320,8 +320,26 @@ echo -e "  ${BOLD}Panel admina:${RESET}    https://${DOMAIN}/admin/"
 echo -e "  ${BOLD}Pierwszy admin:${RESET}  docker exec -it feer-app php /var/www/html/cli/CreateServiceUser.php"
 echo -e "  ${BOLD}Lista kontrolna:${RESET} docker exec feer-app php /var/www/html/cli/prod_check.php"
 echo
-echo -e "  ${BOLD}Skrót (dodaj do ~/.bashrc):${RESET}"
-echo -e "  ${CYAN}alias feer='docker compose -f ${DOCKER_DIR}/docker-compose.yml \\"
-echo -e "    -f ${DOCKER_DIR}/docker-compose.prod.yml --env-file ${ENV_FILE}'${RESET}"
+
+# ── Alias feer → .bashrc użytkownika, który uruchomił sudo ───────────────────
+ALIAS_LINE="alias feer='docker compose -f ${DOCKER_DIR}/docker-compose.yml -f ${DOCKER_DIR}/docker-compose.prod.yml --env-file ${ENV_FILE}'"
+ALIAS_MARKER="# feer-szo alias"
+
+# Ustal plik .bashrc — preferuj użytkownika sprzed sudo, fallback root
+TARGET_USER="${SUDO_USER:-${USER:-root}}"
+TARGET_HOME=$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6 || echo "/root")
+BASHRC="${TARGET_HOME}/.bashrc"
+
+if grep -qF "feer-szo alias" "${BASHRC}" 2>/dev/null; then
+    # Zaktualizuj istniejący alias (na wypadek zmiany ścieżki)
+    sed -i "/${ALIAS_MARKER}/,+1d" "${BASHRC}"
+fi
+{
+    echo ""
+    echo "${ALIAS_MARKER}"
+    echo "${ALIAS_LINE}"
+} >> "${BASHRC}"
+ok "Alias 'feer' dodany do ${BASHRC}"
+echo -e "  ${CYAN}source ${BASHRC}${RESET}  ← załaduj od razu w tej sesji"
 echo
 ok "Wdrożenie zakończone"
