@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FEER SZO — skrypt wdrożeniowy (Ubuntu 22.04/24.04)
-# Użycie: bash setup.sh [--mysql] [--mode=1|2|3|4]
+# Użycie: bash setup.sh [--mysql] [--mode=1|2|3|4|5]
 set -euo pipefail
 
 # ── Kolory ────────────────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ if [[ -z "$INSTALL_MODE" ]]; then
     echo -e "  ${BOLD}2)${RESET} Instalacja testowa PHP 8.3"
     echo -e "  ${BOLD}3)${RESET} Instalacja testowa PHP 8.5"
     echo -e "  ${BOLD}4)${RESET} Tylko konfiguracja (bez Docker — edytuj .env.prod)"
+    echo -e "  ${BOLD}5)${RESET} Wyczyść Docker (kontenery + obrazy FEER)"
     echo -e "  ${BOLD}Q)${RESET} Wyjdź"
     echo
     read -rp "Wybór [1]: " INSTALL_MODE
@@ -46,9 +47,35 @@ fi
 
 case "${INSTALL_MODE^^}" in
     Q|q) echo -e "${CYAN}Anulowano.${RESET}"; exit 0 ;;
-    1|2|3|4) ;;
-    *) die "Nieznany tryb: '${INSTALL_MODE}'. Dozwolone: 1, 2, 3, 4, Q" ;;
+    1|2|3|4|5) ;;
+    *) die "Nieznany tryb: '${INSTALL_MODE}'. Dozwolone: 1, 2, 3, 4, 5, Q" ;;
 esac
+
+# ── Tryb 5 — czyszczenie Docker ───────────────────────────────────────────────
+if [[ "$INSTALL_MODE" == "5" ]]; then
+    section "Czyszczenie Docker"
+
+    CLEAN_SCRIPT="${DOCKER_DIR}/clean.sh"
+
+    # Jeśli repo już sklonowane — użyj lokalnego clean.sh
+    if [[ -f "$CLEAN_SCRIPT" ]]; then
+        info "Uruchamiam clean.sh..."
+        bash "$CLEAN_SCRIPT" "$@"
+    else
+        # Repo nie istnieje — pobierz clean.sh bezpośrednio
+        info "Pobieram clean.sh z repozytorium..."
+        TMP_CLEAN="$(mktemp)"
+        curl -fsSL "${REPO_URL}/raw/branch/main/docker/clean.sh" -o "$TMP_CLEAN"
+        bash "$TMP_CLEAN" "$@"
+        rm -f "$TMP_CLEAN"
+    fi
+
+    echo
+    echo -e "  ${BOLD}Co dalej?${RESET}"
+    echo -e "  Pełna reinstalacja:  ${CYAN}bash setup.sh --mode=1${RESET}"
+    echo -e "  Tylko rebuild:       ${CYAN}bash rebuild.sh --no-cache${RESET}"
+    exit 0
+fi
 
 # Tryby testowe (2,3) nie wymagają roota ani pełnej instalacji systemowej
 if [[ "$INSTALL_MODE" == "2" || "$INSTALL_MODE" == "3" ]]; then
