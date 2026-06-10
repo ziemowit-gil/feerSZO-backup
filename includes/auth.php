@@ -271,7 +271,23 @@ function logout_user(): void {
         $uid = $_SESSION['user']['id'] ?? null;
         if ($uid) authlog_write((int)$uid, 'logout', $_SESSION['user']['email'] ?? '', 'Wylogowanie');
     } catch (\Throwable $e) {}
+
+    // Wyczyść dane sesji
     $_SESSION = [];
+
+    // Usuń cookie sesji z przeglądarki — session_destroy() tego NIE robi automatycznie
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', [
+            'expires'  => time() - 86400,
+            'path'     => $p['path'],
+            'domain'   => $p['domain'],
+            'secure'   => $p['secure'],
+            'httponly' => $p['httponly'],
+            'samesite' => $p['samesite'] ?? 'Lax',
+        ]);
+    }
+
     session_destroy();
 }
 
