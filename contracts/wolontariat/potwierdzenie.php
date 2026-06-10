@@ -513,7 +513,9 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
   <?php if (str_starts_with($typ, 'koperta') && can_edit()): ?>
   <span class="sep">|</span>
   <?php if ($corr_row): ?>
-    <span class="btn-registered">&#10003; Zarejestrowano: <?= h($corr_row['number']) ?></span>
+    <span class="btn-registered">&#10003; <?= h($corr_row['number']) ?></span>
+    <button type="button" class="btn-register-dispatch" style="background:#0369a1"
+            onclick="tuOpen()">&#9998; Nr śledzenia</button>
   <?php else: ?>
     <button type="button" class="btn-register-dispatch" onclick="dmOpen()">&#128233; Rejestruj wysyłkę</button>
   <?php endif; ?>
@@ -905,8 +907,89 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
   document.getElementById('dmBg').addEventListener('click', function(e){
     if (e.target === this) dmClose();
   });
+
+  // ── Ręczna edycja numeru śledzenia (gdy corr_id już istnieje) ─────────────
+  <?php if ($corr_row): ?>
+  var TU_URL   = <?= json_encode(APP_URL . '/correspondence/tracking_update.php') ?>;
+  var TU_CORR  = <?= $corr_id ?>;
+  var TU_CURRENT = <?= json_encode($corr_row['tracking_number'] ?? '') ?>;
+
+  window.tuOpen = function(){
+    document.getElementById('tuInput').value = TU_CURRENT;
+    document.getElementById('tuMsg').style.display = 'none';
+    document.getElementById('tuBg').classList.add('open');
+  }
+  window.tuClose = function(){
+    document.getElementById('tuBg').classList.remove('open');
+  }
+  window.tuSave = function(){
+    var val = document.getElementById('tuInput').value.trim();
+    var btn = document.getElementById('tuSaveBtn');
+    btn.disabled = true; btn.textContent = '⏳';
+    fetch(TU_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({csrf_token: CSRF, corr_id: TU_CORR, tracking_number: val}),
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false; btn.textContent = '✔ Zapisz';
+      var msg = document.getElementById('tuMsg');
+      msg.textContent = d.msg || (d.ok ? 'Zapisano.' : 'Błąd.');
+      msg.style.display = 'block';
+      msg.className = 'dm-msg' + (d.ok ? '' : ' err');
+      if (d.ok) {
+        TU_CURRENT = val;
+        // Odśwież meta pod barkodem bez przeładowania strony
+        var metas = document.querySelectorAll('.env-barcode-meta');
+        metas.forEach(function(m){
+          var lines = m.innerHTML.split('<br>');
+          if (lines.length >= 2) {
+            // aktualizuj drugą linię
+            var base = lines[0];
+            var s10Part = <?= json_encode($corr_row['number'] ?? '') ?>;
+            lines[1] = s10Part + (val ? ' &nbsp;·&nbsp; nr przesyłki: ' + val : '');
+            m.innerHTML = lines.join('<br>');
+          }
+        });
+        setTimeout(tuClose, 1200);
+      }
+    })
+    .catch(function(e){
+      btn.disabled = false; btn.textContent = '✔ Zapisz';
+      var msg = document.getElementById('tuMsg');
+      msg.textContent = 'Błąd: ' + e.message; msg.style.display = 'block'; msg.className = 'dm-msg err';
+    });
+  }
+  document.getElementById('tuBg').addEventListener('click', function(e){
+    if (e.target === this) tuClose();
+  });
+  <?php endif; ?>
 })();
 </script>
+
+<?php if ($corr_row): ?>
+<!-- Modal: ręczna aktualizacja numeru śledzenia -->
+<div class="dispatch-modal-bg no-print" id="tuBg">
+  <div class="dispatch-modal" style="max-width:380px">
+    <h5>&#9998; Numer śledzenia przesyłki</h5>
+    <p style="font-size:.82rem;color:#555;margin:.25rem 0 .75rem">
+      Wpisz numer nadany przez przewoźnika lub uzyskany z Poczty Polskiej.<br>
+      Pojawi się pod kodem kreskowym na kopercie.
+    </p>
+    <label>Numer śledzenia</label>
+    <input type="text" id="tuInput"
+           placeholder="np. RR123456785PL lub numer kuriera"
+           style="font-family:monospace">
+    <div class="dm-msg" id="tuMsg"></div>
+    <div class="dm-actions">
+      <button type="button" class="btn-cancel" onclick="tuClose()">Anuluj</button>
+      <button type="button" class="btn-save" id="tuSaveBtn" onclick="tuSave()">&#10004; Zapisz</button>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php endif; ?>
 </body>
 </html>
