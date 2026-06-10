@@ -31,6 +31,16 @@ function _corr_init(): void {
     // Połączenie z EZD
     try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN ezd_pismo_id INTEGER DEFAULT NULL REFERENCES ezd_pisma(id) ON DELETE SET NULL"); } catch(\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE ezd_pisma ADD COLUMN corr_id INTEGER DEFAULT NULL REFERENCES correspondence(id) ON DELETE SET NULL"); } catch(\Throwable $e) {}
+
+    // Pola wysyłki fizycznej / dispatch
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN carrier          TEXT NOT NULL DEFAULT ''"); } catch(\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN tracking_number  TEXT NOT NULL DEFAULT ''"); } catch(\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN shipment_type    TEXT NOT NULL DEFAULT ''"); } catch(\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN dispatch_date    DATE"); } catch(\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN contract_type    TEXT NOT NULL DEFAULT ''"); } catch(\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN contract_id      INTEGER DEFAULT NULL"); } catch(\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN s10_number       TEXT NOT NULL DEFAULT ''"); } catch(\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN apaczka_shipment_id INTEGER DEFAULT NULL"); } catch(\Throwable $e) {}
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────

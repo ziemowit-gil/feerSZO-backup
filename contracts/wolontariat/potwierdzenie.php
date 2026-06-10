@@ -17,6 +17,8 @@ if (!defined('APP_INSTALLED')) require_once dirname(dirname(__DIR__)) . '/config
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/correspondence.php';
+require_once dirname(dirname(__DIR__)) . '/includes/postal.php';
 
 require_login();
 
@@ -104,6 +106,20 @@ $status_txt    = $status_labels[$row['status'] ?? ''] ?? ucfirst($row['status'] 
 
 $fn_safe  = preg_replace('/[^a-zA-Z0-9_-]/', '_', $numer);
 $base_url = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $id;
+
+// ── Korespondencja wychodząca — barcode ──────────────────────────────────────
+$corr_id  = (int)($_GET['corr_id'] ?? 0);
+$corr_row = null;
+$s10_code = '';
+if ($corr_id && str_starts_with($typ, 'koperta')) {
+    $corr_row = db_one(
+        "SELECT * FROM correspondence WHERE id=? AND direction='outgoing'",
+        [$corr_id]
+    );
+    if ($corr_row) {
+        $s10_code = $corr_row['s10_number'] ?? '';
+    }
+}
 
 // ── DOCX helpers ──────────────────────────────────────────────────────────────
 function _pw(string $t): string { return htmlspecialchars($t, ENT_XML1 | ENT_QUOTES, 'UTF-8'); }
@@ -402,14 +418,70 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
 .koperta .adresat .adr-name  { font-size:14pt; font-weight:bold; margin-bottom:3pt; }
 .koperta .env-ref { font-size:8pt; color:#aaa; text-align:right; padding-top:6mm; border-top:1px dashed #ddd; }
 
+/* ── Barcode ── */
+.env-barcode { text-align:center; padding-top:5mm; }
+.env-barcode svg { max-width:100%; display:block; margin:0 auto; }
+.env-barcode-meta { font-size:7pt; color:#555; letter-spacing:.12em; text-align:center; margin-top:2pt; line-height:1.5; }
+.env-barcode-meta strong { color:#000; }
+.env-barcode-pending { font-size:8pt; color:#aaa; text-align:center; border:1px dashed #ccc; padding:4mm 6mm; margin-top:5mm; border-radius:3pt; }
+
+/* ── Modal rejestracji (no-print) ── */
+.dispatch-modal-bg {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000;
+  align-items:center; justify-content:center;
+}
+.dispatch-modal-bg.open { display:flex; }
+.dispatch-modal {
+  background:#fff; border-radius:10px; padding:1.5rem;
+  max-width:540px; width:95%; max-height:90vh; overflow-y:auto;
+  box-shadow:0 8px 40px rgba(0,0,0,.25);
+  font-family:system-ui,sans-serif; font-size:.9rem;
+}
+.dispatch-modal h5 { margin:0 0 1rem; font-size:1.05rem; font-weight:700; }
+.dispatch-modal label { display:block; font-size:.8rem; font-weight:600; color:#374151; margin-bottom:.25rem; margin-top:.75rem; }
+.dispatch-modal select, .dispatch-modal input[type=text],
+.dispatch-modal input[type=date], .dispatch-modal input[type=number] {
+  width:100%; padding:.38rem .6rem; border:1px solid #d1d5db; border-radius:6px;
+  font-size:.9rem; font-family:inherit;
+}
+.dispatch-modal .dm-row { display:flex; gap:.5rem; }
+.dispatch-modal .dm-row > * { flex:1; }
+.dispatch-modal .dm-section { display:none; margin-top:.5rem; padding:.75rem; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; }
+.dispatch-modal .dm-section.visible { display:block; }
+.dispatch-modal .dm-actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:1.2rem; }
+.dispatch-modal .btn-save { background:#1d4ed8; color:#fff; border:none; padding:.45rem 1.1rem; border-radius:6px; font-weight:600; cursor:pointer; font-size:.9rem; }
+.dispatch-modal .btn-save:hover { background:#1e40af; }
+.dispatch-modal .btn-cancel { background:#f1f5f9; color:#374151; border:1px solid #e2e8f0; padding:.45rem 1rem; border-radius:6px; cursor:pointer; font-size:.9rem; }
+.dispatch-modal .dm-msg { font-size:.8rem; color:#374151; margin-top:.5rem; padding:.4rem .6rem; background:#f0fdf4; border-radius:4px; display:none; }
+.dispatch-modal .dm-msg.err { background:#fef2f2; color:#b91c1c; }
+.no-print-dispatch { /* visible only on-screen, not in print */ }
+.btn-register-dispatch {
+  display:inline-flex; align-items:center; gap:.4rem;
+  background:#1d4ed8; color:#fff; border:none; padding:.4rem .9rem;
+  border-radius:6px; font-size:.82rem; font-weight:600; cursor:pointer;
+  font-family:system-ui,sans-serif;
+}
+.btn-register-dispatch:hover { background:#1e40af; }
+.btn-registered {
+  display:inline-flex; align-items:center; gap:.4rem;
+  background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;
+  padding:.35rem .8rem; border-radius:6px; font-size:.82rem; font-weight:600;
+  font-family:system-ui,sans-serif;
+}
+
 @media print {
     .no-print { display:none !important; }
+    .dispatch-modal-bg { display:none !important; }
+    .no-print-dispatch { display:none !important; }
     body { background:#fff; }
     .page { box-shadow:none; margin:0; }
     .page:not(.koperta) { padding:2.5cm 2.5cm 2.5cm 3cm; }
     .koperta.page { padding:16mm 18mm; }
 }
 </style>
+<?php if (str_starts_with($typ, 'koperta')): ?>
+<script src="<?= APP_URL ?>/assets/js/JsBarcode.code128.min.js"></script>
+<?php endif; ?>
 </head>
 <body>
 <?php if (!$is_preview): ?><script>setTimeout(()=>window.print(),600);</script><?php endif; ?>
@@ -437,6 +509,14 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
     <a href="<?= $base_url ?>&typ=<?= $t ?>&preview=1" class="btn-sw" target="_blank">&#8596; <?= h($lbl) ?></a>
     <?php endif; ?>
     <?php endforeach; ?>
+  <?php endif; ?>
+  <?php if (str_starts_with($typ, 'koperta') && can_edit()): ?>
+  <span class="sep">|</span>
+  <?php if ($corr_row): ?>
+    <span class="btn-registered">&#10003; Zarejestrowano: <?= h($corr_row['number']) ?></span>
+  <?php else: ?>
+    <button type="button" class="btn-register-dispatch" onclick="dmOpen()">&#128233; Rejestruj wysyłkę</button>
+  <?php endif; ?>
   <?php endif; ?>
   <a href="view.php?id=<?= $id ?>" class="btn-back">&#8592; Wróć</a>
   <span style="font-size:.76rem;color:#94a3b8"><?= h($numer) ?></span>
@@ -578,7 +658,23 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
     </div>
   </div>
 
-  <div class="env-ref">Porozumienie nr <?= h($numer) ?> &nbsp;·&nbsp; <?= h($org_name) ?></div>
+  <div class="env-barcode">
+    <?php if ($s10_code): ?>
+    <svg id="env-bc-a4"></svg>
+    <div class="env-barcode-meta">
+      <strong><?= h($s10_code) ?></strong><br>
+      <?= h($corr_row['number'] ?? '') ?>
+      <?php if ($corr_row['tracking_number'] ?? ''): ?>
+       &nbsp;·&nbsp; nr przesyłki: <?= h($corr_row['tracking_number']) ?>
+      <?php endif; ?>
+    </div>
+    <?php else: ?>
+    <div class="env-barcode-pending">
+      Porozumienie nr <?= h($numer) ?> &nbsp;·&nbsp; <?= h($org_name) ?><br>
+      <small>Zarejestruj wysyłkę, aby wydrukować kod kreskowy S10</small>
+    </div>
+    <?php endif; ?>
+  </div>
 
 </div>
 
@@ -610,10 +706,207 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
     </div>
   </div>
 
-  <div class="env-ref">Porozumienie nr <?= h($numer) ?> &nbsp;·&nbsp; <?= h($org_name) ?></div>
+  <div class="env-barcode">
+    <?php if ($s10_code): ?>
+    <svg id="env-bc-c4"></svg>
+    <div class="env-barcode-meta">
+      <strong><?= h($s10_code) ?></strong><br>
+      <?= h($corr_row['number'] ?? '') ?>
+      <?php if ($corr_row['tracking_number'] ?? ''): ?>
+       &nbsp;·&nbsp; nr przesyłki: <?= h($corr_row['tracking_number']) ?>
+      <?php endif; ?>
+    </div>
+    <?php else: ?>
+    <div class="env-barcode-pending">
+      Porozumienie nr <?= h($numer) ?> &nbsp;·&nbsp; <?= h($org_name) ?><br>
+      <small>Zarejestruj wysyłkę, aby wydrukować kod kreskowy S10</small>
+    </div>
+    <?php endif; ?>
+  </div>
 
 </div>
 
+<?php endif; ?>
+
+<?php if (str_starts_with($typ, 'koperta') && can_edit()): ?>
+<!-- ══════════════════════════════════════
+     MODAL — Rejestracja wysyłki wychodzącej
+     ══════════════════════════════════════ -->
+<div class="dispatch-modal-bg no-print" id="dmBg">
+  <div class="dispatch-modal">
+    <h5>&#128233; Rejestracja wysyłki wychodzącej</h5>
+
+    <label>Przewoźnik *</label>
+    <select id="dmCarrier" onchange="dmCarrierChange()">
+      <option value="">— wybierz —</option>
+      <?php foreach (carrier_labels() as $ckey => $clabel): ?>
+      <option value="<?= h($ckey) ?>"><?= h($clabel) ?></option>
+      <?php endforeach; ?>
+    </select>
+
+    <label>Data nadania *</label>
+    <input type="date" id="dmDate" value="<?= date('Y-m-d') ?>">
+
+    <label>Opis / przedmiot przesyłki</label>
+    <input type="text" id="dmSubject"
+           value="<?= h('Korespondencja do: ' . $vol_name . ' — ' . $numer) ?>">
+
+    <label>Nr śledzenia (uzupełnij po nadaniu — opcjonalnie)</label>
+    <input type="text" id="dmTracking" placeholder="np. RR123456785PL lub numer kuriera">
+
+    <!-- Pola Apaczka (ukryte dopóki nie wybrano kuriera AP) -->
+    <div class="dm-section" id="dmApaczka">
+      <strong style="font-size:.82rem">Parametry przesyłki (Apaczka.pl)</strong>
+      <label>ID usługi Apaczka *</label>
+      <input type="number" id="dmServiceId" placeholder="np. 8 (DPD Classic)" min="1">
+      <label>Waga (kg)</label>
+      <input type="number" id="dmWeight" value="0.5" step="0.1" min="0.1">
+      <label>Wymiary (cm): dł. × szer. × wys.</label>
+      <div class="dm-row">
+        <input type="number" id="dmD1" placeholder="dł." value="30" min="1">
+        <input type="number" id="dmD2" placeholder="szer." value="20" min="1">
+        <input type="number" id="dmD3" placeholder="wys." value="5" min="1">
+      </div>
+      <label>Odbiór</label>
+      <select id="dmPickup">
+        <option value="SELF">Nadaję samodzielnie (drop-off)</option>
+        <option value="COURIER">Odbiór przez kuriera</option>
+      </select>
+      <?php if ($carrier === 'inpost_paczkomat' || true): ?>
+      <div id="dmPaczkomat" style="display:none">
+        <label>Numer paczkomatu</label>
+        <input type="text" id="dmPointId" placeholder="np. WAW001">
+      </div>
+      <?php endif; ?>
+      <label>
+        <input type="checkbox" id="dmOrderNow" checked>
+        Złóż zamówienie przez Apaczka.pl API teraz
+      </label>
+    </div>
+
+    <div class="dm-msg" id="dmMsg"></div>
+
+    <div class="dm-actions">
+      <button type="button" class="btn-cancel" onclick="dmClose()">Anuluj</button>
+      <button type="button" class="btn-save" id="dmSaveBtn" onclick="dmSave()">
+        &#128190; Zarejestruj
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var SAVE_URL = <?= json_encode(APP_URL . '/correspondence/dispatch_save.php') ?>;
+  var BASE_URL = <?= json_encode($base_url . '&typ=' . $typ . '&preview=1') ?>;
+  var CSRF     = <?= json_encode(csrf_token()) ?>;
+  var CARRIER_APACZKA = <?= json_encode(array_keys(array_filter(carrier_labels(), fn($k) => carrier_uses_apaczka($k), ARRAY_FILTER_USE_KEY))) ?>;
+
+  window.dmOpen  = function(){ document.getElementById('dmBg').classList.add('open'); }
+  window.dmClose = function(){ document.getElementById('dmBg').classList.remove('open'); }
+
+  window.dmCarrierChange = function(){
+    var c = document.getElementById('dmCarrier').value;
+    var ap = document.getElementById('dmApaczka');
+    var pm = document.getElementById('dmPaczkomat');
+    if (CARRIER_APACZKA.indexOf(c) >= 0) {
+      ap.classList.add('visible');
+    } else {
+      ap.classList.remove('visible');
+    }
+    pm.style.display = (c === 'inpost_paczkomat') ? 'block' : 'none';
+  }
+
+  window.dmSave = function(){
+    var carrier = document.getElementById('dmCarrier').value;
+    if (!carrier) { dmMsg('Wybierz przewoźnika.', true); return; }
+
+    var useApaczka = CARRIER_APACZKA.indexOf(carrier) >= 0;
+    var btn = document.getElementById('dmSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Rejestruję…';
+
+    var payload = {
+      csrf_token:    CSRF,
+      carrier:       carrier,
+      contract_type: 'wolontariat',
+      contract_id:   <?= $id ?>,
+      correspondent: <?= json_encode($env_line1 ?: $vol_name) ?>,
+      subject:       document.getElementById('dmSubject').value,
+      dispatch_date: document.getElementById('dmDate').value,
+      tracking_number: document.getElementById('dmTracking').value,
+    };
+
+    if (useApaczka && document.getElementById('dmOrderNow').checked) {
+      payload.order_apaczka = 1;
+      payload.service_id = document.getElementById('dmServiceId').value;
+      payload.weight     = document.getElementById('dmWeight').value;
+      payload.dim1       = document.getElementById('dmD1').value;
+      payload.dim2       = document.getElementById('dmD2').value;
+      payload.dim3       = document.getElementById('dmD3').value;
+      payload.pickup_type = document.getElementById('dmPickup').value;
+      if (carrier === 'inpost_paczkomat') {
+        payload.paczkomat_id = document.getElementById('dmPointId').value;
+      }
+    }
+
+    fetch(SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      btn.disabled = false;
+      btn.textContent = '💾 Zarejestruj';
+      if (data.ok) {
+        dmMsg(data.msg || 'Zarejestrowano.', false);
+        setTimeout(function(){
+          window.location.href = BASE_URL + '&corr_id=' + data.corr_id;
+        }, 900);
+      } else {
+        dmMsg(data.msg || 'Błąd zapisu.', true);
+      }
+    })
+    .catch(function(e){
+      btn.disabled = false;
+      btn.textContent = '💾 Zarejestruj';
+      dmMsg('Błąd połączenia: ' + e.message, true);
+    });
+  }
+
+  function dmMsg(t, isErr){
+    var el = document.getElementById('dmMsg');
+    el.textContent = t;
+    el.style.display = 'block';
+    el.classList.toggle('err', isErr);
+  }
+
+  // Zainicjuj barcode jeśli S10 dostępny
+  var s10 = <?= json_encode($s10_code) ?>;
+  if (s10 && typeof JsBarcode !== 'undefined') {
+    var svgIds = ['env-bc-a4', 'env-bc-c4'];
+    svgIds.forEach(function(sid){
+      var el = document.getElementById(sid);
+      if (el) {
+        JsBarcode(el, s10, {
+          format: 'CODE128',
+          width: 1.6,
+          height: 38,
+          displayValue: false,
+          margin: 0,
+          background: 'transparent',
+        });
+      }
+    });
+  }
+
+  // Kliknięcie poza modal zamyka
+  document.getElementById('dmBg').addEventListener('click', function(e){
+    if (e.target === this) dmClose();
+  });
+})();
+</script>
 <?php endif; ?>
 </body>
 </html>
