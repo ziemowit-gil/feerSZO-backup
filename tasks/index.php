@@ -140,8 +140,398 @@ foreach ($tasks_raw as $t) {
     if ($t['_mine']) $cnt['mine']++;
 }
 
+$view_mode = $_GET['view'] ?? 'list'; // 'list' | 'kanban'
+
+// ── Helper: renderuje region listy / kanbana (używany też przez ?_ajax=1) ─
+function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id, string $view_mode, ?array $workspace, bool $can_add, bool $is_admin): string
+{
+    ob_start(); ?>
+<?php if ($view_mode === 'kanban'): ?>
+<!-- ── Widok Kanban ──────────────────────────────────────────────────────── -->
+<div class="tk-kanban" id="tkListRegion">
+  <?php foreach ($lists_map as $lid => $list): ?>
+  <?php $col_tasks = array_filter($tasks, fn($t) => (int)$t['list_id'] === (int)$lid); ?>
+  <div class="tk-kanban-col">
+    <div class="tk-kanban-hdr" style="border-top:3px solid <?= h($list['color'] ?: '#94a3b8') ?>">
+      <span><?= h($list['name']) ?></span>
+      <span class="badge bg-secondary"><?= count($col_tasks) ?></span>
+    </div>
+    <?php foreach ($col_tasks as $t): ?>
+    <div class="tk-card" onclick="openTask(<?= (int)$t['id'] ?>)" data-task-id="<?= (int)$t['id'] ?>">
+      <div class="tk-card-title"><?= h($t['title']) ?></div>
+      <?php if ($t['due_date']): ?>
+      <div class="tk-card-due <?= $t['_overdue'] ? 'overdue' : '' ?>">
+        <i class="bi bi-calendar3"></i> <?= h(date('d.m', strtotime($t['due_date']))) ?>
+      </div>
+      <?php endif; ?>
+      <div class="tk-card-meta">
+        <?php
+          $dot_color = match((int)$t['priority']) {
+            4 => '#dc2626', 3 => '#f59e0b', default => '#94a3b8'
+          };
+        ?>
+        <span style="color:<?= $dot_color ?>">●</span>
+        <?php foreach ($t['assignees'] as $a): ?>
+        <span class="tk-card-asgn" title="<?= h($a['name']) ?>"><?= h(mb_substr($a['name'],0,1)) ?></span>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+    <?php if (empty($col_tasks)): ?>
+    <div class="tk-card-empty text-muted small">Brak zadań</div>
+    <?php endif; ?>
+  </div>
+  <?php endforeach; ?>
+</div>
+<?php else: ?>
+<!-- ── Tabela zadań ──────────────────────────────────────────────────────── -->
+<div class="tk-wrap" id="tkListRegion">
+
+  <!-- Pasek zbiorczych akcji -->
+  <div class="tk-bulk-bar" id="tk-bulk-bar" role="toolbar" aria-label="Zbiorcze akcje">
+    <span class="tk-bulk-count" id="tk-bulk-count" aria-live="polite">0 zaznaczonych</span>
+    <div class="tk-bulk-sep"></div>
+
+    <button class="tk-bulk-btn" onclick="bulkAction('assign_me')"
+            aria-label="Przypisz zaznaczone zadania do siebie">
+      <i class="bi bi-person-check" aria-hidden="true"></i>Przypisz do mnie
+    </button>
+
+    <button class="tk-bulk-btn" onclick="bulkAction('complete')"
+            aria-label="Oznacz zaznaczone jako ukończone">
+      <i class="bi bi-check2-circle" aria-hidden="true"></i>Zakończ
+    </button>
+
+    <label class="visually-hidden" for="tk-bulk-pri">Zmień priorytet</label>
+    <select id="tk-bulk-pri" class="tk-bulk-pri-sel"
+            onchange="if(this.value){bulkAction('priority',{priority:parseInt(this.value)});this.value=''}"
+            aria-label="Zmień priorytet zaznaczonych zadań">
+      <option value="">⚑ Priorytet…</option>
+      <option value="4">🔴 Krytyczny</option>
+      <option value="3">🟡 Wysoki</option>
+      <option value="2">🔵 Normalny</option>
+      <option value="1">⚪ Niski</option>
+    </select>
+
+    <?php if (!empty($lists_map)): ?>
+    <label class="visually-hidden" for="tk-bulk-list">Przenieś do listy</label>
+    <select id="tk-bulk-list" class="tk-bulk-list-sel"
+            onchange="if(this.value){bulkAction('move',{list_id:parseInt(this.value)});this.value=''}"
+            aria-label="Przenieś zaznaczone zadania do wybranej kolumny">
+      <option value="">↦ Przenieś do…</option>
+      <?php foreach ($lists_map as $l): ?>
+      <option value="<?= $l['id'] ?>"><?= h($l['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <?php endif; ?>
+
+    <?php if ($can_add): ?>
+    <div class="tk-bulk-sep"></div>
+    <button class="tk-bulk-btn danger" onclick="bulkAction('delete')"
+            aria-label="Usuń zaznaczone zadania">
+      <i class="bi bi-trash3" aria-hidden="true"></i>Usuń
+    </button>
+    <?php endif; ?>
+
+    <button class="tk-bulk-close" onclick="bulkClear()"
+            aria-label="Anuluj zaznaczenie">
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <div style="overflow-x:auto">
+    <table class="tk-table"
+           id="task-table"
+           role="grid"
+           aria-label="Zadania obszaru <?= $workspace ? h($workspace['name']) : '' ?>"
+           aria-rowcount="<?= count($tasks) ?>">
+      <thead>
+        <tr>
+          <th scope="col" class="th-check">
+            <input type="checkbox" class="tk-row-check" id="tk-check-all"
+                   onchange="bulkToggleAll(this)"
+                   aria-label="Zaznacz wszystkie zadania">
+          </th>
+          <th scope="col" style="width:3%" aria-label="Priorytet i tytuł">Zadanie</th>
+          <th scope="col" style="width:10%" class="th-center">Status</th>
+          <th scope="col" style="width:10%">Kategoria</th>
+          <th scope="col" style="width:8%"  class="th-center">Priorytet</th>
+          <th scope="col" style="width:8%">Termin</th>
+          <th scope="col" style="width:10%">Postęp</th>
+          <th scope="col" style="width:12%">Tagi</th>
+          <th scope="col" style="width:10%">Przypisani</th>
+          <th scope="col" style="width:9%"  class="th-center">Akcja</th>
+        </tr>
+      </thead>
+      <tbody id="tk-tbody">
+
+      <?php if (!$tasks): ?>
+      <tr>
+        <td colspan="10">
+          <?php
+          $is_brand_new = ($workspace && (int)($workspace['task_count'] ?? 0) === 0 && empty($lists_map));
+          ?>
+          <?php if ($is_brand_new && $can_add): ?>
+          <div style="padding:2rem 1.5rem;text-align:center;max-width:480px;margin:0 auto">
+            <div style="font-size:2.5rem;margin-bottom:.75rem">🎉</div>
+            <div style="font-weight:700;font-size:1rem;color:#0f172a;margin-bottom:.35rem">Obszar „<?= $workspace ? h($workspace['name']) : '' ?>" jest gotowy!</div>
+            <p style="font-size:.83rem;color:#64748b;line-height:1.6;margin-bottom:1.25rem">
+              Teraz dodaj pierwsze zadania. Możesz też najpierw stworzyć listy
+              (np. „Do zrobienia" / „W trakcie" / „Gotowe") żeby lepiej porządkować pracę.
+            </p>
+            <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+              <button type="button" onclick="openAddModal()"
+                      style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.55rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem">
+                <i class="bi bi-plus-lg"></i>Dodaj pierwsze zadanie
+              </button>
+              <?php if ($is_admin): ?>
+              <a href="<?= APP_URL ?>/admin/tasks_workspaces.php"
+                 style="background:#f8fafc;color:#374151;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem 1rem;font-size:.83rem;font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem">
+                <i class="bi bi-list-ul"></i>Zarządzaj listami
+              </a>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php else: ?>
+          <div class="tk-empty">
+            <i class="bi bi-funnel" aria-hidden="true"></i>
+            <p class="fw-semibold mb-1">Brak zadań spełniających kryteria</p>
+            <p class="small mb-0">Zmień filtry lub <button type="button" class="btn btn-link btn-sm p-0" onclick="openAddModal()">dodaj nowe zadanie</button>.</p>
+          </div>
+          <?php endif; ?>
+        </td>
+      </tr>
+
+      <?php else: foreach ($tasks as $task):
+        $pri_meta = [
+          4 => ['🔴','Krytyczny','#dc2626'],
+          3 => ['🟡','Wysoki',   '#f59e0b'],
+          2 => ['🔵','Normalny', '#3b82f6'],
+          1 => ['⚪','Niski',    '#94a3b8'],
+        ][(int)$task['priority']] ?? ['⚪','Normalny','#94a3b8'];
+
+        $st_total = (int)$task['st_total'];
+        $st_done  = (int)$task['st_done'];
+        $st_pct   = $st_total ? round($st_done/$st_total*100) : 0;
+
+        $status_info = match($task['_status']) {
+          'open'  => ['s-open',  'Do zrobienia', 'bi-circle'],
+          'taken' => ['s-taken', 'Przydzielone', 'bi-person-fill'],
+          'done'  => ['s-done',  'Ukończone',    'bi-check-circle-fill'],
+          default => ['s-open',  'Do zrobienia', 'bi-circle'],
+        };
+
+        $row_label = h($task['title'])
+          . ', status: ' . $status_info[1]
+          . ', priorytet: ' . $pri_meta[1]
+          . ($task['_overdue'] ? ', po terminie' : '');
+      ?>
+      <tr class="<?= $task['_status']==='done'?'row-done':'' ?>"
+          data-pri="<?= $task['priority'] ?>"
+          data-task-id="<?= $task['id'] ?>"
+          tabindex="0"
+          role="row"
+          aria-label="<?= $row_label ?>"
+          onclick="if(!event.target.closest('td.td-check')&&!event.target.closest('td:last-child')&&!event.target.closest('.tk-status-btn')&&!event.target.closest('.dropdown'))openTask(<?= $task['id'] ?>)"
+          onkeydown="if((event.key==='Enter'||event.key===' ')&&!event.target.closest('input'))openTask(<?= $task['id'] ?>)">
+
+        <!-- Checkbox -->
+        <td class="td-check" onclick="event.stopPropagation()">
+          <input type="checkbox"
+                 class="tk-row-check tk-row-select"
+                 data-id="<?= $task['id'] ?>"
+                 onchange="bulkOnCheck(this)"
+                 aria-label="Zaznacz zadanie: <?= h($task['title']) ?>">
+        </td>
+
+        <!-- Zadanie: tytuł + podtytuł -->
+        <td>
+          <div class="tk-title"><?= h($task['title']) ?></div>
+          <?php if ($task['description']): ?>
+          <div class="tk-subtitle"><?= h(mb_substr(strip_tags($task['description']),0,80)) ?></div>
+          <?php endif; ?>
+        </td>
+
+        <!-- Status — klikalny przycisk inline -->
+        <td class="th-center" style="text-align:center" onclick="event.stopPropagation()">
+          <?php if ($task['_status'] === 'done'): ?>
+          <button type="button" class="tk-status s-done tk-status-btn"
+                  data-task-id="<?= $task['id'] ?>"
+                  onclick="tkToggleDone(this, <?= $task['id'] ?>)"
+                  title="Kliknij aby cofnąć ukończenie">
+            <i class="bi bi-check-circle-fill" aria-hidden="true"></i> Ukończone
+          </button>
+          <?php else: ?>
+          <button type="button" class="tk-status <?= $status_info[0] ?> tk-status-btn"
+                  data-task-id="<?= $task['id'] ?>"
+                  onclick="tkToggleDone(this, <?= $task['id'] ?>)"
+                  title="Kliknij aby oznaczyć jako ukończone">
+            <i class="bi <?= $status_info[2] ?>" aria-hidden="true"></i> <?= $status_info[1] ?>
+          </button>
+          <?php endif; ?>
+        </td>
+
+        <!-- Kategoria -->
+        <td>
+          <?php $lc = $task['list_color'] ?: '#94a3b8'; ?>
+          <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem">
+            <span style="width:7px;height:7px;border-radius:50%;background:<?= h($lc) ?>;flex-shrink:0" aria-hidden="true"></span>
+            <?= h($task['list_name']) ?>
+          </span>
+        </td>
+
+        <!-- Priorytet — dropdown inline -->
+        <td style="text-align:center" onclick="event.stopPropagation()">
+          <div class="dropdown d-inline-block">
+            <button class="pri-btn btn btn-link btn-sm p-0" data-bs-toggle="dropdown"
+                    style="color:<?= $pri_meta[2] ?>;text-decoration:none" title="Zmień priorytet">
+              <span aria-hidden="true"><?= $pri_meta[0] ?></span>
+              <span style="font-size:.74rem"><?= $pri_meta[1] ?></span>
+            </button>
+            <ul class="dropdown-menu shadow-sm py-1">
+              <?php foreach ([4=>'🔴 Krytyczny',3=>'🟡 Wysoki',2=>'🔵 Normalny',1=>'⚪ Niski'] as $p=>$pl): ?>
+              <li><button class="dropdown-item" onclick="tkSetPriority(<?= $task['id'] ?>, <?= $p ?>)"><?= $pl ?></button></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        </td>
+
+        <!-- Termin -->
+        <td>
+          <?php if ($task['due_date']): ?>
+          <span class="td-due <?= $task['_overdue']?'overdue':'' ?>"
+                aria-label="Termin: <?= h($task['due_date']) ?><?= $task['_overdue']?' (po terminie)':'' ?>">
+            <?php if ($task['_overdue']): ?>
+            <i class="bi bi-alarm me-1" aria-hidden="true"></i>
+            <?php else: ?>
+            <i class="bi bi-calendar3 me-1 text-muted" aria-hidden="true"></i>
+            <?php endif; ?>
+            <?= h(date('d.m.Y', strtotime($task['due_date']))) ?>
+          </span>
+          <?php else: ?>
+          <span class="text-muted" style="font-size:.75rem">—</span>
+          <?php endif; ?>
+        </td>
+
+        <!-- Postęp podzadań -->
+        <td>
+          <?php if ($st_total > 0): ?>
+          <div class="tk-prog-wrap"
+               aria-label="Podzadania: <?= $st_done ?>/<?= $st_total ?>">
+            <div class="tk-prog-track"
+                 role="progressbar"
+                 aria-valuenow="<?= $st_pct ?>"
+                 aria-valuemin="0" aria-valuemax="100">
+              <div class="tk-prog-fill <?= $st_done===$st_total?'bg-success':'bg-primary' ?>"
+                   style="width:<?= $st_pct ?>%"></div>
+            </div>
+            <span class="tk-prog-label"><?= $st_done ?>/<?= $st_total ?></span>
+          </div>
+          <?php else: ?>
+          <span class="text-muted" style="font-size:.75rem">—</span>
+          <?php endif; ?>
+        </td>
+
+        <!-- Tagi -->
+        <td>
+          <?php if ($task['tags']): ?>
+          <div class="tk-tags">
+            <?php foreach (array_slice($task['tags'],0,3) as $tag): ?>
+            <span class="tk-tag"
+                  style="background:<?= h($tag['color']) ?>;color:<?= h($tag['text_color']) ?>">
+              <?= h($tag['name']) ?>
+            </span>
+            <?php endforeach; ?>
+            <?php if (count($task['tags'])>3): ?>
+            <span class="tk-tag" style="background:#f1f5f9;color:#64748b">
+              +<?= count($task['tags'])-3 ?>
+            </span>
+            <?php endif; ?>
+          </div>
+          <?php else: ?>
+          <span class="text-muted" style="font-size:.75rem">—</span>
+          <?php endif; ?>
+        </td>
+
+        <!-- Przypisani -->
+        <td>
+          <?php if ($task['assignees']): ?>
+          <div class="tk-av-stack" aria-label="Przypisani: <?= h(implode(', ', array_column($task['assignees'],'name'))) ?>">
+            <?php foreach (array_slice($task['assignees'],0,4) as $a): ?>
+            <?= task_avatar_initials($a['name'], '#2563eb', '#fff') ?>
+            <?php endforeach; ?>
+            <?php if (count($task['assignees'])>4): ?>
+            <span class="tk-av" style="background:#64748b"
+                  aria-label="+<?= count($task['assignees'])-4 ?> więcej">
+              +<?= count($task['assignees'])-4 ?>
+            </span>
+            <?php endif; ?>
+          </div>
+          <?php else: ?>
+          <span class="text-muted" style="font-size:.75rem">Brak</span>
+          <?php endif; ?>
+        </td>
+
+        <!-- Akcja (klik zatrzymuje propagację) -->
+        <td style="text-align:center" onclick="event.stopPropagation()">
+          <?php if ($task['_status'] !== 'done'): ?>
+          <div class="tk-actions justify-content-center">
+            <?php if ($task['_mine']): ?>
+            <button type="button"
+                    class="btn-unclaim"
+                    onclick="claimTask(<?= $task['id'] ?>,'remove',this)"
+                    aria-label="Oddaj zadanie: <?= h($task['title']) ?>">
+              <i class="bi bi-person-dash me-1" aria-hidden="true"></i>Oddaj
+            </button>
+            <?php elseif ($task['_status'] === 'open'): ?>
+            <button type="button"
+                    class="btn-claim"
+                    onclick="claimTask(<?= $task['id'] ?>,'add',this)"
+                    aria-label="Weź zadanie: <?= h($task['title']) ?>">
+              <i class="bi bi-hand-index me-1" aria-hidden="true"></i>Weź
+            </button>
+            <?php else: ?>
+            <span class="text-muted" style="font-size:.73rem">—</span>
+            <?php endif; ?>
+          </div>
+          <?php else: ?>
+          <span class="text-muted" style="font-size:.73rem">—</span>
+          <?php endif; ?>
+        </td>
+
+      </tr>
+      <?php endforeach; endif; ?>
+
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Stopka z licznikiem -->
+  <?php if ($tasks): ?>
+  <div class="px-3 py-2 border-top" style="background:var(--tk-bg-soft);font-size:.75rem;color:var(--tk-muted)">
+    Pokazano <strong><?= count($tasks) ?></strong> zadań
+    <?php if ($cnt['all'] !== count($tasks)): ?>
+    z <strong><?= $cnt['all'] ?></strong>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+</div>
+<?php endif; ?>
+<?php
+    return ob_get_clean();
+}
+
+// ── AJAX — zwróć tylko listę/kanban ───────────────────────────────────────
+if (isset($_GET['_ajax'])) {
+    ob_start();
+    echo _tasks_list_html($tasks, $cnt, $lists_map, $ws_id, $view_mode, $workspace, $can_add, $is_admin);
+    echo json_encode(['ok'=>true,'total'=>count($tasks),'list_html'=>ob_get_clean(),'counts'=>$cnt]);
+    exit;
+}
+
 $PAGE_TITLE       = $workspace ? h($workspace['name']) : 'Zadania';
-$PAGE_SUBTITLE    = 'Widok tabelaryczny';
+$PAGE_SUBTITLE    = $view_mode === 'kanban' ? 'Widok Kanban' : 'Widok tabelaryczny';
 $TASKS_BREADCRUMB = $workspace ? h($workspace['name']) : 'Zadania';
 $TASKS_WS_ID      = $ws_id;
 require_once __DIR__ . '/includes/header_tasks.php';
@@ -404,6 +794,23 @@ require_once __DIR__ . '/includes/header_tasks.php';
 /* Kolumna termin */
 .td-due{white-space:nowrap;font-size:.78rem}
 .td-due.overdue{color:#dc2626;font-weight:600}
+
+/* Inline status / priority button */
+.tk-status-btn{border:none;background:none;cursor:pointer;padding:.15rem .5rem;border-radius:2rem;font-size:.7rem;font-weight:700;display:inline-flex;align-items:center;gap:.25rem;white-space:nowrap;transition:opacity .12s;}
+.tk-status-btn:hover{opacity:.75}
+
+/* ── Kanban ── */
+.tk-kanban{display:flex;gap:1rem;overflow-x:auto;align-items:flex-start;padding-bottom:1rem}
+.tk-kanban-col{min-width:240px;max-width:280px;background:#f8fafc;border-radius:10px;padding:.6rem}
+.tk-kanban-hdr{display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem .6rem;font-weight:600;font-size:.85rem;margin-bottom:.4rem}
+.tk-card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;margin-bottom:.4rem;cursor:pointer;transition:box-shadow .12s}
+.tk-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.tk-card-title{font-size:.85rem;font-weight:500;margin-bottom:.3rem}
+.tk-card-due{font-size:.74rem;color:#64748b;margin-bottom:.3rem}
+.tk-card-due.overdue{color:#dc2626;font-weight:600}
+.tk-card-meta{display:flex;align-items:center;gap:.3rem;font-size:.8rem}
+.tk-card-asgn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:.68rem;font-weight:700}
+.tk-card-empty{text-align:center;padding:.5rem}
 </style>
 
 <div id="tk-sr" aria-live="polite" aria-atomic="true"></div>
@@ -500,16 +907,18 @@ require_once __DIR__ . '/includes/header_tasks.php';
 <?php if ($workspace): ?>
 
 <!-- ── Pasek narzędzi ────────────────────────────────────────────────────── -->
-<div class="tk-toolbar" role="search" aria-label="Filtry i wyszukiwanie">
+<form id="tkFilterForm" class="tk-toolbar" role="search" aria-label="Filtry i wyszukiwanie" onsubmit="tkAjaxLoad(event)">
+  <input type="hidden" name="ws"     value="<?= (int)$ws_id ?>">
+  <input type="hidden" name="status" id="tk-status-hidden" value="<?= h($filter_status) ?>">
+  <input type="hidden" name="view"   value="<?= h($view_mode) ?>">
 
   <!-- Szukaj -->
   <div>
     <label class="visually-hidden" for="tk-q">Szukaj zadania</label>
-    <input type="search" id="tk-q" class="tk-search"
+    <input type="search" id="tk-q" name="q" class="tk-search"
            placeholder="Szukaj…"
            value="<?= h($filter_q) ?>"
-           aria-label="Szukaj zadania po tytule lub opisie"
-           oninput="tkSearch(this.value)">
+           aria-label="Szukaj zadania po tytule lub opisie">
   </div>
 
   <div class="tk-sep" role="separator" aria-hidden="true"></div>
@@ -525,15 +934,15 @@ require_once __DIR__ . '/includes/header_tasks.php';
       'mine'  => ['Moje',      'bi-person-check-fill'],
     ];
     foreach ($sp as $k => [$lbl, $ico]):
-      $url = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'status'=>$k,'q'=>'']));
     ?>
-    <a href="<?= $url ?>"
+    <button type="button"
        class="tk-pill <?= $filter_status===$k?'active':'' ?>"
        data-s="<?= $k ?>"
-       aria-pressed="<?= $filter_status===$k?'true':'false' ?>">
+       aria-pressed="<?= $filter_status===$k?'true':'false' ?>"
+       onclick="tkSetStatus('<?= $k ?>', this)">
       <i class="bi <?= $ico ?>" aria-hidden="true"></i><?= $lbl ?>
-      <span class="pill-n"><?= $cnt[$k] ?></span>
-    </a>
+      <span class="pill-n" id="tk-cnt-<?= $k ?>"><?= $cnt[$k] ?></span>
+    </button>
     <?php endforeach; ?>
   </div>
 
@@ -541,7 +950,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 
   <!-- Priorytet -->
   <label class="visually-hidden" for="tk-pri">Priorytet</label>
-  <select id="tk-pri" class="tk-select" onchange="tkFilter('pri',this.value)">
+  <select id="tk-pri" name="pri" class="tk-select" onchange="tkAjaxLoad()">
     <option value="0" <?= !$filter_priority?'selected':'' ?>>Każdy priorytet</option>
     <option value="4" <?= $filter_priority==4?'selected':'' ?>>🔴 Krytyczny</option>
     <option value="3" <?= $filter_priority==3?'selected':'' ?>>🟡 Wysoki</option>
@@ -552,7 +961,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
   <!-- Kategoria (lista) -->
   <?php if (count($lists_map) > 1): ?>
   <label class="visually-hidden" for="tk-list">Kategoria</label>
-  <select id="tk-list" class="tk-select" onchange="tkFilter('list',this.value)">
+  <select id="tk-list" name="list" class="tk-select" onchange="tkAjaxLoad()">
     <option value="0" <?= !$filter_list?'selected':'' ?>>Każda kategoria</option>
     <?php foreach ($lists_map as $l): ?>
     <option value="<?= $l['id'] ?>" <?= $filter_list==$l['id']?'selected':'' ?>><?= h($l['name']) ?></option>
@@ -563,7 +972,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
   <!-- Tag -->
   <?php if ($available_tags): ?>
   <label class="visually-hidden" for="tk-tag">Tag</label>
-  <select id="tk-tag" class="tk-select" onchange="tkFilter('tag',this.value)">
+  <select id="tk-tag" name="tag" class="tk-select" onchange="tkAjaxLoad()">
     <option value="0" <?= !$filter_tag?'selected':'' ?>>Każdy tag</option>
     <?php foreach ($available_tags as $tg): ?>
     <option value="<?= $tg['id'] ?>" <?= $filter_tag==$tg['id']?'selected':'' ?>><?= h($tg['name']) ?></option>
@@ -574,7 +983,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
   <!-- Obszar -->
   <?php if ($all_areas): ?>
   <label class="visually-hidden" for="tk-area">Obszar</label>
-  <select id="tk-area" class="tk-select" onchange="tkFilter('area',this.value)">
+  <select id="tk-area" name="area" class="tk-select" onchange="tkAjaxLoad()">
     <option value="0" <?= !$filter_area?'selected':'' ?>>Każdy obszar</option>
     <?php foreach ($all_areas as $ar): ?>
     <option value="<?= $ar['id'] ?>" <?= $filter_area==$ar['id']?'selected':'' ?>>
@@ -584,9 +993,23 @@ require_once __DIR__ . '/includes/header_tasks.php';
   </select>
   <?php endif; ?>
 
-  <!-- Dodaj zadanie + Usuń obszar -->
-  <?php if ($can_add): ?>
+  <!-- Widok + Dodaj zadanie + Usuń obszar -->
   <div class="ms-auto d-flex gap-2 align-items-center">
+    <?php
+    $kanban_url = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'kanban']));
+    $list_url   = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'list']));
+    ?>
+    <?php if ($view_mode === 'kanban'): ?>
+    <a href="<?= $list_url ?>" class="btn btn-outline-secondary btn-sm" title="Widok listy">
+      <i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista
+    </a>
+    <?php else: ?>
+    <a href="<?= $kanban_url ?>" class="btn btn-outline-secondary btn-sm" title="Widok Kanban">
+      <i class="bi bi-kanban me-1" aria-hidden="true"></i>Kanban
+    </a>
+    <?php endif; ?>
+
+    <?php if ($can_add): ?>
     <button type="button"
             class="btn btn-primary btn-sm"
             onclick="openAddModal()"
@@ -600,327 +1023,12 @@ require_once __DIR__ . '/includes/header_tasks.php';
             aria-label="Usuń obszar <?= h($workspace['name']) ?>">
       <i class="bi bi-trash3" aria-hidden="true"></i>
     </button>
-  </div>
-  <?php endif; ?>
-
-</div>
-
-<!-- ── Tabela zadań ──────────────────────────────────────────────────────── -->
-<div class="tk-wrap">
-
-  <!-- Pasek zbiorczych akcji -->
-  <div class="tk-bulk-bar" id="tk-bulk-bar" role="toolbar" aria-label="Zbiorcze akcje">
-    <span class="tk-bulk-count" id="tk-bulk-count" aria-live="polite">0 zaznaczonych</span>
-    <div class="tk-bulk-sep"></div>
-
-    <button class="tk-bulk-btn" onclick="bulkAction('assign_me')"
-            aria-label="Przypisz zaznaczone zadania do siebie">
-      <i class="bi bi-person-check" aria-hidden="true"></i>Przypisz do mnie
-    </button>
-
-    <button class="tk-bulk-btn" onclick="bulkAction('complete')"
-            aria-label="Oznacz zaznaczone jako ukończone">
-      <i class="bi bi-check2-circle" aria-hidden="true"></i>Zakończ
-    </button>
-
-    <label class="visually-hidden" for="tk-bulk-pri">Zmień priorytet</label>
-    <select id="tk-bulk-pri" class="tk-bulk-pri-sel"
-            onchange="if(this.value){bulkAction('priority',{priority:parseInt(this.value)});this.value=''}"
-            aria-label="Zmień priorytet zaznaczonych zadań">
-      <option value="">⚑ Priorytet…</option>
-      <option value="4">🔴 Krytyczny</option>
-      <option value="3">🟡 Wysoki</option>
-      <option value="2">🔵 Normalny</option>
-      <option value="1">⚪ Niski</option>
-    </select>
-
-    <?php if (!empty($lists_map)): ?>
-    <label class="visually-hidden" for="tk-bulk-list">Przenieś do listy</label>
-    <select id="tk-bulk-list" class="tk-bulk-list-sel"
-            onchange="if(this.value){bulkAction('move',{list_id:parseInt(this.value)});this.value=''}"
-            aria-label="Przenieś zaznaczone zadania do wybranej kolumny">
-      <option value="">↦ Przenieś do…</option>
-      <?php foreach ($lists_map as $l): ?>
-      <option value="<?= $l['id'] ?>"><?= h($l['name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-    <?php endif; ?>
-
-    <?php if ($can_add): ?>
-    <div class="tk-bulk-sep"></div>
-    <button class="tk-bulk-btn danger" onclick="bulkAction('delete')"
-            aria-label="Usuń zaznaczone zadania">
-      <i class="bi bi-trash3" aria-hidden="true"></i>Usuń
-    </button>
-    <?php endif; ?>
-
-    <button class="tk-bulk-close" onclick="bulkClear()"
-            aria-label="Anuluj zaznaczenie">
-      <i class="bi bi-x-lg" aria-hidden="true"></i>
-    </button>
-  </div>
-
-  <div style="overflow-x:auto">
-    <table class="tk-table"
-           id="task-table"
-           role="grid"
-           aria-label="Zadania obszaru <?= h($workspace['name']) ?>"
-           aria-rowcount="<?= count($tasks) ?>">
-      <thead>
-        <tr>
-          <th scope="col" class="th-check">
-            <input type="checkbox" class="tk-row-check" id="tk-check-all"
-                   onchange="bulkToggleAll(this)"
-                   aria-label="Zaznacz wszystkie zadania">
-          </th>
-          <th scope="col" style="width:3%" aria-label="Priorytet i tytuł">Zadanie</th>
-          <th scope="col" style="width:10%" class="th-center">Status</th>
-          <th scope="col" style="width:10%">Kategoria</th>
-          <th scope="col" style="width:8%"  class="th-center">Priorytet</th>
-          <th scope="col" style="width:8%">Termin</th>
-          <th scope="col" style="width:10%">Postęp</th>
-          <th scope="col" style="width:12%">Tagi</th>
-          <th scope="col" style="width:10%">Przypisani</th>
-          <th scope="col" style="width:9%"  class="th-center">Akcja</th>
-        </tr>
-      </thead>
-      <tbody id="tk-tbody">
-
-      <?php if (!$tasks): ?>
-      <tr>
-        <td colspan="9">
-          <?php
-          // Sprawdź czy obszar jest zupełnie nowy (0 list lub 0 zadań łącznie)
-          $is_brand_new = ($workspace && (int)($workspace['task_count'] ?? 0) === 0 && empty($lists_map));
-          ?>
-          <?php if ($is_brand_new && $can_add): ?>
-          <div style="padding:2rem 1.5rem;text-align:center;max-width:480px;margin:0 auto">
-            <div style="font-size:2.5rem;margin-bottom:.75rem">🎉</div>
-            <div style="font-weight:700;font-size:1rem;color:#0f172a;margin-bottom:.35rem">Obszar „<?= h($workspace['name']) ?>" jest gotowy!</div>
-            <p style="font-size:.83rem;color:#64748b;line-height:1.6;margin-bottom:1.25rem">
-              Teraz dodaj pierwsze zadania. Możesz też najpierw stworzyć listy
-              (np. „Do zrobienia" / „W trakcie" / „Gotowe") żeby lepiej porządkować pracę.
-            </p>
-            <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
-              <button type="button" onclick="openAddModal()"
-                      style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.55rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem">
-                <i class="bi bi-plus-lg"></i>Dodaj pierwsze zadanie
-              </button>
-              <?php if ($is_admin): ?>
-              <a href="<?= APP_URL ?>/admin/tasks_workspaces.php"
-                 style="background:#f8fafc;color:#374151;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem 1rem;font-size:.83rem;font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem">
-                <i class="bi bi-list-ul"></i>Zarządzaj listami
-              </a>
-              <?php endif; ?>
-            </div>
-          </div>
-          <?php else: ?>
-          <div class="tk-empty">
-            <i class="bi bi-funnel" aria-hidden="true"></i>
-            <p class="fw-semibold mb-1">Brak zadań spełniających kryteria</p>
-            <p class="small mb-0">Zmień filtry lub <button type="button" class="btn btn-link btn-sm p-0" onclick="openAddModal()">dodaj nowe zadanie</button>.</p>
-          </div>
-          <?php endif; ?>
-        </td>
-      </tr>
-
-      <?php else: foreach ($tasks as $task):
-        $pri_meta = [
-          4 => ['🔴','Krytyczny','#dc2626'],
-          3 => ['🟡','Wysoki',   '#f59e0b'],
-          2 => ['🔵','Normalny', '#3b82f6'],
-          1 => ['⚪','Niski',    '#94a3b8'],
-        ][$task['priority']] ?? ['⚪','Normalny','#94a3b8'];
-
-        $st_total = (int)$task['st_total'];
-        $st_done  = (int)$task['st_done'];
-        $st_pct   = $st_total ? round($st_done/$st_total*100) : 0;
-
-        $status_info = match($task['_status']) {
-          'open'  => ['s-open',  'Do zrobienia', 'bi-circle'],
-          'taken' => ['s-taken', 'Przydzielone', 'bi-person-fill'],
-          'done'  => ['s-done',  'Ukończone',    'bi-check-circle-fill'],
-          default => ['s-open',  'Do zrobienia', 'bi-circle'],
-        };
-
-        $row_label = h($task['title'])
-          . ', status: ' . $status_info[1]
-          . ', priorytet: ' . $pri_meta[1]
-          . ($task['_overdue'] ? ', po terminie' : '');
-      ?>
-      <tr class="<?= $task['_status']==='done'?'row-done':'' ?>"
-          data-pri="<?= $task['priority'] ?>"
-          data-task-id="<?= $task['id'] ?>"
-          tabindex="0"
-          role="row"
-          aria-label="<?= $row_label ?>"
-          onclick="if(!event.target.closest('td.td-check')&&!event.target.closest('td:last-child'))openTask(<?= $task['id'] ?>)"
-          onkeydown="if((event.key==='Enter'||event.key===' ')&&!event.target.closest('input'))openTask(<?= $task['id'] ?>)">
-
-        <!-- Checkbox -->
-        <td class="td-check" onclick="event.stopPropagation()">
-          <input type="checkbox"
-                 class="tk-row-check tk-row-select"
-                 data-id="<?= $task['id'] ?>"
-                 onchange="bulkOnCheck(this)"
-                 aria-label="Zaznacz zadanie: <?= h($task['title']) ?>">
-        </td>
-
-        <!-- Zadanie: tytuł + podtytuł -->
-        <td>
-          <div class="tk-title"><?= h($task['title']) ?></div>
-          <?php if ($task['description']): ?>
-          <div class="tk-subtitle"><?= h(mb_substr(strip_tags($task['description']),0,80)) ?></div>
-          <?php endif; ?>
-        </td>
-
-        <!-- Status -->
-        <td class="th-center" style="text-align:center">
-          <span class="tk-status <?= $status_info[0] ?>">
-            <i class="bi <?= $status_info[2] ?>" aria-hidden="true"></i>
-            <?= $status_info[1] ?>
-          </span>
-        </td>
-
-        <!-- Kategoria -->
-        <td>
-          <?php $lc = $task['list_color'] ?: '#94a3b8'; ?>
-          <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem">
-            <span style="width:7px;height:7px;border-radius:50%;background:<?= h($lc) ?>;flex-shrink:0" aria-hidden="true"></span>
-            <?= h($task['list_name']) ?>
-          </span>
-        </td>
-
-        <!-- Priorytet -->
-        <td style="text-align:center">
-          <span class="pri-dot" style="color:<?= $pri_meta[2] ?>">
-            <span aria-hidden="true"><?= $pri_meta[0] ?></span>
-            <span class="visually-hidden"><?= $pri_meta[1] ?></span>
-            <span aria-hidden="true" style="font-size:.74rem;color:var(--tk-muted)"><?= $pri_meta[1] ?></span>
-          </span>
-        </td>
-
-        <!-- Termin -->
-        <td>
-          <?php if ($task['due_date']): ?>
-          <span class="td-due <?= $task['_overdue']?'overdue':'' ?>"
-                aria-label="Termin: <?= h($task['due_date']) ?><?= $task['_overdue']?' (po terminie)':'' ?>">
-            <?php if ($task['_overdue']): ?>
-            <i class="bi bi-alarm me-1" aria-hidden="true"></i>
-            <?php else: ?>
-            <i class="bi bi-calendar3 me-1 text-muted" aria-hidden="true"></i>
-            <?php endif; ?>
-            <?= h(date('d.m.Y', strtotime($task['due_date']))) ?>
-          </span>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">—</span>
-          <?php endif; ?>
-        </td>
-
-        <!-- Postęp podzadań -->
-        <td>
-          <?php if ($st_total > 0): ?>
-          <div class="tk-prog-wrap"
-               aria-label="Podzadania: <?= $st_done ?>/<?= $st_total ?>">
-            <div class="tk-prog-track"
-                 role="progressbar"
-                 aria-valuenow="<?= $st_pct ?>"
-                 aria-valuemin="0" aria-valuemax="100">
-              <div class="tk-prog-fill <?= $st_done===$st_total?'bg-success':'bg-primary' ?>"
-                   style="width:<?= $st_pct ?>%"></div>
-            </div>
-            <span class="tk-prog-label"><?= $st_done ?>/<?= $st_total ?></span>
-          </div>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">—</span>
-          <?php endif; ?>
-        </td>
-
-        <!-- Tagi -->
-        <td>
-          <?php if ($task['tags']): ?>
-          <div class="tk-tags">
-            <?php foreach (array_slice($task['tags'],0,3) as $tag): ?>
-            <span class="tk-tag"
-                  style="background:<?= h($tag['color']) ?>;color:<?= h($tag['text_color']) ?>">
-              <?= h($tag['name']) ?>
-            </span>
-            <?php endforeach; ?>
-            <?php if (count($task['tags'])>3): ?>
-            <span class="tk-tag" style="background:#f1f5f9;color:#64748b">
-              +<?= count($task['tags'])-3 ?>
-            </span>
-            <?php endif; ?>
-          </div>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">—</span>
-          <?php endif; ?>
-        </td>
-
-        <!-- Przypisani -->
-        <td>
-          <?php if ($task['assignees']): ?>
-          <div class="tk-av-stack" aria-label="Przypisani: <?= h(implode(', ', array_column($task['assignees'],'name'))) ?>">
-            <?php foreach (array_slice($task['assignees'],0,4) as $a): ?>
-            <?= task_avatar_initials($a['name'], '#2563eb', '#fff') ?>
-            <?php endforeach; ?>
-            <?php if (count($task['assignees'])>4): ?>
-            <span class="tk-av" style="background:#64748b"
-                  aria-label="+<?= count($task['assignees'])-4 ?> więcej">
-              +<?= count($task['assignees'])-4 ?>
-            </span>
-            <?php endif; ?>
-          </div>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">Brak</span>
-          <?php endif; ?>
-        </td>
-
-        <!-- Akcja (klik zatrzymuje propagację) -->
-        <td style="text-align:center" onclick="event.stopPropagation()">
-          <?php if ($task['_status'] !== 'done'): ?>
-          <div class="tk-actions justify-content-center">
-            <?php if ($task['_mine']): ?>
-            <button type="button"
-                    class="btn-unclaim"
-                    onclick="claimTask(<?= $task['id'] ?>,'remove',this)"
-                    aria-label="Oddaj zadanie: <?= h($task['title']) ?>">
-              <i class="bi bi-person-dash me-1" aria-hidden="true"></i>Oddaj
-            </button>
-            <?php elseif ($task['_status'] === 'open'): ?>
-            <button type="button"
-                    class="btn-claim"
-                    onclick="claimTask(<?= $task['id'] ?>,'add',this)"
-                    aria-label="Weź zadanie: <?= h($task['title']) ?>">
-              <i class="bi bi-hand-index me-1" aria-hidden="true"></i>Weź
-            </button>
-            <?php else: ?>
-            <span class="text-muted" style="font-size:.73rem">—</span>
-            <?php endif; ?>
-          </div>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.73rem">—</span>
-          <?php endif; ?>
-        </td>
-
-      </tr>
-      <?php endforeach; endif; ?>
-
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Stopka z licznikiem -->
-  <?php if ($tasks): ?>
-  <div class="px-3 py-2 border-top" style="background:var(--tk-bg-soft);font-size:.75rem;color:var(--tk-muted)">
-    Pokazano <strong><?= count($tasks) ?></strong> z <strong><?= count($tasks_raw) ?></strong> zadań
-    <?php if ($filter_q || $filter_priority || $filter_tag || $filter_list || $filter_status !== 'all'): ?>
-    · <a href="?ws=<?= $ws_id ?>" class="text-muted">Wyczyść filtry</a>
     <?php endif; ?>
   </div>
-  <?php endif; ?>
 
-</div>
+</form>
+
+<?php echo _tasks_list_html($tasks, $cnt, $lists_map, $ws_id, $view_mode, $workspace, $can_add, $is_admin); ?>
 
 <?php endif; /* workspace */ ?>
 <?php endif; /* workspaces */ ?>
@@ -1092,7 +1200,7 @@ function claimTask(taskId, action, btn) {
     .then(r => {
         if (r.ok) {
             tkAnnounce(action === 'add' ? 'Zadanie przypisane.' : 'Zadanie oddane.');
-            location.reload();
+            tkAjaxLoad();
         } else {
             btn.disabled = false;
             btn.innerHTML = action === 'add'
@@ -1104,7 +1212,53 @@ function claimTask(taskId, action, btn) {
     .catch(() => { btn.disabled = false; alert('Błąd połączenia.'); });
 }
 
-/* Filtry URL */
+/* AJAX: załaduj region listy */
+function tkAjaxLoad(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const form   = document.getElementById('tkFilterForm');
+    if (!form) return;
+    const params = new URLSearchParams(new FormData(form));
+    params.set('_ajax', '1');
+    fetch(BASE + '/tasks/index.php?' + params.toString())
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                const region = document.getElementById('tkListRegion');
+                if (region) {
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = d.list_html;
+                    const newRegion = tmp.querySelector('#tkListRegion') || tmp.firstElementChild;
+                    if (newRegion) region.replaceWith(newRegion);
+                    else region.innerHTML = d.list_html;
+                }
+                if (d.counts) updateCounts(d.counts);
+                tkAnnounce('Znaleziono ' + d.total + ' zadań.');
+            }
+        })
+        .catch(() => {});
+}
+
+/* Aktualizuj liczniki na pillach statusu */
+function updateCounts(counts) {
+    ['all','open','taken','done','mine'].forEach(k => {
+        const el = document.getElementById('tk-cnt-' + k);
+        if (el && counts[k] !== undefined) el.textContent = counts[k];
+    });
+}
+
+/* Ustaw status pill + hidden input */
+function tkSetStatus(val, btn) {
+    const hidden = document.getElementById('tk-status-hidden');
+    if (hidden) hidden.value = val;
+    document.querySelectorAll('.tk-pill[data-s]').forEach(p => {
+        const active = p.dataset.s === val;
+        p.classList.toggle('active', active);
+        p.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    tkAjaxLoad();
+}
+
+/* Filtry URL (legacy — zachowane dla kompatybilności) */
 function tkFilter(key, val) {
     const url = new URL(window.location.href);
     if (!val || val === '0') url.searchParams.delete(key);
@@ -1112,23 +1266,38 @@ function tkFilter(key, val) {
     window.location.href = url.toString();
 }
 
-/* Wyszukiwanie live (client-side po tekście) */
+/* Wyszukiwanie z debounce 350ms → AJAX */
 let _searchTimer;
-function tkSearch(q) {
-    clearTimeout(_searchTimer);
-    _searchTimer = setTimeout(() => {
-        const rows = document.querySelectorAll('#tk-tbody tr[data-task-id]');
-        const lq   = q.toLowerCase();
-        let vis = 0;
-        rows.forEach(tr => {
-            const title = tr.querySelector('.tk-title')?.textContent?.toLowerCase() || '';
-            const sub   = tr.querySelector('.tk-subtitle')?.textContent?.toLowerCase() || '';
-            const match = !lq || title.includes(lq) || sub.includes(lq);
-            tr.style.display = match ? '' : 'none';
-            if (match) vis++;
+document.addEventListener('DOMContentLoaded', function() {
+    const qInput = document.getElementById('tk-q');
+    if (qInput) {
+        qInput.addEventListener('input', function() {
+            clearTimeout(_searchTimer);
+            _searchTimer = setTimeout(tkAjaxLoad, 350);
         });
-        tkAnnounce('Znaleziono ' + vis + ' zadań.');
-    }, 200);
+    }
+});
+
+/* Inline zmiana statusu — toggle done/reopen */
+function tkToggleDone(btn, taskId) {
+    var isDone = btn.classList.contains('s-done');
+    var action = isDone ? 'reopen' : 'complete';
+    fetch(BASE + '/tasks/api/task.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({_csrf: CSRF, action: action, id: taskId})
+    }).then(r => r.json()).then(d => { if (d.ok) tkAjaxLoad(); else alert(d.error || 'Błąd.'); })
+      .catch(() => alert('Błąd połączenia.'));
+}
+
+/* Inline zmiana priorytetu */
+function tkSetPriority(taskId, pri) {
+    fetch(BASE + '/tasks/api/task.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({_csrf: CSRF, action: 'update', id: taskId, priority: pri})
+    }).then(r => r.json()).then(d => { if (d.ok) tkAjaxLoad(); else alert(d.error || 'Błąd.'); })
+      .catch(() => alert('Błąd połączenia.'));
 }
 
 /* Dodaj zadanie */

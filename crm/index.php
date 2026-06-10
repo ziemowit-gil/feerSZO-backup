@@ -73,6 +73,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
             if ($xhr) { header('Content-Type: application/json'); echo json_encode(['ok' => true, 'new_status' => $status]); exit; }
             flash_set('success', 'Status kontaktu zaktualizowany.');
         } elseif ($xhr) { header('Content-Type: application/json'); echo json_encode(['ok' => false]); exit; }
+    } elseif ($action === 'quick_note' && !empty($_POST['contact_id']) && can_write('crm')) {
+        $cid  = (int)$_POST['contact_id'];
+        $body = trim($_POST['body'] ?? '');
+        header('Content-Type: application/json');
+        if ($body && $cid) {
+            db_insert('crm_notes', [
+                'contact_id' => $cid,
+                'body'       => $body,
+                'is_pinned'  => 0,
+                'created_by' => (int)current_user()['id'],
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            echo json_encode(['ok' => true, 'msg' => 'Notatka dodana.']);
+        } else {
+            echo json_encode(['ok' => false, 'msg' => 'Pusta notatka.']);
+        }
+        exit;
     }
 
     if ($action === 'delete' && !empty($_POST['contact_id']) && $crm_can_delete) {
@@ -265,6 +283,23 @@ function _crm_table_html(
                   <i class="bi bi-send" aria-hidden="true"></i>
                 </button>
                 <?php endif; ?>
+                <?php if ($can_w): ?>
+                <button type="button"
+                        class="btn btn-link btn-sm p-0 ms-1 crm-quick-note-btn"
+                        data-id="<?= (int)$row['id'] ?>"
+                        data-name="<?= h($row['imie_nazwisko']) ?>"
+                        title="Szybka notatka"
+                        aria-label="Dodaj notatkę do <?= h($row['imie_nazwisko']) ?>">
+                  <i class="bi bi-pencil-square text-warning" aria-hidden="true"></i>
+                </button>
+                <?php endif; ?>
+                <button type="button"
+                        class="btn btn-link btn-sm p-0 ms-1 crm-comms-btn"
+                        data-id="<?= (int)$row['id'] ?>"
+                        title="Historia komunikacji"
+                        aria-label="Historia: <?= h($row['imie_nazwisko']) ?>">
+                  <i class="bi bi-clock-history text-muted" aria-hidden="true"></i>
+                </button>
                 <?php if ($can_d): ?>
                 <form method="post" class="d-inline"
                       data-ajax-action="delete"
@@ -381,6 +416,9 @@ include __DIR__ . '/includes/header_crm.php';
     </a>
     <a href="<?= APP_URL ?>/crm/contact/add.php" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Pełny
+    </a>
+    <a href="<?= APP_URL ?>/crm/import.php" class="btn btn-crm-outline btn-sm">
+      <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Importuj CSV
     </a>
     <?php endif; ?>
     <a href="<?= APP_URL ?>/crm/communicate.php" class="btn btn-crm-outline btn-sm">
@@ -990,6 +1028,76 @@ const Bulk = (function () {
     refresh: function () { load(formParams(), false); },
   };
 })();
+</script>
+
+<script>
+/* ── Quick note + Historia komunikacji ────────────────────────────────────── */
+var CRM_CSRF = <?= json_encode(csrf_token()) ?>;
+var CRM_URL  = <?= json_encode(APP_URL . '/crm/index.php') ?>;
+
+// Quick note popover
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.crm-quick-note-btn');
+    if (!btn) return;
+    var cid  = btn.dataset.id;
+    var name = btn.dataset.name;
+    var existing = document.getElementById('crmNotePopover');
+    if (existing) existing.remove();
+    var pop = document.createElement('div');
+    pop.id = 'crmNotePopover';
+    pop.style.cssText = 'position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.15);padding:1rem;width:300px;font-family:system-ui,sans-serif;font-size:.85rem';
+    var rect = btn.getBoundingClientRect();
+    pop.style.top  = (rect.bottom + window.scrollY + 6) + 'px';
+    pop.style.left = Math.min(rect.left, window.innerWidth - 320) + 'px';
+    pop.innerHTML = '<div style="font-weight:700;margin-bottom:.5rem">&#128221; Notatka: ' + name + '</div>'
+      + '<textarea id="crmNoteTA" rows="3" style="width:100%;border:1px solid #d1d5db;border-radius:6px;padding:.4rem;font-size:.84rem;resize:vertical" placeholder="Treść notatki…"></textarea>'
+      + '<div style="display:flex;gap:.4rem;justify-content:flex-end;margin-top:.5rem">'
+      + '<button onclick="document.getElementById(\'crmNotePopover\').remove()" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:.3rem .7rem;border-radius:6px;cursor:pointer">Anuluj</button>'
+      + '<button onclick="crmSaveNote(' + cid + ')" style="background:#1d4ed8;color:#fff;border:none;padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-weight:600">Zapisz</button>'
+      + '</div><div id="crmNoteMsg" style="font-size:.78rem;margin-top:.3rem"></div>';
+    document.body.appendChild(pop);
+    document.getElementById('crmNoteTA').focus();
+    e.stopPropagation();
+});
+document.addEventListener('click', function(e) {
+    var pop = document.getElementById('crmNotePopover');
+    if (pop && !pop.contains(e.target) && !e.target.closest('.crm-quick-note-btn')) pop.remove();
+});
+function crmSaveNote(cid) {
+    var body = document.getElementById('crmNoteTA').value.trim();
+    if (!body) { document.getElementById('crmNoteMsg').textContent = 'Wpisz treść.'; return; }
+    var fd = new FormData();
+    fd.append('_csrf', CRM_CSRF);
+    fd.append('_action', 'quick_note');
+    fd.append('contact_id', cid);
+    fd.append('body', body);
+    fetch(CRM_URL, {method:'POST', body: fd})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        document.getElementById('crmNoteMsg').textContent = d.msg || (d.ok ? 'OK' : 'Błąd');
+        if (d.ok) setTimeout(function(){ var p = document.getElementById('crmNotePopover'); if(p) p.remove(); }, 900);
+      });
+}
+
+// Historia komunikacji — expand row
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.crm-comms-btn');
+    if (!btn) return;
+    var cid = btn.dataset.id;
+    var tr  = btn.closest('tr');
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains('crm-comms-expand')) {
+        next.remove(); return;
+    }
+    var expandTr = document.createElement('tr');
+    expandTr.className = 'crm-comms-expand';
+    var colspan = tr.children.length;
+    expandTr.innerHTML = '<td colspan="' + colspan + '" style="background:#f8fafc;padding:.6rem 1rem"><div class="text-muted small">⏳ Ładowanie…</div></td>';
+    tr.insertAdjacentElement('afterend', expandTr);
+    fetch(CRM_URL.replace('index.php', 'api/contact_comms.php') + '?contact_id=' + cid)
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if(d.ok) expandTr.querySelector('td').innerHTML = d.html; });
+});
 </script>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
