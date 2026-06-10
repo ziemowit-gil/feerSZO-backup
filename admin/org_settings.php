@@ -28,7 +28,8 @@ _org_reps_migrate();
 $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
-                  'm365_send_from_email'];
+                  'm365_send_from_email',
+                  'admin_ip_restrict','admin_ip_whitelist'];
 $saved = [];
 foreach ($branding_keys as $k) {
     $r = db_one("SELECT value FROM settings WHERE key_=?", [$k]);
@@ -187,6 +188,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         flash_set('success', 'Ustawienia portalu zapisane.');
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=portal'); exit;
+
+    } elseif (isset($_POST['save_security'])) {
+        $restrict  = isset($_POST['admin_ip_restrict']) ? '1' : '0';
+        $whitelist = trim($_POST['admin_ip_whitelist'] ?? '');
+
+        // Walidacja — sprawdź każdy niepusty wpis
+        $lines  = array_filter(array_map('trim', explode("\n", $whitelist)));
+        $bad    = [];
+        foreach ($lines as $line) {
+            if (str_starts_with($line, '#')) continue;
+            $entry = $line;
+            if (str_ends_with($entry, '.*')) {
+                $base  = rtrim($entry, '.*');
+                $parts = explode('.', $base);
+                while (count($parts) < 4) $parts[] = '0';
+                $entry = implode('.', $parts) . '/' . (count(explode('.', $base)) * 8);
+            }
+            if (strpos($entry, '/') !== false) {
+                [$subnet] = explode('/', $entry, 2);
+                if (!filter_var($subnet, FILTER_VALIDATE_IP)) $bad[] = $line;
+            } else {
+                if (!filter_var($entry, FILTER_VALIDATE_IP)) $bad[] = $line;
+            }
+        }
+
+        if ($bad) {
+            flash_set('error', 'Nieprawidłowe wpisy: ' . implode(', ', array_map('htmlspecialchars', $bad)));
+        } else {
+            if ($restrict === '1' && empty($lines)) {
+                flash_set('error', 'Włącz ograniczenie IP dopiero po dodaniu co najmniej jednego adresu — inaczej zablokujesz dostęp wszystkim adminom.');
+            } else {
+                $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
+                $stmt->execute(['admin_ip_restrict',  $restrict]);
+                $stmt->execute(['admin_ip_whitelist', $whitelist]);
+                $saved['admin_ip_restrict']  = $restrict;
+                $saved['admin_ip_whitelist'] = $whitelist;
+                flash_set('success', 'Ustawienia bezpieczeństwa zapisane.');
+            }
+        }
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
     }
 }
 
@@ -228,6 +269,12 @@ include dirname(__DIR__) . '/includes/header.php';
     <button class="nav-link" id="tab-btn-mail" data-bs-toggle="tab" data-bs-target="#tab-mail"
             type="button" role="tab">
       <i class="bi bi-envelope-at me-1"></i>Poczta e-mail
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-btn-security" data-bs-toggle="tab" data-bs-target="#tab-security"
+            type="button" role="tab">
+      <i class="bi bi-shield-lock me-1"></i>Bezpieczeństwo
     </button>
   </li>
 </ul>
@@ -734,6 +781,76 @@ include dirname(__DIR__) . '/includes/header.php';
   <?php endif; ?>
 
 </div><!-- /tab-portal -->
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: Bezpieczeństwo — ograniczenie IP dla panelu admina
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-security" role="tabpanel">
+  <div class="row g-4">
+    <div class="col-lg-7">
+
+      <div class="card">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-shield-lock text-primary"></i>
+          <strong>Ograniczenie dostępu do panelu admina wg adresu IP</strong>
+        </div>
+        <div class="card-body">
+
+          <form method="post">
+            <?= csrf_field() ?>
+
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" name="admin_ip_restrict" id="admin_ip_restrict"
+                     value="1" <?= $saved['admin_ip_restrict'] === '1' ? 'checked' : '' ?>>
+              <label class="form-check-label" for="admin_ip_restrict">
+                Włącz ograniczenie — zezwalaj tylko z poniższych adresów IP
+              </label>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Dozwolone adresy IP</label>
+              <textarea name="admin_ip_whitelist" id="admin_ip_whitelist" class="form-control font-monospace"
+                        rows="8" placeholder="Jeden wpis na linię, np.&#10;192.168.1.10&#10;192.168.1.0/24&#10;10.0.0.*&#10;2001:db8::/32"><?= h($saved['admin_ip_whitelist']) ?></textarea>
+              <div class="form-text">
+                Obsługiwane formaty: pojedynczy adres (<code>192.168.1.10</code>), notacja CIDR (<code>192.168.1.0/24</code>),
+                wildcard (<code>192.168.1.*</code>). Linie zaczynające się od <code>#</code> to komentarze.
+              </div>
+            </div>
+
+            <div class="alert alert-info d-flex align-items-start gap-2 py-2">
+              <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+              <div>
+                Konto <strong>serwis@local</strong> jest <strong>zawsze</strong> wykluczone z tego ograniczenia,
+                niezależnie od adresu IP — służy jako awaryjny dostęp serwisowy.
+              </div>
+            </div>
+
+            <?php if ($saved['admin_ip_restrict'] === '1'): ?>
+            <div class="alert alert-warning d-flex align-items-start gap-2 py-2">
+              <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+              <div>
+                Ograniczenie jest <strong>aktywne</strong>. Przed zapisem upewnij się, że Twój bieżący adres IP
+                (<code><?= h($_SERVER['REMOTE_ADDR'] ?? '?') ?></code>) znajduje się na liście.
+              </div>
+            </div>
+            <?php endif; ?>
+
+            <div class="d-flex align-items-center gap-3">
+              <button type="submit" name="save_security" class="btn btn-primary">
+                <i class="bi bi-floppy me-1"></i>Zapisz ustawienia bezpieczeństwa
+              </button>
+              <span class="text-muted small">
+                Twój bieżący adres IP: <code><?= h($_SERVER['REMOTE_ADDR'] ?? '?') ?></code>
+              </span>
+            </div>
+
+          </form>
+        </div>
+      </div>
+
+    </div><!-- /col -->
+  </div><!-- /row -->
+</div><!-- /tab-security -->
 
 </div><!-- /tab-content -->
 

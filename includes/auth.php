@@ -100,6 +100,80 @@ function require_role(string ...$roles): void {
         include __DIR__ . '/footer.php';
         exit;
     }
+    if (in_array('admin', $roles, true)) {
+        _admin_ip_guard();
+    }
+}
+
+// ── Ograniczenie dostępu do admina wg adresu IP ──────────────────────────────
+
+function _ip_in_cidr(string $ip, string $cidr): bool {
+    if (strpos($cidr, '/') === false) {
+        return $ip === $cidr;
+    }
+    [$subnet, $bits] = explode('/', $cidr, 2);
+    $bits = (int)$bits;
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) &&
+        filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        if ($bits === 0) return true;
+        $mask = ~0 << (32 - $bits);
+        return (ip2long($ip) & $mask) === (ip2long($subnet) & $mask);
+    }
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) &&
+        filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+        $ip_bin     = inet_pton($ip);
+        $subnet_bin = inet_pton($subnet);
+        for ($i = 0; $i < 16; $i++) {
+            $byte_bits = max(0, min(8, $bits - $i * 8));
+            $mask = $byte_bits === 0 ? 0x00 : ((0xFF << (8 - $byte_bits)) & 0xFF);
+            if ((ord($ip_bin[$i]) & $mask) !== (ord($subnet_bin[$i]) & $mask)) return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+function _admin_ip_guard(): void {
+    $enabled      = false;
+    $whitelist_raw = '';
+    try {
+        $rows = db_all("SELECT key_, value FROM settings WHERE key_ IN ('admin_ip_restrict','admin_ip_whitelist')");
+        foreach ($rows as $r) {
+            if ($r['key_'] === 'admin_ip_restrict')  $enabled       = $r['value'] === '1';
+            if ($r['key_'] === 'admin_ip_whitelist')  $whitelist_raw = $r['value'];
+        }
+    } catch (\Throwable $e) { return; }
+
+    if (!$enabled) return;
+
+    // Konto serwisowe jest zawsze wykluczone z ograniczenia IP
+    $user = current_user();
+    if ($user && ($user['email'] ?? '') === 'serwis@local') return;
+
+    $client_ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $entries   = array_filter(array_map('trim', explode("\n", $whitelist_raw)));
+
+    foreach ($entries as $entry) {
+        if ($entry === '' || str_starts_with($entry, '#')) continue;
+        // Zamień wildcard 192.168.1.* → 192.168.1.0/24
+        if (str_ends_with($entry, '.*')) {
+            $base  = rtrim($entry, '.*');
+            $parts = explode('.', $base);
+            while (count($parts) < 4) $parts[] = '0';
+            $entry = implode('.', $parts) . '/' . (count(explode('.', $base)) * 8);
+        }
+        if (_ip_in_cidr($client_ip, $entry)) return;
+    }
+
+    http_response_code(403);
+    include __DIR__ . '/header.php';
+    echo '<div class="container mt-5 mb-5">'
+       . '<div class="alert alert-danger">'
+       . '<strong><i class="bi bi-shield-lock me-2"></i>Dostęp zablokowany</strong><br>'
+       . 'Twój adres IP (<code>' . htmlspecialchars($client_ip, ENT_QUOTES) . '</code>) nie należy do listy adresów dozwolonych dla panelu administratora.'
+       . '</div></div>';
+    include __DIR__ . '/footer.php';
+    exit;
 }
 
 function can_edit(): bool {

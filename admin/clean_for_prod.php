@@ -28,36 +28,55 @@ $groups = [
         'umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_praca',
         'umowy_uslugi','umowy_inne','contract_audit_log','contract_letters',
         'contract_amendments','contract_approvals','contract_edit_requests',
-        'approval_requests','approval_step_decisions','zwroty_kosztow',
-        'certificate_requests','kdok_documents','timesheets','shipments',
-        'contract_extra_docs',
+        'contract_supervisors','contract_termination_requests',
+        'approval_requests','approval_step_decisions','approval_workflow_contracts',
+        'zwroty_kosztow','zwroty_log','zwroty_numery',
+        'certificate_requests','kdok_certificates','kdok_documents',
+        'kdok_generated_pdf','kdok_history','kdok_user_roles',
+        'timesheets','shipments','contract_extra_docs',
     ],
     'CRM i kontakty' => [
-        'persons','crm_contacts','crm_activities','crm_cases','crm_communications',
-        'crm_group_members','crm_groups','crm_mass_sends','crm_notes','crm_relations',
+        'persons','crm_contacts','crm_activities','crm_cases','crm_case_files',
+        'crm_case_notes','crm_communications','crm_contact_field_values',
+        'crm_events','crm_group_links','crm_group_members','crm_group_tags',
+        'crm_group_users','crm_groups','crm_mass_sends','crm_notes',
+        'crm_relations','crm_sync_log','crm_action_links',
     ],
     'Zadania' => [
         'tasks','task_assignments','task_comments','task_files','task_history',
-        'task_list_time','task_lists','task_subtasks','task_task_tags',
+        'task_list_time','task_lists','task_notification_log','task_notification_prefs',
+        'task_subtasks','task_task_tags','task_time_logs',
         'task_workspace_members','task_workspaces',
     ],
+    'Karty30' => [
+        'k30_clients','k30_consultations','k30_consultant_certs','k30_schedules',
+        'k30_blacklist','k30_waiting_list',
+        'k30_ti_attendance','k30_ti_billing','k30_ti_courses',
+        'k30_ti_enrollments','k30_ti_sessions','k30_ti_student_accounts',
+    ],
     'Zdarzenia i granty' => [
-        'ev_events','ev_registrations','actions','action_indicators','grants',
-        'onboarding_volunteers','volunteer_applications',
+        'ev_events','ev_registrations','ev_checkin_tokens','ev_form_fields','ev_roles',
+        'actions','action_indicators','action_grants','grants',
+        'onboarding_volunteers','onboarding_messages',
+        'volunteer_applications','volunteer_offers','user_applications',
     ],
     'EZD / Dokumenty' => [
-        'ezd_pisma','ezd_sprawy','ezd_teczki','ezd_zalaczniki',
-        'resolutions','correspondence','procedures',
+        'ezd_pisma','ezd_sprawy','ezd_teczki','ezd_dekretacje',
+        'ezd_zalaczniki','ezd_umowy','ezd_log',
+        'resolutions','resolution_counters','correspondence',
+        'procedures','procedure_versions','procedure_attachments','procedure_relations',
     ],
     'Zasoby i organizacja' => [
-        'resources','resource_reservations','org_members','org_history',
+        'resources','resource_reservations','resource_reservation_log','resource_availability',
+        'org_members','org_history','org_rules_ack','org_positions',
     ],
     'Komunikaty i kolejki' => [
         'announcements','announcement_reads','messages','mail_queue','notifications',
     ],
     'Logowanie i sesje' => [
-        'login_attempts','login_log','user_sessions','sms_login_tokens',
-        'webauthn_credentials','short_url_routes',
+        'login_attempts','login_log','user_sessions','oauth_states',
+        'sms_login_tokens','webauthn_credentials','short_url_routes',
+        'm365_standalone_accounts','m365_sync_queue',
     ],
     'Użytkownicy portalu (non-admin)' => [
         ["SELECT COUNT(*) AS n FROM users WHERE role != 'admin'", 'users (rola != admin)'],
@@ -127,6 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'clea
         'umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_praca',
         'umowy_uslugi','umowy_inne','contract_audit_log','contract_letters',
         'contract_amendments','contract_approvals','contract_edit_requests',
+        'contract_supervisors','contract_termination_requests',
         'approval_requests','approval_step_decisions','approval_workflow_contracts',
         'zwroty_kosztow','zwroty_log','zwroty_numery','shipments','timesheets',
         'certificate_requests','kdok_certificates','kdok_documents','kdok_generated_pdf',
@@ -142,6 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'clea
         'task_workspace_members','task_workspaces',
         'k30_clients','k30_consultations','k30_consultant_certs','k30_schedules',
         'k30_blacklist','k30_waiting_list',
+        'k30_ti_attendance','k30_ti_billing','k30_ti_courses',
+        'k30_ti_enrollments','k30_ti_sessions','k30_ti_student_accounts',
         'ev_events','ev_registrations','ev_checkin_tokens','ev_form_fields','ev_roles',
         'actions','action_indicators','action_grants',
         'grants',
@@ -279,7 +301,8 @@ include dirname(__DIR__) . '/includes/header.php';
       <span class="badge bg-success"><?= $keep_settings ?></span>
     </div>
     <div class="py-1 text-muted" style="font-size:.75rem">
-      Szablony, workflow, cenniki, definicje pól, konfiguracja M365/SMS/SMTP, certyfikat, branding.
+      Szablony, workflow, cenniki, definicje pól, konfiguracja M365/SMS/SMTP, certyfikat, branding,
+      ograniczenie IP admina (<code>admin_ip_restrict</code>).
     </div>
   </div>
 </div>

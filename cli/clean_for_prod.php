@@ -3,7 +3,7 @@
  * clean_for_prod.php — Czyszczenie danych testowych przed wdrożeniem na produkcję.
  *
  * Co ZACHOWUJE:
- *   - settings (konfiguracja systemu, M365, SMS, itp.)
+ *   - settings (konfiguracja systemu, M365, SMS, SMTP, ograniczenie IP admina)
  *   - users z rolą 'admin' (konta administratorów)
  *   - roles, role_permissions
  *   - org_units (struktura organizacyjna)
@@ -29,8 +29,8 @@
  *   - Zwroty kosztów, przesyłki, arkusze czasu
  *   - Konta portalu (users bez roli admin)
  *
- * URUCHAMIANIE: php setup/clean_for_prod.php
- * lub przez przeglądarkę: /setup/clean_for_prod.php
+ * URUCHAMIANIE: php cli/clean_for_prod.php
+ * lub przez panel: Admin → Czyszczenie przed wdrożeniem
  */
 
 // ── Dostęp tylko CLI lub lokalnie ─────────────────────────────────────────────
@@ -162,6 +162,7 @@ clean('kdok_documents');
 clean('kdok_generated_pdf');
 clean('kdok_history');
 clean('kdok_user_roles');
+clean('contract_extra_docs');
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  OSOBY / CRM
@@ -316,6 +317,7 @@ clean('sms_login_tokens');
 clean('webauthn_credentials');
 clean('short_url_routes');
 clean('m365_standalone_accounts');
+clean('m365_sync_queue');
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  UŻYTKOWNICY PORTALU — zachowaj tylko adminów
