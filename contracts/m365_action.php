@@ -119,6 +119,97 @@ try {
         $_SESSION['m365_sent']      = true;
         flash_set('success', 'Nowe hasło wygenerowane i mail wysłany.');
 
+    } elseif ($action === 'send_m365_setup_link') {
+        // Wysyła LINK (token) zamiast hasła bezpośrednio — wolontariusz klika i widzi dane logowania.
+        // Bezpieczniejsze: hasło nie pojawia się w treści e-maila.
+        if (!$row['m365_user_id']) throw new RuntimeException('Brak ID użytkownika Azure AD.');
+        if (!$person_email)        throw new RuntimeException('Ta umowa nie zawiera adresu e-mail odbiorcy.');
+        if (!$row['m365_login'])   throw new RuntimeException('Brak loginu M365 w umowie.');
+
+        // Generuj nowe hasło tymczasowe w M365
+        $password = M365Graph::generate_password();
+        $graph->set_password($row['m365_user_id'], $password);
+
+        // Generuj jednorazowy token — migracja kolumny w razie potrzeby
+        try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN m365_setup_token TEXT"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN m365_setup_token_used_at DATETIME"); } catch (\Throwable $e) {}
+
+        $token = bin2hex(random_bytes(24));
+        db()->prepare(
+            "UPDATE umowy_wolontariat
+             SET m365_setup_token=?, m365_setup_token_used_at=NULL
+             WHERE id=?"
+        )->execute([$token, $id]);
+
+        // Buduj link i treść maila
+        $org      = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+        $name_h   = htmlspecialchars($person_name ?: $person_email, ENT_QUOTES);
+        $link_url = APP_URL . '/wolontariat/m365_setup.php?token=' . urlencode($token);
+        $link_h   = htmlspecialchars($link_url, ENT_QUOTES);
+        $mail_html = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#0078d4,#106ebe);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.15rem">&#128273; Aktywacja konta Microsoft 365 — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name_h}</strong>!</p>
+  <p>Twoje konto <strong>Microsoft 365</strong> w organizacji <strong>{$org}</strong> jest gotowe.</p>
+  <p>Kliknij poniższy przycisk, aby zobaczyć swoje dane logowania i aktywować konto:</p>
+  <div style="margin:24px 0;text-align:center">
+    <a href="{$link_h}"
+       style="background:#0078d4;color:#fff;padding:14px 30px;border-radius:8px;
+              text-decoration:none;display:inline-block;font-weight:700;font-size:1rem">
+      &#128279; Pokaż dane logowania M365
+    </a>
+  </div>
+  <div style="background:#fff8e1;border-left:3px solid #f59e0b;border-radius:4px;padding:10px 14px;margin:14px 0;font-size:.88em">
+    Link jest <strong>jednorazowy</strong> — po kliknięciu wygasa. Zachowaj dane logowania w bezpiecznym miejscu.
+  </div>
+  <p style="font-size:.88em;color:#555">
+    Jeśli nie zamawiałeś/aś aktywacji konta — zignoruj tę wiadomość i skontaktuj się z {$org}.
+  </p>
+  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
+    {$org} · wiadomość automatyczna
+  </p>
+</div></body></html>
+HTML;
+        // Wyślij przez M365 Graph lub kolejkę mailową
+        $sender = m365_setting('m365_sender_user_id');
+        if ($sender) {
+            $graph->send_raw_email($sender, $person_email, "Aktywacja konta Microsoft 365 — {$org}", $mail_html);
+        } else {
+            require_once dirname(__DIR__) . '/includes/mail_queue.php';
+            mail_queue_add($person_email, $person_name, "Aktywacja konta Microsoft 365 — {$org}", $mail_html, '', $type, $id, '', true);
+        }
+
+        // Zapisz hasło w it_service_passwords (zaszyfrowane)
+        require_once dirname(__DIR__) . '/includes/it_helpers.php';
+        it_migrate();
+        $svc = db_one("SELECT id FROM it_services WHERE slug='m365'");
+        if ($svc) {
+            it_log_password([
+                'service_id'    => (int)$svc['id'],
+                'contract_type' => $type,
+                'contract_id'   => $id,
+                'login'         => $row['m365_login'],
+                'plain'         => $password,
+                'sent_to_email' => null, // nie wysyłamy hasła mailem — tylko link
+                'notes'         => 'Wygenerowano przy link-aktywacji M365',
+                'issued_by'     => current_user()['id'],
+            ]);
+        }
+
+        // Zapisz jednorazowe hasło w sesji (do pokazania adminowi)
+        auth_start();
+        $_SESSION['m365_new_pass']  = $password;
+        $_SESSION['m365_new_login'] = $row['m365_login'];
+        $_SESSION['m365_sent']      = true;
+
+        require_once dirname(__DIR__) . '/includes/approval.php';
+        log_contract_action($type, $id, (int)current_user()['id'], 'note',
+            'Wysłano link aktywacyjny M365 na: ' . $person_email);
+        flash_set('success', 'Link aktywacyjny M365 wysłany na ' . $person_email . '.');
+
     } elseif ($action === 'send_setup_email') {
         // Wysyła e-mail z loginiem M365 i tymczasowym hasłem — forceChangePasswordNextSignIn=true
         // Wolontariusz sam ustawia hasło przy pierwszym logowaniu.

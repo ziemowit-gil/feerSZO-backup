@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/includes/it_helpers.php';
+it_migrate();
 
 require_role('admin', 'editor');
 $PAGE_TITLE = 'Konta IT';

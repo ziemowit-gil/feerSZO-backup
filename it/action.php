@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/includes/it_helpers.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
+it_migrate();
 
 require_role('admin', 'editor');
 

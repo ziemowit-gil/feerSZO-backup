@@ -2240,6 +2240,7 @@ $_has_profil      = !empty($row['wolontariat_typ']) || !empty($row['wojewodztwo'
      ════════════════════════════════════════════════════════════════════════════ -->
 <?php
 require_once dirname(dirname(__DIR__)) . '/includes/it_helpers.php';
+it_migrate(); // tworzy tabele IT + seeduje domyślne serwisy (idempotentnie)
 $_it_accounts_tab = it_accounts_for_contract('wolontariat', $id);
 it_sync_from_contract('wolontariat', $row); // upewnij się że it_accounts jest aktualny
 $_it_m365_acc = null;
@@ -2335,18 +2336,38 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 
   <?php if ($row['m365_konto'] && $row['email'] && can_edit()): ?>
   <div class="border-top pt-3 mb-3">
-    <div class="small fw-semibold text-muted mb-2"><i class="bi bi-key-fill me-1 text-primary"></i>Wyślij link do ustawienia hasła Office</div>
-    <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php"
-          onsubmit="return confirm('Wysłać link do ustawienia hasła Microsoft 365 na <?= h(addslashes($row['email'])) ?>?\nZostanie wygenerowane nowe hasło tymczasowe.')">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="type"    value="wolontariat">
-      <input type="hidden" name="id"      value="<?= $id ?>">
-      <input type="hidden" name="action"  value="send_setup_email">
-      <button class="btn btn-sm btn-outline-primary">
-        <i class="bi bi-microsoft me-1"></i>Wyślij link do ustawienia hasła Office
-      </button>
-    </form>
-    <div class="form-text mt-1">Wysyła e-mail z loginiem M365 i tymczasowym hasłem — wolontariusz sam ustawi własne hasło przy pierwszym logowaniu.</div>
+    <div class="small fw-semibold text-muted mb-2">
+      <i class="bi bi-key-fill me-1 text-primary"></i>Wyślij dane logowania do Office 365
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <!-- ZALECANE: link jednorazowy — hasło widoczne dopiero po kliknięciu -->
+      <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php"
+            onsubmit="return confirm('Wysłać bezpieczny link aktywacyjny M365 na <?= h(addslashes($row['email'])) ?>?\nWolontariusz kliknie link i zobaczy swoje dane logowania.')">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="type"    value="wolontariat">
+        <input type="hidden" name="id"      value="<?= $id ?>">
+        <input type="hidden" name="action"  value="send_m365_setup_link">
+        <button class="btn btn-sm btn-primary">
+          <i class="bi bi-link-45deg me-1"></i>Wyślij link aktywacyjny
+          <span class="badge bg-light text-primary ms-1" style="font-size:.65rem">Zalecane</span>
+        </button>
+      </form>
+      <!-- Stara metoda: hasło w mailu -->
+      <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php"
+            onsubmit="return confirm('Wysłać hasło tymczasowe M365 bezpośrednio na <?= h(addslashes($row['email'])) ?>?')">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="type"    value="wolontariat">
+        <input type="hidden" name="id"      value="<?= $id ?>">
+        <input type="hidden" name="action"  value="send_setup_email">
+        <button class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-envelope me-1"></i>Wyślij hasło e-mailem
+        </button>
+      </form>
+    </div>
+    <div class="form-text mt-1">
+      <strong>Link aktywacyjny</strong> — wolontariusz klika link i widzi dane logowania (hasło nie jest widoczne w mailu).
+      <strong>Hasło e-mailem</strong> — stara metoda, hasło tymczasowe bezpośrednio w treści wiadomości.
+    </div>
   </div>
   <?php endif; ?>
 

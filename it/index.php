@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/it_helpers.php';
+it_migrate();
 
 require_role('admin', 'editor');
 $PAGE_TITLE = 'Dostępy i Infrastruktura IT';

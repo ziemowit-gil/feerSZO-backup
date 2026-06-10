@@ -884,6 +884,32 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
   </a></li>
   <?php endif; ?>
 
+  <?php
+  // Helpdesk IT — liczba otwartych zgłoszeń
+  $_hd_my_open = 0;
+  try {
+      $_hd_my_open = (int)(db_one(
+          "SELECT COUNT(*) AS c FROM helpdesk_tickets
+           WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')",
+          [(int)$user['id']]
+      )['c'] ?? 0);
+  } catch (\Throwable $e) {}
+  ?>
+  <li><a href="<?= APP_URL ?>/panel/helpdesk.php" class="vol-action-btn"
+     aria-label="Helpdesk IT<?= $_hd_my_open ? " — {$_hd_my_open} otwartych" : '' ?>">
+    <?php if ($_hd_my_open): ?>
+    <span class="vol-action-badge badge rounded-pill bg-danger" aria-hidden="true"><?= $_hd_my_open ?></span>
+    <?php endif; ?>
+    <div class="vol-action-icon-wrap" style="background:#F0F4FF" aria-hidden="true">
+      <i class="bi bi-headset vol-action-icon" style="color:var(--vol-color)"></i>
+    </div>
+    <div>
+      <div class="vol-action-count" aria-hidden="true"><?= $_hd_my_open ?: '0' ?></div>
+      <div class="vol-action-label">Helpdesk IT</div>
+      <div class="vol-action-sub"><?= $_hd_my_open ? "{$_hd_my_open} otwartych" : 'zgłoś problem' ?></div>
+    </div>
+  </a></li>
+
 </ul>
 </nav>
 

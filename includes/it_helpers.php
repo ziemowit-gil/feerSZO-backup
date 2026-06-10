@@ -3,6 +3,91 @@
  * Moduł IT — helpery dla "Dostępy i Infrastruktura"
  */
 
+/**
+ * Jednorazowa migracja tabel IT + seed domyślnych serwisów.
+ * Wywołuj na początku każdego pliku korzystającego z modułu IT.
+ */
+function it_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $pdo = db();
+
+    // it_services
+    $pdo->exec("CREATE TABLE IF NOT EXISTS it_services (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL,
+        slug       TEXT    NOT NULL UNIQUE,
+        icon       TEXT    DEFAULT 'bi-hdd-network',
+        color      TEXT    DEFAULT '#2563eb',
+        is_active  INTEGER DEFAULT 1,
+        sort_order INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT (datetime('now','localtime'))
+    )");
+    // kolumna is_active mogła nie istnieć we wcześniejszych schematach
+    try { $pdo->exec("ALTER TABLE it_services ADD COLUMN is_active INTEGER DEFAULT 1"); } catch (\Throwable $e) {}
+
+    // it_accounts
+    $pdo->exec("CREATE TABLE IF NOT EXISTS it_accounts (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        service_id       INTEGER NOT NULL,
+        contract_type    TEXT,
+        contract_id      INTEGER,
+        person_id        INTEGER,
+        login            TEXT,
+        external_id      TEXT,
+        display_name     TEXT,
+        is_active        INTEGER DEFAULT 1,
+        license_assigned INTEGER DEFAULT 0,
+        scope            TEXT,
+        notes            TEXT,
+        deactivated_at   DATETIME,
+        deactivated_by   INTEGER,
+        created_by       INTEGER,
+        created_at       DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at       DATETIME DEFAULT (datetime('now','localtime'))
+    )");
+
+    // it_service_passwords
+    $pdo->exec("CREATE TABLE IF NOT EXISTS it_service_passwords (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id    INTEGER,
+        service_id    INTEGER,
+        contract_type TEXT,
+        contract_id   INTEGER,
+        person_id     INTEGER,
+        login         TEXT,
+        password_enc  TEXT,
+        sent_to_email TEXT,
+        sent_at       DATETIME,
+        notes         TEXT,
+        issued_by     INTEGER,
+        issued_at     DATETIME DEFAULT (datetime('now','localtime')),
+        expires_at    DATETIME,
+        is_superseded INTEGER DEFAULT 0
+    )");
+
+    // Seed domyślnych serwisów IT
+    $defaults = [
+        ['Microsoft 365',       'm365',   'bi-microsoft',      '#0078d4', 1],
+        ['Panel wolontariusza', 'panel',  'bi-person-circle',  '#7c3aed', 2],
+        ['Canva Pro',           'canva',  'bi-palette',        '#8b5cf6', 3],
+    ];
+    foreach ($defaults as [$name, $slug, $icon, $color, $order]) {
+        if (!db_one("SELECT id FROM it_services WHERE slug=?", [$slug])) {
+            db_insert('it_services', [
+                'name'       => $name,
+                'slug'       => $slug,
+                'icon'       => $icon,
+                'color'      => $color,
+                'sort_order' => $order,
+                'is_active'  => 1,
+            ]);
+        }
+    }
+}
+
 function it_encrypt_password(string $plain): string {
     $key = substr(hash('sha256', APP_KEY, true), 0, 32);
     $iv  = random_bytes(16);

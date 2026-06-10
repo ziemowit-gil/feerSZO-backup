@@ -251,6 +251,29 @@ if ('serviceWorker' in navigator) {
   <?php endif; ?>
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
+  <div class="pv-nav-label" aria-hidden="true">Wsparcie</div>
+
+  <?php
+  // Liczba otwartych zgłoszeń helpdesk (dla odznaki)
+  $_hd_open = 0;
+  try {
+      $_hd_open = (int)(db_one(
+          "SELECT COUNT(*) AS c FROM helpdesk_tickets
+           WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')",
+          [(int)($_pu['id'] ?? 0)]
+      )['c'] ?? 0);
+  } catch (\Throwable $e) {}
+  ?>
+  <a href="<?= APP_URL ?>/panel/helpdesk.php"
+     class="pv-nav-link<?= _pv_nav_active('/panel/helpdesk') ?>"
+     aria-label="Helpdesk IT<?= $_hd_open ? " — {$_hd_open} otwartych" : '' ?>">
+    <i class="bi bi-headset" aria-hidden="true"></i>Helpdesk IT
+    <?php if ($_hd_open): ?>
+    <span class="pv-badge" aria-label="<?= $_hd_open ?> otwartych zgłoszeń"><?= $_hd_open ?></span>
+    <?php endif; ?>
+  </a>
+
+  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Konto</div>
 
   <a href="<?= APP_URL ?>/panel/m365.php" class="pv-nav-link<?= _pv_nav_active('/panel/m365') ?>">
