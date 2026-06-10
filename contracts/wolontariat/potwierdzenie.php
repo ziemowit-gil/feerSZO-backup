@@ -58,12 +58,21 @@ $vol_adres   = trim(implode(', ', array_filter([$vol_street, $vol_postal]))) ?: 
 $koresp_odbiorca = trim($row['adres_odbiorca'] ?? '') ?: $vol_name;
 $koresp_linia1   = trim($row['adres_linia1']   ?? '');
 $koresp_linia2   = trim($row['adres_linia2']   ?? '');
-$koresp_kraj     = trim($row['adres_kraj']      ?? '');
-// Adres na kopertę — preferuj korespondencyjny, fallback na główny
+
+// Adres na kopertę — 3 linie: Imię Nazwisko / Ulica nr/m / Kod Miasto
+// Preferuj adres korespondencyjny, fallback na ustrukturyzowany adres główny
 if ($koresp_linia1) {
-    $env_lines = array_filter([$koresp_odbiorca, $koresp_linia1, $koresp_linia2, $koresp_kraj ?: '']);
+    $env_line1 = $koresp_odbiorca;   // imię i nazwisko (lub firma)
+    $env_line2 = $koresp_linia1;     // ulica nr/m
+    $env_line3 = $koresp_linia2;     // kod pocztowy + miejscowość
 } else {
-    $env_lines = array_filter([$vol_name, $vol_street ?: null, $vol_postal ?: null]);
+    $env_line1 = $vol_name;
+    $env_line2 = trim(
+        ($row['addr_street'] ?? '') . ' ' .
+        ($row['addr_house']  ?? '') .
+        ($row['addr_flat'] ? '/' . $row['addr_flat'] : '')
+    );
+    $env_line3 = trim(($row['addr_postal'] ?? '') . ' ' . ($row['addr_city'] ?? ''));
 }
 
 // ── Dane porozumienia ─────────────────────────────────────────────────────────
@@ -367,7 +376,26 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
 .koperta .nadawca { font-size:9.5pt; line-height:1.5; max-width:52%; }
 .koperta .nadawca .nad-label { font-size:8pt; text-transform:uppercase; letter-spacing:.06em; color:#888; margin-bottom:3pt; }
 .koperta .nadawca .nad-name  { font-weight:bold; font-size:10pt; }
-.koperta .stamp-area { width:50mm; height:35mm; border:1.5px dashed #aaa; border-radius:4pt; display:flex; align-items:center; justify-content:center; font-size:8.5pt; color:#bbb; text-align:center; line-height:1.5; flex-shrink:0; }
+.koperta .stamp-area {
+  width:50mm; height:36mm;
+  border:2px solid #000;
+  border-radius:2pt;
+  flex-shrink:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  padding-bottom:4pt; gap:0;
+  position:relative;
+}
+.koperta .stamp-area::before {
+  content:'';
+  display:block;
+  width:38mm; height:24mm;
+  border:1.5px dashed #aaa;
+  position:absolute; top:4pt; left:50%; transform:translateX(-50%);
+}
+.koperta .stamp-area .stamp-label {
+  font-size:7pt; color:#555; text-transform:uppercase; letter-spacing:.08em; text-align:center; line-height:1.3;
+  position:relative; z-index:1;
+}
 .koperta .env-mid { flex:1; display:flex; align-items:center; justify-content:center; padding:20mm 0 10mm; }
 .koperta .adresat { text-align:left; font-size:12.5pt; line-height:1.8; }
 .koperta .adresat .adr-label { font-size:8pt; text-transform:uppercase; letter-spacing:.06em; color:#888; margin-bottom:5pt; }
@@ -532,25 +560,19 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
     <div class="nadawca">
       <div class="nad-label">Nadawca</div>
       <div class="nad-name"><?= h($org_name) ?></div>
-      <?php if ($org_adres): ?>
-      <div><?= h($org_adres) ?></div>
-      <?php endif; ?>
+      <?php if ($org_adres):  ?><div><?= h($org_adres) ?></div><?php endif; ?>
       <?php if ($org_miasto): ?><div><?= h($org_miasto) ?></div><?php endif; ?>
     </div>
-    <div class="stamp-area">znaczek<br>pocztowy</div>
+    <div class="stamp-area"><span class="stamp-label">Miejsce<br>na znaczek</span></div>
   </div>
 
   <div class="env-mid">
     <div class="adresat">
       <div class="adr-label">Adresat</div>
-      <?php foreach ($env_lines as $line): ?>
-      <?php if ($line === $vol_name): ?>
-      <div class="adr-name"><?= h($line) ?></div>
-      <?php else: ?>
-      <div><?= h($line) ?></div>
-      <?php endif; ?>
-      <?php endforeach; ?>
-      <?php if (empty($env_lines)): ?>
+      <?php if ($env_line1): ?><div class="adr-name"><?= h($env_line1) ?></div><?php endif; ?>
+      <?php if ($env_line2): ?><div><?= h($env_line2) ?></div><?php endif; ?>
+      <?php if ($env_line3): ?><div><?= h($env_line3) ?></div><?php endif; ?>
+      <?php if (!$env_line1 && !$env_line2 && !$env_line3): ?>
       <div class="adr-name" style="color:#aaa">Brak adresu w systemie</div>
       <?php endif; ?>
     </div>
@@ -570,25 +592,19 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
     <div class="nadawca">
       <div class="nad-label">Nadawca</div>
       <div class="nad-name"><?= h($org_name) ?></div>
-      <?php if ($org_adres): ?>
-      <div><?= h($org_adres) ?></div>
-      <?php endif; ?>
+      <?php if ($org_adres):  ?><div><?= h($org_adres) ?></div><?php endif; ?>
       <?php if ($org_miasto): ?><div><?= h($org_miasto) ?></div><?php endif; ?>
     </div>
-    <div class="stamp-area">znaczek<br>pocztowy</div>
+    <div class="stamp-area"><span class="stamp-label">Miejsce<br>na znaczek</span></div>
   </div>
 
   <div class="env-mid">
     <div class="adresat">
       <div class="adr-label">Adresat</div>
-      <?php foreach ($env_lines as $line): ?>
-      <?php if ($line === $vol_name): ?>
-      <div class="adr-name"><?= h($line) ?></div>
-      <?php else: ?>
-      <div><?= h($line) ?></div>
-      <?php endif; ?>
-      <?php endforeach; ?>
-      <?php if (empty($env_lines)): ?>
+      <?php if ($env_line1): ?><div class="adr-name"><?= h($env_line1) ?></div><?php endif; ?>
+      <?php if ($env_line2): ?><div><?= h($env_line2) ?></div><?php endif; ?>
+      <?php if ($env_line3): ?><div><?= h($env_line3) ?></div><?php endif; ?>
+      <?php if (!$env_line1 && !$env_line2 && !$env_line3): ?>
       <div class="adr-name" style="color:#aaa">Brak adresu w systemie</div>
       <?php endif; ?>
     </div>
