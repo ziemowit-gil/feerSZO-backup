@@ -2,9 +2,10 @@
 # rebuild.sh — git pull + przebuduj obraz + restart aplikacji
 #
 # Użycie:
-#   bash rebuild.sh           # SQLite (domyślnie)
-#   bash rebuild.sh --mysql   # z MySQL
-#   bash rebuild.sh --no-pull # przebuduj bez git pull (np. po ręcznej edycji)
+#   bash rebuild.sh              # SQLite (domyślnie)
+#   bash rebuild.sh --mysql      # z MySQL
+#   bash rebuild.sh --no-pull    # przebuduj bez git pull (np. po ręcznej edycji)
+#   bash rebuild.sh --no-cache   # wymusza pełny rebuild bez cache (po zmianie Dockerfile)
 
 set -euo pipefail
 
@@ -23,9 +24,11 @@ section() { echo -e "\n${BOLD}━━ $* ━━━━━━━━━━━━━�
 # ── Argumenty ─────────────────────────────────────────────────────────────────
 USE_MYSQL=0
 SKIP_PULL=0
+NO_CACHE=0
 for arg in "$@"; do
-    [[ "$arg" == "--mysql"   ]] && USE_MYSQL=1
-    [[ "$arg" == "--no-pull" ]] && SKIP_PULL=1
+    [[ "$arg" == "--mysql"    ]] && USE_MYSQL=1
+    [[ "$arg" == "--no-pull"  ]] && SKIP_PULL=1
+    [[ "$arg" == "--no-cache" ]] && NO_CACHE=1
 done
 
 # ── Walidacja ─────────────────────────────────────────────────────────────────
@@ -55,7 +58,12 @@ fi
 
 # ── 2. Przebuduj obraz app ─────────────────────────────────────────────────────
 section "2. Budowanie obrazu"
-$COMPOSE build --pull app
+if [[ $NO_CACHE -eq 1 ]]; then
+    info "Tryb: --no-cache (pełny rebuild bez warstw cache)"
+    $COMPOSE build --no-cache --pull app
+else
+    $COMPOSE build --pull app
+fi
 ok "Obraz zbudowany"
 
 # ── 3. Restart usług ──────────────────────────────────────────────────────────
