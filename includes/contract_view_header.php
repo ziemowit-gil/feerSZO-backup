@@ -125,13 +125,72 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
       <?php if (can_edit() && ($_cvh_type ?? '') === 'wolontariat'): ?>
       <a href="<?= APP_URL ?>/contracts/wolontariat/renew.php?id=<?= (int)($_cvh_id ?? 0) ?>"
-         class="btn btn-sm btn-outline-success" title="Przedłuż umowę">
+         class="btn btn-sm btn-outline-success" title="Przedłuż porozumienie">
         <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Przedłuż</span>
       </a>
-      <a href="<?= APP_URL ?>/contracts/wolontariat/potwierdzenie.php?id=<?= (int)($_cvh_id ?? 0) ?>&preview=1"
-         target="_blank" class="btn btn-sm btn-outline-secondary" title="Potwierdzenie rejestracji wolontariusza (PDF)">
-        <i class="bi bi-file-earmark-check"></i> <span class="d-none d-sm-inline">Potwierdzenie</span>
-      </a>
+      <?php endif; ?>
+
+      <?php if (($_cvh_type ?? '') === 'wolontariat'): ?>
+      <!-- Dropdown: Dokumenty -->
+      <?php $_cvh_wid = (int)($_cvh_id ?? 0); $_cvh_burl = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $_cvh_wid; ?>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false" title="Dokumenty do wydruku i pobrania">
+          <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline">Dokumenty</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" style="min-width:230px">
+          <li><h6 class="dropdown-header"><i class="bi bi-folder2-open me-1"></i>Karta do segregatora</h6></li>
+          <li>
+            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=wkladka&preview=1" target="_blank">
+              <i class="bi bi-printer me-2 text-danger"></i>Drukuj / PDF
+            </a>
+          </li>
+          <?php if (class_exists('ZipArchive')): ?>
+          <li>
+            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=wkladka&format=docx">
+              <i class="bi bi-file-earmark-word me-2 text-primary"></i>Pobierz DOCX
+            </a>
+          </li>
+          <?php endif; ?>
+          <li><hr class="dropdown-divider"></li>
+          <li><h6 class="dropdown-header"><i class="bi bi-person-check me-1"></i>Potwierdzenie dla wolontariusza</h6></li>
+          <li>
+            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=wolontariusz&preview=1" target="_blank">
+              <i class="bi bi-printer me-2 text-danger"></i>Drukuj / PDF
+            </a>
+          </li>
+          <?php if (class_exists('ZipArchive')): ?>
+          <li>
+            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=wolontariusz&format=docx">
+              <i class="bi bi-file-earmark-word me-2 text-primary"></i>Pobierz DOCX
+            </a>
+          </li>
+          <?php endif; ?>
+          <li><hr class="dropdown-divider"></li>
+          <li><h6 class="dropdown-header"><i class="bi bi-arrow-repeat me-1"></i>Aneks</h6></li>
+          <li>
+            <a class="dropdown-item" href="<?= APP_URL ?>/contracts/wolontariat/aneks.php?id=<?= $_cvh_wid ?>&format=pdf&preview=1" target="_blank">
+              <i class="bi bi-printer me-2 text-danger"></i>Drukuj / PDF
+            </a>
+          </li>
+          <?php if (class_exists('ZipArchive')): ?>
+          <li>
+            <a class="dropdown-item" href="<?= APP_URL ?>/contracts/wolontariat/aneks.php?id=<?= $_cvh_wid ?>&format=docx">
+              <i class="bi bi-file-earmark-word me-2 text-primary"></i>Pobierz DOCX
+            </a>
+          </li>
+          <?php endif; ?>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <a class="dropdown-item" href="<?= APP_URL ?>/contracts/wolontariat/print.php?id=<?= $_cvh_wid ?>" target="_blank">
+              <i class="bi bi-file-earmark-text me-2 text-secondary"></i>Wydruk umowy (pełny)
+            </a>
+          </li>
+        </ul>
+      </div>
+      <?php endif; ?>
+
+      <?php if (can_edit() && ($_cvh_type ?? '') === 'wolontariat'): ?>
       <?php if (empty($_pending_term) && defined('TERMINABLE_STATUSES') && in_array($_cvh_status, TERMINABLE_STATUSES)): ?>
       <button type="button"
               class="btn btn-sm btn-outline-danger"
@@ -142,7 +201,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       </button>
       <?php endif; ?>
       <?php endif; ?>
-      <button onclick="window.print()" class="btn btn-sm btn-outline-dark">
+      <button onclick="window.print()" class="btn btn-sm btn-outline-dark" title="Drukuj tę stronę">
         <i class="bi bi-printer"></i>
       </button>
       <a href="<?= h($_cvh_list_url) ?>" class="btn btn-sm btn-outline-secondary">
