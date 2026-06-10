@@ -133,12 +133,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_renew'])) {
 
             $new_id = db_insert($TABLE, $new_data);
 
+            // Ustaw status oryginału na "aneks" — blokuje edycję, sygnalizuje że jest nowsza wersja
+            db_update($TABLE, ['status' => 'aneks'], $id);
+
             log_contract_action($TYPE, $new_id, $uid, 'renewal_create',
                 'Utworzono nową umowę z przedłużenia #' . $id . ' (' . $row['numer_umowy'] . ').'
                 . ($note ? ' Uwaga: ' . $note : ''));
-            // Zaloguj też w oryginalnej
             log_contract_action($TYPE, $id, $uid, 'renewed_by',
-                'Przedłużona nową umową #' . $new_id . ' (' . $new_numer . ').');
+                'Przedłużona nową umową #' . $new_id . ' (' . $new_numer . '). Status zmieniony na: aneks.');
 
             flash_set('success', 'Nowa umowa przedłużenia została utworzona: ' . $new_numer);
         }
