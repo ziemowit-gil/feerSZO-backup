@@ -4,6 +4,9 @@
 *.db-wal
 *.sqlite
 *.sqlite3
+# db-schema/ is committed to git intentionally (schema/seed database)
+!db-schema/*.db
+!db-schema/*.sqlite
 *.p12
 *.key
 certs/*.key
