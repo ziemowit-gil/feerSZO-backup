@@ -181,6 +181,18 @@ $_cvh_accent = match($_cvh_st['class']) {
           </li>
           <?php endif; ?>
           <li><hr class="dropdown-divider"></li>
+          <li><h6 class="dropdown-header"><i class="bi bi-envelope me-1"></i>Koperty</h6></li>
+          <li>
+            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=koperta_a4&preview=1" target="_blank">
+              <i class="bi bi-printer me-2 text-danger"></i>Koperta A4 (210×297 mm)
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=koperta_c4&preview=1" target="_blank">
+              <i class="bi bi-printer me-2 text-danger"></i>Koperta C4 (229×324 mm)
+            </a>
+          </li>
+          <li><hr class="dropdown-divider"></li>
           <li>
             <a class="dropdown-item" href="<?= APP_URL ?>/contracts/wolontariat/print.php?id=<?= $_cvh_wid ?>" target="_blank">
               <i class="bi bi-file-earmark-text me-2 text-secondary"></i>Wydruk umowy (pełny)
