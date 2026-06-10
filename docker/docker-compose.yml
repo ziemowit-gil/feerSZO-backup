@@ -48,29 +48,8 @@ services:
       SMTP_USER:  ${SMTP_USER:-}
       SMTP_PASS:  ${SMTP_PASS:-}
       SMTP_TLS:   ${SMTP_TLS:-off}
-    depends_on:
-      redis:
-        condition: service_healthy
     networks:
       - feer
-
-  redis:
-    image: redis:7-alpine
-    container_name: feer-redis
-    restart: unless-stopped
-    command: redis-server --save 60 1 --loglevel warning
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    networks:
-      - feer
-
-volumes:
-  redis_data:
 
 networks:
   feer:

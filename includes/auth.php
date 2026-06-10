@@ -4,7 +4,6 @@ require_once __DIR__ . '/permissions.php';
 function auth_start(): void {
     if (session_status() === PHP_SESSION_NONE) {
         // Osobna nazwa sesji na każdy kontekst — izolacja FEER vs. tenantów.
-        // Bez tego zalogowanie do FEER dawałoby dostęp do paneli tenantów i odwrotnie.
         $org  = defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : '';
         $safe = strtolower(preg_replace('/\s+/', '_', trim(preg_replace('/[^a-zA-Z0-9\s]/u', '', $org))));
         $safe = substr(trim($safe, '_'), 0, 40);
@@ -12,8 +11,23 @@ function auth_start(): void {
             $safe = defined('TENANT_SLUG') && TENANT_SLUG !== '' ? TENANT_SLUG : 'feer';
         }
         session_name('umowy_' . $safe);
-        // SameSite=Lax wymagane przy OAuth — przeglądarka musi wysłać cookie sesji
-        // po powrocie z przekierowania Microsoft (cross-site top-level GET)
+
+        // ── Sesje w bazie SQLite/MySQL — bez zależności od Redis ──────────────
+        static $_db_handler_set = false;
+        if (!$_db_handler_set) {
+            $_db_handler_set = true;
+            try {
+                require_once __DIR__ . '/session_db_handler.php';
+                session_set_save_handler(new DbSessionHandler(db()), true);
+            } catch (\Throwable $e) {
+                error_log('[auth_start] session handler fallback: ' . $e->getMessage());
+                // Fallback: sesje plikowe
+                ini_set('session.save_handler', 'files');
+                ini_set('session.save_path', sys_get_temp_dir());
+            }
+        }
+
+        // SameSite=Lax wymagane przy OAuth (cross-site top-level GET po redirect MS)
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
