@@ -7,6 +7,8 @@
 # db-schema/ is committed to git intentionally (schema/seed database)
 !db-schema/*.db
 !db-schema/*.sqlite
+# Seed baza produkcyjna — wyczyszczona clean_for_prod (tylko admin + ustawienia)
+!umowy.db
 *.p12
 *.key
 certs/*.key
