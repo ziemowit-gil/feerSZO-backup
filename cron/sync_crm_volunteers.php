@@ -28,9 +28,11 @@ if (!module_enabled('crm_enabled')) {
 
 crm_migrate();
 
-$result = CrmManager::syncVolunteerGroup();
+$result = SyncService::syncVolunteerGroup();
 
-echo '[' . date('Y-m-d H:i:s') . '] Dodano do grupy:  ' . $result['added']   . "\n";
-echo '[' . date('Y-m-d H:i:s') . '] Usunieto z grupy: ' . $result['removed'] . "\n";
+echo '[' . date('Y-m-d H:i:s') . '] Wolontariusze dodano:    ' . $result['added']          . "\n";
+echo '[' . date('Y-m-d H:i:s') . '] Wolontariusze usunieto:  ' . $result['removed']        . "\n";
+echo '[' . date('Y-m-d H:i:s') . '] Byli: dodano:            ' . ($result['former_added']   ?? 0) . "\n";
+echo '[' . date('Y-m-d H:i:s') . '] Byli: usunieto:          ' . ($result['former_removed'] ?? 0) . "\n";
 echo '[' . date('Y-m-d H:i:s') . "] Koniec: sync_crm_volunteers\n";
 exit(0);

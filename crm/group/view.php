@@ -37,6 +37,7 @@ if ($_accessible_ids !== null && !in_array($id, $_accessible_ids, true)) {
     exit;
 }
 
+$is_vol_group = in_array($group['auto_source'] ?? '', ['wolontariusze', 'byli_wolontariusze']);
 $PAGE_TITLE = 'CRM — Grupa: ' . $group['name'];
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -96,12 +97,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         }
     }
 
+    // Synchronizacja grupy wolontariuszy (admin only)
+    if ($action === 'sync_volunteers' && is_admin() && $is_vol_group) {
+        $result = SyncService::syncVolunteerGroup();
+        flash_set('success', sprintf(
+            'Synchronizacja: +%d/−%d w Wolontariusze; +%d/−%d w Byli wolontariusze.',
+            $result['added'], $result['removed'],
+            $result['former_added'] ?? 0, $result['former_removed'] ?? 0
+        ));
+    }
+
+    // Import wolontariuszy do grupy wg kryteriów umowy
+    if ($action === 'import_by_criteria' && $crm_can_write && $is_vol_group) {
+        $crit_status = trim($_POST['crit_status'] ?? '');
+        $crit_action = (int)($_POST['crit_action'] ?? 0);
+        if ($crit_status || $crit_action) {
+            $wh = ["w.email IS NOT NULL AND TRIM(w.email) != ''"]; $wp = [];
+            if ($crit_status) { $wh[] = 'w.status = ?'; $wp[] = $crit_status; }
+            if ($crit_action) { $wh[] = 'w.action_id = ?'; $wp[] = $crit_action; }
+            $rows = db_all(
+                "SELECT DISTINCT LOWER(TRIM(w.email)) AS email FROM umowy_wolontariat w WHERE " . implode(' AND ', $wh),
+                $wp
+            );
+            $imported = 0;
+            foreach ($rows as $r) {
+                $c = db_one("SELECT id FROM crm_contacts WHERE LOWER(email)=? AND crm_active=1 LIMIT 1", [$r['email']]);
+                if ($c) { CrmManager::addToGroup($id, (int)$c['id']); $imported++; }
+            }
+            flash_set('success', "Dodano $imported wolontariuszy do grupy.");
+        } else {
+            flash_set('warning', 'Wybierz przynajmniej jeden filtr (status lub działanie).');
+        }
+    }
+
     header('Location: ' . APP_URL . '/crm/group/view.php?id=' . $id);
     exit;
 }
 
 // Przeładuj
 $group = CrmManager::getGroup($id);
+
+// Dane umów wolontariackich — ładowane tylko dla grup wolontariuszy
+$vol_contracts_map  = [];
+$vol_filter_actions = [];
+$import_actions     = [];
+$vol_all_statuses   = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca', 'zakończona', 'rozwiązana', 'anulowana'];
+$vol_status_labels  = ['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','obowiązująca'=>'Obowiązująca','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'];
+
+if ($is_vol_group && $group['members']) {
+    $member_emails = array_values(array_unique(array_filter(
+        array_map(fn($m) => strtolower(trim($m['email'] ?? '')), $group['members'])
+    )));
+    if ($member_emails) {
+        try {
+            $ph_ = implode(',', array_fill(0, count($member_emails), '?'));
+            $all_vol_c = db_all(
+                "SELECT LOWER(TRIM(email)) AS email, id, numer_umowy, status, action_id, data_od, data_do
+                 FROM umowy_wolontariat
+                 WHERE LOWER(TRIM(email)) IN ({$ph_})
+                 ORDER BY data_od DESC",
+                $member_emails
+            );
+            $active_st = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
+            foreach ($all_vol_c as $vc) {
+                $e = $vc['email'];
+                // Preferuj aktywną umowę; jeśli kilka aktywnych — bierz pierwszą (najnowszą)
+                if (!isset($vol_contracts_map[$e]) || in_array($vc['status'], $active_st)) {
+                    $vol_contracts_map[$e] = $vc;
+                }
+            }
+            $aid_ = array_values(array_filter(array_unique(array_column($all_vol_c, 'action_id'))));
+            if ($aid_) {
+                $ph2_ = implode(',', array_fill(0, count($aid_), '?'));
+                $vol_filter_actions = db_all("SELECT id, nazwa FROM actions WHERE id IN ({$ph2_}) ORDER BY nazwa", $aid_);
+            }
+        } catch (\Throwable $e_) {}
+    }
+    foreach ($group['members'] as &$_m) {
+        $e = strtolower(trim($_m['email'] ?? ''));
+        $_m['_vc'] = $vol_contracts_map[$e] ?? null;
+    }
+    unset($_m);
+}
+
+// Akcje dostępne do filtra importu (dla panelu "Importuj z umów")
+if ($is_vol_group && $crm_can_write) {
+    try {
+        $import_actions = db_all(
+            "SELECT DISTINCT a.id, a.nazwa FROM actions a
+             JOIN umowy_wolontariat w ON w.action_id = a.id
+             WHERE w.email IS NOT NULL AND TRIM(w.email) != ''
+             ORDER BY a.nazwa"
+        );
+    } catch (\Throwable $e_) {}
+}
 
 // Kontakty spoza grupy (do selektu dodawania)
 $not_in_group = CrmManager::getContactsNotInGroup($id);
@@ -183,6 +272,17 @@ tr:hover .member-row-actions { opacity: 1; }
       <i class="bi bi-pencil me-1"></i>Edytuj
     </a>
     <?php endif; ?>
+    <?php if ($is_vol_group && is_admin()): ?>
+    <form method="post" class="d-inline">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="sync_volunteers">
+      <button type="submit" class="btn btn-sm btn-light opacity-80"
+              title="Synchronizuj przynależność do grup wg aktualnych umów wolontariackich"
+              onclick="return confirm('Zsynchronizować przynależność wolontariuszy?')">
+        <i class="bi bi-arrow-repeat me-1"></i>Sync
+      </button>
+    </form>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -214,13 +314,37 @@ tr:hover .member-row-actions { opacity: 1; }
         </div>
       </div>
 
+      <?php if ($is_vol_group): ?>
+      <div class="p-2 border-bottom bg-light d-flex align-items-center gap-2 flex-wrap" style="font-size:.82rem">
+        <span class="text-muted fw-semibold flex-shrink-0"><i class="bi bi-funnel me-1"></i>Filtr umów:</span>
+        <select id="volStatusFilter" class="form-select form-select-sm" style="max-width:160px" onchange="applyVolFilters()">
+          <option value="">Każdy status</option>
+          <?php foreach ($vol_all_statuses as $_vs): ?>
+          <option value="<?= h($_vs) ?>"><?= h($vol_status_labels[$_vs] ?? $_vs) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <?php if ($vol_filter_actions): ?>
+        <select id="volActionFilter" class="form-select form-select-sm" style="max-width:220px" onchange="applyVolFilters()">
+          <option value="">Każde działanie</option>
+          <?php foreach ($vol_filter_actions as $_va): ?>
+          <option value="<?= (int)$_va['id'] ?>"><?= h(mb_substr($_va['nazwa'], 0, 38)) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <?php endif; ?>
+        <button class="btn btn-outline-secondary btn-sm py-0" onclick="resetVolFilters()" title="Wyczyść filtry">
+          <i class="bi bi-x-lg"></i>
+        </button>
+        <span id="volFilterCount" class="ms-auto text-muted" style="font-size:.75rem"></span>
+      </div>
+      <?php endif; ?>
+
       <?php if ($group['members']): ?>
       <div class="table-responsive">
         <table class="crm-table" id="memberTable" aria-label="Członkowie grupy <?= h($group['name']) ?>">
           <thead>
             <tr>
               <th scope="col">Kontakt</th>
-              <th scope="col" class="d-none d-md-table-cell">Status</th>
+              <th scope="col" class="d-none d-md-table-cell"><?= $is_vol_group ? 'Status CRM / Umowa' : 'Status' ?></th>
               <th scope="col" class="d-none d-lg-table-cell">Dodano</th>
               <th scope="col"><span class="visually-hidden">Akcje</span></th>
             </tr>
@@ -230,8 +354,23 @@ tr:hover .member-row-actions { opacity: 1; }
               $is_org  = $m['type'] === 'organizacja';
               $ini     = $m['avatar_initials'] ?: CrmManager::makeInitials($m['imie_nazwisko']);
               $sc      = crm_statuses()[$m['status']] ?? ['label' => $m['status']];
+              $vc      = $m['_vc'] ?? null;
+              $vc_st   = $vc['status'] ?? '';
+              $vc_aid  = (int)($vc['action_id'] ?? 0);
+              $vc_color = match($vc_st) {
+                'projekt','podpisana','w realizacji','obowiązująca' => '#2E844A',
+                'zakończona' => '#374151', 'rozwiązana' => '#D97706', 'anulowana' => '#E31010',
+                default => '#6B7280',
+              };
+              // Nazwa działania z mapy załadowanych wcześniej akcji
+              $vc_action_name = null;
+              foreach ($vol_filter_actions as $_va) {
+                  if ((int)$_va['id'] === $vc_aid) { $vc_action_name = $_va['nazwa']; break; }
+              }
             ?>
-            <tr data-name="<?= h(mb_strtolower($m['imie_nazwisko'])) ?>">
+            <tr data-name="<?= h(mb_strtolower($m['imie_nazwisko'])) ?>"
+                data-vol-status="<?= h($vc_st) ?>"
+                data-vol-action="<?= $vc_aid ?>">
               <td>
                 <div class="crm-name-cell">
                   <div class="crm-avatar <?= $is_org ? 'org' : '' ?>" aria-hidden="true"
@@ -247,11 +386,25 @@ tr:hover .member-row-actions { opacity: 1; }
                     <?php if ($m['stanowisko']): ?>
                     <div class="crm-name-sub"><?= h($m['stanowisko']) ?></div>
                     <?php endif; ?>
+                    <?php if ($vc_action_name): ?>
+                    <div class="crm-name-sub" style="color:#6366f1">
+                      <i class="bi bi-lightning-charge me-1" style="font-size:.62rem"></i><?= h(mb_substr($vc_action_name, 0, 42)) ?>
+                    </div>
+                    <?php endif; ?>
                   </div>
                 </div>
               </td>
               <td class="d-none d-md-table-cell">
                 <span class="crm-badge crm-badge-<?= h($m['status']) ?>"><?= h($sc['label']) ?></span>
+                <?php if ($vc_st): ?>
+                <div style="margin-top:.25rem">
+                  <span style="font-size:.68rem;padding:.1rem .3rem;border-radius:3px;display:inline-flex;align-items:center;gap:.2rem;background:<?= $vc_color ?>22;color:<?= $vc_color ?>;border:1px solid <?= $vc_color ?>44"
+                        title="<?= h($vc['numer_umowy'] ?? '') ?> · <?= h($vc['data_od'] ?? '') ?>–<?= h($vc['data_do'] ?? '') ?>">
+                    <i class="bi bi-file-earmark-text" style="font-size:.6rem"></i>
+                    <?= h($vol_status_labels[$vc_st] ?? $vc_st) ?>
+                  </span>
+                </div>
+                <?php endif; ?>
               </td>
               <td class="d-none d-lg-table-cell" style="font-size:.8rem;color:#64748b">
                 <?= date_pl($m['added_at']) ?>
@@ -371,6 +524,45 @@ tr:hover .member-row-actions { opacity: 1; }
     );
     $all_groups_for_link = db_all("SELECT id,name FROM crm_groups WHERE id!=? ORDER BY name", [$id]);
     ?>
+
+    <?php if ($is_vol_group && $crm_can_write): ?>
+    <!-- Import wolontariuszy wg kryteriów umowy -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="crm-section-title"><i class="bi bi-download me-1"></i>Importuj z umów</div>
+        <p class="text-muted mb-2" style="font-size:.78rem">
+          Dodaj wolontariuszy do grupy filtrując po statusie umowy lub działaniu.
+        </p>
+        <form method="post">
+          <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="import_by_criteria">
+          <div class="mb-2">
+            <label class="form-label fw-semibold small mb-1">Status umowy</label>
+            <select name="crit_status" class="form-select form-select-sm">
+              <option value="">— dowolny —</option>
+              <?php foreach ($vol_status_labels as $_s => $_sl): ?>
+              <option value="<?= h($_s) ?>"><?= h($_sl) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php if ($import_actions): ?>
+          <div class="mb-2">
+            <label class="form-label fw-semibold small mb-1">Działanie</label>
+            <select name="crit_action" class="form-select form-select-sm">
+              <option value="">— dowolne —</option>
+              <?php foreach ($import_actions as $_ia): ?>
+              <option value="<?= (int)$_ia['id'] ?>"><?= h(mb_substr($_ia['nazwa'], 0, 42)) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+          <button type="submit" class="btn btn-crm-primary btn-sm w-100">
+            <i class="bi bi-person-plus me-1"></i>Importuj pasujących
+          </button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Nadrzędna / podgrupy -->
     <div class="card border-0 shadow-sm mb-3">
@@ -658,11 +850,33 @@ const GROUP_ID   = <?= (int)$id ?>;
 const LINK_API   = '<?= APP_URL ?>/crm/api/group_link.php';
 
 function filterMembers(q) {
-  q = q.toLowerCase();
+  applyVolFilters();
+}
+
+function applyVolFilters() {
+  var q  = ((document.getElementById('memberSearch')   || {}).value || '').toLowerCase();
+  var sf = ((document.getElementById('volStatusFilter') || {}).value || '');
+  var af = ((document.getElementById('volActionFilter') || {}).value || '');
+  var vis = 0, tot = 0;
   document.querySelectorAll('#memberTable tbody tr').forEach(function(row) {
-    var name = (row.dataset.name || '').toLowerCase();
-    row.style.display = q === '' || name.includes(q) ? '' : 'none';
+    tot++;
+    var name = (row.dataset.name  || '').toLowerCase();
+    var show = (q  === '' || name.includes(q))
+            && (sf === '' || (row.dataset.volStatus || '') === sf)
+            && (af === '' || (row.dataset.volAction || '') === af);
+    row.style.display = show ? '' : 'none';
+    if (show) vis++;
   });
+  var cnt = document.getElementById('volFilterCount');
+  if (cnt) cnt.textContent = (sf || af || q) ? vis + ' z ' + tot : '';
+}
+
+function resetVolFilters() {
+  ['volStatusFilter','volActionFilter','memberSearch'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  applyVolFilters();
 }
 
 // ── Zmień grupę nadrzędną ──────────────────────────────────────────────────

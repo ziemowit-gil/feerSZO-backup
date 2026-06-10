@@ -1726,6 +1726,32 @@ class SyncService
         return ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
     }
 
+    /** Statusy uznawane za zakończone (przechodzą do "Byli wolontariusze"). */
+    private static function _inactiveVolStatuses(): array {
+        return ['zakończona', 'rozwiązana', 'anulowana'];
+    }
+
+    /**
+     * Znajdź lub utwórz grupę "Byli wolontariusze" (auto_source='byli_wolontariusze').
+     * Tworzy ją jako podgrupę grupy "Wolontariusze" ($vol_gid).
+     */
+    private static function _ensureFormerGroup(string $now, int $vol_gid): int {
+        $g = db_one("SELECT id FROM crm_groups WHERE auto_source='byli_wolontariusze'");
+        if ($g) return (int)$g['id'];
+        return (int)db_insert('crm_groups', [
+            'name'        => 'Byli wolontariusze',
+            'description' => 'Wolontariusze z zakończonymi umowami — zarządzani automatycznie',
+            'color'       => '#64748b',
+            'icon'        => 'bi-archive-fill',
+            'auto_source' => 'byli_wolontariusze',
+            'parent_id'   => $vol_gid ?: null,
+            'sort_order'  => 99,
+            'created_by'  => 0,
+            'created_at'  => $now,
+            'updated_at'  => $now,
+        ]);
+    }
+
     /**
      * Synchronizuje przynależność jednego wolontariusza (po e-mailu) do grupy
      * "Wolontariusze" na podstawie aktualnego statusu jego umowy.
@@ -1746,52 +1772,62 @@ class SyncService
             [$email]
         );
         if (!$contact) return;
-        $cid = (int)$contact['id'];
+        $cid  = (int)$contact['id'];
+        $now  = date('Y-m-d H:i:s');
+        $fgid = self::_ensureFormerGroup($now, $gid);
 
-        $is_active = in_array($contract_status, self::_activeVolStatuses(), true);
+        $active    = self::_activeVolStatuses();
+        $is_active = in_array($contract_status, $active, true);
 
         if ($is_active) {
-            // Dodaj do grupy (INSERT OR IGNORE)
+            // Dodaj do "Wolontariusze"
             try {
                 db()->prepare(
-                    "INSERT OR IGNORE INTO crm_group_members (group_id, contact_id, added_by, added_at)
-                     VALUES (?,?,0,?)"
-                )->execute([$gid, $cid, date('Y-m-d H:i:s')]);
+                    "INSERT OR IGNORE INTO crm_group_members (group_id, contact_id, added_by, added_at) VALUES (?,?,0,?)"
+                )->execute([$gid, $cid, $now]);
             } catch (\Throwable $e) {}
+            // Usuń z "Byli wolontariusze" (wrócił do aktywności)
+            db()->prepare("DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?")
+                ->execute([$fgid, $cid]);
         } else {
-            // Sprawdź czy ma INNĄ aktywną umowę — jeśli tak, zostaje w grupie
-            $ph  = implode(',', array_fill(0, count(self::_activeVolStatuses()), '?'));
+            // Sprawdź czy ma INNĄ aktywną umowę — jeśli tak, zostaje w grupie "Wolontariusze"
+            $ph    = implode(',', array_fill(0, count($active), '?'));
             $other = db_one(
-                "SELECT id FROM umowy_wolontariat
-                 WHERE LOWER(email)=LOWER(?) AND status IN ({$ph}) LIMIT 1",
-                array_merge([$email], self::_activeVolStatuses())
+                "SELECT id FROM umowy_wolontariat WHERE LOWER(email)=LOWER(?) AND status IN ({$ph}) LIMIT 1",
+                array_merge([$email], $active)
             );
             if (!$other) {
-                db()->prepare(
-                    "DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?"
-                )->execute([$gid, $cid]);
+                // Usuń z "Wolontariusze"
+                db()->prepare("DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?")
+                    ->execute([$gid, $cid]);
+                // Przenieś do "Byli wolontariusze"
+                try {
+                    db()->prepare(
+                        "INSERT OR IGNORE INTO crm_group_members (group_id, contact_id, added_by, added_at) VALUES (?,?,0,?)"
+                    )->execute([$fgid, $cid, $now]);
+                } catch (\Throwable $e) {}
             }
         }
     }
 
     /**
-     * Pełna synchronizacja grupy "Wolontariusze":
-     *  - dodaje kontakty wolontariuszy z aktywnymi umowami (jeśli ich brakuje)
-     *  - usuwa kontakty bez żadnej aktywnej umowy
+     * Pełna synchronizacja grup wolontariuszy:
+     *  - dodaje/usuwa w "Wolontariusze" wg aktywnych umów
+     *  - przenosi do/z "Byli wolontariusze" tych bez aktywnej umowy
      *
      * Wywoływana przez CRON raz dziennie.
      *
-     * @return array{added:int, removed:int}
+     * @return array{added:int, removed:int, former_added:int, former_removed:int}
      */
     public static function syncVolunteerGroup(): array {
-        $added = $removed = 0;
-        if (!module_enabled('crm_enabled')) return compact('added', 'removed');
+        $added = $removed = $former_added = $former_removed = 0;
+        if (!module_enabled('crm_enabled')) return compact('added', 'removed', 'former_added', 'former_removed');
 
-        $active  = self::_activeVolStatuses();
-        $ph      = implode(',', array_fill(0, count($active), '?'));
-        $now     = date('Y-m-d H:i:s');
+        $active = self::_activeVolStatuses();
+        $ph     = implode(',', array_fill(0, count($active), '?'));
+        $now    = date('Y-m-d H:i:s');
 
-        // Znajdź lub stwórz grupę
+        // Znajdź lub stwórz grupę "Wolontariusze"
         $group = db_one("SELECT id FROM crm_groups WHERE auto_source='wolontariusze'");
         if (!$group) {
             $gid = (int)db_insert('crm_groups', [
@@ -1809,7 +1845,11 @@ class SyncService
             $gid = (int)$group['id'];
         }
 
-        // 1. Dodaj brakujących — wolontariusze z aktywną umową i istniejącym kontaktem CRM
+        // Znajdź lub stwórz grupę "Byli wolontariusze"
+        $fgid = self::_ensureFormerGroup($now, $gid);
+
+        // 1. Dodaj brakujących z aktywnymi umowami do "Wolontariusze"
+        //    i usuń ich z "Byli wolontariusze" (jeśli wrócili)
         $active_emails = db_all(
             "SELECT DISTINCT LOWER(TRIM(email)) AS email
              FROM umowy_wolontariat
@@ -1825,15 +1865,17 @@ class SyncService
             $cid = (int)$contact['id'];
             try {
                 $stmt = db()->prepare(
-                    "INSERT OR IGNORE INTO crm_group_members (group_id, contact_id, added_by, added_at)
-                     VALUES (?,?,0,?)"
+                    "INSERT OR IGNORE INTO crm_group_members (group_id, contact_id, added_by, added_at) VALUES (?,?,0,?)"
                 );
                 $stmt->execute([$gid, $cid, $now]);
                 if ($stmt->rowCount() > 0) $added++;
             } catch (\Throwable $e) {}
+            // Usuń z "Byli" jeśli tam był
+            db()->prepare("DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?")
+                ->execute([$fgid, $cid]);
         }
 
-        // 2. Usuń tych bez aktywnej umowy
+        // 2. Usuń z "Wolontariusze" tych bez aktywnej umowy, przenieś do "Byli"
         $members = db_all(
             "SELECT gm.contact_id, LOWER(TRIM(c.email)) AS email
              FROM crm_group_members gm
@@ -1844,18 +1886,45 @@ class SyncService
         foreach ($members as $m) {
             if (!$m['email']) continue;
             $has_active = db_one(
-                "SELECT id FROM umowy_wolontariat
-                 WHERE LOWER(TRIM(email))=? AND status IN ({$ph}) LIMIT 1",
+                "SELECT id FROM umowy_wolontariat WHERE LOWER(TRIM(email))=? AND status IN ({$ph}) LIMIT 1",
                 array_merge([$m['email']], $active)
             );
             if (!$has_active) {
-                db()->prepare(
-                    "DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?"
-                )->execute([$gid, (int)$m['contact_id']]);
+                db()->prepare("DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?")
+                    ->execute([$gid, (int)$m['contact_id']]);
                 $removed++;
+                // Przenieś do "Byli wolontariusze"
+                try {
+                    $stmt2 = db()->prepare(
+                        "INSERT OR IGNORE INTO crm_group_members (group_id, contact_id, added_by, added_at) VALUES (?,?,0,?)"
+                    );
+                    $stmt2->execute([$fgid, (int)$m['contact_id'], $now]);
+                    if ($stmt2->rowCount() > 0) $former_added++;
+                } catch (\Throwable $e) {}
             }
         }
 
-        return compact('added', 'removed');
+        // 3. Wyczyść "Byli" z tych, którzy mają aktywne umowy (niespójność)
+        $former_members = db_all(
+            "SELECT gm.contact_id, LOWER(TRIM(c.email)) AS email
+             FROM crm_group_members gm
+             JOIN crm_contacts c ON c.id = gm.contact_id AND c.crm_active = 1
+             WHERE gm.group_id = ?",
+            [$fgid]
+        );
+        foreach ($former_members as $m) {
+            if (!$m['email']) continue;
+            $has_active = db_one(
+                "SELECT id FROM umowy_wolontariat WHERE LOWER(TRIM(email))=? AND status IN ({$ph}) LIMIT 1",
+                array_merge([$m['email']], $active)
+            );
+            if ($has_active) {
+                db()->prepare("DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?")
+                    ->execute([$fgid, (int)$m['contact_id']]);
+                $former_removed++;
+            }
+        }
+
+        return compact('added', 'removed', 'former_added', 'former_removed');
     }
 }
