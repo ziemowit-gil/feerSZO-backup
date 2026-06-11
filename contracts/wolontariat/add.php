@@ -47,7 +47,7 @@ try {
 $_add_field_keys = ['imie_nazwisko','email','pesel','data_urodzenia','telefon','adres',
                     'numer_umowy','data_zawarcia','data_rozpoczecia','data_zakonczenia',
                     'opiekun','miejsce_wolontariatu','przedmiot_porozumienia','projekt_program',
-                    'm365_security_group_id'];
+                    'm365_security_group_id','plik_umowy'];
 $_add_field_cfg = [];
 foreach ($_add_field_keys as $_fk) {
     $_add_field_cfg[$_fk] = org_setting('form_field_wolontariat_' . $_fk) ?: 'recommended';
@@ -1700,9 +1700,21 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
       <!-- Upload pliku umowy -->
       <div class="mt-3 pt-3 border-top">
-        <label class="form-label fw-semibold"><i class="bi bi-paperclip me-1"></i>Plik porozumienia (skan / oryginał)</label>
+        <label class="form-label fw-semibold">
+          <i class="bi bi-paperclip me-1"></i>Plik porozumienia (skan / oryginał)
+          <?php $__add_plik_level = $_add_field_cfg['plik_umowy'] ?? 'recommended'; ?>
+          <?php if ($__add_plik_level === 'required'): ?>
+            <span class="badge bg-danger ms-1">wymagany</span>
+          <?php elseif ($__add_plik_level === 'recommended'): ?>
+            <span class="badge bg-warning text-dark ms-1">zalecany</span>
+          <?php else: ?>
+            <span class="text-muted fw-normal small">(opcjonalny)</span>
+          <?php endif; ?>
+        </label>
         <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
-        <div class="form-text">PDF lub DOCX, maks. 20 MB</div>
+        <div class="form-text">
+          PDF lub DOCX, maks. 20 MB<?php if ($__add_plik_level !== 'required'): ?> — możesz dodać później z widoku umowy<?php endif; ?>
+        </div>
       </div>
 
     </div>
@@ -2162,6 +2174,10 @@ var ADD_STEP_FIELDS = {
   5: [
     {name:'m365_security_group_id', label:'Security Group M365', customCheck: function() {
       return !!document.getElementById('add_sg_id')?.value;
+    }},
+    {name:'plik_umowy', label:'Plik porozumienia', customCheck: function() {
+      var el = document.querySelector('[name="plik_umowy"]');
+      return el && el.files && el.files.length > 0;
     }},
   ],
 };

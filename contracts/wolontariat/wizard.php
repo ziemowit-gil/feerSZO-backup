@@ -104,7 +104,7 @@ if (!empty($_SESSION['ob_prefill'])) {
 $_wiz_field_keys = ['imie_nazwisko','email','pesel','data_urodzenia','telefon','adres',
                     'numer_umowy','data_zawarcia','data_rozpoczecia','data_zakonczenia',
                     'opiekun','miejsce_wolontariatu','przedmiot_porozumienia','projekt_program',
-                    'm365_security_group_id'];
+                    'm365_security_group_id','plik_umowy'];
 $_wiz_field_cfg = [];
 foreach ($_wiz_field_keys as $_fk) {
     $_wiz_field_cfg[$_fk] = org_setting('form_field_wolontariat_' . $_fk) ?: 'recommended';
@@ -421,9 +421,21 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="col-12">
       <label class="form-label fw-semibold">
         <i class="bi bi-paperclip me-1 text-muted"></i>Plik porozumienia
-        <span class="fw-normal text-muted small">(opcjonalny)</span>
+        <?php $__plik_level = $_wiz_field_cfg['plik_umowy'] ?? 'recommended'; ?>
+        <?php if ($__plik_level === 'required'): ?>
+          <span class="badge bg-danger ms-1">wymagany</span>
+        <?php elseif ($__plik_level === 'recommended'): ?>
+          <span class="badge bg-warning text-dark ms-1">zalecany</span>
+        <?php else: ?>
+          <span class="fw-normal text-muted small">(opcjonalny)</span>
+        <?php endif; ?>
       </label>
       <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
+      <?php if ($__plik_level !== 'required'): ?>
+        <div class="form-text text-muted">
+          <i class="bi bi-clock-history me-1"></i>Możesz dodać plik później z widoku umowy.
+        </div>
+      <?php endif; ?>
     </div>
   </div>
 </div>
@@ -806,6 +818,10 @@ var WZ_STEP_FIELDS = {
     {name:'miejsce_wolontariatu',   label:'Miejsce wolontariatu'},
     {name:'przedmiot_porozumienia', label:'Przedmiot porozumienia'},
     {name:'projekt_program',        label:'Projekt / program'},
+    {name:'plik_umowy', label:'Plik porozumienia', customCheck: function() {
+      var el = document.querySelector('[name="plik_umowy"]');
+      return el && el.files && el.files.length > 0;
+    }},
   ],
   3: [
     {name:'m365_security_group_id', label:'Security Group M365', customCheck: function() {
