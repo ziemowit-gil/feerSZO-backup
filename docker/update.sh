@@ -57,6 +57,45 @@ update_repo() {
     return 0
 }
 
+# ── Funkcja: sprawdź i odnów certyfikat w kontenerze ─────────────────────────
+renew_cert() {
+    local container="$1"
+    local label="$2"
+
+    if ! docker inspect "${container}" &>/dev/null || \
+       [[ "$(docker inspect "${container}" --format '{{.State.Status}}')" != "running" ]]; then
+        return
+    fi
+
+    local days
+    days=$(docker exec "${container}" php -r "
+        \$f = '/var/www/html/certs/app.crt';
+        if (!file_exists(\$f)) { echo -999; exit; }
+        \$p = openssl_x509_parse(file_get_contents(\$f));
+        if (!\$p) { echo -999; exit; }
+        echo (int)ceil((\$p['validTo_time_t'] - time()) / 86400);
+    " 2>/dev/null) || days=-999
+
+    if [[ "${days}" -eq -999 ]]; then
+        warn "${label}: brak certyfikatu — generuję..."
+        docker exec "${container}" php /var/www/html/cli/generatorCertyfikatu.php \
+            2>&1 | grep -E "\[OK\]|\[INFO\]|\[BLAD\]" | sed 's/^/    /'
+        ok "${label}: certyfikat wygenerowany"
+    elif [[ "${days}" -le 0 ]]; then
+        warn "${label}: certyfikat wygasł ${days#-} dni temu — regeneruję..."
+        docker exec "${container}" php /var/www/html/cli/generatorCertyfikatu.php \
+            2>&1 | grep -E "\[OK\]|\[INFO\]|\[BLAD\]" | sed 's/^/    /'
+        ok "${label}: certyfikat odnowiony"
+    elif [[ "${days}" -le 7 ]]; then
+        warn "${label}: certyfikat wygasa za ${days} dni — odnawiam prewencyjnie..."
+        docker exec "${container}" php /var/www/html/cli/generatorCertyfikatu.php \
+            2>&1 | grep -E "\[OK\]|\[INFO\]|\[BLAD\]" | sed 's/^/    /'
+        ok "${label}: certyfikat odnowiony"
+    else
+        ok "${label}: certyfikat OK (${days} dni)"
+    fi
+}
+
 # ── Funkcja: odśwież Apache + OPcache w kontenerze ────────────────────────────
 reload_container() {
     local container="$1"
@@ -95,8 +134,9 @@ echo -e "${BOLD}╚════════════════════�
 section "1. Produkcja — git pull"
 update_repo "${PROD_DIR}" "prod"
 
-section "2. Produkcja — reload"
+section "2. Produkcja — reload + certyfikat"
 reload_container "${PROD_CONTAINER}" "feer-app"
+renew_cert       "${PROD_CONTAINER}" "feer-app"
 
 # ── 2. Środowisko testowe (opcjonalne) ────────────────────────────────────────
 if [[ $SKIP_TESTY -eq 1 ]]; then
@@ -112,8 +152,9 @@ else
         warn "${TESTY_DIR} nie istnieje — pomiń lub uruchom setup-testy.sh"
     fi
 
-    section "4. Środowisko testowe — reload"
+    section "4. Środowisko testowe — reload + certyfikat"
     reload_container "${TEST_CONTAINER}" "feer-testy-app"
+    renew_cert       "${TEST_CONTAINER}" "feer-testy-app"
 fi
 
 # ── Podsumowanie ──────────────────────────────────────────────────────────────

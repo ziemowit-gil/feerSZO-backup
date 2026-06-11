@@ -77,9 +77,34 @@ echo ""
 sleep 3
 $COMPOSE ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
+# ── 5. Certyfikat ─────────────────────────────────────────────────────────────
+section "5. Certyfikat"
+days=$(docker exec feer-app php -r "
+    \$f = '/var/www/html/certs/app.crt';
+    if (!file_exists(\$f)) { echo -999; exit; }
+    \$p = openssl_x509_parse(file_get_contents(\$f));
+    if (!\$p) { echo -999; exit; }
+    echo (int)ceil((\$p['validTo_time_t'] - time()) / 86400);
+" 2>/dev/null) || days=-999
+
+if [[ "${days}" -le 7 ]]; then
+    if [[ "${days}" -eq -999 ]]; then
+        warn "Brak certyfikatu — generuję..."
+    elif [[ "${days}" -le 0 ]]; then
+        warn "Certyfikat wygasł — regeneruję..."
+    else
+        warn "Certyfikat wygasa za ${days} dni — odnawiam..."
+    fi
+    docker exec feer-app php /var/www/html/cli/generatorCertyfikatu.php \
+        2>&1 | grep -E "\[OK\]|\[INFO\]|\[BLAD\]"
+    ok "Certyfikat odnowiony"
+else
+    ok "Certyfikat OK (${days} dni)"
+fi
+
 echo ""
 info "Ostatnie logi aplikacji:"
-docker logs feer-app --tail=25
+docker logs feer-app --tail=15
 
 echo ""
 ok "Rebuild zakończony."
