@@ -27,6 +27,9 @@ function migracja_webngo_ensure_table(): void {
         -- Nowa umowa w systemie
         nowy_typ_umowy       TEXT,
         nowy_numer_umowy     TEXT,
+        -- Powiązanie z konkretną umową w systemie (np. umowy_wolontariat.id)
+        source_contract_type TEXT,
+        source_contract_id   INTEGER,
         -- Status i dane operacyjne
         status               TEXT    NOT NULL DEFAULT 'w_toku',
         data_migracji        TEXT,
@@ -37,10 +40,16 @@ function migracja_webngo_ensure_table(): void {
         created_at           TEXT,
         updated_at           TEXT
     )");
+    // Kolumny powiązania — dodaj idempotentnie dla istniejących instalacji
+    foreach (['source_contract_type TEXT', 'source_contract_id INTEGER'] as $_col) {
+        try { $pdo->exec("ALTER TABLE umowy_migracja_webngo ADD COLUMN {$_col}"); } catch (\Throwable $_e) {}
+    }
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_migr_webngo_numer
                 ON umowy_migracja_webngo(webngo_numer_umowy)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_migr_webngo_status
                 ON umowy_migracja_webngo(status)");
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_migr_webngo_source
+                      ON umowy_migracja_webngo(source_contract_type, source_contract_id)"); } catch (\Throwable $_e) {}
 }
 
 const MIGRACJA_POWODY = [

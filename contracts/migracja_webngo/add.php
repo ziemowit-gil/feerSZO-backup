@@ -22,6 +22,35 @@ $row = [
     'osoba_migrujaca' => current_user()['name'] ?? '',
 ];
 
+// ── Pre-wypełnienie z istniejącej umowy (np. wolontariat) ────────────────────
+$from_type       = trim($_GET['from_type'] ?? '');
+$from_id         = intval($_GET['from_id'] ?? 0);
+$from_contract   = null;
+$from_back_url   = '';
+
+$VALID_FROM_TYPES = ['wolontariat' => 'umowy_wolontariat', 'zlecenie' => 'umowy_zlecenie',
+                     'dzielo' => 'umowy_dzielo', 'praca' => 'umowy_praca', 'uslugi' => 'umowy_uslugi'];
+
+if ($from_type && $from_id && isset($VALID_FROM_TYPES[$from_type])) {
+    $from_contract = db_one("SELECT * FROM {$VALID_FROM_TYPES[$from_type]} WHERE id = ?", [$from_id]);
+    if ($from_contract) {
+        $from_back_url = APP_URL . '/contracts/' . $from_type . '/view.php?id=' . $from_id;
+        // Pre-wypełnij pola
+        $row = array_merge($row, [
+            'imie_nazwisko'      => $from_contract['imie_nazwisko'] ?? '',
+            'pesel'              => $from_contract['pesel']         ?? '',
+            'email'              => $from_contract['email']         ?? ($from_contract['m365_login'] ?? ''),
+            'typ_umowy_zrodla'   => $from_type,
+            'webngo_id'          => $from_contract['webngo_id']          ?? '',
+            'webngo_numer_umowy' => $from_contract['webngo_numer_umowy'] ?? '',
+            'webngo_data_zawarcia' => $from_contract['data_zawarcia']    ?? '',
+            'source_contract_type' => $from_type,
+            'source_contract_id'   => $from_id,
+        ]);
+        $PAGE_TITLE = 'Protokół migracji — ' . ($from_contract['numer_umowy'] ?? '');
+    }
+}
+
 $POWODY = [
     'zmiana_systemu'   => 'Zmiana systemu (przejście z webNGO na FEER SZO)',
     'blad_danych'      => 'Błąd / niekompletność danych w webNGO',
@@ -65,9 +94,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'typ_umowy_zrodla', 'webngo_id', 'webngo_numer_umowy', 'webngo_data_zawarcia',
             'powod_migracji', 'opis_powodu',
             'nowy_typ_umowy', 'nowy_numer_umowy',
+            'source_contract_type', 'source_contract_id',
             'status', 'data_migracji', 'osoba_migrujaca', 'uwagi',
             'created_by', 'created_at', 'updated_at',
         ];
+        // Zachowaj powiązanie z umową źródłową (mogło przyjść z GET, nie z POST)
+        if ($from_type && $from_id) {
+            $row['source_contract_type'] = $from_type;
+            $row['source_contract_id']   = $from_id;
+        }
 
         $row['numer_umowy'] = 'MIG-' . date('Y') . '-' . str_pad(
             (db_one("SELECT COUNT(*) AS c FROM umowy_migracja_webngo WHERE numer_umowy LIKE ?",
@@ -94,12 +129,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0">
-    <i class="bi bi-arrow-left-right text-warning"></i> Migracja umowy z webNGO
+    <i class="bi bi-arrow-left-right text-warning"></i>
+    <?= $from_contract
+        ? 'Protokół migracji — ' . h($from_contract['numer_umowy'] ?? '')
+        : 'Migracja umowy z webNGO' ?>
   </h4>
-  <a href="list.php" class="btn btn-outline-secondary btn-sm">
-    <i class="bi bi-arrow-left"></i> Lista migracji
-  </a>
+  <div class="d-flex gap-2">
+    <?php if ($from_back_url): ?>
+    <a href="<?= h($from_back_url) ?>" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Wróć do umowy
+    </a>
+    <?php endif; ?>
+    <a href="list.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list"></i> Lista
+    </a>
+  </div>
 </div>
+
+<?php if ($from_contract): ?>
+<div class="alert alert-info py-2 mb-3">
+  <i class="bi bi-link-45deg"></i>
+  Protokół zostanie powiązany z umową
+  <strong><?= h($from_contract['numer_umowy'] ?? '') ?></strong>
+  (<?= h($from_contract['imie_nazwisko'] ?? '') ?>).
+  Dane wypełnione automatycznie — sprawdź i uzupełnij uzasadnienie.
+</div>
+<?php endif; ?>
 
 <?php if ($errors): ?>
 <div class="alert alert-danger">
@@ -112,6 +167,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <form method="post" novalidate>
   <?= csrf_field() ?>
+  <?php if ($from_type && $from_id): ?>
+  <input type="hidden" name="source_contract_type" value="<?= h($from_type) ?>">
+  <input type="hidden" name="source_contract_id"   value="<?= h($from_id) ?>">
+  <?php endif; ?>
 
   <!-- ── Umowa źródłowa (webNGO) ─────────────────────────────────────── -->
   <div class="card shadow-sm mb-3">

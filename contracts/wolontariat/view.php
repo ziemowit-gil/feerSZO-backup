@@ -83,6 +83,20 @@ if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'X
 
 // ── Migracja kolumny representative_id ───────────────────────────────────────
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN representative_id INTEGER NULL"); } catch(\Throwable $e) {}
+// ── Protokół migracji webNGO — wczytaj powiązany rekord (jeśli istnieje) ─────
+$_migr_record = null;
+if (!empty($row['z_webngo'])) {
+    try {
+        // Szukaj po bezpośrednim powiązaniu LUB po numerze umowy webNGO
+        $_migr_record = db_one(
+            "SELECT * FROM umowy_migracja_webngo
+             WHERE (source_contract_type = 'wolontariat' AND source_contract_id = ?)
+                OR (webngo_numer_umowy = ? AND webngo_numer_umowy != '')
+             ORDER BY id DESC LIMIT 1",
+            [$id, $row['webngo_numer_umowy'] ?? '']
+        );
+    } catch (\Throwable $_e) {}
+}
 // ── Migracja kolumny template_id ─────────────────────────────────────────────
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN template_id INTEGER NULL"); } catch(\Throwable $e) {}
 // ── Migracja tabeli dodatkowych plików umów ───────────────────────────────────
@@ -1589,12 +1603,31 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     </div>
   </div>
 
-  <!-- webNGO -->
+  <!-- webNGO + Protokół migracji -->
   <?php if (!empty($row['z_webngo']) || !empty($row['webngo_id']) || !empty($row['webngo_numer_umowy'])): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-box-arrow-in-down-right"></i></div>
-      <span class="cv-section-title">webNGO</span>
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#D97706"><i class="bi bi-arrow-left-right"></i></div>
+      <span class="cv-section-title">Migracja z webNGO</span>
+      <?php if (can_edit()): ?>
+      <div class="cv-section-action">
+        <?php if ($_migr_record): ?>
+          <a href="<?= APP_URL ?>/contracts/migracja_webngo/print.php?id=<?= $_migr_record['id'] ?>"
+             target="_blank" class="btn btn-sm btn-outline-secondary" title="Drukuj protokół migracji">
+            <i class="bi bi-printer"></i> Protokół
+          </a>
+          <a href="<?= APP_URL ?>/contracts/migracja_webngo/view.php?id=<?= $_migr_record['id'] ?>"
+             class="btn btn-sm btn-outline-warning" title="Podgląd protokołu">
+            <i class="bi bi-eye"></i>
+          </a>
+        <?php else: ?>
+          <a href="<?= APP_URL ?>/contracts/migracja_webngo/add.php?from_type=wolontariat&from_id=<?= $id ?>"
+             class="btn btn-sm btn-warning" title="Utwórz protokół migracji">
+            <i class="bi bi-plus-circle"></i> Utwórz protokół
+          </a>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
     </div>
     <div class="cv-fields">
       <?php if (!empty($row['webngo_id'])): ?>
@@ -1607,6 +1640,31 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <div class="cv-field">
         <div class="cv-label">Numer umowy w webNGO</div>
         <div class="cv-value"><?= h($row['webngo_numer_umowy']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($_migr_record): ?>
+      <div class="cv-field">
+        <div class="cv-label">Protokół migracji</div>
+        <div class="cv-value">
+          <a href="<?= APP_URL ?>/contracts/migracja_webngo/view.php?id=<?= $_migr_record['id'] ?>">
+            <?= h($_migr_record['numer_umowy']) ?>
+          </a>
+          &nbsp;
+          <?php
+            $ms = $_migr_record['status'];
+            $mc = ['w_toku'=>'warning','zakonczona'=>'success','anulowana'=>'danger'][$ms] ?? 'secondary';
+            $ml = ['w_toku'=>'W toku','zakonczona'=>'Zakończona','anulowana'=>'Anulowana'][$ms] ?? $ms;
+          ?>
+          <span class="badge bg-<?= $mc ?>"><?= h($ml) ?></span>
+          <?php if ($_migr_record['data_migracji']): ?>
+          <small class="text-muted ms-1"><?= date('d.m.Y', strtotime($_migr_record['data_migracji'])) ?></small>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php else: ?>
+      <div class="cv-field">
+        <div class="cv-label">Protokół migracji</div>
+        <div class="cv-value text-muted fst-italic small">Brak protokołu</div>
       </div>
       <?php endif; ?>
     </div>
