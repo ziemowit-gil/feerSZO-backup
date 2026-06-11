@@ -76,8 +76,10 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : (function_exists('org_setting') ? (
 $org_logo = function_exists('org_setting') ? org_setting('org_logo') : '';
 $app_url  = defined('APP_URL') ? APP_URL : '';
 
-function h(mixed $v): string {
-    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+if (!function_exists('h')) {
+    function h(mixed $v): string {
+        return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
 }
 ?>
 <!DOCTYPE html>
