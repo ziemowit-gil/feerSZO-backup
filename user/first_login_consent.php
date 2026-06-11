@@ -150,10 +150,14 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
   <div class="text-center mb-4">
     <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 mb-3"
          style="width:64px;height:64px">
-      <i class="bi bi-shield-lock-fill text-primary fs-2"></i>
+      <i class="bi bi-envelope-check-fill text-primary fs-2"></i>
     </div>
-    <h4 class="fw-bold mb-1">Przed pierwszym wejściem do panelu</h4>
-    <p class="text-muted small mb-0"><?= h($org_name) ?></p>
+    <h4 class="fw-bold mb-1">Witaj w panelu <?= h($org_name) ?></h4>
+    <p class="text-muted small mb-2">
+      To Twoje miejsce do <strong>komunikacji z organizacją</strong>
+      i&nbsp;obsługi <strong>formalności</strong> — umów, dokumentów i&nbsp;powiadomień.
+    </p>
+    <p class="text-muted small mb-0">Zanim przejdziesz dalej, potwierdź poniższe.</p>
   </div>
 
   <?php if ($error !== ''): ?>
@@ -180,12 +184,12 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
     </div>
     <?php endif; ?>
 
-    <!-- Zgoda na dokumentową formę -->
+    <!-- Zgoda -->
     <div class="card shadow-sm mb-3">
       <div class="card-body p-3">
         <div class="d-flex align-items-center gap-2 mb-3">
           <i class="bi bi-file-earmark-check-fill text-success"></i>
-          <span class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.04em">Zgoda wymagana</span>
+          <span class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.04em">Regulamin korzystania z panelu</span>
         </div>
         <div class="consent-box mb-3">
           <p class="mb-0 small" style="line-height:1.6"><?= h($consent_text) ?></p>
@@ -196,7 +200,7 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
                  value="1" required
                  <?= !empty($_POST['consent_accept']) ? 'checked' : '' ?>>
           <label class="form-check-label fw-semibold" for="consent_accept">
-            Potwierdzam, że zapoznałem/am się z powyższą treścią i wyrażam zgodę.
+            Zapoznałem/am się z regulaminem i akceptuję warunki korzystania z panelu.
           </label>
         </div>
       </div>
@@ -243,7 +247,7 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
     <!-- Przycisk zatwierdzenia -->
     <div class="d-grid">
       <button type="submit" class="btn btn-primary btn-lg">
-        <i class="bi bi-check-circle me-2"></i>Akceptuję i przechodzę do panelu
+        <i class="bi bi-check-circle me-2"></i>Akceptuję — przejdź do panelu
       </button>
     </div>
 
@@ -251,7 +255,7 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
 
   <p class="text-center text-muted small mt-3">
     <i class="bi bi-lock me-1"></i>
-    Twoje dane są przetwarzane zgodnie z polityką prywatności organizacji.
+    Twoje dane są przetwarzane zgodnie z polityką prywatności <?= h($org_name) ?>.
   </p>
 
 </div><!-- /.consent-wrapper -->
