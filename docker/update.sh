@@ -38,7 +38,13 @@ update_repo() {
 
     local before after
     before=$(git -C "${dir}" rev-parse HEAD)
-    git -C "${dir}" pull --ff-only origin main 2>&1 | sed 's/^/    /'
+
+    # Próba fast-forward; przy rozbieżnych gałęziach — merge
+    if ! git -C "${dir}" pull --ff-only origin main 2>&1 | sed 's/^/    /'; then
+        warn "${label}: fast-forward niemożliwy — próbuję merge..."
+        git -C "${dir}" pull --no-rebase origin main 2>&1 | sed 's/^/    /'
+    fi
+
     after=$(git -C "${dir}" rev-parse HEAD)
 
     if [[ "$before" == "$after" ]]; then
