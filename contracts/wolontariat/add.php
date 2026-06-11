@@ -416,6 +416,13 @@ $errors = [];
 $row = ['numer_umowy' => next_contract_number($TYPE), 'status' => 'projekt'];
 // Numer jest nadawany dynamicznie — dla technicznej będzie puste (nadane przy zapisie)
 
+// Tryb migracji historycznej — włączony przez new.php?migracja=1
+$migracja_mode = ($_SERVER['REQUEST_METHOD'] === 'GET') && !empty($_GET['migracja']);
+if ($migracja_mode) {
+    $row['wspolpraca_przed_2026'] = 1;
+    $PAGE_TITLE = 'Migracja — porozumienie wolontariackie';
+}
+
 $_is_admin = (current_user()['role'] ?? '') === 'admin';
 
 // Statusy terminalne — wymagają roli admin + uzasadnienia
@@ -585,6 +592,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $log_note .= ' [Umowa techniczna — współpraca przed 01.06.2026]';
         }
         log_contract_action($TYPE, $id, current_user()['id'], 'create', $log_note);
+        if (isset($_POST['nie_mam_drukarki'])) {
+            require_once __DIR__ . '/../includes/pdf_queue.php';
+            pdf_queue_add($TYPE, $id, $data['numer_umowy'] ?? '', $data['imie_nazwisko'] ?? '', current_user()['id']);
+        }
         try { require_once dirname(dirname(__DIR__)) . '/includes/webhooks.php'; webhook_fire('contract.created', ['id'=>$id,'type'=>'wolontariat','numer'=>$data['numer_umowy']??'','email'=>$data['email']??'']); } catch(\Throwable $e) {}
 
         // Auto-dodaj wolontariusza do CRM
@@ -921,25 +932,54 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb mb-0" style="font-size:.8rem">
     <li class="breadcrumb-item"><a href="list.php"><i class="bi bi-heart me-1"></i>Wolontariat</a></li>
-    <li class="breadcrumb-item active">Nowe porozumienie</li>
+    <li class="breadcrumb-item"><a href="new.php">Nowe porozumienie</a></li>
+    <li class="breadcrumb-item active"><?= $migracja_mode ? 'Migracja' : 'Pełny formularz' ?></li>
   </ol>
 </nav>
+
+<?php if ($migracja_mode): ?>
+<!-- Baner migracji historycznej -->
+<div class="alert d-flex align-items-start gap-3 mb-4 py-3 px-4"
+     style="background:#faf5ff;border:1.5px solid #c4b5fd;border-radius:12px">
+  <i class="bi bi-clock-history flex-shrink-0 mt-1" style="color:#7c3aed;font-size:1.4rem"></i>
+  <div>
+    <div class="fw-bold mb-1" style="color:#6d28d9">Tryb migracji historycznej</div>
+    <div class="small text-muted">
+      Daty i numer umowy zostaną uzupełnione automatycznie.
+      Podaj minimum <strong>imię i nazwisko</strong> oraz <strong>e-mail</strong> wolontariusza.
+      Możesz też wgrać skan pierwotnej umowy.
+    </div>
+  </div>
+  <a href="new.php" class="ms-auto btn btn-sm btn-outline-secondary flex-shrink-0" style="font-size:.78rem">
+    <i class="bi bi-arrow-left me-1"></i>Zmień tryb
+  </a>
+</div>
+<?php endif; ?>
 
 <!-- Nagłówek -->
 <div class="d-flex align-items-center gap-3 mb-4">
   <div class="d-flex align-items-center justify-content-center flex-shrink-0"
-       style="width:48px;height:48px;background:#EFF4FF;border-radius:12px">
-    <i class="bi bi-file-earmark-person fs-4" style="color:#1E6DFF"></i>
+       style="width:48px;height:48px;background:<?= $migracja_mode ? '#f3f0ff' : '#EFF4FF' ?>;border-radius:12px">
+    <i class="bi <?= $migracja_mode ? 'bi-clock-history' : 'bi-file-earmark-person' ?> fs-4"
+       style="color:<?= $migracja_mode ? '#7c3aed' : '#1E6DFF' ?>"></i>
   </div>
   <div>
-    <h4 class="mb-0 fw-bold">Nowe porozumienie wolontariackie</h4>
-    <div class="text-muted small">Wypełnij dane w kolejnych krokach i zapisz umowę</div>
+    <h4 class="mb-0 fw-bold"><?= $migracja_mode ? 'Migracja — porozumienie wolontariackie' : 'Nowe porozumienie wolontariackie' ?></h4>
+    <div class="text-muted small"><?= $migracja_mode ? 'Rejestracja historycznej współpracy przed 01.06.2026' : 'Wypełnij dane w kolejnych krokach i zapisz umowę' ?></div>
   </div>
+  <?php if (!$migracja_mode): ?>
   <div class="ms-auto d-none d-md-block">
     <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
       <i class="bi bi-hash me-1"></i><?= h($row['numer_umowy']) ?>
     </span>
   </div>
+  <?php else: ?>
+  <div class="ms-auto d-none d-md-block">
+    <span class="badge px-3 py-2" style="background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd">
+      <i class="bi bi-gear-fill me-1"></i>Umowa techniczna (auto)
+    </span>
+  </div>
+  <?php endif; ?>
 </div>
 
 <?php if ($errors): ?>
@@ -2043,6 +2083,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <div class="form-check mb-2 mt-3">
+    <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki" value="1">
+    <label class="form-check-label text-muted small" for="nie_mam_drukarki">
+      <i class="bi bi-printer"></i> Nie mam drukarki — zapisz jako PDF do wydruku
+    </label>
+  </div>
   <div class="wiz-nav-btns">
     <button type="button" class="btn btn-outline-secondary" onclick="goToStep(5)">
       <i class="bi bi-arrow-left me-1"></i>Wstecz
@@ -2584,10 +2630,16 @@ function toggleTechnical(on) {
   }
 }
 
-// Inicjalizacja przy załadowaniu (odtwórz stan po błędzie walidacji)
+// Inicjalizacja przy załadowaniu (odtwórz stan po błędzie walidacji + tryb migracji)
 document.addEventListener('DOMContentLoaded', function() {
   var cb = document.getElementById('wspolpraca_przed_2026');
   if (cb && cb.checked) toggleTechnical(true);
+
+  // Tryb migracji (?migracja=1) — auto-przejdź do kroku 2 (Wolontariusz)
+  // bo krok 1 (numer, status, daty) jest wypełniany automatycznie
+  if (new URLSearchParams(window.location.search).get('migracja') === '1') {
+    setTimeout(function() { goToStep(2); }, 80);
+  }
 });
 
 // ── Security Groups M365 (krok 5) ────────────────────────────────────────────
