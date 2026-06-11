@@ -1,0 +1,81 @@
+# ── FEER SZO — środowisko testowe (testy-szo.feer.org.pl) ────────────────────
+#
+# Standalone stack dla serwera testowego.
+# Wymaga działającego feer-traefik (prod stack).
+#
+# NIE uruchamiaj bezpośrednio — użyj:
+#   bash /opt/feer-szo/docker/setup-testy.sh
+#
+# Zmienne (w /opt/feer-szo/docker/.env.testy — generowane przez setup-testy.sh):
+#   TRAEFIK_NETWORK — nazwa sieci Docker prod Traefika (np. docker_feer)
+#   APP_KEY         — 64-znakowy hex klucz aplikacji
+#   DOMAIN          — domena (domyślnie: testy-szo.feer.org.pl)
+#   TESTY_DIR       — katalog z kodem testowym (domyślnie: /opt/feer-testy)
+
+services:
+
+  # ── Aplikacja testowa ──────────────────────────────────────────────────────
+  app:
+    image: feer-szo-app:latest            # obraz z prod — ten sam kod, inne dane
+    container_name: feer-testy-app
+    restart: unless-stopped
+    volumes:
+      - ${TESTY_DIR:-/opt/feer-testy}:/var/www/html
+    environment:
+      APP_ENV:    testing
+      APP_URL:    https://${DOMAIN:-testy-szo.feer.org.pl}
+      APP_KEY:    ${APP_KEY}
+      ORG_NAME:   "FEER SZO — ŚRODOWISKO TESTOWE ⚠"
+      DB_TYPE:    sqlite
+      MS_ENABLED: "0"
+      SMTP_HOST:  "localhost"
+      SMTP_PORT:  "25"
+      SMTP_FROM:  testy@feer.local
+      SMTP_USER:  ""
+      SMTP_PASS:  ""
+      SMTP_TLS:   "off"
+    labels:
+      - "traefik.enable=true"
+
+      # ── Router HTTPS ────────────────────────────────────────────────────────
+      - "traefik.http.routers.feer-testy.rule=Host(`${DOMAIN:-testy-szo.feer.org.pl}`)"
+      - "traefik.http.routers.feer-testy.entrypoints=websecure"
+      - "traefik.http.routers.feer-testy.tls=true"
+      - "traefik.http.routers.feer-testy.tls.certresolver=le"
+      - "traefik.http.routers.feer-testy.middlewares=sec-headers@docker"
+      - "traefik.http.services.feer-testy.loadbalancer.server.port=80"
+
+      # ── Router HTTP → redirect HTTPS ────────────────────────────────────────
+      - "traefik.http.routers.feer-testy-http.rule=Host(`${DOMAIN:-testy-szo.feer.org.pl}`)"
+      - "traefik.http.routers.feer-testy-http.entrypoints=web"
+      - "traefik.http.routers.feer-testy-http.middlewares=https-redirect@docker"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - traefik_net   # sieć prod Traefika — wykrywana przez setup-testy.sh
+      - feer_testy    # lokalna sieć testowa
+
+  # ── Redis (sesje testowe, izolowany od prod) ───────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: feer-testy-redis
+    restart: unless-stopped
+    command: redis-server --save "" --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - feer_testy
+
+networks:
+  # Zewnętrzna sieć prod Traefika — musi istnieć przed uruchomieniem
+  traefik_net:
+    external: true
+    name: ${TRAEFIK_NETWORK}
+
+  # Lokalna sieć kontenera testowego
+  feer_testy:
+    driver: bridge
