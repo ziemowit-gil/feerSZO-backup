@@ -6,8 +6,10 @@
 #   bash docker/run.sh test <polecenie>
 #
 # Skróty (zamiast polecenia):
-#   unlock [email]      — odblokuj konta po brute-force (jedno lub wszystkie)
-#   locks               — pokaż aktualnie zablokowane konta
+#   unlock [email]      — odblokuj konta po brute-force logowania (jedno lub wszystkie)
+#   locks               — pokaż aktualnie zablokowane konta (brute-force)
+#   unlock-ika [email]  — odblokuj blokadę IKA/CPC (jedno lub wszystkie)
+#   locks-ika           — pokaż aktualnie zablokowane kody IKA
 #   shell               — bash wewnątrz kontenera
 #   logs                — tail -f logów Apache
 #   php <skrypt.php>    — uruchom skrypt PHP
@@ -17,6 +19,9 @@
 #   bash docker/run.sh prod unlock
 #   bash docker/run.sh prod unlock jan@feer.org.pl
 #   bash docker/run.sh prod locks
+#   bash docker/run.sh prod unlock-ika
+#   bash docker/run.sh prod unlock-ika jan@feer.org.pl
+#   bash docker/run.sh prod locks-ika
 #   bash docker/run.sh prod shell
 #   bash docker/run.sh prod php cli/generatorCertyfikatu.php
 #   bash docker/run.sh prod sql "SELECT id, email, locked_until FROM users WHERE locked_until IS NOT NULL"
@@ -98,7 +103,7 @@ case "$CMD" in
     fi
     ;;
 
-  # lista aktualnie zablokowanych kont
+  # lista aktualnie zablokowanych kont (brute-force logowania)
   locks)
     info "${LABEL}: zablokowane konta (brute-force)…"
     docker exec "$CONTAINER" sqlite3 -column -header "$DB_PATH" \
@@ -107,6 +112,36 @@ case "$CMD" in
          FROM users
          WHERE locked_until IS NOT NULL AND locked_until > datetime('now')
          ORDER BY locked_until;"
+    ;;
+
+  # odblokuj blokadę IKA/CPC po zbyt wielu błędnych próbach kodu
+  unlock-ika)
+    EMAIL="${1:-}"
+    if [[ -n "$EMAIL" ]]; then
+        info "${LABEL}: odblokowuję IKA dla ${EMAIL}…"
+        docker exec "$CONTAINER" sqlite3 "$DB_PATH" \
+            "UPDATE users SET cpc_fails=0, cpc_blocked_until=NULL WHERE email='${EMAIL}';"
+        ok "IKA odblokowane dla ${EMAIL}."
+    else
+        info "${LABEL}: odblokowuję WSZYSTKIE blokady IKA…"
+        COUNT=$(docker exec "$CONTAINER" sqlite3 "$DB_PATH" \
+            "SELECT COUNT(*) FROM users WHERE cpc_blocked_until IS NOT NULL AND cpc_blocked_until > datetime('now');")
+        docker exec "$CONTAINER" sqlite3 "$DB_PATH" \
+            "UPDATE users SET cpc_fails=0, cpc_blocked_until=NULL
+             WHERE cpc_blocked_until IS NOT NULL;"
+        ok "Odblokowano IKA dla ${COUNT} kont(a)."
+    fi
+    ;;
+
+  # lista kont z aktywną blokadą IKA
+  locks-ika)
+    info "${LABEL}: zablokowane kody IKA…"
+    docker exec "$CONTAINER" sqlite3 -column -header "$DB_PATH" \
+        "SELECT id, email, cpc_fails AS proby, cpc_blocked_until AS zablokowany_do,
+                CAST((strftime('%s', cpc_blocked_until) - strftime('%s','now')) / 60 AS INT) || ' min' AS pozostalo
+         FROM users
+         WHERE cpc_blocked_until IS NOT NULL AND cpc_blocked_until > datetime('now')
+         ORDER BY cpc_blocked_until;"
     ;;
 
   # bash wewnątrz kontenera
