@@ -214,8 +214,182 @@ else
     ok "Certyfikat istnieje — pominięto"
 fi
 
-# ── 12. Status kontenerów ─────────────────────────────────────────────────────
-section "12. Status"
+# ── 12. Strona z danymi logowania ────────────────────────────────────────────
+section "12. Generowanie testy-info.html"
+
+GENERATED_AT=$(date '+%Y-%m-%d %H:%M')
+INFO_FILE="${TESTY_DIR}/testy-info.html"
+
+cat > "${INFO_FILE}" <<HTML
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚠ Środowisko testowe — FEER SZO</title>
+  <style>
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --border: #2d3148;
+      --text: #e2e8f0; --muted: #8892a4;
+      --accent: #6366f1; --accent-h: #818cf8;
+      --warn: #f59e0b; --warn-bg: #1c1508;
+      --green: #22c55e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; padding-bottom: 3rem;
+    }
+    .warn-banner {
+      background: var(--warn-bg); border-bottom: 2px solid var(--warn);
+      color: var(--warn); text-align: center; padding: .65rem 1rem;
+      font-size: .8rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .container { max-width: 680px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+    h1 { font-size: 1.9rem; font-weight: 700; }
+    h1 span { display: block; font-size: .95rem; font-weight: 400; color: var(--muted); margin-top: .2rem; }
+    .url-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: .75rem; padding: 1rem 1.25rem; margin: 1.5rem 0 2rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .url-card a.link {
+      color: var(--accent); text-decoration: none;
+      font-size: 1.05rem; font-weight: 500; flex: 1;
+    }
+    .url-card a.link:hover { color: var(--accent-h); }
+    .btn-open {
+      background: var(--accent); color: #fff; border: none;
+      border-radius: .5rem; padding: .45rem .9rem; cursor: pointer;
+      font-size: .85rem; font-weight: 500; text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-open:hover { background: var(--accent-h); }
+    h2 {
+      font-size: .78rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .1em; margin-bottom: .85rem;
+    }
+    table {
+      width: 100%; border-collapse: collapse;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: .75rem; overflow: hidden; margin-bottom: 1.75rem;
+    }
+    thead th {
+      background: #12151f; padding: .55rem 1rem; text-align: left;
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .07em;
+    }
+    tbody tr { border-top: 1px solid var(--border); }
+    tbody td { padding: .7rem 1rem; vertical-align: middle; }
+    .badge {
+      display: inline-block; padding: .2rem .55rem;
+      border-radius: .35rem; font-size: .72rem; font-weight: 700;
+    }
+    .badge.admin  { background: rgba(99,102,241,.2);  color: #a5b4fc; }
+    .badge.editor { background: rgba(14,165,233,.2);  color: #7dd3fc; }
+    .badge.viewer { background: rgba(100,116,139,.2); color: #94a3b8; }
+    code {
+      font-family: 'SF Mono','Fira Code',monospace; font-size: .88rem;
+      background: rgba(255,255,255,.06); padding: .15rem .4rem; border-radius: .3rem;
+    }
+    .cp {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: .3rem; padding: .12rem .45rem; cursor: pointer;
+      font-size: .72rem; margin-left: .35rem; transition: all .15s;
+    }
+    .cp:hover { border-color: var(--accent); color: var(--accent-h); }
+    .cp.ok    { border-color: var(--green);  color: var(--green); }
+    .note {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent); border-radius: .5rem;
+      padding: .8rem 1rem; font-size: .83rem; color: var(--muted); margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    .note code { background: rgba(99,102,241,.15); }
+    .meta {
+      color: var(--muted); font-size: .78rem; margin-top: 2rem;
+      padding-top: 1rem; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+    }
+  </style>
+</head>
+<body>
+<div class="warn-banner">⚠ środowisko testowe &mdash; nie wprowadzaj danych produkcyjnych</div>
+<div class="container">
+
+  <header style="margin-bottom:2rem">
+    <h1>FEER SZO <span>Środowisko testowe</span></h1>
+  </header>
+
+  <div class="url-card">
+    <a class="link" href="https://${DOMAIN}" target="_blank">https://${DOMAIN}</a>
+    <a class="btn-open" href="https://${DOMAIN}" target="_blank">Otwórz →</a>
+  </div>
+
+  <h2>Konta testowe</h2>
+  <table>
+    <thead>
+      <tr><th>Rola</th><th>E-mail</th><th>Hasło</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge admin">Admin</span></td>
+        <td><code>${ADMIN_EMAIL}</code><button class="cp" onclick="cp(this,'${ADMIN_EMAIL}')">kopiuj</button></td>
+        <td><code>${ADMIN_PASS}</code><button class="cp" onclick="cp(this,'${ADMIN_PASS}')">kopiuj</button></td>
+      </tr>
+      <tr>
+        <td><span class="badge editor">Lider</span></td>
+        <td><code>leader.test@feer.test</code><button class="cp" onclick="cp(this,'leader.test@feer.test')">kopiuj</button></td>
+        <td><code>Leader99!</code><button class="cp" onclick="cp(this,'Leader99!')">kopiuj</button></td>
+      </tr>
+      <tr>
+        <td><span class="badge viewer">Wolontariusz</span></td>
+        <td><code>vol.test@feer.test</code><button class="cp" onclick="cp(this,'vol.test@feer.test')">kopiuj</button></td>
+        <td><code>Test1234!</code><button class="cp" onclick="cp(this,'Test1234!')">kopiuj</button></td>
+      </tr>
+      <tr>
+        <td><span class="badge viewer">Obserwator</span></td>
+        <td><code>viewer.test@feer.test</code><button class="cp" onclick="cp(this,'viewer.test@feer.test')">kopiuj</button></td>
+        <td><code>View5678!</code><button class="cp" onclick="cp(this,'View5678!')">kopiuj</button></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    Dane testowe są resetowane przy każdym uruchomieniu skryptu:<br>
+    <code>bash /opt/feer-szo/docker/setup-testy.sh</code>
+  </div>
+
+  <div class="meta">
+    <span>Wygenerowano: ${GENERATED_AT}</span>
+    <span>FEER SZO &mdash; środowisko testowe</span>
+  </div>
+
+</div>
+<script>
+  function cp(btn, text) {
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = '✓ ok';
+      btn.classList.add('ok');
+      setTimeout(function() { btn.textContent = 'kopiuj'; btn.classList.remove('ok'); }, 2000);
+    }).catch(function() {
+      btn.textContent = 'błąd';
+      setTimeout(function() { btn.textContent = 'kopiuj'; }, 2000);
+    });
+  }
+</script>
+</body>
+</html>
+HTML
+
+# Uprawnienia — Apache (www-data) musi móc odczytać plik
+chmod 644 "${INFO_FILE}"
+ok "Strona wygenerowana: https://${DOMAIN}/testy-info.html"
+
+# ── 13. Status kontenerów ─────────────────────────────────────────────────────
+section "13. Status"
 ${COMPOSE} ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
 # ── Podsumowanie ──────────────────────────────────────────────────────────────
@@ -224,19 +398,20 @@ echo -e "${BOLD}${GREEN}╔═════════════════�
 echo -e "${BOLD}${GREEN}║   Środowisko testowe gotowe!                             ║${RESET}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════════╝${RESET}"
 echo ""
-echo -e "  ${BOLD}URL:${RESET}  https://${DOMAIN}"
-echo -e "         (certyfikat SSL z Let's Encrypt — do 60s przy pierwszym uruchomieniu)"
+echo -e "  ${BOLD}Aplikacja:${RESET}  https://${DOMAIN}"
+echo -e "  ${BOLD}Dane:${RESET}       https://${DOMAIN}/testy-info.html"
+echo -e "         ${CYAN}(certyfikat SSL z Let's Encrypt — do 60s przy 1. uruchomieniu)${RESET}"
 echo ""
 echo -e "  ${BOLD}Konta testowe:${RESET}"
 echo -e "  ┌─────────────────────────────────────────────────────────┐"
 echo -e "  │ ${CYAN}Admin${RESET}          ${ADMIN_EMAIL}          ${BOLD}${ADMIN_PASS}${RESET}"
-echo -e "  │ ${CYAN}Wolontariusz${RESET}   vol.test@feer.test          Test1234!"
 echo -e "  │ ${CYAN}Lider${RESET}          leader.test@feer.test        Leader99!"
+echo -e "  │ ${CYAN}Wolontariusz${RESET}   vol.test@feer.test          Test1234!"
 echo -e "  │ ${CYAN}Obserwator${RESET}     viewer.test@feer.test        View5678!"
 echo -e "  └─────────────────────────────────────────────────────────┘"
 echo ""
-echo -e "  ${BOLD}Przydatne komendy:${RESET}"
-echo -e "  ${CYAN}docker logs -f ${APP_CONTAINER}${RESET}                  # logi na żywo"
-echo -e "  ${CYAN}${COMPOSE} down${RESET}  # zatrzymaj"
-echo -e "  ${CYAN}bash ${SCRIPT_DIR}/setup-testy.sh${RESET}              # reset + seed (idempotentne)"
+echo -e "  ${BOLD}Komendy:${RESET}"
+echo -e "  ${CYAN}docker logs -f ${APP_CONTAINER}${RESET}"
+echo -e "  ${CYAN}${COMPOSE} down${RESET}"
+echo -e "  ${CYAN}bash ${SCRIPT_DIR}/setup-testy.sh${RESET}  # reset + seed"
 echo ""
