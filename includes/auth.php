@@ -481,6 +481,7 @@ function csrf_token(): string {
 }
 
 function csrf_check(): void {
+    auth_start(); // upewnij się, że sesja jest uruchomiona
     if (($_POST['_csrf'] ?? '') !== ($_SESSION['csrf'] ?? '')) {
         http_response_code(403);
         die('Błąd CSRF. Odśwież stronę i spróbuj ponownie.');
