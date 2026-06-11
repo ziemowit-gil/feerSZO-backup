@@ -14,8 +14,19 @@ require_login();
 $PAGE_TITLE = 'Mój panel';
 $user = current_user();
 
-$_db_user = db_one("SELECT microsoft_id FROM users WHERE id = ?", [$user['id']]);
+$_db_user = db_one("SELECT microsoft_id, phone_number FROM users WHERE id = ?", [$user['id']]);
 $user['microsoft_id'] = $_db_user['microsoft_id'] ?? '';
+$user['phone_number']  = $_db_user['phone_number']  ?? '';
+
+// ── Czy SMS logowanie jest włączone? ──────────────────────────────────────────
+$_sms_login_available = false;
+try {
+    require_once dirname(__DIR__) . '/includes/sms.php';
+    if (sms_is_enabled()) {
+        $r = db_one("SELECT value FROM settings WHERE key_=?", ['login_method_sms']);
+        $_sms_login_available = $r ? (bool)$r['value'] : false;
+    }
+} catch (\Throwable $e) {}
 
 // ── Umowy użytkownika ─────────────────────────────────────────────────────────
 function panel_contracts(array $user): array {
@@ -70,6 +81,14 @@ try {
 } catch (\Throwable $e) {}
 
 $contracts = panel_contracts($user);
+
+// ── Odrzucenie zachęty SMS logowania (trwałe, zapis w DB) ────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_dismiss_sms_nudge'])) {
+    csrf_check();
+    try { db()->exec("ALTER TABLE users ADD COLUMN sms_nudge_dismissed TINYINT NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { db()->prepare("UPDATE users SET sms_nudge_dismissed=1 WHERE id=?")->execute([(int)$user['id']]); } catch (\Throwable $e) {}
+    header('Location: ' . APP_URL . '/panel/index.php'); exit;
+}
 
 // ── Wybór aktywnej umowy ──────────────────────────────────────────────────────
 auth_start();
@@ -501,6 +520,73 @@ if (!empty($_SESSION['_panel_dir_invited'])) {
 .dir-invite-dismiss{ background:rgba(255,255,255,.15); border:1.5px solid rgba(255,255,255,.3); border-radius:7px; color:rgba(255,255,255,.85); padding:.4rem .5rem; cursor:pointer; font-size:.9rem; line-height:1; transition:background .12s; }
 .dir-invite-dismiss:hover,.dir-invite-dismiss:focus-visible{ background:rgba(255,255,255,.28); color:#fff; outline-offset:2px; }
 @media(max-width:500px){ .dir-invite-inner{gap:.75rem} .dir-invite-btn{font-size:.8rem;padding:.4rem .8rem} }
+</style>
+<?php endif; ?>
+
+<?php
+// ── Zachęta do logowania SMS ──────────────────────────────────────────────────
+// Warunki: SMS logowanie włączone + użytkownik ma numer telefonu + nie odrzucił
+$_show_sms_nudge = false;
+if ($_sms_login_available) {
+    $_nudge_has_phone = !empty($user['phone_number']) || !empty($_active_row['telefon']);
+    if ($_nudge_has_phone) {
+        try { db()->exec("ALTER TABLE users ADD COLUMN sms_nudge_dismissed TINYINT NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+        $_nudge_dismissed = (int)(db_one("SELECT sms_nudge_dismissed FROM users WHERE id=?", [(int)$user['id']])['sms_nudge_dismissed'] ?? 0);
+        $_show_sms_nudge  = !$_nudge_dismissed;
+    }
+}
+?>
+
+<?php if ($_show_sms_nudge): ?>
+<div class="pvp-sms-nudge mb-3" role="complementary" aria-label="Zachęta do logowania SMS">
+  <div class="pvp-sms-nudge-inner">
+    <div class="pvp-sms-nudge-icon" aria-hidden="true">
+      <i class="bi bi-phone-fill"></i>
+    </div>
+    <div class="pvp-sms-nudge-content">
+      <div class="pvp-sms-nudge-title">Zaloguj się szybciej kodem SMS 📱</div>
+      <div class="pvp-sms-nudge-sub">
+        Zamiast hasła możesz wpisać numer telefonu i zalogować się jednorazowym kodem SMS — szybciej i bez zapamiętywania haseł.
+      </div>
+    </div>
+    <div class="pvp-sms-nudge-actions">
+      <a href="<?= APP_URL ?>/auth/login.php?tab=sms"
+         class="pvp-sms-nudge-btn"
+         aria-label="Wypróbuj logowanie kodem SMS przy następnym logowaniu">
+        <i class="bi bi-phone me-1" aria-hidden="true"></i>Spróbuj
+      </a>
+      <form method="post" style="display:inline;margin:0">
+        <?= csrf_field() ?>
+        <input type="hidden" name="_dismiss_sms_nudge" value="1">
+        <button type="submit"
+                class="pvp-sms-nudge-dismiss"
+                aria-label="Nie pokazuj ponownie">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+<style>
+.pvp-sms-nudge{
+  border-radius:12px;
+  background:linear-gradient(135deg,#065f46 0%,#059669 100%);
+  overflow:hidden;
+  box-shadow:0 4px 16px rgba(5,150,105,.25);
+  animation:pvDirSlide .35s ease;
+}
+@media(prefers-reduced-motion:reduce){.pvp-sms-nudge{animation:none}}
+.pvp-sms-nudge-inner  {display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;flex-wrap:wrap}
+.pvp-sms-nudge-icon   {width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:1.35rem;color:#fff;flex-shrink:0}
+.pvp-sms-nudge-content{flex:1;min-width:180px}
+.pvp-sms-nudge-title  {font-weight:800;font-size:.94rem;color:#fff;margin-bottom:.15rem}
+.pvp-sms-nudge-sub    {font-size:.8rem;color:rgba(255,255,255,.82);line-height:1.45}
+.pvp-sms-nudge-actions{display:flex;align-items:center;gap:.5rem;flex-shrink:0}
+.pvp-sms-nudge-btn    {display:inline-flex;align-items:center;gap:.35rem;padding:.45rem 1rem;border-radius:7px;background:rgba(255,255,255,.95);color:#059669;font-size:.83rem;font-weight:700;text-decoration:none;white-space:nowrap;transition:background .15s;border:2px solid transparent}
+.pvp-sms-nudge-btn:hover,.pvp-sms-nudge-btn:focus-visible{background:#fff;color:#059669;outline-offset:2px}
+.pvp-sms-nudge-dismiss{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:7px;color:rgba(255,255,255,.85);padding:.4rem .5rem;cursor:pointer;font-size:.9rem;line-height:1;transition:background .12s}
+.pvp-sms-nudge-dismiss:hover,.pvp-sms-nudge-dismiss:focus-visible{background:rgba(255,255,255,.28);color:#fff;outline-offset:2px}
+@media(max-width:500px){.pvp-sms-nudge-inner{gap:.75rem}.pvp-sms-nudge-btn{font-size:.8rem;padding:.4rem .8rem}}
 </style>
 <?php endif; ?>
 

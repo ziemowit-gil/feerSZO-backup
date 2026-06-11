@@ -97,12 +97,25 @@ function sms_verify_otp(string $phone, string $code): ?array {
 }
 
 /**
- * Wyszukuje konto lokalne powiązane z numerem telefonu przez umowę wolontariacką.
+ * Wyszukuje konto lokalne powiązane z numerem telefonu.
+ * Sprawdza kolejno:
+ *   1. pole phone_number w tabeli users (konto CPC)
+ *   2. pole telefon w umowach wolontariackich
  */
 function sms_find_user_by_phone(string $phone): ?array {
     $phone  = sms_normalize_phone($phone);
     $phone9 = substr($phone, -9);
 
+    // 1. Bezpośrednie pole phone_number na koncie użytkownika
+    $user = db_one(
+        "SELECT * FROM users WHERE is_active=1
+         AND REPLACE(REPLACE(REPLACE(REPLACE(phone_number,' ',''),'-',''),'+',''),'(','') LIKE ?
+         LIMIT 1",
+        ['%' . $phone9]
+    );
+    if ($user) return $user;
+
+    // 2. Fallback: numer telefonu z umowy wolontariackie
     $contract = db_one(
         "SELECT email FROM umowy_wolontariat
          WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefon,' ',''),'-',''),'+',''),'(','') LIKE ?
