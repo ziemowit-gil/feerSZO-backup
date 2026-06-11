@@ -9,7 +9,8 @@
 !db-schema/*.sqlite
 *.p12
 *.key
-certs/*.key
+certs/
+
 uploads/
 backups/
 tenants/*/umowy.db
