@@ -413,30 +413,39 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 .or-div{display:flex;align-items:center;gap:.75rem;color:#94a3b8;font-size:.8rem;margin:1.3rem 0}
 .or-div::before,.or-div::after{content:'';flex:1;height:1px;background:#e2e8f0}
 
-/* ── Alternatywne metody — zakładki ─────────────────────── */
-.method-tablist{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.65rem}
-.method-tab{
-  display:inline-flex;align-items:center;gap:.4rem;
-  padding:.45rem .95rem;border:2px solid #cbd5e1;border-radius:2rem;
-  background:#fff;color:#475569;font-size:.84rem;font-weight:500;
-  cursor:pointer;min-height:40px;transition:all .12s;white-space:nowrap;
-  line-height:1;
+/* ── Alternatywne metody — przyciski do modali ───────────── */
+.method-triggers{display:flex;flex-direction:column;gap:.4rem}
+.method-trigger-btn{
+  display:flex;align-items:center;gap:.75rem;
+  width:100%;padding:.65rem .85rem;
+  background:#fff;border:2px solid #e2e8f0;border-radius:10px;
+  cursor:pointer;text-align:left;
+  transition:border-color .12s,box-shadow .12s;
 }
-.method-tab[aria-selected="true"]{
-  background:var(--c-bg,#eff6ff);border-color:var(--c,#2563eb);
-  color:var(--c,#2563eb);font-weight:700;
+.method-trigger-btn:hover{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+.method-trigger-icon{
+  width:36px;height:36px;border-radius:8px;flex-shrink:0;
+  background:var(--c-bg,#eff6ff);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1rem;color:var(--c,#2563eb);
 }
-.method-tab:hover:not([aria-selected="true"]){border-color:var(--c,#2563eb);color:var(--c,#2563eb)}
+.method-trigger-body{flex:1;min-width:0}
+.method-trigger-label{display:block;font-size:.88rem;font-weight:600;color:#0f172a;line-height:1.3}
+.method-trigger-sub{display:block;font-size:.75rem;color:#64748b;margin-top:.06rem}
+.method-trigger-arrow{color:#cbd5e1;font-size:.8rem;flex-shrink:0}
 
-.method-desc{font-size:.79rem;color:#94a3b8;margin-bottom:.75rem;line-height:1.4}
-
-/* ── Panele metod ────────────────────────────────────────── */
-.method-panel{
-  border:1px solid #e2e8f0;border-radius:10px;padding:1.1rem;
-  margin-top:.25rem;outline:none;
-  transition:box-shadow .15s;
+/* ── Modal logowania ─────────────────────────────────────── */
+.login-modal-content{border:none;border-radius:14px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+.login-modal-header{
+  background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);
+  border-bottom:1px solid #e2e8f0;padding:1rem 1.25rem;
+  display:flex;align-items:center;justify-content:space-between;
 }
-.method-panel:focus{box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-modal-title-wrap{display:flex;align-items:center;gap:.55rem}
+.login-modal-title-wrap > i{font-size:1.1rem;color:var(--c,#2563eb)}
+.login-modal-title{font-size:1.05rem;font-weight:700;color:#0f172a;margin:0}
+.login-modal-body{padding:1.25rem 1.5rem 1.5rem}
+.login-modal-desc{font-size:.84rem;color:#64748b;margin:0 0 1rem;line-height:1.5}
 
 /* ── SMS kode input ──────────────────────────────────────── */
 .sms-otp{
@@ -494,7 +503,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   .btn-login,.btn-ms365{border-width:3px}
   .btn-login{background:#000!important;border-color:#000!important;color:#fff!important}
   .login-alert-danger{border-width:3px}
-  .method-tab{border-width:3px}
+  .method-trigger-btn{border-width:3px}
 }
 /* ── Reduced motion ──────────────────────────────────────── */
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
@@ -621,29 +630,34 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     </div>
   </div>
 
-  <?php if ($_login_notices): ?>
-  <div role="region" aria-label="Komunikaty administratora" style="margin-bottom:1.25rem">
-    <?php foreach ($_login_notices as $_ln):
-      $ln_pinned = (int)($_ln['is_pinned'] ?? 0);
-    ?>
+  <?php
+  // Pokaż maksymalnie 1 komunikat — preferuj przypięty
+  $_ln_show = null;
+  foreach ($_login_notices as $_ln_item) {
+    if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; }
+  }
+  if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
+  ?>
+  <?php if ($_ln_show): ?>
+  <?php $ln_pinned = (int)($_ln_show['is_pinned'] ?? 0); ?>
+  <div role="region" aria-label="Komunikat administratora" style="margin-bottom:1.25rem">
     <div class="login-notice <?= $ln_pinned ? 'pinned' : '' ?>">
       <i class="bi bi-<?= $ln_pinned ? 'pin-angle-fill' : 'megaphone-fill' ?>" aria-hidden="true"></i>
       <div>
-        <div class="login-notice-title"><?= h($_ln['title']) ?></div>
-        <?php if ($_ln['body']): ?><div style="margin-top:.2rem;font-size:.84rem"><?= nl2br(h($_ln['body'])) ?></div><?php endif; ?>
+        <div class="login-notice-title"><?= h($_ln_show['title']) ?></div>
+        <?php if ($_ln_show['body']): ?><div style="margin-top:.2rem;font-size:.84rem"><?= nl2br(h($_ln_show['body'])) ?></div><?php endif; ?>
       </div>
     </div>
-    <?php endforeach; ?>
   </div>
   <?php endif; ?>
 
-  <?php if ($error): ?>
+  <?php if ($error && $active_tab === 'local'): ?>
   <div class="login-alert login-alert-danger" role="alert" id="login-error-box">
     <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
     <span id="login-error-text"><?= h($error) ?></span>
   </div>
   <?php endif; ?>
-  <?php if ($info): ?>
+  <?php if ($info && $active_tab !== 'sms'): ?>
   <div class="login-alert login-alert-success" role="status">
     <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
     <span><?= h($info) ?></span>
@@ -661,69 +675,6 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 (function(){
 'use strict';
 
-// ── Ogłoszenie błędu przez ARIA live region ───────────────────────────────
-var errBox  = document.getElementById('login-error-text');
-var liveErr = document.getElementById('login-alert');
-if (errBox && liveErr) liveErr.textContent = errBox.textContent.trim();
-
-// ── Przełączanie alternatywnych metod (ARIA Tabs) ─────────────────────────
-function switchAltTab(name) {
-  var panels = document.querySelectorAll('.method-panel');
-  var tabs   = document.querySelectorAll('.method-tab');
-
-  panels.forEach(function(p) {
-    p.hidden = true;
-    p.tabIndex = -1;
-  });
-  tabs.forEach(function(b) {
-    var sel = b.id === 'tab-btn-' + name;
-    b.setAttribute('aria-selected', sel ? 'true' : 'false');
-    b.tabIndex = sel ? 0 : -1;
-  });
-
-  var panel = document.getElementById('tab-panel-' + name);
-  if (panel) {
-    panel.hidden = false;
-    panel.tabIndex = 0;
-    // Focus na pierwszy input lub na panel sam w sobie
-    var first = panel.querySelector('input:not([type=hidden])');
-    if (first) {
-      setTimeout(function() { first.focus(); }, 60);
-    } else {
-      panel.focus();
-    }
-  }
-
-  // Powiedz czytnikowi ekranu co się zmieniło
-  var labels = {
-    code: 'Kod jednorazowy',
-    sms:  'Kod SMS',
-    x509: 'Certyfikat X.509',
-  };
-  var live = document.getElementById('login-live');
-  if (live) live.textContent = 'Metoda logowania: ' + (labels[name] || name);
-}
-window.switchAltTab = switchAltTab;
-
-// ── Klawiatura: strzałki + Home/End w tablist ─────────────────────────────
-document.addEventListener('keydown', function(e) {
-  if (!e.target.matches('.method-tab')) return;
-  var tabs = Array.from(document.querySelectorAll('.method-tab'));
-  var idx  = tabs.indexOf(e.target);
-  var next = -1;
-  if      (e.key === 'ArrowRight' || e.key === 'ArrowDown')  next = (idx + 1) % tabs.length;
-  else if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')    next = (idx - 1 + tabs.length) % tabs.length;
-  else if (e.key === 'Home')                                  next = 0;
-  else if (e.key === 'End')                                   next = tabs.length - 1;
-  if (next >= 0) {
-    e.preventDefault();
-    tabs[next].focus();
-    // Automatic activation (roving tabindex model)
-    var tid = tabs[next].id.replace('tab-btn-', '');
-    switchAltTab(tid);
-  }
-});
-
 // ── Reveal hasła ──────────────────────────────────────────────────────────
 function togglePass(inputId, btn) {
   var inp = document.getElementById(inputId);
@@ -739,5 +690,28 @@ window.togglePass = togglePass;
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function(){
+// ── Ogłoszenie błędu przez ARIA live region ───────────────────────────────
+var errText = document.getElementById('login-error-text');
+var liveErr = document.getElementById('login-alert');
+if (errText && liveErr) liveErr.textContent = errText.textContent.trim();
+
+// ── Fokus na pierwszy input przy otwieraniu modala ────────────────────────
+document.querySelectorAll('.modal').forEach(function(m) {
+  m.addEventListener('shown.bs.modal', function() {
+    var first = m.querySelector('input:not([type=hidden]),textarea');
+    if (first) first.focus();
+  });
+});
+
+// ── Auto-otwarcie modala gdy POST zwrócił błąd metody alternatywnej ───────
+var autoOpen = <?= json_encode(in_array($active_tab, ['code','sms','x509'], true) ? $active_tab : null) ?>;
+if (autoOpen) {
+  var el = document.getElementById('modal-' + autoOpen);
+  if (el) bootstrap.Modal.getOrCreateInstance(el).show();
+}
+})();
+</script>
 </body>
 </html>
