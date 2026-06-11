@@ -2,11 +2,13 @@
 /**
  * cli/generatorCertyfikatu.php
  *
- * Generuje certyfikat instalacyjny x509 (RSA-2048, self-signed, 2 lata)
+ * Generuje certyfikat instalacyjny x509 (RSA-2048, self-signed, 30 dni)
  * powiązany z numerem KRS organizacji i zapisuje:
- *   certs/app.crt  — certyfikat PEM
- *   certs/app.key  — klucz prywatny PEM (chmod 600)
- *   certs/app.sig  — HMAC-SHA256(cert_pem, APP_KEY)
+ *   certs/app.crt   — certyfikat PEM
+ *   certs/app.key   — klucz prywatny PEM (chmod 600)
+ *   certs/app.sig   — HMAC-SHA256(cert_pem, APP_KEY)
+ *   certs/app.salt  — losowy salt 64-hex (dostępny przez cert-salt.php)
+ *   certs/.htaccess — blokada bezpośredniego HTTP do katalogu
  *
  * Użycie:
  *   php cli/generatorCertyfikatu.php [KRS] ["Nazwa organizacji"]
@@ -38,9 +40,17 @@ if (!is_dir($certs_dir)) {
     echo "[INFO] Utworzono katalog: {$certs_dir}\n";
 }
 
-$crt_file = $certs_dir . '/app.crt';
+// Blokuj bezpośredni dostęp HTTP do katalogu certs/
+$htaccess = $certs_dir . '/.htaccess';
+if (!file_exists($htaccess)) {
+    file_put_contents($htaccess, "Require all denied\n");
+    echo "[INFO] Utworzono: {$htaccess}\n";
+}
+
+$crt_file  = $certs_dir . '/app.crt';
 $key_file  = $certs_dir . '/app.key';
 $sig_file  = $certs_dir . '/app.sig';
+$salt_file = $certs_dir . '/app.salt';
 
 // ── Sprawdzenie --status ──────────────────────────────────────────────────────
 if (in_array('--status', $argv, true)) {
@@ -82,6 +92,15 @@ if (in_array('--status', $argv, true)) {
     } else {
         echo "│ HMAC:        Brak pliku app.sig\n";
     }
+
+    // Salt
+    if (file_exists($salt_file)) {
+        $salt = trim(file_get_contents($salt_file));
+        echo "│ Salt:        " . substr($salt, 0, 16) . "… (dostępny przez /cert-salt.php)\n";
+    } else {
+        echo "│ Salt:        Brak — wygeneruj certyfikat ponownie\n";
+    }
+
     echo "└───────────────────────────────────────────────────────────────────\n";
     exit(0);
 }
@@ -166,9 +185,9 @@ if (!$csr) {
     exit(1);
 }
 
-// ── Self-signed certificate (730 dni = ~2 lata) ───────────────────────────────
-echo "[INFO] Podpisywanie certyfikatu (730 dni)...\n";
-$cert = openssl_csr_sign($csr, null, $pkey, 730, ['digest_alg' => 'sha256'], (int)(microtime(true) * 1000) & 0x7FFFFFFF);
+// ── Self-signed certificate (30 dni) ─────────────────────────────────────────
+echo "[INFO] Podpisywanie certyfikatu (30 dni)...\n";
+$cert = openssl_csr_sign($csr, null, $pkey, 30, ['digest_alg' => 'sha256'], (int)(microtime(true) * 1000) & 0x7FFFFFFF);
 if (!$cert) {
     fwrite(STDERR, "[BLAD] Podpisywanie certyfikatu nie powiodło się: " . openssl_error_string() . "\n");
     exit(1);
@@ -209,6 +228,15 @@ if (file_put_contents($sig_file, $sig) === false) {
     exit(1);
 }
 echo "[OK]   Zapisano: {$sig_file}\n";
+
+// app.salt — losowy salt 64-hex (odnawiany razem z certyfikatem)
+$salt = bin2hex(random_bytes(32));
+if (file_put_contents($salt_file, $salt) === false) {
+    fwrite(STDERR, "[BLAD] Zapis {$salt_file} nie powiodł się.\n");
+    exit(1);
+}
+chmod($salt_file, 0640);
+echo "[OK]   Zapisano: {$salt_file}  (dostępny przez /cert-salt.php)\n";
 
 // ── Podsumowanie ──────────────────────────────────────────────────────────────
 $parsed    = openssl_x509_parse($cert_pem);
