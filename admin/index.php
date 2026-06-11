@@ -99,6 +99,13 @@ $cnt['audit_today'] = 0;
 try { $r = db_one("SELECT COUNT(*) AS c FROM admin_audit_log WHERE DATE(created_at)=DATE('now','localtime')"); $cnt['audit_today'] = (int)($r['c'] ?? 0); }
 catch (\Throwable $e) {}
 
+$cnt['pending_avatars'] = 0;
+try {
+    require_once dirname(__DIR__) . '/includes/directory.php';
+    directory_migrate();
+    $cnt['pending_avatars'] = directory_pending_avatars_count();
+} catch (\Throwable $e) {}
+
 // ── Flaga konta serwisowego ───────────────────────────────────────────────────
 $_is_service_account = (current_user()['email'] ?? '') === 'serwis@local';
 
@@ -146,6 +153,7 @@ $groups = [
             ['icon'=>'bi-ui-checks-grid',       'label'=>'SelfService',              'url'=>'/onboarding/settings.php'],
             ['icon'=>'bi-kanban',               'label'=>'Obszary zadań',            'url'=>'/admin/tasks_workspaces.php'],
             ['icon'=>'bi-tag',                  'label'=>'Tagi zadań',               'url'=>'/admin/tasks_tags.php'],
+            ['icon'=>'bi-person-bounding-box',  'label'=>'Zdjęcia profilowe',        'url'=>'/admin/avatars.php',           'badge'=>$cnt['pending_avatars'] ?: null, 'badge_type'=>'warning'],
             ['icon'=>'bi-person-lines-fill',    'label'=>'Pola profilu',             'url'=>'/admin/profile_fields.php'],
             ['icon'=>'bi-ui-checks',            'label'=>'Pola w formularzach',      'url'=>'/admin/form_fields.php'],
             ['icon'=>'bi-stars',                'label'=>'Ustawienia AI',            'url'=>'/admin/ai_settings.php'],

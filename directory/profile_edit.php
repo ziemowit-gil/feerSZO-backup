@@ -130,6 +130,84 @@ include __DIR__ . '/includes/header_dir.php';
 </div>
 <?php endif; ?>
 
+<!-- ── Zdjęcie profilowe ───────────────────────────────────────────────────── -->
+<div class="dir-info-card mb-3" style="max-width:720px">
+  <div class="h6 mb-3">
+    <i class="bi bi-person-circle me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>Zdjęcie profilowe
+  </div>
+
+  <div class="d-flex align-items-center gap-4 flex-wrap">
+    <!-- Podgląd aktualnego zdjęcia -->
+    <div class="text-center">
+      <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF;margin-bottom:.4rem">Aktualne</div>
+      <?= directory_avatar_html($person, 72) ?>
+    </div>
+
+    <?php
+    $has_pending  = !empty($person['avatar_pending_file']);
+    $has_approved = !empty($person['avatar_file']);
+    $status       = $person['avatar_status'] ?? '';
+    ?>
+
+    <!-- Status oczekującego -->
+    <?php if ($has_pending): ?>
+    <div class="text-center">
+      <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF;margin-bottom:.4rem">Oczekuje na akceptację</div>
+      <div class="position-relative d-inline-block">
+        <img src="<?= APP_URL ?>/directory/avatar_thumb.php?uid=<?= $target_id ?>&t=pending"
+             alt="Oczekujące zdjęcie"
+             class="rounded-circle"
+             style="width:72px;height:72px;object-fit:cover;border:2px solid #F59E0B">
+        <span class="position-absolute top-0 end-0 badge rounded-pill bg-warning text-dark"
+              style="font-size:.6rem;transform:translate(30%,-30%)"
+              title="Oczekuje na akceptację administratora">
+          <i class="bi bi-hourglass-split"></i>
+        </span>
+      </div>
+    </div>
+    <?php elseif ($status === 'rejected'): ?>
+    <div class="alert alert-warning py-2 px-3 mb-0 small d-flex align-items-center gap-2" role="alert">
+      <i class="bi bi-x-circle-fill text-danger"></i>
+      <span>Ostatnie zdjęcie zostało <strong>odrzucone</strong> przez administratora. Możesz przesłać nowe.</span>
+    </div>
+    <?php endif; ?>
+
+    <!-- Formularz uploadu -->
+    <div class="flex-grow-1">
+      <form method="post" enctype="multipart/form-data"
+            action="<?= APP_URL ?>/directory/avatar_upload.php">
+        <?= csrf_field() ?>
+        <?php if ($target_id !== (int)$cu['id']): ?>
+        <input type="hidden" name="user_id" value="<?= $target_id ?>">
+        <?php endif; ?>
+        <div class="mb-2">
+          <label for="avatarFile" class="form-label fw-semibold" style="font-size:.85rem">
+            <?= $has_pending ? 'Zastąp oczekujące zdjęcie' : ($has_approved ? 'Zmień zdjęcie' : 'Dodaj zdjęcie') ?>
+          </label>
+          <input type="file" class="form-control form-control-sm" id="avatarFile" name="avatar"
+                 accept="image/jpeg,image/png,image/webp,image/gif"
+                 aria-describedby="avatarHint">
+          <div id="avatarHint" class="form-text">
+            JPG, PNG, WebP lub GIF · max 5 MB · po przesłaniu czeka na akceptację administratora
+          </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-upload me-1"></i>Prześlij zdjęcie
+          </button>
+          <?php if ($has_approved || $has_pending): ?>
+          <button type="submit" name="_remove_avatar" value="1"
+                  class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Usunąć zdjęcie profilowe? Ta operacja jest nieodwracalna.')">
+            <i class="bi bi-trash me-1"></i>Usuń zdjęcie
+          </button>
+          <?php endif; ?>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <form method="post" id="profileForm" style="max-width:720px"
       aria-describedby="formDesc">
   <p id="formDesc" class="visually-hidden">

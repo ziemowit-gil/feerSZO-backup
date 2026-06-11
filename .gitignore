@@ -12,6 +12,12 @@
 certs/
 
 uploads/
+!uploads/avatars/
+!uploads/avatars/.htaccess
+!uploads/avatars/.gitkeep
+!uploads/avatars/pending/
+!uploads/avatars/pending/.htaccess
+!uploads/avatars/pending/.gitkeep
 backups/
 tenants/*/umowy.db
 tenants/*/uploads/

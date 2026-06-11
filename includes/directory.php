@@ -34,6 +34,14 @@ function directory_migrate(): void {
     } catch (Exception $e) {
         // migration errors non-fatal on already-existing db
     }
+    // Avatar moderation columns (idempotent)
+    foreach ([
+        "avatar_pending_file TEXT    DEFAULT ''",
+        "avatar_pending_at   DATETIME",
+        "avatar_status       TEXT    DEFAULT ''",
+    ] as $_col) {
+        try { $db->exec("ALTER TABLE user_profiles ADD COLUMN {$_col}"); } catch (\Throwable $e) {}
+    }
 }
 
 function directory_get_profile(int $user_id): ?array {
@@ -42,7 +50,10 @@ function directory_get_profile(int $user_id): ?array {
                COALESCE(up.bio, '') AS bio,
                COALESCE(up.phone_public, 0) AS phone_public,
                COALESCE(up.skills, '') AS skills,
-               COALESCE(up.avatar_file, '') AS avatar_file
+               COALESCE(up.avatar_file, '') AS avatar_file,
+               COALESCE(up.avatar_pending_file, '') AS avatar_pending_file,
+               up.avatar_pending_at AS avatar_pending_at,
+               COALESCE(up.avatar_status, '') AS avatar_status
         FROM users u
         LEFT JOIN user_profiles up ON up.user_id = u.id
         WHERE u.id = ?
@@ -199,4 +210,103 @@ function directory_avatar_html(array $user, int $size = 48, string $extra_class 
 function directory_display_name(array $user): string {
     $fn = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
     return $fn ?: ($user['name'] ?? '');
+}
+
+/**
+ * Save a pending avatar upload — sets status to 'pending', does NOT change avatar_file.
+ */
+function directory_avatar_set_pending(int $uid, string $pending_file): void {
+    $exists = db_one("SELECT user_id FROM user_profiles WHERE user_id=?", [$uid]);
+    if ($exists) {
+        db()->prepare(
+            "UPDATE user_profiles
+             SET avatar_pending_file=?, avatar_pending_at=datetime('now','localtime'), avatar_status='pending'
+             WHERE user_id=?"
+        )->execute([$pending_file, $uid]);
+    } else {
+        db()->prepare(
+            "INSERT INTO user_profiles (user_id, avatar_pending_file, avatar_pending_at, avatar_status)
+             VALUES (?, ?, datetime('now','localtime'), 'pending')"
+        )->execute([$uid, $pending_file]);
+    }
+}
+
+/**
+ * Approve a pending avatar — moves pending_file → avatar_file.
+ */
+function directory_avatar_approve(int $uid): bool {
+    $row = db_one(
+        "SELECT avatar_pending_file FROM user_profiles WHERE user_id=? AND avatar_status='pending'",
+        [$uid]
+    );
+    if (!$row || !$row['avatar_pending_file']) return false;
+
+    $pending = $row['avatar_pending_file'];
+
+    // Move from pending/ subfolder to avatars/ root
+    $base    = dirname(__DIR__) . '/uploads/avatars/';
+    $src     = $base . 'pending/' . $pending;
+    $dst     = $base . $pending;
+    if (file_exists($src)) {
+        @rename($src, $dst);
+    }
+
+    db()->prepare(
+        "UPDATE user_profiles
+         SET avatar_file=?, avatar_pending_file='', avatar_pending_at=NULL, avatar_status='approved'
+         WHERE user_id=?"
+    )->execute([$pending, $uid]);
+    return true;
+}
+
+/**
+ * Reject a pending avatar — deletes file, clears pending.
+ */
+function directory_avatar_reject(int $uid): bool {
+    $row = db_one(
+        "SELECT avatar_pending_file FROM user_profiles WHERE user_id=? AND avatar_status='pending'",
+        [$uid]
+    );
+    if (!$row) return false;
+
+    $pending = $row['avatar_pending_file'];
+    if ($pending) {
+        $path = dirname(__DIR__) . '/uploads/avatars/pending/' . $pending;
+        if (file_exists($path)) @unlink($path);
+    }
+
+    db()->prepare(
+        "UPDATE user_profiles
+         SET avatar_pending_file='', avatar_pending_at=NULL, avatar_status='rejected'
+         WHERE user_id=?"
+    )->execute([$uid]);
+    return true;
+}
+
+/**
+ * Return all users with pending avatars (for admin moderation).
+ */
+function directory_pending_avatars(): array {
+    return db_all(
+        "SELECT u.id, u.name, u.first_name, u.last_name, u.email,
+                up.avatar_file, up.avatar_pending_file, up.avatar_pending_at
+         FROM user_profiles up
+         JOIN users u ON u.id = up.user_id
+         WHERE up.avatar_status = 'pending' AND up.avatar_pending_file != ''
+         ORDER BY up.avatar_pending_at ASC"
+    );
+}
+
+/**
+ * Count pending avatars.
+ */
+function directory_pending_avatars_count(): int {
+    try {
+        $r = db_one(
+            "SELECT COUNT(*) AS c FROM user_profiles WHERE avatar_status='pending' AND avatar_pending_file!=''"
+        );
+        return (int)($r['c'] ?? 0);
+    } catch (\Throwable $e) {
+        return 0;
+    }
 }
