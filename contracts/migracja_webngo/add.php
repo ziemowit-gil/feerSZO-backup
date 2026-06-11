@@ -119,6 +119,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_contract_action('migracja_webngo', $id, current_user()['id'], 'create',
             'Zarejestrowano migrację: ' . $row['numer_umowy']);
 
+        if (isset($_POST['nie_mam_drukarki'])) {
+            require_once __DIR__ . '/../includes/pdf_queue.php';
+            pdf_queue_add('migracja_webngo', $id, $row['numer_umowy'], $row['imie_nazwisko'] ?? '', current_user()['id']);
+        }
+
         flash_set('success', 'Migracja zarejestrowana. Możesz teraz wydrukować potwierdzenie.');
         header('Location: ' . APP_URL . '/contracts/migracja_webngo/view.php?id=' . $id);
         exit;
@@ -315,6 +320,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki" value="1">
+    <label class="form-check-label text-muted" for="nie_mam_drukarki">
+      <i class="bi bi-printer"></i> Nie mam drukarki — zapisz protokół jako PDF do późniejszego wydruku
+    </label>
+  </div>
   <div class="d-flex gap-2">
     <button type="submit" class="btn btn-warning fw-semibold">
       <i class="bi bi-save"></i> Zapisz migrację
