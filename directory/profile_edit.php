@@ -34,6 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bio       = trim($_POST['bio'] ?? '');
     $phone_pub = isset($_POST['phone_public']) ? 1 : 0;
 
+    // Numer telefonu do SMS — zapis w users.phone_number
+    $phone_new = preg_replace('/[^\d+]/', '', trim($_POST['phone_number'] ?? ''));
+    if ($phone_new !== '' && strlen($phone_new) < 9) {
+        $errors[] = ['field' => 'phone_number', 'msg' => 'Numer telefonu jest za krótki (min. 9 cyfr).'];
+    }
+
     // Umiejętności — z ukrytego pola JSON (chip-input w JS)
     $skills_arr = [];
     $skills_json_post = trim($_POST['skills_json'] ?? '');
@@ -60,6 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'skills'        => $skills_arr,
             'custom_fields' => $custom,
         ]);
+        // Zapisz numer telefonu w tabeli users
+        try {
+            db()->prepare("UPDATE users SET phone_number=? WHERE id=?")
+                ->execute([$phone_new, $target_id]);
+        } catch (\Throwable $e) {}
         flash_set('success', 'Profil został zapisany.');
         header('Location: ' . APP_URL . '/directory/profile.php?id=' . $target_id);
         exit;
@@ -69,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $person['bio']          = $bio;
     $person['phone_public'] = $phone_pub;
     $person['skills_array'] = $skills_arr;
+    $person['phone_number'] = $phone_new;
 }
 
 $display           = directory_display_name($person);
@@ -261,31 +273,61 @@ include __DIR__ . '/includes/header_dir.php';
     </div>
   </fieldset>
 
-  <!-- ── Widoczność telefonu ─────────────────────────────────────────── -->
+  <!-- ── Numer telefonu ────────────────────────────────────────────────── -->
+  <?php
+  $_ph_contract = $person['phone_direct'] ?: $person['phone_mobile'] ?: '';
+  $_ph_account  = $person['phone_number'] ?? '';
+  $_ph_err      = $field_errors['phone_number'] ?? null;
+  ?>
   <fieldset class="dir-info-card mb-3">
     <legend class="h6 mb-2">
-      <i class="bi bi-telephone me-2 text-success" aria-hidden="true"></i>Widoczność telefonu
+      <i class="bi bi-phone me-2 text-success" aria-hidden="true"></i>Numer telefonu
     </legend>
-    <div class="form-check form-switch mb-1">
+
+    <!-- Pole do wpisania / zmiany numeru -->
+    <div class="mb-2">
+      <label class="form-label" for="phone_number" style="font-size:.85rem;font-weight:600">
+        Numer do logowania kodem SMS
+      </label>
+      <input type="tel"
+             id="phone_number"
+             name="phone_number"
+             class="form-control<?= $_ph_err ? ' is-invalid' : '' ?>"
+             style="font-size:.92rem;max-width:260px"
+             value="<?= h($_ph_account) ?>"
+             placeholder="np. 48123456789 lub 123456789"
+             autocomplete="tel"
+             inputmode="tel"
+             <?= $_ph_err ? 'aria-invalid="true" aria-describedby="phone-err"' : 'aria-describedby="phone-hint"' ?>>
+      <?php if ($_ph_err): ?>
+      <div id="phone-err" class="invalid-feedback"><?= h($_ph_err) ?></div>
+      <?php else: ?>
+      <div id="phone-hint" style="font-size:.78rem;color:#6B7280;margin-top:.3rem">
+        <i class="bi bi-shield-check me-1 text-success" aria-hidden="true"></i>
+        Ten numer pozwoli Ci <strong>logować się kodem SMS</strong> zamiast hasłem.
+        Zostaw puste, żeby usunąć.
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <?php if ($_ph_contract && $_ph_contract !== $_ph_account): ?>
+    <!-- Numer z umowy (tylko informacja, nie nadpisujemy) -->
+    <div style="font-size:.8rem;color:#6B7280;margin-bottom:.65rem;padding:.5rem .65rem;background:#F9FAFB;border-radius:6px;border:1px solid #E5E7EB">
+      <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>
+      Numer z umowy (niedostępny do edycji): <strong><?= h($_ph_contract) ?></strong>
+    </div>
+    <?php endif; ?>
+
+    <!-- Widoczność w katalogu -->
+    <div class="form-check form-switch">
       <input class="form-check-input" type="checkbox" id="phone_public" name="phone_public"
              role="switch"
              aria-checked="<?= $person['phone_public'] ? 'true' : 'false' ?>"
              <?= $person['phone_public'] ? 'checked' : '' ?>>
-      <label class="form-check-label" for="phone_public">
+      <label class="form-check-label" style="font-size:.85rem" for="phone_public">
         Pokazuj mój numer telefonu innym użytkownikom katalogu
       </label>
     </div>
-    <?php
-    $ph = $person['phone_direct'] ?: $person['phone_mobile'] ?: ($person['phone_number'] ?? '');
-    if ($ph): ?>
-    <div style="font-size:.8rem;color:#6B7280;margin-top:.25rem">
-      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Twój numer: <strong><?= h($ph) ?></strong>
-    </div>
-    <?php else: ?>
-    <div class="mt-1" style="font-size:.8rem;color:#F59E0B" role="status">
-      <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak numeru telefonu w systemie — skontaktuj się z administratorem lub HR.
-    </div>
-    <?php endif; ?>
   </fieldset>
 
   <!-- ── Pola własne (definiowane przez admina) ──────────────────────── -->

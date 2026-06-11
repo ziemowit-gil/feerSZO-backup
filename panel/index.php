@@ -525,14 +525,16 @@ if (!empty($_SESSION['_panel_dir_invited'])) {
 
 <?php
 // ── Zachęta do logowania SMS ──────────────────────────────────────────────────
-// Warunki: SMS logowanie włączone + użytkownik ma numer telefonu + nie odrzucił
-$_show_sms_nudge = false;
+// Warunki: SMS logowanie włączone + nie odrzucono wcześniej
+// Dwa tryby: ma numer (zachęta do wypróbowania) | brak numeru (zachęta do dodania)
+$_show_sms_nudge    = false;
+$_nudge_has_phone   = false;
 if ($_sms_login_available) {
-    $_nudge_has_phone = !empty($user['phone_number']) || !empty($_active_row['telefon']);
-    if ($_nudge_has_phone) {
-        try { db()->exec("ALTER TABLE users ADD COLUMN sms_nudge_dismissed TINYINT NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
-        $_nudge_dismissed = (int)(db_one("SELECT sms_nudge_dismissed FROM users WHERE id=?", [(int)$user['id']])['sms_nudge_dismissed'] ?? 0);
-        $_show_sms_nudge  = !$_nudge_dismissed;
+    try { db()->exec("ALTER TABLE users ADD COLUMN sms_nudge_dismissed TINYINT NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    $_nudge_dismissed = (int)(db_one("SELECT sms_nudge_dismissed FROM users WHERE id=?", [(int)$user['id']])['sms_nudge_dismissed'] ?? 0);
+    if (!$_nudge_dismissed) {
+        $_nudge_has_phone = !empty($user['phone_number']) || !empty($_active_row['telefon']);
+        $_show_sms_nudge  = true; // pokaż w obu trybach (z/bez numeru)
     }
 }
 ?>
@@ -541,20 +543,35 @@ if ($_sms_login_available) {
 <div class="pvp-sms-nudge mb-3" role="complementary" aria-label="Zachęta do logowania SMS">
   <div class="pvp-sms-nudge-inner">
     <div class="pvp-sms-nudge-icon" aria-hidden="true">
-      <i class="bi bi-phone-fill"></i>
+      <i class="bi bi-<?= $_nudge_has_phone ? 'phone-fill' : 'phone' ?>"></i>
     </div>
     <div class="pvp-sms-nudge-content">
+      <?php if ($_nudge_has_phone): ?>
       <div class="pvp-sms-nudge-title">Zaloguj się szybciej kodem SMS 📱</div>
       <div class="pvp-sms-nudge-sub">
-        Zamiast hasła możesz wpisać numer telefonu i zalogować się jednorazowym kodem SMS — szybciej i bez zapamiętywania haseł.
+        Zamiast hasła wpisz numer telefonu i zaloguj się jednorazowym kodem SMS — szybciej i bez zapamiętywania haseł.
       </div>
+      <?php else: ?>
+      <div class="pvp-sms-nudge-title">Uprość logowanie — dodaj numer telefonu 📱</div>
+      <div class="pvp-sms-nudge-sub">
+        Podaj swój numer w profilu, a będziesz mógł logować się kodem SMS zamiast hasłem.
+      </div>
+      <?php endif; ?>
     </div>
     <div class="pvp-sms-nudge-actions">
+      <?php if ($_nudge_has_phone): ?>
       <a href="<?= APP_URL ?>/auth/login.php?tab=sms"
          class="pvp-sms-nudge-btn"
          aria-label="Wypróbuj logowanie kodem SMS przy następnym logowaniu">
         <i class="bi bi-phone me-1" aria-hidden="true"></i>Spróbuj
       </a>
+      <?php else: ?>
+      <a href="<?= APP_URL ?>/directory/profile_edit.php"
+         class="pvp-sms-nudge-btn"
+         aria-label="Dodaj numer telefonu w profilu">
+        <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Dodaj numer
+      </a>
+      <?php endif; ?>
       <form method="post" style="display:inline;margin:0">
         <?= csrf_field() ?>
         <input type="hidden" name="_dismiss_sms_nudge" value="1">
