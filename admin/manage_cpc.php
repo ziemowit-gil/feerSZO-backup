@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/cpc.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
+require_once dirname(__DIR__) . '/includes/sms.php';
 
 require_role('admin');
 cpc_migrate();
@@ -337,6 +338,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: manage_cpc.php'); exit;
     }
 
+    // ── send_sms_ika — wyślij SMS z kodem IKA na numer telefonu użytkownika ──────
+    if ($action === 'send_sms_ika') {
+        if (!$target) {
+            flash_set('danger', 'Nie znaleziono użytkownika.');
+            header('Location: manage_cpc.php'); exit;
+        }
+        $row_sms = db_one("SELECT cpc_code, phone_number FROM users WHERE id=?", [$target_id]);
+        if (empty($row_sms['cpc_code'])) {
+            flash_set('danger', 'Użytkownik nie ma kodu IKA — najpierw nadaj kod.');
+            header('Location: manage_cpc.php'); exit;
+        }
+        if (empty($row_sms['phone_number'])) {
+            flash_set('danger', 'Użytkownik nie ma numeru telefonu. Uzupełnij profil użytkownika.');
+            header('Location: manage_cpc.php'); exit;
+        }
+        if (!sms_is_enabled()) {
+            flash_set('danger', 'Wysyłanie SMS jest wyłączone. Skonfiguruj integrację SMS w Administracja → Ustawienia SMS.');
+            header('Location: manage_cpc.php'); exit;
+        }
+        $target_name = _display_name($target);
+        $org_name    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Organizacja');
+        $sms_msg     = "Twój kod IKA: " . $row_sms['cpc_code'] . "\n— " . $org_name;
+        try {
+            sms_send($row_sms['phone_number'], $sms_msg);
+            log_system_action($me_id, 'ika_sms_sent',
+                "Admin wysłał SMS z kodem IKA do ID:{$target_id} ({$target_name}), tel: " . $row_sms['phone_number'] . ".");
+            flash_set('success', 'SMS z kodem IKA wysłany do ' . $target_name . ' (' . $row_sms['phone_number'] . ').');
+        } catch (\Throwable $e) {
+            flash_set('danger', 'Nie udało się wysłać SMS: ' . $e->getMessage());
+        }
+        header('Location: manage_cpc.php'); exit;
+    }
+
     // Unknown action
     flash_set('danger', 'Nieznana akcja.');
     header('Location: manage_cpc.php');
@@ -346,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Load users — wszyscy aktywni ───────────────────────────────────────────────
 $users = db_all(
     "SELECT id, name, first_name, last_name, email, role, is_active,
-            cpc_code, cpc_fails, cpc_blocked_until, ika_revoked_at, ika_email_method
+            cpc_code, cpc_fails, cpc_blocked_until, ika_revoked_at, ika_email_method, phone_number
      FROM users
      WHERE is_active = 1
      ORDER BY
@@ -523,7 +557,7 @@ include dirname(__DIR__) . '/includes/header.php';
 // Wszyscy użytkownicy CRM-only (z kodami i bez)
 $crm_only_all = db_all(
     "SELECT u.id, u.name, u.first_name, u.last_name, u.email, u.role,
-            u.cpc_code, u.cpc_fails, u.cpc_blocked_until, u.ika_email_method
+            u.cpc_code, u.cpc_fails, u.cpc_blocked_until, u.ika_email_method, u.phone_number
      FROM users u
      LEFT JOIN roles r ON r.name = u.role
      WHERE u.is_active = 1 AND (u.role = 'crm_user' OR r.crm_only = 1)
@@ -622,6 +656,20 @@ $crm_only_all = db_all(
                title="Drukuj kartę IKA">
               <i class="bi bi-printer"></i>
             </a>
+            <?php endif; ?>
+            <!-- Wyślij SMS z IKA -->
+            <?php if (!empty($cu['cpc_code']) && !empty($cu['phone_number']) && sms_is_enabled()): ?>
+            <form method="post" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action" value="send_sms_ika">
+              <input type="hidden" name="user_id" value="<?= $cuid ?>">
+              <button class="btn btn-xs btn-outline-info"
+                      style="font-size:.7rem;padding:1px 7px"
+                      title="Wyślij SMS z kodem IKA na <?= h($cu['phone_number']) ?>"
+                      onclick="return confirm('Wysłać SMS z kodem IKA do <?= h(addslashes($cuname)) ?> (<?= h($cu['phone_number']) ?>)?')">
+                <i class="bi bi-chat-dots"></i>
+              </button>
+            </form>
             <?php endif; ?>
           </td>
         </tr>
@@ -790,6 +838,20 @@ function toggleIka(uid, btn) {
                 <i class="bi bi-slash-circle"></i> Unieważnij sesję
               </button>
             </form>
+            <!-- Wyślij SMS z IKA -->
+            <?php if ($has_code && !empty($u['phone_number']) && sms_is_enabled()): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="send_sms_ika">
+              <input type="hidden" name="user_id" value="<?= $uid ?>">
+              <button type="submit"
+                      class="btn btn-sm btn-outline-info"
+                      title="Wyślij SMS z kodem IKA na <?= h($u['phone_number']) ?>"
+                      onclick="return confirm('Wysłać SMS z kodem IKA do <?= h(addslashes($display)) ?> (<?= h($u['phone_number']) ?>)?')">
+                <i class="bi bi-chat-dots"></i> SMS IKA
+              </button>
+            </form>
+            <?php endif; ?>
             <!-- Toggle metody e-mail IKA -->
             <?php if ($u_has_email): ?>
             <form method="post" class="d-inline">
