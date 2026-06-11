@@ -388,8 +388,26 @@ HTML
 chmod 644 "${INFO_FILE}"
 ok "Strona wygenerowana: https://${DOMAIN}/testy-info.html"
 
-# ── 13. Status kontenerów ─────────────────────────────────────────────────────
-section "13. Status"
+# ── 13. Cron — automatyczne czyszczenie co 7 dni ─────────────────────────────
+section "13. Cron (reset co 7 dni)"
+
+CRON_LOG="/var/log/feer_testy_reset.log"
+CRON_JOB="0 3 * * 0  bash ${SCRIPT_DIR}/setup-testy.sh >> ${CRON_LOG} 2>&1"
+CRON_MARKER="# feer-testy-weekly-reset"
+
+# Sprawdź czy wpis już istnieje
+if crontab -l 2>/dev/null | grep -qF "setup-testy.sh"; then
+    ok "Cron już skonfigurowany (bez zmian)"
+else
+    # Dodaj do crontaba roota
+    ( crontab -l 2>/dev/null; echo "${CRON_MARKER}"; echo "${CRON_JOB}" ) | crontab -
+    ok "Cron dodany: niedziela 03:00 → setup-testy.sh"
+fi
+
+info "Log cyklu: ${CRON_LOG}"
+
+# ── 14. Status kontenerów ─────────────────────────────────────────────────────
+section "14. Status"
 ${COMPOSE} ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
 # ── Podsumowanie ──────────────────────────────────────────────────────────────
@@ -410,8 +428,12 @@ echo -e "  │ ${CYAN}Wolontariusz${RESET}   vol.test@feer.test          Test123
 echo -e "  │ ${CYAN}Obserwator${RESET}     viewer.test@feer.test        View5678!"
 echo -e "  └─────────────────────────────────────────────────────────┘"
 echo ""
+echo -e "  ${BOLD}Reset cykliczny:${RESET}  co niedziela o 03:00"
+echo -e "  ${BOLD}Log resetu:${RESET}       ${CRON_LOG}"
+echo ""
 echo -e "  ${BOLD}Komendy:${RESET}"
 echo -e "  ${CYAN}docker logs -f ${APP_CONTAINER}${RESET}"
 echo -e "  ${CYAN}${COMPOSE} down${RESET}"
-echo -e "  ${CYAN}bash ${SCRIPT_DIR}/setup-testy.sh${RESET}  # reset + seed"
+echo -e "  ${CYAN}bash ${SCRIPT_DIR}/setup-testy.sh${RESET}  # ręczny reset + seed"
+echo -e "  ${CYAN}crontab -l${RESET}                          # pokaż aktywne crony"
 echo ""
