@@ -12,30 +12,23 @@ function migracja_webngo_ensure_table(): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS umowy_migracja_webngo (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
         numer_umowy          TEXT    NOT NULL,
-        -- Dane osoby
         imie_nazwisko        TEXT,
         pesel                TEXT,
         email                TEXT,
-        -- Umowa źródłowa (webNGO)
         typ_umowy_zrodla     TEXT    NOT NULL,
         webngo_id            TEXT,
         webngo_numer_umowy   TEXT    NOT NULL,
         webngo_data_zawarcia TEXT,
-        -- Uzasadnienie migracji
         powod_migracji       TEXT    NOT NULL,
         opis_powodu          TEXT    NOT NULL,
-        -- Nowa umowa w systemie
         nowy_typ_umowy       TEXT,
         nowy_numer_umowy     TEXT,
-        -- Powiązanie z konkretną umową w systemie (np. umowy_wolontariat.id)
         source_contract_type TEXT,
         source_contract_id   INTEGER,
-        -- Status i dane operacyjne
         status               TEXT    NOT NULL DEFAULT 'w_toku',
         data_migracji        TEXT,
         osoba_migrujaca      TEXT,
         uwagi                TEXT,
-        -- Systemowe
         created_by           INTEGER,
         created_at           TEXT,
         updated_at           TEXT

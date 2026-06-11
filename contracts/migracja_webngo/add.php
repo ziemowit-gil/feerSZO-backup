@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once __DIR__ . '/_table.php';
 
 require_role('admin', 'editor');
