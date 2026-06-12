@@ -15,7 +15,8 @@ crm_migrate();
 
 $PAGE_TITLE = 'Dashboard CRM';
 $user       = current_user();
-$can_write  = can_write('crm') || is_admin();
+$can_write   = can_write('crm') || is_admin();
+$can_mailing = can_write('crm_mailing') || is_admin();
 $stats      = CrmManager::getStats();
 
 $u_name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
@@ -63,14 +64,18 @@ include __DIR__ . '/includes/header_crm.php';
       CRM · <?= h(org_setting('org_name') ?: ORG_NAME) ?> · <?= date('l, d F Y') ?>
     </div>
   </div>
-  <?php if ($can_write): ?>
+  <?php if ($can_write || $can_mailing): ?>
   <div class="crm-page-actions">
+    <?php if ($can_write): ?>
     <a href="<?= APP_URL ?>/crm/contact/add_person.php" class="btn btn-crm-primary btn-sm">
       <i class="bi bi-person-plus me-1"></i>Nowy kontakt
     </a>
+    <?php endif; ?>
+    <?php if ($can_mailing): ?>
     <a href="<?= APP_URL ?>/crm/communicate.php" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-send me-1"></i>Wyślij wiadomość
     </a>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 </div>
@@ -198,13 +203,14 @@ include __DIR__ . '/includes/header_crm.php';
   <div class="col-lg-5">
 
     <!-- Szybkie akcje -->
-    <?php if ($can_write): ?>
+    <?php if ($can_write || $can_mailing): ?>
     <div class="crm-panel mb-3">
       <div class="crm-panel-header">
         <div class="crm-panel-title"><i class="bi bi-lightning-fill text-warning me-1"></i>Szybkie akcje</div>
       </div>
       <div class="crm-panel-body">
         <div class="d-grid gap-2">
+          <?php if ($can_write): ?>
           <a href="<?= APP_URL ?>/crm/contact/add_person.php" class="crm-quick-action">
             <div class="crm-quick-icon" style="background:#EFF7ED;color:#2E844A"><i class="bi bi-person-plus-fill"></i></div>
             <div>
@@ -221,6 +227,8 @@ include __DIR__ . '/includes/header_crm.php';
             </div>
             <i class="bi bi-chevron-right ms-auto text-muted opacity-50"></i>
           </a>
+          <?php endif; ?>
+          <?php if ($can_mailing): ?>
           <a href="<?= APP_URL ?>/crm/communicate.php" class="crm-quick-action">
             <div class="crm-quick-icon" style="background:#FEF3E2;color:#D97706"><i class="bi bi-send-fill"></i></div>
             <div>
@@ -229,6 +237,7 @@ include __DIR__ . '/includes/header_crm.php';
             </div>
             <i class="bi bi-chevron-right ms-auto text-muted opacity-50"></i>
           </a>
+          <?php endif; ?>
           <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-quick-action">
             <div class="crm-quick-icon" style="background:#EEF4FF;color:#0176D3"><i class="bi bi-calendar3-fill"></i></div>
             <div>

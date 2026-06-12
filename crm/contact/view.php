@@ -564,6 +564,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         if ($aid) CrmManager::unlinkFromAction($id, $aid);
         $affected_section = 'action-links';
     }
+    if ($action === 'convert_type') {
+        $current_type = $contact['type'];
+        $target_type  = $current_type === 'osoba' ? 'organizacja' : 'osoba';
+        $update = ['type' => $target_type];
+        if ($target_type === 'organizacja') {
+            $update['imie'] = null; $update['nazwisko'] = null;
+            $update['pesel'] = null; $update['data_urodzenia'] = null;
+        } else {
+            $update['nip'] = null; $update['krs'] = null; $update['regon'] = null;
+            $update['osoba_kontaktowa'] = null; $update['forma_prawna'] = null;
+        }
+        CrmManager::updateContact($id, $update);
+        $labels = ['osoba' => 'Osoba fizyczna', 'organizacja' => 'Organizacja / firma'];
+        CrmManager::addNote($id, 'Konwersja typu kontaktu: ' . $labels[$current_type] . ' → ' . $labels[$target_type] . '.', $user_id);
+        flash_set('success', 'Typ kontaktu zmieniony na: ' . $labels[$target_type] . '.');
+        header('Location: ' . APP_URL . '/crm/contact/view.php?id=' . $id);
+        exit;
+    }
 
     if ($xhr && $affected_section) {
         $contact = CrmManager::getContact($id);
@@ -703,6 +721,13 @@ include __DIR__ . '/../includes/header_crm.php';
                 onclick="openCommModal(<?= $id ?>,'email')">
           <i class="bi bi-send-fill me-1" aria-hidden="true"></i>Wiadomość
         </button>
+        <?php if ($crm_can_write): ?>
+        <button type="button" class="btn btn-sm btn-light"
+                data-bs-toggle="modal" data-bs-target="#convertTypeModal"
+                title="Zmień typ kontaktu: Osoba ↔ Organizacja">
+          <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwertuj
+        </button>
+        <?php endif; ?>
         <?php if ($roundcube_url && $contact['email']): ?>
         <a href="<?= APP_URL ?>/crm/webmail.php?compose_to=<?= urlencode($contact['email']) ?>"
            class="btn btn-sm btn-light"
@@ -1497,4 +1522,48 @@ const ActivityUI = (function () {
 })();
 </script>
 
+<?php if ($crm_can_write): ?>
+<!-- Modal: konwersja typu kontaktu -->
+<div class="modal fade" id="convertTypeModal" tabindex="-1"
+     aria-labelledby="convertTypeModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fs-6" id="convertTypeModalLabel">
+          <i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Konwertuj typ kontaktu
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body">
+          <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action"  value="convert_type">
+          <?php $is_osoba = ($contact['type'] === 'osoba'); ?>
+          <p class="mb-1" style="font-size:.88rem">
+            Aktualny typ: <strong><?= $is_osoba ? 'Osoba fizyczna' : 'Organizacja / firma' ?></strong>
+          </p>
+          <p class="mb-3" style="font-size:.88rem">
+            Nowy typ: <strong><?= $is_osoba ? 'Organizacja / firma' : 'Osoba fizyczna' ?></strong>
+          </p>
+          <div class="alert alert-warning py-2 mb-0" style="font-size:.8rem" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
+            Zostaną wyczyszczone pola:
+            <?php if ($is_osoba): ?>
+            Imię, Nazwisko, PESEL, Data urodzenia.
+            <?php else: ?>
+            NIP, KRS, REGON, Osoba kontaktowa, Forma prawna.
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning btn-sm">
+            <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwertuj
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

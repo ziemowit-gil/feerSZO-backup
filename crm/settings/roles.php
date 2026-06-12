@@ -8,8 +8,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
-if (!is_admin()) {
-    flash_set('danger', 'Tylko administrator może zarządzać rolami CRM.');
+if (!can_write('crm_ustawienia') && !is_admin()) {
+    flash_set('danger', 'Brak uprawnień do zarządzania rolami CRM.');
     header('Location: ' . APP_URL . '/crm/dashboard.php');
     exit;
 }
@@ -18,33 +18,48 @@ _permissions_init();
 
 $PAGE_TITLE = 'CRM — Role użytkowników';
 
+// Sub-moduły CRM wyświetlane w tabeli i formularzu ról
+const CRM_SUB_MODULES = [
+    'crm_eksport'    => ['label' => 'Eksport',    'flag' => 'can_read',  'icon' => 'bi-download'],
+    'crm_import'     => ['label' => 'Import',     'flag' => 'can_write', 'icon' => 'bi-upload'],
+    'crm_mailing'    => ['label' => 'Mailing',    'flag' => 'can_write', 'icon' => 'bi-send-fill'],
+    'crm_ustawienia' => ['label' => 'Ustawienia', 'flag' => 'can_write', 'icon' => 'bi-gear-fill'],
+];
+
 function _crm_roles_all(): array {
     return db_all(
         "SELECT r.*,
             (SELECT COUNT(*) FROM users WHERE role = r.name) AS user_count,
             (SELECT can_read   FROM role_permissions WHERE role_id=r.id AND module='crm') AS crm_read,
             (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm') AS crm_write,
-            (SELECT can_delete FROM role_permissions WHERE role_id=r.id AND module='crm') AS crm_delete
+            (SELECT can_delete FROM role_permissions WHERE role_id=r.id AND module='crm') AS crm_delete,
+            (SELECT can_read   FROM role_permissions WHERE role_id=r.id AND module='crm_eksport')    AS crm_eksport,
+            (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_import')     AS crm_import,
+            (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_mailing')    AS crm_mailing,
+            (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_ustawienia') AS crm_ustawienia
          FROM roles r WHERE r.crm_only=1 ORDER BY r.sort_order, r.id"
     );
 }
 
-function _crm_role_save_perms(int $role_id, int $read, int $write, int $del): void {
+function _crm_role_upsert(int $role_id, string $module, int $read, int $write, int $del): void {
     try {
         db()->prepare(
             "INSERT INTO role_permissions (role_id, module, can_read, can_write, can_delete)
              VALUES (?,?,?,?,?)
              ON CONFLICT(role_id, module) DO UPDATE SET can_read=excluded.can_read, can_write=excluded.can_write, can_delete=excluded.can_delete"
-        )->execute([$role_id, 'crm', $read, $write, $del]);
+        )->execute([$role_id, $module, $read, $write, $del]);
     } catch (\Throwable $e) {
-        $ex = db_one("SELECT id FROM role_permissions WHERE role_id=? AND module='crm'", [$role_id]);
-        if ($ex) {
-            db()->prepare("UPDATE role_permissions SET can_read=?,can_write=?,can_delete=? WHERE role_id=? AND module='crm'")
-                ->execute([$read, $write, $del, $role_id]);
+        if (db_one("SELECT id FROM role_permissions WHERE role_id=? AND module=?", [$role_id, $module])) {
+            db()->prepare("UPDATE role_permissions SET can_read=?,can_write=?,can_delete=? WHERE role_id=? AND module=?")
+                ->execute([$read, $write, $del, $role_id, $module]);
         } else {
-            db_insert('role_permissions', ['role_id'=>$role_id,'module'=>'crm','can_read'=>$read,'can_write'=>$write,'can_delete'=>$del]);
+            db_insert('role_permissions', ['role_id'=>$role_id,'module'=>$module,'can_read'=>$read,'can_write'=>$write,'can_delete'=>$del]);
         }
     }
+}
+
+function _crm_role_save_perms(int $role_id, int $read, int $write, int $del): void {
+    _crm_role_upsert($role_id, 'crm', $read, $write, $del);
 }
 
 $BASE_URL = APP_URL . '/crm/settings/roles.php';
@@ -60,6 +75,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sort_order   = (int)($_POST['sort_order'] ?? 10);
         $can_write    = isset($_POST['can_write'])  ? 1 : 0;
         $can_delete   = isset($_POST['can_delete']) ? 1 : 0;
+        $sub = [
+            'crm_eksport'    => isset($_POST['sub_eksport'])    ? 1 : 0,
+            'crm_import'     => isset($_POST['sub_import'])     ? 1 : 0,
+            'crm_mailing'    => isset($_POST['sub_mailing'])    ? 1 : 0,
+            'crm_ustawienia' => isset($_POST['sub_ustawienia']) ? 1 : 0,
+        ];
 
         if ($display_name === '') {
             flash_set('danger', 'Nazwa roli jest wymagana.');
@@ -73,6 +94,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE roles SET display_name=?,description=?,sort_order=? WHERE id=?")
                 ->execute([$display_name, $description, $sort_order, $id]);
             _crm_role_save_perms($id, 1, $can_write, $can_delete);
+            // Sub-moduły
+            _crm_role_upsert($id, 'crm_eksport',    $sub['crm_eksport'],    $sub['crm_eksport'],    0);
+            _crm_role_upsert($id, 'crm_import',     $sub['crm_import'],     $sub['crm_import'],     0);
+            _crm_role_upsert($id, 'crm_mailing',    $sub['crm_mailing'],    $sub['crm_mailing'],    0);
+            _crm_role_upsert($id, 'crm_ustawienia', $sub['crm_ustawienia'], $sub['crm_ustawienia'], 0);
             flash_set('success', 'Rola zaktualizowana.');
         } else {
             $base = 'crm_' . preg_replace('/[^a-z0-9]+/', '_', strtolower($display_name));
@@ -83,6 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ->execute([$name, $display_name, $description, $sort_order]);
             $new_id = (int)db()->lastInsertId();
             _crm_role_save_perms($new_id, 1, $can_write, $can_delete);
+            _crm_role_upsert($new_id, 'crm_eksport',    $sub['crm_eksport'],    $sub['crm_eksport'],    0);
+            _crm_role_upsert($new_id, 'crm_import',     $sub['crm_import'],     $sub['crm_import'],     0);
+            _crm_role_upsert($new_id, 'crm_mailing',    $sub['crm_mailing'],    $sub['crm_mailing'],    0);
+            _crm_role_upsert($new_id, 'crm_ustawienia', $sub['crm_ustawienia'], $sub['crm_ustawienia'], 0);
             flash_set('success', 'Rola "' . h($display_name) . '" utworzona (nazwa techniczna: <code>' . h($name) . '</code>).');
         }
         header('Location: ' . $BASE_URL);
@@ -107,7 +137,11 @@ $show_new = isset($_GET['new']);
 $edit_row = $edit_id ? db_one(
     "SELECT r.*,
         (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm') AS crm_write,
-        (SELECT can_delete FROM role_permissions WHERE role_id=r.id AND module='crm') AS crm_delete
+        (SELECT can_delete FROM role_permissions WHERE role_id=r.id AND module='crm') AS crm_delete,
+        (SELECT can_read   FROM role_permissions WHERE role_id=r.id AND module='crm_eksport')    AS sub_eksport,
+        (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_import')     AS sub_import,
+        (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_mailing')    AS sub_mailing,
+        (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_ustawienia') AS sub_ustawienia
      FROM roles r WHERE r.id=? AND r.crm_only=1", [$edit_id]
 ) : null;
 
@@ -154,7 +188,7 @@ include __DIR__ . '/../includes/header_crm.php';
 </div>
 
 <?php if ($show_new || $edit_row):
-  $f = $edit_row ?? ['display_name'=>'','description'=>'','sort_order'=>10,'crm_write'=>1,'crm_delete'=>0];
+  $f = $edit_row ?? ['display_name'=>'','description'=>'','sort_order'=>10,'crm_write'=>1,'crm_delete'=>0,'sub_eksport'=>0,'sub_import'=>0,'sub_mailing'=>1,'sub_ustawienia'=>0];
 ?>
 <div class="card border-0 shadow-sm mb-4" style="max-width:580px">
   <div class="card-header fw-semibold">
@@ -189,19 +223,57 @@ include __DIR__ . '/../includes/header_crm.php';
 
       <div class="mb-4">
         <label class="form-label fw-semibold">Uprawnienia w CRM</label>
-        <div class="border rounded p-3 bg-light-subtle">
-          <div class="form-check mb-2">
+        <div class="border rounded p-3 bg-light-subtle d-flex flex-column gap-2">
+
+          <div class="fw-semibold text-muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.06em">
+            Kontakty (dostęp bazowy)
+          </div>
+          <div class="form-check ms-2 mb-0">
             <input class="form-check-input" type="checkbox" disabled checked>
-            <label class="form-check-label">Odczyt <span class="text-muted small">(zawsze włączony)</span></label>
+            <label class="form-check-label small">Przeglądanie kontaktów <span class="text-muted">(zawsze)</span></label>
           </div>
-          <div class="form-check mb-2">
+          <div class="form-check ms-2 mb-0">
             <input class="form-check-input" type="checkbox" id="r_write" name="can_write" <?= $f['crm_write'] ? 'checked' : '' ?>>
-            <label class="form-check-label" for="r_write">Zapis — tworzenie i edycja kontaktów, wysyłanie wiadomości</label>
+            <label class="form-check-label small" for="r_write">
+              Edycja kontaktów, notatki, tagi, relacje, aktywności
+            </label>
           </div>
-          <div class="form-check">
+          <div class="form-check ms-2">
             <input class="form-check-input" type="checkbox" id="r_delete" name="can_delete" <?= $f['crm_delete'] ? 'checked' : '' ?>>
-            <label class="form-check-label" for="r_delete">Usuwanie — kontaktów, notatek, tagów</label>
+            <label class="form-check-label small" for="r_delete">
+              Usuwanie kontaktów i notatek
+            </label>
           </div>
+
+          <hr class="my-1">
+          <div class="fw-semibold text-muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.06em">
+            Operacje rozszerzone
+          </div>
+          <div class="form-check ms-2 mb-0">
+            <input class="form-check-input" type="checkbox" id="r_eksport" name="sub_eksport" <?= !empty($f['sub_eksport']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="r_eksport">
+              <i class="bi bi-download text-muted me-1"></i>Eksport kontaktów do CSV / XLSX
+            </label>
+          </div>
+          <div class="form-check ms-2 mb-0">
+            <input class="form-check-input" type="checkbox" id="r_import" name="sub_import" <?= !empty($f['sub_import']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="r_import">
+              <i class="bi bi-upload text-muted me-1"></i>Import kontaktów z CSV
+            </label>
+          </div>
+          <div class="form-check ms-2 mb-0">
+            <input class="form-check-input" type="checkbox" id="r_mailing" name="sub_mailing" <?= !empty($f['sub_mailing']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="r_mailing">
+              <i class="bi bi-send-fill text-muted me-1"></i>Mailing masowy i komunikacja grupowa
+            </label>
+          </div>
+          <div class="form-check ms-2">
+            <input class="form-check-input" type="checkbox" id="r_ustaw" name="sub_ustawienia" <?= !empty($f['sub_ustawienia']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="r_ustaw">
+              <i class="bi bi-gear-fill text-muted me-1"></i>Ustawienia CRM (statusy, pola, szablony, role)
+            </label>
+          </div>
+
         </div>
       </div>
 
@@ -232,27 +304,40 @@ include __DIR__ . '/../includes/header_crm.php';
   <?php else: ?>
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
-      <thead class="table-light">
+      <thead class="table-light" style="font-size:.78rem">
         <tr>
-          <th>Nazwa</th><th>Nazwa techniczna</th>
-          <th class="text-center">Odczyt</th><th class="text-center">Zapis</th><th class="text-center">Usuwanie</th>
-          <th class="text-center">Użytkownicy</th><th class="text-end">Akcje</th>
+          <th>Nazwa roli</th>
+          <th class="text-center" title="Przeglądanie kontaktów">Odczyt</th>
+          <th class="text-center" title="Edycja kontaktów">Zapis</th>
+          <th class="text-center" title="Usuwanie kontaktów">Usuń</th>
+          <th class="text-center" title="Eksport do CSV/XLSX"><i class="bi bi-download"></i></th>
+          <th class="text-center" title="Import z CSV"><i class="bi bi-upload"></i></th>
+          <th class="text-center" title="Mailing masowy"><i class="bi bi-send-fill"></i></th>
+          <th class="text-center" title="Ustawienia CRM"><i class="bi bi-gear-fill"></i></th>
+          <th class="text-center">Użytkownicy</th>
+          <th class="text-end">Akcje</th>
         </tr>
       </thead>
-      <tbody>
-        <?php foreach ($crm_roles as $r): ?>
+      <tbody style="font-size:.82rem">
+        <?php
+        $yes = '<i class="bi bi-check-circle-fill text-success"></i>';
+        $no  = '<i class="bi bi-dash text-muted"></i>';
+        foreach ($crm_roles as $r): ?>
         <tr>
           <td>
             <span class="fw-semibold"><?= h($r['display_name']) ?></span>
             <?php if ($r['is_system']): ?>
-            <span class="badge bg-secondary-subtle text-secondary border ms-1" style="font-size:.7rem">systemowa</span>
+            <span class="badge bg-secondary-subtle text-secondary border ms-1" style="font-size:.65rem">sys</span>
             <?php endif; ?>
-            <?php if ($r['description']): ?><div class="text-muted small"><?= h($r['description']) ?></div><?php endif; ?>
+            <?php if ($r['description']): ?><div class="text-muted" style="font-size:.75rem"><?= h($r['description']) ?></div><?php endif; ?>
           </td>
-          <td><code class="text-muted"><?= h($r['name']) ?></code></td>
-          <td class="text-center"><i class="bi bi-check-circle-fill text-success"></i></td>
-          <td class="text-center"><?= $r['crm_write']  ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash text-muted"></i>' ?></td>
-          <td class="text-center"><?= $r['crm_delete'] ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash text-muted"></i>' ?></td>
+          <td class="text-center"><?= $yes ?></td>
+          <td class="text-center"><?= $r['crm_write']      ? $yes : $no ?></td>
+          <td class="text-center"><?= $r['crm_delete']     ? $yes : $no ?></td>
+          <td class="text-center"><?= $r['crm_eksport']    ? $yes : $no ?></td>
+          <td class="text-center"><?= $r['crm_import']     ? $yes : $no ?></td>
+          <td class="text-center"><?= $r['crm_mailing']    ? $yes : $no ?></td>
+          <td class="text-center"><?= $r['crm_ustawienia'] ? $yes : $no ?></td>
           <td class="text-center">
             <?php if ($r['user_count'] > 0): ?>
             <a href="<?= APP_URL ?>/admin/users.php" class="badge bg-primary-subtle text-primary border border-primary-subtle text-decoration-none"><?= (int)$r['user_count'] ?></a>

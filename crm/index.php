@@ -16,8 +16,11 @@ require_once dirname(__DIR__) . '/includes/crm.php';
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 
-$crm_can_write  = can_write('crm') || is_admin();
-$crm_can_delete = can_delete('crm') || is_admin();
+$crm_can_write    = can_write('crm') || is_admin();
+$crm_can_delete   = can_delete('crm') || is_admin();
+$crm_can_export   = can_read('crm_eksport') || is_admin();
+$crm_can_import   = can_write('crm_import') || is_admin();
+$crm_can_mailing  = can_write('crm_mailing') || is_admin();
 
 crm_migrate();
 
@@ -417,13 +420,18 @@ include __DIR__ . '/includes/header_crm.php';
     <a href="<?= APP_URL ?>/crm/contact/add.php" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Pełny
     </a>
+    <?php endif; ?>
+    <?php if ($crm_can_import): ?>
     <a href="<?= APP_URL ?>/crm/import.php" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Importuj CSV
     </a>
     <?php endif; ?>
+    <?php if ($crm_can_mailing): ?>
     <a href="<?= APP_URL ?>/crm/communicate.php" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij wiadomość
     </a>
+    <?php endif; ?>
+    <?php if ($crm_can_export): ?>
     <?php $export_q = http_build_query(array_filter($filters)); ?>
     <div class="dropdown">
       <button class="btn btn-crm-outline btn-sm dropdown-toggle"
@@ -441,6 +449,7 @@ include __DIR__ . '/includes/header_crm.php';
         </a></li>
       </ul>
     </div>
+    <?php endif; ?>
     <div class="crm-sync-label ms-2" id="crmSyncStatus"
          title="Synchronizacja heartbeat co 50 s"
          aria-live="polite" aria-atomic="true">

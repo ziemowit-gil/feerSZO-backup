@@ -17,12 +17,12 @@ require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 crm_migrate();
 
-$crm_can_write = can_write('crm') || is_admin();
-if (!$crm_can_write) {
+if (!can_write('crm_import') && !is_admin()) {
     flash_set('danger', 'Brak uprawnień do importu kontaktów.');
     header('Location: ' . APP_URL . '/crm/index.php');
     exit;
 }
+$crm_can_write = can_write('crm') || is_admin();
 
 // ════════════════════════════════════════════════════════════════════════════
 // XLSX parser (natywny – brak zewnętrznych zależności)

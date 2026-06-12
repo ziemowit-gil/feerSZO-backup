@@ -11,8 +11,8 @@ require_once dirname(__DIR__) . '/includes/crm.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'CRM');
-if (!can_write('crm') && !is_admin()) {
-    http_response_code(403); die('Brak uprawnień.');
+if (!can_read('crm_eksport') && !is_admin()) {
+    http_response_code(403); die('Brak uprawnień do eksportu kontaktów.');
 }
 crm_migrate();
 

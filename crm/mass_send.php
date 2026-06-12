@@ -10,8 +10,8 @@ require_once dirname(__DIR__) . '/includes/crm.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
-if (!can_write('crm') && !is_admin()) {
-    flash_set('danger', 'Brak uprawnień.');
+if (!can_write('crm_mailing') && !is_admin()) {
+    flash_set('danger', 'Brak uprawnień do wysyłki masowej.');
     header('Location: ' . APP_URL . '/crm/dashboard.php'); exit;
 }
 crm_migrate();

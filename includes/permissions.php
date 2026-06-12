@@ -20,8 +20,12 @@ const PERMISSION_MODULES = [
     'zaswiadczenia' => 'Zaświadczenia',
     'rozwiazania'   => 'Rozwiązania',
     'wiadomosci'    => 'Wiadomości',
-    'crm'           => 'CRM — Kontakty i komunikacja',
-    'karty30'       => 'Karty 30 — TyfloKonsultacje',
+    'crm'              => 'CRM — Kontakty (dostęp bazowy)',
+    'crm_eksport'      => 'CRM — Eksport kontaktów',
+    'crm_import'       => 'CRM — Import kontaktów',
+    'crm_mailing'      => 'CRM — Mailing masowy i komunikacja',
+    'crm_ustawienia'   => 'CRM — Ustawienia (statusy, pola, role)',
+    'karty30'          => 'Karty 30 — TyfloKonsultacje',
     'wydarzenia'    => 'Moduł Wydarzeń',
     'admin'         => 'Administracja',
 ];
@@ -122,6 +126,26 @@ function _permissions_init(): void {
                     ->execute([$rid,'wydarzenia',...$perms]);
             }
         } catch (\Throwable $e) {}
+    }
+
+    // ── CRM sub-moduły — seed dla istniejących ról ───────────────────────────
+    // admin: pełen dostęp; editor: eksport+import+mailing (bez ustawień); viewer: nic; crm_user: mailing
+    $crm_sub_defaults = [
+        'crm_eksport'    => ['admin'=>[1,1,1],'editor'=>[1,1,0],'viewer'=>[0,0,0],'crm_user'=>[0,0,0]],
+        'crm_import'     => ['admin'=>[1,1,1],'editor'=>[1,1,0],'viewer'=>[0,0,0],'crm_user'=>[0,0,0]],
+        'crm_mailing'    => ['admin'=>[1,1,1],'editor'=>[1,1,0],'viewer'=>[0,0,0],'crm_user'=>[1,1,0]],
+        'crm_ustawienia' => ['admin'=>[1,1,1],'editor'=>[0,0,0],'viewer'=>[0,0,0],'crm_user'=>[0,0,0]],
+    ];
+    foreach ($crm_sub_defaults as $mod => $role_map) {
+        foreach ($role_map as $rname => $perms) {
+            try {
+                $rid = $pdo->query("SELECT id FROM roles WHERE name=" . $pdo->quote($rname))->fetchColumn();
+                if ($rid) {
+                    $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id,module,can_read,can_write,can_delete) VALUES (?,?,?,?,?)")
+                        ->execute([(int)$rid, $mod, ...$perms]);
+                }
+            } catch (\Throwable $e) {}
+        }
     }
 }
 

@@ -13,7 +13,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 
 require_login();
-if (!can_write('crm')) {
+if (!can_write('crm_import') && !is_admin()) {
     http_response_code(403);
     exit('Brak uprawnień do importu kontaktów CRM.');
 }
