@@ -1592,6 +1592,31 @@ function sysBannerDismiss() {
 </script>
 <?php endif; ?>
 
+<?php
+// Banner "Pliki do wydruku" — dla użytkowników bez drukarki
+if ($_user) {
+    try {
+        require_once __DIR__ . '/../contracts/includes/pdf_queue.php';
+        $_pdf_pending = pdf_queue_count_pending((int)$_user['id']);
+    } catch (\Throwable $_e) {
+        $_pdf_pending = 0;
+    }
+    if ($_pdf_pending > 0):
+        $_pdf_word = $_pdf_pending === 1 ? 'plik' : ($_pdf_pending < 5 ? 'pliki' : 'plików');
+?>
+<div class="alert alert-warning d-flex gap-2 align-items-center py-2 mb-3" role="alert" id="pdfQueueBanner">
+  <i class="bi bi-printer-fill flex-shrink-0 fs-5"></i>
+  <div class="flex-grow-1" style="font-size:.875rem">
+    <strong>Masz <?= $_pdf_pending ?> <?= $_pdf_word ?> do wydruku.</strong>
+    Otwórz listę, kliknij <em>Drukuj PDF</em> i wybierz w przeglądarce „Zapisz jako PDF".
+  </div>
+  <a href="<?= APP_URL ?>/contracts/pdf_queue.php"
+     class="btn btn-warning btn-sm fw-semibold flex-shrink-0">
+    <i class="bi bi-printer me-1"></i>Pokaż pliki
+  </a>
+</div>
+<?php endif; } ?>
+
 <script>
 (function () {
   var APP_URL = '<?= APP_URL ?>';
