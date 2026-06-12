@@ -47,6 +47,8 @@ $roundcube_url    = crm_setting('roundcube_url');
 include __DIR__ . '/../includes/header_crm.php';
 ?>
 
+<?php require_once __DIR__ . '/_nav.php'; ?>
+
 <nav aria-label="Ścieżka nawigacji" class="mb-2">
   <ol class="breadcrumb mb-0" style="font-size:.82rem">
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/crm/index.php"><i class="bi bi-diagram-2-fill me-1" style="color:var(--crm-primary)"></i>CRM</a></li>
@@ -54,51 +56,13 @@ include __DIR__ . '/../includes/header_crm.php';
   </ol>
 </nav>
 
-<div class="crm-object-header shadow-sm mb-3">
-  <div class="crm-object-icon"><i class="bi bi-gear-fill"></i></div>
-  <div>
-    <h1 class="crm-object-title">Ustawienia CRM</h1>
-    <div class="crm-object-count">Konfiguracja modułu CRM</div>
-  </div>
-  <div class="crm-object-actions d-flex gap-2 flex-wrap">
-    <a href="<?= APP_URL ?>/crm/settings/signature.php" class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-pen me-1"></i>Mój podpis
-    </a>
-    <a href="<?= APP_URL ?>/crm/settings/roles.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-people-fill me-1"></i>Role CRM
-    </a>
-    <a href="<?= APP_URL ?>/crm/settings/statuses.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-bookmark-fill me-1"></i>Statusy
-    </a>
-    <a href="<?= APP_URL ?>/crm/settings/field_groups.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-layers me-1"></i>Grupy pól
-    </a>
-    <a href="<?= APP_URL ?>/crm/settings/fields.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola niestandardowe
-    </a>
-    <a href="<?= APP_URL ?>/crm/settings/fields_system.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-database-lock me-1"></i>Pola systemowe
-    </a>
-    <?php if (is_admin()): ?>
-    <a href="<?= APP_URL ?>/crm/settings/ika.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-shield-lock me-1"></i>Wymaganie IKA
-    </a>
-    <a href="<?= APP_URL ?>/admin/teryt_import.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-geo-alt me-1"></i>Import TERYT
-    </a>
-    <a href="<?= APP_URL ?>/admin/crm_database.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-database-gear me-1"></i>Baza danych CRM
-    </a>
-    <a href="<?= APP_URL ?>/crm/settings/nozbe.php" class="btn btn-sm btn-outline-secondary">
-      <img src="https://nozbe.com/favicon.ico" style="width:13px;height:13px;margin-right:4px" alt="">Nozbe
-    </a>
-    <?php endif; ?>
-  </div>
-</div>
+<h1 class="fw-bold mb-3" style="font-size:1.25rem">
+  <i class="bi bi-gear-fill me-2" style="color:var(--crm-primary)"></i>Ustawienia CRM
+</h1>
 
 <?= flash_html() ?>
 
-<div class="card border-0 shadow-sm mb-4" style="max-width:780px">
+<div class="card border-0 shadow-sm mb-4" style="max-width:680px">
   <div class="card-body">
     <div class="crm-section-title">Stopka e-mail (globalna)</div>
     <p class="text-muted small mb-3">
@@ -135,7 +99,7 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 </div>
 
-<div class="card border-0 shadow-sm mb-4" style="max-width:780px">
+<div class="card border-0 shadow-sm mb-4" style="max-width:680px">
   <div class="card-body">
     <div class="crm-section-title">
       <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Roundcube Webmail
@@ -170,4 +134,5 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 </div>
 
+<?php require_once __DIR__ . '/_nav_end.php'; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

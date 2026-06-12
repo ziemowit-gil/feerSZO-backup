@@ -53,6 +53,7 @@ foreach (CRM_SYSTEM_FIELDS as $key => $def) {
 }
 
 include __DIR__ . '/../includes/header_crm.php';
+require_once __DIR__ . '/_nav.php';
 ?>
 
 <nav aria-label="Ścieżka nawigacji" class="mb-2">
@@ -169,4 +170,5 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 </form>
 
+<?php require_once __DIR__ . '/_nav_end.php'; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

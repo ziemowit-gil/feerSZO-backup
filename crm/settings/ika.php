@@ -94,6 +94,7 @@ function _ika_code_badge(array $u): string {
 }
 
 include __DIR__ . '/../includes/header_crm.php';
+require_once __DIR__ . '/_nav.php';
 ?>
 
 <nav aria-label="Ścieżka nawigacji" class="mb-3" style="font-size:.82rem">
@@ -220,4 +221,5 @@ include __DIR__ . '/../includes/header_crm.php';
   <span class="badge bg-light text-dark border ms-2">Brak (rola)</span> — Rola nie wymaga IKA i nie ustawiono wymuszenia
 </div>
 
+<?php require_once __DIR__ . '/_nav_end.php'; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

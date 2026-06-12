@@ -71,6 +71,7 @@ $edit      = $edit_id ? crm_one("SELECT * FROM crm_field_groups WHERE id=?",[$ed
 $all_roles = crm_all_roles();
 
 include __DIR__ . '/../includes/header_crm.php';
+require_once __DIR__ . '/_nav.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb mb-0 small">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/crm/settings/">Ustawienia CRM</a></li>
@@ -304,4 +305,5 @@ include __DIR__ . '/../includes/header_crm.php';
   });
 })();
 </script>
+<?php require_once __DIR__ . '/_nav_end.php'; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

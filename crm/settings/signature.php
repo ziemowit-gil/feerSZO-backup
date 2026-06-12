@@ -61,6 +61,7 @@ if (empty($u['crm_email_signature'])) {
 }
 
 include __DIR__ . '/../includes/header_crm.php';
+require_once __DIR__ . '/_nav.php';
 ?>
 
 <style>
@@ -488,4 +489,5 @@ document.getElementById('sig-form').addEventListener('submit', () => {
 })();
 </script>
 
+<?php require_once __DIR__ . '/_nav_end.php'; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

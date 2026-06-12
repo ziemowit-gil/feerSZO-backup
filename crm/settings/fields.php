@@ -105,6 +105,7 @@ if ($filter_group_id) {
 $group_url = $filter_group_id ? '&group=' . $filter_group_id : '';
 
 include __DIR__ . '/../includes/header_crm.php';
+require_once __DIR__ . '/_nav.php';
 ?>
 
 <nav aria-label="Ścieżka nawigacji" class="mb-2">
@@ -393,4 +394,5 @@ document.getElementById('f_type').addEventListener('change', function() {
   Pola aktywne są widoczne w formularzach i na kartach kontaktów. Ukryte zachowują wartości.
 </div>
 
+<?php require_once __DIR__ . '/_nav_end.php'; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>
