@@ -21,6 +21,7 @@ $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono umowy.'); }
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
+if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/praca/edit.php?id=' . $id);
 
 if (!empty($row['person_id'])) {
     $person_row = person_by_id((int)$row['person_id']);

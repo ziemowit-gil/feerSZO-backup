@@ -12,6 +12,7 @@ $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono umowy.'); }
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
+if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/inne/edit.php?id=' . $id);
 
 $typy_umow = ['najem' => 'Najem', 'użyczenie' => 'Użyczenie', 'darowizna' => 'Darowizna', 'partnerstwo' => 'Partnerstwo', 'NDA' => 'NDA', 'licencja' => 'Licencja', 'inne' => 'Inne'];
 

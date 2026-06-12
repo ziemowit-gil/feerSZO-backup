@@ -17,6 +17,7 @@ $method_keys = [
     'login_method_code'   => 1,
     'login_method_sms'    => 0,
     'login_method_ms365'  => 0,
+    'login_method_x509'   => 1,   // certyfikat X.509 — domyślnie włączone gdy są aktywne certy
 ];
 
 function _lm_get(string $key): bool {
@@ -250,6 +251,37 @@ include dirname(__DIR__) . '/includes/header.php';
       </div>
     </div>
 
+    <hr class="my-3">
+
+    <!-- Certyfikat X.509 -->
+    <?php $x509_certs_active = false; try { require_once dirname(__DIR__) . '/includes/x509_login.php'; $x509_certs_active = x509_any_active(); } catch (\Throwable $e) {} ?>
+    <div class="d-flex align-items-start gap-3 mb-3">
+      <div class="pt-1">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" name="login_method_x509"
+                 id="m_x509" style="width:2.5rem;height:1.3rem"
+                 <?= $methods_enabled['login_method_x509'] ? 'checked' : '' ?>>
+        </div>
+      </div>
+      <div class="flex-grow-1">
+        <label for="m_x509" class="d-flex align-items-center gap-2 mb-1" style="cursor:pointer">
+          <i class="bi bi-patch-check-fill text-secondary fs-5"></i>
+          <strong>Certyfikat X.509</strong>
+        </label>
+        <div class="small text-muted">Logowanie plikiem PKCS#12 (.p12/.pfx) wygenerowanym przez administratora. Przeznaczone dla adminów i edytorów.</div>
+        <?php if (!$x509_certs_active): ?>
+        <div class="small text-warning mt-1">
+          <i class="bi bi-exclamation-triangle me-1"></i>Brak aktywnych certyfikatów — zakładka nie pojawi się mimo włączonego ustawienia.
+          <a href="<?= APP_URL ?>/admin/x509_certs.php">Zarządzaj certyfikatami</a>
+        </div>
+        <?php else: ?>
+        <div class="small text-success mt-1">
+          <i class="bi bi-check-circle me-1"></i>Aktywne certyfikaty w systemie
+        </div>
+        <?php endif; ?>
+      </div>
+    </div>
+
     <hr class="mt-4 mb-3">
 
     <button type="submit" class="btn btn-primary">
@@ -294,6 +326,15 @@ include dirname(__DIR__) . '/includes/header.php';
     <?php else: ?>
     <span class="badge bg-light text-muted border px-3 py-2 text-decoration-line-through" id="prev-ms365" style="font-size:.82rem">
       <i class="bi bi-microsoft me-1"></i>Microsoft 365
+    </span>
+    <?php endif; ?>
+    <?php if ($methods_enabled['login_method_x509'] && $x509_certs_active): ?>
+    <span class="badge bg-secondary px-3 py-2" id="prev-x509" style="font-size:.82rem">
+      <i class="bi bi-patch-check-fill me-1"></i>Certyfikat X.509
+    </span>
+    <?php else: ?>
+    <span class="badge bg-light text-muted border px-3 py-2 text-decoration-line-through" id="prev-x509" style="font-size:.82rem">
+      <i class="bi bi-patch-check-fill me-1"></i>Certyfikat X.509
     </span>
     <?php endif; ?>
   </div>

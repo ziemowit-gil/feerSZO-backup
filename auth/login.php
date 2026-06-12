@@ -38,7 +38,7 @@ try {
 } catch (\Throwable $e) {}
 $code_available  = _login_method_enabled('login_method_code', true);
 $x509_available  = false;
-try { $x509_available = x509_any_active(); } catch (\Throwable $e) {}
+try { $x509_available = x509_any_active() && _login_method_enabled('login_method_x509', true); } catch (\Throwable $e) {}
 
 // ── State ─────────────────────────────────────────────────────────────────
 $default_tab = $ms_available ? 'ms365' : 'local';

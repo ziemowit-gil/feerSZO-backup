@@ -20,6 +20,7 @@ if (contract_is_locked($row)) {
 }
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
+if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/wolontariat/edit.php?id=' . $id);
 
 if (!empty($row['person_id'])) {
     $person_row = person_by_id((int)$row['person_id']);

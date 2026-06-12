@@ -48,6 +48,8 @@ try {
 
     unset($_SESSION['webauthn_pending_uid']);
     login_user($user);
+    // Oznacz sesję jako uwierzytelnioną kluczem sprzętowym — zwalnia admin/editor z IKA
+    $_SESSION['_webauthn_auth'] = true;
 
     // Check must_change_password
     if (function_exists('auth_must_change_password') && auth_must_change_password($user)) {

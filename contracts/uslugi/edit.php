@@ -16,6 +16,7 @@ if (contract_is_locked($row)) {
 }
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
+if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/uslugi/edit.php?id=' . $id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();

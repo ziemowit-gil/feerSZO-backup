@@ -450,6 +450,11 @@ function ika_require(string $return_url = '', int $ttl = 1800): void {
     if (!$user) return;
     $role = $user['role'] ?? '';
 
+    // Jeśli sesja uwierzytelniona kluczem WebAuthn (FIDO2) — admin/editor są zwolnieni z IKA
+    if (!empty($_SESSION['_webauthn_auth']) && in_array($role, ['admin', 'editor'], true)) {
+        return;
+    }
+
     // Weryfikacja IKA wymagana dla:
     //  - admin, editor, crm_user — dostęp do operacji krytycznych / CRM
     //  - k30_consultant (dowolna rola) — przetwarza dane osobowe w Kartach 30
