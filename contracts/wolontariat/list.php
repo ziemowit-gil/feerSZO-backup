@@ -23,18 +23,38 @@ $_cur_user    = current_user();
 $_is_my_only  = !is_admin() && !can_delete('wolontariat')
                 && org_setting('wolontariat_opiekun_only') === '1';
 
-// Filtry
+// ── Filtry podstawowe
 $search    = trim($_GET['q']        ?? '');
 $status    = $_GET['status']        ?? '';
-$opiekun   = trim($_GET['opiekun']  ?? '');
-$projekt   = trim($_GET['projekt']  ?? '');
-$wojewodztwo = trim($_GET['woj']    ?? '');
-$obszar    = trim($_GET['obszar']   ?? '');
-$typ       = trim($_GET['typ']      ?? '');
-$email_consent_only = !empty($_GET['zgoda']);
-$page      = max(1, intval($_GET['page'] ?? 1));
-$per       = 20;
 $view_mode = in_array($_GET['view'] ?? 'table', ['table','cards']) ? ($_GET['view'] ?? 'table') : 'table';
+
+// ── Filtry segmentacji (pierwotne)
+$opiekun     = trim($_GET['opiekun']  ?? '');
+$projekt     = trim($_GET['projekt']  ?? '');
+$wojewodztwo = trim($_GET['woj']      ?? '');
+$obszar      = trim($_GET['obszar']   ?? '');
+$typ         = trim($_GET['typ']      ?? '');
+$email_consent_only = !empty($_GET['zgoda']);
+
+// ── Filtry zaawansowane (nowe)
+$forma         = $_GET['forma']          ?? '';
+$data_od       = $_GET['data_od']        ?? '';
+$data_do       = $_GET['data_do']        ?? '';
+$koniec_od     = $_GET['koniec_od']      ?? '';
+$koniec_do     = $_GET['koniec_do']      ?? '';
+$ubez_nnw      = !empty($_GET['nnw']);
+$ubez_oc       = !empty($_GET['oc']);
+$niepelnoletni = !empty($_GET['niep']);
+$bezterminowa  = !empty($_GET['bezterm']);
+
+// ── Sortowanie
+$_sorts   = ['created_at' => 'created_at', 'data_zawarcia' => 'data_zawarcia',
+             'data_zakonczenia' => 'data_zakonczenia', 'imie_nazwisko' => 'imie_nazwisko'];
+$sort_col = $_sorts[$_GET['sort'] ?? ''] ?? 'created_at';
+$sort_dir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
+
+$page = max(1, intval($_GET['page'] ?? 1));
+$per  = 20;
 
 $where  = '1=1';
 $params = [];
@@ -48,46 +68,51 @@ if ($_is_my_only) {
 }
 
 if ($search) {
-    $where .= " AND (numer_umowy LIKE ? OR imie_nazwisko LIKE ? OR nr_rejestru LIKE ? OR pesel LIKE ? OR email LIKE ?)";
-    $params = array_merge($params, ["%$search%", "%$search%", "%$search%", "%$search%", "%$search%"]);
+    $where .= " AND (numer_umowy LIKE ? OR imie_nazwisko LIKE ? OR nr_rejestru LIKE ?"
+            . " OR pesel LIKE ? OR email LIKE ? OR telefon LIKE ?"
+            . " OR miejsce_wolontariatu LIKE ? OR opiekun LIKE ? OR projekt_program LIKE ?"
+            . " OR przedmiot_porozumienia LIKE ? OR uwagi LIKE ? OR addr_city LIKE ?)";
+    $params = array_merge($params, array_fill(0, 12, "%$search%"));
 }
-if ($status) {
-    $where .= " AND status = ?";
-    $params[] = $status;
-}
-if ($opiekun) {
-    $where .= " AND opiekun LIKE ?";
-    $params[] = "%$opiekun%";
-}
-if ($projekt) {
-    $where .= " AND projekt_program LIKE ?";
-    $params[] = "%$projekt%";
-}
-// Nowe filtry segmentacji
-if ($wojewodztwo) {
-    $where .= " AND wojewodztwo = ?";
-    $params[] = $wojewodztwo;
-}
-if ($typ) {
-    $where .= " AND wolontariat_typ = ?";
-    $params[] = $typ;
-}
-if ($obszar) {
-    $where .= " AND obszar_dzialania LIKE ?";
-    $params[] = '%"' . $obszar . '"%';
-}
-if ($email_consent_only) {
-    $where .= " AND email_consent = 1";
-}
+if ($status)     { $where .= " AND status = ?"; $params[] = $status; }
+if ($opiekun)    { $where .= " AND opiekun LIKE ?"; $params[] = "%$opiekun%"; }
+if ($projekt)    { $where .= " AND projekt_program LIKE ?"; $params[] = "%$projekt%"; }
+if ($wojewodztwo){ $where .= " AND wojewodztwo = ?"; $params[] = $wojewodztwo; }
+if ($typ)        { $where .= " AND wolontariat_typ = ?"; $params[] = $typ; }
+if ($obszar)     { $where .= " AND obszar_dzialania LIKE ?"; $params[] = '%"' . $obszar . '"%'; }
+if ($email_consent_only) { $where .= " AND email_consent = 1"; }
+if ($forma)      { $where .= " AND forma_podpisania = ?"; $params[] = $forma; }
+if ($data_od)    { $where .= " AND data_zawarcia >= ?"; $params[] = $data_od; }
+if ($data_do)    { $where .= " AND data_zawarcia <= ?"; $params[] = $data_do; }
+if ($koniec_od)  { $where .= " AND data_zakonczenia >= ?"; $params[] = $koniec_od; }
+if ($koniec_do)  { $where .= " AND data_zakonczenia <= ?"; $params[] = $koniec_do; }
+if ($ubez_nnw)   { $where .= " AND ubezpieczenie_nnw = 1"; }
+if ($ubez_oc)    { $where .= " AND ubezpieczenie_oc = 1"; }
+if ($niepelnoletni) { $where .= " AND niepelnoletni = 1"; }
+if ($bezterminowa)  { $where .= " AND bezterminowa = 1"; }
 
-$total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $params)['c'] ?? 0);
-$pag    = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query(array_filter([
+// Liczba aktywnych filtrów zaawansowanych (nie liczymy opiekuna i projektu – te są w "segmentacji")
+$adv_count = (int)!!$forma + (int)!!$data_od + (int)!!$data_do
+           + (int)!!$koniec_od + (int)!!$koniec_do
+           + (int)$ubez_nnw + (int)$ubez_oc + (int)$niepelnoletni + (int)$bezterminowa;
+$adv_open  = $adv_count > 0 || !empty($_GET['adv']);
+
+$_qs_base = array_filter([
     'q' => $search, 'status' => $status, 'opiekun' => $opiekun, 'projekt' => $projekt,
     'woj' => $wojewodztwo, 'obszar' => $obszar, 'typ' => $typ,
     'zgoda' => $email_consent_only ? '1' : null,
+    'forma' => $forma, 'data_od' => $data_od, 'data_do' => $data_do,
+    'koniec_od' => $koniec_od, 'koniec_do' => $koniec_do,
+    'nnw' => $ubez_nnw ? '1' : null, 'oc' => $ubez_oc ? '1' : null,
+    'niep' => $niepelnoletni ? '1' : null, 'bezterm' => $bezterminowa ? '1' : null,
+    'sort' => $sort_col !== 'created_at' ? $sort_col : null,
+    'dir'  => $sort_dir !== 'DESC' ? 'asc' : null,
     'view' => $view_mode !== 'table' ? $view_mode : null,
-])));
-$rows   = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY created_at DESC LIMIT {$per} OFFSET {$pag['offset']}", $params);
+]);
+
+$total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $params)['c'] ?? 0);
+$pag    = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query($_qs_base));
+$rows   = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY {$sort_col} {$sort_dir} LIMIT {$per} OFFSET {$pag['offset']}", $params);
 
 // Dane do filtrów select
 $woj_in_db   = db_all("SELECT DISTINCT wojewodztwo FROM {$TABLE} WHERE wojewodztwo IS NOT NULL AND wojewodztwo != '' ORDER BY wojewodztwo");
@@ -120,6 +145,7 @@ $status_cfg = [
 $opiekunowie = db_all("SELECT DISTINCT opiekun FROM {$TABLE} WHERE opiekun IS NOT NULL AND opiekun != '' ORDER BY opiekun");
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
+require_once dirname(__DIR__) . '/includes/adv_filter.php';
 ?>
 
 <style>
@@ -230,79 +256,205 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   Widzisz tylko <strong>swoje</strong> umowy wolontariatu (tryb per-opiekun). Skontaktuj się z administratorem aby zobaczyć wszystkie.
 </div>
 <?php endif; ?>
-<form method="get" class="wol-filter-bar mb-3">
-  <?php if ($status): ?><input type="hidden" name="status" value="<?= h($status) ?>"><?php endif; ?>
-  <?php if ($view_mode !== 'table'): ?><input type="hidden" name="view" value="<?= h($view_mode) ?>"><?php endif; ?>
-  <div class="row g-2 align-items-center">
-    <div class="col-md-3">
-      <div class="input-group input-group-sm">
-        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-        <input name="q" class="form-control" placeholder="Numer, nazwisko, PESEL, email…"
-               value="<?= h($search) ?>" autocomplete="off">
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body p-2">
+    <form method="get" id="filter-form">
+      <?php if ($view_mode !== 'table'): ?><input type="hidden" name="view" value="<?= h($view_mode) ?>"><?php endif; ?>
+
+      <!-- Podstawowy pasek -->
+      <div class="row g-2 align-items-center">
+        <div class="col">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+            <input name="q" class="form-control" placeholder="Numer, nazwisko, PESEL, email, telefon, miejsce, projekt, uwagi…"
+                   value="<?= h($search) ?>" autocomplete="off">
+          </div>
+        </div>
+        <?php if (!$_is_my_only): ?>
+        <div class="col-md-2">
+          <select name="opiekun" class="form-select form-select-sm">
+            <option value="">— opiekun —</option>
+            <?php foreach ($opiekunowie as $op): ?>
+            <option value="<?= h($op['opiekun']) ?>" <?= $opiekun===$op['opiekun']?'selected':'' ?>>
+              <?= h($op['opiekun']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <?php endif; ?>
+        <div class="col-auto">
+          <select name="woj" class="form-select form-select-sm">
+            <option value="">— województwo —</option>
+            <?php foreach ($woj_in_db as $w): ?>
+            <option value="<?= h($w['wojewodztwo']) ?>" <?= $wojewodztwo===$w['wojewodztwo']?'selected':'' ?>>
+              <?= h(ucfirst($w['wojewodztwo'])) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-auto">
+          <select name="typ" class="form-select form-select-sm">
+            <option value="">— typ —</option>
+            <?php foreach ($typ_in_db as $t): ?>
+            <option value="<?= h($t['wolontariat_typ']) ?>" <?= $typ===$t['wolontariat_typ']?'selected':'' ?>>
+              <?= h($_typ_labels[$t['wolontariat_typ']] ?? $t['wolontariat_typ']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i> Szukaj</button>
+        </div>
+        <div class="col-auto">
+          <a class="adv-toggle <?= $adv_open ? 'is-active' : '' ?>"
+             data-bs-toggle="collapse" href="#advPanel" role="button"
+             aria-expanded="<?= $adv_open ? 'true' : 'false' ?>">
+            <i class="bi bi-sliders"></i> Zaawansowane
+            <?php if ($adv_count): ?>
+            <span class="badge rounded-pill bg-primary ms-1" style="font-size:.7rem"><?= $adv_count ?></span>
+            <?php endif; ?>
+          </a>
+        </div>
+        <?php if ($search || $status || $opiekun || $projekt || $wojewodztwo || $typ || $obszar || $email_consent_only || $adv_count): ?>
+        <div class="col-auto">
+          <a href="?<?= $view_mode !== 'table' ? 'view='.$view_mode : '' ?>" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x"></i> Wyczyść
+          </a>
+        </div>
+        <?php endif; ?>
+        <div class="col-auto ms-auto">
+          <div class="btn-group btn-group-sm" role="group">
+            <a href="?<?= http_build_query(array_merge($_qs_base, ['view'=>'table'])) ?>"
+               class="btn btn-outline-secondary <?= $view_mode==='table'?'active':'' ?>" title="Tabela">
+              <i class="bi bi-table"></i>
+            </a>
+            <a href="?<?= http_build_query(array_merge($_qs_base, ['view'=>'cards'])) ?>"
+               class="btn btn-outline-secondary <?= $view_mode==='cards'?'active':'' ?>" title="Karty">
+              <i class="bi bi-grid-3x2-gap"></i>
+            </a>
+          </div>
+        </div>
       </div>
-    </div>
-    <?php if (!$_is_my_only): ?>
-    <div class="col-md-2">
-      <select name="opiekun" class="form-select form-select-sm">
-        <option value="">— wszyscy opiekunowie —</option>
-        <?php foreach ($opiekunowie as $op): ?>
-        <option value="<?= h($op['opiekun']) ?>" <?= $opiekun===$op['opiekun']?'selected':'' ?>>
-          <?= h($op['opiekun']) ?>
-        </option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <?php endif; ?>
-    <!-- Nowe filtry segmentacji -->
-    <div class="col-md-2">
-      <select name="woj" class="form-select form-select-sm">
-        <option value="">— województwo —</option>
-        <?php foreach ($woj_in_db as $w): ?>
-        <option value="<?= h($w['wojewodztwo']) ?>" <?= $wojewodztwo===$w['wojewodztwo']?'selected':'' ?>>
-          <?= h(ucfirst($w['wojewodztwo'])) ?>
-        </option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <div class="col-md-2">
-      <select name="typ" class="form-select form-select-sm">
-        <option value="">— typ wolontariatu —</option>
-        <?php foreach ($typ_in_db as $t): ?>
-        <option value="<?= h($t['wolontariat_typ']) ?>" <?= $typ===$t['wolontariat_typ']?'selected':'' ?>>
-          <?= h($_typ_labels[$t['wolontariat_typ']] ?? $t['wolontariat_typ']) ?>
-        </option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <div class="col-auto">
-      <div class="form-check form-check-sm mb-0 d-flex align-items-center gap-1">
-        <input type="checkbox" name="zgoda" value="1" id="f_zgoda" class="form-check-input"
-               <?= $email_consent_only ? 'checked' : '' ?>>
-        <label for="f_zgoda" class="form-check-label small" style="cursor:pointer">
-          <i class="bi bi-shield-check text-success"></i> RODO
-        </label>
+
+      <!-- Zaawansowany panel -->
+      <div class="collapse <?= $adv_open ? 'show' : '' ?>" id="advPanel">
+        <div class="adv-panel mt-2">
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="adv-label">Projekt / program</label>
+              <input name="projekt" class="form-control" placeholder="Projekt, program…" value="<?= h($projekt) ?>">
+            </div>
+            <div class="col-md-2">
+              <label class="adv-label">Forma podpisania</label>
+              <select name="forma" class="form-select">
+                <option value="">— wszystkie —</option>
+                <option value="papierowa"     <?= $forma==='papierowa'?'selected':'' ?>>Papierowa</option>
+                <option value="elektroniczna" <?= $forma==='elektroniczna'?'selected':'' ?>>Elektroniczna</option>
+                <option value="kwalifikowany" <?= $forma==='kwalifikowany'?'selected':'' ?>>Kwalifikowany e-podpis</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="adv-label">Obszar działania</label>
+              <select name="obszar" class="form-select">
+                <option value="">— wszystkie —</option>
+                <?php foreach ($_obs_labels as $ok => $ov): ?>
+                <option value="<?= h($ok) ?>" <?= $obszar===$ok?'selected':'' ?>><?= h($ov) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-3 pb-1">
+              <div class="form-check mb-0">
+                <input type="checkbox" name="zgoda" value="1" id="f_zgoda" class="form-check-input" <?= $email_consent_only?'checked':'' ?>>
+                <label for="f_zgoda" class="form-check-label" style="font-size:.82rem;cursor:pointer"><i class="bi bi-shield-check text-success"></i> RODO</label>
+              </div>
+              <div class="form-check mb-0">
+                <input type="checkbox" name="niep" value="1" id="f_niep" class="form-check-input" <?= $niepelnoletni?'checked':'' ?>>
+                <label for="f_niep" class="form-check-label" style="font-size:.82rem;cursor:pointer">Niepełnoletni</label>
+              </div>
+              <div class="form-check mb-0">
+                <input type="checkbox" name="bezterm" value="1" id="f_bezterm" class="form-check-input" <?= $bezterminowa?'checked':'' ?>>
+                <label for="f_bezterm" class="form-check-label" style="font-size:.82rem;cursor:pointer">Bezterminowa</label>
+              </div>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-3 pb-1">
+              <div class="form-check mb-0">
+                <input type="checkbox" name="nnw" value="1" id="f_nnw" class="form-check-input" <?= $ubez_nnw?'checked':'' ?>>
+                <label for="f_nnw" class="form-check-label" style="font-size:.82rem;cursor:pointer"><span class="badge bg-success-subtle text-success" style="font-size:.72rem">NNW</span></label>
+              </div>
+              <div class="form-check mb-0">
+                <input type="checkbox" name="oc" value="1" id="f_oc" class="form-check-input" <?= $ubez_oc?'checked':'' ?>>
+                <label for="f_oc" class="form-check-label" style="font-size:.82rem;cursor:pointer"><span class="badge bg-info-subtle text-info" style="font-size:.72rem">OC</span></label>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="adv-label">Data zawarcia</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">od</span>
+                <input type="date" name="data_od" class="form-control" value="<?= h($data_od) ?>">
+                <span class="input-group-text">do</span>
+                <input type="date" name="data_do" class="form-control" value="<?= h($data_do) ?>">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="adv-label">Data zakończenia</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">od</span>
+                <input type="date" name="koniec_od" class="form-control" value="<?= h($koniec_od) ?>">
+                <span class="input-group-text">do</span>
+                <input type="date" name="koniec_do" class="form-control" value="<?= h($koniec_do) ?>">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="adv-label">Sortuj według</label>
+              <div class="input-group input-group-sm">
+                <select name="sort" class="form-select">
+                  <option value="created_at"      <?= $sort_col==='created_at'?'selected':'' ?>>Data dodania</option>
+                  <option value="data_zawarcia"    <?= $sort_col==='data_zawarcia'?'selected':'' ?>>Data zawarcia</option>
+                  <option value="data_zakonczenia" <?= $sort_col==='data_zakonczenia'?'selected':'' ?>>Data zakończenia</option>
+                  <option value="imie_nazwisko"    <?= $sort_col==='imie_nazwisko'?'selected':'' ?>>Nazwisko</option>
+                </select>
+                <select name="dir" class="form-select" style="max-width:5rem">
+                  <option value="desc" <?= $sort_dir==='DESC'?'selected':'' ?>>↓</option>
+                  <option value="asc"  <?= $sort_dir==='ASC'?'selected':'' ?>>↑</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Zastosuj filtry</button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-funnel"></i> Filtruj</button>
-      <?php if ($search || $status || $opiekun || $projekt || $wojewodztwo || $typ || $obszar || $email_consent_only): ?>
-      <a href="?" class="btn btn-outline-secondary btn-sm ms-1"><i class="bi bi-x"></i> Wyczyść</a>
-      <?php endif; ?>
-    </div>
-    <div class="col-auto ms-auto">
-      <div class="btn-group btn-group-sm" role="group" aria-label="Widok">
-        <a href="?<?= http_build_query(array_filter(['q'=>$search,'status'=>$status,'opiekun'=>$opiekun,'projekt'=>$projekt,'view'=>'table'])) ?>"
-           class="btn btn-outline-secondary <?= $view_mode==='table'?'active':'' ?>" title="Widok tabeli">
-          <i class="bi bi-table"></i>
-        </a>
-        <a href="?<?= http_build_query(array_filter(['q'=>$search,'status'=>$status,'opiekun'=>$opiekun,'projekt'=>$projekt,'view'=>'cards'])) ?>"
-           class="btn btn-outline-secondary <?= $view_mode==='cards'?'active':'' ?>" title="Widok kart">
-          <i class="bi bi-grid-3x2-gap"></i>
-        </a>
-      </div>
-    </div>
+
+    </form>
   </div>
-</form>
+</div>
+
+<!-- ── Aktywne filtry zaawansowane chips ──────────────────────────────────── -->
+<?php
+$_base_url = APP_URL . "/contracts/{$TYPE}/list.php";
+$_chip_qs  = fn($without) => $_base_url . '?' . http_build_query(array_filter(array_merge($_qs_base, ['page'=>null]), fn($v,$k) => $k !== $without, ARRAY_FILTER_USE_BOTH));
+if ($adv_count):
+?>
+<div class="active-chips mb-2">
+  <?php if ($forma): ?><a href="<?= $_chip_qs('forma') ?>" class="active-chip">Forma: <?= h(['papierowa'=>'Papierowa','elektroniczna'=>'Elektroniczna','kwalifikowany'=>'Kwalifikowany'][$forma] ?? $forma) ?> <span class="chip-x">×</span></a><?php endif; ?>
+  <?php if ($ubez_nnw): ?><a href="<?= $_chip_qs('nnw') ?>" class="active-chip">Ubezp. NNW <span class="chip-x">×</span></a><?php endif; ?>
+  <?php if ($ubez_oc): ?><a href="<?= $_chip_qs('oc') ?>" class="active-chip">Ubezp. OC <span class="chip-x">×</span></a><?php endif; ?>
+  <?php if ($niepelnoletni): ?><a href="<?= $_chip_qs('niep') ?>" class="active-chip">Niepełnoletni <span class="chip-x">×</span></a><?php endif; ?>
+  <?php if ($bezterminowa): ?><a href="<?= $_chip_qs('bezterm') ?>" class="active-chip">Bezterminowa <span class="chip-x">×</span></a><?php endif; ?>
+  <?php if ($data_od || $data_do): ?>
+  <a href="<?= $_base_url . '?' . http_build_query(array_filter(array_merge($_qs_base, ['data_od'=>null,'data_do'=>null,'page'=>null]))) ?>" class="active-chip">
+    Zawarcie: <?= $data_od ?: '…' ?> – <?= $data_do ?: '…' ?> <span class="chip-x">×</span>
+  </a>
+  <?php endif; ?>
+  <?php if ($koniec_od || $koniec_do): ?>
+  <a href="<?= $_base_url . '?' . http_build_query(array_filter(array_merge($_qs_base, ['koniec_od'=>null,'koniec_do'=>null,'page'=>null]))) ?>" class="active-chip">
+    Zakończenie: <?= $koniec_od ?: '…' ?> – <?= $koniec_do ?: '…' ?> <span class="chip-x">×</span>
+  </a>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <!-- ── Wyniki ─────────────────────────────────────────────────────────────── -->
 <?php if (!$rows): ?>
@@ -311,9 +463,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <i class="bi bi-heart display-4 text-secondary opacity-25 d-block mb-3"></i>
     <h5 class="text-muted">Brak porozumień wolontariackich</h5>
     <p class="text-muted small mb-3">
-      <?= $search || $status || $opiekun || $projekt ? 'Spróbuj zmienić kryteria filtrowania.' : 'Nie dodano jeszcze żadnych porozumień.' ?>
+      <?= $search || $status || $opiekun || $projekt || $adv_count ? 'Spróbuj zmienić kryteria filtrowania.' : 'Nie dodano jeszcze żadnych porozumień.' ?>
     </p>
-    <?php if (!$search && !$status && !$opiekun && !$projekt && can_edit()): ?>
+    <?php if (!$search && !$status && !$opiekun && !$projekt && !$adv_count && can_edit()): ?>
     <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/new.php" class="btn btn-primary">
       <i class="bi bi-plus-lg me-1"></i>Dodaj pierwsze porozumienie
     </a>
@@ -469,7 +621,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="card-footer d-flex justify-content-between align-items-center py-2" style="background:#FAFAFA">
     <small class="text-muted">
       Znaleziono: <strong><?= $total ?></strong>
-      <?= $search || $status || $opiekun || $projekt ? '(filtrowanie aktywne)' : '' ?>
+      <?= $search || $status || $opiekun || $projekt || $adv_count ? '— filtrowanie aktywne' : '' ?>
     </small>
     <?php if ($pag['pages'] > 1): ?>
     <?= pagination_html($pag) ?>
