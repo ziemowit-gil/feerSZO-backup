@@ -73,6 +73,44 @@ if ($action === 'postal_city') {
     exit;
 }
 
+// ── Dane TERYT dla nazwy miejscowości (gminy level=3) ───────────────────────
+if ($action === 'city_info') {
+    $name = trim($_GET['name'] ?? '');
+    if (!$name) { echo json_encode(null); exit; }
+    $row = db_one(
+        "SELECT t3.nazwa AS gmina, t3.kod_gmi, t3.kod_pow, t3.kod_woj, t3.nazwa_typ,
+                t2.nazwa AS powiat,
+                t1.nazwa AS woj
+         FROM teryt_units t3
+         LEFT JOIN teryt_units t2 ON t2.level=2 AND t2.kod_pow=t3.kod_pow AND t2.kod_woj=t3.kod_woj
+         LEFT JOIN teryt_units t1 ON t1.level=1 AND t1.kod_woj=t3.kod_woj
+         WHERE t3.level=3 AND t3.nazwa=?
+         LIMIT 1",
+        [$name]
+    );
+    echo json_encode($row ?: null, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ── Dane TERYT dla kodu gminy (kod_gmi) ──────────────────────────────────────
+if ($action === 'teryt_info') {
+    $code = preg_replace('/\D/', '', trim($_GET['code'] ?? ''));
+    if (!$code) { echo json_encode(null); exit; }
+    $row = db_one(
+        "SELECT t3.nazwa AS gmina, t3.kod_gmi, t3.kod_pow, t3.kod_woj, t3.nazwa_typ,
+                t2.nazwa AS powiat,
+                t1.nazwa AS woj
+         FROM teryt_units t3
+         LEFT JOIN teryt_units t2 ON t2.level=2 AND t2.kod_pow=t3.kod_pow AND t2.kod_woj=t3.kod_woj
+         LEFT JOIN teryt_units t1 ON t1.level=1 AND t1.kod_woj=t3.kod_woj
+         WHERE t3.level=3 AND t3.kod_gmi=?
+         LIMIT 1",
+        [$code]
+    );
+    echo json_encode($row ?: null, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 echo json_encode(['error' => 'Nieznana akcja'], JSON_UNESCAPED_UNICODE);
 
 // ── Helper ───────────────────────────────────────────────────────────────────

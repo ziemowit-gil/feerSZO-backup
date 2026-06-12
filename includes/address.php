@@ -425,6 +425,37 @@ function fmtPostal(v) {
   return d.length > 2 ? d.slice(0,2) + '-' + d.slice(2) : d;
 }
 
+/* ─── Pomocnicze: ustaw pola TERYT w formularzu ────────────────────────── */
+function _addrSetTerytFields(d, form) {
+  if (!form || !d) return;
+  function setf(sel, val) {
+    if (!val) return;
+    var el = form.querySelector('[name="' + sel + '"]');
+    if (!el) return;
+    if (el.tagName === 'SELECT') {
+      var v = val.toLowerCase().replace(/\s+/g, '');
+      for (var i = 0; i < el.options.length; i++) {
+        var ov = el.options[i].value.toLowerCase().replace(/\s+/g, '');
+        var ot = el.options[i].text.toLowerCase().replace(/\s+/g, '');
+        if (ov === v || ot === v || ot.startsWith(v.slice(0,6))) { el.selectedIndex = i; break; }
+      }
+    } else if (!el.value) {
+      el.value = val;
+    }
+  }
+  setf('teryt_kod',    d.kod_gmi);
+  setf('gmina',        d.gmina);
+  setf('powiat',       d.powiat);
+  setf('wojewodztwo',  d.woj);
+}
+
+function _addrFillTeryt(api, city, form) {
+  fetch(api + '?action=city_info&name=' + encodeURIComponent(city))
+    .then(function(r) { return r.json(); })
+    .then(function(d) { _addrSetTerytFields(d, form); })
+    .catch(function() {});
+}
+
 /* ─── Init widget ───────────────────────────────────────────────────────── */
 function initAddrWidget(wid) {
   var w = document.getElementById(wid);
@@ -497,6 +528,9 @@ function initAddrWidget(wid) {
             return { label: name, city: name };
           }), function(it) {
             cityEl.value = it.city;
+            // Zaciągnij dane TERYT do pól formularza (teryt_kod, gmina, powiat, województwo)
+            var form = w.closest('form');
+            if (form) _addrFillTeryt(api, it.city, form);
           });
         }).catch(function() {});
     }, 250);
@@ -507,6 +541,26 @@ function initAddrWidget(wid) {
 
   if (postalEl) {
     postalEl.addEventListener('blur', function() { setTimeout(function(){ addrDropdownHide(postalEl); }, 150); });
+  }
+
+  /* ── Kod TERYT → wypełnij miasto i dane terytorialne ─────────────────── */
+  var form = w.closest('form');
+  var terytEl = form && form.querySelector('[name="teryt_kod"]');
+  if (terytEl && !terytEl._addrBound) {
+    terytEl._addrBound = true;
+    var fetchTeryt = debounce(function() {
+      var code = terytEl.value.trim().replace(/\D/g, '');
+      if (code.length < 6) return;
+      fetch(api + '?action=teryt_info&code=' + encodeURIComponent(code))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d) return;
+          if (cityEl && !cityEl.value.trim()) cityEl.value = d.gmina || '';
+          _addrSetTerytFields(d, form);
+        }).catch(function() {});
+    }, 350);
+    terytEl.addEventListener('input',  fetchTeryt);
+    terytEl.addEventListener('change', fetchTeryt);
   }
 }
 
