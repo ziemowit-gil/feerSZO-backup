@@ -110,6 +110,20 @@ try { db()->exec("CREATE TABLE IF NOT EXISTS contract_extra_docs (
     uploaded_at   DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
 )"); db()->exec("CREATE INDEX IF NOT EXISTS idx_ced_ctype_cid ON contract_extra_docs (contract_type, contract_id)"); } catch(\Throwable $e) {}
 
+// ── Dodaj dokument do kolejki wydruku ────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'queue_doc') {
+    csrf_check();
+    $allowed_doctypes = ['wolontariat_wkladka', 'wolontariat_confirm', 'wolontariat_aneks'];
+    $doctype = $_POST['doc_type'] ?? '';
+    if (in_array($doctype, $allowed_doctypes, true)) {
+        require_once dirname(dirname(__DIR__)) . '/contracts/includes/pdf_queue.php';
+        $u = current_user();
+        pdf_queue_add($doctype, $id, $row['numer_umowy'] ?? '', $row['imie_nazwisko'] ?? '', (int)$u['id']);
+        flash_set('success', 'Dodano do kolejki wydruku.');
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
 // ── Upload podpisanego pliku (ePodpis kwalifikowany) ─────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'upload_epodpis' && can_edit()) {
     csrf_check();

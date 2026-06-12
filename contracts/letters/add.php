@@ -83,6 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        if (isset($_POST['nie_mam_drukarki'])) {
+            require_once dirname(dirname(__DIR__)) . '/contracts/includes/pdf_queue.php';
+            pdf_queue_add('letter', $letter_id, $tytul, $odbiorca ?: $default_odbiorca, (int)$user['id']);
+        }
+
         flash_set('success', 'Pismo zapisane pomyślnie.');
         header('Location: ' . contract_url($type, $cid));
         exit;
@@ -222,6 +227,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                                 <input type="email" name="odbiorca_email" class="form-control" placeholder="Adres e-mail..." value="<?= h($default_email) ?>">
                                 <div class="form-text small">Dokument zostanie wysłany automatycznie po zapisaniu.</div>
                             </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki" value="1">
+                            <label class="form-check-label text-muted" for="nie_mam_drukarki">
+                                <i class="bi bi-printer"></i> Nie mam drukarki — zapisz pismo jako PDF do późniejszego wydruku
+                            </label>
                         </div>
 
                         <div class="d-flex gap-3">

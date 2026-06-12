@@ -60,6 +60,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'set_stat
     header('Location: view.php?id=' . $id); exit;
 }
 
+// Dodaj do kolejki wydruku
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'queue_print') {
+    csrf_check();
+    $qtype = in_array($_POST['queue_type'] ?? '', ['rodo_authorization', 'rodo_revocation'], true)
+        ? $_POST['queue_type'] : 'rodo_authorization';
+    $u = current_user();
+    require_once dirname(__DIR__) . '/contracts/includes/pdf_queue.php';
+    pdf_queue_add($qtype, $id, $row['number'] ?? '', $row['person_name'] ?? '', (int)$u['id']);
+    flash_set('success', 'Dodano do kolejki wydruku.');
+    header('Location: view.php?id=' . $id); exit;
+}
+
 // Oznacz podpis wolontariusza
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'vol_signed') {
     csrf_check();
@@ -168,10 +180,26 @@ include dirname(__DIR__) . '/includes/header.php';
     <a href="<?= APP_URL ?>/rodo/print.php?id=<?= $id ?>" target="_blank" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-printer me-1"></i>Upoważnienie
     </a>
+    <form method="post" class="d-inline">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_op" value="queue_print">
+      <input type="hidden" name="queue_type" value="rodo_authorization">
+      <button type="submit" class="btn btn-outline-warning btn-sm" title="Dodaj do kolejki wydruku (brak drukarki)">
+        <i class="bi bi-collection"></i>
+      </button>
+    </form>
     <?php if (in_array($row['status'], ['cofnięte','wygasłe'])): ?>
     <a href="<?= APP_URL ?>/rodo/print_revoke.php?id=<?= $id ?>" target="_blank" class="btn btn-outline-danger btn-sm">
       <i class="bi bi-file-earmark-x me-1"></i>Odwołanie
     </a>
+    <form method="post" class="d-inline">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_op" value="queue_print">
+      <input type="hidden" name="queue_type" value="rodo_revocation">
+      <button type="submit" class="btn btn-outline-warning btn-sm" title="Dodaj odwołanie do kolejki wydruku (brak drukarki)">
+        <i class="bi bi-collection"></i>
+      </button>
+    </form>
     <?php endif; ?>
     <a href="<?= APP_URL ?>/rodo/new.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-plus me-1"></i>Nowe
@@ -310,10 +338,20 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header py-2 fw-semibold text-danger d-flex align-items-center" style="font-size:.85rem">
       <span><i class="bi bi-x-circle me-1"></i>Historia odwołania upoważnienia</span>
-      <a href="<?= APP_URL ?>/rodo/print_revoke.php?id=<?= $id ?>" target="_blank"
-         class="btn btn-sm btn-outline-danger py-0 px-2 ms-auto">
-        <i class="bi bi-printer me-1"></i>Drukuj odwołanie
-      </a>
+      <div class="ms-auto d-flex gap-1">
+        <a href="<?= APP_URL ?>/rodo/print_revoke.php?id=<?= $id ?>" target="_blank"
+           class="btn btn-sm btn-outline-danger py-0 px-2">
+          <i class="bi bi-printer me-1"></i>Drukuj odwołanie
+        </a>
+        <form method="post" class="d-inline">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="queue_print">
+          <input type="hidden" name="queue_type" value="rodo_revocation">
+          <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2" title="Dodaj do kolejki wydruku (brak drukarki)">
+            <i class="bi bi-collection"></i>
+          </button>
+        </form>
+      </div>
     </div>
     <div class="card-body">
       <?php foreach ($revocs as $rv): ?>

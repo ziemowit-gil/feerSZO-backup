@@ -51,6 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $need_file ? $file_path : null,
                     $sign_type
                 );
+                if (isset($_POST['nie_mam_drukarki']) && $sign_type === 'papierowe') {
+                    $issued = get_certificate_request($req_id);
+                    require_once dirname(__DIR__) . '/contracts/includes/pdf_queue.php';
+                    pdf_queue_add('certificate', $req_id, $issued['cert_number'] ?? "#{$req_id}", $req['requester_name'], (int)$user['id']);
+                }
                 $msg = match ($sign_type) {
                     'esign'         => 'Zaświadczenie przekazane do DocuSign — wnioskodawca otrzyma e-mail po podpisaniu.',
                     'elektroniczne' => 'Zaświadczenie gotowe. Wysyłka nastąpi po Twojej decyzji.',
@@ -246,6 +251,13 @@ include dirname(__DIR__) . '/includes/header.php';
           <strong>Wysyłka wstrzymana:</strong> zaświadczenie zostanie zapisane jako "Gotowe". Wyślesz je ręcznie z listy wniosków.
         </div>
 
+        <div id="nie_drukarki_box" class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki_cert" value="1">
+          <label class="form-check-label text-muted" for="nie_mam_drukarki_cert">
+            <i class="bi bi-printer"></i> Nie mam drukarki — zapisz zaświadczenie jako PDF do późniejszego wydruku
+          </label>
+        </div>
+
         <div class="d-flex gap-2 pt-1">
           <button type="submit" class="btn btn-success">
             <i class="bi bi-check-circle"></i> Zapisz zaświadczenie
@@ -434,6 +446,7 @@ function updateHoldInfo() {
     const sign  = document.querySelector('[name="sign_type"]:checked')?.value   ?? 'papierowe';
     const hold  = document.getElementById('hold-info-file');
     const esign = document.getElementById('esign-info');
+    const noDrukBox = document.getElementById('nie_drukarki_box');
 
     // eSign info
     if (esign) esign.classList.toggle('d-none', sign !== 'esign');
@@ -441,6 +454,9 @@ function updateHoldInfo() {
     // Hold info: show when mode!=text OR sign!=papierowe (but not when esign — different message)
     const willHold = sign !== 'esign' && (mode !== 'text' || sign !== 'papierowe');
     if (hold) hold.classList.toggle('d-none', !willHold);
+
+    // "Nie mam drukarki" only makes sense for paper signature
+    if (noDrukBox) noDrukBox.classList.toggle('d-none', sign !== 'papierowe');
 }
 
 document.querySelectorAll('[name="sign_type"]').forEach(r => r.addEventListener('change', updateHoldInfo));

@@ -140,10 +140,14 @@ $_cvh_accent = match($_cvh_st['class']) {
         </button>
         <ul class="dropdown-menu dropdown-menu-end" style="min-width:230px">
           <li><h6 class="dropdown-header"><i class="bi bi-folder2-open me-1"></i>Karta do segregatora</h6></li>
-          <li>
-            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=wkladka&preview=1" target="_blank">
+          <li class="d-flex align-items-center px-2 gap-1">
+            <a class="dropdown-item flex-grow-1" href="<?= $_cvh_burl ?>&typ=wkladka&preview=1" target="_blank">
               <i class="bi bi-printer me-2 text-danger"></i>Drukuj / PDF
             </a>
+            <form method="post" class="flex-shrink-0">
+              <?= csrf_field() ?><input type="hidden" name="_action" value="queue_doc"><input type="hidden" name="doc_type" value="wolontariat_wkladka">
+              <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-1 border-0" title="Nie mam drukarki — dodaj do kolejki"><i class="bi bi-collection" style="font-size:.8rem"></i></button>
+            </form>
           </li>
           <?php if (class_exists('ZipArchive')): ?>
           <li>
@@ -154,10 +158,14 @@ $_cvh_accent = match($_cvh_st['class']) {
           <?php endif; ?>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header"><i class="bi bi-person-check me-1"></i>Potwierdzenie dla wolontariusza</h6></li>
-          <li>
-            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=wolontariusz&preview=1" target="_blank">
+          <li class="d-flex align-items-center px-2 gap-1">
+            <a class="dropdown-item flex-grow-1" href="<?= $_cvh_burl ?>&typ=wolontariusz&preview=1" target="_blank">
               <i class="bi bi-printer me-2 text-danger"></i>Drukuj / PDF
             </a>
+            <form method="post" class="flex-shrink-0">
+              <?= csrf_field() ?><input type="hidden" name="_action" value="queue_doc"><input type="hidden" name="doc_type" value="wolontariat_confirm">
+              <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-1 border-0" title="Nie mam drukarki — dodaj do kolejki"><i class="bi bi-collection" style="font-size:.8rem"></i></button>
+            </form>
           </li>
           <?php if (class_exists('ZipArchive')): ?>
           <li>
@@ -168,10 +176,14 @@ $_cvh_accent = match($_cvh_st['class']) {
           <?php endif; ?>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header"><i class="bi bi-arrow-repeat me-1"></i>Aneks</h6></li>
-          <li>
-            <a class="dropdown-item" href="<?= APP_URL ?>/contracts/wolontariat/aneks.php?id=<?= $_cvh_wid ?>&format=pdf&preview=1" target="_blank">
+          <li class="d-flex align-items-center px-2 gap-1">
+            <a class="dropdown-item flex-grow-1" href="<?= APP_URL ?>/contracts/wolontariat/aneks.php?id=<?= $_cvh_wid ?>&format=pdf&preview=1" target="_blank">
               <i class="bi bi-printer me-2 text-danger"></i>Drukuj / PDF
             </a>
+            <form method="post" class="flex-shrink-0">
+              <?= csrf_field() ?><input type="hidden" name="_action" value="queue_doc"><input type="hidden" name="doc_type" value="wolontariat_aneks">
+              <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-1 border-0" title="Nie mam drukarki — dodaj do kolejki"><i class="bi bi-collection" style="font-size:.8rem"></i></button>
+            </form>
           </li>
           <?php if (class_exists('ZipArchive')): ?>
           <li>

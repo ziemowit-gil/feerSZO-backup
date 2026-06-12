@@ -103,6 +103,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_by'      => $uid,
         ]);
 
+        if (isset($_POST['nie_mam_drukarki'])) {
+            require_once dirname(__DIR__) . '/contracts/includes/pdf_queue.php';
+            pdf_queue_add('rodo_authorization', $id, $number, $person_name, $uid);
+        }
         flash_set('success', "Upoważnienie {$number} zostało zarejestrowane. Wydrukuj dokument i odbierz podpisy.");
         // Powróć do widoku umowy jeśli przyszło z edit.php
         if ($_from_edit && $contract_id && $contract_type === 'wolontariat') {
@@ -331,6 +335,12 @@ $_d = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : array_merge([
   <!-- Zapisz -->
   <div class="card border-0 shadow-sm">
     <div class="card-body d-grid gap-2">
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki_rodo" value="1">
+        <label class="form-check-label text-muted" for="nie_mam_drukarki_rodo">
+          <i class="bi bi-printer"></i> Nie mam drukarki — zapisz upoważnienie jako PDF do późniejszego wydruku
+        </label>
+      </div>
       <button type="submit" class="btn btn-primary">
         <i class="bi bi-check-lg me-1"></i>Zarejestruj upoważnienie
       </button>

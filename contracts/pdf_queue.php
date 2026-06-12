@@ -42,13 +42,20 @@ $items->execute([$uid]);
 $items = $items->fetchAll();
 
 $type_labels = [
-    'wolontariat'    => 'Porozumienie wolontariackie',
-    'zlecenie'       => 'Umowa zlecenie',
-    'dzielo'         => 'Umowa o dzieło',
-    'uslugi'         => 'Umowa o usługi',
-    'praca'          => 'Umowa o pracę',
-    'inne'           => 'Inna umowa',
-    'migracja_webngo'=> 'Migracja webNGO',
+    'wolontariat'        => 'Porozumienie wolontariackie',
+    'zlecenie'           => 'Umowa zlecenie',
+    'dzielo'             => 'Umowa o dzieło',
+    'uslugi'             => 'Umowa o usługi',
+    'praca'              => 'Umowa o pracę',
+    'inne'               => 'Inna umowa',
+    'migracja_webngo'    => 'Migracja webNGO',
+    'rodo_authorization'  => 'Upoważnienie RODO',
+    'rodo_revocation'     => 'Odwołanie upoważnienia RODO',
+    'certificate'         => 'Zaświadczenie',
+    'letter'              => 'Pismo/korespondencja',
+    'wolontariat_wkladka' => 'Karta do segregatora (wolontariat)',
+    'wolontariat_confirm' => 'Potwierdzenie dla wolontariusza',
+    'wolontariat_aneks'   => 'Aneks do porozumienia wolontariackiego',
 ];
 
 include dirname(__DIR__) . '/includes/header.php';
@@ -101,10 +108,25 @@ include dirname(__DIR__) . '/includes/header.php';
   <tbody>
   <?php foreach ($items as $it):
     $type_label = $type_labels[$it['contract_type']] ?? $it['contract_type'];
+    $cid_safe = (int)$it['contract_id'];
     if ($it['contract_type'] === 'migracja_webngo') {
-        $print_url = APP_URL . '/contracts/migracja_webngo/print.php?id=' . (int)$it['contract_id'];
+        $print_url = APP_URL . '/contracts/migracja_webngo/print.php?id=' . $cid_safe;
+    } elseif ($it['contract_type'] === 'rodo_authorization') {
+        $print_url = APP_URL . '/rodo/print.php?id=' . $cid_safe;
+    } elseif ($it['contract_type'] === 'rodo_revocation') {
+        $print_url = APP_URL . '/rodo/print_revoke.php?id=' . $cid_safe;
+    } elseif ($it['contract_type'] === 'certificate') {
+        $print_url = APP_URL . '/certificates/print.php?id=' . $cid_safe;
+    } elseif ($it['contract_type'] === 'letter') {
+        $print_url = APP_URL . '/contracts/letters/view.php?id=' . $cid_safe;
+    } elseif ($it['contract_type'] === 'wolontariat_wkladka') {
+        $print_url = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $cid_safe . '&typ=wkladka&preview=1';
+    } elseif ($it['contract_type'] === 'wolontariat_confirm') {
+        $print_url = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $cid_safe . '&typ=wolontariusz&preview=1';
+    } elseif ($it['contract_type'] === 'wolontariat_aneks') {
+        $print_url = APP_URL . '/contracts/wolontariat/aneks.php?id=' . $cid_safe . '&format=pdf&preview=1';
     } else {
-        $print_url = APP_URL . '/contracts/print.php?type=' . urlencode($it['contract_type']) . '&id=' . (int)$it['contract_id'];
+        $print_url = APP_URL . '/contracts/print.php?type=' . urlencode($it['contract_type']) . '&id=' . $cid_safe;
     }
   ?>
   <tr>
