@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/grants.php';
+require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
@@ -30,7 +31,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'data_urodzenia'       => $_POST['data_urodzenia']         ?? '',
         'email'                => trim($_POST['email']             ?? ''),
         'telefon'              => trim($_POST['telefon']           ?? ''),
-        'adres'                => trim($_POST['adres']             ?? ''),
+        // Adres strukturalny (addr_*) — legacy 'adres' budowany poniżej
+        'addr_street'          => trim($_POST['addr_street']       ?? ''),
+        'addr_house'           => trim($_POST['addr_house']        ?? ''),
+        'addr_flat'            => trim($_POST['addr_flat']         ?? ''),
+        'addr_postal'          => trim($_POST['addr_postal']       ?? ''),
+        'addr_city'            => trim($_POST['addr_city']         ?? ''),
+        'addr_country'         => trim($_POST['addr_country']      ?? 'PL'),
+        'adres'                => '', // wypełniane poniżej z pól strukturalnych
         'niepelnoletni'        => isset($_POST['niepelnoletni'])   ? 1 : 0,
         'data_zawarcia'        => $_POST['data_zawarcia']          ?? '',
         'data_rozpoczecia'     => $_POST['data_rozpoczecia']       ?? '',
@@ -49,6 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'created_at'           => date('Y-m-d H:i:s'),
         'updated_at'           => date('Y-m-d H:i:s'),
     ];
+
+    // Zbuduj legacy `adres` z pól strukturalnych (dla wstecznej kompatybilności)
+    $d['adres'] = address_format($d);
 
     // Puste daty → NULL (SQLite nie lubi pustych stringów w kolumnach DATE)
     foreach (['data_urodzenia','data_zawarcia','data_rozpoczecia','data_zakonczenia'] as $df) {
@@ -309,10 +320,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
              value="<?= h($prefill['data_urodzenia'] ?? '') ?>">
     </div>
     <div class="col-12">
-      <label class="form-label fw-semibold">Adres zamieszkania</label>
-      <input name="adres" id="wz_adres" class="form-control"
-             value="<?= h($prefill['adres'] ?? '') ?>"
-             placeholder="ul. Przykładowa 1, 00-001 Warszawa">
+      <label class="form-label fw-semibold mb-2">Adres zamieszkania</label>
+      <?php
+        // Na błędach walidacji użyj danych z POST; przy pierwszym GET - z prefill
+        $wz_addr_row = $errors ? $_POST : $prefill;
+        echo address_widget($wz_addr_row, [
+            'autocomplete' => true,
+            'label'        => '',      // etykieta już powyżej
+            'show_legacy'  => true,
+        ]);
+      ?>
+      <!-- Hidden adres (legacy) — synchronizowany przez JS z pól strukturalnych -->
+      <input type="hidden" name="adres" id="wz_adres_hidden">
     </div>
     <div class="col-12">
       <div class="form-check form-switch">
@@ -747,7 +766,17 @@ function fillReview() {
   document.getElementById('rv-dob').textContent     = fv('data_urodzenia');
   document.getElementById('rv-email').textContent   = fv('email');
   document.getElementById('rv-telefon').textContent = fv('telefon') !== '—' ? '+48 ' + fv('telefon') : '—';
-  document.getElementById('rv-adres').textContent   = fv('adres');
+  // Adres — buduj z pól strukturalnych (addr_*)
+  (function() {
+    var st = (document.querySelector('[name="addr_street"]')  || {}).value || '';
+    var ho = (document.querySelector('[name="addr_house"]')   || {}).value || '';
+    var fl = (document.querySelector('[name="addr_flat"]')    || {}).value || '';
+    var po = (document.querySelector('[name="addr_postal"]')  || {}).value || '';
+    var ci = (document.querySelector('[name="addr_city"]')    || {}).value || '';
+    var l1 = [st, ho + (fl ? '/' + fl : '')].filter(Boolean).join(' ');
+    var l2 = [po, ci].filter(Boolean).join(' ');
+    document.getElementById('rv-adres').textContent = [l1, l2].filter(Boolean).join(', ') || '—';
+  })();
   document.getElementById('rv-numer').textContent   = fv('numer_umowy');
   document.getElementById('rv-opiekun').textContent = fv('opiekun');
   document.getElementById('rv-zawarcia').textContent= fv('data_zawarcia');
@@ -807,7 +836,12 @@ var WZ_STEP_FIELDS = {
     {name:'pesel',         label:'PESEL'},
     {name:'data_urodzenia',label:'Data urodzenia'},
     {name:'telefon',       label:'Telefon'},
-    {name:'adres',         label:'Adres'},
+    {name:'adres', label:'Adres', customCheck: function() {
+      var city   = document.querySelector('[name="addr_city"]');
+      var postal = document.querySelector('[name="addr_postal"]');
+      return !!(city   && city.value.trim()) ||
+             !!(postal && postal.value.trim());
+    }},
   ],
   2: [
     {name:'numer_umowy',            label:'Numer umowy'},
@@ -951,6 +985,29 @@ function wzCheckStep(step) {
     origGoStep(n);
     if (n === 3 && sel.options.length <= 1) loadGroups();
   };
+})();
+
+// ── Sync hidden adres + podgląd po zmianie pól adresowych ────────────────────
+(function() {
+  function buildAdres() {
+    var st = (document.querySelector('[name="addr_street"]')  || {}).value || '';
+    var ho = (document.querySelector('[name="addr_house"]')   || {}).value || '';
+    var fl = (document.querySelector('[name="addr_flat"]')    || {}).value || '';
+    var po = (document.querySelector('[name="addr_postal"]')  || {}).value || '';
+    var ci = (document.querySelector('[name="addr_city"]')    || {}).value || '';
+    var l1 = [st, ho + (fl ? '/' + fl : '')].filter(Boolean).join(' ');
+    var l2 = [po, ci].filter(Boolean).join(' ');
+    var built = [l1, l2].filter(Boolean).join(', ');
+    var h = document.getElementById('wz_adres_hidden');
+    if (h) h.value = built;
+    var rv = document.getElementById('rv-adres');
+    if (rv) rv.textContent = built || '—';
+  }
+  document.querySelectorAll('[name^="addr_"]').forEach(function(el) {
+    el.addEventListener('input',  buildAdres);
+    el.addEventListener('change', buildAdres);
+  });
+  buildAdres(); // inicjalizacja przy ładowaniu
 })();
 
 // ── Submit — sprawdź wszystkie kroki ─────────────────────────────────────────

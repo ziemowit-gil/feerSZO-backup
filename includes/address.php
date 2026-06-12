@@ -5,10 +5,15 @@
  * Adds addr_street / addr_house / addr_flat / addr_postal / addr_city / addr_country
  * columns to all contract tables + shipments (idempotent, try/catch per column).
  *
+ * Also manages the postal_codes table (import via admin/postal_import.php).
+ *
  * Usage in edit.php:
  *   require_once '.../includes/address.php';
  *   // In $allowed array: array_merge($allowed, address_fields())
  *   // In HTML:           echo address_widget($row);
+ *
+ * Usage with TERYT/postal autocomplete:
+ *   echo address_widget($row, ['autocomplete' => true]);
  *
  * Usage in view.php / list:
  *   echo address_format($row);          // "ul. Kwiatowa 5/12, 00-001 Warszawa"
@@ -51,6 +56,19 @@ function address_migrate(): void {
             }
         }
     }
+
+    // ── Tabela kodów pocztowych (słownik poczty) ─────────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS postal_codes (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        code    TEXT NOT NULL,
+        city    TEXT NOT NULL,
+        gmina   TEXT NOT NULL DEFAULT '',
+        powiat  TEXT NOT NULL DEFAULT '',
+        woj     TEXT NOT NULL DEFAULT '',
+        UNIQUE(code, city)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_postal_code ON postal_codes(code)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_postal_city ON postal_codes(city)");
 }
 
 // ── Field list ───────────────────────────────────────────────────────────────
@@ -166,12 +184,14 @@ function address_format(array $row, bool $html = false): string {
  *
  * @param  array  $row   DB row (or POST-merged data)
  * @param  array  $opts  Options:
- *                         'label'       => string  Section label (default: 'Adres zamieszkania')
- *                         'required'    => bool    Show asterisk on street (default: false)
- *                         'size'        => 'sm'|'' Input size suffix (default: '')
- *                         'show_legacy' => bool    Show read-only legacy field if no structured data (default: true)
- *                         'copy_button' => bool    Show "Kopiuj adres" clipboard button (default: false)
- *                         'widget_id'   => string  HTML id prefix for the widget div (default: auto)
+ *   'label'        => string   Section label (default: 'Adres zamieszkania')
+ *   'required'     => bool     Show asterisk on street (default: false)
+ *   'size'         => 'sm'|'' Input size suffix (default: '')
+ *   'show_legacy'  => bool     Show read-only legacy field if no structured data (default: true)
+ *   'copy_button'  => bool     Show "Kopiuj adres" clipboard button (default: false)
+ *   'widget_id'    => string   HTML id prefix for the widget div (default: auto)
+ *   'autocomplete' => bool     Enable TERYT/postal autocomplete (default: false)
+ *   'api_url'      => string   Base URL for addr API (default: APP_URL + /crm/api/addr.php)
  * @return string  HTML
  */
 function address_widget(array $row, array $opts = []): string {
@@ -186,6 +206,8 @@ function address_widget(array $row, array $opts = []): string {
     $sz_sel       = !empty($opts['size']) ? ' form-select-'  . $opts['size'] : '';
     $show_legacy  = $opts['show_legacy']  ?? true;
     $copy_button  = $opts['copy_button']  ?? false;
+    $autocomplete = $opts['autocomplete'] ?? false;
+    $api_url      = $opts['api_url']      ?? (defined('APP_URL') ? APP_URL . '/crm/api/addr.php' : '/crm/api/addr.php');
     $wid          = $opts['widget_id']    ?? ('addrWidget' . $_addr_widget_counter);
 
     $a = address_from_row($row);
@@ -221,9 +243,11 @@ function address_widget(array $row, array $opts = []): string {
     $postal_val  = h($a['postal']);
     $city_val    = h($a['city']);
 
+    $ac_attr = $autocomplete ? ' data-addr-ac="1" data-api-url="' . h($api_url) . '"' : '';
+
     ob_start();
 ?>
-<div class="addr-widget" id="<?= h($wid) ?>">
+<div class="addr-widget" id="<?= h($wid) ?>"<?= $ac_attr ?>>
   <?php if ($show_hint): ?>
   <div class="alert alert-info py-2 px-3 mb-2 small d-flex align-items-start gap-2">
     <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
@@ -234,36 +258,49 @@ function address_widget(array $row, array $opts = []): string {
   </div>
   <?php endif; ?>
   <div class="row g-2">
-    <div class="col-6 col-sm-7 fgroup">
+    <div class="col-6 col-sm-7 fgroup" style="position:relative">
       <label class="form-label mb-1 small fw-semibold">Ulica<?= $req_mark ?></label>
-      <input name="addr_street" class="form-control<?= $sz ?>"
+      <input name="addr_street" class="form-control<?= $sz ?> addr-street"
              placeholder="ul. Kwiatowa" value="<?= $street_val ?>"
-             <?= $required ? 'required' : '' ?>>
+             <?= $required ? 'required' : '' ?> autocomplete="address-line1">
     </div>
     <div class="col-3 fgroup">
       <label class="form-label mb-1 small fw-semibold">Nr domu</label>
-      <input name="addr_house" class="form-control<?= $sz ?>"
-             placeholder="5" value="<?= $house_val ?>" maxlength="10">
+      <input name="addr_house" class="form-control<?= $sz ?> addr-house"
+             placeholder="5" value="<?= $house_val ?>" maxlength="10" autocomplete="off">
     </div>
     <div class="col-3 fgroup">
       <label class="form-label mb-1 small fw-semibold">Nr lok.</label>
-      <input name="addr_flat" class="form-control<?= $sz ?>"
-             placeholder="12" value="<?= $flat_val ?>" maxlength="10">
+      <input name="addr_flat" class="form-control<?= $sz ?> addr-flat"
+             placeholder="12" value="<?= $flat_val ?>" maxlength="10" autocomplete="off">
     </div>
-    <div class="col-4 col-sm-3 fgroup">
-      <label class="form-label mb-1 small fw-semibold">Kod pocztowy</label>
-      <input name="addr_postal" class="form-control<?= $sz ?> font-monospace"
+    <div class="col-4 col-sm-3 fgroup" style="position:relative">
+      <label class="form-label mb-1 small fw-semibold">
+        Kod pocztowy
+        <?php if ($autocomplete): ?>
+        <span class="addr-postal-spinner text-muted ms-1" style="display:none;font-size:.7rem">
+          <i class="bi bi-arrow-repeat"></i>
+        </span>
+        <?php endif; ?>
+      </label>
+      <input name="addr_postal" class="form-control<?= $sz ?> font-monospace addr-postal"
              placeholder="00-001" value="<?= $postal_val ?>" maxlength="10"
-             pattern="\d{2}-\d{3}" title="Format: XX-XXX">
+             pattern="\d{2}-\d{3}" title="Format: XX-XXX" autocomplete="postal-code">
     </div>
-    <div class="col-8 col-sm-5 fgroup">
-      <label class="form-label mb-1 small fw-semibold">Miasto</label>
-      <input name="addr_city" class="form-control<?= $sz ?>"
-             placeholder="Warszawa" value="<?= $city_val ?>">
+    <div class="col-8 col-sm-5 fgroup" style="position:relative">
+      <label class="form-label mb-1 small fw-semibold">Miasto
+        <?php if ($autocomplete): ?>
+        <span class="addr-city-spinner text-muted ms-1" style="display:none;font-size:.7rem">
+          <i class="bi bi-arrow-repeat"></i>
+        </span>
+        <?php endif; ?>
+      </label>
+      <input name="addr_city" class="form-control<?= $sz ?> addr-city"
+             placeholder="Warszawa" value="<?= $city_val ?>" autocomplete="address-level2">
     </div>
     <div class="col-12 col-sm-4 fgroup">
       <label class="form-label mb-1 small fw-semibold">Kraj</label>
-      <select name="addr_country" class="form-select<?= $sz_sel ?>">
+      <select name="addr_country" class="form-select<?= $sz_sel ?> addr-country">
         <?= $country_opts ?>
       </select>
     </div>
@@ -281,41 +318,220 @@ function address_widget(array $row, array $opts = []): string {
     <?php endif; ?>
   </div>
 </div>
-<?php if ($copy_button): ?>
+<?php
+    $html_out = ob_get_clean();
+
+    // ── JS (emitowane tylko raz dla copy_button) ─────────────────────────────
+    static $copy_js_done = false;
+    if ($copy_button && !$copy_js_done) {
+        $copy_js_done = true;
+        $html_out .= <<<'JS'
 <script>
 if (typeof _addrWidgetCopy === 'undefined') {
   function _addrWidgetCopy(widId, btn) {
-    var w      = document.getElementById(widId);
-    if (!w) return;
-    var street = (w.querySelector('[name="addr_street"]') || {}).value || '';
-    var house  = (w.querySelector('[name="addr_house"]')  || {}).value || '';
-    var flat   = (w.querySelector('[name="addr_flat"]')   || {}).value || '';
-    var postal = (w.querySelector('[name="addr_postal"]') || {}).value || '';
-    var city   = (w.querySelector('[name="addr_city"]')   || {}).value || '';
-    var country= (w.querySelector('[name="addr_country"]')|| {}).value || '';
-    var line1  = [street, house + (flat ? '/' + flat : '')].filter(Boolean).join(' ');
+    var w = document.getElementById(widId); if (!w) return;
+    var street = (w.querySelector('[name="addr_street"]')||{}).value||'';
+    var house  = (w.querySelector('[name="addr_house"]') ||{}).value||'';
+    var flat   = (w.querySelector('[name="addr_flat"]')  ||{}).value||'';
+    var postal = (w.querySelector('[name="addr_postal"]')||{}).value||'';
+    var city   = (w.querySelector('[name="addr_city"]')  ||{}).value||'';
+    var country= (w.querySelector('[name="addr_country"]')||{}).value||'';
+    var line1  = [street, house+(flat?'/'+flat:'')].filter(Boolean).join(' ');
     var line2  = [postal, city].filter(Boolean).join(' ');
-    var line3  = (country && country !== 'PL') ? country : '';
+    var line3  = (country && country!=='PL') ? country : '';
     var text   = [line1, line2, line3].filter(Boolean).join(', ');
-    if (!text.trim()) { return; }
-    navigator.clipboard.writeText(text).then(function () {
-      var ok = document.getElementById(widId + '_copied');
-      if (ok) {
-        ok.classList.remove('d-none');
-        setTimeout(function () { ok.classList.add('d-none'); }, 2000);
-      }
-    }).catch(function () {
-      // Fallback dla starych przeglądarek
-      var ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
+    if (!text.trim()) return;
+    navigator.clipboard.writeText(text).then(function() {
+      var ok = document.getElementById(widId+'_copied');
+      if (ok) { ok.classList.remove('d-none'); setTimeout(function(){ ok.classList.add('d-none'); }, 2000); }
+    }).catch(function() {
+      var ta=document.createElement('textarea'); ta.value=text;
+      ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
       try { document.execCommand('copy'); } catch(e) {}
       document.body.removeChild(ta);
     });
   }
 }
 </script>
-<?php endif; ?>
-<?php
-    return ob_get_clean();
+JS;
+    }
+
+    // ── Autocomplete JS (emitowane tylko raz) ────────────────────────────────
+    static $ac_js_done = false;
+    if ($autocomplete && !$ac_js_done) {
+        $ac_js_done = true;
+        $html_out .= <<<'JS'
+<script>
+(function() {
+'use strict';
+
+/* ─── Dropdown helper ───────────────────────────────────────────────────── */
+function addrDropdown(inp, items, onSelect) {
+  var old = document.getElementById('_addr_dd_' + inp.id);
+  if (old) old.remove();
+  if (!items.length) return;
+
+  var dd = document.createElement('div');
+  dd.id  = '_addr_dd_' + inp.id;
+  dd.style.cssText = [
+    'position:absolute','z-index:1060','background:#fff',
+    'border:1px solid #dee2e6','border-radius:.5rem',
+    'box-shadow:0 4px 16px rgba(0,0,0,.12)',
+    'min-width:' + inp.offsetWidth + 'px',
+    'max-height:220px','overflow-y:auto','font-size:.83rem',
+    'top:' + (inp.offsetTop + inp.offsetHeight + 2) + 'px',
+    'left:' + inp.offsetLeft + 'px',
+  ].join(';');
+
+  items.forEach(function(it) {
+    var d = document.createElement('div');
+    d.style.cssText = 'padding:.38rem .75rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    d.textContent   = it.label || it;
+    d.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      onSelect(it);
+      dd.remove();
+    });
+    d.addEventListener('mouseover',  function() { d.style.background = '#f0f4ff'; });
+    d.addEventListener('mouseout',   function() { d.style.background = ''; });
+    dd.appendChild(d);
+  });
+
+  inp.parentElement.style.position = 'relative';
+  inp.parentElement.appendChild(dd);
+
+  function closeOnOutside(e) {
+    if (!dd.contains(e.target) && e.target !== inp) {
+      dd.remove(); document.removeEventListener('mousedown', closeOnOutside);
+    }
+  }
+  document.addEventListener('mousedown', closeOnOutside);
+}
+
+function addrDropdownHide(inp) {
+  var old = document.getElementById('_addr_dd_' + inp.id);
+  if (old) old.remove();
+}
+
+/* ─── Debounce ──────────────────────────────────────────────────────────── */
+function debounce(fn, ms) {
+  var t; return function() { var a=arguments, ctx=this; clearTimeout(t); t=setTimeout(function(){ fn.apply(ctx,a); }, ms); };
+}
+
+/* ─── Format postal XX-XXX ─────────────────────────────────────────────── */
+function fmtPostal(v) {
+  var d = v.replace(/\D/g, '').slice(0, 5);
+  return d.length > 2 ? d.slice(0,2) + '-' + d.slice(2) : d;
+}
+
+/* ─── Init widget ───────────────────────────────────────────────────────── */
+function initAddrWidget(wid) {
+  var w = document.getElementById(wid);
+  if (!w) return;
+  var api     = w.dataset.apiUrl || '/crm/api/addr.php';
+  var postalEl = w.querySelector('.addr-postal');
+  var cityEl   = w.querySelector('.addr-city');
+  if (!postalEl && !cityEl) return;
+
+  /* ── Kod pocztowy ─────────────────────────────────────────────────────── */
+  if (postalEl) {
+    // Auto-format XX-XXX podczas wpisywania
+    postalEl.addEventListener('input', function() {
+      var raw = this.value;
+      var fmt = fmtPostal(raw);
+      if (fmt !== raw) { var p = this.selectionStart; this.value = fmt; try { this.setSelectionRange(p,p); } catch(e){} }
+    });
+
+    var fetchPostal = debounce(function() {
+      var q = postalEl.value.trim();
+      if (q.length < 2) { addrDropdownHide(postalEl); return; }
+      fetch(api + '?action=postal&q=' + encodeURIComponent(q))
+        .then(function(r) { return r.json(); })
+        .then(function(rows) {
+          if (!rows.length) { addrDropdownHide(postalEl); return; }
+          addrDropdown(postalEl, rows.map(function(r) {
+            return { label: r.code + ' — ' + r.city, code: r.code, city: r.city };
+          }), function(it) {
+            postalEl.value = it.code;
+            if (cityEl && !cityEl.value.trim()) cityEl.value = it.city;
+            postalEl.dispatchEvent(new Event('change'));
+          });
+        }).catch(function() {});
+    }, 250);
+
+    postalEl.addEventListener('input', fetchPostal);
+
+    // Po wpisaniu pełnego kodu XX-XXX → zapytaj o miasto
+    postalEl.addEventListener('change', function() {
+      var code = this.value.trim();
+      if (!/^\d{2}-\d{3}$/.test(code)) return;
+      if (cityEl && cityEl.value.trim()) return; // miasto już wypełnione
+      fetch(api + '?action=postal_city&code=' + encodeURIComponent(code))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.cities && data.cities.length === 1 && cityEl && !cityEl.value.trim()) {
+            cityEl.value = data.cities[0];
+          } else if (data.cities && data.cities.length > 1 && cityEl && !cityEl.value.trim()) {
+            // Pokaż dropdown z możliwymi miastami
+            addrDropdown(cityEl, data.cities.map(function(c) {
+              return { label: c, city: c };
+            }), function(it) {
+              if (cityEl) cityEl.value = it.city;
+            });
+          }
+        }).catch(function() {});
+    });
+  }
+
+  /* ── Miasto — autocomplete z TERYT ───────────────────────────────────── */
+  if (cityEl) {
+    var fetchCity = debounce(function() {
+      var q = cityEl.value.trim();
+      if (q.length < 2) { addrDropdownHide(cityEl); return; }
+      fetch(api + '?action=city&q=' + encodeURIComponent(q))
+        .then(function(r) { return r.json(); })
+        .then(function(rows) {
+          if (!rows.length) { addrDropdownHide(cityEl); return; }
+          addrDropdown(cityEl, rows.map(function(name) {
+            return { label: name, city: name };
+          }), function(it) {
+            cityEl.value = it.city;
+          });
+        }).catch(function() {});
+    }, 250);
+
+    cityEl.addEventListener('input', fetchCity);
+    cityEl.addEventListener('blur',  function() { setTimeout(function(){ addrDropdownHide(cityEl); }, 150); });
+  }
+
+  if (postalEl) {
+    postalEl.addEventListener('blur', function() { setTimeout(function(){ addrDropdownHide(postalEl); }, 150); });
+  }
+}
+
+/* ─── Auto-init wszystkich widgetów ─────────────────────────────────────── */
+function initAllAddrWidgets() {
+  document.querySelectorAll('.addr-widget[data-addr-ac]').forEach(function(w) {
+    if (!w.dataset.addrAcInit) {
+      w.dataset.addrAcInit = '1';
+      initAddrWidget(w.id);
+    }
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAllAddrWidgets);
+} else {
+  initAllAddrWidgets();
+}
+
+/* Eksportuj globalnie żeby można było wywołać ręcznie po AJAX */
+window.AddrWidget = { init: initAddrWidget, initAll: initAllAddrWidgets };
+
+})();
+</script>
+JS;
+    }
+
+    return $html_out;
 }

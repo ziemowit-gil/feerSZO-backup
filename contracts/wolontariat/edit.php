@@ -535,7 +535,7 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 
     <div class="col-12 fgroup">
       <label class="form-label fw-semibold mb-1"><i class="bi bi-house me-1 text-secondary"></i>Adres zamieszkania</label>
-      <?= address_widget($row, ['label' => 'Adres zamieszkania']) ?>
+      <?= address_widget($row, ['label' => 'Adres zamieszkania', 'autocomplete' => true]) ?>
     </div>
     <div class="col-md-4 fgroup">
       <label>Telefon</label>

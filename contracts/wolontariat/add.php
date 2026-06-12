@@ -1340,7 +1340,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <!-- Adres -->
         <div class="col-12">
           <label class="form-label fw-semibold"><i class="bi bi-house me-1 text-secondary"></i>Adres zamieszkania</label>
-          <?= address_widget($row, ['copy_button' => true, 'widget_id' => 'mainAddrWidget']) ?>
+          <?= address_widget($row, ['copy_button' => true, 'widget_id' => 'mainAddrWidget', 'autocomplete' => true]) ?>
         </div>
 
         <div class="col-sm-4">
