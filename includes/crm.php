@@ -527,6 +527,9 @@ function crm_migrate(): void {
     )");
     // Dodaj group_id do starych tabel (idempotentne)
     try { $pdo->exec("ALTER TABLE crm_contact_field_defs ADD COLUMN group_id INTEGER REFERENCES crm_field_groups(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
+    // Uprawnienia per-pole: lista ról (JSON), puste = wszyscy
+    try { $pdo->exec("ALTER TABLE crm_contact_field_defs ADD COLUMN visible_roles TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE crm_contact_field_defs ADD COLUMN edit_roles TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contact_field_values (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         contact_id   INTEGER NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
@@ -658,6 +661,59 @@ function crm_group_can(int $group_id, string $perm = 'write'): bool {
         [$group_id, (int)$u['id']]
     );
     return !empty($row[$col]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPRAWNIENIA PER-POLE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Zwraca listę wszystkich ról dostępnych w systemie dla selecta uprawnień pól.
+ * Format: ['admin' => 'Administrator', ...]
+ */
+function crm_all_roles(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $rows = db_all("SELECT name, display_name FROM roles WHERE is_active IS NULL OR is_active != 0 ORDER BY sort_order, id");
+        $cache = [];
+        foreach ($rows as $r) $cache[$r['name']] = $r['display_name'];
+    } catch (\Throwable $e) {
+        $cache = ['admin' => 'Administrator', 'editor' => 'Redaktor', 'viewer' => 'Podgląd', 'crm_user' => 'Użytkownik CRM'];
+    }
+    return $cache;
+}
+
+/**
+ * Sprawdza czy bieżący użytkownik może WIDZIEĆ pole (visible_roles).
+ * Puste visible_roles = wszyscy mają dostęp.
+ */
+function crm_field_visible(array $fd): bool {
+    $roles_json = $fd['visible_roles'] ?? '';
+    if ($roles_json === '' || $roles_json === '[]') return true;
+    if (is_admin()) return true;
+    $allowed = json_decode($roles_json, true);
+    if (!is_array($allowed) || empty($allowed)) return true;
+    $user = current_user();
+    if (!$user) return false;
+    $user_role = $user['role'] ?? '';
+    return in_array($user_role, $allowed, true);
+}
+
+/**
+ * Sprawdza czy bieżący użytkownik może EDYTOWAĆ pole (edit_roles).
+ * Puste edit_roles = takie same prawa jak visible_roles (kto widzi, ten edytuje).
+ */
+function crm_field_editable(array $fd): bool {
+    if (!crm_field_visible($fd)) return false;
+    $roles_json = $fd['edit_roles'] ?? '';
+    if ($roles_json === '' || $roles_json === '[]') return true;
+    if (is_admin()) return true;
+    $allowed = json_decode($roles_json, true);
+    if (!is_array($allowed) || empty($allowed)) return true;
+    $user = current_user();
+    if (!$user) return false;
+    return in_array($user['role'] ?? '', $allowed, true);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1562,20 +1618,31 @@ class CrmManager
     }
 
     public static function saveFieldDef(array $data, ?int $id = null): int {
+        // Normalizuj visible_roles i edit_roles → JSON lub ''
+        $norm_roles = function(mixed $v): string {
+            if (is_array($v)) {
+                $v = array_values(array_filter($v, fn($r) => is_string($r) && $r !== ''));
+                return $v ? json_encode($v, JSON_UNESCAPED_UNICODE) : '';
+            }
+            if (is_string($v) && $v !== '') return $v; // już JSON
+            return '';
+        };
         $fields = [
-            'label'      => trim($data['label'] ?? ''),
-            'field_type' => in_array($data['field_type'] ?? '', ['text','number','date','select','url','email','textarea','checkbox'], true)
-                              ? $data['field_type'] : 'text',
-            'options'    => trim($data['options'] ?? ''),
-            'applies_to' => in_array($data['applies_to'] ?? '', ['osoba','organizacja','both'], true)
-                              ? $data['applies_to'] : 'both',
-            'sort_order' => (int)($data['sort_order'] ?? 0),
-            'is_active'  => isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1,
-            'group_id'   => isset($data['group_id']) && $data['group_id'] ? (int)$data['group_id'] : null,
+            'label'        => trim($data['label'] ?? ''),
+            'field_type'   => in_array($data['field_type'] ?? '', ['text','number','date','select','url','email','textarea','checkbox'], true)
+                                ? $data['field_type'] : 'text',
+            'options'      => trim($data['options'] ?? ''),
+            'applies_to'   => in_array($data['applies_to'] ?? '', ['osoba','organizacja','both'], true)
+                                ? $data['applies_to'] : 'both',
+            'sort_order'   => (int)($data['sort_order'] ?? 0),
+            'is_active'    => isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1,
+            'group_id'     => isset($data['group_id']) && $data['group_id'] ? (int)$data['group_id'] : null,
+            'visible_roles'=> $norm_roles($data['visible_roles'] ?? ''),
+            'edit_roles'   => $norm_roles($data['edit_roles'] ?? ''),
         ];
         if ($id) {
             db()->prepare(
-                "UPDATE crm_contact_field_defs SET label=?,field_type=?,options=?,applies_to=?,sort_order=?,is_active=?,group_id=? WHERE id=?"
+                "UPDATE crm_contact_field_defs SET label=?,field_type=?,options=?,applies_to=?,sort_order=?,is_active=?,group_id=?,visible_roles=?,edit_roles=? WHERE id=?"
             )->execute([...array_values($fields), $id]);
             return $id;
         }

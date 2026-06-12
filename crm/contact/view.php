@@ -662,7 +662,7 @@ $all_contacts_for_relation = db_all(
 $volunteer_contracts    = CrmManager::getContactVolunteerContracts($contact['email'] ?? '');
 $volunteer_recruitments = CrmManager::getContactRecruitments($contact['email'] ?? '');
 
-$_custom_field_defs   = CrmManager::getFieldDefs($contact['type'] ?? '');
+$_custom_field_defs   = array_filter(CrmManager::getFieldDefs($contact['type'] ?? ''), 'crm_field_visible');
 $_custom_field_values = CrmManager::getFieldValues($id);
 
 $contact_cases = db_all(

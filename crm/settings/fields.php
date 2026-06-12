@@ -52,13 +52,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $options_json = json_encode($opts, JSON_UNESCAPED_UNICODE);
         }
         CrmManager::saveFieldDef([
-            'label'      => $label,
-            'field_type' => $_POST['field_type'] ?? 'text',
-            'options'    => $options_json,
-            'applies_to' => $_POST['applies_to'] ?? 'both',
-            'sort_order' => (int)($_POST['sort_order'] ?? 0),
-            'is_active'  => isset($_POST['is_active']) ? 1 : 0,
-            'group_id'   => (int)($_POST['group_id'] ?? 0) ?: null,
+            'label'         => $label,
+            'field_type'    => $_POST['field_type'] ?? 'text',
+            'options'       => $options_json,
+            'applies_to'    => $_POST['applies_to'] ?? 'both',
+            'sort_order'    => (int)($_POST['sort_order'] ?? 0),
+            'is_active'     => isset($_POST['is_active']) ? 1 : 0,
+            'group_id'      => (int)($_POST['group_id'] ?? 0) ?: null,
+            'visible_roles' => (array)($_POST['visible_roles'] ?? []),
+            'edit_roles'    => (array)($_POST['edit_roles'] ?? []),
         ], $id ?: null);
         flash_set('success', $id ? 'Pole zaktualizowane.' : 'Pole dodane.');
         header('Location: ' . APP_URL . '/crm/settings/fields.php');
@@ -85,6 +87,7 @@ $edit_id  = (int)($_GET['edit'] ?? 0);
 $show_new = isset($_GET['new']);
 $edit_def = $edit_id ? CrmManager::getFieldDef($edit_id) : null;
 $defs     = CrmManager::getFieldDefs('', false);
+$all_roles = crm_all_roles();
 
 include __DIR__ . '/../includes/header_crm.php';
 ?>
@@ -118,12 +121,14 @@ include __DIR__ . '/../includes/header_crm.php';
 <?= flash_html() ?>
 
 <?php if ($show_new || $edit_def):
-  $f = $edit_def ?? ['label'=>'','field_type'=>'text','options'=>'','applies_to'=>'both','sort_order'=>0,'is_active'=>1];
+  $f = $edit_def ?? ['label'=>'','field_type'=>'text','options'=>'','applies_to'=>'both','sort_order'=>0,'is_active'=>1,'visible_roles'=>'','edit_roles'=>''];
   $raw_opts_val = '';
   if ($f['options']) {
       $decoded = json_decode($f['options'], true);
       if (is_array($decoded)) $raw_opts_val = implode("\n", $decoded);
   }
+  $f_visible_roles = json_decode($f['visible_roles'] ?? '', true) ?: [];
+  $f_edit_roles    = json_decode($f['edit_roles']    ?? '', true) ?: [];
 ?>
 <div class="card border-0 shadow-sm mb-4" style="max-width:640px">
   <div class="card-header fw-semibold">
@@ -195,6 +200,56 @@ include __DIR__ . '/../includes/header_crm.php';
         </div>
       </div>
 
+      <!-- ── Uprawnienia per-pole ──────────────────────────────────────────── -->
+      <hr class="my-3">
+      <div class="mb-1 fw-semibold d-flex align-items-center gap-2" style="font-size:.9rem">
+        <i class="bi bi-shield-lock text-primary"></i> Uprawnienia dostępu do pola
+      </div>
+      <p class="text-muted small mb-3">
+        Zostaw puste = <strong>wszyscy</strong> mogą widzieć / edytować.
+        Zaznacz konkretne role żeby ograniczyć widoczność lub edycję.
+      </p>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">
+            <i class="bi bi-eye text-secondary me-1"></i>Kto może <u>widzieć</u> to pole?
+          </label>
+          <div class="border rounded p-2" style="background:#FAFAFA">
+            <?php foreach ($all_roles as $rname => $rlabel): ?>
+            <div class="form-check mb-1">
+              <input type="checkbox" class="form-check-input" id="vis_<?= h($rname) ?>"
+                     name="visible_roles[]" value="<?= h($rname) ?>"
+                     <?= in_array($rname, $f_visible_roles, true) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="vis_<?= h($rname) ?>" style="font-size:.85rem">
+                <?= h($rlabel) ?>
+                <span class="text-muted font-monospace" style="font-size:.75rem">(<?= h($rname) ?>)</span>
+              </label>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-text">Puste = wszyscy uprawnieni do CRM widzą pole.</div>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">
+            <i class="bi bi-pencil-square text-secondary me-1"></i>Kto może <u>edytować</u> to pole?
+          </label>
+          <div class="border rounded p-2" style="background:#FAFAFA">
+            <?php foreach ($all_roles as $rname => $rlabel): ?>
+            <div class="form-check mb-1">
+              <input type="checkbox" class="form-check-input" id="edit_<?= h($rname) ?>"
+                     name="edit_roles[]" value="<?= h($rname) ?>"
+                     <?= in_array($rname, $f_edit_roles, true) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="edit_<?= h($rname) ?>" style="font-size:.85rem">
+                <?= h($rlabel) ?>
+                <span class="text-muted font-monospace" style="font-size:.75rem">(<?= h($rname) ?>)</span>
+              </label>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-text">Puste = kto widzi, ten może też edytować.</div>
+        </div>
+      </div>
+
       <div class="d-flex gap-2">
         <button type="submit" class="btn btn-crm-primary">
           <i class="bi bi-check-lg me-1"></i><?= $edit_def ? 'Zapisz zmiany' : 'Dodaj pole' ?>
@@ -223,7 +278,9 @@ document.getElementById('f_type').addEventListener('change', function() {
     <table class="table table-sm table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>#</th><th>Nazwa</th><th>Typ</th><th>Dotyczy</th><th>Grupa</th><th>Kolejność</th><th>Status</th>
+          <th>#</th><th>Nazwa</th><th>Typ</th><th>Dotyczy</th><th>Grupa</th>
+          <th class="d-none d-lg-table-cell">Dostęp</th>
+          <th>Status</th>
           <th class="text-end">Akcje</th>
         </tr>
       </thead>
@@ -239,7 +296,29 @@ document.getElementById('f_type').addEventListener('change', function() {
             <?= $grp ? h($grp['label']) : '<span class="text-muted">—</span>' ?>
             <?php else: ?>—<?php endif; ?>
           </td>
-          <td><?= (int)$d['sort_order'] ?></td>
+          <td class="d-none d-lg-table-cell" style="min-width:140px">
+            <?php
+            $v_roles = json_decode($d['visible_roles'] ?? '', true) ?: [];
+            $e_roles = json_decode($d['edit_roles']    ?? '', true) ?: [];
+            if (empty($v_roles) && empty($e_roles)):
+            ?><span class="text-muted small">wszyscy</span><?php
+            else:
+                if (!empty($v_roles)):
+                    foreach ($v_roles as $rn): ?>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle me-1" style="font-size:.68rem">
+                      <i class="bi bi-eye"></i> <?= h($all_roles[$rn] ?? $rn) ?>
+                    </span>
+                    <?php endforeach;
+                endif;
+                if (!empty($e_roles)):
+                    foreach ($e_roles as $rn): ?>
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle me-1" style="font-size:.68rem">
+                      <i class="bi bi-pencil"></i> <?= h($all_roles[$rn] ?? $rn) ?>
+                    </span>
+                    <?php endforeach;
+                endif;
+            endif; ?>
+          </td>
           <td>
             <?= $d['is_active']
               ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Aktywne</span>'
