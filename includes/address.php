@@ -36,6 +36,7 @@ function address_migrate(): void {
         'umowy_praca',
         'shipments',
         'persons',
+        'crm_contacts',
     ];
 
     $cols = [

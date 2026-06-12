@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -50,7 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'status'           => array_key_exists($_POST['status'] ?? '', crm_statuses()) ? $_POST['status'] : 'prospect',
         'email'            => trim($_POST['email']             ?? '') ?: null,
         'telefon'          => trim($_POST['telefon']           ?? '') ?: null,
-        'adres'            => trim($_POST['adres']             ?? '') ?: null,
+        'addr_street'      => trim($_POST['addr_street']         ?? ''),
+        'addr_house'       => trim($_POST['addr_house']          ?? ''),
+        'addr_flat'        => trim($_POST['addr_flat']           ?? ''),
+        'addr_postal'      => trim($_POST['addr_postal']         ?? ''),
+        'addr_city'        => trim($_POST['addr_city']           ?? ''),
+        'addr_country'     => trim($_POST['addr_country']        ?? '') ?: 'PL',
+        'adres'            => address_format($_POST) ?: (trim($_POST['adres'] ?? '') ?: null),
         'nip'              => preg_replace('/[\s\-]/', '', $_POST['nip'] ?? '') ?: null,
         'krs'              => preg_replace('/[\s\-]/', '', $_POST['krs'] ?? '') ?: null,
         'regon'            => preg_replace('/[\s\-]/', '', $_POST['regon'] ?? '') ?: null,
@@ -323,16 +330,9 @@ include __DIR__ . '/../includes/header_crm.php';
                  autocomplete="tel">
         </div>
       </div>
-      <div class="row g-3 mt-0">
-        <div class="col-sm-8">
-          <label class="form-label" for="adres">Adres siedziby</label>
-          <input type="text" name="adres" id="adres"
-                 class="form-control"
-                 value="<?= h($row['adres'] ?? '') ?>"
-                 placeholder="ul. Główna 1, 00-001 Warszawa"
-                 autocomplete="street-address">
-        </div>
-        <div class="col-sm-4">
+      <?php echo address_widget($row, ['label'=>'Adres siedziby', 'autocomplete'=>true]); ?>
+      <div class="row g-3 mt-2">
+        <div class="col-sm-6">
           <label class="form-label" for="strona_www">Strona www</label>
           <input type="url" name="strona_www" id="strona_www"
                  class="form-control"
@@ -680,7 +680,48 @@ function krsApply() {
   setField('nip',    d.nip);
   setField('krs',    d.krs);
   setField('regon',  d.regon);
-  setField('adres',  d.adres);
+
+  // Wypełnij strukturalne pola adresowe z KRS
+  if (d.adres) {
+    (function() {
+      var adres = d.adres.trim();
+      // Parsuj: "ul. Ulica NrDomu/Lokal, KOD Miasto" lub "ul. Ulica NrDomu, KOD Miasto"
+      var postalCity = adres.match(/(\d{2}-\d{3})\s+(.+)$/);
+      var code = '', city = '', street = '', house = '', flat = '';
+      if (postalCity) {
+        code   = postalCity[1];
+        city   = postalCity[2].trim();
+        var rem = adres.replace(/,?\s*\d{2}-\d{3}\s+.+$/, '').trim();
+        // Ostatni token — numer domu (ewentualnie z lokalem /X)
+        var hm = rem.match(/^(.*?)\s+([\d\w]+(?:\/[\w\d]+)?)$/);
+        if (hm && /^\d/.test(hm[2])) {
+          street = hm[1].trim();
+          var nr = hm[2];
+          if (nr.indexOf('/') !== -1) {
+            var nrParts = nr.split('/');
+            house = nrParts[0]; flat = nrParts[1];
+          } else {
+            house = nr;
+          }
+        } else {
+          street = rem;
+        }
+      } else {
+        street = adres;
+      }
+      var w = document.querySelector('.addr-widget');
+      if (!w) return;
+      function setAddr(cls, val) {
+        var el = w.querySelector('[name="' + cls + '"]');
+        if (el && val) { el.value = val; el.classList.add('autofilled-krs'); setTimeout(function(){ el.classList.remove('autofilled-krs'); }, 1200); }
+      }
+      setAddr('addr_street',  street);
+      setAddr('addr_house',   house);
+      setAddr('addr_flat',    flat);
+      setAddr('addr_postal',  code);
+      setAddr('addr_city',    city);
+    })();
+  }
 
   // Forma prawna — mapowanie
   var formaMap = {

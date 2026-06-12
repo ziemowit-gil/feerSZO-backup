@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -63,7 +64,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'status'         => array_key_exists($_POST['status'] ?? '', crm_statuses()) ? $_POST['status'] : 'prospect',
         'email'          => trim($_POST['email']      ?? '') ?: null,
         'telefon'        => trim($_POST['telefon']    ?? '') ?: null,
-        'adres'          => trim($_POST['adres']      ?? '') ?: null,
+        'addr_street'    => trim($_POST['addr_street']  ?? ''),
+        'addr_house'     => trim($_POST['addr_house']   ?? ''),
+        'addr_flat'      => trim($_POST['addr_flat']    ?? ''),
+        'addr_postal'    => trim($_POST['addr_postal']  ?? ''),
+        'addr_city'      => trim($_POST['addr_city']    ?? ''),
+        'addr_country'   => trim($_POST['addr_country'] ?? '') ?: 'PL',
+        'adres'          => address_format($_POST) ?: (trim($_POST['adres'] ?? '') ?: null),
         'stanowisko'     => trim($_POST['stanowisko'] ?? '') ?: null,
         'organizacja'    => trim($_POST['organizacja']?? '') ?: null,
         'branza'         => trim($_POST['branza']     ?? '') ?: null,
@@ -250,13 +257,7 @@ include __DIR__ . '/../includes/header_crm.php';
         </div>
       </div>
 
-      <div>
-        <label class="form-label" for="adres">Adres zamieszkania / korespondencji</label>
-        <input type="text" name="adres" id="adres" class="form-control"
-               value="<?= h($row['adres'] ?? '') ?>"
-               placeholder="ul. Przykładowa 1, 00-001 Warszawa"
-               autocomplete="street-address">
-      </div>
+      <?php echo address_widget($row, ['label'=>'Adres zamieszkania / korespondencji', 'autocomplete'=>true]); ?>
     </div>
   </div>
 

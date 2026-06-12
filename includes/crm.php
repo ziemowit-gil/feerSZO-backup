@@ -797,6 +797,10 @@ class CrmManager
             'imie','nazwisko','pesel','data_urodzenia',
             // pola firm / organizacji
             'regon','branza','strona_www','osoba_kontaktowa','forma_prawna',
+            // lokalizacja administracyjna
+            'wojewodztwo','powiat','gmina','teryt_kod',
+            // strukturalny adres
+            'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
         return db_insert('crm_contacts', $data);
@@ -816,6 +820,10 @@ class CrmManager
             'imie','nazwisko','pesel','data_urodzenia',
             // pola firm / organizacji
             'regon','branza','strona_www','osoba_kontaktowa','forma_prawna',
+            // lokalizacja administracyjna
+            'wojewodztwo','powiat','gmina','teryt_kod',
+            // strukturalny adres
+            'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
         db_update('crm_contacts', $data, $id);

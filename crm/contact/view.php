@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -728,9 +729,9 @@ include __DIR__ . '/../includes/header_crm.php';
       <i class="bi bi-telephone-fill me-1 text-secondary" aria-hidden="true"></i><?= h($contact['telefon']) ?>
     </a>
     <?php endif; ?>
-    <?php if ($contact['adres']): ?>
+    <?php $addr_display = address_format($contact); if ($addr_display): ?>
     <span class="text-muted">
-      <i class="bi bi-geo-alt-fill me-1 text-secondary" aria-hidden="true"></i><?= h($contact['adres']) ?>
+      <i class="bi bi-geo-alt-fill me-1 text-secondary" aria-hidden="true"></i><?= h($addr_display) ?>
     </span>
     <?php endif; ?>
     <?php if ($contact['nip']): ?>
