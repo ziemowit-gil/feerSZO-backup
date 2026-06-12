@@ -83,11 +83,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$edit_id  = (int)($_GET['edit'] ?? 0);
-$show_new = isset($_GET['new']);
-$edit_def = $edit_id ? CrmManager::getFieldDef($edit_id) : null;
-$defs     = CrmManager::getFieldDefs('', false);
+$edit_id   = (int)($_GET['edit'] ?? 0);
+$show_new  = isset($_GET['new']);
+$edit_def  = $edit_id ? CrmManager::getFieldDef($edit_id) : null;
 $all_roles = crm_all_roles();
+
+// Filtrowanie wg grupy (link z field_groups.php używa ?group=X)
+$filter_group_id  = (int)($_GET['group'] ?? 0);
+$filter_group_obj = $filter_group_id ? crm_one("SELECT * FROM crm_field_groups WHERE id=?", [$filter_group_id]) : null;
+
+// Pobierz pola — filtruj wg grupy jeśli podana
+if ($filter_group_id) {
+    $defs = crm_all(
+        "SELECT * FROM crm_contact_field_defs WHERE group_id=? ORDER BY sort_order, id",
+        [$filter_group_id]
+    );
+} else {
+    $defs = CrmManager::getFieldDefs('', false);
+}
+
+$group_url = $filter_group_id ? '&group=' . $filter_group_id : '';
 
 include __DIR__ . '/../includes/header_crm.php';
 ?>
@@ -96,24 +111,42 @@ include __DIR__ . '/../includes/header_crm.php';
   <ol class="breadcrumb mb-0" style="font-size:.82rem">
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/crm/index.php"><i class="bi bi-diagram-2-fill me-1" style="color:var(--crm-primary)"></i>CRM</a></li>
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/crm/settings/">Ustawienia</a></li>
-    <li class="breadcrumb-item active">Pola kontaktów</li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/crm/settings/field_groups.php">Grupy pól</a></li>
+    <?php if ($filter_group_obj): ?>
+    <li class="breadcrumb-item"><span class="text-muted"><?= h($filter_group_obj['label']) ?></span></li>
+    <?php endif; ?>
+    <li class="breadcrumb-item <?= ($show_new || $edit_def) ? '' : 'active' ?>">
+      <?= ($show_new || $edit_def)
+        ? '<a href="' . APP_URL . '/crm/settings/fields.php' . ($filter_group_id ? '?group=' . $filter_group_id : '') . '">Pola</a>'
+        : 'Pola' ?>
+    </li>
+    <?php if ($show_new): ?>
+    <li class="breadcrumb-item active">Nowe pole</li>
+    <?php elseif ($edit_def): ?>
+    <li class="breadcrumb-item active">Edycja</li>
+    <?php endif; ?>
   </ol>
 </nav>
 
 <div class="crm-object-header shadow-sm mb-3">
   <div class="crm-object-icon"><i class="bi bi-layout-text-sidebar-reverse"></i></div>
   <div>
-    <h1 class="crm-object-title">Dodatkowe pola kontaktów</h1>
-    <div class="crm-object-count"><?= count($defs) ?> zdefiniowanych pól</div>
+    <h1 class="crm-object-title">
+      <?= $filter_group_obj ? 'Pola grupy: ' . h($filter_group_obj['label']) : 'Pola niestandardowe' ?>
+    </h1>
+    <div class="crm-object-count"><?= count($defs) ?> <?= $filter_group_obj ? 'pól w tej grupie' : 'zdefiniowanych pól' ?></div>
   </div>
-  <div class="crm-object-actions d-flex gap-2">
+  <div class="crm-object-actions d-flex gap-2 flex-wrap">
     <?php if (!$show_new && !$edit_def): ?>
-    <a href="?new=1" class="btn btn-sm btn-crm-primary">
+    <a href="?new=1<?= $group_url ?>" class="btn btn-sm btn-crm-primary">
       <i class="bi bi-plus-lg me-1"></i>Dodaj pole
     </a>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/crm/settings/" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Ustawienia
+    <a href="<?= APP_URL ?>/crm/settings/fields_system.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-database-lock me-1"></i>Systemowe
+    </a>
+    <a href="<?= APP_URL ?>/crm/settings/field_groups.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-layers me-1"></i>Grupy pól
     </a>
   </div>
 </div>

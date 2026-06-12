@@ -62,6 +62,26 @@ const CRM_CHANNELS = [
     'osobisty'=> ['label' => 'Osobisty',  'icon' => 'bi-person-fill'],
 ];
 
+/** Definicje pól standardowych (systemowych) kontaktu CRM — dla UI uprawnień. */
+const CRM_SYSTEM_FIELDS = [
+    'email'            => ['label' => 'E-mail',              'group' => 'Dane kontaktowe',  'applies_to' => 'both'],
+    'telefon'          => ['label' => 'Telefon',             'group' => 'Dane kontaktowe',  'applies_to' => 'both'],
+    'adres'            => ['label' => 'Adres',               'group' => 'Dane kontaktowe',  'applies_to' => 'both'],
+    'stanowisko'       => ['label' => 'Stanowisko / Rola',   'group' => 'Dane kontaktowe',  'applies_to' => 'osoba'],
+    'organizacja'      => ['label' => 'Firma / Organizacja', 'group' => 'Dane kontaktowe',  'applies_to' => 'osoba'],
+    'strona_www'       => ['label' => 'Strona WWW',          'group' => 'Dane kontaktowe',  'applies_to' => 'both'],
+    'notatka'          => ['label' => 'Notatka',             'group' => 'Dane kontaktowe',  'applies_to' => 'both'],
+    'pesel'            => ['label' => 'PESEL',               'group' => 'Dane osobowe',     'applies_to' => 'osoba'],
+    'data_urodzenia'   => ['label' => 'Data urodzenia',      'group' => 'Dane osobowe',     'applies_to' => 'osoba'],
+    'nip'              => ['label' => 'NIP',                 'group' => 'Dane rejestrowe',  'applies_to' => 'both'],
+    'krs'              => ['label' => 'KRS',                 'group' => 'Dane rejestrowe',  'applies_to' => 'organizacja'],
+    'regon'            => ['label' => 'REGON',               'group' => 'Dane rejestrowe',  'applies_to' => 'organizacja'],
+    'branza'           => ['label' => 'Branża',              'group' => 'Dane rejestrowe',  'applies_to' => 'organizacja'],
+    'forma_prawna'     => ['label' => 'Forma prawna',        'group' => 'Dane rejestrowe',  'applies_to' => 'organizacja'],
+    'osoba_kontaktowa' => ['label' => 'Osoba kontaktowa',    'group' => 'Dane rejestrowe',  'applies_to' => 'organizacja'],
+    'status'           => ['label' => 'Status kontaktu',     'group' => 'Systemowe',        'applies_to' => 'both'],
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // OSOBNA BAZA CRM — opcjonalna konfiguracja
 // ─────────────────────────────────────────────────────────────────────────────
@@ -530,6 +550,18 @@ function crm_migrate(): void {
     // Uprawnienia per-pole: lista ról (JSON), puste = wszyscy
     try { $pdo->exec("ALTER TABLE crm_contact_field_defs ADD COLUMN visible_roles TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE crm_contact_field_defs ADD COLUMN edit_roles TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+
+    // Uprawnienia per-grupa: widoczność/edycja grupy pól
+    try { $pdo->exec("ALTER TABLE crm_field_groups ADD COLUMN visible_roles TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE crm_field_groups ADD COLUMN edit_roles TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+
+    // Uprawnienia do pól standardowych (systemowych)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_system_field_perms (
+        field_key     TEXT PRIMARY KEY,
+        visible_roles TEXT NOT NULL DEFAULT '',
+        edit_roles    TEXT NOT NULL DEFAULT ''
+    )");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_contact_field_values (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         contact_id   INTEGER NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
@@ -687,11 +719,15 @@ function crm_all_roles(): array {
 /**
  * Sprawdza czy bieżący użytkownik może WIDZIEĆ pole (visible_roles).
  * Puste visible_roles = wszyscy mają dostęp.
+ * Jeśli pole ma group_id — sprawdza też widoczność grupy.
  */
 function crm_field_visible(array $fd): bool {
+    if (is_admin()) return true;
+    // Sprawdź grupę (jeśli pole należy do grupy)
+    $group_id = (int)($fd['group_id'] ?? 0);
+    if ($group_id && !_crm_group_perm_visible($group_id)) return false;
     $roles_json = $fd['visible_roles'] ?? '';
     if ($roles_json === '' || $roles_json === '[]') return true;
-    if (is_admin()) return true;
     $allowed = json_decode($roles_json, true);
     if (!is_array($allowed) || empty($allowed)) return true;
     $user = current_user();
@@ -714,6 +750,82 @@ function crm_field_editable(array $fd): bool {
     $user = current_user();
     if (!$user) return false;
     return in_array($user['role'] ?? '', $allowed, true);
+}
+
+/** Ładuje uprawnienia pola standardowego z cache (jeden SELECT na żądanie). */
+function _crm_sys_perms(): array {
+    static $p = null;
+    if ($p !== null) return $p;
+    $p = [];
+    try {
+        foreach (crm_all("SELECT field_key, visible_roles, edit_roles FROM crm_system_field_perms") as $r) {
+            $p[$r['field_key']] = $r;
+        }
+    } catch (\Throwable $e) {}
+    return $p;
+}
+
+/** Zwraca widoczność grupy pól z cache. */
+function _crm_group_perm_visible(int $group_id): bool {
+    static $cache = [];
+    if (isset($cache[$group_id])) return $cache[$group_id];
+    if (is_admin()) return $cache[$group_id] = true;
+    try {
+        $grp = crm_one("SELECT visible_roles FROM crm_field_groups WHERE id=?", [$group_id]);
+    } catch (\Throwable $e) {
+        return $cache[$group_id] = true;
+    }
+    if (!$grp) return $cache[$group_id] = true;
+    $roles_json = $grp['visible_roles'] ?? '';
+    if ($roles_json === '' || $roles_json === '[]') return $cache[$group_id] = true;
+    $allowed = json_decode($roles_json, true);
+    if (!is_array($allowed) || empty($allowed)) return $cache[$group_id] = true;
+    $user = current_user();
+    if (!$user) return $cache[$group_id] = false;
+    return $cache[$group_id] = in_array($user['role'] ?? '', $allowed, true);
+}
+
+/** Zwraca edytowalność grupy pól z cache. */
+function _crm_group_perm_editable(int $group_id): bool {
+    if (!_crm_group_perm_visible($group_id)) return false;
+    if (is_admin()) return true;
+    static $cache = [];
+    if (isset($cache[$group_id])) return $cache[$group_id];
+    try {
+        $grp = crm_one("SELECT edit_roles FROM crm_field_groups WHERE id=?", [$group_id]);
+    } catch (\Throwable $e) {
+        return $cache[$group_id] = true;
+    }
+    if (!$grp) return $cache[$group_id] = true;
+    $roles_json = $grp['edit_roles'] ?? '';
+    if ($roles_json === '' || $roles_json === '[]') return $cache[$group_id] = true;
+    $allowed = json_decode($roles_json, true);
+    if (!is_array($allowed) || empty($allowed)) return $cache[$group_id] = true;
+    $user = current_user();
+    if (!$user) return $cache[$group_id] = false;
+    return $cache[$group_id] = in_array($user['role'] ?? '', $allowed, true);
+}
+
+/**
+ * Sprawdza widoczność pola STANDARDOWEGO (systemowego).
+ * Puste = brak ograniczenia = wszyscy widzą.
+ */
+function crm_sys_field_visible(string $field_key): bool {
+    if (is_admin()) return true;
+    $fd = _crm_sys_perms()[$field_key] ?? null;
+    if (!$fd) return true;
+    return crm_field_visible($fd);
+}
+
+/**
+ * Sprawdza edytowalność pola STANDARDOWEGO (systemowego).
+ */
+function crm_sys_field_editable(string $field_key): bool {
+    if (!crm_sys_field_visible($field_key)) return false;
+    if (is_admin()) return true;
+    $fd = _crm_sys_perms()[$field_key] ?? null;
+    if (!$fd) return true;
+    return crm_field_editable($fd);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

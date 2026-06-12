@@ -665,6 +665,17 @@ $volunteer_recruitments = CrmManager::getContactRecruitments($contact['email'] ?
 $_custom_field_defs   = array_filter(CrmManager::getFieldDefs($contact['type'] ?? ''), 'crm_field_visible');
 $_custom_field_values = CrmManager::getFieldValues($id);
 
+// Widoczność pól systemowych dla bieżącego użytkownika
+$_sfv = [
+    'email'       => crm_sys_field_visible('email'),
+    'telefon'     => crm_sys_field_visible('telefon'),
+    'adres'       => crm_sys_field_visible('adres'),
+    'nip'         => crm_sys_field_visible('nip'),
+    'stanowisko'  => crm_sys_field_visible('stanowisko'),
+    'organizacja' => crm_sys_field_visible('organizacja'),
+    'notatka'     => crm_sys_field_visible('notatka'),
+];
+
 $contact_cases = db_all(
     "SELECT * FROM crm_cases WHERE contact_id=? ORDER BY updated_at DESC LIMIT 10",
     [(int)$id]
@@ -697,10 +708,10 @@ include __DIR__ . '/../includes/header_crm.php';
     <div class="flex-grow-1 min-w-0">
       <h1 class="crm-contact-name"><?= h($contact['imie_nazwisko']) ?></h1>
       <div class="crm-contact-sub">
-        <?php if ($contact['stanowisko']): ?>
-          <span><?= h($contact['stanowisko']) ?></span><?php if ($contact['organizacja']): ?> · <?php endif; ?>
+        <?php if ($_sfv['stanowisko'] && $contact['stanowisko']): ?>
+          <span><?= h($contact['stanowisko']) ?></span><?php if ($_sfv['organizacja'] && $contact['organizacja']): ?> · <?php endif; ?>
         <?php endif; ?>
-        <?php if ($contact['organizacja']): ?>
+        <?php if ($_sfv['organizacja'] && $contact['organizacja']): ?>
           <span><i class="bi bi-building me-1" aria-hidden="true"></i><?= h($contact['organizacja']) ?></span>
         <?php endif; ?>
       </div>
@@ -742,24 +753,24 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Quick info strip -->
   <div class="card-body py-2 border-top d-flex flex-wrap gap-3"
        style="background:#f9fafb;font-size:.84rem">
-    <?php if ($contact['email']): ?>
+    <?php if ($_sfv['email'] && $contact['email']): ?>
     <a href="mailto:<?= h($contact['email']) ?>"
        class="text-decoration-none text-muted cv-contact-chip">
       <i class="bi bi-envelope-fill me-1 text-secondary" aria-hidden="true"></i><?= h($contact['email']) ?>
     </a>
     <?php endif; ?>
-    <?php if ($contact['telefon']): ?>
+    <?php if ($_sfv['telefon'] && $contact['telefon']): ?>
     <a href="tel:<?= h($contact['telefon']) ?>"
        class="text-decoration-none text-muted cv-contact-chip">
       <i class="bi bi-telephone-fill me-1 text-secondary" aria-hidden="true"></i><?= h($contact['telefon']) ?>
     </a>
     <?php endif; ?>
-    <?php $addr_display = address_format($contact); if ($addr_display): ?>
+    <?php $addr_display = address_format($contact); if ($_sfv['adres'] && $addr_display): ?>
     <span class="text-muted">
       <i class="bi bi-geo-alt-fill me-1 text-secondary" aria-hidden="true"></i><?= h($addr_display) ?>
     </span>
     <?php endif; ?>
-    <?php if ($contact['nip']): ?>
+    <?php if ($_sfv['nip'] && $contact['nip']): ?>
     <span class="text-muted">NIP: <?= h($contact['nip']) ?></span>
     <?php endif; ?>
     <span class="ms-auto text-muted" style="font-size:.75rem">

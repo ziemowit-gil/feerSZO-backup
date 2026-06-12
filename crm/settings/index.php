@@ -74,7 +74,10 @@ include __DIR__ . '/../includes/header_crm.php';
       <i class="bi bi-layers me-1"></i>Grupy pól
     </a>
     <a href="<?= APP_URL ?>/crm/settings/fields.php" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola formularza
+      <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola niestandardowe
+    </a>
+    <a href="<?= APP_URL ?>/crm/settings/fields_system.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-database-lock me-1"></i>Pola systemowe
     </a>
     <?php if (is_admin()): ?>
     <a href="<?= APP_URL ?>/crm/settings/ika.php" class="btn btn-sm btn-outline-secondary">

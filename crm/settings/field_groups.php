@@ -23,12 +23,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id    = (int)($_POST['id'] ?? 0);
         $label = trim($_POST['label'] ?? '');
         if (!$label) { flash_set('danger','Nazwa grupy jest wymagana.'); goto redirect; }
+        $norm = function(array $v): string {
+            $v = array_values(array_filter($v, fn($r) => is_string($r) && $r !== ''));
+            return $v ? json_encode($v, JSON_UNESCAPED_UNICODE) : '';
+        };
         $data = [
-            'label'      => $label,
-            'icon'       => trim($_POST['icon'] ?? 'bi-card-list'),
-            'applies_to' => in_array($_POST['applies_to']??'', array_keys($APPLIES_OPTIONS)) ? $_POST['applies_to'] : 'both',
-            'sort_order' => (int)($_POST['sort_order'] ?? 0),
-            'is_active'  => isset($_POST['is_active']) ? 1 : 0,
+            'label'         => $label,
+            'icon'          => trim($_POST['icon'] ?? 'bi-card-list'),
+            'applies_to'    => in_array($_POST['applies_to']??'', array_keys($APPLIES_OPTIONS)) ? $_POST['applies_to'] : 'both',
+            'sort_order'    => (int)($_POST['sort_order'] ?? 0),
+            'is_active'     => isset($_POST['is_active']) ? 1 : 0,
+            'visible_roles' => $norm((array)($_POST['visible_roles'] ?? [])),
+            'edit_roles'    => $norm((array)($_POST['edit_roles'] ?? [])),
         ];
         if ($id) {
             crm_update('crm_field_groups', $data, $id);
@@ -59,9 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: '.$_SERVER['PHP_SELF']); exit;
 }
 
-$groups  = crm_all("SELECT g.*, (SELECT COUNT(*) FROM crm_contact_field_defs f WHERE f.group_id=g.id) AS field_count FROM crm_field_groups g ORDER BY sort_order, id");
-$edit_id = (int)($_GET['edit'] ?? 0);
-$edit    = $edit_id ? crm_one("SELECT * FROM crm_field_groups WHERE id=?",[$edit_id]) : null;
+$groups    = crm_all("SELECT g.*, (SELECT COUNT(*) FROM crm_contact_field_defs f WHERE f.group_id=g.id) AS field_count FROM crm_field_groups g ORDER BY sort_order, id");
+$edit_id   = (int)($_GET['edit'] ?? 0);
+$edit      = $edit_id ? crm_one("SELECT * FROM crm_field_groups WHERE id=?",[$edit_id]) : null;
+$all_roles = crm_all_roles();
 
 include __DIR__ . '/../includes/header_crm.php';
 ?>
@@ -76,9 +83,12 @@ include __DIR__ . '/../includes/header_crm.php';
     <h1 class="crm-object-title">Grupy pól kontaktu</h1>
     <div class="crm-object-count">Sekcje formularza — grupuj pola niestandardowe w logiczne bloki</div>
   </div>
-  <div class="crm-object-actions">
+  <div class="crm-object-actions d-flex gap-2 flex-wrap">
     <a href="<?= APP_URL ?>/crm/settings/fields.php" class="btn btn-crm-outline btn-sm">
-      <i class="bi bi-list-columns me-1"></i>Pola formularza
+      <i class="bi bi-list-columns me-1"></i>Pola niestandardowe
+    </a>
+    <a href="<?= APP_URL ?>/crm/settings/fields_system.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-database-lock me-1"></i>Pola systemowe
     </a>
     <button class="btn btn-crm-primary btn-sm" onclick="document.getElementById('add-form').classList.toggle('d-none')">
       <i class="bi bi-plus-lg me-1"></i>Nowa grupa
@@ -101,12 +111,16 @@ include __DIR__ . '/../includes/header_crm.php';
           <th>Nazwa grupy</th>
           <th>Dotyczy</th>
           <th>Pól</th>
+          <th class="d-none d-lg-table-cell">Uprawnienia</th>
           <th>Status</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="groups-sortable">
-        <?php foreach ($groups as $g): ?>
+        <?php foreach ($groups as $g):
+          $g_vis  = json_decode($g['visible_roles'] ?? '', true) ?: [];
+          $g_edit = json_decode($g['edit_roles']    ?? '', true) ?: [];
+        ?>
         <tr data-id="<?= $g['id'] ?>">
           <td class="text-muted" style="cursor:grab"><i class="bi bi-grip-vertical"></i></td>
           <td><i class="bi <?= h($g['icon']) ?>" style="font-size:1.1rem;color:var(--crm-primary)"></i></td>
@@ -116,6 +130,21 @@ include __DIR__ . '/../includes/header_crm.php';
             <a href="<?= APP_URL ?>/crm/settings/fields.php?group=<?= $g['id'] ?>" class="badge bg-light text-dark border text-decoration-none">
               <?= $g['field_count'] ?> pól →
             </a>
+          </td>
+          <td class="d-none d-lg-table-cell" style="min-width:140px">
+            <?php if ($g_vis): ?>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1" title="Kto widzi">
+                <i class="bi bi-eye me-1"></i><?= implode(', ', array_map('h', $g_vis)) ?>
+              </span>
+            <?php endif; ?>
+            <?php if ($g_edit): ?>
+              <span class="badge bg-warning-subtle text-warning-emphasis border me-1" title="Kto edytuje">
+                <i class="bi bi-pencil me-1"></i><?= implode(', ', array_map('h', $g_edit)) ?>
+              </span>
+            <?php endif; ?>
+            <?php if (!$g_vis && !$g_edit): ?>
+              <span class="text-muted small">wszyscy</span>
+            <?php endif; ?>
           </td>
           <td>
             <?= $g['is_active']
@@ -143,7 +172,7 @@ include __DIR__ . '/../includes/header_crm.php';
         </tr>
         <?php endforeach; ?>
         <?php if (!$groups): ?>
-        <tr><td colspan="7" class="text-muted text-center py-3 small">Brak grup — dodaj pierwszą poniżej.</td></tr>
+        <tr><td colspan="8" class="text-muted text-center py-3 small">Brak grup — dodaj pierwszą poniżej.</td></tr>
         <?php endif; ?>
       </tbody>
     </table>
@@ -202,6 +231,45 @@ include __DIR__ . '/../includes/header_crm.php';
         </div>
       </div>
       <?php endif; ?>
+      <div class="col-12">
+        <hr class="my-2">
+        <?php
+          $eg_vis  = $edit ? json_decode($edit['visible_roles'] ?? '', true) ?: [] : [];
+          $eg_edit = $edit ? json_decode($edit['edit_roles']    ?? '', true) ?: [] : [];
+        ?>
+        <div class="small fw-semibold mb-1 d-flex align-items-center gap-1">
+          <i class="bi bi-shield-lock text-primary"></i> Uprawnienia grupy
+          <span class="text-muted fw-normal">(puste = wszyscy)</span>
+        </div>
+        <div class="row g-2">
+          <div class="col-sm-6">
+            <p class="small mb-1"><i class="bi bi-eye text-secondary me-1"></i>Kto może <u>widzieć</u> pola tej grupy?</p>
+            <div class="border rounded p-2 d-flex flex-wrap gap-2" style="background:#FAFAFA">
+              <?php foreach ($all_roles as $rname => $rlabel): ?>
+              <div class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" id="gvis_<?= h($rname) ?>"
+                       name="visible_roles[]" value="<?= h($rname) ?>"
+                       <?= in_array($rname, $eg_vis, true) ? 'checked' : '' ?>>
+                <label class="form-check-label small" for="gvis_<?= h($rname) ?>"><?= h($rlabel) ?></label>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <p class="small mb-1"><i class="bi bi-pencil-square text-secondary me-1"></i>Kto może <u>edytować</u> pola tej grupy?</p>
+            <div class="border rounded p-2 d-flex flex-wrap gap-2" style="background:#FAFAFA">
+              <?php foreach ($all_roles as $rname => $rlabel): ?>
+              <div class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" id="gedit_<?= h($rname) ?>"
+                       name="edit_roles[]" value="<?= h($rname) ?>"
+                       <?= in_array($rname, $eg_edit, true) ? 'checked' : '' ?>>
+                <label class="form-check-label small" for="gedit_<?= h($rname) ?>"><?= h($rlabel) ?></label>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="col-auto">
         <button type="submit" class="btn btn-crm-primary btn-sm">
           <?= $edit ? '<i class="bi bi-save me-1"></i>Zapisz' : '<i class="bi bi-plus-lg me-1"></i>Dodaj' ?>

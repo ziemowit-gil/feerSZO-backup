@@ -95,6 +95,15 @@ $_field_defs_all = CrmManager::getFieldDefs();
 $_field_defs     = array_filter($_field_defs_all, 'crm_field_visible');
 $_field_values   = $is_edit ? CrmManager::getFieldValues($edit_id) : [];
 
+// Widoczność i edytowalność pól systemowych w formularzu
+$_sfe = [];
+foreach (['email','telefon','adres','stanowisko','organizacja','nip','krs','notatka'] as $_sfk) {
+    $_sfe[$_sfk] = [
+        'vis'  => crm_sys_field_visible($_sfk),
+        'edit' => crm_sys_field_editable($_sfk),
+    ];
+}
+
 include __DIR__ . '/../includes/header_crm.php';
 ?>
 
@@ -178,88 +187,131 @@ include __DIR__ . '/../includes/header_crm.php';
         </div>
 
         <div class="row g-3 mt-0">
+          <?php if ($_sfe['email']['vis']): ?>
           <div class="col-sm-6">
-            <label class="form-label" for="email">Adres e-mail</label>
+            <label class="form-label" for="email">
+              Adres e-mail
+              <?php if (!$_sfe['email']['edit']): ?><span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji"><i class="bi bi-lock-fill"></i></span><?php endif; ?>
+            </label>
             <input type="email" name="email" id="email"
-                   class="form-control"
+                   class="form-control<?= !$_sfe['email']['edit'] ? ' bg-light text-muted' : '' ?>"
                    value="<?= h($row['email'] ?? '') ?>"
                    placeholder="email@domena.pl"
-                   autocomplete="email">
+                   autocomplete="email"
+                   <?= !$_sfe['email']['edit'] ? 'readonly disabled' : '' ?>>
           </div>
+          <?php endif; ?>
+          <?php if ($_sfe['telefon']['vis']): ?>
           <div class="col-sm-6">
-            <label class="form-label" for="telefon">Numer telefonu</label>
+            <label class="form-label" for="telefon">
+              Numer telefonu
+              <?php if (!$_sfe['telefon']['edit']): ?><span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji"><i class="bi bi-lock-fill"></i></span><?php endif; ?>
+            </label>
             <input type="tel" name="telefon" id="telefon"
-                   class="form-control phone-48"
+                   class="form-control phone-48<?= !$_sfe['telefon']['edit'] ? ' bg-light text-muted' : '' ?>"
                    value="<?= h($row['telefon'] ?? '') ?>"
                    placeholder="123 456 789"
-                   autocomplete="tel">
+                   autocomplete="tel"
+                   <?= !$_sfe['telefon']['edit'] ? 'readonly disabled' : '' ?>>
           </div>
+          <?php endif; ?>
         </div>
 
         <div class="row g-3 mt-0">
+          <?php if ($_sfe['stanowisko']['vis']): ?>
           <div class="col-sm-6">
-            <label class="form-label" for="stanowisko">Stanowisko / Rola</label>
+            <label class="form-label" for="stanowisko">
+              Stanowisko / Rola
+              <?php if (!$_sfe['stanowisko']['edit']): ?><span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji"><i class="bi bi-lock-fill"></i></span><?php endif; ?>
+            </label>
             <input type="text" name="stanowisko" id="stanowisko"
-                   class="form-control"
+                   class="form-control<?= !$_sfe['stanowisko']['edit'] ? ' bg-light text-muted' : '' ?>"
                    value="<?= h($row['stanowisko'] ?? '') ?>"
-                   placeholder="np. Prezes, Wolontariusz">
+                   placeholder="np. Prezes, Wolontariusz"
+                   <?= !$_sfe['stanowisko']['edit'] ? 'readonly disabled' : '' ?>>
           </div>
+          <?php endif; ?>
+          <?php if ($_sfe['organizacja']['vis']): ?>
           <div class="col-sm-6">
-            <label class="form-label" for="organizacja">Firma / Organizacja</label>
+            <label class="form-label" for="organizacja">
+              Firma / Organizacja
+              <?php if (!$_sfe['organizacja']['edit']): ?><span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji"><i class="bi bi-lock-fill"></i></span><?php endif; ?>
+            </label>
             <input type="text" name="organizacja" id="organizacja"
-                   class="form-control"
+                   class="form-control<?= !$_sfe['organizacja']['edit'] ? ' bg-light text-muted' : '' ?>"
                    value="<?= h($row['organizacja'] ?? '') ?>"
-                   placeholder="Nazwa firmy lub org.">
+                   placeholder="Nazwa firmy lub org."
+                   <?= !$_sfe['organizacja']['edit'] ? 'readonly disabled' : '' ?>>
           </div>
+          <?php endif; ?>
         </div>
 
+        <?php if ($_sfe['adres']['vis']): ?>
         <div class="mt-3">
-          <?php echo address_widget($row, ['label'=>'Adres korespondencyjny', 'autocomplete'=>true]); ?>
+          <?php echo address_widget($row, ['label'=>'Adres korespondencyjny', 'autocomplete'=>true, 'readonly' => !$_sfe['adres']['edit']]); ?>
         </div>
+        <?php endif; ?>
       </div>
     </div>
 
     <!-- Dane firmowe (NIP/KRS) -->
+    <?php if ($_sfe['nip']['vis'] || $_sfe['krs']['vis']): ?>
     <div class="card border-0 shadow-sm mt-3">
       <div class="card-body">
         <div class="crm-section-title">Dane rejestrowe (opcjonalnie)</div>
         <div class="row g-3">
+          <?php if ($_sfe['nip']['vis']): ?>
           <div class="col-sm-6">
-            <label class="form-label" for="nip">NIP</label>
+            <label class="form-label" for="nip">
+              NIP
+              <?php if (!$_sfe['nip']['edit']): ?><span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji"><i class="bi bi-lock-fill"></i></span><?php endif; ?>
+            </label>
             <input type="text" name="nip" id="nip"
-                   class="form-control font-monospace"
+                   class="form-control font-monospace<?= !$_sfe['nip']['edit'] ? ' bg-light text-muted' : '' ?>"
                    value="<?= h($row['nip'] ?? '') ?>"
                    placeholder="0000000000"
                    maxlength="13"
                    pattern="[\d\-]{9,13}"
-                   inputmode="numeric">
+                   inputmode="numeric"
+                   <?= !$_sfe['nip']['edit'] ? 'readonly disabled' : '' ?>>
           </div>
+          <?php endif; ?>
+          <?php if ($_sfe['krs']['vis']): ?>
           <div class="col-sm-6">
-            <label class="form-label" for="krs">KRS</label>
+            <label class="form-label" for="krs">
+              KRS
+              <?php if (!$_sfe['krs']['edit']): ?><span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji"><i class="bi bi-lock-fill"></i></span><?php endif; ?>
+            </label>
             <input type="text" name="krs" id="krs"
-                   class="form-control font-monospace"
+                   class="form-control font-monospace<?= !$_sfe['krs']['edit'] ? ' bg-light text-muted' : '' ?>"
                    value="<?= h($row['krs'] ?? '') ?>"
                    placeholder="0000000000"
                    maxlength="10"
                    pattern="\d{10}"
-                   inputmode="numeric">
+                   inputmode="numeric"
+                   <?= !$_sfe['krs']['edit'] ? 'readonly disabled' : '' ?>>
           </div>
+          <?php endif; ?>
         </div>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Notatka wstępna -->
+    <?php if ($_sfe['notatka']['vis']): ?>
     <div class="card border-0 shadow-sm mt-3">
       <div class="card-body">
         <div class="crm-section-title">Notatka</div>
         <label class="form-label visually-hidden" for="notatka">Notatka</label>
         <textarea name="notatka" id="notatka"
-                  class="form-control"
+                  class="form-control<?= !$_sfe['notatka']['edit'] ? ' bg-light text-muted' : '' ?>"
                   rows="4"
                   placeholder="Opcjonalna notatka o kontakcie…"
-                  aria-label="Notatka o kontakcie"><?= h($row['notatka'] ?? '') ?></textarea>
+                  aria-label="Notatka o kontakcie"
+                  <?= !$_sfe['notatka']['edit'] ? 'readonly disabled' : '' ?>><?= h($row['notatka'] ?? '') ?></textarea>
       </div>
     </div>
+    <?php endif; ?>
   </div>
 
   <?php
