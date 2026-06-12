@@ -428,6 +428,12 @@ function fmtPostal(v) {
 /* ─── Pomocnicze: ustaw pola TERYT w formularzu ────────────────────────── */
 function _addrSetTerytFields(d, form) {
   if (!form || !d) return;
+  function flash(el) {
+    if (!el) return;
+    el.style.transition = 'background .1s';
+    el.style.background = '#d1fae5';
+    setTimeout(function() { el.style.background = ''; }, 900);
+  }
   function setf(sel, val) {
     if (!val) return;
     var el = form.querySelector('[name="' + sel + '"]');
@@ -437,10 +443,13 @@ function _addrSetTerytFields(d, form) {
       for (var i = 0; i < el.options.length; i++) {
         var ov = el.options[i].value.toLowerCase().replace(/\s+/g, '');
         var ot = el.options[i].text.toLowerCase().replace(/\s+/g, '');
-        if (ov === v || ot === v || ot.startsWith(v.slice(0,6))) { el.selectedIndex = i; break; }
+        if (ov === v || ot === v || ot.startsWith(v.slice(0,6))) {
+          if (el.selectedIndex !== i) { el.selectedIndex = i; flash(el); }
+          break;
+        }
       }
-    } else if (!el.value) {
-      el.value = val;
+    } else {
+      if (el.value !== val) { el.value = val; flash(el); }
     }
   }
   setf('teryt_kod',    d.kod_gmi);

@@ -77,18 +77,7 @@ if ($action === 'postal_city') {
 if ($action === 'city_info') {
     $name = trim($_GET['name'] ?? '');
     if (!$name) { echo json_encode(null); exit; }
-    $row = db_one(
-        "SELECT t3.nazwa AS gmina, t3.kod_gmi, t3.kod_pow, t3.kod_woj, t3.nazwa_typ,
-                t2.nazwa AS powiat,
-                t1.nazwa AS woj
-         FROM teryt_units t3
-         LEFT JOIN teryt_units t2 ON t2.level=2 AND t2.kod_pow=t3.kod_pow AND t2.kod_woj=t3.kod_woj
-         LEFT JOIN teryt_units t1 ON t1.level=1 AND t1.kod_woj=t3.kod_woj
-         WHERE t3.level=3 AND t3.nazwa=?
-         LIMIT 1",
-        [$name]
-    );
-    echo json_encode($row ?: null, JSON_UNESCAPED_UNICODE);
+    echo json_encode(_teryt_details('nazwa', $name), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -96,24 +85,41 @@ if ($action === 'city_info') {
 if ($action === 'teryt_info') {
     $code = preg_replace('/\D/', '', trim($_GET['code'] ?? ''));
     if (!$code) { echo json_encode(null); exit; }
-    $row = db_one(
-        "SELECT t3.nazwa AS gmina, t3.kod_gmi, t3.kod_pow, t3.kod_woj, t3.nazwa_typ,
-                t2.nazwa AS powiat,
-                t1.nazwa AS woj
-         FROM teryt_units t3
-         LEFT JOIN teryt_units t2 ON t2.level=2 AND t2.kod_pow=t3.kod_pow AND t2.kod_woj=t3.kod_woj
-         LEFT JOIN teryt_units t1 ON t1.level=1 AND t1.kod_woj=t3.kod_woj
-         WHERE t3.level=3 AND t3.kod_gmi=?
-         LIMIT 1",
-        [$code]
-    );
-    echo json_encode($row ?: null, JSON_UNESCAPED_UNICODE);
+    echo json_encode(_teryt_details('kod_gmi', $code), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 echo json_encode(['error' => 'Nieznana akcja'], JSON_UNESCAPED_UNICODE);
 
-// ── Helper ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Pobiera pełne dane TERYT dla gminy (level=3) przez dowolną kolumnę. */
+function _teryt_details(string $col, string $val): ?array {
+    $allowed = ['nazwa', 'kod_gmi'];
+    if (!in_array($col, $allowed, true)) return null;
+
+    $gmi = db_one("SELECT nazwa, kod_gmi, kod_pow, kod_woj, nazwa_typ
+                   FROM teryt_units WHERE level=3 AND {$col}=? LIMIT 1", [$val]);
+    if (!$gmi) return null;
+
+    // Osobne zapytania — bezpieczniejsze niż trójkowy self-join na SQLite
+    $pow = db_one("SELECT nazwa FROM teryt_units
+                   WHERE level=2 AND kod_pow=? AND kod_woj=? LIMIT 1",
+                  [$gmi['kod_pow'], $gmi['kod_woj']]);
+    $woj = db_one("SELECT nazwa FROM teryt_units
+                   WHERE level=1 AND kod_woj=? LIMIT 1",
+                  [$gmi['kod_woj']]);
+
+    return [
+        'gmina'   => $gmi['nazwa'],
+        'kod_gmi' => $gmi['kod_gmi'],
+        'kod_pow' => $gmi['kod_pow'],
+        'kod_woj' => $gmi['kod_woj'],
+        'powiat'  => $pow['nazwa'] ?? null,
+        'woj'     => $woj['nazwa'] ?? null,
+    ];
+}
+
 function _postal_table_exists(): bool {
     static $v = null;
     if ($v !== null) return $v;
