@@ -90,9 +90,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $row = array_merge($row, $_POST);
 }
 
-// Definicje pól dodatkowych (wczytane tu, bo potrzebne też przy render)
-$_field_defs   = CrmManager::getFieldDefs();
-$_field_values = $is_edit ? CrmManager::getFieldValues($edit_id) : [];
+// Definicje pól dodatkowych — filtruj per widoczność i edytowalność
+$_field_defs_all = CrmManager::getFieldDefs();
+$_field_defs     = array_filter($_field_defs_all, 'crm_field_visible');
+$_field_values   = $is_edit ? CrmManager::getFieldValues($edit_id) : [];
 
 include __DIR__ . '/../includes/header_crm.php';
 ?>
@@ -276,22 +277,32 @@ include __DIR__ . '/../includes/header_crm.php';
         <div class="crm-section-title">Dodatkowe informacje</div>
         <div class="row g-3">
           <?php foreach ($visible_defs as $fd):
-            $fid   = (int)$fd['id'];
-            $fname = "custom_fields[$fid]";
+            $fid      = (int)$fd['id'];
+            $fname    = "custom_fields[$fid]";
+            $can_edit = crm_field_editable($fd);
             // Wartość: z POST przy błędzie, z bazy w edycji, pusta dla nowych
             $fval  = $_POST['custom_fields'][$fid]
                      ?? $_field_values[$fid]
                      ?? '';
             $col   = in_array($fd['field_type'], ['textarea']) ? 'col-12' : 'col-sm-6';
+            $ro    = $can_edit ? '' : ' readonly disabled';
+            $ro_cls= $can_edit ? '' : ' bg-light text-muted';
           ?>
           <div class="<?= $col ?>" data-applies="<?= h($fd['applies_to']) ?>">
-            <label class="form-label" for="cf_<?= $fid ?>"><?= h($fd['label']) ?></label>
+            <label class="form-label" for="cf_<?= $fid ?>">
+              <?= h($fd['label']) ?>
+              <?php if (!$can_edit): ?>
+              <span class="badge bg-secondary ms-1" style="font-size:.65rem" title="Brak uprawnień do edycji">
+                <i class="bi bi-lock-fill"></i>
+              </span>
+              <?php endif; ?>
+            </label>
             <?php if ($fd['field_type'] === 'textarea'): ?>
-              <textarea class="form-control" id="cf_<?= $fid ?>" name="<?= $fname ?>" rows="3"><?= h($fval) ?></textarea>
+              <textarea class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" rows="3"<?= $ro ?>><?= h($fval) ?></textarea>
             <?php elseif ($fd['field_type'] === 'select'):
               $opts = json_decode($fd['options'], true) ?: [];
             ?>
-              <select class="form-select" id="cf_<?= $fid ?>" name="<?= $fname ?>">
+              <select class="form-select<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>"<?= $can_edit ? '' : ' disabled' ?>>
                 <option value="">— wybierz —</option>
                 <?php foreach ($opts as $opt): ?>
                 <option value="<?= h($opt) ?>" <?= $fval === $opt ? 'selected' : '' ?>><?= h($opt) ?></option>
@@ -299,19 +310,20 @@ include __DIR__ . '/../includes/header_crm.php';
               </select>
             <?php elseif ($fd['field_type'] === 'checkbox'): ?>
               <div class="form-check mt-1">
-                <input class="form-check-input" type="checkbox" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="1" <?= $fval ? 'checked' : '' ?>>
+                <input class="form-check-input" type="checkbox" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="1"
+                       <?= $fval ? 'checked' : '' ?><?= $can_edit ? '' : ' disabled' ?>>
                 <label class="form-check-label" for="cf_<?= $fid ?>">Tak</label>
               </div>
             <?php elseif ($fd['field_type'] === 'date'): ?>
-              <input type="date" class="form-control" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>">
+              <input type="date" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
             <?php elseif ($fd['field_type'] === 'number'): ?>
-              <input type="number" class="form-control" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>">
+              <input type="number" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
             <?php elseif ($fd['field_type'] === 'url'): ?>
-              <input type="url" class="form-control" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>" placeholder="https://">
+              <input type="url" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>" placeholder="https://"<?= $ro ?>>
             <?php elseif ($fd['field_type'] === 'email'): ?>
-              <input type="email" class="form-control" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>">
+              <input type="email" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
             <?php else: ?>
-              <input type="text" class="form-control" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>">
+              <input type="text" class="form-control<?= $ro_cls ?>" id="cf_<?= $fid ?>" name="<?= $fname ?>" value="<?= h($fval) ?>"<?= $ro ?>>
             <?php endif; ?>
           </div>
           <?php endforeach; ?>
