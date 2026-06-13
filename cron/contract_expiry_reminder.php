@@ -38,14 +38,23 @@ $errs  = 0;
 
 echo "[" . date('Y-m-d H:i:s') . "] Start: contract_expiry_reminder\n";
 
+// Tabele z kolumną m365_nie_wylaczaj (dodaną przez cpc_migrate) — pomijamy
+// przypomnienia dla umów z utrzymanym dostępem po wygaśnięciu. uslugi/inne
+// nie mają tej kolumny, więc filtr nakładamy warunkowo.
+$tables_with_keep_flag = ['wolontariat', 'zlecenie', 'dzielo'];
+
 foreach ($contract_tables as $type => $table) {
+    $keep_filter = in_array($type, $tables_with_keep_flag, true)
+        ? ' AND m365_nie_wylaczaj = 0'
+        : '';
     // Pobierz wszystkie aktywne, terminowe umowy
     $contracts = db_all(
         "SELECT id, numer_umowy, imie_nazwisko, data_zakonczenia, opiekun, email, guardian_editor_id
          FROM {$table}
          WHERE bezterminowa = 0
            AND data_zakonczenia IS NOT NULL
-           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')",
+           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
+           {$keep_filter}",
         []
     );
 

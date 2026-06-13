@@ -592,6 +592,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $log_note .= ' [Umowa techniczna — współpraca przed 01.06.2026]';
         }
         log_contract_action($TYPE, $id, current_user()['id'], 'create', $log_note);
+        if (!empty($data['m365_nie_wylaczaj'])) {
+            log_contract_action($TYPE, $id, current_user()['id'], 'note',
+                'Ustawiono: dostęp M365 NIE będzie wyłączany po wygaśnięciu/zakończeniu umowy');
+        }
         if (isset($_POST['nie_mam_drukarki'])) {
             require_once __DIR__ . '/../includes/pdf_queue.php';
             pdf_queue_add($TYPE, $id, $data['numer_umowy'] ?? '', $data['imie_nazwisko'] ?? '', current_user()['id']);

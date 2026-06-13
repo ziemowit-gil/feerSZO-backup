@@ -49,6 +49,8 @@ const FIELD_LABELS = [
     'zus_skladki'                => 'Składki ZUS',
     'zwolnienie_wiek'            => 'Zwolnienie <26 lat',
     'tytul_ubezpieczenia'        => 'Tytuł ubezpieczenia',
+    'zus_data_rejestracji'       => 'Data zgłoszenia do ZUS',
+    'zus_data_wyrejestrowania'   => 'Data wyrejestrowania z ZUS',
     'wartosc_dziela'             => 'Wartość dzieła',
     'kwota_ryczaltu'             => 'Kwota ryczałtu',
     'stanowisko'                 => 'Stanowisko',
@@ -69,7 +71,7 @@ const SKIP_TRACKING = [
     'id', 'created_at', 'updated_at',
     'plik_umowy', 'plik_aneksu', 'plik_potwierdzenia', 'zalaczniki',
     'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne',
-    'm365_data_utworzenia', 'm365_licencja_przypisana',
+    'm365_data_utworzenia', 'm365_licencja_przypisana', 'm365_nie_wylaczaj',
 ];
 
 // ── Badges ────────────────────────────────────────────────────────────────────

@@ -142,6 +142,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'edit', $diff ?: 'Edytowano umowę');
 
+        // Dedykowany wpis w historii dla zmiany flagi „nie wyłączaj dostępu po wygaśnięciu"
+        if ((int)($row['m365_nie_wylaczaj'] ?? 0) !== (int)($save['m365_nie_wylaczaj'] ?? 0)) {
+            log_contract_action($TYPE, $id, current_user()['id'], 'note',
+                !empty($save['m365_nie_wylaczaj'])
+                    ? 'Włączono utrzymanie dostępu M365 po wygaśnięciu/zakończeniu umowy'
+                    : 'Wyłączono utrzymanie dostępu M365 — konto zostanie wyłączone po wygaśnięciu umowy');
+        }
+
         // Sync grupy CRM "Wolontariusze" gdy zmienił się status lub e-mail
         $status_changed = isset($save['status']) && ($save['status'] !== ($row['status'] ?? ''));
         $email_changed  = isset($save['email'])  && ($save['email']  !== ($row['email']  ?? ''));

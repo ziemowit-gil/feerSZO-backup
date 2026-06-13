@@ -2349,7 +2349,13 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
         <span class="badge bg-<?= $row['m365_konto_aktywne'] ? 'success' : 'secondary' ?>">
           <?= $row['m365_konto_aktywne'] ? 'Konto aktywne' : 'Konto nieaktywne' ?>
         </span>
-        <?php else: ?>
+        <?php endif; ?>
+        <?php if (!empty($row['m365_nie_wylaczaj'])): ?>
+        <span class="badge bg-info text-dark" title="Konto M365 nie zostanie wyłączone po wygaśnięciu ani zakończeniu umowy">
+          <i class="bi bi-shield-lock"></i> Dostęp utrzymany po wygaśnięciu
+        </span>
+        <?php endif; ?>
+        <?php if (!$row['m365_konto']): ?>
         <span class="badge bg-light text-dark border">Brak konta</span>
         <?php endif; ?>
       </div>
