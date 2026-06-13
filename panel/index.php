@@ -670,31 +670,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
   <?php endif; ?>
 
   <?php if ($contract_progress): ?>
-  <?php
-  $_pct = $contract_progress['pct'];
-  $_vtext = $contract_progress['ended']
-    ? 'Umowa zakończona — 100%'
-    : ('Postęp ' . $_pct . '%, pozostało ' . $contract_progress['days_left'] . ' dni');
-  ?>
-  <div class="vol-progress-wrap"
-       role="progressbar"
-       aria-valuenow="<?= $_pct ?>"
-       aria-valuemin="0"
-       aria-valuemax="100"
-       aria-valuetext="<?= h($_vtext) ?>"
-       aria-label="Czas trwania umowy">
-    <div class="vol-progress-fill" style="width:<?= $_pct ?>%"></div>
-  </div>
-  <div class="vol-progress-label" aria-hidden="true">
-    <span>
-      <?php if ($contract_progress['ended']): ?>
-        <strong>Umowa zakończona</strong>
-      <?php else: ?>
-        Pozostało <strong><?= $contract_progress['days_left'] ?></strong> dni
-      <?php endif; ?>
-    </span>
-    <span><?= $_pct ?>%</span>
-  </div>
+  <?php include __DIR__ . '/includes/pv_contract_countdown.php'; ?>
   <?php endif; ?>
 </div>
 </section>
@@ -857,6 +833,79 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
 <?php endif; // is_wolontariat ?>
 <?php endif; // _active_row ?>
 
+<?php
+// ── Centrum akcji — dane dla wyspy React (panel/includes/pv_action_hub.php) ──
+// Helpdesk IT — liczba otwartych zgłoszeń użytkownika
+$_hd_my_open = 0;
+try {
+    $_hd_my_open = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM helpdesk_tickets
+         WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')",
+        [(int)$user['id']]
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
+
+$_pv_actions = [];
+$_pv_actions[] = [
+    'href' => APP_URL . '/panel/messages.php', 'icon' => 'bi-chat-left-text',
+    'label' => 'Napisz do nas', 'count' => $msg_unread ?: 0,
+    'sub' => $msg_unread ? "$msg_unread nowych" : 'brak nowych',
+    'badge' => $msg_unread, 'badgeClass' => 'danger',
+];
+$_pv_actions[] = [
+    'href' => APP_URL . '/panel/apply.php', 'icon' => 'bi-send',
+    'label' => 'Złóż wniosek', 'count' => count($my_apps),
+    'sub' => $my_apps_new ? "$my_apps_new oczekuje" : 'złożone wnioski',
+    'badge' => $my_apps_new, 'badgeClass' => 'danger',
+];
+if (module_enabled('certificates_enabled')) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/certificates.php', 'icon' => 'bi-award',
+        'iconColor' => '#D97706', 'iconBg' => '#FFF8E7',
+        'label' => 'Zaświadczenia', 'count' => count($my_certs),
+        'sub' => $my_certs_pending ? "$my_certs_pending w toku" : 'wszystkie gotowe',
+        'badge' => $my_certs_pending, 'badgeClass' => 'warning',
+    ];
+}
+if ($_active_zwroty) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/zwroty.php', 'icon' => 'bi-receipt',
+        'iconColor' => '#16A34A', 'iconBg' => '#F0FDF4',
+        'label' => 'Rozlicz koszty', 'count' => $_zwroty_pending ?: 0,
+        'sub' => $_zwroty_pending ? 'oczekuje zwrotu' : 'do złożenia',
+        'badge' => $_zwroty_pending, 'badgeClass' => 'warning',
+    ];
+}
+if (module_enabled('timesheets_enabled')) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/timesheets.php', 'icon' => 'bi-clock-history',
+        'iconColor' => '#7C3AED', 'iconBg' => '#F5F3FF',
+        'label' => 'Ewidencja godzin', 'sub' => 'arkusze czasu',
+    ];
+}
+if (module_enabled('letters_enabled') && $my_letters_count) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/letters.php', 'icon' => 'bi-archive',
+        'iconColor' => '#0176D3', 'iconBg' => '#EFF6FF',
+        'label' => 'Pisma', 'count' => $my_letters_count, 'sub' => 'korespondencja',
+    ];
+}
+if (module_enabled('terminations_enabled') && count($my_terms)) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/terminations.php', 'icon' => 'bi-file-earmark-x',
+        'iconColor' => '#DC2626', 'iconBg' => '#FEF2F2',
+        'label' => 'Zakończ współpracę', 'count' => count($my_terms),
+        'sub' => 'wnioski złożone', 'badge' => $my_terms_pending, 'badgeClass' => 'warning',
+    ];
+}
+$_pv_actions[] = [
+    'href' => APP_URL . '/panel/helpdesk.php', 'icon' => 'bi-headset',
+    'iconColor' => 'var(--vol-color)', 'iconBg' => '#F0F4FF',
+    'label' => 'Helpdesk IT', 'count' => $_hd_my_open ?: 0,
+    'sub' => $_hd_my_open ? "{$_hd_my_open} otwartych" : 'zgłoś problem',
+    'badge' => $_hd_my_open, 'badgeClass' => 'danger',
+];
+?>
 <!-- ═══ SZYBKIE AKCJE — duże karty ══════════════════════════════════════════ -->
 <div class="pv-stats-bar" role="list" aria-label="Podsumowanie">
   <?php if ($msg_unread): ?>
@@ -882,139 +931,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
   </span>
   <?php endif; ?>
 </div>
-<nav aria-label="Szybkie akcje">
-<ul class="vol-actions">
-
-  <li><a href="<?= APP_URL ?>/panel/messages.php" class="vol-action-btn"
-     aria-label="Wiadomości<?= $msg_unread ? " — $msg_unread nieprzeczytanych" : '' ?>">
-    <?php if ($msg_unread): ?>
-    <span class="vol-action-badge badge rounded-pill bg-danger"><?= $msg_unread ?></span>
-    <?php endif; ?>
-    <div class="vol-action-icon-wrap"><i class="bi bi-chat-left-text vol-action-icon" aria-hidden="true"></i></div>
-    <div>
-      <div class="vol-action-count"><?= $msg_unread ?: '0' ?></div>
-      <div class="vol-action-label">Napisz do nas</div>
-      <div class="vol-action-sub"><?= $msg_unread ? "$msg_unread nowych" : 'brak nowych' ?></div>
-    </div>
-  </a></li>
-
-  <li><a href="<?= APP_URL ?>/panel/apply.php" class="vol-action-btn"
-     aria-label="Wnioski i pisma<?= $my_apps_new ? " — $my_apps_new nowych" : '' ?>">
-    <?php if ($my_apps_new): ?>
-    <span class="vol-action-badge badge rounded-pill bg-danger" aria-hidden="true"><?= $my_apps_new ?></span>
-    <?php endif; ?>
-    <div class="vol-action-icon-wrap" aria-hidden="true"><i class="bi bi-send vol-action-icon"></i></div>
-    <div>
-      <div class="vol-action-count" aria-hidden="true"><?= count($my_apps) ?></div>
-      <div class="vol-action-label">Złóż wniosek</div>
-      <div class="vol-action-sub"><?= $my_apps_new ? "$my_apps_new oczekuje" : 'złożone wnioski' ?></div>
-    </div>
-  </a></li>
-
-  <?php if (module_enabled('certificates_enabled')): ?>
-  <li><a href="<?= APP_URL ?>/panel/certificates.php" class="vol-action-btn"
-     aria-label="Zaświadczenia<?= $my_certs_pending ? " — $my_certs_pending w toku" : '' ?>">
-    <?php if ($my_certs_pending): ?>
-    <span class="vol-action-badge badge rounded-pill bg-warning text-dark" aria-hidden="true"><?= $my_certs_pending ?></span>
-    <?php endif; ?>
-    <div class="vol-action-icon-wrap" style="background:#FFF8E7" aria-hidden="true">
-      <i class="bi bi-award vol-action-icon" style="color:#D97706"></i>
-    </div>
-    <div>
-      <div class="vol-action-count" style="color:#D97706" aria-hidden="true"><?= count($my_certs) ?></div>
-      <div class="vol-action-label">Zaświadczenia</div>
-      <div class="vol-action-sub"><?= $my_certs_pending ? "$my_certs_pending w toku" : 'wszystkie gotowe' ?></div>
-    </div>
-  </a></li>
-  <?php endif; ?>
-
-  <?php if ($_active_zwroty): ?>
-  <li><a href="<?= APP_URL ?>/panel/zwroty.php" class="vol-action-btn"
-     aria-label="Zwrot kosztów<?= $_zwroty_pending ? " — $_zwroty_pending oczekuje" : '' ?>">
-    <?php if ($_zwroty_pending): ?>
-    <span class="vol-action-badge badge rounded-pill bg-warning text-dark" aria-hidden="true"><?= $_zwroty_pending ?></span>
-    <?php endif; ?>
-    <div class="vol-action-icon-wrap" style="background:#F0FDF4" aria-hidden="true">
-      <i class="bi bi-receipt vol-action-icon" style="color:#16A34A"></i>
-    </div>
-    <div>
-      <div class="vol-action-count" style="color:#16A34A" aria-hidden="true"><?= $_zwroty_pending ?: '0' ?></div>
-      <div class="vol-action-label">Rozlicz koszty</div>
-      <div class="vol-action-sub"><?= $_zwroty_pending ? 'oczekuje zwrotu' : 'do złożenia' ?></div>
-    </div>
-  </a></li>
-  <?php endif; ?>
-
-  <?php if (module_enabled('timesheets_enabled')): ?>
-  <li><a href="<?= APP_URL ?>/panel/timesheets.php" class="vol-action-btn" aria-label="Ewidencja godzin pracy">
-    <div class="vol-action-icon-wrap" style="background:#F5F3FF" aria-hidden="true">
-      <i class="bi bi-clock-history vol-action-icon" style="color:#7C3AED"></i>
-    </div>
-    <div>
-      <div class="vol-action-label">Ewidencja godzin</div>
-      <div class="vol-action-sub">arkusze czasu</div>
-    </div>
-  </a></li>
-  <?php endif; ?>
-
-  <?php if (module_enabled('letters_enabled') && $my_letters_count): ?>
-  <li><a href="<?= APP_URL ?>/panel/letters.php" class="vol-action-btn" aria-label="Pisma i korespondencja — <?= $my_letters_count ?> pism">
-    <div class="vol-action-icon-wrap" style="background:#EFF6FF" aria-hidden="true">
-      <i class="bi bi-archive vol-action-icon" style="color:#0176D3"></i>
-    </div>
-    <div>
-      <div class="vol-action-count" style="color:#0176D3" aria-hidden="true"><?= $my_letters_count ?></div>
-      <div class="vol-action-label">Pisma</div>
-      <div class="vol-action-sub">korespondencja</div>
-    </div>
-  </a></li>
-  <?php endif; ?>
-
-  <?php if (module_enabled('terminations_enabled') && count($my_terms)): ?>
-  <li><a href="<?= APP_URL ?>/panel/terminations.php" class="vol-action-btn"
-     aria-label="Rozwiązanie umowy<?= $my_terms_pending ? " — $my_terms_pending oczekuje" : '' ?>">
-    <?php if ($my_terms_pending): ?>
-    <span class="vol-action-badge badge rounded-pill bg-warning text-dark" aria-hidden="true"><?= $my_terms_pending ?></span>
-    <?php endif; ?>
-    <div class="vol-action-icon-wrap" style="background:#FEF2F2" aria-hidden="true">
-      <i class="bi bi-file-earmark-x vol-action-icon" style="color:#DC2626"></i>
-    </div>
-    <div>
-      <div class="vol-action-count" style="color:#DC2626" aria-hidden="true"><?= count($my_terms) ?></div>
-      <div class="vol-action-label">Zakończ współpracę</div>
-      <div class="vol-action-sub">wnioski złożone</div>
-    </div>
-  </a></li>
-  <?php endif; ?>
-
-  <?php
-  // Helpdesk IT — liczba otwartych zgłoszeń
-  $_hd_my_open = 0;
-  try {
-      $_hd_my_open = (int)(db_one(
-          "SELECT COUNT(*) AS c FROM helpdesk_tickets
-           WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')",
-          [(int)$user['id']]
-      )['c'] ?? 0);
-  } catch (\Throwable $e) {}
-  ?>
-  <li><a href="<?= APP_URL ?>/panel/helpdesk.php" class="vol-action-btn"
-     aria-label="Helpdesk IT<?= $_hd_my_open ? " — {$_hd_my_open} otwartych" : '' ?>">
-    <?php if ($_hd_my_open): ?>
-    <span class="vol-action-badge badge rounded-pill bg-danger" aria-hidden="true"><?= $_hd_my_open ?></span>
-    <?php endif; ?>
-    <div class="vol-action-icon-wrap" style="background:#F0F4FF" aria-hidden="true">
-      <i class="bi bi-headset vol-action-icon" style="color:var(--vol-color)"></i>
-    </div>
-    <div>
-      <div class="vol-action-count" aria-hidden="true"><?= $_hd_my_open ?: '0' ?></div>
-      <div class="vol-action-label">Helpdesk IT</div>
-      <div class="vol-action-sub"><?= $_hd_my_open ? "{$_hd_my_open} otwartych" : 'zgłoś problem' ?></div>
-    </div>
-  </a></li>
-
-</ul>
-</nav>
+<?php include __DIR__ . "/includes/pv_action_hub.php"; ?>
 
 <!-- ── Canva Pro — prośba o dostęp ──────────────────────────────────────────── -->
 <?php
@@ -1090,43 +1007,13 @@ $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
 
 <!-- ═══ PANEL AKTYWNOŚCI ════════════════════════════════════════════════════ -->
 <?php if ($my_apps): ?>
-<section class="vol-activity mb-3" aria-labelledby="pvp-activity-heading">
-  <div class="vol-activity-header">
-    <h2 id="pvp-activity-heading" class="vol-activity-title">
-      <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Ostatnie wnioski i pisma
-    </h2>
-    <a href="<?= APP_URL ?>/panel/apply.php"
-       class="btn btn-sm py-0 px-2"
-       style="background:var(--vol-color);color:#fff;font-size:.75rem;border-radius:5px"
-       aria-label="Złóż nowy wniosek">
-      <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowy
-    </a>
-  </div>
-  <?php
-  $st_colors = ['nowy'=>'var(--vol-color)','w_trakcie'=>'#D97706','rozpatrzony'=>'#16A34A','odrzucony'=>'#DC2626'];
-  $st_bgcol  = ['nowy'=>'#EFF6FF','w_trakcie'=>'#FEF3E2','rozpatrzony'=>'#F0FDF4','odrzucony'=>'#FEF2F2'];
-  $st_lbl    = ['nowy'=>'Nowy','w_trakcie'=>'W trakcie','rozpatrzony'=>'Rozpatrzony','odrzucony'=>'Odrzucony'];
-  foreach ($my_apps as $app):
-    $_st_c = $st_colors[$app['status']] ?? '#9CA3AF';
-    $_st_b = $st_bgcol[$app['status']] ?? '#F3F4F6';
-  ?>
-  <div class="vol-activity-row">
-    <div class="vol-activity-icon" style="background:<?= $_st_b ?>;color:<?= $_st_c ?>">
-      <i class="bi <?= h($app['type_icon'] ?? 'bi-file-text') ?>" aria-hidden="true"></i>
-    </div>
-    <div style="flex:1;min-width:0">
-      <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($app['tytul']) ?></div>
-      <div style="font-size:.73rem;color:#9CA3AF"><?= h($app['type_label'] ?? '') ?> · <?= substr($app['created_at'],0,10) ?></div>
-      <?php if (!empty($app['odpowiedz']) && $app['status'] !== 'nowy'): ?>
-      <div style="font-size:.78rem;color:#374151;margin-top:.15rem;font-style:italic"><?= h(mb_substr($app['odpowiedz'],0,80)) ?><?= mb_strlen($app['odpowiedz'])>80?'…':'' ?></div>
-      <?php endif; ?>
-    </div>
-    <span style="display:inline-flex;align-items:center;padding:.15rem .55rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:<?= $_st_b ?>;color:<?= $_st_c ?>;white-space:nowrap;flex-shrink:0">
-      <?= h($st_lbl[$app['status']] ?? $app['status']) ?>
-    </span>
-  </div>
-  <?php endforeach; ?>
-</section>
+<?php
+$_pv_apps = array_map(fn($a) => [
+    'tytul' => $a['tytul'], 'type_label' => $a['type_label'] ?? '', 'type_icon' => $a['type_icon'] ?? 'bi-file-text',
+    'status' => $a['status'], 'created_at' => $a['created_at'], 'odpowiedz' => $a['odpowiedz'] ?? '',
+], $my_apps);
+include __DIR__ . '/includes/pv_apps_activity.php';
+?>
 <?php elseif ($contracts): ?>
 <!-- CTA jeśli brak wniosków -->
 <div style="background:#fff;border:2px dashed #E5E7EB;border-radius:12px;text-align:center;padding:2rem 1rem">
@@ -1339,324 +1226,19 @@ if ($_tasks_panel_enabled):
     $pri_colors = [4=>'#dc2626',3=>'#f59e0b',2=>'#3b82f6',1=>'#94a3b8'];
     $csrf_panel = csrf_token();
 ?>
-<div class="card border-0 shadow-sm mb-4" id="panel-tasks-card">
-  <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-2 px-3">
-    <i class="bi bi-table text-success" aria-hidden="true"></i>
-    <h2 class="h6 fw-bold mb-0 flex-grow-1">Moje zadania</h2>
-
-    <?php if ($_task_inbox_unread > 0): ?>
-    <a href="<?= APP_URL ?>/tasks/inbox.php"
-       class="badge bg-primary text-decoration-none"
-       aria-label="<?= $_task_inbox_unread ?> nieprzeczytanych wiadomości">
-      <i class="bi bi-chat me-1" aria-hidden="true"></i><?= $_task_inbox_unread ?> nowych
-    </a>
-    <?php endif; ?>
-
-    <?php if ($_open_tasks_total > 0): ?>
-    <span class="badge" id="panel-open-tasks-badge" style="background:#dcfce7;color:#15803d;font-size:.72rem"
-          aria-label="<?= $_open_tasks_total ?> dostępnych zadań do wzięcia">
-      <?= $_open_tasks_total ?> dostępnych
-    </span>
-    <?php endif; ?>
-
-    <a href="<?= APP_URL ?>/tasks/index.php"
-       class="btn btn-sm btn-outline-success ms-1"
-       aria-label="Otwórz giełdę zadań">
-      <i class="bi bi-grid-3x2-gap me-1" aria-hidden="true"></i>Zadania
-    </a>
-  </div>
-
-  <div class="card-body p-0">
-
-    <?php if (!$_my_tasks && !$_open_tasks): ?>
-    <!-- Stan pusty -->
-    <div class="text-center py-4 text-muted">
-      <i class="bi bi-inbox d-block mb-2" style="font-size:1.8rem;opacity:.25" aria-hidden="true"></i>
-      <p class="small mb-2">Nie masz przypisanych zadań.</p>
-      <?php if (!$_open_tasks): ?>
-      <p class="small text-muted">Poproś koordynatora o przypisanie zadania lub odwiedź giełdę.</p>
-      <?php endif; ?>
-      <a href="<?= APP_URL ?>/tasks/index.php?status=open"
-         class="btn btn-sm btn-outline-success">
-        <i class="bi bi-hand-index me-1" aria-hidden="true"></i>Przeglądaj dostępne zadania
-      </a>
-    </div>
-
-    <?php else: ?>
-
-    <!-- ── Moje aktywne zadania ── -->
-    <?php if ($_my_tasks): ?>
-    <div style="padding:.55rem 1rem .2rem">
-      <p class="text-muted" style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.4rem">
-        Przypisane do mnie
-      </p>
-    </div>
-    <ul class="list-unstyled mb-0" role="list" aria-label="Moje zadania">
-      <?php foreach ($_my_tasks as $pt):
-        $overdue = $pt['due_date'] && strtotime($pt['due_date']) < strtotime('today');
-        $pc = $pri_colors[$pt['priority']] ?? '#94a3b8';
-        $diff = $pt['due_date'] ? (int)((strtotime($pt['due_date'])-strtotime('today'))/86400) : null;
-      ?>
-      <li role="listitem"
-          style="display:flex;align-items:center;gap:.65rem;padding:.55rem 1rem;
-                 border-bottom:1px solid #f8fafc;cursor:pointer;transition:background .1s"
-          class="panel-task-row"
-          tabindex="0"
-          onclick="panelOpenTask(<?= $pt['id'] ?>)"
-          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();panelOpenTask(<?= $pt['id'] ?>)}"
-          aria-label="Zadanie: <?= h($pt['title']) ?><?= $overdue?' (po terminie)':'' ?>">
-
-        <!-- Priorytet dot -->
-        <span style="width:9px;height:9px;border-radius:50%;background:<?= $pc ?>;flex-shrink:0"
-              aria-hidden="true"></span>
-
-        <!-- Tytuł + obszar -->
-        <div style="flex:1;min-width:0">
-          <div style="font-size:.86rem;font-weight:600;color:#0f172a;
-                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            <?= h($pt['title']) ?>
-          </div>
-          <div style="font-size:.72rem;color:#94a3b8;display:flex;align-items:center;gap:.35rem">
-            <span style="width:6px;height:6px;border-radius:50%;background:<?= h($pt['ws_color']) ?>;flex-shrink:0" aria-hidden="true"></span>
-            <?= h($pt['ws_name']) ?> › <?= h($pt['list_name']) ?>
-          </div>
-        </div>
-
-        <!-- Termin -->
-        <?php if ($diff !== null): ?>
-        <span style="font-size:.72rem;font-weight:600;white-space:nowrap;flex-shrink:0;
-                     color:<?= $overdue ? '#dc2626' : ($diff <= 3 ? '#d97706' : '#94a3b8') ?>">
-          <?php if ($overdue): ?>
-            <i class="bi bi-alarm" aria-hidden="true"></i> Po terminie
-          <?php elseif ($diff === 0): ?>
-            Dzisiaj
-          <?php elseif ($diff === 1): ?>
-            Jutro
-          <?php else: ?>
-            <?= h(date('d.m', strtotime($pt['due_date']))) ?>
-          <?php endif; ?>
-        </span>
-        <?php endif; ?>
-
-        <!-- Przycisk zakończ -->
-        <button type="button"
-                class="btn btn-xs btn-outline-success py-0 px-2"
-                style="font-size:.72rem;white-space:nowrap;flex-shrink:0"
-                onclick="event.stopPropagation();panelCompleteTask(<?= $pt['id'] ?>,this)"
-                aria-label="Oznacz zadanie jako ukończone: <?= h($pt['title']) ?>">
-          <i class="bi bi-check2" aria-hidden="true"></i>
-        </button>
-      </li>
-      <?php endforeach; ?>
-    </ul>
-    <?php endif; ?>
-
-    <!-- ── Dostępne zadania do wzięcia ── -->
-    <?php if ($_open_tasks): ?>
-    <div style="padding:.55rem 1rem .2rem;margin-top:.25rem">
-      <p class="text-muted" style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.4rem">
-        Dostępne — możesz wziąć
-      </p>
-    </div>
-    <ul class="list-unstyled mb-0" role="list" aria-label="Dostępne zadania do wzięcia">
-      <?php foreach ($_open_tasks as $ot):
-        $pc2 = $pri_colors[$ot['priority']] ?? '#94a3b8';
-      ?>
-      <li role="listitem"
-          style="display:flex;align-items:center;gap:.65rem;padding:.5rem 1rem;
-                 border-bottom:1px solid #f8fafc;background:#fafffe">
-        <span style="width:9px;height:9px;border-radius:50%;background:<?= $pc2 ?>;flex-shrink:0"
-              aria-hidden="true"></span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:.85rem;font-weight:500;color:#0f172a;
-                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            <?= h($ot['title']) ?>
-          </div>
-          <div style="font-size:.71rem;color:#94a3b8">
-            <span style="width:6px;height:6px;border-radius:50%;background:<?= h($ot['ws_color']) ?>;display:inline-block;margin-right:.2rem" aria-hidden="true"></span>
-            <?= h($ot['ws_name']) ?>
-            <?php if ($ot['due_date']): ?>
-            · <i class="bi bi-calendar3" aria-hidden="true"></i> <?= h(date('d.m.Y',strtotime($ot['due_date']))) ?>
-            <?php endif; ?>
-          </div>
-        </div>
-        <button type="button"
-                class="btn btn-sm py-0 px-2"
-                style="background:#059669;color:#fff;border:none;font-size:.74rem;white-space:nowrap;flex-shrink:0"
-                onclick="panelClaimTask(<?= $ot['id'] ?>, this)"
-                aria-label="Weź zadanie: <?= h($ot['title']) ?>">
-          <i class="bi bi-hand-index me-1" aria-hidden="true"></i>Weź
-        </button>
-      </li>
-      <?php endforeach; ?>
-    </ul>
-    <?php endif; ?>
-
-    <?php endif; /* has tasks */ ?>
-
-  </div><!-- /card-body -->
-
-  <?php if (count($_my_tasks) >= 10): ?>
-  <div class="card-footer bg-white border-top py-2 text-center">
-    <a href="<?= APP_URL ?>/tasks/index.php?status=mine"
-       class="btn btn-sm btn-outline-secondary"
-       style="font-size:.8rem">
-      <i class="bi bi-list-ul me-1"></i>Wszystkie moje zadania
-    </a>
-  </div>
-  <?php endif; ?>
-
-</div><!-- /card panel-tasks-card -->
-
-<!-- SR announce -->
-<div id="panel-task-sr" aria-live="polite" aria-atomic="true"
-     style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;
-            overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0"></div>
-
-<!-- Offcanvas szczegółów zadania (lekki, wewnątrz panelu) -->
-<div class="offcanvas offcanvas-end shadow-lg" tabindex="-1"
-     id="panelTaskOffcanvas"
-     role="dialog"
-     aria-labelledby="panelTaskOffcanvasLabel"
-     aria-modal="true">
-  <div class="offcanvas-header border-bottom py-2">
-    <h2 class="h6 offcanvas-title fw-bold mb-0" id="panelTaskOffcanvasLabel">
-      <i class="bi bi-card-text me-1 text-success" aria-hidden="true"></i>Szczegóły zadania
-    </h2>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"
-            aria-label="Zamknij szczegóły zadania"></button>
-  </div>
-  <div class="offcanvas-body p-0 overflow-auto"
-       id="panelTaskOffcanvasBody"
-       aria-live="polite" aria-atomic="true">
-    <div class="text-center py-5 text-muted">
-      <div class="spinner-border spinner-border-sm" role="status">
-        <span class="visually-hidden">Ładowanie…</span>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-(function() {
-  const BASE  = <?= json_encode(rtrim(APP_URL,'/')) ?>;
-  const CSRF  = <?= json_encode($csrf_panel) ?>;
-
-  function srAnnounce(msg) {
-    const el = document.getElementById('panel-task-sr');
-    if (!el) return;
-    el.textContent = '';
-    setTimeout(() => { el.textContent = msg; }, 50);
-  }
-
-  // Otwórz szczegóły zadania
-  window.panelOpenTask = function(taskId) {
-    const body = document.getElementById('panelTaskOffcanvasBody');
-    body.innerHTML = '<div class="text-center py-5 text-muted">'
-      + '<div class="spinner-border spinner-border-sm" role="status">'
-      + '<span class="visually-hidden">Ładowanie…</span></div></div>';
-    bootstrap.Offcanvas.getOrCreateInstance(
-      document.getElementById('panelTaskOffcanvas')
-    ).show();
-    fetch(BASE + '/tasks/detail.php?id=' + taskId)
-      .then(r => r.text())
-      .then(html => {
-        body.innerHTML = '';
-        body.appendChild(document.createRange().createContextualFragment(html));
-      })
-      .catch(() => {
-        body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania.</div>';
-      });
-  };
-
-  // Weź zadanie
-  window.panelClaimTask = function(taskId, btn) {
-    btn.disabled = true;
-    btn.textContent = 'Biorę…';
-    fetch(BASE + '/tasks/api/claim.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({_csrf: CSRF, task_id: taskId, action: 'add'})
-    })
-    .then(r => r.json())
-    .then(r => {
-      if (r.ok) {
-        srAnnounce('Zadanie przypisane. Odśwież stronę aby zobaczyć aktualizację.');
-        // Przenieś wiersz z "wolnych" do "moich"
-        const li = btn.closest('li');
-        if (li) {
-          li.style.background = '#f0fdf4';
-          btn.innerHTML = '<i class="bi bi-check2"></i> Wzięte';
-          btn.style.background = '#16a34a';
-          setTimeout(() => location.reload(), 1200);
-        }
-      } else {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-hand-index me-1"></i>Weź';
-        alert(r.error || 'Błąd.');
-      }
-    })
-    .catch(() => {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-hand-index me-1"></i>Weź';
-      alert('Błąd połączenia.');
-    });
-  };
-
-  // Oznacz jako ukończone
-  window.panelCompleteTask = function(taskId, btn) {
-    if (!confirm('Oznacz to zadanie jako ukończone?')) return;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
-    fetch(BASE + '/tasks/api/task.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({_csrf: CSRF, action: 'complete', id: taskId})
-    })
-    .then(r => r.json())
-    .then(r => {
-      if (r.ok) {
-        const li = btn.closest('li');
-        if (li) {
-          li.style.opacity = '.45';
-          li.style.textDecoration = 'line-through';
-          btn.innerHTML = '<i class="bi bi-check2-circle text-success"></i>';
-          srAnnounce('Zadanie oznaczone jako ukończone.');
-          setTimeout(() => {
-            li.remove();
-            // Aktualizuj licznik zadań w nagłówku karty
-            const ul = document.querySelector('[aria-label="Moje zadania"]');
-            if (ul) {
-              const remaining = ul.querySelectorAll('li[role="listitem"]').length;
-              const hdr = document.querySelector('#panel-tasks-card .card-header .h6');
-              if (hdr) hdr.textContent = remaining > 0
-                ? `Moje zadania (${remaining})`
-                : 'Moje zadania';
-            }
-          }, 1500);
-        }
-      } else {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-check2"></i>';
-        alert(r.error || 'Błąd.');
-      }
-    })
-    .catch(() => {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-check2"></i>';
-      alert('Błąd połączenia.');
-    });
-  };
-
-  // Hover na wierszach zadań
-  document.querySelectorAll('.panel-task-row').forEach(row => {
-    row.addEventListener('mouseenter', () => row.style.background = '#f8fafc');
-    row.addEventListener('mouseleave', () => row.style.background = '');
-    row.addEventListener('focus',      () => row.style.background = '#eff6ff');
-    row.addEventListener('blur',       () => row.style.background = '');
-  });
-})();
-</script>
+<?php
+// ── Dane dla wyspy React (panel/includes/pv_tasks_panel.php) ─────────────────
+$_pv_tasks_mine = array_map(fn($t) => [
+    'id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['priority'],
+    'due_date' => $t['due_date'], 'ws_name' => $t['ws_name'], 'list_name' => $t['list_name'],
+    'ws_color' => $t['ws_color'],
+], $_my_tasks);
+$_pv_tasks_open = array_map(fn($t) => [
+    'id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['priority'],
+    'due_date' => $t['due_date'], 'ws_name' => $t['ws_name'], 'ws_color' => $t['ws_color'],
+], $_open_tasks);
+include __DIR__ . '/includes/pv_tasks_panel.php';
+?>
 <?php endif; /* tasks_panel_enabled */ ?>
 
 <!-- ── Moje wydarzenia ────────────────────────────────────────────────────── -->
