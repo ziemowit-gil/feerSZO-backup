@@ -41,7 +41,7 @@ if ($comms) {
     ];
     foreach ($comms as $c) {
         $icon = $icons[$c['channel']] ?? 'bi-chat-dots';
-        $dir  = $c['direction'] === 'outgoing' ? '→' : '←';
+        $dir  = in_array($c['direction'], ['out', 'outgoing'], true) ? '→' : '←';
         $html .= '<div style="display:flex;gap:.5rem;align-items:flex-start;padding:.4rem 0;border-bottom:1px solid #f1f5f9;font-size:.8rem">'
                . '<i class="bi ' . $icon . ' text-muted mt-1" aria-hidden="true"></i>'
                . '<div><div style="font-weight:600">' . $dir . ' ' . h($c['subject'] ?: $c['channel']) . '</div>'

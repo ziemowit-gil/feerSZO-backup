@@ -471,6 +471,7 @@ function _cv_communications_html(array $contact, int $id): string {
       <?php if ($contact['communications']): ?>
         <?php foreach ($contact['communications'] as $comm):
           $ch_info = CRM_CHANNELS[$comm['channel']] ?? ['label' => $comm['channel'], 'icon' => 'bi-chat'];
+          $is_out  = in_array($comm['direction'] ?? '', ['out', 'outgoing'], true);
         ?>
         <div class="crm-comm-item">
           <div class="crm-comm-icon <?= h($comm['channel']) ?>" aria-hidden="true">
@@ -478,7 +479,10 @@ function _cv_communications_html(array $contact, int $id): string {
           </div>
           <div class="flex-grow-1">
             <div style="font-size:.82rem">
+              <i class="bi bi-arrow-<?= $is_out ? 'up-right text-primary' : 'down-left text-success' ?> me-1"
+                 title="<?= $is_out ? 'Wychodząca' : 'Przychodząca' ?>" aria-hidden="true"></i>
               <span class="fw-semibold"><?= h($ch_info['label']) ?></span>
+              <span class="visually-hidden"><?= $is_out ? 'wychodząca' : 'przychodząca' ?></span>
               <?php if ($comm['subject']): ?>
               — <span class="text-muted"><?= h($comm['subject']) ?></span>
               <?php endif; ?>
@@ -490,7 +494,7 @@ function _cv_communications_html(array $contact, int $id): string {
             <div class="crm-note-meta">
               <i class="bi bi-person me-1" aria-hidden="true"></i><?= h($comm['sender_name'] ?? '—') ?>
               · <?= date_pl($comm['sent_at']) ?>
-              <span class="badge ms-1" style="font-size:.65rem;background:<?= $comm['status']==='wysłana'?'#EFF7ED;color:#2E844A':'#fef2f2;color:#dc2626' ?>">
+              <span class="badge ms-1" style="font-size:.65rem;background:<?= in_array($comm['status'], ['wysłana','zsynchronizowana'], true)?'#EFF7ED;color:#2E844A':'#fef2f2;color:#dc2626' ?>">
                 <?= h($comm['status']) ?>
               </span>
             </div>

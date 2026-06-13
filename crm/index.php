@@ -726,6 +726,27 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
   <?php endif; ?>
 
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-light" data-bs-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+      <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Typ
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark">
+      <li>
+        <a class="dropdown-item" href="#"
+           onclick="Bulk.do('convert_type','organizacja');return false">
+          <i class="bi bi-building me-1" aria-hidden="true"></i>Na organizację
+        </a>
+      </li>
+      <li>
+        <a class="dropdown-item" href="#"
+           onclick="Bulk.do('convert_type','osoba');return false">
+          <i class="bi bi-person me-1" aria-hidden="true"></i>Na osobę
+        </a>
+      </li>
+    </ul>
+  </div>
+
   <?php if ($crm_can_delete): ?>
   <button class="btn btn-sm btn-outline-danger" aria-label="Usuń zaznaczone kontakty"
           onclick="Bulk.do('delete',null)">
@@ -779,6 +800,13 @@ const Bulk = (function () {
     if (!ids.length) return;
     if (action === 'delete' && !confirm('Usunąć ' + ids.length + ' kontaktów? Operacja jest odwracalna przez administratora.')) return;
     if (action === 'add_tag' && !value?.trim()) return;
+    if (action === 'convert_type') {
+      const label = value === 'organizacja' ? 'organizację' : 'osobę';
+      const wiped = value === 'organizacja'
+        ? 'dane osobowe (imię, nazwisko, PESEL, data urodzenia)'
+        : 'dane rejestrowe (NIP, KRS, REGON, osoba kontaktowa, forma prawna)';
+      if (!confirm('Zmienić typ ' + ids.length + ' kontaktów na ' + label + '?\n\nUWAGA: ' + wiped + ' zostaną trwale wyczyszczone dla konwertowanych rekordów.')) return;
+    }
 
     const res = await fetch(API, {
       method: 'POST',
@@ -792,6 +820,7 @@ const Bulk = (function () {
         add_tag:      `Dodano tag do ${res.affected} kontaktów.`,
         remove_tag:   `Usunięto tag z ${res.affected} kontaktów.`,
         add_to_group: `Dodano ${res.affected} kontaktów do grupy.`,
+        convert_type: `Zmieniono typ ${res.affected} kontaktów.`,
         delete:       `Usunięto ${res.affected} kontaktów.`,
       };
       const url = new URL(location.href);

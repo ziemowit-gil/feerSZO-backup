@@ -285,6 +285,100 @@ class OutlookSync
     }
 
     /**
+     * Synchronizuje wiadomości e-mail Outlooka → crm_communications.
+     * Foldery: 'inbox' (kierunek 'in') i 'sentitems' (kierunek 'out').
+     * Maile są dopasowywane do kontaktów CRM po adresie e-mail:
+     *  - przychodzące → po nadawcy (from)
+     *  - wychodzące   → po odbiorcach (to + cc)
+     * Jeden mail może trafić do historii kilku kontaktów; dedup po (outlook_message_id, contact_id).
+     *
+     * @return array{created:int, matched:int, skipped:int, errors:string[]}
+     */
+    public function sync_messages(): array
+    {
+        $this->assert_user_id();
+
+        $created = $matched = $skipped = 0;
+        $errors  = [];
+
+        $folders = ['inbox' => 'in', 'sentitems' => 'out'];
+
+        foreach ($folders as $folder => $direction) {
+            $delta_key  = 'messages_' . $folder;
+            $delta_link = $this->get_delta($delta_key);
+
+            try {
+                $result = $this->graph->get_messages_delta($this->user_id, $folder, $delta_link);
+            } catch (\Throwable $e) {
+                $errors[] = "Folder {$folder}: " . $e->getMessage();
+                continue;
+            }
+
+            foreach ($result['messages'] as $msg) {
+                try {
+                    $msg_id = $msg['id'] ?? null;
+                    if (!$msg_id || !empty($msg['@removed'])) {
+                        continue; // pomijamy usunięte / bez id — historii nie cofamy
+                    }
+
+                    // Zbierz adresy do dopasowania wg kierunku
+                    $emails = [];
+                    if ($direction === 'in') {
+                        $a = strtolower(trim($msg['from']['emailAddress']['address'] ?? ''));
+                        if ($a) $emails[] = $a;
+                    } else {
+                        foreach (array_merge($msg['toRecipients'] ?? [], $msg['ccRecipients'] ?? []) as $r) {
+                            $a = strtolower(trim($r['emailAddress']['address'] ?? ''));
+                            if ($a) $emails[] = $a;
+                        }
+                    }
+                    $emails = array_values(array_unique(array_filter($emails)));
+                    if (!$emails) { $skipped++; continue; }
+
+                    $contact_ids = $this->contacts_by_emails($emails);
+                    if (!$contact_ids) { $skipped++; continue; }
+                    $matched++;
+
+                    $subject = trim($msg['subject'] ?? '') ?: '(bez tematu)';
+                    $body    = trim($msg['bodyPreview'] ?? '') ?: '(brak treści)';
+                    $sent_at = $this->parse_msg_dt(
+                        $direction === 'in' ? ($msg['receivedDateTime'] ?? '') : ($msg['sentDateTime'] ?? '')
+                    );
+
+                    foreach ($contact_ids as $cid) {
+                        // Dedup — ten sam mail nie powiela się w historii kontaktu
+                        $chk = $this->pdo->prepare(
+                            "SELECT 1 FROM crm_communications
+                             WHERE outlook_message_id = ? AND contact_id = ? LIMIT 1"
+                        );
+                        $chk->execute([$msg_id, $cid]);
+                        if ($chk->fetchColumn()) { continue; }
+
+                        $this->pdo->prepare(
+                            "INSERT INTO crm_communications
+                                (contact_id, channel, direction, subject, body, status,
+                                 outlook_message_id, sent_at)
+                             VALUES (?, 'email', ?, ?, ?, 'zsynchronizowana', ?, ?)"
+                        )->execute([$cid, $direction, $subject, $body, $msg_id, $sent_at]);
+                        $created++;
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Msg [' . ($msg['id'] ?? '?') . ']: ' . $e->getMessage();
+                }
+            }
+
+            if (!empty($result['delta_link'])) {
+                $this->set_delta($delta_key, $result['delta_link']);
+            }
+        }
+
+        // log_sync: created / updated=matched / removed=skipped (reużycie kolumn logu)
+        $this->log_sync('messages', $created, $matched, $skipped, $errors);
+
+        return compact('created', 'matched', 'skipped', 'errors');
+    }
+
+    /**
      * Uruchamia synchronizację kontaktów i kalendarza.
      * @return array{contacts: array, calendar: array, ok: bool, message: string}
      */
@@ -295,8 +389,12 @@ class OutlookSync
         $ok = true;
         $msgs = [];
 
+        $messages_result = ['created'=>0,'matched'=>0,'skipped'=>0,'errors'=>[]];
+
         $sync_contacts = crm_setting('m365_sync_contacts') !== '0';
         $sync_calendar = crm_setting('m365_sync_calendar') !== '0';
+        // Sync maili domyślnie wyłączony (opt-in) — większy wolumen + Mail.Read.
+        $sync_messages = crm_setting('m365_sync_messages') === '1';
 
         if ($sync_contacts) {
             try {
@@ -332,9 +430,27 @@ class OutlookSync
             }
         }
 
+        if ($sync_messages) {
+            try {
+                $messages_result = $this->sync_messages();
+                $msgs[] = sprintf(
+                    'Maile: +%d zapisano, %d dopasowano, %d pominięto',
+                    $messages_result['created'],
+                    $messages_result['matched'],
+                    $messages_result['skipped']
+                );
+                if ($messages_result['errors']) $ok = false;
+            } catch (\Throwable $e) {
+                $ok = false;
+                $messages_result['errors'][] = $e->getMessage();
+                $msgs[] = 'Maile: błąd — ' . $e->getMessage();
+            }
+        }
+
         return [
             'contacts' => $contacts_result,
             'calendar' => $calendar_result,
+            'messages' => $messages_result,
             'ok'       => $ok,
             'message'  => implode('; ', $msgs) ?: 'Synchronizacja wyłączona w ustawieniach.',
         ];
@@ -371,7 +487,7 @@ class OutlookSync
     {
         return $this->pdo->query(
             "SELECT * FROM crm_sync_log
-             WHERE source IN ('outlook_contacts','outlook_calendar')
+             WHERE source IN ('outlook_contacts','outlook_calendar','outlook_messages')
              ORDER BY synced_at DESC
              LIMIT {$limit}"
         )->fetchAll(\PDO::FETCH_ASSOC);
@@ -600,6 +716,11 @@ class OutlookSync
             "ALTER TABLE crm_contacts ADD COLUMN outlook_synced_at DATETIME",
             "ALTER TABLE crm_events   ADD COLUMN outlook_id TEXT",
             "ALTER TABLE crm_events   ADD COLUMN outlook_synced_at DATETIME",
+            // Maile synchronizowane z Outlooka → crm_communications
+            "ALTER TABLE crm_communications ADD COLUMN outlook_message_id TEXT",
+            // Dedup: jeden mail = jeden wpis na kontakt (NULL-e dla wpisów ręcznych są rozłączne w SQLite)
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_comm_outlook_msg
+                ON crm_communications(outlook_message_id, contact_id)",
             "CREATE TABLE IF NOT EXISTS crm_outlook_delta (
                 key_       TEXT     NOT NULL PRIMARY KEY,
                 value      TEXT     NOT NULL,
@@ -641,6 +762,39 @@ class OutlookSync
                 'Nie ustawiono użytkownika M365 do synchronizacji. ' .
                 'Skonfiguruj "m365_sync_user_id" lub "m365_sender_user_id" w ustawieniach.'
             );
+        }
+    }
+
+    /**
+     * Zwraca ID aktywnych kontaktów CRM pasujących do podanych adresów e-mail.
+     * @param string[] $emails  Adresy (lowercase)
+     * @return int[]
+     */
+    private function contacts_by_emails(array $emails): array
+    {
+        if (!$emails) return [];
+        $ph = implode(',', array_fill(0, count($emails), '?'));
+        $s  = $this->pdo->prepare(
+            "SELECT id FROM crm_contacts
+             WHERE LOWER(email) IN ($ph) AND crm_active = 1"
+        );
+        $s->execute($emails);
+        return array_map('intval', $s->fetchAll(\PDO::FETCH_COLUMN) ?: []);
+    }
+
+    /**
+     * Parsuje datę ISO8601 z Graph (np. "2026-06-13T09:00:00Z") → lokalny "Y-m-d H:i:s".
+     */
+    private function parse_msg_dt(string $raw): string
+    {
+        if (!$raw) return date('Y-m-d H:i:s');
+        try {
+            $ts = new \DateTime($raw);
+            $local_tz = crm_setting('timezone') ?: 'Europe/Warsaw';
+            $ts->setTimezone(new \DateTimeZone($local_tz));
+            return $ts->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return date('Y-m-d H:i:s');
         }
     }
 

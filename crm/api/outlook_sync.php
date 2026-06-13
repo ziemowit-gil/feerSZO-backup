@@ -7,8 +7,8 @@
  *   lub token API w nagłówku Authorization: Bearer <crm_sync_token>
  *
  * Body (JSON lub form):
- *   action  = "sync_all" | "sync_contacts" | "sync_calendar" | "reset_delta"
- *             | "get_calendars" | "get_status"
+ *   action  = "sync_all" | "sync_contacts" | "sync_calendar" | "sync_messages"
+ *             | "reset_delta" | "get_calendars" | "get_status"
  *   calendar_id = "" (opcjonalne, dla sync_calendar)
  *
  * Odpowiedź: JSON {ok, message, data}
@@ -105,6 +105,19 @@ try {
                 'message' => sprintf(
                     'Kalendarz: +%d nowych, ~%d zaktualizowanych, -%d usuniętych',
                     $data['created'], $data['updated'], $data['removed']
+                ),
+                'data' => $data,
+            ]);
+            break;
+
+        case 'sync_messages':
+            crm_migrate();
+            $data = $sync->sync_messages();
+            echo json_encode([
+                'ok'      => empty($data['errors']),
+                'message' => sprintf(
+                    'Maile: +%d zapisanych, %d dopasowanych, %d pominiętych',
+                    $data['created'], $data['matched'], $data['skipped']
                 ),
                 'data' => $data,
             ]);

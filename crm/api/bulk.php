@@ -2,7 +2,7 @@
 /**
  * crm/api/bulk.php — Operacje masowe na kontaktach CRM.
  * POST JSON: { action, ids[], ...params }
- * actions: set_status, add_tag, remove_tag, add_to_group, delete
+ * actions: set_status, add_tag, remove_tag, add_to_group, convert_type, delete
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -63,6 +63,41 @@ try {
                 db_insert('crm_group_members', ['group_id'=>$gid,'contact_id'=>$cid,'added_by'=>$uid,'added_at'=>date('Y-m-d H:i:s')]);
                 $affected++;
             } catch (\Throwable $e) {}
+        }
+
+    } elseif ($action === 'convert_type') {
+        $target = trim($body['value'] ?? '');
+        if (!in_array($target, ['osoba', 'organizacja'], true)) {
+            echo json_encode(['ok'=>false,'error'=>'Nieprawidłowy typ docelowy.']); exit;
+        }
+        // Pola czyszczone — identycznie jak konwersja pojedynczego kontaktu (crm/contact/view.php).
+        $clear = $target === 'organizacja'
+            ? ['imie', 'nazwisko', 'pesel', 'data_urodzenia']                       // dane osobowe — nie dotyczą organizacji
+            : ['nip', 'krs', 'regon', 'osoba_kontaktowa', 'forma_prawna'];          // dane rejestrowe — nie dotyczą osoby
+
+        // Wyłoń rekordy faktycznie zmieniające typ (do audytu + notatek).
+        $sel = db()->prepare("SELECT id FROM crm_contacts WHERE id IN ($ph) AND type<>? AND crm_active=1");
+        $sel->execute(array_merge($ids, [$target]));
+        $convert_ids = array_map('intval', $sel->fetchAll(\PDO::FETCH_COLUMN) ?: []);
+
+        if ($convert_ids) {
+            $cph       = implode(',', array_fill(0, count($convert_ids), '?'));
+            $set_clear = implode(',', array_map(fn($c) => "`$c`=NULL", $clear));
+            $st = db()->prepare("UPDATE crm_contacts SET type=?,{$set_clear},updated_at=datetime('now') WHERE id IN ($cph)");
+            $st->execute(array_merge([$target], $convert_ids));
+            $affected = $st->rowCount();
+
+            // Notatka audytowa per kontakt — spójnie z konwersją pojedynczą.
+            $labels = ['osoba' => 'Osoba fizyczna', 'organizacja' => 'Organizacja / firma'];
+            $note   = 'Konwersja typu kontaktu (masowa) → ' . $labels[$target] . '.';
+            foreach ($convert_ids as $cid) {
+                try {
+                    db_insert('crm_notes', [
+                        'contact_id' => $cid, 'body' => $note, 'is_pinned' => 0,
+                        'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+                } catch (\Throwable $e) {}
+            }
         }
 
     } elseif ($action === 'delete') {

@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['_save'])) {
         'm365_sync_calendar_id' => trim($_POST['m365_sync_calendar_id'] ?? ''),
         'm365_sync_contacts' => isset($_POST['m365_sync_contacts']) ? '1' : '0',
         'm365_sync_calendar' => isset($_POST['m365_sync_calendar']) ? '1' : '0',
+        'm365_sync_messages' => isset($_POST['m365_sync_messages']) ? '1' : '0',
     ];
     foreach ($fields as $k => $v) {
         m365_save_setting($k, $v);
@@ -46,6 +47,7 @@ $sync_user_id     = crm_setting('m365_sync_user_id')  ?: crm_setting('m365_sende
 $sync_calendar_id = crm_setting('m365_sync_calendar_id') ?: '';
 $sync_contacts    = crm_setting('m365_sync_contacts')  !== '0';
 $sync_calendar    = crm_setting('m365_sync_calendar')  !== '0';
+$sync_messages    = crm_setting('m365_sync_messages')  === '1'; // opt-in
 
 // ── Status M365 ───────────────────────────────────────────────────────────────
 
@@ -177,6 +179,18 @@ include dirname(__DIR__) . '/includes/header.php';
                   Zdarzenia kalendarza (Outlook → crm_events)
                 </label>
               </div>
+              <div class="form-check mt-1">
+                <input class="form-check-input" type="checkbox" id="chk-messages"
+                       name="m365_sync_messages" value="1"
+                       <?= $sync_messages ? 'checked' : '' ?>>
+                <label class="form-check-label" for="chk-messages">
+                  <i class="bi bi-envelope-fill me-1 text-warning"></i>
+                  Maile (Outlook → historia komunikacji kontaktu)
+                  <span class="d-block small text-muted">
+                    Skrzynka odbiorcza i wysłane; dopasowanie po adresie e-mail. Wymaga uprawnienia <code>Mail.Read</code>.
+                  </span>
+                </label>
+              </div>
             </div>
 
             <button type="submit" class="btn btn-primary">
@@ -235,6 +249,9 @@ include dirname(__DIR__) . '/includes/header.php';
             </button>
             <button class="btn btn-outline-success" id="btn-sync-calendar">
               <i class="bi bi-calendar3 me-1"></i>Tylko kalendarz
+            </button>
+            <button class="btn btn-outline-warning" id="btn-sync-messages">
+              <i class="bi bi-envelope me-1"></i>Tylko maile
             </button>
           </div>
 
@@ -416,6 +433,7 @@ function render_sync_log(array $logs): string {
   document.getElementById('btn-sync-all').addEventListener('click', () => doSync('sync_all'));
   document.getElementById('btn-sync-contacts').addEventListener('click', () => doSync('sync_contacts'));
   document.getElementById('btn-sync-calendar').addEventListener('click', () => doSync('sync_calendar'));
+  document.getElementById('btn-sync-messages').addEventListener('click', () => doSync('sync_messages'));
 
   // ── Reset delta ────────────────────────────────────────────────────────────
 

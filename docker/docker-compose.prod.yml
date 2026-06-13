@@ -108,5 +108,35 @@ services:
     networks:
       - feer
 
+  # ── ZADANIA redirect — zadania.feer.org.pl → szo.feer.org.pl/tasks ──────
+  # Używa wyłącznie Traefik middlewares (bez dodatkowego kontenera).
+  # Serwis "dummy" jest potrzebny tylko jako uchwyt dla labels Traefika.
+  tasks-redirect:
+    image: traefik/whoami:latest
+    container_name: feer-tasks-redirect
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+
+      # ── Middleware: 301 redirect zadania.* → szo.feer.org.pl/tasks ───────
+      - "traefik.http.middlewares.tasks-redirect.redirectregex.regex=^https?://${DOMAIN_TASKS:-zadania.feer.org.pl}/(.*)"
+      - "traefik.http.middlewares.tasks-redirect.redirectregex.replacement=https://${DOMAIN}/tasks/$${1}"
+      - "traefik.http.middlewares.tasks-redirect.redirectregex.permanent=true"
+
+      # ── Router HTTPS — zadania.feer.org.pl ───────────────────────────────
+      - "traefik.http.routers.tasks-redirect.rule=Host(`${DOMAIN_TASKS:-zadania.feer.org.pl}`)"
+      - "traefik.http.routers.tasks-redirect.entrypoints=websecure"
+      - "traefik.http.routers.tasks-redirect.tls=true"
+      - "traefik.http.routers.tasks-redirect.tls.certresolver=le"
+      - "traefik.http.routers.tasks-redirect.middlewares=tasks-redirect@docker"
+      - "traefik.http.services.tasks-redirect.loadbalancer.server.port=80"
+
+      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
+      - "traefik.http.routers.tasks-redirect-http.rule=Host(`${DOMAIN_TASKS:-zadania.feer.org.pl}`)"
+      - "traefik.http.routers.tasks-redirect-http.entrypoints=web"
+      - "traefik.http.routers.tasks-redirect-http.middlewares=https-redirect@docker"
+    networks:
+      - feer
+
 volumes:
   letsencrypt_data:

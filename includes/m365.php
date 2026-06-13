@@ -629,6 +629,52 @@ class M365Graph {
         ];
     }
 
+    /**
+     * Delta-sync wiadomości e-mail z wybranego folderu skrzynki użytkownika.
+     * Za pierwszym razem pobiera całą historię folderu, potem tylko zmiany.
+     * Wymaga: Mail.Read (Application).
+     *
+     * @param string $user_id   Azure AD User ID lub UPN
+     * @param string $folder     Well-known folder: 'inbox' (przychodzące) | 'sentitems' (wychodzące)
+     * @param string|null $delta_link  Zapisany @odata.deltaLink z poprzedniej synchronizacji
+     * @return array{messages: array, delta_link: ?string}
+     */
+    public function get_messages_delta(string $user_id, string $folder = 'inbox', ?string $delta_link = null): array
+    {
+        $select = implode(',', [
+            'id','subject','bodyPreview',
+            'from','toRecipients','ccRecipients',
+            'receivedDateTime','sentDateTime',
+            'conversationId','webLink',
+        ]);
+
+        $url = $delta_link
+            ?? "https://graph.microsoft.com/v1.0/users/{$user_id}/mailFolders/{$folder}/messages/delta?\$select={$select}&\$top=50";
+
+        $all_messages = [];
+        $final_delta  = null;
+
+        while ($url) {
+            $resp = $this->http_get($url);
+            foreach ($resp['value'] ?? [] as $m) {
+                $all_messages[] = $m;
+            }
+            if (!empty($resp['@odata.nextLink'])) {
+                $url = $resp['@odata.nextLink'];
+            } elseif (!empty($resp['@odata.deltaLink'])) {
+                $final_delta = $resp['@odata.deltaLink'];
+                $url = null;
+            } else {
+                $url = null;
+            }
+        }
+
+        return [
+            'messages'   => $all_messages,
+            'delta_link' => $final_delta,
+        ];
+    }
+
     // ══ OUTLOOK CALENDARS ════════════════════════════════════════════════════
 
     /**
