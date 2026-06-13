@@ -11,6 +11,10 @@
 
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/user_sync.php';
+
+// Definiuj TEST_SYNC_KEY z config.local.php (priorytet) lub z konfiguracji w bazie (panel).
+user_sync_bootstrap();
 
 header('Content-Type: application/json; charset=utf-8');
 

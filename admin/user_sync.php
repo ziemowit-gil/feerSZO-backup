@@ -11,12 +11,41 @@ require_once dirname(__DIR__) . '/includes/user_sync.php';
 require_role('admin');
 $PAGE_TITLE = 'Synchronizacja kont → testy';
 
+// Źródło konfiguracji: stałe z config.local.php mają priorytet nad bazą.
+$db_cfg     = user_sync_settings();
+$via_file   = (defined('TEST_SYNC_URL') || defined('TEST_SYNC_KEY'))
+              && $db_cfg['url'] === '' && $db_cfg['key'] === '';
 $configured = defined('TEST_SYNC_URL') && defined('TEST_SYNC_KEY');
 
 // ── Akcje POST ────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $act = $_POST['_action'] ?? '';
+
+    if ($act === 'save_config' && !$via_file) {
+        $url = trim($_POST['test_sync_url'] ?? '');
+        $key = trim($_POST['test_sync_key'] ?? '');
+        $errs = [];
+        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url)) {
+            $errs[] = 'Podaj poprawny URL środowiska testowego (z http:// lub https://).';
+        }
+        if (strlen($key) < 32) {
+            $errs[] = 'Klucz musi mieć co najmniej 32 znaki.';
+        }
+        if ($errs) {
+            flash_set('danger', implode('<br>', array_map('h', $errs)));
+        } else {
+            user_sync_settings_save($url, $key);
+            flash_set('success', 'Konfiguracja synchronizacji zapisana.');
+        }
+        header('Location: user_sync.php'); exit;
+    }
+
+    if ($act === 'clear_config' && !$via_file) {
+        user_sync_settings_save('', '');
+        flash_set('success', 'Konfiguracja synchronizacji wyczyszczona.');
+        header('Location: user_sync.php'); exit;
+    }
 
     if ($act === 'sync_now' && $configured) {
         $users  = db_all("SELECT name, first_name, last_name, email, password, role, is_active FROM users ORDER BY id");
@@ -125,38 +154,92 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<?php if (!$configured): ?>
-<!-- ── Stan: brak konfiguracji ── -->
-<div class="alert alert-warning d-flex gap-3 align-items-start">
-  <i class="bi bi-exclamation-triangle-fill fs-4 mt-1 flex-shrink-0"></i>
-  <div>
-    <strong>Synchronizacja nie jest skonfigurowana.</strong><br>
-    Dodaj poniższe stałe do pliku <code>config.local.php</code> na środowisku <strong>produkcyjnym</strong>
-    i do <code>config.local.php</code> na środowisku <strong>testowym</strong> (tylko <code>TEST_SYNC_KEY</code>).<br>
-    Wygeneruj klucz poleceniem:
-    <code>php -r "echo bin2hex(random_bytes(24));"</code>
+<?php if ($via_file): ?>
+<!-- ── Konfiguracja w config.local.php (tylko podgląd) ── -->
+<div class="card shadow-sm mb-3 border-info">
+  <div class="card-header py-2 fw-semibold small d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-file-code me-1"></i>Konfiguracja synchronizacji</span>
+    <span class="badge bg-info text-dark">Zarządzana w pliku</span>
   </div>
-</div>
-
-<div class="card shadow-sm mb-3">
-  <div class="card-header py-2 fw-semibold small">
-    <i class="bi bi-file-code me-1"></i>config.local.php — środowisko PRODUKCYJNE
-  </div>
-  <div class="card-body p-0">
-    <pre class="m-0 p-3 small" style="background:#1e293b;color:#e2e8f0;border-radius:0 0 .375rem .375rem">define('TEST_SYNC_URL', 'https://testy-szo.feer.org.pl');
-define('TEST_SYNC_KEY', '<span style="color:#fbbf24">WKLEJ_TUTAJ_WSPOLNY_KLUCZ_MIN_32_ZNAKOW</span>');</pre>
-  </div>
-</div>
-<div class="card shadow-sm">
-  <div class="card-header py-2 fw-semibold small">
-    <i class="bi bi-file-code me-1"></i>config.local.php — środowisko TESTOWE
-  </div>
-  <div class="card-body p-0">
-    <pre class="m-0 p-3 small" style="background:#1e293b;color:#e2e8f0;border-radius:0 0 .375rem .375rem">define('TEST_SYNC_KEY', '<span style="color:#fbbf24">TEN_SAM_KLUCZ_CO_NA_PRODUKCJI</span>');</pre>
+  <div class="card-body py-3 small">
+    Konfiguracja jest zdefiniowana w <code>config.local.php</code> (stałe <code>TEST_SYNC_URL</code>
+    / <code>TEST_SYNC_KEY</code>) i ma priorytet nad ustawieniami z panelu.
+    Aby edytować ją tutaj graficznie, usuń te stałe z pliku.
+    <ul class="mb-0 mt-2">
+      <li>URL testowy: <code><?= $configured ? h(TEST_SYNC_URL) : '—' ?></code></li>
+      <li>Klucz: <?= defined('TEST_SYNC_KEY') ? '<span class="text-success">ustawiony (' . strlen((string)TEST_SYNC_KEY) . ' znaków)</span>' : '<span class="text-danger">brak</span>' ?></li>
+    </ul>
   </div>
 </div>
 
 <?php else: ?>
+<!-- ── Konfiguracja graficzna (zapis do bazy) ── -->
+<div class="card shadow-sm mb-3">
+  <div class="card-header py-2 fw-semibold small d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-sliders me-1"></i>Konfiguracja synchronizacji</span>
+    <?php if ($configured): ?>
+      <span class="badge bg-success">Skonfigurowana</span>
+    <?php else: ?>
+      <span class="badge bg-warning text-dark">Niewypełniona</span>
+    <?php endif; ?>
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Ustaw adres środowiska <strong>testowego</strong> oraz wspólny klucz. Ten sam klucz musi być wpisany
+      w panelu synchronizacji na środowisku testowym (lub w jego <code>config.local.php</code> jako
+      <code>TEST_SYNC_KEY</code>). Konta z tego (produkcyjnego) środowiska będą wypychane do testowego.
+    </p>
+    <form method="post" id="syncCfgForm">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="save_config">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">URL środowiska testowego</label>
+          <input type="url" name="test_sync_url" class="form-control form-control-sm"
+                 placeholder="https://testy-szo.feer.org.pl"
+                 value="<?= h($db_cfg['url']) ?>" required>
+          <div class="form-text">Bazowy adres, bez ścieżki API.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">Klucz synchronizacji (min. 32 znaki)</label>
+          <div class="input-group input-group-sm">
+            <input type="text" name="test_sync_key" id="syncKey" class="form-control"
+                   style="font-family:monospace"
+                   placeholder="wspólny tajny klucz" value="<?= h($db_cfg['key']) ?>" required>
+            <button type="button" class="btn btn-outline-secondary" id="genKey" title="Wygeneruj losowy klucz">
+              <i class="bi bi-shuffle"></i>
+            </button>
+          </div>
+          <div class="form-text">Wpisz ten sam klucz na środowisku testowym.</div>
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz konfigurację</button>
+        <?php if ($configured): ?>
+        <button class="btn btn-sm btn-outline-danger" name="_action" value="clear_config"
+                formnovalidate
+                onclick="return confirm('Wyczyścić konfigurację synchronizacji?')">
+          <i class="bi bi-x-circle me-1"></i>Wyczyść
+        </button>
+        <?php endif; ?>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function(){
+  var btn = document.getElementById('genKey');
+  if (btn) btn.addEventListener('click', function(){
+    var a = new Uint8Array(24);
+    crypto.getRandomValues(a);
+    document.getElementById('syncKey').value =
+      Array.from(a).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  });
+})();
+</script>
+<?php endif; ?>
+
+<?php if ($configured): ?>
 <!-- ── Stan: skonfigurowane ── -->
 
 <!-- Karty statystyk -->
@@ -199,19 +282,6 @@ define('TEST_SYNC_KEY', '<span style="color:#fbbf24">WKLEJ_TUTAJ_WSPOLNY_KLUCZ_M
         </div>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- Klucz sync -->
-<div class="card shadow-sm mb-3">
-  <div class="card-header py-2 small fw-semibold d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-key me-1"></i>Klucz synchronizacji (TEST_SYNC_KEY)</span>
-    <span class="badge bg-success">Skonfigurowany</span>
-  </div>
-  <div class="card-body py-2 small text-muted">
-    Klucz jest ustawiony. Upewnij się, że <strong>ten sam klucz</strong> jest wpisany w
-    <code>config.local.php</code> na środowisku testowym.
-    Długość: <?= strlen((string)TEST_SYNC_KEY) ?> znaków.
   </div>
 </div>
 
