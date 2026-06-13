@@ -10,9 +10,14 @@ function app_version(): array {
 
     $base = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__);
 
-    // Główna wersja z min_version.txt
-    $ver_file = $base . '/min_version.txt';
-    $main_ver = file_exists($ver_file) ? trim(file_get_contents($ver_file)) : '';
+    // Główna wersja aplikacji — APP_VERSION z config.php
+    // (fallback do min_version.txt, jeśli stała niezdefiniowana)
+    if (defined('APP_VERSION')) {
+        $main_ver = APP_VERSION;
+    } else {
+        $ver_file = $base . '/min_version.txt';
+        $main_ver = file_exists($ver_file) ? trim(file_get_contents($ver_file)) : '';
+    }
     $main_ver = preg_replace('/[^0-9.]/', '', $main_ver); // tylko cyfry i kropki
 
     // Hash commitu

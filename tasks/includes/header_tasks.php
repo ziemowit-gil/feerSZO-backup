@@ -352,6 +352,12 @@ body {
       <span class="tsk-user-av" aria-hidden="true"><?= h($_tu_initials) ?></span>
       <span class="d-none d-sm-inline"><?= h($_tu_name) ?></span>
     </span>
+    <a class="tsk-sys-link" href="<?= APP_URL ?>/auth/logout.php"
+       onclick="return confirm('Wylogować się?')"
+       title="Wyloguj się" aria-label="Wyloguj się">
+      <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+      <span class="d-none d-sm-inline">Wyloguj</span>
+    </a>
   </div>
 
 </header>
