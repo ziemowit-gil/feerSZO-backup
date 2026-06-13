@@ -4,10 +4,13 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
+require_once dirname(__DIR__) . '/includes/email_alias.php';
+email_alias_migrate();
 
 require_login();
 $PAGE_TITLE = 'Moje konto Microsoft 365';
 $user = current_user();
+$uid  = (int)$user['id'];
 $_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
 
 // Znajdź konto M365 powiązane z użytkownikiem (z umów)
@@ -71,6 +74,73 @@ if (isset($_GET['done'])) {
     auth_start();
     $pass_success = $_SESSION['m365_new_pass'] ?? null;
     unset($_SESSION['m365_new_pass']);
+}
+
+// ── Wniosek o alias e-mail ──────────────────────────────────────────────────────
+$alias_error    = null;
+$alias_domain   = m365_setting('m365_domain') ?: 'feer.org.pl';
+$alias_pending  = ealias_user_pending($uid);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'request_alias') {
+    csrf_check();
+    $local = strtolower(trim($_POST['alias_local'] ?? ''));
+
+    if (!$has_m365) {
+        $alias_error = 'Nie posiadasz aktywnego konta Microsoft 365.';
+    } elseif ($alias_pending) {
+        $alias_error = 'Masz już wniosek o alias w toku — poczekaj na jego rozpatrzenie.';
+    } elseif (!preg_match('/^[a-z0-9](?:[a-z0-9._-]{0,30}[a-z0-9])?$/', $local)) {
+        $alias_error = 'Nieprawidłowy format. Użyj 2–32 znaków: małe litery, cyfry, kropka, myślnik lub podkreślenie.';
+    } else {
+        $alias_full    = $local . '@' . $alias_domain;
+        $enabled       = m365_setting('m365_enabled') === '1';
+        $tenant_id     = m365_setting('m365_tenant_id');
+        $client_id     = m365_setting('m365_graph_client_id');
+        $client_secret = m365_setting('m365_graph_client_secret');
+
+        if (!$enabled || !$tenant_id || !$client_id || !$client_secret) {
+            $alias_error = 'Integracja z Microsoft 365 nie jest skonfigurowana. Skontaktuj się z administratorem.';
+        } else {
+            try {
+                $m365 = new M365Graph([
+                    'tenant_id'     => $tenant_id,
+                    'client_id'     => $client_id,
+                    'client_secret' => $client_secret,
+                ]);
+                if ($m365->email_in_use($alias_full)) {
+                    $alias_error = 'Adres ' . $alias_full . ' jest już zajęty. Wybierz inny.';
+                } else {
+                    $req = [
+                        'user_id'         => $uid,
+                        'requester_name'  => $user['name']  ?? '',
+                        'requester_email' => $user['email'] ?? '',
+                        'm365_user_id'    => $m365_row['m365_user_id'],
+                        'm365_login'      => $m365_row['m365_login'] ?? '',
+                        'requested_alias' => $alias_full,
+                    ];
+                    $ticket_id = ealias_create_ticket($req);
+                    $req_id = db_insert('email_alias_requests', $req + [
+                        'status'    => 'oczekuje',
+                        'ticket_id' => $ticket_id,
+                    ]);
+                    $tnum = db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$ticket_id])['number'] ?? '';
+                    auth_start();
+                    $_SESSION['alias_submitted'] = ['alias' => $alias_full, 'ticket' => $tnum];
+                    header('Location: ' . APP_URL . '/panel/m365.php?alias=ok'); exit;
+                }
+            } catch (\Exception $e) {
+                $alias_error = 'Błąd weryfikacji w Microsoft 365: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+$alias_submitted = null;
+if (isset($_GET['alias'])) {
+    auth_start();
+    $alias_submitted = $_SESSION['alias_submitted'] ?? null;
+    unset($_SESSION['alias_submitted']);
+    $alias_pending = ealias_user_pending($uid); // odśwież po złożeniu
 }
 
 if ($_is_volunteer_only) {
@@ -239,6 +309,80 @@ if ($_is_volunteer_only) {
   </div>
 
 </div>
+
+<!-- ── Alias e-mail ───────────────────────────────────────────────────────── -->
+<?php if ($has_m365 && $m365_row['m365_konto_aktywne']): ?>
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-at text-primary"></i> Alias e-mail
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Możesz poprosić o krótszy, łatwiejszy alias e-mail (np. <code>kasia@<?= h($alias_domain) ?></code>)
+      obok Twojego głównego adresu <strong><?= h($m365_row['m365_login']) ?></strong>.
+      Maile na oba adresy będą trafiać do Twojej skrzynki. Wniosek wymaga zatwierdzenia przez administratora.
+    </p>
+
+    <?php if ($alias_submitted): ?>
+    <div class="alert alert-success py-2">
+      <i class="bi bi-check-circle me-1"></i>
+      Wniosek o alias <strong><?= h($alias_submitted['alias']) ?></strong> został złożony.
+      <?php if (!empty($alias_submitted['ticket'])): ?>
+      Zgłoszenie: <strong><?= h($alias_submitted['ticket']) ?></strong>.
+      <?php endif; ?>
+      Oczekuje na zatwierdzenie.
+    </div>
+    <?php endif; ?>
+
+    <?php if ($alias_error): ?>
+    <div class="alert alert-danger py-2"><i class="bi bi-x-circle me-1"></i><?= h($alias_error) ?></div>
+    <?php endif; ?>
+
+    <?php if ($alias_pending): ?>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span>Twój wniosek:</span>
+      <strong><?= h($alias_pending['requested_alias']) ?></strong>
+      <?= ealias_status_badge($alias_pending['status']) ?>
+      <?php if (!empty($alias_pending['ticket_id'])): ?>
+      <a class="btn btn-sm btn-outline-secondary ms-auto"
+         href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$alias_pending['ticket_id'] ?>">
+        <i class="bi bi-ticket-perforated me-1"></i>Zobacz zgłoszenie
+      </a>
+      <?php endif; ?>
+    </div>
+    <?php if ($alias_pending['status'] === 'błąd' && !empty($alias_pending['graph_error'])): ?>
+    <div class="alert alert-warning py-2 small mt-2 mb-0">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      Ostatnia próba ustawienia nie powiodła się — administrator został powiadomiony.
+    </div>
+    <?php endif; ?>
+    <?php else: ?>
+    <form method="post" class="row g-2 align-items-start" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="request_alias">
+      <div class="col-12 col-sm-auto flex-grow-1">
+        <label for="alias_local" class="form-label small mb-1">Wybierz alias</label>
+        <div class="input-group">
+          <input type="text" class="form-control" id="alias_local" name="alias_local"
+                 placeholder="np. kasia" pattern="[a-z0-9._-]{2,32}"
+                 maxlength="32" required
+                 aria-describedby="alias_help">
+          <span class="input-group-text">@<?= h($alias_domain) ?></span>
+        </div>
+        <div id="alias_help" class="form-text">Małe litery, cyfry, kropka, myślnik lub podkreślenie (2–32 znaki).</div>
+      </div>
+      <div class="col-12 col-sm-auto">
+        <label class="form-label small mb-1 d-none d-sm-block">&nbsp;</label>
+        <button type="submit" class="btn btn-primary w-100"
+                onclick="return confirm('Złożyć wniosek o ten alias e-mail?')">
+          <i class="bi bi-send me-1"></i>Złóż wniosek
+        </button>
+      </div>
+    </form>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── Aplikacje M365 ─────────────────────────────────────────────────────── -->
 <?php if ($has_m365 && $m365_row['m365_konto_aktywne']): ?>
