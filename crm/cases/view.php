@@ -396,10 +396,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
       <!-- Treść główna -->
       <div style="flex:1;min-width:0">
+        <?php if (!empty($case['case_number'])): ?>
+        <div style="font-family:monospace;font-size:.8rem;font-weight:700;color:#1D4ED8;letter-spacing:.05em;margin-bottom:.3rem">
+          <?= h($case['case_number']) ?>
+        </div>
+        <?php endif; ?>
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
-          <?php if (!empty($case['case_number'])): ?>
-          <span style="font-family:monospace;font-size:.75rem;background:#F3F4F6;color:#374151;border:1px solid #D1D5DB;border-radius:.3rem;padding:.15rem .55rem;font-weight:600;letter-spacing:.02em"><?= h($case['case_number']) ?></span>
-          <?php endif; ?>
           <h1 style="font-size:1.1rem;font-weight:700;margin:0;color:#111827;line-height:1.3"><?= h($case['title']) ?></h1>
           <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .65rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;border:1px solid <?= $sc['color'] ?>44">
             <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
