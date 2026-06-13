@@ -263,6 +263,9 @@ if ($adv_count):
     <table class="table table-hover contracts-table mb-0">
       <thead class="table-light">
         <tr>
+          <th style="width:2%" class="ps-3">
+            <input type="checkbox" id="cb-all" class="form-check-input" title="Zaznacz wszystkie">
+          </th>
           <th>Numer</th>
           <th class="d-none d-md-table-cell">Nr rejestru</th>
           <th>Wykonawca</th>
@@ -277,6 +280,9 @@ if ($adv_count):
       <tbody>
         <?php foreach ($rows as $r): ?>
         <tr>
+          <td class="ps-3">
+            <input type="checkbox" class="cb-row form-check-input" value="<?= (int)$r['id'] ?>" aria-label="Zaznacz">
+          </td>
           <td class="fw-semibold"><?= h($r['numer_umowy']) ?></td>
           <td class="font-monospace small d-none d-md-table-cell"><?= h($r['nr_rejestru'] ?? '') ?: '—' ?></td>
           <td>
@@ -310,7 +316,7 @@ if ($adv_count):
         </tr>
         <?php endforeach; ?>
         <?php if (!$rows): ?>
-        <tr><td colspan="9" class="text-center text-muted py-4">
+        <tr><td colspan="10" class="text-center text-muted py-4">
           <i class="bi bi-briefcase display-6 d-block mb-2 opacity-25"></i>
           Brak umów o usługi<?= $search || $status || $adv_count ? ' spełniających kryteria' : '' ?>
         </td></tr>
@@ -318,6 +324,7 @@ if ($adv_count):
       </tbody>
     </table>
   </div>
+  <?php include dirname(__DIR__) . '/includes/bulk_bar.php'; ?>
   <div class="card-footer d-flex justify-content-between align-items-center py-2" style="background:#FAFAFA">
     <small class="text-muted">Znaleziono: <strong><?= $total ?></strong><?= $search || $status || $adv_count ? ' — filtrowanie aktywne' : '' ?></small>
     <?php if ($pag['pages'] > 1): ?>

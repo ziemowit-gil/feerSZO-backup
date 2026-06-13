@@ -539,6 +539,9 @@ if ($adv_count):
     <table class="table wol-table mb-0">
       <thead>
         <tr>
+          <th style="width:2%" class="ps-3">
+            <input type="checkbox" id="cb-all" class="form-check-input" title="Zaznacz wszystkie">
+          </th>
           <th>Numer umowy</th>
           <th class="d-none d-md-table-cell">Nr rejestru</th>
           <th>Wolontariusz</th>
@@ -555,6 +558,9 @@ if ($adv_count):
           $bezterm = !empty($r['bezterminowa']);
         ?>
         <tr data-row-href="<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= $r['id'] ?>">
+          <td class="ps-3" onclick="event.stopPropagation()">
+            <input type="checkbox" class="cb-row form-check-input" value="<?= (int)$r['id'] ?>" aria-label="Zaznacz">
+          </td>
           <td>
             <div class="wol-num"><?= h($r['numer_umowy']) ?></div>
             <?php if (!empty($r['ubezpieczenie_nnw']) || !empty($r['ubezpieczenie_oc'])): ?>
@@ -627,6 +633,7 @@ if ($adv_count):
       </tbody>
     </table>
   </div>
+  <?php include dirname(__DIR__) . '/includes/bulk_bar.php'; ?>
 
   <!-- Stopka z paginacją -->
   <div class="card-footer d-flex justify-content-between align-items-center py-2" style="background:#FAFAFA">

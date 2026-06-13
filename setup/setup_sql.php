@@ -771,6 +771,11 @@ function migrate_tenant_db(PDO $pdo): array {
         $results[] = ['ok', 'org_representatives'];
     } catch (\Throwable $e) { $results[] = ['skip', 'org_representatives']; }
 
+    // ── Schema v9: access_level na umowach (akcje masowe) ─────────────────────
+    foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_praca','umowy_inne'] as $t) {
+        $run("$t.access_level", "ALTER TABLE $t ADD COLUMN access_level TEXT NOT NULL DEFAULT 'full'");
+    }
+
     // ── Nowe domyślne settings ─────────────────────────────────────────────────
     $new_settings = [
         'wa_enabled' => '0', 'tasks_enabled' => '1',
