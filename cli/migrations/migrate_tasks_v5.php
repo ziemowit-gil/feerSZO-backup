@@ -22,6 +22,7 @@ t5("CREATE TABLE IF NOT EXISTS task_notification_prefs (
     notify_comment   INTEGER NOT NULL DEFAULT 0,  -- nowy komentarz w zadaniu
     notify_due_1day  INTEGER NOT NULL DEFAULT 1,  -- dzień przed terminem
     notify_due_today INTEGER NOT NULL DEFAULT 1,  -- w dniu terminu
+    notify_sms       INTEGER NOT NULL DEFAULT 0,  -- powiadomienia SMS
     updated_at       TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 )", 'Tabela task_notification_prefs');

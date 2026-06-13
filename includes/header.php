@@ -683,6 +683,12 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <i class="bi bi-person-lines-fill"></i> Katalog osób
   </a>
 
+  <?php if (module_enabled('org_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/org/') ?>" href="<?= APP_URL ?>/org/index.php">
+    <i class="bi bi-diagram-3"></i> Struktura org.
+  </a>
+  <?php endif; ?>
+
   <?php
   $_rek_ob_active = str_contains($_uri,'/contracts/rekrutacja') || str_contains($_uri,'/onboarding/');
   $_rek_ob_badge  = $_rek_new + $_ob_new;

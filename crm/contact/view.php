@@ -666,6 +666,11 @@ $all_contacts_for_relation = db_all(
 $volunteer_contracts    = CrmManager::getContactVolunteerContracts($contact['email'] ?? '');
 $volunteer_recruitments = CrmManager::getContactRecruitments($contact['email'] ?? '');
 
+// Dane osobowe z umów dostępne do zaciągnięcia na kartę (tylko osoby fizyczne)
+$contract_import_data = (($contact['type'] ?? '') === 'osoba')
+    ? CrmManager::getContractDataForContact($contact)
+    : [];
+
 $_custom_field_defs   = array_filter(CrmManager::getFieldDefs($contact['type'] ?? ''), 'crm_field_visible');
 $_custom_field_values = CrmManager::getFieldValues($id);
 
@@ -773,6 +778,13 @@ include __DIR__ . '/../includes/header_crm.php';
                 data-bs-toggle="modal" data-bs-target="#convertTypeModal"
                 title="Zmień typ kontaktu: Osoba ↔ Organizacja">
           <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwertuj
+        </button>
+        <?php endif; ?>
+        <?php if ($crm_can_write && $contract_import_data): ?>
+        <button type="button" class="btn btn-sm btn-light"
+                data-bs-toggle="modal" data-bs-target="#importContractModal"
+                title="Zaciągnij dane osobowe z umów tej osoby">
+          <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Zaciągnij z umowy
         </button>
         <?php endif; ?>
         <?php if ($roundcube_url && $contact['email']): ?>
@@ -1612,5 +1624,106 @@ const ActivityUI = (function () {
     </div>
   </div>
 </div>
+<?php endif; ?>
+
+<?php if ($crm_can_write && $contract_import_data):
+  $_imp_labels = [
+      'imie_nazwisko'  => 'Imię i nazwisko',
+      'pesel'          => 'PESEL',
+      'adres'          => 'Adres',
+      'telefon'        => 'Telefon',
+      'email'          => 'E-mail',
+      'data_urodzenia' => 'Data urodzenia',
+  ];
+?>
+<!-- Modal: import danych z umowy -->
+<div class="modal fade" id="importContractModal" tabindex="-1"
+     aria-labelledby="importContractModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fs-6" id="importContractModalLabel">
+          <i class="bi bi-file-earmark-arrow-down me-2" aria-hidden="true"></i>Zaciągnij dane z umowy
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <form id="importContractForm">
+        <div class="modal-body">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="id"    value="<?= (int)$id ?>">
+          <p class="text-muted mb-2" style="font-size:.85rem">
+            Zaznacz pola, które chcesz nadpisać danymi z umów tej osoby. Domyślnie zaznaczone są tylko puste pola.
+          </p>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.85rem">
+              <thead>
+                <tr>
+                  <th style="width:2rem"></th>
+                  <th>Pole</th>
+                  <th>Z umowy</th>
+                  <th class="text-muted">Obecnie</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($contract_import_data as $f => $info):
+                  $cur = trim((string)($contact[$f] ?? '')); ?>
+                <tr>
+                  <td>
+                    <input class="form-check-input" type="checkbox" name="fields[]"
+                           value="<?= h($f) ?>" id="imp_<?= h($f) ?>"
+                           <?= $cur === '' ? 'checked' : '' ?>>
+                  </td>
+                  <td><label for="imp_<?= h($f) ?>" class="mb-0"><?= h($_imp_labels[$f] ?? $f) ?></label></td>
+                  <td>
+                    <strong><?= h($info['value']) ?></strong>
+                    <div class="text-muted" style="font-size:.72rem">
+                      <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i><?= h($info['source']) ?>
+                    </div>
+                  </td>
+                  <td class="text-muted"><?= $cur !== '' ? h($cur) : '—' ?></td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="importContractSubmit">
+            <i class="bi bi-download me-1" aria-hidden="true"></i>Zaciągnij zaznaczone
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  const form = document.getElementById('importContractForm');
+  if (!form) return;
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const btn = document.getElementById('importContractSubmit');
+    btn.disabled = true;
+    try {
+      const res = await fetch('<?= APP_URL ?>/crm/contact/import_contract.php', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new FormData(form),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        window.location.reload();
+      } else {
+        alert(data.error || 'Nie udało się zaciągnąć danych.');
+        btn.disabled = false;
+      }
+    } catch (err) {
+      alert('Błąd połączenia. Spróbuj ponownie.');
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
 <?php endif; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

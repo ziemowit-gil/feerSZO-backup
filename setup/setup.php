@@ -827,6 +827,7 @@ run('task_notification_prefs', "CREATE TABLE IF NOT EXISTS task_notification_pre
     notify_comment   INTEGER NOT NULL DEFAULT 0,
     notify_due_1day  INTEGER NOT NULL DEFAULT 1,
     notify_due_today INTEGER NOT NULL DEFAULT 1,
+    notify_sms       INTEGER NOT NULL DEFAULT 0,
     updated_at       TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 )");
 

@@ -182,6 +182,10 @@ function task_notify_get_pref(int $user_id): array {
 }
 
 function task_notify_save_pref(int $user_id, array $data): void {
+    // migracja: kolumna notify_sms dodana już po wdrożeniu tabeli — starsze bazy jej nie mają
+    try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_sms INTEGER NOT NULL DEFAULT 0"); }
+    catch (\Throwable $e) {}
+
     $fields  = ['notify_assigned', 'notify_mentioned', 'notify_comment',
                 'notify_due_1day', 'notify_due_today', 'notify_sms'];
     $values  = [];

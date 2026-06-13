@@ -1534,6 +1534,83 @@ class CrmManager
     }
 
     /**
+     * Dane osobowe z umów (główny system) pasujące do kontaktu — do importu na kartę.
+     * Dopasowanie po person_id, a w razie jego braku po e-mailu (umowy wolontariatu).
+     * Dla każdego pola podstawowego bierze pierwszą niepustą wartość z najświeższej
+     * umowy i zapisuje jej źródło (nr umowy + typ). Bezpieczne: try/catch per tabela.
+     *
+     * @return array<string,array{value:string,source:string}>  pole => {wartość, źródło}
+     */
+    public static function getContractDataForContact(array $contact): array
+    {
+        $person_id = (int)($contact['person_id'] ?? 0);
+        $email     = trim((string)($contact['email'] ?? ''));
+        if (!$person_id && $email === '') return [];
+
+        // tabela => etykieta typu; telefon/email/data_urodzenia tylko w wolontariacie
+        $tables = [
+            'umowy_zlecenie'    => 'zlecenie',
+            'umowy_wolontariat' => 'wolontariat',
+            'umowy_dzielo'      => 'dzieło',
+            'umowy_praca'       => 'praca',
+        ];
+
+        $rows = [];
+        foreach ($tables as $tbl => $typ) {
+            $extra = ($tbl === 'umowy_wolontariat')
+                ? ', telefon, email, data_urodzenia'
+                : ", NULL AS telefon, NULL AS email, NULL AS data_urodzenia";
+            try {
+                if ($person_id) {
+                    $found = db_all(
+                        "SELECT numer_umowy, data_zawarcia, imie_nazwisko, pesel, adres{$extra}
+                         FROM {$tbl} WHERE person_id = ?
+                         ORDER BY data_zawarcia DESC, id DESC",
+                        [$person_id]
+                    );
+                } elseif ($tbl === 'umowy_wolontariat') {
+                    $found = db_all(
+                        "SELECT numer_umowy, data_zawarcia, imie_nazwisko, pesel, adres{$extra}
+                         FROM {$tbl} WHERE LOWER(email) = LOWER(?)
+                         ORDER BY data_zawarcia DESC, id DESC",
+                        [$email]
+                    );
+                } else {
+                    $found = [];
+                }
+            } catch (\Throwable $e) {
+                $found = [];
+            }
+            foreach ($found as $r) {
+                $r['_typ'] = $typ;
+                $rows[]    = $r;
+            }
+        }
+        if (!$rows) return [];
+
+        // globalne sortowanie po dacie zawarcia (malejąco) — najświeższa umowa wygrywa
+        usort($rows, fn($a, $b) => strcmp(
+            (string)($b['data_zawarcia'] ?? ''),
+            (string)($a['data_zawarcia'] ?? '')
+        ));
+
+        $out = [];
+        foreach (['imie_nazwisko', 'pesel', 'adres', 'telefon', 'email', 'data_urodzenia'] as $f) {
+            foreach ($rows as $r) {
+                $v = trim((string)($r[$f] ?? ''));
+                if ($v !== '') {
+                    $out[$f] = [
+                        'value'  => $v,
+                        'source' => trim((string)($r['numer_umowy'] ?? '')) . ' (' . $r['_typ'] . ')',
+                    ];
+                    break;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Zgłoszenia rekrutacyjne z systemu głównego pasujące do e-maila kontaktu.
      * JOIN z volunteer_offers po tytuł ogłoszenia.
      */
@@ -1761,6 +1838,136 @@ class CrmManager
                     ->execute([$contact_id, $tag]);
             } catch (\Throwable $e) {}
         }
+    }
+
+    // ── Automatyczne sprawy CRM z umów ───────────────────────────────────────
+
+    /**
+     * Znajdź lub utwórz kontakt CRM na podstawie danych z wiersza umowy.
+     */
+    private static function _contractContact(array $row, string $type, int $user_id): ?int {
+        $email = trim($row['email'] ?? '');
+        $name  = trim($row['imie_nazwisko'] ?? $row['nazwa_wykonawcy'] ?? $row['strona_umowy'] ?? '');
+        if (!$email && !$name) return null;
+
+        $contact_id = null;
+        if ($email) {
+            $ex = db_one("SELECT id FROM crm_contacts WHERE LOWER(email)=LOWER(?) AND crm_active=1 LIMIT 1", [$email]);
+            if ($ex) $contact_id = (int)$ex['id'];
+        }
+        if (!$contact_id && $name) {
+            $ex = db_one("SELECT id FROM crm_contacts WHERE imie_nazwisko=? AND crm_active=1 ORDER BY id DESC LIMIT 1", [$name]);
+            if ($ex) $contact_id = (int)$ex['id'];
+        }
+        if (!$contact_id) {
+            $payload = [
+                'type'          => 'osoba',
+                'imie_nazwisko' => $name ?: $email,
+                'email'         => $email ?: null,
+                'status'        => 'aktywny',
+                'source'        => $type . '_auto',
+                'created_by'    => $user_id,
+            ];
+            foreach (['telefon', 'adres', 'pesel', 'data_urodzenia'] as $f) {
+                if (!empty($row[$f])) $payload[$f] = $row[$f];
+            }
+            $contact_id = self::createContact($payload);
+        }
+        return $contact_id;
+    }
+
+    private static function _contractTypeLabel(string $type): string {
+        return [
+            'wolontariat' => 'Porozumienie wolontariackie',
+            'zlecenie'    => 'Umowa zlecenie',
+            'dzielo'      => 'Umowa o dzieło',
+            'praca'       => 'Umowa o pracę',
+            'uslugi'      => 'Umowa usługi',
+            'inne'        => 'Umowa',
+        ][$type] ?? 'Umowa';
+    }
+
+    /**
+     * Tworzy sprawę CRM po zapisaniu nowej umowy.
+     * Wywołać po db_insert() w kontrakcie; zawsze w try/catch.
+     */
+    public static function autoCreateContractCase(
+        string $type,
+        string $numer,
+        array  $row,
+        int    $user_id
+    ): void {
+        if (!module_enabled('crm_enabled')) return;
+
+        $contact_id = self::_contractContact($row, $type, $user_id);
+        if (!$contact_id) return;
+
+        $label = self::_contractTypeLabel($type);
+        $title = $numer ? "{$label}: {$numer}" : $label;
+
+        $parts = [];
+        foreach (['przedmiot_zlecenia', 'przedmiot_porozumienia', 'przedmiot_uslugi', 'opis_dziela', 'przedmiot_umowy'] as $f) {
+            if (!empty($row[$f])) { $parts[] = mb_substr($row[$f], 0, 200); break; }
+        }
+        if (!empty($row['data_zawarcia'])) $parts[] = 'Data zawarcia: ' . $row['data_zawarcia'];
+        if (!empty($row['opiekun']))       $parts[] = 'Opiekun: ' . $row['opiekun'];
+
+        db_insert('crm_cases', [
+            'contact_id'  => $contact_id,
+            'title'       => $title,
+            'description' => $parts ? implode("\n", $parts) : null,
+            'status'      => 'open',
+            'priority'    => 'medium',
+            'created_by'  => $user_id,
+            'created_at'  => date('Y-m-d H:i:s'),
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Tworzy sprawę CRM po złożeniu wniosku o aneks.
+     * Ładuje dane umowy z bazy. Wywołać w submit_amendment(); zawsze w try/catch.
+     */
+    public static function autoCreateAmendmentCase(
+        string $type,
+        int    $contract_id,
+        int    $nr,
+        string $numer,
+        string $opis,
+        int    $user_id
+    ): void {
+        if (!module_enabled('crm_enabled')) return;
+
+        $tbl_map = [
+            'wolontariat' => 'umowy_wolontariat',
+            'zlecenie'    => 'umowy_zlecenie',
+            'dzielo'      => 'umowy_dzielo',
+            'praca'       => 'umowy_praca',
+            'uslugi'      => 'umowy_uslugi',
+            'inne'        => 'umowy_inne',
+        ];
+        $tbl = $tbl_map[$type] ?? null;
+        if (!$tbl) return;
+        $contract = db_one("SELECT * FROM {$tbl} WHERE id=?", [$contract_id]);
+        if (!$contract) return;
+
+        $contact_id = self::_contractContact($contract, $type, $user_id);
+        if (!$contact_id) return;
+
+        $label = self::_contractTypeLabel($type);
+        $title = "Aneks #{$nr} — {$label}: {$numer}";
+        $short = mb_strlen($opis) > 200 ? mb_substr($opis, 0, 197) . '…' : $opis;
+
+        db_insert('crm_cases', [
+            'contact_id'  => $contact_id,
+            'title'       => $title,
+            'description' => $short ?: null,
+            'status'      => 'open',
+            'priority'    => 'medium',
+            'created_by'  => $user_id,
+            'created_at'  => date('Y-m-d H:i:s'),
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ]);
     }
 
     // ── Dodatkowe pola (definicje) ─────────────────────────────────────────
