@@ -691,17 +691,49 @@ $roundcube_url = crm_setting('roundcube_url');
 include __DIR__ . '/../includes/header_crm.php';
 ?>
 
-<!-- Breadcrumb -->
-<nav aria-label="Ścieżka nawigacji" class="mb-3">
-  <ol class="breadcrumb mb-0" style="font-size:.82rem">
-    <li class="breadcrumb-item">
-      <a href="<?= APP_URL ?>/crm/index.php">
-        <i class="bi bi-diagram-2-fill me-1" style="color:var(--crm-primary)" aria-hidden="true"></i>CRM
-      </a>
-    </li>
-    <li class="breadcrumb-item active" aria-current="page"><?= h($contact['imie_nazwisko']) ?></li>
-  </ol>
-</nav>
+<!-- Breadcrumb + przełącznik widoku -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <nav aria-label="Ścieżka nawigacji">
+    <ol class="breadcrumb mb-0" style="font-size:.82rem">
+      <li class="breadcrumb-item">
+        <a href="<?= APP_URL ?>/crm/index.php">
+          <i class="bi bi-diagram-2-fill me-1" style="color:var(--crm-primary)" aria-hidden="true"></i>CRM
+        </a>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page"><?= h($contact['imie_nazwisko']) ?></li>
+    </ol>
+  </nav>
+  <button type="button"
+          id="crm-fullscreen-btn"
+          class="btn btn-outline-secondary btn-sm"
+          onclick="crmToggleFullscreen()"
+          title="Przełącz widok pełnoekranowy (bez menu bocznego)"
+          aria-label="Przełącz widok pełnoekranowy">
+    <i class="bi bi-layout-sidebar-reverse" id="crm-fs-icon"></i>
+  </button>
+</div>
+
+<script>
+(function () {
+  const LS_KEY = 'crm_contact_fullscreen';
+  const body   = document.body;
+  const icon   = document.getElementById('crm-fs-icon');
+
+  function apply(full) {
+    body.classList.toggle('crm-fullscreen', full);
+    if (icon) icon.className = full ? 'bi bi-layout-sidebar' : 'bi bi-layout-sidebar-reverse';
+  }
+
+  // Przywróć stan z localStorage
+  apply(localStorage.getItem(LS_KEY) === '1');
+
+  window.crmToggleFullscreen = function () {
+    const next = !body.classList.contains('crm-fullscreen');
+    localStorage.setItem(LS_KEY, next ? '1' : '0');
+    apply(next);
+  };
+})();
+</script>
 
 <!-- ══ CONTACT HEADER ═════════════════════════════════════════════════════════ -->
 <div class="card mb-3 border-0 overflow-hidden shadow-sm">

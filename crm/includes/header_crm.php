@@ -257,6 +257,14 @@ body {
   margin-left: 0;
 }
 
+/* ══ TRYB PEŁNOEKRANOWY (bez sidebara) ═══════════════════════════════ */
+.crm-shell   { transition: margin-left .22s; }
+.crm-sidebar { transition: transform .22s; }
+body.crm-fullscreen .crm-sidebar      { transform: translateX(-220px); }
+body.crm-fullscreen .crm-shell        { margin-left: 0; }
+body.crm-fullscreen .crm-content      { max-width: 100%; }
+body.crm-fullscreen .crm-topbar-brand { width: auto; border-right: none; }
+
 /* ══ RESPONSIVE ══════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   :root { --crm-sidebar-w: 0px; }
