@@ -357,6 +357,79 @@ class M365Graph {
         return [];
     }
 
+    // ── Aliasy e-mail (proxyAddresses) ────────────────────────────────────────
+
+    /**
+     * Czy adres jest już zajęty w tenancie — jako UPN, mail lub alias (proxyAddresses).
+     * Używane przy walidacji wniosku o alias.
+     */
+    public function email_in_use(string $email): bool {
+        $email = strtolower(trim($email));
+        if ($email === '') return true;
+
+        // 1. UPN / mail — reużyj istniejącej logiki
+        if (!empty($this->find_by_email_or_upn($email)['id'])) return true;
+
+        // 2. proxyAddresses (alias) — filtr wymaga ConsistencyLevel: eventual
+        try {
+            $url = "https://graph.microsoft.com/v1.0/users"
+                 . "?\$filter=" . urlencode("proxyAddresses/any(x:x eq 'smtp:{$email}')")
+                 . "&\$select=id&\$count=true&\$top=1";
+            $ctx = stream_context_create(['http' => [
+                'method' => 'GET',
+                'header' => "Authorization: Bearer {$this->token()}\r\n"
+                          . "Content-Type: application/json\r\n"
+                          . "ConsistencyLevel: eventual\r\n",
+                'ignore_errors' => true,
+            ]]);
+            $resp = json_decode(@file_get_contents($url, false, $ctx) ?: '{}', true) ?? [];
+            if (!empty($resp['value'][0]['id'])) return true;
+        } catch (\Exception $e) {}
+
+        return false;
+    }
+
+    /** Zwraca tablicę proxyAddresses użytkownika (np. ['SMTP:a@x','smtp:b@x']). */
+    public function get_user_proxy_addresses(string $user_id): array {
+        $r = $this->http_get(
+            "https://graph.microsoft.com/v1.0/users/" . urlencode($user_id) . "?\$select=proxyAddresses"
+        );
+        return $r['proxyAddresses'] ?? [];
+    }
+
+    /**
+     * Dopisuje alias (smtp: — drugorzędny) do proxyAddresses, zachowując istniejące.
+     * UPN/primary SMTP pozostają bez zmian. Po PATCH weryfikuje obecność aliasu
+     * (http_patch jest „fire-and-forget"). Zwraca true, jeśli alias jest ustawiony.
+     */
+    public function add_proxy_alias(string $user_id, string $alias): bool {
+        $alias  = strtolower(trim($alias));
+        $target = 'smtp:' . $alias;
+
+        $current = $this->get_user_proxy_addresses($user_id);
+
+        // Już istnieje (dowolna wielkość liter prefiksu)?
+        foreach ($current as $pa) {
+            if (strcasecmp($pa, $target) === 0 || strcasecmp($pa, 'SMTP:' . $alias) === 0) {
+                return true;
+            }
+        }
+
+        $updated   = $current;
+        $updated[] = $target;
+
+        $this->http_patch(
+            "https://graph.microsoft.com/v1.0/users/" . urlencode($user_id),
+            ['proxyAddresses' => array_values($updated)]
+        );
+
+        // Weryfikacja odczytem
+        foreach ($this->get_user_proxy_addresses($user_id) as $pa) {
+            if (strcasecmp($pa, $target) === 0) return true;
+        }
+        return false;
+    }
+
     // ── HTTP helpers ─────────────────────────────────────────────────────────
 
     private function http_get(string $url): array {

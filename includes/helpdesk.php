@@ -114,10 +114,15 @@ function hd_can_view_ticket(array $ticket): bool {
 
 // ── Generowanie numeru ────────────────────────────────────────────────────────
 
-function hd_next_number(): string {
-    $last = db_one("SELECT number FROM helpdesk_tickets ORDER BY id DESC LIMIT 1");
-    $n = $last ? ((int)substr($last['number'], 2) + 1) : 1;
-    return 'HD' . str_pad($n, 5, '0', STR_PAD_LEFT);
+function hd_next_number(string $prefix = 'HD'): string {
+    // Numeruj niezależnie per-prefiks (HD, CHG, …), aby uniknąć kolizji UNIQUE,
+    // gdy w jednej tabeli mieszają się różne prefiksy o różnej długości.
+    $last = db_one(
+        "SELECT number FROM helpdesk_tickets WHERE number LIKE ? ORDER BY id DESC LIMIT 1",
+        [$prefix . '%']
+    );
+    $n = $last ? ((int)preg_replace('/\D/', '', $last['number']) + 1) : 1;
+    return $prefix . str_pad($n, 5, '0', STR_PAD_LEFT);
 }
 
 // ── Badges HTML ───────────────────────────────────────────────────────────────

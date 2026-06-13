@@ -650,6 +650,13 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
           }
       }
   } catch (\Throwable $e) {}
+  // Aliasy e-mail — liczba wniosków oczekujących (dla operatorów/adminów)
+  $_alias_is_op   = is_admin() || !empty(current_user()['helpdesk_operator']);
+  $_alias_pending = 0;
+  if ($_alias_is_op) {
+      try { $_alias_pending = (int)(db_one("SELECT COUNT(*) AS c FROM email_alias_requests WHERE status IN ('oczekuje','błąd')")['c'] ?? 0); }
+      catch (\Throwable $e) {}
+  }
 
   $_people_badge = $_msg_unread_total + $_term_pending + $_cert_pending + $_rek_new + $_ob_new;
   $_fin_badge    = $_zwr_pending + $_ts_pending + $_ship_pending + $_res_badge;
@@ -799,6 +806,12 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <i class="bi bi-ticket-perforated"></i> Helpdesk
     <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
   </a>
+  <?php if ($_alias_is_op): ?>
+  <a class="sb-link<?= _nav_active('/admin/email_aliasy') ?>" href="<?= APP_URL ?>/admin/email_aliasy.php">
+    <i class="bi bi-at"></i> Aliasy e-mail
+    <?php if ($_alias_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_alias_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
   <?php endif; ?>
   <?php if (module_enabled('messages_enabled')): ?>
   <a class="sb-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
