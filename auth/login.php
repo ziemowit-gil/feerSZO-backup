@@ -235,20 +235,19 @@ if ($is_tenant) {
     }
 }
 
-// ── Opis systemu (konfigurowalny lub domyślny) ────────────────────────────
+// ── Opis systemu (konfigurowalny — pokazujemy tylko gdy admin go ustawił) ──
 $_login_welcome = '';
 try { $_login_welcome = trim(org_setting('login_welcome_text') ?: ''); } catch (\Throwable $e) {}
-if (!$_login_welcome) {
-    $_login_welcome = 'System służy do zarządzania pracą organizacji pozarządowej — rejestrowania umów z wolontariuszami i współpracownikami, prowadzenia kartoteki kontaktów i spraw w CRM, a także obsługi dokumentów, zasobów i działań. Dostępne funkcje zależą od roli, jaką pełnisz w organizacji.';
-}
+$_login_welcome_is_custom = ($_login_welcome !== '');
 
-// ── Lista dostępnych metod do pokazania w lewym panelu ────────────────────
+// ── Dwie ścieżki logowania pokazywane w lewym panelu ──────────────────────
 $_avail_methods = [];
-if ($ms_available)   $_avail_methods[] = ['bi-microsoft',       'Microsoft 365',   'Konto organizacji — jedno kliknięcie'];
-$_avail_methods[]                      = ['bi-envelope-at-fill','E-mail i hasło',   'Konto lokalne w systemie'];
-if ($sms_available)  $_avail_methods[] = ['bi-phone-fill',      'Kod SMS',          'Logowanie przez numer telefonu'];
-if ($code_available) $_avail_methods[] = ['bi-key-fill',        'Kod jednorazowy',  'Pierwsze logowanie lub gość'];
-if ($x509_available) $_avail_methods[] = ['bi-patch-check-fill','Certyfikat X.509', 'Plik .p12 dla administratora'];
+if ($ms_available) {
+    $_avail_methods[] = ['bi-microsoft', 'Masz konto @feer.org.pl', 'Microsoft 365 lub e-mail służbowy i hasło'];
+} else {
+    $_avail_methods[] = ['bi-envelope-at-fill', 'Masz konto @feer.org.pl', 'E-mail służbowy @feer.org.pl i hasło'];
+}
+$_avail_methods[] = ['bi-person-badge', 'Nie masz konta @feer.org.pl', 'Prywatny e-mail (podany do WiadomościFEER) i hasło'];
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -466,27 +465,43 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 }
 .left-module i{font-size:.7rem}
 
-/* ── Karta zaproszenia (prawa kolumna) ───────────────────── */
-.login-invite{
-  background:linear-gradient(135deg,#f0f7ff 0%,#eff6ff 100%);
-  border:1px solid #bfdbfe;border-radius:10px;
-  padding:1rem 1.1rem;margin-bottom:1.4rem;
+/* ── Przewodnik: dwie ścieżki logowania (prawa kolumna) ──── */
+.login-paths{
+  border:1px solid #e2e8f0;border-radius:12px;
+  margin-bottom:1.4rem;overflow:hidden;background:#fff;
 }
-.login-invite-head{
-  display:flex;align-items:center;gap:.5rem;
-  font-size:.88rem;font-weight:700;color:#1e3a5f;
-  margin-bottom:.5rem;
+.login-path{
+  display:flex;align-items:flex-start;gap:.7rem;
+  padding:.85rem 1rem;
 }
-.login-invite-head i{color:#2563eb;font-size:1rem}
-.login-invite-text{font-size:.84rem;color:#475569;line-height:1.65;margin:0 0 .75rem}
-.login-invite-chips{display:flex;flex-wrap:wrap;gap:.3rem}
-.login-invite-chip{
-  display:inline-flex;align-items:center;gap:.28rem;
-  font-size:.7rem;font-weight:600;color:#3b82f6;
-  background:#dbeafe;border:1px solid #bfdbfe;border-radius:2rem;
-  padding:.2rem .6rem;
+.login-path + .login-path{border-top:1px solid #eef2f7}
+.login-path-badge{
+  width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1rem;background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);
 }
-.login-invite-chip i{font-size:.72rem}
+.login-path-badge.alt{background:#f1f5f9;color:#475569}
+.login-path-title{font-size:.86rem;font-weight:700;color:#0f172a;line-height:1.3}
+.login-path-desc{font-size:.79rem;color:#64748b;line-height:1.55;margin-top:.1rem}
+.login-path-desc strong{color:#334155;font-weight:700}
+.login-welcome-text{font-size:.82rem;color:#64748b;line-height:1.6;margin:0 0 1.4rem}
+
+/* ── Podpis pod blokiem metody (dla kogo) ─────────────────── */
+.method-for{font-size:.78rem;color:#64748b;text-align:center;margin:.45rem 0 0;line-height:1.45}
+
+/* ── Więcej opcji — rozwijane ─────────────────────────────── */
+.more-options{margin-top:1.3rem;border-top:1px solid #e2e8f0;padding-top:1rem}
+.more-options > summary{
+  list-style:none;cursor:pointer;user-select:none;
+  display:flex;align-items:center;justify-content:center;gap:.4rem;
+  font-size:.83rem;font-weight:600;color:#64748b;
+  padding:.45rem;border-radius:8px;transition:color .12s,background .12s;
+}
+.more-options > summary::-webkit-details-marker{display:none}
+.more-options > summary:hover{color:var(--c,#2563eb);background:#f8fafc}
+.more-options > summary .chev{transition:transform .15s}
+.more-options[open] > summary .chev{transform:rotate(180deg)}
+.more-options-body{margin-top:.7rem}
 
 /* ── Zapomniałem hasła ───────────────────────────────────── */
 .forgot-link{
@@ -613,20 +628,33 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 
   <h1 class="login-heading" id="login-title">Zaloguj się</h1>
 
-  <!-- Zaproszenie: czym jest system i po co tu jesteś -->
-  <div class="login-invite" role="note" aria-label="Informacja o systemie">
-    <div class="login-invite-head">
-      <i class="bi bi-building-heart" aria-hidden="true"></i>
-      Panel pracy <?= h($org_name) ?>
+  <?php if ($_login_welcome_is_custom): ?>
+  <p class="login-welcome-text"><?= nl2br(h($_login_welcome)) ?></p>
+  <?php endif; ?>
+
+  <!-- Przewodnik: która ścieżka logowania dla kogo -->
+  <div class="login-paths" role="note" aria-label="Jak się zalogować">
+    <div class="login-path">
+      <span class="login-path-badge" aria-hidden="true"><i class="bi <?= $ms_available ? 'bi-microsoft' : 'bi-envelope-at-fill' ?>"></i></span>
+      <div>
+        <div class="login-path-title">Masz konto @feer.org.pl</div>
+        <div class="login-path-desc">
+          <?php if ($ms_available): ?>
+          Zaloguj się przez <strong>Microsoft 365</strong> lub e-mailem służbowym i hasłem. Administracja zawsze kontem <strong>@feer.org.pl</strong>.
+          <?php else: ?>
+          Zaloguj się e-mailem służbowym <strong>@feer.org.pl</strong> i hasłem. Administracja zawsze kontem służbowym.
+          <?php endif; ?>
+        </div>
+      </div>
     </div>
-    <p class="login-invite-text"><?= nl2br(h($_login_welcome)) ?></p>
-    <div class="login-invite-chips" aria-label="Dostępne moduły">
-      <span class="login-invite-chip"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Umowy</span>
-      <span class="login-invite-chip"><i class="bi bi-diagram-2-fill" aria-hidden="true"></i>CRM</span>
-      <span class="login-invite-chip"><i class="bi bi-lock-fill" aria-hidden="true"></i>RODO</span>
-      <span class="login-invite-chip"><i class="bi bi-box-seam" aria-hidden="true"></i>Zasoby</span>
-      <span class="login-invite-chip"><i class="bi bi-card-checklist" aria-hidden="true"></i>K30</span>
-      <span class="login-invite-chip"><i class="bi bi-currency-euro" aria-hidden="true"></i>Granty</span>
+    <div class="login-path">
+      <span class="login-path-badge alt" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
+      <div>
+        <div class="login-path-title">Nie masz konta @feer.org.pl</div>
+        <div class="login-path-desc">
+          Zaloguj się lokalnie swoim <strong>prywatnym e-mailem</strong> — tym podanym do WiadomościFEER — i ustawionym hasłem.
+        </div>
+      </div>
     </div>
   </div>
 
