@@ -80,7 +80,8 @@ $_qs_base = array_filter([
 $pag  = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query($_qs_base));
 $rows = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY {$sort_col} {$sort_dir} LIMIT {$per} OFFSET {$pag['offset']}", $params);
 
-$statuses = ['projekt' => 'Projekt', 'podpisana' => 'Podpisana', 'w realizacji' => 'W realizacji',
+$statuses = ['projekt' => 'Projekt', 'do podpisu' => 'Do podpisu', 'podpisana' => 'Podpisana',
+             'w realizacji' => 'W realizacji', 'zawieszona' => 'Zawieszona', 'do rozliczenia' => 'Do rozliczenia',
              'zakończona' => 'Zakończona', 'rozwiązana' => 'Rozwiązana', 'anulowana' => 'Anulowana'];
 $formy    = ['papierowa' => 'Papierowa', 'elektroniczna' => 'Elektroniczna', 'kwalifikowany' => 'Kwalifikowany e-podpis'];
 $waluty   = db_all("SELECT DISTINCT waluta FROM {$TABLE} WHERE waluta IS NOT NULL AND waluta != '' ORDER BY waluta");

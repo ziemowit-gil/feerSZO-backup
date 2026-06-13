@@ -9,15 +9,26 @@ const CONTRACT_TYPES = [
 ];
 
 const STATUS_LABELS = [
-    'projekt'      => ['label' => 'Projekt',       'class' => 'secondary'],
-    'podpisana'    => ['label' => 'Podpisana',      'class' => 'primary'],
-    'w realizacji' => ['label' => 'W realizacji',   'class' => 'info'],
-    'zakończona'   => ['label' => 'Zakończona',     'class' => 'success'],
-    'rozwiązana'   => ['label' => 'Rozwiązana',     'class' => 'warning'],
-    'anulowana'    => ['label' => 'Anulowana',      'class' => 'danger'],
-    'obowiązująca' => ['label' => 'Obowiązująca',   'class' => 'success'],
-    'wygasła'      => ['label' => 'Wygasła',        'class' => 'secondary'],
-    'aneks'        => ['label' => 'Aneks',          'class' => 'purple'],
+    'projekt'        => ['label' => 'Projekt',        'class' => 'secondary'],
+    'do podpisu'     => ['label' => 'Do podpisu',     'class' => 'teal'],
+    'podpisana'      => ['label' => 'Podpisana',      'class' => 'primary'],
+    'w realizacji'   => ['label' => 'W realizacji',   'class' => 'info'],
+    'zawieszona'     => ['label' => 'Zawieszona',     'class' => 'orange'],
+    'do rozliczenia' => ['label' => 'Do rozliczenia', 'class' => 'indigo'],
+    'zakończona'     => ['label' => 'Zakończona',     'class' => 'success'],
+    'rozwiązana'     => ['label' => 'Rozwiązana',     'class' => 'warning'],
+    'anulowana'      => ['label' => 'Anulowana',      'class' => 'danger'],
+    'obowiązująca'   => ['label' => 'Obowiązująca',   'class' => 'success'],
+    'wygasła'        => ['label' => 'Wygasła',        'class' => 'secondary'],
+    'aneks'          => ['label' => 'Aneks',          'class' => 'purple'],
+];
+
+/** Niestandardowe kolory badge'y dla klas spoza palety kontekstowej Bootstrap. */
+const STATUS_CUSTOM_COLORS = [
+    'purple' => '#7c3aed',
+    'teal'   => '#0d9488',
+    'orange' => '#ea580c',
+    'indigo' => '#6366f1',
 ];
 
 /**
@@ -25,15 +36,18 @@ const STATUS_LABELS = [
  * Admini mogą ustawić dowolny status (oprócz 'aneks').
  */
 const STATUS_TRANSITIONS = [
-    'projekt'      => ['podpisana', 'anulowana'],
-    'podpisana'    => ['w realizacji', 'zakończona', 'rozwiązana', 'anulowana'],
-    'w realizacji' => ['zakończona', 'rozwiązana'],
-    'obowiązująca' => ['zakończona', 'rozwiązana'],
-    'zakończona'   => [],
-    'rozwiązana'   => [],
-    'anulowana'    => [],
-    'wygasła'      => [],
-    'aneks'        => [],
+    'projekt'        => ['do podpisu', 'podpisana', 'anulowana'],
+    'do podpisu'     => ['podpisana', 'anulowana'],
+    'podpisana'      => ['w realizacji', 'zakończona', 'rozwiązana', 'anulowana'],
+    'w realizacji'   => ['zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana'],
+    'zawieszona'     => ['w realizacji', 'do rozliczenia', 'zakończona', 'rozwiązana'],
+    'do rozliczenia' => ['zakończona', 'rozwiązana'],
+    'obowiązująca'   => ['zakończona', 'rozwiązana'],
+    'zakończona'     => [],
+    'rozwiązana'     => [],
+    'anulowana'      => [],
+    'wygasła'        => [],
+    'aneks'          => [],
 ];
 
 /**
@@ -54,8 +68,8 @@ function contract_is_locked(array $row): bool {
 
 function status_badge(string $status): string {
     $s = STATUS_LABELS[$status] ?? ['label' => $status, 'class' => 'secondary'];
-    if ($status === 'aneks') {
-        return '<span class="badge" style="background:#7c3aed">' . htmlspecialchars($s['label']) . '</span>';
+    if (isset(STATUS_CUSTOM_COLORS[$s['class']])) {
+        return '<span class="badge" style="background:' . STATUS_CUSTOM_COLORS[$s['class']] . '">' . htmlspecialchars($s['label']) . '</span>';
     }
     return '<span class="badge bg-' . $s['class'] . '">' . htmlspecialchars($s['label']) . '</span>';
 }

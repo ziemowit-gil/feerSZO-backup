@@ -28,6 +28,8 @@ $save_msg = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['_save'])) {
     $fields = [
+        'm365_sync_enabled'  => isset($_POST['m365_sync_enabled'])  ? '1' : '0',
+        'm365_sync_scope'    => ($_POST['m365_sync_scope'] ?? 'all') === 'user' ? 'user' : 'all',
         'm365_sync_user_id'  => trim($_POST['m365_sync_user_id']  ?? ''),
         'm365_sync_calendar_id' => trim($_POST['m365_sync_calendar_id'] ?? ''),
         'm365_sync_contacts' => isset($_POST['m365_sync_contacts']) ? '1' : '0',
@@ -45,6 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['_save'])) {
 
 $sync_user_id     = crm_setting('m365_sync_user_id')  ?: crm_setting('m365_sender_user_id') ?: '';
 $sync_calendar_id = crm_setting('m365_sync_calendar_id') ?: '';
+$sync_enabled     = OutlookSync::integration_enabled(); // przełącznik główny
+$sync_scope       = OutlookSync::sync_scope();           // 'all' | 'user'
 $sync_contacts    = crm_setting('m365_sync_contacts')  !== '0';
 $sync_calendar    = crm_setting('m365_sync_calendar')  !== '0';
 $sync_messages    = crm_setting('m365_sync_messages')  === '1'; // opt-in
@@ -98,7 +102,8 @@ include dirname(__DIR__) . '/includes/header.php';
           <dl class="row mb-0 small">
             <dt class="col-5">Uprawnienia aplikacji (Azure):</dt>
             <dd class="col-7">
-              <code>Contacts.Read</code>, <code>Calendars.Read</code>
+              <code>Contacts.Read</code>, <code>Calendars.Read</code>,
+              <code>Mail.Read</code>, <code>User.Read.All</code>
               <span class="text-muted ms-1">(Application)</span>
             </dd>
             <dt class="col-5">Tenant ID:</dt>
@@ -123,7 +128,49 @@ include dirname(__DIR__) . '/includes/header.php';
           <form method="post" id="sync-settings-form">
             <input type="hidden" name="_save" value="1">
 
+            <!-- Przełącznik główny -->
+            <div class="form-check form-switch mb-1" style="padding-left:3em">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="chk-enabled" name="m365_sync_enabled" value="1"
+                     style="width:2.6em;height:1.4em"
+                     <?= $sync_enabled ? 'checked' : '' ?>>
+              <label class="form-check-label fw-semibold fs-6 ms-2" for="chk-enabled">
+                <i class="bi bi-toggles me-1 text-primary"></i>Włącz integrację Outlook
+              </label>
+            </div>
+            <p class="form-text mt-0 mb-3">
+              Po włączeniu synchronizowane są kontakty, kalendarz i maile. Szczegóły dostosujesz poniżej.
+            </p>
+
+            <!-- Szczegóły konfiguracji (widoczne gdy włączone) -->
+            <div id="sync-detail" class="<?= $sync_enabled ? '' : 'd-none' ?>">
+
             <div class="mb-3">
+              <label class="form-label fw-semibold mb-2">
+                <i class="bi bi-people me-1"></i>Kogo synchronizować
+              </label>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="m365_sync_scope" id="scope-all"
+                       value="all" <?= $sync_scope === 'all' ? 'checked' : '' ?>>
+                <label class="form-check-label" for="scope-all">
+                  <strong>Wszyscy użytkownicy</strong>
+                  <span class="d-block small text-muted">
+                    Skrzynki, kalendarze i kontakty wszystkich użytkowników M365.
+                    Wymaga uprawnienia aplikacji <code>User.Read.All</code>.
+                  </span>
+                </label>
+              </div>
+              <div class="form-check mt-1">
+                <input class="form-check-input" type="radio" name="m365_sync_scope" id="scope-user"
+                       value="user" <?= $sync_scope === 'user' ? 'checked' : '' ?>>
+                <label class="form-check-label" for="scope-user">
+                  <strong>Konkretny użytkownik</strong>
+                  <span class="d-block small text-muted">Tylko skrzynka/kalendarz/kontakty wskazanego użytkownika.</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="mb-3 <?= $sync_scope === 'all' ? 'd-none' : '' ?>" id="single-user-field">
               <label class="form-label fw-semibold">
                 <i class="bi bi-person-badge me-1"></i>Użytkownik M365 do synchronizacji
               </label>
@@ -192,6 +239,8 @@ include dirname(__DIR__) . '/includes/header.php';
                 </label>
               </div>
             </div>
+
+            </div><!-- /#sync-detail -->
 
             <button type="submit" class="btn btn-primary">
               <i class="bi bi-floppy me-1"></i>Zapisz ustawienia
@@ -393,6 +442,37 @@ function render_sync_log(array $logs): string {
     return $html;
 }
 ?>
+
+<script>
+/* ── Przełącznik główny: pokaż/ukryj szczegóły + auto-zaznacz opcje ───────────── */
+(function () {
+  'use strict';
+  var sw     = document.getElementById('chk-enabled');
+  var detail = document.getElementById('sync-detail');
+  if (!sw || !detail) return;
+  sw.addEventListener('change', function () {
+    detail.classList.toggle('d-none', !sw.checked);
+    if (sw.checked) {
+      // Włączenie integracji = synchronizuj wszystko (admin może odznaczyć).
+      ['chk-contacts', 'chk-calendar', 'chk-messages'].forEach(function (id) {
+        var c = document.getElementById(id);
+        if (c) c.checked = true;
+      });
+    }
+  });
+
+  // Zakres: pole „konkretny użytkownik" widoczne tylko dla trybu 'user'.
+  var single = document.getElementById('single-user-field');
+  function syncScopeUI() {
+    var userMode = document.getElementById('scope-user');
+    if (single && userMode) single.classList.toggle('d-none', !userMode.checked);
+  }
+  ['scope-all', 'scope-user'].forEach(function (id) {
+    var r = document.getElementById(id);
+    if (r) r.addEventListener('change', syncScopeUI);
+  });
+})();
+</script>
 
 <script>
 (function () {

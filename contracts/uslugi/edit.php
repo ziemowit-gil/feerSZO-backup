@@ -118,7 +118,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <input name="numer_umowy" class="form-control fw-bold" value="<?= h($row['numer_umowy']) ?>" required></div>
   <div class="col-md-4 mb-3"><label class="form-label">Status *</label>
     <select name="status" class="form-select" required>
-      <?php foreach(['projekt','podpisana','w realizacji','zakończona','rozwiązana','anulowana'] as $s):
+      <?php foreach(['projekt','do podpisu','podpisana','w realizacji','zawieszona','do rozliczenia','zakończona','rozwiązana','anulowana'] as $s):
         $sel = $row['status']===$s?'selected':''; ?>
       <option value="<?= h($s) ?>" <?= $sel ?>><?= h(ucfirst($s)) ?></option>
       <?php endforeach; ?>

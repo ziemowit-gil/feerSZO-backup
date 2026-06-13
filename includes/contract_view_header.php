@@ -483,6 +483,9 @@ $_cvh_accent = match($_cvh_st['class']) {
 .cvh-status-select.cvh-status-warning   { color: #d97706; }
 .cvh-status-select.cvh-status-danger    { color: #dc2626; }
 .cvh-status-select.cvh-status-secondary { color: #64748b; }
+.cvh-status-select.cvh-status-teal      { color: #0d9488; }
+.cvh-status-select.cvh-status-orange    { color: #ea580c; }
+.cvh-status-select.cvh-status-indigo    { color: #6366f1; }
 
 /* Progress */
 .contract-hero-progress {

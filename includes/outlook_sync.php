@@ -25,6 +25,9 @@ class OutlookSync
     /** Domyślna liczba dni naprzód przy synchronizacji kalendarza. */
     private int $calendar_future_days = 365;
 
+    /** Gdy true, log_sync nie zapisuje wpisów (używane przy agregacji trybu „wszyscy"). */
+    private bool $suppress_log = false;
+
     public function __construct(?string $user_id = null)
     {
         $this->pdo    = crm_db();
@@ -49,10 +52,20 @@ class OutlookSync
      */
     public function sync_contacts(): array
     {
+        if (self::sync_scope() === 'all') {
+            return $this->sync_for_all_users('contacts');
+        }
         $this->assert_user_id();
+        return $this->sync_contacts_one($this->user_id, '');
+    }
 
-        $delta_link = $this->get_delta('contacts');
-        $result     = $this->graph->get_outlook_contacts($this->user_id, $delta_link);
+    /** Sync kontaktów jednego użytkownika (delta_suffix namespace'uje delta-link w trybie „wszyscy"). */
+    private function sync_contacts_one(string $uid, string $delta_suffix): array
+    {
+        if (!$uid) throw new \RuntimeException('Brak użytkownika M365.');
+
+        $delta_link = $this->get_delta('contacts' . $delta_suffix);
+        $result     = $this->graph->get_outlook_contacts($uid, $delta_link);
 
         $created = $updated = $removed = 0;
         $errors  = [];
@@ -140,7 +153,7 @@ class OutlookSync
 
         $delta_saved = false;
         if (!empty($result['delta_link'])) {
-            $this->set_delta('contacts', $result['delta_link']);
+            $this->set_delta('contacts' . $delta_suffix, $result['delta_link']);
             $delta_saved = true;
         }
 
@@ -158,17 +171,26 @@ class OutlookSync
      */
     public function sync_calendar(string $calendar_id = ''): array
     {
+        if (self::sync_scope() === 'all') {
+            return $this->sync_for_all_users('calendar');
+        }
         $this->assert_user_id();
-
         if (!$calendar_id) {
             $calendar_id = crm_setting('m365_sync_calendar_id') ?: '';
         }
+        return $this->sync_calendar_one($this->user_id, $calendar_id, '');
+    }
 
-        $delta_key  = 'calendar' . ($calendar_id ? "_{$calendar_id}" : '');
+    /** Sync kalendarza jednego użytkownika. W trybie „wszyscy" używamy domyślnego kalendarza. */
+    private function sync_calendar_one(string $uid, string $calendar_id, string $delta_suffix): array
+    {
+        if (!$uid) throw new \RuntimeException('Brak użytkownika M365.');
+
+        $delta_key  = 'calendar' . ($calendar_id ? "_{$calendar_id}" : '') . $delta_suffix;
         $delta_link = $this->get_delta($delta_key);
 
         $result = $this->graph->get_calendar_events_delta(
-            $this->user_id,
+            $uid,
             $calendar_id,
             $delta_link
         );
@@ -296,7 +318,17 @@ class OutlookSync
      */
     public function sync_messages(): array
     {
+        if (self::sync_scope() === 'all') {
+            return $this->sync_for_all_users('messages');
+        }
         $this->assert_user_id();
+        return $this->sync_messages_one($this->user_id, '');
+    }
+
+    /** Sync maili jednego użytkownika (inbox + sentitems). */
+    private function sync_messages_one(string $uid, string $delta_suffix): array
+    {
+        if (!$uid) throw new \RuntimeException('Brak użytkownika M365.');
 
         $created = $matched = $skipped = 0;
         $errors  = [];
@@ -304,11 +336,11 @@ class OutlookSync
         $folders = ['inbox' => 'in', 'sentitems' => 'out'];
 
         foreach ($folders as $folder => $direction) {
-            $delta_key  = 'messages_' . $folder;
+            $delta_key  = 'messages_' . $folder . $delta_suffix;
             $delta_link = $this->get_delta($delta_key);
 
             try {
-                $result = $this->graph->get_messages_delta($this->user_id, $folder, $delta_link);
+                $result = $this->graph->get_messages_delta($uid, $folder, $delta_link);
             } catch (\Throwable $e) {
                 $errors[] = "Folder {$folder}: " . $e->getMessage();
                 continue;
@@ -379,6 +411,63 @@ class OutlookSync
     }
 
     /**
+     * Tryb „wszyscy": uruchamia dany typ synchronizacji dla każdego użytkownika M365
+     * w tenancie. Per-user delta-linki, jeden zbiorczy wpis w logu.
+     *
+     * @param string $type 'contacts' | 'calendar' | 'messages'
+     */
+    private function sync_for_all_users(string $type): array
+    {
+        $errors = [];
+        $uids   = $this->tenant_user_ids();
+        if (!$uids) {
+            $errors[] = 'Brak listy użytkowników M365 (wymagane uprawnienie aplikacji User.Read.All).';
+        }
+
+        $this->suppress_log = true;
+
+        if ($type === 'messages') {
+            $created = $matched = $skipped = 0;
+            foreach ($uids as $uid) {
+                try {
+                    $r = $this->sync_messages_one($uid, '_u_' . $uid);
+                    $created += $r['created']; $matched += $r['matched']; $skipped += $r['skipped'];
+                    foreach ($r['errors'] as $e) $errors[] = "[{$uid}] {$e}";
+                } catch (\Throwable $e) { $errors[] = "[{$uid}] " . $e->getMessage(); }
+            }
+            $this->suppress_log = false;
+            $this->log_sync('messages', $created, $matched, $skipped, $errors);
+            return compact('created', 'matched', 'skipped', 'errors');
+        }
+
+        // contacts | calendar — wspólny kształt created/updated/removed
+        $created = $updated = $removed = 0;
+        foreach ($uids as $uid) {
+            try {
+                $r = $type === 'contacts'
+                    ? $this->sync_contacts_one($uid, '_u_' . $uid)
+                    : $this->sync_calendar_one($uid, '', '_u_' . $uid);
+                $created += $r['created']; $updated += $r['updated']; $removed += $r['removed'];
+                foreach ($r['errors'] as $e) $errors[] = "[{$uid}] {$e}";
+            } catch (\Throwable $e) { $errors[] = "[{$uid}] " . $e->getMessage(); }
+        }
+        $this->suppress_log = false;
+        $this->log_sync($type, $created, $updated, $removed, $errors);
+        return ['created'=>$created, 'updated'=>$updated, 'removed'=>$removed, 'errors'=>$errors, 'delta_saved'=>true];
+    }
+
+    /** Lista identyfikatorów (GUID) wszystkich użytkowników tenanta M365. */
+    private function tenant_user_ids(): array
+    {
+        $ids = [];
+        foreach ($this->graph->get_users(999) as $u) {
+            $id = $u['id'] ?? ($u['userPrincipalName'] ?? '');
+            if ($id) $ids[] = $id;
+        }
+        return $ids;
+    }
+
+    /**
      * Uruchamia synchronizację kontaktów i kalendarza.
      * @return array{contacts: array, calendar: array, ok: bool, message: string}
      */
@@ -391,9 +480,19 @@ class OutlookSync
 
         $messages_result = ['created'=>0,'matched'=>0,'skipped'=>0,'errors'=>[]];
 
+        // Przełącznik główny integracji — gdy wyłączony, nic nie synchronizujemy.
+        if (!self::integration_enabled()) {
+            return [
+                'contacts' => $contacts_result,
+                'calendar' => $calendar_result,
+                'messages' => $messages_result,
+                'ok'       => true,
+                'message'  => 'Integracja Outlook jest wyłączona.',
+            ];
+        }
+
         $sync_contacts = crm_setting('m365_sync_contacts') !== '0';
         $sync_calendar = crm_setting('m365_sync_calendar') !== '0';
-        // Sync maili domyślnie wyłączony (opt-in) — większy wolumen + Mail.Read.
         $sync_messages = crm_setting('m365_sync_messages') === '1';
 
         if ($sync_contacts) {
@@ -755,6 +854,32 @@ class OutlookSync
     // POMOCNICZE
     // ══════════════════════════════════════════════════════════════════════════
 
+    /**
+     * Czy integracja Outlook jest włączona (przełącznik główny).
+     * Kompatybilność wsteczna: gdy flaga nieustawiona, integracja jest aktywna
+     * jeśli skonfigurowano użytkownika M365 (stare wdrożenia działają bez zmian).
+     */
+    public static function integration_enabled(): bool
+    {
+        $flag = crm_setting('m365_sync_enabled');
+        if ($flag === '1') return true;
+        if ($flag === '0') return false;
+        // Nieustawiona — domyślnie wg obecności użytkownika M365
+        return (crm_setting('m365_sync_user_id') ?: crm_setting('m365_sender_user_id')) !== '';
+    }
+
+    /**
+     * Zakres synchronizacji: 'all' (wszyscy użytkownicy tenanta) lub 'user' (jeden).
+     * Kompatybilność wsteczna: gdy nieustawione, 'user' jeśli skonfigurowano użytkownika,
+     * w przeciwnym razie domyślnie 'all'.
+     */
+    public static function sync_scope(): string
+    {
+        $s = crm_setting('m365_sync_scope');
+        if ($s === 'all' || $s === 'user') return $s;
+        return (crm_setting('m365_sync_user_id') ?: crm_setting('m365_sender_user_id')) !== '' ? 'user' : 'all';
+    }
+
     private function assert_user_id(): void
     {
         if (!$this->user_id) {
@@ -915,6 +1040,7 @@ class OutlookSync
      */
     private function log_sync(string $type, int $created, int $updated, int $removed, array $errors): void
     {
+        if ($this->suppress_log) return; // agregacja w trybie „wszyscy" loguje raz, na końcu
         $source   = 'outlook_' . $type;
         $total    = $created + $updated + $removed;
         $details  = json_encode([

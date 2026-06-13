@@ -422,6 +422,28 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     #sidebar.show { left: 0; }
     #main { margin-left: 0 !important; }
 }
+
+/* ── AJAX spinner ─────────────────────────────────────── */
+#ajax-spinner {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-left: .1rem;
+}
+#ajax-spinner::after {
+    content: '';
+    display: block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: _ajaxSpin .65s linear infinite;
+}
+@keyframes _ajaxSpin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -1018,6 +1040,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
       <i class="bi bi-list"></i>
     </button>
     <span class="page-title"><?= h($_page_title) ?></span>
+    <span id="ajax-spinner" aria-hidden="true" title="Ładowanie…"></span>
 
     <?php if ($_user && can_edit()): ?>
     <?php
@@ -1548,6 +1571,13 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 
         <li><hr class="dropdown-divider my-1"></li>
         <li>
+          <button type="button" class="dropdown-item py-2" id="a11y-spinner-toggle">
+            <i class="bi bi-eye-slash me-2 text-muted" id="a11y-spinner-icon" aria-hidden="true"></i>
+            <span id="a11y-spinner-lbl">Wyłącz animacje ładowania</span>
+          </button>
+        </li>
+        <li><hr class="dropdown-divider my-1"></li>
+        <li>
           <a class="dropdown-item py-2 text-danger" href="<?= APP_URL ?>/auth/logout.php">
             <i class="bi bi-box-arrow-right me-2"></i>Wyloguj się
           </a>
@@ -1558,6 +1588,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </div>
 
 <?php require_once __DIR__ . '/bug_report_widget.php'; ?>
+<?php require_once __DIR__ . '/welcome_notice.php'; ?>
 
 
   <div id="content">
@@ -1998,4 +2029,68 @@ function ajaxToast(msg, type) {
     setTimeout(function() { t.remove(); }, 200);
   }, 3000);
 }
+</script>
+<script>
+// ── Globalny spinner AJAX ─────────────────────────────────────────────────────
+(function () {
+  'use strict';
+  var PREF   = 'feer_a11y_no_spinner';
+  var active = 0;
+  var el     = null;
+
+  function noAnim() { return !!localStorage.getItem(PREF); }
+  function show()   { if (el && !noAnim()) el.style.display = 'inline-flex'; }
+  function hide()   { if (el) el.style.display = 'none'; }
+  function inc()    { if (++active === 1) show(); }
+  function dec()    { if (--active <= 0) { active = 0; hide(); } }
+
+  // Patch fetch — obejmuje wszystkie wywołania w aplikacji
+  var _origFetch = window.fetch;
+  window.fetch = function () {
+    inc();
+    return _origFetch.apply(this, arguments).then(
+      function (r) { dec(); return r; },
+      function (e) { dec(); throw e; }
+    );
+  };
+
+  // Patch XHR
+  var _origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function () {
+    inc();
+    this.addEventListener('loadend', dec, { once: true });
+    return _origSend.apply(this, arguments);
+  };
+
+  // Publiczne API dla specjalnych przypadków
+  window.spinnerInc = inc;
+  window.spinnerDec = dec;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    el = document.getElementById('ajax-spinner');
+
+    var btn  = document.getElementById('a11y-spinner-toggle');
+    var lbl  = document.getElementById('a11y-spinner-lbl');
+    var icon = document.getElementById('a11y-spinner-icon');
+
+    function updateToggle() {
+      var off = noAnim();
+      if (lbl)  lbl.textContent = off ? 'Włącz animacje ładowania' : 'Wyłącz animacje ładowania';
+      if (icon) icon.className  = 'bi me-2 text-muted ' + (off ? 'bi-eye' : 'bi-eye-slash');
+    }
+    updateToggle();
+
+    if (btn) {
+      btn.addEventListener('click', function () {
+        if (noAnim()) {
+          localStorage.removeItem(PREF);
+        } else {
+          localStorage.setItem(PREF, '1');
+          hide();
+        }
+        updateToggle();
+      });
+    }
+  });
+})();
 </script>
