@@ -57,9 +57,14 @@ RewriteRule ^([a-z0-9_-]+)/?$ r.php?_slug=$1 [QSA,L]
 RewriteRule ^org/([a-z0-9]+)/uploads/(.+)$ tenants/$1/uploads/$2 [L]
 
 # Tenant panel requests: /org/{slug}/{path} → /{path} with TENANT_SLUG env
+# Guard: nie rewrituj jeśli plik/katalog org/ istnieje fizycznie (units/, members/, positions/)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^org/([a-z0-9]+)/(.+)$ $2 [E=TENANT_SLUG:$1,QSA,L]
 
 # Tenant root: /org/{slug} or /org/{slug}/ → index.php with TENANT_SLUG env
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^org/([a-z0-9]+)/?$ index.php [E=TENANT_SLUG:$1,QSA,L]
 # --- koniec SaaS routing ---
 

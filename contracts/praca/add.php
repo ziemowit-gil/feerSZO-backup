@@ -75,6 +75,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once dirname(dirname(__DIR__)) . '/contracts/includes/pdf_queue.php';
             pdf_queue_add($TYPE, $id, $data['numer_umowy'] ?? '', $data['imie_nazwisko'] ?? '', current_user()['id']);
         }
+        try {
+            require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+            crm_migrate();
+            CrmManager::autoCreateContractCase($TYPE, $id, $data['numer_umowy'] ?? '', $data, (int)(current_user()['id'] ?? 0));
+        } catch (\Throwable $e) {
+            error_log('[crm_case_auto] ' . $e->getMessage());
+        }
         flash_set('success', 'Umowa o pracę została dodana.');
         header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}");
         exit;

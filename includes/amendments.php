@@ -153,6 +153,13 @@ function submit_amendment(string $type, int $id, int $user_id, string $numer, st
     }
     db()->prepare("UPDATE contract_amendments SET email_sent=? WHERE id=?")->execute([$sent, $aid]);
 
+    try {
+        require_once __DIR__ . '/crm.php';
+        CrmManager::autoCreateAmendmentCase($type, $id, $nr, $numer, $opis, $user_id, $aid);
+    } catch (\Throwable $e) {
+        error_log('[crm_case_aneks] ' . $e->getMessage());
+    }
+
     return ['id' => $aid, 'numer' => $nr, 'emails_sent' => $sent];
 }
 
