@@ -324,6 +324,59 @@ function td_render_mentions(string $text, array $users): string {
   border-radius: .4rem; border: 1px solid var(--c-border);
   background: var(--c-soft); margin-bottom: .28rem;
 }
+.td-file-name {
+  flex-grow: 1; min-width: 0;
+  background: none; border: none; padding: 0;
+  text-align: left; color: var(--c-link, #2563eb);
+  text-decoration: none; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: .82rem;
+}
+.td-file-name:hover { text-decoration: underline; }
+.td-file-dl {
+  flex-shrink: 0; color: var(--c-muted);
+  display: inline-flex; align-items: center;
+  text-decoration: none; font-size: .9rem;
+}
+.td-file-dl:hover { color: var(--c-link, #2563eb); }
+
+/* ── Podgląd plików (lightbox) ──────────────────────────────── */
+.td-preview-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(15,23,42,.82);
+  display: flex; flex-direction: column;
+  padding: clamp(.5rem, 2vw, 2rem);
+}
+.td-preview-bar {
+  display: flex; align-items: center; gap: .75rem;
+  color: #fff; margin-bottom: .6rem; flex-shrink: 0;
+}
+.td-preview-title {
+  flex-grow: 1; min-width: 0;
+  font-size: .9rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-preview-bar a, .td-preview-bar button {
+  flex-shrink: 0; color: #fff; background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.3); border-radius: .4rem;
+  padding: .3rem .7rem; font-size: .8rem; cursor: pointer;
+  text-decoration: none; display: inline-flex; align-items: center; gap: .35rem;
+}
+.td-preview-bar a:hover, .td-preview-bar button:hover { background: rgba(255,255,255,.28); color: #fff; }
+.td-preview-body {
+  flex-grow: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  overflow: auto; border-radius: .5rem; background: #fff;
+}
+.td-preview-body img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.td-preview-body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.td-preview-body pre {
+  width: 100%; height: 100%; margin: 0; padding: 1rem;
+  overflow: auto; font-size: .8rem; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; color: #0f172a;
+}
+.td-preview-fallback { text-align: center; color: var(--c-muted); padding: 2rem; }
+.td-preview-fallback .bi { font-size: 3rem; display: block; margin-bottom: .75rem; color: #94a3b8; }
 
 /* ── Historia ───────────────────────────────────────────────── */
 .td-history-item {
@@ -1051,17 +1104,29 @@ function td_render_mentions(string $text, array $users): string {
   <div id="td-files">
     <?php foreach ($files as $f):
       $ext = strtolower(pathinfo($f['original_name'], PATHINFO_EXTENSION));
-      $icon = in_array($ext, ['jpg','jpeg','png','gif'], true) ? 'image' : 'text';
+      $icon = match (true) {
+        in_array($ext, ['jpg','jpeg','png','gif','webp','svg','bmp'], true) => 'image',
+        $ext === 'pdf'                                                      => 'pdf',
+        in_array($ext, ['xls','xlsx','csv'], true)                          => 'spreadsheet',
+        in_array($ext, ['doc','docx'], true)                               => 'word',
+        $ext === 'zip'                                                      => 'zip',
+        default                                                             => 'text',
+      };
+      $file_url = APP_URL . '/uploads/tasks/' . $f['stored_name'];
     ?>
     <div class="td-file-row" id="file-<?= $f['id'] ?>">
       <i class="bi bi-file-earmark-<?= $icon ?> text-primary flex-shrink-0" aria-hidden="true"></i>
-      <a href="<?= APP_URL ?>/uploads/tasks/<?= h($f['stored_name']) ?>"
-         target="_blank"
-         class="flex-grow-1 text-truncate small"
-         aria-label="Pobierz <?= h($f['original_name']) ?>">
+      <button type="button" class="td-file-name"
+              onclick="tdPreviewFile(<?= htmlspecialchars(json_encode($file_url), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($f['original_name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($ext), ENT_QUOTES) ?>)"
+              aria-label="Podgląd: <?= h($f['original_name']) ?>">
         <?= h($f['original_name']) ?>
-      </a>
+      </button>
       <span class="text-muted flex-shrink-0" style="font-size:.7rem"><?= round($f['file_size']/1024) ?> KB</span>
+      <a href="<?= h($file_url) ?>" download
+         class="td-file-dl"
+         title="Pobierz" aria-label="Pobierz <?= h($f['original_name']) ?>">
+        <i class="bi bi-download" aria-hidden="true"></i>
+      </a>
       <?php if ($can_edit): ?>
       <button type="button"
               class="btn-close flex-shrink-0"
@@ -1916,6 +1981,74 @@ window.tdDeleteFile = function(fid) {
     api('/tasks/api/upload.php', {action:'delete', file_id:fid, task_id:TID})
         .then(r => { if (r.ok) { openTask(TID); srAnnounce('Plik usunięty.'); } else alert(r.error); });
 };
+
+/* Podgląd pliku — lightbox dla obrazów / PDF / tekstu, fallback + pobieranie dla reszty */
+window.tdPreviewFile = function(url, name, ext) {
+    ext = (ext || '').toLowerCase();
+    const IMG = ['jpg','jpeg','png','gif','webp','svg','bmp'];
+    const TXT = ['txt','csv','log','md','json'];
+
+    tdClosePreview();
+
+    const ov = document.createElement('div');
+    ov.className = 'td-preview-overlay';
+    ov.id = 'td-preview-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-label', 'Podgląd pliku: ' + name);
+
+    ov.innerHTML =
+        '<div class="td-preview-bar">'
+        + '<span class="td-preview-title">' + escHtml(name) + '</span>'
+        + '<a href="' + escHtml(url) + '" download title="Pobierz"><i class="bi bi-download" aria-hidden="true"></i>Pobierz</a>'
+        + '<button type="button" onclick="tdClosePreview()" aria-label="Zamknij podgląd"><i class="bi bi-x-lg" aria-hidden="true"></i>Zamknij</button>'
+        + '</div>'
+        + '<div class="td-preview-body" id="td-preview-body"></div>';
+
+    document.body.appendChild(ov);
+    const bodyEl = ov.querySelector('#td-preview-body');
+
+    if (IMG.includes(ext)) {
+        const img = document.createElement('img');
+        img.src = url; img.alt = name;
+        bodyEl.appendChild(img);
+    } else if (ext === 'pdf') {
+        const ifr = document.createElement('iframe');
+        ifr.src = url; ifr.title = name;
+        bodyEl.appendChild(ifr);
+    } else if (TXT.includes(ext)) {
+        bodyEl.innerHTML = '<pre>Wczytywanie…</pre>';
+        fetch(url)
+            .then(r => r.ok ? r.text() : Promise.reject(r.status))
+            .then(t => {
+                const pre = document.createElement('pre');
+                pre.textContent = t.length > 200000 ? t.slice(0, 200000) + '\n\n… (plik skrócony)' : t;
+                bodyEl.innerHTML = ''; bodyEl.appendChild(pre);
+            })
+            .catch(() => { bodyEl.innerHTML = '<div class="td-preview-fallback">Nie udało się wczytać pliku.</div>'; });
+    } else {
+        bodyEl.innerHTML =
+            '<div class="td-preview-fallback">'
+            + '<i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>'
+            + 'Podgląd tego typu pliku nie jest dostępny.<br>'
+            + '<a href="' + escHtml(url) + '" download class="btn btn-sm btn-primary mt-3">'
+            + '<i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz plik</a>'
+            + '</div>';
+    }
+
+    // Zamknięcie: klik w tło + Escape
+    ov.addEventListener('click', function(e) { if (e.target === ov) tdClosePreview(); });
+    document.addEventListener('keydown', tdPreviewKeydown);
+    ov.querySelector('button').focus();
+};
+
+window.tdClosePreview = function() {
+    const ov = document.getElementById('td-preview-overlay');
+    if (ov) ov.remove();
+    document.removeEventListener('keydown', tdPreviewKeydown);
+};
+
+function tdPreviewKeydown(e) { if (e.key === 'Escape') tdClosePreview(); }
 
 window.tdMarkDone = function() {
     const btn = document.getElementById('td-btn-done');
