@@ -45,9 +45,16 @@ if ($action === 'add') {
 
     $role = task_workspace_role((int)$task['workspace_id'], $uid);
     if (!in_array($role, ['admin', 'editor'], true)) {
-        // Viewer/brak roli: może wziąć zadanie tylko gdy jest wolne LUB oznaczone jako claimable
+        // Sprawdź czy użytkownik jest w jednostce przypisanej do zadania
+        $task_unit_id = (int)($task['unit_id'] ?? 0);
+        $in_unit = $task_unit_id && (bool)db_one(
+            "SELECT 1 FROM org_members WHERE unit_id=? AND user_id=? AND status='active'",
+            [$task_unit_id, $uid]
+        );
+
+        // member/viewer może wziąć zadanie: wolne LUB claimable LUB przypisane do swojej jednostki
         $is_claimable = (bool)($task['claimable'] ?? false);
-        if (!$is_claimable) {
+        if (!$is_claimable && !$in_unit) {
             $cnt = (int)(db_one(
                 "SELECT COUNT(*) AS n FROM task_assignments WHERE task_id = ?",
                 [$task_id]

@@ -188,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── Członkowie ─────────────────────────────────────────────────────────
     if ($act === 'add_member' && $can_edit_ws) {
         $mu   = (int)($_POST['member_uid']  ?? 0);
-        $role = in_array($_POST['member_role'] ?? '', ['admin','editor','viewer']) ? $_POST['member_role'] : 'editor';
+        $role = in_array($_POST['member_role'] ?? '', ['admin','editor','member','viewer']) ? $_POST['member_role'] : 'member';
         if ($ws_id && $mu) {
             db()->prepare("INSERT OR REPLACE INTO task_workspace_members (workspace_id,user_id,role,added_by,added_at) VALUES (?,?,?,?,datetime('now','localtime'))")->execute([$ws_id,$mu,$role,$uid]);
             flash_set('success', 'Użytkownik dodany.');
@@ -423,7 +423,7 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
                     <div class="text-muted" style="font-size:.71rem"><?= h($m['email']) ?></div>
                   </td>
                   <td>
-                    <span class="badge bg-<?= $m['role']==='admin'?'danger':($m['role']==='editor'?'primary':'secondary') ?>">
+                    <span class="badge bg-<?= $m['role']==='admin'?'danger':($m['role']==='editor'?'primary':($m['role']==='member'?'info':'secondary')) ?>">
                       <?= h($m['role']) ?>
                     </span>
                   </td>
@@ -464,7 +464,8 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
               <div class="col-sm-3">
                 <label class="form-label small fw-semibold mb-1">Rola</label>
                 <select name="member_role" class="form-select form-select-sm">
-                  <option value="editor" selected>Editor</option>
+                  <option value="member" selected>Member</option>
+                  <option value="editor">Editor</option>
                   <option value="viewer">Viewer</option>
                   <option value="admin">Admin obszaru</option>
                 </select>

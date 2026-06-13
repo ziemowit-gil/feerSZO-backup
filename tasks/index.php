@@ -95,7 +95,8 @@ if ($ws_id) {
             } else {
                 $t['_status'] = 'open';
             }
-            $t['_mine']   = in_array($uid, array_column($t['assignees'], 'id'), true);
+            $t['_mine']   = in_array($uid, array_column($t['assignees'], 'id'), true)
+                         || (!empty($t['unit_id']) && in_array((int)$t['unit_id'], $uid_units, true));
             $t['_overdue']= $t['due_date'] && !$t['completed_at']
                             && strtotime($t['due_date']) < strtotime('today');
         }
@@ -116,8 +117,13 @@ $can_add = in_array($my_role, ['admin', 'editor'], true);
 
 // Jednostki org — do filtra i modala
 $all_org_units = [];
+$uid_units     = []; // ID jednostek, do których należy bieżący użytkownik
 try {
     $all_org_units = db_all("SELECT id, name, short_name FROM org_units WHERE status='active' ORDER BY name");
+    $uid_units = array_column(
+        db_all("SELECT unit_id FROM org_members WHERE user_id=? AND status='active'", [$uid]),
+        'unit_id'
+    );
 } catch (\Throwable $e) {}
 
 // Filtry

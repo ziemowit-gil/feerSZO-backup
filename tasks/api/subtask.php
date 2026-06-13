@@ -30,7 +30,21 @@ $task = db_one(
     [$task_id]
 );
 if (!$task) task_api_error('Zadanie nie istnieje.', 404);
-task_require_workspace_access((int)$task['workspace_id'], ['admin', 'editor']);
+
+// toggle: member/viewer może zaznaczać podzadania na swoich zadaniach
+// add/rename/delete/reorder: tylko admin/editor
+$_sub_ws_role = task_workspace_role((int)$task['workspace_id'], $uid);
+if ($action === 'toggle') {
+    if (!in_array($_sub_ws_role, ['admin', 'editor'], true)) {
+        if (!in_array($_sub_ws_role, ['member', 'viewer'], true) || !task_is_assigned($task_id, $uid)) {
+            task_api_error('Brak uprawnień.', 403);
+        }
+    }
+} else {
+    if (!in_array($_sub_ws_role, ['admin', 'editor'], true)) {
+        task_api_error('Brak uprawnień.', 403);
+    }
+}
 
 // ── Dodaj podzadanie ────────────────────────────────────────────────────────
 if ($action === 'add') {

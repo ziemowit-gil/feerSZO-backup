@@ -93,7 +93,14 @@ function task_is_assigned(int $task_id, ?int $user_id = null): bool {
     );
 }
 
-function task_require_workspace_access(int $workspace_id, array $allowed_roles = ['admin','editor','viewer']): void {
+// ── Role obszaru roboczego ─────────────────────────────────────────────────
+// admin   — pełny dostęp: tworzenie/usuwanie/konfiguracja
+// editor  — tworzenie i edycja zadań
+// member  — zarządzanie własnymi zadaniami (done, podzadania, czas, komentarze)
+// viewer  — tylko odczyt + zapis na swoich (termin, godziny)
+const TASK_WS_ROLES = ['admin', 'editor', 'member', 'viewer'];
+
+function task_require_workspace_access(int $workspace_id, array $allowed_roles = ['admin','editor','member','viewer']): void {
     require_login();
     $role = task_workspace_role($workspace_id);
     if (!$role || !in_array($role, $allowed_roles, true)) {

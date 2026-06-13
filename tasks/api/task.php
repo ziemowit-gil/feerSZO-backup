@@ -121,14 +121,14 @@ if ($action === 'update') {
 
     $ws_role = task_workspace_role((int)$task['workspace_id']);
     if (!in_array($ws_role, ['admin', 'editor'], true)) {
-        // viewer może edytować tylko przypisane sobie zadania
-        if ($ws_role !== 'viewer' || !task_is_assigned($id)) {
+        // member/viewer może edytować tylko przypisane sobie zadania
+        if (!in_array($ws_role, ['member', 'viewer'], true) || !task_is_assigned($id)) {
             task_api_error('Brak uprawnień do edycji tego zadania.', 403);
         }
     }
 
-    $viewer_only = ($ws_role === 'viewer');
-    $allowed = $viewer_only
+    $limited_edit = in_array($ws_role, ['member', 'viewer'], true);
+    $allowed = $limited_edit
         ? ['due_date','estimated_hours','recurrence','recurrence_end_date']
         : ['title','description','priority','start_date','due_date','estimated_hours',
            'recurrence','recurrence_end_date','claimable','area_id','unit_id'];
@@ -198,7 +198,7 @@ if ($action === 'complete') {
     if (!$task) task_api_error('Zadanie nie istnieje.', 404);
     $ws_role = task_workspace_role((int)$task['workspace_id']);
     if (!in_array($ws_role, ['admin', 'editor'], true)) {
-        if ($ws_role !== 'viewer' || !task_is_assigned($id)) {
+        if (!in_array($ws_role, ['member', 'viewer'], true) || !task_is_assigned($id)) {
             task_api_error('Brak uprawnień do zmiany statusu tego zadania.', 403);
         }
     }
@@ -225,7 +225,7 @@ if ($action === 'reopen') {
     if (!$task) task_api_error('Zadanie nie istnieje.', 404);
     $ws_role = task_workspace_role((int)$task['workspace_id']);
     if (!in_array($ws_role, ['admin', 'editor'], true)) {
-        if ($ws_role !== 'viewer' || !task_is_assigned($id)) {
+        if (!in_array($ws_role, ['member', 'viewer'], true) || !task_is_assigned($id)) {
             task_api_error('Brak uprawnień do zmiany statusu tego zadania.', 403);
         }
     }
