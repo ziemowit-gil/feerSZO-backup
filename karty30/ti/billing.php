@@ -13,6 +13,7 @@ karty30_migrate();
 
 $PAGE_TITLE = 'Rozliczenia TI';
 $can_write  = can_write('karty30') || is_admin();
+$can_delete = is_admin(); // usuwanie rozliczeń — tylko administrator (globalnie)
 $course_id  = (int)($_GET['course_id'] ?? 0);
 $course     = $course_id ? k30_ti_course_get($course_id) : null;
 
@@ -56,10 +57,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         flash_set('success','Oznaczono jako opłacone.');
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
+
+    // Miękkie usuwanie rozliczenia (status='cancelled') — tylko admin
+    if ($op === 'delete') {
+        if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        if ($bid) db()->prepare("UPDATE k30_ti_billing SET status='cancelled' WHERE id=?")->execute([$bid]);
+        flash_set('success','Rozliczenie usunięte.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
 }
 
 // Pobierz rozliczenia za wybrany miesiąc
-$where = ["b.month=? AND b.year=?"]; $params = [$month, $year];
+$where = ["b.month=? AND b.year=?", "b.status!='cancelled'"]; $params = [$month, $year];
 if ($course_id) {
     // Filtruj per kurs — klienci w tym kursie
     $where[] = "b.client_id IN (SELECT client_id FROM k30_ti_enrollments WHERE course_id=?)";
@@ -189,6 +199,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
               <button type="submit" class="btn btn-xs btn-sm btn-outline-success py-0 px-2">
                 <i class="bi bi-check-lg me-1"></i>Opłacone
+              </button>
+            </form>
+            <?php endif; ?>
+            <?php if ($can_delete): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć rozliczenie dla „<?= h(addslashes($b['client_name'])) ?>”?')">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="delete">
+              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Usuń rozliczenie">
+                <i class="bi bi-trash"></i>
               </button>
             </form>
             <?php endif; ?>

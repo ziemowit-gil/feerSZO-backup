@@ -244,6 +244,8 @@ function karty30_migrate(): void {
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(client_id, month, year)
     )");
+    // Migracja: miękkie usuwanie kursów TI (status 'active'|'cancelled')
+    try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"); } catch (\Throwable $e) {}
     // Migracja: session_date → lesson_date (SQLite 3.25+)
     try { $pdo->exec("ALTER TABLE k30_ti_sessions RENAME COLUMN session_date TO lesson_date"); } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_sessions_course ON k30_ti_sessions(course_id,lesson_date)"); } catch (\Throwable $e) {}
@@ -1081,11 +1083,13 @@ const K30_TI_BILLING_STATUSES = [
     'draft'  => ['label'=>'Robocze',     'color'=>'#9CA3AF', 'bg'=>'#F9FAFB'],
     'issued' => ['label'=>'Wystawione',  'color'=>'#2563EB', 'bg'=>'#EFF6FF'],
     'paid'   => ['label'=>'Opłacone',    'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
+    'cancelled' => ['label'=>'Anulowane', 'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
 ];
 
-// Kursy
+// Kursy — pomija usunięte (status='cancelled')
 function k30_ti_courses(bool $active_only = true): array {
-    $w = $active_only ? 'WHERE c.is_active=1' : '';
+    $w = "WHERE c.status!='cancelled'";
+    if ($active_only) $w .= ' AND c.is_active=1';
     return db_all(
         "SELECT c.*, u.name AS instructor_name,
                 (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS enrolled_count

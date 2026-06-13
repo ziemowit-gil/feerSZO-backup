@@ -14,6 +14,19 @@ karty30_migrate();
 
 $PAGE_TITLE = 'Zajęcia TI — Karty 30';
 $can_write  = can_write('karty30') || is_admin();
+$can_delete = is_admin(); // usuwanie kursów — tylko administrator (globalnie)
+
+// Miękkie usuwanie kursu (status='cancelled') — tylko admin
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete') {
+    csrf_check();
+    if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
+    $cid = (int)($_POST['course_id'] ?? 0);
+    if ($cid) {
+        db()->prepare("UPDATE k30_ti_courses SET status='cancelled' WHERE id=?")->execute([$cid]);
+        flash_set('success', 'Kurs usunięty.');
+    }
+    header('Location: index.php'); exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
@@ -159,6 +172,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <a href="?edit=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-secondary" title="Edytuj kurs">
             <i class="bi bi-pencil"></i>
           </a>
+          <?php endif; ?>
+          <?php if ($can_delete): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć kurs „<?= h(addslashes($c['name'])) ?>”? Kurs zniknie z listy.')">
+            <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"       value="delete">
+            <input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>">
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń kurs">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
           <?php endif; ?>
         </div>
       </div>
