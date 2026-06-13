@@ -287,6 +287,51 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </div>
 
+      <!-- Karta: Add-in Outlook -->
+      <?php $addin_manifest = APP_URL . '/outlook-addin/manifest.php'; $addin_token = crm_setting('crm_sync_token'); ?>
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-plugin text-warning"></i>
+          <strong>Dodatek (add-in) do Outlooka</strong>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted mb-2">
+            Panel boczny w Outlooku pokazujący powiązany kontakt CRM i pozwalający przypiąć
+            otwarty mail do kartoteki jednym kliknięciem.
+          </p>
+
+          <label class="form-label small fw-semibold mb-1">Adres URL manifestu</label>
+          <div class="input-group input-group-sm mb-2">
+            <input type="text" class="form-control font-monospace" id="addin-manifest"
+                   value="<?= h($addin_manifest) ?>" readonly>
+            <button class="btn btn-outline-secondary" type="button"
+                    onclick="navigator.clipboard.writeText(document.getElementById('addin-manifest').value)">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+
+          <label class="form-label small fw-semibold mb-1">Token API (wkleić w panelu add-inu przy pierwszym użyciu)</label>
+          <div class="input-group input-group-sm mb-3">
+            <input type="text" class="form-control font-monospace" id="addin-token"
+                   value="<?= h($addin_token) ?>" readonly>
+            <button class="btn btn-outline-secondary" type="button"
+                    onclick="navigator.clipboard.writeText(document.getElementById('addin-token').value)">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+
+          <div class="small text-muted">
+            <strong>Instalacja (sideload):</strong>
+            <ol class="mb-0 ps-3">
+              <li>Outlook → <em>Pobierz dodatki</em> → <em>Moje dodatki</em> → <em>Dodaj dodatek niestandardowy</em> → <em>Z adresu URL</em>.</li>
+              <li>Wklej powyższy adres URL manifestu i potwierdź.</li>
+              <li>Otwórz dowolny mail → wstążka → przycisk <em>Kontakt CRM</em>.</li>
+              <li>Przy pierwszym uruchomieniu wklej token API (powyżej).</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
       <!-- Karta: Log synchronizacji -->
       <div class="card shadow-sm">
         <div class="card-header d-flex align-items-center justify-content-between">
@@ -323,6 +368,7 @@ function render_sync_log(array $logs): string {
         $source_label = match($log['source'] ?? '') {
             'outlook_contacts' => '<span class="badge bg-primary">Kontakty</span>',
             'outlook_calendar' => '<span class="badge bg-success">Kalendarz</span>',
+            'outlook_messages' => '<span class="badge bg-warning text-dark">Maile</span>',
             default            => '<span class="badge bg-secondary">' . h($log['source'] ?? '') . '</span>',
         };
         $errors = $details['errors'] ?? [];

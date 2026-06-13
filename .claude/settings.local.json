@@ -987,7 +987,10 @@
       "Bash(git -C /Users/zgil/webev-projects/feerSZO add user/first_login_consent.php)",
       "Bash(chmod +x /Users/zgil/webev-projects/feerSZO/cli/gen_admin_code.php)",
       "Bash(git -C /Users/zgil/webev-projects/feerSZO add cli/gen_admin_code.php)",
-      "Bash(git -C /Users/zgil/webev-projects/feerSZO add docker/update.sh docker/rebuild.sh)"
+      "Bash(git -C /Users/zgil/webev-projects/feerSZO add docker/update.sh docker/rebuild.sh)",
+      "Bash(grep -n '$_GET\\\\|GET\\\\[' /Users/zgil/webev-projects/feerSZO/contracts/wolontariat/add.php)",
+      "Bash(sqlite3 /Users/zgil/webev-projects/feerSZO/db/feer.db \"SELECT id, nazwa, level, CASE WHEN length\\(id\\)=2 THEN 'woj' WHEN length\\(id\\)=4 THEN 'pow' WHEN length\\(id\\)>=6 THEN 'gmi' END as typ FROM teryt_units WHERE level=3 LIMIT 5;\")",
+      "Bash(sqlite3 /Users/zgil/webev-projects/feerSZO/db/feer.db \"SELECT t3.id, t3.nazwa as gmina, t2.nazwa as powiat, t1.nazwa as woj FROM teryt_units t3 JOIN teryt_units t2 ON t2.id=substr\\(t3.id,1,4\\) AND t2.level=2 JOIN teryt_units t1 ON t1.id=substr\\(t3.id,1,2\\) AND t1.level=1 WHERE t3.level=3 LIMIT 5;\")"
     ]
   }
 }

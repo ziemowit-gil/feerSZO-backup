@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>feerSZO CRM</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    :root { --c-primary:#0176D3; --c-navy:#032D60; --c-ok:#2E844A; --c-err:#EA001E; --c-bg:#f5f7fb; --c-border:#e2e8f0; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; margin:0; padding:12px; color:#1e293b; background:var(--c-bg); font-size:14px; }
+    h1 { font-size:15px; margin:0 0 2px; display:flex; align-items:center; gap:6px; }
+    .sub { color:#64748b; font-size:12px; margin:0 0 12px; }
+    .card { background:#fff; border:1px solid var(--c-border); border-radius:10px; padding:12px; margin-bottom:10px; }
+    .muted { color:#64748b; font-size:12px; }
+    .dir { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:20px; }
+    .dir.in  { background:#EFF7ED; color:var(--c-ok); }
+    .dir.out { background:#E8F1FB; color:var(--c-primary); }
+    .field { font-size:13px; margin:2px 0; word-break:break-word; }
+    .field b { color:#475569; font-weight:600; }
+    .contact { border:1px solid var(--c-border); border-radius:8px; padding:10px; margin-bottom:8px; }
+    .contact .name { font-weight:700; }
+    .contact .meta { font-size:12px; color:#64748b; margin:2px 0 8px; }
+    .badge { font-size:11px; background:#f1f5f9; border:1px solid var(--c-border); border-radius:6px; padding:1px 6px; color:#475569; }
+    .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    button { font-family:inherit; font-size:13px; border-radius:8px; border:1px solid var(--c-primary); cursor:pointer; padding:7px 12px; }
+    .btn-primary { background:var(--c-primary); color:#fff; }
+    .btn-primary:hover { background:#015fb0; }
+    .btn-primary:disabled { opacity:.55; cursor:default; }
+    .btn-ghost { background:#fff; color:var(--c-primary); }
+    a { color:var(--c-primary); }
+    .alert { border-radius:8px; padding:8px 10px; font-size:13px; margin-bottom:10px; display:none; }
+    .alert.ok  { background:#EFF7ED; color:#1b5e2a; border:1px solid #b7e0c0; }
+    .alert.err { background:#fef2f2; color:#9b1c1c; border:1px solid #f5c2c2; }
+    .alert.show { display:block; }
+    input[type=password], input[type=text] { width:100%; padding:7px 9px; border:1px solid var(--c-border); border-radius:8px; font-size:13px; }
+    .token-row { display:flex; gap:6px; margin-top:6px; }
+    .spinner { display:inline-block; width:14px; height:14px; border:2px solid #cbd5e1; border-top-color:var(--c-primary); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .hidden { display:none; }
+    .config-link { font-size:11px; color:#94a3b8; cursor:pointer; text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <h1>📇 feerSZO CRM</h1>
+  <p class="sub">Powiązany kontakt i przypinanie maila do kartoteki.</p>
+
+  <div id="alert" class="alert" role="status"></div>
+
+  <!-- Konfiguracja tokenu (pierwsze użycie) -->
+  <div id="setup" class="card hidden">
+    <div class="field"><b>Konfiguracja</b></div>
+    <p class="muted">Wklej token API CRM (z ustawień: CRM → Synchronizacja Outlook).</p>
+    <input type="password" id="token-input" placeholder="Token API…" autocomplete="off">
+    <div class="token-row">
+      <button class="btn-primary" id="token-save" style="flex:1">Zapisz token</button>
+    </div>
+  </div>
+
+  <!-- Bieżący mail -->
+  <div id="message" class="card hidden">
+    <div class="row" style="justify-content:space-between">
+      <span id="msg-dir" class="dir in">przychodzący</span>
+      <span class="muted" id="msg-date"></span>
+    </div>
+    <div class="field" style="margin-top:6px"><b>Temat:</b> <span id="msg-subject"></span></div>
+    <div class="field"><b>Adres:</b> <span id="msg-addr"></span></div>
+  </div>
+
+  <!-- Wynik lookup -->
+  <div id="result"></div>
+
+  <p style="text-align:center; margin-top:14px">
+    <span class="config-link" id="reconfigure">Zmień token API</span>
+  </p>
+
+  <script src="taskpane.js"></script>
+</body>
+</html>
