@@ -175,6 +175,19 @@ include dirname(__DIR__) . '/includes/header.php';
       <a href="<?= APP_URL ?>/admin/index.php" class="btn btn-outline-secondary">Anuluj</a>
     </div>
   </form>
+
+  <hr class="my-4">
+
+  <div class="d-flex align-items-center gap-3 p-3 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
+    <i class="bi bi-journal-plus text-success" style="font-size:1.5rem"></i>
+    <div>
+      <div class="fw-semibold">Generowanie spraw CRM dla istniejących umów</div>
+      <div class="small text-muted">Dla umów bez przypisanej sprawy CRM — generuje numery CASE{RRRR}/{NNN}.</div>
+    </div>
+    <a href="crm_backfill_cases.php" class="btn btn-outline-success btn-sm ms-auto text-nowrap">
+      <i class="bi bi-arrow-right me-1"></i>Otwórz
+    </a>
+  </div>
 </div>
 
 <script>

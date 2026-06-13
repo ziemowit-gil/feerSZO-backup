@@ -189,7 +189,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <span class="visually-hidden">Priorytet: <?= h($pc['label']) ?></span>
     </div>
     <div style="flex:1;min-width:0">
-      <div class="fw-semibold" style="font-size:.88rem;color:#111827" aria-hidden="true"><?= h($r['title']) ?></div>
+      <div class="fw-semibold" style="font-size:.88rem;color:#111827" aria-hidden="true">
+        <?php if (!empty($r['case_number'])): ?>
+        <span style="font-family:monospace;font-size:.72rem;background:#F3F4F6;color:#374151;border:1px solid #D1D5DB;border-radius:.25rem;padding:.1rem .4rem;margin-right:.35rem;vertical-align:.05em"><?= h($r['case_number']) ?></span>
+        <?php endif; ?>
+        <?= h($r['title']) ?>
+      </div>
       <div class="case-meta" aria-hidden="true">
         <i class="bi bi-person me-1" aria-hidden="true"></i><?= h($r['contact_name'] ?? '—') ?>
         <?php if ($r['notes_count']): ?>

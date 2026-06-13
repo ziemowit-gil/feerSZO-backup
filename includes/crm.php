@@ -654,6 +654,19 @@ function crm_migrate(): void {
         $pdo->exec("ALTER TABLE crm_cases ADD COLUMN ezd_sprawa_id INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL");
     } catch (\Throwable $e) {}
 
+    // Kolumny numeracji i powiązania z umową (idempotentne)
+    foreach ([
+        "ALTER TABLE crm_cases ADD COLUMN case_number TEXT",
+        "ALTER TABLE crm_cases ADD COLUMN contract_type TEXT",
+        "ALTER TABLE crm_cases ADD COLUMN contract_id INTEGER",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+    try {
+        $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_cases_case_number ON crm_cases(case_number) WHERE case_number IS NOT NULL");
+        $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_cases_contract ON crm_cases(contract_type, contract_id) WHERE contract_type IS NOT NULL AND contract_id IS NOT NULL");
+    } catch (\Throwable $e) {}
+
     // Rozszerzone pola pisma (idempotentne)
     foreach ([
         "ALTER TABLE contract_letters ADD COLUMN sygnatura TEXT",
@@ -670,6 +683,29 @@ function crm_migrate(): void {
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Numeracja spraw CRM
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Zwraca następny numer sprawy w formacie CASE{RRRR}/{NNN}, np. CASE2026/001.
+ * Numer jest wyznaczany na podstawie istniejących wpisów w crm_cases.
+ */
+function crm_next_case_number(int $year = 0): string {
+    if ($year <= 0) $year = (int)date('Y');
+    $prefix = 'CASE' . $year . '/';
+    $row = db_one(
+        "SELECT case_number FROM crm_cases WHERE case_number LIKE ? ORDER BY case_number DESC LIMIT 1",
+        [$prefix . '%']
+    );
+    $next = 1;
+    if ($row) {
+        $parts = explode('/', $row['case_number']);
+        $next = (int)end($parts) + 1;
+    }
+    return $prefix . str_pad((string)$next, 3, '0', STR_PAD_LEFT);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1893,11 +1929,21 @@ class CrmManager
      */
     public static function autoCreateContractCase(
         string $type,
+        int    $contract_id,
         string $numer,
         array  $row,
         int    $user_id
     ): void {
         if (!module_enabled('crm_enabled')) return;
+
+        // Deduplicacja — nie twórz jeśli sprawa dla tej umowy już istnieje
+        if ($contract_id > 0) {
+            $exists = db_one(
+                "SELECT id FROM crm_cases WHERE contract_type=? AND contract_id=?",
+                [$type, $contract_id]
+            );
+            if ($exists) return;
+        }
 
         $contact_id = self::_contractContact($row, $type, $user_id);
         if (!$contact_id) return;
@@ -1912,15 +1958,20 @@ class CrmManager
         if (!empty($row['data_zawarcia'])) $parts[] = 'Data zawarcia: ' . $row['data_zawarcia'];
         if (!empty($row['opiekun']))       $parts[] = 'Opiekun: ' . $row['opiekun'];
 
+        $case_number = crm_next_case_number();
+
         db_insert('crm_cases', [
-            'contact_id'  => $contact_id,
-            'title'       => $title,
-            'description' => $parts ? implode("\n", $parts) : null,
-            'status'      => 'open',
-            'priority'    => 'medium',
-            'created_by'  => $user_id,
-            'created_at'  => date('Y-m-d H:i:s'),
-            'updated_at'  => date('Y-m-d H:i:s'),
+            'contact_id'    => $contact_id,
+            'title'         => $title,
+            'description'   => $parts ? implode("\n", $parts) : null,
+            'status'        => 'open',
+            'priority'      => 'medium',
+            'created_by'    => $user_id,
+            'created_at'    => date('Y-m-d H:i:s'),
+            'updated_at'    => date('Y-m-d H:i:s'),
+            'case_number'   => $case_number,
+            'contract_type' => $type,
+            'contract_id'   => $contract_id > 0 ? $contract_id : null,
         ]);
     }
 
@@ -1934,9 +1985,19 @@ class CrmManager
         int    $nr,
         string $numer,
         string $opis,
-        int    $user_id
+        int    $user_id,
+        int    $amendment_id = 0
     ): void {
         if (!module_enabled('crm_enabled')) return;
+
+        // Deduplicacja — nie twórz jeśli sprawa dla tego aneksu już istnieje
+        if ($amendment_id > 0) {
+            $exists = db_one(
+                "SELECT id FROM crm_cases WHERE contract_type='amendment' AND contract_id=?",
+                [$amendment_id]
+            );
+            if ($exists) return;
+        }
 
         $tbl_map = [
             'wolontariat' => 'umowy_wolontariat',
@@ -1958,15 +2019,20 @@ class CrmManager
         $title = "Aneks #{$nr} — {$label}: {$numer}";
         $short = mb_strlen($opis) > 200 ? mb_substr($opis, 0, 197) . '…' : $opis;
 
+        $case_number = crm_next_case_number();
+
         db_insert('crm_cases', [
-            'contact_id'  => $contact_id,
-            'title'       => $title,
-            'description' => $short ?: null,
-            'status'      => 'open',
-            'priority'    => 'medium',
-            'created_by'  => $user_id,
-            'created_at'  => date('Y-m-d H:i:s'),
-            'updated_at'  => date('Y-m-d H:i:s'),
+            'contact_id'    => $contact_id,
+            'title'         => $title,
+            'description'   => $short ?: null,
+            'status'        => 'open',
+            'priority'      => 'medium',
+            'created_by'    => $user_id,
+            'created_at'    => date('Y-m-d H:i:s'),
+            'updated_at'    => date('Y-m-d H:i:s'),
+            'case_number'   => $case_number,
+            'contract_type' => 'amendment',
+            'contract_id'   => $amendment_id > 0 ? $amendment_id : null,
         ]);
     }
 

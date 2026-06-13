@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $allowed = ['numer_umowy','status','imie_nazwisko','pesel','adres','email','seria_nr_dowodu','urzad_skarbowy',
             'rachunek_bankowy','przedmiot_zlecenia','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
-            'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zwolnienie_wiek','zaliczka_podatek','kup',
+            'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','forma_podpisania',
             'platforma_el','id_dokumentu_el','plik_potwierdzenia','plik_umowy','uwagi','created_by','created_at','updated_at',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
@@ -66,6 +66,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['nie_mam_drukarki'])) {
             require_once dirname(dirname(__DIR__)) . '/contracts/includes/pdf_queue.php';
             pdf_queue_add($TYPE, $id, $data['numer_umowy'] ?? '', $data['imie_nazwisko'] ?? '', current_user()['id']);
+        }
+        try {
+            require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+            crm_migrate();
+            CrmManager::autoCreateContractCase($TYPE, $id, $data['numer_umowy'] ?? '', $data, (int)(current_user()['id'] ?? 0));
+        } catch (\Throwable $e) {
+            error_log('[crm_case_auto] ' . $e->getMessage());
         }
         flash_set('success', 'Umowa zlecenie została dodana.');
         header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}");
@@ -275,6 +282,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <input class="form-check-input" type="checkbox" name="zwolnienie_wiek" id="zwolnienie_wiek" value="1" <?= !empty($row['zwolnienie_wiek'])?'checked':'' ?>>
       <label class="form-check-label" for="zwolnienie_wiek">Zwolnienie — student/uczeń do 26 lat</label>
     </div></div>
+</div>
+<div class="row">
+  <div class="col-md-4 mb-3"><label class="form-label">Data zgłoszenia do ZUS (ZUA/ZZA)</label>
+    <input type="date" name="zus_data_rejestracji" class="form-control" value="<?= h($row['zus_data_rejestracji']??'') ?>">
+    <div class="form-text">Termin: 7 dni od rozpoczęcia. Wypełnienie wycisza przypomnienia o rejestracji.</div></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Data wyrejestrowania z ZUS (ZWUA)</label>
+    <input type="date" name="zus_data_wyrejestrowania" class="form-control" value="<?= h($row['zus_data_wyrejestrowania']??'') ?>">
+    <div class="form-text">Termin: 7 dni od zakończenia. Wypełnienie wycisza przypomnienia o wyrejestrowaniu.</div></div>
 </div>
 </div>
 </div>

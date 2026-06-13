@@ -602,11 +602,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         try { require_once dirname(dirname(__DIR__)) . '/includes/webhooks.php'; webhook_fire('contract.created', ['id'=>$id,'type'=>'wolontariat','numer'=>$data['numer_umowy']??'','email'=>$data['email']??'']); } catch(\Throwable $e) {}
 
-        // Auto-dodaj wolontariusza do CRM
+        // Auto-dodaj wolontariusza do CRM i utwórz sprawę
         try {
             require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
             crm_migrate();
             CrmManager::autoAddVolunteer($data, (int)(current_user()['id'] ?? 0));
+            CrmManager::autoCreateContractCase('wolontariat', $id, $data['numer_umowy'] ?? '', $data, (int)(current_user()['id'] ?? 0));
         } catch (\Throwable $e) {
             error_log('[crm_auto] ' . $e->getMessage());
         }
