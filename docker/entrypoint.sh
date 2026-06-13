@@ -35,8 +35,8 @@ chmod 775 "${APP_DIR}"
 if [ -f "${APP_DIR}/umowy.db" ]; then
     chown www-data:www-data "${APP_DIR}/umowy.db"
     chmod 664 "${APP_DIR}/umowy.db"
-    # WAL i SHM też
-    for f in "${APP_DIR}/umowy.db-wal" "${APP_DIR}/umowy.db-shm"; do
+    # WAL, SHM i journal też
+    for f in "${APP_DIR}/umowy.db-wal" "${APP_DIR}/umowy.db-shm" "${APP_DIR}/umowy.db-journal"; do
         [ -f "$f" ] && chown www-data:www-data "$f" && chmod 664 "$f" || true
     done
 fi

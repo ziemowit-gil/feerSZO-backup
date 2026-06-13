@@ -214,8 +214,26 @@ else
     ok "Certyfikat istnieje — pominięto"
 fi
 
-# ── 12. Strona z danymi logowania ────────────────────────────────────────────
-section "12. Generowanie testy-info.html"
+# ── 12. Uprawnienia plików dla Apache (www-data) ──────────────────────────────
+# Schemat/seed/certyfikat tworzone są przez `docker exec` jako root, więc
+# umowy.db i pliki certów powstają jako root:root i www-data nie może w nie
+# pisać → "attempt to write a readonly database" i błędy CSRF (sesje w bazie).
+# Ten krok przywraca własność www-data po wszystkich operacjach root.
+section "12. Uprawnienia plików (www-data)"
+
+docker exec "${APP_CONTAINER}" sh -c '
+    chown www-data:www-data /var/www/html 2>/dev/null || true
+    chmod 775 /var/www/html 2>/dev/null || true
+    for f in /var/www/html/umowy.db /var/www/html/umowy.db-wal \
+             /var/www/html/umowy.db-shm /var/www/html/umowy.db-journal; do
+        [ -e "$f" ] && chown www-data:www-data "$f" && chmod 664 "$f" || true
+    done
+    [ -d /var/www/html/certs ] && chown -R www-data:www-data /var/www/html/certs || true
+' || true
+ok "Własność umowy.db i certs przywrócona dla www-data"
+
+# ── 13. Strona z danymi logowania ────────────────────────────────────────────
+section "13. Generowanie testy-info.html"
 
 GENERATED_AT=$(date '+%Y-%m-%d %H:%M')
 INFO_FILE="${TESTY_DIR}/testy-info.html"
@@ -388,8 +406,8 @@ HTML
 chmod 644 "${INFO_FILE}"
 ok "Strona wygenerowana: https://${DOMAIN}/testy-info.html"
 
-# ── 13. Cron — automatyczne czyszczenie co 7 dni ─────────────────────────────
-section "13. Cron (reset co 7 dni)"
+# ── 14. Cron — automatyczne czyszczenie co 7 dni ─────────────────────────────
+section "14. Cron (reset co 7 dni)"
 
 CRON_LOG="/var/log/feer_testy_reset.log"
 CRON_JOB="0 3 * * 0  bash ${SCRIPT_DIR}/setup-testy.sh >> ${CRON_LOG} 2>&1"
@@ -406,8 +424,8 @@ fi
 
 info "Log cyklu: ${CRON_LOG}"
 
-# ── 14. Status kontenerów ─────────────────────────────────────────────────────
-section "14. Status"
+# ── 15. Status kontenerów ─────────────────────────────────────────────────────
+section "15. Status"
 ${COMPOSE} ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
 # ── Podsumowanie ──────────────────────────────────────────────────────────────
