@@ -52,6 +52,9 @@ function notif_migrate(): void {
             UNIQUE(announcement_id, user_id)
         )");
 
+        // Sposób wyświetlania w panelu wolontariusza: 'feed' | 'banner' | 'popup'
+        try { db()->exec("ALTER TABLE announcements ADD COLUMN display_mode TEXT NOT NULL DEFAULT 'feed'"); } catch (\Throwable $e) {}
+
         // Indeksy dla wydajności
         try { db()->exec("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read)"); } catch (\Throwable $e) {}
         try { db()->exec("CREATE INDEX IF NOT EXISTS idx_ann_reads_user ON announcement_reads(user_id, announcement_id)"); } catch (\Throwable $e) {}
@@ -118,6 +121,7 @@ function ann_create(array $data, int $author_id, string $author_name): int {
         'is_pinned'   => (int)($data['is_pinned'] ?? 0),
         'is_active'   => 1,
         'send_email'  => (int)($data['send_email'] ?? 0),
+        'display_mode'=> in_array(($data['display_mode'] ?? 'feed'), ['feed','banner','popup'], true) ? $data['display_mode'] : 'feed',
         'expires_at'  => ($data['expires_at'] ?? '') ?: null,
         'created_at'  => date('Y-m-d H:i:s'),
         'updated_at'  => date('Y-m-d H:i:s'),
@@ -226,6 +230,19 @@ function _ann_user_can_see(string $audience, int $user_id, string $role): bool {
         return (int)substr($audience, 5) === $user_id;
     }
     return false;
+}
+
+/**
+ * Komunikaty do wyświetlenia bezpośrednio w panelu wolontariusza —
+ * tylko tryb 'banner' lub 'popup', nieprzeczytane przez danego użytkownika.
+ * Wykorzystuje istniejące filtrowanie po audytorium i śledzenie odczytów.
+ */
+function ann_panel_messages(int $user_id, string $role): array {
+    $all = ann_list_for_user($user_id, $role);
+    return array_values(array_filter($all, function ($a) {
+        $mode = $a['display_mode'] ?? 'feed';
+        return in_array($mode, ['banner', 'popup'], true) && !(int)($a['is_read_by_me'] ?? 0);
+    }));
 }
 
 function ann_mark_read(int $ann_id, int $user_id): void {

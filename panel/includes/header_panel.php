@@ -127,6 +127,8 @@ body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;display:f
 @media(prefers-contrast:high){.pv-nav-link{border-left-width:5px}.pv-nav-link.pv-active{border-left-width:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+<?php /* Wspólny system stylów podstron (.pv-page-*, .pv-card, .vol-detail-*, …) */ ?>
+<?php require_once __DIR__ . '/pv_styles.php'; ?>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('<?= APP_URL ?>/sw.js')
@@ -204,6 +206,10 @@ if ('serviceWorker' in navigator) {
   <?php endif; ?>
   <a href="<?= APP_URL ?>/panel/apply.php" class="pv-nav-link<?= _pv_nav_active('/panel/apply') ?>">
     <i class="bi bi-send" aria-hidden="true"></i>Wyślij wniosek
+  </a>
+  <a href="<?= APP_URL ?>/panel/dyspozycyjnosc.php" class="pv-nav-link<?= _pv_nav_active('/panel/dyspozycyjnosc') ?>"
+     aria-label="Moja dyspozycyjność i urlopy">
+    <i class="bi bi-calendar-heart" aria-hidden="true"></i>Dyspozycyjność i urlopy
   </a>
   <?php if (module_enabled('certificates_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/certificates.php" class="pv-nav-link<?= _pv_nav_active('/panel/certificates') ?>">
@@ -362,4 +368,114 @@ if ($_flash):
   <span><?= h($_flash['msg']) ?></span>
   <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Zamknij"></button>
 </div>
+<?php endif; ?>
+
+<?php
+// ── Komunikaty admina (baner / popup) ────────────────────────────────────────
+require_once dirname(dirname(__DIR__)) . '/includes/notifications.php';
+notif_migrate();
+$_pv_msgs    = ann_panel_messages((int)($_pu['id'] ?? 0), $_pu['role'] ?? 'viewer');
+$_pv_banners = array_values(array_filter($_pv_msgs, fn($a) => ($a['display_mode'] ?? '') === 'banner'));
+$_pv_popups  = array_values(array_filter($_pv_msgs, fn($a) => ($a['display_mode'] ?? '') === 'popup'));
+?>
+<?php foreach ($_pv_banners as $_b):
+  $_bid = (int)$_b['id'];
+  $_pinned = (int)($_b['is_pinned'] ?? 0);
+?>
+<div class="pv-ann-banner" data-ann-id="<?= $_bid ?>" role="region" aria-label="Komunikat: <?= h($_b['title']) ?>"
+     style="border-left:4px solid <?= $_pinned ? '#F59E0B' : 'var(--vol-color)' ?>;background:<?= $_pinned ? '#FFFBEB' : 'var(--vol-bg)' ?>;border-radius:12px;padding:1rem 1.15rem;margin-bottom:1.25rem;display:flex;gap:.9rem;align-items:flex-start">
+  <i class="bi bi-megaphone-fill" aria-hidden="true" style="font-size:1.25rem;color:<?= $_pinned ? '#F59E0B' : 'var(--vol-color)' ?>;flex-shrink:0;margin-top:.1rem"></i>
+  <div style="flex:1;min-width:0">
+    <div class="fw-bold mb-1" style="font-size:.98rem;color:#1f2937"><?= h($_b['title']) ?></div>
+    <?php if (($_b['body'] ?? '') !== ''): ?>
+    <div style="font-size:.88rem;color:#374151;line-height:1.6;white-space:pre-wrap;word-break:break-word"><?= h($_b['body']) ?></div>
+    <?php endif; ?>
+    <div class="text-muted mt-2" style="font-size:.73rem"><i class="bi bi-person me-1"></i><?= h($_b['author_name'] ?? '') ?></div>
+  </div>
+  <button type="button" class="btn btn-sm pv-ann-read" data-ann-id="<?= $_bid ?>"
+          style="background:var(--vol-color);color:#fff;font-size:.78rem;white-space:nowrap;flex-shrink:0">
+    <i class="bi bi-check2 me-1" aria-hidden="true"></i>Przeczytane
+  </button>
+</div>
+<?php endforeach; ?>
+
+<?php if (!empty($_pv_popups)): ?>
+<div class="modal fade" id="pvAnnPopup" tabindex="-1" aria-labelledby="pvAnnPopupLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden">
+      <div class="modal-header" style="background:var(--vol-color);color:#fff;border:none">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="pvAnnPopupLabel">
+          <i class="bi bi-megaphone-fill" aria-hidden="true"></i>
+          <?= count($_pv_popups) > 1 ? 'Komunikaty' : 'Komunikat' ?>
+        </h5>
+      </div>
+      <div class="modal-body" style="padding:1.25rem">
+        <?php foreach ($_pv_popups as $_i => $_p):
+          $_pid = (int)$_p['id'];
+        ?>
+        <div class="pv-popup-item<?= $_i > 0 ? ' pt-3 mt-3 border-top' : '' ?>" data-ann-id="<?= $_pid ?>">
+          <div class="fw-bold mb-2" style="font-size:1.02rem;color:#1f2937"><?= h($_p['title']) ?></div>
+          <?php if (($_p['body'] ?? '') !== ''): ?>
+          <div style="font-size:.9rem;color:#374151;line-height:1.65;white-space:pre-wrap;word-break:break-word"><?= h($_p['body']) ?></div>
+          <?php endif; ?>
+          <div class="text-muted mt-2" style="font-size:.73rem"><i class="bi bi-person me-1"></i><?= h($_p['author_name'] ?? '') ?></div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <div class="modal-footer" style="border:none">
+        <button type="button" class="btn" id="pvAnnPopupAck"
+                style="background:var(--vol-color);color:#fff">
+          <i class="bi bi-check2-all me-1" aria-hidden="true"></i>Rozumiem
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($_pv_banners) || !empty($_pv_popups)): ?>
+<script>
+(function () {
+  var APP_URL = '<?= APP_URL ?>';
+  function markRead(id) {
+    return fetch(APP_URL + '/api/announcements/read.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+      body: JSON.stringify({id: id})
+    });
+  }
+
+  // Banery — przycisk „Przeczytane"
+  document.querySelectorAll('.pv-ann-read').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = parseInt(btn.dataset.annId, 10);
+      btn.disabled = true;
+      markRead(id).finally(function () {
+        var card = document.querySelector('.pv-ann-banner[data-ann-id="' + id + '"]');
+        if (card) card.remove();
+        var live = document.getElementById('pv-live');
+        if (live) live.textContent = 'Komunikat oznaczono jako przeczytany.';
+      });
+    });
+  });
+
+  // Popup — pokaż przy wejściu, potwierdzenie oznacza wszystkie jako przeczytane
+  var popupEl = document.getElementById('pvAnnPopup');
+  if (popupEl && window.bootstrap) {
+    var modal = new bootstrap.Modal(popupEl);
+    modal.show();
+    var ack = document.getElementById('pvAnnPopupAck');
+    if (ack) {
+      ack.addEventListener('click', function () {
+        ack.disabled = true;
+        var ids = Array.prototype.map.call(
+          popupEl.querySelectorAll('.pv-popup-item'),
+          function (el) { return parseInt(el.dataset.annId, 10); }
+        );
+        Promise.allSettled(ids.map(markRead)).finally(function () { modal.hide(); });
+      });
+    }
+  }
+})();
+</script>
 <?php endif; ?>

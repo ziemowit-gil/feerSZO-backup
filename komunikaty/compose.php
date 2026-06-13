@@ -25,7 +25,8 @@ $errors = [];
 $values = [
     'title'      => '',
     'body'       => '',
-    'audience'   => 'all',
+    'audience'    => 'all',
+    'display_mode'=> 'feed',
     'is_pinned'  => 0,
     'expires_at' => '',
     'send_email' => 0,
@@ -36,6 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['title']      = trim($_POST['title'] ?? '');
     $values['body']       = trim($_POST['body'] ?? '');
     $values['audience']   = trim($_POST['audience'] ?? 'all');
+    $values['display_mode'] = trim($_POST['display_mode'] ?? 'feed');
+    if (!in_array($values['display_mode'], ['feed', 'banner', 'popup'], true)) {
+        $values['display_mode'] = 'feed';
+    }
     $values['is_pinned']  = isset($_POST['is_pinned']) ? 1 : 0;
     $values['expires_at'] = trim($_POST['expires_at'] ?? '');
     $values['send_email'] = isset($_POST['send_email']) ? 1 : 0;
@@ -146,6 +151,21 @@ require_once dirname(__DIR__) . '/includes/header.php';
               </optgroup>
               <?php endif; ?>
             </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Sposób wyświetlania w panelu wolontariusza</label>
+            <select name="display_mode" class="form-select" id="ann-display">
+              <option value="feed"   <?= $values['display_mode'] === 'feed'   ? 'selected' : '' ?>>📋 Tylko lista komunikatów (domyślnie)</option>
+              <option value="banner" <?= $values['display_mode'] === 'banner' ? 'selected' : '' ?>>📢 Baner — pasek na górze panelu</option>
+              <option value="popup"  <?= $values['display_mode'] === 'popup'  ? 'selected' : '' ?>>🔔 Popup — okno wyskakujące przy wejściu</option>
+            </select>
+            <div class="form-text">
+              <strong>Lista</strong> — widoczny na stronie Komunikaty.
+              <strong>Baner</strong> — dodatkowo jako pasek nad treścią panelu.
+              <strong>Popup</strong> — dodatkowo jako okno modalne przy wejściu do panelu.
+              Baner i popup znikają po potwierdzeniu „Przeczytane" przez wolontariusza.
+            </div>
           </div>
 
           <div class="row g-3 mb-3">
