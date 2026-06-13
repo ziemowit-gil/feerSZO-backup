@@ -41,9 +41,9 @@ if ($x509_available) $alt_tabs['x509'] = [
   </svg>
   Zaloguj przez Microsoft 365
 </a>
-<p class="ms-note">Zalecana metoda — jedno kliknięcie, bez wpisywania hasła</p>
+<p class="method-for">Dla osób z kontem <strong>@feer.org.pl</strong> — jedno kliknięcie, bez wpisywania hasła</p>
 
-<div class="or-div"><span>lub użyj e-maila i hasła</span></div>
+<div class="or-div"><span>lub e-mailem i hasłem</span></div>
 <?php endif; ?>
 
 <!-- ── Formularz: e-mail i hasło ────────────────────────────────────────── -->
@@ -74,7 +74,7 @@ if ($x509_available) $alt_tabs['x509'] = [
            <?php endif; ?>
            <?= !$ms_available ? 'autofocus' : '' ?>>
     <div id="f-email-hint" class="form-hint">
-      Adres e-mail podany administratorowi przy rejestracji konta.
+      E-mail służbowy <strong>@feer.org.pl</strong> albo Twój prywatny e-mail podany do WiadomościFEER.
     </div>
   </div>
 
@@ -122,10 +122,14 @@ if ($x509_available) $alt_tabs['x509'] = [
 </form>
 
 <?php if (!empty($alt_tabs)): ?>
-<!-- ── Alternatywne metody — przyciski otwierające modale ───────────────── -->
-<div class="or-div" aria-hidden="true"><span>lub zaloguj inaczej</span></div>
-
-<div class="method-triggers" role="group" aria-label="Alternatywne metody logowania">
+<!-- ── Więcej opcji — rozwijane (kod jednorazowy / SMS / X.509) ─────────── -->
+<details class="more-options"<?= in_array($active_tab, ['code','sms','x509'], true) ? ' open' : '' ?>>
+  <summary>
+    <i class="bi bi-three-dots" aria-hidden="true"></i>
+    Więcej opcji logowania
+    <i class="bi bi-chevron-down chev" aria-hidden="true"></i>
+  </summary>
+  <div class="more-options-body method-triggers" role="group" aria-label="Dodatkowe metody logowania">
   <?php foreach ($alt_tabs as $key => $m): ?>
   <button type="button"
           class="method-trigger-btn"
@@ -141,5 +145,6 @@ if ($x509_available) $alt_tabs['x509'] = [
     <i class="bi bi-chevron-right method-trigger-arrow" aria-hidden="true"></i>
   </button>
   <?php endforeach; ?>
-</div>
+  </div>
+</details>
 <?php endif; /* /alt_tabs */ ?>
