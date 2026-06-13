@@ -35,6 +35,21 @@ if (!$ws_id && $workspaces) {
     $ws_id = (int)$workspaces[0]['id'];
 }
 
+// Jednostki org — do filtra, modala i znacznika "moje" w pętli zadań poniżej
+$all_org_units = [];
+$uid_units     = []; // ID jednostek, do których należy bieżący użytkownik
+try {
+    $all_org_units = db_all("SELECT id, name, short_name FROM org_units WHERE status='active' ORDER BY name");
+    $uid_units = array_map('intval', array_column(
+        db_all("SELECT unit_id FROM org_members WHERE user_id=? AND status='active'", [$uid]),
+        'unit_id'
+    ));
+} catch (\Throwable $e) {}
+
+// Inicjalizacja zmiennych obszaru (uzupełnione po wyborze $ws_id)
+$ws_members_for_assign = [];
+$my_notify_prefs = ['notify_email' => 1, 'notify_sms' => 0, 'notify_push' => 0];
+
 $workspace = null;
 $tasks_raw = [];
 $lists_map = [];
@@ -115,16 +130,25 @@ if ($ws_id) {
 $my_role = $ws_id ? task_workspace_role($ws_id, $uid) : null;
 $can_add = in_array($my_role, ['admin', 'editor'], true);
 
-// Jednostki org — do filtra i modala
-$all_org_units = [];
-$uid_units     = []; // ID jednostek, do których należy bieżący użytkownik
-try {
-    $all_org_units = db_all("SELECT id, name, short_name FROM org_units WHERE status='active' ORDER BY name");
-    $uid_units = array_column(
-        db_all("SELECT unit_id FROM org_members WHERE user_id=? AND status='active'", [$uid]),
-        'unit_id'
-    );
-} catch (\Throwable $e) {}
+// Dane per-obszar: picker osób + prefs powiadomień
+if ($ws_id) {
+    try {
+        $ws_members_for_assign = db_all(
+            "SELECT twm.user_id, u.name
+             FROM task_workspace_members twm
+             JOIN users u ON u.id = twm.user_id
+             WHERE twm.workspace_id = ? AND u.is_active = 1
+             ORDER BY u.name",
+            [$ws_id]
+        );
+        $np = db_one(
+            "SELECT notify_email, notify_sms, notify_push
+             FROM task_workspace_members WHERE workspace_id=? AND user_id=?",
+            [$ws_id, $uid]
+        );
+        if ($np) $my_notify_prefs = $np;
+    } catch (\Throwable $e) {}
+}
 
 // Filtry
 $filter_status   = $_GET['status'] ?? 'all';
@@ -882,6 +906,20 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .tk-card-drop-hint{text-align:center;padding:.75rem .5rem;font-size:.75rem;color:#94a3b8;border:1.5px dashed #e2e8f0;border-radius:6px;margin:.25rem 0}
 .tk-card-ghost{opacity:.4;background:#eff6ff!important;border-color:#93c5fd!important}
 .tk-card-dragging{box-shadow:0 8px 24px rgba(0,0,0,.18);transform:rotate(1.5deg)}
+/* Picker osób w modalu tworzenia */
+.at-user-grid{display:flex;flex-wrap:wrap;gap:.35rem;max-height:120px;overflow-y:auto;padding:.25rem 0}
+.at-user-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .5rem .2rem .25rem;
+  border:1.5px solid #e2e8f0;border-radius:20px;cursor:pointer;transition:all .12s;user-select:none;
+  font-size:.78rem;color:#374151;background:#fff}
+.at-user-chip:hover{border-color:#93c5fd;background:#eff6ff}
+.at-user-chip.selected{border-color:#2563eb;background:#dbeafe;color:#1d4ed8}
+.at-user-name{white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+/* Notify prefs modal */
+.np-row{display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid #f1f5f9}
+.np-row:last-child{border-bottom:none}
+.np-icon{font-size:1.1rem;width:1.4rem;text-align:center;flex-shrink:0}
+.np-label{flex:1;font-size:.87rem}
+.np-label small{display:block;color:#94a3b8;font-size:.73rem;margin-top:.05rem}
 </style>
 
 <div id="tk-sr" aria-live="polite" aria-atomic="true"></div>
@@ -1077,8 +1115,17 @@ require_once __DIR__ . '/includes/header_tasks.php';
   </select>
   <?php endif; ?>
 
-  <!-- Widok + Dodaj zadanie + Usuń obszar -->
+  <!-- Powiadomienia + Widok + Dodaj zadanie + Usuń obszar -->
   <div class="ms-auto d-flex gap-2 align-items-center">
+    <?php if ($ws_id && $my_role): ?>
+    <?php $np_active = $my_notify_prefs['notify_email'] || $my_notify_prefs['notify_sms'] || $my_notify_prefs['notify_push']; ?>
+    <button type="button" class="btn btn-outline-secondary btn-sm"
+            onclick="openNotifyModal()"
+            title="Powiadomienia dla tego obszaru"
+            aria-haspopup="dialog">
+      <i class="bi bi-bell<?= $np_active ? '-fill text-warning' : '' ?>"></i>
+    </button>
+    <?php endif; ?>
     <?php
     $kanban_url = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'kanban']));
     $list_url   = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'list']));
@@ -1215,17 +1262,50 @@ require_once __DIR__ . '/includes/header_tasks.php';
             </select>
           </div>
           <?php endif; ?>
-          <?php if ($all_org_units): ?>
+          <?php if ($ws_members_for_assign || $all_org_units): ?>
           <div class="col-12">
-            <label class="form-label fw-semibold small" for="at-unit">
-              <i class="bi bi-diagram-3 me-1 text-purple"></i>Jednostka org
+            <label class="form-label fw-semibold small mb-1">
+              <i class="bi bi-person-check me-1"></i>Przypisz do
             </label>
-            <select id="at-unit" class="form-select form-select-sm">
-              <option value="0">— brak przypisania do jednostki —</option>
-              <?php foreach ($all_org_units as $ou): ?>
-              <option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?><?= $ou['short_name'] ? ' (' . h($ou['short_name']) . ')' : '' ?></option>
-              <?php endforeach; ?>
-            </select>
+            <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Tryb przypisania">
+              <input type="radio" class="btn-check" name="at-assign-mode" id="at-mode-person" value="person" checked onchange="atToggleMode('person')">
+              <label class="btn btn-outline-primary" for="at-mode-person">
+                <i class="bi bi-person me-1"></i>Osoby
+              </label>
+              <input type="radio" class="btn-check" name="at-assign-mode" id="at-mode-unit" value="unit" onchange="atToggleMode('unit')">
+              <label class="btn btn-outline-secondary" for="at-mode-unit">
+                <i class="bi bi-diagram-3 me-1"></i>Jednostki
+              </label>
+            </div>
+            <!-- Panel: osoba -->
+            <div id="at-person-panel">
+              <?php if ($ws_members_for_assign): ?>
+              <div class="at-user-grid" role="group" aria-label="Wybierz osoby">
+                <?php foreach ($ws_members_for_assign as $m): ?>
+                <label class="at-user-chip" title="<?= h($m['name']) ?>">
+                  <input type="checkbox" class="at-user-chk visually-hidden" value="<?= (int)$m['user_id'] ?>">
+                  <?= task_avatar_initials($m['name'], '#e2e8f0', '#64748b') ?>
+                  <span class="at-user-name"><?= h($m['name']) ?></span>
+                </label>
+                <?php endforeach; ?>
+              </div>
+              <?php else: ?>
+              <p class="text-muted small mb-0">Brak użytkowników w obszarze.</p>
+              <?php endif; ?>
+            </div>
+            <!-- Panel: jednostka -->
+            <div id="at-unit-panel" class="d-none">
+              <?php if ($all_org_units): ?>
+              <select id="at-unit" class="form-select form-select-sm">
+                <option value="0">— brak przypisania do jednostki —</option>
+                <?php foreach ($all_org_units as $ou): ?>
+                <option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?><?= $ou['short_name'] ? ' (' . h($ou['short_name']) . ')' : '' ?></option>
+                <?php endforeach; ?>
+              </select>
+              <?php else: ?>
+              <p class="text-muted small mb-0">Brak jednostek organizacyjnych.</p>
+              <?php endif; ?>
+            </div>
           </div>
           <?php endif; ?>
         </div>
@@ -1237,6 +1317,67 @@ require_once __DIR__ . '/includes/header_tasks.php';
         <button type="button" class="btn btn-primary btn-sm"
                 id="at-submit" onclick="submitAddTask()">
           <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj zadanie
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- ── Modal: Powiadomienia dla obszaru ───────────────────────────────────── -->
+<?php if ($ws_id && $my_role): ?>
+<div class="modal fade" id="notifyPrefModal" tabindex="-1"
+     aria-labelledby="notifyPrefModalLabel" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="h6 modal-title fw-bold mb-0" id="notifyPrefModalLabel">
+          <i class="bi bi-bell me-1 text-warning"></i>Powiadomienia
+          <span class="text-muted fw-normal small">— <?= h($workspace['name'] ?? '') ?></span>
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="text-muted small mb-3">Wybierz kanały powiadomień dla tego obszaru roboczego.</p>
+        <div class="np-row">
+          <span class="np-icon text-primary"><i class="bi bi-envelope-fill"></i></span>
+          <div class="np-label">
+            E-mail
+            <small>Powiadomienia o zmianach zadań</small>
+          </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="np-email" role="switch"
+                   <?= $my_notify_prefs['notify_email'] ? 'checked' : '' ?>>
+          </div>
+        </div>
+        <div class="np-row">
+          <span class="np-icon text-success"><i class="bi bi-phone-fill"></i></span>
+          <div class="np-label">
+            SMS
+            <small>Krótkie powiadomienia tekstowe</small>
+          </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="np-sms" role="switch"
+                   <?= $my_notify_prefs['notify_sms'] ? 'checked' : '' ?>>
+          </div>
+        </div>
+        <div class="np-row">
+          <span class="np-icon text-secondary"><i class="bi bi-bell-fill"></i></span>
+          <div class="np-label">
+            Push
+            <small class="text-warning-emphasis">Wkrótce dostępne</small>
+          </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="np-push" role="switch"
+                   <?= $my_notify_prefs['notify_push'] ? 'checked' : '' ?> disabled>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                data-bs-dismiss="modal">Zamknij</button>
+        <button type="button" class="btn btn-primary btn-sm" id="np-save" onclick="saveNotifyPrefs()">
+          <i class="bi bi-check-lg me-1"></i>Zapisz
         </button>
       </div>
     </div>
@@ -1408,10 +1549,51 @@ function openAddModal(listId) {
     document.getElementById('at-error').classList.add('d-none');
     const listSel = document.getElementById('at-list');
     if (listSel && listId) listSel.value = String(listId);
+    // Reset trybu przypisania → osoba
+    const modePersonRadio = document.getElementById('at-mode-person');
+    const modeUnitRadio   = document.getElementById('at-mode-unit');
+    if (modePersonRadio) {
+        modePersonRadio.checked = true;
+        document.getElementById('at-person-panel')?.classList.remove('d-none');
+        document.getElementById('at-unit-panel')?.classList.add('d-none');
+    }
+    // Reset user chips
+    el.querySelectorAll('.at-user-chk').forEach(c => { c.checked = false; });
+    el.querySelectorAll('.at-user-chip').forEach(c => c.classList.remove('selected'));
+    // Reset unit select
     const unitSel = document.getElementById('at-unit');
     if (unitSel) unitSel.value = '0';
     bootstrap.Modal.getOrCreateInstance(el).show();
     setTimeout(() => document.getElementById('at-title').focus(), 350);
+}
+
+function atToggleMode(mode) {
+    const pp = document.getElementById('at-person-panel');
+    const up = document.getElementById('at-unit-panel');
+    if (mode === 'unit') {
+        // Sprawdź czy jakieś osoby są zaznaczone
+        const checked = document.querySelectorAll('.at-user-chk:checked');
+        if (checked.length > 0) {
+            if (!confirm('Przełączyć na przypisanie do jednostki?\nWybrane osoby zostaną odznaczone.')) {
+                document.getElementById('at-mode-person').checked = true;
+                return;
+            }
+            checked.forEach(c => {
+                c.checked = false;
+                c.closest('.at-user-chip')?.classList.remove('selected');
+            });
+        } else if (!confirm('Przypisać zadanie do jednostki organizacyjnej?\n(Osoby preferowane — tylko jeśli brak konkretnej osoby)')) {
+            document.getElementById('at-mode-person').checked = true;
+            return;
+        }
+        pp?.classList.add('d-none');
+        up?.classList.remove('d-none');
+    } else {
+        pp?.classList.remove('d-none');
+        up?.classList.add('d-none');
+        const unitSel = document.getElementById('at-unit');
+        if (unitSel) unitSel.value = '0';
+    }
 }
 
 function submitAddTask() {
@@ -1432,6 +1614,14 @@ function submitAddTask() {
     btn.disabled    = true;
     btn.textContent = 'Dodawanie…';
 
+    const assignMode = document.querySelector('input[name="at-assign-mode"]:checked')?.value || 'person';
+    const assignees  = assignMode === 'person'
+        ? Array.from(document.querySelectorAll('.at-user-chk:checked')).map(c => parseInt(c.value))
+        : [];
+    const unitId     = assignMode === 'unit'
+        ? (parseInt(document.getElementById('at-unit')?.value || '0') || null)
+        : null;
+
     fetch(BASE + '/tasks/api/task.php', {
         method:  'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1444,7 +1634,8 @@ function submitAddTask() {
             priority:     parseInt(document.getElementById('at-priority').value),
             list_id:      parseInt(document.getElementById('at-list').value),
             area_id:      parseInt(document.getElementById('at-area')?.value || '0') || null,
-            unit_id:      parseInt(document.getElementById('at-unit')?.value || '0') || null,
+            unit_id:      unitId,
+            assignees:    assignees,
             workspace_id: WS_ID
         })
     })
@@ -1617,6 +1808,62 @@ window.tkAjaxLoad = function(e) {
     // Krótkie opóźnienie — daj czas na podmianę DOM
     setTimeout(tkInitKanban, 250);
 };
+
+// ── User chips w modalu tworzenia ─────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('change', function(e) {
+        const chk = e.target.closest('.at-user-chk');
+        if (!chk) return;
+        chk.closest('.at-user-chip')?.classList.toggle('selected', chk.checked);
+    });
+    document.addEventListener('click', function(e) {
+        const chip = e.target.closest('.at-user-chip');
+        if (!chip) return;
+        const chk = chip.querySelector('.at-user-chk');
+        if (!chk || e.target === chk) return;
+        chk.checked = !chk.checked;
+        chip.classList.toggle('selected', chk.checked);
+    });
+});
+
+// ── Modal powiadomień ─────────────────────────────────────────────────────
+function openNotifyModal() {
+    bootstrap.Modal.getOrCreateInstance(
+        document.getElementById('notifyPrefModal')
+    ).show();
+}
+
+function saveNotifyPrefs() {
+    const btn = document.getElementById('np-save');
+    btn.disabled = true;
+    fetch(BASE + '/tasks/api/notify_prefs.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            _csrf:        CSRF,
+            workspace_id: WS_ID,
+            notify_email: document.getElementById('np-email')?.checked ? 1 : 0,
+            notify_sms:   document.getElementById('np-sms')?.checked   ? 1 : 0,
+            notify_push:  document.getElementById('np-push')?.checked  ? 1 : 0,
+        })
+    })
+    .then(r => r.json())
+    .then(r => {
+        btn.disabled = false;
+        if (r.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('notifyPrefModal')).hide();
+            // Aktualizuj ikonę dzwonka
+            const bellBtn = document.querySelector('button[onclick="openNotifyModal()"] i');
+            const anyOn = r.notify_email || r.notify_sms || r.notify_push;
+            if (bellBtn) {
+                bellBtn.className = 'bi bi-bell' + (anyOn ? '-fill text-warning' : '');
+            }
+        } else {
+            alert('Błąd: ' + (r.error || 'Nie udało się zapisać.'));
+        }
+    })
+    .catch(() => { btn.disabled = false; alert('Błąd połączenia.'); });
+}
 </script>
 
 <?php if ($can_add && $workspace): ?>

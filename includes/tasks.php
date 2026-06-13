@@ -411,6 +411,13 @@ function task_areas_migrate(): void {
     catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE task_workspaces ADD COLUMN edit_roles TEXT NOT NULL DEFAULT ''"); }
     catch (\Throwable $e) {}
+    // v9: powiadomienia per obszar per użytkownik
+    try { $pdo->exec("ALTER TABLE task_workspace_members ADD COLUMN notify_email INTEGER NOT NULL DEFAULT 1"); }
+    catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE task_workspace_members ADD COLUMN notify_sms INTEGER NOT NULL DEFAULT 0"); }
+    catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE task_workspace_members ADD COLUMN notify_push INTEGER NOT NULL DEFAULT 0"); }
+    catch (\Throwable $e) {}
 }
 
 function task_get_areas(): array {

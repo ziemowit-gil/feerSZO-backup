@@ -703,7 +703,8 @@ function td_render_mentions(string $text, array $users): string {
         <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Jednostka org
       </label>
       <select id="td-unit" class="form-select form-select-sm"
-              onchange="tdPatch({unit_id:parseInt(this.value)||null})"
+              onchange="tdSetUnit(this)"
+              data-prev="<?= (int)($task['unit_id'] ?? 0) ?>"
               aria-label="Przypisz zadanie do jednostki organizacyjnej">
         <option value="0">— brak —</option>
         <?php foreach ($_all_units_det as $ou): ?>
@@ -1604,6 +1605,47 @@ function srAnnounce(msg) {
 window.tdPatch = function(data) {
     api('/tasks/api/task.php', {action:'update', id:TID, ...data})
         .then(r => { if (!r.ok) alert('Błąd zapisu: ' + r.error); });
+};
+
+window.tdSetUnit = function(sel) {
+    const newVal = parseInt(sel.value) || null;
+    const prev   = parseInt(sel.dataset.prev) || null;
+    if (!newVal) {
+        sel.dataset.prev = '0';
+        tdPatch({unit_id: null});
+        return;
+    }
+    const unitName   = sel.options[sel.selectedIndex].text.trim();
+    const hasAssignees = document.querySelectorAll('.td-user-btn.active').length > 0;
+
+    const proceed = (clearAssignees) => {
+        sel.dataset.prev = sel.value;
+        if (clearAssignees) {
+            // Wyczyść UI przypisanych
+            document.querySelectorAll('.td-user-btn.active').forEach(b => {
+                b.classList.remove('active');
+                b.dataset.active = '0';
+                b.setAttribute('aria-pressed', 'false');
+            });
+            tdPatch({unit_id: newVal, clear_assignees: true});
+        } else {
+            tdPatch({unit_id: newVal});
+        }
+    };
+
+    if (hasAssignees) {
+        if (!confirm('Przypisać zadanie do jednostki „' + unitName + '"?\n\nZadanie ma przypisane osoby — usunąć przypisania osobiste?')) {
+            sel.value = prev || '0';
+            return;
+        }
+        proceed(true);
+    } else {
+        if (!confirm('Przypisać zadanie do jednostki „' + unitName + '"?\n(Osoba preferowana — wróć do trybu osoby, gdy znasz konkretnego wykonawcę)')) {
+            sel.value = prev || '0';
+            return;
+        }
+        proceed(false);
+    }
 };
 
 window.tdMoveToList = function(listId) {

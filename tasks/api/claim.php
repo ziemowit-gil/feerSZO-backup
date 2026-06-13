@@ -97,7 +97,8 @@ function _claim_notify(array $task, array $actor, string $event): void {
             "SELECT u.email, u.name
              FROM task_workspace_members twm
              JOIN users u ON u.id = twm.user_id
-             WHERE twm.workspace_id = ? AND twm.role IN ('admin','editor') AND u.is_active = 1",
+             WHERE twm.workspace_id = ? AND twm.role IN ('admin','editor')
+               AND u.is_active = 1 AND twm.notify_email = 1",
             [(int)$task['workspace_id']]
         );
         $sys_admins = db_all("SELECT email, name FROM users WHERE role='admin' AND is_active=1");

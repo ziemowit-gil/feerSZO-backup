@@ -107,6 +107,22 @@ if ($action === 'create') {
     task_start_time_tracking($id, $list_id, $list['name']);
     task_log($id, $uid, 'created', null, $list['name']);
 
+    // Opcjonalne przypisania (tryb "Osoba")
+    if (!empty($body['assignees']) && is_array($body['assignees'])) {
+        $stmt = db()->prepare(
+            "INSERT OR IGNORE INTO task_assignments (task_id, user_id, assigned_by, assigned_at)
+             VALUES (?, ?, ?, ?)"
+        );
+        $ts = date('Y-m-d H:i:s');
+        foreach ($body['assignees'] as $auid) {
+            $auid = (int)$auid;
+            if ($auid <= 0) continue;
+            $stmt->execute([$id, $auid, $uid, $ts]);
+            $u = db_one("SELECT name FROM users WHERE id=?", [$auid]);
+            if ($u) task_log($id, $uid, 'assigned', null, $u['name']);
+        }
+    }
+
     $task = db_one("SELECT * FROM tasks WHERE id=?", [$id]);
     task_api_ok($task);
 }
@@ -160,6 +176,12 @@ if ($action === 'update') {
         $changes['id'] = $id;
         $set = implode(', ', array_map(fn($k) => "$k=:$k", array_keys(array_diff_key($changes, ['id'=>1]))));
         db()->prepare("UPDATE tasks SET $set WHERE id=:id")->execute($changes);
+    }
+
+    // Opcjonalne czyszczenie przypisań osobistych (przy zmianie na tryb jednostki)
+    if (!empty($body['clear_assignees']) && in_array($ws_role, ['admin', 'editor'], true)) {
+        db()->prepare("DELETE FROM task_assignments WHERE task_id=?")->execute([$id]);
+        task_log($id, $uid, 'unassigned', 'wszystkie', null);
     }
 
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
