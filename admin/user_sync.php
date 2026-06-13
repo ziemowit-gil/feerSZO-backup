@@ -207,7 +207,7 @@ include dirname(__DIR__) . '/includes/header.php';
                    style="font-family:monospace"
                    placeholder="wspólny tajny klucz" value="<?= h($db_cfg['key']) ?>" required>
             <button type="button" class="btn btn-outline-secondary" id="genKey" title="Wygeneruj losowy klucz">
-              <i class="bi bi-shuffle"></i>
+              <i class="bi bi-shuffle me-1"></i>Generuj klucz
             </button>
           </div>
           <div class="form-text">Wpisz ten sam klucz na środowisku testowym.</div>
