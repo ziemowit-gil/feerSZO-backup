@@ -184,6 +184,7 @@ $groups = [
             ['icon'=>'bi-megaphone',            'label'=>'Komunikaty / ogłoszenia', 'url'=>'/komunikaty/index.php'],
             ['icon'=>'bi-megaphone-fill',       'label'=>'Nowe ogłoszenie',         'url'=>'/komunikaty/compose.php'],
             ['icon'=>'bi-bell',                 'label'=>'Powiadomienia e-mail',    'url'=>'/admin/msg_settings.php'],
+            ['icon'=>'bi-envelope-paper',       'label'=>'Maile systemowe',         'url'=>'/admin/email_templates.php'],
             ['icon'=>'bi-send-check',           'label'=>'Kolejka e-mail',          'url'=>'/admin/mail_queue.php',        'badge'=>$cnt['mail_failed'] ?: null,'badge_type'=>'danger'],
             ['icon'=>'bi-tags',                 'label'=>'Typy wiadomości',         'url'=>'/admin/message_types.php'],
             ['icon'=>'bi-envelope-check',       'label'=>'Masowe maile',            'url'=>'/admin/bulk_email.php'],

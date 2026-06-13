@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
+require_once dirname(__DIR__) . '/includes/email_templates.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Ponowna wysyłka maili powitalnych';
@@ -61,37 +62,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_send'])) {
 </table>
 HTML;
 
-        [$subject, $accent, $intro] = match(true) {
-            $is_technical           => ["Twoje dane logowania do platformy — {$org}", '#7c3aed', 'Poniżej znajdziesz dane logowania do platformy organizacji, która zastępuje Trello i inne narzędzia.'],
-            $portal_scope==='tasks_only' => ["Dane logowania — tablica zadań — {$org}", '#0ea5e9', 'Poniżej znajdziesz dane logowania do tablicy zadań organizacji.'],
-            $portal_scope==='crm_only'   => ["Dane logowania — CRM — {$org}", '#16a34a', 'Poniżej znajdziesz dane logowania do systemu CRM organizacji.'],
-            default                 => ["Twoje dane logowania do portalu — {$org}", '#1d6ef9', 'Poniżej znajdziesz dane logowania do portalu wolontariusza organizacji ' . $org . '.'],
+        $intro = match(true) {
+            $is_technical                => 'Poniżej znajdziesz dane logowania do platformy organizacji, która zastępuje Trello i inne narzędzia.',
+            $portal_scope==='tasks_only' => 'Poniżej znajdziesz dane logowania do tablicy zadań organizacji.',
+            $portal_scope==='crm_only'   => 'Poniżej znajdziesz dane logowania do systemu CRM organizacji.',
+            default                      => 'Poniżej znajdziesz dane logowania do portalu wolontariusza organizacji ' . $org . '.',
+        };
+        $accent = match(true) {
+            $is_technical                => '#7c3aed',
+            $portal_scope==='tasks_only' => '#0ea5e9',
+            $portal_scope==='crm_only'   => '#16a34a',
+            default                      => '#1d6ef9',
         };
 
-        $body = <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,{$accent},{$accent}cc);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.15rem">🔑 Dane logowania — {$org}</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Cześć, <strong>{$name}</strong>!</p>
-  <p>{$intro}</p>
-  <div style="background:#fff8e1;border-left:3px solid #f59e0b;border-radius:4px;padding:10px 14px;margin:14px 0;font-size:.88em">
-    Hasło zostało wygenerowane przez administratora. Po zalogowaniu możesz je zmienić w <strong>Mój panel</strong>.
-  </div>
-  {$login_block}
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$login_url}" style="background:{$accent};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Zaloguj się →
-    </a>
-  </div>
-  <p style="font-size:.82em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość wysłana automatycznie przez system {$org}.
-  </p>
-</div></body></html>
-HTML;
+        $rendered = email_tpl_render('welcome', [
+            'org'         => $org,
+            'name'        => $name,
+            'intro'       => $intro,
+            'accent'      => $accent,
+            'login_block' => $login_block,
+            'login_url'   => $login_url,
+        ]);
 
-        mail_queue_add($email, $row['imie_nazwisko'] ?? $email, $subject, $body);
+        mail_queue_add($email, $row['imie_nazwisko'] ?? $email, $rendered['subject'], $rendered['html']);
         log_contract_action('wolontariat', $cid, (int)current_user()['id'], 'note',
             'Admin: ponownie wysłano e-mail powitalny na: ' . $email);
         $sent++;

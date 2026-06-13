@@ -17,6 +17,7 @@ require_once $base_dir . '/config.php';
 require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/mail_queue.php';
+require_once $base_dir . '/includes/email_templates.php';
 
 $today = date('Y-m-d');
 
@@ -110,27 +111,32 @@ foreach ($contract_tables as $type => $table) {
             continue;
         }
 
-        // Zbuduj treść e-mail
+        // Zbuduj treść e-mail (szablon konfigurowalny w panelu admina)
         $type_label = CONTRACT_TYPES[$type] ?? ucfirst($type);
-        $subject    = "Przypomnienie: {$type_label} {$numer} wygasa za {$days_left} " .
-                      _dni_label($days_left);
-
         $data_pl    = date('d.m.Y', strtotime($end_date));
         $urgency_color = match (true) {
             $days_left <= 7  => '#dc3545',
             $days_left <= 14 => '#fd7e14',
             default          => '#0d6efd',
         };
+        $urgency_text = $days_left === 1
+            ? 'Umowa wygasa <strong>jutro</strong>!'
+            : "Umowa wygasa za <strong>{$days_left} dni</strong>.";
 
-        $html_body = _build_email_html(
-            $type_label,
-            $numer,
-            $osoba,
-            $opiekun_name,
-            $data_pl,
-            $days_left,
-            $urgency_color
-        );
+        $rendered = email_tpl_render('contract_expiry', [
+            'accent'           => $urgency_color,
+            'greeting'         => $opiekun_name ? ', <strong>' . htmlspecialchars($opiekun_name) . '</strong>' : '',
+            'urgency_text'     => $urgency_text,
+            'type_label'       => $type_label,
+            'numer'            => $numer,
+            'osoba'            => $osoba,
+            'data_zakonczenia' => $data_pl,
+            'days_left'        => (string)$days_left,
+            'days_label'       => _dni_label($days_left),
+        ]);
+        if (!$rendered['enabled']) { $skip++; continue; } // wyłączony przez admina
+        $subject   = $rendered['subject'];
+        $html_body = $rendered['html'];
 
         try {
             mail_queue_add($to_email, $opiekun_name, $subject, $html_body);
@@ -168,109 +174,3 @@ function _dni_label(int $days): string
     return 'dni';
 }
 
-function _build_email_html(
-    string $type_label,
-    string $numer,
-    string $osoba,
-    string $opiekun,
-    string $data_zakonczenia,
-    int    $days_left,
-    string $accent_color
-): string {
-    $urgency_text = match (true) {
-        $days_left === 1 => 'Umowa wygasa <strong>jutro</strong>!',
-        $days_left <= 7  => "Umowa wygasa za <strong>{$days_left} dni</strong>.",
-        default          => "Umowa wygasa za <strong>{$days_left} dni</strong>.",
-    };
-
-    $days_label = _dni_label($days_left);
-
-    return <<<HTML
-<!DOCTYPE html>
-<html lang="pl">
-<head><meta charset="UTF-8"><title>Przypomnienie o wygaśnięciu umowy</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:8px;overflow:hidden;
-                    box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:600px;">
-
-        <!-- Nagłówek -->
-        <tr>
-          <td style="background:{$accent_color};padding:24px 32px;">
-            <p style="margin:0;font-size:13px;color:rgba(255,255,255,.8);text-transform:uppercase;
-                      letter-spacing:.05em;">System zarządzania umowami</p>
-            <h1 style="margin:6px 0 0;font-size:22px;color:#ffffff;font-weight:700;">
-              Przypomnienie o wygasającej umowie
-            </h1>
-          </td>
-        </tr>
-
-        <!-- Treść -->
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 16px;font-size:15px;color:#333333;">
-              Dzień dobry<?= $opiekun ? ', <strong>' . htmlspecialchars($opiekun) . '</strong>' : '' ?>,
-            </p>
-            <p style="margin:0 0 24px;font-size:15px;color:#333333;">
-              {$urgency_text}
-              Prosimy o podjęcie stosownych działań.
-            </p>
-
-            <!-- Karta umowy -->
-            <table width="100%" cellpadding="0" cellspacing="0"
-                   style="background:#f8f9fa;border-radius:6px;border-left:4px solid {$accent_color};
-                          padding:0;margin-bottom:24px;">
-              <tr>
-                <td style="padding:20px 24px;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Typ umowy</td>
-                      <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{$type_label}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
-                      <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{$numer}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding:5px 0;font-size:13px;color:#6c757d;">Osoba</td>
-                      <td style="padding:5px 0;font-size:14px;color:#212529;">{$osoba}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data zakończenia</td>
-                      <td style="padding:5px 0;font-size:14px;color:{$accent_color};font-weight:700;">{$data_zakonczenia}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding:5px 0;font-size:13px;color:#6c757d;">Pozostało</td>
-                      <td style="padding:5px 0;font-size:14px;color:{$accent_color};font-weight:700;">{$days_left} {$days_label}</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-
-            <p style="margin:0 0 8px;font-size:14px;color:#495057;">
-              Zaloguj się do systemu, aby sprawdzić szczegóły umowy i podjąć działania
-              (przedłużenie, zakończenie lub anulowanie).
-            </p>
-          </td>
-        </tr>
-
-        <!-- Stopka -->
-        <tr>
-          <td style="background:#f8f9fa;padding:16px 32px;border-top:1px solid #e9ecef;">
-            <p style="margin:0;font-size:12px;color:#adb5bd;text-align:center;">
-              Wiadomość wygenerowana automatycznie przez system zarządzania umowami NGO.<br>
-              Prosimy nie odpowiadać na tę wiadomość.
-            </p>
-          </td>
-        </tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
-HTML;
-}

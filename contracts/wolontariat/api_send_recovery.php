@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+require_once dirname(dirname(__DIR__)) . '/includes/email_templates.php';
 
 require_role('admin', 'editor');
 header('Content-Type: application/json; charset=utf-8');
@@ -56,20 +57,12 @@ if ($channel === 'email') {
         echo json_encode(['ok' => false, 'error' => 'Brak adresu e-mail w umowie.']);
         exit;
     }
-    require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
-    $html = "
-<p>Cześć <strong>" . htmlspecialchars($name) . "</strong>,</p>
-<p>Twój kod odzyskiwania dostępu do systemu <strong>" . htmlspecialchars($org) . "</strong>:</p>
-<div style='text-align:center;margin:24px 0'>
-  <span style='font-size:2rem;font-weight:900;letter-spacing:.35em;font-family:monospace;
-               background:#f1f5f9;border:2px dashed #94a3b8;border-radius:8px;
-               padding:12px 28px;display:inline-block'>{$code}</span>
-</div>
-<p style='color:#64748b;font-size:.88rem'>
-  Zachowaj ten kod w bezpiecznym miejscu — będzie potrzebny do odzyskania hasła,
-  jeśli nie pamiętasz numeru umowy.
-</p>";
-    mail_queue_add($email, $name, "Kod odzyskiwania dostępu — {$org}", $html, '', 'wolontariat', $id);
+    $rendered = email_tpl_render('recovery_code', [
+        'org'  => htmlspecialchars($org),
+        'name' => htmlspecialchars($name),
+        'code' => htmlspecialchars($code),
+    ]);
+    mail_queue_add($email, $name, $rendered['subject'], $rendered['html'], '', 'wolontariat', $id);
     db()->prepare("UPDATE umowy_wolontariat SET recovery_code_sent_at=? WHERE id=?")
        ->execute([date('Y-m-d H:i:s'), $id]);
     echo json_encode(['ok' => true, 'info' => 'E-mail z kodem dodany do kolejki wysyłki.']);
