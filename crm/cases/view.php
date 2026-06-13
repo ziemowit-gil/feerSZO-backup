@@ -22,7 +22,10 @@ $case = db_one(
 );
 if (!$case) { http_response_code(404); die('Nie znaleziono sprawy.'); }
 
-$can_write = can_write('crm') || is_admin();
+$uid = (int)(current_user()['id'] ?? 0);
+$can_write = crm_case_can_edit($case);
+// Udostępnieniami zarządza twórca sprawy lub admin.
+$can_manage_shares = is_admin() || (int)($case['created_by'] ?? 0) === $uid;
 $PAGE_TITLE = 'Sprawa: ' . $case['title'];
 
 $status_cfg = [
@@ -288,6 +291,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         flash_set('success', 'Powiązanie z EZD usunięte.');
         header('Location: view.php?id=' . $id . '#ezd'); exit;
     }
+
+    // ── Współdzielenie sprawy (tylko twórca lub admin) ────────────────────────
+    if (in_array($action, ['share_add','share_update','share_remove'], true) && $can_manage_shares) {
+        $target = (int)($_POST['share_user_id'] ?? 0);
+        $level  = ($_POST['share_level'] ?? 'read') === 'edit' ? 1 : 0;
+
+        if ($action === 'share_remove' && $target) {
+            db()->prepare("DELETE FROM crm_case_shares WHERE case_id=? AND user_id=?")
+                ->execute([$id, $target]);
+            flash_set('success', 'Współdzielenie cofnięte.');
+        } elseif ($target && $target !== (int)($case['created_by'] ?? 0)) {
+            $usr = db_one("SELECT id FROM users WHERE id=? AND is_active=1", [$target]);
+            if ($usr) {
+                // upsert: UNIQUE(case_id,user_id)
+                db()->prepare(
+                    "INSERT INTO crm_case_shares (case_id, user_id, can_write, shared_by, shared_at)
+                     VALUES (?,?,?,?,?)
+                     ON CONFLICT(case_id, user_id) DO UPDATE SET can_write=excluded.can_write"
+                )->execute([$id, $target, $level, $uid, date('Y-m-d H:i:s')]);
+                flash_set('success', $action === 'share_add' ? 'Sprawa udostępniona.' : 'Poziom dostępu zmieniony.');
+            }
+        }
+        header('Location: view.php?id=' . $id . '#share'); exit;
+    }
 }
 
 // Pobierz notatki i pliki
@@ -308,6 +335,8 @@ $files = db_all(
 
 $letters     = get_contract_letters('crm_case', $id);
 $users_list  = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
+$shares      = crm_case_shares($id);
+$shared_uids = array_map(fn($s) => (int)$s['user_id'], $shares);
 $ezd_sprawa  = null;
 $ezd_sprawy_list = [];
 if (module_enabled('ezd_enabled')) {
@@ -794,6 +823,82 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </div>
     </div>
   </div>
+
+  <!-- Współdzielenie -->
+  <?php if ($can_manage_shares || $shares): ?>
+  <div class="card border-0 shadow-sm mb-3" id="share">
+    <div class="card-body">
+      <div class="case-section-title"><i class="bi bi-people me-1"></i>Współdzielenie (<?= count($shares) ?>)</div>
+
+      <?php if ($shares): ?>
+      <ul class="list-group list-group-flush mb-2">
+        <?php foreach ($shares as $s):
+          $sn = trim(($s['first_name']??'').' '.($s['last_name']??'')) ?: ($s['user_name']??'?');
+          $is_edit = (int)$s['can_write'] === 1;
+        ?>
+        <li class="list-group-item px-0 py-2 d-flex align-items-center gap-2" style="font-size:.84rem">
+          <i class="bi bi-person-circle text-secondary"></i>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($sn) ?></span>
+          <?php if ($can_manage_shares): ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="share_update">
+            <input type="hidden" name="share_user_id" value="<?= (int)$s['user_id'] ?>">
+            <select name="share_level" class="form-select form-select-sm py-0" style="width:auto;font-size:.74rem"
+                    onchange="this.form.submit()" aria-label="Poziom dostępu: <?= h($sn) ?>">
+              <option value="read" <?= $is_edit?'':'selected' ?>>odczyt</option>
+              <option value="edit" <?= $is_edit?'selected':'' ?>>edycja</option>
+            </select>
+          </form>
+          <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć współdzielenie?')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="share_remove">
+            <input type="hidden" name="share_user_id" value="<?= (int)$s['user_id'] ?>">
+            <button type="submit" class="btn btn-link btn-sm text-danger py-0 px-1" aria-label="Cofnij dla: <?= h($sn) ?>">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </form>
+          <?php else: ?>
+          <span class="badge <?= $is_edit?'bg-success-subtle text-success border border-success-subtle':'bg-secondary-subtle text-secondary border' ?>" style="font-size:.68rem">
+            <?= $is_edit?'edycja':'odczyt' ?>
+          </span>
+          <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?>
+      <div class="text-muted mb-2" style="font-size:.8rem">Sprawa nie jest jeszcze nikomu udostępniona.</div>
+      <?php endif; ?>
+
+      <?php if ($can_manage_shares):
+        $avail = array_filter($users_list, fn($u) =>
+            (int)$u['id'] !== (int)($case['created_by'] ?? 0) && !in_array((int)$u['id'], $shared_uids, true));
+      ?>
+      <?php if ($avail): ?>
+      <form method="post" class="border-top pt-2 mt-1">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="share_add">
+        <div class="d-flex gap-1">
+          <select name="share_user_id" class="form-select form-select-sm" required style="font-size:.78rem">
+            <option value="">— udostępnij osobie —</option>
+            <?php foreach ($avail as $u): ?>
+            <option value="<?= (int)$u['id'] ?>"><?= h($u['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <select name="share_level" class="form-select form-select-sm" style="width:auto;font-size:.78rem">
+            <option value="read">odczyt</option>
+            <option value="edit">edycja</option>
+          </select>
+          <button type="submit" class="btn btn-sm btn-primary px-2" aria-label="Udostępnij">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
+      </form>
+      <?php endif; ?>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- EZD -->
   <?php if (module_enabled('ezd_enabled')): ?>

@@ -193,6 +193,32 @@ function crm_update(string $table, array $data, int $id): void {
     crm_db()->prepare("UPDATE `$table` SET $set WHERE id=?")->execute([...array_values($data), $id]);
 }
 
+// Współdzielenie spraw — lista osób, którym sprawę udostępniono.
+function crm_case_shares(int $case_id): array {
+    return db_all(
+        "SELECT s.*, u.name AS user_name, u.first_name, u.last_name
+         FROM crm_case_shares s
+         JOIN users u ON u.id=s.user_id
+         WHERE s.case_id=? ORDER BY u.name",
+        [$case_id]
+    );
+}
+
+// Czy bieżący użytkownik może edytować daną sprawę.
+// Model addytywny: globalny zapis CRM / admin / twórca, ALBO udział z prawem zapisu
+// (udostępnienie „edycja" podnosi do edycji nawet użytkownika z samym odczytem CRM).
+function crm_case_can_edit(array $case): bool {
+    if (is_admin() || can_write('crm')) return true;
+    $uid = (int)(current_user()['id'] ?? 0);
+    if (!$uid) return false;
+    if ((int)($case['created_by'] ?? 0) === $uid) return true;
+    $share = db_one(
+        "SELECT can_write FROM crm_case_shares WHERE case_id=? AND user_id=?",
+        [(int)($case['id'] ?? 0), $uid]
+    );
+    return $share && (int)$share['can_write'] === 1;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MIGRACJA — uruchamiana raz na żądanie HTTP
 // ─────────────────────────────────────────────────────────────────────────────
@@ -460,6 +486,19 @@ function crm_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_case_files_case ON crm_case_files(case_id)");
 
+    // Współdzielenie spraw (per-użytkownik; addytywne — nie ogranicza widoczności)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_case_shares (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        case_id    INTEGER NOT NULL REFERENCES crm_cases(id) ON DELETE CASCADE,
+        user_id    INTEGER NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+        can_write  INTEGER NOT NULL DEFAULT 0,
+        shared_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        shared_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(case_id, user_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_case_shares_case ON crm_case_shares(case_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_case_shares_user ON crm_case_shares(user_id)");
+
     // Planowane działania na kontakcie
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_activities (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -501,6 +540,17 @@ function crm_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_events_date    ON crm_events(event_date)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_events_contact ON crm_events(contact_id)");
+
+    // Uczestnicy wydarzeń (grupa osób przypisana do zdarzenia)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_event_participants (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id   INTEGER NOT NULL REFERENCES crm_events(id) ON DELETE CASCADE,
+        user_id    INTEGER NOT NULL REFERENCES users(id)      ON DELETE CASCADE,
+        added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        added_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(event_id, user_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_evt_part_event ON crm_event_participants(event_id)");
 
     // ── Dodatkowe pola kontaktów ───────────────────────────────────────────────
     // Statusy CRM (edytowalne przez admina)

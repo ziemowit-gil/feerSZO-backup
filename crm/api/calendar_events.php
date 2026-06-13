@@ -26,6 +26,29 @@ function api_err(string $msg, int $code = 400): never {
     exit;
 }
 
+// Uczestnicy pojedynczego zdarzenia: [{id, name}]
+function event_participants(int $event_id): array {
+    return db_all(
+        "SELECT u.id, u.name
+         FROM crm_event_participants p JOIN users u ON u.id=p.user_id
+         WHERE p.event_id=? ORDER BY u.name",
+        [$event_id]
+    );
+}
+
+// Zapisz zestaw uczestników zdarzenia (replace). $ids = lista int user_id.
+function event_set_participants(int $event_id, array $ids, int $by): void {
+    db()->prepare("DELETE FROM crm_event_participants WHERE event_id=?")->execute([$event_id]);
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) return;
+    $st = db()->prepare(
+        "INSERT OR IGNORE INTO crm_event_participants (event_id, user_id, added_by, added_at)
+         SELECT ?, id, ?, ? FROM users WHERE id=? AND is_active=1"
+    );
+    $now = date('Y-m-d H:i:s');
+    foreach ($ids as $u) { $st->execute([$event_id, $by, $now, $u]); }
+}
+
 if (!current_user()) api_err('Wymagane logowanie.', 401);
 require_module_or_die: ;
 try { require_module_enabled('crm_enabled', 'CRM'); }
@@ -72,6 +95,20 @@ if ($method === 'GET' && $action === 'list') {
         [$from, $to]
     );
 
+    // Uczestnicy dla pobranych zdarzeń — jedno zapytanie, mapowane po event_id
+    $part_map = [];
+    $ev_ids = array_map(fn($e) => (int)$e['id'], $events);
+    if ($ev_ids) {
+        $ph = implode(',', array_fill(0, count($ev_ids), '?'));
+        foreach (db_all(
+            "SELECT p.event_id, u.id, u.name
+             FROM crm_event_participants p JOIN users u ON u.id=p.user_id
+             WHERE p.event_id IN ($ph) ORDER BY u.name", $ev_ids
+        ) as $row) {
+            $part_map[(int)$row['event_id']][] = ['id' => (int)$row['id'], 'name' => $row['name']];
+        }
+    }
+
     $out = [];
 
     foreach ($events as $e) {
@@ -92,6 +129,7 @@ if ($method === 'GET' && $action === 'list') {
             'contact_id'   => $e['contact_id'],
             'contact_name' => $e['contact_name'],
             'created_by'   => (int)$e['created_by'],
+            'participants' => $part_map[(int)$e['id']] ?? [],
         ];
     }
     foreach ($cases as $c) {
@@ -166,7 +204,10 @@ if ($action === 'create') {
         'created_at'     => date('Y-m-d H:i:s'),
         'updated_at'     => date('Y-m-d H:i:s'),
     ]);
-    api_ok(['id' => $id]);
+    if (isset($body['participants']) && is_array($body['participants'])) {
+        event_set_participants($id, $body['participants'], $uid);
+    }
+    api_ok(['id' => $id, 'participants' => event_participants($id)]);
 }
 
 if ($action === 'update') {
@@ -196,7 +237,10 @@ if ($action === 'update') {
         date('Y-m-d H:i:s'),
         $eid,
     ]);
-    api_ok();
+    if (isset($body['participants']) && is_array($body['participants'])) {
+        event_set_participants($eid, $body['participants'], $uid);
+    }
+    api_ok(['participants' => event_participants($eid)]);
 }
 
 if ($action === 'done') {

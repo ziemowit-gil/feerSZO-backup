@@ -15,15 +15,21 @@ crm_migrate();
 $PAGE_TITLE   = 'Sprawy CRM';
 $can_write    = can_write('crm') || is_admin();
 
+$uid       = (int)(current_user()['id'] ?? 0);
 $search    = trim($_GET['q']       ?? '');
 $status_f  = $_GET['status']       ?? '';
 $priority_f= $_GET['priority']     ?? '';
 $contact_f = (int)($_GET['contact_id'] ?? 0);
+$shared_f  = !empty($_GET['shared']);
 $page      = max(1, (int)($_GET['page'] ?? 1));
 $per       = 25;
 
 $where  = '1=1';
 $params = [];
+if ($shared_f) {
+    $where .= " AND EXISTS (SELECT 1 FROM crm_case_shares s WHERE s.case_id=c.id AND s.user_id=?)";
+    $params[] = $uid;
+}
 if ($search) {
     $where .= " AND (c.title LIKE ? OR ct.imie_nazwisko LIKE ?)";
     $params[] = "%$search%"; $params[] = "%$search%";
@@ -51,7 +57,8 @@ $offset = ($page - 1) * $per;
 $rows   = db_all(
     "SELECT c.*, ct.imie_nazwisko AS contact_name, ct.type AS contact_type,
             (SELECT COUNT(*) FROM crm_case_notes n WHERE n.case_id=c.id) AS notes_count,
-            (SELECT COUNT(*) FROM crm_case_files f WHERE f.case_id=c.id) AS files_count
+            (SELECT COUNT(*) FROM crm_case_files f WHERE f.case_id=c.id) AS files_count,
+            (SELECT COUNT(*) FROM crm_case_shares s WHERE s.case_id=c.id) AS shares_count
      FROM crm_cases c
      LEFT JOIN crm_contacts ct ON ct.id=c.contact_id
      WHERE $where ORDER BY c.updated_at DESC LIMIT $per OFFSET $offset",
@@ -63,6 +70,9 @@ $stats = [];
 foreach (['open','in_progress','closed','cancelled'] as $s) {
     $stats[$s] = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases WHERE status=?", [$s])['n'] ?? 0);
 }
+$shared_count = (int)(db_one(
+    "SELECT COUNT(DISTINCT case_id) AS n FROM crm_case_shares WHERE user_id=?", [$uid]
+)['n'] ?? 0);
 
 $status_cfg = [
     'open'        => ['label'=>'Otwarta',     'color'=>'#2563EB','bg'=>'#EEF4FF','icon'=>'bi-circle'],
@@ -107,7 +117,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 <div class="d-flex flex-wrap gap-2 mb-3">
   <?php
   $all_total = array_sum($stats);
-  $qs = http_build_query(array_filter(['q'=>$search,'priority'=>$priority_f,'contact_id'=>$contact_f?:null]));
+  $qs = http_build_query(array_filter(['q'=>$search,'priority'=>$priority_f,'contact_id'=>$contact_f?:null,'shared'=>$shared_f?1:null]));
   ?>
   <a href="?<?= $qs ?>" class="wol-stat-pill <?= !$status_f?'selected':'' ?>"
      style="background:#F3F4F6;color:#374151;border-color:<?= !$status_f?'#374151':'transparent' ?>">
@@ -119,11 +129,20 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <i class="bi <?= $sv['icon'] ?>"></i> <?= $sv['label'] ?> <strong><?= $stats[$sk] ?></strong>
   </a>
   <?php endforeach; ?>
+  <?php if ($shared_count || $shared_f):
+    $qs_share = http_build_query(array_filter(['q'=>$search,'status'=>$status_f,'priority'=>$priority_f,'contact_id'=>$contact_f?:null]));
+  ?>
+  <a href="?<?= $qs_share ?><?= $shared_f?'':'&shared=1' ?>" class="wol-stat-pill <?= $shared_f?'selected':'' ?>"
+     style="background:#EEF2FF;color:#4338CA;border-color:<?= $shared_f?'#4338CA':'transparent' ?>">
+    <i class="bi bi-people-fill"></i> Udostępnione mi <strong><?= $shared_count ?></strong>
+  </a>
+  <?php endif; ?>
 </div>
 
 <!-- Filtry -->
 <form method="get" class="wol-filter-bar mb-3">
   <?php if ($status_f): ?><input type="hidden" name="status" value="<?= h($status_f) ?>"><?php endif; ?>
+  <?php if ($shared_f): ?><input type="hidden" name="shared" value="1"><?php endif; ?>
   <div class="row g-2 align-items-center">
     <div class="col-md-5">
       <div class="input-group input-group-sm">
@@ -141,7 +160,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
     <div class="col-auto">
       <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-funnel"></i> Filtruj</button>
-      <?php if ($search||$status_f||$priority_f||$contact_f): ?>
+      <?php if ($search||$status_f||$priority_f||$contact_f||$shared_f): ?>
       <a href="?" class="btn btn-outline-secondary btn-sm ms-1"><i class="bi bi-x"></i></a>
       <?php endif; ?>
     </div>
@@ -179,6 +198,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <?php if ($r['files_count']): ?>
         <span class="ms-2"><i class="bi bi-paperclip me-1" aria-hidden="true"></i><?= $r['files_count'] ?></span>
         <?php endif; ?>
+        <?php if ($r['shares_count']): ?>
+        <span class="ms-2" style="color:#4338CA"><i class="bi bi-people-fill me-1" aria-hidden="true"></i><?= $r['shares_count'] ?></span>
+        <?php endif; ?>
       </div>
     </div>
     <div class="d-flex align-items-center gap-2 flex-shrink-0" aria-hidden="true">
@@ -200,7 +222,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <div class="d-flex gap-1">
       <?php
       $pages = ceil($total / $per);
-      $base  = '?' . http_build_query(array_filter(['q'=>$search,'status'=>$status_f,'priority'=>$priority_f,'contact_id'=>$contact_f?:null]));
+      $base  = '?' . http_build_query(array_filter(['q'=>$search,'status'=>$status_f,'priority'=>$priority_f,'contact_id'=>$contact_f?:null,'shared'=>$shared_f?1:null]));
       for ($p = 1; $p <= $pages; $p++):
       ?>
       <a href="<?= $base ?>&page=<?= $p ?>" class="btn btn-sm <?= $p===$page?'btn-primary':'btn-outline-secondary' ?>"><?= $p ?></a>

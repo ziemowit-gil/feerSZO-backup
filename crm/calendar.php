@@ -19,6 +19,8 @@ $can_write   = can_write('crm') || is_admin();
 $contacts = db_all(
     "SELECT id, imie_nazwisko, type FROM crm_contacts WHERE crm_active=1 ORDER BY imie_nazwisko LIMIT 300"
 );
+// Użytkownicy do wyboru uczestników wydarzenia
+$cal_users = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
 
 include __DIR__ . '/includes/header_crm.php';
 ?>
@@ -355,6 +357,21 @@ include __DIR__ . '/includes/header_crm.php';
         </select>
       </div>
 
+      <!-- Uczestnicy -->
+      <div class="mb-3">
+        <label class="form-label fw-semibold small">Uczestnicy <span class="text-muted fw-normal">(opcjonalni)</span></label>
+        <div id="evParticipants" style="max-height:150px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:8px;padding:.4rem .6rem">
+          <?php if ($cal_users): foreach ($cal_users as $u): ?>
+          <div class="form-check" style="margin-bottom:.15rem">
+            <input class="form-check-input ev-part" type="checkbox" value="<?= (int)$u['id'] ?>" id="evPart_<?= (int)$u['id'] ?>">
+            <label class="form-check-label small" for="evPart_<?= (int)$u['id'] ?>"><?= h($u['name']) ?></label>
+          </div>
+          <?php endforeach; else: ?>
+          <div class="text-muted small">Brak aktywnych użytkowników.</div>
+          <?php endif; ?>
+        </div>
+      </div>
+
       <!-- Opis -->
       <div class="mb-1">
         <label class="form-label fw-semibold small">Opis <span class="text-muted fw-normal">(opcjonalny)</span></label>
@@ -391,6 +408,7 @@ include __DIR__ . '/includes/header_crm.php';
     <div id="evPopupContact" style="font-size:.75rem;color:#9CA3AF;margin-bottom:.2rem"></div>
     <div id="evPopupTime" style="font-size:.75rem;color:#6B7280;margin-bottom:.5rem"></div>
     <div id="evPopupDesc" style="font-size:.8rem;color:#374151;margin-bottom:.5rem;white-space:pre-wrap"></div>
+    <div id="evPopupParticipants" style="font-size:.75rem;color:#4338CA;margin-bottom:.5rem;display:none"></div>
     <div class="d-flex gap-1">
       <button id="evPopupDone" class="btn btn-xs btn-outline-success btn-sm py-0 px-2" style="font-size:.72rem"
               onclick="Cal.toggleDone()"><i class="bi bi-check me-1"></i>Wykonane</button>
@@ -842,6 +860,16 @@ const Cal = (function() {
     document.getElementById('evPopupDesc').textContent = e.description || '';
     document.getElementById('evPopupDesc').style.display = e.description ? '' : 'none';
 
+    const partEl = document.getElementById('evPopupParticipants');
+    const parts = e.participants || [];
+    if (parts.length) {
+      partEl.innerHTML = '<i class="bi bi-people-fill me-1"></i>';
+      partEl.appendChild(document.createTextNode(parts.map(p=>p.name).join(', ')));
+      partEl.style.display = '';
+    } else {
+      partEl.style.display = 'none';
+    }
+
     const doneBtn = document.getElementById('evPopupDone');
     doneBtn.innerHTML = e.status==='done'
       ? '<i class="bi bi-x-circle me-1"></i>Cofnij'
@@ -916,6 +944,9 @@ const Cal = (function() {
       document.getElementById('evTime').value = e.time||'';
       document.getElementById('evEndTime').value = e.end_time||'';
     }
+    // Uczestnicy
+    const pids = (e.participants||[]).map(p=>String(p.id));
+    document.querySelectorAll('#evParticipants .ev-part').forEach(cb=>cb.checked = pids.includes(cb.value));
     // Typ
     selectTypeByVal(e.event_type);
     document.getElementById('calModal').classList.add('open');
@@ -932,6 +963,7 @@ const Cal = (function() {
     document.getElementById('evContact').value = '';
     document.getElementById('evColor').value   = '#2E844A';
     document.getElementById('evError').style.display='none';
+    document.querySelectorAll('#evParticipants .ev-part').forEach(cb=>cb.checked=false);
     selectTypeByVal('task');
   }
 
@@ -975,6 +1007,7 @@ const Cal = (function() {
       event_end_time: !allDay ? (document.getElementById('evEndTime').value||null) : null,
       contact_id:  document.getElementById('evContact').value ? parseInt(document.getElementById('evContact').value) : null,
       color:       document.getElementById('evColor').value,
+      participants: Array.from(document.querySelectorAll('#evParticipants .ev-part:checked')).map(cb=>parseInt(cb.value)),
     };
 
     const btn = document.getElementById('evSaveBtn');
