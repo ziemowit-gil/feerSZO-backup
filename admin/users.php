@@ -330,11 +330,9 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0"><i class="bi bi-people text-primary"></i> Zarządzanie użytkownikami</h4>
   <div class="d-flex gap-2">
-    <?php if (defined('TEST_SYNC_URL')): ?>
     <a href="<?= APP_URL ?>/admin/user_sync.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-repeat"></i> Sync →testy
     </a>
-    <?php endif; ?>
     <button class="btn btn-primary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#addUserPanel">
       <i class="bi bi-person-plus"></i> Dodaj użytkownika
     </button>
