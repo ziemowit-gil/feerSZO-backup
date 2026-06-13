@@ -100,6 +100,18 @@ function cpc_migrate(): void {
     }
 
     // -------------------------------------------------------------------------
+    // Flaga „nie wyłączaj konta M365 po wygaśnięciu umowy" — dla wszystkich
+    // tabel objętych automatyczną synchronizacją (cron/sync_m365.php)
+    // -------------------------------------------------------------------------
+    foreach ($contract_tables as $tbl) {
+        try {
+            $pdo->exec("ALTER TABLE umowy_{$tbl} ADD COLUMN m365_nie_wylaczaj INTEGER NOT NULL DEFAULT 0");
+        } catch (\PDOException $e) {
+            // Kolumna już istnieje — ignorujemy
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Kolumny specyficzne dla umów wolontariat
     // -------------------------------------------------------------------------
     $wolontariat_extra = [

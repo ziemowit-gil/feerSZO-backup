@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
 
     if (!$errors) {
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         // Wykryj nowe zaznaczenie „przetwarza dane osobowe"
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'zwrot_kosztow', 'zwrot_kosztow_opis', 'opiekun', 'projekt_program',
             'forma_podpisania', 'platforma_el', 'id_dokumentu_el', 'plik_potwierdzenia',
             'plik_umowy', 'uwagi', 'updated_at',
-            'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne', 'm365_data_utworzenia', 'm365_licencja_przypisana',
+            'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne', 'm365_nie_wylaczaj', 'm365_data_utworzenia', 'm365_licencja_przypisana',
             'nr_roboczy', 'nr_system', 'nr_rejestru',
             'adres_odbiorca', 'adres_linia1', 'adres_linia2', 'adres_kod_pocztowy', 'adres_miasto', 'adres_kraj',
             'z_webngo', 'webngo_id', 'webngo_numer_umowy', 'person_id', 'org_unit_id',
@@ -449,6 +449,16 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
                  <?= $row['bezterminowa'] ? 'checked' : '' ?>>
         </div>
         <label for="bezterminowa" class="mb-0">Porozumienie bezterminowe</label>
+      </div>
+    </div>
+    <div class="col-md-6 d-flex align-items-end pb-1">
+      <div class="toggle-row w-100 mb-0">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 name="m365_nie_wylaczaj" id="m365_nie_wylaczaj" value="1"
+                 <?= !empty($row['m365_nie_wylaczaj']) ? 'checked' : '' ?>>
+        </div>
+        <label for="m365_nie_wylaczaj" class="mb-0">Nie wyłączaj dostępu po wygaśnięciu umowy</label>
       </div>
     </div>
   </div>

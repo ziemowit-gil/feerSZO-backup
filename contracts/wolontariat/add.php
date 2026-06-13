@@ -480,7 +480,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $identity_type    = $_POST['identity_type']    ?? 'pesel';
 
         // Pola checkboxowe
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'z_webngo'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'z_webngo', 'm365_nie_wylaczaj'] as $f) {
             $row[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         $row['wspolpraca_przed_2026'] = $is_technical ? 1 : 0;
@@ -522,7 +522,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
             'docusign_signer_email', 'docusign_signer_name',
             'plik_umowy', 'uwagi', 'created_by', 'created_at', 'updated_at',
-            'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne', 'm365_data_utworzenia', 'm365_licencja_przypisana',
+            'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne', 'm365_nie_wylaczaj', 'm365_data_utworzenia', 'm365_licencja_przypisana',
             'nr_roboczy', 'nr_system', 'nr_rejestru',
             'adres_odbiorca', 'adres_linia1', 'adres_linia2', 'adres_kod_pocztowy', 'adres_miasto', 'adres_kraj',
             'addr_street', 'addr_house', 'addr_flat', 'addr_postal', 'addr_city', 'addr_country',
@@ -1205,6 +1205,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <input class="form-check-input" type="checkbox" name="bezterminowa" id="bezterminowa" value="1"
                    <?= !empty($row['bezterminowa'])?'checked':'' ?>>
             <label class="form-check-label small" for="bezterminowa">Bezterminowa</label>
+          </div>
+          <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" name="m365_nie_wylaczaj" id="m365_nie_wylaczaj" value="1"
+                   <?= !empty($row['m365_nie_wylaczaj'])?'checked':'' ?>>
+            <label class="form-check-label small" for="m365_nie_wylaczaj">Nie wyłączaj dostępu po wygaśnięciu umowy</label>
           </div>
         </div>
       </div>

@@ -888,10 +888,13 @@ function m365_should_be_active(array $row): bool {
     $end   = $row['data_zakonczenia'] ?? $row['termin_oddania'] ?? null;
     $status = $row['status'] ?? '';
     $bezterminowa = !empty($row['bezterminowa']);
-    if (in_array($status, ['zakończona','anulowana','rozwiązana','wygasła'], true)) return false;
+    // Flaga „nie wyłączaj dostępu po wygaśnięciu umowy" — konto pozostaje aktywne
+    // mimo upływu daty zakończenia (np. wolontariusz kontynuujący współpracę)
+    $nie_wylaczaj = !empty($row['m365_nie_wylaczaj']);
+    if (!$nie_wylaczaj && in_array($status, ['zakończona','anulowana','rozwiązana','wygasła'], true)) return false;
     if ($start && $start > $today) return false;
     // Wyłącz konto w dniu wygaśnięcia umowy (włącznie) — nie dzień po
-    if (!$bezterminowa && $end && $end <= $today) return false;
+    if (!$bezterminowa && !$nie_wylaczaj && $end && $end <= $today) return false;
     return true;
 }
 

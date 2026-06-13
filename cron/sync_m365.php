@@ -40,7 +40,7 @@ try {
         try {
             $rows = db_all(
                 "SELECT id, numer_umowy, m365_user_id, m365_login, m365_konto_aktywne,
-                        status, bezterminowa,
+                        status, bezterminowa, m365_nie_wylaczaj,
                         data_rozpoczecia, data_zakonczenia, data_zawarcia, termin_oddania
                  FROM {$table}
                  WHERE m365_konto = 1
