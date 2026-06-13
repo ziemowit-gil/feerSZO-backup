@@ -1,5 +1,6 @@
 <?php
 require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
 require_role('admin');
 $PAGE_TITLE = 'Audit log — Panel admina';
 require_once __DIR__ . '/../includes/header.php';
