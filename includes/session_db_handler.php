@@ -12,6 +12,7 @@ class DbSessionHandler implements SessionHandlerInterface
     {
         $this->pdo = $pdo;
         $this->_migrate();
+        $this->_assertWritable();
     }
 
     private function _migrate(): void
@@ -28,6 +29,22 @@ class DbSessionHandler implements SessionHandlerInterface
         } catch (\Throwable $e) {
             error_log('[session_db] migrate: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Próbny zapis wykrywający bazę tylko-do-odczytu / brak praw zapisu
+     * (np. plik umowy.db lub jego katalog niezapisywalny dla www-data).
+     * Rzucenie wyjątku pozwala auth_start() przejść na sesje plikowe,
+     * dzięki czemu logowanie i tokeny CSRF działają mimo problemu z bazą.
+     */
+    private function _assertWritable(): void
+    {
+        $probe = '__probe_' . bin2hex(random_bytes(6));
+        if ($this->write($probe, '')) {
+            $this->destroy($probe);
+            return;
+        }
+        throw new \RuntimeException('php_sessions table is not writable');
     }
 
     public function open(string $path, string $name): bool
