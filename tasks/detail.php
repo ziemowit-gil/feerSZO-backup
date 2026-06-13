@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/tasks.php';
+require_once dirname(__DIR__) . '/includes/org.php';
 
 require_login();
 $uid = (int)(current_user()['id'] ?? 0);
@@ -691,6 +692,28 @@ function td_render_mentions(string $text, array $users): string {
         <?php endforeach; ?>
       </select>
     </div>
+    <?php
+      $_all_units_det = [];
+      try { $_all_units_det = db_all("SELECT id, name, short_name FROM org_units WHERE status='active' ORDER BY name"); }
+      catch (\Throwable $e) {}
+    ?>
+    <?php if ($_all_units_det): ?>
+    <div>
+      <label class="form-label small fw-semibold text-muted mb-1" for="td-unit">
+        <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Jednostka org
+      </label>
+      <select id="td-unit" class="form-select form-select-sm"
+              onchange="tdPatch({unit_id:parseInt(this.value)||null})"
+              aria-label="Przypisz zadanie do jednostki organizacyjnej">
+        <option value="0">— brak —</option>
+        <?php foreach ($_all_units_det as $ou): ?>
+        <option value="<?= $ou['id'] ?>" <?= (int)($task['unit_id']??0)==$ou['id']?'selected':'' ?>>
+          <?= h($ou['name']) ?><?= $ou['short_name'] ? ' (' . h($ou['short_name']) . ')' : '' ?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <?php endif; ?>
   </div>
   <?php else: ?>
   <dl class="row g-1 small text-muted mb-0">
@@ -700,6 +723,10 @@ function td_render_mentions(string $text, array $users): string {
     <?php endif; ?>
     <dt class="col-auto"><i class="bi bi-columns-gap me-1" aria-hidden="true"></i>Kolumna:</dt>
     <dd class="col mb-0"><?= h($task['list_name']) ?></dd>
+    <?php if (!empty($task['unit_id'])): ?>
+    <dt class="col-auto"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Jednostka:</dt>
+    <dd class="col mb-0"><?= task_unit_badge((int)$task['unit_id']) ?></dd>
+    <?php endif; ?>
   </dl>
   <?php endif; ?>
 </div>

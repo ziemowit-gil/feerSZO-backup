@@ -32,21 +32,30 @@ function task_workspace_role(int $workspace_id, ?int $user_id = null): ?string {
     }
     if (!$user_id) return null;
 
-    // Admin systemu → zawsze pełny dostęp
+    // Admin systemu → zawsze pełny dostęp, pomija visible_roles/edit_roles
     $user = db_one("SELECT role FROM users WHERE id=?", [$user_id]);
-    if (($user['role'] ?? '') === 'admin') return 'admin';
+    $sys_role = $user['role'] ?? '';
+    if ($sys_role === 'admin') return 'admin';
+
+    // Wczytaj konfigurację obszaru raz
+    $ws = db_one(
+        "SELECT created_by, visible_roles, edit_roles FROM task_workspaces WHERE id=?",
+        [$workspace_id]
+    );
+
+    // Sprawdź visible_roles — jeśli ustawione, rola systemowa musi być na liście
+    $visible_roles = $ws ? (json_decode($ws['visible_roles'] ?? '', true) ?: []) : [];
+    if ($visible_roles && !in_array($sys_role, $visible_roles, true)) return null;
 
     // Sprawdź wpis w task_workspace_members
     $m = db_one(
         "SELECT role FROM task_workspace_members WHERE workspace_id=? AND user_id=?",
         [$workspace_id, $user_id]
     );
-    if ($m) return $m['role'];
+    $member_role = $m ? $m['role'] : null;
 
     // Twórca obszaru (created_by) → automatycznie lider (admin obszaru)
-    $ws = db_one("SELECT created_by FROM task_workspaces WHERE id=?", [$workspace_id]);
-    if ($ws && (int)$ws['created_by'] === $user_id) {
-        // Zapisz wpis, żeby kolejne sprawdzenia były szybsze
+    if (!$member_role && $ws && (int)$ws['created_by'] === $user_id) {
         try {
             db()->prepare(
                 "INSERT OR IGNORE INTO task_workspace_members
@@ -54,10 +63,19 @@ function task_workspace_role(int $workspace_id, ?int $user_id = null): ?string {
                  VALUES (?, ?, 'admin', ?, datetime('now','localtime'))"
             )->execute([$workspace_id, $user_id, $user_id]);
         } catch (\Throwable $e) {}
-        return 'admin';
+        $member_role = 'admin';
     }
 
-    return null;
+    if (!$member_role) return null;
+
+    // Sprawdź edit_roles — jeśli ustawione i rola systemowa jej nie ma → viewer
+    $edit_roles = $ws ? (json_decode($ws['edit_roles'] ?? '', true) ?: []) : [];
+    if ($edit_roles && in_array($member_role, ['admin', 'editor'], true)
+        && !in_array($sys_role, $edit_roles, true)) {
+        return 'viewer';
+    }
+
+    return $member_role;
 }
 
 /**
@@ -378,6 +396,14 @@ function task_areas_migrate(): void {
     )");
     try { $pdo->exec("ALTER TABLE tasks ADD COLUMN area_id INTEGER REFERENCES task_areas(id)"); }
     catch (\Throwable $e) {}
+    // v8: przypisanie do jednostki org
+    try { $pdo->exec("ALTER TABLE tasks ADD COLUMN unit_id INTEGER REFERENCES org_units(id) ON DELETE SET NULL"); }
+    catch (\Throwable $e) {}
+    // v8: widoczność i edycja obszaru per rola systemowa
+    try { $pdo->exec("ALTER TABLE task_workspaces ADD COLUMN visible_roles TEXT NOT NULL DEFAULT ''"); }
+    catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE task_workspaces ADD COLUMN edit_roles TEXT NOT NULL DEFAULT ''"); }
+    catch (\Throwable $e) {}
 }
 
 function task_get_areas(): array {
@@ -392,6 +418,19 @@ function task_area_badge(?int $area_id): string {
     $color = h($a['color']);
     return '<span class="badge" style="background:' . $color . ';font-size:.72em">'
          . '<i class="bi ' . h($a['icon']) . ' me-1"></i>' . h($a['name']) . '</span>';
+}
+
+// ── Jednostka org badge ────────────────────────────────────────────────────
+
+function task_unit_badge(?int $unit_id): string {
+    if (!$unit_id) return '';
+    try {
+        $u = db_one("SELECT name, short_name FROM org_units WHERE id=?", [$unit_id]);
+    } catch (\Throwable $e) { return ''; }
+    if (!$u) return '';
+    $label = $u['short_name'] ?: $u['name'];
+    return '<span class="badge" style="background:#ede9fe;color:#6d28d9;font-size:.68em" title="Jednostka: ' . h($u['name']) . '">'
+         . '<i class="bi bi-diagram-3 me-1"></i>' . h($label) . '</span>';
 }
 
 // ── Due date badge ─────────────────────────────────────────────────────────

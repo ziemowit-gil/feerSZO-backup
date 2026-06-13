@@ -72,6 +72,7 @@ function _tsk_active(string $path): bool {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
 /* ══════════════════════════════════════════════════════════════
    Moduł Zadania — standalone layout
@@ -548,6 +549,12 @@ body {
      aria-current="<?= _tsk_active('/tasks/settings/areas') ? 'page' : 'false' ?>">
     <i class="bi bi-layers" aria-hidden="true"></i>
     Obszary zadań
+  </a>
+  <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/roles') ? 'active' : '' ?>"
+     href="<?= APP_URL ?>/tasks/settings/roles.php"
+     aria-current="<?= _tsk_active('/tasks/settings/roles') ? 'page' : 'false' ?>">
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>
+    Uprawnienia ról
   </a>
   <?php endif; ?>
   <?php if ($_is_admin): ?>

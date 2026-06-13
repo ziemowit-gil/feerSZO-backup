@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/tasks.php';
+require_once dirname(__DIR__) . '/includes/org.php';
 
 require_login();
 require_module_enabled('tasks_enabled', 'Moduł zadań');
@@ -57,11 +58,14 @@ if ($ws_id) {
                     tl.name  AS list_name,
                     tl.color AS list_color,
                     tl.is_done_state,
+                    ou.name  AS unit_name,
+                    ou.short_name AS unit_short,
                     (SELECT COUNT(*) FROM task_assignments ta WHERE ta.task_id = t.id)            AS assignee_count,
                     (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id)             AS st_total,
                     (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id AND ts.is_done=1) AS st_done
              FROM tasks t
              JOIN task_lists tl ON tl.id = t.list_id
+             LEFT JOIN org_units ou ON ou.id = t.unit_id
              WHERE t.workspace_id = ? AND t.deleted_at IS NULL
              ORDER BY
                CASE WHEN t.completed_at IS NULL AND t.due_date IS NOT NULL
@@ -110,17 +114,24 @@ if ($ws_id) {
 $my_role = $ws_id ? task_workspace_role($ws_id, $uid) : null;
 $can_add = in_array($my_role, ['admin', 'editor'], true);
 
+// Jednostki org — do filtra i modala
+$all_org_units = [];
+try {
+    $all_org_units = db_all("SELECT id, name, short_name FROM org_units WHERE status='active' ORDER BY name");
+} catch (\Throwable $e) {}
+
 // Filtry
 $filter_status   = $_GET['status'] ?? 'all';
 $filter_priority = (int)($_GET['pri'] ?? 0);
 $filter_tag      = (int)($_GET['tag'] ?? 0);
 $filter_list     = (int)($_GET['list'] ?? 0);
 $filter_area     = (int)($_GET['area'] ?? 0);
+$filter_unit     = (int)($_GET['unit'] ?? 0);
 $filter_q        = trim($_GET['q'] ?? '');
 $all_areas       = task_get_areas();
 
 // Zastosuj filtry
-$tasks = array_filter($tasks_raw, function ($t) use ($filter_status, $filter_priority, $filter_tag, $filter_list, $filter_area, $filter_q, $uid) {
+$tasks = array_filter($tasks_raw, function ($t) use ($filter_status, $filter_priority, $filter_tag, $filter_list, $filter_area, $filter_unit, $filter_q, $uid) {
     if ($filter_status === 'open'  && $t['_status'] !== 'open')  return false;
     if ($filter_status === 'taken' && $t['_status'] !== 'taken') return false;
     if ($filter_status === 'done'  && $t['_status'] !== 'done')  return false;
@@ -129,6 +140,7 @@ $tasks = array_filter($tasks_raw, function ($t) use ($filter_status, $filter_pri
     if ($filter_tag  && !in_array($filter_tag,  array_column($t['tags'], 'id'), true)) return false;
     if ($filter_list && (int)$t['list_id'] !== $filter_list)    return false;
     if ($filter_area && (int)($t['area_id'] ?? 0) !== $filter_area) return false;
+    if ($filter_unit && (int)($t['unit_id'] ?? 0) !== $filter_unit) return false;
     if ($filter_q    && mb_stripos($t['title'] . ' ' . ($t['description'] ?? ''), $filter_q) === false) return false;
     return true;
 });
@@ -143,43 +155,79 @@ foreach ($tasks_raw as $t) {
 $view_mode = $_GET['view'] ?? 'list'; // 'list' | 'kanban'
 
 // ── Helper: renderuje region listy / kanbana (używany też przez ?_ajax=1) ─
-function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id, string $view_mode, ?array $workspace, bool $can_add, bool $is_admin): string
+function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id, string $view_mode, ?array $workspace, bool $can_add, bool $is_admin, array $all_org_units = []): string
 {
     ob_start(); ?>
 <?php if ($view_mode === 'kanban'): ?>
 <!-- ── Widok Kanban ──────────────────────────────────────────────────────── -->
 <div class="tk-kanban" id="tkListRegion">
   <?php foreach ($lists_map as $lid => $list): ?>
-  <?php $col_tasks = array_filter($tasks, fn($t) => (int)$t['list_id'] === (int)$lid); ?>
-  <div class="tk-kanban-col">
+  <?php $col_tasks = array_values(array_filter($tasks, fn($t) => (int)$t['list_id'] === (int)$lid)); ?>
+  <div class="tk-kanban-col" data-list-id="<?= (int)$lid ?>">
     <div class="tk-kanban-hdr" style="border-top:3px solid <?= h($list['color'] ?: '#94a3b8') ?>">
-      <span><?= h($list['name']) ?></span>
-      <span class="badge bg-secondary"><?= count($col_tasks) ?></span>
-    </div>
-    <?php foreach ($col_tasks as $t): ?>
-    <div class="tk-card" onclick="openTask(<?= (int)$t['id'] ?>)" data-task-id="<?= (int)$t['id'] ?>">
-      <div class="tk-card-title"><?= h($t['title']) ?></div>
-      <?php if ($t['due_date']): ?>
-      <div class="tk-card-due <?= $t['_overdue'] ? 'overdue' : '' ?>">
-        <i class="bi bi-calendar3"></i> <?= h(date('d.m', strtotime($t['due_date']))) ?>
+      <div class="d-flex align-items-center gap-2">
+        <?php if ($list['is_done_state']): ?>
+        <i class="bi bi-check-circle-fill text-success" style="font-size:.8rem"></i>
+        <?php endif; ?>
+        <span class="fw-semibold"><?= h($list['name']) ?></span>
+        <span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.68rem"><?= count($col_tasks) ?></span>
       </div>
+      <?php if ($can_add): ?>
+      <button class="tk-col-add" title="Dodaj zadanie w tej kolumnie"
+              onclick="openAddModal(<?= (int)$lid ?>)">
+        <i class="bi bi-plus-lg"></i>
+      </button>
       <?php endif; ?>
-      <div class="tk-card-meta">
-        <?php
-          $dot_color = match((int)$t['priority']) {
-            4 => '#dc2626', 3 => '#f59e0b', default => '#94a3b8'
-          };
-        ?>
-        <span style="color:<?= $dot_color ?>">●</span>
-        <?php foreach ($t['assignees'] as $a): ?>
-        <span class="tk-card-asgn" title="<?= h($a['name']) ?>"><?= h(mb_substr($a['name'],0,1)) ?></span>
-        <?php endforeach; ?>
-      </div>
     </div>
-    <?php endforeach; ?>
-    <?php if (empty($col_tasks)): ?>
-    <div class="tk-card-empty text-muted small">Brak zadań</div>
-    <?php endif; ?>
+    <div class="tk-kanban-body" data-list-id="<?= (int)$lid ?>">
+      <?php foreach ($col_tasks as $t): ?>
+      <?php
+        $k_pri_color = match((int)$t['priority']) {
+          4 => '#dc2626', 3 => '#f59e0b', 2 => '#3b82f6', default => '#94a3b8'
+        };
+        $k_pri_label = ['','Niski','Normalny','Wysoki','Krytyczny'][(int)$t['priority']] ?? '';
+        $k_unit_name = $t['unit_short'] ?: ($t['unit_name'] ?? null);
+      ?>
+      <div class="tk-card <?= $t['_status']==='done'?'tk-card-done':'' ?>"
+           data-task-id="<?= (int)$t['id'] ?>"
+           onclick="openTask(<?= (int)$t['id'] ?>)">
+        <div class="tk-card-pri-bar" style="background:<?= $k_pri_color ?>"></div>
+        <div class="tk-card-inner">
+          <div class="tk-card-title"><?= h($t['title']) ?></div>
+          <?php if ($k_unit_name): ?>
+          <div class="tk-card-unit">
+            <i class="bi bi-diagram-3"></i> <?= h($k_unit_name) ?>
+          </div>
+          <?php endif; ?>
+          <div class="tk-card-footer">
+            <div class="d-flex align-items-center gap-1">
+              <?php if ($t['due_date']): ?>
+              <span class="tk-card-due <?= $t['_overdue'] ? 'overdue' : '' ?>">
+                <i class="bi bi-calendar3"></i> <?= h(date('d.m', strtotime($t['due_date']))) ?>
+              </span>
+              <?php endif; ?>
+              <?php if ($t['st_total'] > 0): ?>
+              <span class="tk-card-st" title="Podzadania">
+                <i class="bi bi-check2-square"></i> <?= (int)$t['st_done'] ?>/<?= (int)$t['st_total'] ?>
+              </span>
+              <?php endif; ?>
+            </div>
+            <div class="tk-card-avstack">
+              <?php foreach (array_slice($t['assignees'], 0, 3) as $a): ?>
+              <span class="tk-card-asgn" title="<?= h($a['name']) ?>"><?= h(mb_substr($a['name'],0,1)) ?></span>
+              <?php endforeach; ?>
+              <?php if (count($t['assignees']) > 3): ?>
+              <span class="tk-card-asgn" style="background:#94a3b8">+<?= count($t['assignees'])-3 ?></span>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+      <?php if (empty($col_tasks)): ?>
+      <div class="tk-card-drop-hint">Przeciągnij tu lub kliknij +</div>
+      <?php endif; ?>
+    </div>
   </div>
   <?php endforeach; ?>
 </div>
@@ -453,7 +501,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <?php endif; ?>
         </td>
 
-        <!-- Przypisani -->
+        <!-- Przypisani + jednostka -->
         <td>
           <?php if ($task['assignees']): ?>
           <div class="tk-av-stack" aria-label="Przypisani: <?= h(implode(', ', array_column($task['assignees'],'name'))) ?>">
@@ -469,6 +517,9 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           </div>
           <?php else: ?>
           <span class="text-muted" style="font-size:.75rem">Brak</span>
+          <?php endif; ?>
+          <?php if (!empty($task['unit_name'])): ?>
+          <div class="mt-1"><?= task_unit_badge((int)$task['unit_id']) ?></div>
           <?php endif; ?>
         </td>
 
@@ -525,7 +576,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
 // ── AJAX — zwróć tylko listę/kanban ───────────────────────────────────────
 if (isset($_GET['_ajax'])) {
     ob_start();
-    echo _tasks_list_html($tasks, $cnt, $lists_map, $ws_id, $view_mode, $workspace, $can_add, $is_admin);
+    echo _tasks_list_html($tasks, $cnt, $lists_map, $ws_id, $view_mode, $workspace, $can_add, $is_admin, $all_org_units);
     echo json_encode(['ok'=>true,'total'=>count($tasks),'list_html'=>ob_get_clean(),'counts'=>$cnt]);
     exit;
 }
@@ -800,17 +851,31 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .tk-status-btn:hover{opacity:.75}
 
 /* ── Kanban ── */
-.tk-kanban{display:flex;gap:1rem;overflow-x:auto;align-items:flex-start;padding-bottom:1rem}
-.tk-kanban-col{min-width:240px;max-width:280px;background:#f8fafc;border-radius:10px;padding:.6rem}
-.tk-kanban-hdr{display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem .6rem;font-weight:600;font-size:.85rem;margin-bottom:.4rem}
-.tk-card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;margin-bottom:.4rem;cursor:pointer;transition:box-shadow .12s}
-.tk-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
-.tk-card-title{font-size:.85rem;font-weight:500;margin-bottom:.3rem}
-.tk-card-due{font-size:.74rem;color:#64748b;margin-bottom:.3rem}
+.tk-kanban{display:flex;gap:1rem;overflow-x:auto;align-items:flex-start;padding-bottom:1.5rem}
+.tk-kanban-col{min-width:256px;max-width:288px;background:#f8fafc;border-radius:10px;flex-shrink:0}
+.tk-kanban-hdr{display:flex;justify-content:space-between;align-items:center;padding:.55rem .65rem .55rem;font-size:.82rem;border-bottom:1px solid #e2e8f0}
+.tk-kanban-body{padding:.5rem;min-height:60px}
+.tk-col-add{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.15rem .3rem;border-radius:.3rem;font-size:.9rem;line-height:1;transition:all .12s;flex-shrink:0}
+.tk-col-add:hover{color:#2563eb;background:#eff6ff}
+.tk-card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:.4rem;cursor:pointer;transition:box-shadow .12s;overflow:hidden;display:flex}
+.tk-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.1);border-color:#cbd5e1}
+.tk-card-done{opacity:.6}
+.tk-card-pri-bar{width:3px;flex-shrink:0}
+.tk-card-inner{flex:1;padding:.55rem .65rem;min-width:0}
+.tk-card-title{font-size:.84rem;font-weight:500;color:#0f172a;line-height:1.4;margin-bottom:.25rem;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tk-card-unit{font-size:.68rem;color:#6d28d9;margin-bottom:.25rem;
+  display:flex;align-items:center;gap:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-card-footer{display:flex;justify-content:space-between;align-items:center;gap:.3rem}
+.tk-card-due{font-size:.7rem;color:#64748b;display:flex;align-items:center;gap:.2rem;white-space:nowrap}
 .tk-card-due.overdue{color:#dc2626;font-weight:600}
-.tk-card-meta{display:flex;align-items:center;gap:.3rem;font-size:.8rem}
-.tk-card-asgn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:.68rem;font-weight:700}
-.tk-card-empty{text-align:center;padding:.5rem}
+.tk-card-st{font-size:.7rem;color:#64748b;display:flex;align-items:center;gap:.2rem;white-space:nowrap}
+.tk-card-avstack{display:flex}
+.tk-card-asgn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:.62rem;font-weight:700;border:2px solid #fff;flex-shrink:0}
+.tk-card-avstack .tk-card-asgn+.tk-card-asgn{margin-left:-5px}
+.tk-card-drop-hint{text-align:center;padding:.75rem .5rem;font-size:.75rem;color:#94a3b8;border:1.5px dashed #e2e8f0;border-radius:6px;margin:.25rem 0}
+.tk-card-ghost{opacity:.4;background:#eff6ff!important;border-color:#93c5fd!important}
+.tk-card-dragging{box-shadow:0 8px 24px rgba(0,0,0,.18);transform:rotate(1.5deg)}
 </style>
 
 <div id="tk-sr" aria-live="polite" aria-atomic="true"></div>
@@ -993,6 +1058,19 @@ require_once __DIR__ . '/includes/header_tasks.php';
   </select>
   <?php endif; ?>
 
+  <!-- Jednostka org -->
+  <?php if ($all_org_units): ?>
+  <label class="visually-hidden" for="tk-unit">Jednostka</label>
+  <select id="tk-unit" name="unit" class="tk-select" onchange="tkAjaxLoad()">
+    <option value="0" <?= !$filter_unit?'selected':'' ?>>Każda jednostka</option>
+    <?php foreach ($all_org_units as $ou): ?>
+    <option value="<?= $ou['id'] ?>" <?= $filter_unit==$ou['id']?'selected':'' ?>>
+      <?= h($ou['short_name'] ?: $ou['name']) ?>
+    </option>
+    <?php endforeach; ?>
+  </select>
+  <?php endif; ?>
+
   <!-- Widok + Dodaj zadanie + Usuń obszar -->
   <div class="ms-auto d-flex gap-2 align-items-center">
     <?php
@@ -1028,7 +1106,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 
 </form>
 
-<?php echo _tasks_list_html($tasks, $cnt, $lists_map, $ws_id, $view_mode, $workspace, $can_add, $is_admin); ?>
+<?php echo _tasks_list_html($tasks, $cnt, $lists_map, $ws_id, $view_mode, $workspace, $can_add, $is_admin, $all_org_units); ?>
 
 <?php endif; /* workspace */ ?>
 <?php endif; /* workspaces */ ?>
@@ -1127,6 +1205,19 @@ require_once __DIR__ . '/includes/header_tasks.php';
               <option value="0">— brak obszaru —</option>
               <?php foreach ($all_areas as $ar): ?>
               <option value="<?= $ar['id'] ?>"><?= h($ar['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+          <?php if ($all_org_units): ?>
+          <div class="col-12">
+            <label class="form-label fw-semibold small" for="at-unit">
+              <i class="bi bi-diagram-3 me-1 text-purple"></i>Jednostka org
+            </label>
+            <select id="at-unit" class="form-select form-select-sm">
+              <option value="0">— brak przypisania do jednostki —</option>
+              <?php foreach ($all_org_units as $ou): ?>
+              <option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?><?= $ou['short_name'] ? ' (' . h($ou['short_name']) . ')' : '' ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -1300,8 +1391,8 @@ function tkSetPriority(taskId, pri) {
       .catch(() => alert('Błąd połączenia.'));
 }
 
-/* Dodaj zadanie */
-function openAddModal() {
+/* Dodaj zadanie — opcjonalny listId (z quick-add w kanbanie) */
+function openAddModal(listId) {
     const el = document.getElementById('addTaskModal');
     if (!el) return;
     document.getElementById('at-title').value    = '';
@@ -1309,6 +1400,10 @@ function openAddModal() {
     document.getElementById('at-due').value      = '';
     document.getElementById('at-priority').value = '2';
     document.getElementById('at-error').classList.add('d-none');
+    const listSel = document.getElementById('at-list');
+    if (listSel && listId) listSel.value = String(listId);
+    const unitSel = document.getElementById('at-unit');
+    if (unitSel) unitSel.value = '0';
     bootstrap.Modal.getOrCreateInstance(el).show();
     setTimeout(() => document.getElementById('at-title').focus(), 350);
 }
@@ -1343,6 +1438,7 @@ function submitAddTask() {
             priority:     parseInt(document.getElementById('at-priority').value),
             list_id:      parseInt(document.getElementById('at-list').value),
             area_id:      parseInt(document.getElementById('at-area')?.value || '0') || null,
+            unit_id:      parseInt(document.getElementById('at-unit')?.value || '0') || null,
             workspace_id: WS_ID
         })
     })
@@ -1438,6 +1534,83 @@ const atTitle = document.getElementById('at-title');
 if (atTitle) atTitle.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); submitAddTask(); }
 });
+
+// ── Kanban drag & drop (SortableJS) ──────────────────────────────────────
+function tkInitKanban() {
+    const bodies = document.querySelectorAll('.tk-kanban-body');
+    if (!bodies.length || typeof Sortable === 'undefined') return;
+
+    bodies.forEach(col => {
+        Sortable.create(col, {
+            group:     'tk-kanban',
+            animation: 150,
+            ghostClass:'tk-card-ghost',
+            dragClass: 'tk-card-dragging',
+            handle:    '.tk-card-inner',
+            onEnd: function(evt) {
+                const card       = evt.item;
+                const taskId     = parseInt(card.dataset.taskId);
+                const newListId  = parseInt(evt.to.dataset.listId);
+                const orderedIds = Array.from(evt.to.querySelectorAll('[data-task-id]'))
+                                       .map(c => parseInt(c.dataset.taskId));
+
+                if (!taskId || !newListId) return;
+
+                // Optymistyczny: aktualizuj liczniki kolumn
+                evt.from.closest('.tk-kanban-col')
+                   ?.querySelector('.badge')
+                   ?.textContent > 0 && evt.from.closest('.tk-kanban-col')
+                   .querySelectorAll('.tk-card').length;
+
+                fetch(BASE + '/tasks/api/move.php', {
+                    method:  'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body:    JSON.stringify({
+                        _csrf:       CSRF,
+                        task_id:     taskId,
+                        list_id:     newListId,
+                        position:    evt.newIndex + 1,
+                        ordered_ids: orderedIds
+                    })
+                })
+                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) {
+                        tkAnnounce('Błąd przenoszenia: ' + (r.error || ''));
+                        tkAjaxLoad(); // cofnij wizualnie
+                    } else {
+                        // Odśwież liczniki kolumn
+                        document.querySelectorAll('.tk-kanban-col').forEach(col => {
+                            const cnt = col.querySelectorAll('.tk-card').length;
+                            const badge = col.querySelector('.tk-kanban-hdr .badge');
+                            if (badge) badge.textContent = cnt;
+                        });
+                        // Usuń hint "brak zadań" jeśli kolumna niepusta
+                        evt.to.querySelector('.tk-card-drop-hint')?.remove();
+                        // Dodaj hint jeśli kolumna źródłowa pusta
+                        if (!evt.from.querySelector('[data-task-id]')) {
+                            const hint = document.createElement('div');
+                            hint.className = 'tk-card-drop-hint';
+                            hint.textContent = 'Przeciągnij tu lub kliknij +';
+                            evt.from.appendChild(hint);
+                        }
+                    }
+                })
+                .catch(() => { tkAnnounce('Błąd połączenia.'); tkAjaxLoad(); });
+            }
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', tkInitKanban);
+
+// Po przeładowaniu AJAX — reinicjuj kanban
+const _origTkAjaxLoad = tkAjaxLoad;
+window.tkAjaxLoad = function(e) {
+    _origTkAjaxLoad(e);
+    // Krótkie opóźnienie — daj czas na podmianę DOM
+    setTimeout(tkInitKanban, 250);
+};
 </script>
 
 <?php if ($can_add && $workspace): ?>

@@ -45,13 +45,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $color = preg_match('/^#[0-9a-fA-F]{6}$/', $_POST['color'] ?? '') ? $_POST['color'] : '#2563eb';
         $icon  = preg_replace('/[^a-z0-9\-]/', '', $_POST['icon'] ?? 'kanban');
 
+        // Role systemowe (visible/edit) — walidacja przez listę istniejących ról
+        $all_role_names = array_column(db_all("SELECT name FROM roles ORDER BY display_name"), 'name');
+        $norm_roles_arr = function(array $input) use ($all_role_names): string {
+            $filtered = array_values(array_filter($input, fn($r) => in_array($r, $all_role_names, true)));
+            return $filtered ? json_encode($filtered, JSON_UNESCAPED_UNICODE) : '';
+        };
+        $visible_roles = $norm_roles_arr((array)($_POST['visible_roles'] ?? []));
+        $edit_roles    = $norm_roles_arr((array)($_POST['edit_roles']    ?? []));
+
         if (!$name) { flash_set('error', 'Nazwa obszaru jest wymagana.'); goto redirect; }
 
         if ($ws_id && $can_edit_ws) {
             db()->prepare(
                 "UPDATE task_workspaces SET name=?, description=?, color=?, icon=?,
+                 visible_roles=?, edit_roles=?,
                  updated_at=datetime('now','localtime') WHERE id=?"
-            )->execute([$name, $desc, $color, 'bi-' . ltrim($icon, 'bi-'), $ws_id]);
+            )->execute([$name, $desc, $color, 'bi-' . ltrim($icon, 'bi-'), $visible_roles, $edit_roles, $ws_id]);
             flash_set('success', 'Obszar zaktualizowany.');
         } elseif (!$ws_id) {
             // Nowy obszar — każdy lider może tworzyć
@@ -471,6 +481,11 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
       <!-- ── Ustawienia ── -->
       <div class="tab-pane fade" id="tab-settings">
+        <?php
+          $all_roles_for_ws = db_all("SELECT name, display_name FROM roles ORDER BY display_name");
+          $ws_visible_roles = json_decode($active_ws['visible_roles'] ?? '', true) ?: [];
+          $ws_edit_roles    = json_decode($active_ws['edit_roles']    ?? '', true) ?: [];
+        ?>
         <div class="card border-0 shadow-sm">
           <div class="card-body">
             <form method="post" class="row g-3">
@@ -499,6 +514,59 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
                          value="<?= h(ltrim($active_ws['icon'],'bi-')) ?>" placeholder="kanban">
                 </div>
               </div>
+
+              <?php if ($all_roles_for_ws): ?>
+              <!-- ── Role widoczności / edycji ── -->
+              <div class="col-12">
+                <hr class="my-1">
+                <div class="fw-semibold small mb-2">
+                  <i class="bi bi-shield-lock me-1 text-primary"></i>Uprawnienia ról systemowych
+                </div>
+                <p class="text-muted small mb-2">
+                  Puste = brak ograniczeń (każda rola z dostępem do obszaru).
+                  Administratorzy systemu mają zawsze pełny dostęp.
+                </p>
+                <div class="row g-3">
+                  <div class="col-sm-6">
+                    <label class="form-label small fw-semibold text-secondary">
+                      <i class="bi bi-eye me-1"></i>Może widzieć obszar (<code>visible_roles</code>)
+                    </label>
+                    <div class="border rounded p-2" style="max-height:160px;overflow-y:auto;background:#fafafa">
+                      <?php foreach ($all_roles_for_ws as $r): ?>
+                      <div class="form-check form-check-sm mb-1">
+                        <input class="form-check-input" type="checkbox"
+                               name="visible_roles[]" value="<?= h($r['name']) ?>"
+                               id="vr_<?= h($r['name']) ?>"
+                               <?= in_array($r['name'], $ws_visible_roles) ? 'checked' : '' ?>>
+                        <label class="form-check-label small" for="vr_<?= h($r['name']) ?>">
+                          <?= h($r['display_name']) ?>
+                        </label>
+                      </div>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label small fw-semibold text-secondary">
+                      <i class="bi bi-pencil-square me-1"></i>Może edytować (<code>edit_roles</code>)
+                    </label>
+                    <div class="border rounded p-2" style="max-height:160px;overflow-y:auto;background:#fafafa">
+                      <?php foreach ($all_roles_for_ws as $r): ?>
+                      <div class="form-check form-check-sm mb-1">
+                        <input class="form-check-input" type="checkbox"
+                               name="edit_roles[]" value="<?= h($r['name']) ?>"
+                               id="er_<?= h($r['name']) ?>"
+                               <?= in_array($r['name'], $ws_edit_roles) ? 'checked' : '' ?>>
+                        <label class="form-check-label small" for="er_<?= h($r['name']) ?>">
+                          <?= h($r['display_name']) ?>
+                        </label>
+                      </div>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <?php endif; ?>
+
               <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
                 <button type="submit" class="btn btn-sm btn-primary">
                   <i class="bi bi-check2 me-1"></i>Zapisz zmiany
