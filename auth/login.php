@@ -656,6 +656,13 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
         </div>
       </div>
     </div>
+    <div style="text-align:center;padding:.55rem;border-top:1px solid #eef2f7">
+      <a href="<?= APP_URL ?>/auth/help.php" class="forgot-link" style="font-size:.8rem"
+         aria-label="Otwórz instrukcję: jak się zalogować i jak ustalić login i hasło">
+        <i class="bi bi-question-circle" aria-hidden="true"></i>
+        Nie wiesz, jak się zalogować?
+      </a>
+    </div>
   </div>
 
   <?php
