@@ -60,6 +60,16 @@
 // define('MS_REDIRECT_URI', 'https://twoja-domena.pl/auth/microsoft.php');
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  SYNCHRONIZACJA KONT DO ŚRODOWISKA TESTOWEGO  (tylko na PRODUKCJI)
+// ══════════════════════════════════════════════════════════════════════════════
+// Gdy zdefiniowane, nowe/zmienione konta użytkowników są automatycznie
+// kopiowane do środowiska testowego. TEST_SYNC_KEY musi być identyczny w obu
+// środowiskach. Wygeneruj klucz: php -r "echo bin2hex(random_bytes(24));"
+//
+// define('TEST_SYNC_URL', 'https://testy-szo.feer.org.pl');
+// define('TEST_SYNC_KEY', 'wklej_tutaj_wspolny_klucz_min_32_znakow');
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  ŚCIEŻKI
 // ══════════════════════════════════════════════════════════════════════════════
 // define('UPLOAD_DIR', '/var/www/feer/uploads/');

@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/permissions.php';
+require_once dirname(__DIR__) . '/includes/user_sync.php';
 
 require_role('admin');
 ika_require(APP_URL . '/admin/users.php', 3600);
@@ -81,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $log_note = 'Dodano użytkownika: ' . $name . ' (' . $email . '), rola: ' . $role;
                 if ($ms_id_link) $log_note .= ' [połączono z M365]';
                 log_user_action($new_uid, (int)current_user()['id'], 'user_create', $log_note);
+                user_sync_push($insert_data);
                 flash_set('success', 'Użytkownik ' . $name . ' został dodany.'
                     . ($ms_id_link ? ' Konto Microsoft 365 zostało połączone.' : ''));
                 header('Location: users.php');
@@ -101,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare("UPDATE users SET role = ? WHERE id = ?")->execute([$role, $uid]);
                 log_user_action($uid, (int)current_user()['id'], 'user_role_change',
                     'Zmiana roli: ' . ($chk['role'] ?? '?') . ' → ' . $role);
+                user_sync_push(['email' => $chk['email'], 'role' => $role]);
                 flash_set('success', 'Rola użytkownika została zmieniona.');
             }
         }
@@ -121,6 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare("UPDATE users SET is_active = ? WHERE id = ?")->execute([$new, $uid]);
                 log_user_action($uid, (int)current_user()['id'], 'user_toggle',
                     $new ? 'Konto aktywowane' : 'Konto dezaktywowane');
+                user_sync_push(['email' => $u['email'], 'is_active' => $new]);
                 flash_set('success', $new ? 'Użytkownik aktywowany.' : 'Użytkownik dezaktywowany.');
             }
         } else {
@@ -139,11 +143,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             for ($i = 0; $i < 12; $i++) {
                 $new_pass .= $chars[random_int(0, strlen($chars) - 1)];
             }
+            $hash_new = password_hash($new_pass, PASSWORD_BCRYPT);
             db()->prepare("UPDATE users SET password=?, must_change_password=1 WHERE id=?")
-                ->execute([password_hash($new_pass, PASSWORD_BCRYPT), $uid]);
+                ->execute([$hash_new, $uid]);
             // Unieważnij wszystkie aktywne sesje użytkownika
             try { require_once dirname(__DIR__) . '/includes/auth_security.php'; session_destroy_all($uid); } catch(\Throwable $e) {}
             log_user_action($uid, (int)current_user()['id'], 'user_password_reset', 'Losowy reset hasła');
+            $u_email = db_one("SELECT email FROM users WHERE id=?", [$uid]);
+            if ($u_email) user_sync_push(['email' => $u_email['email'], 'password' => $hash_new]);
             auth_start();
             $_SESSION['reset_pass_info'] = ['uid' => $uid, 'pass' => $new_pass];
         }

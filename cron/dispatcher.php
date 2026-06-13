@@ -50,6 +50,11 @@ $AGENTS = [
         'interval' => 86400,
         'schedule' => [8, 10],
     ],
+    'zus_reminder' => [
+        'file'     => __DIR__ . '/zus_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [8, 10],      // między 8:00 a 10:00
+    ],
     'process_m365_queue' => [
         'file'     => __DIR__ . '/process_m365_queue.php',
         'interval' => 300,          // co 5 min
@@ -73,6 +78,10 @@ $AGENTS = [
         'file'     => __DIR__ . '/outlook_calendar_sync.php',
         'interval' => 3600,         // co godzinę
         'schedule' => [6, 23],      // w godzinach pracy
+    ],
+    'sync_users_to_test' => [
+        'file'     => __DIR__ . '/sync_users_to_test.php',
+        'interval' => 3600,         // co godzinę
     ],
 ];
 
