@@ -405,6 +405,12 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
   <nav class="qa">
     <a href="<?= APP_URL ?>/contracts/wolontariat/add.php" class="qa-btn"><i class="bi bi-plus-circle text-primary"></i>Nowa umowa wolontariatu</a>
     <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="qa-btn"><i class="bi bi-heart" style="color:#EF4444"></i>Wolontariusze</a>
+    <?php if (module_enabled('dyspozycyjnosc_enabled')):
+      $_urlop_pending = 0;
+      try { require_once __DIR__ . '/includes/dyspozycyjnosc.php'; $_urlop_pending = urlop_pending_count(); } catch (\Throwable $e) {}
+    ?>
+    <a href="<?= APP_URL ?>/contracts/wolontariat/urlopy.php" class="qa-btn"><i class="bi bi-airplane" style="color:#D97706"></i>Urlopy<?php if ($_urlop_pending): ?> <span class="badge bg-danger rounded-pill"><?= $_urlop_pending ?></span><?php endif; ?></a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/strategy/actions/index.php" class="qa-btn"><i class="bi bi-lightning-charge text-primary"></i>Działania</a>
     <a href="<?= APP_URL ?>/grants/index.php" class="qa-btn"><i class="bi bi-cash-coin text-success"></i>Granty</a>
     <?php if ($crm_enabled): ?><a href="<?= APP_URL ?>/crm/index.php" class="qa-btn"><i class="bi bi-people" style="color:#16A34A"></i>Kontakty CRM</a><?php endif; ?>

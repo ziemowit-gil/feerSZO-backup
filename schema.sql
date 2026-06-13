@@ -289,3 +289,35 @@ CREATE TABLE IF NOT EXISTS settings (
     key_ VARCHAR(100) PRIMARY KEY,
     value TEXT
 );
+
+-- DYSPOZYCYJNOŚĆ WOLONTARIUSZA — konkretne sloty (data + godziny)
+CREATE TABLE IF NOT EXISTS wol_dyspozycje (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER NOT NULL,
+    data        TEXT NOT NULL,
+    czas_od     TEXT NOT NULL,
+    czas_do     TEXT NOT NULL,
+    notatka     TEXT,
+    source      TEXT NOT NULL DEFAULT 'wolontariusz',
+    created_by  INTEGER,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_wol_dyspo_contract ON wol_dyspozycje(contract_id);
+
+-- URLOPY WOLONTARIUSZA — przedziały dat z formalną akceptacją
+CREATE TABLE IF NOT EXISTS wol_urlopy (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id   INTEGER NOT NULL,
+    data_od       TEXT NOT NULL,
+    data_do       TEXT NOT NULL,
+    powod         TEXT,
+    status        TEXT NOT NULL DEFAULT 'oczekuje',
+    decided_by    INTEGER,
+    decided_at    TEXT,
+    decision_note TEXT,
+    source        TEXT NOT NULL DEFAULT 'wolontariusz',
+    created_by    INTEGER,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_wol_urlop_contract ON wol_urlopy(contract_id);
+CREATE INDEX IF NOT EXISTS idx_wol_urlop_status ON wol_urlopy(status);

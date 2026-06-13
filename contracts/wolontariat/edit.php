@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
+require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 
 require_role('admin', 'editor');
 $TYPE  = 'wolontariat';
@@ -769,6 +770,138 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
       </div>
     </div>
   </div>
+
+  <!-- ── Dyspozycyjność szczegółowa (sloty) + urlopy ─────────────── -->
+  <?php if (module_enabled('dyspozycyjnosc_enabled')):
+  dyspo_migrate();
+  $dyspo_slots_init  = dyspo_slots($id);
+  $dyspo_urlopy_init = urlop_list($id);
+  ?>
+  <div id="dyspoAdmin" data-cid="<?= (int)$id ?>" class="mb-3">
+    <div class="row g-3">
+      <!-- Sloty -->
+      <div class="col-md-6">
+        <div class="p-3 rounded h-100" style="background:#f8fafc;border:1px solid #e2e8f0">
+          <div class="fw-semibold small mb-2"><i class="bi bi-clock me-1 text-primary"></i>Konkretne terminy dostępności</div>
+          <div id="dyspoSlotList" class="d-flex flex-column gap-1 mb-2"></div>
+          <div class="d-flex flex-wrap gap-1 align-items-end">
+            <div><label class="form-label small mb-0">Data</label><input type="date" id="dyspoSlotData" class="form-control form-control-sm"></div>
+            <div><label class="form-label small mb-0">Od</label><input type="time" id="dyspoSlotOd" class="form-control form-control-sm"></div>
+            <div><label class="form-label small mb-0">Do</label><input type="time" id="dyspoSlotDo" class="form-control form-control-sm"></div>
+            <button type="button" id="dyspoSlotAdd" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i></button>
+          </div>
+          <input type="text" id="dyspoSlotNota" class="form-control form-control-sm mt-1" placeholder="Notatka (opcjonalnie)">
+        </div>
+      </div>
+      <!-- Urlopy -->
+      <div class="col-md-6">
+        <div class="p-3 rounded h-100" style="background:#fff7ed;border:1px solid #fed7aa">
+          <div class="fw-semibold small mb-2"><i class="bi bi-airplane me-1 text-warning"></i>Urlopy / niedostępność <span class="text-muted fw-normal">(akceptacja formalna)</span></div>
+          <div id="dyspoUrlopList" class="d-flex flex-column gap-1 mb-2"></div>
+          <div class="d-flex flex-wrap gap-1 align-items-end">
+            <div><label class="form-label small mb-0">Od</label><input type="date" id="dyspoUrlOd" class="form-control form-control-sm"></div>
+            <div><label class="form-label small mb-0">Do</label><input type="date" id="dyspoUrlDo" class="form-control form-control-sm"></div>
+            <button type="button" id="dyspoUrlAdd" class="btn btn-sm btn-warning text-dark"><i class="bi bi-plus-lg"></i></button>
+          </div>
+          <input type="text" id="dyspoUrlPowod" class="form-control form-control-sm mt-1" placeholder="Powód (opcjonalnie)">
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    const CID  = <?= (int)$id ?>;
+    const CSRF = <?= json_encode(csrf_token()) ?>;
+    const EP   = <?= json_encode(APP_URL . '/contracts/wolontariat/dyspo_action.php') ?>;
+    const SBADGE = {oczekuje:['warning','Oczekuje'],zaakceptowany:['success','Zaakceptowany'],odrzucony:['danger','Odrzucony']};
+    let state = <?= json_encode(['slots'=>$dyspo_slots_init,'urlopy'=>$dyspo_urlopy_init], JSON_UNESCAPED_UNICODE) ?>;
+
+    const el = id => document.getElementById(id);
+    const slotList = el('dyspoSlotList'), urlList = el('dyspoUrlopList');
+
+    function plDate(d){ if(!d) return ''; const p=d.split('-'); return p.length===3?`${p[2]}.${p[1]}.${p[0]}`:d; }
+    function hhmm(t){ return (t||'').slice(0,5); }
+
+    async function call(payload){
+      const fd = new FormData();
+      fd.append('_ajax','1'); fd.append('_csrf',CSRF); fd.append('contract_id',CID);
+      for (const k in payload) fd.append(k, payload[k]);
+      const r = await fetch(EP, {method:'POST', body:fd, headers:{'Accept':'application/json'}});
+      const j = await r.json();
+      if (j.ok) { state = {slots:j.slots, urlopy:j.urlopy}; render(); }
+      else alert(j.error || 'Błąd zapisu.');
+    }
+
+    function mkBtn(cls, icon, title){
+      const b=document.createElement('button'); b.type='button';
+      b.className='btn btn-sm '+cls; b.title=title||''; b.innerHTML='<i class="bi '+icon+'"></i>';
+      return b;
+    }
+
+    function render(){
+      // Sloty
+      slotList.innerHTML='';
+      if(!state.slots.length){ slotList.innerHTML='<div class="text-muted small fst-italic">Brak terminów.</div>'; }
+      state.slots.forEach(s=>{
+        const row=document.createElement('div');
+        row.className='d-flex align-items-center gap-2 bg-white border rounded px-2 py-1';
+        const txt=document.createElement('div'); txt.className='small flex-grow-1';
+        txt.innerHTML='<strong></strong> <span class="text-muted"></span>';
+        txt.querySelector('strong').textContent = plDate(s.data)+'  '+hhmm(s.czas_od)+'–'+hhmm(s.czas_do);
+        if(s.notatka){ txt.querySelector('span').textContent = '· '+s.notatka; }
+        const del=mkBtn('btn-outline-danger border-0 p-1','bi-trash','Usuń');
+        del.onclick=()=>{ if(confirm('Usunąć termin?')) call({action:'slot_del', id:s.id}); };
+        row.append(txt, del); slotList.append(row);
+      });
+      // Urlopy
+      urlList.innerHTML='';
+      if(!state.urlopy.length){ urlList.innerHTML='<div class="text-muted small fst-italic">Brak urlopów.</div>'; }
+      state.urlopy.forEach(u=>{
+        const wrap=document.createElement('div');
+        wrap.className='bg-white border rounded px-2 py-1';
+        const top=document.createElement('div'); top.className='d-flex align-items-center gap-2';
+        const txt=document.createElement('div'); txt.className='small flex-grow-1';
+        const rng = plDate(u.data_od)+(u.data_od===u.data_do?'':' – '+plDate(u.data_do));
+        txt.innerHTML='<strong></strong> <span class="text-muted"></span>';
+        txt.querySelector('strong').textContent=rng;
+        if(u.powod){ txt.querySelector('span').textContent='· '+u.powod; }
+        const bi=SBADGE[u.status]||['secondary',u.status];
+        const badge=document.createElement('span'); badge.className='badge bg-'+bi[0]; badge.textContent=bi[1];
+        top.append(txt, badge);
+        if(u.status==='oczekuje'){
+          const ok=mkBtn('btn-success p-1','bi-check-lg','Zatwierdź');
+          ok.onclick=()=>call({action:'urlop_decide', id:u.id, decision:'zaakceptowany', decision_note:''});
+          const no=mkBtn('btn-outline-danger border-0 p-1','bi-x-lg','Odrzuć');
+          no.onclick=()=>{ const n=prompt('Powód odrzucenia (opcjonalnie):')??''; call({action:'urlop_decide', id:u.id, decision:'odrzucony', decision_note:n}); };
+          top.append(ok, no);
+        } else {
+          const del=mkBtn('btn-outline-secondary border-0 p-1','bi-trash','Usuń');
+          del.onclick=()=>{ if(confirm('Usunąć wpis urlopu?')) call({action:'urlop_del', id:u.id}); };
+          top.append(del);
+        }
+        wrap.append(top);
+        if(u.decision_note){ const n=document.createElement('div'); n.className='text-muted small mt-1'; n.textContent='Uwaga: '+u.decision_note; wrap.append(n); }
+        urlList.append(wrap);
+      });
+    }
+
+    el('dyspoSlotAdd').onclick=()=>{
+      const data=el('dyspoSlotData').value, od=el('dyspoSlotOd').value, doKon=el('dyspoSlotDo').value;
+      if(!data||!od||!doKon){ alert('Podaj datę i godziny.'); return; }
+      call({action:'slot_add', data, czas_od:od, czas_do:doKon, notatka:el('dyspoSlotNota').value})
+        .then(()=>{ el('dyspoSlotData').value=el('dyspoSlotOd').value=el('dyspoSlotDo').value=el('dyspoSlotNota').value=''; });
+    };
+    el('dyspoUrlAdd').onclick=()=>{
+      const od=el('dyspoUrlOd').value, doKon=el('dyspoUrlDo').value;
+      if(!od||!doKon){ alert('Podaj zakres dat.'); return; }
+      call({action:'urlop_add', data_od:od, data_do:doKon, powod:el('dyspoUrlPowod').value})
+        .then(()=>{ el('dyspoUrlOd').value=el('dyspoUrlDo').value=el('dyspoUrlPowod').value=''; });
+    };
+
+    render();
+  })();
+  </script>
+  <?php endif; ?>
 
   <!-- Zgoda RODO email -->
   <div class="p-3 rounded mb-2" style="background:#f0fdf4;border:1px solid #bbf7d0">

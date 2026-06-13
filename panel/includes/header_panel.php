@@ -207,10 +207,12 @@ if ('serviceWorker' in navigator) {
   <a href="<?= APP_URL ?>/panel/apply.php" class="pv-nav-link<?= _pv_nav_active('/panel/apply') ?>">
     <i class="bi bi-send" aria-hidden="true"></i>Wyślij wniosek
   </a>
+  <?php if (module_enabled('dyspozycyjnosc_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/dyspozycyjnosc.php" class="pv-nav-link<?= _pv_nav_active('/panel/dyspozycyjnosc') ?>"
      aria-label="Moja dyspozycyjność i urlopy">
     <i class="bi bi-calendar-heart" aria-hidden="true"></i>Dyspozycyjność i urlopy
   </a>
+  <?php endif; ?>
   <?php if (module_enabled('certificates_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/certificates.php" class="pv-nav-link<?= _pv_nav_active('/panel/certificates') ?>">
     <i class="bi bi-award" aria-hidden="true"></i>Zaświadczenia

@@ -6,6 +6,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/termination.php';
 require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
+require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
@@ -2144,6 +2145,8 @@ $_profil_pora     = json_decode($row['dostepnosc_pora']  ?? '[]', true) ?: [];
 $_dni_labels      = ['pon'=>'Pon','wt'=>'Wt','sr'=>'Śr','czw'=>'Czw','pt'=>'Pt','sob'=>'Sob','ndz'=>'Ndz'];
 $_pora_labels     = ['rano'=>'Rano','popoludnie'=>'Południe','wieczor'=>'Wieczór','weekend'=>'Weekend'];
 $_has_profil      = !empty($row['wolontariat_typ']) || !empty($row['wojewodztwo']) || !empty($_profil_obszary) || !empty($row['kompetencje']) || !empty($_profil_dni);
+$_dyspo_slots     = dyspo_slots($id);
+$_dyspo_urlopy    = urlop_list($id);
 ?>
 <div class="tab-pane fade<?= ($_tab==='profil'||$_tab==='all')?' show active':'' ?>" id="tab-profil" role="tabpanel">
 
@@ -2276,6 +2279,83 @@ $_has_profil      = !empty($row['wolontariat_typ']) || !empty($row['wojewodztwo'
         </div>
       </div>
       <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Dyspozycyjność szczegółowa (sloty) -->
+  <?php if (module_enabled('dyspozycyjnosc_enabled') && !empty($_dyspo_slots)): ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#eff6ff;color:#2563eb"><i class="bi bi-clock"></i></div>
+      <span class="cv-section-title">Konkretne terminy dostępności</span>
+    </div>
+    <div class="d-flex flex-column gap-1">
+      <?php foreach ($_dyspo_slots as $_s): ?>
+      <div class="d-flex align-items-center gap-2 border rounded px-2 py-1">
+        <i class="bi bi-calendar-event text-primary"></i>
+        <span class="fw-semibold small"><?= h(date_pl($_s['data'])) ?> · <?= h(substr($_s['czas_od'],0,5)) ?>–<?= h(substr($_s['czas_do'],0,5)) ?></span>
+        <?php if (!empty($_s['notatka'])): ?><span class="text-muted small">· <?= h($_s['notatka']) ?></span><?php endif; ?>
+        <?php if (($_s['source'] ?? '') === 'wolontariusz'): ?><span class="badge bg-light text-secondary border ms-auto" style="font-size:.62rem">od wolontariusza</span><?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Urlopy / niedostępność -->
+  <?php if (module_enabled('dyspozycyjnosc_enabled') && !empty($_dyspo_urlopy)):
+    $_url_ret = APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=profil';
+  ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#fff7ed;color:#d97706"><i class="bi bi-airplane"></i></div>
+      <span class="cv-section-title">Urlopy / niedostępność</span>
+      <?php $_url_pend = count(array_filter($_dyspo_urlopy, fn($u) => $u['status']==='oczekuje')); ?>
+      <?php if ($_url_pend): ?>
+      <div class="cv-section-action"><span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i><?= $_url_pend ?> do akceptacji</span></div>
+      <?php endif; ?>
+    </div>
+    <div class="d-flex flex-column gap-2">
+      <?php foreach ($_dyspo_urlopy as $_u):
+        $_same = $_u['data_od'] === $_u['data_do'];
+      ?>
+      <div class="border rounded px-2 py-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <i class="bi bi-airplane-engines text-warning"></i>
+          <span class="fw-semibold small">
+            <?= h(date_pl($_u['data_od'])) ?><?= $_same ? '' : ' – ' . h(date_pl($_u['data_do'])) ?>
+          </span>
+          <?php if (!empty($_u['powod'])): ?><span class="text-muted small">· <?= h($_u['powod']) ?></span><?php endif; ?>
+          <span class="ms-auto"><?= urlop_status_badge($_u['status']) ?></span>
+          <?php if (can_edit() && $_u['status'] === 'oczekuje'): ?>
+          <form method="post" action="<?= APP_URL ?>/contracts/wolontariat/dyspo_action.php" class="d-inline">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="urlop_decide">
+            <input type="hidden" name="contract_id" value="<?= $id ?>">
+            <input type="hidden" name="id" value="<?= (int)$_u['id'] ?>">
+            <input type="hidden" name="decision" value="zaakceptowany">
+            <input type="hidden" name="return" value="<?= h($_url_ret) ?>">
+            <button class="btn btn-sm btn-success py-0"><i class="bi bi-check-lg me-1"></i>Zatwierdź</button>
+          </form>
+          <form method="post" action="<?= APP_URL ?>/contracts/wolontariat/dyspo_action.php" class="d-inline"
+                onsubmit="this.decision_note.value = prompt('Powód odrzucenia (opcjonalnie):') || '';">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="urlop_decide">
+            <input type="hidden" name="contract_id" value="<?= $id ?>">
+            <input type="hidden" name="id" value="<?= (int)$_u['id'] ?>">
+            <input type="hidden" name="decision" value="odrzucony">
+            <input type="hidden" name="decision_note" value="">
+            <input type="hidden" name="return" value="<?= h($_url_ret) ?>">
+            <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-x-lg me-1"></i>Odrzuć</button>
+          </form>
+          <?php endif; ?>
+        </div>
+        <?php if (!empty($_u['decision_note'])): ?>
+        <div class="text-muted small mt-1"><i class="bi bi-chat-left-text me-1"></i><?= h($_u['decision_note']) ?><?php if (!empty($_u['decided_by_name'])): ?> <span class="text-secondary">— <?= h($_u['decided_by_name']) ?></span><?php endif; ?></div>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
     </div>
   </div>
   <?php endif; ?>

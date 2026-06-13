@@ -20,6 +20,7 @@ $module_groups = [
         'reports_enabled'      => ['label' => 'Zestawienia i raporty',         'icon' => 'bi-bar-chart-line',   'desc' => 'Statystyki, wykresy i eksport danych umów.'],
         'approvals_enabled'    => ['label' => 'Obieg dokumentów (akceptacje)', 'icon' => 'bi-check2-square',    'desc' => 'Wnioski o zmiany umów, ścieżki akceptacji, aneksy.',                              'config' => 'approval_workflows.php'],
         'terminations_enabled' => ['label' => 'Rozwiązania umów',              'icon' => 'bi-file-earmark-x',   'desc' => 'Wnioski o rozwiązanie umowy składane przez wolontariuszy i wykonawców.'],
+        'dyspozycyjnosc_enabled' => ['label' => 'Dyspozycyjność i urlopy',      'icon' => 'bi-calendar-heart',   'desc' => 'Wolontariusz sam określa terminy dostępności i zgłasza urlopy; opiekun formalnie je zatwierdza.'],
         'certificates_enabled' => ['label' => 'Zaświadczenia',                 'icon' => 'bi-award',            'desc' => 'Generowanie i wydawanie zaświadczeń dla wolontariuszy i wykonawców.',             'config' => 'certificates.php'],
         'letters_enabled'      => ['label' => 'Pisma',                         'icon' => 'bi-envelope-paper',   'desc' => 'Pisma i korespondencja generowana w kontekście umów.'],
         'moodle_enabled'          => ['label' => 'Moodle — e-learning',           'icon' => 'bi-mortarboard',        'desc' => 'Integracja z platformą Moodle — zapisy na kursy, synchronizacja użytkowników.',          'config' => 'moodle.php'],

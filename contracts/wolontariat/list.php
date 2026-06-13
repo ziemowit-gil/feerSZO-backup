@@ -8,10 +8,13 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
 require_module_enabled('contract_wolontariat', 'Ten typ umowy');
+
+$_urlop_pending = urlop_pending_count();
 
 $PAGE_TITLE = 'Porozumienia wolontariackie';
 $TYPE  = 'wolontariat';
@@ -221,6 +224,14 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
     </div>
   </div>
   <div class="d-flex gap-2">
+    <?php if (module_enabled('dyspozycyjnosc_enabled')): ?>
+    <a href="<?= APP_URL ?>/contracts/wolontariat/urlopy.php" class="btn btn-outline-warning position-relative" title="Zatwierdzanie urlopów">
+      <i class="bi bi-airplane me-1"></i>Urlopy
+      <?php if ($_urlop_pending): ?>
+      <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $_urlop_pending ?></span>
+      <?php endif; ?>
+    </a>
+    <?php endif; ?>
     <?php if (can_edit()): ?>
     <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/new.php" class="btn btn-primary">
       <i class="bi bi-plus-lg me-1"></i>Nowe porozumienie
