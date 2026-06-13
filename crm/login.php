@@ -205,7 +205,17 @@ html, body { height: 100%; margin: 0; padding: 0; }
 .org-header-mobile .org-name-big { font-size: 1.05rem; font-weight: 700; color: #1e293b; }
 
 .form-heading { font-size: 1.3rem; font-weight: 700; color: #0f172a; margin-bottom: .2rem; }
-.form-sub     { font-size: .84rem; color: #64748b; margin-bottom: 1.5rem; }
+.form-sub     { font-size: .84rem; color: #64748b; margin-bottom: 1.25rem; }
+
+/* ── Przewodnik: dwie ścieżki logowania ──────────────────── */
+.login-paths { border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 1.4rem; overflow: hidden; background: #fff; }
+.login-path  { display: flex; align-items: flex-start; gap: .7rem; padding: .8rem .95rem; }
+.login-path + .login-path { border-top: 1px solid #eef2f7; }
+.login-path-badge { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .95rem; background: var(--c-ring, #eef7ee); color: var(--c, #2f7d32); }
+.login-path-badge.alt { background: #f1f5f9; color: #475569; }
+.login-path-title { font-size: .84rem; font-weight: 700; color: #0f172a; line-height: 1.3; }
+.login-path-desc  { font-size: .77rem; color: #64748b; line-height: 1.55; margin-top: .1rem; }
+.login-path-desc strong { color: #334155; font-weight: 700; }
 
 .form-label   { font-size: .81rem; font-weight: 600; color: #374151; margin-bottom: .3rem; }
 .form-control { border-color: #d1d5db; border-radius: .5rem; font-size: .94rem; padding: .6rem .85rem; transition: border-color .15s, box-shadow .15s; }
@@ -310,10 +320,32 @@ html, body { height: 100%; margin: 0; padding: 0; }
     </div>
 
     <div class="form-heading">Logowanie do CRM</div>
-    <div class="form-sub">
-      <?= $ms_crm_available
-        ? 'Zaloguj się kontem Microsoft 365 Twojej organizacji.'
-        : 'Wprowadź dane konta, aby zarządzać kontaktami.' ?>
+    <div class="form-sub">Wybierz sposób logowania do panelu CRM.</div>
+
+    <!-- Przewodnik: która ścieżka logowania dla kogo -->
+    <div class="login-paths" role="note" aria-label="Jak się zalogować">
+      <div class="login-path">
+        <span class="login-path-badge" aria-hidden="true"><i class="bi <?= $ms_crm_available ? 'bi-microsoft' : 'bi-envelope-at-fill' ?>"></i></span>
+        <div>
+          <div class="login-path-title">Masz konto @feer.org.pl</div>
+          <div class="login-path-desc">
+            <?php if ($ms_crm_available): ?>
+            Zaloguj się przez <strong>Microsoft 365</strong> lub e-mailem służbowym i hasłem. Administracja zawsze kontem <strong>@feer.org.pl</strong>.
+            <?php else: ?>
+            Zaloguj się e-mailem służbowym <strong>@feer.org.pl</strong> i hasłem.
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+      <div class="login-path">
+        <span class="login-path-badge alt" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
+        <div>
+          <div class="login-path-title">Nie masz konta @feer.org.pl</div>
+          <div class="login-path-desc">
+            Zaloguj się lokalnie swoim <strong>prywatnym e-mailem</strong> — tym podanym do WiadomościFEER — i ustawionym hasłem.
+          </div>
+        </div>
+      </div>
     </div>
 
     <?php if ($error): ?>
@@ -342,7 +374,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
     <!-- Separator — fallback dla adminów -->
     <div style="display:flex;align-items:center;gap:.75rem;margin:1.5rem 0">
       <div style="flex:1;height:1px;background:#E5E7EB"></div>
-      <span style="font-size:.72rem;color:#9CA3AF;white-space:nowrap">administrator? logowanie lokalne</span>
+      <span style="font-size:.72rem;color:#9CA3AF;white-space:nowrap">lub e-mailem i hasłem</span>
       <div style="flex:1;height:1px;background:#E5E7EB"></div>
     </div>
     <?php endif; ?>
@@ -363,7 +395,11 @@ html, body { height: 100%; margin: 0; padding: 0; }
                    value="<?= h($_POST['email'] ?? '') ?>"
                    placeholder="nazwa@domena.pl"
                    autocomplete="email"
+                   aria-describedby="crm-email-hint"
                    <?= !$ms_crm_available ? 'autofocus' : '' ?> required>
+            <div id="crm-email-hint" style="font-size:.75rem;color:#94a3b8;margin-top:.3rem;line-height:1.45">
+              E-mail służbowy <strong>@feer.org.pl</strong> albo prywatny e-mail podany do WiadomościFEER.
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label" for="password">Hasło</label>
