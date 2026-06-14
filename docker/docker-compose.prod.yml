@@ -138,5 +138,35 @@ services:
     networks:
       - feer
 
+  # ── TI redirect — ti.feer.org.pl → szo.feer.org.pl/karty30/ti/kursant/ ──
+  # Panel kursanta TI. Używa wyłącznie Traefik middlewares (bez dodatkowego
+  # kontenera); serwis "dummy" jest potrzebny tylko jako uchwyt dla labels.
+  ti-redirect:
+    image: traefik/whoami:latest
+    container_name: feer-ti-redirect
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+
+      # ── Middleware: 301 redirect ti.* → szo.feer.org.pl/karty30/ti/kursant/ ─
+      - "traefik.http.middlewares.ti-redirect.redirectregex.regex=^https?://${DOMAIN_TI:-ti.feer.org.pl}/(.*)"
+      - "traefik.http.middlewares.ti-redirect.redirectregex.replacement=https://${DOMAIN}/karty30/ti/kursant/$${1}"
+      - "traefik.http.middlewares.ti-redirect.redirectregex.permanent=true"
+
+      # ── Router HTTPS — ti.feer.org.pl ────────────────────────────────────
+      - "traefik.http.routers.ti-redirect.rule=Host(`${DOMAIN_TI:-ti.feer.org.pl}`)"
+      - "traefik.http.routers.ti-redirect.entrypoints=websecure"
+      - "traefik.http.routers.ti-redirect.tls=true"
+      - "traefik.http.routers.ti-redirect.tls.certresolver=le"
+      - "traefik.http.routers.ti-redirect.middlewares=ti-redirect@docker"
+      - "traefik.http.services.ti-redirect.loadbalancer.server.port=80"
+
+      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
+      - "traefik.http.routers.ti-redirect-http.rule=Host(`${DOMAIN_TI:-ti.feer.org.pl}`)"
+      - "traefik.http.routers.ti-redirect-http.entrypoints=web"
+      - "traefik.http.routers.ti-redirect-http.middlewares=https-redirect@docker"
+    networks:
+      - feer
+
 volumes:
   letsencrypt_data:
