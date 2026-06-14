@@ -58,6 +58,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // Korekta rozliczenia — opłata dodatkowa (+) lub rabat (−)
+    if ($op === 'set_adjustment') {
+        $bid  = (int)($_POST['billing_id'] ?? 0);
+        $kind = ($_POST['adj_kind'] ?? 'fee') === 'discount' ? 'discount' : 'fee';
+        $val  = (float)str_replace(',', '.', (string)($_POST['adj_value'] ?? '0'));
+        $val  = abs($val);
+        $adj  = $kind === 'discount' ? -$val : $val;
+        $note = trim($_POST['adj_note'] ?? '');
+        if ($bid) {
+            db()->prepare("UPDATE k30_ti_billing SET adjustment=?, adjustment_note=? WHERE id=?")
+               ->execute([$adj, $note, $bid]);
+            flash_set('success', $adj == 0 ? 'Korekta usunięta.' : 'Korekta zapisana.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Miękkie usuwanie rozliczenia (status='cancelled') — tylko admin
     if ($op === 'delete') {
         if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
@@ -167,31 +183,52 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <i class="bi bi-check-circle text-success me-2"></i>Wystawione rozliczenia
     <span class="badge bg-secondary ms-2"><?= count($billings) ?></span>
     <span class="ms-auto text-muted small fw-normal">
-      Razem: <?= number_format(array_sum(array_column($billings,'amount')),2,',','') ?> zł
+      Razem: <?= number_format(array_sum(array_map(fn($b)=>(float)$b['amount']+(float)($b['adjustment']??0),$billings)),2,',','') ?> zł
     </span>
   </div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Klient</th><th>Godz.</th><th>Kwota</th><th>Status</th><th class="text-end">Akcje</th></tr>
+        <tr><th>Klient</th><th>Godz.</th><th>Korekta</th><th>Do zapłaty</th><th>Status</th><th class="text-end">Akcje</th></tr>
       </thead>
       <tbody>
         <?php foreach ($billings as $b):
-          $bs = K30_TI_BILLING_STATUSES[$b['status']] ?? ['label'=>$b['status'],'color'=>'#666','bg'=>'#eee'];
+          $bs   = K30_TI_BILLING_STATUSES[$b['status']] ?? ['label'=>$b['status'],'color'=>'#666','bg'=>'#eee'];
+          $adj  = (float)($b['adjustment'] ?? 0);
+          $base = (float)$b['amount'];
+          $tot  = $base + $adj;
         ?>
         <tr>
           <td>
             <div class="fw-semibold"><?= h($b['client_name']) ?></div>
             <?php if ($b['notes']): ?><div class="text-muted small"><?= h($b['notes']) ?></div><?php endif; ?>
           </td>
-          <td><?= number_format((float)$b['hours_billed'],2,',','') ?> h</td>
-          <td class="fw-semibold"><?= number_format((float)$b['amount'],2,',','') ?> zł</td>
+          <td><?= number_format((float)$b['hours_billed'],2,',','') ?> h<br>
+            <span class="text-muted small"><?= number_format($base,2,',','') ?> zł</span>
+          </td>
+          <td>
+            <?php if ($adj != 0): ?>
+              <span class="fw-semibold <?= $adj > 0 ? 'text-danger' : 'text-success' ?>">
+                <?= ($adj > 0 ? '+' : '−') . number_format(abs($adj),2,',','') ?> zł
+              </span>
+              <div class="text-muted small"><?= $adj > 0 ? 'opłata dod.' : 'rabat' ?><?= $b['adjustment_note'] ? ': '.h($b['adjustment_note']) : '' ?></div>
+            <?php else: ?>
+              <span class="text-muted">—</span>
+            <?php endif; ?>
+          </td>
+          <td class="fw-bold"><?= number_format($tot,2,',','') ?> zł</td>
           <td>
             <span class="badge" style="background:<?= h($bs['bg']) ?>;color:<?= h($bs['color']) ?>;border:1px solid <?= h($bs['color']) ?>44;font-size:.74rem">
               <?= h($bs['label']) ?>
             </span>
           </td>
-          <td class="text-end">
+          <td class="text-end text-nowrap">
+            <?php if ($can_write): ?>
+            <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2" title="Opłata dodatkowa / rabat"
+                    data-bs-toggle="collapse" data-bs-target="#adj<?= (int)$b['id'] ?>">
+              <i class="bi bi-percent"></i>
+            </button>
+            <?php endif; ?>
             <?php if ($b['status'] === 'issued' && $can_write): ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
@@ -214,6 +251,38 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php endif; ?>
           </td>
         </tr>
+        <?php if ($can_write): ?>
+        <tr class="collapse" id="adj<?= (int)$b['id'] ?>">
+          <td colspan="6" class="bg-light">
+            <form method="post" class="row g-2 align-items-end">
+              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"        value="set_adjustment">
+              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+              <div class="col-auto">
+                <label class="form-label small mb-0">Rodzaj</label>
+                <select name="adj_kind" class="form-select form-select-sm">
+                  <option value="fee"      <?= $adj > 0 ? 'selected' : '' ?>>Opłata dodatkowa (+)</option>
+                  <option value="discount" <?= $adj < 0 ? 'selected' : '' ?>>Rabat (−)</option>
+                </select>
+              </div>
+              <div class="col-auto">
+                <label class="form-label small mb-0">Kwota (zł)</label>
+                <input type="text" name="adj_value" class="form-control form-control-sm" style="max-width:120px"
+                       value="<?= $adj != 0 ? number_format(abs($adj),2,',','') : '' ?>" placeholder="0,00">
+              </div>
+              <div class="col">
+                <label class="form-label small mb-0">Opis (opcjonalnie)</label>
+                <input type="text" name="adj_note" class="form-control form-control-sm"
+                       value="<?= h($b['adjustment_note'] ?? '') ?>" placeholder="np. materiały, rabat lojalnościowy">
+              </div>
+              <div class="col-auto">
+                <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
+              </div>
+              <div class="form-text">Wpisz 0, aby usunąć korektę.</div>
+            </form>
+          </td>
+        </tr>
+        <?php endif; ?>
         <?php endforeach; ?>
       </tbody>
     </table>

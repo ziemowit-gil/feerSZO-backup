@@ -244,6 +244,13 @@ function karty30_migrate(): void {
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(client_id, month, year)
     )");
+    // Migracja: korekta rozliczenia — opłata dodatkowa (+) lub rabat (−)
+    foreach ([
+        "ALTER TABLE k30_ti_billing ADD COLUMN adjustment      REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_billing ADD COLUMN adjustment_note TEXT NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
     // Migracja: miękkie usuwanie kursów TI (status 'active'|'cancelled')
     try { $pdo->exec("ALTER TABLE k30_ti_courses ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"); } catch (\Throwable $e) {}
     // Migracja: session_date → lesson_date (SQLite 3.25+)
@@ -301,6 +308,99 @@ function karty30_migrate(): void {
         added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(client_id)
+    )");
+
+    // ── VLAB — wirtualne maszyny (kontenery Docker) dla kursantów TI ───────────
+    // Konfiguracja zdalnego hosta Dockera (pojedynczy wiersz id=1).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_config (
+        id              INTEGER PRIMARY KEY CHECK (id = 1),
+        ssh_host        TEXT    NOT NULL DEFAULT '',
+        ssh_port        INTEGER NOT NULL DEFAULT 22,
+        ssh_user        TEXT    NOT NULL DEFAULT '',
+        ssh_auth        TEXT    NOT NULL DEFAULT 'key',   -- 'key' | 'password'
+        ssh_key_path    TEXT    NOT NULL DEFAULT '',
+        ssh_password    TEXT    NOT NULL DEFAULT '',
+        public_host     TEXT    NOT NULL DEFAULT '',      -- host/IP dla linków ttyd i SSH
+        ttyd_enabled    INTEGER NOT NULL DEFAULT 1,
+        ttyd_scheme     TEXT    NOT NULL DEFAULT 'http',  -- 'http' | 'https'
+        max_per_student INTEGER NOT NULL DEFAULT 3,
+        default_cpus    TEXT    NOT NULL DEFAULT '1',
+        default_mem     TEXT    NOT NULL DEFAULT '512m',
+        is_enabled      INTEGER NOT NULL DEFAULT 0,
+        updated_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Domyślny wiersz konfiguracji
+    $pdo->exec("INSERT OR IGNORE INTO k30_ti_vlab_config (id) VALUES (1)");
+
+    // Katalog szablonów (obrazów Docker) dostępnych dla kursantów
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_templates (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT    NOT NULL,
+        description   TEXT    NOT NULL DEFAULT '',
+        docker_image  TEXT    NOT NULL,
+        run_cmd       TEXT    NOT NULL DEFAULT '',
+        cpus          TEXT    NOT NULL DEFAULT '',
+        mem           TEXT    NOT NULL DEFAULT '',
+        expose_ssh    INTEGER NOT NULL DEFAULT 1,
+        expose_ttyd   INTEGER NOT NULL DEFAULT 1,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        sort          INTEGER NOT NULL DEFAULT 0,
+        created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Kontenery kursantów
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_containers (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id     INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        client_id      INTEGER REFERENCES k30_clients(id) ON DELETE SET NULL,
+        template_id    INTEGER REFERENCES k30_ti_vlab_templates(id) ON DELETE SET NULL,
+        label          TEXT    NOT NULL DEFAULT '',
+        container_name TEXT    NOT NULL UNIQUE,
+        container_id   TEXT    NOT NULL DEFAULT '',
+        status         TEXT    NOT NULL DEFAULT 'provisioning', -- provisioning|running|stopped|error|removed
+        ssh_port       INTEGER,
+        ttyd_port      INTEGER,
+        ssh_user       TEXT    NOT NULL DEFAULT '',
+        ssh_password   TEXT    NOT NULL DEFAULT '',
+        ttyd_user      TEXT    NOT NULL DEFAULT '',
+        ttyd_password  TEXT    NOT NULL DEFAULT '',
+        error_msg      TEXT    NOT NULL DEFAULT '',
+        last_action_at DATETIME,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        removed_at     DATETIME
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_cont_student ON k30_ti_vlab_containers(student_id,status)");
+
+    // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
+    foreach ([
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN is_minor       INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_name  TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_phone TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_email TEXT    NOT NULL DEFAULT ''",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+    // Tokeny linku magicznego dla rodzica (dostęp do rozliczeń dziecka)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_parent_tokens (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id  INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        token       TEXT    NOT NULL UNIQUE,
+        expires_at  DATETIME,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_parent_tokens_student ON k30_ti_parent_tokens(student_id)");
+
+    // Audyt operacji VLAB
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        container_id INTEGER REFERENCES k30_ti_vlab_containers(id) ON DELETE SET NULL,
+        student_id   INTEGER,
+        action       TEXT    NOT NULL DEFAULT '',
+        ok           INTEGER NOT NULL DEFAULT 0,
+        detail       TEXT    NOT NULL DEFAULT '',
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 }
 
@@ -1124,6 +1224,31 @@ function k30_ti_client_courses(int $client_id): array {
          JOIN k30_ti_courses c ON c.id=e.course_id
          LEFT JOIN users u ON u.id=c.instructor_id
          WHERE e.client_id=? ORDER BY c.name", [$client_id]
+    );
+}
+
+/** Wystawione/robocze rozliczenia kursanta (do widoku kursanta i rodzica). */
+function k30_ti_client_billing(int $client_id): array {
+    return db_all(
+        "SELECT * FROM k30_ti_billing
+         WHERE client_id=? AND status!='cancelled'
+         ORDER BY year DESC, month DESC", [$client_id]
+    );
+}
+
+/** Ostatnie lekcje kursanta z obecnością (współdzielone: panel kursanta + rodzica). */
+function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
+    return db_all(
+        "SELECT s.*, c.name AS course_name, a.attended, a.ind_notes
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
+         WHERE s.course_id IN (
+             SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active'
+         )
+         ORDER BY s.lesson_date DESC, s.time_from DESC
+         LIMIT " . max(1, $limit),
+        [$client_id, $client_id]
     );
 }
 

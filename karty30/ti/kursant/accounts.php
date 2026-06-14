@@ -7,6 +7,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+require_once __DIR__ . '/auth.php'; // parent_make_token()
 
 k30_require_access();
 karty30_migrate();
@@ -35,6 +37,24 @@ function _gen_student_login(string $name, string $suffix = ''): string {
 function _gen_student_pass(): string {
     $words = ['Kot','Pies','Dom','Las','Rok','Nos','Byk','Lis','Mak','Rak'];
     return $words[random_int(0, count($words)-1)] . random_int(10, 99);
+}
+
+/**
+ * Wysyła dane logowania do panelu kursanta SMS-em (jeśli SMS włączony i jest numer).
+ * Zwraca dopisek do komunikatu flash informujący o statusie wysyłki.
+ */
+function _student_send_login_sms(string $phone, string $login, string $pass): string {
+    $phone = trim($phone);
+    if ($phone === '') return ' (brak numeru telefonu — przekaż hasło ręcznie)';
+    if (!sms_is_enabled()) return ' (SMS wyłączony — przekaż hasło ręcznie)';
+    $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
+    $msg = "{$org} - panel kursanta. Login: {$login}, haslo: {$pass}";
+    try {
+        sms_send($phone, $msg);
+        return ' Hasło wysłano SMS-em.';
+    } catch (\Throwable $e) {
+        return ' (błąd wysyłki SMS: ' . $e->getMessage() . ')';
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -69,7 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Pokaż hasło raz w sesji
         if (session_status() !== PHP_SESSION_ACTIVE) session_start();
         $_SESSION['new_student_creds'] = ['login' => $login, 'password' => $pass, 'name' => $c['name']];
-        flash_set('success', "Konto kursanta dla {$c['name']} utworzone. Login: {$login}");
+        $sms = _student_send_login_sms($c['phone'] ?? '', $login, $pass);
+        flash_set('success', "Konto kursanta dla {$c['name']} utworzone. Login: {$login}." . $sms);
         header('Location: accounts.php'); exit;
     }
 
@@ -81,9 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, updated_at=datetime('now') WHERE id=?")
            ->execute([password_hash($pass, PASSWORD_BCRYPT), $aid]);
         if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $c = db_one("SELECT name FROM k30_clients WHERE id=?", [$acc['client_id']]);
+        $c = db_one("SELECT name, phone FROM k30_clients WHERE id=?", [$acc['client_id']]);
         $_SESSION['new_student_creds'] = ['login' => $acc['login'], 'password' => $pass, 'name' => $c['name'] ?? ''];
-        flash_set('success', "Hasło zresetowane dla {$acc['login']}");
+        $sms = _student_send_login_sms($c['phone'] ?? '', $acc['login'], $pass);
+        flash_set('success', "Hasło zresetowane dla {$acc['login']}." . $sms);
         header('Location: accounts.php'); exit;
     }
 
@@ -103,6 +125,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success','Konto usunięte.');
         header('Location: accounts.php'); exit;
     }
+
+    // Zapis danych opiekuna + status małoletniego
+    if ($op === 'guardian_save') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        if ($aid) {
+            db()->prepare(
+                "UPDATE k30_ti_student_accounts
+                 SET is_minor=?, guardian_name=?, guardian_phone=?, guardian_email=?, updated_at=datetime('now')
+                 WHERE id=?"
+            )->execute([
+                isset($_POST['is_minor']) ? 1 : 0,
+                trim($_POST['guardian_name'] ?? ''),
+                trim($_POST['guardian_phone'] ?? ''),
+                trim($_POST['guardian_email'] ?? ''),
+                $aid,
+            ]);
+            flash_set('success', 'Dane opiekuna zapisane.');
+        }
+        header('Location: accounts.php?guardian=' . $aid); exit;
+    }
+
+    // Wygeneruj link magiczny rodzica i wyślij go e-mailem (jeśli jest adres)
+    if ($op === 'parent_link') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        if ($acc) {
+            $token = parent_make_token($aid);
+            $url   = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?t=' . $token;
+            if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+            $_SESSION['parent_link'] = $url;
+            $email = trim($acc['guardian_email'] ?? '');
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+                $cl   = db_one("SELECT name FROM k30_clients WHERE id=?", [$acc['client_id']]);
+                $org  = defined('ORG_NAME') ? ORG_NAME : 'Panel';
+                $html = "<p>Dzień dobry,</p>"
+                      . "<p>Poniższy link daje dostęp do rozliczeń i frekwencji kursanta <strong>"
+                      . h($cl['name'] ?? '') . "</strong> w {$org}:</p>"
+                      . "<p><a href=\"{$url}\">{$url}</a></p>"
+                      . "<p style='color:#888;font-size:12px'>Link jest ważny 30 dni. Nie udostępniaj go osobom trzecim.</p>";
+                try {
+                    mail_queue_add($email, $acc['guardian_name'] ?? '', "Dostęp do rozliczeń — {$org}", $html, '', 'ti_parent', $aid, '', true);
+                    flash_set('success', 'Link wysłano na e-mail opiekuna: ' . $email);
+                } catch (\Throwable $e) {
+                    flash_set('warning', 'Link wygenerowany, ale wysyłka e-mail nie powiodła się: ' . $e->getMessage());
+                }
+            } else {
+                flash_set('warning', 'Brak poprawnego e-maila opiekuna — skopiuj link ręcznie poniżej.');
+            }
+        }
+        header('Location: accounts.php?guardian=' . $aid); exit;
+    }
 }
 
 // Wczytaj
@@ -120,8 +194,18 @@ $no_account  = array_filter($all_clients, fn($c) => !in_array((int)$c['id'], $ta
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $new_creds = $_SESSION['new_student_creds'] ?? null;
 unset($_SESSION['new_student_creds']);
+$parent_link = $_SESSION['parent_link'] ?? null;
+unset($_SESSION['parent_link']);
 
-$portal_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
+// Edytor opiekuna
+$guardian_id  = (int)($_GET['guardian'] ?? 0);
+$guardian_acc = $guardian_id ? db_one(
+    "SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a
+     JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$guardian_id]
+) : null;
+
+$portal_url        = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
+$parent_portal_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php';
 
 include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
 ?>
@@ -134,9 +218,12 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
 
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-person-badge text-primary me-2"></i>Konta kursantów</h4>
-  <div class="ms-auto">
+  <div class="ms-auto d-flex gap-2">
+    <a href="<?= h($parent_portal_url) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-people me-1"></i>Panel rodzica
+    </a>
     <a href="<?= h($portal_url) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz panel kursanta
+      <i class="bi bi-box-arrow-up-right me-1"></i>Panel kursanta
     </a>
   </div>
 </div>
@@ -157,6 +244,54 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
     <div class="small text-muted">Link do logowania: <a href="<?= h($portal_url) ?>" target="_blank"><?= h($portal_url) ?></a></div>
   </div>
   <button type="button" class="btn-close" onclick="this.closest('.alert').remove()"></button>
+</div>
+<?php endif; ?>
+
+<!-- Edytor opiekuna / dostęp rodzica -->
+<?php if ($guardian_acc): ?>
+<div class="card border-0 shadow-sm mb-4" style="max-width:640px">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <span><i class="bi bi-people me-2 text-primary"></i>Opiekun / dostęp rodzica — <?= h($guardian_acc['client_name']) ?></span>
+    <a href="accounts.php" class="btn-close ms-auto" aria-label="Zamknij"></a>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Gdy kursant jest <strong>małoletni</strong>, nie widzi własnych rozliczeń — dostęp ma rodzic/opiekun
+      (logowanie kodem SMS na numer opiekuna lub przez link wysłany e-mailem).
+    </p>
+    <?php if ($parent_link): ?>
+    <div class="alert alert-info py-2 small">
+      <div class="fw-semibold mb-1"><i class="bi bi-link-45deg me-1"></i>Link dostępu rodzica (ważny 30 dni):</div>
+      <code style="word-break:break-all"><?= h($parent_link) ?></code>
+    </div>
+    <?php endif; ?>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="guardian_save">
+      <input type="hidden" name="account_id" value="<?= (int)$guardian_acc['id'] ?>">
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" name="is_minor" id="minor" <?= $guardian_acc['is_minor'] ? 'checked' : '' ?>>
+        <label class="form-check-label fw-semibold" for="minor">Kursant małoletni (ukryj rozliczenia, dostęp dla rodzica)</label>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-md-12"><label class="form-label small">Imię i nazwisko opiekuna</label>
+          <input class="form-control form-control-sm" name="guardian_name" value="<?= h($guardian_acc['guardian_name'] ?? '') ?>"></div>
+        <div class="col-md-6"><label class="form-label small">Telefon opiekuna (do logowania SMS)</label>
+          <input class="form-control form-control-sm" name="guardian_phone" value="<?= h($guardian_acc['guardian_phone'] ?? '') ?>" placeholder="np. 600 100 200"></div>
+        <div class="col-md-6"><label class="form-label small">E-mail opiekuna (do linku dostępu)</label>
+          <input class="form-control form-control-sm" name="guardian_email" value="<?= h($guardian_acc['guardian_email'] ?? '') ?>" placeholder="rodzic@example.com"></div>
+      </div>
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz</button>
+      </div>
+    </form>
+    <form method="post" class="mt-2">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="parent_link">
+      <input type="hidden" name="account_id" value="<?= (int)$guardian_acc['id'] ?>">
+      <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope-paper me-1"></i>Wygeneruj i wyślij link rodzicowi</button>
+    </form>
+  </div>
 </div>
 <?php endif; ?>
 
@@ -217,9 +352,18 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
                 <span class="badge <?= $a['is_active'] ? 'bg-success' : 'bg-secondary' ?>">
                   <?= $a['is_active'] ? 'Aktywne' : 'Zablokowane' ?>
                 </span>
+                <?php if (!empty($a['is_minor'])): ?>
+                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Małoletni — rozliczenia dla rodzica">
+                  <i class="bi bi-people"></i> małoletni
+                </span>
+                <?php endif; ?>
               </td>
               <td class="text-muted"><?= $a['last_login'] ? date('d.m.Y H:i', strtotime($a['last_login'])) : '—' ?></td>
               <td class="text-end">
+                <!-- Opiekun / dostęp rodzica -->
+                <a href="?guardian=<?= (int)$a['id'] ?>" class="btn btn-xs btn-sm btn-outline-info py-0 px-2 me-1" title="Opiekun / dostęp rodzica">
+                  <i class="bi bi-people"></i>
+                </a>
                 <!-- Reset hasła -->
                 <form method="post" class="d-inline" onsubmit="return confirm('Zresetować hasło?')">
                   <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">

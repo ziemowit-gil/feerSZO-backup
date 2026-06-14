@@ -6,12 +6,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
 
 $student = student_require();
 $tab     = $_GET['tab'] ?? 'lekcje';
+$vlab_token = student_token();
 
 // Dane kursanta
 $client  = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']]);
@@ -97,6 +99,31 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI',Arial,
 .vlab-wip { text-align: center; padding: 4rem 1rem; }
 .vlab-icon { font-size: 4rem; margin-bottom: 1rem; }
 .vlab-badge { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b55; border-radius: 8px; display: inline-block; padding: .4em 1em; font-weight: 700; font-size: .85rem; margin-bottom: 1.5rem; }
+.vlab-section-title { font-size: .95rem; font-weight: 700; color: var(--text); margin: 1.5rem 0 .75rem; display: flex; align-items: center; gap: .5rem; }
+.vlab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 1rem; }
+.vlab-tpl { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; display: flex; flex-direction: column; }
+.vlab-tpl h4 { font-size: .92rem; margin: 0 0 .35rem; color: var(--text); }
+.vlab-tpl p { font-size: .78rem; color: var(--muted); margin: 0 0 .9rem; flex: 1; line-height: 1.4; }
+.vlab-machine { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: .85rem; }
+.vlab-machine-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .6rem; }
+.vlab-machine-head .name { font-weight: 700; font-size: .95rem; }
+.vlab-st { font-size: .7rem; font-weight: 700; padding: .15em .6em; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.vlab-st.running  { background:#22c55e22; color:#22c55e; border:1px solid #22c55e44; }
+.vlab-st.stopped  { background:#94a3b822; color:#cbd5e1; border:1px solid #94a3b844; }
+.vlab-st.error    { background:#ef444422; color:#ef4444; border:1px solid #ef444444; }
+.vlab-st.provisioning { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b44; }
+.vlab-ssh { background:#0f172a; border:1px solid var(--border); border-radius:8px; padding:.6rem .8rem; margin-top:.6rem; font-size:.78rem; font-family:'SFMono-Regular',Consolas,monospace; color:#93c5fd; }
+.vlab-ssh code { color:#93c5fd; }
+.vlab-ssh .lbl { color:var(--muted); }
+.vlab-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.7rem; }
+.vlab-btn { border:1px solid var(--border); background:#0f172a; color:var(--text); border-radius:6px; padding:.32rem .7rem; font-size:.76rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:.3rem; text-decoration:none; }
+.vlab-btn:hover { border-color:var(--accent); color:#fff; }
+.vlab-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.vlab-btn.danger:hover { border-color:#ef4444; color:#ef4444; }
+.vlab-btn:disabled { opacity:.4; cursor:not-allowed; }
+.vlab-empty { color:var(--muted); font-size:.85rem; padding:1.5rem; text-align:center; border:1px dashed var(--border); border-radius:10px; }
+.vlab-disabled { background:#f59e0b11; border:1px solid #f59e0b44; color:#fbbf24; border-radius:10px; padding:1rem 1.25rem; font-size:.85rem; }
+.vlab-limit { font-size:.78rem; color:var(--muted); margin-bottom:.5rem; }
 </style>
 </head>
 <body>
@@ -120,9 +147,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI',Arial,
   <a href="?tab=lekcje" class="tab <?= $tab==='lekcje'?'active':'' ?>">
     <i class="bi bi-calendar-check"></i> Moje lekcje
   </a>
+  <?php if (empty($account['is_minor'])): ?>
+  <a href="?tab=rozliczenia" class="tab <?= $tab==='rozliczenia'?'active':'' ?>">
+    <i class="bi bi-receipt"></i> Rozliczenia
+  </a>
+  <?php endif; ?>
   <a href="?tab=vlab" class="tab <?= $tab==='vlab'?'active':'' ?>">
     <i class="bi bi-code-square"></i> VLab
-    <span class="badge-wip">WIP</span>
   </a>
 </div>
 
@@ -222,37 +253,134 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI',Arial,
     </table>
   </div>
 
+<?php elseif ($tab === 'rozliczenia' && empty($account['is_minor'])):
+  $rv_client_id = $student['client_id'];
+  $rv_show_lessons = false;
+  include __DIR__ . '/_rozliczenia_view.php';
+?>
+
 <?php elseif ($tab === 'vlab'): ?>
 
-  <div class="vlab-wip">
-    <div class="vlab-icon">🧪</div>
-    <div class="vlab-badge">🚧 Work in Progress</div>
-    <h3 style="color:var(--text);margin-bottom:.5rem">VLab — Wirtualne laboratorium</h3>
-    <p style="color:var(--muted);max-width:560px;margin:0 auto;line-height:1.6">
-      Moduł VLab jest w trakcie budowy. Znajdziesz tu interaktywne ćwiczenia,
-      zadania praktyczne i materiały do samodzielnej nauki.
-    </p>
-    <div style="margin-top:2rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
-      <div style="background:var(--card);border:1px solid #1e3a5f;border-radius:10px;padding:1rem 1.5rem;position:relative">
-        <div style="font-size:1.5rem;margin-bottom:.4rem">🖥️</div>
-        <div style="font-size:.85rem;color:#93c5fd;font-weight:600">Terminal Unix</div>
-        <div style="font-size:.75rem;color:var(--muted);margin-top:.3rem">Dostęp do konta na serwerze</div>
-        <span style="position:absolute;top:.5rem;right:.5rem;background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44;border-radius:3px;font-size:.6rem;padding:.1em .4em;font-weight:700">WIP</span>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem;opacity:.5">
-        <div style="font-size:1.5rem;margin-bottom:.4rem">💻</div>
-        <div style="font-size:.82rem;color:var(--muted)">Ćwiczenia praktyczne</div>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem;opacity:.5">
-        <div style="font-size:1.5rem;margin-bottom:.4rem">📚</div>
-        <div style="font-size:.82rem;color:var(--muted)">Materiały do nauki</div>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem;opacity:.5">
-        <div style="font-size:1.5rem;margin-bottom:.4rem">🏆</div>
-        <div style="font-size:.82rem;color:var(--muted)">Quizy i testy</div>
-      </div>
+  <div id="vlab-root" data-token="<?= h($vlab_token) ?>">
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem">
+      <i class="bi bi-hdd-stack" style="font-size:1.3rem;color:var(--accent)"></i>
+      <h3 style="margin:0;font-size:1.15rem">VLab — Twoje maszyny</h3>
     </div>
+    <p style="color:var(--muted);font-size:.85rem;margin:0 0 1rem">
+      Twórz własne środowiska (kontenery Docker) do ćwiczeń. Dostęp przez terminal w przeglądarce lub po SSH.
+    </p>
+    <div id="vlab-content"><div class="vlab-empty">Ładowanie…</div></div>
   </div>
+
+  <script>
+  (function(){
+    const root = document.getElementById('vlab-root');
+    const box  = document.getElementById('vlab-content');
+    const token = root.dataset.token;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    async function api(action, params){
+      const body = new URLSearchParams(Object.assign({action, _token: token}, params || {}));
+      const r = await fetch('vlab_api.php', {method:'POST', headers:{'X-CSRF-Token':token}, body});
+      return r.json();
+    }
+
+    function stLabel(s){ return {running:'działa', stopped:'zatrzymana', error:'błąd', provisioning:'tworzenie'}[s] || s; }
+
+    function render(d){
+      if (!d.enabled){
+        box.innerHTML = '<div class="vlab-disabled"><i class="bi bi-exclamation-triangle me-1"></i>'
+          + 'Moduł VLab nie został jeszcze skonfigurowany przez administratora.</div>';
+        return;
+      }
+      let html = '';
+
+      // Moje maszyny
+      html += '<div class="vlab-section-title"><i class="bi bi-pc-display"></i> Moje maszyny <span class="vlab-limit" style="margin-left:auto">'
+        + d.count + ' / ' + d.max + '</span></div>';
+      if (!d.machines.length){
+        html += '<div class="vlab-empty">Nie masz jeszcze żadnej maszyny. Utwórz ją z szablonu poniżej.</div>';
+      } else {
+        for (const m of d.machines){
+          html += '<div class="vlab-machine" data-id="'+m.id+'">'
+            + '<div class="vlab-machine-head"><span class="name">'+esc(m.label)+'</span>'
+            + '<span class="vlab-st '+esc(m.status)+'">'+stLabel(m.status)+'</span></div>';
+          if (m.status === 'error' && m.error){
+            html += '<div style="color:#ef4444;font-size:.78rem">'+esc(m.error)+'</div>';
+          }
+          if (m.status === 'running' && m.ssh_port && m.ssh_host){
+            html += '<div class="vlab-ssh">'
+              + '<div><span class="lbl">SSH:</span> <code>ssh '+esc(m.ssh_user)+'@'+esc(m.ssh_host)+' -p '+m.ssh_port+'</code></div>'
+              + '<div><span class="lbl">hasło:</span> <code>'+esc(m.ssh_pass)+'</code> '
+              + '<button class="vlab-btn" style="padding:.1rem .4rem;font-size:.68rem" data-copy="'+esc(m.ssh_pass)+'"><i class="bi bi-clipboard"></i></button></div>'
+              + '</div>';
+          }
+          html += '<div class="vlab-actions">';
+          if (m.ttyd_url && m.status === 'running'){
+            html += '<a class="vlab-btn primary" href="'+esc(m.ttyd_url)+'" target="_blank" rel="noopener"><i class="bi bi-terminal"></i> Otwórz terminal</a>';
+          }
+          if (m.status === 'running'){
+            html += '<button class="vlab-btn" data-act="stop" data-id="'+m.id+'"><i class="bi bi-stop-circle"></i> Zatrzymaj</button>';
+            html += '<button class="vlab-btn" data-act="restart" data-id="'+m.id+'"><i class="bi bi-arrow-clockwise"></i> Restart</button>';
+          } else if (m.status === 'stopped'){
+            html += '<button class="vlab-btn" data-act="start" data-id="'+m.id+'"><i class="bi bi-play-circle"></i> Uruchom</button>';
+          }
+          html += '<button class="vlab-btn danger" data-act="remove" data-id="'+m.id+'"><i class="bi bi-trash"></i> Usuń</button>';
+          html += '</div></div>';
+        }
+      }
+
+      // Katalog szablonów
+      html += '<div class="vlab-section-title"><i class="bi bi-collection"></i> Utwórz nową maszynę</div>';
+      const canCreate = d.count < d.max;
+      if (!canCreate){
+        html += '<div class="vlab-limit">Osiągnięto limit maszyn ('+d.max+'). Usuń istniejącą, aby utworzyć nową.</div>';
+      }
+      if (!d.templates.length){
+        html += '<div class="vlab-empty">Brak dostępnych szablonów.</div>';
+      } else {
+        html += '<div class="vlab-grid">';
+        for (const t of d.templates){
+          html += '<div class="vlab-tpl"><h4>'+esc(t.name)+'</h4><p>'+esc(t.description||'')+'</p>'
+            + '<button class="vlab-btn primary" data-create="'+t.id+'" '+(canCreate?'':'disabled')+'>'
+            + '<i class="bi bi-plus-circle"></i> Utwórz</button></div>';
+        }
+        html += '</div>';
+      }
+      box.innerHTML = html;
+    }
+
+    async function reload(){ const d = await api('list'); if (d.ok) render(d); }
+
+    box.addEventListener('click', async (e)=>{
+      const copyBtn = e.target.closest('[data-copy]');
+      if (copyBtn){ navigator.clipboard?.writeText(copyBtn.dataset.copy); copyBtn.innerHTML='<i class="bi bi-check2"></i>'; return; }
+
+      const createBtn = e.target.closest('[data-create]');
+      if (createBtn){
+        const label = prompt('Nazwa maszyny (litery, cyfry, myślniki):', 'lab');
+        if (label === null) return;
+        createBtn.disabled = true; createBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Tworzę…';
+        const r = await api('create', {template_id: createBtn.dataset.create, label});
+        if (!r.ok) alert(r.msg || 'Błąd.');
+        if (r.data) render(r.data); else reload();
+        return;
+      }
+
+      const actBtn = e.target.closest('[data-act]');
+      if (actBtn){
+        const act = actBtn.dataset.act;
+        if (act === 'remove' && !confirm('Usunąć maszynę? Tej operacji nie można cofnąć.')) return;
+        actBtn.disabled = true;
+        const r = await api(act, {id: actBtn.dataset.id});
+        if (!r.ok) alert(r.msg || 'Błąd.');
+        if (r.data) render(r.data); else reload();
+      }
+    });
+
+    reload();
+  })();
+  </script>
 
 <?php endif; ?>
 
