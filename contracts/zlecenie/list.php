@@ -81,7 +81,7 @@ $formy    = ['papierowa' => 'Papierowa', 'elektroniczna' => 'Elektroniczna', 'kw
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
-echo contract_preview_notice('zlecenie');
+if (contract_is_preview('zlecenie')) echo contract_preview_notice('zlecenie');
 require_once dirname(__DIR__) . '/includes/adv_filter.php';
 ?>
 

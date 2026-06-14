@@ -460,7 +460,76 @@ include __DIR__ . '/includes/header_crm.php';
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/export.php?format=xlsx&<?= $export_q ?>">
           <i class="bi bi-file-earmark-spreadsheet me-2 text-success" aria-hidden="true"></i>Excel (.xlsx)
         </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#crmExportModal">
+          <i class="bi bi-table me-2 text-primary" aria-hidden="true"></i>Wybór kolumn…
+        </button></li>
       </ul>
+    </div>
+
+    <!-- ── Modal: eksport z wyborem kolumn ──────────────────────────────── -->
+    <?php
+    $crm_export_cols = [
+        'id' => 'ID', 'type' => 'Typ', 'imie_nazwisko' => 'Imię i nazwisko',
+        'email' => 'E-mail', 'telefon' => 'Telefon', 'organizacja' => 'Organizacja',
+        'stanowisko' => 'Stanowisko', 'status' => 'Status', 'adres' => 'Adres',
+        'nip' => 'NIP', 'krs' => 'KRS', 'regon' => 'REGON', 'pesel' => 'PESEL',
+        'branza' => 'Branża', 'strona_www' => 'Strona WWW', 'wojewodztwo' => 'Województwo',
+        'powiat' => 'Powiat', 'gmina' => 'Gmina', 'tags' => 'Tagi', 'notatka' => 'Notatka',
+        'source' => 'Źródło', 'last_comm' => 'Ostatni kontakt', 'created' => 'Dodano',
+    ];
+    ?>
+    <div class="modal fade" id="crmExportModal" tabindex="-1" aria-labelledby="crmExportModalLbl" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" id="crmExportForm" method="get" action="<?= APP_URL ?>/crm/export.php">
+          <?php foreach (array_filter($filters) as $fk => $fv): ?>
+          <input type="hidden" name="<?= h($fk) ?>" value="<?= h($fv) ?>">
+          <?php endforeach; ?>
+          <div class="modal-header">
+            <h5 class="modal-title" id="crmExportModalLbl">
+              <i class="bi bi-table me-2" aria-hidden="true"></i>Eksport — wybór kolumn
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small mb-2">
+              Eksport obejmuje kontakty pasujące do bieżących filtrów. Zaznacz kolumny do uwzględnienia.
+            </p>
+            <div class="d-flex gap-2 mb-2">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="crmExportAll">Zaznacz wszystkie</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="crmExportNone">Odznacz wszystkie</button>
+            </div>
+            <div class="row row-cols-2 row-cols-md-3 g-1" id="crmExportCols">
+              <?php foreach ($crm_export_cols as $ck => $clabel): ?>
+              <div class="col">
+                <label class="form-check">
+                  <input class="form-check-input" type="checkbox" name="cols[]" value="<?= h($ck) ?>" checked>
+                  <span class="form-check-label"><?= h($clabel) ?></span>
+                </label>
+              </div>
+              <?php endforeach; ?>
+            </div>
+            <hr>
+            <div class="d-flex align-items-center gap-3">
+              <span class="small fw-semibold">Format:</span>
+              <label class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="format" value="csv" checked>
+                <span class="form-check-label">CSV</span>
+              </label>
+              <label class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="format" value="xlsx">
+                <span class="form-check-label">Excel (.xlsx)</span>
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+            <button type="submit" class="btn btn-crm-primary btn-sm">
+              <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
     <?php endif; ?>
     <div class="crm-sync-label ms-2" id="crmSyncStatus"
@@ -1186,6 +1255,23 @@ const Bulk = (function () {
       });
     }
   }
+
+  /* ── Modal eksportu: zaznacz/odznacz kolumny ─────── */
+  (function () {
+    var box = document.getElementById('crmExportCols');
+    if (!box) return;
+    var all  = document.getElementById('crmExportAll');
+    var none = document.getElementById('crmExportNone');
+    if (all)  all.addEventListener('click',  function () { box.querySelectorAll('input[type="checkbox"]').forEach(function (c) { c.checked = true; }); });
+    if (none) none.addEventListener('click', function () { box.querySelectorAll('input[type="checkbox"]').forEach(function (c) { c.checked = false; }); });
+    var f = document.getElementById('crmExportForm');
+    if (f) f.addEventListener('submit', function (e) {
+      if (!box.querySelector('input[type="checkbox"]:checked')) {
+        e.preventDefault();
+        alert('Zaznacz przynajmniej jedną kolumnę do eksportu.');
+      }
+    });
+  })();
 
   /* ── Chipy tagów i grup ─────────────────────────── */
   document.querySelectorAll('.crm-filter-chips .crm-chip').forEach(function (chip) {

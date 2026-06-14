@@ -15,6 +15,8 @@ if (!function_exists('ksiegowy_rachunek_email_text')) {
     {
         $name  = trim((string)($row['imie_nazwisko'] ?? ''));
         $dataU = !empty($row['data_zawarcia']) ? date_pl($row['data_zawarcia']) : '';
+        $dataR = !empty($row['data_rachunku']) ? date_pl($row['data_rachunku']) : '';
+        $okres = trim((string)($row['okres_rachunku'] ?? ''));
         $kwota = (isset($row['wynagrodzenie_brutto']) && $row['wynagrodzenie_brutto'] !== '' && $row['wynagrodzenie_brutto'] !== null)
                ? money((float)$row['wynagrodzenie_brutto']) . ' (brutto)' : '';
         $godz  = trim((string)($row['liczba_godzin_planowana'] ?? ''));
@@ -23,8 +25,8 @@ if (!function_exists('ksiegowy_rachunek_email_text')) {
              . "poniżej przesyłam dane do wystawienia rachunku:\n"
              . "- dla kogo rachunek: {$name}\n"
              . "- data umowy: {$dataU}\n"
-             . "- data rachunku: \n"
-             . "- za jaki okres jest rachunek: \n"
+             . "- data rachunku: {$dataR}\n"
+             . "- za jaki okres jest rachunek: {$okres}\n"
              . "- kwota brutto lub netto: {$kwota}\n"
              . "- ilość przepracowanych godzin: {$godz}\n"
              . "Pozdrawiam";

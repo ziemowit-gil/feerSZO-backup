@@ -80,7 +80,7 @@ $_badge_docs = count(array_filter($cert_requests,   fn($r) => $r['status'] === '
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
-echo contract_preview_notice('zlecenie');
+if (contract_is_preview('zlecenie')) echo contract_preview_notice('zlecenie');
 
 auth_start();
 $_m365_creds = null;
@@ -286,6 +286,8 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <div class="row g-3">
     <div class="col-md-4"><div class="detail-label">Wymagany rachunek</div><div class="detail-value"><?= yn($row['wymagany_rachunek']) ?></div></div>
     <div class="col-md-4"><div class="detail-label">Data złożenia rachunku</div><div class="detail-value"><?= date_pl($row['data_zl_rachunku']) ?></div></div>
+    <div class="col-md-4"><div class="detail-label">Data rachunku</div><div class="detail-value"><?= date_pl($row['data_rachunku'] ?? '') ?></div></div>
+    <div class="col-md-4"><div class="detail-label">Za jaki okres jest rachunek</div><div class="detail-value"><?= h($row['okres_rachunku'] ?? '') ?: '—' ?></div></div>
     <div class="col-md-4"><div class="detail-label">Forma podpisania</div><div class="detail-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
     <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
     <div class="col-md-4"><div class="detail-label">Platforma</div><div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>

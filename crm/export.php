@@ -1,7 +1,9 @@
 <?php
 /**
- * crm/export.php — Eksport kontaktów CRM do CSV.
- * GET params: te same co crm/index.php (q, status, type, tag, group, wojewodztwo)
+ * crm/export.php — Eksport kontaktów CRM do CSV / XLSX.
+ * GET params: te same filtry co crm/index.php (q, q_all, status, type, tag, group,
+ *             wojewodztwo, powiat, gmina, source, branza, created_*, last_*, stale_days,
+ *             has_email, has_phone) + wybór kolumn cols[] i format.
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -17,50 +19,80 @@ if (!can_read('crm_eksport') && !is_admin()) {
 crm_migrate();
 
 $filters = [
-    'q'           => trim($_GET['q']           ?? ''),
-    'status'      => trim($_GET['status']      ?? ''),
-    'type'        => trim($_GET['type']        ?? ''),
-    'tag'         => trim($_GET['tag']         ?? ''),
-    'group'       => (int)($_GET['group']      ?? 0) ?: '',
-    'wojewodztwo' => trim($_GET['wojewodztwo'] ?? ''),
+    'q'            => trim($_GET['q']            ?? ''),
+    'q_all'        => trim($_GET['q_all']        ?? ''),
+    'status'       => trim($_GET['status']       ?? ''),
+    'type'         => trim($_GET['type']         ?? ''),
+    'tag'          => trim($_GET['tag']          ?? ''),
+    'group'        => (int)($_GET['group']       ?? 0) ?: '',
+    'wojewodztwo'  => trim($_GET['wojewodztwo']  ?? ''),
+    'powiat'       => trim($_GET['powiat']       ?? ''),
+    'gmina'        => trim($_GET['gmina']        ?? ''),
+    'source'       => trim($_GET['source']       ?? ''),
+    'branza'       => trim($_GET['branza']       ?? ''),
+    'action_id'    => (int)($_GET['action_id']   ?? 0) ?: '',
+    'created_from' => trim($_GET['created_from'] ?? ''),
+    'created_to'   => trim($_GET['created_to']   ?? ''),
+    'last_from'    => trim($_GET['last_from']    ?? ''),
+    'last_to'      => trim($_GET['last_to']      ?? ''),
+    'stale_days'   => (int)($_GET['stale_days']  ?? 0) ?: '',
+    'has_email'    => !empty($_GET['has_email']) ? '1' : '',
+    'has_phone'    => !empty($_GET['has_phone']) ? '1' : '',
 ];
 
-// Pobierz kontakty (bez paginacji — wszystkie)
+// Eksport tylko zaznaczonych kontaktów (po ID z paska bulk)
+$only_ids = array_values(array_filter(array_map('intval', (array)($_GET['ids'] ?? []))));
+
+// ── Definicja dostępnych kolumn: kod => [etykieta, funkcja wartości] ──────────
+$COLUMNS = [
+    'id'            => ['ID',                fn($r) => $r['id']],
+    'type'          => ['Typ',               fn($r) => $r['type'] === 'organizacja' ? 'Organizacja' : 'Osoba'],
+    'imie_nazwisko' => ['Imię i nazwisko',   fn($r) => $r['imie_nazwisko']],
+    'email'         => ['E-mail',            fn($r) => $r['email'] ?? ''],
+    'telefon'       => ['Telefon',           fn($r) => $r['telefon'] ?? ''],
+    'organizacja'   => ['Organizacja',       fn($r) => $r['organizacja'] ?? ''],
+    'stanowisko'    => ['Stanowisko',        fn($r) => $r['stanowisko'] ?? ''],
+    'status'        => ['Status',            fn($r) => crm_statuses()[$r['status']]['label'] ?? $r['status']],
+    'adres'         => ['Adres',             fn($r) => $r['adres'] ?? ''],
+    'nip'           => ['NIP',               fn($r) => $r['nip'] ?? ''],
+    'krs'           => ['KRS',               fn($r) => $r['krs'] ?? ''],
+    'regon'         => ['REGON',             fn($r) => $r['regon'] ?? ''],
+    'pesel'         => ['PESEL',             fn($r) => $r['pesel'] ?? ''],
+    'branza'        => ['Branża',            fn($r) => $r['branza'] ?? ''],
+    'strona_www'    => ['Strona WWW',        fn($r) => $r['strona_www'] ?? ''],
+    'wojewodztwo'   => ['Województwo',       fn($r) => $r['wojewodztwo'] ?? ''],
+    'powiat'        => ['Powiat',            fn($r) => $r['powiat'] ?? ''],
+    'gmina'         => ['Gmina',             fn($r) => $r['gmina'] ?? ''],
+    'tags'          => ['Tagi',              fn($r) => $r['tags_csv'] ?? ''],
+    'notatka'       => ['Notatka',           fn($r) => $r['notatka'] ?? ''],
+    'source'        => ['Źródło',            fn($r) => $r['source'] ?? 'manual'],
+    'last_comm'     => ['Ostatni kontakt',   fn($r) => $r['last_comm_at'] ? substr($r['last_comm_at'], 0, 16) : ''],
+    'created'       => ['Dodano',            fn($r) => substr((string)$r['created_at'], 0, 10)],
+];
+
+// Wybór kolumn — z parametru cols[]; domyślnie wszystkie (kolejność jak w mapie)
+$requested = (array)($_GET['cols'] ?? []);
+$requested = array_values(array_filter($requested, fn($c) => isset($COLUMNS[$c])));
+$selected  = $requested ?: array_keys($COLUMNS);
+
+$headers   = array_map(fn($c) => $COLUMNS[$c][0], $selected);
+$build_row = function (array $r) use ($COLUMNS, $selected) {
+    $out = [];
+    foreach ($selected as $c) {
+        $out[] = ($COLUMNS[$c][1])($r);
+    }
+    return $out;
+};
+
+// Pobierz kontakty (bez paginacji — wszystkie pasujące do filtra)
 $result = CrmManager::getContacts($filters, 1, 99999);
 $rows   = $result['rows'];
-$format = in_array($_GET['format'] ?? 'csv', ['csv','xlsx']) ? $_GET['format'] : 'csv';
+if ($only_ids) {
+    $idset = array_flip($only_ids);
+    $rows  = array_values(array_filter($rows, fn($r) => isset($idset[(int)$r['id']])));
+}
 
-$headers = [
-    'ID', 'Typ', 'Imię i nazwisko', 'E-mail', 'Telefon', 'Organizacja',
-    'Stanowisko', 'Status', 'Adres', 'NIP', 'KRS', 'REGON',
-    'Branża', 'Strona WWW', 'Województwo', 'Powiat', 'Gmina',
-    'Tagi', 'Notatka', 'Źródło', 'Ostatni kontakt', 'Dodano',
-];
-
-$build_row = fn(array $r) => [
-    $r['id'],
-    $r['type'] === 'organizacja' ? 'Organizacja' : 'Osoba',
-    $r['imie_nazwisko'],
-    $r['email'] ?? '',
-    $r['telefon'] ?? '',
-    $r['organizacja'] ?? '',
-    $r['stanowisko'] ?? '',
-    crm_statuses()[$r['status']]['label'] ?? $r['status'],
-    $r['adres'] ?? '',
-    $r['nip'] ?? '',
-    $r['krs'] ?? '',
-    $r['regon'] ?? '',
-    $r['branza'] ?? '',
-    $r['strona_www'] ?? '',
-    $r['wojewodztwo'] ?? '',
-    $r['powiat'] ?? '',
-    $r['gmina'] ?? '',
-    $r['tags_csv'] ?? '',
-    $r['notatka'] ?? '',
-    $r['source'] ?? 'manual',
-    $r['last_comm_at'] ? substr($r['last_comm_at'], 0, 16) : '',
-    substr($r['created_at'], 0, 10),
-];
+$format = in_array($_GET['format'] ?? 'csv', ['csv', 'xlsx'], true) ? $_GET['format'] : 'csv';
 
 if ($format === 'xlsx') {
     require_once dirname(__DIR__) . '/includes/xlsx.php';

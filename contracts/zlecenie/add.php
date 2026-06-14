@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'rachunek_bankowy','przedmiot_zlecenia','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
-            'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','forma_podpisania',
+            'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','data_rachunku','okres_rachunku','forma_podpisania',
             'platforma_el','id_dokumentu_el','plik_potwierdzenia','plik_umowy','uwagi','created_by','created_at','updated_at',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
             'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id'];
@@ -306,6 +306,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div></div>
   <div class="col-md-4 mb-3"><label class="form-label">Data złożenia rachunku</label>
     <input name="data_zl_rachunku" type="date" class="form-control" value="<?= h($row['data_zl_rachunku']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Data rachunku</label>
+    <input name="data_rachunku" type="date" class="form-control" value="<?= h($row['data_rachunku']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Za jaki okres jest rachunek</label>
+    <input name="okres_rachunku" class="form-control" placeholder="np. czerwiec 2026" value="<?= h($row['okres_rachunku']??'') ?>"></div>
   <div class="col-md-4 mb-3"><label class="form-label">Forma podpisania</label>
     <select name="forma_podpisania" class="form-select" id="forma_podpisania">
       <option value="">—</option>
