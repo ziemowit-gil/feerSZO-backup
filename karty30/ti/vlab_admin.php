@@ -102,7 +102,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: vlab_admin.php'); exit;
     }
+
+    // Odtworzenie / reset hasła konta SSH kursanta na hoście (pokazujemy je RAZ).
+    if ($op === 'host_pass_reset') {
+        $cid = (int)($_POST['container_id'] ?? 0);
+        $row = $cid ? db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [$cid]) : null;
+        if (!$row || $row['status'] === 'removed') {
+            flash_set('danger', 'Maszyna nie istnieje.');
+        } else {
+            $hu = vlab_host_user_create($row); // ponowne wywołanie ustawia nowe hasło (chpasswd)
+            if ($hu['ok']) {
+                db_update('k30_ti_vlab_containers', ['host_user' => $hu['user']], $cid);
+                vlab_log($cid, (int)$row['student_id'], 'host_pass_reset', true, $hu['user']);
+                flash_set('success', 'Konto SSH „' . $hu['user'] . '" — NOWE hasło: ' . $hu['password']
+                    . '  (zapisz teraz; nie będzie pokazane ponownie). Logowanie: ssh ' . $hu['user']
+                    . '@' . ($cfg['public_host'] ?? '') . ' -p ' . (int)($cfg['ssh_port'] ?: 22));
+            } else {
+                flash_set('danger', 'Nie udało się ustawić hasła: ' . $hu['msg']);
+            }
+        }
+        header('Location: vlab_admin.php'); exit;
+    }
 }
+$cfg = $cfg ?? vlab_config();
 
 $cfg       = vlab_config();
 $templates = db_all("SELECT * FROM k30_ti_vlab_templates ORDER BY sort, name");

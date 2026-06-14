@@ -74,7 +74,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i>Zajęcia informatyki / TI</h4>
   <?php if ($can_write): ?>
-  <a href="vlab_admin.php" class="btn btn-outline-secondary btn-sm <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>"><i class="bi bi-hdd-stack me-1"></i>VLAB / Docker</a>
+  <a href="online_admin.php" class="btn btn-outline-secondary btn-sm <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>"><i class="bi bi-camera-video me-1"></i>Nauka online</a>
+  <a href="vlab_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-hdd-stack me-1"></i>VLAB / Docker</a>
   <?php endif; ?>
   <?php if ($can_write && !$show_new && !$edit_row): ?>
   <a href="?new=1" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowy kurs</a>

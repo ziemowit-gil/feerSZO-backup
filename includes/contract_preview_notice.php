@@ -57,6 +57,7 @@ HTML;
  * Sprawdza czy dany typ umowy jest w trybie "preview" (nie w pełni obsługiwany).
  */
 function contract_is_preview(string $type): bool {
-    return in_array($type, ['dzielo', 'praca', 'zlecenie'], true)
+    // 'zlecenie' jest w pełni obsługiwany — moduł produkcyjny, bez blokady.
+    return in_array($type, ['dzielo', 'praca'], true)
         && org_setting('contract_preview_' . $type) !== 'enabled';
 }
