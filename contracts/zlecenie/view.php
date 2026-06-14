@@ -16,6 +16,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ksiegowy_email.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rozliczenia.php';
 
 require_login();
 $TYPE  = 'zlecenie';
@@ -59,6 +60,8 @@ $approval         = get_current_approval($TYPE, $id);
 $audit_log        = get_audit_log($TYPE, $id);
 $_letters         = get_contract_letters($TYPE, $id);
 $cert_requests    = get_certificate_requests($TYPE, $id);
+$rozliczenia      = get_rozliczenia($TYPE, $id);
+$_rozl_open       = count(array_filter($rozliczenia, fn($r) => in_array($r['status'], ['oczekuje','wyslane'], true)));
 $cert_has_pending = !empty(array_filter($cert_requests, fn($r) => $r['status'] === 'oczekuje'));
 $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
 $m365_enabled     = m365_setting('m365_enabled') === '1';
@@ -134,6 +137,16 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
       <i class="bi bi-folder2-open"></i> Dokumenty
       <?php if ($_badge_docs): ?>
       <span class="badge bg-warning text-dark ms-1"><?= $_badge_docs ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-rozliczenia-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-rozliczenia" type="button" role="tab">
+      <i class="bi bi-cash-coin"></i> Rozliczenia
+      <?php if ($_rozl_open): ?>
+      <span class="badge bg-info text-dark ms-1"><?= $_rozl_open ?></span>
       <?php endif; ?>
     </button>
   </li>
@@ -561,6 +574,79 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 
 </div><!-- /tab-docs -->
 
+<!-- ═══════════════════ TAB — ROZLICZENIA ═══════════════════ -->
+<div class="tab-pane fade" id="tab-rozliczenia" role="tabpanel">
+
+  <?php $_ksieg_addr = org_setting('ksiegowy_email'); ?>
+  <div class="card shadow-sm">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-cash-coin"></i> Rozliczenia umowy</span>
+    <?php if (can_edit()): ?>
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="cvhOpenRozliczenie(null)">
+      <i class="bi bi-plus-lg"></i> Nowe rozliczenie
+    </button>
+    <?php endif; ?>
+  </div>
+
+  <?php if (!$_ksieg_addr): ?>
+  <div class="card-body pb-0">
+    <div class="alert alert-warning small mb-0 py-2">
+      <i class="bi bi-exclamation-triangle"></i> Adres księgowego nie jest ustawiony — wysyłka e-mail będzie niedostępna.
+      Uzupełnij go w <a href="<?= APP_URL ?>/admin/org_settings.php?tab=mail">Ustawienia → Poczta</a>.
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($rozliczenia): ?>
+  <div class="table-responsive">
+  <table class="table table-sm table-hover mb-0 align-middle">
+    <thead class="table-light">
+      <tr><th>#</th><th>Status</th><th>Okres</th><th>Data rachunku</th><th>Kwota</th><th>Utworzył</th><th></th></tr>
+    </thead>
+    <tbody>
+    <?php foreach ($rozliczenia as $rz): ?>
+    <tr>
+      <td class="text-muted">#<?= (int)$rz['id'] ?></td>
+      <td><?= rozliczenie_status_badge($rz['status']) ?></td>
+      <td><?= h($rz['okres']) ?: '—' ?></td>
+      <td class="text-nowrap"><?= date_pl($rz['data_rachunku']) ?></td>
+      <td class="text-nowrap"><?= $rz['kwota_brutto'] !== null ? money((float)$rz['kwota_brutto']) : '—' ?></td>
+      <td class="small text-muted">
+        <?= h($rz['created_by_name'] ?? '—') ?><br>
+        <span style="font-size:.8em"><?= date_pl($rz['created_at']) ?></span>
+      </td>
+      <td class="text-end text-nowrap">
+        <a href="<?= APP_URL ?>/contracts/zlecenie/ksiegowy_print.php?id=<?= $id ?>&rozliczenie_id=<?= (int)$rz['id'] ?>"
+           target="_blank" class="btn btn-sm btn-outline-secondary" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+        <?php if (can_edit() && $rz['status'] !== 'rozliczone' && $rz['status'] !== 'anulowane'): ?>
+          <?php if ($_ksieg_addr): ?>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="rozlSend(<?= (int)$rz['id'] ?>, this)" title="Wyślij do księgowego">
+            <i class="bi bi-envelope"></i>
+          </button>
+          <?php endif; ?>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="rozlSettle(<?= (int)$rz['id'] ?>, this)" title="Oznacz jako rozliczone">
+            <i class="bi bi-check2-circle"></i>
+          </button>
+        <?php endif; ?>
+        <?php if ($rz['status'] === 'wyslane' && $rz['sent_to_email']): ?>
+        <i class="bi bi-envelope-check text-info ms-1" title="Wysłano: <?= h($rz['sent_to_email']) ?> (<?= date_pl($rz['sent_at']) ?>)"></i>
+        <?php endif; ?>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+  <?php else: ?>
+  <div class="card-body text-muted small">
+    Brak rozliczeń. Ustaw status umowy na <strong>„Do rozliczenia”</strong> lub kliknij <strong>„Nowe rozliczenie”</strong>,
+    aby przygotować dane do rachunku dla księgowego.
+  </div>
+  <?php endif; ?>
+  </div>
+
+</div><!-- /tab-rozliczenia -->
+
 <!-- ═══════════════════ TAB 4 — OBIEG ═══════════════════ -->
 <div class="tab-pane fade" id="tab-obieg" role="tabpanel">
 
@@ -945,6 +1031,75 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 </div>
 <?php endif; ?>
 
+<?php if (can_edit()): ?>
+<!-- ═══════════════════ MODAL — ROZLICZENIE (Umowa do rozliczenia) ═══════════════════ -->
+<div class="modal fade" id="rozliczenieModal" tabindex="-1" aria-labelledby="rozliczenieModalLabel">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#6366f1;color:#fff">
+        <h5 class="modal-title" id="rozliczenieModalLabel"><i class="bi bi-cash-coin me-2"></i>Umowa do rozliczenia</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Uzupełnij dane rachunku, zapisz rozliczenie i przekaż dane księgowemu (kopiuj / PDF / wyślij).</p>
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label small fw-semibold">Dla kogo rachunek</label>
+            <input id="rozlName" class="form-control" readonly></div>
+          <div class="col-md-6"><label class="form-label small fw-semibold">Data umowy</label>
+            <input id="rozlDataUmowy" class="form-control" readonly></div>
+          <div class="col-md-4"><label class="form-label small fw-semibold">Data rachunku</label>
+            <input id="rozlDataRachunku" type="date" class="form-control" oninput="rozlBuildPreview()"></div>
+          <div class="col-md-4"><label class="form-label small fw-semibold">Za jaki okres</label>
+            <input id="rozlOkres" class="form-control" placeholder="np. czerwiec 2026" oninput="rozlBuildPreview()"></div>
+          <div class="col-md-4"><label class="form-label small fw-semibold">Liczba godzin</label>
+            <input id="rozlGodziny" class="form-control" oninput="rozlBuildPreview()"></div>
+          <div class="col-md-4"><label class="form-label small fw-semibold">Kwota brutto (PLN)</label>
+            <input id="rozlKwota" type="number" step="0.01" class="form-control" oninput="rozlBuildPreview()"></div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Podgląd e-mail do księgowego</label>
+            <textarea id="rozlPreview" class="form-control font-monospace" rows="9" readonly style="font-size:.85rem;background:#f8f9fa"></textarea>
+            <div id="rozlInfo" class="small mt-1" style="min-height:1.1em"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2">
+        <input type="hidden" id="rozlId" value="">
+        <button type="button" class="btn btn-primary" id="rozlSaveBtn" onclick="rozlSave(this)">
+          <i class="bi bi-save me-1"></i>Zapisz rozliczenie
+        </button>
+        <button type="button" class="btn btn-outline-secondary" onclick="rozlCopy()">
+          <i class="bi bi-clipboard me-1"></i>Kopiuj e-mail
+        </button>
+        <a id="rozlPdfBtn" class="btn btn-outline-secondary disabled" target="_blank" href="#" aria-disabled="true">
+          <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+        </a>
+        <button type="button" class="btn btn-success disabled" id="rozlSendBtn" onclick="rozlSendFromModal(this)"
+                <?= org_setting('ksiegowy_email') ? '' : 'title="Ustaw adres księgowego w Ustawieniach → Poczta"' ?>>
+          <i class="bi bi-envelope me-1"></i>Wyślij do księgowego
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.ROZL_DEFAULTS = {
+  imie_nazwisko: <?= json_encode($row['imie_nazwisko'] ?? '') ?>,
+  data_umowy:    <?= json_encode(!empty($row['data_zawarcia']) ? date_pl($row['data_zawarcia']) : '') ?>,
+  kwota_brutto:  <?= json_encode($row['wynagrodzenie_brutto'] ?? '') ?>,
+  liczba_godzin: <?= json_encode($row['liczba_godzin_planowana'] ?? '') ?>,
+  data_rachunku: <?= json_encode($row['data_rachunku'] ?? '') ?>,
+  okres:         <?= json_encode($row['okres_rachunku'] ?? '') ?>
+};
+window.ROZL_CTX = {
+  id:        <?= (int)$id ?>,
+  type:      'zlecenie',
+  ksiegEmail: <?= json_encode((bool)org_setting('ksiegowy_email')) ?>,
+  appUrl:    <?= json_encode(rtrim(APP_URL, '/')) ?>
+};
+</script>
+<?php endif; ?>
+
 <script>
 window.CVTabsConfig = {
   tabsId:     'zlecenieTabs',
@@ -974,5 +1129,125 @@ function ksiegCopy() {
   }
 }
 </script>
+
+<?php if (can_edit()): ?>
+<script>
+(function () {
+  var _dirty = false;
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? (m[3] + '.' + m[2] + '.' + m[1]) : iso;
+  }
+  function fmtKwota(v) {
+    if (v === '' || v === null || v === undefined || isNaN(parseFloat(v))) return '';
+    var n = parseFloat(v).toFixed(2).replace('.', ',');
+    n = n.replace(/\B(?=(\d{3})+(?!\d))/g, ' '); // separator tysięcy
+    return n + ' PLN (brutto)';
+  }
+  function val(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
+
+  window.rozlBuildPreview = function () {
+    var t = 'Dzień dobry,\n'
+      + 'poniżej przesyłam dane do wystawienia rachunku:\n'
+      + '- dla kogo rachunek: ' + val('rozlName') + '\n'
+      + '- data umowy: ' + val('rozlDataUmowy') + '\n'
+      + '- data rachunku: ' + fmtDate(val('rozlDataRachunku')) + '\n'
+      + '- za jaki okres jest rachunek: ' + val('rozlOkres') + '\n'
+      + '- kwota brutto lub netto: ' + fmtKwota(val('rozlKwota')) + '\n'
+      + '- ilość przepracowanych godzin: ' + val('rozlGodziny') + '\n'
+      + 'Pozdrawiam';
+    var p = document.getElementById('rozlPreview');
+    if (p) p.value = t;
+  };
+
+  function setVal(id, v) { var e = document.getElementById(id); if (e) e.value = (v === null || v === undefined) ? '' : v; }
+
+  // Wywoływane przez hook nagłówka po zmianie statusu na „do rozliczenia”, lub ręcznie przyciskiem (res=null)
+  window.cvhOpenRozliczenie = function (res) {
+    var d = (res && res.prefill) ? res.prefill : window.ROZL_DEFAULTS;
+    document.getElementById('rozlId').value = '';
+    setVal('rozlName',         d.imie_nazwisko || '');
+    setVal('rozlDataUmowy',    d.data_umowy || '');
+    setVal('rozlDataRachunku', d.data_rachunku || '');
+    setVal('rozlOkres',        d.okres || '');
+    setVal('rozlGodziny',      d.liczba_godzin || '');
+    setVal('rozlKwota',        d.kwota_brutto || '');
+    var info = document.getElementById('rozlInfo'); if (info) info.textContent = '';
+    document.getElementById('rozlSendBtn').classList.add('disabled');
+    var pdf = document.getElementById('rozlPdfBtn'); pdf.classList.add('disabled'); pdf.setAttribute('href', '#');
+    rozlBuildPreview();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('rozliczenieModal')).show();
+  };
+
+  window.rozlCopy = function () {
+    var ta = document.getElementById('rozlPreview');
+    var info = document.getElementById('rozlInfo');
+    var done = function () { info.className = 'small mt-1 text-success'; info.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Skopiowano do schowka'; };
+    if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, function () { ta.select(); document.execCommand('copy'); done(); });
+    else { ta.select(); document.execCommand('copy'); done(); }
+  };
+
+  window.rozlSave = function (btn) {
+    btn.disabled = true;
+    csrfFetch(window.ROZL_CTX.appUrl + '/api/ajax.php', {
+      action: 'rozliczenie_create',
+      id:     window.ROZL_CTX.id,
+      type:   window.ROZL_CTX.type,
+      data_rachunku: val('rozlDataRachunku'),
+      okres:         val('rozlOkres'),
+      kwota_brutto:  val('rozlKwota'),
+      liczba_godzin: val('rozlGodziny')
+    }).then(function (res) {
+      btn.disabled = false;
+      if (res.ok) {
+        _dirty = true;
+        document.getElementById('rozlId').value = res.rozliczenie_id;
+        if (res.email_text) document.getElementById('rozlPreview').value = res.email_text;
+        var pdf = document.getElementById('rozlPdfBtn');
+        pdf.setAttribute('href', window.ROZL_CTX.appUrl + '/contracts/zlecenie/ksiegowy_print.php?id=' + window.ROZL_CTX.id + '&rozliczenie_id=' + res.rozliczenie_id);
+        pdf.classList.remove('disabled');
+        if (window.ROZL_CTX.ksiegEmail) document.getElementById('rozlSendBtn').classList.remove('disabled');
+        var info = document.getElementById('rozlInfo'); info.className = 'small mt-1 text-success';
+        info.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Rozliczenie zapisane (#' + res.rozliczenie_id + ')';
+        ajaxToast('Rozliczenie zapisane');
+      } else { ajaxToast(res.msg || 'Błąd zapisu', 'error'); }
+    }).catch(function () { btn.disabled = false; ajaxToast('Błąd połączenia', 'error'); });
+  };
+
+  window.rozlSendFromModal = function (btn) {
+    var rid = document.getElementById('rozlId').value;
+    if (!rid) { ajaxToast('Najpierw zapisz rozliczenie', 'error'); return; }
+    btn.classList.add('disabled');
+    csrfFetch(window.ROZL_CTX.appUrl + '/api/ajax.php', { action: 'rozliczenie_send', rozliczenie_id: rid })
+      .then(function (res) {
+        if (res.ok) { _dirty = true; ajaxToast(res.msg || 'Wysłano'); var info = document.getElementById('rozlInfo'); info.className = 'small mt-1 text-success'; info.innerHTML = '<i class="bi bi-envelope-check me-1"></i>' + (res.msg || 'Wysłano do księgowego'); }
+        else { btn.classList.remove('disabled'); ajaxToast(res.msg || 'Błąd wysyłki', 'error'); }
+      }).catch(function () { btn.classList.remove('disabled'); ajaxToast('Błąd połączenia', 'error'); });
+  };
+
+  // Akcje z listy w zakładce „Rozliczenia”
+  window.rozlSend = function (rid, btn) {
+    btn.disabled = true;
+    csrfFetch(window.ROZL_CTX.appUrl + '/api/ajax.php', { action: 'rozliczenie_send', rozliczenie_id: rid })
+      .then(function (res) { if (res.ok) { ajaxToast(res.msg || 'Wysłano'); setTimeout(function () { location.reload(); }, 600); } else { btn.disabled = false; ajaxToast(res.msg || 'Błąd wysyłki', 'error'); } })
+      .catch(function () { btn.disabled = false; ajaxToast('Błąd połączenia', 'error'); });
+  };
+  window.rozlSettle = function (rid, btn) {
+    btn.disabled = true;
+    csrfFetch(window.ROZL_CTX.appUrl + '/api/ajax.php', { action: 'rozliczenie_settle', rozliczenie_id: rid })
+      .then(function (res) { if (res.ok) { ajaxToast(res.msg || 'Oznaczono'); setTimeout(function () { location.reload(); }, 600); } else { btn.disabled = false; ajaxToast(res.msg || 'Błąd', 'error'); } })
+      .catch(function () { btn.disabled = false; ajaxToast('Błąd połączenia', 'error'); });
+  };
+
+  // Po zamknięciu okienka — odśwież listę, jeśli były zmiany
+  document.addEventListener('DOMContentLoaded', function () {
+    var m = document.getElementById('rozliczenieModal');
+    if (m) m.addEventListener('hidden.bs.modal', function () { if (_dirty) location.reload(); });
+  });
+})();
+</script>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

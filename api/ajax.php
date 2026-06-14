@@ -114,10 +114,124 @@ switch ($action) {
         }
 
         $st = STATUS_LABELS[$value];
-        ajax_ok([
+        $extra = [
             'label'       => $st['label'],
             'badge_class' => $st['class'],
-        ], 'Status zaktualizowany');
+        ];
+
+        // Proces „Umowa do rozliczenia” — sygnał do otwarcia okienka rozliczenia
+        if ($type === 'zlecenie' && $value === 'do rozliczenia') {
+            $full = db_one("SELECT imie_nazwisko, data_zawarcia, wynagrodzenie_brutto,
+                                   liczba_godzin_planowana, data_rachunku, okres_rachunku
+                            FROM umowy_zlecenie WHERE id=?", [$id]) ?: [];
+            $extra['open_rozliczenie'] = true;
+            $extra['prefill'] = [
+                'imie_nazwisko'  => $full['imie_nazwisko'] ?? '',
+                'data_umowy'     => !empty($full['data_zawarcia']) ? date_pl($full['data_zawarcia']) : '',
+                'kwota_brutto'   => $full['wynagrodzenie_brutto'] ?? '',
+                'liczba_godzin'  => $full['liczba_godzin_planowana'] ?? '',
+                'data_rachunku'  => $full['data_rachunku'] ?? '',
+                'okres'          => $full['okres_rachunku'] ?? '',
+            ];
+        }
+        ajax_ok($extra, 'Status zaktualizowany');
+    }
+
+    // ── rozliczenie_create — utwórz rekord rozliczenia + zapisz dane na umowie ───
+    case 'rozliczenie_create': {
+        if (!can_edit())        ajax_err('Brak uprawnień', 403);
+        if ($type !== 'zlecenie') ajax_err('Nieobsługiwany typ umowy');
+        if (!$id)               ajax_err('Brak id umowy');
+
+        $contract = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [$id]);
+        if (!$contract) ajax_err('Nie znaleziono umowy');
+
+        $data_rachunku = trim($_POST['data_rachunku'] ?? '');
+        $okres         = trim($_POST['okres'] ?? '');
+        $kwota         = trim($_POST['kwota_brutto'] ?? '');
+        $godziny       = trim($_POST['liczba_godzin'] ?? '');
+        $uwagi         = trim($_POST['uwagi'] ?? '');
+
+        $uid = (int)current_user()['id'];
+        $rid = create_rozliczenie([
+            'contract_id'   => $id,
+            'data_rachunku' => $data_rachunku ?: null,
+            'okres'         => $okres ?: null,
+            'kwota_brutto'  => $kwota,
+            'liczba_godzin' => $godziny ?: null,
+            'uwagi'         => $uwagi ?: null,
+        ], $uid);
+
+        // Przepisz najświeższe dane rachunku na umowę (dla spójności widoku/PDF)
+        db_update('umowy_zlecenie', [
+            'data_rachunku'        => $data_rachunku ?: null,
+            'okres_rachunku'       => $okres ?: null,
+            'wynagrodzenie_brutto' => $kwota === '' ? $contract['wynagrodzenie_brutto'] : (float)$kwota,
+        ], $id);
+
+        log_contract_action('zlecenie', $id, $uid, 'rozliczenie_create',
+            'Rozliczenie #' . $rid . ($okres ? ' za ' . $okres : ''));
+
+        $rozl  = get_rozliczenie($rid);
+        $tekst = ksiegowy_rachunek_email_text(rozliczenie_email_row($contract, $rozl));
+
+        ajax_ok(['rozliczenie_id' => $rid, 'email_text' => $tekst], 'Rozliczenie zapisane');
+    }
+
+    // ── rozliczenie_send — wyślij blok e-mail do księgowego (kolejka) ───────────
+    case 'rozliczenie_send': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid = (int)($_POST['rozliczenie_id'] ?? 0);
+        if (!$rid) ajax_err('Brak id rozliczenia');
+
+        $rozl = get_rozliczenie($rid);
+        if (!$rozl) ajax_err('Nie znaleziono rozliczenia');
+
+        $ksieg = trim(db_one("SELECT value FROM settings WHERE key_='ksiegowy_email'")['value'] ?? '');
+        if (!$ksieg || !filter_var($ksieg, FILTER_VALIDATE_EMAIL)) {
+            ajax_err('Brak poprawnego adresu księgowego — uzupełnij go w Ustawieniach organizacji → Poczta.');
+        }
+
+        $contract = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [(int)$rozl['contract_id']]);
+        if (!$contract) ajax_err('Nie znaleziono umowy');
+
+        require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        $tekst   = ksiegowy_rachunek_email_text(rozliczenie_email_row($contract, $rozl));
+        $org     = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja');
+        $subject = 'Dane do rachunku — ' . ($contract['imie_nazwisko'] ?? '')
+                 . ($contract['numer_umowy'] ? ' (' . $contract['numer_umowy'] . ')' : '');
+        $body_html = '<div style="font-family:Segoe UI,Arial,sans-serif;white-space:pre-wrap;font-size:14px;color:#212529">'
+                   . nl2br(h($tekst)) . '</div>';
+
+        try {
+            $mail_id = mail_queue_add($ksieg, '', $subject, $body_html, $tekst, 'zlecenie', (int)$rozl['contract_id'], '', true);
+        } catch (\Throwable $e) {
+            ajax_err('Błąd wysyłki: ' . $e->getMessage());
+        }
+
+        $uid = (int)current_user()['id'];
+        rozliczenie_mark_sent($rid, $uid, $ksieg, $mail_id);
+        log_contract_action('zlecenie', (int)$rozl['contract_id'], $uid, 'rozliczenie_sent',
+            'Rozliczenie #' . $rid . ' → ' . $ksieg);
+
+        ajax_ok(['sent_to' => $ksieg], 'Wysłano do księgowego: ' . $ksieg);
+    }
+
+    // ── rozliczenie_settle — oznacz rozliczenie jako rozliczone ─────────────────
+    case 'rozliczenie_settle': {
+        if (!can_edit()) ajax_err('Brak uprawnień', 403);
+        $rid = (int)($_POST['rozliczenie_id'] ?? 0);
+        if (!$rid) ajax_err('Brak id rozliczenia');
+
+        $rozl = get_rozliczenie($rid);
+        if (!$rozl) ajax_err('Nie znaleziono rozliczenia');
+
+        $uid = (int)current_user()['id'];
+        rozliczenie_mark_settled($rid, $uid);
+        log_contract_action('zlecenie', (int)$rozl['contract_id'], $uid, 'rozliczenie_settled',
+            'Rozliczenie #' . $rid . ' oznaczone jako rozliczone');
+
+        ajax_ok([], 'Oznaczono jako rozliczone');
     }
 
     // ── set_favorite ──────────────────────────────────────────────────────────

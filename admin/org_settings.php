@@ -28,7 +28,7 @@ _org_reps_migrate();
 $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
-                  'm365_send_from_email',
+                  'm365_send_from_email','ksiegowy_email',
                   'admin_ip_restrict','admin_ip_whitelist'];
 $saved = [];
 foreach ($branding_keys as $k) {
@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['save_mail'])) {
         $mail_keys = ['notify_from_name','notify_from_email',
                       'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
-                      'm365_send_from_email'];
+                      'm365_send_from_email','ksiegowy_email'];
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
         foreach ($mail_keys as $k) {
             $v = trim($_POST[$k] ?? '');
@@ -661,6 +661,22 @@ include dirname(__DIR__) . '/includes/header.php';
             <i class="bi bi-exclamation-circle me-1"></i>Nie skonfigurowane
           </span>
           <?php endif; ?>
+        </div>
+      </div>
+
+      <!-- Księgowość -->
+      <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
+        <i class="bi bi-cash-coin me-1"></i>Księgowość
+      </h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-8">
+          <label class="form-label small fw-semibold">Adres e-mail księgowego</label>
+          <input type="email" name="ksiegowy_email" class="form-control form-control-sm"
+                 value="<?= h($saved['ksiegowy_email'] ?? '') ?>" placeholder="ksiegowosc@biuro.pl">
+          <div class="form-text">
+            Adres, na który trafia blok danych do rachunku z procesu „Umowa do rozliczenia”
+            (przycisk <em>Wyślij do księgowego</em>). Puste = tylko kopiuj/PDF.
+          </div>
         </div>
       </div>
 

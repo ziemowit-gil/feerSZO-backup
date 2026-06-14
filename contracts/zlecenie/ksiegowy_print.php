@@ -13,12 +13,23 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ksiegowy_email.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rozliczenia.php';
 
 require_login();
 
-$id  = (int)($_GET['id'] ?? 0);
-$row = $id ? db_one("SELECT * FROM umowy_zlecenie WHERE id = ?", [$id]) : null;
-$numer = $row['numer_umowy'] ?? '';
+$id     = (int)($_GET['id'] ?? 0);
+$rozlId = (int)($_GET['rozliczenie_id'] ?? 0);
+$row    = $id ? db_one("SELECT * FROM umowy_zlecenie WHERE id = ?", [$id]) : null;
+$numer  = $row['numer_umowy'] ?? '';
+
+// Gdy podano konkretne rozliczenie — blok e-mail z danymi tego rozliczenia
+$email_row = $row ?: [];
+if ($rozlId && $row) {
+    $rozl = get_rozliczenie($rozlId);
+    if ($rozl && (int)$rozl['contract_id'] === $id) {
+        $email_row = rozliczenie_email_row($row, $rozl);
+    }
+}
 
 // ── Dane organizacji ──────────────────────────────────────────────────────────
 $org_name     = org_setting('org_name')        ?: (defined('ORG_NAME') ? ORG_NAME : '');
@@ -30,7 +41,7 @@ $org_miasto   = org_setting('org_miejscowosc') ?: '';
 $org_logo_key = org_setting('org_logo')        ?: '';
 $org_logo_url = $org_logo_key ? APP_URL . '/uploads/' . $org_logo_key : '';
 
-$tekst = ksiegowy_rachunek_email_text($row ?: []);
+$tekst = ksiegowy_rachunek_email_text($email_row);
 ?><!doctype html>
 <html lang="pl">
 <head>

@@ -288,6 +288,10 @@ $_cvh_accent = match($_cvh_st['class']) {
             sel.classList.add('cvh-status-select', 'cvh-status-' + res.badge_class);
             sel.dataset.prevValue = newVal;
             ajaxToast('Status zaktualizowany');
+            // Hook procesowy (np. „Umowa do rozliczenia”) — obsługiwany przez widok danego typu umowy
+            if (res.open_rozliczenie && typeof window.cvhOpenRozliczenie === 'function') {
+              window.cvhOpenRozliczenie(res);
+            }
           } else {
             // Przywróć poprzednią wartość
             sel.value = prev;
