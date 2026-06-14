@@ -112,11 +112,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $hu = vlab_host_user_create($row); // ponowne wywołanie ustawia nowe hasło (chpasswd)
             if ($hu['ok']) {
+                $c2 = vlab_config();
                 db_update('k30_ti_vlab_containers', ['host_user' => $hu['user']], $cid);
                 vlab_log($cid, (int)$row['student_id'], 'host_pass_reset', true, $hu['user']);
                 flash_set('success', 'Konto SSH „' . $hu['user'] . '" — NOWE hasło: ' . $hu['password']
                     . '  (zapisz teraz; nie będzie pokazane ponownie). Logowanie: ssh ' . $hu['user']
-                    . '@' . ($cfg['public_host'] ?? '') . ' -p ' . (int)($cfg['ssh_port'] ?: 22));
+                    . '@' . ($c2['public_host'] ?? '') . ' -p ' . (int)($c2['ssh_port'] ?: 22));
             } else {
                 flash_set('danger', 'Nie udało się ustawić hasła: ' . $hu['msg']);
             }
@@ -124,7 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: vlab_admin.php'); exit;
     }
 }
-$cfg = $cfg ?? vlab_config();
 
 $cfg       = vlab_config();
 $templates = db_all("SELECT * FROM k30_ti_vlab_templates ORDER BY sort, name");
@@ -313,7 +313,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
-        <thead><tr><th>Kursant</th><th>Etykieta</th><th>Szablon</th><th>Status</th><th>Porty (SSH/ttyd)</th><th>Utworzono</th><th></th></tr></thead>
+        <thead><tr><th>Kursant</th><th>Etykieta</th><th>Szablon</th><th>Status</th><th>Login SSH (host)</th><th>Porty (SSH/ttyd)</th><th>Utworzono</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($containers as $c):
           $stColor = ['running'=>'success','stopped'=>'secondary','error'=>'danger','provisioning'=>'warning'][$c['status']] ?? 'secondary';
@@ -324,10 +324,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <td class="small text-muted"><?= h($c['tpl_name'] ?? '—') ?></td>
             <td><span class="badge bg-<?= $stColor ?>"><?= h($c['status']) ?></span>
               <?= $c['error_msg'] ? '<div class="small text-danger">'.h(mb_substr($c['error_msg'],0,80)).'</div>' : '' ?></td>
+            <td class="small"><?= !empty($c['host_user']) ? '<code>'.h($c['host_user']).'</code>' : '<span class="text-muted">—</span>' ?></td>
             <td class="small"><?= $c['ssh_port'] ? (int)$c['ssh_port'] : '—' ?> / <?= $c['ttyd_port'] ? (int)$c['ttyd_port'] : '—' ?></td>
             <td class="small text-muted"><?= h($c['created_at']) ?></td>
-            <td class="text-end">
-              <form method="post" onsubmit="return confirm('Wymusić usunięcie maszyny kursanta?')">
+            <td class="text-end text-nowrap">
+              <form method="post" class="d-inline" onsubmit="return confirm('Ustawić NOWE hasło SSH dla tego konta? Stare przestanie działać.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="host_pass_reset">
+                <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
+                <button class="btn btn-sm btn-outline-secondary py-0" title="Ustaw/odtwórz hasło SSH (pokazywane raz)"><i class="bi bi-key"></i></button>
+              </form>
+              <form method="post" class="d-inline" onsubmit="return confirm('Wymusić usunięcie maszyny kursanta? Konto SSH na hoście też zostanie skasowane.')">
                 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="force_remove">
                 <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
