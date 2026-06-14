@@ -43,7 +43,7 @@ function student_logout(): void {
 function student_require(): array {
     $s = student_current();
     if (!$s) {
-        header('Location: ' . APP_URL . '/karty30/ti/kursant/login.php');
+        header('Location: login.php');
         exit;
     }
     return $s;

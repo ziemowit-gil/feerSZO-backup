@@ -15,6 +15,8 @@ $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Motyw jasny/ciemny: zastosuj zapamiętany wybór przed renderem (bez mignięcia) -->
+<script>try{var t=localStorage.getItem('kp-theme');if(t)document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}</script>
 <title><?= h($KP_TITLE) ?> — <?= h($KP_ORG) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -45,6 +47,9 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
         <span><?= h($KP_TOPBAR['brand'] ?? $KP_ORG) ?></span>
       </span>
       <div class="d-flex align-items-center gap-3">
+        <button type="button" id="kp-theme-toggle" class="btn btn-outline-secondary btn-sm" aria-label="Przełącz motyw jasny/ciemny" title="Jasny / ciemny">
+          <i class="bi bi-circle-half" aria-hidden="true"></i>
+        </button>
         <?php if (!empty($KP_TOPBAR['user'])): ?>
         <span class="text-body-secondary small d-flex align-items-center gap-1">
           <i class="bi bi-person-circle" aria-hidden="true"></i><?= h($KP_TOPBAR['user']) ?>
@@ -59,4 +64,8 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
     </div>
   </nav>
 </header>
+<?php else: ?>
+<button type="button" id="kp-theme-toggle" class="btn btn-outline-secondary btn-sm position-fixed top-0 end-0 m-3" style="z-index:1080" aria-label="Przełącz motyw jasny/ciemny" title="Jasny / ciemny">
+  <i class="bi bi-circle-half" aria-hidden="true"></i>
+</button>
 <?php endif; ?>

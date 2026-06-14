@@ -13,7 +13,7 @@ karty30_migrate();
 
 // Już zalogowany → redirect
 if (student_current()) {
-    header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit;
+    header('Location: index.php'); exit;
 }
 
 $error = '';
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         student_login_user($account);
         db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now') WHERE id=?")
            ->execute([$account['id']]);
-        header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit;
+        header('Location: index.php'); exit;
     }
     $error = 'Nieprawidłowy login lub hasło.';
 }
@@ -49,7 +49,7 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-pc-display fs-3 text-white" aria-hidden="true"></i>
         </span>
         <h1 class="h4 fw-bold mb-1">Panel kursanta</h1>
-        <p class="text-body-secondary small mb-0"><?= h($org) ?> · Zajęcia informatyki / TI</p>
+        <p class="text-body-secondary small mb-0"><?= h($KP_ORG) ?> · Zajęcia informatyki / TI</p>
       </div>
 
       <?php if ($error): ?>

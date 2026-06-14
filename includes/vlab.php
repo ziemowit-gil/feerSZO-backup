@@ -211,6 +211,24 @@ function vlab_docker_state(string $name): ?string {
     return $r['out'] !== '' ? $r['out'] : null;
 }
 
+/** Inicjały kursanta z nazwy (np. „Jan Kowalski" → „jk"); fallback „k". */
+function vlab_initials(string $name): string {
+    $ini = '';
+    foreach (preg_split('/\s+/', trim($name)) as $p) {
+        if ($p !== '') $ini .= mb_substr($p, 0, 1);
+    }
+    $ini = strtolower(preg_replace('/[^a-z]/i', '', $ini));
+    return $ini !== '' ? substr($ini, 0, 4) : 'k';
+}
+
+/** Krótka, bezpieczna nazwa obrazu (bez registry/tagu): „ubuntu:latest" → „ubuntu". */
+function vlab_image_slug(string $image): string {
+    $img = preg_replace('/:.*$/', '', $image);   // odetnij :tag
+    $img = preg_replace('#^.*/#', '', $img);      // ostatni segment po /
+    $img = strtolower(preg_replace('/[^a-z0-9]/i', '', $img));
+    return $img !== '' ? substr($img, 0, 12) : 'img';
+}
+
 /** Sanityzacja etykiety kursanta → [a-z0-9-], maks 32 znaki. */
 function vlab_sanitize_label(string $label): string {
     $s = strtolower(trim($label));
@@ -256,7 +274,19 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
     }
 
     $label = vlab_sanitize_label($label) ?: 'lab';
-    $name  = 'vlab_s' . $studentId . '_' . substr(bin2hex(random_bytes(4)), 0, 8);
+
+    // Nazwa kontenera: inicjały kursanta - nazwa obrazu + data (ddmmrr).
+    $cn        = $clientId ? db_one("SELECT name FROM k30_clients WHERE id=?", [$clientId]) : null;
+    $initials  = vlab_initials((string)($cn['name'] ?? ''));
+    $imageSlug = vlab_image_slug((string)$tpl['docker_image']);
+    $base      = $initials . '-' . $imageSlug . date('dmy');
+    $name      = $base;
+    $n         = 1;
+    // container_name jest UNIQUE — w razie kolizji dokładamy sufiks -2, -3, …
+    while (db_one("SELECT id FROM k30_ti_vlab_containers WHERE container_name=?", [$name])) {
+        $n++;
+        $name = $base . '-' . $n;
+    }
 
     // Wygenerowane dane dostępowe (sandbox throwaway)
     $sshUser  = 'student';

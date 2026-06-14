@@ -4,13 +4,14 @@ DirectoryIndex index.php
 RewriteEngine On
 
 # ── Subdomena ti*. → panel kursanta TI ──────────────────────────────────────
-# Każdy host zaczynający się od „ti" (np. ti.example.org, ti-lab.example.org)
-# przekierowuje na panel kursanta. Pomijamy sam katalog panelu (aby nie zapętlić)
-# oraz zasoby statyczne / strony błędów.
+# Każdy host zaczynający się od „ti" (np. ti.feer.org.pl, ti-lab.example.org)
+# WEWNĘTRZNIE serwuje panel kursanta (URL w przeglądarce zostaje czysty, jak przy
+# aliasach CRM). Pomijamy sam katalog panelu (aby nie zapętlić) oraz zasoby
+# statyczne / strony błędów.
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ti/kursant/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
-RewriteRule ^ /karty30/ti/kursant/ [R=302,L]
+RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Short / friendly URLs ───────────────────────────────────────────────────
 # Aliasy krótkich linków do modułów systemu.
