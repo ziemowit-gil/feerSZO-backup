@@ -1,19 +1,12 @@
 <?php
 /**
- * Partial: widok rozliczeń (+ opcjonalnie frekwencji) kursanta.
- * Wymaga zdefiniowanych zmiennych:
- *   $rv_client_id   (int)  — klient (kursant), którego dane pokazujemy,
- *   $rv_show_lessons(bool) — czy dołączyć sekcję frekwencji (panel rodzica = true).
- * Używa h() oraz helperów k30_ti_client_billing / k30_ti_client_lessons.
+ * Partial: widok rozliczeń (+ opcjonalnie frekwencji). Bootstrap 5.3 + WCAG.
+ * Wymaga: $rv_client_id (int), $rv_show_lessons (bool).
  */
 $rv_billing = k30_ti_client_billing((int)$rv_client_id);
 $rv_months  = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
-$rv_st = [
-    'draft'  => ['Robocze',    '#94a3b8'],
-    'issued' => ['Wystawione', '#3b82f6'],
-    'paid'   => ['Opłacone',   '#22c55e'],
-];
+$rv_st = ['draft'=>['Robocze','secondary'], 'issued'=>['Wystawione','primary'], 'paid'=>['Opłacone','success']];
 $rv_total = 0.0; $rv_paid = 0.0;
 foreach ($rv_billing as $b) {
     $t = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
@@ -21,87 +14,103 @@ foreach ($rv_billing as $b) {
     if ($b['status']==='paid') $rv_paid += $t;
 }
 ?>
-<div class="vlab-section-title"><i class="bi bi-receipt"></i> Rozliczenia</div>
+<h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-receipt text-primary" aria-hidden="true"></i>Rozliczenia</h2>
 
-<div class="stats-row">
-  <div class="stat-card">
-    <div class="stat-val"><?= number_format($rv_total, 2, ',', ' ') ?> zł</div>
-    <div class="stat-lbl">Suma rozliczeń</div>
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="fs-4 fw-bold lh-1"><?= number_format($rv_total, 2, ',', ' ') ?> zł</div>
+      <div class="text-body-secondary small mt-1">Suma rozliczeń</div>
+    </div></div>
   </div>
-  <div class="stat-card">
-    <div class="stat-val att-yes"><?= number_format($rv_paid, 2, ',', ' ') ?> zł</div>
-    <div class="stat-lbl">Opłacone</div>
+  <div class="col-6 col-md-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="fs-4 fw-bold lh-1 text-success"><?= number_format($rv_paid, 2, ',', ' ') ?> zł</div>
+      <div class="text-body-secondary small mt-1">Opłacone</div>
+    </div></div>
   </div>
-  <div class="stat-card">
-    <div class="stat-val"><?= number_format(max(0, $rv_total - $rv_paid), 2, ',', ' ') ?> zł</div>
-    <div class="stat-lbl">Do zapłaty</div>
+  <div class="col-6 col-md-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="fs-4 fw-bold lh-1"><?= number_format(max(0, $rv_total - $rv_paid), 2, ',', ' ') ?> zł</div>
+      <div class="text-body-secondary small mt-1">Do zapłaty</div>
+    </div></div>
   </div>
 </div>
 
-<div class="lesson-table">
-  <table>
-    <thead>
-      <tr><th>Okres</th><th>Godziny</th><th>Korekta</th><th>Do zapłaty</th><th>Status</th></tr>
-    </thead>
-    <tbody>
-      <?php if (!$rv_billing): ?>
-      <tr><td colspan="5" style="color:var(--muted);text-align:center;padding:2rem">Brak rozliczeń.</td></tr>
-      <?php endif; ?>
-      <?php foreach ($rv_billing as $b):
-        [$lbl, $col] = $rv_st[$b['status']] ?? [$b['status'], '#94a3b8'];
-        $adj = (float)($b['adjustment'] ?? 0);
-        $tot = (float)$b['amount'] + $adj;
-      ?>
-      <tr>
-        <td><?= h($rv_months[(int)$b['month']] ?? $b['month']) ?> <?= (int)$b['year'] ?></td>
-        <td><?= number_format((float)$b['hours_billed'], 2, ',', ' ') ?> h</td>
-        <td>
-          <?php if ($adj != 0): ?>
-            <span style="color:<?= $adj > 0 ? '#f87171' : '#4ade80' ?>"><?= ($adj>0?'+':'−').number_format(abs($adj),2,',',' ') ?> zł</span>
-            <?php if (!empty($b['adjustment_note'])): ?><div style="color:var(--muted);font-size:.72rem"><?= h($b['adjustment_note']) ?></div><?php endif; ?>
-          <?php else: ?>
-            <span style="color:var(--muted)">—</span>
-          <?php endif; ?>
-        </td>
-        <td class="fw-bold"><?= number_format($tot, 2, ',', ' ') ?> zł</td>
-        <td><span class="vlab-st" style="background:<?= $col ?>22;color:<?= $col ?>;border:1px solid <?= $col ?>44"><?= h($lbl) ?></span></td>
-      </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <caption class="visually-hidden">Rozliczenia miesięczne</caption>
+      <thead>
+        <tr>
+          <th scope="col">Okres</th>
+          <th scope="col">Godziny</th>
+          <th scope="col">Korekta</th>
+          <th scope="col">Do zapłaty</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (!$rv_billing): ?>
+        <tr><td colspan="5" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
+        <?php endif; ?>
+        <?php foreach ($rv_billing as $b):
+          [$lbl, $col] = $rv_st[$b['status']] ?? [$b['status'], 'secondary'];
+          $adj = (float)($b['adjustment'] ?? 0);
+          $tot = (float)$b['amount'] + $adj;
+        ?>
+        <tr>
+          <td><?= h($rv_months[(int)$b['month']] ?? $b['month']) ?> <?= (int)$b['year'] ?></td>
+          <td><?= number_format((float)$b['hours_billed'], 2, ',', ' ') ?> h</td>
+          <td>
+            <?php if ($adj != 0): ?>
+              <span class="<?= $adj > 0 ? 'text-danger' : 'text-success' ?>"><?= ($adj>0?'+':'−').number_format(abs($adj),2,',',' ') ?> zł</span>
+              <?php if (!empty($b['adjustment_note'])): ?><div class="text-body-secondary" style="font-size:.72rem"><?= h($b['adjustment_note']) ?></div><?php endif; ?>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
+          <td class="fw-bold"><?= number_format($tot, 2, ',', ' ') ?> zł</td>
+          <td><span class="badge text-bg-<?= $col ?>"><?= h($lbl) ?></span></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <?php if (!empty($rv_show_lessons)):
   $rv_lessons = k30_ti_client_lessons((int)$rv_client_id, 40);
   $rv_mon = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',7=>'Lip',8=>'Sie',9=>'Wrz',10=>'Paź',11=>'Lis',12=>'Gru'];
 ?>
-<div class="vlab-section-title" style="margin-top:1.75rem"><i class="bi bi-calendar-check"></i> Frekwencja</div>
-<div class="lesson-table">
-  <table>
-    <thead><tr><th>Data</th><th>Kurs</th><th>Temat</th><th class="text-center">Obecność</th></tr></thead>
-    <tbody>
-      <?php if (!$rv_lessons): ?>
-      <tr><td colspan="4" style="color:var(--muted);text-align:center;padding:2rem">Brak lekcji.</td></tr>
-      <?php endif; ?>
-      <?php foreach ($rv_lessons as $l):
-        $d = new DateTime($l['lesson_date']);
-      ?>
-      <tr>
-        <td class="text-nowrap" style="color:var(--muted);font-size:.82rem"><?= $d->format('d') ?> <?= $rv_mon[(int)$d->format('n')] ?> <?= $d->format('Y') ?></td>
-        <td style="color:var(--muted);font-size:.82rem"><?= h($l['course_name']) ?></td>
-        <td style="font-size:.85rem"><?= $l['topic'] ? h($l['topic']) : '<span style="color:var(--muted)">—</span>' ?></td>
-        <td class="text-center">
-          <?php if ($l['status'] !== 'held'): ?>
-          <span class="att-unk" style="font-size:.8rem"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
-          <?php elseif ($l['attended']): ?>
-          <span class="att-yes"><i class="bi bi-check-circle-fill"></i></span>
-          <?php else: ?>
-          <span class="att-no"><i class="bi bi-x-circle-fill"></i></span>
-          <?php endif; ?>
-        </td>
-      </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+<h2 class="h5 fw-bold d-flex align-items-center gap-2 mt-4 mb-3"><i class="bi bi-calendar-check text-primary" aria-hidden="true"></i>Frekwencja</h2>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <caption class="visually-hidden">Frekwencja na lekcjach</caption>
+      <thead>
+        <tr><th scope="col">Data</th><th scope="col">Kurs</th><th scope="col">Temat</th><th scope="col" class="text-center">Obecność</th></tr>
+      </thead>
+      <tbody>
+        <?php if (!$rv_lessons): ?>
+        <tr><td colspan="4" class="text-center text-body-secondary py-4">Brak lekcji.</td></tr>
+        <?php endif; ?>
+        <?php foreach ($rv_lessons as $l): $d = new DateTime($l['lesson_date']); ?>
+        <tr>
+          <td class="text-nowrap text-body-secondary small"><?= $d->format('d') ?> <?= $rv_mon[(int)$d->format('n')] ?> <?= $d->format('Y') ?></td>
+          <td class="text-body-secondary small"><?= h($l['course_name']) ?></td>
+          <td class="small"><?= $l['topic'] ? h($l['topic']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="text-center">
+            <?php if ($l['status'] !== 'held'): ?>
+            <span class="badge text-bg-secondary"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
+            <?php elseif ($l['attended']): ?>
+            <span class="badge text-bg-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>obecny</span>
+            <?php else: ?>
+            <span class="badge text-bg-danger"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>nieobecny</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 <?php endif; ?>

@@ -19,6 +19,8 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/messages.php';
 require_once dirname(__DIR__) . '/includes/notifications.php';
+require_once dirname(__DIR__) . '/includes/rozliczenia.php';
+require_once dirname(__DIR__) . '/includes/ksiegowy_email.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');

@@ -381,6 +381,13 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_name  TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_phone TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_email TEXT    NOT NULL DEFAULT ''",
+        // ── Nauka online: konto MS (tenant szkoleniowy) + konto Moodle ────────
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_user_id        TEXT NOT NULL DEFAULT ''", // objectId w tenancie szkoleniowym
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_upn            TEXT NOT NULL DEFAULT ''", // login MS = login Moodle
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_created_at     DATETIME",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_user_id    INTEGER",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_username   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_created_at DATETIME",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -404,6 +411,21 @@ function karty30_migrate(): void {
         detail       TEXT    NOT NULL DEFAULT '',
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+
+    // ── Szkolenia online (linki ręczne; Teams/Zoom dociągane na żywo z API) ───
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_meetings (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        title       TEXT    NOT NULL DEFAULT '',
+        platform    TEXT    NOT NULL DEFAULT 'other',  -- 'zoom' | 'teams' | 'other'
+        join_url    TEXT    NOT NULL DEFAULT '',
+        course_id   INTEGER REFERENCES k30_ti_courses(id) ON DELETE SET NULL,
+        starts_at   DATETIME,
+        ends_at     DATETIME,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_meetings_starts ON k30_ti_meetings(is_active,starts_at)");
 }
 
 // Konfiguracja statusów harmonogramu

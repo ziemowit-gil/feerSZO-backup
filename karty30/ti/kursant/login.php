@@ -36,74 +36,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Nieprawidłowy login lub hasło.';
 }
 
-$org = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
-?><!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Panel kursanta — <?= h($org) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<style>
-body { background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-.login-card {
-  background: #1e293b; border-radius: 16px; padding: 2.5rem 2rem;
-  width: 100%; max-width: 380px; box-shadow: 0 8px 40px rgba(0,0,0,.5);
-}
-.login-icon {
-  width: 60px; height: 60px; border-radius: 14px;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.6rem; color: #fff; margin: 0 auto 1.5rem;
-}
-.login-title { color: #f1f5f9; font-size: 1.3rem; font-weight: 700; text-align: center; margin-bottom: .25rem; }
-.login-sub   { color: #94a3b8; font-size: .84rem; text-align: center; margin-bottom: 1.75rem; }
-.form-label  { color: #cbd5e1; font-size: .83rem; font-weight: 600; }
-.form-control {
-  background: #0f172a; border-color: #334155; color: #f1f5f9;
-  border-radius: 8px;
-}
-.form-control:focus { background: #0f172a; border-color: #2563eb; color: #f1f5f9; box-shadow: 0 0 0 3px #2563eb33; }
-.btn-login {
-  background: linear-gradient(135deg, #2563eb, #7c3aed); border: none;
-  border-radius: 8px; color: #fff; font-weight: 700; width: 100%; padding: .7rem;
-  font-size: .95rem; transition: opacity .15s;
-}
-.btn-login:hover { opacity: .9; color: #fff; }
-.alert-err { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: .6rem .85rem; font-size: .83rem; margin-bottom: 1rem; }
-</style>
-</head>
-<body>
-<div class="login-card">
-  <div class="login-icon"><i class="bi bi-pc-display"></i></div>
-  <div class="login-title">Panel kursanta</div>
-  <div class="login-sub"><?= h($org) ?> · Zajęcia informatyki / TI</div>
+$KP_TITLE = 'Logowanie — Panel kursanta';
+$KP_BODY_CLASS = 'd-flex align-items-center justify-content-center py-4';
+include __DIR__ . '/_layout_head.php';
+?>
+<main id="main" class="w-100" style="max-width:400px">
+  <div class="card shadow-lg border-0">
+    <div class="card-body p-4 p-sm-5">
+      <div class="text-center mb-4">
+        <span class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3"
+              style="width:60px;height:60px;background:linear-gradient(135deg,#2563eb,#7c3aed)">
+          <i class="bi bi-pc-display fs-3 text-white" aria-hidden="true"></i>
+        </span>
+        <h1 class="h4 fw-bold mb-1">Panel kursanta</h1>
+        <p class="text-body-secondary small mb-0"><?= h($org) ?> · Zajęcia informatyki / TI</p>
+      </div>
 
-  <?php if ($error): ?>
-  <div class="alert-err"><i class="bi bi-exclamation-circle me-1"></i><?= h($error) ?></div>
-  <?php endif; ?>
+      <?php if ($error): ?>
+      <div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert">
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+        <span><?= h($error) ?></span>
+      </div>
+      <?php endif; ?>
 
-  <form method="post" autocomplete="on">
-    <div class="mb-3">
-      <label class="form-label">Login</label>
-      <input type="text" class="form-control" name="login"
-             value="<?= h($_POST['login'] ?? '') ?>"
-             autofocus autocomplete="username" placeholder="Twój login">
+      <form method="post" autocomplete="on">
+        <div class="mb-3">
+          <label class="form-label" for="login">Login</label>
+          <input type="text" class="form-control" id="login" name="login"
+                 value="<?= h($_POST['login'] ?? '') ?>" required
+                 autofocus autocomplete="username" placeholder="Twój login">
+        </div>
+        <div class="mb-4">
+          <label class="form-label" for="password">Hasło</label>
+          <input type="password" class="form-control" id="password" name="password"
+                 required autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary w-100 fw-semibold py-2">
+          <i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i>Zaloguj się
+        </button>
+      </form>
+
+      <p class="text-center text-body-secondary mt-3 mb-0" style="font-size:.78rem">
+        Nie masz konta? Skontaktuj się z prowadzącym.
+      </p>
     </div>
-    <div class="mb-4">
-      <label class="form-label">Hasło</label>
-      <input type="password" class="form-control" name="password"
-             autocomplete="current-password" placeholder="••••••••">
-    </div>
-    <button type="submit" class="btn-login">
-      <i class="bi bi-box-arrow-in-right me-2"></i>Zaloguj się
-    </button>
-  </form>
-
-  <div class="text-center mt-3" style="font-size:.75rem;color:#475569">
-    Nie masz konta? Skontaktuj się z prowadzącym.
   </div>
-</div>
-</body>
-</html>
+</main>
+<?php include __DIR__ . '/_layout_foot.php'; ?>

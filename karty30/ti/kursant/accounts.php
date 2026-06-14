@@ -8,6 +8,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // konta MS / Moodle
 require_once __DIR__ . '/auth.php'; // parent_make_token()
 
 k30_require_access();
@@ -126,6 +127,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: accounts.php'); exit;
     }
 
+    // ── Konto Microsoft 365 (tenant szkoleniowy) ─────────────────────────────
+    if ($op === 'ms_create') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $res = ti_ms_provision($aid);
+        if ($res['ok']) {
+            if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+            $_SESSION['new_ms_creds'] = ['upn' => $res['upn'] ?? '', 'password' => $res['password'] ?? ''];
+            flash_set('success', 'Konto Microsoft utworzone: ' . ($res['upn'] ?? ''));
+        } else {
+            flash_set('danger', $res['msg']);
+        }
+        header('Location: accounts.php'); exit;
+    }
+
+    if ($op === 'ms_delete') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $res = ti_ms_delete($aid);
+        flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
+        header('Location: accounts.php'); exit;
+    }
+
+    // ── Konto Moodle (login = UPN konta MS) ──────────────────────────────────
+    if ($op === 'moodle_create') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $res = ti_moodle_provision($aid);
+        flash_set($res['ok'] ? 'success' : 'danger', $res['ok'] ? ('Konto Moodle gotowe: ' . ($res['login'] ?? '')) : $res['msg']);
+        header('Location: accounts.php'); exit;
+    }
+
     // Zapis danych opiekuna + status małoletniego
     if ($op === 'guardian_save') {
         $aid = (int)($_POST['account_id'] ?? 0);
@@ -194,6 +224,10 @@ $no_account  = array_filter($all_clients, fn($c) => !in_array((int)$c['id'], $ta
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $new_creds = $_SESSION['new_student_creds'] ?? null;
 unset($_SESSION['new_student_creds']);
+$new_ms_creds = $_SESSION['new_ms_creds'] ?? null;
+unset($_SESSION['new_ms_creds']);
+$ms_online_enabled     = ti_ms_enabled();
+$moodle_online_enabled = ti_moodle_enabled();
 $parent_link = $_SESSION['parent_link'] ?? null;
 unset($_SESSION['parent_link']);
 
@@ -242,6 +276,22 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
       <tr><th>Hasło</th><td class="font-monospace fw-bold text-danger"><?= h($new_creds['password']) ?></td></tr>
     </table>
     <div class="small text-muted">Link do logowania: <a href="<?= h($portal_url) ?>" target="_blank"><?= h($portal_url) ?></a></div>
+  </div>
+  <button type="button" class="btn-close" onclick="this.closest('.alert').remove()"></button>
+</div>
+<?php endif; ?>
+
+<!-- Nowo utworzone konto Microsoft -->
+<?php if ($new_ms_creds): ?>
+<div class="alert alert-warning d-flex gap-3 align-items-start mb-4 shadow-sm">
+  <i class="bi bi-microsoft fs-4 flex-shrink-0" style="color:#0078d4"></i>
+  <div class="flex-grow-1">
+    <div class="fw-bold mb-2">⚠ Dane konta Microsoft 365 — przekaż kursantowi i zamknij!</div>
+    <table class="table table-sm table-bordered mb-2" style="max-width:360px;background:#fff;font-size:.88rem">
+      <tr><th>Login (UPN)</th><td class="font-monospace fw-bold"><?= h($new_ms_creds['upn']) ?></td></tr>
+      <tr><th>Hasło tymczasowe</th><td class="font-monospace fw-bold text-danger"><?= h($new_ms_creds['password']) ?></td></tr>
+    </table>
+    <div class="small text-muted">Ten sam login służy do logowania w Moodle. Dane wysłano też e-mailem/SMS-em (jeśli skonfigurowane).</div>
   </div>
   <button type="button" class="btn-close" onclick="this.closest('.alert').remove()"></button>
 </div>
@@ -341,7 +391,7 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <thead class="table-light">
-            <tr><th>Beneficjent</th><th>Login</th><th>Status</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
+            <tr><th>Beneficjent</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
             <?php foreach ($accounts as $a): ?>
@@ -356,6 +406,59 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
                 <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Małoletni — rozliczenia dla rodzica">
                   <i class="bi bi-people"></i> małoletni
                 </span>
+                <?php endif; ?>
+              </td>
+              <td style="min-width:200px">
+                <?php $has_ms = !empty($a['ms_user_id']); $has_moodle = !empty($a['moodle_user_id']); ?>
+                <?php if (!$ms_online_enabled && !$moodle_online_enabled): ?>
+                <span class="text-muted small">moduł wyłączony</span>
+                <?php else: ?>
+                <div class="d-flex flex-column gap-1">
+                  <!-- Microsoft 365 -->
+                  <?php if ($ms_online_enabled): ?>
+                  <div class="d-flex align-items-center gap-1">
+                    <?php if ($has_ms): ?>
+                    <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" title="<?= h($a['ms_upn']) ?>">
+                      <i class="bi bi-microsoft"></i> MS
+                    </span>
+                    <span class="font-monospace text-truncate small" style="max-width:120px" title="<?= h($a['ms_upn']) ?>"><?= h($a['ms_upn']) ?></span>
+                    <form method="post" class="d-inline ms-auto" onsubmit="return confirm('Usunąć konto Microsoft tego kursanta?')">
+                      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                      <input type="hidden" name="_op" value="ms_delete">
+                      <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                      <button class="btn btn-xs btn-sm btn-outline-danger py-0 px-1" title="Usuń konto MS"><i class="bi bi-trash"></i></button>
+                    </form>
+                    <?php else: ?>
+                    <form method="post" class="d-inline">
+                      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                      <input type="hidden" name="_op" value="ms_create">
+                      <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                      <button class="btn btn-xs btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-microsoft me-1"></i>Utwórz MS</button>
+                    </form>
+                    <?php endif; ?>
+                  </div>
+                  <?php endif; ?>
+                  <!-- Moodle -->
+                  <?php if ($moodle_online_enabled): ?>
+                  <div class="d-flex align-items-center gap-1">
+                    <?php if ($has_moodle): ?>
+                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">
+                      <i class="bi bi-mortarboard"></i> Moodle
+                    </span>
+                    <span class="font-monospace text-truncate small" style="max-width:120px" title="<?= h($a['moodle_username']) ?>"><?= h($a['moodle_username']) ?></span>
+                    <?php elseif ($has_ms): ?>
+                    <form method="post" class="d-inline">
+                      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                      <input type="hidden" name="_op" value="moodle_create">
+                      <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                      <button class="btn btn-xs btn-sm btn-outline-success py-0 px-2"><i class="bi bi-mortarboard me-1"></i>Utwórz Moodle</button>
+                    </form>
+                    <?php else: ?>
+                    <span class="text-muted small">wymaga konta MS</span>
+                    <?php endif; ?>
+                  </div>
+                  <?php endif; ?>
+                </div>
                 <?php endif; ?>
               </td>
               <td class="text-muted"><?= $a['last_login'] ? date('d.m.Y H:i', strtotime($a['last_login'])) : '—' ?></td>

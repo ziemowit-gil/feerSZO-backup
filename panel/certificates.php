@@ -210,64 +210,25 @@ if ($_is_volunteer_only) {
 </div>
 
 <div class="col-xl-7">
-<div class="vol-detail-card">
-  <div class="vol-detail-header">
-    <i class="bi bi-list-check me-2" aria-hidden="true"></i>Historia wniosków
-    <?php if ($my_requests): ?>
-    <span class="badge bg-secondary ms-auto"><?= count($my_requests) ?></span>
-    <?php endif; ?>
-  </div>
-
-  <?php if (!$my_requests): ?>
-  <div class="vol-detail-body text-center py-4 text-muted">
-    <i class="bi bi-award" style="font-size:2.5rem;opacity:.2" aria-hidden="true"></i>
-    <p class="mt-3 mb-0 small">Nie masz jeszcze żadnych wniosków o zaświadczenie.</p>
-  </div>
-  <?php else: ?>
-  <?php foreach ($my_requests as $r):
-      $stat = CERTIFICATE_STATUSES[$r['status']] ?? ['label' => $r['status'], 'class' => 'secondary'];
-      try {
-          $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
-          $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
-      } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; }
-      $r_icon = $r['status'] === 'oczekuje' ? 'bi-clock-history' : ($r['status'] === 'wydane' ? 'bi-award-fill' : 'bi-x-circle');
-      $r_color = $r['status'] === 'oczekuje' ? 'warning' : ($r['status'] === 'wydane' ? 'success' : 'danger');
-  ?>
-  <div class="vol-activity-row">
-    <div class="vol-activity-icon bg-<?= $r_color ?> bg-opacity-15 text-<?= $r_color ?>">
-      <i class="bi <?= $r_icon ?>" aria-hidden="true"></i>
-    </div>
-    <div class="flex-grow-1" style="min-width:0">
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold" style="font-size:.85rem">
-          <?= h(CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type']) ?> · <?= h($c_nr) ?>
-        </span>
-        <?= certificate_status_badge($r['status']) ?>
-      </div>
-      <div class="text-muted" style="font-size:.78rem">Cel: <?= h($r['cel']) ?></div>
-      <?php if ($r['rejection_note']): ?>
-      <div class="text-danger" style="font-size:.78rem">
-        <i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($r['rejection_note']) ?>
-      </div>
-      <?php endif; ?>
-    </div>
-    <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
-      <span class="text-muted" style="font-size:.77rem"><?= date_pl($r['created_at']) ?></span>
-      <?php if ($r['status'] === 'wydane'): ?>
-      <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $r['id'] ?>"
-         target="_blank" class="btn btn-sm btn-success py-0 px-2" title="Pobierz / drukuj PDF">
-        <i class="bi bi-printer" aria-hidden="true"></i>
-      </a>
-      <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $r['id'] ?>"
-         class="btn btn-sm btn-outline-secondary py-0 px-2" title="Pobierz DOCX (Word)">
-        <i class="bi bi-file-earmark-word" aria-hidden="true"></i>
-      </a>
-      <?php endif; ?>
-    </div>
-  </div>
-  <?php endforeach; ?>
-  <?php endif; ?>
-</div>
+<?php
+// Znormalizuj wnioski dla wyspy React (panel/includes/pv_cert_history.php)
+$_pv_certs = array_map(function ($r) {
+    try {
+        $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
+        $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
+    } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; }
+    return [
+        'id'             => (int)$r['id'],
+        'status'         => $r['status'],
+        'type_label'     => CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type'],
+        'nr'             => $c_nr,
+        'cel'            => $r['cel'],
+        'rejection_note' => $r['rejection_note'] ?? '',
+        'created_pl'     => date_pl($r['created_at']),
+    ];
+}, $my_requests);
+include __DIR__ . '/includes/pv_cert_history.php';
+?>
 </div>
 
 </div><!-- /row -->

@@ -287,6 +287,10 @@ function action_label(string $action): string {
         'termination_approved'=> 'Rozwiązano umowę',
         'termination_rejected'=> 'Odrzucono wniosek o rozwiązanie',
         'letter_added'        => 'Dodano pismo',
+        // Rozliczenia
+        'rozliczenie_create'  => 'Utworzono rozliczenie',
+        'rozliczenie_sent'    => 'Wysłano rozliczenie do księgowego',
+        'rozliczenie_settled' => 'Rozliczenie rozliczone',
         // Autentykacja
         'login'               => 'Zalogowano',
         'login_fail'          => 'Błąd logowania',
@@ -324,6 +328,10 @@ function action_badge(string $action): string {
         'termination_rejected'=> 'danger',
         'termination_request' => 'warning',
         'letter_added'        => 'primary',
+        // Rozliczenia
+        'rozliczenie_create'  => 'warning',
+        'rozliczenie_sent'    => 'info',
+        'rozliczenie_settled' => 'success',
         // Autentykacja
         'login','login_sms','login_ms','login_2fa' => 'success',
         'login_fail'          => 'danger',

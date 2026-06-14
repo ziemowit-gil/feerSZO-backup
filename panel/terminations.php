@@ -221,42 +221,24 @@ if ($_is_volunteer_only) {
 </div>
 
 <?php if ($my_requests): ?>
-<div class="vol-detail-card">
-  <div class="vol-detail-header">
-    <i class="bi bi-list-check me-2" aria-hidden="true"></i>Moje wnioski o rozwiązanie
-    <span class="badge bg-secondary ms-auto"><?= count($my_requests) ?></span>
-  </div>
-  <?php foreach ($my_requests as $r):
-      try {
-          $c_row = db_one("SELECT numer_umowy, status FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
-          $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
-          $c_status = $c_row['status'] ?? '';
-      } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; $c_status = ''; }
-      $r_icon  = $r['status'] === 'oczekuje' ? 'bi-clock-history' : ($r['status'] === 'zaakceptowany' ? 'bi-check-circle-fill' : 'bi-x-circle-fill');
-      $r_color = $r['status'] === 'oczekuje' ? 'warning' : ($r['status'] === 'zaakceptowany' ? 'success' : 'danger');
-  ?>
-  <div class="vol-activity-row">
-    <div class="vol-activity-icon bg-<?= $r_color ?> bg-opacity-15 text-<?= $r_color ?>">
-      <i class="bi <?= $r_icon ?>" aria-hidden="true"></i>
-    </div>
-    <div class="flex-grow-1" style="min-width:0">
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold" style="font-size:.85rem">
-          <?= h(CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type']) ?> · <?= h($c_nr) ?>
-        </span>
-        <?= termination_status_badge($r['status']) ?>
-      </div>
-      <div class="text-muted" style="font-size:.78rem">Powód: <?= h(mb_strimwidth($r['powod'], 0, 80, '…')) ?></div>
-      <?php if ($r['decision_note']): ?>
-      <div class="<?= $r['status'] === 'odrzucony' ? 'text-danger' : 'text-muted' ?>" style="font-size:.78rem">
-        <i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($r['decision_note']) ?>
-      </div>
-      <?php endif; ?>
-    </div>
-    <div class="text-muted text-nowrap" style="font-size:.77rem"><?= date_pl($r['created_at']) ?></div>
-  </div>
-  <?php endforeach; ?>
-</div>
+<?php
+// Znormalizuj wnioski dla wyspy React (panel/includes/pv_term_history.php)
+$_pv_terms = array_map(function ($r) {
+    try {
+        $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);
+        $c_nr  = $c_row['numer_umowy'] ?? "#{$r['contract_id']}";
+    } catch (\Exception $e) { $c_nr = "#{$r['contract_id']}"; }
+    return [
+        'status'        => $r['status'],
+        'type_label'    => CONTRACT_TYPES[$r['contract_type']] ?? $r['contract_type'],
+        'nr'            => $c_nr,
+        'powod'         => mb_strimwidth((string)$r['powod'], 0, 80, '…'),
+        'decision_note' => $r['decision_note'] ?? '',
+        'created_pl'    => date_pl($r['created_at']),
+    ];
+}, $my_requests);
+include __DIR__ . '/includes/pv_term_history.php';
+?>
 <?php endif; ?>
 <?php else: ?>
 
