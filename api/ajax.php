@@ -150,6 +150,8 @@ switch ($action) {
         $okres         = trim($_POST['okres'] ?? '');
         $kwota         = trim($_POST['kwota_brutto'] ?? '');
         $godziny       = trim($_POST['liczba_godzin'] ?? '');
+        $powod         = trim($_POST['powod'] ?? '');
+        $nie_wysylac   = !empty($_POST['nie_wysylac']) && $_POST['nie_wysylac'] !== '0';
         $uwagi         = trim($_POST['uwagi'] ?? '');
 
         $uid = (int)current_user()['id'];
@@ -159,6 +161,8 @@ switch ($action) {
             'okres'         => $okres ?: null,
             'kwota_brutto'  => $kwota,
             'liczba_godzin' => $godziny ?: null,
+            'powod'         => $powod ?: null,
+            'nie_wysylac'   => $nie_wysylac,
             'uwagi'         => $uwagi ?: null,
         ], $uid);
 
@@ -175,7 +179,7 @@ switch ($action) {
         $rozl  = get_rozliczenie($rid);
         $tekst = ksiegowy_rachunek_email_text(rozliczenie_email_row($contract, $rozl));
 
-        ajax_ok(['rozliczenie_id' => $rid, 'email_text' => $tekst], 'Rozliczenie zapisane');
+        ajax_ok(['rozliczenie_id' => $rid, 'email_text' => $tekst, 'nie_wysylac' => $nie_wysylac ? 1 : 0], 'Rozliczenie zapisane');
     }
 
     // ── rozliczenie_send — wyślij blok e-mail do księgowego (kolejka) ───────────
@@ -186,6 +190,7 @@ switch ($action) {
 
         $rozl = get_rozliczenie($rid);
         if (!$rozl) ajax_err('Nie znaleziono rozliczenia');
+        if (!empty($rozl['nie_wysylac'])) ajax_err('To rozliczenie oznaczono jako „nie wysyłać do księgowego”.');
 
         $ksieg = trim(db_one("SELECT value FROM settings WHERE key_='ksiegowy_email'")['value'] ?? '');
         if (!$ksieg || !filter_var($ksieg, FILTER_VALIDATE_EMAIL)) {

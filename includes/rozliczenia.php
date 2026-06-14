@@ -25,6 +25,8 @@
             okres         TEXT,
             kwota_brutto  REAL,
             liczba_godzin TEXT,
+            powod         TEXT,
+            nie_wysylac   INTEGER DEFAULT 0,
             uwagi         TEXT,
             created_by    INTEGER,
             created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -36,6 +38,9 @@
             settled_at    DATETIME
         )");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_rozl_contract ON zlecenie_rozliczenia(contract_type, contract_id)");
+        // Dokładanie kolumn do istniejących tabel
+        try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN powod TEXT"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE zlecenie_rozliczenia ADD COLUMN nie_wysylac INTEGER DEFAULT 0"); } catch (\Throwable $e) {}
     } catch (\Throwable $e) {
         error_log('[rozliczenia migrate] ' . $e->getMessage());
     }
@@ -100,6 +105,8 @@ function create_rozliczenie(array $data, ?int $user_id, string $type = 'zlecenie
         'okres'         => $data['okres'] ?? null,
         'kwota_brutto'  => ($data['kwota_brutto'] ?? '') === '' ? null : (float)$data['kwota_brutto'],
         'liczba_godzin' => $data['liczba_godzin'] ?? null,
+        'powod'         => $data['powod'] ?? null,
+        'nie_wysylac'   => !empty($data['nie_wysylac']) ? 1 : 0,
         'uwagi'         => $data['uwagi'] ?? null,
         'created_by'    => $user_id,
         'created_at'    => date('Y-m-d H:i:s'),
@@ -143,5 +150,6 @@ function rozliczenie_email_row(array $contract, array $rozl): array {
         'okres_rachunku'          => $rozl['okres'] ?? '',
         'wynagrodzenie_brutto'    => $rozl['kwota_brutto'] ?? null,
         'liczba_godzin_planowana' => $rozl['liczba_godzin'] ?? '',
+        'powod'                   => $rozl['powod'] ?? '',
     ];
 }

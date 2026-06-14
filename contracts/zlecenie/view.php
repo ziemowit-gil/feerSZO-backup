@@ -329,6 +329,11 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
     <span><i class="bi bi-envelope-at"></i> E-mail do księgowego — dane do rachunku</span>
     <div class="d-flex gap-2 no-print">
+      <?php if (can_edit()): ?>
+      <button type="button" class="btn btn-sm btn-primary" onclick="cvhOpenRozliczenie(null)">
+        <i class="bi bi-receipt-cutoff"></i> Zlecenie wystawienia rachunku
+      </button>
+      <?php endif; ?>
       <button type="button" class="btn btn-sm btn-outline-primary" id="ksiegCopyBtn" onclick="ksiegCopy()">
         <i class="bi bi-clipboard"></i> Kopiuj tekst
       </button>
@@ -582,8 +587,8 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
     <span><i class="bi bi-cash-coin"></i> Rozliczenia umowy</span>
     <?php if (can_edit()): ?>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="cvhOpenRozliczenie(null)">
-      <i class="bi bi-plus-lg"></i> Nowe rozliczenie
+    <button type="button" class="btn btn-sm btn-primary" onclick="cvhOpenRozliczenie(null)">
+      <i class="bi bi-receipt-cutoff"></i> Zlecenie wystawienia rachunku
     </button>
     <?php endif; ?>
   </div>
@@ -619,7 +624,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
         <a href="<?= APP_URL ?>/contracts/zlecenie/ksiegowy_print.php?id=<?= $id ?>&rozliczenie_id=<?= (int)$rz['id'] ?>"
            target="_blank" class="btn btn-sm btn-outline-secondary" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
         <?php if (can_edit() && $rz['status'] !== 'rozliczone' && $rz['status'] !== 'anulowane'): ?>
-          <?php if ($_ksieg_addr): ?>
+          <?php if ($_ksieg_addr && empty($rz['nie_wysylac'])): ?>
           <button type="button" class="btn btn-sm btn-outline-primary" onclick="rozlSend(<?= (int)$rz['id'] ?>, this)" title="Wyślij do księgowego">
             <i class="bi bi-envelope"></i>
           </button>
@@ -628,7 +633,9 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
             <i class="bi bi-check2-circle"></i>
           </button>
         <?php endif; ?>
-        <?php if ($rz['status'] === 'wyslane' && $rz['sent_to_email']): ?>
+        <?php if (!empty($rz['nie_wysylac'])): ?>
+        <span class="badge bg-light text-secondary border ms-1" title="Oznaczone: nie wysyłać do księgowego"><i class="bi bi-envelope-slash"></i> Bez wysyłki</span>
+        <?php elseif ($rz['status'] === 'wyslane' && $rz['sent_to_email']): ?>
         <i class="bi bi-envelope-check text-info ms-1" title="Wysłano: <?= h($rz['sent_to_email']) ?> (<?= date_pl($rz['sent_at']) ?>)"></i>
         <?php endif; ?>
       </td>
@@ -639,7 +646,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   </div>
   <?php else: ?>
   <div class="card-body text-muted small">
-    Brak rozliczeń. Ustaw status umowy na <strong>„Do rozliczenia”</strong> lub kliknij <strong>„Nowe rozliczenie”</strong>,
+    Brak rozliczeń. Ustaw status umowy na <strong>„Do rozliczenia”</strong> lub kliknij <strong>„Zlecenie wystawienia rachunku”</strong>,
     aby przygotować dane do rachunku dla księgowego.
   </div>
   <?php endif; ?>
@@ -1037,11 +1044,14 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header" style="background:#6366f1;color:#fff">
-        <h5 class="modal-title" id="rozliczenieModalLabel"><i class="bi bi-cash-coin me-2"></i>Umowa do rozliczenia</h5>
+        <h5 class="modal-title" id="rozliczenieModalLabel"><i class="bi bi-receipt-cutoff me-2"></i>Zlecenie wystawienia rachunku</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted small">Uzupełnij dane rachunku, zapisz rozliczenie i przekaż dane księgowemu (kopiuj / PDF / wyślij).</p>
+        <p class="text-muted small">Dane zaciągnięto z umowy. Uzupełnij brakujące pola i powód, zapisz, a następnie przekaż dane księgowemu (kopiuj / PDF / wyślij).</p>
+        <div id="rozlMissing" class="alert alert-warning py-2 small d-none">
+          <i class="bi bi-exclamation-triangle me-1"></i><span id="rozlMissingList"></span>
+        </div>
         <div class="row g-3">
           <div class="col-md-6"><label class="form-label small fw-semibold">Dla kogo rachunek</label>
             <input id="rozlName" class="form-control" readonly></div>
@@ -1055,6 +1065,16 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
             <input id="rozlGodziny" class="form-control" oninput="rozlBuildPreview()"></div>
           <div class="col-md-4"><label class="form-label small fw-semibold">Kwota brutto (PLN)</label>
             <input id="rozlKwota" type="number" step="0.01" class="form-control" oninput="rozlBuildPreview()"></div>
+          <div class="col-md-8"><label class="form-label small fw-semibold">Powód wystawienia rachunku</label>
+            <input id="rozlPowod" class="form-control" placeholder="np. wynagrodzenie za realizację zlecenia w czerwcu" oninput="rozlBuildPreview()"></div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rozlNieWysylac" onchange="rozlToggleSend()">
+              <label class="form-check-label" for="rozlNieWysylac">
+                Nie wysyłaj do księgowego <span class="text-muted">(rozliczę bez maila — kopiuj / PDF / poza systemem)</span>
+              </label>
+            </div>
+          </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Podgląd e-mail do księgowego</label>
             <textarea id="rozlPreview" class="form-control font-monospace" rows="9" readonly style="font-size:.85rem;background:#f8f9fa"></textarea>
@@ -1148,7 +1168,35 @@ function ksiegCopy() {
   }
   function val(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
 
+  // Wymagane pola + ich etykiety (do prośby o uzupełnienie braków)
+  var REQUIRED = [
+    {id: 'rozlDataRachunku', label: 'data rachunku'},
+    {id: 'rozlOkres',        label: 'za jaki okres'},
+    {id: 'rozlKwota',        label: 'kwota brutto'},
+    {id: 'rozlGodziny',      label: 'liczba godzin'},
+    {id: 'rozlPowod',        label: 'powód wystawienia'}
+  ];
+
+  function rozlCheckMissing() {
+    var missing = [];
+    REQUIRED.forEach(function (f) {
+      var e = document.getElementById(f.id);
+      if (!e) return;
+      if (val(f.id) === '') { e.classList.add('is-invalid'); missing.push(f.label); }
+      else { e.classList.remove('is-invalid'); }
+    });
+    var box = document.getElementById('rozlMissing');
+    var list = document.getElementById('rozlMissingList');
+    if (missing.length) {
+      list.textContent = 'Uzupełnij brakujące dane: ' + missing.join(', ') + '.';
+      box.classList.remove('d-none');
+    } else {
+      box.classList.add('d-none');
+    }
+  }
+
   window.rozlBuildPreview = function () {
+    var powod = val('rozlPowod');
     var t = 'Dzień dobry,\n'
       + 'poniżej przesyłam dane do wystawienia rachunku:\n'
       + '- dla kogo rachunek: ' + val('rozlName') + '\n'
@@ -1157,9 +1205,11 @@ function ksiegCopy() {
       + '- za jaki okres jest rachunek: ' + val('rozlOkres') + '\n'
       + '- kwota brutto lub netto: ' + fmtKwota(val('rozlKwota')) + '\n'
       + '- ilość przepracowanych godzin: ' + val('rozlGodziny') + '\n'
+      + (powod ? '- powód wystawienia rachunku: ' + powod + '\n' : '')
       + 'Pozdrawiam';
     var p = document.getElementById('rozlPreview');
     if (p) p.value = t;
+    rozlCheckMissing();
   };
 
   function setVal(id, v) { var e = document.getElementById(id); if (e) e.value = (v === null || v === undefined) ? '' : v; }
@@ -1174,11 +1224,22 @@ function ksiegCopy() {
     setVal('rozlOkres',        d.okres || '');
     setVal('rozlGodziny',      d.liczba_godzin || '');
     setVal('rozlKwota',        d.kwota_brutto || '');
-    var info = document.getElementById('rozlInfo'); if (info) info.textContent = '';
+    setVal('rozlPowod',        '');
+    var nw = document.getElementById('rozlNieWysylac'); if (nw) nw.checked = false;
+    var info = document.getElementById('rozlInfo'); if (info) { info.textContent = ''; info.className = 'small mt-1'; }
     document.getElementById('rozlSendBtn').classList.add('disabled');
     var pdf = document.getElementById('rozlPdfBtn'); pdf.classList.add('disabled'); pdf.setAttribute('href', '#');
     rozlBuildPreview();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('rozliczenieModal')).show();
+  };
+
+  // Włącza/wyłącza przycisk „Wyślij do księgowego” wg checkboxa, ustawień i zapisu
+  window.rozlToggleSend = function () {
+    var nw = document.getElementById('rozlNieWysylac');
+    var sendBtn = document.getElementById('rozlSendBtn');
+    var saved = document.getElementById('rozlId').value !== '';
+    if ((nw && nw.checked) || !window.ROZL_CTX.ksiegEmail || !saved) sendBtn.classList.add('disabled');
+    else sendBtn.classList.remove('disabled');
   };
 
   window.rozlCopy = function () {
@@ -1198,7 +1259,9 @@ function ksiegCopy() {
       data_rachunku: val('rozlDataRachunku'),
       okres:         val('rozlOkres'),
       kwota_brutto:  val('rozlKwota'),
-      liczba_godzin: val('rozlGodziny')
+      liczba_godzin: val('rozlGodziny'),
+      powod:         val('rozlPowod'),
+      nie_wysylac:   (document.getElementById('rozlNieWysylac') || {}).checked ? 1 : 0
     }).then(function (res) {
       btn.disabled = false;
       if (res.ok) {
@@ -1208,7 +1271,7 @@ function ksiegCopy() {
         var pdf = document.getElementById('rozlPdfBtn');
         pdf.setAttribute('href', window.ROZL_CTX.appUrl + '/contracts/zlecenie/ksiegowy_print.php?id=' + window.ROZL_CTX.id + '&rozliczenie_id=' + res.rozliczenie_id);
         pdf.classList.remove('disabled');
-        if (window.ROZL_CTX.ksiegEmail) document.getElementById('rozlSendBtn').classList.remove('disabled');
+        rozlToggleSend();
         var info = document.getElementById('rozlInfo'); info.className = 'small mt-1 text-success';
         info.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Rozliczenie zapisane (#' + res.rozliczenie_id + ')';
         ajaxToast('Rozliczenie zapisane');

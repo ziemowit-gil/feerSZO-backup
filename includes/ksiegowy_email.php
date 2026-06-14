@@ -20,6 +20,7 @@ if (!function_exists('ksiegowy_rachunek_email_text')) {
         $kwota = (isset($row['wynagrodzenie_brutto']) && $row['wynagrodzenie_brutto'] !== '' && $row['wynagrodzenie_brutto'] !== null)
                ? money((float)$row['wynagrodzenie_brutto']) . ' (brutto)' : '';
         $godz  = trim((string)($row['liczba_godzin_planowana'] ?? ''));
+        $powod = trim((string)($row['powod'] ?? ''));
 
         return "Dzień dobry,\n"
              . "poniżej przesyłam dane do wystawienia rachunku:\n"
@@ -29,6 +30,7 @@ if (!function_exists('ksiegowy_rachunek_email_text')) {
              . "- za jaki okres jest rachunek: {$okres}\n"
              . "- kwota brutto lub netto: {$kwota}\n"
              . "- ilość przepracowanych godzin: {$godz}\n"
+             . ($powod !== '' ? "- powód wystawienia rachunku: {$powod}\n" : "")
              . "Pozdrawiam";
     }
 }

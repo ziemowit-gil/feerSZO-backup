@@ -23,6 +23,8 @@ $sql = "CREATE TABLE IF NOT EXISTS zlecenie_rozliczenia (
     okres         TEXT,
     kwota_brutto  REAL,
     liczba_godzin TEXT,
+    powod         TEXT,
+    nie_wysylac   INTEGER DEFAULT 0,
     uwagi         TEXT,
     created_by    INTEGER,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
