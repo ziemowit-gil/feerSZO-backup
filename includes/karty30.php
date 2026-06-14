@@ -277,6 +277,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_sessions ADD COLUMN topic            TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_sessions ADD COLUMN instructor_notes TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_sessions ADD COLUMN has_homework     INTEGER NOT NULL DEFAULT 0",
+        // Praca własna prowadzącego — przygotowanie materiału do wykonania zdalnie
+        "ALTER TABLE k30_ti_sessions ADD COLUMN self_prep_remote INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_sessions ADD COLUMN updated_at       DATETIME",
         "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {

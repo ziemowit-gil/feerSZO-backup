@@ -272,9 +272,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <tbody>
             <?php foreach ($sessions as $s):
               $st = K30_TI_SESSION_STATUSES[$s['status']] ?? ['label'=>$s['status'],'color'=>'#666','bg'=>'#eee'];
+              $is_remote_prep = !empty($s['self_prep_remote']);
             ?>
-            <tr>
-              <td class="text-nowrap"><?= date('d.m.Y',strtotime($s['lesson_date'])) ?></td>
+            <tr<?= $is_remote_prep ? ' style="background:#ecfeff;box-shadow:inset 3px 0 0 #06b6d4"' : '' ?>>
+              <td class="text-nowrap">
+                <?= date('d.m.Y',strtotime($s['lesson_date'])) ?>
+                <?php if ($is_remote_prep): ?>
+                <i class="bi bi-laptop text-info ms-1" title="Praca własna prowadzącego — przygotowanie materiału do wykonania zdalnie"></i>
+                <?php endif; ?>
+              </td>
               <td class="text-muted small text-nowrap">
                 <?= $s['time_from'] ? h($s['time_from']).'–'.h($s['time_to']) : '' ?>
                 <span class="text-muted">(<?= (int)$s['duration_min'] ?> min)</span>

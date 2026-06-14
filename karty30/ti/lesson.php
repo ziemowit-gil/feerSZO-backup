@@ -51,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $topic            = trim($_POST['topic']            ?? '');
         $instructor_notes = trim($_POST['instructor_notes'] ?? '');
         $has_homework     = !empty($_POST['has_homework']) ? 1 : 0;
+        $self_prep_remote = !empty($_POST['self_prep_remote']) ? 1 : 0;
         $duration_min     = max(1, (int)($_POST['duration_min'] ?? $session['duration_min']));
         $time_from        = trim($_POST['time_from'] ?? $session['time_from']);
         $time_to          = trim($_POST['time_to']   ?? $session['time_to']);
@@ -62,10 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 
         db()->prepare(
             "UPDATE k30_ti_sessions
-             SET status='held', topic=?, instructor_notes=?, has_homework=?,
+             SET status='held', topic=?, instructor_notes=?, has_homework=?, self_prep_remote=?,
                  duration_min=?, time_from=?, time_to=?, updated_at=datetime('now')
              WHERE id=?"
-        )->execute([$topic, $instructor_notes, $has_homework, $duration_min, $time_from, $time_to, $session_id]);
+        )->execute([$topic, $instructor_notes, $has_homework, $self_prep_remote, $duration_min, $time_from, $time_to, $session_id]);
 
         flash_set('success', 'Lekcja zapisana.');
         header('Location: lesson.php?id=' . $session_id);
@@ -133,6 +134,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php if ($session['has_homework'] ?? 0): ?>
       <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
         <i class="bi bi-pencil-square me-1"></i>Zadanie domowe
+      </span>
+      <?php endif; ?>
+      <?php if ($session['self_prep_remote'] ?? 0): ?>
+      <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">
+        <i class="bi bi-laptop me-1"></i>Praca własna — materiał zdalny
       </span>
       <?php endif; ?>
     </div>
@@ -218,13 +224,24 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <input type="hidden" id="ldur" name="duration_min" value="<?= (int)$session['duration_min'] ?>">
 
         <!-- Zadanie domowe -->
-        <div class="form-check form-switch mb-3">
+        <div class="form-check form-switch mb-2">
           <input class="form-check-input" type="checkbox" role="switch"
                  id="has_homework" name="has_homework" value="1"
                  <?= ($session['has_homework'] ?? 0) ? 'checked' : '' ?>
                  <?= !$can_write ? 'disabled' : '' ?>>
           <label class="form-check-label fw-semibold" for="has_homework">
             <i class="bi bi-pencil-square me-1 text-warning"></i>Zadano zadanie domowe
+          </label>
+        </div>
+
+        <!-- Praca własna prowadzącego — materiał do wykonania zdalnie -->
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="self_prep_remote" name="self_prep_remote" value="1"
+                 <?= ($session['self_prep_remote'] ?? 0) ? 'checked' : '' ?>
+                 <?= !$can_write ? 'disabled' : '' ?>>
+          <label class="form-check-label fw-semibold" for="self_prep_remote">
+            <i class="bi bi-laptop me-1 text-info"></i>Praca własna prowadzącego — przygotowanie materiału do wykonania zdalnie
           </label>
         </div>
 
