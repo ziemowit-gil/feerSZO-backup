@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 
 require_role('admin','editor');
 require_module_enabled('contract_zlecenie', 'Ten typ umowy');
+require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_schema.php';
 
 // Moduł w przygotowaniu — blokuj dodawanie/edycję
 require_once dirname(dirname(__DIR__)) . '/includes/contract_preview_notice.php';
@@ -54,9 +55,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','data_rachunku','okres_rachunku','forma_podpisania',
-            'platforma_el','id_dokumentu_el','plik_potwierdzenia','plik_umowy','uwagi','created_by','created_at','updated_at',
+            'platforma_el','id_dokumentu_el','epodpis_dostawca','epodpis_nr_certyfikatu','epodpis_data_waznosci',
+            'plik_potwierdzenia','plik_umowy','uwagi','created_by','created_at','updated_at',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
-            'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id'];
+            'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id',
+            'podpisujacy_fundacja','podpisujacy_stanowisko'];
         $data = array_intersect_key($row, array_flip($allowed));
 
         assign_nr_rejestru($data);
@@ -121,35 +124,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="row">
 <div class="col-lg-8">
 
-<!-- DANE PODSTAWOWE -->
+<!-- DANE PODSTAWOWE (najważniejsze) -->
 <div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-info-circle"></i> Dane podstawowe</div>
+<div class="card-header fw-semibold"><i class="bi bi-info-circle text-primary"></i> Dane podstawowe</div>
 <div class="card-body">
 <div class="row">
   <div class="col-md-4 mb-3"><label class="form-label">Numer umowy *</label>
     <input name="numer_umowy" class="form-control fw-bold" value="<?= h($row['numer_umowy']??'') ?>" required></div>
   <div class="col-md-4 mb-3"><label class="form-label">Status *</label>
     <select name="status" class="form-select" required>
-      <?php foreach(['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'] as $k=>$v):
-        $sel = ($row['status']??'')===$k?'selected':''; ?>
-      <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
+      <?php foreach(STATUS_LABELS as $k=>$v): if($k==='aneks') continue;
+        $sel = ($row['status']??'projekt')===$k?'selected':''; ?>
+      <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v['label']) ?></option>
       <?php endforeach; ?>
-    </select></div>
+    </select>
+    <div class="form-text">Proces: <strong>projekt → do podpisu → podpisana → w realizacji → do rozliczenia → zakończona</strong>.</div></div>
   <div class="col-md-4 mb-3"><label class="form-label">Opiekun umowy</label>
     <input name="opiekun" class="form-control" value="<?= h($row['opiekun']??'') ?>"></div>
 </div>
-<div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Data zawarcia</label>
-    <input name="data_zawarcia" type="date" class="form-control" value="<?= h($row['data_zawarcia']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Data rozpoczęcia</label>
-    <input name="data_rozpoczecia" type="date" class="form-control" value="<?= h($row['data_rozpoczecia']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Data zakończenia</label>
-    <input name="data_zakonczenia" type="date" class="form-control" value="<?= h($row['data_zakonczenia']??'') ?>"></div>
-</div>
 <div class="mb-3"><label class="form-label">Przedmiot zlecenia</label>
   <textarea name="przedmiot_zlecenia" class="form-control" rows="3"><?= h($row['przedmiot_zlecenia']??'') ?></textarea></div>
-<div class="mb-3"><label class="form-label">Numer projektu / źródło finansowania</label>
-  <input name="numer_projektu" class="form-control" value="<?= h($row['numer_projektu']??'') ?>"></div>
+<div class="row">
+  <div class="col-md-6 mb-3"><label class="form-label">Wynagrodzenie brutto (PLN)</label>
+    <input name="wynagrodzenie_brutto" type="number" step="0.01" class="form-control fw-semibold" value="<?= h($row['wynagrodzenie_brutto']??'') ?>"></div>
+  <div class="col-md-6 mb-3"><label class="form-label">Numer projektu / źródło finansowania</label>
+    <input name="numer_projektu" class="form-control" value="<?= h($row['numer_projektu']??'') ?>"></div>
+</div>
 </div>
 </div>
 
@@ -232,84 +232,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-<!-- WYNAGRODZENIE -->
+<!-- ───────── ① PODPISANIE ───────── -->
 <div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-currency-exchange"></i> Wynagrodzenie</div>
+<div class="card-header fw-semibold"><span class="badge bg-primary me-1">1</span><i class="bi bi-pen"></i> Podpisanie</div>
 <div class="card-body">
 <div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Wynagrodzenie brutto (PLN)</label>
-    <input name="wynagrodzenie_brutto" type="number" step="0.01" class="form-control" value="<?= h($row['wynagrodzenie_brutto']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Kwota stawki (PLN)</label>
-    <input name="stawka_kwota" type="number" step="0.01" class="form-control" value="<?= h($row['stawka_kwota']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Typ stawki</label>
-    <select name="typ_stawki" class="form-select">
-      <option value="">—</option>
-      <option value="godzinowo" <?= ($row['typ_stawki']??'')==='godzinowo'?'selected':'' ?>>Godzinowa</option>
-      <option value="ryczalt" <?= ($row['typ_stawki']??'')==='ryczalt'?'selected':'' ?>>Ryczałt</option>
-    </select></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Data zawarcia</label>
+    <input name="data_zawarcia" type="date" class="form-control" value="<?= h($row['data_zawarcia']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Podpisujący ze strony Fundacji</label>
+    <input name="podpisujacy_fundacja" class="form-control" value="<?= h($row['podpisujacy_fundacja']??'') ?>" placeholder="np. Jan Prezes"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Stanowisko podpisującego</label>
+    <input name="podpisujacy_stanowisko" class="form-control" value="<?= h($row['podpisujacy_stanowisko']??'') ?>" placeholder="np. Prezes Zarządu"></div>
 </div>
 <div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Liczba godzin (planowana)</label>
-    <input name="liczba_godzin_planowana" type="number" step="0.5" class="form-control" value="<?= h($row['liczba_godzin_planowana']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Termin płatności</label>
-    <input name="termin_platnosci" class="form-control" placeholder="np. 14 dni od dostarczenia rachunku" value="<?= h($row['termin_platnosci']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Koszty uzyskania przychodu</label>
-    <select name="kup" class="form-select">
-      <option value="brak">Brak / standardowe</option>
-      <option value="20" <?= ($row['kup']??'')==='20'?'selected':'' ?>>20% KUP</option>
-      <option value="50" <?= ($row['kup']??'')==='50'?'selected':'' ?>>50% KUP (prawa autorskie)</option>
-    </select></div>
-</div>
-<div class="col-md-4 mb-3"><label class="form-label">Zaliczka na podatek (PLN)</label>
-  <input name="zaliczka_podatek" type="number" step="0.01" class="form-control" value="<?= h($row['zaliczka_podatek']??'') ?>"></div>
-</div>
-</div>
-
-<!-- ZUS -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-shield-check"></i> ZUS / Ubezpieczenie</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3 pt-4">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="zus_skladki" id="zus_skladki" value="1" <?= !empty($row['zus_skladki'])?'checked':'' ?>>
-      <label class="form-check-label" for="zus_skladki">Podlega składkom ZUS</label>
-    </div></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Tytuł ubezpieczenia ZUS</label>
-    <input name="tytul_ubezpieczenia" class="form-control" value="<?= h($row['tytul_ubezpieczenia']??'') ?>"></div>
-  <div class="col-md-4 mb-3 pt-4">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="zwolnienie_wiek" id="zwolnienie_wiek" value="1" <?= !empty($row['zwolnienie_wiek'])?'checked':'' ?>>
-      <label class="form-check-label" for="zwolnienie_wiek">Zwolnienie — student/uczeń do 26 lat</label>
-    </div></div>
-</div>
-<div class="row">
-  <div class="col-md-4 mb-3"><label class="form-label">Data zgłoszenia do ZUS (ZUA/ZZA)</label>
-    <input type="date" name="zus_data_rejestracji" class="form-control" value="<?= h($row['zus_data_rejestracji']??'') ?>">
-    <div class="form-text">Termin: 7 dni od rozpoczęcia. Wypełnienie wycisza przypomnienia o rejestracji.</div></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Data wyrejestrowania z ZUS (ZWUA)</label>
-    <input type="date" name="zus_data_wyrejestrowania" class="form-control" value="<?= h($row['zus_data_wyrejestrowania']??'') ?>">
-    <div class="form-text">Termin: 7 dni od zakończenia. Wypełnienie wycisza przypomnienia o wyrejestrowaniu.</div></div>
-</div>
-</div>
-</div>
-
-<!-- RACHUNEK I FORMA PODPISANIA -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-pen"></i> Rachunek i podpisanie</div>
-<div class="card-body">
-<div class="row">
-  <div class="col-md-4 mb-3 pt-4">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="wymagany_rachunek" id="wymagany_rachunek" value="1" <?= !empty($row['wymagany_rachunek'])?'checked':'' ?>>
-      <label class="form-check-label" for="wymagany_rachunek">Wymagany rachunek do umowy</label>
-    </div></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Data złożenia rachunku</label>
-    <input name="data_zl_rachunku" type="date" class="form-control" value="<?= h($row['data_zl_rachunku']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Data rachunku</label>
-    <input name="data_rachunku" type="date" class="form-control" value="<?= h($row['data_rachunku']??'') ?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Za jaki okres jest rachunek</label>
-    <input name="okres_rachunku" class="form-control" placeholder="np. czerwiec 2026" value="<?= h($row['okres_rachunku']??'') ?>"></div>
   <div class="col-md-4 mb-3"><label class="form-label">Forma podpisania</label>
     <select name="forma_podpisania" class="form-select" id="forma_podpisania">
       <option value="">—</option>
@@ -334,6 +269,90 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="col-md-4 mb-3"><label class="form-label">Ważność certyfikatu</label>
     <input name="epodpis_data_waznosci" type="date" class="form-control" value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>"></div>
 </div>
+</div>
+</div>
+
+<!-- ───────── ② WYKONANIE ───────── -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><span class="badge bg-info me-1">2</span><i class="bi bi-play-circle"></i> Wykonanie / realizacja</div>
+<div class="card-body">
+<div class="row">
+  <div class="col-md-4 mb-3"><label class="form-label">Data rozpoczęcia</label>
+    <input name="data_rozpoczecia" type="date" class="form-control" value="<?= h($row['data_rozpoczecia']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Data zakończenia</label>
+    <input name="data_zakonczenia" type="date" class="form-control" value="<?= h($row['data_zakonczenia']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Liczba godzin (planowana)</label>
+    <input name="liczba_godzin_planowana" type="number" step="0.5" class="form-control" value="<?= h($row['liczba_godzin_planowana']??'') ?>"></div>
+</div>
+<div class="row">
+  <div class="col-md-4 mb-3"><label class="form-label">Typ stawki</label>
+    <select name="typ_stawki" class="form-select">
+      <option value="">—</option>
+      <option value="godzinowo" <?= ($row['typ_stawki']??'')==='godzinowo'?'selected':'' ?>>Godzinowa</option>
+      <option value="ryczalt" <?= ($row['typ_stawki']??'')==='ryczalt'?'selected':'' ?>>Ryczałt</option>
+    </select></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Kwota stawki (PLN)</label>
+    <input name="stawka_kwota" type="number" step="0.01" class="form-control" value="<?= h($row['stawka_kwota']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Sposób rozliczenia</label>
+    <input name="sposob_rozliczenia" class="form-control" placeholder="np. miesięcznie, po wykonaniu" value="<?= h($row['sposob_rozliczenia']??'') ?>"></div>
+</div>
+<hr class="my-2">
+<div class="text-muted small fw-semibold mb-2"><i class="bi bi-shield-check"></i> ZUS / Ubezpieczenie</div>
+<div class="row">
+  <div class="col-md-4 mb-3 pt-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="zus_skladki" id="zus_skladki" value="1" <?= !empty($row['zus_skladki'])?'checked':'' ?>>
+      <label class="form-check-label" for="zus_skladki">Podlega składkom ZUS</label>
+    </div></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Tytuł ubezpieczenia ZUS</label>
+    <input name="tytul_ubezpieczenia" class="form-control" value="<?= h($row['tytul_ubezpieczenia']??'') ?>"></div>
+  <div class="col-md-4 mb-3 pt-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="zwolnienie_wiek" id="zwolnienie_wiek" value="1" <?= !empty($row['zwolnienie_wiek'])?'checked':'' ?>>
+      <label class="form-check-label" for="zwolnienie_wiek">Zwolnienie — student/uczeń do 26 lat</label>
+    </div></div>
+</div>
+<div class="row">
+  <div class="col-md-4 mb-3"><label class="form-label">Data zgłoszenia do ZUS (ZUA/ZZA)</label>
+    <input type="date" name="zus_data_rejestracji" class="form-control" value="<?= h($row['zus_data_rejestracji']??'') ?>">
+    <div class="form-text">Termin: 7 dni od rozpoczęcia. Wypełnienie wycisza przypomnienia o rejestracji.</div></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Data wyrejestrowania z ZUS (ZWUA)</label>
+    <input type="date" name="zus_data_wyrejestrowania" class="form-control" value="<?= h($row['zus_data_wyrejestrowania']??'') ?>">
+    <div class="form-text">Termin: 7 dni od zakończenia. Wypełnienie wycisza przypomnienia o wyrejestrowaniu.</div></div>
+</div>
+</div>
+</div>
+
+<!-- ───────── ③ ROZLICZENIE ───────── -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><span class="badge bg-success me-1">3</span><i class="bi bi-cash-coin"></i> Rozliczenie i rachunek</div>
+<div class="card-body">
+<div class="row">
+  <div class="col-md-4 mb-3 pt-4">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="wymagany_rachunek" id="wymagany_rachunek" value="1" <?= !empty($row['wymagany_rachunek'])?'checked':'' ?>>
+      <label class="form-check-label" for="wymagany_rachunek">Wymagany rachunek do umowy</label>
+    </div></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Termin płatności</label>
+    <input name="termin_platnosci" class="form-control" placeholder="np. 14 dni od dostarczenia rachunku" value="<?= h($row['termin_platnosci']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Koszty uzyskania przychodu</label>
+    <select name="kup" class="form-select">
+      <option value="brak">Brak / standardowe</option>
+      <option value="20" <?= ($row['kup']??'')==='20'?'selected':'' ?>>20% KUP</option>
+      <option value="50" <?= ($row['kup']??'')==='50'?'selected':'' ?>>50% KUP (prawa autorskie)</option>
+    </select></div>
+</div>
+<div class="row">
+  <div class="col-md-3 mb-3"><label class="form-label">Data złożenia rachunku</label>
+    <input name="data_zl_rachunku" type="date" class="form-control" value="<?= h($row['data_zl_rachunku']??'') ?>"></div>
+  <div class="col-md-3 mb-3"><label class="form-label">Data rachunku</label>
+    <input name="data_rachunku" type="date" class="form-control" value="<?= h($row['data_rachunku']??'') ?>"></div>
+  <div class="col-md-3 mb-3"><label class="form-label">Za jaki okres jest rachunek</label>
+    <input name="okres_rachunku" class="form-control" placeholder="np. czerwiec 2026" value="<?= h($row['okres_rachunku']??'') ?>"></div>
+  <div class="col-md-3 mb-3"><label class="form-label">Zaliczka na podatek (PLN)</label>
+    <input name="zaliczka_podatek" type="number" step="0.01" class="form-control" value="<?= h($row['zaliczka_podatek']??'') ?>"></div>
+</div>
+<div class="form-text">Pełny proces rozliczeń (rachunki, wysyłka do księgowego) prowadzisz z widoku umowy po jej zapisaniu.</div>
 </div>
 </div>
 
