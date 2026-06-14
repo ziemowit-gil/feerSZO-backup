@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS umowy_uslugi (
     nazwa_wykonawcy VARCHAR(255),
     nip_pesel VARCHAR(20),
     adres TEXT,
+    email VARCHAR(255),
+    telefon VARCHAR(40),
     rachunek_lub_faktura VARCHAR(255),
     przedmiot_uslugi TEXT,
     zakres_uslug TEXT,
@@ -93,6 +95,9 @@ CREATE TABLE IF NOT EXISTS umowy_uslugi (
     opiekun VARCHAR(255),
     wymagany_protokol INTEGER DEFAULT 0,
     data_odbioru DATE,
+    status_rozliczenia VARCHAR(30) DEFAULT 'nierozliczone', -- nierozliczone / częściowo / rozliczone
+    kwota_rozliczona DECIMAL(12,2),
+    data_rozliczenia DATE,
     forma_podpisania VARCHAR(20),
     platforma_el VARCHAR(100),
     id_dokumentu_el VARCHAR(255),

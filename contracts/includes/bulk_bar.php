@@ -164,7 +164,9 @@ if (!isset($TYPE)) return;
 
   // ── Selekcja ─────────────────────────────────────────────────────────────
   const bar   = document.getElementById('bulk-bar');
-  const cbAll = document.getElementById('cb-all');
+  // Re-query za każdym razem — #cb-all żyje w regionie listy, który bywa
+  // podmieniany przez AJAX (np. rejestr usług), więc stała referencja zwietrzeje.
+  const cbAll = () => document.getElementById('cb-all');
 
   function getChecked() {
     return [...document.querySelectorAll('.cb-row:checked')].map(c => c.value);
@@ -175,9 +177,10 @@ if (!isset($TYPE)) return;
     const all  = document.querySelectorAll('.cb-row').length;
     bar.style.display = n ? '' : 'none';
     document.getElementById('bulk-count').textContent = n;
-    if (cbAll) {
-      cbAll.checked     = n > 0 && n === all;
-      cbAll.indeterminate = n > 0 && n < all;
+    const ca = cbAll();
+    if (ca) {
+      ca.checked       = n > 0 && n === all;
+      ca.indeterminate = n > 0 && n < all;
     }
   }
 
@@ -192,7 +195,8 @@ if (!isset($TYPE)) return;
 
   window.bulkClear = function () {
     document.querySelectorAll('.cb-row').forEach(c => { c.checked = false; });
-    if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+    const ca = cbAll();
+    if (ca) { ca.checked = false; ca.indeterminate = false; }
     updateBar();
   };
 

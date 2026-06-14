@@ -37,16 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row['updated_at'] = date('Y-m-d H:i:s');
 
         // Usuń puste pola liczbowe
-        foreach (['wartosc_netto','wartosc_brutto','stawka_vat','termin_platnosci_dni'] as $f) {
+        foreach (['wartosc_netto','wartosc_brutto','stawka_vat','termin_platnosci_dni','kwota_rozliczona'] as $f) {
             if (isset($row[$f]) && $row[$f] === '') $row[$f] = null;
         }
 
         // Tylko kolumny z tabeli
-        $allowed = ['numer_umowy','status','nazwa_wykonawcy','nip_pesel','adres','email','rachunek_lub_faktura',
+        $allowed = ['numer_umowy','status','nazwa_wykonawcy','nip_pesel','adres','email','telefon','rachunek_lub_faktura',
             'przedmiot_uslugi','zakres_uslug','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'czas_nieokreslony','okres_wypowiedzenia','wartosc_netto','wartosc_brutto','stawka_vat',
             'waluta','harmonogram_platnosci','termin_platnosci_dni','numer_projektu','wymagana_faktura',
-            'opiekun','wymagany_protokol','data_odbioru','forma_podpisania','platforma_el',
+            'opiekun','wymagany_protokol','data_odbioru','status_rozliczenia','kwota_rozliczona','data_rozliczenia',
+            'forma_podpisania','platforma_el',
             'id_dokumentu_el','plik_potwierdzenia','plik_umowy','zalaczniki','uwagi',
             'created_by','created_at','updated_at',
             'nr_roboczy','nr_system','nr_rejestru'];
@@ -198,8 +199,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <div class="mb-3"><label class="form-label">Adres</label>
   <input name="adres" class="form-control" value="<?= h($row['adres']??'') ?>"></div>
+<div class="row">
   <div class="col-md-6 mb-3"><label class="form-label">Adres e-mail kontrahenta</label>
     <input type="email" name="email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email']??'')?>"></div>
+  <div class="col-md-6 mb-3"><label class="form-label">Telefon kontaktowy</label>
+    <input name="telefon" class="form-control" placeholder="np. +48 600 100 200" value="<?= h($row['telefon']??'')?>"></div>
+</div>
 <div class="mb-3"><label class="form-label">Rachunek bankowy / dane do faktury</label>
   <input name="rachunek_lub_faktura" class="form-control" placeholder="Nr rachunku lub dane do faktury" value="<?= h($row['rachunek_lub_faktura']??'') ?>"></div>
 </div>
@@ -245,6 +250,20 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
   <div class="col-md-4 mb-3"><label class="form-label">Data odbioru</label>
     <input name="data_odbioru" type="date" class="form-control" value="<?= h($row['data_odbioru']??'') ?>"></div>
+</div>
+<hr class="my-2">
+<div class="row">
+  <div class="col-md-4 mb-3"><label class="form-label">Stan rozliczenia</label>
+    <select name="status_rozliczenia" class="form-select">
+      <?php foreach(['nierozliczone'=>'Nierozliczone','częściowo'=>'Częściowo rozliczone','rozliczone'=>'Rozliczone'] as $k=>$v):
+        $sel = ($row['status_rozliczenia']??'nierozliczone')===$k?'selected':''; ?>
+      <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
+      <?php endforeach; ?>
+    </select></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Kwota rozliczona</label>
+    <input name="kwota_rozliczona" type="number" step="0.01" min="0" class="form-control" value="<?= h($row['kwota_rozliczona']??'') ?>"></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Data rozliczenia</label>
+    <input name="data_rozliczenia" type="date" class="form-control" value="<?= h($row['data_rozliczenia']??'') ?>"></div>
 </div>
 </div>
 </div>
