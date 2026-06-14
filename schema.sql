@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS umowy_zlecenie (
     termin_platnosci VARCHAR(100),
     zus_skladki INTEGER DEFAULT 0,
     tytul_ubezpieczenia VARCHAR(255),
+    zus_data_rejestracji DATE,         -- data zgłoszenia do ZUS (ZUA/ZZA)
+    zus_data_wyrejestrowania DATE,     -- data wyrejestrowania z ZUS (ZWUA)
     zwolnienie_wiek INTEGER DEFAULT 0,
     zaliczka_podatek DECIMAL(10,2),
     kup VARCHAR(10),                -- 20 / 50 / brak

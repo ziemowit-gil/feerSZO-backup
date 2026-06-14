@@ -244,6 +244,41 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   </div>
   </div>
 
+  <?php if (!empty($row['zus_skladki'])):
+    // ── Rejestracja / wyrejestrowanie ZUS (termin: 7 dni od zdarzenia) ──────────
+    $_zus_box = static function (string $label, string $action, ?string $done, ?string $anchor): string {
+        if (!empty($done)) {
+            return '<div class="detail-label">' . $label . '</div>'
+                 . '<div class="detail-value"><span class="badge bg-success">' . $action . ': ' . date_pl($done) . '</span></div>';
+        }
+        if (empty($anchor)) {
+            return '<div class="detail-label">' . $label . '</div>'
+                 . '<div class="detail-value text-muted">brak daty odniesienia</div>';
+        }
+        $deadline = date('Y-m-d', strtotime($anchor . ' +7 days'));
+        $dleft    = (int) round((strtotime($deadline) - strtotime(date('Y-m-d'))) / 86400);
+        if     ($dleft < 0)  { $cls = 'danger';    $txt = 'po terminie (' . abs($dleft) . ' dni)'; }
+        elseif ($dleft <= 3) { $cls = 'warning';   $txt = 'pozostało ' . $dleft . ' dni'; }
+        else                 { $cls = 'secondary'; $txt = 'pozostało ' . $dleft . ' dni'; }
+        return '<div class="detail-label">' . $label . '</div>'
+             . '<div class="detail-value">Termin: <strong>' . date_pl($deadline) . '</strong> '
+             . '<span class="badge bg-' . $cls . '">' . $txt . '</span></div>';
+    };
+    $_zus_anchor_reg = $row['data_rozpoczecia'] ?: $row['data_zawarcia'];
+  ?>
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-shield-check"></i> ZUS — rejestracja i wyrejestrowanie</div>
+  <div class="card-body">
+  <div class="row g-3">
+    <div class="col-md-6"><?= $_zus_box('Zgłoszenie do ZUS (ZUA/ZZA)', 'Zgłoszono', $row['zus_data_rejestracji'] ?? null, $_zus_anchor_reg) ?></div>
+    <?php if (empty($row['bezterminowa']) && !empty($row['data_zakonczenia'])): ?>
+    <div class="col-md-6"><?= $_zus_box('Wyrejestrowanie z ZUS (ZWUA)', 'Wyrejestrowano', $row['zus_data_wyrejestrowania'] ?? null, $row['data_zakonczenia']) ?></div>
+    <?php endif; ?>
+  </div>
+  </div>
+  </div>
+  <?php endif; ?>
+
   <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold">Rachunek i podpisanie</div>
   <div class="card-body">

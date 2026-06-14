@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             'rachunek_bankowy','przedmiot_zlecenia','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
-            'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zwolnienie_wiek','zaliczka_podatek','kup',
+            'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','forma_podpisania',
             'platforma_el','id_dokumentu_el','plik_potwierdzenia','plik_umowy','uwagi',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
@@ -278,6 +278,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="form-check">
       <input class="form-check-input" type="checkbox" name="zwolnienie_wiek" value="1" <?= $row['zwolnienie_wiek']?'checked':'' ?>>
       <label class="form-check-label">Zwolnienie &lt;26 lat</label></div></div>
+</div>
+<div class="row">
+  <div class="col-md-4 mb-3"><label class="form-label">Data zgłoszenia do ZUS (ZUA/ZZA)</label>
+    <input type="date" name="zus_data_rejestracji" class="form-control" value="<?= h($row['zus_data_rejestracji'] ?? '') ?>">
+    <div class="form-text">Termin: 7 dni od rozpoczęcia. Wypełnienie wycisza przypomnienia.</div></div>
+  <div class="col-md-4 mb-3"><label class="form-label">Data wyrejestrowania z ZUS (ZWUA)</label>
+    <input type="date" name="zus_data_wyrejestrowania" class="form-control" value="<?= h($row['zus_data_wyrejestrowania'] ?? '') ?>">
+    <div class="form-text">Termin: 7 dni od zakończenia. Wypełnienie wycisza przypomnienia.</div></div>
+</div>
 </div>
 </div>
 </div>

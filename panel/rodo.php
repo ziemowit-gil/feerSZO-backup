@@ -51,14 +51,13 @@ if ($_is_volunteer_only) {
 } else {
     include dirname(__DIR__) . '/includes/header.php';
 }
+require_once __DIR__ . '/includes/pv_ui.php';
 ?>
 
-<div class="d-flex align-items-center gap-2 mb-3">
-  <h4 class="mb-0 fw-bold"><i class="bi bi-shield-lock text-primary me-2"></i>Moje upoważnienia RODO</h4>
-</div>
+<?php pv_page_header('Moje upoważnienia RODO', ['icon' => 'bi-shield-lock']); ?>
 
-<div class="alert alert-info d-flex gap-2 py-2 mb-3 small">
-  <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+<div class="pv-note">
+  <i class="bi bi-info-circle-fill"></i>
   <div>
     Upoważnienia uprawniają Cię do przetwarzania danych osobowych w ramach wolontariatu.
     Obowiązuje Cię <strong>poufność</strong> przetwarzanych danych — również po zakończeniu współpracy.
@@ -67,13 +66,13 @@ if ($_is_volunteer_only) {
 </div>
 
 <?php if (!$authorizations): ?>
-<div class="text-center py-5 text-muted">
-  <i class="bi bi-shield-check" style="font-size:2.5rem;opacity:.35"></i>
-  <div class="mt-2 fw-semibold">Brak upoważnień powiązanych z Twoim kontem</div>
-  <div class="small mt-1">Jeśli uważasz, że powinno ono istnieć — skontaktuj się z administratorem.</div>
+<div class="pv-empty">
+  <i class="bi bi-shield-check"></i>
+  <div class="pv-empty-title">Brak upoważnień powiązanych z Twoim kontem</div>
+  <div class="pv-empty-sub">Jeśli uważasz, że powinno ono istnieć — skontaktuj się z administratorem.</div>
 </div>
 <?php else: ?>
-<div class="card border-0 shadow-sm">
+<div class="pv-card">
   <?php foreach ($authorizations as $a):
     $scope = json_decode($a['scope_items'] ?? '[]', true) ?: [];
     $status_map = ['aktywne'=>['bg-success','Aktywne'],'cofnięte'=>['bg-danger','Odwołane'],'wygasłe'=>['bg-secondary','Wygasłe']];
