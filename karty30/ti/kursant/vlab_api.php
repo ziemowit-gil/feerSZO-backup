@@ -32,16 +32,16 @@ function vlab_payload(array $student): array {
     $machines = [];
     foreach ($rows as $r) {
         $machines[] = [
-            'id'        => (int)$r['id'],
-            'label'     => $r['label'],
-            'status'    => $r['status'],
-            'error'     => $r['error_msg'],
-            'ssh_host'  => $cfg['public_host'] ?? '',
-            'ssh_port'  => $r['ssh_port'] ? (int)$r['ssh_port'] : null,
-            'ssh_user'  => $r['ssh_user'],
-            'ssh_pass'  => $r['ssh_password'],
-            'ttyd_url'  => vlab_ttyd_url($r),
-            'created_at'=> $r['created_at'],
+            'id'         => (int)$r['id'],
+            'label'      => $r['label'],
+            'status'     => $r['status'],
+            'error'      => $r['error_msg'],
+            'ssh_host'   => $cfg['public_host'] ?? '',
+            // Logowanie przez konto hosta (wpuszcza do kontenera); port = SSH hosta.
+            'host_user'  => $r['host_user'] ?? '',
+            'host_port'  => (int)($cfg['ssh_port'] ?: 22),
+            'ttyd_url'   => vlab_ttyd_url($r),
+            'created_at' => $r['created_at'],
         ];
     }
     return [

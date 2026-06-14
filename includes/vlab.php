@@ -18,6 +18,15 @@
  * Kontener startuje z `-P` (publish wszystkich EXPOSE na losowe porty hosta);
  * porty hosta dla 22/7681 odczytywane są przez `docker port`.
  *
+ * ── Konto logowania kursanta na hoście ────────────────────────────────────────
+ * Dla każdej maszyny zakładane jest konto systemowe na HOŚCIE (nazwa = nazwa
+ * kontenera). Jego login shell to wrapper `docker exec -it <kontener>`, więc
+ * `ssh <konto>@<host>` wpuszcza kursanta wprost do kontenera. Konto kasowane
+ * przy usuwaniu maszyny. WYMÓG: użytkownik SSH (vlab_config.ssh_user) musi mieć
+ * passwordless sudo (useradd/usermod/userdel/chpasswd) LUB być rootem; host musi
+ * mieć grupę `docker` (konto kursanta jest do niej dodawane). Hasło konta
+ * pokazywane jest kursantowi JEDEN raz (panel + e-mail), nie jest zapisywane.
+ *
  * Przykładowy Dockerfile sandboxa:
  *   FROM ubuntu:22.04
  *   RUN apt-get update && apt-get install -y openssh-server sudo curl \
@@ -106,6 +115,77 @@ function vlab_ssh_exec(array $argv): array {
     $err = stream_get_contents($pipes[2]); fclose($pipes[2]);
     $code = proc_close($proc);
     return ['ok' => $code === 0, 'out' => trim((string)$out), 'err' => trim((string)$err), 'code' => (int)$code];
+}
+
+/**
+ * Wykonuje skrypt powłoki na hoście z uprawnieniami roota.
+ * Najpierw przez `sudo -n` (wymaga passwordless sudo dla użytkownika SSH);
+ * gdy sudo niedostępne, próbuje wprost (gdy użytkownik SSH jest rootem).
+ */
+function vlab_ssh_root(string $script): array {
+    $r = vlab_ssh_exec(['sudo', '-n', 'sh', '-c', $script]);
+    if (!$r['ok'] && preg_match('/\bsudo\b|not found|no tty|a password is required/i', $r['err'] . ' ' . $r['out'])) {
+        $r = vlab_ssh_exec(['sh', '-c', $script]);
+    }
+    return $r;
+}
+
+/** Nazwa konta hosta dla kontenera (= nazwa kontenera; bezpieczny zestaw znaków). */
+function vlab_host_username(array $container): string {
+    return preg_replace('/[^a-z0-9_]/', '', strtolower((string)($container['container_name'] ?? '')));
+}
+
+/**
+ * Tworzy na hoście konto systemowe, którego logowanie SSH od razu wpuszcza
+ * kursanta do kontenera (login shell = wrapper `docker exec`). Hasło jest
+ * zwracane jednorazowo (NIE jest przechowywane w bazie).
+ * Zwraca ['ok'=>bool,'user'=>string,'password'=>string,'msg'=>string].
+ */
+function vlab_host_user_create(array $container): array {
+    $u    = vlab_host_username($container);
+    $name = (string)$container['container_name'];
+    if ($u === '' || $name === '') return ['ok' => false, 'msg' => 'Brak nazwy kontenera.'];
+
+    // Hasło: heks + stały sufiks (mała+wielka litera, cyfra, znak specjalny) — bez apostrofu.
+    $pass = bin2hex(random_bytes(8)) . 'Aa1!';
+    $w    = '/usr/local/bin/vlab-' . $u;
+
+    // Jeden skrypt → jedno połączenie SSH. $u/$name/$pass z bezpiecznych zestawów znaków.
+    $script = implode("\n", [
+        'set -e',
+        "U='{$u}'",
+        "NM='{$name}'",
+        "P='{$pass}'",
+        'W="/usr/local/bin/vlab-$U"',
+        // wrapper: natychmiast wchodzi do kontenera (root w kontenerze = sandbox)
+        'printf \'#!/bin/sh\nexec docker exec -it %s bash -l 2>/dev/null || exec docker exec -it %s sh -l\n\' "$NM" "$NM" > "$W"',
+        'chmod 755 "$W"',
+        'grep -qxF "$W" /etc/shells 2>/dev/null || echo "$W" >> /etc/shells',
+        'id "$U" >/dev/null 2>&1 || useradd -m -s "$W" "$U"',
+        'usermod -s "$W" "$U"',
+        'printf \'%s:%s\' "$U" "$P" | chpasswd',
+        // dostęp do dockera dla wrappera (grupa docker; jeśli brak — pomijamy)
+        'getent group docker >/dev/null 2>&1 && usermod -aG docker "$U" || true',
+    ]);
+
+    $r = vlab_ssh_root($script);
+    if (!$r['ok']) {
+        return ['ok' => false, 'msg' => $r['err'] ?: 'Nie udało się utworzyć konta na hoście.'];
+    }
+    return ['ok' => true, 'user' => $u, 'password' => $pass, 'msg' => 'Konto hosta utworzone.'];
+}
+
+/** Usuwa konto systemowe hosta powiązane z kontenerem (best-effort). */
+function vlab_host_user_remove(array $container): array {
+    $u = vlab_host_username($container);
+    if ($u === '') return ['ok' => true];
+    $script = implode("\n", [
+        "U='{$u}'",
+        'userdel -r "$U" 2>/dev/null || true',
+        'rm -f "/usr/local/bin/vlab-$U"',
+        'sed -i "\\#^/usr/local/bin/vlab-$U\\$#d" /etc/shells 2>/dev/null || true',
+    ]);
+    return vlab_ssh_root($script);
 }
 
 /** Test połączenia z demonem Dockera. */
@@ -241,18 +321,36 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
     ], $id);
     vlab_log($id, $studentId, 'create', true, $name);
 
-    // Dane dostępowe do maszyny wysyłamy kursantowi mailem (hasło do panelu idzie SMS-em).
+    // Konto na hoście, którego logowanie SSH wpuszcza kursanta wprost do kontenera.
     $container = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [$id]);
-    if ($container) vlab_email_credentials($container);
+    $hostUser = $hostPass = '';
+    if ($container) {
+        $hu = vlab_host_user_create($container);
+        if ($hu['ok']) {
+            $hostUser = $hu['user'];
+            $hostPass = $hu['password'];
+            db_update('k30_ti_vlab_containers', ['host_user' => $hostUser], $id);
+            $container['host_user'] = $hostUser;
+        } else {
+            // Kontener działa — nie przerywamy, ale sygnalizujemy problem z kontem hosta.
+            vlab_log($id, $studentId, 'host_user', false, $hu['msg']);
+        }
+    }
 
-    return ['ok' => true, 'msg' => 'Maszyna utworzona.', 'id' => $id];
+    // Dane dostępowe do maszyny wysyłamy kursantowi mailem (hasło do panelu idzie SMS-em).
+    if ($container) vlab_email_credentials($container, $hostUser, $hostPass);
+
+    $out = ['ok' => true, 'msg' => 'Maszyna utworzona.', 'id' => $id];
+    if ($hostUser !== '') { $out['host_user'] = $hostUser; $out['host_password'] = $hostPass; }
+    else { $out['msg'] = 'Maszyna utworzona, ale nie udało się założyć konta logowania na hoście — użyj terminala w przeglądarce lub zgłoś prowadzącemu.'; }
+    return $out;
 }
 
 /**
  * Wysyła kursantowi e-mail z danymi dostępowymi do kontenera (SSH + terminal ttyd).
  * Adres pobierany z k30_clients.email. Zwraca true gdy zlecono wysyłkę.
  */
-function vlab_email_credentials(array $container): bool {
+function vlab_email_credentials(array $container, string $hostUser = '', string $hostPass = ''): bool {
     $cfg    = vlab_config();
     $client = !empty($container['client_id'])
         ? db_one("SELECT name,email FROM k30_clients WHERE id=?", [$container['client_id']])
@@ -278,11 +376,14 @@ function vlab_email_credentials(array $container): bool {
     $ttyd   = vlab_ttyd_url($container);
 
     $rows = '';
-    if (!empty($container['ssh_port']) && $host !== '') {
-        $sshCmd = 'ssh ' . htmlspecialchars($container['ssh_user'], ENT_QUOTES) . '@' . $host
-                . ' -p ' . (int)$container['ssh_port'];
+    // Logowanie SSH przez konto hosta (wpuszcza wprost do kontenera).
+    if ($hostUser !== '' && $host !== '') {
+        $port   = (int)($cfg['ssh_port'] ?: 22);
+        $sshCmd = 'ssh ' . htmlspecialchars($hostUser, ENT_QUOTES) . '@' . $host . ' -p ' . $port;
         $rows .= "<tr><td style='padding:4px 12px;color:#555'>Połączenie SSH</td><td style='padding:4px 12px'><code>{$sshCmd}</code></td></tr>";
-        $rows .= "<tr><td style='padding:4px 12px;color:#555'>Hasło SSH</td><td style='padding:4px 12px'><code>" . htmlspecialchars($container['ssh_password'], ENT_QUOTES) . "</code></td></tr>";
+        if ($hostPass !== '') {
+            $rows .= "<tr><td style='padding:4px 12px;color:#555'>Hasło SSH</td><td style='padding:4px 12px'><code>" . htmlspecialchars($hostPass, ENT_QUOTES) . "</code></td></tr>";
+        }
     }
     if ($ttyd) {
         $tt = htmlspecialchars($ttyd, ENT_QUOTES);
@@ -333,6 +434,8 @@ function vlab_action(int $containerId, int $studentId, string $op): array {
     $upd = ['status' => $newStatus, 'last_action_at' => date('Y-m-d H:i:s'), 'error_msg' => ''];
     if ($op === 'remove') {
         $upd['removed_at'] = date('Y-m-d H:i:s');
+        // Skasuj powiązane konto systemowe na hoście (best-effort).
+        if (!empty($row['host_user'])) vlab_host_user_remove($row);
     } elseif ($op === 'start' || $op === 'restart') {
         // porty mogą się zmienić po restarcie
         $tpl = $row['template_id'] ? db_one("SELECT * FROM k30_ti_vlab_templates WHERE id=?", [$row['template_id']]) : null;
