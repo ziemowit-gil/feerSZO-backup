@@ -28,7 +28,7 @@ function ti_online_payload(int $sid): array {
     ];
 }
 
-$modifying = in_array($action, ['ms_create', 'ms_delete', 'moodle_create'], true);
+$modifying = in_array($action, ['ms_create', 'ms_delete', 'moodle_create', 'moodle_password'], true);
 if ($modifying) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'msg' => 'Metoda niedozwolona.']); exit; }
     student_token_check();
@@ -55,6 +55,12 @@ try {
 
         case 'moodle_create': {
             $res = ti_moodle_provision($sid);
+            echo json_encode($res + ['data' => ti_online_payload($sid)]);
+            break;
+        }
+
+        case 'moodle_password': {
+            $res = ti_moodle_set_password($sid, (string)($_POST['password'] ?? ''));
             echo json_encode($res + ['data' => ti_online_payload($sid)]);
             break;
         }

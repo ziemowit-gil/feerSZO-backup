@@ -379,8 +379,16 @@ include __DIR__ . '/_layout_head.php';
         inner = '<p class="text-body-secondary small mb-0">Integracja z platformą e-learningową nie została skonfigurowana.</p>';
       } else if (d.moodle_active){
         inner = '<p class="small mb-2">Login: <span class="font-monospace fw-semibold">'+esc(d.moodle_login)+'</span><br>'
-          + '<span class="text-body-secondary">Hasło: jak do konta Microsoft.</span></p>'
-          + (d.moodle_url ? '<a class="btn btn-success btn-sm" href="'+esc(d.moodle_url)+'" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz platformę</a>' : '');
+          + '<span class="text-body-secondary">Hasło: domyślnie takie samo jak do konta Microsoft — możesz ustawić własne poniżej.</span></p>'
+          + (d.moodle_url ? '<a class="btn btn-success btn-sm mb-2" href="'+esc(d.moodle_url)+'" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz platformę</a>' : '')
+          + '<details class="mt-1">'
+          + '<summary class="small text-primary" style="cursor:pointer"><i class="bi bi-key me-1" aria-hidden="true"></i>Ustaw własne hasło do platformy</summary>'
+          + '<div class="mt-2" style="max-width:340px">'
+          + '<label class="form-label small mb-1" for="moodle-pwd">Nowe hasło</label>'
+          + '<input type="password" class="form-control form-control-sm mb-2" id="moodle-pwd" autocomplete="new-password" minlength="8" placeholder="min. 8 znaków, A-z, cyfra, znak specjalny">'
+          + '<button type="button" class="btn btn-primary btn-sm" data-act="moodle_password"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz hasło</button>'
+          + '<p class="form-text small mb-0">Hasło musi mieć min. 8 znaków oraz zawierać małą i wielką literę, cyfrę i znak specjalny.</p>'
+          + '</div></details>';
       } else if (!d.ms_active){
         inner = '<p class="text-body-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Najpierw utwórz konto Microsoft — jego login posłuży jako login do platformy.</p>';
       } else {
@@ -425,11 +433,19 @@ include __DIR__ . '/_layout_head.php';
       if (!btn) return;
       const act = btn.dataset.act;
       if (act === 'ms_delete' && !confirm('Usunąć konto Microsoft? Stracisz dostęp do powiązanych usług.')) return;
+      let params = {};
+      if (act === 'moodle_password'){
+        const inp = box.querySelector('#moodle-pwd');
+        const pwd = inp ? inp.value : '';
+        if (!pwd){ if (inp) inp.focus(); return; }
+        params = {password: pwd};
+      }
       btn.disabled = true;
       const orig = btn.innerHTML;
       btn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Pracuję…';
-      const r = await api(act, {});
+      const r = await api(act, params);
       if (act === 'ms_create' && r.ok && r.password) lastCreds = {upn: r.upn, password: r.password};
+      if (act === 'moodle_password' && r.ok) alert(r.msg || 'Hasło zmienione.');
       if (!r.ok) alert(r.msg || 'Błąd.');
       if (r.data) render(r.data); else { btn.disabled = false; btn.innerHTML = orig; reload(); }
     });

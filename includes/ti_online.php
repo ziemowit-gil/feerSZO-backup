@@ -10,7 +10,7 @@
  *   3. Linki do nadchodzących szkoleń: ręczne (k30_ti_meetings) + Teams (kalendarz
  *      tenanta szkoleniowego, Graph) + Zoom (Zoom API).
  *
- * Kotwicą kursanta jest k30_ti_student_accounts (kolumny ms_*/moodle_* dodane w karty30_migrate()).
+ * Kotwicą kursanta jest k30_ti_student_accounts (kolumny ms_* oraz moodle_* dodane w karty30_migrate()).
  * Wszystkie wywołania zewnętrzne są w try/catch — operacje zwracają ['ok'=>bool,'msg'=>string,...].
  */
 
@@ -213,6 +213,42 @@ function ti_moodle_provision(int $studentId): array {
     ], $studentId);
 
     return ['ok' => true, 'msg' => 'Konto Moodle gotowe.', 'login' => $login, 'url' => rtrim(moodle_setting('url'), '/')];
+}
+
+/**
+ * Ustawia własne hasło kursanta na platformie Moodle.
+ * Wymaga istniejącego konta Moodle (moodle_user_id). Zwraca ['ok','msg'].
+ * Złożoność wstępnie sprawdzamy lokalnie (domyślna polityka Moodle), a ostatecznie
+ * waliduje sam Moodle — jego ewentualny błąd przekazujemy kursantowi.
+ */
+function ti_moodle_set_password(int $studentId, string $password): array {
+    if (!ti_moodle_enabled()) return ['ok' => false, 'msg' => 'Integracja Moodle nie jest skonfigurowana.'];
+    $r = ti_student_row($studentId);
+    if (!$r) return ['ok' => false, 'msg' => 'Konto kursanta nie istnieje.'];
+    if (empty($r['moodle_user_id'])) return ['ok' => false, 'msg' => 'Najpierw utwórz konto na platformie e-learningowej.'];
+
+    $err = ti_moodle_password_problem($password);
+    if ($err !== '') return ['ok' => false, 'msg' => $err];
+
+    try {
+        $api = new MoodleAPI();
+        $api->update_user((int)$r['moodle_user_id'], ['password' => $password]);
+    } catch (\Throwable $e) {
+        // Najczęściej: niezgodność z polityką haseł skonfigurowaną w Moodle.
+        return ['ok' => false, 'msg' => 'Moodle odrzucił hasło: ' . $e->getMessage()];
+    }
+
+    return ['ok' => true, 'msg' => 'Hasło do platformy e-learningowej zostało zmienione.'];
+}
+
+/** Sprawdza hasło wg domyślnej polityki Moodle. Zwraca '' gdy OK, inaczej komunikat. */
+function ti_moodle_password_problem(string $p): string {
+    if (mb_strlen($p) < 8)            return 'Hasło musi mieć co najmniej 8 znaków.';
+    if (!preg_match('/[a-z]/', $p))   return 'Hasło musi zawierać małą literę.';
+    if (!preg_match('/[A-Z]/', $p))   return 'Hasło musi zawierać wielką literę.';
+    if (!preg_match('/[0-9]/', $p))   return 'Hasło musi zawierać cyfrę.';
+    if (!preg_match('/[^a-zA-Z0-9]/', $p)) return 'Hasło musi zawierać znak specjalny (np. ! @ # ?).';
+    return '';
 }
 
 // ── Nadchodzące szkolenia (agregacja trzech źródeł) ────────────────────────────
