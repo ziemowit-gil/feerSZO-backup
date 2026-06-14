@@ -22,22 +22,41 @@ require_once __DIR__ . '/zoom.php';      // ZoomAPI, zoom_enabled()
 
 // ── Ustawienia tenanta szkoleniowego ──────────────────────────────────────────
 
-/** Czy moduł kont MS (tenant szkoleniowy) jest włączony i ma komplet creds. */
-function ti_ms_enabled(): bool {
-    return org_setting('m365t_enabled') === '1'
-        && org_setting('m365t_tenant_id') !== ''
-        && org_setting('m365t_client_id') !== ''
-        && org_setting('m365t_client_secret') !== '';
+/** Ustawienie konfiguracji M365 dla Kart 30 (klucze settings k30_m365_*). */
+function ti_m365_setting(string $key, string $default = ''): string {
+    try {
+        $r = db_one("SELECT value FROM settings WHERE key_=?", ['k30_m365_' . $key]);
+        return $r['value'] ?? $default;
+    } catch (\Throwable $e) { return $default; }
 }
 
-/** Instancja M365Graph wskazująca na tenant szkoleniowy. */
+/**
+ * Instancja M365Graph dla Zajęć TI — korzysta z konfiguracji ustawionej już w
+ * „Karty 30 → M365" (karty30/admin/m365.php, klucze k30_m365_*). Tryb „własny"
+ * = oddzielne creds; tryb domyślny = główny tenant organizacji (m365_*).
+ * Dzięki temu nie duplikujemy konfiguracji w panelu Nauki online.
+ */
 function m365_training(): M365Graph {
+    if ((bool)ti_m365_setting('use_own_tenant')) {
+        return new M365Graph([
+            'tenant_id'     => ti_m365_setting('tenant_id'),
+            'client_id'     => ti_m365_setting('client_id'),
+            'client_secret' => ti_m365_setting('client_secret'),
+            'domain'        => ti_m365_setting('domain'),
+        ]);
+    }
+    $domainOverride = ti_m365_setting('domain');
     return new M365Graph([
-        'tenant_id'     => org_setting('m365t_tenant_id'),
-        'client_id'     => org_setting('m365t_client_id'),
-        'client_secret' => org_setting('m365t_client_secret'),
-        'domain'        => org_setting('m365t_domain') ?: 'onmicrosoft.com',
+        'tenant_id'     => m365_setting('m365_tenant_id'),
+        'client_id'     => m365_setting('m365_graph_client_id'),
+        'client_secret' => m365_setting('m365_graph_client_secret'),
+        'domain'        => $domainOverride ?: m365_setting('m365_domain'),
     ]);
+}
+
+/** Czy konta MS można tworzyć — konfiguracja M365 (Karty 30 → M365) jest kompletna. */
+function ti_ms_enabled(): bool {
+    return m365_training()->is_configured();
 }
 
 /** Czy provisioning Moodle jest możliwy (URL + token ustawione). */
@@ -97,7 +116,7 @@ function ti_ms_provision(int $studentId): array {
         if ($userId === '') return ['ok' => false, 'msg' => 'Graph nie zwrócił identyfikatora konta.'];
 
         // Opcjonalna licencja
-        $sku = org_setting('m365t_default_sku');
+        $sku = ti_m365_setting('default_sku');
         if ($sku !== '') {
             try { $graph->assign_license($userId, $sku); } catch (\Throwable $e) { /* licencja nieobowiązkowa */ }
         }
@@ -196,8 +215,13 @@ function ti_moodle_provision(int $studentId): array {
             $moodleId = (int)$mu['id'];
             $login    = $mu['username'] ?? $upn;
         } else {
+            // E-mail powiadomień: UPN (domyślnie) lub rzeczywisty adres beneficjenta
+            // (admin/moodle.php → „Adres e-mail kont"). Login pozostaje UPN.
+            $clientEmail = trim((string)($r['client_email'] ?? ''));
+            $email = (moodle_setting('email_source') === 'client' && filter_var($clientEmail, FILTER_VALIDATE_EMAIL))
+                ? $clientEmail : $upn;
             $pass     = bin2hex(random_bytes(6)) . 'Aa1!';
-            $moodleId = $api->create_user($name, $upn, $pass);
+            $moodleId = $api->create_user($name, $email, $pass, $upn);
             $login    = strtolower(preg_replace('/[^a-z0-9._-]/', '', $upn));
         }
         if (!$moodleId) return ['ok' => false, 'msg' => 'Moodle nie zwrócił identyfikatora użytkownika.'];

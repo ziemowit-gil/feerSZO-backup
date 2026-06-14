@@ -28,18 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op = $_POST['_op'] ?? '';
 
     if ($op === 'save_ms') {
-        m365_save_setting('m365t_enabled',       isset($_POST['m365t_enabled']) ? '1' : '0');
-        m365_save_setting('m365t_tenant_id',     trim($_POST['m365t_tenant_id'] ?? ''));
-        m365_save_setting('m365t_client_id',     trim($_POST['m365t_client_id'] ?? ''));
-        m365_save_setting('m365t_domain',        trim($_POST['m365t_domain'] ?? ''));
-        m365_save_setting('m365t_default_sku',   trim($_POST['m365t_default_sku'] ?? ''));
-        m365_save_setting('m365t_sender_id',     trim($_POST['m365t_sender_id'] ?? ''));
+        // Konfiguracja połączenia M365 jest w „Karty 30 → M365". Tu zapisujemy tylko
+        // ustawienie specyficzne dla Nauki online: kalendarz szkoleń Teams.
         m365_save_setting('m365t_meetings_user', trim($_POST['m365t_meetings_user'] ?? ''));
-        // Sekret zapisujemy tylko jeśli podany (puste = bez zmian)
-        if (($_POST['m365t_client_secret'] ?? '') !== '') {
-            m365_save_setting('m365t_client_secret', $_POST['m365t_client_secret']);
-        }
-        flash_set('success', 'Konfiguracja Microsoft 365 zapisana.');
+        flash_set('success', 'Zapisano.');
         header('Location: online_admin.php'); exit;
     }
 
@@ -57,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'test_ms') {
         if (!ti_ms_enabled()) {
-            $test_result = ['ok' => false, 'msg' => 'Najpierw zapisz komplet danych tenanta szkoleniowego.'];
+            $test_result = ['ok' => false, 'msg' => 'Microsoft 365 nie jest skonfigurowane — uzupełnij dane w „Karty 30 → M365".'];
         } else {
             $r = m365_training()->test_connection();
             $test_result = $r['ok']
@@ -147,33 +139,28 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </p>
 
 <div class="row g-4">
-  <!-- Tenant szkoleniowy Microsoft 365 -->
+  <!-- Microsoft 365 — używa konfiguracji z „Karty 30 → M365" -->
   <div class="col-lg-6">
     <div class="card border-0 shadow-sm h-100">
-      <div class="card-header fw-semibold"><i class="bi bi-microsoft me-1"></i>Tenant szkoleniowy Microsoft 365</div>
+      <div class="card-header fw-semibold"><i class="bi bi-microsoft me-1"></i>Microsoft 365 (konta kursantów)</div>
       <div class="card-body">
+        <p class="small mb-2">
+          <i class="bi bi-info-circle me-1"></i>
+          Połączenie z Microsoft 365 (tenant, aplikacja, domena, licencje) konfigurujesz raz w
+          <a href="<?= APP_URL ?>/karty30/admin/m365.php">Karty 30 → M365</a>.
+          Nauka online korzysta z tej samej konfiguracji — nie trzeba jej tu powielać.
+        </p>
+        <p class="small mb-3">
+          Status:
+          <span class="badge <?= ti_ms_enabled() ? 'bg-success' : 'bg-secondary' ?>">
+            <?= ti_ms_enabled() ? 'skonfigurowane' : 'nieskonfigurowane' ?>
+          </span>
+        </p>
+        <hr>
         <form method="post">
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="save_ms">
-          <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" name="m365t_enabled" id="msen" <?= $ms_set('m365t_enabled')==='1'?'checked':'' ?>>
-            <label class="form-check-label fw-semibold" for="msen">Moduł włączony (tworzenie kont MS dla kursantów)</label>
-          </div>
-          <div class="mb-2"><label class="form-label small">Tenant ID</label>
-            <input class="form-control form-control-sm" name="m365t_tenant_id" value="<?= h($ms_set('m365t_tenant_id')) ?>" placeholder="00000000-0000-0000-0000-000000000000"></div>
-          <div class="mb-2"><label class="form-label small">Client ID (App registration)</label>
-            <input class="form-control form-control-sm" name="m365t_client_id" value="<?= h($ms_set('m365t_client_id')) ?>"></div>
-          <div class="mb-2"><label class="form-label small">Client secret <span class="text-muted">(puste = bez zmian)</span></label>
-            <input class="form-control form-control-sm" type="password" name="m365t_client_secret" value="" placeholder="<?= $ms_set('m365t_client_secret') !== '' ? '••••••••' : '' ?>"></div>
-          <div class="mb-2"><label class="form-label small">Domena kont (UPN)</label>
-            <input class="form-control form-control-sm" name="m365t_domain" value="<?= h($ms_set('m365t_domain')) ?>" placeholder="szkolenia.onmicrosoft.com"></div>
-          <div class="row g-2 mb-2">
-            <div class="col-md-6"><label class="form-label small">SKU licencji <span class="text-muted">(opcjonalnie)</span></label>
-              <input class="form-control form-control-sm" name="m365t_default_sku" value="<?= h($ms_set('m365t_default_sku')) ?>" placeholder="guid SKU"></div>
-            <div class="col-md-6"><label class="form-label small">Konto nadawcy maili <span class="text-muted">(opcjonalnie)</span></label>
-              <input class="form-control form-control-sm" name="m365t_sender_id" value="<?= h($ms_set('m365t_sender_id')) ?>" placeholder="upn lub objectId"></div>
-          </div>
-          <div class="mb-3"><label class="form-label small">Kalendarz szkoleń Teams — UPN/ID użytkownika</label>
+          <div class="mb-2"><label class="form-label small">Kalendarz szkoleń Teams — UPN/ID użytkownika <span class="text-muted">(opcjonalnie)</span></label>
             <input class="form-control form-control-sm" name="m365t_meetings_user" value="<?= h($ms_set('m365t_meetings_user')) ?>" placeholder="szkolenia@... (kalendarz z wydarzeniami Teams)">
             <div class="form-text">Spotkania online z kalendarza tego konta pojawią się kursantom w zakładce „Szkolenia online".</div></div>
           <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz</button>

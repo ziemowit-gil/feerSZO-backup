@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'moodle_url'          => rtrim(trim($_POST['moodle_url'] ?? ''), '/'),
             'moodle_token'        => trim($_POST['moodle_token'] ?? ''),
             'moodle_default_role' => trim($_POST['moodle_default_role'] ?? '5'),
+            'moodle_email_source' => ($_POST['moodle_email_source'] ?? 'upn') === 'client' ? 'client' : 'upn',
         ];
         $stmt = db()->prepare(
             "INSERT INTO settings (key_, value) VALUES (?, ?)
@@ -149,6 +150,7 @@ $settings = [
     'url'          => moodle_setting('url'),
     'token'        => moodle_setting('token'),
     'default_role' => moodle_setting('default_role') ?: '5',
+    'email_source' => moodle_setting('email_source') ?: 'upn',
 ];
 $courses     = moodle_courses_all();
 $enrollments = moodle_enrollments_all();
@@ -266,6 +268,19 @@ include dirname(__DIR__) . '/includes/header.php';
               <option value="4" <?= $settings['default_role'] === '4' ? 'selected' : '' ?>>Non-editing teacher (4)</option>
               <option value="3" <?= $settings['default_role'] === '3' ? 'selected' : '' ?>>Teacher (3)</option>
             </select>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Adres e-mail kont (powiadomienia Moodle)</label>
+            <select name="moodle_email_source" class="form-select w-auto">
+              <option value="upn"    <?= $settings['email_source'] === 'upn'    ? 'selected' : '' ?>>UPN konta Microsoft (domyślnie)</option>
+              <option value="client" <?= $settings['email_source'] === 'client' ? 'selected' : '' ?>>Rzeczywisty e-mail beneficjenta</option>
+            </select>
+            <div class="form-text">
+              Adres e-mail nadawany kontom kursantów TI zakładanym z panelu — decyduje, gdzie trafiają
+              powiadomienia Moodle. „Rzeczywisty e-mail" pobiera adres beneficjenta (kartoteka klienta);
+              login konta i tak pozostaje UPN konta Microsoft.
+            </div>
           </div>
 
           <div class="d-flex gap-2">

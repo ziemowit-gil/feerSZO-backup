@@ -161,10 +161,14 @@ class MoodleAPI {
         return !empty($r['users'][0]) ? $r['users'][0] : null;
     }
 
-    /** Utwórz użytkownika w Moodle i zwróć jego ID. */
-    public function create_user(string $name, string $email, string $password = ''): int {
+    /**
+     * Utwórz użytkownika w Moodle i zwróć jego ID.
+     * $username — opcjonalny login; gdy pusty, wyprowadzany z e-maila. Pozwala
+     * rozdzielić login (np. UPN) od adresu e-mail powiadomień.
+     */
+    public function create_user(string $name, string $email, string $password = '', string $username = ''): int {
         $parts    = explode(' ', $name . ' ', 2);
-        $username = strtolower(preg_replace('/[^a-z0-9._-]/', '', $email));
+        $username = strtolower(preg_replace('/[^a-z0-9._-]/', '', $username !== '' ? $username : $email));
         if (!$username) $username = 'user_' . time();
 
         // Użyj hasła z panelu jeśli dostępne, w przeciwnym razie wygeneruj
