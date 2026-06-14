@@ -1,0 +1,188 @@
+<?php
+/**
+ * panel/includes/pv_canva_card.php — Karta „Canva Pro" jako wyspa React.
+ *
+ * Loader: pv_react_boot.php. Trzy stany: zaproszony / prośba w trakcie / formularz.
+ * React wzbogaca tylko stan formularza: optymistyczne przejście do „w trakcie"
+ * po wysłaniu prośby przez fetch (?_ajax=1 → JSON), z rollbackiem przy błędzie
+ * i komunikatem dla czytników ekranu (aria-live).
+ *
+ * Progressive enhancement: pełny, dostępny fallback serwerowy = formularz POST
+ * z pełnym przeładowaniem strony (działa bez JS / przy awarii CDN).
+ *
+ * Wymaga w zasięgu: $_canva_invited, $_canva_requested, $_canva_contract_id (int),
+ *   csrf_token() (opcjonalnie), APP_URL, h().
+ */
+$_canva_invited   = $_canva_invited   ?? false;
+$_canva_requested = $_canva_requested ?? false;
+$_canva_cid       = (int)($_canva_contract_id ?? 0);
+
+// Pokazujemy kartę tylko gdy jest co pokazać.
+if (!$_canva_invited && !$_canva_requested && !$_canva_cid) return;
+
+$_canva_csrf = function_exists('csrf_token') ? csrf_token() : '';
+?>
+<?php if ($_canva_invited): ?>
+<!-- Już zaproszony → pokaż skrót (stan stabilny, bez JS) -->
+<a href="https://www.canva.com" target="_blank" rel="noopener"
+   class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3 text-decoration-none"
+   style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;transition:opacity .15s"
+   onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+  <span style="width:38px;height:38px;background:rgba(255,255,255,.18);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem" aria-hidden="true">🎨</span>
+  <div style="flex:1">
+    <div style="font-size:.82rem;font-weight:700;line-height:1.2">Canva Pro — masz dostęp!</div>
+    <div style="font-size:.76rem;opacity:.85">Zaloguj się przez Microsoft na canva.com</div>
+  </div>
+  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.2rem;opacity:.7" aria-hidden="true"></i>
+</a>
+
+<?php else: ?>
+<div id="pvCanvaCard"
+     data-base="<?= h(rtrim(APP_URL, '/')) ?>"
+     data-csrf="<?= h($_canva_csrf) ?>"
+     data-cid="<?= $_canva_cid ?>"
+     data-state="<?= $_canva_requested ? 'requested' : 'form' ?>">
+  <!-- ── Fallback serwerowy ───────────────────────────────────────────────── -->
+  <?php if ($_canva_requested): ?>
+  <!-- Prośba złożona → czeka na realizację -->
+  <div class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3"
+       style="background:linear-gradient(135deg,#fdf4ff,#f5f3ff);border:1.5px solid #e9d5ff">
+    <span style="width:38px;height:38px;background:#f3e8ff;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem" aria-hidden="true">⏳</span>
+    <div style="flex:1">
+      <div style="font-size:.82rem;font-weight:700;color:#6d28d9;line-height:1.2">Prośba o Canva — w trakcie</div>
+      <div style="font-size:.76rem;color:#7c3aed;opacity:.85">Administrator wkrótce wyśle zaproszenie na Twój adres e-mail.</div>
+    </div>
+  </div>
+  <?php else: ?>
+  <!-- Nie ma dostępu, nie złożono prośby → formularz -->
+  <div class="mb-3 px-3 py-3 rounded-3" style="background:#fdf4ff;border:1.5px solid #e9d5ff">
+    <div class="d-flex align-items-start gap-3">
+      <span style="width:40px;height:40px;background:#f3e8ff;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.2rem;margin-top:.1rem" aria-hidden="true">🎨</span>
+      <div style="flex:1">
+        <div style="font-size:.88rem;font-weight:700;color:#6d28d9;margin-bottom:.2rem">
+          Chcesz tworzyć materiały w Canva?
+        </div>
+        <div id="canva-desc" style="font-size:.8rem;color:#7c3aed;line-height:1.5;margin-bottom:.75rem">
+          Organizacja korzysta z <strong>Canva Pro</strong>. Złóż prośbę, a administrator
+          wyśle Ci zaproszenie do wspólnej przestrzeni z szablonami i brandingiem.
+        </div>
+        <form method="post" id="canvaRequestForm">
+          <?php if ($_canva_csrf !== ''): ?>
+          <input type="hidden" name="_csrf" value="<?= h($_canva_csrf) ?>">
+          <?php endif; ?>
+          <input type="hidden" name="_request_canva" value="1">
+          <input type="hidden" name="canva_contract_id" value="<?= $_canva_cid ?>">
+          <button type="submit"
+                  class="btn"
+                  style="background:#7c3aed;color:#fff;font-size:.83rem;font-weight:600;border-radius:8px"
+                  aria-describedby="canva-desc">
+            <i class="bi bi-send-fill me-1" aria-hidden="true"></i>Poproś o dostęp do Canva
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+</div>
+
+<?php require_once __DIR__ . '/pv_react_boot.php'; ?>
+<script>
+window.pvReact(function (React, ReactDOM, html) {
+  var mount = document.getElementById('pvCanvaCard');
+  if (!mount) return;
+
+  var BASE  = mount.getAttribute('data-base') || '';
+  var CSRF  = mount.getAttribute('data-csrf') || '';
+  var CID   = parseInt(mount.getAttribute('data-cid'), 10) || 0;
+  var STATE0 = mount.getAttribute('data-state') || 'form';
+  if (!CID) return;
+
+  var useState = React.useState;
+
+  function announce(setSr, msg){ setSr(''); setTimeout(function(){ setSr(msg); }, 50); }
+
+  function Pending(){
+    return html`
+      <div class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3"
+           style=${{background:'linear-gradient(135deg,#fdf4ff,#f5f3ff)',border:'1.5px solid #e9d5ff'}}>
+        <span style=${{width:'38px',height:'38px',background:'#f3e8ff',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:'1.1rem'}} aria-hidden="true">⏳</span>
+        <div style=${{flex:1}}>
+          <div style=${{fontSize:'.82rem',fontWeight:700,color:'#6d28d9',lineHeight:1.2}}>Prośba o Canva — w trakcie</div>
+          <div style=${{fontSize:'.76rem',color:'#7c3aed',opacity:.85}}>Administrator wkrótce wyśle zaproszenie na Twój adres e-mail.</div>
+        </div>
+      </div>`;
+  }
+
+  function Card(){
+    var ss = useState(STATE0), state = ss[0], setState = ss[1];   // 'form' | 'requested'
+    var bs = useState(false),  busy = bs[0], setBusy = bs[1];
+    var es = useState(''),     err  = es[0], setErr  = es[1];
+    var sr = useState(''),     srMsg = sr[0], setSr  = sr[1];
+
+    var live = html`<div aria-live="polite" aria-atomic="true" class="visually-hidden">${srMsg}</div>`;
+
+    if (state === 'requested') {
+      return html`<div>${live}<${Pending} /></div>`;
+    }
+
+    function submit(e){
+      if (e && e.preventDefault) e.preventDefault();
+      setBusy(true); setErr('');
+      var body = new URLSearchParams();
+      body.set('_request_canva', '1');
+      body.set('canva_contract_id', String(CID));
+      body.set('_ajax', '1');
+      if (CSRF) body.set('_csrf', CSRF);
+      fetch(BASE + '/panel/index.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+        body: body.toString()
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(r){
+          if (!r || !r.ok) throw new Error((r && r.message) || 'err');
+          announce(setSr, r.message || 'Prośba o dostęp do Canva została złożona.');
+          setState('requested');
+        })
+        .catch(function(){
+          setErr('Nie udało się złożyć prośby. Spróbuj ponownie lub odśwież stronę.');
+          announce(setSr, 'Nie udało się złożyć prośby o Canva.');
+        })
+        .then(function(){ setBusy(false); });
+    }
+
+    return html`
+      <div>
+        ${live}
+        <div class="mb-3 px-3 py-3 rounded-3" style=${{background:'#fdf4ff',border:'1.5px solid #e9d5ff'}}>
+          <div class="d-flex align-items-start gap-3">
+            <span style=${{width:'40px',height:'40px',background:'#f3e8ff',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:'1.2rem',marginTop:'.1rem'}} aria-hidden="true">🎨</span>
+            <div style=${{flex:1}}>
+              <div style=${{fontSize:'.88rem',fontWeight:700,color:'#6d28d9',marginBottom:'.2rem'}}>
+                Chcesz tworzyć materiały w Canva?
+              </div>
+              <div id="canva-desc" style=${{fontSize:'.8rem',color:'#7c3aed',lineHeight:1.5,marginBottom:'.75rem'}}>
+                Organizacja korzysta z <strong>Canva Pro</strong>. Złóż prośbę, a administrator
+                wyśle Ci zaproszenie do wspólnej przestrzeni z szablonami i brandingiem.
+              </div>
+              <form method="post" onSubmit=${submit}>
+                <button type="submit" class="btn" disabled=${busy}
+                        style=${{background:'#7c3aed',color:'#fff',fontSize:'.83rem',fontWeight:600,borderRadius:'8px',opacity: busy ? .7 : 1}}
+                        aria-describedby="canva-desc">
+                  ${busy
+                    ? html`<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Wysyłanie…`
+                    : html`<span><i class="bi bi-send-fill me-1" aria-hidden="true"></i>Poproś o dostęp do Canva</span>`}
+                </button>
+              </form>
+              ${err ? html`<div class="text-danger mt-2" style=${{fontSize:'.78rem'}} role="alert">${err}</div>` : null}
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  try { ReactDOM.createRoot(mount).render(html`<${Card} />`); }
+  catch (e) { /* fallback serwerowy zostaje */ }
+});
+</script>
+<?php endif; ?>

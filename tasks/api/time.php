@@ -15,6 +15,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
+require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
 
 require_login();
 
@@ -91,6 +92,8 @@ switch ($action) {
             'created_at' => $now,
         ]);
         task_log($task_id, $uid, 'time_started');
+        // Start zamyka poprzednie timery (ustawia im duration) → przelicz godziny.
+        volunteer_recompute_for_user($uid);
         task_api_ok(['log_id' => $log_id, 'started_at' => $now]);
         break;
 
@@ -106,6 +109,7 @@ switch ($action) {
             "UPDATE task_time_logs SET ended_at=?, duration_seconds=?, note=? WHERE id=?"
         )->execute([$now, $secs, $note ?: null, $active['id']]);
         task_log($task_id, $uid, 'time_logged', null, _fmt_duration($secs));
+        volunteer_recompute_for_user($uid);
         task_api_ok(['duration_seconds' => $secs, 'formatted' => _fmt_duration($secs)]);
         break;
 
@@ -126,6 +130,7 @@ switch ($action) {
             'created_at'       => $now,
         ]);
         task_log($task_id, $uid, 'time_logged', null, _fmt_duration($secs));
+        volunteer_recompute_for_user($uid);
         task_api_ok(['log_id' => $log_id, 'duration_seconds' => $secs]);
         break;
 
@@ -138,6 +143,7 @@ switch ($action) {
             || in_array(task_workspace_role((int)$task['workspace_id'], $uid), ['admin'], true);
         if (!$can) task_api_error('Brak uprawnień do usunięcia tego wpisu.');
         db()->prepare("DELETE FROM task_time_logs WHERE id=?")->execute([$log_id]);
+        volunteer_recompute_for_user((int)$log['user_id']);
         task_api_ok();
         break;
 

@@ -20,6 +20,9 @@ if (!isset($TYPE)) return;
     <button type="button" class="btn btn-sm btn-outline-light py-1 px-3" onclick="bulkOpenAmendment()">
       <i class="bi bi-file-earmark-plus me-1"></i>Aneks
     </button>
+    <button type="button" class="btn btn-sm btn-outline-light py-1 px-3" onclick="bulkOpenStatus()">
+      <i class="bi bi-flag me-1"></i>Zmień status
+    </button>
     <button type="button" class="btn btn-sm btn-outline-light py-1 px-3" onclick="bulkOpenAccess()">
       <i class="bi bi-shield-lock me-1"></i>Zmień dostęp
     </button>
@@ -113,6 +116,39 @@ if (!isset($TYPE)) return;
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
         <button type="button" id="bulk-access-btn" class="btn btn-warning">
+          <i class="bi bi-check-lg me-1"></i>Zastosuj
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Zmień status -->
+<div class="modal fade" id="bulk-modal-status" tabindex="-1"
+     aria-labelledby="bulk-status-title" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="bulk-status-title">
+          <i class="bi bi-flag me-2 text-primary"></i>Zmień status
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          Nowy status zostanie ustawiony dla <strong id="bulk-status-count">0</strong> zaznaczonych umów.
+        </p>
+        <label for="bulk-status-select" class="form-label fw-semibold">Nowy status</label>
+        <select id="bulk-status-select" class="form-select">
+          <?php foreach (STATUS_LABELS as $sk => $sv): ?>
+          <option value="<?= h($sk) ?>"><?= h($sv['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text">Zmiana zostanie odnotowana w historii każdej umowy.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" id="bulk-status-btn" class="btn btn-primary">
           <i class="bi bi-check-lg me-1"></i>Zastosuj
         </button>
       </div>
@@ -231,6 +267,22 @@ if (!isset($TYPE)) return;
     hideModal('bulk-modal-access');
     setBusy('bulk-access-btn', false, '<i class="bi bi-check-lg me-1"></i>Zastosuj');
     showToast(res.ok ? 'Zmieniono dostęp dla ' + res.count + ' umów.' : ('Błąd: ' + (res.msg || '?')), res.ok);
+  });
+
+  // ── Status ────────────────────────────────────────────────────────────────
+  window.bulkOpenStatus = function () {
+    document.getElementById('bulk-status-count').textContent = getChecked().length;
+    getModal('bulk-modal-status').show();
+  };
+
+  document.getElementById('bulk-status-btn').addEventListener('click', async function () {
+    const status = document.getElementById('bulk-status-select').value;
+    if (!status) return;
+    setBusy('bulk-status-btn', true);
+    const res = await post('set_status', { status });
+    hideModal('bulk-modal-status');
+    setBusy('bulk-status-btn', false, '<i class="bi bi-check-lg me-1"></i>Zastosuj');
+    showToast(res.ok ? 'Zmieniono status dla ' + res.count + ' umów.' : ('Błąd: ' + (res.msg || '?')), res.ok);
   });
 })();
 </script>

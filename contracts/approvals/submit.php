@@ -26,6 +26,12 @@ if ($existing && $existing['status'] === 'oczekuje') {
     header('Location: ' . $back); exit;
 }
 
+// Podpisanej umowy nie składa się do akceptacji
+if (($row['status'] ?? '') === 'podpisana') {
+    flash_set('warning', 'Podpisanej umowy nie można złożyć do akceptacji — zmień najpierw status (np. na „w realizacji").');
+    header('Location: ' . $back); exit;
+}
+
 $user = current_user();
 $result = submit_for_approval($type, $id, $user['id'], $row['numer_umowy']);
 

@@ -574,3 +574,33 @@
 @media (max-width: 768px) {
   .crm-sidebar-toggle { display: flex; align-items: center; }
 }
+
+/* ── Wyszukiwanie zaawansowane ─────────────────────────────────────────── */
+.crm-adv-panel {
+  flex-basis: 100%;
+  margin-top: .6rem;
+  padding: .85rem 1rem;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+}
+.crm-adv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: .6rem .8rem;
+}
+.crm-adv-field { display: flex; flex-direction: column; gap: .2rem; margin: 0; }
+.crm-adv-field > span {
+  font-size: .74rem; font-weight: 600; color: #6B7280;
+  text-transform: uppercase; letter-spacing: .02em;
+}
+.crm-adv-wide { grid-column: 1 / -1; }
+.crm-adv-checks { flex-direction: row; align-items: center; gap: 1rem; padding-top: 1.2rem; }
+.crm-adv-actions {
+  display: flex; align-items: center; gap: .5rem;
+  margin-top: .75rem; padding-top: .6rem; border-top: 1px solid #E5E7EB;
+}
+.crm-adv-panel input:focus, .crm-adv-panel select:focus {
+  border-color: var(--crm-primary);
+  box-shadow: 0 0 0 .15rem rgba(79,70,229,.18);
+}

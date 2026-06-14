@@ -525,6 +525,16 @@ if ($adv_count):
             <i class="bi bi-pencil"></i>
           </a>
           <?php endif; ?>
+          <?php if (can_edit() && $r['status'] === 'podpisana'): ?>
+          <button type="button" class="btn btn-sm btn-outline-info" title="Rozpocznij realizację"
+                  onclick="wolQuickStatus(<?= (int)$r['id'] ?>,'w realizacji','Oznaczyć umowę jako „w realizacji"?')">
+            <i class="bi bi-play-fill"></i>
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger" title="Zrezygnował z podpisu → anulowana"
+                  onclick="wolQuickStatus(<?= (int)$r['id'] ?>,'anulowana','Zrezygnował z podpisu — anulować umowę?')">
+            <i class="bi bi-x-circle"></i>
+          </button>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -616,6 +626,16 @@ if ($adv_count):
               <i class="bi bi-pencil"></i>
             </a>
             <?php endif; ?>
+            <?php if (can_edit() && $r['status'] === 'podpisana'): ?>
+            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" title="Rozpocznij realizację"
+                    onclick="event.stopPropagation();wolQuickStatus(<?= (int)$r['id'] ?>,'w realizacji','Oznaczyć umowę jako „w realizacji"?')">
+              <i class="bi bi-play-fill"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Zrezygnował z podpisu → anulowana"
+                    onclick="event.stopPropagation();wolQuickStatus(<?= (int)$r['id'] ?>,'anulowana','Zrezygnował z podpisu — anulować umowę?')">
+              <i class="bi bi-x-circle"></i>
+            </button>
+            <?php endif; ?>
             <?php if (is_admin() || (can_edit() && (int)($r['created_by'] ?? 0) === (int)current_user()['id'])): ?>
             <form method="post" action="<?= APP_URL ?>/contracts/delete.php" class="d-inline"
                   onsubmit="return confirm('Usunąć umowę <?= h(addslashes($r['numer_umowy'] ?? '#'.$r['id'])) ?>?')">
@@ -647,5 +667,22 @@ if ($adv_count):
   </div>
 </div>
 <?php endif; ?>
+
+<script>
+/* Szybka zmiana statusu na liście — podpisana → w realizacji / anulowana */
+function wolQuickStatus(id, status, confirmMsg) {
+  if (confirmMsg && !confirm(confirmMsg)) return;
+  csrfFetch('<?= APP_URL ?>/api/ajax.php', { action: 'set_status', id: id, type: 'wolontariat', value: status })
+    .then(function (res) {
+      if (res && res.ok) {
+        ajaxToast(res.msg || 'Status zmieniony', 'success');
+        setTimeout(function () { location.reload(); }, 650);
+      } else {
+        ajaxToast((res && res.msg) ? res.msg : 'Nie udało się zmienić statusu', 'error');
+      }
+    })
+    .catch(function () { ajaxToast('Błąd połączenia', 'error'); });
+}
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

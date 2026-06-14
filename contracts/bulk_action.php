@@ -90,4 +90,28 @@ if ($action === 'set_access') {
     _json(true, $count);
 }
 
+// ── Akcja: Zmień status ─────────────────────────────────────────────────────
+if ($action === 'set_status') {
+    if (!can_edit()) _json(false, 0, 'Brak uprawnień do zmiany statusu.');
+    $status = trim($_POST['status'] ?? '');
+    if (!array_key_exists($status, STATUS_LABELS)) _json(false, 0, 'Nieprawidłowy status.');
+
+    require_once dirname(__DIR__) . '/includes/approval.php';
+    $uid   = (int)(current_user()['id'] ?? 0);
+    $count = 0;
+    foreach ($ids as $id) {
+        try {
+            $old = db_one("SELECT status FROM {$tbl} WHERE id=?", [(int)$id]);
+            if (($old['status'] ?? '') === $status) continue;  // bez zmian — pomiń
+            db_update($tbl, ['status' => $status], (int)$id);
+            log_contract_action($type, (int)$id, $uid, 'status',
+                'Masowa zmiana statusu: ' . ($old['status'] ?? '—') . ' → ' . $status);
+            $count++;
+        } catch (\Throwable $e) {
+            error_log("[bulk_status] type={$type} id={$id}: " . $e->getMessage());
+        }
+    }
+    _json(true, $count);
+}
+
 _json(false, 0, 'Nieznana akcja.');

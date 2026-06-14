@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_renew'])) {
             $exclude = ['id', 'numer_umowy', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
                         'status', 'uwagi', 'created_at', 'created_by', 'updated_at',
                         'plik_umowy', 'plik_potwierdzenia',
-                        'id_dokumentu_el', 'godzin_przepracowanych'];
+                        'id_dokumentu_el', 'godzin_przepracowanych', 'godzin_z_zadan', 'godzin_korekta'];
             $new_data = [];
             foreach ($row as $k => $v) {
                 if (!in_array($k, $exclude, true)) {
@@ -126,6 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_renew'])) {
             $new_data['data_zakonczenia']    = $new_end;
             $new_data['status']              = $new_status;
             $new_data['godzin_przepracowanych'] = 0;
+            $new_data['godzin_z_zadan']         = 0;
+            $new_data['godzin_korekta']         = 0;
             $new_data['uwagi']               = $note ?: null;
             $new_data['created_by']          = $uid;
             $new_data['created_at']          = date('Y-m-d H:i:s');

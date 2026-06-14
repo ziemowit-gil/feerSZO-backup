@@ -6,6 +6,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
+require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
+require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
+cpc_migrate();
 
 require_role('admin', 'editor');
 $TYPE  = 'wolontariat';
@@ -13,6 +16,11 @@ $TABLE = 'umowy_wolontariat';
 $id    = intval($_GET['id'] ?? 0);
 $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono porozumienia.'); }
+// Odśwież wyliczone godziny z zadań przed pokazaniem formularza
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    volunteer_recompute_hours($id, $row);
+    $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
+}
 // Idempotentna migracja pola
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN przetwarza_dane_osobowe INTEGER NOT NULL DEFAULT 0"); } catch(\Throwable $e) {}
 if (contract_is_locked($row)) {
@@ -68,9 +76,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data['webngo_id'] = null;
             $data['webngo_numer_umowy'] = null;
         }
+        // Godziny przepracowane są wyliczane (godzin_z_zadan + godzin_korekta) —
+        // z formularza przyjmujemy WYŁĄCZNIE ręczną korektę.
+        $data['godzin_korekta'] = (($_POST['godzin_korekta'] ?? '') === '')
+            ? 0 : (float)str_replace(',', '.', $_POST['godzin_korekta']);
+        unset($data['godzin_przepracowanych']);
+
         // Nullifikacja pól, które nie mogą być pustym stringiem (FK, daty, liczby)
         $nullable_fields = [
-            'godzin_tygodniowo', 'godzin_przepracowanych', 'limit_zwrotu_kosztow',
+            'godzin_tygodniowo', 'limit_zwrotu_kosztow',
             'data_urodzenia', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
             'data_szkolenia_bhp', 'epodpis_data_waznosci',
             'person_id', 'org_unit_id', 'org_position_id', 'action_id', 'grant_id',
@@ -97,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'data_urodzenia', 'niepelnoletni', 'zgoda_opiekuna', 'rodzic_imie_nazwisko', 'rodzic_email', 'rodzic_telefon',
             'przedmiot_porozumienia',
             'miejsce_wolontariatu', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
-            'bezterminowa', 'godzin_tygodniowo', 'godzin_przepracowanych', 'ubezpieczenie_nnw',
+            'bezterminowa', 'godzin_tygodniowo', 'godzin_korekta', 'ubezpieczenie_nnw',
             'numer_polisy_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'data_szkolenia_bhp',
             'zwrot_kosztow', 'zwrot_kosztow_opis', 'opiekun', 'projekt_program',
             'forma_podpisania', 'platforma_el', 'id_dokumentu_el', 'plik_potwierdzenia',
@@ -140,6 +154,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
         $diff = format_field_diff($row, $save);
         db_update($TABLE, $save, $id);
+        // Przelicz godzin_przepracowanych = godzin_z_zadan + godzin_korekta
+        volunteer_recompute_hours($id);
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'edit', $diff ?: 'Edytowano umowę');
 
@@ -996,9 +1012,21 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
              value="<?= h($row['godzin_tygodniowo']) ?>">
     </div>
     <div class="col-md-3 fgroup">
-      <label>Godzin przepracowanych</label>
-      <input name="godzin_przepracowanych" type="number" step="0.5" min="0" class="form-control"
-             value="<?= h($row['godzin_przepracowanych']) ?>">
+      <label>Godzin z zadań</label>
+      <input type="text" class="form-control" readonly
+             value="<?= h(number_format((float)($row['godzin_z_zadan'] ?? 0), 2, ',', ' ')) ?> h"
+             title="Suma zarejestrowanego czasu zadań przypisanych do wolontariusza (wyliczane automatycznie)">
+      <div class="form-text">Z zarejestrowanego czasu zadań — wyliczane automatycznie.</div>
+    </div>
+    <div class="col-md-3 fgroup">
+      <label>Korekta ręczna (h)</label>
+      <input name="godzin_korekta" type="number" step="0.5" class="form-control"
+             value="<?= h($row['godzin_korekta'] ?? 0) ?>"
+             title="Ręczna korekta (+/-), np. godziny przepracowane poza systemem zadań">
+      <div class="form-text">
+        Razem: <strong><?= h(number_format((float)($row['godzin_przepracowanych'] ?? 0), 2, ',', ' ')) ?> h</strong>
+        (zadania + korekta).
+      </div>
     </div>
   </div>
 

@@ -28,13 +28,26 @@ $PAGE_TITLE = 'CRM — Kontakty';
 
 // ── Filtry ────────────────────────────────────────────────────────────────────
 $filters = [
-    'q'           => trim($_GET['q']           ?? ''),
-    'status'      => trim($_GET['status']      ?? ''),
-    'type'        => trim($_GET['type']        ?? ''),
-    'tag'         => trim($_GET['tag']         ?? ''),
-    'group'       => (int)($_GET['group']      ?? 0) ?: '',
-    'wojewodztwo' => trim($_GET['wojewodztwo'] ?? ''),
-    'action_id'   => (int)($_GET['action_id']  ?? 0) ?: '',
+    'q'            => trim($_GET['q']            ?? ''),
+    'status'       => trim($_GET['status']       ?? ''),
+    'type'         => trim($_GET['type']         ?? ''),
+    'tag'          => trim($_GET['tag']          ?? ''),
+    'group'        => (int)($_GET['group']       ?? 0) ?: '',
+    'wojewodztwo'  => trim($_GET['wojewodztwo']  ?? ''),
+    'action_id'    => (int)($_GET['action_id']   ?? 0) ?: '',
+    // Wyszukiwanie zaawansowane
+    'q_all'        => trim($_GET['q_all']        ?? ''),
+    'source'       => trim($_GET['source']       ?? ''),
+    'branza'       => trim($_GET['branza']       ?? ''),
+    'powiat'       => trim($_GET['powiat']       ?? ''),
+    'gmina'        => trim($_GET['gmina']        ?? ''),
+    'created_from' => trim($_GET['created_from'] ?? ''),
+    'created_to'   => trim($_GET['created_to']   ?? ''),
+    'last_from'    => trim($_GET['last_from']    ?? ''),
+    'last_to'      => trim($_GET['last_to']      ?? ''),
+    'stale_days'   => (int)($_GET['stale_days']  ?? 0) ?: '',
+    'has_email'    => !empty($_GET['has_email'])  ? '1' : '',
+    'has_phone'    => !empty($_GET['has_phone'])  ? '1' : '',
 ];
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $per_page = 25;
@@ -540,6 +553,16 @@ include __DIR__ . '/includes/header_crm.php';
     <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtruj
   </button>
 
+  <?php
+  // Czy aktywny jest którykolwiek z filtrów zaawansowanych?
+  $adv_keys   = ['q_all','source','branza','powiat','gmina','created_from','created_to','last_from','last_to','stale_days','has_email','has_phone'];
+  $adv_active = (bool)array_filter(array_intersect_key($filters, array_flip($adv_keys)));
+  ?>
+  <button type="button" class="btn btn-crm-outline btn-sm" id="crm-adv-toggle"
+          aria-expanded="<?= $adv_active ? 'true' : 'false' ?>" aria-controls="crm-adv-panel">
+    <i class="bi bi-sliders me-1" aria-hidden="true"></i>Zaawansowane<?= $adv_active ? ' •' : '' ?>
+  </button>
+
   <?php if (array_filter($filters)): ?>
   <a href="<?= APP_URL ?>/crm/index.php"
      class="btn btn-outline-secondary btn-sm"
@@ -547,6 +570,106 @@ include __DIR__ . '/includes/header_crm.php';
     <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Wyczyść
   </a>
   <?php endif; ?>
+
+  <?php
+  $crm_sources = db_all("SELECT DISTINCT source FROM crm_contacts
+                          WHERE crm_active=1 AND source IS NOT NULL AND source != ''
+                          ORDER BY source");
+  ?>
+  <!-- ── Panel wyszukiwania zaawansowanego ─────────────────────────────── -->
+  <div id="crm-adv-panel" class="crm-adv-panel<?= $adv_active ? '' : ' d-none' ?>"
+       role="region" aria-label="Wyszukiwanie zaawansowane">
+    <div class="crm-adv-grid">
+      <label class="crm-adv-field crm-adv-wide">
+        <span>Szukaj we wszystkich polach</span>
+        <input type="text" name="q_all" value="<?= h($filters['q_all']) ?>"
+               class="form-control form-control-sm"
+               placeholder="NIP, REGON, KRS, PESEL, branża, adres, notatka…" autocomplete="off">
+      </label>
+
+      <label class="crm-adv-field">
+        <span>Branża</span>
+        <input type="text" name="branza" value="<?= h($filters['branza']) ?>"
+               class="form-control form-control-sm" autocomplete="off">
+      </label>
+
+      <?php if ($crm_sources): ?>
+      <label class="crm-adv-field">
+        <span>Źródło</span>
+        <select name="source" class="form-select form-select-sm">
+          <option value="">Dowolne</option>
+          <?php foreach ($crm_sources as $s): ?>
+          <option value="<?= h($s['source']) ?>" <?= $filters['source'] === $s['source'] ? 'selected' : '' ?>>
+            <?= h(ucfirst($s['source'])) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <?php endif; ?>
+
+      <label class="crm-adv-field">
+        <span>Powiat</span>
+        <input type="text" name="powiat" value="<?= h($filters['powiat']) ?>"
+               class="form-control form-control-sm" autocomplete="off">
+      </label>
+
+      <label class="crm-adv-field">
+        <span>Gmina</span>
+        <input type="text" name="gmina" value="<?= h($filters['gmina']) ?>"
+               class="form-control form-control-sm" autocomplete="off">
+      </label>
+
+      <label class="crm-adv-field">
+        <span>Dodano od</span>
+        <input type="date" name="created_from" value="<?= h($filters['created_from']) ?>"
+               class="form-control form-control-sm">
+      </label>
+      <label class="crm-adv-field">
+        <span>Dodano do</span>
+        <input type="date" name="created_to" value="<?= h($filters['created_to']) ?>"
+               class="form-control form-control-sm">
+      </label>
+
+      <label class="crm-adv-field">
+        <span>Kontakt od</span>
+        <input type="date" name="last_from" value="<?= h($filters['last_from']) ?>"
+               class="form-control form-control-sm">
+      </label>
+      <label class="crm-adv-field">
+        <span>Kontakt do</span>
+        <input type="date" name="last_to" value="<?= h($filters['last_to']) ?>"
+               class="form-control form-control-sm">
+      </label>
+
+      <label class="crm-adv-field">
+        <span>Bez kontaktu od (dni)</span>
+        <input type="number" name="stale_days" min="1" step="1"
+               value="<?= h($filters['stale_days']) ?>"
+               class="form-control form-control-sm" placeholder="np. 30">
+      </label>
+
+      <div class="crm-adv-field crm-adv-checks">
+        <label class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" name="has_email" value="1"
+                 <?= $filters['has_email'] ? 'checked' : '' ?>>
+          <span class="form-check-label">Ma e-mail</span>
+        </label>
+        <label class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" name="has_phone" value="1"
+                 <?= $filters['has_phone'] ? 'checked' : '' ?>>
+          <span class="form-check-label">Ma telefon</span>
+        </label>
+      </div>
+    </div>
+    <div class="crm-adv-actions">
+      <button type="submit" class="btn btn-crm-primary btn-sm">
+        <i class="bi bi-search me-1" aria-hidden="true"></i>Szukaj
+      </button>
+      <button type="button" class="btn btn-link btn-sm text-muted" id="crm-adv-clear">
+        Wyczyść zaawansowane
+      </button>
+    </div>
+  </div>
 
 </form>
 
@@ -930,8 +1053,11 @@ const Bulk = (function () {
 
   /* ── Synchronizuje pola formularza z URLSearchParams ── */
   function syncForm(params) {
-    form.querySelectorAll('select, input[type="text"]').forEach(function (el) {
+    form.querySelectorAll('select, input[type="text"], input[type="date"], input[type="number"], input[type="search"]').forEach(function (el) {
       if (el.name) el.value = params.get(el.name) || '';
+    });
+    form.querySelectorAll('input[type="checkbox"]').forEach(function (el) {
+      if (el.name) el.checked = params.get(el.name) === el.value;
     });
   }
 
@@ -1023,6 +1149,42 @@ const Bulk = (function () {
         load(formParams(), true);
       }
     });
+  }
+
+  /* ── Wyszukiwanie zaawansowane: toggle / clear / auto-load ── */
+  var advToggle = document.getElementById('crm-adv-toggle');
+  var advPanel  = document.getElementById('crm-adv-panel');
+  if (advToggle && advPanel) {
+    advToggle.addEventListener('click', function () {
+      var open = advPanel.classList.toggle('d-none');
+      advToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      if (!open) {
+        var first = advPanel.querySelector('input, select');
+        if (first) first.focus();
+      }
+    });
+  }
+  if (advPanel) {
+    // Auto-załaduj po zmianie pól dat/liczb/checkboxów
+    advPanel.querySelectorAll('input[type="date"], input[type="number"], input[type="checkbox"]').forEach(function (el) {
+      el.addEventListener('change', function () { load(formParams(), true); });
+    });
+    // Debounce dla pól tekstowych panelu
+    advPanel.querySelectorAll('input[type="text"]').forEach(function (el) {
+      el.addEventListener('input', function () {
+        clearTimeout(debounce);
+        debounce = setTimeout(function () { load(formParams(), true); }, 380);
+      });
+    });
+    var advClear = document.getElementById('crm-adv-clear');
+    if (advClear) {
+      advClear.addEventListener('click', function () {
+        advPanel.querySelectorAll('input, select').forEach(function (el) {
+          if (el.type === 'checkbox') el.checked = false; else el.value = '';
+        });
+        load(formParams(), true);
+      });
+    }
   }
 
   /* ── Chipy tagów i grup ─────────────────────────── */

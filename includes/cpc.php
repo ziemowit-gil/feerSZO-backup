@@ -162,6 +162,8 @@ function cpc_migrate(): void {
         // Token jednorazowy do uzupełnienia danych przez wolontariusza (przed 01.06.2026)
         'data_token'                => "ALTER TABLE umowy_wolontariat ADD COLUMN data_token TEXT NULL",
         'data_token_used_at'        => "ALTER TABLE umowy_wolontariat ADD COLUMN data_token_used_at DATETIME NULL",
+        // Zaliczanie godzin z zadań (cache z task_time_logs)
+        'godzin_z_zadan'            => "ALTER TABLE umowy_wolontariat ADD COLUMN godzin_z_zadan DECIMAL(8,2) NOT NULL DEFAULT 0",
     ];
 
     foreach ($wolontariat_extra as $col => $sql) {
@@ -170,6 +172,22 @@ function cpc_migrate(): void {
         } catch (\PDOException $e) {
             // Kolumna już istnieje — ignorujemy
         }
+    }
+
+    // Ręczna korekta godzin — przy PIERWSZYM utworzeniu kolumny przenosimy
+    // dotychczasową ręczną wartość godzin_przepracowanych do korekty, aby nie
+    // utracić danych wpisanych ręcznie (godzin_przepracowanych staje się polem
+    // wyliczanym = godzin_z_zadan + godzin_korekta).
+    try {
+        $pdo->exec("ALTER TABLE umowy_wolontariat ADD COLUMN godzin_korekta DECIMAL(8,2) NOT NULL DEFAULT 0");
+        // ALTER się udał → kolumna jest nowa → backfill jednorazowy
+        try {
+            $pdo->exec("UPDATE umowy_wolontariat SET godzin_korekta = COALESCE(godzin_przepracowanych, 0)");
+        } catch (\PDOException $e) {
+            // ignorujemy
+        }
+    } catch (\PDOException $e) {
+        // Kolumna już istnieje — backfill był już wykonany
     }
 
     // -------------------------------------------------------------------------

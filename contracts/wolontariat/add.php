@@ -493,9 +493,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row['m365_security_group_id']    = trim($_POST['m365_security_group_id']   ?? '') ?: null;
         $row['m365_security_group_name']  = trim($_POST['m365_security_group_name'] ?? '') ?: null;
 
-        foreach (['godzin_tygodniowo', 'godzin_przepracowanych', 'limit_zwrotu_kosztow'] as $f) {
+        foreach (['godzin_tygodniowo', 'limit_zwrotu_kosztow'] as $f) {
             if (isset($row[$f]) && $row[$f] === '') $row[$f] = null;
         }
+        // Godziny przepracowane są wyliczane z zadań — wartość z formularza traktujemy
+        // jako ręczną korektę (przy nowej umowie nie ma jeszcze logów czasu zadań).
+        $row['godzin_korekta'] = (($_POST['godzin_korekta'] ?? '') === '')
+            ? 0 : (float)str_replace(',', '.', $_POST['godzin_korekta']);
+        unset($row['godzin_przepracowanych']);
         // template_id: zamień pusty string na null, zachowaj jako int gdy wybrano
         $row['template_id'] = !empty($row['template_id']) ? (int)$row['template_id'] : null;
 
@@ -515,7 +520,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'data_urodzenia', 'niepelnoletni', 'zgoda_opiekuna', 'rodzic_imie_nazwisko', 'rodzic_email', 'rodzic_telefon',
             'przedmiot_porozumienia',
             'miejsce_wolontariatu', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
-            'bezterminowa', 'godzin_tygodniowo', 'godzin_przepracowanych', 'ubezpieczenie_nnw',
+            'bezterminowa', 'godzin_tygodniowo', 'godzin_korekta', 'ubezpieczenie_nnw',
             'numer_polisy_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'data_szkolenia_bhp',
             'zwrot_kosztow', 'zwrot_kosztow_opis', 'limit_zwrotu_kosztow', 'opiekun', 'projekt_program',
             'forma_podpisania', 'platforma_el', 'id_dokumentu_el', 'plik_potwierdzenia',
@@ -587,6 +592,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data['numer_umowy'] = ''; // brak numeru RU
         }
         $id = db_insert($TABLE, $data);
+        // Ustaw godzin_przepracowanych = z zadań + korekta (na starcie = korekta)
+        try {
+            require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
+            volunteer_recompute_hours((int)$id);
+        } catch (\Throwable $e) {}
         $log_note = 'Dodano: ' . ($data['numer_umowy'] ?? '');
         if (!empty($data['is_technical'])) {
             $log_note .= ' [Umowa techniczna — współpraca przed 01.06.2026]';
@@ -1458,12 +1468,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </div>
         </div>
         <div class="col-sm-3">
-          <label class="form-label fw-semibold">Godz. przepracowane</label>
+          <label class="form-label fw-semibold">Korekta godzin</label>
           <div class="input-group">
-            <input name="godzin_przepracowanych" type="number" step="0.5" min="0" class="form-control"
-                   value="<?= h($row['godzin_przepracowanych'] ?? '') ?>" placeholder="0">
+            <input name="godzin_korekta" type="number" step="0.5" class="form-control"
+                   value="<?= h($row['godzin_korekta'] ?? '') ?>" placeholder="0">
             <span class="input-group-text text-muted">h</span>
           </div>
+          <div class="form-text">Godziny przepracowane są liczone z zadań; tu wpisz ewentualną korektę.</div>
         </div>
       </div>
 

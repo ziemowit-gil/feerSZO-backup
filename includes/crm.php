@@ -951,6 +951,55 @@ class CrmManager
             $q          = '%' . $filters['q'] . '%';
             $params     = array_merge($params, [$q, $q, $q, $q]);
         }
+        // Wyszukiwanie „we wszystkich polach" — szeroki LIKE po polach identyfikacyjnych i opisowych
+        if (!empty($filters['q_all'])) {
+            $cols = ['c.imie_nazwisko', 'c.email', 'c.organizacja', 'c.telefon',
+                     'c.nip', 'c.krs', 'c.regon', 'c.pesel', 'c.branza', 'c.adres',
+                     'c.stanowisko', 'c.osoba_kontaktowa', 'c.strona_www', 'c.notatka',
+                     'c.wojewodztwo', 'c.powiat', 'c.gmina'];
+            $where[]   = '(' . implode(' OR ', array_map(fn($col) => "$col LIKE ?", $cols)) . ')';
+            $qa        = '%' . $filters['q_all'] . '%';
+            $params    = array_merge($params, array_fill(0, count($cols), $qa));
+        }
+        if (!empty($filters['source'])) {
+            $where[]  = "c.source = ?";
+            $params[] = $filters['source'];
+        }
+        if (!empty($filters['branza'])) {
+            $where[]  = "c.branza LIKE ?";
+            $params[] = '%' . $filters['branza'] . '%';
+        }
+        // Zakres daty dodania
+        if (!empty($filters['created_from'])) {
+            $where[]  = "c.created_at >= ?";
+            $params[] = substr($filters['created_from'], 0, 10) . ' 00:00:00';
+        }
+        if (!empty($filters['created_to'])) {
+            $where[]  = "c.created_at <= ?";
+            $params[] = substr($filters['created_to'], 0, 10) . ' 23:59:59';
+        }
+        // Zakres daty ostatniego kontaktu (korelowany podzapytanie)
+        if (!empty($filters['last_from'])) {
+            $where[]  = "(SELECT MAX(cc.sent_at) FROM crm_communications cc WHERE cc.contact_id=c.id) >= ?";
+            $params[] = substr($filters['last_from'], 0, 10) . ' 00:00:00';
+        }
+        if (!empty($filters['last_to'])) {
+            $where[]  = "(SELECT MAX(cc.sent_at) FROM crm_communications cc WHERE cc.contact_id=c.id) <= ?";
+            $params[] = substr($filters['last_to'], 0, 10) . ' 23:59:59';
+        }
+        // „Bez kontaktu od X dni" — brak komunikacji lub ostatnia starsza niż X dni
+        if (!empty($filters['stale_days'])) {
+            $where[]  = "(SELECT MAX(cc.sent_at) FROM crm_communications cc WHERE cc.contact_id=c.id) IS NULL
+                         OR (SELECT MAX(cc.sent_at) FROM crm_communications cc WHERE cc.contact_id=c.id) < datetime('now', ?)";
+            $params[] = '-' . (int)$filters['stale_days'] . ' days';
+        }
+        // Obecność e-maila / telefonu
+        if (!empty($filters['has_email'])) {
+            $where[] = "(c.email IS NOT NULL AND c.email != '')";
+        }
+        if (!empty($filters['has_phone'])) {
+            $where[] = "(c.telefon IS NOT NULL AND c.telefon != '')";
+        }
         if (!empty($filters['status'])) {
             $where[]  = "c.status = ?";
             $params[] = $filters['status'];

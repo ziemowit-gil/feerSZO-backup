@@ -32,6 +32,13 @@ $TABLE = 'umowy_wolontariat';
 $id    = intval($_GET['id'] ?? 0);
 $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 
+// Odśwież wyliczone godziny z zadań (godzin_przepracowanych = z zadań + korekta)
+if ($row) {
+    require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
+    volunteer_recompute_hours($id, $row);
+    $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
+}
+
 // Aktywna zakładka — z URL lub domyślna; 'all' = pokaż wszystkie na jednej stronie
 $_tab  = preg_replace('/[^a-z-]/', '', $_GET['tab'] ?? '') ?: 'umowa';
 $_turl = APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=';
@@ -1055,7 +1062,16 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       </div>
       <div class="cv-field">
         <div class="cv-label">Godzin przepracowanych</div>
-        <div class="cv-value"><?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h($row['godzin_przepracowanych']) . ' h' : '—' ?></div>
+        <div class="cv-value">
+          <?= ($row['godzin_przepracowanych'] !== null && $row['godzin_przepracowanych'] !== '') ? h(number_format((float)$row['godzin_przepracowanych'], 2, ',', ' ')) . ' h' : '—' ?>
+          <?php if ((float)($row['godzin_z_zadan'] ?? 0) > 0 || (float)($row['godzin_korekta'] ?? 0) != 0): ?>
+          <span class="text-muted" style="font-size:.82em">
+            (z zadań <?= h(number_format((float)($row['godzin_z_zadan'] ?? 0), 2, ',', ' ')) ?> h
+            <?php if ((float)($row['godzin_korekta'] ?? 0) != 0): ?>
+            + korekta <?= h(number_format((float)$row['godzin_korekta'], 2, ',', ' ')) ?> h<?php endif; ?>)
+          </span>
+          <?php endif; ?>
+        </div>
       </div>
       <div class="cv-field">
         <div class="cv-label">Zwrot kosztów</div>
@@ -1996,7 +2012,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <?php endif; ?>
 
     <div class="d-flex gap-2 flex-wrap">
-      <?php if (can_edit() && (!$approval || $approval['status'] !== 'oczekuje')): ?>
+      <?php if (can_edit() && (!$approval || $approval['status'] !== 'oczekuje') && ($row['status'] ?? '') !== 'podpisana'): ?>
       <form method="post" action="<?= APP_URL ?>/contracts/approvals/submit.php">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="type" value="<?= $TYPE ?>">
