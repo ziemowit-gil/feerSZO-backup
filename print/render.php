@@ -61,10 +61,12 @@ $doc  = pt_document_html($tpl, $map);
 <head>
 <meta charset="UTF-8">
 <title><?= h($tpl['name']) ?></title>
+<?php if (($opts['font'] ?? 'montserrat') !== 'arial'): ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<?php endif; ?>
 <style>
-<?= pt_document_css($opts['orientation'] ?? 'portrait') ?>
+<?= pt_document_css($opts['orientation'] ?? 'portrait', $opts['font'] ?? 'montserrat') ?>
 
 @media screen {
   body { background:#e5e7eb; }

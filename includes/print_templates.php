@@ -63,7 +63,16 @@ function pt_default_options(): array {
         'stamp_slot'      => false,
         'qr_slot'         => false,
         'accent'          => '#1e3a5f',
+        'font'            => 'montserrat',     // montserrat | arial
+        'title_style'     => 'classic_line',   // classic_line | banner | minimal | plain
     ];
+}
+
+/** Stos czcionek CSS dla wybranej opcji. */
+function pt_font_stack(string $font): string {
+    return $font === 'arial'
+        ? "Arial,'Helvetica Neue',Helvetica,sans-serif"
+        : "'Montserrat','Segoe UI',Arial,sans-serif";
 }
 
 function pt_options(array $tpl): array {
@@ -387,9 +396,19 @@ function pt_document_html(array $tpl, array $map, array $over = []): string {
         </div>
         <?php endif; ?>
 
-        <?php if (!empty($o['show_title'])): ?>
-        <div class="pt-title" style="color:<?= h($accent) ?>"><?= h($title) ?></div>
-        <div class="pt-title-rule" style="background:<?= h($accent) ?>"></div>
+        <?php if (!empty($o['show_title'])):
+          $tstyle = $o['title_style'] ?? 'classic_line';
+        ?>
+          <?php if ($tstyle === 'banner'): ?>
+          <div class="pt-title pt-title-banner" style="background:<?= h($accent) ?>"><?= h($title) ?></div>
+          <?php elseif ($tstyle === 'minimal'): ?>
+          <div class="pt-title pt-title-minimal" style="color:#000"><?= h($title) ?></div>
+          <?php elseif ($tstyle === 'plain'): ?>
+          <div class="pt-title pt-title-plain" style="color:#000"><?= h($title) ?></div>
+          <?php else: /* classic_line — wyśrodkowany + pełna linia */ ?>
+          <div class="pt-title" style="color:#000"><?= h($title) ?></div>
+          <div class="pt-title-fullrule" style="background:<?= h($accent) ?>"></div>
+          <?php endif; ?>
         <?php endif; ?>
 
         <div class="pt-body"><?= $body ?></div>
@@ -427,14 +446,15 @@ function pt_document_html(array $tpl, array $map, array $over = []): string {
 }
 
 /** Zwraca <style> dla strony wydruku (orientacja sterowana parametrem). */
-function pt_document_css(string $orientation = 'portrait'): string {
+function pt_document_css(string $orientation = 'portrait', string $font = 'montserrat'): string {
     $landscape = $orientation === 'landscape';
     $w = $landscape ? '297mm' : '210mm';
     $h = $landscape ? '210mm' : '297mm';
+    $font_stack = pt_font_stack($font);
     return "
     *,*::before,*::after{box-sizing:border-box}
     html{font-size:11pt}
-    body{font-family:'Lato','Segoe UI',Arial,sans-serif;color:#111;margin:0;padding:0;background:#fff}
+    body{font-family:{$font_stack};color:#111;margin:0;padding:0;background:#fff}
     @page{size:" . ($landscape ? 'A4 landscape' : 'A4') . ";margin:0}
     .pt-page{position:relative;width:{$w};min-height:{$h};background:#fff;overflow:hidden}
     .pt-inner{position:relative;z-index:2;padding:18mm 18mm 16mm;min-height:{$h};display:flex;flex-direction:column}
@@ -446,6 +466,10 @@ function pt_document_css(string $orientation = 'portrait'): string {
     .pt-org-ref{text-align:right;flex-shrink:0;font-size:.78rem;color:#555}
     .pt-title{text-align:center;font-size:1.5rem;font-weight:900;text-transform:uppercase;letter-spacing:.1em;margin:1.2rem 0 .35rem}
     .pt-title-rule{width:90px;height:3px;margin:0 auto 1.2rem;border-radius:2px}
+    .pt-title-fullrule{width:100%;height:2px;margin:.1rem 0 1.2rem;border-radius:1px}
+    .pt-title-plain{margin:1.2rem 0 1.2rem}
+    .pt-title-minimal{text-transform:none;font-weight:600;letter-spacing:.02em;font-size:1.9rem;margin:1.6rem 0 1.4rem}
+    .pt-title-banner{color:#fff;padding:.55rem 1rem;border-radius:4px;font-size:1.4rem;font-weight:800;margin:1.2rem 0 1.3rem}
     .pt-body{flex:1;font-size:1rem}
     .pt-body p{line-height:1.7;margin-bottom:.7rem;text-align:justify}
     .pt-body h1,.pt-body h2,.pt-body h3{margin:1rem 0 .4rem}

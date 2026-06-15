@@ -46,6 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'stamp_slot'      => !empty($_POST['stamp_slot']),
         'qr_slot'         => !empty($_POST['qr_slot']),
         'accent'          => $accent,
+        'font'            => ($_POST['font'] ?? '') === 'arial' ? 'arial' : 'montserrat',
+        'title_style'     => in_array($_POST['title_style'] ?? '', ['classic_line','banner','minimal','plain'], true)
+                             ? $_POST['title_style'] : 'classic_line',
     ];
 
     // Tło: istniejące, nowy upload, lub usunięcie.
@@ -206,6 +209,21 @@ include dirname(__DIR__) . '/includes/header.php';
           <label class="form-label fw-semibold mb-1">Kolor akcentu</label>
           <input type="color" name="accent" class="form-control form-control-color form-control-sm mb-3"
                  value="<?= h($o['accent'] ?? '#1e3a5f') ?>">
+
+          <label class="form-label fw-semibold mb-1">Czcionka dokumentu</label>
+          <select name="font" class="form-select form-select-sm mb-3">
+            <option value="montserrat" <?= ($o['font'] ?? 'montserrat') !== 'arial' ? 'selected' : '' ?>>Montserrat</option>
+            <option value="arial"      <?= ($o['font'] ?? '') === 'arial' ? 'selected' : '' ?>>Arial</option>
+          </select>
+
+          <?php $ts = $o['title_style'] ?? 'classic_line'; ?>
+          <label class="form-label fw-semibold mb-1">Styl tytułu dokumentu</label>
+          <select name="title_style" class="form-select form-select-sm mb-3">
+            <option value="classic_line" <?= $ts === 'classic_line' ? 'selected' : '' ?>>Klasyczny — wielkie litery + pełna linia</option>
+            <option value="plain"        <?= $ts === 'plain'        ? 'selected' : '' ?>>Zwykły napis — wielkie litery, bez linii</option>
+            <option value="minimal"      <?= $ts === 'minimal'      ? 'selected' : '' ?>>Minimalistyczny — bez wielkich liter, lekki</option>
+            <option value="banner"       <?= $ts === 'banner'       ? 'selected' : '' ?>>Baner — tło w kolorze akcentu, biały tekst</option>
+          </select>
 
           <label class="form-label fw-semibold mb-1">Tło / grafika (A4)</label>
           <div class="d-flex align-items-start gap-2 mb-2">
