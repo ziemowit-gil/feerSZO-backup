@@ -239,6 +239,35 @@ switch ($action) {
         ajax_ok([], 'Oznaczono jako rozliczone');
     }
 
+    // ── rozliczenie_delete — TRWAŁE usunięcie rozliczenia (admin + IKA + powód) ──
+    case 'rozliczenie_delete': {
+        if ((current_user()['role'] ?? '') !== 'admin') ajax_err('Tylko administrator może usuwać rozliczenia', 403);
+        $rid    = (int)($_POST['rozliczenie_id'] ?? 0);
+        $reason = trim($_POST['reason'] ?? '');
+        $ika    = trim($_POST['ika'] ?? '');
+        if (!$rid)          ajax_err('Brak id rozliczenia');
+        if ($reason === '') ajax_err('Podaj powód usunięcia');
+        if ($ika === '')    ajax_err('Podaj kod IKA');
+
+        $rozl = get_rozliczenie($rid);
+        if (!$rozl) ajax_err('Nie znaleziono rozliczenia');
+
+        $uid = (int)current_user()['id'];
+        require_once dirname(__DIR__) . '/includes/cpc.php';
+        $vr = cpc_verify($uid, $ika);
+        if (empty($vr['ok'])) {
+            ajax_err(!empty($vr['blocked'])
+                ? 'Kod IKA zablokowany po błędnych próbach — spróbuj później.'
+                : 'Nieprawidłowy kod IKA.', 403);
+        }
+
+        delete_rozliczenie($rid);
+        log_contract_action('zlecenie', (int)$rozl['contract_id'], $uid, 'rozliczenie_deleted',
+            'Usunięto rozliczenie #' . $rid . ' (potwierdzone IKA). Powód: ' . $reason);
+
+        ajax_ok([], 'Rozliczenie usunięte');
+    }
+
     // ── set_favorite ──────────────────────────────────────────────────────────
     case 'set_favorite': {
         if (!can_edit()) ajax_err('Brak uprawnień', 403);

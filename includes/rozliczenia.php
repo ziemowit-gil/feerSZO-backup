@@ -156,5 +156,13 @@ function rozliczenie_email_row(array $contract, array $rozl): array {
         'wynagrodzenie_brutto'    => $rozl['kwota_brutto'] ?? null,
         'liczba_godzin_planowana' => $rozl['liczba_godzin'] ?? '',
         'powod'                   => $rozl['powod'] ?? '',
+        // Adres zleceniobiorcy (z umowy) — do bloku e-mail dla księgowego.
+        'adres'                   => $contract['adres']        ?? '',
+        'addr_street'             => $contract['addr_street']  ?? '',
+        'addr_house'              => $contract['addr_house']   ?? '',
+        'addr_flat'               => $contract['addr_flat']    ?? '',
+        'addr_postal'             => $contract['addr_postal']  ?? '',
+        'addr_city'               => $contract['addr_city']    ?? '',
+        'addr_country'            => $contract['addr_country'] ?? '',
     ];
 }

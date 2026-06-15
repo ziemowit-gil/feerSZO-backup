@@ -10,6 +10,7 @@
  *
  * Wymaga wcześniejszego załadowania includes/functions.php (date_pl, money).
  */
+require_once __DIR__ . '/address.php'; // address_format() do wiersza z adresem
 if (!function_exists('ksiegowy_rachunek_email_text')) {
     function ksiegowy_rachunek_email_text(array $row = []): string
     {
@@ -22,9 +23,13 @@ if (!function_exists('ksiegowy_rachunek_email_text')) {
         $godz  = trim((string)($row['liczba_godzin_planowana'] ?? ''));
         $powod = trim((string)($row['powod'] ?? ''));
 
+        $adres = function_exists('address_format') ? trim(address_format($row)) : '';
+        if ($adres === '') $adres = trim((string)($row['adres'] ?? ''));
+
         return "Dzień dobry,\n"
              . "poniżej przesyłam dane do wystawienia rachunku:\n"
              . "- dla kogo rachunek: {$name}\n"
+             . "- adres: {$adres}\n"
              . "- data umowy: {$dataU}\n"
              . "- data rachunku: {$dataR}\n"
              . "- za jaki okres jest rachunek: {$okres}\n"

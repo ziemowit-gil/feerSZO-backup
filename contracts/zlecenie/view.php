@@ -1085,6 +1085,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <script>
 window.ROZL_DEFAULTS = {
   imie_nazwisko: <?= json_encode($row['imie_nazwisko'] ?? '') ?>,
+  adres:         <?= json_encode(trim(address_format($row))) ?>,
   data_umowy:    <?= json_encode(!empty($row['data_zawarcia']) ? date_pl($row['data_zawarcia']) : '') ?>,
   kwota_brutto:  <?= json_encode($row['wynagrodzenie_brutto'] ?? '') ?>,
   liczba_godzin: <?= json_encode($row['liczba_godzin_planowana'] ?? '') ?>,
@@ -1182,6 +1183,7 @@ window.CVTabsConfig = {
 <script>
 (function () {
   var _dirty = false;
+  var _rozlAdres = '';
 
   function fmtDate(iso) {
     if (!iso) return '';
@@ -1228,6 +1230,7 @@ window.CVTabsConfig = {
     var t = 'Dzień dobry,\n'
       + 'poniżej przesyłam dane do wystawienia rachunku:\n'
       + '- dla kogo rachunek: ' + val('rozlName') + '\n'
+      + '- adres: ' + _rozlAdres + '\n'
       + '- data umowy: ' + val('rozlDataUmowy') + '\n'
       + '- data rachunku: ' + fmtDate(val('rozlDataRachunku')) + '\n'
       + '- za jaki okres jest rachunek: ' + val('rozlOkres') + '\n'
@@ -1246,6 +1249,7 @@ window.CVTabsConfig = {
   window.cvhOpenRozliczenie = function (res) {
     var d = (res && res.prefill) ? res.prefill : window.ROZL_DEFAULTS;
     document.getElementById('rozlId').value = '';
+    _rozlAdres = d.adres || '';
     setVal('rozlName',         d.imie_nazwisko || '');
     setVal('rozlDataUmowy',    d.data_umowy || '');
     setVal('rozlDataRachunku', d.data_rachunku || '');
