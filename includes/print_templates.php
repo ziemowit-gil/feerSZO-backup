@@ -246,6 +246,61 @@ function pt_set_default(int $id): void {
     db()->prepare("UPDATE print_templates SET is_default=1, updated_at=datetime('now','localtime') WHERE id=?")->execute([$id]);
 }
 
+/* ── Przycisk „Drukuj dokument" (dropdown aktywnych wzorów) ─────────────────── *
+ * $src_params — parametry źródła danych dla print/render.php, np.
+ *   'contract_id=5&type=zlecenie'  lub  'cert_id=12'.
+ * Wzory pogrupowane po kategorii. Zwraca '' gdy brak aktywnych wzorów.
+ */
+function print_template_dropdown_html(string $src_params, array $opts = []): string {
+    pt_migrate();
+    $tpls = pt_list('', true);
+    if (!$tpls) return '';
+
+    $app       = defined('APP_URL') ? APP_URL : '';
+    $btn_class = $opts['btn_class'] ?? 'btn btn-sm btn-outline-secondary';
+    $label     = $opts['label']     ?? 'Dokumenty';
+    $menu_end  = ($opts['menu_end'] ?? true) ? 'dropdown-menu-end' : '';
+
+    // Grupuj po kategorii (zachowaj kolejność kategorii z pt_categories).
+    $by_cat = [];
+    foreach ($tpls as $t) $by_cat[$t['category']][] = $t;
+    $cat_order = array_keys(pt_categories());
+
+    ob_start(); ?>
+    <div class="dropdown d-inline-block">
+      <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
+              data-bs-toggle="dropdown" aria-expanded="false" title="Drukuj dokument ze wzoru">
+        <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+      </button>
+      <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:260px">
+        <li><h6 class="dropdown-header"><i class="bi bi-printer me-1"></i>Drukuj dokument ze wzoru</h6></li>
+        <?php $first = true;
+        foreach ($cat_order as $cat):
+          if (empty($by_cat[$cat])) continue;
+          if (!$first): ?><li><hr class="dropdown-divider"></li><?php endif; $first = false; ?>
+          <li><h6 class="dropdown-header py-1" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em"><?= h(pt_category_label($cat)) ?></h6></li>
+          <?php foreach ($by_cat[$cat] as $t): ?>
+          <li>
+            <a class="dropdown-item d-flex align-items-center" target="_blank"
+               href="<?= h($app) ?>/print/render.php?template_id=<?= (int)$t['id'] ?>&amp;<?= h($src_params) ?>">
+              <i class="bi bi-printer me-2 text-danger"></i>
+              <span class="flex-grow-1"><?= h($t['name']) ?><?php if (!empty($t['is_default'])): ?>
+                <span class="badge bg-light text-secondary border ms-1" style="font-weight:600">domyślny</span><?php endif; ?></span>
+            </a>
+          </li>
+          <?php endforeach;
+        endforeach; ?>
+        <?php if (function_exists('is_admin') && is_admin()): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item small text-muted" href="<?= h($app) ?>/admin/print_templates.php">
+          <i class="bi bi-gear me-2"></i>Zarządzaj wzorami…</a></li>
+        <?php endif; ?>
+      </ul>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
 /* ── Upload tła ───────────────────────────────────────────────────────────── */
 function pt_handle_bg_upload(string $field): ?string {
     if (empty($_FILES[$field]['tmp_name'])) return null;
