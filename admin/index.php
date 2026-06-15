@@ -213,6 +213,7 @@ $groups = [
             ['icon'=>'bi-ui-checks-grid',       'label'=>'Typy wniosków',            'url'=>'/admin/application_types.php'],
             ['icon'=>'bi-file-earmark-text',    'label'=>'Wzory dokumentów',         'url'=>'/admin/contract_templates.php'],
             ['icon'=>'bi-printer',              'label'=>'Wzory wydruków',           'url'=>'/admin/print_templates.php'],
+            ['icon'=>'bi-envelope',            'label'=>'Wzory kopert',             'url'=>'/admin/envelope_templates.php'],
             ['icon'=>'bi-pen-fill',             'label'=>'Autenti eSign',            'url'=>'/admin/autenti_settings.php'],
             ['icon'=>'bi-pen-fill',             'label'=>'DocuSign eSign',           'url'=>'/admin/docusign_settings.php'],
             ['icon'=>'bi-calendar-x',           'label'=>'Wygasające umowy',         'url'=>'/admin/contract_expiry.php',   'badge'=>$cnt['expiring_7'] ?: ($cnt['expiring_30'] ?: null), 'badge_type'=>$cnt['expiring_7'] ? 'danger' : 'warning'],

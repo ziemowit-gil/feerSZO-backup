@@ -606,6 +606,12 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
             <i class="bi bi-check2-circle"></i>
           </button>
         <?php endif; ?>
+        <?php if ((current_user()['role'] ?? '') === 'admin'): ?>
+          <button type="button" class="btn btn-sm btn-outline-danger ms-1"
+                  onclick="rozlDelete(<?= (int)$rz['id'] ?>)" title="Usuń rozliczenie (wymaga kodu IKA i powodu)">
+            <i class="bi bi-trash"></i>
+          </button>
+        <?php endif; ?>
         <?php if (!empty($rz['nie_wysylac'])): ?>
         <span class="badge bg-light text-secondary border ms-1" title="Oznaczone: nie wysyłać do księgowego"><i class="bi bi-envelope-slash"></i> Bez wysyłki</span>
         <?php elseif ($rz['status'] === 'wyslane' && $rz['sent_to_email']): ?>
@@ -625,27 +631,6 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <?php endif; ?>
   </div>
 
-  <?php $_ksieg_tekst = ksiegowy_rachunek_email_text($row); ?>
-  <div class="card shadow-sm mt-3">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-envelope-at"></i> Dane do rachunku — gotowy tekst dla księgowego</span>
-    <div class="d-flex gap-2 no-print">
-      <button type="button" class="btn btn-sm btn-outline-primary" id="ksiegCopyBtn" onclick="ksiegCopy()">
-        <i class="bi bi-clipboard"></i> Kopiuj tekst
-      </button>
-      <a class="btn btn-sm btn-outline-secondary"
-         href="<?= APP_URL ?>/contracts/zlecenie/ksiegowy_print.php?id=<?= $id ?>" target="_blank">
-        <i class="bi bi-file-earmark-pdf"></i> PDF
-      </a>
-    </div>
-  </div>
-  <div class="card-body">
-    <p class="text-muted small mb-2">Gotowy blok tekstu — skopiuj do wiadomości e-mail dla księgowego lub pobierz jako PDF.</p>
-    <textarea id="ksiegTekst" class="form-control font-monospace" rows="9" readonly
-              style="font-size:.9rem;background:#f8f9fa"><?= h($_ksieg_tekst) ?></textarea>
-    <div id="ksiegCopyInfo" class="text-success small mt-2" style="min-height:1.2em"></div>
-  </div>
-  </div>
 
 </div><!-- /tab-rozliczenia -->
 
@@ -1126,24 +1111,72 @@ window.CVTabsConfig = {
 </script>
 <script src="<?= APP_URL ?>/assets/js/contract-view-tabs.js" defer></script>
 
+<?php if ((current_user()['role'] ?? '') === 'admin'): ?>
+<!-- ═══════════════════ MODAL — usunięcie rozliczenia (admin + IKA + powód) ═══════════════════ -->
+<div class="modal fade" id="rozlDeleteModal" tabindex="-1" aria-labelledby="rozlDeleteLabel">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#dc3545;color:#fff">
+        <h5 class="modal-title" id="rozlDeleteLabel"><i class="bi bi-trash me-2"></i>Usuń rozliczenie</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Usunięcie jest trwałe i wymaga potwierdzenia <strong>kodem IKA</strong>. Operacja zostanie zapisana w dzienniku z podanym powodem.</p>
+        <input type="hidden" id="rozlDelId" value="">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Powód usunięcia <span class="text-danger">*</span></label>
+          <textarea id="rozlDelReason" class="form-control" rows="2" placeholder="np. błędnie wystawione, duplikat"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Kod IKA <span class="text-danger">*</span></label>
+          <input type="password" id="rozlDelIka" class="form-control" autocomplete="off" placeholder="Twój kod IKA">
+        </div>
+        <div id="rozlDelErr" class="text-danger small d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-danger" id="rozlDelConfirm"><i class="bi bi-trash me-1"></i>Usuń trwale</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
-function ksiegCopy() {
-  var ta = document.getElementById('ksiegTekst');
-  if (!ta) return;
-  var info = document.getElementById('ksiegCopyInfo');
-  var done = function () {
-    info.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Skopiowano do schowka';
-    setTimeout(function () { info.textContent = ''; }, 3000);
+(function () {
+  var APP = <?= json_encode(rtrim(APP_URL, '/')) ?>;
+  window.rozlDelete = function (rid) {
+    document.getElementById('rozlDelId').value = rid;
+    document.getElementById('rozlDelReason').value = '';
+    document.getElementById('rozlDelIka').value = '';
+    var err = document.getElementById('rozlDelErr'); err.classList.add('d-none'); err.textContent = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('rozlDeleteModal')).show();
   };
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(ta.value).then(done, function () {
-      ta.select(); document.execCommand('copy'); done();
-    });
-  } else {
-    ta.select(); document.execCommand('copy'); done();
-  }
-}
+  var btn = document.getElementById('rozlDelConfirm');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var rid    = parseInt(document.getElementById('rozlDelId').value, 10);
+    var reason = document.getElementById('rozlDelReason').value.trim();
+    var ika    = document.getElementById('rozlDelIka').value.trim();
+    var err    = document.getElementById('rozlDelErr');
+    function showErr(m){ err.textContent = m; err.classList.remove('d-none'); }
+    if (!reason) { showErr('Podaj powód usunięcia.'); return; }
+    if (!ika)    { showErr('Podaj kod IKA.'); return; }
+    btn.disabled = true;
+    csrfFetch(APP + '/api/ajax.php', { action: 'rozliczenie_delete', rozliczenie_id: rid, reason: reason, ika: ika })
+      .then(function (res) {
+        btn.disabled = false;
+        if (res && res.ok) {
+          bootstrap.Modal.getInstance(document.getElementById('rozlDeleteModal')).hide();
+          if (typeof ajaxToast === 'function') ajaxToast(res.msg || 'Rozliczenie usunięte');
+          setTimeout(function () { location.reload(); }, 500);
+        } else {
+          showErr((res && res.msg) || 'Nie udało się usunąć.');
+        }
+      })
+      .catch(function () { btn.disabled = false; showErr('Błąd połączenia.'); });
+  });
+})();
 </script>
+<?php endif; ?>
 
 <?php if (can_edit()): ?>
 <script>

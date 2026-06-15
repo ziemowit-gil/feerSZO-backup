@@ -137,6 +137,11 @@ function rozliczenie_mark_settled(int $rid, ?int $user_id): void {
     ], $rid);
 }
 
+/** Trwałe usunięcie rozliczenia (tylko admin, po weryfikacji IKA — egzekwowane w api/ajax.php). */
+function delete_rozliczenie(int $rid): void {
+    db()->prepare("DELETE FROM zlecenie_rozliczenia WHERE id=?")->execute([$rid]);
+}
+
 /**
  * Mapuje rekord rozliczenia + dane umowy na tablicę kluczy czytanych przez
  * ksiegowy_rachunek_email_text(): imie_nazwisko, data_zawarcia, data_rachunku,
