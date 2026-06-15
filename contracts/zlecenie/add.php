@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
+require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_role('admin','editor');
 require_module_enabled('contract_zlecenie', 'Ten typ umowy');
@@ -51,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Tylko kolumny z tabeli
         $allowed = ['numer_umowy','status','imie_nazwisko','pesel','adres','email','seria_nr_dowodu','urzad_skarbowy',
+            'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             'rachunek_bankowy','przedmiot_zlecenia','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
@@ -210,12 +212,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="col-md-3 mb-3"><label class="form-label">Seria i nr dowodu</label>
     <input name="seria_nr_dowodu" class="form-control" value="<?= h($row['seria_nr_dowodu']??'') ?>"></div>
 </div>
+<div class="mb-3">
+  <label class="form-label fw-semibold"><i class="bi bi-house me-1 text-secondary"></i>Adres zamieszkania / siedziby</label>
+  <?= address_widget($row, ['copy_button' => true, 'autocomplete' => true, 'widget_id' => 'zlecenieAddrWidget']) ?>
+</div>
 <div class="row">
-  <div class="col-md-8 mb-3"><label class="form-label">Adres zamieszkania</label>
-    <input name="adres" class="form-control" value="<?= h($row['adres']??'') ?>"></div>
   <div class="col-md-6 mb-3"><label class="form-label">Adres e-mail kontrahenta</label>
     <input type="email" name="email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email']??'')?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Urząd skarbowy</label>
+  <div class="col-md-6 mb-3"><label class="form-label">Urząd skarbowy</label>
     <input name="urzad_skarbowy" class="form-control" value="<?= h($row['urzad_skarbowy']??'') ?>"></div>
 </div>
 <div class="mb-3"><label class="form-label">Rachunek bankowy</label>
@@ -519,9 +523,11 @@ async function ceidgSearch() {
 }
 function ceidgFill(d) {
   var pelneNazwisko = (d.imie && d.nazwisko) ? d.imie + ' ' + d.nazwisko : d.nazwa || '';
-  document.querySelector('[name=imie_nazwisko]').value = pelneNazwisko;
-  document.querySelector('[name=adres]').value         = d.adres || '';
-  document.getElementById('ceidgResult').innerHTML = '<small class="text-success mt-1 d-block"><i class="bi bi-check-circle"></i> Pola uzupełnione.</small>';
+  var setVal = function(sel, val){ var el = document.querySelector(sel); if (el) el.value = val; };
+  setVal('[name=imie_nazwisko]', pelneNazwisko);
+  // CEIDG zwraca adres jako jeden ciąg — wpisujemy do pola „Ulica" (do ręcznego rozbicia).
+  setVal('[name=addr_street]', d.adres || '');
+  document.getElementById('ceidgResult').innerHTML = '<small class="text-success mt-1 d-block"><i class="bi bi-check-circle"></i> Pola uzupełnione — sprawdź rozbicie adresu.</small>';
 }
 </script>
 
