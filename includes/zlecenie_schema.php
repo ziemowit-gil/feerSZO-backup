@@ -3,12 +3,14 @@
  * includes/zlecenie_schema.php
  * Samonaprawa schematu tabeli umowy_zlecenie (idempotentna).
  *
- * Gwarantuje istnienie kolumn dokładanych przez migracje (m.in.
- * migrate_rachunek_pola_zlecenie.php), nawet jeśli moduł odblokowano bez
- * uruchomienia migracji. Bez tego zapis umowy z polami rachunku kończy się
- * błędem SQL „no such column” → 500.
+ * Gwarantuje istnienie WSZYSTKICH kolumn, które zapisuje kreator/edycja
+ * (add.php, edit.php) — nawet jeśli moduł odblokowano bez uruchomienia
+ * migracji. Bez tego zapis umowy (db_insert/db_update) kończy się błędem
+ * SQL „no such column" → 500.
  *
- * Wzorzec jak w includes/rozliczenia.php. Wymaga wcześniejszego includes/db.php.
+ * Uruchamia się przy starcie add.php/edit.php (przed POST) — czyli zawsze
+ * PRZED insertem/update'em. Wzorzec jak w includes/rozliczenia.php.
+ * Wymaga wcześniejszego includes/db.php.
  */
 
 (function () {
@@ -16,9 +18,25 @@
     if ($done) return;
     $done = true;
 
+    // Kolumny zapisywane przez formularze umowy zlecenie.
     $columns = [
-        'data_rachunku'  => 'DATE',
-        'okres_rachunku' => 'VARCHAR(120)',
+        // Rachunek / rozliczenie
+        'data_rachunku'          => "DATE",
+        'okres_rachunku'         => "VARCHAR(120)",
+        'sposob_rozliczenia'     => "VARCHAR(60)",
+        // Podpisanie
+        'podpisujacy_fundacja'   => "VARCHAR(255)",
+        'podpisujacy_stanowisko' => "VARCHAR(255)",
+        'epodpis_dostawca'       => "VARCHAR(100)",
+        'epodpis_nr_certyfikatu' => "VARCHAR(255)",
+        'epodpis_data_waznosci'  => "DATE",
+        // Adres strukturalny (jak w wolontariacie)
+        'addr_street'            => "TEXT NOT NULL DEFAULT ''",
+        'addr_house'             => "TEXT NOT NULL DEFAULT ''",
+        'addr_flat'              => "TEXT NOT NULL DEFAULT ''",
+        'addr_postal'            => "TEXT NOT NULL DEFAULT ''",
+        'addr_city'              => "TEXT NOT NULL DEFAULT ''",
+        'addr_country'           => "TEXT NOT NULL DEFAULT 'PL'",
     ];
 
     try {
