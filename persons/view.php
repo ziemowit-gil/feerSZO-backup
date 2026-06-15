@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/persons.php';
 require_once dirname(__DIR__) . '/includes/address.php';
+require_once dirname(__DIR__) . '/includes/envelopes.php';
 
 require_role('admin', 'editor');
 
@@ -124,6 +125,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </h4>
   <div class="d-flex gap-2">
     <a href="edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Edytuj</a>
+    <?= envelope_dropdown_html('person_id=' . (int)$id) ?>
     <a href="index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
   </div>
 </div>

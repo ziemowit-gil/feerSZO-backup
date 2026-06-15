@@ -21,6 +21,8 @@
  *   $_m365_creds     array|null — jednorazowe dane logowania M365 (opcjonalnie)
  */
 
+require_once __DIR__ . '/envelopes.php';
+
 $_cvh_st       = STATUS_LABELS[$_cvh_row['status']] ?? ['label' => $_cvh_row['status'], 'class' => 'secondary'];
 $_cvh_status   = $_cvh_row['status'];
 $_cvh_locked   = contract_is_locked($_cvh_row); // status 'aneks' = blokada
@@ -225,6 +227,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       </button>
       <?php endif; ?>
       <?php endif; ?>
+      <?= envelope_dropdown_html('contract_id=' . (int)($_cvh_id ?? 0) . '&type=' . rawurlencode((string)($_cvh_type ?? ''))) ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark" title="Drukuj tę stronę">
         <i class="bi bi-printer"></i>
       </button>

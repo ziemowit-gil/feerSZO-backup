@@ -104,12 +104,34 @@ function env_logo_data(): array {
 
 /* ── Adresat ──────────────────────────────────────────────────────────────── *
  * $ctx['recipient'] = ['name'=>..., 'addr'=>... (wielolinijkowy)] (ręcznie)
- * lub z $ctx['row'] (umowa: imie_nazwisko + adres). 'sample' → przykładowe dane.
+ * lub z $ctx['row'] (umowa/osoba: imie_nazwisko + addr_* / adres). 'sample' → przykładowe dane.
  */
+
+/** Wielolinijkowy adres z wiersza: preferuje pola strukturalne (addr_*), fallback: legacy 'adres'. */
+function env_addr_from_row(array $row): string {
+    $street = trim((string)($row['addr_street']  ?? ''));
+    $house  = trim((string)($row['addr_house']   ?? ''));
+    $flat   = trim((string)($row['addr_flat']    ?? ''));
+    $postal = trim((string)($row['addr_postal']  ?? ''));
+    $city   = trim((string)($row['addr_city']    ?? ''));
+    $country= trim((string)($row['addr_country'] ?? ''));
+
+    $line1 = trim($street . ($house !== '' ? ' ' . $house : '') . ($flat !== '' ? '/' . $flat : ''));
+    $line2 = trim(($postal !== '' ? $postal . ' ' : '') . $city);
+
+    $lines = array_filter([$line1, $line2], fn($x) => $x !== '');
+    if ($country !== '' && strtoupper($country) !== 'PL') $lines[] = $country;
+
+    if (!$lines) return trim((string)($row['adres'] ?? ''));   // legacy
+    return implode("\n", $lines);
+}
+
 function env_recipient_lines(array $ctx): array {
-    $r = $ctx['recipient'] ?? [];
-    $name = trim((string)($r['name'] ?? ($ctx['row']['imie_nazwisko'] ?? '')));
-    $addr = (string)($r['addr'] ?? ($ctx['row']['adres'] ?? ''));
+    $r    = $ctx['recipient'] ?? [];
+    $row  = $ctx['row'] ?? [];
+    $name = trim((string)($r['name'] ?? ($row['imie_nazwisko'] ?? '')));
+    $addr = (string)($r['addr'] ?? '');
+    if ($addr === '' && $row) $addr = env_addr_from_row($row);
 
     if ($name === '' && $addr === '' && !empty($ctx['sample'])) {
         $name = 'Jan Kowalski';
@@ -202,4 +224,48 @@ function env_set_default(int $id): void {
     if (!env_get($id)) return;
     db()->exec("UPDATE envelope_templates SET is_default=0");
     db()->prepare("UPDATE envelope_templates SET is_default=1, updated_at=datetime('now','localtime') WHERE id=?")->execute([$id]);
+}
+
+/* ── Przycisk „Generuj kopertę" (dropdown aktywnych wzorów) ─────────────────── *
+ * $src_params — parametry źródła adresata dla print/envelope.php, np.
+ *   'person_id=5'  lub  'contract_id=5&type=zlecenie'.
+ * Zwraca '' gdy brak aktywnych wzorów (przycisk się nie renderuje).
+ */
+function envelope_dropdown_html(string $src_params, array $opts = []): string {
+    $tpls = env_list(true);
+    if (!$tpls) return '';
+
+    $app       = defined('APP_URL') ? APP_URL : '';
+    $btn_class = $opts['btn_class'] ?? 'btn btn-sm btn-outline-secondary';
+    $label     = $opts['label']     ?? 'Koperta';
+    $menu_end  = ($opts['menu_end'] ?? true) ? 'dropdown-menu-end' : '';
+
+    ob_start(); ?>
+    <div class="dropdown d-inline-block">
+      <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
+              data-bs-toggle="dropdown" aria-expanded="false" title="Generuj kopertę ze wzoru">
+        <i class="bi bi-envelope"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+      </button>
+      <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:248px">
+        <li><h6 class="dropdown-header"><i class="bi bi-envelope me-1"></i>Generuj kopertę ze wzoru</h6></li>
+        <?php foreach ($tpls as $t): ?>
+        <li>
+          <a class="dropdown-item d-flex align-items-center" target="_blank"
+             href="<?= h($app) ?>/print/envelope.php?template_id=<?= (int)$t['id'] ?>&amp;<?= h($src_params) ?>">
+            <i class="bi bi-printer me-2 text-danger"></i>
+            <span class="flex-grow-1"><?= h($t['name']) ?><?php if (!empty($t['is_default'])): ?>
+              <span class="badge bg-light text-secondary border ms-1" style="font-weight:600">domyślny</span><?php endif; ?></span>
+            <span class="text-muted small ms-2"><?= h($t['format']) ?></span>
+          </a>
+        </li>
+        <?php endforeach; ?>
+        <?php if (function_exists('is_admin') && is_admin()): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item small text-muted" href="<?= h($app) ?>/admin/envelope_templates.php">
+          <i class="bi bi-gear me-2"></i>Zarządzaj wzorami…</a></li>
+        <?php endif; ?>
+      </ul>
+    </div>
+    <?php
+    return ob_get_clean();
 }

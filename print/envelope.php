@@ -7,6 +7,7 @@
  *   template_id (int)  — ID wzoru koperty (wymagane)
  *   contract_id (int)  — opcjonalnie: adresat z umowy
  *   type        (str)  — typ umowy: wolontariat|zlecenie|dzielo|praca
+ *   person_id   (int)  — opcjonalnie: adresat z osoby (CRM)
  *   r_name      (str)  — adresat ręcznie: imię i nazwisko / nazwa
  *   r_addr      (str)  — adresat ręcznie: adres (linie rozdzielone \n)
  *   preview     (1)    — dane przykładowe + pasek narzędzi
@@ -21,6 +22,7 @@ require_login();
 
 $template_id = (int)($_GET['template_id'] ?? 0);
 $contract_id = (int)($_GET['contract_id'] ?? 0);
+$person_id   = (int)($_GET['person_id'] ?? 0);
 $type        = $_GET['type'] ?? 'wolontariat';
 $is_preview  = isset($_GET['preview']);
 
@@ -42,6 +44,8 @@ if ($is_preview) {
     $table = ['wolontariat'=>'umowy_wolontariat','zlecenie'=>'umowy_zlecenie',
               'dzielo'=>'umowy_dzielo','praca'=>'umowy_praca'][$type];
     $ctx['row'] = db_one("SELECT * FROM {$table} WHERE id=?", [$contract_id]) ?: [];
+} elseif ($person_id) {
+    $ctx['row'] = db_one("SELECT * FROM persons WHERE id=?", [$person_id]) ?: [];
 } elseif (isset($_GET['r_name']) || isset($_GET['r_addr'])) {
     $ctx['recipient'] = [
         'name' => trim((string)($_GET['r_name'] ?? '')),
