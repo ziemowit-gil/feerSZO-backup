@@ -7,8 +7,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 
 require_login();
-$TYPE  = 'inne';
-$TABLE = 'umowy_inne';
+$TYPE  = 'powierzenie';
+$TABLE = 'umowy_powierzenie';
 $id    = intval($_GET['id'] ?? 0);
 $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono umowy.'); }
@@ -38,7 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_supervisor'])) {
     header('Location: view.php?id=' . $id); exit;
 }
 
-$typy_umow = ['najem' => 'Najem', 'użyczenie' => 'Użyczenie', 'darowizna' => 'Darowizna', 'partnerstwo' => 'Partnerstwo', 'NDA' => 'NDA', 'licencja' => 'Licencja', 'inne' => 'Inne'];
+$formy_zlecenia = ['powierzenie' => 'Powierzenie (100% dotacji)', 'wsparcie' => 'Wsparcie (z wkładem własnym)'];
+$tryby = ['konkurs' => 'Otwarty konkurs ofert', 'art19a' => 'Tryb pozakonkursowy (art. 19a — mały grant)', 'inny' => 'Inny tryb'];
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
@@ -47,18 +48,17 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 $_cvh_type       = $TYPE;
 $_cvh_id         = $id;
 $_cvh_row        = $row;
-$_cvh_icon       = 'bi-file-text';
-$_cvh_label      = 'Inna umowa';
-$_cvh_person     = $row['strona_umowy'] ?? ($row['imie_nazwisko'] ?? ($row['firma_nazwa'] ?? ''));
+$_cvh_icon       = 'bi-bank';
+$_cvh_label      = 'Umowa powierzenia zadania publicznego';
+$_cvh_person     = $row['organ_zlecajacy'] ?? '';
 $_cvh_person_sub = $row['email'] ?? '';
-$_cvh_amount     = $row['wartosc_umowy'] ?? ($row['kwota'] ?? ($row['wartosc_brutto'] ?? null));
-$_cvh_amount_lbl = 'Wartość umowy';
+$_cvh_amount     = $row['kwota_dotacji'] ?? null;
+$_cvh_amount_lbl = 'Kwota dotacji';
 $_cvh_end_date   = $row['data_zakonczenia'] ?? null;
-$_cvh_subject    = $row['przedmiot_umowy'] ?? ($row['opis'] ?? null);
-$_cvh_list_url   = APP_URL . '/contracts/inne/list.php';
+$_cvh_subject    = $row['nazwa_zadania'] ?? null;
+$_cvh_list_url   = APP_URL . '/contracts/powierzenie/list.php';
 $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
-include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
 ?>
 
 <div class="row g-3">
@@ -70,79 +70,84 @@ include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
 <div class="card-header fw-semibold">Dane podstawowe</div>
 <div class="card-body">
 <div class="row g-3">
-  <div class="col-md-4"><div class="detail-label">Typ umowy</div><div class="detail-value"><?= h($typy_umow[$row['typ_umowy']] ?? $row['typ_umowy']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Forma zlecenia</div><div class="detail-value"><?= h($formy_zlecenia[$row['forma_zlecenia']] ?? $row['forma_zlecenia']) ?: '—' ?></div></div>
   <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
   <div class="col-md-4"><div class="detail-label">Numer projektu</div><div class="detail-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
 </div>
 </div>
 </div>
 
-<!-- STRONA UMOWY -->
+<!-- ZADANIE PUBLICZNE -->
 <div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Strona umowy</div>
+<div class="card-header fw-semibold">Zadanie publiczne</div>
 <div class="card-body">
 <div class="row g-3">
-  <div class="col-md-6"><div class="detail-label">Nazwa / strona umowy</div><div class="detail-value"><?= h($row['strona_umowy']) ?: '—' ?></div></div>
-  <div class="col-md-6"><div class="detail-label">PESEL / NIP / KRS</div><div class="detail-value"><?= h($row['pesel_nip_krs']) ?: '—' ?></div></div>
-  <div class="col-12"><div class="detail-label">Adres</div><div class="detail-value"><?= h($row['adres']) ?: '—' ?></div></div>
-  <div class="col-md-4"><div class="detail-label">Adres e-mail</div><div class="detail-value"><?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?></div></div>
+  <div class="col-12"><div class="detail-label">Nazwa zadania</div><div class="detail-value fw-semibold"><?= h($row['nazwa_zadania']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Sfera pożytku publicznego</div><div class="detail-value"><?= h($row['sfera_zadania']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Tryb zlecenia</div><div class="detail-value"><?= h($tryby[$row['tryb_zlecenia']] ?? $row['tryb_zlecenia']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Nr / nazwa konkursu</div><div class="detail-value"><?= h($row['nazwa_konkursu']) ?: '—' ?></div></div>
+  <?php if ($row['zakres_rzeczowy']): ?>
+  <div class="col-12"><div class="detail-label">Zakres rzeczowy</div><div class="detail-value"><?= nl2br(h($row['zakres_rzeczowy'])) ?></div></div>
+  <?php endif; ?>
+  <?php if ($row['rezultaty']): ?>
+  <div class="col-12"><div class="detail-label">Zakładane rezultaty</div><div class="detail-value"><?= nl2br(h($row['rezultaty'])) ?></div></div>
+  <?php endif; ?>
 </div>
 </div>
 </div>
 
-<!-- PRZEDMIOT I DATY -->
+<!-- ORGAN ZLECAJĄCY -->
 <div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Przedmiot i daty</div>
+<div class="card-header fw-semibold">Zleceniodawca (organ administracji)</div>
 <div class="card-body">
 <div class="row g-3">
-  <div class="col-12"><div class="detail-label">Przedmiot umowy</div><div class="detail-value"><?= nl2br(h($row['przedmiot_umowy'])) ?: '—' ?></div></div>
+  <div class="col-md-6"><div class="detail-label">Organ zlecający</div><div class="detail-value"><?= h($row['organ_zlecajacy']) ?: '—' ?></div></div>
+  <div class="col-md-6"><div class="detail-label">Reprezentowany przez</div><div class="detail-value"><?= h($row['organ_reprezentacja']) ?: '—' ?></div></div>
+  <div class="col-12"><div class="detail-label">Adres organu</div><div class="detail-value"><?= h($row['organ_adres']) ?: '—' ?></div></div>
+  <div class="col-md-6"><div class="detail-label">Adres e-mail</div><div class="detail-value"><?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?></div></div>
+</div>
+</div>
+</div>
+
+<!-- FINANSOWANIE -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Finansowanie / dotacja</div>
+<div class="card-body">
+<div class="row g-3">
+  <div class="col-md-4"><div class="detail-label">Kwota dotacji</div><div class="detail-value fw-bold text-success"><?= money($row['kwota_dotacji'], $row['waluta'] ?: 'PLN') ?></div></div>
+  <?php if ($row['forma_zlecenia'] === 'wsparcie'): ?>
+  <div class="col-md-4"><div class="detail-label">Wkład własny finansowy</div><div class="detail-value"><?= money($row['wklad_wlasny'], $row['waluta'] ?: 'PLN') ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Wkład osobowy / rzeczowy</div><div class="detail-value"><?= money($row['wklad_osobowy'], $row['waluta'] ?: 'PLN') ?></div></div>
+  <?php endif; ?>
+  <?php if ($row['calkowity_koszt'] !== null && $row['calkowity_koszt'] !== ''): ?>
+  <div class="col-md-4"><div class="detail-label">Całkowity koszt zadania</div><div class="detail-value"><?= money($row['calkowity_koszt'], $row['waluta'] ?: 'PLN') ?></div></div>
+  <?php endif; ?>
+  <?php if ($row['rachunek_dotacji']): ?>
+  <div class="col-md-8"><div class="detail-label">Wyodrębniony rachunek dotacji</div><div class="detail-value font-monospace"><?= h($row['rachunek_dotacji']) ?></div></div>
+  <?php endif; ?>
+  <?php if ($row['transze']): ?>
+  <div class="col-12"><div class="detail-label">Harmonogram / transze płatności</div><div class="detail-value"><?= nl2br(h($row['transze'])) ?></div></div>
+  <?php endif; ?>
+  <?php if ($row['koszty_kwalifikowane']): ?>
+  <div class="col-12"><div class="detail-label">Koszty kwalifikowane / kosztorys</div><div class="detail-value"><?= nl2br(h($row['koszty_kwalifikowane'])) ?></div></div>
+  <?php endif; ?>
+</div>
+</div>
+</div>
+
+<!-- TERMINY -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold">Terminy</div>
+<div class="card-body">
+<div class="row g-3">
   <div class="col-md-4"><div class="detail-label">Data zawarcia</div><div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
-  <div class="col-md-4"><div class="detail-label">Data rozpoczęcia</div><div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
-  <div class="col-md-4">
-    <div class="detail-label">Data zakończenia</div>
-    <div class="detail-value">
-      <?php if ($row['czas_nieokreslony']): ?>
-        <span class="text-muted">∞ czas nieokreślony</span>
-      <?php else: ?>
-        <?= date_pl($row['data_zakonczenia']) ?>
-      <?php endif; ?>
-    </div>
-  </div>
-  <?php if ($row['okres_wypowiedzenia']): ?>
-  <div class="col-md-6"><div class="detail-label">Okres wypowiedzenia</div><div class="detail-value"><?= h($row['okres_wypowiedzenia']) ?></div></div>
-  <?php endif; ?>
+  <div class="col-md-4"><div class="detail-label">Realizacja od</div><div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Realizacja do</div><div class="detail-value"><?= date_pl($row['data_zakonczenia']) ?></div></div>
+  <div class="col-md-6"><div class="detail-label">Termin wykorzystania dotacji</div><div class="detail-value"><?= date_pl($row['termin_wykorzystania']) ?></div></div>
+  <div class="col-md-6"><div class="detail-label">Termin sprawozdania końcowego</div><div class="detail-value"><?= date_pl($row['termin_sprawozdania']) ?></div></div>
 </div>
 </div>
 </div>
-
-<!-- FINANSOWE -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Warunki finansowe</div>
-<div class="card-body">
-<div class="row g-3">
-  <div class="col-md-4"><div class="detail-label">Wartość umowy</div><div class="detail-value fw-bold text-success"><?= money($row['wartosc_umowy'], $row['waluta'] ?: 'PLN') ?></div></div>
-  <?php if ($row['warunki_finansowe']): ?>
-  <div class="col-12"><div class="detail-label">Warunki finansowe</div><div class="detail-value"><?= nl2br(h($row['warunki_finansowe'])) ?></div></div>
-  <?php endif; ?>
-</div>
-</div>
-</div>
-
-<!-- DZIAŁANIA CYKLICZNE -->
-<?php if ($row['dzialania_cykliczne'] || $row['data_przegladu']): ?>
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Działania cykliczne</div>
-<div class="card-body">
-<div class="row g-3">
-  <div class="col-md-4"><div class="detail-label">Działania cykliczne</div><div class="detail-value"><?= yn($row['dzialania_cykliczne']) ?></div></div>
-  <div class="col-md-4"><div class="detail-label">Data przeglądu / odnowienia</div><div class="detail-value"><?= date_pl($row['data_przegladu']) ?></div></div>
-  <?php if ($row['dzialania_opis']): ?>
-  <div class="col-12"><div class="detail-label">Opis działań</div><div class="detail-value"><?= nl2br(h($row['dzialania_opis'])) ?></div></div>
-  <?php endif; ?>
-</div>
-</div>
-</div>
-<?php endif; ?>
 
 <!-- PODPISANIE -->
 <div class="card shadow-sm mb-3">
@@ -480,60 +485,6 @@ $_letters = get_contract_letters($TYPE, $id);
 <div class="card-body text-muted small">Brak pism dla tej umowy.</div>
 <?php endif; ?>
 </div>
-
-<?php
-require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
-$cert_requests    = get_certificate_requests($TYPE, $id);
-$cert_has_pending = !empty(array_filter($cert_requests, fn($r) => $r['status'] === 'oczekuje'));
-?>
-<div class="card shadow-sm mb-3 no-print">
-<div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-  <span><i class="bi bi-award"></i> Zaświadczenia</span>
-  <?php if (!$cert_has_pending): ?>
-  <a href="<?= APP_URL ?>/certificates/request.php?type=<?= $TYPE ?>&id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
-    <i class="bi bi-plus-lg"></i> Złóż wniosek
-  </a>
-  <?php else: ?>
-  <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Wniosek w toku</span>
-  <?php endif; ?>
-</div>
-<?php if ($cert_requests): ?>
-<div class="table-responsive">
-<table class="table table-sm table-hover mb-0">
-  <thead class="table-light"><tr><th>Wnioskodawca</th><th>Cel</th><th>Data</th><th>Status</th><th></th></tr></thead>
-  <tbody>
-  <?php foreach ($cert_requests as $cr): ?>
-  <tr>
-    <td><?= h($cr['requester_name']) ?></td>
-    <td class="small text-truncate" style="max-width:200px"><?= h($cr['cel']) ?></td>
-    <td class="small text-nowrap"><?= date_pl($cr['created_at']) ?></td>
-    <td><?= certificate_status_badge($cr['status']) ?></td>
-    <td class="text-end text-nowrap">
-      <?php if ($cr['status'] === 'oczekuje' && is_admin()): ?>
-      <a href="<?= APP_URL ?>/certificates/issue.php?id=<?= $cr['id'] ?>" class="btn btn-sm btn-success">
-        <i class="bi bi-award"></i> Wydaj
-      </a>
-      <?php elseif ($cr['status'] === 'wydane'): ?>
-      <a href="<?= APP_URL ?>/certificates/print.php?id=<?= $cr['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success" title="Podgląd PDF">
-        <i class="bi bi-printer"></i> Drukuj
-      </a>
-          <a href="<?= APP_URL ?>/certificates/download_docx.php?id=<?= $cr['id'] ?>"
-             class="btn btn-sm btn-outline-secondary" title="Pobierz DOCX">
-            <i class="bi bi-file-earmark-word"></i> DOCX
-          </a>
-      <?php endif; ?>
-    </td>
-  </tr>
-  <?php endforeach; ?>
-  </tbody>
-</table>
-</div>
-<?php else: ?>
-<div class="card-body text-muted small">Brak wniosków o zaświadczenia.</div>
-<?php endif; ?>
-</div>
-
-
 
 <?php if ($audit_log): ?>
 <div class="card shadow-sm mb-3 no-print">

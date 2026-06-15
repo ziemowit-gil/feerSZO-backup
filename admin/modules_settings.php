@@ -44,6 +44,7 @@ $module_groups = [
         'contract_uslugi'      => ['label' => 'Umowa o świadczenie usług',     'icon' => 'bi-briefcase',        'desc' => 'Umowy z firmami i przedsiębiorcami prowadzącymi działalność.'],
         'contract_dzielo'      => ['label' => 'Umowa o dzieło',                'icon' => 'bi-palette',          'desc' => 'Umowy o dzieło — jednorazowe projekty twórcze lub techniczne.'],
         'contract_praca'       => ['label' => 'Umowa o pracę',                 'icon' => 'bi-building',         'desc' => 'Umowy o pracę i dokumenty kadrowe (Kodeks pracy).'],
+        'contract_powierzenie' => ['label' => 'Umowa powierzenia zadania publicznego', 'icon' => 'bi-bank',     'desc' => 'Umowy o powierzenie / wsparcie realizacji zadania publicznego z dotacją (ustawa o działalności pożytku publicznego, art. 16).'],
         'contract_inne'        => ['label' => 'Inna umowa',                    'icon' => 'bi-file-text',        'desc' => 'Niestandardowe umowy i dokumenty nieujęte w pozostałych typach.'],
     ],
 ];

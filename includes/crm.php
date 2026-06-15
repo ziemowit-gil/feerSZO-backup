@@ -2054,6 +2054,7 @@ class CrmManager
             'dzielo'      => 'umowy_dzielo',
             'praca'       => 'umowy_praca',
             'uslugi'      => 'umowy_uslugi',
+            'powierzenie' => 'umowy_powierzenie',
             'inne'        => 'umowy_inne',
         ];
         $tbl = $tbl_map[$type] ?? null;

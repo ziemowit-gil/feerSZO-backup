@@ -80,6 +80,7 @@ $_contract_icons = [
     'wolontariat' => 'bi-heart',
     'dzielo'      => 'bi-palette',
     'praca'       => 'bi-building',
+    'powierzenie' => 'bi-bank',
     'inne'        => 'bi-file-text',
 ];
 

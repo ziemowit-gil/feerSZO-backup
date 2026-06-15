@@ -166,6 +166,33 @@ function setup_tenant_db(PDO $pdo): void {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )",
 
+    "CREATE TABLE IF NOT EXISTS umowy_powierzenie (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, numer_umowy VARCHAR(100) NOT NULL,
+        status VARCHAR(50) DEFAULT 'projekt',
+        nazwa_zadania TEXT, sfera_zadania VARCHAR(255),
+        forma_zlecenia VARCHAR(20) DEFAULT 'powierzenie',
+        tryb_zlecenia VARCHAR(50), nazwa_konkursu VARCHAR(255),
+        zakres_rzeczowy TEXT, rezultaty TEXT,
+        organ_zlecajacy VARCHAR(255), organ_reprezentacja VARCHAR(255),
+        organ_adres TEXT, email VARCHAR(255),
+        kwota_dotacji DECIMAL(12,2), wklad_wlasny DECIMAL(12,2),
+        wklad_osobowy DECIMAL(12,2), calkowity_koszt DECIMAL(12,2),
+        waluta VARCHAR(10) DEFAULT 'PLN', rachunek_dotacji VARCHAR(50),
+        transze TEXT, koszty_kwalifikowane TEXT,
+        data_zawarcia DATE, data_rozpoczecia DATE, data_zakonczenia DATE,
+        termin_wykorzystania DATE, termin_sprawozdania DATE,
+        numer_projektu VARCHAR(255), opiekun VARCHAR(255),
+        forma_podpisania VARCHAR(20), platforma_el VARCHAR(100),
+        id_dokumentu_el VARCHAR(255), plik_potwierdzenia VARCHAR(500),
+        plik_umowy VARCHAR(500), zalaczniki VARCHAR(1000), uwagi TEXT,
+        nr_roboczy VARCHAR(100), nr_system VARCHAR(100), nr_rejestru VARCHAR(100),
+        epodpis_dostawca VARCHAR(100), epodpis_nr_certyfikatu VARCHAR(255),
+        epodpis_data_waznosci DATE, podpisujacy_fundacja VARCHAR(255),
+        podpisujacy_stanowisko VARCHAR(255), access_level TEXT DEFAULT 'full',
+        created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )",
+
     // ── Settings ──────────────────────────────────────────────────────────────
     "CREATE TABLE IF NOT EXISTS settings (key_ VARCHAR(100) PRIMARY KEY, value TEXT)",
 
@@ -667,6 +694,67 @@ function setup_tenant_db(PDO $pdo): void {
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_mq_status ON mail_queue(status,scheduled_at)",
+
+    // ── SAML 2.0 Identity Provider ────────────────────────────────────────────
+    // Rejestr Service Providerów (aplikacji logujących się przez SZO jako IdP).
+    "CREATE TABLE IF NOT EXISTS saml_sp (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        name              TEXT    NOT NULL,
+        entity_id         TEXT    NOT NULL UNIQUE,
+        acs_url           TEXT    NOT NULL,
+        acs_binding       TEXT    NOT NULL DEFAULT 'HTTP-POST',
+        slo_url           TEXT    NOT NULL DEFAULT '',
+        slo_binding       TEXT    NOT NULL DEFAULT 'HTTP-Redirect',
+        nameid_format     TEXT    NOT NULL DEFAULT 'emailAddress', -- emailAddress|persistent|transient|unspecified
+        nameid_attr       TEXT    NOT NULL DEFAULT 'email',        -- pole users użyte jako NameID
+        attr_map          TEXT    NOT NULL DEFAULT '',             -- JSON: [{name,friendly,nameformat,source}]
+        sp_cert           TEXT    NOT NULL DEFAULT '',             -- x509 PEM SP do weryfikacji podpisów żądań
+        want_signed_req   INTEGER NOT NULL DEFAULT 0,
+        sign_assertion    INTEGER NOT NULL DEFAULT 1,
+        sign_response     INTEGER NOT NULL DEFAULT 0,
+        encrypt_assertion INTEGER NOT NULL DEFAULT 0,
+        allowed_roles     TEXT    NOT NULL DEFAULT '',             -- CSV ról; pusto = wszyscy
+        relay_default     TEXT    NOT NULL DEFAULT '',
+        preset            TEXT    NOT NULL DEFAULT 'generic',
+        is_active         INTEGER NOT NULL DEFAULT 1,
+        created_by        INTEGER,
+        created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at        DATETIME
+    )",
+
+    // Log zdarzeń SSO (audyt wydanych asercji).
+    "CREATE TABLE IF NOT EXISTS saml_sso_log (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        sp_id         INTEGER,
+        sp_entity     TEXT    NOT NULL DEFAULT '',
+        user_id       INTEGER,
+        user_email    TEXT    NOT NULL DEFAULT '',
+        name_id       TEXT    NOT NULL DEFAULT '',
+        request_id    TEXT    NOT NULL DEFAULT '',
+        assertion_id  TEXT    NOT NULL DEFAULT '',
+        session_index TEXT    NOT NULL DEFAULT '',
+        relay_state   TEXT    NOT NULL DEFAULT '',
+        binding       TEXT    NOT NULL DEFAULT '',
+        event         TEXT    NOT NULL DEFAULT 'sso',  -- sso|slo
+        result        TEXT    NOT NULL DEFAULT 'ok',   -- ok|denied|error
+        detail        TEXT    NOT NULL DEFAULT '',
+        ip            TEXT    NOT NULL DEFAULT '',
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_saml_log_sp ON saml_sso_log(sp_id, created_at)",
+
+    // Aktywne sesje SSO — mapowanie sesji PHP -> SP dla Single Logout.
+    "CREATE TABLE IF NOT EXISTS saml_active_sessions (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        php_session_id TEXT    NOT NULL,
+        sp_id          INTEGER NOT NULL,
+        user_id        INTEGER,
+        name_id        TEXT    NOT NULL DEFAULT '',
+        name_id_format TEXT    NOT NULL DEFAULT '',
+        session_index  TEXT    NOT NULL DEFAULT '',
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_saml_active_sess ON saml_active_sessions(php_session_id)",
     ];
 
     foreach ($sqls as $sql) {
@@ -685,7 +773,7 @@ function setup_tenant_db(PDO $pdo): void {
         'onboarding_title' => 'Kwestionariusz wolontariusza', 'm365_enabled' => '0',
         'ceidg_enabled' => '0', 'postivo_enabled' => '0', 'msg_notify_email' => '0',
         'ezd_enabled' => '1', 'org_enabled' => '0',
-        'crm_enabled' => '0',
+        'crm_enabled' => '0', 'saml_idp_enabled' => '0',
     ];
     $ins = $pdo->prepare("INSERT OR IGNORE INTO settings (key_,value) VALUES (?,?)");
     foreach ($defaults as $k => $v) $ins->execute([$k, $v]);
@@ -805,7 +893,7 @@ function migrate_tenant_db(PDO $pdo): array {
     $run('org_units.supervisor_user_id', "ALTER TABLE org_units ADD COLUMN supervisor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
 
     // ── Schema v8: osoba podpisująca ze strony fundacji ───────────────────────
-    foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_praca','umowy_inne'] as $t) {
+    foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_praca','umowy_inne','umowy_powierzenie'] as $t) {
         $run("$t.podpisujacy_fundacja", "ALTER TABLE $t ADD COLUMN podpisujacy_fundacja VARCHAR(255)");
         $run("$t.podpisujacy_stanowisko", "ALTER TABLE $t ADD COLUMN podpisujacy_stanowisko VARCHAR(255)");
     }
@@ -824,7 +912,7 @@ function migrate_tenant_db(PDO $pdo): array {
     } catch (\Throwable $e) { $results[] = ['skip', 'org_representatives']; }
 
     // ── Schema v9: access_level na umowach (akcje masowe) ─────────────────────
-    foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_praca','umowy_inne'] as $t) {
+    foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_praca','umowy_inne','umowy_powierzenie'] as $t) {
         $run("$t.access_level", "ALTER TABLE $t ADD COLUMN access_level TEXT NOT NULL DEFAULT 'full'");
     }
 
@@ -833,7 +921,7 @@ function migrate_tenant_db(PDO $pdo): array {
         'wa_enabled' => '0', 'tasks_enabled' => '1',
         'ceidg_enabled' => '0', 'postivo_enabled' => '0',
         'msg_notify_email' => '0', 'm365_enabled' => '0',
-        'org_enabled' => '0',
+        'org_enabled' => '0', 'saml_idp_enabled' => '0',
     ];
     $ins = $pdo->prepare("INSERT OR IGNORE INTO settings (key_,value) VALUES (?,?)");
     foreach ($new_settings as $k => $v) {

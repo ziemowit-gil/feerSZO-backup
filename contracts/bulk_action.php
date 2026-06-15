@@ -26,7 +26,7 @@ $action = $_POST['action'] ?? '';
 $type   = $_POST['type']   ?? '';
 $ids    = array_values(array_filter(array_map('intval', (array)($_POST['ids'] ?? []))));
 
-$valid_types = ['wolontariat', 'zlecenie', 'dzielo', 'praca', 'uslugi', 'inne'];
+$valid_types = ['wolontariat', 'zlecenie', 'dzielo', 'praca', 'uslugi', 'powierzenie', 'inne'];
 if (!in_array($type, $valid_types, true)) _json(false, 0, 'Nieznany typ umowy.');
 if (!$ids)                                 _json(false, 0, 'Nie wskazano żadnych rekordów.');
 
@@ -36,6 +36,7 @@ $tbl_map = [
     'dzielo'      => 'umowy_dzielo',
     'praca'       => 'umowy_praca',
     'uslugi'      => 'umowy_uslugi',
+    'powierzenie' => 'umowy_powierzenie',
     'inne'        => 'umowy_inne',
 ];
 $tbl = $tbl_map[$type];

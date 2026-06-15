@@ -96,6 +96,7 @@ $_cvh_subject    = $row['przedmiot_umowy'] ?? ($row['opis_uslug'] ?? null);
 $_cvh_list_url   = APP_URL . '/contracts/uslugi/list.php';
 $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
+include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
 ?>
 
 <ul class="nav nav-tabs mb-0 no-print" id="uslugiTabs" role="tablist">

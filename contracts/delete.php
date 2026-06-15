@@ -22,6 +22,7 @@ $type_to_table = [
     'uslugi'      => 'umowy_uslugi',
     'dzielo'      => 'umowy_dzielo',
     'praca'       => 'umowy_praca',
+    'powierzenie' => 'umowy_powierzenie',
     'inne'        => 'umowy_inne',
 ];
 

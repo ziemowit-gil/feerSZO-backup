@@ -5,6 +5,7 @@ const CONTRACT_TYPES = [
     'wolontariat' => 'Umowa wolontariacka',
     'dzielo'      => 'Umowa o dzieło',
     'praca'       => 'Umowa o pracę',
+    'powierzenie' => 'Umowa powierzenia zadania publicznego',
     'inne'        => 'Inna umowa',
 ];
 
