@@ -121,9 +121,35 @@ function saml_idp_generate_cert(bool $force = false): array {
         return ['ok' => false, 'msg' => 'Brak rozszerzenia openssl.'];
     }
     $dir = saml_idp_cert_dir();
-    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
-        return ['ok' => false, 'msg' => "Nie można utworzyć katalogu {$dir}."];
+
+    // Aktualny użytkownik procesu (do diagnostyki uprawnień).
+    $procUser = function_exists('posix_geteuid') && function_exists('posix_getpwuid')
+        ? (posix_getpwuid(posix_geteuid())['name'] ?? (string)posix_geteuid())
+        : (getenv('USER') ?: 'www-data');
+
+    // Utwórz katalog certs/ jeśli brakuje.
+    if (!is_dir($dir)) {
+        if (!@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            $parent = dirname($dir);
+            return ['ok' => false, 'msg' =>
+                "Nie można utworzyć katalogu {$dir}. " .
+                "Katalog nadrzędny " . ($parent) . " " .
+                (is_writable($parent) ? 'jest zapisywalny' : "NIE jest zapisywalny dla użytkownika „{$procUser}”") .
+                ". Utwórz katalog ręcznie: mkdir -p {$dir} && chown {$procUser} {$dir}"];
+        }
     }
+
+    // Sprawdź zapisywalność — spróbuj naprawić uprawnienia, jeśli trzeba.
+    if (!is_writable($dir)) {
+        @chmod($dir, 0775);
+    }
+    if (!is_writable($dir)) {
+        return ['ok' => false, 'msg' =>
+            "Katalog {$dir} nie jest zapisywalny dla użytkownika serwera „{$procUser}”. " .
+            "Nadaj uprawnienia: chown -R {$procUser} {$dir} (lub chmod u+w {$dir}). " .
+            "Alternatywnie wygeneruj cert z konsoli: php cli/saml_gen_cert.php"];
+    }
+
     $ht = $dir . '/.htaccess';
     if (!file_exists($ht)) @file_put_contents($ht, "Require all denied\n");
 
@@ -131,6 +157,14 @@ function saml_idp_generate_cert(bool $force = false): array {
     $key = $dir . '/saml-idp.key';
     if (!$force && is_file($crt) && is_file($key)) {
         return ['ok' => false, 'msg' => 'Certyfikat SAML już istnieje (użyj wymuszenia, aby nadpisać).'];
+    }
+    // Pliki mogą istnieć, ale być niezapisywalne (np. utworzone przez root).
+    foreach ([$crt, $key] as $pf) {
+        if (is_file($pf) && !is_writable($pf)) {
+            return ['ok' => false, 'msg' =>
+                "Plik {$pf} istnieje, ale nie jest zapisywalny dla „{$procUser}”. " .
+                "Usuń go lub nadaj uprawnienia: chown {$procUser} {$pf}"];
+        }
     }
 
     $org = defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'SZO Identity Provider';
@@ -150,8 +184,15 @@ function saml_idp_generate_cert(bool $force = false): array {
     openssl_pkey_export($pkey, $keyPem);
     if ($certPem === '' || $keyPem === '') return ['ok' => false, 'msg' => 'Eksport PEM nie powiódł się.'];
 
-    if (file_put_contents($crt, $certPem) === false) return ['ok' => false, 'msg' => "Zapis {$crt} nie powiódł się."];
-    if (file_put_contents($key, $keyPem) === false)  return ['ok' => false, 'msg' => "Zapis {$key} nie powiódł się."];
+    if (file_put_contents($crt, $certPem) === false) {
+        return ['ok' => false, 'msg' => "Zapis {$crt} nie powiódł się — brak uprawnień użytkownika „{$procUser}”. " .
+            "Wykonaj: chown -R {$procUser} {$dir} (lub uruchom: php cli/saml_gen_cert.php)."];
+    }
+    if (file_put_contents($key, $keyPem) === false) {
+        @unlink($crt);
+        return ['ok' => false, 'msg' => "Zapis {$key} nie powiódł się — brak uprawnień użytkownika „{$procUser}”. " .
+            "Wykonaj: chown -R {$procUser} {$dir} (lub uruchom: php cli/saml_gen_cert.php)."];
+    }
     @chmod($key, 0600);
 
     return ['ok' => true, 'msg' => 'Wygenerowano dedykowany certyfikat SAML IdP (ważny 5 lat).'];

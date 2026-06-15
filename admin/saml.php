@@ -109,6 +109,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/admin/saml.php'); exit;
     }
 
+    if ($action === 'setup_canva') {
+        if (!saml_idp_has_cert()) {
+            flash_set('danger', 'Najpierw wygeneruj certyfikat podpisujący IdP.');
+            header('Location: ' . APP_URL . '/admin/saml.php'); exit;
+        }
+        $ep = saml_preset_endpoints()['canva'];
+        $existing = saml_sp_by_entity($ep['entity_id']);
+        $data = [
+            'name' => 'Canva', 'entity_id' => $ep['entity_id'], 'acs_url' => $ep['acs_url'],
+            'acs_binding' => 'HTTP-POST', 'slo_url' => '', 'nameid_format' => 'emailAddress',
+            'nameid_attr' => 'email', 'attr_map' => '', 'sp_cert' => '', 'want_signed_req' => 0,
+            'sign_assertion' => 1, 'sign_response' => 0, 'allowed_roles' => '',
+            'relay_default' => '', 'preset' => 'canva', 'is_active' => 1,
+        ];
+        if (!empty($_POST['allowed_roles'])) {
+            $data['allowed_roles'] = implode(',', array_filter(array_map('trim', (array)$_POST['allowed_roles'])));
+        }
+        if ($existing) {
+            db_update('saml_sp', $data, (int)$existing['id']);
+            flash_set('success', 'Zaktualizowano konfigurację Canva.');
+        } else {
+            $data['created_by'] = (int)current_user()['id'];
+            db_insert('saml_sp', $data);
+            flash_set('success', 'Zarejestrowano Canva jako Service Providera. Teraz wklej dane IdP po stronie Canva.');
+        }
+        header('Location: ' . APP_URL . '/admin/saml.php'); exit;
+    }
+
     if ($action === 'delete_sp') {
         db()->prepare("DELETE FROM saml_sp WHERE id=?")->execute([(int)($_POST['id'] ?? 0)]);
         flash_set('success', 'Usunięto Service Providera.');
