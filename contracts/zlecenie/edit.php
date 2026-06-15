@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_role('admin','editor');
+require_once dirname(dirname(__DIR__)) . '/includes/_zlecenie_diag.php'; // TYMCZASOWE
 require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_schema.php';
 
 // Moduł w przygotowaniu — blokuj dodawanie/edycję
