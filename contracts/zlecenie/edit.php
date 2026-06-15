@@ -67,6 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id',
             'podpisujacy_fundacja','podpisujacy_stanowisko'];
         $save = array_intersect_key($data, array_flip($allowed));
+        // Puste pola z kluczem obcym → NULL (pusty string łamie FOREIGN KEY).
+        foreach (['person_id','org_unit_id','org_position_id'] as $fk) {
+            if (isset($save[$fk]) && $save[$fk] === '') $save[$fk] = null;
+        }
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
         $diff = format_field_diff($row, $save);
         db_update($TABLE, $save, $id);

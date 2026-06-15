@@ -70,6 +70,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id',
             'podpisujacy_fundacja','podpisujacy_stanowisko'];
         $data = array_intersect_key($row, array_flip($allowed));
+        // Puste pola z kluczem obcym → NULL (pusty string łamie FOREIGN KEY).
+        foreach (['person_id','org_unit_id','org_position_id'] as $fk) {
+            if (isset($data[$fk]) && $data[$fk] === '') $data[$fk] = null;
+        }
 
         assign_nr_rejestru($data);
         $id = db_insert($TABLE, $data);
