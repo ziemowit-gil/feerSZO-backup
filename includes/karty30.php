@@ -281,6 +281,17 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_sessions ADD COLUMN self_prep_remote INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_sessions ADD COLUMN updated_at       DATETIME",
         "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
+        // Odwołanie całej lekcji (Doradca/admin) — z powodem i autorem
+        "ALTER TABLE k30_ti_sessions ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN cancelled_by_role TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN cancelled_by      TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN cancelled_at      DATETIME",
+        // Odwołanie udziału pojedynczego uczestnika (Beneficjent/Doradca/admin) — nie liczone do ceny
+        "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled         INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_attendance ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_by_role TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_by      TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_at      DATETIME",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -1205,6 +1216,13 @@ const K30_TI_SESSION_STATUSES = [
     'cancelled' => ['label'=>'Odwołana',     'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
 ];
 
+// Role osób mogących odwołać lekcję / udział w lekcji (z podaniem powodu)
+const K30_TI_CANCEL_ROLES = [
+    'beneficjent' => 'Beneficjent',
+    'doradca'     => 'Doradca',
+    'admin'       => 'Administrator',
+];
+
 const K30_TI_BILLING_STATUSES = [
     'draft'  => ['label'=>'Robocze',     'color'=>'#9CA3AF', 'bg'=>'#F9FAFB'],
     'issued' => ['label'=>'Wystawione',  'color'=>'#2563EB', 'bg'=>'#EFF6FF'],
@@ -1265,7 +1283,9 @@ function k30_ti_client_billing(int $client_id): array {
 /** Ostatnie lekcje kursanta z obecnością (współdzielone: panel kursanta + rodzica). */
 function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
     return db_all(
-        "SELECT s.*, c.name AS course_name, a.attended, a.ind_notes
+        "SELECT s.*, c.name AS course_name, a.attended, a.ind_notes,
+                a.cancelled AS att_cancelled, a.cancel_reason AS att_cancel_reason,
+                a.cancelled_by_role AS att_cancelled_by_role
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
          LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
@@ -1323,9 +1343,13 @@ function k30_ti_session_attendance(int $session_id): array {
     // Uzupełnij
     foreach ($enrolled as &$e) {
         $cid = (int)$e['client_id'];
-        $e['attended'] = isset($att_map[$cid]) ? (int)$att_map[$cid]['attended'] : 0;
-        $e['att_id']   = $att_map[$cid]['id'] ?? null;
-        $e['att_notes']= $att_map[$cid]['notes'] ?? '';
+        $e['attended']          = isset($att_map[$cid]) ? (int)$att_map[$cid]['attended'] : 0;
+        $e['att_id']            = $att_map[$cid]['id'] ?? null;
+        $e['att_notes']         = $att_map[$cid]['notes'] ?? '';
+        $e['cancelled']         = isset($att_map[$cid]) ? (int)($att_map[$cid]['cancelled'] ?? 0) : 0;
+        $e['cancel_reason']     = $att_map[$cid]['cancel_reason'] ?? '';
+        $e['cancelled_by_role'] = $att_map[$cid]['cancelled_by_role'] ?? '';
+        $e['cancelled_by']      = $att_map[$cid]['cancelled_by'] ?? '';
     }
     return $enrolled;
 }
@@ -1335,9 +1359,14 @@ function k30_ti_save_attendance(int $session_id, array $attended_ids): void {
     $s = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$session_id]);
     if (!$s) return;
     $enrolled = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [(int)$s['course_id']]);
+    // Uczestnicy z odwołanym udziałem — nie liczeni do ceny, więc nie oznaczamy ich jako obecnych
+    $cancelled_ids = array_map('intval', array_column(
+        db_all("SELECT client_id FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=1", [$session_id]),
+        'client_id'
+    ));
     foreach ($enrolled as $e) {
         $cid      = (int)$e['client_id'];
-        $attended = in_array($cid, $attended_ids) ? 1 : 0;
+        $attended = (in_array($cid, $attended_ids) && !in_array($cid, $cancelled_ids)) ? 1 : 0;
         try {
             db()->prepare(
                 "INSERT INTO k30_ti_attendance (session_id, client_id, attended) VALUES (?,?,?)
@@ -1349,6 +1378,57 @@ function k30_ti_save_attendance(int $session_id, array $attended_ids): void {
             else      db_insert('k30_ti_attendance', ['session_id'=>$session_id,'client_id'=>$cid,'attended'=>$attended]);
         }
     }
+}
+
+/**
+ * Odwołuje udział pojedynczego uczestnika w lekcji (Beneficjent / Doradca / admin).
+ * Tworzy lub aktualizuje wiersz obecności: cancelled=1, attended=0.
+ * Taki udział nie jest liczony do ceny w rozliczeniu miesięcznym.
+ */
+function k30_ti_cancel_attendance(int $session_id, int $client_id, string $reason, string $role, string $by_label): void {
+    $role = array_key_exists($role, K30_TI_CANCEL_ROLES) ? $role : 'doradca';
+    $ex = db_one("SELECT id FROM k30_ti_attendance WHERE session_id=? AND client_id=?", [$session_id, $client_id]);
+    if ($ex) {
+        db()->prepare(
+            "UPDATE k30_ti_attendance
+             SET attended=0, cancelled=1, cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now')
+             WHERE id=?"
+        )->execute([$reason, $role, $by_label, (int)$ex['id']]);
+    } else {
+        db_insert('k30_ti_attendance', [
+            'session_id'        => $session_id,
+            'client_id'         => $client_id,
+            'attended'          => 0,
+            'cancelled'         => 1,
+            'cancel_reason'     => $reason,
+            'cancelled_by_role' => $role,
+            'cancelled_by'      => $by_label,
+            'cancelled_at'      => date('Y-m-d H:i:s'),
+        ]);
+    }
+}
+
+/** Przywraca udział uczestnika (cofa odwołanie). */
+function k30_ti_uncancel_attendance(int $session_id, int $client_id): void {
+    db()->prepare(
+        "UPDATE k30_ti_attendance
+         SET cancelled=0, cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL
+         WHERE session_id=? AND client_id=?"
+    )->execute([$session_id, $client_id]);
+}
+
+/**
+ * Odwołuje całą lekcję (Doradca / admin) — status='cancelled', z powodem i autorem.
+ * Odwołana lekcja nie jest liczona do ceny (rozliczenie bierze tylko status='held').
+ */
+function k30_ti_cancel_session(int $session_id, string $reason, string $role, string $by_label): void {
+    $role = array_key_exists($role, K30_TI_CANCEL_ROLES) ? $role : 'doradca';
+    db()->prepare(
+        "UPDATE k30_ti_sessions
+         SET status='cancelled', cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now'),
+             updated_at=datetime('now')
+         WHERE id=?"
+    )->execute([$reason, $role, $by_label, $session_id]);
 }
 
 /**
@@ -1364,7 +1444,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
          FROM k30_ti_attendance a
          JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status='held' AND s.lesson_date BETWEEN ? AND ?
          JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id AND e.status='active'
-         WHERE a.client_id=? AND a.attended=1",
+         WHERE a.client_id=? AND a.attended=1 AND COALESCE(a.cancelled,0)=0",
         [$from, $to, $client_id]
     );
     $hours  = 0.0;

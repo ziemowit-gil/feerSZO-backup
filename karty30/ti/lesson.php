@@ -15,6 +15,11 @@ $can_write  = can_write('karty30') || is_admin();
 $session_id = (int)($_GET['id'] ?? 0);
 $session    = $session_id ? k30_ti_session_get($session_id) : null;
 
+// Rola i podpis osoby odwołującej (po stronie kadry: Doradca lub administrator)
+$cu           = current_user();
+$cancel_role  = is_admin() ? 'admin' : 'doradca';
+$cancel_label = $cu['name'] ?? ($cu['login'] ?? '');
+
 if (!$session) {
     flash_set('danger', 'Lekcja nie istnieje.');
     header('Location: index.php');
@@ -77,8 +82,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'set_status') {
         $st = array_key_exists($_POST['status'] ?? '', K30_TI_SESSION_STATUSES)
               ? $_POST['status'] : 'planned';
-        db()->prepare("UPDATE k30_ti_sessions SET status=?, updated_at=datetime('now') WHERE id=?")
-           ->execute([$st, $session_id]);
+        if ($st === 'cancelled') {
+            // Odwołanie całej lekcji — wymaga powodu
+            $reason = trim($_POST['cancel_reason'] ?? '');
+            if ($reason === '') {
+                flash_set('danger', 'Podaj powód odwołania lekcji.');
+                header('Location: lesson.php?id=' . $session_id); exit;
+            }
+            k30_ti_cancel_session($session_id, $reason, $cancel_role, $cancel_label);
+            flash_set('success', 'Lekcja odwołana — nie zostanie policzona do ceny.');
+        } else {
+            // Powrót do planowanej / odbytej — czyścimy dane odwołania
+            db()->prepare(
+                "UPDATE k30_ti_sessions
+                 SET status=?, cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL,
+                     updated_at=datetime('now')
+                 WHERE id=?"
+            )->execute([$st, $session_id]);
+        }
+        header('Location: lesson.php?id=' . $session_id);
+        exit;
+    }
+
+    // Odwołanie udziału pojedynczego uczestnika (Doradca/admin) — nie liczone do ceny
+    if ($op === 'cancel_attendee') {
+        $cid    = (int)($_POST['client_id'] ?? 0);
+        $reason = trim($_POST['cancel_reason'] ?? '');
+        if ($cid && $reason !== '') {
+            k30_ti_cancel_attendance($session_id, $cid, $reason, $cancel_role, $cancel_label);
+            flash_set('success', 'Udział uczestnika odwołany — nie zostanie policzony do ceny.');
+        } else {
+            flash_set('danger', 'Podaj powód odwołania udziału.');
+        }
+        header('Location: lesson.php?id=' . $session_id);
+        exit;
+    }
+
+    // Przywrócenie udziału uczestnika (cofnięcie odwołania)
+    if ($op === 'restore_attendee') {
+        $cid = (int)($_POST['client_id'] ?? 0);
+        if ($cid) {
+            k30_ti_uncancel_attendance($session_id, $cid);
+            flash_set('success', 'Udział uczestnika przywrócony.');
+        }
         header('Location: lesson.php?id=' . $session_id);
         exit;
     }
@@ -103,6 +149,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <style>
 .att-row.present  { background: #f0fdf4; }
 .att-row.absent   { background: #fafafa; }
+.att-row.cancelled{ background: #fef2f2; }
 .att-cb           { width: 1.3em; height: 1.3em; flex-shrink: 0; cursor: pointer; }
 .section-head     { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 12px; }
 </style>
@@ -143,23 +190,55 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php endif; ?>
     </div>
   </div>
-  <?php if ($can_write && !$is_held): ?>
-  <form method="post" class="flex-shrink-0">
-    <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="_op"     value="set_status">
-    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-      <?php foreach (K30_TI_SESSION_STATUSES as $sk => $sv): ?>
-      <option value="<?= h($sk) ?>" <?= $session['status']===$sk?'selected':'' ?>><?= h($sv['label']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </form>
+  <?php if ($can_write): ?>
+  <div class="flex-shrink-0 d-flex align-items-center gap-2">
+    <?php if ($session['status'] !== 'cancelled'): ?>
+    <form method="post" class="d-inline">
+      <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"     value="set_status">
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <?php foreach (K30_TI_SESSION_STATUSES as $sk => $sv): if ($sk === 'cancelled') continue; ?>
+        <option value="<?= h($sk) ?>" <?= $session['status']===$sk?'selected':'' ?>><?= h($sv['label']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </form>
+    <button type="button" class="btn btn-sm btn-outline-danger"
+            data-bs-toggle="modal" data-bs-target="#cancelLessonModal">
+      <i class="bi bi-x-circle me-1"></i>Odwołaj lekcję
+    </button>
+    <?php else: ?>
+    <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
+      <input type="hidden" name="_csrf"  value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"    value="set_status">
+      <input type="hidden" name="status" value="planned">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć lekcję
+      </button>
+    </form>
+    <?php endif; ?>
+  </div>
   <?php endif; ?>
 </div>
 
 <?= flash_html() ?>
 
 <?php if ($session['status'] === 'cancelled'): ?>
-<div class="alert alert-secondary">Lekcja odwołana.</div>
+<div class="alert alert-danger d-flex align-items-start gap-2">
+  <i class="bi bi-x-octagon-fill mt-1"></i>
+  <div>
+    <div class="fw-semibold">Lekcja odwołana — nie liczona do ceny.</div>
+    <?php if (!empty($session['cancel_reason'])): ?>
+    <div class="mt-1"><span class="text-muted">Powód:</span> <?= h($session['cancel_reason']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($session['cancelled_by_role']) || !empty($session['cancelled_by'])):
+      $role_lbl = K30_TI_CANCEL_ROLES[$session['cancelled_by_role']] ?? $session['cancelled_by_role']; ?>
+    <div class="small text-muted mt-1">
+      Odwołał(a): <?= h(trim(($role_lbl ? $role_lbl : '') . ($session['cancelled_by'] ? ' — '.$session['cancelled_by'] : ''))) ?>
+      <?php if (!empty($session['cancelled_at'])): ?> · <?= h(date('d.m.Y H:i', strtotime($session['cancelled_at']))) ?><?php endif; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
 <?php else: ?>
 
 <form method="post" id="lesson_form">
@@ -303,19 +382,22 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php else: ?>
       <div class="list-group list-group-flush" id="att_list">
         <?php foreach ($attendance as $a):
-          $present = (bool)$a['attended'];
-          $note    = $ind_notes_map[(int)$a['client_id']] ?? '';
+          $cid       = (int)$a['client_id'];
+          $cancelled = (int)($a['cancelled'] ?? 0) === 1;
+          $present   = !$cancelled && (bool)$a['attended'];
+          $note      = $ind_notes_map[$cid] ?? '';
+          $role_lbl  = K30_TI_CANCEL_ROLES[$a['cancelled_by_role'] ?? ''] ?? ($a['cancelled_by_role'] ?? '');
         ?>
-        <div class="list-group-item att-row <?= $present ? 'present' : 'absent' ?> py-2 px-3"
-             id="row_<?= (int)$a['client_id'] ?>">
+        <div class="list-group-item att-row <?= $cancelled ? 'cancelled' : ($present ? 'present' : 'absent') ?> py-2 px-3"
+             id="row_<?= $cid ?>">
           <div class="d-flex align-items-center gap-3">
             <input class="att-cb form-check-input" type="checkbox"
-                   name="attended[]" value="<?= (int)$a['client_id'] ?>"
+                   name="attended[]" value="<?= $cid ?>"
                    <?= $present ? 'checked' : '' ?>
                    onchange="rowToggle(this)"
-                   <?= !$can_write ? 'disabled' : '' ?>>
+                   <?= (!$can_write || $cancelled) ? 'disabled' : '' ?>>
             <div class="flex-grow-1 min-width-0">
-              <div class="fw-semibold text-truncate"><?= h($a['client_name']) ?></div>
+              <div class="fw-semibold text-truncate <?= $cancelled ? 'text-decoration-line-through text-muted' : '' ?>"><?= h($a['client_name']) ?></div>
               <?php if ($a['client_email']): ?>
               <div class="text-muted" style="font-size:.75rem"><?= h($a['client_email']) ?></div>
               <?php endif; ?>
@@ -323,17 +405,41 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="text-muted text-end flex-shrink-0" style="font-size:.78rem">
               <?= number_format((float)$a['hourly_rate'], 2, ',', '') ?> zł/h
             </div>
+            <?php if ($can_write): ?>
+              <?php if ($cancelled): ?>
+              <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
+                      onclick="restoreAtt(<?= $cid ?>)" title="Przywróć udział">
+                <i class="bi bi-arrow-counterclockwise"></i>
+              </button>
+              <?php else: ?>
+              <button type="button" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2 flex-shrink-0"
+                      onclick="openCancelAtt(<?= $cid ?>, <?= htmlspecialchars(json_encode($a['client_name']), ENT_QUOTES) ?>)"
+                      title="Odwołaj udział (nie liczone do ceny)">
+                <i class="bi bi-x-circle"></i>
+              </button>
+              <?php endif; ?>
+            <?php endif; ?>
           </div>
+          <?php if ($cancelled): ?>
+          <div class="mt-1 ms-5 small text-danger">
+            <i class="bi bi-x-octagon me-1"></i>Udział odwołany — nie liczony do ceny.
+            <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
+            <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
+            <span class="text-muted d-block">Odwołał(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
+            <?php endif; ?>
+          </div>
+          <?php else: ?>
           <!-- Uwagi indywidualne -->
           <div class="mt-1 ms-5">
             <input type="text"
                    class="form-control form-control-sm border-0 bg-transparent px-0"
-                   name="ind_notes[<?= (int)$a['client_id'] ?>]"
+                   name="ind_notes[<?= $cid ?>]"
                    value="<?= h($note) ?>"
                    placeholder="Uwaga do uczestnika…"
                    <?= !$can_write ? 'readonly' : '' ?>
                    style="font-size:.78rem;color:#64748b">
           </div>
+          <?php endif; ?>
         </div>
         <?php endforeach; ?>
       </div>
@@ -356,7 +462,82 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php endif; // $is_held ?>
 <?php endif; // cancelled ?>
 
+<?php if ($can_write): ?>
+<!-- Modal: odwołanie całej lekcji (Doradca / admin) -->
+<div class="modal fade" id="cancelLessonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf"  value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"    value="set_status">
+      <input type="hidden" name="status" value="cancelled">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-x-circle text-danger me-2"></i>Odwołanie lekcji</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-2">Odwołana lekcja nie zostanie policzona do ceny. Podaj powód odwołania.</p>
+        <label class="form-label fw-semibold" for="cl_reason">Powód odwołania</label>
+        <textarea class="form-control" id="cl_reason" name="cancel_reason" rows="3" required
+                  placeholder="np. choroba prowadzącego, brak frekwencji, awaria sprzętu…"></textarea>
+        <div class="form-text">Odwołujący: <?= h(K30_TI_CANCEL_ROLES[$cancel_role]) ?><?= $cancel_label ? ' — '.h($cancel_label) : '' ?></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle me-1"></i>Odwołaj lekcję</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: odwołanie udziału uczestnika -->
+<div class="modal fade" id="cancelAttModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"       value="cancel_attendee">
+      <input type="hidden" name="client_id" id="ca_cid" value="">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-x-circle text-danger me-2"></i>Odwołanie udziału</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Uczestnik: <strong id="ca_name"></strong></p>
+        <p class="text-muted small mb-2">Odwołany udział nie zostanie policzony do ceny. Podaj powód.</p>
+        <label class="form-label fw-semibold" for="ca_reason">Powód odwołania</label>
+        <textarea class="form-control" id="ca_reason" name="cancel_reason" rows="3" required
+                  placeholder="np. nieobecność zgłoszona przez beneficjenta, choroba…"></textarea>
+        <div class="form-text">Odwołujący: <?= h(K30_TI_CANCEL_ROLES[$cancel_role]) ?><?= $cancel_label ? ' — '.h($cancel_label) : '' ?></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle me-1"></i>Odwołaj udział</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Ukryty formularz akcji uczestnika (przywracanie) -->
+<form method="post" id="attActionForm" class="d-none">
+  <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+  <input type="hidden" name="_op"       id="aa_op"  value="">
+  <input type="hidden" name="client_id" id="aa_cid" value="">
+</form>
+<?php endif; ?>
+
 <script>
+function openCancelAtt(cid, name) {
+  document.getElementById('ca_cid').value = cid;
+  document.getElementById('ca_name').textContent = name;
+  var t = document.getElementById('ca_reason'); if (t) t.value = '';
+  new bootstrap.Modal(document.getElementById('cancelAttModal')).show();
+}
+function restoreAtt(cid) {
+  if (!confirm('Przywrócić udział uczestnika?')) return;
+  document.getElementById('aa_op').value  = 'restore_attendee';
+  document.getElementById('aa_cid').value = cid;
+  document.getElementById('attActionForm').submit();
+}
+
 function recalcDur() {
   var tf = document.getElementById('ltime_from').value;
   var tt = document.getElementById('ltime_to').value;

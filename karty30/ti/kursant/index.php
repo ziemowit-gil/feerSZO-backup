@@ -25,6 +25,37 @@ $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student[
 if (!$account || empty($account['is_active'])) { student_logout(); header('Location: login.php'); exit; }
 $client  = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']]) ?: [];
 
+// ── Odwołanie / przywrócenie udziału w lekcji przez Beneficjenta ─────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $op  = $_POST['_op'] ?? '';
+    $tok = $_POST['_token'] ?? '';
+    if (!hash_equals(student_token(), (string)$tok)) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
+
+    if ($op === 'cancel_lesson' || $op === 'uncancel_lesson') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        // Lekcja musi należeć do kursu, do którego kursant jest aktywnie zapisany, i być zaplanowana
+        $own = db_one(
+            "SELECT s.id, s.status FROM k30_ti_sessions s
+             JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=? AND e.status='active'
+             WHERE s.id=?",
+            [$student['client_id'], $sid]
+        );
+        if ($own && $own['status'] === 'planned') {
+            if ($op === 'cancel_lesson') {
+                $reason = trim($_POST['reason'] ?? '');
+                k30_ti_cancel_attendance(
+                    $sid, $student['client_id'],
+                    $reason !== '' ? $reason : 'Odwołane przez beneficjenta',
+                    'beneficjent', $client['name'] ?? ''
+                );
+            } else {
+                k30_ti_uncancel_attendance($sid, $student['client_id']);
+            }
+        }
+        header('Location: index.php?tab=lekcje'); exit;
+    }
+}
+
 // Kursy i lekcje kursanta
 $courses = k30_ti_client_courses($student['client_id']);
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
@@ -138,11 +169,12 @@ include __DIR__ . '/_layout_head.php';
             <th scope="col">Temat</th>
             <th scope="col" class="text-center">Obecność</th>
             <th scope="col">Uwagi</th>
+            <th scope="col" class="text-end">Akcje</th>
           </tr>
         </thead>
         <tbody>
           <?php if (!$lessons): ?>
-          <tr><td colspan="6" class="text-center text-body-secondary py-4">Brak lekcji.</td></tr>
+          <tr><td colspan="7" class="text-center text-body-secondary py-4">Brak lekcji.</td></tr>
           <?php endif; ?>
           <?php foreach ($lessons as $l):
             $d   = new DateTime($l['lesson_date']);
@@ -166,8 +198,11 @@ include __DIR__ . '/_layout_head.php';
               <?php endif; ?>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
             </td>
+            <?php $att_cancelled = (int)($l['att_cancelled'] ?? 0) === 1; ?>
             <td class="text-center">
-              <?php if ($l['status'] !== 'held'): ?>
+              <?php if ($att_cancelled): ?>
+              <span class="badge text-bg-danger" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>odwołane</span>
+              <?php elseif ($l['status'] !== 'held'): ?>
               <span class="badge text-bg-secondary"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
               <?php elseif ($l['attended']): ?>
               <span class="badge text-bg-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>obecny</span>
@@ -175,13 +210,85 @@ include __DIR__ . '/_layout_head.php';
               <span class="badge text-bg-danger"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>nieobecny</span>
               <?php endif; ?>
             </td>
-            <td class="small text-body-secondary"><?= $l['ind_notes'] ? h(mb_substr($l['ind_notes'],0,60)) : '' ?></td>
+            <td class="small text-body-secondary">
+              <?php if ($att_cancelled && !empty($l['att_cancel_reason'])): ?>
+              <span class="text-danger">Powód odwołania: <?= h(mb_substr($l['att_cancel_reason'],0,60)) ?></span>
+              <?php else: ?>
+              <?= $l['ind_notes'] ? h(mb_substr($l['ind_notes'],0,60)) : '' ?>
+              <?php endif; ?>
+            </td>
+            <td class="text-end">
+              <?php if ($l['status'] === 'planned' && !$att_cancelled): ?>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      data-cancel-session="<?= (int)$l['id'] ?>"
+                      data-lesson-label="<?= h($l['course_name'].' — '.(new DateTime($l['lesson_date']))->format('d.m.Y')) ?>">
+                <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Odwołaj
+              </button>
+              <?php elseif ($l['status'] === 'planned' && $att_cancelled): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć odwołanie i potwierdzić udział?')">
+                <input type="hidden" name="_token"     value="<?= h($vlab_token) ?>">
+                <input type="hidden" name="_op"         value="uncancel_lesson">
+                <input type="hidden" name="session_id"  value="<?= (int)$l['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Cofnij
+                </button>
+              </form>
+              <?php else: ?>
+              <span class="text-body-secondary">—</span>
+              <?php endif; ?>
+            </td>
           </tr>
           <?php endforeach; ?>
         </tbody>
       </table>
     </div>
   </div>
+
+  <p class="text-body-secondary small mt-2">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+    Zaplanowaną lekcję możesz odwołać, podając powód — odwołany udział nie jest liczony do ceny.
+  </p>
+
+  <!-- Modal: odwołanie udziału przez beneficjenta -->
+  <div class="modal fade" id="cancelLessonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" class="modal-content">
+        <input type="hidden" name="_token"      value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op"          value="cancel_lesson">
+        <input type="hidden" name="session_id"   id="cl_session_id" value="">
+        <div class="modal-header">
+          <h2 class="modal-title h5"><i class="bi bi-x-circle text-danger me-2" aria-hidden="true"></i>Odwołanie lekcji</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Lekcja: <strong id="cl_lesson_label"></strong></p>
+          <p class="text-body-secondary small mb-2">Odwołany udział nie zostanie policzony do ceny. Podaj powód odwołania.</p>
+          <label class="form-label fw-semibold" for="cl_reason">Powód odwołania</label>
+          <textarea class="form-control" id="cl_reason" name="reason" rows="3" required
+                    placeholder="np. choroba, kolizja z innymi obowiązkami…"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Odwołaj lekcję</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    var modalEl = document.getElementById('cancelLessonModal');
+    if (!modalEl) return;
+    document.querySelectorAll('[data-cancel-session]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        document.getElementById('cl_session_id').value = btn.getAttribute('data-cancel-session');
+        document.getElementById('cl_lesson_label').textContent = btn.getAttribute('data-lesson-label') || '';
+        document.getElementById('cl_reason').value = '';
+        new bootstrap.Modal(modalEl).show();
+      });
+    });
+  })();
+  </script>
 
 <?php elseif ($tab === 'rozliczenia' && !$is_minor):
   $rv_client_id    = $student['client_id'];
