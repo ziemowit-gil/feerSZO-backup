@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
+require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
 
 require_role('admin','editor');
 require_module_enabled('contract_zlecenie', 'Ten typ umowy');
@@ -27,6 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $row = $_POST;
     unset($row['_csrf']);
+
+    // Zapis roboczy — luźniejsza walidacja, domyślny status „projekt".
+    $is_draft = isset($_POST['zapisz_roboczo']);
+    if ($is_draft && empty($row['status'])) $row['status'] = 'projekt';
+    if (empty($row['numer_umowy'])) $row['numer_umowy'] = next_contract_number($TYPE);
 
     if (empty($row['numer_umowy'])) $errors[] = 'Numer umowy jest wymagany.';
     if (empty($row['status']))      $errors[] = 'Status jest wymagany.';
@@ -72,12 +78,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once dirname(dirname(__DIR__)) . '/contracts/includes/pdf_queue.php';
             pdf_queue_add($TYPE, $id, $data['numer_umowy'] ?? '', $data['imie_nazwisko'] ?? '', current_user()['id']);
         }
-        try {
-            require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
-            crm_migrate();
-            CrmManager::autoCreateContractCase($TYPE, $id, $data['numer_umowy'] ?? '', $data, (int)(current_user()['id'] ?? 0));
-        } catch (\Throwable $e) {
-            error_log('[crm_case_auto] ' . $e->getMessage());
+        if (!$is_draft) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+                crm_migrate();
+                CrmManager::autoCreateContractCase($TYPE, $id, $data['numer_umowy'] ?? '', $data, (int)(current_user()['id'] ?? 0));
+            } catch (\Throwable $e) {
+                error_log('[crm_case_auto] ' . $e->getMessage());
+            }
+        }
+        if ($is_draft) {
+            flash_set('info', 'Zapisano roboczo — możesz wrócić i dokończyć umowę.');
+            header('Location: ' . APP_URL . "/contracts/{$TYPE}/edit.php?id={$id}");
+            exit;
         }
         flash_set('success', 'Umowa zlecenie została dodana.');
         header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}");
@@ -173,21 +186,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div id="ceidgResult"></div>
   </div>
 </div>
-<!-- Person picker -->
+<!-- Person picker — wyszukiwanie + autouzupełnianie z kartoteki osób -->
 <div class="mb-3">
-  <label class="form-label fw-semibold">Osoba powiązana w rejestrze</label>
-  <div class="input-group">
-    <input type="text" id="person_search" class="form-control"
-           placeholder="Szukaj po imieniu, PESEL lub email…"
-           value="<?= h($row['_person_name'] ?? '') ?>"
-           autocomplete="off">
-    <a href="<?= APP_URL ?>/persons/add.php" class="btn btn-outline-secondary" target="_blank" title="Dodaj nową osobę">
-      <i class="bi bi-person-plus"></i>
-    </a>
-  </div>
-  <input type="hidden" name="person_id" id="person_id" value="<?= h($row['person_id'] ?? '') ?>">
-  <div id="person_results" class="list-group mt-1" style="display:none;position:absolute;z-index:1000;max-width:500px"></div>
-  <div class="form-text">Opcjonalnie: wybierz istniejącą osobę lub <a href="<?= APP_URL ?>/persons/add.php" target="_blank">dodaj nową</a>.</div>
+  <?= person_picker($row, [
+    'id'          => 'zlpp',
+    'label'       => 'Wypełnij z kartoteki osób',
+    'fill'        => [
+      'imie_nazwisko' => 'zl_imie_nazwisko',
+      'pesel'         => 'zl_pesel',
+      'email'         => 'zl_email',
+    ],
+    'addr_widget' => 'zlecenieAddrWidget',
+  ]) ?>
+  <div class="form-text">Wybierz osobę z rejestru — dane (imię, PESEL, e-mail, adres) uzupełnią się automatycznie. Opcjonalne.</div>
 </div>
 <!-- Pozycja w strukturze -->
 <div class="mb-3">
@@ -206,9 +217,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <div class="row">
   <div class="col-md-6 mb-3"><label class="form-label">Imię i nazwisko</label>
-    <input name="imie_nazwisko" class="form-control" value="<?= h($row['imie_nazwisko']??'') ?>"></div>
+    <input name="imie_nazwisko" id="zl_imie_nazwisko" class="form-control" value="<?= h($row['imie_nazwisko']??'') ?>"></div>
   <div class="col-md-3 mb-3"><label class="form-label">PESEL</label>
-    <input name="pesel" class="form-control" maxlength="11" pattern="\d{11}" value="<?= h($row['pesel']??'') ?>"></div>
+    <input name="pesel" id="zl_pesel" class="form-control" maxlength="11" pattern="\d{11}" value="<?= h($row['pesel']??'') ?>"></div>
   <div class="col-md-3 mb-3"><label class="form-label">Seria i nr dowodu</label>
     <input name="seria_nr_dowodu" class="form-control" value="<?= h($row['seria_nr_dowodu']??'') ?>"></div>
 </div>
@@ -218,7 +229,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <div class="row">
   <div class="col-md-6 mb-3"><label class="form-label">Adres e-mail kontrahenta</label>
-    <input type="email" name="email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email']??'')?>"></div>
+    <input type="email" name="email" id="zl_email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email']??'')?>"></div>
   <div class="col-md-6 mb-3"><label class="form-label">Urząd skarbowy</label>
     <input name="urzad_skarbowy" class="form-control" value="<?= h($row['urzad_skarbowy']??'') ?>"></div>
 </div>
@@ -444,6 +455,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <button type="button" class="btn btn-outline-secondary" id="wizBack" style="display:none"><i class="bi bi-arrow-left"></i> Wstecz</button>
   <a href="list.php" class="btn btn-link text-muted">Anuluj</a>
   <div class="ms-auto d-flex gap-2">
+    <button type="submit" name="zapisz_roboczo" value="1" formnovalidate class="btn btn-outline-primary" id="wizDraft"
+            title="Zapisz niekompletną umowę jako wersję roboczą i wróć do niej później">
+      <i class="bi bi-save"></i> Zapisz roboczo
+    </button>
     <button type="button" class="btn btn-primary" id="wizNext">Dalej <i class="bi bi-arrow-right"></i></button>
     <button type="submit" class="btn btn-success" id="wizSave" style="display:none"><i class="bi bi-check-lg"></i> Zapisz umowę</button>
   </div>
@@ -529,51 +544,6 @@ function ceidgFill(d) {
   setVal('[name=addr_street]', d.adres || '');
   document.getElementById('ceidgResult').innerHTML = '<small class="text-success mt-1 d-block"><i class="bi bi-check-circle"></i> Pola uzupełnione — sprawdź rozbicie adresu.</small>';
 }
-</script>
-
-<script>
-(function() {
-  var searchInput = document.getElementById('person_search');
-  var hiddenId    = document.getElementById('person_id');
-  var results     = document.getElementById('person_results');
-  if (!searchInput) return;
-  var timer;
-  searchInput.addEventListener('input', function() {
-    clearTimeout(timer);
-    var q = this.value.trim();
-    if (q.length < 2) { results.style.display = 'none'; return; }
-    timer = setTimeout(function() {
-      fetch('<?= APP_URL ?>/persons/search.php?q=' + encodeURIComponent(q))
-        .then(r => r.json()).then(function(data) {
-          results.innerHTML = '';
-          if (!data.length) {
-            results.innerHTML = '<div class="list-group-item text-muted small">Nie znaleziono. <a href="<?= APP_URL ?>/persons/add.php" target="_blank">Dodaj nową osobę</a>.</div>';
-          } else {
-            data.forEach(function(p) {
-              var btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'list-group-item list-group-item-action small';
-              btn.innerHTML = '<strong>' + p.imie_nazwisko + '</strong>'
-                + (p.pesel ? ' <span class="text-muted">' + p.pesel.substring(0,6) + '…</span>' : '')
-                + (p.email ? ' <span class="text-muted">' + p.email + '</span>' : '');
-              btn.addEventListener('click', function() {
-                hiddenId.value    = p.id;
-                searchInput.value = p.imie_nazwisko;
-                results.style.display = 'none';
-              });
-              results.appendChild(btn);
-            });
-          }
-          results.style.display = '';
-        }).catch(function() {});
-    }, 250);
-  });
-  document.addEventListener('click', function(e) {
-    if (!results.contains(e.target) && e.target !== searchInput) {
-      results.style.display = 'none';
-    }
-  });
-})();
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
