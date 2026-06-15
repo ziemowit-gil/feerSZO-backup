@@ -4,9 +4,11 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/certificates.php';
+require_once dirname(__DIR__) . '/includes/print_templates.php';
 
 require_login();
 if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
+pt_migrate();
 
 $req_id = intval($_GET['id'] ?? $_POST['req_id'] ?? 0);
 $req    = get_certificate_request($req_id);
@@ -51,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $need_file ? $file_path : null,
                     $sign_type
                 );
+                // Zapamiętaj wybrany wzór wydruku (0 = układ domyślny/wbudowany).
+                $tpl_id = (int)($_POST['print_template_id'] ?? 0);
+                db()->prepare("UPDATE certificate_requests SET print_template_id=? WHERE id=?")
+                    ->execute([$tpl_id ?: null, $req_id]);
                 if (isset($_POST['nie_mam_drukarki']) && $sign_type === 'papierowe') {
                     $issued = get_certificate_request($req_id);
                     require_once dirname(__DIR__) . '/contracts/includes/pdf_queue.php';
@@ -81,6 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $default_content = generate_certificate_content($type, $row, $req);
+$cert_templates  = pt_list('zaswiadczenie', true);
+$default_tpl     = pt_default_for('zaswiadczenie');
 $PAGE_TITLE = 'Wydaj zaświadczenie';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -243,6 +251,32 @@ include dirname(__DIR__) . '/includes/header.php';
                     onclick="resetContent()">
               <i class="bi bi-arrow-counterclockwise"></i> Przywróć domyślny tekst
             </button>
+          </div>
+
+          <!-- Wzór wydruku -->
+          <div class="mt-2">
+            <label class="form-label fw-semibold small mb-1">
+              <i class="bi bi-printer"></i> Wzór wydruku
+            </label>
+            <div class="input-group input-group-sm">
+              <select name="print_template_id" id="print_tpl_sel" class="form-select">
+                <option value="0">Układ wbudowany (domyślny)</option>
+                <?php foreach ($cert_templates as $ct): ?>
+                <option value="<?= $ct['id'] ?>"
+                  <?= ($default_tpl && $default_tpl['id'] == $ct['id']) ? 'selected' : '' ?>>
+                  <?= h($ct['name']) ?><?= $ct['is_default'] ? ' (domyślny)' : '' ?>
+                </option>
+                <?php endforeach; ?>
+              </select>
+              <a href="#" target="_blank" id="print_tpl_preview"
+                 class="btn btn-outline-secondary <?= $default_tpl ? '' : 'disabled' ?>">
+                <i class="bi bi-eye"></i> Podgląd
+              </a>
+            </div>
+            <div class="form-text" style="font-size:.72rem">
+              Wybierz wzór z edytora wydruków lub zostaw układ wbudowany.
+              <a href="<?= APP_URL ?>/admin/print_templates.php" target="_blank">Zarządzaj wzorami</a>
+            </div>
           </div>
         </div>
 
@@ -466,6 +500,26 @@ function resetContent() {
         document.getElementById('cert_content').value = defaultContent;
     }
 }
+
+(function() {
+    const sel = document.getElementById('print_tpl_sel');
+    const btn = document.getElementById('print_tpl_preview');
+    if (!sel || !btn) return;
+    const base = <?= json_encode(APP_URL . '/print/render.php') ?>;
+    const certId = <?= (int)$req_id ?>;
+    function sync() {
+        const id = parseInt(sel.value || '0', 10);
+        if (id > 0) {
+            btn.href = base + '?template_id=' + id + '&cert_id=' + certId + '&preview=1';
+            btn.classList.remove('disabled');
+        } else {
+            btn.href = <?= json_encode(APP_URL . '/certificates/print.php?id=' . (int)$req_id) ?>;
+            btn.classList.remove('disabled');
+        }
+    }
+    sel.addEventListener('change', sync);
+    sync();
+})();
 
 document.getElementById('cert_file')?.addEventListener('change', function() {
     const preview = document.getElementById('file-preview');

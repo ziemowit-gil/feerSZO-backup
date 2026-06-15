@@ -10,7 +10,37 @@
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN issued_by_name       TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN send_at              TEXT"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN docusign_envelope_id TEXT"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN verify_code          TEXT"); } catch (\Throwable $e) {}
 })();
+
+/**
+ * Zapewnia kod weryfikacyjny dla zaświadczenia (publiczna weryfikacja /weryfikuj).
+ * Generuje losowy, niezgadywalny kod (40 bitów) i zapisuje, jeśli jeszcze nie istnieje.
+ */
+function cert_ensure_verify_code(int $req_id): string {
+    $row = db_one("SELECT verify_code FROM certificate_requests WHERE id=?", [$req_id]);
+    if ($row && !empty($row['verify_code'])) return $row['verify_code'];
+
+    do {
+        $code = strtoupper(bin2hex(random_bytes(5))); // 10 znaków hex
+        $dup  = db_one("SELECT id FROM certificate_requests WHERE verify_code=?", [$code]);
+    } while ($dup);
+
+    db()->prepare("UPDATE certificate_requests SET verify_code=? WHERE id=?")->execute([$code, $req_id]);
+    return $code;
+}
+
+/** Publiczny URL weryfikacji dla danego kodu. */
+function certificate_verify_url(string $code): string {
+    return rtrim(APP_URL, '/') . '/weryfikuj/?kod=' . urlencode($code);
+}
+
+/** Zaświadczenie po kodzie weryfikacyjnym. */
+function get_certificate_by_verify_code(string $code): ?array {
+    $code = strtoupper(trim($code));
+    if ($code === '') return null;
+    return db_one("SELECT * FROM certificate_requests WHERE verify_code=? LIMIT 1", [$code]);
+}
 
 // ── Numeracja: ZAWOL/NNNN/RRRR ───────────────────────────────────────────────
 function cert_next_number(string $prefix = 'ZAWOL'): string {
@@ -152,6 +182,9 @@ function issue_certificate(int $req_id, int $admin_id, string $content, ?string 
              certificate_content=?, certificate_file=?, cert_number=?, sign_type=?
          WHERE id=?"
     )->execute([$new_status, $admin_id, $issuer_nm, date('Y-m-d H:i:s'), $content ?: null, $file_path, $number, $sign_type, $req_id]);
+
+    // Kod weryfikacyjny — dla publicznej weryfikacji autentyczności (/weryfikuj).
+    cert_ensure_verify_code($req_id);
 
     require_once __DIR__ . '/approval.php';
     $note = 'Wydano zaświadczenie dla: ' . $req['requester_name'];

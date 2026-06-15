@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/certificates.php';
+require_once dirname(__DIR__) . '/includes/print_templates.php';
 
 require_login();
 
@@ -18,6 +19,39 @@ $type     = $req['contract_type'];
 $cid      = $req['contract_id'];
 $TABLE    = table_for_type($type);
 $row      = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$cid]);
+
+/* ── Wydruk z wybranego wzoru (jeśli przypisany) ──────────────────────────── */
+pt_migrate();
+$pt_tpl = !empty($req['print_template_id']) ? pt_get((int)$req['print_template_id']) : null;
+if ($pt_tpl) {
+    $pt_opts = pt_options($pt_tpl);
+    $pt_map  = pt_build_map(['type' => $type, 'row' => $row ?: [], 'req' => $req]);
+    $pt_doc  = pt_document_html($pt_tpl, $pt_map);
+    $pt_prev = isset($_GET['preview']);
+    ?>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title><?= h($pt_tpl['name']) ?> — <?= h(get_contract_person_name($type, $row ?: [])) ?></title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+<?= pt_document_css($pt_opts['orientation'] ?? 'portrait') ?>
+@media screen { body { background:#e5e7eb; } .pt-page { margin:0 auto; box-shadow:0 4px 32px rgba(0,0,0,.18); } }
+@media print  { .pt-page { box-shadow:none; margin:0; } }
+</style>
+</head>
+<body>
+<?= $pt_doc ?>
+<?php if (!$pt_prev): ?>
+<script>window.addEventListener('load', function(){ window.print(); });</script>
+<?php endif; ?>
+</body>
+</html>
+    <?php
+    exit;
+}
 
 $stored  = org_setting('org_name');
 $const   = defined('ORG_NAME') ? ORG_NAME : '';
@@ -57,11 +91,13 @@ foreach (preg_split('/\n{2,}/', $raw) as $p) {
     if ($p !== '') $paragraphs[] = nl2br(h($p));
 }
 
-$qr_url = ''; $ean_url = ''; $ean_val = '';
+// Kod i URL publicznej weryfikacji (/weryfikuj) — dla każdego wydanego zaświadczenia.
+$verify_code = cert_ensure_verify_code($req_id);
+$verify_url  = certificate_verify_url($verify_code);
+$verify_qr   = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . urlencode($verify_url);
+
+$ean_url = ''; $ean_val = '';
 if ($sign_type === 'elektroniczne') {
-    $hash = hash('sha256', $cert_number . $issued_date . $issuer_name);
-    $verify_url = "https://podpis.gov.pl?doc_check=" . $hash;
-    $qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . urlencode($verify_url);
     $ean_val = date('dmY', strtotime($issued_date)) . substr(preg_replace('/[^0-9]/', '', $cert_number), -4);
     $ean_url = "https://barcode.tec-it.com/barcode.ashx?data=" . $ean_val . "&code=EAN13";
 }
@@ -92,7 +128,7 @@ if ($sign_type === 'elektroniczne') {
 
 <?php if ($sign_type === 'elektroniczne'): ?>
 <div class="cert-sign-row" style="display: flex; gap: 30px; align-items: center;">
-    <div style="text-align: center;"><img src="<?= h($qr_url) ?>" style="width: 70px;"><br><small>Weryfikacja</small></div>
+    <div style="text-align: center;"><img src="<?= h($verify_qr) ?>" style="width: 70px;"><br><small>Weryfikacja</small></div>
     <div style="text-align: center;"><img src="<?= h($ean_url) ?>" style="height: 40px;"><br><small><?= h($ean_val) ?></small></div>
     <div style="font-size: 0.8em; line-height: 1.3;">
         Dokument podpisano kwalifikowanym podpisem przez: <strong><?= h($issuer_name) ?></strong><br>
@@ -106,6 +142,16 @@ if ($sign_type === 'elektroniczne') {
     <div>Podpis osoby upoważnionej</div>
 </div>
 <?php endif; ?>
+
+<!-- Stopka weryfikacyjna — pozwala potwierdzić autentyczność dokumentu online -->
+<div style="margin-top: 28px; padding-top: 12px; border-top: 1px solid #ccc; display: flex; gap: 14px; align-items: center; font-size: .72rem; color: #444;">
+  <img src="<?= h($verify_qr) ?>" alt="QR weryfikacji" style="width: 64px; height: 64px;">
+  <div>
+    <strong>Zweryfikuj autentyczność tego zaświadczenia</strong><br>
+    Zeskanuj kod QR lub wejdź na <strong><?= h(rtrim(APP_URL, '/') . '/weryfikuj') ?></strong><br>
+    i podaj kod weryfikacyjny: <strong style="letter-spacing:.06em"><?= h($verify_code) ?></strong>
+  </div>
+</div>
 
 </body>
 </html>

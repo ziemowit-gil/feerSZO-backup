@@ -53,6 +53,9 @@ RewriteRule ^korespondencja/(.+)$ correspondence/$1  [QSA,L]
 RewriteRule ^zasady/?$        org_intro/index.php   [QSA,L]
 RewriteRule ^zasady/(.+)$     org_intro/$1           [QSA,L]
 
+# Publiczna weryfikacja zaświadczeń (skan QR)
+RewriteRule ^weryfikuj/?$     weryfikuj/index.php   [QSA,L]
+
 # Dynamiczne aliasy z bazy danych (short_url_routes)
 # Każdy nieznany path jest sprawdzany przez router.php
 RewriteCond %{REQUEST_FILENAME} !-f
