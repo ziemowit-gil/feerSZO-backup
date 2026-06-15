@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
+require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
 
 require_role('admin','editor');
 require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_schema.php';
@@ -46,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         foreach (['wynagrodzenie_brutto','stawka_kwota','liczba_godzin_planowana','zaliczka_podatek'] as $f) {
-            if ($data[$f] === '') $data[$f] = null;
+            if (($data[$f] ?? '') === '') $data[$f] = null;
         }
         $plik_umowy = handle_upload('plik_umowy', $TYPE);
         $plik_potw  = handle_upload('plik_potwierdzenia', $TYPE);
@@ -61,7 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','data_rachunku','okres_rachunku','forma_podpisania',
-            'platforma_el','id_dokumentu_el','plik_potwierdzenia','plik_umowy','uwagi',
+            'platforma_el','id_dokumentu_el','epodpis_dostawca','epodpis_nr_certyfikatu','epodpis_data_waznosci',
+            'plik_potwierdzenia','plik_umowy','uwagi',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
             'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id',
             'podpisujacy_fundacja','podpisujacy_stanowisko'];
@@ -97,37 +99,37 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="alert alert-danger"><ul class="mb-0"><?php foreach($errors as $e) echo "<li>".h($e)."</li>"; ?></ul></div>
 <?php endif; ?>
 
+<style>
+.wiz-stepper{display:flex;gap:.5rem;flex-wrap:wrap}
+.wiz-tab{flex:1 1 0;min-width:140px;display:flex;align-items:center;gap:.5rem;padding:.55rem .75rem;border-radius:10px;
+  background:#f1f5f9;color:#64748b;font-weight:600;font-size:.88rem;cursor:pointer;border:1px solid transparent;transition:.15s;user-select:none}
+.wiz-tab .wiz-num{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
+  background:#cbd5e1;color:#fff;font-size:.82rem;flex-shrink:0}
+.wiz-tab.active{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.wiz-tab.active .wiz-num{background:#2563eb}
+.wiz-tab.done{color:#15803d}
+.wiz-tab.done .wiz-num{background:#16a34a}
+</style>
+
 <form method="post" enctype="multipart/form-data">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
-<!-- Numery referencyjne -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-<div class="card-body"><div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr roboczy umowy</label>
-    <input name="nr_roboczy" class="form-control" value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
-    <div class="form-text">Numer roboczy w projekcie.</div>
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr ogólny <span class="text-muted small">(webNGO, opcjonalne)</span></label>
-    <input name="nr_system" class="form-control" value="<?= h($row['nr_system']??'') ?>">
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr rejestru <span class="text-muted small">RU/{nr}/{rok}/{inicjały}</span></label>
-    <input name="nr_rejestru" class="form-control font-monospace"
-      value="<?= h($row['nr_rejestru']??'') ?>"
-      placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
-    <div class="form-text">Zostaw puste — zostanie nadany automatycznie.</div>
+<!-- Pasek kroków -->
+<div class="card shadow-sm mb-3"><div class="card-body py-2">
+  <div class="wiz-stepper" id="wizStepper">
+    <div class="wiz-tab active" data-go="1"><span class="wiz-num"><span>1</span></span> Strony i podstawy</div>
+    <div class="wiz-tab" data-go="2"><span class="wiz-num"><span>2</span></span> Podpisanie</div>
+    <div class="wiz-tab" data-go="3"><span class="wiz-num"><span>3</span></span> Wykonanie</div>
+    <div class="wiz-tab" data-go="4"><span class="wiz-num"><span>4</span></span> Rozliczenie</div>
   </div>
 </div></div>
-</div>
 
-<div class="row">
-<div class="col-lg-8">
+<!-- ═══════════ KROK 1 — STRONY I PODSTAWY ═══════════ -->
+<div class="wiz-step" data-step="1">
 
+<!-- DANE PODSTAWOWE -->
 <div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Dane podstawowe</div>
+<div class="card-header fw-semibold"><i class="bi bi-info-circle text-primary"></i> Dane podstawowe</div>
 <div class="card-body">
 <div class="row">
   <div class="col-md-4 mb-3"><label class="form-label">Numer umowy *</label>
@@ -154,24 +156,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
+<!-- ZLECENIOBIORCA -->
 <div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold">Zleceniobiorca</div>
+<div class="card-header fw-semibold"><i class="bi bi-person"></i> Zleceniobiorca</div>
 <div class="card-body">
-<!-- Person picker -->
+<!-- Person picker — wyszukiwanie + autouzupełnianie z kartoteki osób -->
 <div class="mb-3">
-  <label class="form-label fw-semibold">Osoba powiązana w rejestrze</label>
-  <div class="input-group">
-    <input type="text" id="person_search" class="form-control"
-           placeholder="Szukaj po imieniu, PESEL lub email…"
-           value="<?= h($row['_person_name'] ?? '') ?>"
-           autocomplete="off">
-    <a href="<?= APP_URL ?>/persons/add.php" class="btn btn-outline-secondary" target="_blank" title="Dodaj nową osobę">
-      <i class="bi bi-person-plus"></i>
-    </a>
-  </div>
-  <input type="hidden" name="person_id" id="person_id" value="<?= h($row['person_id'] ?? '') ?>">
-  <div id="person_results" class="list-group mt-1" style="display:none;position:absolute;z-index:1000;max-width:500px"></div>
-  <div class="form-text">Opcjonalnie: wybierz istniejącą osobę lub <a href="<?= APP_URL ?>/persons/add.php" target="_blank">dodaj nową</a>.</div>
+  <?= person_picker($row, [
+    'id'          => 'zlpp',
+    'label'       => 'Wypełnij z kartoteki osób',
+    'fill'        => [
+      'imie_nazwisko'    => 'zl_imie_nazwisko',
+      'pesel'            => 'zl_pesel',
+      'email'            => 'zl_email',
+      'seria_nr_dowodu'  => 'zl_seria',
+      'urzad_skarbowy'   => 'zl_urzad',
+      'rachunek_bankowy' => 'zl_rachunek',
+    ],
+    'addr_widget' => 'zlecenieAddrWidget',
+  ]) ?>
+  <div class="form-text">Wybierz osobę z rejestru — puste pola (imię, PESEL, e-mail, adres, nr konta…) uzupełnią się automatycznie.</div>
 </div>
 <!-- Pozycja w strukturze -->
 <div class="mb-3">
@@ -203,24 +207,24 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <div class="row">
   <div class="col-md-6 mb-3"><label class="form-label">Imię i nazwisko</label>
-    <input name="imie_nazwisko" class="form-control" value="<?= h($row['imie_nazwisko']) ?>"></div>
+    <input name="imie_nazwisko" id="zl_imie_nazwisko" class="form-control" value="<?= h($row['imie_nazwisko']) ?>"></div>
   <div class="col-md-3 mb-3"><label class="form-label">PESEL</label>
-    <input name="pesel" class="form-control" maxlength="11" value="<?= h($row['pesel']) ?>"></div>
+    <input name="pesel" id="zl_pesel" class="form-control" maxlength="11" value="<?= h($row['pesel']) ?>"></div>
   <div class="col-md-3 mb-3"><label class="form-label">Seria/nr dowodu</label>
-    <input name="seria_nr_dowodu" class="form-control" value="<?= h($row['seria_nr_dowodu']) ?>"></div>
+    <input name="seria_nr_dowodu" id="zl_seria" class="form-control" value="<?= h($row['seria_nr_dowodu']) ?>"></div>
 </div>
 <div class="row">
   <div class="col-12 mb-3">
     <label class="form-label fw-semibold"><i class="bi bi-house me-1 text-secondary"></i>Adres zamieszkania / siedziby</label>
-    <?= address_widget($row) ?>
+    <?= address_widget($row, ['copy_button' => true, 'autocomplete' => true, 'widget_id' => 'zlecenieAddrWidget']) ?>
   </div>
   <div class="col-md-6 mb-3"><label class="form-label">Adres e-mail kontrahenta</label>
-    <input type="email" name="email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email'])?>"></div>
-  <div class="col-md-4 mb-3"><label class="form-label">Urząd skarbowy</label>
-    <input name="urzad_skarbowy" class="form-control" value="<?= h($row['urzad_skarbowy']) ?>"></div>
+    <input type="email" name="email" id="zl_email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email'])?>"></div>
+  <div class="col-md-6 mb-3"><label class="form-label">Urząd skarbowy</label>
+    <input name="urzad_skarbowy" id="zl_urzad" class="form-control" value="<?= h($row['urzad_skarbowy']) ?>"></div>
 </div>
-<div class="mb-3"><label class="form-label">Rachunek bankowy</label>
-  <input name="rachunek_bankowy" class="form-control" value="<?= h($row['rachunek_bankowy']) ?>"></div>
+<div class="mb-3"><label class="form-label">Rachunek bankowy (nr konta)</label>
+  <input name="rachunek_bankowy" id="zl_rachunek" class="form-control" value="<?= h($row['rachunek_bankowy']) ?>"></div>
 <div class="mb-2">
   <label class="form-label">Email do logowania w panelu</label>
   <div class="input-group">
@@ -234,7 +238,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-<!-- ───────── ① PODPISANIE ───────── -->
+<!-- Numery referencyjne -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne <span class="text-muted small fw-normal">— opcjonalne</span></div>
+<div class="card-body"><div class="row">
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Nr roboczy umowy</label>
+    <input name="nr_roboczy" class="form-control" value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
+  </div>
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Nr ogólny <span class="text-muted small">(webNGO)</span></label>
+    <input name="nr_system" class="form-control" value="<?= h($row['nr_system']??'') ?>">
+  </div>
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Nr rejestru <span class="text-muted small">RU/{nr}/{rok}/{inicjały}</span></label>
+    <input name="nr_rejestru" class="form-control font-monospace"
+      value="<?= h($row['nr_rejestru']??'') ?>"
+      placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
+  </div>
+</div></div>
+</div>
+
+</div><!-- /krok 1 -->
+
+<!-- ═══════════ KROK 2 — ① PODPISANIE ═══════════ -->
+<div class="wiz-step d-none" data-step="2">
+
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><span class="badge bg-primary me-1">1</span><i class="bi bi-pen"></i> Podpisanie</div>
 <div class="card-body">
@@ -278,7 +307,25 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-<!-- ───────── ② WYKONANIE ───────── -->
+<!-- Plik umowy -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Plik umowy</div>
+<div class="card-body">
+  <?php if ($row['plik_umowy']): ?>
+  <div class="mb-2"><?= upload_link($row['plik_umowy']) ?></div>
+  <label class="form-label small text-muted">Zastąp nowym plikiem:</label>
+  <?php else: ?>
+  <label class="form-label">Plik umowy (PDF/DOCX)</label>
+  <?php endif; ?>
+  <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
+</div>
+</div>
+
+</div><!-- /krok 2 -->
+
+<!-- ═══════════ KROK 3 — ② WYKONANIE ═══════════ -->
+<div class="wiz-step d-none" data-step="3">
+
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><span class="badge bg-info me-1">2</span><i class="bi bi-play-circle"></i> Wykonanie / realizacja</div>
 <div class="card-body">
@@ -327,7 +374,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-<!-- ───────── ③ ROZLICZENIE ───────── -->
+</div><!-- /krok 3 -->
+
+<!-- ═══════════ KROK 4 — ③ ROZLICZENIE I FINALIZACJA ═══════════ -->
+<div class="wiz-step d-none" data-step="4">
+
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><span class="badge bg-success me-1">3</span><i class="bi bi-cash-coin"></i> Rozliczenie i rachunek</div>
 <div class="card-body">
@@ -359,6 +410,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
+<!-- Uwagi -->
 <div class="mb-3"><label class="form-label">Uwagi</label>
   <textarea name="uwagi" class="form-control" rows="3"><?= h($row['uwagi']) ?></textarea></div>
 
@@ -379,34 +431,52 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
   <script>document.getElementById('m365_konto').addEventListener('change',function(){document.getElementById('m365_manual_fields').style.display=this.checked?'':'none'});</script>
-  <small class="text-muted">Konto można też <a href="#">utworzyć automatycznie</a> po zapisaniu umowy z widoku szczegółów.</small>
 </div>
 </div>
 
-</div><!-- /col-lg-8 -->
-<div class="col-lg-4">
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Plik umowy</div>
-<div class="card-body">
-  <?php if ($row['plik_umowy']): ?>
-  <div class="mb-2"><?= upload_link($row['plik_umowy']) ?></div>
-  <label class="form-label small text-muted">Zastąp nowym plikiem:</label>
-  <?php else: ?>
-  <label class="form-label">Plik umowy (PDF)</label>
-  <?php endif; ?>
-  <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
-</div>
-</div>
-</div>
-</div><!-- /row -->
+</div><!-- /krok 4 -->
 
-<div class="d-flex gap-2 mb-4">
-  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Zapisz zmiany</button>
-  <a href="view.php?id=<?= $id ?>" class="btn btn-outline-secondary">Anuluj</a>
+<!-- Nawigacja kreatora -->
+<div class="d-flex gap-2 mt-3 mb-4 align-items-center">
+  <button type="button" class="btn btn-outline-secondary" id="wizBack" style="display:none"><i class="bi bi-arrow-left"></i> Wstecz</button>
+  <a href="view.php?id=<?= $id ?>" class="btn btn-link text-muted">Anuluj</a>
+  <div class="ms-auto d-flex gap-2">
+    <button type="button" class="btn btn-primary" id="wizNext">Dalej <i class="bi bi-arrow-right"></i></button>
+    <button type="submit" class="btn btn-success" id="wizSave"><i class="bi bi-check-lg"></i> Zapisz zmiany</button>
+  </div>
 </div>
 </form>
 
 <script>
+/* ── Kreator: nawigacja krokowa ─────────────────────────── */
+(function(){
+  var steps = Array.prototype.slice.call(document.querySelectorAll('.wiz-step'));
+  var tabs  = Array.prototype.slice.call(document.querySelectorAll('.wiz-tab'));
+  var total = steps.length, cur = 1;
+  var back = document.getElementById('wizBack'),
+      next = document.getElementById('wizNext');
+  function show(n){
+    cur = Math.max(1, Math.min(total, n));
+    steps.forEach(function(s){ s.classList.toggle('d-none', +s.getAttribute('data-step') !== cur); });
+    tabs.forEach(function(t){
+      var k = +t.getAttribute('data-go');
+      t.classList.toggle('active', k === cur);
+      t.classList.toggle('done',   k <  cur);
+    });
+    back.style.display = cur > 1 ? '' : 'none';
+    next.style.display = cur < total ? '' : 'none';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  next.addEventListener('click', function(){ show(cur+1); });
+  back.addEventListener('click', function(){ show(cur-1); });
+  // W edycji można swobodnie skakać między krokami (dane już istnieją).
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ show(+t.getAttribute('data-go')); });
+  });
+  show(1);
+})();
+
+/* ── Forma podpisania: pokaż pola zależne ────────────────── */
 document.getElementById('forma_podpisania').addEventListener('change', function() {
   var _fp = this.value;
   document.getElementById('el_fields').style.display = _fp === 'elektroniczna' ? '' : 'none';
@@ -438,10 +508,8 @@ async function ceidgSearch() {
 }
 function ceidgFill(d) {
   var pelneNazwisko = (d.imie && d.nazwisko) ? d.imie + ' ' + d.nazwisko : d.nazwa || '';
-  document.querySelector('[name=imie_nazwisko]').value = pelneNazwisko;
-  // Try to fill structured address fields from CEIDG
+  var nameEl = document.querySelector('[name=imie_nazwisko]'); if (nameEl) nameEl.value = pelneNazwisko;
   var adres = d.adres || '';
-  // Parse "ul. X Y/Z, KK-KKK City" → structured fields
   var streetFld  = document.querySelector('[name=addr_street]');
   var houseFld   = document.querySelector('[name=addr_house]');
   var flatFld    = document.querySelector('[name=addr_flat]');
@@ -450,8 +518,8 @@ function ceidgFill(d) {
   if (streetFld && adres) {
     var mPostal = adres.match(/(\d{2}-\d{3})\s+(.+)$/);
     if (mPostal) {
-      postalFld.value = mPostal[1];
-      cityFld.value   = mPostal[2].trim();
+      if (postalFld) postalFld.value = mPostal[1];
+      if (cityFld)   cityFld.value   = mPostal[2].trim();
       adres = adres.replace(/,?\s*\d{2}-\d{3}\s+.+$/, '').trim();
     }
     var mHouse = adres.match(/^(.*?)\s+([\d][\w\/\-]*)$/);
@@ -466,51 +534,6 @@ function ceidgFill(d) {
   }
   document.getElementById('ceidgResult').innerHTML = '<small class="text-success mt-1 d-block"><i class="bi bi-check-circle"></i> Pola uzupełnione.</small>';
 }
-</script>
-
-<script>
-(function() {
-  var searchInput = document.getElementById('person_search');
-  var hiddenId    = document.getElementById('person_id');
-  var results     = document.getElementById('person_results');
-  if (!searchInput) return;
-  var timer;
-  searchInput.addEventListener('input', function() {
-    clearTimeout(timer);
-    var q = this.value.trim();
-    if (q.length < 2) { results.style.display = 'none'; return; }
-    timer = setTimeout(function() {
-      fetch('<?= APP_URL ?>/persons/search.php?q=' + encodeURIComponent(q))
-        .then(r => r.json()).then(function(data) {
-          results.innerHTML = '';
-          if (!data.length) {
-            results.innerHTML = '<div class="list-group-item text-muted small">Nie znaleziono. <a href="<?= APP_URL ?>/persons/add.php" target="_blank">Dodaj nową osobę</a>.</div>';
-          } else {
-            data.forEach(function(p) {
-              var btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'list-group-item list-group-item-action small';
-              btn.innerHTML = '<strong>' + p.imie_nazwisko + '</strong>'
-                + (p.pesel ? ' <span class="text-muted">' + p.pesel.substring(0,6) + '…</span>' : '')
-                + (p.email ? ' <span class="text-muted">' + p.email + '</span>' : '');
-              btn.addEventListener('click', function() {
-                hiddenId.value    = p.id;
-                searchInput.value = p.imie_nazwisko;
-                results.style.display = 'none';
-              });
-              results.appendChild(btn);
-            });
-          }
-          results.style.display = '';
-        }).catch(function() {});
-    }, 250);
-  });
-  document.addEventListener('click', function(e) {
-    if (!results.contains(e.target) && e.target !== searchInput) {
-      results.style.display = 'none';
-    }
-  });
-})();
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
