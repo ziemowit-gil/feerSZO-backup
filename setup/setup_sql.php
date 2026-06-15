@@ -169,6 +169,14 @@ function setup_tenant_db(PDO $pdo): void {
     // ── Settings ──────────────────────────────────────────────────────────────
     "CREATE TABLE IF NOT EXISTS settings (key_ VARCHAR(100) PRIMARY KEY, value TEXT)",
 
+    // ── Rejestr migracji schematu (audyt: co i kiedy zastosowano) ──────────────
+    "CREATE TABLE IF NOT EXISTS schema_migrations (
+        mig_key    VARCHAR(190) PRIMARY KEY,
+        status     VARCHAR(20)  NOT NULL DEFAULT 'ok',
+        detail     TEXT,
+        applied_at DATETIME
+    )",
+
     // ── Obieg dokumentów ──────────────────────────────────────────────────────
     "CREATE TABLE IF NOT EXISTS contract_approvals (
         id INTEGER PRIMARY KEY AUTOINCREMENT, contract_type VARCHAR(50) NOT NULL,
@@ -694,16 +702,60 @@ function setup_tenant_db(PDO $pdo): void {
 function migrate_tenant_db(PDO $pdo): array {
     $results = [];
 
-    $run = function(string $label, string $sql) use ($pdo, &$results): void {
+    // ── Rejestr migracji: gwarantuj tabelę, wczytaj już zastosowane klucze ─────
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
+            mig_key    VARCHAR(190) PRIMARY KEY,
+            status     VARCHAR(20)  NOT NULL DEFAULT 'ok',
+            detail     TEXT,
+            applied_at DATETIME
+        )");
+    } catch (\Throwable $e) { /* best-effort — migracje działają też bez rejestru */ }
+
+    $applied = [];
+    try {
+        foreach ($pdo->query("SELECT mig_key FROM schema_migrations WHERE status='ok'")
+                     ->fetchAll(PDO::FETCH_COLUMN) as $k) {
+            $applied[$k] = true;
+        }
+    } catch (\Throwable $e) { /* brak rejestru — potraktuj wszystko jako niezastosowane */ }
+
+    // Zapis stanu pojedynczej migracji (idempotentny na SQLite i MySQL).
+    $record = function(string $key, string $status, string $detail) use ($pdo): void {
+        $now = date('Y-m-d H:i:s');
+        try {
+            $sel = $pdo->prepare("SELECT 1 FROM schema_migrations WHERE mig_key=?");
+            $sel->execute([$key]);
+            if ($sel->fetchColumn()) {
+                $pdo->prepare("UPDATE schema_migrations SET status=?, detail=?, applied_at=? WHERE mig_key=?")
+                    ->execute([$status, $detail, $now, $key]);
+            } else {
+                $pdo->prepare("INSERT INTO schema_migrations (mig_key,status,detail,applied_at) VALUES (?,?,?,?)")
+                    ->execute([$key, $status, $detail, $now]);
+            }
+        } catch (\Throwable $e) { /* rejestr jest pomocniczy, nie blokuje migracji */ }
+    };
+
+    $run = function(string $label, string $sql) use ($pdo, &$results, &$applied, $record): void {
+        // Już zarejestrowane jako wykonane — pomiń ALTER (szybciej + audyt).
+        if (!empty($applied[$label])) {
+            $results[] = ['skip', $label . ' (zarejestrowane)'];
+            return;
+        }
         try {
             $pdo->exec($sql);
             $results[] = ['ok', $label];
+            $record($label, 'ok', '');
+            $applied[$label] = true;
         } catch (\PDOException $e) {
             $m = $e->getMessage();
             if (str_contains($m, 'duplicate column') || str_contains($m, 'already exists')) {
                 $results[] = ['skip', $label];
+                $record($label, 'ok', 'istniało w bazie');
+                $applied[$label] = true;
             } else {
                 $results[] = ['err', $label . ' — ' . $m];
+                $record($label, 'err', $m);
             }
         }
     };

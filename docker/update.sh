@@ -96,6 +96,24 @@ renew_cert() {
     fi
 }
 
+# ── Funkcja: uruchom migracje schematu bazy w kontenerze ─────────────────────
+run_migrations() {
+    local container="$1"
+    local label="$2"
+
+    if ! docker inspect "${container}" &>/dev/null || \
+       [[ "$(docker inspect "${container}" --format '{{.State.Status}}' 2>/dev/null)" != "running" ]]; then
+        return
+    fi
+
+    info "${label}: migracje schematu bazy..."
+    if docker exec "${container}" php /var/www/html/cli/migrate.php 2>&1 | sed 's/^/    /'; then
+        ok "${label}: migracje wykonane"
+    else
+        warn "${label}: migracje zgłosiły błędy — sprawdź wyjście wyżej"
+    fi
+}
+
 # ── Funkcja: odśwież Apache + OPcache w kontenerze ────────────────────────────
 reload_container() {
     local container="$1"
@@ -134,7 +152,8 @@ echo -e "${BOLD}╚════════════════════�
 section "1. Produkcja — git pull"
 update_repo "${PROD_DIR}" "prod"
 
-section "2. Produkcja — reload + certyfikat"
+section "2. Produkcja — migracje + reload + certyfikat"
+run_migrations   "${PROD_CONTAINER}" "feer-app"
 reload_container "${PROD_CONTAINER}" "feer-app"
 renew_cert       "${PROD_CONTAINER}" "feer-app"
 
@@ -152,7 +171,8 @@ else
         warn "${TESTY_DIR} nie istnieje — pomiń lub uruchom setup-testy.sh"
     fi
 
-    section "4. Środowisko testowe — reload + certyfikat"
+    section "4. Środowisko testowe — migracje + reload + certyfikat"
+    run_migrations   "${TEST_CONTAINER}" "feer-testy-app"
     reload_container "${TEST_CONTAINER}" "feer-testy-app"
     renew_cert       "${TEST_CONTAINER}" "feer-testy-app"
 fi

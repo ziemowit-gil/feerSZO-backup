@@ -2,10 +2,14 @@
 /**
  * upgrade.php — Panel aktualizacji Platformy NGO.
  *
+ * Aktualizuje jednocześnie KOD (git pull z origin) i SCHEMAT bazy (migracje).
+ *
  * Wymaga:
  *  - Zainstalowanej aplikacji (config.php z APP_INSTALLED=true)
  *  - Logowania na konto admina lub kodu IKA
- *  - Porównuje aktualną wersję z gitem i uruchamia migracje schematu
+ *
+ * Logika aktualizacji kodu: includes/updater.php (współdzielona z cli/migrate.php).
+ * Logika migracji schematu:  migrate_tenant_db() w setup/setup_sql.php.
  */
 
 // ── Bootstrap bez bootstrap.php (mogą być zmiany schematu) ───────────────────
@@ -18,15 +22,17 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/version.php';
+require_once __DIR__ . '/includes/updater.php';
 require_once __DIR__ . '/setup/setup_sql.php';
 
 session_name('upgrade_session');
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-$is_auth  = !empty($_SESSION['upgrade_auth']);
-$error    = '';
-$success  = '';
+$is_auth = !empty($_SESSION['upgrade_auth']);
+$error   = '';
+$success = '';
+$notice  = '';
 
 function upg_h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
@@ -40,12 +46,11 @@ if (!$is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upg_logi
 
     try {
         if ($code) {
-            // IKA — kod jednorazowy admina
             $user = db_one("SELECT * FROM users WHERE login_code=? AND role='admin' AND is_active=1", [$code]);
             if ($user) {
-                $_SESSION['upgrade_auth']    = true;
-                $_SESSION['upgrade_user']    = $user['name'];
-                $_SESSION['upgrade_csrf']    = bin2hex(random_bytes(16));
+                $_SESSION['upgrade_auth'] = true;
+                $_SESSION['upgrade_user'] = $user['name'];
+                $_SESSION['upgrade_csrf'] = bin2hex(random_bytes(16));
                 $is_auth = true;
             } else {
                 $error = 'Nieprawidłowy kod IKA lub brak uprawnień admina.';
@@ -53,9 +58,9 @@ if (!$is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upg_logi
         } elseif ($email && $pass) {
             $user = db_one("SELECT * FROM users WHERE email=? AND role='admin' AND is_active=1", [$email]);
             if ($user && password_verify($pass, $user['password'])) {
-                $_SESSION['upgrade_auth']    = true;
-                $_SESSION['upgrade_user']    = $user['name'];
-                $_SESSION['upgrade_csrf']    = bin2hex(random_bytes(16));
+                $_SESSION['upgrade_auth'] = true;
+                $_SESSION['upgrade_user'] = $user['name'];
+                $_SESSION['upgrade_csrf'] = bin2hex(random_bytes(16));
                 $is_auth = true;
             } else {
                 $error = 'Nieprawidłowy e-mail lub hasło. Wymagane konto administratora.';
@@ -69,25 +74,7 @@ if (!$is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upg_logi
     }
 }
 
-// ── Wersje ────────────────────────────────────────────────────────────────────
-function upg_git_log(int $limit = 30): array {
-    $base = dirname(__FILE__);
-    $raw  = @shell_exec("cd " . escapeshellarg($base) . " && git log --no-merges --format='%h|%ci|%s' -{$limit} 2>/dev/null");
-    if (!$raw) return [];
-    $items = [];
-    foreach (explode("\n", trim($raw)) as $line) {
-        if (!$line) continue;
-        [$hash, $date, $msg] = array_pad(explode('|', $line, 3), 3, '');
-        $type = 'other';
-        if (preg_match('/^(feat|fix|refactor|docs|style|chore|perf)/', $msg, $m)) {
-            $type = $m[1];
-            $msg  = ltrim(preg_replace('/^' . $m[1] . '(\([^)]+\))?:\s*/', '', $msg));
-        }
-        $items[] = ['hash' => $hash, 'date' => $date ? date('d.m.Y', strtotime($date)) : '', 'msg' => $msg, 'type' => $type];
-    }
-    return $items;
-}
-
+// ── Helpery wersji / rejestru ──────────────────────────────────────────────────
 function upg_installed_version(): string {
     try {
         $r = db_one("SELECT value FROM settings WHERE key_='installed_version'");
@@ -96,6 +83,7 @@ function upg_installed_version(): string {
 }
 
 function upg_save_version(string $hash): void {
+    if (!$hash || $hash === 'unknown') return;
     try {
         $exists = db_one("SELECT 1 FROM settings WHERE key_='installed_version'");
         if ($exists) db()->prepare("UPDATE settings SET value=? WHERE key_='installed_version'")->execute([$hash]);
@@ -103,109 +91,152 @@ function upg_save_version(string $hash): void {
     } catch (\Throwable $e) {}
 }
 
+/** Ostatnio zastosowane migracje z rejestru schema_migrations. */
+function upg_migration_log(int $limit = 40): array {
+    try {
+        return db_all("SELECT mig_key, status, detail, applied_at
+                       FROM schema_migrations
+                       ORDER BY applied_at DESC, mig_key ASC
+                       LIMIT " . (int)$limit);
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Uruchom migracje + zapisz wersję. Zwraca [results, backup, summary, err]. */
+function upg_run_migrations(bool $do_backup = true): array {
+    $backup  = $do_backup ? upd_backup_db() : ['ok' => false];
+    $results = [];
+    $err     = '';
+    try {
+        $results = migrate_tenant_db(db());
+    } catch (\Throwable $e) {
+        $err = 'Błąd migracji: ' . $e->getMessage();
+        return [$results, $backup, '', $err];
+    }
+    $ok   = count(array_filter($results, fn($r) => $r[0] === 'ok'));
+    $skip = count(array_filter($results, fn($r) => $r[0] === 'skip'));
+    $bad  = count(array_filter($results, fn($r) => $r[0] === 'err'));
+    $summary = "Migracje: nowych {$ok}, pominięto {$skip}" . ($bad ? ", błędy {$bad}" : '') . '.';
+    return [$results, $backup, $summary, ''];
+}
+
+// ── Stan kodu (git) ─────────────────────────────────────────────────────────
+$git_ok        = $is_auth ? upd_git_available() : false;
+$repo_writable = $git_ok  ? upd_repo_writable()  : false;
+$branch        = $git_ok  ? (upd_current_branch() ?: 'main') : 'main';
 $current_ver   = app_version();
 $installed_ver = upg_installed_version();
-$changelog     = $is_auth ? upg_git_log(50) : [];
 
-// Czy są nowe commity od ostatniej instalacji?
-$new_commits = [];
-if ($installed_ver && $changelog) {
-    foreach ($changelog as $c) {
-        if ($c['hash'] === $installed_ver) break;
-        $new_commits[] = $c;
-    }
-}
-$up_to_date = $installed_ver && empty($new_commits) && $installed_ver === $current_ver['hash'];
+// Stan względem origin — z ostatniego fetch (bez sieci przy zwykłym wejściu).
+$ba             = $git_ok ? upd_behind_ahead($branch) : ['behind' => 0, 'ahead' => 0, 'ok' => false];
+$behind         = $ba['behind'] ?? 0;
+$incoming       = ($git_ok && $behind) ? upd_incoming_commits($branch, 50) : [];
+$remote_short   = $git_ok ? upd_short('origin/' . $branch) : '';
 
-// ── Backup SQLite ─────────────────────────────────────────────────────────────
-function upg_backup(): array {
-    if (!defined('DB_TYPE') || DB_TYPE !== 'sqlite') return ['ok' => false, 'msg' => 'Backup dostępny tylko dla SQLite.'];
-    $db_path  = defined('DB_PATH') ? DB_PATH : __DIR__ . '/umowy.db';
-    $bak_dir  = __DIR__ . '/backups';
-    if (!is_dir($bak_dir)) @mkdir($bak_dir, 0755, true);
-    $bak_file = $bak_dir . '/upgrade_' . date('Ymd_His') . '.db';
-    if (!file_exists($db_path)) return ['ok' => false, 'msg' => 'Plik bazy nie istnieje.'];
-    $ok = @copy($db_path, $bak_file);
-    return $ok
-        ? ['ok' => true,  'file' => $bak_file, 'size' => round(filesize($bak_file) / 1024, 1) . ' KB']
-        : ['ok' => false, 'msg'  => 'Nie można skopiować pliku bazy.'];
-}
-
-// ── Sprawdź pokrycie tabel ────────────────────────────────────────────────────
-function upg_check_tables(): array {
-    $db_tables = [];
-    try {
-        if (defined('DB_TYPE') && DB_TYPE === 'sqlite') {
-            $rows = db()->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
-        } else {
-            $rows = db()->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-        }
-        $db_tables = $rows ?: [];
-    } catch (\Throwable $e) { return []; }
-
-    // Zbierz wszystkie CREATE TABLE IF NOT EXISTS z plików PHP
-    $root = __DIR__;
-    $php_tables = [];
-    $iter = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
-    foreach ($iter as $f) {
-        if ($f->getExtension() !== 'php') continue;
-        $path = $f->getPathname();
-        // Pomiń vendor, feerSZO, submodule
-        if (str_contains($path, '/vendor/') || str_contains($path, '/feerSZO/') || str_contains($path, '/.git/')) continue;
-        $src = @file_get_contents($path);
-        if (!$src) continue;
-        preg_match_all('/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?([a-zA-Z_0-9]+)`?/i', $src, $m);
-        foreach ($m[1] as $t) $php_tables[$t] = true;
-    }
-
-    $missing = [];
-    foreach ($db_tables as $t) {
-        if (!isset($php_tables[$t])) $missing[] = $t;
-    }
-    return ['db' => count($db_tables), 'covered' => count($db_tables) - count($missing), 'missing' => $missing];
-}
-
-// ── Chronione klucze ustawień M365/SMTP — NIE usuwaj podczas upgrade ─────────
-// (upgrade.php nigdy nie kasuje settings — migracje tylko dodają, nie usuwają)
-
-// ── POST: uruchom migracje ────────────────────────────────────────────────────
+// Stan działania (wyniki akcji)
 $migration_results = null;
+$migration_log_rows = null;
 $backup_result     = null;
-if ($is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'run_upgrade') {
-    if (($_POST['_csrf'] ?? '') !== ($_SESSION['upgrade_csrf'] ?? '')) {
-        $error = 'CSRF error.';
-    } elseif ($up_to_date && empty($_POST['force'])) {
-        $error = 'System jest już aktualny (' . $current_ver['hash'] . '). Jeśli chcesz wymusić ponowne uruchomienie migracji, użyj przycisku "Uruchom ponownie".';
-    } else {
-        // 1. Backup przed migracją
-        $backup_result = upg_backup();
+$pull_result       = null;
+$fetch_done        = false;
 
-        try {
-            $migration_results = migrate_tenant_db(db());
-            upg_save_version($current_ver['hash']);
-            $ok_count   = count(array_filter($migration_results, fn($r) => $r[0] === 'ok'));
-            $skip_count = count(array_filter($migration_results, fn($r) => $r[0] === 'skip'));
-            $err_count  = count(array_filter($migration_results, fn($r) => $r[0] === 'err'));
-            $success    = "Aktualizacja zakończona. Nowych zmian: {$ok_count}, pominięto: {$skip_count}" . ($err_count ? ", błędy: {$err_count}" : '') . ".";
-            if ($backup_result['ok']) $success .= " Backup: " . basename($backup_result['file']);
-            $installed_ver = $current_ver['hash'];
-            $new_commits   = [];
-            $up_to_date    = true;
-        } catch (\Throwable $e) {
-            $error = 'Błąd migracji: ' . $e->getMessage();
+// ── POST: akcje ─────────────────────────────────────────────────────────────
+if ($is_auth && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])) {
+    $action = $_POST['_action'];
+    if (!hash_equals($_SESSION['upgrade_csrf'] ?? '', $_POST['_csrf'] ?? '')) {
+        $error = 'Błąd CSRF — odśwież stronę i spróbuj ponownie.';
+    } else {
+        switch ($action) {
+
+            // ── Sprawdź aktualizacje (fetch) ────────────────────────────────
+            case 'check':
+                if (!$git_ok) { $error = 'Git niedostępny — nie można sprawdzić aktualizacji.'; break; }
+                $f = upd_fetch($branch);
+                $fetch_done = true;
+                if (!$f['ok']) {
+                    $error = 'Nie udało się pobrać informacji z origin: ' . ($f['out'] ?: 'nieznany błąd');
+                } else {
+                    $ba       = upd_behind_ahead($branch);
+                    $behind   = $ba['behind'] ?? 0;
+                    $incoming = $behind ? upd_incoming_commits($branch, 50) : [];
+                    $remote_short = upd_short('origin/' . $branch);
+                    $notice = $behind ? "Dostępnych nowych zmian: {$behind}." : 'Kod jest aktualny — brak nowych commitów.';
+                }
+                break;
+
+            // ── Tylko migracje schematu ─────────────────────────────────────
+            case 'migrate':
+                [$migration_results, $backup_result, $sum, $merr] = upg_run_migrations();
+                if ($merr) { $error = $merr; }
+                else {
+                    upg_save_version($current_ver['hash']);
+                    $installed_ver = $current_ver['hash'];
+                    $success = $sum . ($backup_result['ok'] ? ' Backup: ' . basename($backup_result['file']) : '');
+                }
+                break;
+
+            // ── Pełna aktualizacja: pull → migracje → OPcache ───────────────
+            case 'full':
+                if (!$git_ok)        { $error = 'Git niedostępny — użyj „Tylko migracje" lub zaktualizuj kod na serwerze.'; break; }
+                if (!$repo_writable) { $error = 'Katalog .git nie jest zapisywalny dla serwera WWW — pobierz kod na hoście (docker/update.sh), a tu uruchom migracje.'; break; }
+
+                // 1) Backup przed czymkolwiek
+                $backup_result = upd_backup_db();
+                // 2) Fetch + pull (ff-only)
+                upd_fetch($branch);
+                $pull_result = upd_pull($branch);
+                if (!$pull_result['ok']) {
+                    $error = 'Pobieranie kodu nie powiodło się: ' . ($pull_result['out'] ?: 'nieznany błąd')
+                           . ' — kod nie został zmieniony. Migracje pominięto.';
+                    break;
+                }
+                // 3) Migracje schematu (na nowym kodzie) — backup już zrobiony przed pull
+                [$migration_results, , $sum, $merr] = upg_run_migrations(false);
+                // 4) OPcache reset (nowy kod od razu)
+                $opcache = upd_reset_opcache();
+                // 5) Zapis wersji
+                $new_hash = upd_short('HEAD') ?: $current_ver['hash'];
+                upg_save_version($new_hash);
+                $installed_ver = $new_hash;
+
+                $parts = [];
+                $parts[] = $pull_result['changed']
+                    ? "Kod zaktualizowany ({$pull_result['before']} → {$new_hash})."
+                    : 'Kod był już aktualny.';
+                $parts[] = $sum ?: '';
+                if ($opcache) $parts[] = 'OPcache wyczyszczony.';
+                if ($backup_result['ok'] ?? false) $parts[] = 'Backup: ' . basename($backup_result['file']);
+                if ($merr) $error = $merr;
+                $success = trim(implode(' ', array_filter($parts)));
+
+                // Odśwież stan po pull
+                $current_ver = app_version();
+                $ba       = upd_behind_ahead($branch);
+                $behind   = $ba['behind'] ?? 0;
+                $incoming = $behind ? upd_incoming_commits($branch, 50) : [];
+                $remote_short = upd_short('origin/' . $branch);
+                break;
         }
     }
 }
 
-// Sprawdź pokrycie tabel (leniwe — tylko gdy zalogowany)
-$table_coverage = $is_auth ? upg_check_tables() : null;
+// ── Dane do widoku ───────────────────────────────────────────────────────────
+$changelog          = $git_ok ? upd_recent_commits(40) : [];
+$migration_log_rows = $is_auth ? upg_migration_log(40) : [];
+$code_up_to_date    = $git_ok && $behind === 0;
 
 $type_badge = [
     'feat'     => ['#2563eb', 'Nowa funkcja'],
     'fix'      => ['#dc2626', 'Poprawka'],
     'refactor' => ['#7c3aed', 'Refaktor'],
     'docs'     => ['#0891b2', 'Dokumentacja'],
+    'perf'     => ['#0d9488', 'Wydajność'],
+    'chore'    => ['#64748b', 'Utrzymanie'],
     'other'    => ['#64748b', 'Zmiana'],
+];
+$status_meta = [
+    'ok'   => ['#166534', '#f0fdf4', 'check-circle-fill'],
+    'err'  => ['#991b1b', '#fef2f2', 'x-circle-fill'],
+    'skip' => ['#6b7280', '#f8fafc', 'dash-circle'],
 ];
 ?>
 <!DOCTYPE html>
@@ -218,7 +249,7 @@ $type_badge = [
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
 body { background: #f1f5f9; }
-.upg-wrap { max-width: 680px; margin: 3rem auto; padding: 0 1rem 3rem; }
+.upg-wrap { max-width: 720px; margin: 3rem auto; padding: 0 1rem 3rem; }
 .upg-logo { text-align: center; margin-bottom: 2rem; }
 .upg-logo-icon { width: 52px; height: 52px; background: #2563eb; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; color: #fff; margin-bottom: .65rem; }
 .upg-logo h1 { font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0; }
@@ -235,6 +266,10 @@ body { background: #f1f5f9; }
 .tab-btn { border: none; background: none; padding: .4rem .75rem; font-size: .82rem; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; }
 .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
 .login-tabs { display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 1.25rem; }
+.log-box { max-height: 280px; overflow-y: auto; font-size: .78rem; border: 1px solid #e5e7eb; border-radius: .5rem; }
+.log-row { display: flex; align-items: center; gap: .5rem; padding: .4rem .75rem; border-bottom: 1px solid #eef2f7; }
+.log-row:last-child { border: none; }
+.term { background: #0f172a; color: #e2e8f0; font-family: monospace; font-size: .74rem; border-radius: .5rem; padding: .75rem 1rem; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -258,13 +293,12 @@ body { background: #f1f5f9; }
     <?php endif; ?>
 
     <div class="login-tabs" id="loginTabs">
-      <button class="tab-btn active" onclick="switchTab('pw')">E-mail i hasło</button>
-      <button class="tab-btn" onclick="switchTab('ika')">Kod IKA</button>
+      <button type="button" class="tab-btn active" onclick="switchTab('pw')">E-mail i hasło</button>
+      <button type="button" class="tab-btn" onclick="switchTab('ika')">Kod IKA</button>
     </div>
 
     <form method="post">
       <input type="hidden" name="upg_login" value="1">
-
       <div id="tab-pw">
         <div class="mb-2">
           <label class="form-label small fw-semibold">E-mail administratora</label>
@@ -275,7 +309,6 @@ body { background: #f1f5f9; }
           <input type="password" name="password" class="form-control form-control-sm" autocomplete="current-password">
         </div>
       </div>
-
       <div id="tab-ika" style="display:none">
         <div class="mb-3">
           <label class="form-label small fw-semibold">Kod IKA administratora</label>
@@ -284,7 +317,6 @@ body { background: #f1f5f9; }
           <div class="form-text">Jednorazowy kod nadany przez twórcę systemu (Admin → Kody dostępu).</div>
         </div>
       </div>
-
       <button type="submit" class="btn btn-primary w-100">Zaloguj się <i class="bi bi-arrow-right ms-1"></i></button>
     </form>
   </div>
@@ -308,8 +340,86 @@ body { background: #f1f5f9; }
     <a href="?logout=1" class="btn btn-sm btn-outline-secondary">Wyloguj</a>
   </div>
 
-  <?php if ($error):   ?><div class="alert alert-danger py-2 small"><?= upg_h($error) ?></div><?php endif; ?>
+  <?php if ($error):   ?><div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i><?= upg_h($error) ?></div><?php endif; ?>
   <?php if ($success): ?><div class="alert alert-success py-2 small"><i class="bi bi-check-circle me-1"></i><?= upg_h($success) ?></div><?php endif; ?>
+  <?php if ($notice):  ?><div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i><?= upg_h($notice) ?></div><?php endif; ?>
+
+  <!-- Centrum aktualizacji -->
+  <div class="card-upg <?= $code_up_to_date ? 'border-success' : ($behind ? 'border-warning' : '') ?>">
+    <h2 class="fw-bold mb-1" style="font-size:1rem">
+      <i class="bi bi-cloud-arrow-down me-2 text-primary"></i>Centrum aktualizacji
+    </h2>
+    <p class="text-muted small mb-3">
+      Pobiera kod z repozytorium (gałąź <code><?= upg_h($branch) ?></code>), uruchamia migracje schematu i czyści OPcache.
+    </p>
+
+    <?php if (!$git_ok): ?>
+    <div class="alert alert-warning py-2 small">
+      <i class="bi bi-exclamation-triangle me-1"></i>Git niedostępny w tym środowisku — możliwe są tylko migracje schematu.
+      Kod aktualizuj na serwerze: <code>bash docker/update.sh</code>.
+    </div>
+    <?php elseif (!$repo_writable): ?>
+    <div class="alert alert-warning py-2 small">
+      <i class="bi bi-shield-lock me-1"></i>Katalog <code>.git</code> nie jest zapisywalny dla serwera WWW —
+      pobieranie kodu z weba niedostępne. Użyj <code>docker/update.sh</code> na hoście, a tutaj uruchom migracje.
+    </div>
+    <?php endif; ?>
+
+    <div class="d-flex flex-wrap gap-2">
+      <!-- Pełna aktualizacja -->
+      <form method="post" class="d-inline"
+            onsubmit="return confirm('Pobrać kod z repozytorium i uruchomić migracje bazy?')">
+        <input type="hidden" name="_csrf"   value="<?= upg_h($_SESSION['upgrade_csrf'] ?? '') ?>">
+        <input type="hidden" name="_action" value="full">
+        <button type="submit" class="btn btn-primary" <?= (!$git_ok || !$repo_writable) ? 'disabled' : '' ?>>
+          <i class="bi bi-cloud-download me-1"></i>Aktualizuj wszystko
+          <?php if ($behind): ?><span class="badge bg-light text-dark ms-1"><?= (int)$behind ?> zmian</span><?php endif; ?>
+        </button>
+      </form>
+
+      <!-- Sprawdź aktualizacje (fetch) -->
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf"   value="<?= upg_h($_SESSION['upgrade_csrf'] ?? '') ?>">
+        <input type="hidden" name="_action" value="check">
+        <button type="submit" class="btn btn-outline-secondary" <?= !$git_ok ? 'disabled' : '' ?>>
+          <i class="bi bi-arrow-repeat me-1"></i>Sprawdź aktualizacje
+        </button>
+      </form>
+
+      <!-- Tylko migracje -->
+      <form method="post" class="d-inline"
+            onsubmit="return confirm('Uruchomić tylko migracje schematu bazy (bez pobierania kodu)?')">
+        <input type="hidden" name="_csrf"   value="<?= upg_h($_SESSION['upgrade_csrf'] ?? '') ?>">
+        <input type="hidden" name="_action" value="migrate">
+        <button type="submit" class="btn btn-outline-secondary">
+          <i class="bi bi-database-gear me-1"></i>Tylko migracje
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Wynik pobierania kodu -->
+  <?php if ($pull_result): ?>
+  <div class="card-upg">
+    <h2 class="fw-bold mb-2" style="font-size:1rem"><i class="bi bi-terminal me-2 text-secondary"></i>Pobieranie kodu</h2>
+    <div class="term"><?= upg_h($pull_result['out'] ?: '(brak wyjścia)') ?></div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Wynik migracji (z bieżącej akcji) -->
+  <?php if ($migration_results): ?>
+  <div class="card-upg">
+    <h2 class="fw-bold mb-2" style="font-size:1rem"><i class="bi bi-list-check me-2 text-secondary"></i>Wynik migracji</h2>
+    <div class="log-box">
+      <?php foreach ($migration_results as [$st, $label]):
+        [$tc, $bg, $ic] = $status_meta[$st] ?? $status_meta['skip']; ?>
+      <div class="log-row" style="background:<?= $bg ?>;color:<?= $tc ?>">
+        <i class="bi bi-<?= $ic ?>" style="flex-shrink:0"></i><span><?= upg_h($label) ?></span>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- Wersje -->
   <div class="card-upg">
@@ -317,41 +427,46 @@ body { background: #f1f5f9; }
     <div class="ver-row">
       <span class="ver-label">Zainstalowana wersja</span>
       <span class="ver-val <?= $installed_ver ? '' : 'text-muted' ?>">
-        <?= $installed_ver ? upg_h($installed_ver) : '— nieznana (uruchom aktualizację aby zapisać)' ?>
+        <?= $installed_ver ? upg_h($installed_ver) : '— nieznana (uruchom aktualizację)' ?>
       </span>
     </div>
     <div class="ver-row">
-      <span class="ver-label">Aktualna wersja (git HEAD)</span>
-      <span class="ver-val"><?= upg_h($current_ver['hash']) ?></span>
+      <span class="ver-label">Lokalny kod (git HEAD)</span>
+      <span class="ver-val"><?= upg_h($current_ver['hash']) ?> <span class="text-muted">· <?= upg_h($branch) ?></span></span>
     </div>
+    <?php if ($git_ok && $remote_short): ?>
     <div class="ver-row">
-      <span class="ver-label">Data commitu</span>
+      <span class="ver-label">Zdalny kod (origin/<?= upg_h($branch) ?>)</span>
+      <span class="ver-val"><?= upg_h($remote_short) ?></span>
+    </div>
+    <?php endif; ?>
+    <div class="ver-row">
+      <span class="ver-label">Data lokalnego commitu</span>
       <span class="ver-val text-muted"><?= upg_h($current_ver['date']) ?></span>
     </div>
     <div class="ver-row">
-      <span class="ver-label">Status</span>
+      <span class="ver-label">Status kodu</span>
       <span>
-        <?php if ($up_to_date): ?>
-        <span class="badge bg-success">Aktualny</span>
-        <?php elseif ($new_commits): ?>
-        <span class="badge bg-warning text-dark"><?= count($new_commits) ?> nowych zmian</span>
+        <?php if (!$git_ok): ?>
+          <span class="badge bg-secondary">Git niedostępny</span>
+        <?php elseif ($code_up_to_date): ?>
+          <span class="badge bg-success">Aktualny</span>
         <?php else: ?>
-        <span class="badge bg-secondary">Nieznany — brak zapisanej wersji</span>
+          <span class="badge bg-warning text-dark"><?= (int)$behind ?> nowych zmian do pobrania</span>
         <?php endif; ?>
       </span>
     </div>
   </div>
 
-  <?php if ($new_commits): ?>
-  <!-- Nowe zmiany od ostatniej instalacji -->
+  <!-- Nowe zmiany do pobrania -->
+  <?php if ($incoming): ?>
   <div class="card-upg">
     <h2 class="fw-bold mb-3" style="font-size:1rem">
-      <i class="bi bi-stars me-2 text-warning"></i>Zmiany od ostatniej aktualizacji
-      <span class="badge bg-warning text-dark ms-1"><?= count($new_commits) ?></span>
+      <i class="bi bi-stars me-2 text-warning"></i>Zmiany do pobrania
+      <span class="badge bg-warning text-dark ms-1"><?= count($incoming) ?></span>
     </h2>
-    <?php foreach ($new_commits as $c):
-      [$bc, $bl] = $type_badge[$c['type']] ?? $type_badge['other'];
-    ?>
+    <?php foreach ($incoming as $c):
+      [$bc, $bl] = $type_badge[$c['type']] ?? $type_badge['other']; ?>
     <div class="commit-row commit-new">
       <span class="commit-hash"><?= upg_h($c['hash']) ?></span>
       <span><?= upg_h($c['msg']) ?></span>
@@ -361,129 +476,59 @@ body { background: #f1f5f9; }
   </div>
   <?php endif; ?>
 
-  <!-- Pokrycie tabel -->
-  <?php if ($table_coverage): ?>
-  <div class="card-upg">
-    <h2 class="fw-bold mb-1" style="font-size:1rem">
-      <i class="bi bi-table me-2 text-secondary"></i>Pokrycie schematu bazy danych
-    </h2>
-    <?php $miss = $table_coverage['missing']; ?>
-    <div class="d-flex align-items-center gap-3 mb-2">
-      <span class="small text-muted">Tabel w bazie: <strong><?= $table_coverage['db'] ?></strong></span>
-      <span class="small text-muted">Pokrytych: <strong class="text-success"><?= $table_coverage['covered'] ?></strong></span>
-      <?php if ($miss): ?>
-      <span class="badge bg-warning text-dark"><?= count($miss) ?> bez definicji</span>
-      <?php else: ?>
-      <span class="badge bg-success">Wszystkie pokryte</span>
-      <?php endif; ?>
-    </div>
-    <?php if ($miss): ?>
-    <details>
-      <summary class="small text-muted" style="cursor:pointer">Pokaż tabele bez <code>CREATE TABLE IF NOT EXISTS</code> w kodzie</summary>
-      <div class="mt-2 d-flex flex-wrap gap-1">
-        <?php foreach ($miss as $t): ?>
-        <code class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.72rem"><?= upg_h($t) ?></code>
-        <?php endforeach; ?>
-      </div>
-      <div class="form-text mt-1">Te tabele istnieją w bazie ale ich definicja CREATE TABLE nie została znaleziona w żadnym pliku PHP. Prawdopodobnie są tworzone przez zewnętrzny skrypt SQL lub starą migrację.</div>
-    </details>
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
-
   <!-- Ochrona konfiguracji -->
   <div class="card-upg" style="border-left:3px solid #16a34a">
     <h2 class="fw-bold mb-1" style="font-size:.95rem"><i class="bi bi-shield-check me-1 text-success"></i>Co jest chronione podczas aktualizacji</h2>
-    <p class="text-muted small mb-0">Migracje <strong>tylko dodają</strong> nowe kolumny i tabele — nigdy nie usuwają istniejących danych ani ustawień.</p>
-    <div class="mt-2 d-flex flex-wrap gap-2" style="font-size:.78rem">
-      <?php
-      $protected = ['Microsoft 365 (tenant_id, client_id, client_secret)', 'SMTP / e-mail', 'SMS API', 'Konfiguracja brandingu', 'APP_KEY', 'Certyfikat instalacyjny', 'Dane organizacji', 'Konta użytkowników', 'Wszystkie umowy i dane'];
-      foreach ($protected as $p): ?>
+    <p class="text-muted small mb-2">Migracje <strong>tylko dodają</strong> kolumny i tabele — nigdy nie usuwają danych. Kod pobierany jest jako <code>fast-forward</code> (bez nadpisywania lokalnych zmian).</p>
+    <div class="d-flex flex-wrap gap-2" style="font-size:.78rem">
+      <?php foreach (['Microsoft 365','SMTP / e-mail','SMS API','Branding','APP_KEY','Certyfikat instalacyjny','Dane organizacji','Konta użytkowników','Wszystkie umowy i dane'] as $p): ?>
       <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25"><?= upg_h($p) ?></span>
       <?php endforeach; ?>
     </div>
   </div>
 
-  <!-- Akcja aktualizacji -->
-  <div class="card-upg <?= $up_to_date && !$migration_results ? 'border-success' : '' ?>">
-    <h2 class="fw-bold mb-1" style="font-size:1rem">
-      <i class="bi bi-database-gear me-2 text-primary"></i>Aktualizacja schematu bazy danych
+  <!-- Rejestr migracji schematu -->
+  <?php if ($migration_log_rows): ?>
+  <div class="card-upg">
+    <h2 class="fw-bold mb-2" style="font-size:1rem">
+      <i class="bi bi-clock-history me-2 text-secondary"></i>Rejestr migracji schematu
+      <span class="badge bg-secondary ms-1"><?= count($migration_log_rows) ?></span>
     </h2>
-    <p class="text-muted small mb-3">
-      Uruchamia migracje — dodaje nowe kolumny i tabele. Operacja bezpieczna: nie usuwa istniejących danych.
-    </p>
-
-    <?php if ($migration_results): ?>
-    <div class="mb-3 border rounded" style="max-height:300px;overflow-y:auto;font-size:.78rem">
-      <?php foreach ($migration_results as $r):
-        [$status, $label] = $r;
-        $row_bg = match($status) { 'ok' => '#f0fdf4', 'err' => '#fef2f2', default => '#f8fafc' };
-        $txt_color = match($status) { 'ok' => '#166534', 'err' => '#991b1b', default => '#6b7280' };
-        $icon = match($status) { 'ok' => 'check-circle-fill', 'err' => 'x-circle-fill', default => 'dash-circle' };
-      ?>
-      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background:<?= $row_bg ?>;color:<?= $txt_color ?>;border-bottom:1px solid #e5e7eb">
-        <i class="bi bi-<?= $icon ?>" style="flex-shrink:0"></i>
-        <span><?= upg_h($label) ?></span>
+    <p class="text-muted small mb-2">Co zostało zastosowane do bazy i kiedy (tabela <code>schema_migrations</code>).</p>
+    <div class="log-box">
+      <?php foreach ($migration_log_rows as $r):
+        [$tc, $bg, $ic] = $status_meta[$r['status']] ?? $status_meta['skip']; ?>
+      <div class="log-row" style="background:<?= $bg ?>;color:<?= $tc ?>">
+        <i class="bi bi-<?= $ic ?>" style="flex-shrink:0"></i>
+        <span class="flex-grow-1"><?= upg_h($r['mig_key']) ?></span>
+        <span class="text-muted" style="font-size:.7rem"><?= upg_h((string)($r['applied_at'] ?? '')) ?></span>
       </div>
       <?php endforeach; ?>
     </div>
-    <?php endif; ?>
-
-    <?php if ($up_to_date && !$migration_results): ?>
-    <div class="alert alert-success py-2 small mb-3">
-      <i class="bi bi-check-circle me-1"></i>System jest aktualny. Baza danych jest zsynchronizowana z kodem.
-    </div>
-    <?php endif; ?>
-
-    <form method="post" onsubmit="return confirm('Uruchomić migracje schematu bazy danych?')">
-      <input type="hidden" name="_csrf"   value="<?= upg_h($_SESSION['upgrade_csrf'] ?? '') ?>">
-      <input type="hidden" name="_action" value="run_upgrade">
-      <?php if ($up_to_date && !$migration_results): ?>
-      <input type="hidden" name="force" value="1">
-      <button type="submit" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-clockwise me-1"></i>Uruchom ponownie migracje
-      </button>
-      <?php else: ?>
-      <button type="submit" class="btn btn-primary">
-        <i class="bi bi-database-gear me-1"></i>Uruchom aktualizację
-        <?php if (count($new_commits)): ?>
-        <span class="badge bg-light text-dark ms-1"><?= count($new_commits) ?> zmian</span>
-        <?php endif; ?>
-      </button>
-      <?php endif; ?>
-      <?php if (!$new_commits && $installed_ver && !$up_to_date): ?>
-      <div class="form-text text-warning mt-1">
-        <i class="bi bi-exclamation-triangle me-1"></i>Zainstalowana wersja (<code><?= upg_h($installed_ver) ?></code>) nie została znaleziona w historii git — możliwe cofnięcie wersji.
-      </div>
-      <?php endif; ?>
-    </form>
   </div>
+  <?php endif; ?>
 
   <!-- Historia commitów -->
+  <?php if ($changelog): ?>
   <div class="card-upg">
     <h2 class="fw-bold mb-3" style="font-size:1rem">
-      <i class="bi bi-clock-history me-2 text-secondary"></i>Historia zmian (ostatnie <?= count($changelog) ?>)
+      <i class="bi bi-list-ul me-2 text-secondary"></i>Historia zmian (ostatnie <?= count($changelog) ?>)
     </h2>
-    <?php if ($changelog): ?>
     <?php foreach ($changelog as $c):
-      [$bc, $bl] = $type_badge[$c['type']] ?? $type_badge['other'];
-      $is_new = in_array($c, $new_commits, true);
-    ?>
-    <div class="commit-row <?= $is_new ? 'commit-new' : '' ?>">
+      [$bc, $bl] = $type_badge[$c['type']] ?? $type_badge['other']; ?>
+    <div class="commit-row">
       <span class="commit-hash"><?= upg_h($c['hash']) ?></span>
       <span><?= upg_h($c['msg']) ?></span>
       <div class="d-flex align-items-center gap-1">
-        <?php if ($c['hash'] === $installed_ver): ?>
+        <?php if (strpos($installed_ver, $c['hash']) === 0 || $c['hash'] === $installed_ver): ?>
         <span class="badge bg-secondary" style="font-size:.62rem">zainstalowana</span>
         <?php endif; ?>
         <span class="badge" style="background:<?= $bc ?>;font-size:.65rem"><?= $bl ?></span>
       </div>
     </div>
     <?php endforeach; ?>
-    <?php else: ?>
-    <p class="text-muted small">Brak danych git — katalog może nie być repozytorium.</p>
-    <?php endif; ?>
   </div>
+  <?php endif; ?>
 
   <div class="text-center">
     <a href="<?= defined('APP_URL') ? upg_h(APP_URL) . '/admin/' : 'admin/' ?>" class="btn btn-outline-secondary btn-sm">
