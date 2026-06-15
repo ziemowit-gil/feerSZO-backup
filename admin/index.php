@@ -262,6 +262,7 @@ $groups = [
         'icon'  => 'bi-tools',
         'color' => 'red',
         'items' => [
+            ['icon'=>'bi-toggles',              'label'=>'Status systemu',           'url'=>'/admin/system_status.php'],
             ['icon'=>'bi-shield-lock',          'label'=>'Certyfikat i licencja',    'url'=>'/admin/app_license.php'],
             ['icon'=>'bi-arrow-repeat',         'label'=>'Aktualizacja systemu',     'url'=>'/upgrade.php'],
             ['icon'=>'bi-git',                  'label'=>'Wersja i historia zmian',  'url'=>'/admin/version.php'],

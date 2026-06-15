@@ -15,6 +15,42 @@ notif_migrate();
 $_user       = current_user();
 $_page_title = $PAGE_TITLE ?? 'Rejestr Umów';
 
+// ── Globalny status systemu: PRZESTÓJ — pełna blokada dla zwykłych użytkowników ─
+// Administrator i konto serwisowe SaaS przechodzą dalej (z banerem). Pozostali widzą
+// stronę informacyjną. Logowanie pozostaje dostępne (login.php nie ładuje tego nagłówka).
+if ($_user && function_exists('system_is_downtime') && system_is_downtime()
+    && !is_admin() && ($_user['email'] ?? '') !== 'serwis@local') {
+    $_dt_reason = system_status_reason();
+    http_response_code(503);
+    header('Retry-After: 3600');
+    ?><!doctype html>
+<html lang="pl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Przerwa techniczna — <?= htmlspecialchars(defined('ORG_NAME') ? ORG_NAME : 'System', ENT_QUOTES) ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+</head><body class="bg-body-tertiary">
+<div class="container" style="max-width:600px">
+  <div class="text-center" style="margin-top:12vh">
+    <i class="bi bi-cone-striped text-danger" style="font-size:3.5rem"></i>
+    <h1 class="h3 fw-bold mt-3">Przerwa w pracy systemu</h1>
+    <p class="text-secondary">System jest tymczasowo niedostępny. Prosimy spróbować ponownie później.</p>
+    <?php if ($_dt_reason !== ''): ?>
+    <div class="alert alert-warning d-inline-block text-start mt-2">
+      <i class="bi bi-info-circle me-1"></i><strong>Powód:</strong> <?= nl2br(htmlspecialchars($_dt_reason, ENT_QUOTES)) ?>
+    </div>
+    <?php endif; ?>
+    <div class="mt-4">
+      <a href="<?= htmlspecialchars(APP_URL, ENT_QUOTES) ?>/auth/logout.php" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-box-arrow-right me-1"></i>Wyloguj
+      </a>
+    </div>
+  </div>
+</div>
+</body></html><?php
+    exit;
+}
+
 // ── Consent / onboarding check ───────────────────────────────────────────────
 // Runs for every logged-in user. Redirects to consent page if:
 //   - document_form_consent is 0  OR
@@ -1613,6 +1649,33 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 
   <div id="content">
   <?= flash_html() ?>
+
+<?php
+// ── Baner globalnego statusu systemu (tylko do odczytu / przestój) ───────────
+if ($_user && function_exists('system_is_readonly') && system_is_readonly()):
+    $_ss = system_status_meta();
+?>
+<div class="alert alert-<?= h($_ss['color']) ?> d-flex gap-2 align-items-start mb-3 py-2" role="status">
+  <i class="bi <?= h($_ss['icon']) ?> flex-shrink-0 mt-1"></i>
+  <div class="flex-grow-1" style="font-size:.875rem">
+    <strong>System nieaktywny — <?= h($_ss['label']) ?>.</strong>
+    <?= h($_ss['desc']) ?>
+    <?php if ($_ss['reason'] !== ''): ?>
+    <div class="mt-1"><span class="text-body-secondary">Powód:</span> <?= nl2br(h($_ss['reason'])) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($_ss['since'])): ?>
+    <div class="text-body-secondary small mt-1">
+      Od <?= h(date('d.m.Y H:i', strtotime($_ss['since']))) ?><?= !empty($_ss['by']) ? ' · ustawił(a): '.h($_ss['by']) : '' ?>
+    </div>
+    <?php endif; ?>
+  </div>
+  <?php if (is_admin()): ?>
+  <a href="<?= h(APP_URL) ?>/admin/system_status.php" class="btn btn-sm btn-outline-dark flex-shrink-0">
+    <i class="bi bi-gear me-1"></i>Zarządzaj
+  </a>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <?php
 // Banner systemowy — konfigurowalny przez admina w ustawieniach
