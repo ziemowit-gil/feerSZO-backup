@@ -17,7 +17,7 @@ function _json(bool $ok, int $count = 0, string $msg = ''): never {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') _json(false, 0, 'Wymagana metoda POST.');
-if (!is_logged_in())                       _json(false, 0, 'Brak autoryzacji.');
+if (!current_user())                       _json(false, 0, 'Brak autoryzacji.');
 
 // CSRF
 if (!hash_equals(csrf_token(), $_POST['_csrf'] ?? '')) _json(false, 0, 'Nieprawidłowy token CSRF.');
