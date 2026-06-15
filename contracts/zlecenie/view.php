@@ -324,33 +324,6 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   </div>
   </div>
 
-  <?php $_ksieg_tekst = ksiegowy_rachunek_email_text($row); ?>
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-envelope-at"></i> E-mail do księgowego — dane do rachunku</span>
-    <div class="d-flex gap-2 no-print">
-      <?php if (can_edit()): ?>
-      <button type="button" class="btn btn-sm btn-primary" onclick="cvhOpenRozliczenie(null)">
-        <i class="bi bi-receipt-cutoff"></i> Zlecenie wystawienia rachunku
-      </button>
-      <?php endif; ?>
-      <button type="button" class="btn btn-sm btn-outline-primary" id="ksiegCopyBtn" onclick="ksiegCopy()">
-        <i class="bi bi-clipboard"></i> Kopiuj tekst
-      </button>
-      <a class="btn btn-sm btn-outline-secondary"
-         href="<?= APP_URL ?>/contracts/zlecenie/ksiegowy_print.php?id=<?= $id ?>" target="_blank">
-        <i class="bi bi-file-earmark-pdf"></i> PDF
-      </a>
-    </div>
-  </div>
-  <div class="card-body">
-    <p class="text-muted small mb-2">Gotowy blok tekstu — skopiuj do wiadomości e-mail dla księgowego lub pobierz jako PDF.</p>
-    <textarea id="ksiegTekst" class="form-control font-monospace" rows="9" readonly
-              style="font-size:.9rem;background:#f8f9fa"><?= h($_ksieg_tekst) ?></textarea>
-    <div id="ksiegCopyInfo" class="text-success small mt-2" style="min-height:1.2em"></div>
-  </div>
-  </div>
-
   <?php if ($row['uwagi']): ?>
   <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold">Uwagi</div>
@@ -650,6 +623,28 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
     aby przygotować dane do rachunku dla księgowego.
   </div>
   <?php endif; ?>
+  </div>
+
+  <?php $_ksieg_tekst = ksiegowy_rachunek_email_text($row); ?>
+  <div class="card shadow-sm mt-3">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-envelope-at"></i> Dane do rachunku — gotowy tekst dla księgowego</span>
+    <div class="d-flex gap-2 no-print">
+      <button type="button" class="btn btn-sm btn-outline-primary" id="ksiegCopyBtn" onclick="ksiegCopy()">
+        <i class="bi bi-clipboard"></i> Kopiuj tekst
+      </button>
+      <a class="btn btn-sm btn-outline-secondary"
+         href="<?= APP_URL ?>/contracts/zlecenie/ksiegowy_print.php?id=<?= $id ?>" target="_blank">
+        <i class="bi bi-file-earmark-pdf"></i> PDF
+      </a>
+    </div>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">Gotowy blok tekstu — skopiuj do wiadomości e-mail dla księgowego lub pobierz jako PDF.</p>
+    <textarea id="ksiegTekst" class="form-control font-monospace" rows="9" readonly
+              style="font-size:.9rem;background:#f8f9fa"><?= h($_ksieg_tekst) ?></textarea>
+    <div id="ksiegCopyInfo" class="text-success small mt-2" style="min-height:1.2em"></div>
+  </div>
   </div>
 
 </div><!-- /tab-rozliczenia -->

@@ -9,7 +9,6 @@ require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
 
 require_role('admin','editor');
 require_module_enabled('contract_zlecenie', 'Ten typ umowy');
-require_once dirname(dirname(__DIR__)) . '/includes/_zlecenie_diag.php'; // TYMCZASOWE
 require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_schema.php';
 
 // Moduł w przygotowaniu — blokuj dodawanie/edycję
