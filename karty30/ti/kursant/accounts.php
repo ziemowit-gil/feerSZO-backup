@@ -95,6 +95,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: accounts.php'); exit;
     }
 
+    // Zbiorcze tworzenie kont panelu dla wielu beneficjentów naraz
+    if ($op === 'bulk_create') {
+        $ids = array_values(array_unique(array_map('intval', (array)($_POST['client_ids'] ?? []))));
+        if (!$ids) { flash_set('danger','Zaznacz co najmniej jednego beneficjenta.'); header('Location: accounts.php'); exit; }
+
+        $existing = array_map('intval', array_column(db_all("SELECT client_id FROM k30_ti_student_accounts"), 'client_id'));
+        $uid      = (int)(current_user()['id'] ?? 0);
+        $send_sms = isset($_POST['send_sms']);
+        $rows = []; $skipped = 0;
+
+        foreach ($ids as $cid) {
+            if ($cid <= 0 || in_array($cid, $existing, true)) { $skipped++; continue; }
+            $c = db_one("SELECT * FROM k30_clients WHERE id=?", [$cid]);
+            if (!$c) { $skipped++; continue; }
+
+            $base = _gen_student_login($c['name']); $login = $base; $i = 2;
+            while (db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$login])) { $login = $base . $i++; }
+            $pass = _gen_student_pass();
+
+            db_insert('k30_ti_student_accounts', [
+                'client_id'     => $cid,
+                'login'         => $login,
+                'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
+                'is_active'     => 1,
+                'created_by'    => $uid,
+                'created_at'    => date('Y-m-d H:i:s'),
+                'updated_at'    => date('Y-m-d H:i:s'),
+            ]);
+            $existing[] = $cid;
+            $sms = $send_sms ? _student_send_login_sms($c['phone'] ?? '', $login, $pass) : '';
+            $rows[] = ['name' => $c['name'], 'login' => $login, 'password' => $pass, 'sms' => trim($sms)];
+        }
+
+        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+        $_SESSION['bulk_student_creds'] = ['rows' => $rows, 'ts' => time()];
+        flash_set('success', 'Utworzono kont: ' . count($rows) . ($skipped ? " (pominięto już istniejące: {$skipped})" : '') . '.');
+        header('Location: accounts.php'); exit;
+    }
+
     if ($op === 'reset_pass') {
         $aid  = (int)($_POST['account_id'] ?? 0);
         $acc  = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
@@ -224,6 +263,8 @@ $no_account  = array_filter($all_clients, fn($c) => !in_array((int)$c['id'], $ta
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $new_creds = $_SESSION['new_student_creds'] ?? null;
 unset($_SESSION['new_student_creds']);
+$bulk_creds = $_SESSION['bulk_student_creds'] ?? null;
+unset($_SESSION['bulk_student_creds']);
 $new_ms_creds = $_SESSION['new_ms_creds'] ?? null;
 unset($_SESSION['new_ms_creds']);
 $ms_online_enabled     = ti_ms_enabled();
@@ -279,6 +320,46 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
   </div>
   <button type="button" class="btn-close" onclick="this.closest('.alert').remove()"></button>
 </div>
+<?php endif; ?>
+
+<!-- Zbiorczo utworzone konta -->
+<?php if ($bulk_creds && !empty($bulk_creds['rows'])): ?>
+<div class="alert alert-warning mb-4 shadow-sm" id="bulk-result">
+  <div class="d-flex align-items-start gap-2 mb-2">
+    <i class="bi bi-people-fill fs-4 flex-shrink-0" style="color:#b45309"></i>
+    <div class="fw-bold flex-grow-1">⚠ Zbiorczo utworzone konta (<?= count($bulk_creds['rows']) ?>) — zapisz lub wydrukuj teraz, hasła nie będą pokazane ponownie!</div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="printBulk()"><i class="bi bi-printer me-1"></i>Drukuj</button>
+    <button type="button" class="btn-close" onclick="this.closest('.alert').remove()"></button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered mb-0" style="background:#fff;font-size:.86rem" id="bulk-table">
+      <thead class="table-light"><tr><th>Beneficjent</th><th>Login</th><th>Hasło</th><th>SMS</th></tr></thead>
+      <tbody>
+        <?php foreach ($bulk_creds['rows'] as $r): ?>
+        <tr>
+          <td><?= h($r['name']) ?></td>
+          <td class="font-monospace fw-bold"><?= h($r['login']) ?></td>
+          <td class="font-monospace fw-bold text-danger"><?= h($r['password']) ?></td>
+          <td class="small text-muted"><?= h($r['sms'] ?? '') ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="small text-muted mt-2">Link do logowania: <a href="<?= h($portal_url) ?>" target="_blank"><?= h($portal_url) ?></a></div>
+</div>
+<script>
+function printBulk(){
+  var w = window.open('', '_blank');
+  w.document.write('<html><head><title>Konta kursantów</title>'
+    + '<style>body{font-family:Arial,sans-serif;font-size:13px}table{border-collapse:collapse;width:100%}'
+    + 'th,td{border:1px solid #999;padding:4px 8px;text-align:left}th{background:#eee}</style></head><body>'
+    + '<h3><?= h(addslashes(ORG_NAME ?? 'Panel kursanta')) ?> — dane dostępowe do panelu kursanta</h3>'
+    + document.getElementById('bulk-table').outerHTML
+    + '<p>Logowanie: <?= h($portal_url) ?></p></body></html>');
+  w.document.close(); w.focus(); w.print();
+}
+</script>
 <?php endif; ?>
 
 <!-- Nowo utworzone konto Microsoft -->
@@ -371,6 +452,36 @@ include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
           </div>
           <button type="submit" class="btn btn-success w-100">
             <i class="bi bi-person-plus me-1"></i>Utwórz konto
+          </button>
+        </form>
+
+        <hr class="my-3">
+
+        <!-- Zbiorcze tworzenie kont -->
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op"   value="bulk_create">
+          <label class="form-label fw-semibold mb-1"><i class="bi bi-people me-1"></i>Utwórz zbiorczo</label>
+          <p class="form-text mt-0 mb-2">Zaznacz beneficjentów — dla każdego powstanie konto z loginem i hasłem (pokazane raz).</p>
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="bulk_all"
+                   onclick="var v=this.checked;document.querySelectorAll('.bulk-cb').forEach(function(c){c.checked=v});">
+            <label class="form-check-label small fw-semibold" for="bulk_all">Zaznacz wszystkich (<?= count($no_account) ?>)</label>
+          </div>
+          <div class="border rounded p-2 mb-2" style="max-height:220px;overflow:auto">
+            <?php foreach ($no_account as $c): ?>
+            <div class="form-check">
+              <input class="form-check-input bulk-cb" type="checkbox" name="client_ids[]" value="<?= (int)$c['id'] ?>" id="bc<?= (int)$c['id'] ?>">
+              <label class="form-check-label small" for="bc<?= (int)$c['id'] ?>"><?= h($c['name']) ?></label>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="send_sms" id="bulk_sms" checked>
+            <label class="form-check-label small" for="bulk_sms">Wyślij dane SMS-em (gdy jest numer telefonu)</label>
+          </div>
+          <button type="submit" class="btn btn-outline-success w-100">
+            <i class="bi bi-people me-1"></i>Utwórz zaznaczonym
           </button>
         </form>
       </div>
