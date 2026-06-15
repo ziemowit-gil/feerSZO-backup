@@ -136,6 +136,7 @@ $groups = [
             ['icon'=>'bi-key',                  'label'=>'Kody IKA',                 'url'=>'/admin/manage_cpc.php'],
             ['icon'=>'bi-door-open',            'label'=>'Metody logowania',         'url'=>'/admin/login_settings.php'],
             ['icon'=>'bi-patch-check-fill',     'label'=>'Certyfikaty X.509',        'url'=>'/admin/x509_login.php'],
+            ['icon'=>'bi-shield-lock',          'label'=>'SAML Identity Provider',   'url'=>'/admin/saml.php'],
             ['icon'=>'bi-journal-text',         'label'=>'Dziennik zdarzeń',         'url'=>'/admin/log.php',               'badge'=>$cnt['log_today'] ?: null,  'badge_type'=>'info'],
             ['icon'=>'bi-shield-exclamation',   'label'=>'Audit log',                'url'=>'/admin/audit_log.php',         'badge'=>$cnt['audit_today'] ?: null,'badge_type'=>'secondary'],
             ['icon'=>'bi-person-badge',         'label'=>'Podszywanie',              'url'=>'/admin/impersonate.php'],
