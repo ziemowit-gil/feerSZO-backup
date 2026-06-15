@@ -95,34 +95,35 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="alert alert-danger"><ul class="mb-0"><?php foreach($errors as $e) echo "<li>".h($e)."</li>"; ?></ul></div>
 <?php endif; ?>
 
+<style>
+.wiz-stepper{display:flex;gap:.5rem;flex-wrap:wrap}
+.wiz-tab{flex:1 1 0;min-width:140px;display:flex;align-items:center;gap:.5rem;padding:.55rem .75rem;border-radius:10px;
+  background:#f1f5f9;color:#64748b;font-weight:600;font-size:.88rem;cursor:pointer;border:1px solid transparent;transition:.15s;user-select:none}
+.wiz-tab .wiz-num{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
+  background:#cbd5e1;color:#fff;font-size:.82rem;flex-shrink:0}
+.wiz-tab.active{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.wiz-tab.active .wiz-num{background:#2563eb}
+.wiz-tab.done{color:#15803d}
+.wiz-tab.done .wiz-num{background:#16a34a}
+.wiz-tab.done .wiz-num::before{content:"✓"}
+.wiz-tab.done .wiz-num span{display:none}
+</style>
+
 <form method="post" enctype="multipart/form-data">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
-<!-- Numery referencyjne -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-<div class="card-body"><div class="row">
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr roboczy umowy</label>
-    <input name="nr_roboczy" class="form-control" value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
-    <div class="form-text">Numer roboczy w projekcie.</div>
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr ogólny <span class="text-muted small">(webNGO, opcjonalne)</span></label>
-    <input name="nr_system" class="form-control" value="<?= h($row['nr_system']??'') ?>">
-  </div>
-  <div class="col-md-4 mb-3">
-    <label class="form-label">Nr rejestru <span class="text-muted small">RU/{nr}/{rok}/{inicjały}</span></label>
-    <input name="nr_rejestru" class="form-control font-monospace"
-      value="<?= h($row['nr_rejestru']??'') ?>"
-      placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
-    <div class="form-text">Zostaw puste — zostanie nadany automatycznie.</div>
+<!-- Pasek kroków -->
+<div class="card shadow-sm mb-3"><div class="card-body py-2">
+  <div class="wiz-stepper" id="wizStepper">
+    <div class="wiz-tab active" data-go="1"><span class="wiz-num"><span>1</span></span> Strony i podstawy</div>
+    <div class="wiz-tab" data-go="2"><span class="wiz-num"><span>2</span></span> Podpisanie</div>
+    <div class="wiz-tab" data-go="3"><span class="wiz-num"><span>3</span></span> Wykonanie</div>
+    <div class="wiz-tab" data-go="4"><span class="wiz-num"><span>4</span></span> Rozliczenie</div>
   </div>
 </div></div>
-</div>
 
-<div class="row">
-<div class="col-lg-8">
+<!-- ═══════════ KROK 1 — STRONY I PODSTAWY ═══════════ -->
+<div class="wiz-step" data-step="1">
 
 <!-- DANE PODSTAWOWE (najważniejsze) -->
 <div class="card shadow-sm mb-3">
@@ -232,7 +233,34 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-<!-- ───────── ① PODPISANIE ───────── -->
+<!-- Numery referencyjne (drugorzędne) -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne <span class="text-muted small fw-normal">— opcjonalne</span></div>
+<div class="card-body"><div class="row">
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Nr roboczy umowy</label>
+    <input name="nr_roboczy" class="form-control" value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
+    <div class="form-text">Numer roboczy w projekcie.</div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Nr ogólny <span class="text-muted small">(webNGO, opcjonalne)</span></label>
+    <input name="nr_system" class="form-control" value="<?= h($row['nr_system']??'') ?>">
+  </div>
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Nr rejestru <span class="text-muted small">RU/{nr}/{rok}/{inicjały}</span></label>
+    <input name="nr_rejestru" class="form-control font-monospace"
+      value="<?= h($row['nr_rejestru']??'') ?>"
+      placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
+    <div class="form-text">Zostaw puste — zostanie nadany automatycznie.</div>
+  </div>
+</div></div>
+</div>
+
+</div><!-- /krok 1 -->
+
+<!-- ═══════════ KROK 2 — ① PODPISANIE ═══════════ -->
+<div class="wiz-step d-none" data-step="2">
+
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><span class="badge bg-primary me-1">1</span><i class="bi bi-pen"></i> Podpisanie</div>
 <div class="card-body">
@@ -272,7 +300,20 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-<!-- ───────── ② WYKONANIE ───────── -->
+<!-- Plik umowy -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Plik umowy</div>
+<div class="card-body">
+  <label class="form-label">Plik umowy (PDF/DOCX, max 20MB)</label>
+  <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
+</div>
+</div>
+
+</div><!-- /krok 2 -->
+
+<!-- ═══════════ KROK 3 — ② WYKONANIE ═══════════ -->
+<div class="wiz-step d-none" data-step="3">
+
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><span class="badge bg-info me-1">2</span><i class="bi bi-play-circle"></i> Wykonanie / realizacja</div>
 <div class="card-body">
@@ -323,7 +364,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-<!-- ───────── ③ ROZLICZENIE ───────── -->
+</div><!-- /krok 3 -->
+
+<!-- ═══════════ KROK 4 — ③ ROZLICZENIE I FINALIZACJA ═══════════ -->
+<div class="wiz-step d-none" data-step="4">
+
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><span class="badge bg-success me-1">3</span><i class="bi bi-cash-coin"></i> Rozliczenie i rachunek</div>
 <div class="card-body">
@@ -356,6 +401,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
+<!-- Uwagi -->
 <div class="mb-3"><label class="form-label">Uwagi</label>
   <textarea name="uwagi" class="form-control" rows="3"><?= h($row['uwagi']??'') ?></textarea></div>
 
@@ -380,35 +426,68 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 </div>
 
-</div><!-- /col-lg-8 -->
-
-<!-- SIDEBAR: Pliki -->
-<div class="col-lg-4">
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
-<div class="card-body">
-  <div class="mb-3">
-    <label class="form-label">Plik umowy (PDF, max 20MB)</label>
-    <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
-  </div>
-</div>
-</div>
-</div>
-</div><!-- /row -->
-
 <div class="form-check mb-3">
   <input class="form-check-input" type="checkbox" name="nie_mam_drukarki" id="nie_mam_drukarki" value="1">
   <label class="form-check-label text-muted" for="nie_mam_drukarki">
     <i class="bi bi-printer"></i> Nie mam drukarki — zapisz umowę jako PDF do późniejszego wydruku
   </label>
 </div>
-<div class="d-flex gap-2 mt-2 mb-4">
-  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Zapisz umowę</button>
-  <a href="list.php" class="btn btn-outline-secondary">Anuluj</a>
+
+</div><!-- /krok 4 -->
+
+<!-- Nawigacja kreatora -->
+<div class="d-flex gap-2 mt-3 mb-4 align-items-center">
+  <button type="button" class="btn btn-outline-secondary" id="wizBack" style="display:none"><i class="bi bi-arrow-left"></i> Wstecz</button>
+  <a href="list.php" class="btn btn-link text-muted">Anuluj</a>
+  <div class="ms-auto d-flex gap-2">
+    <button type="button" class="btn btn-primary" id="wizNext">Dalej <i class="bi bi-arrow-right"></i></button>
+    <button type="submit" class="btn btn-success" id="wizSave" style="display:none"><i class="bi bi-check-lg"></i> Zapisz umowę</button>
+  </div>
 </div>
 </form>
 
 <script>
+/* ── Kreator: nawigacja krokowa ─────────────────────────── */
+(function(){
+  var steps = Array.prototype.slice.call(document.querySelectorAll('.wiz-step'));
+  var tabs  = Array.prototype.slice.call(document.querySelectorAll('.wiz-tab'));
+  var total = steps.length, cur = 1;
+  var back = document.getElementById('wizBack'),
+      next = document.getElementById('wizNext'),
+      save = document.getElementById('wizSave');
+  function show(n){
+    cur = Math.max(1, Math.min(total, n));
+    steps.forEach(function(s){ s.classList.toggle('d-none', +s.getAttribute('data-step') !== cur); });
+    tabs.forEach(function(t){
+      var k = +t.getAttribute('data-go');
+      t.classList.toggle('active', k === cur);
+      t.classList.toggle('done',   k <  cur);
+    });
+    back.style.display = cur > 1 ? '' : 'none';
+    next.style.display = cur < total ? '' : 'none';
+    save.style.display = cur === total ? '' : 'none';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  function validStep(){
+    var fields = steps[cur-1].querySelectorAll('input,select,textarea');
+    for (var i=0;i<fields.length;i++){
+      if (!fields[i].checkValidity()){ fields[i].reportValidity(); return false; }
+    }
+    return true;
+  }
+  next.addEventListener('click', function(){ if (validStep()) show(cur+1); });
+  back.addEventListener('click', function(){ show(cur-1); });
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      var target = +t.getAttribute('data-go');
+      if (target > cur && !validStep()) return;
+      show(target);
+    });
+  });
+  show(1);
+})();
+
+/* ── Forma podpisania: pokaż pola zależne ────────────────── */
 document.getElementById('forma_podpisania').addEventListener('change', function() {
   var _fp = this.value;
   document.getElementById('el_fields').style.display = _fp === 'elektroniczna' ? '' : 'none';
