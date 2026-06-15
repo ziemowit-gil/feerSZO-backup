@@ -31,9 +31,9 @@ if (!$tpl) { http_response_code(404); exit('Wzór nie istnieje.'); }
 
 $ctx = ['type' => $type, 'sample' => true];
 
-if ($contract_id && in_array($type, ['wolontariat', 'zlecenie', 'dzielo', 'praca'], true)) {
-    $table = ['wolontariat'=>'umowy_wolontariat','zlecenie'=>'umowy_zlecenie',
-              'dzielo'=>'umowy_dzielo','praca'=>'umowy_praca'][$type];
+$contract_types = ['wolontariat','zlecenie','dzielo','praca','uslugi','inne','powierzenie'];
+if ($contract_id && in_array($type, $contract_types, true)) {
+    $table = table_for_type($type);
     $ctx['row']    = db_one("SELECT * FROM {$table} WHERE id=?", [$contract_id]) ?: [];
     $ctx['sample'] = false;
 }

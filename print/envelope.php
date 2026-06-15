@@ -40,10 +40,8 @@ $need_form = false;
 
 if ($is_preview) {
     $ctx['sample'] = true;
-} elseif ($contract_id && in_array($type, ['wolontariat','zlecenie','dzielo','praca'], true)) {
-    $table = ['wolontariat'=>'umowy_wolontariat','zlecenie'=>'umowy_zlecenie',
-              'dzielo'=>'umowy_dzielo','praca'=>'umowy_praca'][$type];
-    $ctx['row'] = db_one("SELECT * FROM {$table} WHERE id=?", [$contract_id]) ?: [];
+} elseif ($contract_id && in_array($type, ['wolontariat','zlecenie','dzielo','praca','uslugi','inne','powierzenie'], true)) {
+    $ctx['row'] = db_one("SELECT * FROM " . table_for_type($type) . " WHERE id=?", [$contract_id]) ?: [];
 } elseif ($person_id) {
     $ctx['row'] = db_one("SELECT * FROM persons WHERE id=?", [$person_id]) ?: [];
 } elseif (isset($_GET['r_name']) || isset($_GET['r_addr'])) {

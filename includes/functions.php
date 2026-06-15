@@ -300,6 +300,117 @@ function org_setting(string $key): string {
     return $cache[$key];
 }
 
+/** Zapisuje ustawienie organizacji (tabela settings, key_ = PK). */
+function org_setting_set(string $key, string $value): void {
+    $exists = db_one("SELECT 1 FROM settings WHERE key_=?", [$key]);
+    if ($exists) {
+        db()->prepare("UPDATE settings SET value=? WHERE key_=?")->execute([$value, $key]);
+    } else {
+        db()->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute([$key, $value]);
+    }
+}
+
+// ── Globalny status systemu (aktywny / tylko do odczytu / przestój) ──────────
+// Klucze w settings: system_status, system_status_reason, system_status_since, system_status_by
+const SYSTEM_STATUS_MODES = [
+    'active' => [
+        'label' => 'Aktywny',
+        'short' => 'Aktywny',
+        'color' => 'success',
+        'icon'  => 'bi-check-circle-fill',
+        'desc'  => 'System działa normalnie.',
+    ],
+    'readonly' => [
+        'label' => 'Tryb tylko do odczytu',
+        'short' => 'Tylko do odczytu',
+        'color' => 'warning',
+        'icon'  => 'bi-eye-fill',
+        'desc'  => 'Można przeglądać dane, ale zapisywanie zmian jest wstrzymane.',
+    ],
+    'downtime' => [
+        'label' => 'Przestój w pracy',
+        'short' => 'Przestój',
+        'color' => 'danger',
+        'icon'  => 'bi-cone-striped',
+        'desc'  => 'System jest niedostępny dla użytkowników na czas przerwy w pracy.',
+    ],
+];
+
+/** Aktualny tryb systemu: 'active' | 'readonly' | 'downtime'. */
+function system_status_mode(): string {
+    $m = org_setting('system_status');
+    return in_array($m, ['readonly', 'downtime'], true) ? $m : 'active';
+}
+
+/** Powód podany przez administratora przy zmianie statusu. */
+function system_status_reason(): string {
+    return org_setting('system_status_reason');
+}
+
+/** Metadane bieżącego statusu (label/color/icon/desc) + reason/since/by. */
+function system_status_meta(): array {
+    $mode = system_status_mode();
+    $meta = SYSTEM_STATUS_MODES[$mode];
+    $meta['mode']   = $mode;
+    $meta['reason'] = system_status_reason();
+    $meta['since']  = org_setting('system_status_since');
+    $meta['by']     = org_setting('system_status_by');
+    return $meta;
+}
+
+/** True, gdy zapis danych jest wstrzymany (tryb tylko do odczytu LUB przestój). */
+function system_is_readonly(): bool {
+    return system_status_mode() !== 'active';
+}
+
+/** True, gdy trwa przestój (system niedostępny dla zwykłych użytkowników). */
+function system_is_downtime(): bool {
+    return system_status_mode() === 'downtime';
+}
+
+/** Ustawia globalny status systemu (z powodem i autorem). */
+function system_status_set(string $mode, string $reason, string $by = ''): void {
+    if (!array_key_exists($mode, SYSTEM_STATUS_MODES)) $mode = 'active';
+    org_setting_set('system_status', $mode);
+    org_setting_set('system_status_reason', $mode === 'active' ? '' : $reason);
+    org_setting_set('system_status_since', $mode === 'active' ? '' : date('Y-m-d H:i:s'));
+    org_setting_set('system_status_by', $mode === 'active' ? '' : $by);
+}
+
+/**
+ * Blokuje zapis danych, gdy system jest w trybie tylko do odczytu / przestoju.
+ * Wywoływane z csrf_check() — centralny punkt każdej operacji zapisu.
+ * Administrator może zapisywać zawsze; niezalogowani (np. logowanie) nie są blokowani.
+ */
+function system_block_writes(): void {
+    if (!function_exists('current_user') || !function_exists('system_status_mode')) return;
+    if (system_status_mode() === 'active') return;
+    $u = current_user();
+    if (!$u) return;                       // niezalogowany — nie blokujemy (logowanie itp.)
+    if (function_exists('is_admin') && is_admin()) return;  // admin może pisać
+
+    http_response_code(503);
+    $reason  = system_status_reason();
+    $msg     = 'System działa w trybie tylko do odczytu — zapisywanie zmian jest chwilowo wstrzymane.';
+    if ($reason !== '') $msg .= ' Powód: ' . $reason;
+
+    $is_ajax = (stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false)
+        || (strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest')
+        || (($_GET['_ajax'] ?? '') === '1') || (($_POST['_ajax'] ?? '') === '1');
+
+    if ($is_ajax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'system_readonly', 'message' => $msg]);
+    } else {
+        die('<!doctype html><meta charset="utf-8"><div style="max-width:560px;margin:80px auto;font:15px/1.6 system-ui,sans-serif;color:#334155;text-align:center">'
+            . '<div style="font-size:42px">🔒</div>'
+            . '<h1 style="font-size:20px;color:#1e293b">Zapis wstrzymany</h1>'
+            . '<p>' . htmlspecialchars($msg, ENT_QUOTES) . '</p>'
+            . '<p><a href="javascript:history.back()" style="color:#2563eb">← Wróć</a></p></div>');
+    }
+    exit;
+}
+
 /**
  * Sprawdza czy moduł/funkcja jest włączona.
  * Domyślnie zwraca true (włączone), jeśli klucz nie istnieje w bazie.

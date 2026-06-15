@@ -486,6 +486,11 @@ function csrf_check(): void {
         http_response_code(403);
         die('Błąd CSRF. Odśwież stronę i spróbuj ponownie.');
     }
+    // Globalny status systemu — w trybie tylko do odczytu / przestoju blokuj zapis
+    // (administrator może zapisywać zawsze; niezalogowani nie są blokowani — np. logowanie)
+    if (function_exists('system_block_writes')) {
+        system_block_writes();
+    }
 }
 
 function csrf_field(): string {
