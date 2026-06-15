@@ -241,6 +241,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: m365.php#provision'); exit;
     }
 
+    // Zbiorcze tworzenie kont M365 dla wielu beneficjentów naraz
+    if ($action === 'provision_bulk') {
+        $ids      = array_values(array_unique(array_map('intval', (array)($_POST['client_ids'] ?? []))));
+        $sku_id   = trim($_POST['sku_id'] ?? '') ?: k30_m365_setting('default_sku');
+        $password = trim($_POST['bulk_password'] ?? '') ?: k30_simple_password();
+        if (!$ids)    { flash_set('danger','Zaznacz co najmniej jednego beneficjenta.'); header('Location: m365.php#provision'); exit; }
+        if (!$sku_id) { flash_set('danger','Wybierz licencję lub ustaw domyślną w konfiguracji.'); header('Location: m365.php#provision'); exit; }
+
+        try {
+            $g      = k30_m365();
+            $g->test_connection(); // wyłap błąd tenanta przed pętlą
+            $domain = k30_m365_setting('domain');
+        } catch (\Throwable $e) {
+            flash_set('danger', k30_m365_friendly_error($e->getMessage()));
+            header('Location: m365.php#provision'); exit;
+        }
+
+        $created = []; $errors_bulk = [];
+        foreach ($ids as $cid) {
+            $client = db_one("SELECT * FROM k30_clients WHERE id=?", [$cid]);
+            if (!$client) { continue; }
+            if (!empty($client['m365_user_id'])) { $errors_bulk[] = $client['name'] . ' — ma już konto, pominięto'; continue; }
+            try {
+                $emp_id  = k30_random_employee_id();
+                $login   = $emp_id . '@' . $domain;
+                $user    = $g->create_user_with_employee_id($login, $client['name'], $password, (string)$emp_id);
+                $user_id = $user['id'] ?? '';
+                if (!$user_id) throw new RuntimeException('Brak ID nowego użytkownika w odpowiedzi API.');
+                $g->assign_license($user_id, $sku_id);
+                db()->prepare(
+                    "UPDATE k30_clients SET
+                        m365_user_id=?, m365_login=?, m365_employee_id=?,
+                        m365_license_sku=?, m365_provisioned_at=datetime('now')
+                     WHERE id=?"
+                )->execute([$user_id, $login, (string)$emp_id, $sku_id, $cid]);
+                $created[] = ['name' => $client['name'], 'login' => $login, 'emp_id' => $emp_id];
+            } catch (\Throwable $ei) {
+                $errors_bulk[] = $client['name'] . ' — ' . k30_m365_friendly_error($ei->getMessage());
+            }
+        }
+
+        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+        $_SESSION['k30_m365_bulk_result'] = [
+            'created'  => $created,
+            'errors'   => $errors_bulk,
+            'password' => $password,
+            'ts'       => time(),
+        ];
+        flash_set('success', 'Zbiorczo utworzono kont: ' . count($created) . ' dla beneficjentów.');
+        header('Location: m365.php#provision'); exit;
+    }
+
     // Resetuj hasło
     if ($action === 'reset_password') {
         $client_id = (int)($_POST['client_id'] ?? 0);
@@ -738,6 +790,57 @@ endif; ?>
             <i class="bi bi-person-plus me-1"></i>Utwórz konto M365
           </button>
         </form>
+
+        <?php if ($clients_without): ?>
+        <hr class="my-3">
+        <!-- Zbiorcze tworzenie kont M365 dla beneficjentów -->
+        <form method="post">
+          <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="provision_bulk">
+          <label class="form-label fw-semibold mb-1"><i class="bi bi-people me-1"></i>Utwórz zbiorczo (wielu beneficjentów)</label>
+          <p class="form-text mt-0 mb-2">Zaznacz beneficjentów — dla każdego powstanie konto M365 (login = ID@<?= h($cfg_domain) ?>) z tą samą licencją i jednym hasłem startowym.</p>
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="m365_bulk_all"
+                   onclick="var v=this.checked;document.querySelectorAll('.m365-bulk-cb').forEach(function(c){c.checked=v});">
+            <label class="form-check-label small fw-semibold" for="m365_bulk_all">Zaznacz wszystkich (<?= count($clients_without) ?>)</label>
+          </div>
+          <div class="border rounded p-2 mb-2" style="max-height:220px;overflow:auto">
+            <?php foreach ($clients_without as $c): ?>
+            <div class="form-check">
+              <input class="form-check-input m365-bulk-cb" type="checkbox" name="client_ids[]" value="<?= (int)$c['id'] ?>" id="mbc<?= (int)$c['id'] ?>">
+              <label class="form-check-label small" for="mbc<?= (int)$c['id'] ?>"><?= h($c['name']) ?></label>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-sm-7">
+              <label class="form-label small">Licencja <?php if (!$cfg_default_sku): ?><span class="text-danger">*</span><?php endif; ?></label>
+              <?php if ($skus): ?>
+              <select class="form-select form-select-sm" name="sku_id" <?= !$cfg_default_sku ? 'required' : '' ?>>
+                <option value=""><?= $cfg_default_sku ? '— użyj domyślnej —' : '— wybierz licencję —' ?></option>
+                <?php foreach ($skus as $sku):
+                  $avail = ($sku['prepaidUnits']['enabled'] ?? 0) - ($sku['consumedUnits'] ?? 0);
+                  $pname = k30_sku_label($sku['skuPartNumber'] ?? '');
+                  $is_def = $cfg_default_sku === $sku['skuId']; ?>
+                <option value="<?= h($sku['skuId']) ?>" <?= $avail <= 0 ? 'disabled' : '' ?> <?= $is_def ? 'selected' : '' ?>>
+                  <?= $is_def ? '★ ' : '' ?><?= h($pname) ?> — <?= $avail ?> wolnych
+                </option>
+                <?php endforeach; ?>
+              </select>
+              <?php else: ?>
+              <input type="text" class="form-control form-control-sm font-monospace" name="sku_id" value="<?= h($cfg_default_sku) ?>" placeholder="SKU ID licencji">
+              <?php endif; ?>
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label small">Hasło startowe <span class="text-muted">(opcjonalnie)</span></label>
+              <input type="text" class="form-control form-control-sm font-monospace" name="bulk_password" placeholder="(wygeneruj)">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-outline-success">
+            <i class="bi bi-people me-1"></i>Utwórz zaznaczonym
+          </button>
+        </form>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -883,6 +986,7 @@ endif; ?>
       <thead class="table-light">
         <tr>
           <th style="width:40px">#</th>
+          <th>Beneficjent</th>
           <th>Login (UPN)</th>
           <th style="width:90px">ID</th>
           <th>Hasło</th>
@@ -892,6 +996,7 @@ endif; ?>
         <?php foreach ($bulk_result['created'] as $i => $c): ?>
         <tr>
           <td class="text-muted"><?= $i + 1 ?></td>
+          <td><?= h($c['name'] ?? '—') ?></td>
           <td class="font-monospace"><?= h($c['login']) ?></td>
           <td class="font-monospace text-muted"><?= h($c['emp_id']) ?></td>
           <td class="font-monospace fw-bold text-danger"><?= h($bulk_result['password']) ?></td>

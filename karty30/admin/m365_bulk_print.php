@@ -129,6 +129,7 @@ tbody tr:last-child td { border-bottom: none; }
     <thead>
       <tr>
         <th class="num">#</th>
+        <th>Beneficjent</th>
         <th>Login (UPN)</th>
         <th>ID konta</th>
         <th>Hasło startowe</th>
@@ -139,6 +140,7 @@ tbody tr:last-child td { border-bottom: none; }
       <?php foreach ($result['created'] as $i => $c): ?>
       <tr>
         <td class="num mono"><?= $i + 1 ?></td>
+        <td><?= h($c['name'] ?? '') ?></td>
         <td class="mono"><?= h($c['login']) ?></td>
         <td class="mono id"><?= h($c['emp_id']) ?></td>
         <td class="mono pass"><?= h($password) ?></td>
