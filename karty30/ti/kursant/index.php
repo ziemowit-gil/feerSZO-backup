@@ -241,15 +241,21 @@ include __DIR__ . '/_layout_head.php';
           if (m.status === 'error' && m.error){
             html += '<p class="text-danger small mb-2">'+esc(m.error)+'</p>';
           }
-          if (m.status === 'running' && m.host_user && m.ssh_host){
+          // Efektywne dane SSH: konto hosta (preferowane) lub fallback na bezpośredni port kontenera.
+          const sshUser = m.host_user || m.ssh_user || '';
+          const sshPort = m.host_user ? m.host_port : (m.ssh_port || 0);
+          const sshOk   = m.status === 'running' && m.ssh_host && sshUser && sshPort;
+          if (sshOk){
             const pwd = lastHostCreds[m.id];
             html += '<div class="bg-body-tertiary border rounded p-2 mb-2 small font-monospace">'
-              + '<div><span class="text-body-secondary">SSH:</span> ssh '+esc(m.host_user)+'@'+esc(m.ssh_host)+' -p '+m.host_port+'</div>';
+              + '<div><span class="text-body-secondary">SSH:</span> ssh '+esc(sshUser)+'@'+esc(m.ssh_host)+' -p '+sshPort+'</div>';
             if (pwd){
               html += '<div class="d-flex align-items-center gap-2 mt-1"><span><span class="text-body-secondary">hasło (pokazywane tylko raz):</span> <span class="fw-bold">'+esc(pwd)+'</span></span>'
                 + '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-copy="'+esc(pwd)+'" aria-label="Kopiuj hasło SSH"><i class="bi bi-clipboard" aria-hidden="true"></i></button></div>';
-            } else {
+            } else if (m.host_user){
               html += '<div class="mt-1 text-body-secondary" style="font-family:inherit"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Hasło wysłaliśmy e-mailem przy tworzeniu maszyny.</div>';
+            } else {
+              html += '<div class="mt-1 text-body-secondary" style="font-family:inherit"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Dane logowania zgodne z obrazem maszyny (hasło lub klucz SSH).</div>';
             }
             html += '</div>';
           }
@@ -257,8 +263,8 @@ include __DIR__ . '/_layout_head.php';
           if (m.ttyd_url && m.status === 'running'){
             html += '<a class="btn btn-primary btn-sm" href="'+esc(m.ttyd_url)+'" target="_blank" rel="noopener"><i class="bi bi-terminal me-1" aria-hidden="true"></i>Otwórz terminal</a>';
           }
-          if (m.status === 'running' && m.host_user && m.ssh_host){
-            html += '<a class="btn btn-outline-primary btn-sm" href="ssh://'+esc(m.host_user)+'@'+esc(m.ssh_host)+':'+m.host_port+'" title="Otwiera klienta SSH zainstalowanego w systemie"><i class="bi bi-hdd-network me-1" aria-hidden="true"></i>Połącz po SSH</a>';
+          if (sshOk){
+            html += '<a class="btn btn-outline-primary btn-sm" href="ssh://'+esc(sshUser)+'@'+esc(m.ssh_host)+':'+sshPort+'" title="Otwiera klienta SSH zainstalowanego w systemie"><i class="bi bi-hdd-network me-1" aria-hidden="true"></i>Połącz po SSH</a>';
           }
           if (m.status === 'running'){
             html += '<button type="button" class="btn btn-outline-secondary btn-sm" data-act="stop" data-id="'+m.id+'"><i class="bi bi-stop-circle me-1" aria-hidden="true"></i>Zatrzymaj</button>';

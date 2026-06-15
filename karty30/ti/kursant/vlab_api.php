@@ -40,6 +40,9 @@ function vlab_payload(array $student): array {
             // Logowanie przez konto hosta (wpuszcza do kontenera); port = SSH hosta.
             'host_user'  => $r['host_user'] ?? '',
             'host_port'  => (int)($cfg['ssh_port'] ?: 22),
+            // Fallback: bezpośredni port kontenera (gdy nie utworzono konta host_user).
+            'ssh_user'   => $r['ssh_user'] ?? '',
+            'ssh_port'   => (int)($r['ssh_port'] ?? 0),
             'ttyd_url'   => vlab_ttyd_url($r),
             'created_at' => $r['created_at'],
         ];
