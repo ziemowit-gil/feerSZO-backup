@@ -192,9 +192,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     'id'          => 'zlpp',
     'label'       => 'Wypełnij z kartoteki osób',
     'fill'        => [
-      'imie_nazwisko' => 'zl_imie_nazwisko',
-      'pesel'         => 'zl_pesel',
-      'email'         => 'zl_email',
+      'imie_nazwisko'    => 'zl_imie_nazwisko',
+      'pesel'            => 'zl_pesel',
+      'email'            => 'zl_email',
+      'seria_nr_dowodu'  => 'zl_seria',
+      'urzad_skarbowy'   => 'zl_urzad',
+      'rachunek_bankowy' => 'zl_rachunek',
     ],
     'addr_widget' => 'zlecenieAddrWidget',
   ]) ?>
@@ -221,7 +224,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="col-md-3 mb-3"><label class="form-label">PESEL</label>
     <input name="pesel" id="zl_pesel" class="form-control" maxlength="11" pattern="\d{11}" value="<?= h($row['pesel']??'') ?>"></div>
   <div class="col-md-3 mb-3"><label class="form-label">Seria i nr dowodu</label>
-    <input name="seria_nr_dowodu" class="form-control" value="<?= h($row['seria_nr_dowodu']??'') ?>"></div>
+    <input name="seria_nr_dowodu" id="zl_seria" class="form-control" value="<?= h($row['seria_nr_dowodu']??'') ?>"></div>
 </div>
 <div class="mb-3">
   <label class="form-label fw-semibold"><i class="bi bi-house me-1 text-secondary"></i>Adres zamieszkania / siedziby</label>
@@ -231,10 +234,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="col-md-6 mb-3"><label class="form-label">Adres e-mail kontrahenta</label>
     <input type="email" name="email" id="zl_email" class="form-control" placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email']??'')?>"></div>
   <div class="col-md-6 mb-3"><label class="form-label">Urząd skarbowy</label>
-    <input name="urzad_skarbowy" class="form-control" value="<?= h($row['urzad_skarbowy']??'') ?>"></div>
+    <input name="urzad_skarbowy" id="zl_urzad" class="form-control" value="<?= h($row['urzad_skarbowy']??'') ?>"></div>
 </div>
-<div class="mb-3"><label class="form-label">Rachunek bankowy</label>
-  <input name="rachunek_bankowy" class="form-control" placeholder="XX XXXX XXXX..." value="<?= h($row['rachunek_bankowy']??'') ?>"></div>
+<div class="mb-3"><label class="form-label">Rachunek bankowy (nr konta)</label>
+  <input name="rachunek_bankowy" id="zl_rachunek" class="form-control" placeholder="XX XXXX XXXX..." value="<?= h($row['rachunek_bankowy']??'') ?>"></div>
 <div class="mb-2">
   <label class="form-label">Email do logowania w panelu</label>
   <div class="input-group">

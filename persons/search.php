@@ -15,6 +15,7 @@ require_login();
 header('Content-Type: application/json; charset=utf-8');
 
 $cols = "id, imie_nazwisko, pesel, email, telefon, adres, data_urodzenia,
+         seria_nr_dowodu, urzad_skarbowy, rachunek_bankowy,
          addr_street, addr_house, addr_flat, addr_postal, addr_city, addr_country";
 
 $q = trim($_GET['q'] ?? '');

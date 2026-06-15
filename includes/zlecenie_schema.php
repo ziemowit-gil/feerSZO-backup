@@ -1,16 +1,21 @@
 <?php
 /**
  * includes/zlecenie_schema.php
- * Samonaprawa schematu tabeli umowy_zlecenie (idempotentna).
+ * Samonaprawa schematu tabeli umowy_zlecenie (idempotentna, agnostyczna silnikowo).
  *
- * Gwarantuje istnienie WSZYSTKICH kolumn, które zapisuje kreator/edycja
+ * Gwarantuje istnienie WSZYSTKICH kolumn zapisywanych przez kreator/edycję
  * (add.php, edit.php — lista $allowed). Bez tego zapis (db_insert/db_update)
- * pada na produkcji z błędem SQL „no such column" → 500, gdy w bazie brakuje
- * którejkolwiek kolumny (moduł odblokowany bez uruchomienia migracji).
+ * pada z „no such column" → 500, gdy w bazie brakuje którejś kolumny
+ * (moduł odblokowany bez uruchomienia migracji).
  *
+ * WAŻNE: NIE używamy `PRAGMA table_info` (działa tylko w SQLite — na MySQL
+ * rzuca wyjątek i samonaprawa nic by nie zrobiła). Zamiast tego próbujemy
+ * `ALTER TABLE ADD COLUMN` per kolumna w try/catch — istniejąca kolumna daje
+ * błąd „duplicate", który ignorujemy. Wzorzec jak w includes/address.php.
+ *
+ * Typy bezpieczne dla SQLite i MySQL (bez DEFAULT na TEXT — restrykcja MySQL).
  * Uruchamia się na górze add.php/edit.php — zawsze PRZED insertem/update'em.
- * PRAGMA pomija kolumny już istniejące, więc to tanie. Wzorzec jak w
- * includes/rozliczenia.php. Wymaga wcześniejszego includes/db.php.
+ * Wymaga wcześniejszego includes/db.php.
  */
 
 (function () {
@@ -19,8 +24,8 @@
     $done = true;
 
     // Pełny zestaw kolumn zapisywanych przez formularze umowy zlecenie.
-    // Typy zgodne z kanonicznym schematem; kolumny nullable (oprócz addr_*,
-    // które mają DEFAULT) — ALTER ADD COLUMN bezpieczny także dla tabeli z danymi.
+    // Wszystkie nullable, bez DEFAULT — ALTER ADD COLUMN bezpieczny na obu
+    // silnikach także dla tabeli z danymi.
     $columns = [
         'numer_umowy'              => "VARCHAR(100)",
         'status'                   => "VARCHAR(50)",
@@ -30,12 +35,12 @@
         'email'                    => "VARCHAR(255)",
         'seria_nr_dowodu'          => "VARCHAR(50)",
         'urzad_skarbowy'           => "VARCHAR(255)",
-        'addr_street'              => "TEXT NOT NULL DEFAULT ''",
-        'addr_house'               => "TEXT NOT NULL DEFAULT ''",
-        'addr_flat'                => "TEXT NOT NULL DEFAULT ''",
-        'addr_postal'              => "TEXT NOT NULL DEFAULT ''",
-        'addr_city'                => "TEXT NOT NULL DEFAULT ''",
-        'addr_country'             => "TEXT NOT NULL DEFAULT 'PL'",
+        'addr_street'              => "VARCHAR(255)",
+        'addr_house'               => "VARCHAR(50)",
+        'addr_flat'                => "VARCHAR(50)",
+        'addr_postal'              => "VARCHAR(20)",
+        'addr_city'                => "VARCHAR(120)",
+        'addr_country'             => "VARCHAR(10)",
         'rachunek_bankowy'         => "VARCHAR(50)",
         'przedmiot_zlecenia'       => "TEXT",
         'data_zawarcia'            => "DATE",
@@ -87,18 +92,11 @@
         'podpisujacy_stanowisko'   => "VARCHAR(255)",
     ];
 
-    try {
-        $existing = [];
-        foreach (db_all("PRAGMA table_info(umowy_zlecenie)") as $c) {
-            $existing[] = $c['name'];
+    foreach ($columns as $name => $def) {
+        try {
+            db()->exec("ALTER TABLE umowy_zlecenie ADD COLUMN {$name} {$def}");
+        } catch (\Throwable $e) {
+            // Kolumna już istnieje (duplicate) — to normalne, ignorujemy.
         }
-        foreach ($columns as $name => $def) {
-            if (!in_array($name, $existing, true)) {
-                try { db()->exec("ALTER TABLE umowy_zlecenie ADD COLUMN {$name} {$def}"); }
-                catch (\Throwable $e) { error_log('[zlecenie_schema] ' . $name . ': ' . $e->getMessage()); }
-            }
-        }
-    } catch (\Throwable $e) {
-        error_log('[zlecenie_schema] ' . $e->getMessage());
     }
 })();
