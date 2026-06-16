@@ -10,6 +10,7 @@ require_module_enabled('ezd_enabled', 'Moduł kancelarii');
 
 $PAGE_TITLE = 'Kancelaria EZD';
 $stats      = ezd_stats();
+$rpw_stats  = ezd_rpw_stats();
 $user_id    = (int)current_user()['id'];
 
 // Ostatnie sprawy
@@ -53,8 +54,12 @@ include dirname(__DIR__) . '/includes/header.php';
     <h4 class="mb-0 fw-bold"><i class="bi bi-building-gear text-primary me-2"></i>Kancelaria EZD</h4>
     <div class="text-muted" style="font-size:.8rem;margin-top:.15rem">Elektroniczne Zarządzanie Dokumentacją</div>
   </div>
-  <?php if (can_edit()): ?>
   <div class="d-flex gap-2">
+    <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="btn btn-outline-primary btn-sm position-relative">
+      <i class="bi bi-mailbox2 me-1"></i>Dziennik podawczy
+      <?php if ($rpw_stats['koszulka']): ?><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-info" style="font-size:.6rem"><?= (int)$rpw_stats['koszulka'] ?></span><?php endif; ?>
+    </a>
+    <?php if (can_edit()): ?>
     <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm">
       <i class="bi bi-folder-plus me-1"></i>Nowa sprawa
     </a>
@@ -63,8 +68,8 @@ include dirname(__DIR__) . '/includes/header.php';
       <i class="bi bi-archive me-1"></i>Nowa teczka
     </a>
     <?php endif; ?>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
 </div>
 
 <?= flash_html() ?>
@@ -72,6 +77,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <!-- Statystyki -->
 <div class="row g-3 mb-4">
   <?php $items = [
+    ['label'=>'W koszulce (RPW)',   'val'=>$rpw_stats['koszulka'], 'icon'=>'bi-inbox-fill',          'color'=>'info'],
     ['label'=>'Teczki otwarte',     'val'=>$stats['teczki_open'],  'icon'=>'bi-archive-fill',       'color'=>'primary'],
     ['label'=>'Sprawy aktywne',     'val'=>$stats['sprawy_open'],  'icon'=>'bi-folder2-open',        'color'=>'success'],
     ['label'=>'Pisma (ten miesiąc)','val'=>$stats['pisma_month'],  'icon'=>'bi-envelope-arrow-down', 'color'=>'info'],

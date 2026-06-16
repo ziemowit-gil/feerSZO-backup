@@ -138,6 +138,29 @@
         created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Rejestr Przesyłek Wpływających (RPW) / dziennik podawczy + koszulka
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_rpw (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        rpw_nr        INTEGER NOT NULL,
+        rok           INTEGER NOT NULL,
+        data_wplywu   DATE    NOT NULL,
+        typ           TEXT    NOT NULL DEFAULT 'list',
+        nadawca       TEXT    NOT NULL DEFAULT '',
+        znak_obcy     TEXT    NOT NULL DEFAULT '',
+        opis          TEXT    NOT NULL DEFAULT '',
+        uwagi         TEXT    NOT NULL DEFAULT '',
+        status        TEXT    NOT NULL DEFAULT 'nowa',
+        sprawa_id     INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL,
+        pismo_id      INTEGER REFERENCES ezd_pisma(id)  ON DELETE SET NULL,
+        przekazano_do INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        scan_file     TEXT    NOT NULL DEFAULT '',
+        scan_name     TEXT    NOT NULL DEFAULT '',
+        scan_mime     TEXT    NOT NULL DEFAULT '',
+        scan_size     INTEGER NOT NULL DEFAULT 0,
+        created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Indeksy wydajnościowe
     foreach ([
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_teczka  ON ezd_sprawy(teczka_id)",
@@ -147,6 +170,9 @@
         "CREATE INDEX IF NOT EXISTS idx_ezd_dekr_wyk       ON ezd_dekretacje(wykonawca_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_zal_sprawa     ON ezd_zalaczniki(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_log_sprawa     ON ezd_log(sprawa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_rok        ON ezd_rpw(rok, rpw_nr)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_status     ON ezd_rpw(status)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_sprawa     ON ezd_rpw(sprawa_id)",
     ] as $idx) {
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
     }
@@ -208,6 +234,24 @@ const EZD_UMOWA_TYPY = [
     'zlecenie'     => 'Zlecenie',
     'ugoda'        => 'Ugoda',
     'inne'         => 'Inne',
+];
+
+// RPW — dziennik podawczy
+const EZD_RPW_TYPY = [
+    'list'      => ['label' => 'List zwykły',     'icon' => 'bi-envelope'],
+    'polecony'  => ['label' => 'List polecony',   'icon' => 'bi-envelope-paper'],
+    'paczka'    => ['label' => 'Paczka',          'icon' => 'bi-box-seam'],
+    'email'     => ['label' => 'E-mail',          'icon' => 'bi-at'],
+    'epuap'     => ['label' => 'ePUAP / e-Doręczenia', 'icon' => 'bi-shield-lock'],
+    'fax'       => ['label' => 'Faks',            'icon' => 'bi-printer'],
+    'osobiscie' => ['label' => 'Złożone osobiście', 'icon' => 'bi-person-walking'],
+    'inne'      => ['label' => 'Inne',            'icon' => 'bi-question-circle'],
+];
+const EZD_RPW_STATUSES = [
+    'nowa'      => ['label' => 'Nowa (koszulka)', 'class' => 'info'],
+    'przekazana'=> ['label' => 'Przekazana',      'class' => 'primary'],
+    'w_sprawie' => ['label' => 'W sprawie',       'class' => 'success'],
+    'odrzucona' => ['label' => 'Odrzucona',       'class' => 'secondary'],
 ];
 
 // ── JRWA ─────────────────────────────────────────────────────────────────────
@@ -550,6 +594,226 @@ function ezd_umowa_update(int $id, array $d, int $user_id): void {
 function _ezd_next_sygnatura_umowy(int $sprawa_id, string $znak): string {
     $c = db_one("SELECT COUNT(*) AS c FROM ezd_umowy WHERE sprawa_id=?", [$sprawa_id])['c'] ?? 0;
     return $znak . '.U.' . ($c + 1);
+}
+
+// ── RPW / Dziennik podawczy / Koszulka ───────────────────────────────────────
+
+const EZD_RPW_SUBDIR = 'ezd/rpw/';
+
+function _ezd_next_rpw(int $rok): int {
+    $r = db_one("SELECT MAX(rpw_nr) AS m FROM ezd_rpw WHERE rok=?", [$rok]);
+    return (int)($r['m'] ?? 0) + 1;
+}
+
+function ezd_rpw_label(array $r): string {
+    return 'RPW ' . $r['rpw_nr'] . '/' . $r['rok'];
+}
+
+function ezd_rpw_get(int $id): ?array {
+    return db_one(
+        "SELECT r.*, s.znak_sprawy, s.title AS sprawa_title,
+                p.title AS pismo_title, p.sygnatura AS pismo_sygnatura,
+                u.name AS przekazano_name, c.name AS creator_name
+         FROM ezd_rpw r
+         LEFT JOIN ezd_sprawy s ON s.id = r.sprawa_id
+         LEFT JOIN ezd_pisma  p ON p.id = r.pismo_id
+         LEFT JOIN users      u ON u.id = r.przekazano_do
+         LEFT JOIN users      c ON c.id = r.created_by
+         WHERE r.id=?", [$id]
+    );
+}
+
+function ezd_rpw_all(array $f = []): array {
+    $where = ["1=1"]; $params = [];
+    if (($f['rok'] ?? '') !== '')    { $where[] = "r.rok=?";    $params[] = (int)$f['rok']; }
+    if (!empty($f['status']))        { $where[] = "r.status=?"; $params[] = $f['status']; }
+    if (!empty($f['typ']))           { $where[] = "r.typ=?";    $params[] = $f['typ']; }
+    if (!empty($f['q'])) {
+        $where[] = "(r.opis LIKE ? OR r.nadawca LIKE ? OR r.znak_obcy LIKE ?)";
+        $q = '%'.$f['q'].'%'; $params[] = $q; $params[] = $q; $params[] = $q;
+    }
+    return db_all(
+        "SELECT r.*, s.znak_sprawy, u.name AS przekazano_name
+         FROM ezd_rpw r
+         LEFT JOIN ezd_sprawy s ON s.id = r.sprawa_id
+         LEFT JOIN users      u ON u.id = r.przekazano_do
+         WHERE " . implode(' AND ', $where) . "
+         ORDER BY r.rok DESC, r.rpw_nr DESC
+         LIMIT 500",
+        $params
+    );
+}
+
+/** @return array{id:int,rpw_nr:int,rok:int} */
+function ezd_rpw_create(array $d, int $user_id): array {
+    $data = $d['data_wplywu'] ?: date('Y-m-d');
+    $rok  = (int)substr($data, 0, 4) ?: (int)date('Y');
+    $nr   = _ezd_next_rpw($rok);
+    db()->prepare(
+        "INSERT INTO ezd_rpw (rpw_nr,rok,data_wplywu,typ,nadawca,znak_obcy,opis,uwagi,status,przekazano_do,created_by)
+         VALUES (:nr,:rok,:dw,:typ,:nad,:zo,:opis,:uw,:st,:pd,:uid)"
+    )->execute([
+        ':nr'  => $nr, ':rok' => $rok, ':dw' => $data,
+        ':typ' => $d['typ'] ?? 'list',
+        ':nad' => trim($d['nadawca'] ?? ''),
+        ':zo'  => trim($d['znak_obcy'] ?? ''),
+        ':opis'=> trim($d['opis'] ?? ''),
+        ':uw'  => trim($d['uwagi'] ?? ''),
+        ':st'  => !empty($d['przekazano_do']) ? 'przekazana' : 'nowa',
+        ':pd'  => $d['przekazano_do'] ?? null,
+        ':uid' => $user_id,
+    ]);
+    $id = (int)db()->lastInsertId();
+    ezd_log(null, null, null, null, $user_id, 'rpw_create', "Zarejestrowano RPW $nr/$rok: " . mb_substr($d['opis'] ?? '', 0, 60));
+    return ['id' => $id, 'rpw_nr' => $nr, 'rok' => $rok];
+}
+
+function ezd_rpw_update(int $id, array $d, int $user_id): void {
+    $r = ezd_rpw_get($id);
+    if (!$r) return;
+    db()->prepare(
+        "UPDATE ezd_rpw SET data_wplywu=:dw,typ=:typ,nadawca=:nad,znak_obcy=:zo,
+         opis=:opis,uwagi=:uw WHERE id=:id"
+    )->execute([
+        ':dw'  => $d['data_wplywu'] ?: $r['data_wplywu'],
+        ':typ' => $d['typ'] ?? $r['typ'],
+        ':nad' => trim($d['nadawca'] ?? ''),
+        ':zo'  => trim($d['znak_obcy'] ?? ''),
+        ':opis'=> trim($d['opis'] ?? ''),
+        ':uw'  => trim($d['uwagi'] ?? ''),
+        ':id'  => $id,
+    ]);
+    ezd_log(null, null, null, null, $user_id, 'rpw_update', 'Edytowano ' . ezd_rpw_label($r));
+}
+
+function ezd_rpw_przekaz(int $id, int $wykonawca_id, int $user_id): void {
+    $r = ezd_rpw_get($id);
+    if (!$r || $r['status'] === 'w_sprawie') return;
+    db()->prepare("UPDATE ezd_rpw SET przekazano_do=?, status='przekazana' WHERE id=?")->execute([$wykonawca_id, $id]);
+    ezd_log(null, null, null, null, $user_id, 'rpw_przekaz', ezd_rpw_label($r) . ' → użytkownik #' . $wykonawca_id);
+}
+
+function ezd_rpw_odrzuc(int $id, int $user_id, string $powod = ''): void {
+    $r = ezd_rpw_get($id);
+    if (!$r || $r['status'] === 'w_sprawie') return;
+    db()->prepare("UPDATE ezd_rpw SET status='odrzucona' WHERE id=?")->execute([$id]);
+    ezd_log(null, null, null, null, $user_id, 'rpw_odrzuc', ezd_rpw_label($r) . ($powod ? ' — ' . $powod : ''));
+}
+
+function ezd_rpw_delete(int $id, int $user_id): void {
+    $r = ezd_rpw_get($id);
+    if (!$r) return;
+    if ($r['status'] === 'w_sprawie') throw new \RuntimeException('Przesyłka jest powiązana ze sprawą — nie można jej usunąć.');
+    if ($r['scan_file']) {
+        $p = UPLOAD_DIR . EZD_RPW_SUBDIR . $id . '/' . $r['scan_file'];
+        if (is_file($p)) @unlink($p);
+    }
+    db()->prepare("DELETE FROM ezd_rpw WHERE id=?")->execute([$id]);
+    ezd_log(null, null, null, null, $user_id, 'rpw_delete', 'Usunięto ' . ezd_rpw_label($r));
+}
+
+function ezd_rpw_scan_upload(int $id, string $field, int $user_id): ?string {
+    if (empty($_FILES[$field]['tmp_name'])) return 'Nie wybrano pliku.';
+    $f = $_FILES[$field];
+    if ($f['error'] !== UPLOAD_ERR_OK) return 'Błąd przesyłania (kod: ' . $f['error'] . ').';
+    if ($f['size'] > EZD_MAX_SIZE)     return 'Plik za duży (maks. 25 MB).';
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, EZD_ALLOWED_EXT, true)) return 'Niedozwolony format pliku.';
+
+    $dir = UPLOAD_DIR . EZD_RPW_SUBDIR . $id . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) return 'Nie udało się zapisać pliku.';
+
+    // usuń poprzedni skan jeśli był
+    $r = ezd_rpw_get($id);
+    if ($r && $r['scan_file']) { $old = $dir . $r['scan_file']; if (is_file($old)) @unlink($old); }
+
+    db()->prepare("UPDATE ezd_rpw SET scan_file=?,scan_name=?,scan_mime=?,scan_size=? WHERE id=?")
+        ->execute([$stored, $f['name'], $f['type'] ?: 'application/octet-stream', $f['size'], $id]);
+    ezd_log(null, null, null, null, $user_id, 'rpw_scan', 'Dodano skan do ' . ezd_rpw_label($r ?? ['rpw_nr'=>'?','rok'=>'']));
+    return null;
+}
+
+/**
+ * Konwersja przesyłki z dziennika na pismo w sprawie (dekretacja do sprawy).
+ * Jeśli podano teczka_id zamiast sprawa_id — zakłada nową sprawę.
+ * Przenosi skan (jeśli jest) do repozytorium sprawy jako załącznik pisma.
+ * @return int id utworzonego pisma
+ */
+function ezd_rpw_assign(int $id, array $d, int $user_id): int {
+    $r = ezd_rpw_get($id);
+    if (!$r) throw new \RuntimeException('Przesyłka nie istnieje.');
+    if ($r['status'] === 'w_sprawie') throw new \RuntimeException('Przesyłka jest już powiązana ze sprawą.');
+
+    $sprawa_id = (int)($d['sprawa_id'] ?? 0);
+    // Wariant: nowa sprawa w teczce
+    if (!$sprawa_id && !empty($d['teczka_id'])) {
+        $sprawa_id = ezd_sprawa_create([
+            'teczka_id'   => (int)$d['teczka_id'],
+            'title'       => trim(($d['sprawa_title'] ?? '') ?: ($r['opis'] ?: 'Sprawa z ' . ezd_rpw_label($r))),
+            'description' => 'Wszczęto na podstawie ' . ezd_rpw_label($r) . ($r['nadawca'] ? ' (nadawca: ' . $r['nadawca'] . ')' : ''),
+            'owner_id'    => $r['przekazano_do'] ?: $user_id,
+            'priority'    => 'normal',
+            'deadline'    => null,
+        ], $user_id);
+    }
+    if (!$sprawa_id) throw new \RuntimeException('Wskaż sprawę lub teczkę dla nowej sprawy.');
+
+    $sprawa = ezd_sprawa_get($sprawa_id);
+    if (!$sprawa) throw new \RuntimeException('Sprawa nie istnieje.');
+
+    // Utwórz pismo przychodzące z danych przesyłki
+    $pismo_id = ezd_pismo_create([
+        'sprawa_id'   => $sprawa_id,
+        'kierunek'    => 'przychodzace',
+        'title'       => $r['opis'] ?: ('Przesyłka ' . ezd_rpw_label($r)),
+        'tresc'       => $r['uwagi'] ?? '',
+        'nadawca'     => $r['nadawca'] ?? '',
+        'odbiorca'    => '',
+        'data_pisma'  => null,
+        'data_wplywu' => $r['data_wplywu'],
+        'data_wysylki'=> null,
+        'status'      => 'nowe',
+        'owner_id'    => $r['przekazano_do'] ?: null,
+    ], $user_id);
+
+    // Przenieś skan do repozytorium sprawy jako załącznik pisma
+    if ($r['scan_file']) {
+        $src = UPLOAD_DIR . EZD_RPW_SUBDIR . $id . '/' . $r['scan_file'];
+        if (is_file($src)) {
+            $destDir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
+            if (!is_dir($destDir)) mkdir($destDir, 0755, true);
+            $ext    = strtolower(pathinfo($r['scan_file'], PATHINFO_EXTENSION));
+            $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            if (@rename($src, $destDir . $stored)) {
+                db()->prepare(
+                    "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,filename,original_name,mime_type,file_size,uploaded_by)
+                     VALUES (?,?,?,?,?,?,?)"
+                )->execute([$sprawa_id, $pismo_id, $stored, $r['scan_name'] ?: $r['scan_file'], $r['scan_mime'] ?: 'application/octet-stream', (int)$r['scan_size'], $user_id]);
+            }
+        }
+    }
+
+    db()->prepare("UPDATE ezd_rpw SET status='w_sprawie', sprawa_id=?, pismo_id=?, scan_file='' WHERE id=?")
+        ->execute([$sprawa_id, $pismo_id, $id]);
+    ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'rpw_assign', ezd_rpw_label($r) . ' → sprawa ' . $sprawa['znak_sprawy']);
+    return $pismo_id;
+}
+
+function ezd_rpw_stats(): array {
+    $rok = (int)date('Y');
+    return [
+        'koszulka'   => db_one("SELECT COUNT(*) AS c FROM ezd_rpw WHERE status IN ('nowa','przekazana')")['c'] ?? 0,
+        'nowa'       => db_one("SELECT COUNT(*) AS c FROM ezd_rpw WHERE status='nowa'")['c'] ?? 0,
+        'rpw_rok'    => db_one("SELECT COUNT(*) AS c FROM ezd_rpw WHERE rok=?", [$rok])['c'] ?? 0,
+        'rpw_dzis'   => db_one("SELECT COUNT(*) AS c FROM ezd_rpw WHERE data_wplywu=date('now')")['c'] ?? 0,
+    ];
+}
+
+function ezd_rpw_status_badge(string $status): string {
+    $s = EZD_RPW_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
+    return '<span class="badge bg-' . $s['class'] . ' bg-opacity-15 text-' . $s['class'] . ' border border-' . $s['class'] . '" style="font-size:.65rem">' . h($s['label']) . '</span>';
 }
 
 // ── Dekretacja ───────────────────────────────────────────────────────────────

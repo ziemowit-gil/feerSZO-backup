@@ -45,6 +45,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
       </div>
       <div class="d-flex gap-2">
+        <a href="<?= APP_URL ?>/ezd/teczki/spis.php?id=<?= $id ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-list-ol me-1"></i>Spis spraw</a>
         <?php if(can_edit()): ?>
         <a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa sprawa</a>
         <?php endif; ?>

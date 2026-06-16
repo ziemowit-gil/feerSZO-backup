@@ -172,8 +172,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <div class="text-muted" style="font-size:.83rem;line-height:1.5"><?= nl2br(h($sprawa['description'])) ?></div>
             <?php endif; ?>
           </div>
-          <?php if(can_edit()): ?>
           <div class="d-flex gap-2 flex-wrap flex-shrink-0">
+            <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Metryka sprawy (KPA)">
+              <i class="bi bi-clipboard-check me-1"></i>Metryka
+            </a>
             <?php if($can_act): ?>
             <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-info">
               <i class="bi bi-envelope-plus me-1"></i>Pismo
@@ -182,11 +184,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <i class="bi bi-file-earmark-plus me-1"></i>Umowa
             </a>
             <?php endif; ?>
+            <?php if(can_edit()): ?>
             <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
               <i class="bi bi-pencil"></i>
             </a>
+            <?php endif; ?>
           </div>
-          <?php endif; ?>
         </div>
       </div>
     </div>
