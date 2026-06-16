@@ -266,12 +266,55 @@ const EZD_RPW_STATUSES = [
 
 // ── JRWA ─────────────────────────────────────────────────────────────────────
 
+const EZD_KAT_ARCH = ['A','B5','B10','B25','B50','Bc','BE5','BE10'];
+
 function ezd_jrwa_all(): array {
-    return db_all("SELECT * FROM ezd_jrwa ORDER BY sort_order, symbol");
+    return db_all(
+        "SELECT j.*, (SELECT COUNT(*) FROM ezd_teczki t WHERE t.jrwa_id=j.id) AS teczki_count
+         FROM ezd_jrwa j ORDER BY j.sort_order, j.symbol"
+    );
 }
 
 function ezd_jrwa_get(int $id): ?array {
     return db_one("SELECT * FROM ezd_jrwa WHERE id=?", [$id]);
+}
+
+function ezd_jrwa_create(array $d, int $user_id): int {
+    db()->prepare(
+        "INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order)
+         VALUES (:sym,:tit,:kat,:desc,:ord)"
+    )->execute([
+        ':sym'  => strtoupper(trim($d['symbol'])),
+        ':tit'  => trim($d['title']),
+        ':kat'  => in_array($d['kat_arch'] ?? '', EZD_KAT_ARCH, true) ? $d['kat_arch'] : 'B10',
+        ':desc' => trim($d['description'] ?? ''),
+        ':ord'  => (int)($d['sort_order'] ?? 0),
+    ]);
+    $id = (int)db()->lastInsertId();
+    ezd_log(null, null, null, null, $user_id, 'jrwa_create', 'Dodano hasło JRWA: ' . strtoupper(trim($d['symbol'])));
+    return $id;
+}
+
+function ezd_jrwa_update(int $id, array $d, int $user_id): void {
+    db()->prepare(
+        "UPDATE ezd_jrwa SET symbol=:sym,title=:tit,kat_arch=:kat,description=:desc,sort_order=:ord WHERE id=:id"
+    )->execute([
+        ':sym'  => strtoupper(trim($d['symbol'])),
+        ':tit'  => trim($d['title']),
+        ':kat'  => in_array($d['kat_arch'] ?? '', EZD_KAT_ARCH, true) ? $d['kat_arch'] : 'B10',
+        ':desc' => trim($d['description'] ?? ''),
+        ':ord'  => (int)($d['sort_order'] ?? 0),
+        ':id'   => $id,
+    ]);
+    ezd_log(null, null, null, null, $user_id, 'jrwa_update', 'Edytowano hasło JRWA #' . $id);
+}
+
+function ezd_jrwa_delete(int $id, int $user_id): void {
+    $cnt = (int)(db_one("SELECT COUNT(*) AS c FROM ezd_teczki WHERE jrwa_id=?", [$id])['c'] ?? 0);
+    if ($cnt > 0) throw new \RuntimeException("Nie można usunąć — hasło jest używane w $cnt teczce/-ach.");
+    $j = ezd_jrwa_get($id);
+    db()->prepare("DELETE FROM ezd_jrwa WHERE id=?")->execute([$id]);
+    ezd_log(null, null, null, null, $user_id, 'jrwa_delete', 'Usunięto hasło JRWA: ' . ($j['symbol'] ?? $id));
 }
 
 // ── Teczki ───────────────────────────────────────────────────────────────────

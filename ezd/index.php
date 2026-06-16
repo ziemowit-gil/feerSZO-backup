@@ -74,6 +74,14 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
+<!-- Podnawigacja modułu -->
+<div class="d-flex gap-2 mb-4 flex-wrap">
+  <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-mailbox2 me-1"></i>Dziennik podawczy</a>
+  <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder2-open me-1"></i>Sprawy</a>
+  <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Teczki aktowe</a>
+  <a href="<?= APP_URL ?>/ezd/jrwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Wykaz akt (JRWA)</a>
+</div>
+
 <!-- Statystyki -->
 <div class="row g-3 mb-4">
   <?php $items = [
