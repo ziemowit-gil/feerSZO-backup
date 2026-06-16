@@ -1710,18 +1710,26 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
 <div class="tab-pane fade<?= ($_tab==='docs'||$_tab==='all')?' show active':'' ?>" id="tab-docs" role="tabpanel">
 
   <!-- ── Dokumenty umowy ─────────────────────────────────────────────────── -->
+  <?php $_cte_templates = cte_list($TYPE); // wzory dokumentów dostępne dla tego typu umowy ?>
   <div class="cv-section">
     <div class="cv-section-head">
       <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-earmark-text"></i></div>
       <span class="cv-section-title">Dokumenty umowy i osoby</span>
-      <?php if (can_edit()): ?>
-      <div class="cv-section-action">
+      <div class="cv-section-action d-flex gap-1 flex-wrap">
+        <?php if ($_cte_templates): ?>
+        <button class="btn btn-sm btn-outline-danger" type="button"
+                data-bs-toggle="modal" data-bs-target="#printDocsModal"
+                title="Wygeneruj dokument ze wzoru z danymi tej umowy">
+          <i class="bi bi-printer me-1"></i>Drukuj dokumenty
+        </button>
+        <?php endif; ?>
+        <?php if (can_edit()): ?>
         <button class="btn btn-sm btn-outline-primary" type="button"
                 data-bs-toggle="collapse" data-bs-target="#uploadDocCollapse">
           <i class="bi bi-upload me-1"></i>Dodaj plik
         </button>
+        <?php endif; ?>
       </div>
-      <?php endif; ?>
     </div>
 
     <?php if (can_edit()): ?>
@@ -1752,8 +1760,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
         "SELECT * FROM contract_extra_docs WHERE contract_type=? AND contract_id=? ORDER BY uploaded_at DESC",
         [$TYPE, $id]
     );
-    // Szablony dostępne dla tego typu
-    $_cte_templates = cte_list($TYPE);
+    // $_cte_templates obliczone wyżej (przy nagłówku sekcji)
     ?>
 
     <div class="table-responsive">
@@ -1828,19 +1835,94 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     </div>
 
     <?php if ($_cte_templates): ?>
-    <div class="mt-2 pt-2 border-top">
-      <span class="small fw-semibold text-muted me-2">Generuj z wzoru:</span>
-      <?php foreach ($_cte_templates as $tpl): ?>
-      <a href="<?= h(APP_URL . '/contracts/print_template.php?template_id=' . $tpl['id'] . '&contract_id=' . $id . '&type=' . $TYPE . '&preview=1') ?>"
-         target="_blank"
-         class="btn btn-sm btn-outline-secondary me-1 mb-1"
-         style="font-size:.75rem">
-        <i class="bi bi-file-earmark-text me-1"></i><?= h($tpl['name']) ?>
-      </a>
-      <?php endforeach; ?>
+    <div class="mt-2 pt-2 border-top small text-muted">
+      <i class="bi bi-info-circle me-1"></i>
+      Dostępnych wzorów dokumentów: <strong><?= count($_cte_templates) ?></strong>.
+      <a href="#" data-bs-toggle="modal" data-bs-target="#printDocsModal" class="ms-1">Drukuj dokumenty →</a>
     </div>
     <?php endif; ?>
   </div>
+
+  <?php if ($_cte_templates): ?>
+  <!-- ── Modal: Drukuj dokumenty ze wzoru ─────────────────────────────────── -->
+  <div class="modal fade" id="printDocsModal" tabindex="-1" aria-labelledby="printDocsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="printDocsModalLabel">
+            <i class="bi bi-printer me-2 text-danger"></i>Drukuj dokumenty ze wzoru
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Wybierz wzór, aby wygenerować dokument z danymi tej umowy
+            (<strong><?= h($row['imie_nazwisko'] ?? '') ?></strong>).
+            Możesz go wydrukować, zapisać jako PDF, pobrać w formacie Word (DOCX)
+            <?php if (can_edit() && !empty($row['email'])): ?>lub wysłać e-mailem na adres wolontariusza<?php endif; ?>.
+          </p>
+          <div class="list-group">
+            <?php foreach ($_cte_templates as $tpl):
+              $_purl = APP_URL . '/contracts/print_template.php?template_id=' . $tpl['id'] . '&contract_id=' . $id . '&type=' . $TYPE . '&preview=1';
+              $_durl = APP_URL . '/contracts/download_template_docx.php?template_id=' . $tpl['id'] . '&contract_id=' . $id . '&type=' . $TYPE;
+            ?>
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                <div class="flex-grow-1" style="min-width:170px">
+                  <div class="fw-semibold">
+                    <i class="bi bi-file-earmark-text text-primary me-1"></i><?= h($tpl['name']) ?>
+                    <?php if (($tpl['type'] ?? '') === 'universal'): ?>
+                    <span class="badge bg-light text-secondary border ms-1" style="font-weight:600;font-size:.65rem">uniwersalny</span>
+                    <?php endif; ?>
+                  </div>
+                  <?php if (!empty($tpl['description'])): ?>
+                  <div class="small text-muted"><?= h($tpl['description']) ?></div>
+                  <?php endif; ?>
+                </div>
+                <div class="d-flex gap-1 flex-shrink-0">
+                  <a href="<?= h($_purl) ?>" target="_blank"
+                     class="btn btn-sm btn-outline-danger" title="Podgląd · drukuj · zapisz PDF">
+                    <i class="bi bi-printer"></i> PDF
+                  </a>
+                  <?php if (class_exists('ZipArchive')): ?>
+                  <a href="<?= h($_durl) ?>"
+                     class="btn btn-sm btn-outline-primary" title="Pobierz w formacie Word (DOCX)">
+                    <i class="bi bi-file-earmark-word"></i> DOCX
+                  </a>
+                  <?php endif; ?>
+                  <?php if (can_edit() && !empty($row['email'])): ?>
+                  <form method="post" action="<?= APP_URL ?>/contracts/email_template_doc.php" class="d-inline">
+                    <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
+                    <input type="hidden" name="template_id" value="<?= (int)$tpl['id'] ?>">
+                    <input type="hidden" name="contract_id" value="<?= (int)$id ?>">
+                    <input type="hidden" name="type"        value="<?= h($TYPE) ?>">
+                    <input type="hidden" name="return_url"  value="<?= h(APP_URL . '/contracts/' . $TYPE . '/view.php?id=' . $id . '&tab=docs') ?>">
+                    <button type="submit" class="btn btn-sm btn-outline-success"
+                            title="Wyślij na e-mail: <?= h($row['email']) ?>">
+                      <i class="bi bi-envelope"></i>
+                    </button>
+                  </form>
+                  <?php endif; ?>
+                </div>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <?php if (is_admin()): ?>
+          <div class="mt-3 text-end">
+            <a href="<?= APP_URL ?>/admin/contract_templates.php" class="small text-muted text-decoration-none">
+              <i class="bi bi-gear me-1"></i>Zarządzaj wzorami dokumentów…
+            </a>
+          </div>
+          <?php endif; ?>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- ── Pisma -->
   <div class="cv-section">
