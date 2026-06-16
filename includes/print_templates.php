@@ -260,19 +260,15 @@ function print_template_dropdown_html(string $src_params, array $opts = []): str
     $btn_class = $opts['btn_class'] ?? 'btn btn-sm btn-outline-secondary';
     $label     = $opts['label']     ?? 'Dokumenty';
     $menu_end  = ($opts['menu_end'] ?? true) ? 'dropdown-menu-end' : '';
+    $fragment  = !empty($opts['fragment']);   // zwróć tylko <li>… do wspólnego menu „Wydruki"
 
     // Grupuj po kategorii (zachowaj kolejność kategorii z pt_categories).
     $by_cat = [];
     foreach ($tpls as $t) $by_cat[$t['category']][] = $t;
     $cat_order = array_keys(pt_categories());
 
+    // Wewnętrzna treść menu (pozycje <li>) — wspólna dla trybu samodzielnego i fragmentu.
     ob_start(); ?>
-    <div class="dropdown d-inline-block">
-      <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
-              data-bs-toggle="dropdown" aria-expanded="false" title="Drukuj dokument ze wzoru">
-        <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
-      </button>
-      <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:260px">
         <li><h6 class="dropdown-header"><i class="bi bi-printer me-1"></i>Drukuj dokument ze wzoru</h6></li>
         <?php $first = true;
         foreach ($cat_order as $cat):
@@ -295,7 +291,17 @@ function print_template_dropdown_html(string $src_params, array $opts = []): str
         <li><a class="dropdown-item small text-muted" href="<?= h($app) ?>/admin/print_templates.php">
           <i class="bi bi-gear me-2"></i>Zarządzaj wzorami…</a></li>
         <?php endif; ?>
-      </ul>
+    <?php
+    $items = ob_get_clean();
+    if ($fragment) return $items;
+
+    ob_start(); ?>
+    <div class="dropdown d-inline-block">
+      <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
+              data-bs-toggle="dropdown" aria-expanded="false" title="Drukuj dokument ze wzoru">
+        <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+      </button>
+      <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:260px"><?= $items ?></ul>
     </div>
     <?php
     return ob_get_clean();

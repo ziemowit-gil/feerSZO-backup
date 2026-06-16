@@ -229,8 +229,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
       <?php endif; ?>
       <?php $_cvh_src = 'contract_id=' . (int)($_cvh_id ?? 0) . '&type=' . rawurlencode((string)($_cvh_type ?? '')); ?>
-      <?= print_template_dropdown_html($_cvh_src) ?>
-      <?= envelope_dropdown_html($_cvh_src) ?>
+      <?= wydruki_dropdown_html($_cvh_src) ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark" title="Drukuj tę stronę">
         <i class="bi bi-printer"></i>
       </button>

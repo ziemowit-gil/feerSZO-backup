@@ -239,14 +239,10 @@ function envelope_dropdown_html(string $src_params, array $opts = []): string {
     $btn_class = $opts['btn_class'] ?? 'btn btn-sm btn-outline-secondary';
     $label     = $opts['label']     ?? 'Koperta';
     $menu_end  = ($opts['menu_end'] ?? true) ? 'dropdown-menu-end' : '';
+    $fragment  = !empty($opts['fragment']);   // zwróć tylko <li>… do wspólnego menu „Wydruki"
 
+    // Wewnętrzna treść menu (pozycje <li>) — wspólna dla trybu samodzielnego i fragmentu.
     ob_start(); ?>
-    <div class="dropdown d-inline-block">
-      <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
-              data-bs-toggle="dropdown" aria-expanded="false" title="Generuj kopertę ze wzoru">
-        <i class="bi bi-envelope"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
-      </button>
-      <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:248px">
         <li><h6 class="dropdown-header"><i class="bi bi-envelope me-1"></i>Generuj kopertę ze wzoru</h6></li>
         <?php foreach ($tpls as $t): ?>
         <li>
@@ -263,6 +259,57 @@ function envelope_dropdown_html(string $src_params, array $opts = []): string {
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item small text-muted" href="<?= h($app) ?>/admin/envelope_templates.php">
           <i class="bi bi-gear me-2"></i>Zarządzaj wzorami…</a></li>
+        <?php endif; ?>
+    <?php
+    $items = ob_get_clean();
+    if ($fragment) return $items;
+
+    ob_start(); ?>
+    <div class="dropdown d-inline-block">
+      <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
+              data-bs-toggle="dropdown" aria-expanded="false" title="Generuj kopertę ze wzoru">
+        <i class="bi bi-envelope"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+      </button>
+      <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:248px"><?= $items ?></ul>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+/* ── Wspólne menu „Wydruki" (Koperty + Pisma/Dokumenty) ────────────────────── *
+ * Scala dropdown kopert i dropdown wzorów dokumentów w jeden przycisk.
+ * $src_params — parametry źródła, np. 'contract_id=5&type=zlecenie'.
+ * Zwraca '' gdy nie ma żadnych wzorów (ani kopert, ani dokumentów).
+ */
+function wydruki_dropdown_html(string $src_params, array $opts = []): string {
+    $app       = defined('APP_URL') ? APP_URL : '';
+    $btn_class = $opts['btn_class'] ?? 'btn btn-sm btn-outline-secondary';
+    $label     = $opts['label']     ?? 'Wydruki';
+    $menu_end  = ($opts['menu_end'] ?? true) ? 'dropdown-menu-end' : '';
+
+    // Najpierw koperty, potem pisma/dokumenty (zgodnie z układem nagłówka).
+    $env = function_exists('envelope_dropdown_html')
+         ? envelope_dropdown_html($src_params, ['fragment' => true]) : '';
+    $doc = function_exists('print_template_dropdown_html')
+         ? print_template_dropdown_html($src_params, ['fragment' => true]) : '';
+
+    if ($env === '' && $doc === '') return '';
+
+    ob_start(); ?>
+    <div class="dropdown d-inline-block">
+      <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
+              data-bs-toggle="dropdown" aria-expanded="false" title="Wydruki: koperty i dokumenty">
+        <i class="bi bi-printer"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+      </button>
+      <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:260px">
+        <?php if ($env !== ''): ?>
+          <?= $env ?>
+        <?php endif; ?>
+        <?php if ($env !== '' && $doc !== ''): ?>
+          <li><hr class="dropdown-divider"></li>
+        <?php endif; ?>
+        <?php if ($doc !== ''): ?>
+          <?= $doc ?>
         <?php endif; ?>
       </ul>
     </div>
