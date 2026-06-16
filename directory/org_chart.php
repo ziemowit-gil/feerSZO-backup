@@ -16,18 +16,25 @@ directory_migrate();
 $PAGE_TITLE = 'Struktura organizacyjna';
 
 // ── Dane ──────────────────────────────────────────────────────────────────────
-$all_units = [];
-$tree      = [];
-$enabled   = true;
+$all_units      = [];
+$internal_tree  = [];
+$external_units = [];
+$enabled        = true;
 
 try {
-    $all_units = org_units_all();
-    $tree      = org_build_tree($all_units);
+    $all_units      = org_units_all();
+    $internal_units = array_filter($all_units, fn($u) => ($u['kind'] ?? 'internal') !== 'external');
+    $external_units = array_filter($all_units, fn($u) => ($u['kind'] ?? 'internal') === 'external');
+    $internal_tree  = org_build_tree($internal_units);
+    // Katalog jednostek zewnętrznych — płaska lista wg nazwy
+    usort($external_units, fn($a, $b) => strcmp($a['name'], $b['name']));
 } catch (\Throwable $e) {
     $enabled = false;
 }
 
-$total_units   = count(array_filter($all_units, fn($u) => $u['status'] === 'active'));
+$has_units     = $enabled && !empty($all_units);
+$total_units   = count(array_filter($all_units, fn($u) => $u['status'] === 'active' && ($u['kind'] ?? 'internal') !== 'external'));
+$total_external = count($external_units);
 $total_members = 0;
 try {
     $r = db_one("SELECT COUNT(*) AS c FROM org_members WHERE status='active' AND (valid_to IS NULL OR valid_to >= date('now'))");
@@ -104,6 +111,28 @@ include __DIR__ . '/includes/header_dir.php';
   border: 1px solid #FDE68A; white-space: nowrap; flex-shrink: 0;
 }
 
+/* Karta jednostki zewnętrznej (katalog) */
+.oc-ext-card {
+  display: flex; flex-direction: column; gap: .35rem;
+  height: 100%;
+  background: #fff; border: 1px solid var(--dir-border);
+  border-radius: 12px; padding: .9rem 1rem;
+  cursor: pointer; transition: box-shadow .12s, border-color .12s;
+}
+.oc-ext-card:hover, .oc-ext-card:focus-visible {
+  box-shadow: 0 3px 14px rgba(0,0,0,.08); border-color: #7DD3FC; outline: none;
+}
+.oc-ext-card.focused { border-color: #0EA5E9; box-shadow: 0 0 0 2px rgba(14,165,233,.25); }
+.oc-ext-head { display: flex; align-items: center; gap: .5rem; }
+.oc-ext-icon { width: 30px; height: 30px; border-radius: 8px; background: #E0F2FE; color: #0284C7;
+               display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+.oc-ext-name { font-size: .9rem; font-weight: 700; color: var(--dir-text); flex: 1; min-width: 0; }
+.oc-ext-type { font-size: .68rem; font-weight: 600; color: #0369A1; background: #E0F2FE;
+               border: 1px solid #BAE6FD; border-radius: 6px; padding: .05rem .4rem; align-self: flex-start; }
+.oc-ext-meta { font-size: .76rem; color: var(--dir-text-muted); display: flex; flex-wrap: wrap; gap: .15rem .7rem; }
+.oc-ext-meta a { color: inherit; text-decoration: none; }
+.oc-ext-meta a:hover { color: var(--dir-primary); text-decoration: underline; }
+
 @media (max-width: 640px) {
   .oc-code, .oc-head { display: none; }
   .oc-children { margin-left: .85rem; }
@@ -134,7 +163,7 @@ include __DIR__ . '/includes/header_dir.php';
   </div>
 </div>
 
-<?php if (!$enabled || empty($tree)): ?>
+<?php if (!$has_units): ?>
 <div class="dir-info-card text-center py-5" style="color:var(--dir-text-muted)" role="status">
   <i class="bi bi-diagram-3" aria-hidden="true" style="font-size:3rem;opacity:.25;display:block;margin-bottom:.75rem"></i>
   <p class="mb-0">Struktura organizacyjna nie jest jeszcze skonfigurowana.</p>
@@ -148,10 +177,11 @@ include __DIR__ . '/includes/header_dir.php';
 
 <!-- Statystyki -->
 <div class="row g-3 mb-4" aria-label="Statystyki struktury organizacyjnej">
-  <?php foreach ([
-    ['Aktywnych jednostek', $total_units,   'bi-diagram-3',   '#6366F1', '#EEF2FF'],
-    ['Wolontariuszy',       $total_members, 'bi-people-fill', '#16A34A', '#F0FDF4'],
-  ] as [$lbl, $val, $icon, $col, $bg]): ?>
+  <?php foreach (array_filter([
+    ['Aktywnych jednostek',   $total_units,    'bi-diagram-3',   '#6366F1', '#EEF2FF'],
+    $total_external ? ['Jednostek zewnętrznych', $total_external, 'bi-buildings', '#0EA5E9', '#E0F2FE'] : null,
+    ['Wolontariuszy',         $total_members,  'bi-people-fill', '#16A34A', '#F0FDF4'],
+  ]) as [$lbl, $val, $icon, $col, $bg]): ?>
   <div class="col-6 col-md-3">
     <div style="background:#fff;border:1px solid var(--dir-border);border-radius:10px;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.8rem"
          aria-label="<?= h($lbl) ?>: <?= $val ?>">
@@ -179,9 +209,13 @@ include __DIR__ . '/includes/header_dir.php';
         <span class="text-muted fw-normal ms-1">— kliknij jednostkę, by zobaczyć jej skład</span>
       </div>
       <div class="p-3 oc-tree" id="ocTree">
+        <?php if (!empty($internal_tree)): ?>
         <ul role="tree" aria-label="Drzewo struktury organizacyjnej" class="list-unstyled mb-0">
-          <?php dir_render_tree($tree, 1, $unit_focus); ?>
+          <?php dir_render_tree($internal_tree, 1, $unit_focus); ?>
         </ul>
+        <?php else: ?>
+        <p class="small text-muted mb-0 py-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak jednostek wewnętrznych.</p>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -204,6 +238,22 @@ include __DIR__ . '/includes/header_dir.php';
   </div>
 
 </div>
+
+<!-- ── Katalog: Jednostki zewnętrzne ──────────────────────────────────────── -->
+<?php if (!empty($external_units)): ?>
+<div class="mt-4">
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <h2 class="h6 mb-0 fw-bold" style="color:var(--dir-text)">
+      <i class="bi bi-buildings me-2" aria-hidden="true" style="color:#0EA5E9"></i>Jednostki zewnętrzne
+    </h2>
+    <span class="oc-count" aria-hidden="true"><?= count($external_units) ?></span>
+  </div>
+  <p class="text-muted small mb-3">Organizacje partnerskie i współpracujące — kliknij, by zobaczyć szczegóły</p>
+  <div class="row g-3" aria-label="Katalog jednostek zewnętrznych">
+    <?php dir_render_external_catalog($external_units); ?>
+  </div>
+</div>
+<?php endif; ?>
 <?php endif; ?>
 
 <script>
@@ -374,6 +424,22 @@ include __DIR__ . '/includes/header_dir.php';
     }
   });
 
+  // ── Katalog jednostek zewnętrznych — klik / klawiatura ─────────────────────
+  document.querySelectorAll('.oc-ext-card[data-unit]').forEach(function (card) {
+    function activate() {
+      document.querySelectorAll('.oc-ext-card').forEach(function (c) { c.classList.remove('focused'); });
+      document.querySelectorAll('[role="treeitem"]').forEach(function (r) { r.classList.remove('focused'); });
+      card.classList.add('focused');
+      loadDetail(card.dataset.unit);
+      var panel = document.getElementById('ocDetailPanel');
+      if (panel && window.innerWidth < 992) panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
+  });
+
   // Set first treeitem as focusable
   var firstItem = document.querySelector('[role="treeitem"]');
   if (firstItem) firstItem.setAttribute('tabindex', '0');
@@ -463,6 +529,42 @@ function dir_render_tree(array $nodes, int $level = 1, int $focus_id = 0): void 
           </ul>
           <?php endif; ?>
         </li>
+    <?php endforeach;
+}
+
+function dir_render_external_catalog(array $units): void {
+    foreach ($units as $u):
+        $active   = $u['status'] === 'active';
+        $type_lbl = (defined('ORG_EXT_TYPES') && !empty($u['cooperation_type']) && isset(ORG_EXT_TYPES[$u['cooperation_type']]))
+                  ? ORG_EXT_TYPES[$u['cooperation_type']] : '';
+        // Linia kontaktu
+        $contact = [];
+        if (!empty($u['contact_person'])) $contact[] = '<span><i class="bi bi-person me-1" aria-hidden="true"></i>' . h($u['contact_person']) . '</span>';
+        if (!empty($u['email']))          $contact[] = '<a href="mailto:' . h($u['email']) . '"><i class="bi bi-envelope me-1" aria-hidden="true"></i>' . h($u['email']) . '</a>';
+        elseif (!empty($u['contact_email'])) $contact[] = '<a href="mailto:' . h($u['contact_email']) . '"><i class="bi bi-envelope me-1" aria-hidden="true"></i>' . h($u['contact_email']) . '</a>';
+        if (!empty($u['phone']))           $contact[] = '<span><i class="bi bi-telephone me-1" aria-hidden="true"></i>' . h($u['phone']) . '</span>';
+        if (!empty($u['www']))             $contact[] = '<a href="' . h($u['www']) . '" target="_blank" rel="noopener"><i class="bi bi-globe me-1" aria-hidden="true"></i>strona</a>';
+        $a11y = h($u['name']) . ($type_lbl ? ', ' . h($type_lbl) : '') . ($active ? '' : ', nieaktywna');
+        ?>
+        <div class="col-md-6 col-xl-4">
+          <div class="oc-ext-card<?= $active ? '' : ' oc-inactive' ?>"
+               role="button" tabindex="0"
+               data-unit="<?= (int)$u['id'] ?>"
+               aria-label="<?= $a11y ?>">
+            <div class="oc-ext-head">
+              <span class="oc-ext-icon" aria-hidden="true"><i class="bi bi-buildings"></i></span>
+              <span class="oc-ext-name"><?= h($u['name']) ?></span>
+              <?php if ($u['code']): ?><span class="oc-code" aria-hidden="true"><?= h($u['code']) ?></span><?php endif; ?>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <?php if ($type_lbl): ?><span class="oc-ext-type"><?= h($type_lbl) ?></span><?php endif; ?>
+              <?php if (!$active): ?><span class="oc-ext-type" style="background:#F1F5F9;color:#64748B;border-color:#E2E8F0"><?= h(ORG_UNIT_STATUSES[$u['status']]['label'] ?? $u['status']) ?></span><?php endif; ?>
+            </div>
+            <?php if ($contact): ?>
+            <div class="oc-ext-meta"><?= implode('', $contact) ?></div>
+            <?php endif; ?>
+          </div>
+        </div>
     <?php endforeach;
 }
 

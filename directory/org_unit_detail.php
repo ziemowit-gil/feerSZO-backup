@@ -45,9 +45,10 @@ try {
 ?>
 <div style="background:#fff;border:1px solid var(--dir-border);border-radius:12px;padding:1.25rem 1.5rem">
 
+  <?php $is_ext = ($unit['kind'] ?? 'internal') === 'external'; ?>
   <!-- Nagłówek jednostki -->
   <div style="font-size:1.05rem;font-weight:700;color:var(--dir-text);margin-bottom:.2rem">
-    <i class="bi bi-diagram-3 me-2" style="color:var(--dir-primary)"></i><?= h($unit['name']) ?>
+    <i class="bi <?= $is_ext ? 'bi-buildings' : 'bi-diagram-3' ?> me-2" style="color:<?= $is_ext ? '#0EA5E9' : 'var(--dir-primary)' ?>"></i><?= h($unit['name']) ?>
     <span style="font-size:.65rem;font-family:monospace;background:#F1F5F9;color:#475569;padding:.1rem .4rem;border-radius:4px;margin-left:.4rem"><?= h($unit['code']) ?></span>
   </div>
 
@@ -66,6 +67,45 @@ try {
   <?php if ($unit['description']): ?>
   <p style="font-size:.84rem;color:var(--dir-text-muted);white-space:pre-wrap;margin-bottom:.9rem"><?= h($unit['description']) ?></p>
   <?php endif; ?>
+
+  <?php if ($is_ext):
+    $rows = [];
+    if (!empty($unit['cooperation_type']) && defined('ORG_EXT_TYPES') && isset(ORG_EXT_TYPES[$unit['cooperation_type']]))
+        $rows['Typ jednostki'] = h(ORG_EXT_TYPES[$unit['cooperation_type']]);
+    if (!empty($unit['legal_form'])) $rows['Forma prawna'] = h($unit['legal_form']);
+    if (!empty($unit['nip']))   $rows['NIP']   = '<span style="font-family:monospace">' . h($unit['nip']) . '</span>';
+    if (!empty($unit['regon'])) $rows['REGON'] = '<span style="font-family:monospace">' . h($unit['regon']) . '</span>';
+    if (!empty($unit['krs']))   $rows['KRS']   = '<span style="font-family:monospace">' . h($unit['krs']) . '</span>';
+    if (!empty($unit['www']))   $rows['WWW']   = '<a href="' . h($unit['www']) . '" target="_blank" rel="noopener">' . h($unit['www']) . '</a>';
+    if (!empty($unit['contact_person'])) {
+        $cp = h($unit['contact_person']);
+        if (!empty($unit['contact_role']))  $cp .= ' <span style="color:var(--dir-text-muted)">(' . h($unit['contact_role']) . ')</span>';
+        if (!empty($unit['contact_email'])) $cp .= '<br><a href="mailto:' . h($unit['contact_email']) . '"><i class="bi bi-envelope me-1"></i>' . h($unit['contact_email']) . '</a>';
+        if (!empty($unit['contact_phone'])) $cp .= '<br><i class="bi bi-telephone me-1"></i>' . h($unit['contact_phone']);
+        $rows['Osoba kontaktowa'] = $cp;
+    }
+    if (!empty($unit['cooperation_from']) || !empty($unit['cooperation_to']))
+        $rows['Okres współpracy'] = '<i class="bi bi-calendar3 me-1"></i>' . h($unit['cooperation_from'] ?: '…') . ' — ' . h($unit['cooperation_to'] ?: 'bezterminowo');
+
+    // Pola definiowane (zwraca pary <dt>/<dd>)
+    $custom = '';
+    try { $custom = org_render_field_values($unit_id, 'external'); } catch (\Throwable $e) {}
+
+    if ($rows || $custom !== ''):
+  ?>
+  <div style="background:#F8FAFC;border:1px solid var(--dir-border);border-radius:10px;padding:.75rem .95rem;margin-bottom:.9rem">
+    <div style="font-size:.72rem;font-weight:700;color:var(--dir-text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem">
+      <i class="bi bi-buildings me-1"></i>Dane organizacji
+    </div>
+    <dl style="margin:0;font-size:.83rem">
+      <?php foreach ($rows as $k => $v): ?>
+      <dt style="font-size:.68rem;color:var(--dir-text-light);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.05rem"><?= h($k) ?></dt>
+      <dd style="color:var(--dir-text);margin-bottom:.55rem"><?= $v ?></dd>
+      <?php endforeach; ?>
+      <?= $custom ?>
+    </dl>
+  </div>
+  <?php endif; endif; ?>
 
   <!-- Lista wolontariuszy -->
   <div style="font-size:.72rem;font-weight:700;color:var(--dir-text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem">
