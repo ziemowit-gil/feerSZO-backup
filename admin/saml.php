@@ -156,6 +156,9 @@ $hasCert  = saml_idp_has_cert();
 $certInfo = saml_idp_cert_info();
 $sps      = saml_sp_all();
 $log      = db_all("SELECT * FROM saml_sso_log ORDER BY id DESC LIMIT 40");
+$canvaEp  = saml_preset_endpoints()['canva'];
+$canvaSp  = saml_sp_by_entity($canvaEp['entity_id']);
+$idpCertPem = saml_idp_cert_pem();
 
 $editId = (int)($_GET['edit'] ?? 0);
 $edit   = $editId > 0 ? saml_sp_by_id($editId) : null;
@@ -232,7 +235,13 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <!-- ── Lista SP ────────────────────────────────────────────────────────── -->
   <div class="card mb-4 shadow-sm">
-    <div class="card-header"><i class="bi bi-grid-3x3-gap me-1"></i>Zarejestrowane aplikacje (Service Providers) — <?= count($sps) ?></div>
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <span><i class="bi bi-grid-3x3-gap me-1"></i>Zarejestrowane aplikacje (Service Providers) — <?= count($sps) ?></span>
+      <button type="button" class="btn btn-sm text-white" style="background:linear-gradient(90deg,#00c4cc,#7d2ae8)"
+              data-bs-toggle="modal" data-bs-target="#canvaModal">
+        <i class="bi bi-magic me-1"></i>Konfigurator Canva
+      </button>
+    </div>
     <div class="table-responsive">
       <table class="table table-sm table-hover mb-0 align-middle">
         <thead class="table-light">
@@ -419,6 +428,108 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
 </div>
+
+<!-- ── Modal: Konfigurator Canva ───────────────────────────────────────────── -->
+<div class="modal fade" id="canvaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header text-white" style="background:linear-gradient(90deg,#00c4cc,#7d2ae8)">
+        <h5 class="modal-title"><i class="bi bi-magic me-2"></i>Konfigurator SSO dla Canva</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+
+        <?php if (!$hasCert): ?>
+          <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>
+            Najpierw wygeneruj <strong>certyfikat podpisujący IdP</strong> (sekcja „Status IdP”). Bez niego Canva nie zweryfikuje logowania.</div>
+        <?php endif; ?>
+
+        <div class="alert alert-info py-2 small mb-3">
+          <i class="bi bi-info-circle me-1"></i>Konfiguracja dwustronna: <strong>(1)</strong> dane z poniższego kroku wklej w panelu Canva
+          (<em>Settings → Login → Single sign-on → SAML</em>), <strong>(2)</strong> zarejestruj Canva w SZO przyciskiem na dole.
+        </div>
+
+        <!-- KROK 1 -->
+        <h6 class="fw-bold"><span class="badge bg-dark me-1">1</span>Dane IdP do wklejenia w Canva</h6>
+        <p class="small text-muted mb-2">Skopiuj poniższe wartości do formularza SAML w Canva.</p>
+
+        <?php
+        $canvaRows = [
+            ['Identity provider issuer (Entity ID)', saml_idp_entity_id()],
+            ['Sign-in / Login URL (SSO)',            saml_idp_sso_url()],
+            ['Sign-out URL (SLO)',                   saml_idp_slo_url()],
+        ];
+        foreach ($canvaRows as $i => [$label, $val]): ?>
+          <label class="form-label small fw-semibold mb-1"><?= h($label) ?></label>
+          <div class="input-group input-group-sm mb-2">
+            <input type="text" class="form-control font-monospace" id="cv<?= $i ?>" value="<?= h($val) ?>" readonly>
+            <button class="btn btn-outline-secondary" type="button" onclick="samlCopy('cv<?= $i ?>',this)"><i class="bi bi-clipboard"></i></button>
+          </div>
+        <?php endforeach; ?>
+
+        <label class="form-label small fw-semibold mb-1">Certyfikat X.509 (PEM)</label>
+        <div class="position-relative mb-2">
+          <textarea class="form-control form-control-sm font-monospace" id="cvCert" rows="4" readonly><?= h(trim($idpCertPem)) ?></textarea>
+          <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:.4rem;right:.4rem" type="button" onclick="samlCopy('cvCert',this)"><i class="bi bi-clipboard"></i></button>
+        </div>
+        <a href="<?= h(saml_idp_metadata_url()) ?>" target="_blank" class="btn btn-sm btn-outline-primary mb-3">
+          <i class="bi bi-download me-1"></i>Pobierz metadata IdP (XML)</a>
+
+        <hr>
+
+        <!-- KROK 2 -->
+        <h6 class="fw-bold"><span class="badge bg-dark me-1">2</span>Zarejestruj Canva w SZO</h6>
+        <div class="table-responsive">
+          <table class="table table-sm small mb-2">
+            <tr><th style="width:42%">Entity ID (SP)</th><td><code><?= h($canvaEp['entity_id']) ?></code></td></tr>
+            <tr><th>ACS / Reply URL</th><td><code><?= h($canvaEp['acs_url']) ?></code></td></tr>
+            <tr><th>Format NameID</th><td>E-mail (emailAddress)</td></tr>
+            <tr><th>Atrybuty</th><td>NameID = e-mail, <code>Email</code>, <code>FirstName</code>, <code>LastName</code></td></tr>
+          </table>
+        </div>
+
+        <?php if ($canvaSp): ?>
+          <div class="alert alert-success py-2 small"><i class="bi bi-check-circle me-1"></i>
+            Canva jest już zarejestrowana (status: <strong><?= $canvaSp['is_active'] ? 'aktywny' : 'wyłączony' ?></strong>).
+            Ponowny zapis zaktualizuje konfigurację.</div>
+        <?php endif; ?>
+
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="setup_canva">
+          <label class="form-label small fw-semibold mb-1">Ogranicz dostęp do ról (opcjonalnie)</label>
+          <div class="d-flex flex-wrap gap-3 mb-3">
+            <?php
+            $canvaRoles = $canvaSp ? array_filter(array_map('trim', explode(',', (string)$canvaSp['allowed_roles']))) : [];
+            foreach ($ROLES_AVAILABLE as $r): ?>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="allowed_roles[]" value="<?= h($r) ?>" id="cvrole_<?= h($r) ?>" <?= in_array($r, $canvaRoles, true) ? 'checked' : '' ?>>
+                <label class="form-check-label small" for="cvrole_<?= h($r) ?>"><?= h($r) ?></label>
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <button class="btn text-white" style="background:linear-gradient(90deg,#00c4cc,#7d2ae8)" <?= $hasCert ? '' : 'disabled' ?>>
+            <i class="bi bi-check2-circle me-1"></i><?= $canvaSp ? 'Zaktualizuj konfigurację Canva' : 'Zarejestruj Canva' ?>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function samlCopy(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.select(); el.setSelectionRange(0, 99999);
+  navigator.clipboard.writeText(el.value).then(function () {
+    var old = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2"></i>';
+    btn.classList.add('btn-success'); btn.classList.remove('btn-outline-secondary');
+    setTimeout(function () { btn.innerHTML = old; btn.classList.remove('btn-success'); btn.classList.add('btn-outline-secondary'); }, 1200);
+  });
+}
+</script>
 <script>
 (function () {
   var ENDPOINTS = <?= json_encode($PRESET_ENDPOINTS, JSON_UNESCAPED_SLASHES) ?>;
