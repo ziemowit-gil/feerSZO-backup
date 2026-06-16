@@ -11,6 +11,7 @@ $unit = org_unit_get($id);
 if (!$unit) { flash_set('error','Jednostka nie istnieje.'); header('Location:'.APP_URL.'/org/index.php'); exit; }
 
 $PAGE_TITLE = $unit['code'].' — '.$unit['name'];
+$is_ext     = ($unit['kind'] ?? 'internal') === 'external';
 $members    = org_members_by_unit($id);
 $head       = org_unit_head($id);
 $subunits   = db_all("SELECT * FROM org_units WHERE parent_id=? AND status='active' ORDER BY sort_order,name", [$id]);
@@ -61,6 +62,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div>
             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
               <span class="badge bg-primary bg-opacity-15 text-primary fw-bold font-monospace fs-6"><?= h($unit['code']) ?></span>
+              <?php if($is_ext): ?><span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-buildings me-1"></i>Jednostka zewnętrzna<?php if(!empty($unit['cooperation_type']) && isset(ORG_EXT_TYPES[$unit['cooperation_type']])): ?> · <?= h(ORG_EXT_TYPES[$unit['cooperation_type']]) ?><?php endif; ?></span><?php endif; ?>
               <?= org_unit_status_badge($unit['status']) ?>
               <?php if($unit['parent_name']): ?><span class="badge bg-light text-dark border" style="font-size:.68rem"><i class="bi bi-diagram-3 me-1"></i><?= h($unit['parent_code'].' — '.$unit['parent_name']) ?></span><?php endif; ?>
             </div>
@@ -193,9 +195,31 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </a></dd>
           <?php endif; ?>
           <?php if(!empty($unit['supervisor_user_name'])): ?>
-          <dt><i class="bi bi-person-lines-fill me-1"></i>Osoba nadzorująca</dt>
+          <dt><i class="bi bi-person-lines-fill me-1"></i><?= $is_ext ? 'Opiekun po naszej stronie' : 'Osoba nadzorująca' ?></dt>
           <dd class="fw-semibold"><?= h($unit['supervisor_user_name']) ?></dd>
           <?php endif; ?>
+
+          <?php if($is_ext): ?>
+            <?php if(!empty($unit['legal_form'])): ?><dt>Forma prawna</dt><dd><?= h($unit['legal_form']) ?></dd><?php endif; ?>
+            <?php if(!empty($unit['nip'])):   ?><dt>NIP</dt><dd class="font-monospace"><?= h($unit['nip']) ?></dd><?php endif; ?>
+            <?php if(!empty($unit['regon'])): ?><dt>REGON</dt><dd class="font-monospace"><?= h($unit['regon']) ?></dd><?php endif; ?>
+            <?php if(!empty($unit['krs'])):   ?><dt>KRS</dt><dd class="font-monospace"><?= h($unit['krs']) ?></dd><?php endif; ?>
+            <?php if(!empty($unit['www'])):   ?><dt>Strona WWW</dt><dd><a href="<?= h($unit['www']) ?>" target="_blank" rel="noopener"><?= h($unit['www']) ?></a></dd><?php endif; ?>
+            <?php if(!empty($unit['contact_person'])): ?>
+            <dt>Osoba kontaktowa</dt>
+            <dd>
+              <strong><?= h($unit['contact_person']) ?></strong><?php if(!empty($unit['contact_role'])): ?> <span class="text-muted">(<?= h($unit['contact_role']) ?>)</span><?php endif; ?>
+              <?php if(!empty($unit['contact_email'])): ?><br><a href="mailto:<?= h($unit['contact_email']) ?>"><i class="bi bi-envelope me-1"></i><?= h($unit['contact_email']) ?></a><?php endif; ?>
+              <?php if(!empty($unit['contact_phone'])): ?><br><i class="bi bi-telephone me-1"></i><?= h($unit['contact_phone']) ?><?php endif; ?>
+            </dd>
+            <?php endif; ?>
+            <?php if(!empty($unit['cooperation_from']) || !empty($unit['cooperation_to'])): ?>
+            <dt>Okres współpracy</dt><dd><i class="bi bi-calendar3 me-1"></i><?= h($unit['cooperation_from'] ?: '…') ?> — <?= h($unit['cooperation_to'] ?: 'bezterminowo') ?></dd>
+            <?php endif; ?>
+          <?php endif; ?>
+
+          <?= org_render_field_values($id, $unit['kind'] ?? 'internal') ?>
+
           <dt>Status</dt><dd><?= org_unit_status_badge($unit['status']) ?></dd>
         </dl>
       </div>

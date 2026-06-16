@@ -11,8 +11,9 @@ $all_units  = org_units_all();
 $tree       = org_build_tree($all_units);
 
 // Statystyki podsumowujące
-$total_units   = count($all_units);
-$active_units  = count(array_filter($all_units, fn($u) => $u['status'] === 'active'));
+$total_units    = count($all_units);
+$active_units   = count(array_filter($all_units, fn($u) => $u['status'] === 'active'));
+$external_units = count(array_filter($all_units, fn($u) => ($u['kind'] ?? 'internal') === 'external'));
 $total_members = db_one("SELECT COUNT(*) AS c FROM org_members WHERE (valid_to IS NULL OR valid_to >= date('now'))")['c'] ?? 0;
 $on_leave      = db_one("SELECT COUNT(*) AS c FROM org_members WHERE status IN ('leave','sick') AND (valid_to IS NULL OR valid_to >= date('now'))")['c'] ?? 0;
 
@@ -43,7 +44,9 @@ include dirname(__DIR__) . '/includes/header.php';
   <?php if(is_admin()): ?>
   <div class="d-flex gap-2 flex-wrap">
     <a href="<?= APP_URL ?>/org/units/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowa jednostka</a>
+    <a href="<?= APP_URL ?>/org/units/add.php?kind=external" class="btn btn-outline-info btn-sm"><i class="bi bi-buildings me-1"></i>Jednostka zewnętrzna</a>
     <a href="<?= APP_URL ?>/org/positions/index.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-briefcase me-1"></i>Stanowiska</a>
+    <a href="<?= APP_URL ?>/org/fields.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola</a>
     <a href="<?= APP_URL ?>/org/history.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-clock-history me-1"></i>Historia</a>
   </div>
   <?php endif; ?>
@@ -55,10 +58,11 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="row g-3 mb-4">
   <?php foreach([
     ['Jednostek',       $active_units.'/'.$total_units, 'bi-diagram-3',      'primary'],
+    ['Zewnętrznych',    $external_units,                'bi-buildings',      'info'],
     ['Osób w strukturze', $total_members,               'bi-people-fill',    'success'],
     ['Na urlopie/zw.',  $on_leave,                      'bi-person-slash',   'warning'],
   ] as [$lbl,$val,$icon,$color]): ?>
-  <div class="col-6 col-md-4">
+  <div class="col-6 col-md-3">
     <div class="stat-chip">
       <div class="stat-icon bg-<?= $color ?> bg-opacity-10"><i class="bi <?= $icon ?> text-<?= $color ?>"></i></div>
       <div><div style="font-size:1.4rem;font-weight:700;line-height:1"><?= $val ?></div><div style="font-size:.72rem;color:#64748b"><?= $lbl ?></div></div>

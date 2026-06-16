@@ -103,6 +103,57 @@
         $pdo->exec("ALTER TABLE org_units ADD COLUMN supervisor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
     } catch (\Throwable $e) {}
 
+    // Migracja: rodzaj jednostki — wewnętrzna / zewnętrzna (partner, organizacja współpracująca)
+    try {
+        $pdo->exec("ALTER TABLE org_units ADD COLUMN kind TEXT NOT NULL DEFAULT 'internal'");
+    } catch (\Throwable $e) {}
+
+    // Migracja: pola rejestrowe i relacyjne jednostki zewnętrznej (partnera)
+    foreach ([
+        'legal_form', 'nip', 'regon', 'krs', 'www',
+        'contact_person', 'contact_role', 'contact_phone', 'contact_email',
+        'cooperation_type',
+    ] as $col) {
+        try { $pdo->exec("ALTER TABLE org_units ADD COLUMN $col TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    }
+    try { $pdo->exec("ALTER TABLE org_units ADD COLUMN cooperation_from DATE"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE org_units ADD COLUMN cooperation_to   DATE"); } catch (\Throwable $e) {}
+
+    // ── Pola definiowane dla jednostek (wzorzec CRM: grupy + definicje + wartości EAV) ──
+    $pdo->exec("CREATE TABLE IF NOT EXISTS org_field_groups (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        label         TEXT    NOT NULL,
+        icon          TEXT    NOT NULL DEFAULT 'bi-card-list',
+        applies_to    TEXT    NOT NULL DEFAULT 'both',   -- both | internal | external
+        sort_order    INTEGER NOT NULL DEFAULT 0,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        visible_roles TEXT    NOT NULL DEFAULT '',
+        edit_roles    TEXT    NOT NULL DEFAULT '',
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS org_field_defs (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id      INTEGER REFERENCES org_field_groups(id) ON DELETE SET NULL,
+        label         TEXT    NOT NULL,
+        field_type    TEXT    NOT NULL DEFAULT 'text',
+        options       TEXT    NOT NULL DEFAULT '',
+        applies_to    TEXT    NOT NULL DEFAULT 'both',   -- both | internal | external
+        sort_order    INTEGER NOT NULL DEFAULT 0,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        visible_roles TEXT    NOT NULL DEFAULT '',
+        edit_roles    TEXT    NOT NULL DEFAULT '',
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS org_field_values (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        unit_id      INTEGER NOT NULL REFERENCES org_units(id)      ON DELETE CASCADE,
+        field_def_id INTEGER NOT NULL REFERENCES org_field_defs(id) ON DELETE CASCADE,
+        value        TEXT    NOT NULL DEFAULT '',
+        UNIQUE(unit_id, field_def_id)
+    )");
+
     // Seed: domyślne stanowiska
     $cnt = (int)$pdo->query("SELECT COUNT(*) FROM org_positions")->fetchColumn();
     if ($cnt === 0) {
@@ -133,8 +184,46 @@ const ORG_MEMBER_STATUSES = [
 ];
 
 const ORG_UNIT_STATUSES = [
-    'active'   => ['label' => 'Aktywna',    'class' => 'success'],
-    'inactive' => ['label' => 'Nieaktywna', 'class' => 'secondary'],
+    'active'    => ['label' => 'Aktywna',    'class' => 'success'],
+    'inactive'  => ['label' => 'Nieaktywna', 'class' => 'secondary'],
+    'suspended' => ['label' => 'Zawieszona', 'class' => 'warning'],
+    'ended'     => ['label' => 'Zakończona', 'class' => 'dark'],
+];
+
+// Rodzaje jednostek
+const ORG_UNIT_KINDS = [
+    'internal' => 'Wewnętrzna',
+    'external' => 'Zewnętrzna (partner)',
+];
+
+// Typy jednostki zewnętrznej (partnerzy / podmioty współpracujące)
+const ORG_EXT_TYPES = [
+    'partner'    => 'Organizacja partnerska',
+    'instytucja' => 'Instytucja publiczna',
+    'sponsor'    => 'Sponsor / darczyńca',
+    'podwykonawca' => 'Podwykonawca',
+    'oswiata'    => 'Placówka oświatowa',
+    'nadzor'     => 'Organ nadzorczy',
+    'inna'       => 'Inna',
+];
+
+// Typy pól definiowanych (wzorzec CRM)
+const ORG_FIELD_TYPES = [
+    'text'     => 'Tekst (jeden wiersz)',
+    'textarea' => 'Tekst (wiele wierszy)',
+    'number'   => 'Liczba',
+    'date'     => 'Data',
+    'select'   => 'Lista wyboru',
+    'url'      => 'URL / Link',
+    'email'    => 'Adres e-mail',
+    'checkbox' => 'Checkbox (tak/nie)',
+];
+
+// Zakres stosowania pola/grupy
+const ORG_FIELD_APPLIES = [
+    'both'     => 'Wszystkie jednostki',
+    'internal' => 'Tylko wewnętrzne',
+    'external' => 'Tylko zewnętrzne (partnerzy)',
 ];
 
 // ── Jednostki Organizacyjne ───────────────────────────────────────────────────
@@ -192,8 +281,12 @@ function org_unit_create(array $d, int $user_id): int {
 
     $pdo->prepare(
         "INSERT INTO org_units
-         (parent_id,supervisor_unit_id,supervisor_user_id,code,name,short_name,description,phone,email,location,status,sort_order,created_by,updated_at)
-         VALUES (:pid,:sup_unit,:sup_user,:code,:name,:short,:desc,:phone,:email,:loc,:status,:sort,:uid,datetime('now'))"
+         (parent_id,supervisor_unit_id,supervisor_user_id,code,name,short_name,description,phone,email,location,status,sort_order,
+          kind,legal_form,nip,regon,krs,www,contact_person,contact_role,contact_phone,contact_email,cooperation_type,cooperation_from,cooperation_to,
+          created_by,updated_at)
+         VALUES (:pid,:sup_unit,:sup_user,:code,:name,:short,:desc,:phone,:email,:loc,:status,:sort,
+                 :kind,:legal,:nip,:regon,:krs,:www,:cp,:crole,:cphone,:cemail,:ctype,:cfrom,:cto,
+                 :uid,datetime('now'))"
     )->execute([
         ':pid'      => $d['parent_id']          ?: null,
         ':sup_unit' => $d['supervisor_unit_id']  ?: null,
@@ -207,6 +300,19 @@ function org_unit_create(array $d, int $user_id): int {
         ':loc'      => trim($d['location']      ?? ''),
         ':status'   => $d['status']             ?? 'active',
         ':sort'     => (int)($d['sort_order']   ?? 0),
+        ':kind'     => ($d['kind'] ?? 'internal') === 'external' ? 'external' : 'internal',
+        ':legal'    => trim($d['legal_form']    ?? ''),
+        ':nip'      => trim($d['nip']           ?? ''),
+        ':regon'    => trim($d['regon']         ?? ''),
+        ':krs'      => trim($d['krs']           ?? ''),
+        ':www'      => trim($d['www']           ?? ''),
+        ':cp'       => trim($d['contact_person']?? ''),
+        ':crole'    => trim($d['contact_role']  ?? ''),
+        ':cphone'   => trim($d['contact_phone'] ?? ''),
+        ':cemail'   => trim($d['contact_email'] ?? ''),
+        ':ctype'    => trim($d['cooperation_type'] ?? ''),
+        ':cfrom'    => $d['cooperation_from']    ?: null,
+        ':cto'      => $d['cooperation_to']      ?: null,
         ':uid'      => $user_id,
     ]);
     $id = (int)$pdo->lastInsertId();
@@ -225,6 +331,9 @@ function org_unit_update(int $id, array $d, int $user_id): void {
          SET parent_id=:pid, supervisor_unit_id=:sup_unit, supervisor_user_id=:sup_user,
              code=:code, name=:name, short_name=:short, description=:desc,
              phone=:phone, email=:email, location=:loc, status=:status,
+             kind=:kind, legal_form=:legal, nip=:nip, regon=:regon, krs=:krs, www=:www,
+             contact_person=:cp, contact_role=:crole, contact_phone=:cphone, contact_email=:cemail,
+             cooperation_type=:ctype, cooperation_from=:cfrom, cooperation_to=:cto,
              sort_order=:sort, updated_at=datetime('now')
          WHERE id=:id"
     )->execute([
@@ -239,6 +348,19 @@ function org_unit_update(int $id, array $d, int $user_id): void {
         ':email'    => trim($d['email']         ?? ''),
         ':loc'      => trim($d['location']      ?? ''),
         ':status'   => $d['status']             ?? 'active',
+        ':kind'     => ($d['kind'] ?? 'internal') === 'external' ? 'external' : 'internal',
+        ':legal'    => trim($d['legal_form']    ?? ''),
+        ':nip'      => trim($d['nip']           ?? ''),
+        ':regon'    => trim($d['regon']         ?? ''),
+        ':krs'      => trim($d['krs']           ?? ''),
+        ':www'      => trim($d['www']           ?? ''),
+        ':cp'       => trim($d['contact_person']?? ''),
+        ':crole'    => trim($d['contact_role']  ?? ''),
+        ':cphone'   => trim($d['contact_phone'] ?? ''),
+        ':cemail'   => trim($d['contact_email'] ?? ''),
+        ':ctype'    => trim($d['cooperation_type'] ?? ''),
+        ':cfrom'    => $d['cooperation_from']    ?: null,
+        ':cto'      => $d['cooperation_to']      ?: null,
         ':sort'     => (int)($d['sort_order']   ?? 0),
         ':id'       => $id,
     ]);
@@ -489,6 +611,246 @@ function org_history_all(int $limit = 100): array {
     );
 }
 
+// ── Pola definiowane (custom fields) ───────────────────────────────────────────
+
+/** Lista ról z tabeli `roles` (name => display_name); fallback gdy brak. */
+function org_all_roles(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $rows = db_all("SELECT name, display_name FROM roles WHERE is_active IS NULL OR is_active != 0 ORDER BY sort_order, id");
+        $cache = [];
+        foreach ($rows as $r) $cache[$r['name']] = $r['display_name'];
+    } catch (\Throwable $e) {
+        $cache = ['admin' => 'Administrator', 'editor' => 'Redaktor', 'viewer' => 'Podgląd'];
+    }
+    return $cache;
+}
+
+/* ── Grupy pól ── */
+function org_field_groups_all(bool $active_only = false): array {
+    $where = $active_only ? "WHERE is_active=1" : "";
+    return db_all("SELECT * FROM org_field_groups $where ORDER BY sort_order, id");
+}
+function org_field_group_get(int $id): ?array {
+    return db_one("SELECT * FROM org_field_groups WHERE id=?", [$id]);
+}
+function org_field_group_save(array $d, ?int $id = null): int {
+    $fields = [
+        'label'         => trim($d['label']),
+        'icon'          => trim($d['icon'] ?? '') ?: 'bi-card-list',
+        'applies_to'    => $d['applies_to'] ?? 'both',
+        'sort_order'    => (int)($d['sort_order'] ?? 0),
+        'is_active'     => !empty($d['is_active']) ? 1 : 0,
+        'visible_roles' => json_encode(array_values((array)($d['visible_roles'] ?? [])), JSON_UNESCAPED_UNICODE),
+        'edit_roles'    => json_encode(array_values((array)($d['edit_roles']    ?? [])), JSON_UNESCAPED_UNICODE),
+    ];
+    if ($id) {
+        db()->prepare(
+            "UPDATE org_field_groups SET label=?,icon=?,applies_to=?,sort_order=?,is_active=?,visible_roles=?,edit_roles=? WHERE id=?"
+        )->execute([$fields['label'],$fields['icon'],$fields['applies_to'],$fields['sort_order'],$fields['is_active'],$fields['visible_roles'],$fields['edit_roles'],$id]);
+        return $id;
+    }
+    return db_insert('org_field_groups', $fields);
+}
+function org_field_group_delete(int $id): void {
+    db()->prepare("DELETE FROM org_field_groups WHERE id=?")->execute([$id]);
+}
+
+/* ── Definicje pól ── */
+function org_field_defs(string $applies_to = '', bool $active_only = true): array {
+    $where = []; $params = [];
+    if ($active_only) $where[] = "is_active=1";
+    if ($applies_to !== '') { $where[] = "(applies_to='both' OR applies_to=?)"; $params[] = $applies_to; }
+    $sql = "SELECT * FROM org_field_defs" . ($where ? " WHERE " . implode(' AND ', $where) : "") . " ORDER BY sort_order, id";
+    return db_all($sql, $params);
+}
+function org_field_def_get(int $id): ?array {
+    return db_one("SELECT * FROM org_field_defs WHERE id=?", [$id]);
+}
+function org_field_def_save(array $d, ?int $id = null): int {
+    $fields = [
+        'group_id'      => (int)($d['group_id'] ?? 0) ?: null,
+        'label'         => trim($d['label']),
+        'field_type'    => $d['field_type'] ?? 'text',
+        'options'       => $d['options'] ?? '',
+        'applies_to'    => $d['applies_to'] ?? 'both',
+        'sort_order'    => (int)($d['sort_order'] ?? 0),
+        'is_active'     => !empty($d['is_active']) ? 1 : 0,
+        'visible_roles' => json_encode(array_values((array)($d['visible_roles'] ?? [])), JSON_UNESCAPED_UNICODE),
+        'edit_roles'    => json_encode(array_values((array)($d['edit_roles']    ?? [])), JSON_UNESCAPED_UNICODE),
+    ];
+    if ($id) {
+        db()->prepare(
+            "UPDATE org_field_defs SET group_id=?,label=?,field_type=?,options=?,applies_to=?,sort_order=?,is_active=?,visible_roles=?,edit_roles=? WHERE id=?"
+        )->execute([$fields['group_id'],$fields['label'],$fields['field_type'],$fields['options'],$fields['applies_to'],$fields['sort_order'],$fields['is_active'],$fields['visible_roles'],$fields['edit_roles'],$id]);
+        return $id;
+    }
+    return db_insert('org_field_defs', $fields);
+}
+function org_field_def_delete(int $id): void {
+    db()->prepare("DELETE FROM org_field_defs WHERE id=?")->execute([$id]);
+}
+
+/* ── Uprawnienia per-pole / per-grupa (admin zawsze ma dostęp) ── */
+function _org_role_allowed(string $roles_json): bool {
+    if ($roles_json === '' || $roles_json === '[]') return true;
+    $allowed = json_decode($roles_json, true);
+    if (!is_array($allowed) || !$allowed) return true;
+    $u = current_user();
+    return $u ? in_array($u['role'] ?? '', $allowed, true) : false;
+}
+function _org_group_visible(int $group_id): bool {
+    if (!$group_id) return true;
+    if (is_admin()) return true;
+    static $cache = [];
+    if (isset($cache[$group_id])) return $cache[$group_id];
+    $g = org_field_group_get($group_id);
+    if (!$g || !$g['is_active']) return $cache[$group_id] = !$g ? true : false;
+    return $cache[$group_id] = _org_role_allowed($g['visible_roles'] ?? '');
+}
+function org_field_visible(array $fd): bool {
+    if (is_admin()) return true;
+    if ((int)($fd['group_id'] ?? 0) && !_org_group_visible((int)$fd['group_id'])) return false;
+    return _org_role_allowed($fd['visible_roles'] ?? '');
+}
+function org_field_editable(array $fd): bool {
+    if (!org_field_visible($fd)) return false;
+    if (is_admin()) return true;
+    return _org_role_allowed($fd['edit_roles'] ?? '');
+}
+
+/* ── Wartości pól dla jednostki ── */
+/** Zwraca [field_def_id => value] dla danej jednostki. */
+function org_unit_field_values(int $unit_id): array {
+    $out = [];
+    foreach (db_all("SELECT field_def_id, value FROM org_field_values WHERE unit_id=?", [$unit_id]) as $r) {
+        $out[(int)$r['field_def_id']] = $r['value'];
+    }
+    return $out;
+}
+/**
+ * Zapisuje wartości pól definiowanych. $posted = [field_def_id => value].
+ * Respektuje uprawnienia edycji (pomija pola, których użytkownik nie może edytować).
+ */
+function org_unit_save_field_values(int $unit_id, array $posted, string $applies_to): void {
+    $defs = org_field_defs($applies_to, true);
+    $del  = db()->prepare("DELETE FROM org_field_values WHERE unit_id=? AND field_def_id=?");
+    foreach ($defs as $fd) {
+        if (!org_field_editable($fd)) continue;
+        $fid = (int)$fd['id'];
+        $val = $fd['field_type'] === 'checkbox'
+             ? (!empty($posted[$fid]) ? '1' : '')
+             : trim((string)($posted[$fid] ?? ''));
+        if ($val === '') { $del->execute([$unit_id, $fid]); continue; }
+        try {
+            db()->prepare(
+                "INSERT INTO org_field_values (unit_id, field_def_id, value) VALUES (?,?,?)
+                 ON CONFLICT(unit_id, field_def_id) DO UPDATE SET value=excluded.value"
+            )->execute([$unit_id, $fid, $val]);
+        } catch (\Throwable $e) {
+            // Fallback dla starszego SQLite bez ON CONFLICT
+            $ex = db_one("SELECT id FROM org_field_values WHERE unit_id=? AND field_def_id=?", [$unit_id, $fid]);
+            if ($ex) db()->prepare("UPDATE org_field_values SET value=? WHERE unit_id=? AND field_def_id=?")->execute([$val, $unit_id, $fid]);
+            else     db_insert('org_field_values', ['unit_id' => $unit_id, 'field_def_id' => $fid, 'value' => $val]);
+        }
+    }
+}
+
+/** Renderuje pola definiowane jako pogrupowane sekcje formularza (inputy). */
+function org_render_field_inputs(int $unit_id, string $applies_to): string {
+    $defs = org_field_defs($applies_to, true);
+    if (!$defs) return '';
+    $vals = $unit_id ? org_unit_field_values($unit_id) : [];
+
+    // Grupuj: group_id => [defs]; 0 = bez grupy
+    $by_group = [];
+    foreach ($defs as $fd) {
+        if (!org_field_visible($fd)) continue;
+        $by_group[(int)($fd['group_id'] ?? 0)][] = $fd;
+    }
+    if (!$by_group) return '';
+    $groups = [];
+    foreach (org_field_groups_all(true) as $g) $groups[(int)$g['id']] = $g;
+
+    ob_start();
+    // Kolejność: grupy wg sort_order, na końcu „bez grupy"
+    $order = array_keys($groups);
+    if (isset($by_group[0])) $order[] = 0;
+    foreach ($order as $gid) {
+        if (empty($by_group[$gid])) continue;
+        $g = $gid ? ($groups[$gid] ?? null) : null;
+        ?>
+        <div class="border rounded p-3 mb-3">
+          <div class="fw-semibold mb-2" style="font-size:.82rem">
+            <i class="bi <?= h($g['icon'] ?? 'bi-card-list') ?> text-primary me-1"></i><?= h($g['label'] ?? 'Pola dodatkowe') ?>
+          </div>
+          <div class="row g-3">
+            <?php foreach ($by_group[$gid] as $fd):
+              $fid = (int)$fd['id'];
+              $val = $vals[$fid] ?? '';
+              $editable = org_field_editable($fd);
+              $dis = $editable ? '' : 'disabled';
+              $name = "cf[$fid]";
+            ?>
+            <div class="col-md-6">
+              <?php if ($fd['field_type'] === 'checkbox'): ?>
+                <div class="form-check mt-4">
+                  <input type="checkbox" class="form-check-input" id="cf_<?= $fid ?>" name="<?= $name ?>" value="1" <?= $val ? 'checked' : '' ?> <?= $dis ?>>
+                  <label class="form-check-label fw-semibold" for="cf_<?= $fid ?>"><?= h($fd['label']) ?></label>
+                </div>
+              <?php else: ?>
+                <label class="form-label fw-semibold" for="cf_<?= $fid ?>"><?= h($fd['label']) ?></label>
+                <?php if ($fd['field_type'] === 'textarea'): ?>
+                  <textarea class="form-control" id="cf_<?= $fid ?>" name="<?= $name ?>" rows="2" <?= $dis ?>><?= h($val) ?></textarea>
+                <?php elseif ($fd['field_type'] === 'select'):
+                  $opts = json_decode($fd['options'] ?: '[]', true) ?: []; ?>
+                  <select class="form-select" id="cf_<?= $fid ?>" name="<?= $name ?>" <?= $dis ?>>
+                    <option value="">— wybierz —</option>
+                    <?php foreach ($opts as $o): ?>
+                    <option value="<?= h($o) ?>" <?= $val === $o ? 'selected' : '' ?>><?= h($o) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                <?php else:
+                  $type = ['number'=>'number','date'=>'date','url'=>'url','email'=>'email'][$fd['field_type']] ?? 'text'; ?>
+                  <input type="<?= $type ?>" class="form-control" id="cf_<?= $fid ?>" name="<?= $name ?>" value="<?= h($val) ?>" <?= $dis ?>>
+                <?php endif; ?>
+                <?php if (!$editable): ?><div class="form-text text-muted">Tylko do odczytu.</div><?php endif; ?>
+              <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php
+    }
+    return ob_get_clean();
+}
+
+/** Renderuje wartości pól definiowanych do widoku karty (dl). Zwraca '' gdy brak wypełnionych/widocznych. */
+function org_render_field_values(int $unit_id, string $applies_to): string {
+    $defs = org_field_defs($applies_to, true);
+    if (!$defs) return '';
+    $vals = org_unit_field_values($unit_id);
+    $rows = '';
+    foreach ($defs as $fd) {
+        if (!org_field_visible($fd)) continue;
+        $fid = (int)$fd['id'];
+        $v = $vals[$fid] ?? '';
+        if ($v === '') continue;
+        if ($fd['field_type'] === 'checkbox') {
+            $disp = '<span class="badge bg-success">Tak</span>';
+        } elseif ($fd['field_type'] === 'url') {
+            $disp = '<a href="' . h($v) . '" target="_blank" rel="noopener">' . h($v) . '</a>';
+        } elseif ($fd['field_type'] === 'email') {
+            $disp = '<a href="mailto:' . h($v) . '">' . h($v) . '</a>';
+        } else {
+            $disp = nl2br(h($v));
+        }
+        $rows .= '<dt>' . h($fd['label']) . '</dt><dd>' . $disp . '</dd>';
+    }
+    return $rows;
+}
+
 // ── UI Helpery ────────────────────────────────────────────────────────────────
 
 function org_status_badge(string $status): string {
@@ -509,6 +871,7 @@ function org_render_tree(array $nodes, int $depth = 0): void {
         $active = $node['status'] === 'active';
         $cid    = 'orgn-' . $node['id'];
         $has_ch = !empty($node['children']);
+        $is_ext = ($node['kind'] ?? 'internal') === 'external';
         ?>
         <div class="org-node" style="margin-left:<?= $indent_px ?>px">
           <div class="org-node-card d-flex align-items-center gap-2 px-3 py-2 <?= $active ? '' : 'opacity-50' ?>">
@@ -517,10 +880,11 @@ function org_render_tree(array $nodes, int $depth = 0): void {
             <?php else: ?>
             <span style="width:1.1rem;display:inline-block"></span>
             <?php endif; ?>
-            <i class="bi bi-diagram-3 text-primary" style="font-size:.85rem"></i>
+            <i class="bi <?= $is_ext ? 'bi-buildings text-info' : 'bi-diagram-3 text-primary' ?>" style="font-size:.85rem"></i>
             <div class="flex-grow-1">
               <a href="<?= APP_URL ?>/org/units/view.php?id=<?= $node['id'] ?>" class="fw-semibold text-decoration-none text-dark" style="font-size:.88rem"><?= h($node['name']) ?></a>
               <span class="badge bg-light text-dark border font-monospace ms-1" style="font-size:.65rem"><?= h($node['code']) ?></span>
+              <?php if ($is_ext): ?><span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:.62rem" title="Jednostka zewnętrzna"><i class="bi bi-buildings me-1"></i>zewnętrzna</span><?php endif; ?>
               <?= org_unit_status_badge($node['status']) ?>
             </div>
             <?php if ($head): ?>
