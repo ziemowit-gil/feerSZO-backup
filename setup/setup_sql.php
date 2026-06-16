@@ -929,5 +929,170 @@ function migrate_tenant_db(PDO $pdo): array {
         catch (\Throwable $e) { $results[] = ['skip', "settings.$k"]; }
     }
 
+    // ── Schema v10: pełny dziesiętny JRWA dla NGO (dane startowe modułu EZD) ────
+    // Zastępuje 9 alfabetycznych haseł domyślnych (ORG/FIN/…) klasyfikacją
+    // dziesiętną 0–9 z hierarchią parent_id. Idempotentne (gate w rejestrze).
+    if (empty($applied['ezd_jrwa.seed_decimal_ngo_v1'])) {
+        try {
+            $n = ezd_seed_jrwa_decimal($pdo);
+            $results[] = ['ok', "ezd_jrwa.seed_decimal_ngo_v1 ({$n} pozycji)"];
+            $record('ezd_jrwa.seed_decimal_ngo_v1', 'ok', "{$n} pozycji");
+            $applied['ezd_jrwa.seed_decimal_ngo_v1'] = true;
+        } catch (\Throwable $e) {
+            $results[] = ['err', 'ezd_jrwa.seed_decimal_ngo_v1 — ' . $e->getMessage()];
+            $record('ezd_jrwa.seed_decimal_ngo_v1', 'err', $e->getMessage());
+        }
+    }
+
     return $results;
+}
+
+/**
+ * Seeduje dziesiętny Jednolity Rzeczowy Wykaz Akt (JRWA) dla fundacji/NGO.
+ *
+ * - Wstawia hierarchiczne drzewo klas 0–9 (INSERT OR IGNORE po UNIQUE symbol).
+ * - Dowiązuje parent_id po symbolu (rodzic = symbol bez ostatniej cyfry).
+ * - Usuwa 9 domyślnych haseł alfabetycznych (ORG/FIN/…) — tylko jeśli żadna
+ *   teczka się do nich nie odwołuje (bezpieczne, bez utraty powiązań).
+ *
+ * Klasy 8–9 celowo zostają puste (rezerwa np. na działalność gospodarczą).
+ *
+ * @return int liczba pozycji w wykazie po seedowaniu (gałęzie dziesiętne)
+ */
+function ezd_seed_jrwa_decimal(PDO $pdo): int {
+    // Tabela istnieje (setup_tenant_db ją tworzy) — gwarancja na wszelki wypadek.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_jrwa (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol      TEXT    NOT NULL UNIQUE,
+        title       TEXT    NOT NULL,
+        kat_arch    TEXT    NOT NULL DEFAULT 'B10',
+        description TEXT    NOT NULL DEFAULT '',
+        parent_id   INTEGER REFERENCES ezd_jrwa(id) ON DELETE SET NULL,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // [symbol, hasło klasyfikacyjne, kategoria archiwalna, uwagi/okres]
+    $rows = [
+        // 0 — ZARZĄDZANIE ORGANIZACJĄ
+        ['0',   'ZARZĄDZANIE ORGANIZACJĄ',                          'A',   ''],
+        ['00',  'Organy fundacji i ich obsługa',                    'A',   ''],
+        ['000', 'Akt fundacyjny, oświadczenia fundatora',           'A',   'Tożsamość organizacji — przechowywane trwale'],
+        ['001', 'Zarząd — uchwały, protokoły posiedzeń',            'A',   ''],
+        ['002', 'Rada Fundacji / organ nadzoru — uchwały, protokoły','A',  ''],
+        ['01',  'Podstawy prawne i organizacja',                    'A',   ''],
+        ['010', 'Statut i jego zmiany',                             'A',   ''],
+        ['011', 'Rejestracja w KRS, wpisy i zmiany',                'A',   ''],
+        ['012', 'Regulaminy, instrukcje i polityki wewnętrzne',     'A',   ''],
+        ['013', 'Pełnomocnictwa i upoważnienia',                    'B10', ''],
+        ['02',  'Planowanie i sprawozdawczość statutowa',           'A',   ''],
+        ['020', 'Strategia, plany wieloletnie i roczne',            'A',   ''],
+        ['021', 'Sprawozdania merytoryczne roczne (ministerstwo/OPP)','A', ''],
+        ['03',  'Kontrole i audyty',                                'A',   ''],
+        ['030', 'Kontrole zewnętrzne — protokoły, zalecenia',       'A',   ''],
+        ['031', 'Kontrole i audyty wewnętrzne',                     'B10', ''],
+        ['04',  'Ochrona danych osobowych (RODO)',                  'A',   ''],
+        ['040', 'Polityki, rejestr czynności przetwarzania, IOD',   'A',   ''],
+        ['041', 'Umowy powierzenia, rejestr naruszeń, zgody',       'B10', ''],
+        ['05',  'Obsługa prawna, skargi i wnioski',                 'B10', ''],
+        ['050', 'Skargi, wnioski, korespondencja sporna',           'B5',  ''],
+        ['051', 'Sprawy sądowe, opinie prawne',                     'B10', ''],
+        // 1 — KADRY I WOLONTARIAT
+        ['1',   'KADRY I WOLONTARIAT',                              'B10', ''],
+        ['10',  'Akta osobowe pracowników',                         'B10', 'B50 dla zatrudnionych przed 1.01.2019 (ustawa o e-aktach)'],
+        ['11',  'Umowy cywilnoprawne (zlecenie, o dzieło)',         'B10', ''],
+        ['12',  'Wolontariat — porozumienia, zakresy czynności',    'B10', ''],
+        ['121', 'Ewidencja świadczeń i zaświadczenia wolontariuszy','B5',  ''],
+        ['13',  'Ewidencja czasu pracy, urlopy, absencje',          'B5',  ''],
+        ['14',  'BHP — szkolenia, badania, ocena ryzyka',           'B10', ''],
+        ['141', 'Wypadki przy pracy',                               'B10', ''],
+        ['15',  'Świadczenia socjalne, ZFŚS',                       'B5',  ''],
+        // 2 — ADMINISTRACJA, MAJĄTEK I IT
+        ['2',   'ADMINISTRACJA, MAJĄTEK I IT',                      'B5',  ''],
+        ['20',  'Lokale i nieruchomości — najem, użyczenie',        'B10', ''],
+        ['21',  'Środki trwałe i wyposażenie — ewidencja majątku',  'B5',  'Okres liczony od likwidacji/zbycia składnika'],
+        ['22',  'Zaopatrzenie, zakupy, umowy z dostawcami',         'B5',  ''],
+        ['23',  'Obsługa kancelaryjna — dziennik korespondencji',   'Bc',  'Dokumentacja manipulacyjna'],
+        ['24',  'Archiwum/składnica akt — spisy z-o, brakowanie',   'A',   'Spisy zdawczo-odbiorcze i protokoły brakowania'],
+        ['25',  'Informatyka — systemy, kopie, bezpieczeństwo IT',  'B5',  ''],
+        ['26',  'Ubezpieczenia majątkowe',                          'B5',  ''],
+        // 3 — FINANSE I KSIĘGOWOŚĆ
+        ['3',   'FINANSE I KSIĘGOWOŚĆ',                             'B5',  ''],
+        ['30',  'Polityka rachunkowości, plan kont',               'A',   ''],
+        ['31',  'Księgi rachunkowe (dziennik, KG, pomocnicze)',     'B5',  'Min. 5 lat — art. 74 ustawy o rachunkowości'],
+        ['32',  'Dowody księgowe — faktury, rachunki',              'B5',  ''],
+        ['33',  'Wyciągi bankowe, obrót pieniężny, kasa',           'B5',  ''],
+        ['34',  'Rozliczenia podatkowe (CIT, VAT, PIT)',            'B5',  ''],
+        ['35',  'Wynagrodzenia — listy płac, karty wynagrodzeń',    'B10', 'B50 dla okresów sprzed 1.01.2019'],
+        ['36',  'Rozliczenia ZUS — deklaracje, składki',            'B10', ''],
+        ['37',  'Roczne sprawozdania finansowe (bilans, RZiS)',     'A',   'Trwale — art. 74 ust. 1 ustawy o rachunkowości'],
+        ['38',  'Inwentaryzacja',                                   'B5',  ''],
+        // 4 — PROJEKTY (DZIAŁALNOŚĆ PROGRAMOWA I DOTOWANA)
+        ['4',   'PROJEKTY (DZIAŁALNOŚĆ PROGRAMOWA I DOTOWANA)',     'B10', ''],
+        ['40',  'Koncepcje i programy własne',                      'A',   ''],
+        ['41',  'Dokumentacja konkursowa — wnioski o dofinansowanie','B10', ''],
+        ['42',  'Umowy o dofinansowanie i aneksy',                  'B10', 'Okres wg umowy/okresu trwałości projektu'],
+        ['43',  'Realizacja — uczestnicy, dzienniki, produkty',     'B10', 'Okres wg umowy/okresu trwałości projektu'],
+        ['44',  'Rozliczenia i raporty (cząstkowe i końcowe)',      'B10', 'Okres wg umowy/okresu trwałości projektu'],
+        ['45',  'Ewaluacja i raporty oddziaływania',                'A',   ''],
+        ['46',  'Współpraca z partnerami projektowymi',             'B10', ''],
+        // 5 — DZIAŁALNOŚĆ SZKOLENIOWA
+        ['5',   'DZIAŁALNOŚĆ SZKOLENIOWA',                          'B5',  ''],
+        ['50',  'Programy i oferta szkoleń (programy autorskie)',   'A',   ''],
+        ['51',  'Organizacja szkoleń — harmonogramy, rekrutacja',   'B5',  ''],
+        ['52',  'Dokumentacja uczestników — zgłoszenia, zgody',     'B5',  ''],
+        ['53',  'Rejestr wydanych zaświadczeń/certyfikatów',        'B10', ''],
+        ['54',  'Materiały dydaktyczne',                            'B5',  ''],
+        ['55',  'Ewaluacja szkoleń, ankiety',                       'B3',  ''],
+        // 6 — FUNDRAISING, DARCZYŃCY I PROMOCJA
+        ['6',   'FUNDRAISING, DARCZYŃCY I PROMOCJA',                'B5',  ''],
+        ['60',  'Darczyńcy — ewidencja, umowy darowizny',           'B10', ''],
+        ['61',  'Zbiórki publiczne — zgłoszenia, sprawozdania',     'A',   ''],
+        ['62',  'Status OPP i rozliczenia 1,5% podatku',            'B5',  ''],
+        ['63',  'Sponsoring, współpraca z biznesem',                'B5',  ''],
+        ['64',  'Promocja, PR, media, www, social media',           'B5',  ''],
+        ['65',  'Wydawnictwa i publikacje własne',                  'A',   ''],
+        // 7 — WSPÓŁPRACA ZEWNĘTRZNA
+        ['7',   'WSPÓŁPRACA ZEWNĘTRZNA',                            'B10', ''],
+        ['70',  'Współpraca z administracją publiczną',             'B10', ''],
+        ['71',  'Członkostwo w federacjach, sieciach, koalicjach',  'B10', ''],
+        ['72',  'Współpraca międzynarodowa',                        'B10', ''],
+        ['73',  'Porozumienia o współpracy (ogólne)',               'B10', ''],
+    ];
+
+    $ins = $pdo->prepare(
+        "INSERT OR IGNORE INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order)
+         VALUES (?,?,?,?,?)"
+    );
+    $order = 0;
+    foreach ($rows as [$sym, $tit, $kat, $desc]) {
+        $order += 10;
+        $ins->execute([$sym, $tit, $kat, $desc, $order]);
+    }
+
+    // Dowiąż parent_id po symbolu (rodzic = symbol bez ostatniej cyfry).
+    $idBySym = [];
+    foreach ($pdo->query("SELECT id,symbol FROM ezd_jrwa") as $r) {
+        $idBySym[$r['symbol']] = (int)$r['id'];
+    }
+    $upd = $pdo->prepare("UPDATE ezd_jrwa SET parent_id=? WHERE id=?");
+    foreach ($rows as [$sym]) {
+        if (strlen($sym) > 1) {
+            $psym = substr($sym, 0, -1);
+            if (isset($idBySym[$sym], $idBySym[$psym])) {
+                $upd->execute([$idBySym[$psym], $idBySym[$sym]]);
+            }
+        }
+    }
+
+    // Usuń 9 domyślnych haseł alfabetycznych — tylko nieużywane przez teczki.
+    $defaults = ['ORG','FIN','KAD','WOL','PRM','ZAM','KOR','PR','IT'];
+    $ph = implode(',', array_fill(0, count($defaults), '?'));
+    $pdo->prepare(
+        "DELETE FROM ezd_jrwa
+          WHERE symbol IN ($ph)
+            AND id NOT IN (SELECT jrwa_id FROM ezd_teczki WHERE jrwa_id IS NOT NULL)"
+    )->execute($defaults);
+
+    return count($rows);
 }
