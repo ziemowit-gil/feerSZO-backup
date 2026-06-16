@@ -45,6 +45,8 @@ RewriteRule ^crm/?$           crm/dashboard.php     [QSA,L]
 RewriteRule ^logowanieCRM/?$  crm/login.php         [QSA,L]
 RewriteRule ^crm-login/?$     crm/login.php         [QSA,L]
 
+RewriteRule ^vlab/?$          karty30/ti/vlab_admin.php [QSA,L]
+
 RewriteRule ^moj-panel/?$     panel/index.php       [QSA,L]
 
 RewriteRule ^korespondencja/?$ correspondence/index.php [QSA,L]
