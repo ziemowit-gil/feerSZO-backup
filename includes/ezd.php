@@ -161,6 +161,16 @@
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Dedup powiadomień o terminach (cron ezd_deadline_reminder.php)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_reminder_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        ref_type   TEXT    NOT NULL,
+        ref_id     INTEGER NOT NULL,
+        kind       TEXT    NOT NULL,
+        sent_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(ref_type, ref_id, kind)
+    )");
+
     // Indeksy wydajnościowe
     foreach ([
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_teczka  ON ezd_sprawy(teczka_id)",
@@ -814,6 +824,24 @@ function ezd_rpw_stats(): array {
 function ezd_rpw_status_badge(string $status): string {
     $s = EZD_RPW_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
     return '<span class="badge bg-' . $s['class'] . ' bg-opacity-15 text-' . $s['class'] . ' border border-' . $s['class'] . '" style="font-size:.65rem">' . h($s['label']) . '</span>';
+}
+
+// ── Powiadomienia o terminach (dedup) ────────────────────────────────────────
+
+/** Czy dla danego obiektu i rodzaju kamienia milowego przypomnienie już wysłano. */
+function ezd_reminder_sent(string $ref_type, int $ref_id, string $kind): bool {
+    return (bool) db_one(
+        "SELECT 1 FROM ezd_reminder_log WHERE ref_type=? AND ref_id=? AND kind=?",
+        [$ref_type, $ref_id, $kind]
+    );
+}
+
+/** Zapisz fakt wysłania przypomnienia (idempotentnie). */
+function ezd_reminder_mark(string $ref_type, int $ref_id, string $kind): void {
+    try {
+        db()->prepare("INSERT INTO ezd_reminder_log (ref_type,ref_id,kind) VALUES (?,?,?)")
+            ->execute([$ref_type, $ref_id, $kind]);
+    } catch (\Throwable $e) { /* UNIQUE — już zapisane */ }
 }
 
 // ── Dekretacja ───────────────────────────────────────────────────────────────

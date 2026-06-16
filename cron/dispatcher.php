@@ -55,6 +55,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [8, 10],      // między 8:00 a 10:00
     ],
+    'ezd_reminder' => [
+        'file'     => __DIR__ . '/ezd_deadline_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [7, 9],       // między 7:00 a 9:00
+    ],
     'process_m365_queue' => [
         'file'     => __DIR__ . '/process_m365_queue.php',
         'interval' => 300,          // co 5 min
