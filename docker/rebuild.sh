@@ -4,7 +4,7 @@
 # Użycie:
 #   bash rebuild.sh              # SQLite (domyślnie)
 #   bash rebuild.sh --mysql      # z MySQL
-#   bash rebuild.sh --no-pull    # przebuduj bez git pull (np. po ręcznej edycji)
+#   bash rebuild.sh --no-pull    # przebuduj bez sync z origin (np. po ręcznej edycji)
 #   bash rebuild.sh --no-cache   # wymusza pełny rebuild bez cache (po zmianie Dockerfile)
 
 set -euo pipefail
@@ -47,13 +47,19 @@ else
     info "Tryb: SQLite (domyślny)"
 fi
 
-# ── 1. Git pull ────────────────────────────────────────────────────────────────
+# ── 1. Synchronizacja kodu z origin ─────────────────────────────────────────────
+# Zawsze ustawiamy lokalne repo dokładnie na stanie origin (hard reset).
+# Wszelkie lokalne zmiany na serwerze są nadpisywane — produkcja = origin.
 if [[ $SKIP_PULL -eq 0 ]]; then
-    section "1. Aktualizacja kodu"
-    git -C "${REPO_DIR}" pull --ff-only
-    ok "Repo zaktualizowane ($(git -C "${REPO_DIR}" log -1 --format='%h %s'))"
+    section "1. Aktualizacja kodu (sync z origin)"
+    BRANCH="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD)"
+    [[ "$BRANCH" == "HEAD" ]] && BRANCH="main"
+    info "Gałąź: ${BRANCH} → origin/${BRANCH}"
+    git -C "${REPO_DIR}" fetch origin --prune
+    git -C "${REPO_DIR}" reset --hard "origin/${BRANCH}"
+    ok "Repo ustawione na origin/${BRANCH} ($(git -C "${REPO_DIR}" log -1 --format='%h %s'))"
 else
-    warn "Pomijam git pull (--no-pull)"
+    warn "Pomijam sync z origin (--no-pull)"
 fi
 
 # ── 2. Przebuduj obraz app ─────────────────────────────────────────────────────
