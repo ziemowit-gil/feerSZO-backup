@@ -763,6 +763,12 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <?php endif; ?>
 
+  <?php if (module_enabled('byli_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php">
+    <i class="bi bi-person-dash"></i> Byłe osoby
+  </a>
+  <?php endif; ?>
+
   <?php
   $_rek_ob_active = str_contains($_uri,'/contracts/rekrutacja') || str_contains($_uri,'/onboarding/');
   $_rek_ob_badge  = $_rek_new + $_ob_new;

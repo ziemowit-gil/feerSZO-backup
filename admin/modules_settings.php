@@ -28,6 +28,7 @@ $module_groups = [
         'resolutions_enabled'     => ['label' => 'Uchwały i Zarządzenia',        'icon' => 'bi-hammer',             'desc' => 'Rejestr uchwał, zarządzeń i decyzji z automatyczną numeracją, treścią i skanami.'],
         'events_enabled'          => ['label' => 'Moduł Wydarzeń',               'icon' => 'bi-calendar-event',     'desc' => 'Organizacja wydarzeń online (webinary) i stacjonarnych — rejestracja uczestników, bilety QR, check-in, integracja CRM.', 'config' => 'events_settings.php'],
         'org_calendar_enabled'    => ['label' => 'Kalendarz organizacji (ICS)',  'icon' => 'bi-calendar3',          'desc' => 'Kalendarz organizacji pobierany z kanału ICS (Outlook 365, Google Calendar i inne) — widoczny w panelu wolontariusza jako lista wydarzeń.', 'config' => 'org_calendar.php'],
+        'byli_enabled'            => ['label' => 'Rejestr byłych osób',           'icon' => 'bi-person-dash',        'desc' => 'Rejestr byłych współpracowników — imię, nazwisko, miasto, okres współpracy, powód odejścia i uwagi (z opcją zastrzeżenia danych dla zarządu).'],
     ],
     'Integracje i bezpieczeństwo' => [
         'm365_enabled'         => ['label' => 'Microsoft 365 / Azure AD',     'icon' => 'bi-microsoft',        'desc' => 'Logowanie OAuth, provisioning kont M365, synchronizacja użytkowników i grup.',    'config' => 'm365_settings.php'],
