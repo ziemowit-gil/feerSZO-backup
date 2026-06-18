@@ -69,6 +69,11 @@ include dirname(__DIR__) . '/includes/header.php';
     </a>
     <?php endif; ?>
     <?php endif; ?>
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/admin/ezd_settings.php" class="btn btn-outline-secondary btn-sm" title="Ustawienia modułu EZD">
+      <i class="bi bi-gear"></i>
+    </a>
+    <?php endif; ?>
   </div>
 </div>
 

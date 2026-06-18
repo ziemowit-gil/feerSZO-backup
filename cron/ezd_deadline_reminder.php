@@ -25,6 +25,14 @@ require_once $base_dir . '/includes/org.php';
 require_once $base_dir . '/includes/mail_queue.php';
 require_once $base_dir . '/includes/notification_service.php';
 
+// Respektuj ustawienia modułu
+if (!module_enabled('ezd_enabled')) {
+    echo "[" . date('Y-m-d H:i:s') . "] EZD wyłączony — pomijam.\n"; exit;
+}
+if (org_setting('ezd_reminders_enabled') === '0') {
+    echo "[" . date('Y-m-d H:i:s') . "] Powiadomienia EZD wyłączone w ustawieniach — pomijam.\n"; exit;
+}
+
 $today    = date('Y-m-d');
 $tomorrow = date('Y-m-d', strtotime('+1 day'));
 

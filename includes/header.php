@@ -656,7 +656,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   // Pomocnicze zmienne aktywności
   $_on_it       = str_contains($_uri, '/it/');
   $_on_people   = str_contains($_uri,'/persons/') || str_contains($_uri,'/contracts/wolontariat') || str_contains($_uri,'/onboarding/') || str_contains($_uri,'/contracts/rekrutacja') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/admin/terminations') || str_contains($_uri,'/admin/certificates') || str_contains($_uri,'/admin/onboarding');
-  $_on_docs     = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/reports/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters');
+  $_on_docs     = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/reports/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters');
   $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/actions/') || str_contains($_uri,'/strategy/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/admin/timesheets') || str_contains($_uri,'/admin/shipments') || str_contains($_uri,'/resources/') || str_contains($_uri,'/panel/timesheets');
   $_on_admin    = str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding');
 
@@ -802,7 +802,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <?php endif; ?>
 
   <?php
-  $_more_docs_active = str_contains($_uri,'/reports/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/ezd/');
+  $_more_docs_active = str_contains($_uri,'/reports/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/');
   ?>
   <button type="button" class="sb-type-btn <?= $_more_docs_active ? 'type-open' : '' ?>"
           data-bs-toggle="collapse" data-bs-target="#sb-docs-more"
@@ -825,10 +825,29 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <a class="sb-sub-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php">
       <i class="bi bi-file-ruled"></i> Uchwały
     </a>
-    <a class="sb-sub-link<?= _nav_active('/ezd/') ?>" href="<?= APP_URL ?>/ezd/index.php">
-      <i class="bi bi-archive"></i> EZD
-    </a>
   </div>
+
+  <!-- ════════════════════════════════════════
+       2b. KANCELARIA EZD — samodzielny moduł
+  ════════════════════════════════════════ -->
+  <?php if (module_enabled('ezd_enabled')): ?>
+  <div class="sb-label">Kancelaria EZD</div>
+  <a class="sb-link<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php">
+    <i class="bi bi-building-gear"></i> Pulpit kancelarii
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/rpw/') ?>" href="<?= APP_URL ?>/ezd/rpw/index.php">
+    <i class="bi bi-mailbox2"></i> Dziennik podawczy
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php">
+    <i class="bi bi-folder2-open"></i> Sprawy
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/teczki/') ?>" href="<?= APP_URL ?>/ezd/teczki/index.php">
+    <i class="bi bi-archive"></i> Teczki aktowe
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/jrwa/') ?>" href="<?= APP_URL ?>/ezd/jrwa/index.php">
+    <i class="bi bi-tags"></i> Wykaz akt (JRWA)
+  </a>
+  <?php endif; ?>
 
   <!-- ════════════════════════════════════════
        3. OBSŁUGA — helpdesk, wiadomości, rozwiązania (flat, no collapsible)

@@ -150,6 +150,7 @@ $groups = [
             ['icon'=>'bi-building',             'label'=>'Dane organizacji',         'url'=>'/admin/org_settings.php'],
             ['icon'=>'bi-toggles2',             'label'=>'Moduły',                   'url'=>'/admin/modules_settings.php'],
             ['icon'=>'bi-calendar-event-fill',  'label'=>'Ustawienia wydarzeń',     'url'=>'/admin/events_settings.php'],
+            ['icon'=>'bi-building-gear',        'label'=>'Kancelaria EZD',           'url'=>'/admin/ezd_settings.php'],
             ['icon'=>'bi-diagram-3',            'label'=>'Workflow akceptacji',      'url'=>'/admin/approval_workflows.php'],
             ['icon'=>'bi-ui-checks-grid',       'label'=>'SelfService',              'url'=>'/onboarding/settings.php'],
             ['icon'=>'bi-kanban',               'label'=>'Obszary zadań',            'url'=>'/admin/tasks_workspaces.php'],
