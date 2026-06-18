@@ -16,6 +16,7 @@ $PAGE_TITLE = 'Ustawienia modułu Kancelaria EZD';
 $settings_keys = [
     'ezd_enabled',
     'ezd_reminders_enabled',
+    'ezd_peln_jrwa',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -23,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values = [
         'ezd_enabled'           => isset($_POST['ezd_enabled'])           ? '1' : '0',
         'ezd_reminders_enabled' => isset($_POST['ezd_reminders_enabled']) ? '1' : '0',
+        'ezd_peln_jrwa'         => trim($_POST['ezd_peln_jrwa'] ?? '') ?: '013',
     ];
     foreach ($values as $key => $val) {
         try {
@@ -73,10 +75,15 @@ include dirname(__DIR__) . '/includes/header.php';
             <label class="form-check-label fw-semibold" for="ezd_enabled">Moduł włączony</label>
             <div class="form-text">Udostępnia sekcję „Kancelaria EZD" w menu (Teczki, Sprawy, Pisma, Dziennik podawczy, JRWA). To samo ustawienie znajdziesz w <a href="<?= APP_URL ?>/admin/modules_settings.php">Modułach</a>.</div>
           </div>
-          <div class="form-check form-switch mb-0">
+          <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" id="ezd_reminders_enabled" name="ezd_reminders_enabled" <?= $cfg['ezd_reminders_enabled'] !== '0' ? 'checked' : '' ?>>
             <label class="form-check-label fw-semibold" for="ezd_reminders_enabled">Powiadomienia e-mail o terminach</label>
             <div class="form-text">Codzienny cron wysyła przypomnienia o terminach dekretacji (do wykonawcy) i spraw (do właściciela): jutro / dziś / po terminie.</div>
+          </div>
+          <div class="mb-0" style="max-width:220px">
+            <label class="form-label fw-semibold mb-1" for="ezd_peln_jrwa">Symbol JRWA pełnomocnictw</label>
+            <input type="text" class="form-control form-control-sm font-monospace" id="ezd_peln_jrwa" name="ezd_peln_jrwa" value="<?= h($cfg['ezd_peln_jrwa'] ?: '013') ?>" placeholder="013">
+            <div class="form-text">Sprawy z teczek o tym symbolu JRWA trafiają do <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">Rejestru pełnomocnictw</a>.</div>
           </div>
         </div>
       </div>

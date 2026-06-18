@@ -85,6 +85,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder2-open me-1"></i>Sprawy</a>
   <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Teczki aktowe</a>
   <a href="<?= APP_URL ?>/ezd/jrwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Wykaz akt (JRWA)</a>
+  <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard me-1"></i>Rejestr pełnomocnictw</a>
 </div>
 
 <!-- Statystyki -->
