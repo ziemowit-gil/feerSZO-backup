@@ -35,6 +35,12 @@ $ACTIONS = [
     'upload'           => 'Załączenie dokumentu do akt',
     'del_attachment'   => 'Usunięcie załącznika',
     'rpw_assign'       => 'Włączenie przesyłki z dziennika podawczego',
+    'dokument_create'  => 'Sporządzenie dokumentu wewnętrznego',
+    'dokument_update'  => 'Modyfikacja dokumentu wewnętrznego',
+    'dokument_delete'  => 'Usunięcie dokumentu wewnętrznego',
+    'notatka_create'   => 'Dodanie notatki',
+    'notatka_update'   => 'Modyfikacja notatki',
+    'notatka_delete'   => 'Usunięcie notatki',
 ];
 
 $org_name = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');

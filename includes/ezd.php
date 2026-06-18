@@ -171,6 +171,40 @@
         UNIQUE(ref_type, ref_id, kind)
     )");
 
+    // Notatki w sprawie
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_notatki (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        sprawa_id   INTEGER NOT NULL REFERENCES ezd_sprawy(id) ON DELETE CASCADE,
+        tresc       TEXT    NOT NULL,
+        pinned      INTEGER NOT NULL DEFAULT 0,
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Dokumenty wewnętrzne sprawy (notatki służbowe, opinie, protokoły, projekty pism…)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_dokumenty (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        sprawa_id   INTEGER NOT NULL REFERENCES ezd_sprawy(id) ON DELETE CASCADE,
+        sygnatura   TEXT    NOT NULL,
+        rodzaj      TEXT    NOT NULL DEFAULT 'notatka_sluzbowa',
+        title       TEXT    NOT NULL,
+        tresc       TEXT    NOT NULL DEFAULT '',
+        status      TEXT    NOT NULL DEFAULT 'projekt',
+        owner_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Kolumny dokładane do istniejących tabel (idempotentnie)
+    foreach ([
+        "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_zalaczniki ADD COLUMN dokument_id INTEGER REFERENCES ezd_dokumenty(id) ON DELETE CASCADE",
+    ] as $alter) {
+        try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
+    }
+
     // Indeksy wydajnościowe
     foreach ([
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_teczka  ON ezd_sprawy(teczka_id)",
@@ -183,6 +217,10 @@
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_rok        ON ezd_rpw(rok, rpw_nr)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_status     ON ezd_rpw(status)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_rpw_sprawa     ON ezd_rpw(sprawa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_notatki_sprawa ON ezd_notatki(sprawa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_dok_sprawa     ON ezd_dokumenty(sprawa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_zal_dokument   ON ezd_zalaczniki(dokument_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_parent  ON ezd_sprawy(parent_id)",
     ] as $idx) {
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
     }
@@ -262,6 +300,22 @@ const EZD_RPW_STATUSES = [
     'przekazana'=> ['label' => 'Przekazana',      'class' => 'primary'],
     'w_sprawie' => ['label' => 'W sprawie',       'class' => 'success'],
     'odrzucona' => ['label' => 'Odrzucona',       'class' => 'secondary'],
+];
+
+// Dokumenty wewnętrzne sprawy
+const EZD_DOK_RODZAJE = [
+    'notatka_sluzbowa' => 'Notatka służbowa',
+    'opinia'           => 'Opinia',
+    'protokol'         => 'Protokół',
+    'decyzja'          => 'Decyzja / postanowienie',
+    'projekt_pisma'    => 'Projekt pisma',
+    'raport'           => 'Raport / sprawozdanie',
+    'inne'             => 'Inny dokument',
+];
+const EZD_DOK_STATUSY = [
+    'projekt'     => ['label' => 'Projekt',     'class' => 'secondary'],
+    'zatwierdzony'=> ['label' => 'Zatwierdzony','class' => 'success'],
+    'archiwalny'  => ['label' => 'Archiwalny',  'class' => 'dark'],
 ];
 
 // ── JRWA ─────────────────────────────────────────────────────────────────────
@@ -389,12 +443,22 @@ function ezd_teczka_update(int $id, array $d, int $user_id): void {
 function ezd_sprawa_get(int $id): ?array {
     return db_one(
         "SELECT s.*, t.symbol AS teczka_symbol, t.title AS teczka_title, t.rok AS teczka_rok,
-                u.name AS owner_name, c.name AS creator_name
+                u.name AS owner_name, c.name AS creator_name,
+                p.znak_sprawy AS parent_znak, p.title AS parent_title
          FROM ezd_sprawy s
          JOIN ezd_teczki t ON t.id = s.teczka_id
          LEFT JOIN users u ON u.id = s.owner_id
          LEFT JOIN users c ON c.id = s.created_by
+         LEFT JOIN ezd_sprawy p ON p.id = s.parent_id
          WHERE s.id=?", [$id]
+    );
+}
+
+function ezd_podsprawy_by_parent(int $parent_id): array {
+    return db_all(
+        "SELECT s.*, u.name AS owner_name FROM ezd_sprawy s
+         LEFT JOIN users u ON u.id=s.owner_id
+         WHERE s.parent_id=? ORDER BY s.numer", [$parent_id]
     );
 }
 
@@ -435,11 +499,20 @@ function ezd_sprawa_create(array $d, int $user_id): int {
     $numer = _ezd_next_numer((int)$d['teczka_id'], $rok);
     $znak  = strtoupper($teczka['symbol']) . '.' . $numer . '.' . $rok;
 
+    $parent_id = !empty($d['parent_id']) ? (int)$d['parent_id'] : null;
+    if ($parent_id) {
+        $parent = ezd_sprawa_get($parent_id);
+        if (!$parent || (int)$parent['teczka_id'] !== (int)$d['teczka_id']) {
+            throw new \RuntimeException('Podsprawa musi należeć do tej samej teczki co sprawa nadrzędna.');
+        }
+    }
+
     db()->prepare(
-        "INSERT INTO ezd_sprawy (teczka_id,znak_sprawy,numer,title,description,status,priority,owner_id,deadline,created_by,updated_at)
-         VALUES (:tid,:znak,:num,:title,:desc,:status,:prio,:owner,:deadline,:uid,datetime('now'))"
+        "INSERT INTO ezd_sprawy (teczka_id,parent_id,znak_sprawy,numer,title,description,status,priority,owner_id,deadline,created_by,updated_at)
+         VALUES (:tid,:pid,:znak,:num,:title,:desc,:status,:prio,:owner,:deadline,:uid,datetime('now'))"
     )->execute([
         ':tid'      => (int)$d['teczka_id'],
+        ':pid'      => $parent_id,
         ':znak'     => $znak,
         ':num'      => $numer,
         ':title'    => trim($d['title']),
@@ -451,7 +524,8 @@ function ezd_sprawa_create(array $d, int $user_id): int {
         ':uid'      => $user_id,
     ]);
     $id = (int)db()->lastInsertId();
-    ezd_log(null, $id, null, null, $user_id, 'sprawa_create', "Otwarto sprawę $znak: {$d['title']}");
+    ezd_log(null, $id, null, null, $user_id, 'sprawa_create',
+            ($parent_id ? 'Otwarto podsprawę ' : 'Otwarto sprawę ') . "$znak: {$d['title']}");
     return $id;
 }
 
@@ -887,6 +961,129 @@ function ezd_reminder_mark(string $ref_type, int $ref_id, string $kind): void {
     } catch (\Throwable $e) { /* UNIQUE — już zapisane */ }
 }
 
+// ── Notatki sprawy ────────────────────────────────────────────────────────────
+
+function ezd_notatki_by_sprawa(int $sprawa_id): array {
+    return db_all(
+        "SELECT n.*, u.name AS author FROM ezd_notatki n
+         LEFT JOIN users u ON u.id=n.created_by
+         WHERE n.sprawa_id=? ORDER BY n.pinned DESC, n.created_at DESC", [$sprawa_id]
+    );
+}
+
+function ezd_notatka_get(int $id): ?array {
+    return db_one("SELECT * FROM ezd_notatki WHERE id=?", [$id]);
+}
+
+function ezd_notatka_create(int $sprawa_id, string $tresc, int $user_id): int {
+    db()->prepare("INSERT INTO ezd_notatki (sprawa_id,tresc,created_by) VALUES (?,?,?)")
+        ->execute([$sprawa_id, trim($tresc), $user_id]);
+    $id = (int)db()->lastInsertId();
+    db()->prepare("UPDATE ezd_sprawy SET updated_at=datetime('now') WHERE id=?")->execute([$sprawa_id]);
+    ezd_log(null, $sprawa_id, null, null, $user_id, 'notatka_create', 'Dodano notatkę');
+    return $id;
+}
+
+function ezd_notatka_update(int $id, string $tresc, int $user_id): void {
+    $n = ezd_notatka_get($id);
+    if (!$n) return;
+    db()->prepare("UPDATE ezd_notatki SET tresc=?, updated_at=datetime('now') WHERE id=?")->execute([trim($tresc), $id]);
+    ezd_log(null, (int)$n['sprawa_id'], null, null, $user_id, 'notatka_update', 'Edytowano notatkę #' . $id);
+}
+
+function ezd_notatka_delete(int $id, int $user_id): void {
+    $n = ezd_notatka_get($id);
+    if (!$n) return;
+    db()->prepare("DELETE FROM ezd_notatki WHERE id=?")->execute([$id]);
+    ezd_log(null, (int)$n['sprawa_id'], null, null, $user_id, 'notatka_delete', 'Usunięto notatkę #' . $id);
+}
+
+function ezd_notatka_toggle_pin(int $id, int $user_id): void {
+    db()->prepare("UPDATE ezd_notatki SET pinned = CASE pinned WHEN 1 THEN 0 ELSE 1 END WHERE id=?")->execute([$id]);
+}
+
+// ── Dokumenty wewnętrzne sprawy ──────────────────────────────────────────────
+
+function ezd_dokumenty_by_sprawa(int $sprawa_id): array {
+    return db_all(
+        "SELECT d.*, u.name AS owner_name,
+                (SELECT COUNT(*) FROM ezd_zalaczniki z WHERE z.dokument_id=d.id) AS plik_count
+         FROM ezd_dokumenty d LEFT JOIN users u ON u.id=d.owner_id
+         WHERE d.sprawa_id=? ORDER BY d.created_at DESC", [$sprawa_id]
+    );
+}
+
+function ezd_dokument_get(int $id): ?array {
+    return db_one(
+        "SELECT d.*, s.znak_sprawy, s.title AS sprawa_title, s.status AS sprawa_status,
+                u.name AS owner_name, c.name AS creator_name
+         FROM ezd_dokumenty d
+         JOIN ezd_sprawy s ON s.id = d.sprawa_id
+         LEFT JOIN users u ON u.id = d.owner_id
+         LEFT JOIN users c ON c.id = d.created_by
+         WHERE d.id=?", [$id]
+    );
+}
+
+function _ezd_next_sygnatura_dok(int $sprawa_id, string $znak): string {
+    $c = db_one("SELECT COUNT(*) AS c FROM ezd_dokumenty WHERE sprawa_id=?", [$sprawa_id])['c'] ?? 0;
+    return $znak . '.D.' . ($c + 1);
+}
+
+function ezd_dokument_create(array $d, int $user_id): int {
+    $sprawa = ezd_sprawa_get((int)$d['sprawa_id']);
+    if (!$sprawa) throw new \RuntimeException('Sprawa nie istnieje.');
+    _ezd_check_sprawa_open($sprawa);
+    $syg = _ezd_next_sygnatura_dok((int)$d['sprawa_id'], $sprawa['znak_sprawy']);
+    db()->prepare(
+        "INSERT INTO ezd_dokumenty (sprawa_id,sygnatura,rodzaj,title,tresc,status,owner_id,created_by,updated_at)
+         VALUES (:sid,:syg,:rodz,:title,:tresc,:status,:owner,:uid,datetime('now'))"
+    )->execute([
+        ':sid'   => (int)$d['sprawa_id'], ':syg'   => $syg,
+        ':rodz'  => array_key_exists($d['rodzaj'] ?? '', EZD_DOK_RODZAJE) ? $d['rodzaj'] : 'notatka_sluzbowa',
+        ':title' => trim($d['title']),   ':tresc' => $d['tresc'] ?? '',
+        ':status'=> array_key_exists($d['status'] ?? '', EZD_DOK_STATUSY) ? $d['status'] : 'projekt',
+        ':owner' => $d['owner_id'] ?: null, ':uid' => $user_id,
+    ]);
+    $id = (int)db()->lastInsertId();
+    db()->prepare("UPDATE ezd_sprawy SET updated_at=datetime('now') WHERE id=?")->execute([$d['sprawa_id']]);
+    ezd_log(null, (int)$d['sprawa_id'], null, null, $user_id, 'dokument_create', "Dodano dokument wewnętrzny $syg");
+    return $id;
+}
+
+function ezd_dokument_update(int $id, array $d, int $user_id): void {
+    $doc = ezd_dokument_get($id);
+    if (!$doc) return;
+    if ($doc['sprawa_status'] === 'closed' && !is_admin()) {
+        throw new \RuntimeException('Sprawa jest zamknięta — edycja zablokowana.');
+    }
+    db()->prepare(
+        "UPDATE ezd_dokumenty SET rodzaj=:rodz,title=:title,tresc=:tresc,status=:status,
+         owner_id=:owner,updated_at=datetime('now') WHERE id=:id"
+    )->execute([
+        ':rodz'  => array_key_exists($d['rodzaj'] ?? '', EZD_DOK_RODZAJE) ? $d['rodzaj'] : $doc['rodzaj'],
+        ':title' => trim($d['title']), ':tresc' => $d['tresc'] ?? '',
+        ':status'=> array_key_exists($d['status'] ?? '', EZD_DOK_STATUSY) ? $d['status'] : $doc['status'],
+        ':owner' => $d['owner_id'] ?: null, ':id' => $id,
+    ]);
+    ezd_log(null, (int)$doc['sprawa_id'], null, null, $user_id, 'dokument_update', 'Edytowano dokument #' . $id);
+}
+
+function ezd_dokument_delete(int $id, int $user_id): void {
+    $doc = ezd_dokument_get($id);
+    if (!$doc) return;
+    foreach (ezd_zalaczniki_by((int)$doc['sprawa_id'], null, null, $id) as $z) {
+        ezd_zal_delete((int)$z['id'], $user_id);
+    }
+    db()->prepare("DELETE FROM ezd_dokumenty WHERE id=?")->execute([$id]);
+    ezd_log(null, (int)$doc['sprawa_id'], null, null, $user_id, 'dokument_delete', 'Usunięto dokument ' . $doc['sygnatura']);
+}
+
+function ezd_dok_status_badge(string $status): string {
+    $s = EZD_DOK_STATUSY[$status] ?? ['label' => $status, 'class' => 'secondary'];
+    return '<span class="badge bg-' . $s['class'] . ' bg-opacity-15 text-' . $s['class'] . ' border border-' . $s['class'] . '" style="font-size:.65rem">' . h($s['label']) . '</span>';
+}
+
 // ── Dekretacja ───────────────────────────────────────────────────────────────
 
 function ezd_dekretacje_by_sprawa(int $sprawa_id): array {
@@ -938,17 +1135,20 @@ function ezd_dekretacja_complete(int $id, int $user_id): void {
 
 // ── Załączniki ───────────────────────────────────────────────────────────────
 
-function ezd_zalaczniki_by(int $sprawa_id, ?int $pismo_id = null, ?int $umowa_id = null): array {
+function ezd_zalaczniki_by(int $sprawa_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null): array {
     if ($pismo_id) {
         return db_all("SELECT z.*,u.name AS uploader FROM ezd_zalaczniki z LEFT JOIN users u ON u.id=z.uploaded_by WHERE z.pismo_id=? ORDER BY z.uploaded_at DESC", [$pismo_id]);
     }
     if ($umowa_id) {
         return db_all("SELECT z.*,u.name AS uploader FROM ezd_zalaczniki z LEFT JOIN users u ON u.id=z.uploaded_by WHERE z.umowa_id=? ORDER BY z.uploaded_at DESC", [$umowa_id]);
     }
+    if ($dokument_id) {
+        return db_all("SELECT z.*,u.name AS uploader FROM ezd_zalaczniki z LEFT JOIN users u ON u.id=z.uploaded_by WHERE z.dokument_id=? ORDER BY z.uploaded_at DESC", [$dokument_id]);
+    }
     return db_all("SELECT z.*,u.name AS uploader FROM ezd_zalaczniki z LEFT JOIN users u ON u.id=z.uploaded_by WHERE z.sprawa_id=? ORDER BY z.uploaded_at DESC", [$sprawa_id]);
 }
 
-function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $replace_id = null): ?string {
+function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null): ?string {
     if (empty($_FILES[$field]['tmp_name'])) return 'Nie wybrano pliku.';
     $f = $_FILES[$field];
     if ($f['error'] !== UPLOAD_ERR_OK) return 'Błąd przesyłania (kod: ' . $f['error'] . ').';
@@ -968,9 +1168,9 @@ function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id 
     }
 
     db()->prepare(
-        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$sprawa_id, $pismo_id, $umowa_id, $stored, $f['name'], $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
+        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $stored, $f['name'], $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
 
     ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $f['name'] . " (v$wersja)");
     return null;

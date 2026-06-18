@@ -7,12 +7,16 @@ require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
 if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
-$PAGE_TITLE = 'Nowa sprawa';
 $users  = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
 $teczki = ezd_teczki_all('open');
 
-// pre-select teczka if passed via GET
-$preselect_teczka = (int)($_GET['teczka_id'] ?? 0);
+// Tryb podsprawy — parent_id z GET/POST
+$parent_id = (int)($_GET['parent_id'] ?? $_POST['parent_id'] ?? 0);
+$parent    = $parent_id ? ezd_sprawa_get($parent_id) : null;
+$PAGE_TITLE = $parent ? 'Nowa podsprawa' : 'Nowa sprawa';
+
+// pre-select teczka if passed via GET (podsprawa dziedziczy teczkę rodzica)
+$preselect_teczka = $parent ? (int)$parent['teczka_id'] : (int)($_GET['teczka_id'] ?? 0);
 
 $row = [
     'teczka_id'   => $preselect_teczka ?: '',
@@ -28,7 +32,8 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $row = [
-        'teczka_id'   => (int)($_POST['teczka_id']   ?? 0),
+        'teczka_id'   => $parent ? (int)$parent['teczka_id'] : (int)($_POST['teczka_id'] ?? 0),
+        'parent_id'   => $parent_id ?: null,
         'title'       => trim($_POST['title']         ?? ''),
         'description' => trim($_POST['description']   ?? ''),
         'status'      => $_POST['status']             ?? 'open',
@@ -57,19 +62,31 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Sprawy</a></li>
-  <li class="breadcrumb-item active">Nowa sprawa</li>
+  <?php if($parent): ?><li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>"><?= h($parent['znak_sprawy']) ?></a></li><?php endif; ?>
+  <li class="breadcrumb-item active"><?= $parent ? 'Nowa podsprawa' : 'Nowa sprawa' ?></li>
 </ol></nav>
-<h4 class="fw-bold mb-3"><i class="bi bi-folder-plus text-primary me-2"></i>Nowa sprawa</h4>
+<h4 class="fw-bold mb-3"><i class="bi bi-<?= $parent ? 'diagram-3' : 'folder-plus' ?> text-primary me-2"></i><?= $parent ? 'Nowa podsprawa' : 'Nowa sprawa' ?></h4>
+<?php if($parent): ?>
+<div class="alert alert-light border d-flex align-items-center gap-2 py-2" style="font-size:.83rem">
+  <i class="bi bi-diagram-3 text-primary"></i>
+  <span>Podsprawa sprawy nadrzędnej <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="font-monospace fw-semibold"><?= h($parent['znak_sprawy']) ?></a> — <?= h($parent['title']) ?></span>
+</div>
+<?php endif; ?>
 <?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
 
 <div class="row"><div class="col-lg-7">
 <form method="post">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+<?php if($parent): ?><input type="hidden" name="parent_id" value="<?= $parent_id ?>"><?php endif; ?>
 <div class="card shadow-sm">
 <div class="card-body">
   <!-- Teczka -->
   <div class="mb-3">
     <label class="form-label fw-semibold">Teczka aktowa <span class="text-danger">*</span></label>
+    <?php if($parent): ?>
+    <input type="text" class="form-control" value="<?= h($parent['teczka_symbol'].' — '.$parent['teczka_title'].' ('.$parent['teczka_rok'].')') ?>" disabled>
+    <div class="form-text">Podsprawa dziedziczy teczkę sprawy nadrzędnej.</div>
+    <?php else: ?>
     <select name="teczka_id" class="form-select" required onchange="updateZnak(this)">
       <option value="">— wybierz teczkę —</option>
       <?php foreach($teczki as $t): ?>
@@ -79,6 +96,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </option>
       <?php endforeach; ?>
     </select>
+    <?php endif; ?>
   </div>
   <!-- Podgląd znaku -->
   <div class="mb-3">
@@ -137,7 +155,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <div class="card-footer d-flex gap-2">
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Załóż sprawę</button>
-  <?php if($preselect_teczka): ?>
+  <?php if($parent): ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="btn btn-outline-secondary">Anuluj</a>
+  <?php elseif($preselect_teczka): ?>
   <a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $preselect_teczka ?>" class="btn btn-outline-secondary">Anuluj</a>
   <?php else: ?>
   <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-outline-secondary">Anuluj</a>

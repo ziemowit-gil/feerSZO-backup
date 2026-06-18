@@ -25,6 +25,9 @@ $dekretacje  = ezd_dekretacje_by_sprawa($id);
 $zalaczniki  = ezd_zalaczniki_by($id);
 $log_entries = ezd_log_by_sprawa($id, 30);
 $users       = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
+$podsprawy   = ezd_podsprawy_by_parent($id);
+$dokumenty   = ezd_dokumenty_by_sprawa($id);
+$notatki     = ezd_notatki_by_sprawa($id);
 
 $is_closed = $sprawa['status'] === 'closed';
 $can_act   = can_edit() && !$is_closed;
@@ -91,6 +94,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ezd_dekretacja_complete((int)($_POST['dekr_id'] ?? 0), $user_id);
         flash_set('success', 'Zadanie oznaczone jako wykonane.');
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#dekretacje'); exit;
+    }
+
+    // ── Notatki ──────────────────────────────────────────────────────────────
+    if ($action === 'note_add' && $can_act) {
+        $tresc = trim($_POST['tresc'] ?? '');
+        if ($tresc !== '') { ezd_notatka_create($id, $tresc, $user_id); flash_set('success', 'Notatka dodana.'); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
+    }
+    if ($action === 'note_edit' && can_edit()) {
+        $n = ezd_notatka_get((int)($_POST['note_id'] ?? 0));
+        if ($n && ($n['created_by'] == $user_id || is_admin())) {
+            ezd_notatka_update((int)$n['id'], trim($_POST['tresc'] ?? ''), $user_id);
+            flash_set('success', 'Notatka zaktualizowana.');
+        } else { flash_set('error', 'Brak uprawnień do edycji notatki.'); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
+    }
+    if ($action === 'note_del' && can_edit()) {
+        $n = ezd_notatka_get((int)($_POST['note_id'] ?? 0));
+        if ($n && ($n['created_by'] == $user_id || is_admin())) {
+            ezd_notatka_delete((int)$n['id'], $user_id);
+            flash_set('success', 'Notatka usunięta.');
+        } else { flash_set('error', 'Brak uprawnień do usunięcia notatki.'); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
+    }
+    if ($action === 'note_pin' && can_edit()) {
+        ezd_notatka_toggle_pin((int)($_POST['note_id'] ?? 0), $user_id);
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
     }
 
     header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
@@ -168,6 +198,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <?php endif; ?>
             </div>
             <h3 class="fw-bold mb-1" style="font-size:1.25rem;color:#0f172a"><?= h($sprawa['title']) ?></h3>
+            <?php if($sprawa['parent_id']): ?>
+            <div class="mb-1" style="font-size:.78rem">
+              <span class="badge bg-info bg-opacity-15 text-info border border-info"><i class="bi bi-diagram-3 me-1"></i>Podsprawa</span>
+              <span class="text-muted ms-1">sprawy <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa['parent_id'] ?>" class="font-monospace text-decoration-none"><?= h($sprawa['parent_znak']) ?></a></span>
+            </div>
+            <?php endif; ?>
             <?php if($sprawa['description']): ?>
             <div class="text-muted" style="font-size:.83rem;line-height:1.5"><?= nl2br(h($sprawa['description'])) ?></div>
             <?php endif; ?>
@@ -258,6 +294,121 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php endif; ?>
     </div>
     <?php endif; ?>
+
+    <!-- Dokumenty wewnętrzne -->
+    <div class="mt-4" id="dokumenty">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
+          <i class="bi bi-file-earmark-text me-1"></i>Dokumenty wewnętrzne (<?= count($dokumenty) ?>)
+        </h6>
+        <?php if($can_act): ?>
+        <a href="<?= APP_URL ?>/ezd/dokumenty/add.php?sprawa_id=<?= $id ?>" class="btn btn-xs btn-outline-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Dodaj dokument</a>
+        <?php endif; ?>
+      </div>
+      <div class="card shadow-sm"><div class="card-body p-0">
+        <?php foreach($dokumenty as $d): ?>
+        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.82rem">
+          <i class="bi bi-file-earmark-text text-primary fs-5 flex-shrink-0"></i>
+          <div class="flex-grow-1 overflow-hidden">
+            <a href="<?= APP_URL ?>/ezd/dokumenty/view.php?id=<?= $d['id'] ?>" class="text-decoration-none fw-semibold text-truncate d-block"><?= h($d['title']) ?></a>
+            <div class="text-muted" style="font-size:.7rem">
+              <code style="font-size:.66rem"><?= h($d['sygnatura']) ?></code> ·
+              <?= h(EZD_DOK_RODZAJE[$d['rodzaj']] ?? $d['rodzaj']) ?> ·
+              <?= h($d['owner_name'] ?? '—') ?>
+              <?php if($d['plik_count']): ?> · <i class="bi bi-paperclip"></i><?= (int)$d['plik_count'] ?><?php endif; ?>
+            </div>
+          </div>
+          <?= ezd_dok_status_badge($d['status']) ?>
+        </div>
+        <?php endforeach; ?>
+        <?php if(!$dokumenty): ?>
+        <div class="text-center text-muted py-3" style="font-size:.8rem">Brak dokumentów wewnętrznych</div>
+        <?php endif; ?>
+      </div></div>
+    </div>
+
+    <!-- Podsprawy -->
+    <div class="mt-4" id="podsprawy">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
+          <i class="bi bi-diagram-3 me-1"></i>Podsprawy (<?= count($podsprawy) ?>)
+        </h6>
+        <?php if($can_act && !$sprawa['parent_id']): ?>
+        <a href="<?= APP_URL ?>/ezd/sprawy/add.php?parent_id=<?= $id ?>" class="btn btn-xs btn-outline-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Dodaj podsprawę</a>
+        <?php endif; ?>
+      </div>
+      <div class="card shadow-sm"><div class="card-body p-0">
+        <?php foreach($podsprawy as $ps): ?>
+        <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $ps['id'] ?>" class="d-flex align-items-center gap-2 px-3 py-2 border-bottom text-decoration-none text-reset" style="font-size:.82rem">
+          <i class="bi bi-folder2 text-info flex-shrink-0"></i>
+          <code class="flex-shrink-0" style="font-size:.72rem;color:#1d4ed8"><?= h($ps['znak_sprawy']) ?></code>
+          <span class="flex-grow-1 text-truncate fw-semibold"><?= h($ps['title']) ?></span>
+          <?= ezd_priority_badge($ps['priority']) ?>
+          <?= ezd_status_badge_sprawa($ps['status']) ?>
+        </a>
+        <?php endforeach; ?>
+        <?php if(!$podsprawy): ?>
+        <div class="text-center text-muted py-3" style="font-size:.8rem">
+          <?= $sprawa['parent_id'] ? 'Ta sprawa jest już podsprawą — zagnieżdżanie ograniczone do jednego poziomu.' : 'Brak podspraw' ?>
+        </div>
+        <?php endif; ?>
+      </div></div>
+    </div>
+
+    <!-- Notatki -->
+    <div class="mt-4" id="notatki">
+      <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size:.7rem;letter-spacing:.1em">
+        <i class="bi bi-sticky me-1"></i>Notatki (<?= count($notatki) ?>)
+      </h6>
+      <div class="card shadow-sm"><div class="card-body">
+        <?php if($can_act): ?>
+        <form method="post" class="mb-3">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="note_add">
+          <div class="d-flex gap-2 align-items-start">
+            <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Dodaj notatkę do sprawy…" required></textarea>
+            <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-plus-lg me-1"></i>Dodaj</button>
+          </div>
+        </form>
+        <?php endif; ?>
+        <?php foreach($notatki as $n): $own = ($n['created_by']==$user_id || is_admin()); ?>
+        <div class="border rounded-3 p-2 mb-2 <?= $n['pinned'] ? 'border-warning bg-warning bg-opacity-10' : '' ?>" style="font-size:.83rem">
+          <div class="d-flex align-items-center gap-2 mb-1 text-muted" style="font-size:.7rem">
+            <?php if($n['pinned']): ?><i class="bi bi-pin-angle-fill text-warning"></i><?php endif; ?>
+            <span class="fw-semibold text-dark"><?= h($n['author'] ?? '—') ?></span>
+            <span><?= date('d.m.Y H:i', strtotime($n['created_at'])) ?></span>
+            <?php if($n['updated_at'] && $n['updated_at'] !== $n['created_at']): ?><span class="fst-italic">(edytowano)</span><?php endif; ?>
+            <?php if(can_edit()): ?>
+            <div class="ms-auto d-flex gap-1">
+              <form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_pin"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
+                <button class="btn btn-xs btn-link p-0 text-muted" title="<?= $n['pinned']?'Odepnij':'Przypnij' ?>"><i class="bi bi-pin-angle<?= $n['pinned']?'-fill text-warning':'' ?>"></i></button>
+              </form>
+              <?php if($own): ?>
+              <button class="btn btn-xs btn-link p-0 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#note-edit-<?= $n['id'] ?>" title="Edytuj"><i class="bi bi-pencil"></i></button>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć notatkę?')"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_del"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
+                <button class="btn btn-xs btn-link p-0 text-danger" title="Usuń"><i class="bi bi-trash3"></i></button>
+              </form>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
+          </div>
+          <div style="white-space:pre-wrap"><?= h($n['tresc']) ?></div>
+          <?php if($own && can_edit()): ?>
+          <div class="collapse mt-2" id="note-edit-<?= $n['id'] ?>">
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_edit"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
+              <textarea name="tresc" class="form-control form-control-sm mb-2" rows="2" required><?= h($n['tresc']) ?></textarea>
+              <button class="btn btn-xs btn-primary btn-sm">Zapisz</button>
+            </form>
+          </div>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+        <?php if(!$notatki): ?>
+        <div class="text-center text-muted py-2" style="font-size:.8rem">Brak notatek</div>
+        <?php endif; ?>
+      </div></div>
+    </div>
 
     <!-- Repozytorium plików sprawy -->
     <div class="mt-4" id="files">
