@@ -69,12 +69,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$errors) {
             // Połącz z pismem EZD jeśli zaimportowano
             $from_ezd_id = (int)($_POST['from_ezd_id'] ?? 0);
+            $auto_msg = '';
             if ($from_ezd_id && module_enabled('ezd_enabled')) {
                 db()->prepare("UPDATE correspondence SET ezd_pismo_id=? WHERE id=?")->execute([$from_ezd_id, $id]);
                 db()->prepare("UPDATE ezd_pisma SET corr_id=? WHERE id=?")->execute([$id, $from_ezd_id]);
+            } elseif (corr_ezd_auto_enabled()) {
+                // Automatyczna rejestracja w Kancelarii EZD (dziennik korespondencji)
+                if (corr_auto_register($id, $uid)) $auto_msg = ' Zarejestrowano w Kancelarii EZD.';
             }
             log_system_action($uid, 'corr_create', "Dodano korespondencję #$id: " . $row['subject']);
-            flash_set('success', 'Korespondencja została dodana.');
+            flash_set('success', 'Korespondencja została dodana.' . $auto_msg);
             header('Location: ' . APP_URL . '/correspondence/view.php?id=' . $id); exit;
         }
     }

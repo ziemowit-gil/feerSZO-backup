@@ -18,6 +18,8 @@ $settings_keys = [
     'ezd_reminders_enabled',
     'ezd_peln_jrwa',
     'ezd_cert_jrwa',
+    'corr_ezd_auto',
+    'corr_ezd_jrwa',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -27,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_reminders_enabled' => isset($_POST['ezd_reminders_enabled']) ? '1' : '0',
         'ezd_peln_jrwa'         => trim($_POST['ezd_peln_jrwa'] ?? '') ?: '013',
         'ezd_cert_jrwa'         => trim($_POST['ezd_cert_jrwa'] ?? '') ?: '53',
+        'corr_ezd_auto'         => isset($_POST['corr_ezd_auto']) ? '1' : '0',
+        'corr_ezd_jrwa'         => trim($_POST['corr_ezd_jrwa'] ?? '') ?: 'KOR',
     ];
     foreach ($values as $key => $val) {
         try {
@@ -82,16 +86,26 @@ include dirname(__DIR__) . '/includes/header.php';
             <label class="form-check-label fw-semibold" for="ezd_reminders_enabled">Powiadomienia e-mail o terminach</label>
             <div class="form-text">Codzienny cron wysyła przypomnienia o terminach dekretacji (do wykonawcy) i spraw (do właściciela): jutro / dziś / po terminie.</div>
           </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="corr_ezd_auto" name="corr_ezd_auto" <?= $cfg['corr_ezd_auto'] !== '0' ? 'checked' : '' ?>>
+            <label class="form-check-label fw-semibold" for="corr_ezd_auto">Automatyczna rejestracja korespondencji w Kancelarii</label>
+            <div class="form-text">Każda nowa korespondencja przychodząca/wychodząca trafia automatycznie do sprawy ciągłej „Korespondencja przychodząca/wychodząca {rok}" jako pismo (z przeniesieniem załącznika). Po wyłączeniu pozostaje ręczne „Zarejestruj w EZD".</div>
+          </div>
           <div class="row g-3">
-            <div class="col-sm-6" style="max-width:260px">
+            <div class="col-sm-4" style="max-width:200px">
               <label class="form-label fw-semibold mb-1" for="ezd_peln_jrwa">Symbol JRWA pełnomocnictw</label>
               <input type="text" class="form-control form-control-sm font-monospace" id="ezd_peln_jrwa" name="ezd_peln_jrwa" value="<?= h($cfg['ezd_peln_jrwa'] ?: '013') ?>" placeholder="013">
-              <div class="form-text">Sprawy z teczek o tym symbolu trafiają do <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">Rejestru pełnomocnictw</a>.</div>
+              <div class="form-text"><a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">Rejestr pełnomocnictw</a></div>
             </div>
-            <div class="col-sm-6" style="max-width:260px">
+            <div class="col-sm-4" style="max-width:200px">
               <label class="form-label fw-semibold mb-1" for="ezd_cert_jrwa">Symbol JRWA zaświadczeń</label>
               <input type="text" class="form-control form-control-sm font-monospace" id="ezd_cert_jrwa" name="ezd_cert_jrwa" value="<?= h($cfg['ezd_cert_jrwa'] ?: '53') ?>" placeholder="53">
-              <div class="form-text">Wydane zaświadczenia rejestrują się tu jako pisma — <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php">Rejestr zaświadczeń</a>.</div>
+              <div class="form-text"><a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php">Rejestr zaświadczeń</a></div>
+            </div>
+            <div class="col-sm-4" style="max-width:200px">
+              <label class="form-label fw-semibold mb-1" for="corr_ezd_jrwa">Symbol JRWA korespondencji</label>
+              <input type="text" class="form-control form-control-sm font-monospace" id="corr_ezd_jrwa" name="corr_ezd_jrwa" value="<?= h($cfg['corr_ezd_jrwa'] ?: 'KOR') ?>" placeholder="KOR">
+              <div class="form-text"><a href="<?= APP_URL ?>/correspondence/index.php">Korespondencja</a></div>
             </div>
           </div>
         </div>
