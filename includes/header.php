@@ -525,6 +525,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <a class="sb-link<?= _nav_active('/ezd/pelnomocnictwa/') ?>" href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">
     <i class="bi bi-person-vcard"></i> Rejestr pełnomocnictw
   </a>
+  <a class="sb-link<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php">
+    <i class="bi bi-award"></i> Rejestr zaświadczeń
+  </a>
   <?php else: ?>
   <div class="sb-label">Kancelaria EZD</div>
   <div class="px-3 py-2 text-muted" style="font-size:.8rem">Moduł EZD jest wyłączony. Skontaktuj się z administratorem.</div>
@@ -885,6 +888,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <a class="sb-link<?= _nav_active('/ezd/pelnomocnictwa/') ?>" href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">
     <i class="bi bi-person-vcard"></i> Rejestr pełnomocnictw
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php">
+    <i class="bi bi-award"></i> Rejestr zaświadczeń
   </a>
   <?php endif; ?>
 

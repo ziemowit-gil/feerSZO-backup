@@ -17,6 +17,7 @@ $settings_keys = [
     'ezd_enabled',
     'ezd_reminders_enabled',
     'ezd_peln_jrwa',
+    'ezd_cert_jrwa',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_enabled'           => isset($_POST['ezd_enabled'])           ? '1' : '0',
         'ezd_reminders_enabled' => isset($_POST['ezd_reminders_enabled']) ? '1' : '0',
         'ezd_peln_jrwa'         => trim($_POST['ezd_peln_jrwa'] ?? '') ?: '013',
+        'ezd_cert_jrwa'         => trim($_POST['ezd_cert_jrwa'] ?? '') ?: '53',
     ];
     foreach ($values as $key => $val) {
         try {
@@ -80,10 +82,17 @@ include dirname(__DIR__) . '/includes/header.php';
             <label class="form-check-label fw-semibold" for="ezd_reminders_enabled">Powiadomienia e-mail o terminach</label>
             <div class="form-text">Codzienny cron wysyła przypomnienia o terminach dekretacji (do wykonawcy) i spraw (do właściciela): jutro / dziś / po terminie.</div>
           </div>
-          <div class="mb-0" style="max-width:220px">
-            <label class="form-label fw-semibold mb-1" for="ezd_peln_jrwa">Symbol JRWA pełnomocnictw</label>
-            <input type="text" class="form-control form-control-sm font-monospace" id="ezd_peln_jrwa" name="ezd_peln_jrwa" value="<?= h($cfg['ezd_peln_jrwa'] ?: '013') ?>" placeholder="013">
-            <div class="form-text">Sprawy z teczek o tym symbolu JRWA trafiają do <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">Rejestru pełnomocnictw</a>.</div>
+          <div class="row g-3">
+            <div class="col-sm-6" style="max-width:260px">
+              <label class="form-label fw-semibold mb-1" for="ezd_peln_jrwa">Symbol JRWA pełnomocnictw</label>
+              <input type="text" class="form-control form-control-sm font-monospace" id="ezd_peln_jrwa" name="ezd_peln_jrwa" value="<?= h($cfg['ezd_peln_jrwa'] ?: '013') ?>" placeholder="013">
+              <div class="form-text">Sprawy z teczek o tym symbolu trafiają do <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php">Rejestru pełnomocnictw</a>.</div>
+            </div>
+            <div class="col-sm-6" style="max-width:260px">
+              <label class="form-label fw-semibold mb-1" for="ezd_cert_jrwa">Symbol JRWA zaświadczeń</label>
+              <input type="text" class="form-control form-control-sm font-monospace" id="ezd_cert_jrwa" name="ezd_cert_jrwa" value="<?= h($cfg['ezd_cert_jrwa'] ?: '53') ?>" placeholder="53">
+              <div class="form-text">Wydane zaświadczenia rejestrują się tu jako pisma — <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php">Rejestr zaświadczeń</a>.</div>
+            </div>
           </div>
         </div>
       </div>

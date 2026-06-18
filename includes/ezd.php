@@ -1242,6 +1242,121 @@ function ezd_peln_teczka_id(): ?int {
     return $r ? (int)$r['id'] : null;
 }
 
+// ── Rejestracja zaświadczeń w EZD (JRWA 53) ──────────────────────────────────
+
+function ezd_cert_jrwa(): string {
+    $s = trim((string)org_setting('ezd_cert_jrwa'));
+    return $s !== '' ? $s : '53';
+}
+
+/** Hasło JRWA zaświadczeń — utworzone, jeśli nie istnieje. */
+function _ezd_cert_jrwa_id(): int {
+    $sym = ezd_cert_jrwa();
+    $j = db_one("SELECT id FROM ezd_jrwa WHERE symbol=?", [$sym]);
+    if ($j) return (int)$j['id'];
+    db()->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)")
+        ->execute([$sym, 'Zaświadczenia', 'B5', 'Zaświadczenia wydawane wolontariuszom i współpracownikom', 530]);
+    return (int)db()->lastInsertId();
+}
+
+/** Teczka roczna zaświadczeń (utworzona w razie potrzeby). */
+function _ezd_cert_teczka_id(int $rok, int $user_id): int {
+    $jid = _ezd_cert_jrwa_id();
+    $t = db_one("SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1", [$jid, $rok]);
+    if ($t) return (int)$t['id'];
+    return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>ezd_cert_jrwa(), 'title'=>"Zaświadczenia $rok", 'rok'=>$rok, 'owner_id'=>null], $user_id);
+}
+
+/** Sprawa ciągła „Rejestr zaświadczeń {rok}" (utworzona w razie potrzeby). */
+function _ezd_cert_sprawa_id(int $rok, int $user_id): int {
+    $tid   = _ezd_cert_teczka_id($rok, $user_id);
+    $title = "Rejestr zaświadczeń $rok";
+    $s = db_one("SELECT id FROM ezd_sprawy WHERE teczka_id=? AND title=? LIMIT 1", [$tid, $title]);
+    if ($s) return (int)$s['id'];
+    return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Rejestr zaświadczeń wydanych w '.$rok.' r.', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
+}
+
+/**
+ * Rejestruje wydane zaświadczenie jako pismo wychodzące w EZD (JRWA zaświadczeń).
+ * Idempotentne — gdy zaświadczenie ma już ezd_pismo_id, zwraca istniejące id.
+ * @return int|null id pisma EZD lub null gdy moduł wyłączony
+ */
+function ezd_register_certificate(array $req, int $user_id): ?int {
+    if (!module_enabled('ezd_enabled')) return null;
+    if (!empty($req['ezd_pismo_id'])) return (int)$req['ezd_pismo_id'];
+
+    $issued = $req['issued_at'] ?? $req['created_at'] ?? date('Y-m-d');
+    $rok    = (int)substr($issued, 0, 4) ?: (int)date('Y');
+    $sprawa_id = _ezd_cert_sprawa_id($rok, $user_id ?: 0);
+
+    $num  = trim((string)($req['cert_number'] ?? ''));
+    $name = trim((string)($req['requester_name'] ?? ''));
+    $tresc = trim(
+        ($num ? "Numer zaświadczenia: $num\n" : '')
+        . (!empty($req['cel']) ? 'Cel: ' . $req['cel'] . "\n" : '')
+        . (!empty($req['sign_type']) ? 'Forma: ' . $req['sign_type'] . "\n" : '')
+        . (!empty($req['verify_code']) ? 'Kod weryfikacyjny: ' . $req['verify_code'] : '')
+    );
+
+    $pid = ezd_pismo_create([
+        'sprawa_id'   => $sprawa_id,
+        'kierunek'    => 'wychodzace',
+        'title'       => 'Zaświadczenie' . ($num ? ' nr ' . $num : '') . ($name ? ' — ' . $name : ''),
+        'tresc'       => $tresc,
+        'nadawca'     => '',
+        'odbiorca'    => $name,
+        'data_pisma'  => substr($issued, 0, 10) ?: null,
+        'data_wplywu' => null,
+        'data_wysylki'=> substr($issued, 0, 10) ?: null,
+        'status'      => 'zakonczone',
+        'owner_id'    => $user_id ?: null,
+    ], $user_id ?: 0);
+
+    try { db()->prepare("UPDATE certificate_requests SET ezd_pismo_id=? WHERE id=?")->execute([$pid, (int)$req['id']]); } catch (\Throwable $e) {}
+    return $pid;
+}
+
+/** Lista zarejestrowanych zaświadczeń (z modułu zaświadczeń powiązanych z EZD). */
+function ezd_zaswiadczenia_all(string $q = ''): array {
+    $where = "cr.ezd_pismo_id IS NOT NULL";
+    $params = [];
+    if ($q !== '') {
+        $where .= " AND (cr.cert_number LIKE ? OR cr.requester_name LIKE ?)";
+        $like = '%'.$q.'%'; $params[] = $like; $params[] = $like;
+    }
+    return db_all(
+        "SELECT cr.id, cr.cert_number, cr.requester_name, cr.requester_email, cr.cel,
+                cr.sign_type, cr.status, cr.issued_at, cr.verify_code, cr.ezd_pismo_id,
+                p.sygnatura, p.sprawa_id, s.znak_sprawy
+         FROM certificate_requests cr
+         LEFT JOIN ezd_pisma  p ON p.id = cr.ezd_pismo_id
+         LEFT JOIN ezd_sprawy s ON s.id = p.sprawa_id
+         WHERE $where
+         ORDER BY cr.issued_at DESC, cr.id DESC",
+        $params
+    );
+}
+
+/** Rejestruje wszystkie wydane, a jeszcze nieujęte w EZD zaświadczenia. @return int liczba dodanych */
+function ezd_zaswiadczenia_backfill(int $user_id): int {
+    $rows = db_all(
+        "SELECT * FROM certificate_requests
+         WHERE ezd_pismo_id IS NULL AND cert_number IS NOT NULL AND cert_number<>''
+           AND status IN ('wydane','gotowe','esign_oczekuje','esign_podpisane')
+         ORDER BY issued_at, id"
+    );
+    $n = 0;
+    foreach ($rows as $r) {
+        try { if (ezd_register_certificate($r, $user_id)) $n++; } catch (\Throwable $e) {}
+    }
+    return $n;
+}
+
+function ezd_zaswiadczenia_count(): int {
+    try { return (int)(db_one("SELECT COUNT(*) c FROM certificate_requests WHERE ezd_pismo_id IS NOT NULL")['c'] ?? 0); }
+    catch (\Throwable $e) { return 0; }
+}
+
 // ── Dekretacja ───────────────────────────────────────────────────────────────
 
 function ezd_dekretacje_by_sprawa(int $sprawa_id): array {

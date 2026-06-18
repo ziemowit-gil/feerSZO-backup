@@ -11,6 +11,7 @@
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN send_at              TEXT"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN docusign_envelope_id TEXT"); } catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN verify_code          TEXT"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE certificate_requests ADD COLUMN ezd_pismo_id         INTEGER"); } catch (\Throwable $e) {}
 })();
 
 /**
@@ -193,6 +194,16 @@ function issue_certificate(int $req_id, int $admin_id, string $content, ?string 
 
     $req['certificate_content'] = $content;
     $req['certificate_file']    = $file_path;
+
+    // Rejestracja w EZD (Kancelaria) pod hasłem JRWA zaświadczeń — nie blokuje wydania
+    if (module_enabled('ezd_enabled')) {
+        try {
+            require_once __DIR__ . '/ezd.php';
+            if (function_exists('ezd_register_certificate')) {
+                ezd_register_certificate(get_certificate_request($req_id), $admin_id);
+            }
+        } catch (\Throwable $e) { error_log('EZD cert register: ' . $e->getMessage()); }
+    }
 
     if ($new_status === 'wydane') {
         _certificate_send_issued_email($req);
