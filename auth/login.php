@@ -102,6 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (($user['role'] ?? '') === 'crm_user') {
                     header('Location: ' . APP_URL . '/crm/dashboard.php'); exit;
                 }
+                if (($user['role'] ?? '') === 'ezd_user') {
+                    header('Location: ' . APP_URL . '/ezd/index.php'); exit;
+                }
                 header('Location: ' . $redirect); exit;
             }
             brute_record_fail($email);
@@ -144,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             authlog_write((int)$user['id'], 'login_sms', $user['email'] ?? $sms_phone, 'Logowanie SMS');
             login_user($user);
             if (($user['role'] ?? '') === 'crm_user') { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
+            if (($user['role'] ?? '') === 'ezd_user') { header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
             header('Location: ' . $redirect); exit;
         }
         $sms_step = 2;
@@ -182,6 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             authlog_write((int)$user['id'], 'login_code', $user['email'] ?? '', 'Logowanie kodem jednorazowym');
             login_user($user);
             if (($user['role'] ?? '') === 'crm_user') { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
+            if (($user['role'] ?? '') === 'ezd_user') { header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
             header('Location: ' . $redirect); exit;
         }
         $error      = 'Nieprawidłowy lub nieaktywny kod dostępu.';

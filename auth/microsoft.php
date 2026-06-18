@@ -142,6 +142,15 @@ if (!$error) {
                 }
             }
 
+            // ezd_only → zawsze do Kancelarii EZD (bez bramki IKA)
+            $u_ezd_only = ($user['role'] === 'ezd_user');
+            if (!$u_ezd_only) {
+                try { $r = db_one("SELECT ezd_only FROM roles WHERE name=?", [$user['role']]); $u_ezd_only = !empty($r['ezd_only']); } catch (\Throwable $e) {}
+            }
+            if ($u_ezd_only) {
+                header('Location: ' . APP_URL . '/ezd/index.php'); exit;
+            }
+
             // Przez IKA gate jeśli kod ustawiony
             if (!empty($user['cpc_code'])) {
                 header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($final_redirect));

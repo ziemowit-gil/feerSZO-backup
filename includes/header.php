@@ -500,7 +500,34 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     </span>
   </a>
 
+  <?php $_ezd_only = is_ezd_only(); ?>
   <?php if ($_user): ?>
+
+  <?php if ($_ezd_only): ?>
+  <!-- ══ WIDOK EZD-ONLY (rola ezd_user) ════════════════════════════ -->
+  <?php if (module_enabled('ezd_enabled')): ?>
+  <div class="sb-label">Kancelaria EZD</div>
+  <a class="sb-link<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php">
+    <i class="bi bi-building-gear"></i> Pulpit kancelarii
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/rpw/') ?>" href="<?= APP_URL ?>/ezd/rpw/index.php">
+    <i class="bi bi-mailbox2"></i> Dziennik podawczy
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php">
+    <i class="bi bi-folder2-open"></i> Sprawy
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/teczki/') ?>" href="<?= APP_URL ?>/ezd/teczki/index.php">
+    <i class="bi bi-archive"></i> Teczki aktowe
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/jrwa/') ?>" href="<?= APP_URL ?>/ezd/jrwa/index.php">
+    <i class="bi bi-tags"></i> Wykaz akt (JRWA)
+  </a>
+  <?php else: ?>
+  <div class="sb-label">Kancelaria EZD</div>
+  <div class="px-3 py-2 text-muted" style="font-size:.8rem">Moduł EZD jest wyłączony. Skontaktuj się z administratorem.</div>
+  <?php endif; ?>
+
+  <?php else: ?>
 
   <?php if (!can_edit()): ?>
   <!-- ══ WIDOK UŻYTKOWNIKA (viewer) ══════════════════════════════ -->
@@ -1057,6 +1084,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <?php endif; ?>
 
   <?php endif; /* can_edit */ ?>
+  <?php endif; /* ezd_only */ ?>
   <?php endif; /* _user */ ?>
 
   <!-- ── Użytkownik + wylogowanie ─────────────────────────────── -->

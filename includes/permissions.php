@@ -33,6 +33,9 @@ const PERMISSION_MODULES = [
 // Moduły dostępne dla roli crm_only (tylko CRM — bez systemu głównego)
 const CRM_ONLY_MODULES = ['crm'];
 
+// Moduły dostępne dla roli ezd_only (tylko Kancelaria EZD — bez systemu głównego)
+const EZD_ONLY_MODULES = ['ezd'];
+
 // ── Auto-migration (lazy — runs on first permissions function call) ───────────
 function _permissions_init(): void {
     static $done = false;
@@ -48,13 +51,16 @@ function _permissions_init(): void {
         description TEXT NOT NULL DEFAULT '',
         is_system INTEGER NOT NULL DEFAULT 0,
         crm_only  INTEGER NOT NULL DEFAULT 0,
+        ezd_only  INTEGER NOT NULL DEFAULT 0,
         sort_order INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
-    // Migracja istniejących baz — dodaj kolumnę crm_only jeśli nie istnieje
+    // Migracja istniejących baz — dodaj kolumny flag jeśli nie istnieją
     try { $pdo->exec("ALTER TABLE roles ADD COLUMN crm_only INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
-    // crm_user (wbudowana) zawsze ma crm_only=1
+    try { $pdo->exec("ALTER TABLE roles ADD COLUMN ezd_only INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // wbudowane role z ograniczonym zakresem
     try { $pdo->exec("UPDATE roles SET crm_only=1 WHERE name='crm_user'"); } catch (\Throwable $e) {}
+    try { $pdo->exec("UPDATE roles SET ezd_only=1 WHERE name='ezd_user'"); } catch (\Throwable $e) {}
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS role_permissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,17 +77,19 @@ function _permissions_init(): void {
     if ($count === 0) {
         $modules = array_keys(PERMISSION_MODULES);
 
-        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, crm_only, sort_order) VALUES
-            ('admin',    'Administrator', 'Pełen dostęp do wszystkich modułów i ustawień', 1, 0, 1),
-            ('editor',   'Edytor',        'Odczyt i zapis we wszystkich modułach (bez administracji)', 1, 0, 2),
-            ('viewer',   'Widz',          'Tylko odczyt (bez administracji)', 1, 0, 3),
-            ('crm_user', 'Użytkownik CRM','Dostęp wyłącznie do modułu CRM — bez systemu głównego', 1, 1, 4)
+        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, crm_only, ezd_only, sort_order) VALUES
+            ('admin',    'Administrator', 'Pełen dostęp do wszystkich modułów i ustawień', 1, 0, 0, 1),
+            ('editor',   'Edytor',        'Odczyt i zapis we wszystkich modułach (bez administracji)', 1, 0, 0, 2),
+            ('viewer',   'Widz',          'Tylko odczyt (bez administracji)', 1, 0, 0, 3),
+            ('crm_user', 'Użytkownik CRM','Dostęp wyłącznie do modułu CRM — bez systemu głównego', 1, 1, 0, 4),
+            ('ezd_user', 'Użytkownik EZD','Dostęp wyłącznie do modułu Kancelaria EZD — bez systemu głównego', 1, 0, 1, 5)
         ");
 
         $admin_id    = (int)$pdo->query("SELECT id FROM roles WHERE name='admin'")->fetchColumn();
         $editor_id   = (int)$pdo->query("SELECT id FROM roles WHERE name='editor'")->fetchColumn();
         $viewer_id   = (int)$pdo->query("SELECT id FROM roles WHERE name='viewer'")->fetchColumn();
         $crm_user_id = (int)$pdo->query("SELECT id FROM roles WHERE name='crm_user'")->fetchColumn();
+        $ezd_user_id = (int)$pdo->query("SELECT id FROM roles WHERE name='ezd_user'")->fetchColumn();
 
         $ins = $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)");
 
@@ -94,6 +102,18 @@ function _permissions_init(): void {
         }
         // crm_user: tylko crm read+write
         $ins->execute([$crm_user_id, 'crm', 1, 1, 0]);
+        // ezd_user: tylko ezd read+write
+        $ins->execute([$ezd_user_id, 'ezd', 1, 1, 0]);
+    }
+
+    // Idempotentnie dodaj rolę ezd_user jeśli nie istnieje (dla istniejących baz)
+    $ezd_user_exists = $pdo->query("SELECT COUNT(*) FROM roles WHERE name='ezd_user'")->fetchColumn();
+    if (!$ezd_user_exists) {
+        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, crm_only, ezd_only, sort_order)
+                    VALUES ('ezd_user','Użytkownik EZD','Dostęp wyłącznie do modułu Kancelaria EZD — bez systemu głównego',1,0,1,5)");
+        $ezd_id = (int)$pdo->query("SELECT id FROM roles WHERE name='ezd_user'")->fetchColumn();
+        $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
+            ->execute([$ezd_id, 'ezd', 1, 1, 0]);
     }
 
     // Idempotentnie dodaj rolę crm_user jeśli nie istnieje (dla istniejących baz)
@@ -208,11 +228,13 @@ function can_delete(string $module): bool {
 }
 
 /**
- * Backward-compat wrapper: can_edit() = can write umowy OR granty
+ * Backward-compat wrapper: can_edit() = can write umowy OR granty OR ezd.
+ * (EZD dodane, by rola ezd_user mogła zakładać sprawy/pisma/dokumenty —
+ *  strony EZD bramkują akcje przez can_edit(); rola jest i tak zamknięta do /ezd/.)
  * Overrides the function defined in auth.php (auth.php must require_once this file first).
  */
 if (!function_exists('can_edit')) {
     function can_edit(): bool {
-        return can_write('umowy') || can_write('granty');
+        return can_write('umowy') || can_write('granty') || can_write('ezd');
     }
 }

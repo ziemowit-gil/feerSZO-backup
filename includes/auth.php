@@ -54,6 +54,17 @@ function is_crm_only(): bool {
     } catch (\Throwable $e) { return false; }
 }
 
+function is_ezd_only(): bool {
+    $u = current_user();
+    if (!$u) return false;
+    if (($u['portal_scope'] ?? '') === 'ezd_only') return true;
+    if ($u['role'] === 'ezd_user') return true;
+    try {
+        $r = db_one("SELECT ezd_only FROM roles WHERE name=?", [$u['role']]);
+        return !empty($r['ezd_only']);
+    } catch (\Throwable $e) { return false; }
+}
+
 function require_login(): void {
     if (!current_user()) {
         $uri  = $_SERVER['REQUEST_URI'] ?? '/';
@@ -99,6 +110,28 @@ function require_login(): void {
         }
         if (!$is_allowed && $rel !== '/crm' && $rel !== '/crm/') {
             header('Location: ' . APP_URL . '/crm/dashboard.php');
+            exit;
+        }
+    }
+
+    // Użytkownicy ezd_user / ezd_only — dostęp wyłącznie do Kancelarii EZD
+    if (is_ezd_only()) {
+        $uri = $_SERVER['REQUEST_URI'] ?? '';
+        $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+        $rel = ($base && $base !== '/') ? substr($uri, strlen($base)) : $uri;
+        $rel = strtolower(preg_replace('/\?.*/', '', $rel));
+
+        $allowed_prefixes = [
+            '/ezd/', '/auth/',
+            '/user/first_login_consent',
+            '/panel/password', '/panel/2fa', '/panel/profile_edit', '/panel/sessions',
+        ];
+        $is_allowed = false;
+        foreach ($allowed_prefixes as $p) {
+            if (str_starts_with($rel, $p)) { $is_allowed = true; break; }
+        }
+        if (!$is_allowed) {
+            header('Location: ' . APP_URL . '/ezd/index.php');
             exit;
         }
     }
