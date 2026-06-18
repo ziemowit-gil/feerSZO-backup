@@ -74,6 +74,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($s['title']) ?></div>
         <div class="text-muted" style="font-size:.74rem"><i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?></div>
       </div>
+      <?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?>
       <?= ezd_priority_badge($s['priority']) ?>
       <?= ezd_status_badge_sprawa($s['status']) ?>
       <div class="text-muted" style="font-size:.73rem;white-space:nowrap">

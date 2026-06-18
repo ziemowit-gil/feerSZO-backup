@@ -28,6 +28,24 @@ $my_dekr = db_all(
     [$user_id]
 );
 
+// Moje sprawy (jestem właścicielem/referentem)
+$my_sprawy = db_all(
+    "SELECT s.*, t.symbol AS teczka_symbol FROM ezd_sprawy s
+     JOIN ezd_teczki t ON t.id=s.teczka_id
+     WHERE s.owner_id=? AND s.status!='closed'
+     ORDER BY (s.deadline IS NULL), s.deadline ASC, s.updated_at DESC LIMIT 8",
+    [$user_id]
+);
+// Moje pisma (jestem referentem)
+$my_pisma = db_all(
+    "SELECT p.*, s.znak_sprawy FROM ezd_pisma p
+     JOIN ezd_sprawy s ON s.id=p.sprawa_id
+     WHERE p.owner_id=? ORDER BY p.updated_at DESC LIMIT 8",
+    [$user_id]
+);
+$my_sprawy_cnt = (int)(db_one("SELECT COUNT(*) c FROM ezd_sprawy WHERE owner_id=? AND status!='closed'", [$user_id])['c'] ?? 0);
+$my_pisma_cnt  = (int)(db_one("SELECT COUNT(*) c FROM ezd_pisma WHERE owner_id=?", [$user_id])['c'] ?? 0);
+
 // Ostatnia aktywność (log)
 $activity = db_all(
     "SELECT l.*, u.name AS user_name, s.znak_sprawy
@@ -111,6 +129,52 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
   <?php endforeach; ?>
+</div>
+
+<!-- Widget: Moje sprawy / Moje pisma -->
+<div class="ezd-card mb-4">
+  <ul class="nav nav-tabs px-2 pt-2" style="font-size:.82rem;border-bottom:1px solid #f1f5f9">
+    <li class="nav-item"><a class="nav-link active py-1" data-bs-toggle="tab" href="#tab-moje-sprawy"><i class="bi bi-folder2-open me-1"></i>Moje sprawy <span class="badge bg-primary rounded-pill"><?= $my_sprawy_cnt ?></span></a></li>
+    <li class="nav-item"><a class="nav-link py-1" data-bs-toggle="tab" href="#tab-moje-pisma"><i class="bi bi-envelope me-1"></i>Moje pisma <span class="badge bg-secondary rounded-pill"><?= $my_pisma_cnt ?></span></a></li>
+  </ul>
+  <div class="tab-content p-0">
+    <!-- Moje sprawy -->
+    <div class="tab-pane fade show active" id="tab-moje-sprawy">
+      <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
+        <tbody>
+        <?php foreach($my_sprawy as $s): ?>
+          <tr onclick="location='<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>'" style="cursor:pointer">
+            <td class="font-monospace fw-semibold text-primary" style="white-space:nowrap;font-size:.74rem"><?= h($s['znak_sprawy']) ?></td>
+            <td class="text-truncate" style="max-width:1px"><?= h($s['title']) ?></td>
+            <td class="text-nowrap"><?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?></td>
+            <td class="text-nowrap text-end" style="font-size:.72rem">
+              <?php if(!empty($s['ciagla'])): ?><span class="text-info"><i class="bi bi-infinity"></i></span>
+              <?php elseif($s['deadline']): ?><span class="<?= $s['deadline']<date('Y-m-d')?'text-danger fw-bold':'text-muted' ?>"><?= date_pl($s['deadline']) ?></span>
+              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if(!$my_sprawy): ?><tr><td class="text-center text-muted py-3" style="font-size:.8rem">Nie masz przypisanych aktywnych spraw</td></tr><?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+    <!-- Moje pisma -->
+    <div class="tab-pane fade" id="tab-moje-pisma">
+      <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
+        <tbody>
+        <?php foreach($my_pisma as $p): $k = EZD_KIERUNKI[$p['kierunek']] ?? ['icon'=>'bi-envelope','class'=>'secondary','label'=>$p['kierunek']]; ?>
+          <tr onclick="location='<?= APP_URL ?>/ezd/pisma/view.php?id=<?= $p['id'] ?>'" style="cursor:pointer">
+            <td class="text-nowrap"><i class="bi <?= $k['icon'] ?> text-<?= $k['class'] ?>" title="<?= h($k['label']) ?>"></i></td>
+            <td class="font-monospace" style="white-space:nowrap;font-size:.72rem"><?= h($p['sygnatura']) ?></td>
+            <td class="text-truncate" style="max-width:1px"><?= h($p['title']) ?></td>
+            <td class="text-nowrap"><span class="badge bg-light text-dark border" style="font-size:.62rem"><?= h($p['status']) ?></span></td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if(!$my_pisma): ?><tr><td class="text-center text-muted py-3" style="font-size:.8rem">Nie jesteś referentem żadnego pisma</td></tr><?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <div class="row g-4">

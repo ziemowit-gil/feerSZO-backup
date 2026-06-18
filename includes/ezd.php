@@ -226,6 +226,7 @@
     foreach ([
         "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
         "ALTER TABLE ezd_sprawy     ADD COLUMN ciagla      INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN etap        TEXT    NOT NULL DEFAULT 'wszczeta'",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN dokument_id INTEGER REFERENCES ezd_dokumenty(id) ON DELETE CASCADE",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN grupa_id    INTEGER REFERENCES ezd_grupy_plikow(id) ON DELETE SET NULL",
     ] as $alter) {
@@ -291,6 +292,20 @@ const EZD_PRIORITIES = [
     'normal' => ['label' => 'Normalny', 'class' => 'primary'],
     'high'   => ['label' => 'Wysoki',   'class' => 'warning'],
     'urgent' => ['label' => 'Pilny',    'class' => 'danger'],
+];
+
+/**
+ * Etapy obiegu sprawy (workflow BPM) — uporządkowany proces kancelaryjny.
+ * order = pozycja na ścieżce; dyspozycja = dyspozycja dekretacji sugerująca ten etap.
+ */
+const EZD_ETAPY = [
+    'wszczeta'   => ['label' => 'Wszczęcie',    'icon' => 'bi-folder-plus',        'class' => 'secondary', 'order' => 1],
+    'dekretacja' => ['label' => 'Dekretacja',   'icon' => 'bi-person-lines-fill',  'class' => 'info',      'order' => 2, 'dyspozycja' => 'do_zalat'],
+    'realizacja' => ['label' => 'Realizacja',   'icon' => 'bi-gear',               'class' => 'primary',   'order' => 3, 'dyspozycja' => 'do_realizacji'],
+    'akceptacja' => ['label' => 'Akceptacja',   'icon' => 'bi-check2-square',      'class' => 'warning',   'order' => 4, 'dyspozycja' => 'do_akcept'],
+    'podpis'     => ['label' => 'Podpis',       'icon' => 'bi-pen',                'class' => 'warning',   'order' => 5, 'dyspozycja' => 'do_podpisu'],
+    'wysylka'    => ['label' => 'Wysyłka',      'icon' => 'bi-send',               'class' => 'info',      'order' => 6],
+    'zakonczona' => ['label' => 'Zakończenie',  'icon' => 'bi-check-circle-fill',  'class' => 'success',   'order' => 7],
 ];
 const EZD_KIERUNKI = [
     'przychodzace' => ['label' => 'Przychodzące', 'icon' => 'bi-box-arrow-in-down-left', 'class' => 'info'],
@@ -604,6 +619,46 @@ function _ezd_next_numer(int $teczka_id, int $rok): int {
         [$teczka_id]
     );
     return ($r['m'] ?? 0) + 1;
+}
+
+// ── Workflow BPM — etapy obiegu sprawy ───────────────────────────────────────
+
+function ezd_etap_meta(string $etap): array {
+    return EZD_ETAPY[$etap] ?? ['label' => $etap, 'icon' => 'bi-circle', 'class' => 'secondary', 'order' => 0];
+}
+
+function ezd_etap_badge(?string $etap): string {
+    $etap = $etap ?: 'wszczeta';
+    $m = ezd_etap_meta($etap);
+    return '<span class="badge bg-' . $m['class'] . ' bg-opacity-15 text-' . $m['class'] . ' border border-' . $m['class'] . '" style="font-size:.65rem"><i class="bi ' . $m['icon'] . ' me-1"></i>' . h($m['label']) . '</span>';
+}
+
+/** Ustawia etap obiegu sprawy (z walidacją i logiem). Gdy etap=zakonczona → zamyka sprawę (o ile nie ciągła). */
+function ezd_sprawa_set_etap(int $id, string $etap, int $user_id): void {
+    if (!array_key_exists($etap, EZD_ETAPY)) throw new \RuntimeException('Nieznany etap obiegu.');
+    $s = ezd_sprawa_get($id);
+    if (!$s) return;
+    if ($s['status'] === 'closed' && !is_admin()) throw new \RuntimeException('Sprawa jest zamknięta.');
+
+    $from = $s['etap'] ?? 'wszczeta';
+    if ($from === $etap) return;
+
+    db()->prepare("UPDATE ezd_sprawy SET etap=?, updated_at=datetime('now') WHERE id=?")->execute([$etap, $id]);
+
+    // Domknięcie procesu: ostatni etap zamyka sprawę (chyba że ciągła)
+    if ($etap === 'zakonczona' && empty($s['ciagla']) && $s['status'] !== 'closed') {
+        db()->prepare("UPDATE ezd_sprawy SET status='closed', closed_at=datetime('now') WHERE id=?")->execute([$id]);
+        db()->prepare("UPDATE ezd_dekretacje SET status='zakonczone',completed_at=datetime('now') WHERE sprawa_id=? AND status='oczekuje'")->execute([$id]);
+    } elseif ($from === 'zakonczona' && $etap !== 'zakonczona' && $s['status'] === 'closed') {
+        // Cofnięcie z zakończenia — ponowne otwarcie
+        db()->prepare("UPDATE ezd_sprawy SET status='in_progress', closed_at=NULL WHERE id=?")->execute([$id]);
+    } elseif ($from === 'wszczeta' && $s['status'] === 'open') {
+        // Ruszył obieg → w toku
+        db()->prepare("UPDATE ezd_sprawy SET status='in_progress' WHERE id=?")->execute([$id]);
+    }
+
+    ezd_log(null, $id, null, null, $user_id, 'etap_change',
+        'Etap obiegu: ' . (ezd_etap_meta($from)['label']) . ' → ' . (ezd_etap_meta($etap)['label']));
 }
 
 // ── Pisma ────────────────────────────────────────────────────────────────────
@@ -1432,6 +1487,20 @@ function ezd_dekretacja_create(array $d, int $user_id): int {
     $id = (int)db()->lastInsertId();
     ezd_log(null, $d['sprawa_id'] ?: null, $d['pismo_id'] ?: null, $d['umowa_id'] ?: null,
             $user_id, 'dekretacja_create', EZD_DYSPOZYCJE[$d['dyspozycja'] ?? 'do_zalat'] . ' → #' . $d['wykonawca_id']);
+
+    // Workflow BPM: dyspozycja przesuwa etap obiegu do przodu (nigdy wstecz)
+    if (!empty($d['sprawa_id'])) {
+        $dysp = $d['dyspozycja'] ?? 'do_zalat';
+        $target = null;
+        foreach (EZD_ETAPY as $ek => $em) { if (($em['dyspozycja'] ?? null) === $dysp) { $target = $ek; break; } }
+        if ($target) {
+            $sp = ezd_sprawa_get((int)$d['sprawa_id']);
+            $cur = $sp['etap'] ?? 'wszczeta';
+            if ($sp && $sp['status'] !== 'closed' && ezd_etap_meta($target)['order'] > ezd_etap_meta($cur)['order']) {
+                try { ezd_sprawa_set_etap((int)$d['sprawa_id'], $target, $user_id); } catch (\Throwable $e) {}
+            }
+        }
+    }
     return $id;
 }
 

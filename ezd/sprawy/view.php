@@ -123,6 +123,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#dekretacje'); exit;
     }
 
+    if ($action === 'set_etap' && $can_act) {
+        try {
+            ezd_sprawa_set_etap($id, $_POST['etap'] ?? '', $user_id);
+            flash_set('success', 'Zmieniono etap obiegu sprawy.');
+        } catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#workflow'); exit;
+    }
+
     // ── Notatki ──────────────────────────────────────────────────────────────
     if ($action === 'note_add' && $can_act) {
         $tresc = trim($_POST['tresc'] ?? '');
@@ -184,6 +192,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 /* ── Dekretacja ──────────────────────────── */
 .dekr-row{display:flex;align-items:flex-start;gap:.65rem;padding:.45rem 0;border-bottom:1px solid #f8fafc;font-size:.78rem;}
 .dekr-row:last-child{border-bottom:none;}
+
+/* ── Stepper workflow BPM ────────────────── */
+.ezd-stepper{display:flex;align-items:flex-start;gap:.25rem;overflow-x:auto;padding:.25rem 0;}
+.ezd-step{flex:1 1 0;min-width:64px;text-align:center;position:relative;}
+.ezd-step::before{content:'';position:absolute;top:14px;left:-50%;width:100%;height:2px;background:#e2e8f0;z-index:0;}
+.ezd-step:first-child::before{display:none;}
+.ezd-step-dot{position:relative;z-index:1;width:30px;height:30px;border-radius:50%;margin:0 auto .35rem;display:flex;align-items:center;justify-content:center;background:#e2e8f0;color:#94a3b8;font-size:.85rem;border:2px solid #fff;box-shadow:0 0 0 1px #e2e8f0;}
+.ezd-step-lbl{font-size:.66rem;color:#94a3b8;line-height:1.15;}
+.ezd-step-done .ezd-step-dot{background:#22c55e;color:#fff;box-shadow:0 0 0 1px #22c55e;}
+.ezd-step-done::before{background:#22c55e;}
+.ezd-step-done .ezd-step-lbl{color:#16a34a;}
+.ezd-step-current .ezd-step-dot{background:#2563eb;color:#fff;box-shadow:0 0 0 3px #bfdbfe;}
+.ezd-step-current .ezd-step-lbl{color:#1d4ed8;font-weight:700;}
 </style>
 
 <!-- Breadcrumb -->
@@ -256,6 +277,54 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Workflow BPM — etapy obiegu -->
+    <?php
+      $cur_etap = $sprawa['etap'] ?? 'wszczeta';
+      $cur_ord  = ezd_etap_meta($cur_etap)['order'];
+      $etap_keys = array_keys(EZD_ETAPY);
+      $cur_idx  = array_search($cur_etap, $etap_keys, true);
+      $next_etap = ($cur_idx !== false && isset($etap_keys[$cur_idx+1])) ? $etap_keys[$cur_idx+1] : null;
+    ?>
+    <div class="bc mb-4" id="workflow">
+      <div class="bc-h"><i class="bi bi-diagram-2"></i>Obieg sprawy (workflow)</div>
+      <div class="bc-b">
+        <div class="ezd-stepper">
+          <?php foreach (EZD_ETAPY as $ek => $em):
+            $state = $em['order'] < $cur_ord ? 'done' : ($ek === $cur_etap ? 'current' : 'todo'); ?>
+          <div class="ezd-step ezd-step-<?= $state ?>" title="<?= h($em['label']) ?>">
+            <div class="ezd-step-dot"><i class="bi <?= $state==='done'?'bi-check-lg':$em['icon'] ?>"></i></div>
+            <div class="ezd-step-lbl"><?= h($em['label']) ?></div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <?php if($can_act): ?>
+        <div class="d-flex gap-2 flex-wrap align-items-center mt-3 pt-3 border-top">
+          <?php if($next_etap): ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="set_etap">
+            <input type="hidden" name="etap" value="<?= $next_etap ?>">
+            <button class="btn btn-sm btn-primary"><i class="bi <?= ezd_etap_meta($next_etap)['icon'] ?> me-1"></i>Dalej: <?= h(ezd_etap_meta($next_etap)['label']) ?> →</button>
+          </form>
+          <?php endif; ?>
+          <form method="post" class="d-inline d-flex gap-1">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="set_etap">
+            <select name="etap" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+              <option disabled selected>Przejdź do etapu…</option>
+              <?php foreach(EZD_ETAPY as $ek=>$em): ?>
+              <option value="<?= $ek ?>" <?= $ek===$cur_etap?'disabled':'' ?>><?= h($em['label']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </form>
+          <span class="text-muted ms-auto" style="font-size:.74rem">Aktualny etap: <?= ezd_etap_badge($cur_etap) ?></span>
+        </div>
+        <?php else: ?>
+        <div class="mt-2 text-end"><?= ezd_etap_badge($cur_etap) ?></div>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -595,6 +664,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <dd class="col-7 mb-0"><?= ezd_priority_badge($sprawa['priority']) ?></dd>
           <dt class="col-5 text-muted fw-normal">Status</dt>
           <dd class="col-7 mb-0"><?= ezd_status_badge_sprawa($sprawa['status']) ?></dd>
+          <dt class="col-5 text-muted fw-normal">Etap obiegu</dt>
+          <dd class="col-7 mb-0"><?= ezd_etap_badge($sprawa['etap'] ?? 'wszczeta') ?></dd>
           <dt class="col-5 text-muted fw-normal">Termin</dt>
           <dd class="col-7 mb-0 <?= !empty($sprawa['ciagla'])?'text-info':($sprawa['deadline']&&$sprawa['deadline']<date('Y-m-d')&&!$is_closed?'text-danger fw-bold':'') ?>">
             <?= !empty($sprawa['ciagla']) ? '<i class="bi bi-infinity me-1"></i>stale otwarta' : ($sprawa['deadline'] ? date_pl($sprawa['deadline']) : '—') ?>
