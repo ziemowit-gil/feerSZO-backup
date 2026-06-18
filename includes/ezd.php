@@ -197,10 +197,22 @@
         updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Grupy plików w sprawie
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_grupy_plikow (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        sprawa_id   INTEGER NOT NULL REFERENCES ezd_sprawy(id) ON DELETE CASCADE,
+        nazwa       TEXT    NOT NULL,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Kolumny dokładane do istniejących tabel (idempotentnie)
     foreach ([
         "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN ciagla      INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN dokument_id INTEGER REFERENCES ezd_dokumenty(id) ON DELETE CASCADE",
+        "ALTER TABLE ezd_zalaczniki ADD COLUMN grupa_id    INTEGER REFERENCES ezd_grupy_plikow(id) ON DELETE SET NULL",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -220,6 +232,8 @@
         "CREATE INDEX IF NOT EXISTS idx_ezd_notatki_sprawa ON ezd_notatki(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_dok_sprawa     ON ezd_dokumenty(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_zal_dokument   ON ezd_zalaczniki(dokument_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_zal_grupa      ON ezd_zalaczniki(grupa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_grupy_sprawa   ON ezd_grupy_plikow(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_parent  ON ezd_sprawy(parent_id)",
     ] as $idx) {
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
@@ -507,9 +521,10 @@ function ezd_sprawa_create(array $d, int $user_id): int {
         }
     }
 
+    $ciagla = !empty($d['ciagla']) ? 1 : 0;
     db()->prepare(
-        "INSERT INTO ezd_sprawy (teczka_id,parent_id,znak_sprawy,numer,title,description,status,priority,owner_id,deadline,created_by,updated_at)
-         VALUES (:tid,:pid,:znak,:num,:title,:desc,:status,:prio,:owner,:deadline,:uid,datetime('now'))"
+        "INSERT INTO ezd_sprawy (teczka_id,parent_id,znak_sprawy,numer,title,description,status,priority,owner_id,deadline,ciagla,created_by,updated_at)
+         VALUES (:tid,:pid,:znak,:num,:title,:desc,:status,:prio,:owner,:deadline,:ciagla,:uid,datetime('now'))"
     )->execute([
         ':tid'      => (int)$d['teczka_id'],
         ':pid'      => $parent_id,
@@ -520,7 +535,8 @@ function ezd_sprawa_create(array $d, int $user_id): int {
         ':status'   => $d['status']   ?? 'open',
         ':prio'     => $d['priority'] ?? 'normal',
         ':owner'    => $d['owner_id'] ?: null,
-        ':deadline' => $d['deadline'] ?: null,
+        ':deadline' => $ciagla ? null : (($d['deadline'] ?? '') ?: null),
+        ':ciagla'   => $ciagla,
         ':uid'      => $user_id,
     ]);
     $id = (int)db()->lastInsertId();
@@ -538,20 +554,25 @@ function ezd_sprawa_update(int $id, array $d, int $user_id): void {
         throw new \RuntimeException('Sprawa jest zamknięta. Skontaktuj się z administratorem.');
     }
 
-    $closing = ($d['status'] ?? $sprawa['status']) === 'closed' && $sprawa['status'] !== 'closed';
+    $ciagla   = array_key_exists('ciagla', $d) ? (!empty($d['ciagla']) ? 1 : 0) : (int)($sprawa['ciagla'] ?? 0);
+    $new_stat = $d['status'] ?? $sprawa['status'];
+    // Sprawa ciągła nie może być zamknięta przez zwykły zapis — pozostaje otwarta
+    if ($ciagla && $new_stat === 'closed') $new_stat = 'open';
+    $closing = $new_stat === 'closed' && $sprawa['status'] !== 'closed';
 
     db()->prepare(
         "UPDATE ezd_sprawy SET teczka_id=:tid,title=:title,description=:desc,
-         status=:status,priority=:prio,owner_id=:owner,deadline=:deadline,
+         status=:status,priority=:prio,owner_id=:owner,deadline=:deadline,ciagla=:ciagla,
          updated_at=datetime('now') WHERE id=:id"
     )->execute([
         ':tid'      => (int)($d['teczka_id'] ?? $sprawa['teczka_id']),
         ':title'    => trim($d['title']),
         ':desc'     => trim($d['description'] ?? ''),
-        ':status'   => $d['status']   ?? $sprawa['status'],
+        ':status'   => $new_stat,
         ':prio'     => $d['priority'] ?? $sprawa['priority'],
         ':owner'    => $d['owner_id'] ?: null,
-        ':deadline' => $d['deadline'] ?: null,
+        ':deadline' => $ciagla ? null : (($d['deadline'] ?? '') ?: null),
+        ':ciagla'   => $ciagla,
         ':id'       => $id,
     ]);
     if ($closing) {
@@ -1148,7 +1169,7 @@ function ezd_zalaczniki_by(int $sprawa_id, ?int $pismo_id = null, ?int $umowa_id
     return db_all("SELECT z.*,u.name AS uploader FROM ezd_zalaczniki z LEFT JOIN users u ON u.id=z.uploaded_by WHERE z.sprawa_id=? ORDER BY z.uploaded_at DESC", [$sprawa_id]);
 }
 
-function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null): ?string {
+function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null, ?int $grupa_id = null): ?string {
     if (empty($_FILES[$field]['tmp_name'])) return 'Nie wybrano pliku.';
     $f = $_FILES[$field];
     if ($f['error'] !== UPLOAD_ERR_OK) return 'Błąd przesyłania (kod: ' . $f['error'] . ').';
@@ -1168,9 +1189,9 @@ function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id 
     }
 
     db()->prepare(
-        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $stored, $f['name'], $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
+        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $grupa_id ?: null, $stored, $f['name'], $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
 
     ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $f['name'] . " (v$wersja)");
     return null;
@@ -1187,6 +1208,59 @@ function ezd_zal_delete(int $id, int $user_id): void {
     if (is_file($path)) unlink($path);
     db()->prepare("DELETE FROM ezd_zalaczniki WHERE id=?")->execute([$id]);
     ezd_log(null, $z['sprawa_id'], null, null, $user_id, 'del_attachment', 'Usunięto plik: ' . $z['original_name']);
+}
+
+// ── Grupy plików w sprawie ───────────────────────────────────────────────────
+
+function ezd_grupy_by_sprawa(int $sprawa_id): array {
+    return db_all(
+        "SELECT g.*, (SELECT COUNT(*) FROM ezd_zalaczniki z WHERE z.grupa_id=g.id) AS plik_count
+         FROM ezd_grupy_plikow g WHERE g.sprawa_id=? ORDER BY g.sort_order, g.nazwa", [$sprawa_id]
+    );
+}
+
+function ezd_grupa_get(int $id): ?array {
+    return db_one("SELECT * FROM ezd_grupy_plikow WHERE id=?", [$id]);
+}
+
+function ezd_grupa_create(int $sprawa_id, string $nazwa, int $user_id): int {
+    $nazwa = trim($nazwa);
+    if ($nazwa === '') throw new \RuntimeException('Nazwa grupy jest wymagana.');
+    db()->prepare("INSERT INTO ezd_grupy_plikow (sprawa_id,nazwa,created_by) VALUES (?,?,?)")
+        ->execute([$sprawa_id, $nazwa, $user_id]);
+    $gid = (int)db()->lastInsertId();
+    ezd_log(null, $sprawa_id, null, null, $user_id, 'grupa_create', 'Utworzono grupę plików: ' . $nazwa);
+    return $gid;
+}
+
+function ezd_grupa_rename(int $id, string $nazwa, int $user_id): void {
+    $g = ezd_grupa_get($id);
+    if (!$g) return;
+    $nazwa = trim($nazwa);
+    if ($nazwa === '') throw new \RuntimeException('Nazwa grupy jest wymagana.');
+    db()->prepare("UPDATE ezd_grupy_plikow SET nazwa=? WHERE id=?")->execute([$nazwa, $id]);
+    ezd_log(null, (int)$g['sprawa_id'], null, null, $user_id, 'grupa_rename', 'Zmieniono nazwę grupy #' . $id);
+}
+
+function ezd_grupa_delete(int $id, int $user_id): void {
+    $g = ezd_grupa_get($id);
+    if (!$g) return;
+    // Pliki nie są usuwane — wracają do „bez grupy"
+    db()->prepare("UPDATE ezd_zalaczniki SET grupa_id=NULL WHERE grupa_id=?")->execute([$id]);
+    db()->prepare("DELETE FROM ezd_grupy_plikow WHERE id=?")->execute([$id]);
+    ezd_log(null, (int)$g['sprawa_id'], null, null, $user_id, 'grupa_delete', 'Usunięto grupę plików: ' . $g['nazwa']);
+}
+
+function ezd_zal_set_grupa(int $zal_id, ?int $grupa_id, int $user_id): void {
+    $z = ezd_zal_get($zal_id);
+    if (!$z) return;
+    // Walidacja: grupa musi należeć do tej samej sprawy
+    if ($grupa_id) {
+        $g = ezd_grupa_get($grupa_id);
+        if (!$g || (int)$g['sprawa_id'] !== (int)$z['sprawa_id']) return;
+    }
+    db()->prepare("UPDATE ezd_zalaczniki SET grupa_id=? WHERE id=?")->execute([$grupa_id ?: null, $zal_id]);
+    ezd_log(null, (int)$z['sprawa_id'], null, null, $user_id, 'zal_grupa', 'Przeniesiono plik do grupy');
 }
 
 // ── Audit log ────────────────────────────────────────────────────────────────

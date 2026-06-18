@@ -28,6 +28,17 @@ $users       = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name
 $podsprawy   = ezd_podsprawy_by_parent($id);
 $dokumenty   = ezd_dokumenty_by_sprawa($id);
 $notatki     = ezd_notatki_by_sprawa($id);
+$grupy       = ezd_grupy_by_sprawa($id);
+
+// Pliki repozytorium pogrupowane: grupa_id => [pliki], 0 => bez grupy
+$grupy_map = [];
+foreach ($grupy as $g) $grupy_map[(int)$g['id']] = [];
+$bez_grupy = [];
+foreach ($zalaczniki as $z) {
+    $gid = (int)($z['grupa_id'] ?? 0);
+    if ($gid && isset($grupy_map[$gid])) $grupy_map[$gid][] = $z;
+    else $bez_grupy[] = $z;
+}
 
 $is_closed = $sprawa['status'] === 'closed';
 $can_act   = can_edit() && !$is_closed;
@@ -39,7 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'upload') {
         if (!can_edit()) { http_response_code(403); exit; }
-        $err = ezd_upload('file', $id, $user_id);
+        $grupa_id = (int)($_POST['grupa_id'] ?? 0) ?: null;
+        $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id);
         flash_set($err ? 'error' : 'success', $err ?: 'Plik dodany do repozytorium sprawy.');
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
@@ -48,6 +60,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!can_edit()) { http_response_code(403); exit; }
         ezd_zal_delete((int)($_POST['zal_id'] ?? 0), $user_id);
         flash_set('success', 'Plik usunięty.');
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
+
+    if ($action === 'grupa_add' && can_edit()) {
+        try { ezd_grupa_create($id, $_POST['nazwa'] ?? '', $user_id); flash_set('success','Grupa plików utworzona.'); }
+        catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
+    if ($action === 'grupa_del' && can_edit()) {
+        ezd_grupa_delete((int)($_POST['grupa_id'] ?? 0), $user_id);
+        flash_set('success', 'Grupę usunięto (pliki pozostały bez grupy).');
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
+    if ($action === 'zal_move' && can_edit()) {
+        ezd_zal_set_grupa((int)($_POST['zal_id'] ?? 0), (int)($_POST['grupa_id'] ?? 0) ?: null, $user_id);
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
@@ -191,7 +218,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <code class="bg-light px-2 py-0 rounded fw-bold" style="font-size:.82rem;color:#1d4ed8"><?= h($sprawa['znak_sprawy']) ?></code>
               <?= ezd_status_badge_sprawa($sprawa['status']) ?>
               <?= ezd_priority_badge($sprawa['priority']) ?>
-              <?php if($sprawa['deadline']): ?>
+              <?php if(!empty($sprawa['ciagla'])): ?>
+              <span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.7rem"><i class="bi bi-infinity me-1"></i>Sprawa ciągła</span>
+              <?php elseif($sprawa['deadline']): ?>
               <span class="<?= $sprawa['deadline']<date('Y-m-d')&&!$is_closed?'text-danger fw-bold':'text-muted' ?>" style="font-size:.76rem">
                 <i class="bi bi-calendar-event me-1"></i><?= date_pl($sprawa['deadline']) ?>
               </span>
@@ -412,12 +441,35 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
     <!-- Repozytorium plików sprawy -->
     <div class="mt-4" id="files">
-      <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size:.7rem;letter-spacing:.1em">
-        <i class="bi bi-folder2 me-1"></i>Repozytorium plików sprawy (<?= count($zalaczniki) ?>)
-      </h6>
-      <div class="card shadow-sm">
-        <div class="card-body p-0">
-          <?php foreach ($zalaczniki as $z): ?>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
+          <i class="bi bi-folder2 me-1"></i>Repozytorium plików sprawy (<?= count($zalaczniki) ?>)
+        </h6>
+        <?php if(can_edit()): ?>
+        <button class="btn btn-xs btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
+        <?php endif; ?>
+      </div>
+
+      <?php if(can_edit()): ?>
+      <div class="collapse mb-3" id="new-grupa">
+        <form method="post" class="d-flex gap-2">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="grupa_add">
+          <input type="text" name="nazwa" class="form-control form-control-sm" placeholder="Nazwa grupy, np. Faktury / Korespondencja / Załączniki do umowy" required>
+          <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-check-lg me-1"></i>Utwórz</button>
+        </form>
+      </div>
+      <?php endif; ?>
+
+      <?php
+      // Funkcja renderująca wiersz pliku (z przenoszeniem między grupami)
+      $renderZal = function(array $z) use ($grupy) {
+          $opts = '';
+          $opts .= '<option value="0"'.(empty($z['grupa_id'])?' selected':'').'>— bez grupy —</option>';
+          foreach ($grupy as $g) {
+              $opts .= '<option value="'.$g['id'].'"'.(((int)($z['grupa_id']??0))===(int)$g['id']?' selected':'').'>'.h($g['nazwa']).'</option>';
+          }
+          ?>
           <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.8rem">
             <i class="bi <?= ezd_file_icon($z['original_name']) ?> fs-5 flex-shrink-0"></i>
             <div class="flex-grow-1 overflow-hidden">
@@ -426,6 +478,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <?php if($z['wersja']>1): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem">v<?= $z['wersja'] ?></span><?php endif; ?>
               </div>
             </div>
+            <?php if(can_edit() && $grupy): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="zal_move">
+              <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
+              <select name="grupa_id" class="form-select form-select-sm" style="width:auto;font-size:.72rem" onchange="this.form.submit()" title="Przenieś do grupy"><?= $opts ?></select>
+            </form>
+            <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
             <?php if(can_edit()): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
@@ -436,17 +496,53 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </form>
             <?php endif; ?>
           </div>
-          <?php endforeach; ?>
-          <?php if(!$zalaczniki): ?>
+          <?php
+      };
+      ?>
+
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <?php if(!$zalaczniki && !$grupy): ?>
           <div class="text-center text-muted py-3" style="font-size:.8rem">Brak plików w repozytorium sprawy</div>
           <?php endif; ?>
+
+          <?php foreach ($grupy as $g): ?>
+          <div class="px-3 py-2 bg-light d-flex align-items-center gap-2" style="font-size:.76rem;border-bottom:1px solid #f1f5f9">
+            <i class="bi bi-folder-fill text-warning"></i>
+            <span class="fw-bold"><?= h($g['nazwa']) ?></span>
+            <span class="badge bg-secondary bg-opacity-15 text-secondary"><?= (int)$g['plik_count'] ?></span>
+            <?php if(can_edit()): ?>
+            <form method="post" class="d-inline ms-auto" onsubmit="return confirm('Usunąć grupę? Pliki pozostaną w repozytorium (bez grupy).')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="grupa_del">
+              <input type="hidden" name="grupa_id" value="<?= $g['id'] ?>">
+              <button class="btn btn-xs btn-link p-0 text-muted" title="Usuń grupę"><i class="bi bi-x-circle"></i></button>
+            </form>
+            <?php endif; ?>
+          </div>
+          <?php if($grupy_map[(int)$g['id']]): foreach($grupy_map[(int)$g['id']] as $z) $renderZal($z); else: ?>
+          <div class="text-muted px-4 py-2" style="font-size:.74rem">Grupa pusta — przenieś tu pliki z listy poniżej.</div>
+          <?php endif; ?>
+          <?php endforeach; ?>
+
+          <?php if($grupy && $bez_grupy): ?>
+          <div class="px-3 py-2 bg-light" style="font-size:.76rem;border-bottom:1px solid #f1f5f9"><i class="bi bi-folder2 me-1 text-muted"></i><span class="fw-bold text-muted">Bez grupy</span></div>
+          <?php endif; ?>
+          <?php foreach ($bez_grupy as $z) $renderZal($z); ?>
+
           <?php if(can_edit()): ?>
           <form method="post" enctype="multipart/form-data" class="p-3 border-top">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="upload">
             <div class="d-flex gap-2 align-items-center flex-wrap">
-              <input type="file" name="file" class="form-control form-control-sm" style="max-width:300px"
-                     accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.pptx,.png,.jpg,.jpeg,.zip,.txt,.csv,.eml,.msg">
+              <input type="file" name="file" class="form-control form-control-sm" style="max-width:260px"
+                     accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.pptx,.png,.jpg,.jpeg,.zip,.txt,.csv,.eml,.msg" required>
+              <?php if($grupy): ?>
+              <select name="grupa_id" class="form-select form-select-sm" style="max-width:200px">
+                <option value="0">— bez grupy —</option>
+                <?php foreach($grupy as $g): ?><option value="<?= $g['id'] ?>"><?= h($g['nazwa']) ?></option><?php endforeach; ?>
+              </select>
+              <?php endif; ?>
               <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Dodaj do sprawy</button>
               <small class="text-muted">Maks. 25 MB</small>
             </div>
@@ -500,7 +596,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <dt class="col-5 text-muted fw-normal">Status</dt>
           <dd class="col-7 mb-0"><?= ezd_status_badge_sprawa($sprawa['status']) ?></dd>
           <dt class="col-5 text-muted fw-normal">Termin</dt>
-          <dd class="col-7 mb-0 <?= $sprawa['deadline']&&$sprawa['deadline']<date('Y-m-d')&&!$is_closed?'text-danger fw-bold':'' ?>"><?= $sprawa['deadline'] ? date_pl($sprawa['deadline']) : '—' ?></dd>
+          <dd class="col-7 mb-0 <?= !empty($sprawa['ciagla'])?'text-info':($sprawa['deadline']&&$sprawa['deadline']<date('Y-m-d')&&!$is_closed?'text-danger fw-bold':'') ?>">
+            <?= !empty($sprawa['ciagla']) ? '<i class="bi bi-infinity me-1"></i>stale otwarta' : ($sprawa['deadline'] ? date_pl($sprawa['deadline']) : '—') ?>
+          </dd>
           <dt class="col-5 text-muted fw-normal">Otwarto</dt>
           <dd class="col-7 mb-0"><?= date_pl($sprawa['created_at']) ?></dd>
           <?php if($sprawa['closed_at']): ?>

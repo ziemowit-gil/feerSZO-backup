@@ -101,6 +101,7 @@ $spr = db_all(
     "SELECT id, owner_id, deadline, znak_sprawy, title
      FROM ezd_sprawy
      WHERE status IN ('open','in_progress') AND deadline IS NOT NULL AND owner_id IS NOT NULL
+       AND COALESCE(ciagla,0)=0
        AND deadline <= ?",
     [$tomorrow]
 );

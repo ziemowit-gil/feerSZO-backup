@@ -26,6 +26,7 @@ $row = [
     'priority'    => 'normal',
     'owner_id'    => current_user()['id'],
     'deadline'    => '',
+    'ciagla'      => 0,
 ];
 $errors = [];
 
@@ -40,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'priority'    => $_POST['priority']           ?? 'normal',
         'owner_id'    => (int)($_POST['owner_id']     ?? 0) ?: null,
         'deadline'    => $_POST['deadline']           ?? '',
+        'ciagla'      => isset($_POST['ciagla']) ? 1 : 0,
     ];
     if (!$row['teczka_id']) $errors[] = 'Wybierz teczkę aktową.';
     if (!$row['title'])     $errors[] = 'Tytuł sprawy jest wymagany.';
@@ -149,8 +151,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div class="col-6">
       <label class="form-label fw-semibold">Termin</label>
-      <input type="date" name="deadline" class="form-control" value="<?= h($row['deadline']) ?>">
+      <input type="date" name="deadline" id="f-deadline" class="form-control" value="<?= h($row['deadline']) ?>" <?= !empty($row['ciagla'])?'disabled':'' ?>>
     </div>
+  </div>
+  <div class="form-check form-switch mt-3">
+    <input class="form-check-input" type="checkbox" role="switch" name="ciagla" id="f-ciagla" value="1" <?= !empty($row['ciagla'])?'checked':'' ?>
+           onchange="document.getElementById('f-deadline').disabled=this.checked; if(this.checked)document.getElementById('f-deadline').value='';">
+    <label class="form-check-label fw-semibold" for="f-ciagla">Sprawa ciągła (stale otwarta)</label>
+    <div class="form-text">Sprawa bez terminu zakończenia — nie podlega przypomnieniom o terminie i nie jest zamykana zwykłym zapisem (np. rejestr, ewidencja prowadzona na bieżąco).</div>
   </div>
 </div>
 <div class="card-footer d-flex gap-2">
