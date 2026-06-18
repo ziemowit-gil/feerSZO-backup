@@ -266,6 +266,40 @@ function ezd_get_linked_corr(int $pismo_id): ?array {
 }
 
 /**
+ * Czy automatyczna rejestracja korespondencji w EZD jest włączona (domyślnie tak).
+ */
+function corr_ezd_auto_enabled(): bool {
+    if (!module_enabled('ezd_enabled')) return false;
+    return org_setting('corr_ezd_auto') !== '0';
+}
+
+/**
+ * Automatyczna rejestracja korespondencji w Kancelarii EZD.
+ * Trafia do sprawy ciągłej „Korespondencja przychodząca/wychodząca {rok}" (JRWA korespondencji).
+ * Idempotentne — pomija, gdy korespondencja jest już powiązana z pismem EZD.
+ * @return int|null id utworzonego pisma EZD lub null gdy pominięto
+ */
+function corr_auto_register(int $corr_id, int $user_id): ?int {
+    if (!corr_ezd_auto_enabled()) return null;
+    _corr_init();
+    require_once __DIR__ . '/ezd.php';
+
+    $corr = corr_get($corr_id);
+    if (!$corr) return null;
+    if (!empty($corr['ezd_pismo_id'])) return (int)$corr['ezd_pismo_id']; // już powiązane
+
+    $dir = ($corr['direction'] ?? 'incoming') === 'outgoing' ? 'outgoing' : 'incoming';
+    $rok = (int)substr($corr['date'] ?? date('Y-m-d'), 0, 4) ?: (int)date('Y');
+    try {
+        $sprawa_id = ezd_corr_sprawa_id($dir, $rok, $user_id ?: 0);
+        return corr_register_in_ezd($corr_id, $sprawa_id, $user_id ?: 0);
+    } catch (\Throwable $e) {
+        error_log('corr_auto_register: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * Odłącza pismo EZD od korespondencji (usuwa cross-linki, nie usuwa rekordów).
  */
 function corr_unlink_ezd(int $corr_id): void {

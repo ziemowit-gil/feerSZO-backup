@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
@@ -1277,6 +1278,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <label class="form-label fw-semibold">Imię i nazwisko <span class="text-danger">*</span></label>
           <input name="imie_nazwisko" id="f_imie_nazwisko" class="form-control"
                  value="<?= h($row['imie_nazwisko'] ?? '') ?>" placeholder="Jan Kowalski" required>
+          <?= byli_check_field('imie_nazwisko') ?>
         </div>
 
         <!-- Tożsamość -->

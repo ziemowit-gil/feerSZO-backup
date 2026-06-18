@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 
 require_role('admin','editor');
 $TYPE  = 'uslugi';
@@ -188,7 +189,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <div class="row">
   <div class="col-md-6 mb-3"><label class="form-label">Nazwa wykonawcy</label>
-    <input name="nazwa_wykonawcy" class="form-control" value="<?= h($row['nazwa_wykonawcy']) ?>"></div>
+    <input name="nazwa_wykonawcy" class="form-control" value="<?= h($row['nazwa_wykonawcy']) ?>"><?= byli_check_field('nazwa_wykonawcy') ?></div>
   <div class="col-md-6 mb-3"><label class="form-label">NIP / PESEL</label>
     <input name="nip_pesel" class="form-control" value="<?= h($row['nip_pesel']) ?>"></div>
 </div>

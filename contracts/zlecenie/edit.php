@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
@@ -207,7 +208,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <div class="row">
   <div class="col-md-6 mb-3"><label class="form-label">Imię i nazwisko</label>
-    <input name="imie_nazwisko" id="zl_imie_nazwisko" class="form-control" value="<?= h($row['imie_nazwisko']) ?>"></div>
+    <input name="imie_nazwisko" id="zl_imie_nazwisko" class="form-control" value="<?= h($row['imie_nazwisko']) ?>"><?= byli_check_field('imie_nazwisko') ?></div>
   <div class="col-md-3 mb-3"><label class="form-label">PESEL</label>
     <input name="pesel" id="zl_pesel" class="form-control" maxlength="11" value="<?= h($row['pesel']) ?>"></div>
   <div class="col-md-3 mb-3"><label class="form-label">Seria/nr dowodu</label>

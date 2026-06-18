@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_inne', 'Ten typ umowy');
@@ -182,6 +183,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="col-md-6 mb-3">
     <label class="form-label">Nazwa / strona umowy</label>
     <input name="strona_umowy" class="form-control" value="<?= h($row['strona_umowy'] ?? '') ?>">
+    <?= byli_check_field('strona_umowy') ?>
   </div>
   <div class="col-md-6 mb-3">
     <label class="form-label">PESEL / NIP / KRS</label>

@@ -1357,6 +1357,40 @@ function ezd_zaswiadczenia_count(): int {
     catch (\Throwable $e) { return 0; }
 }
 
+// ── Rejestracja korespondencji w EZD (dziennik kancelaryjny) ─────────────────
+
+function ezd_corr_jrwa(): string {
+    $s = trim((string)org_setting('corr_ezd_jrwa'));
+    return $s !== '' ? $s : 'KOR';
+}
+
+/** Hasło JRWA korespondencji — utworzone, jeśli nie istnieje. */
+function _ezd_corr_jrwa_id(): int {
+    $sym = ezd_corr_jrwa();
+    $j = db_one("SELECT id FROM ezd_jrwa WHERE symbol=?", [$sym]);
+    if ($j) return (int)$j['id'];
+    db()->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)")
+        ->execute([$sym, 'Korespondencja ogólna', 'B5', 'Pisma wpływające i wychodzące niezakwalifikowane do innych kategorii', 70]);
+    return (int)db()->lastInsertId();
+}
+
+/** Teczka roczna korespondencji (utworzona w razie potrzeby). */
+function _ezd_corr_teczka_id(int $rok, int $user_id): int {
+    $jid = _ezd_corr_jrwa_id();
+    $t = db_one("SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1", [$jid, $rok]);
+    if ($t) return (int)$t['id'];
+    return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>ezd_corr_jrwa(), 'title'=>"Korespondencja $rok", 'rok'=>$rok, 'owner_id'=>null], $user_id);
+}
+
+/** Sprawa ciągła dziennika korespondencji wg kierunku (incoming/outgoing). */
+function ezd_corr_sprawa_id(string $direction, int $rok, int $user_id): int {
+    $tid   = _ezd_corr_teczka_id($rok, $user_id);
+    $title = $direction === 'outgoing' ? "Korespondencja wychodząca $rok" : "Korespondencja przychodząca $rok";
+    $s = db_one("SELECT id FROM ezd_sprawy WHERE teczka_id=? AND title=? LIMIT 1", [$tid, $title]);
+    if ($s) return (int)$s['id'];
+    return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Dziennik korespondencji '.($direction==='outgoing'?'wychodzącej':'przychodzącej').' '.$rok.' r.', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
+}
+
 // ── Dekretacja ───────────────────────────────────────────────────────────────
 
 function ezd_dekretacje_by_sprawa(int $sprawa_id): array {
