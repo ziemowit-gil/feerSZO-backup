@@ -128,3 +128,44 @@ function byli_delete(int $id): void {
 function byli_can_see_sensitive(array $row): bool {
     return empty($row['wrazliwe']) || is_zarzad();
 }
+
+/**
+ * Dopasowanie po imieniu i nazwisku — używane przy zawieraniu umowy, by ostrzec,
+ * że osoba figuruje w rejestrze byłych współpracowników.
+ *
+ * Porównanie odbywa się w PHP (mb_strtolower), aby poprawnie obsłużyć polskie znaki
+ * (SQLite LOWER/LIKE nie składa diakrytyków). Rejestr jest niewielki, więc skanujemy całość.
+ *
+ * Trafienie, gdy wpisana nazwa:
+ *   • jest dokładnie „Imię Nazwisko" lub „Nazwisko Imię", albo
+ *   • zawiera nazwisko (i imię, jeśli wpisane w rejestrze) — np. „Jan Adam Kowalski".
+ *
+ * @return array<int,array> surowe wiersze byli_osoby
+ */
+function byli_match_name(string $name): array {
+    $name = trim(preg_replace('/\s+/u', ' ', $name));
+    if (function_exists('mb_strlen') ? mb_strlen($name) < 3 : strlen($name) < 3) return [];
+
+    $lower  = static fn(string $s): string =>
+        function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
+    $needle = $lower($name);
+
+    $out = [];
+    foreach (db_all("SELECT * FROM byli_osoby") as $r) {
+        $imie = $lower(trim((string)$r['imie']));
+        $nazw = $lower(trim((string)$r['nazwisko']));
+        if ($nazw === '') continue;
+
+        $full1 = trim($imie . ' ' . $nazw);
+        $full2 = trim($nazw . ' ' . $imie);
+
+        $hit = ($needle === $full1 || $needle === $full2);
+        if (!$hit) {
+            $hasNazw = strpos($needle, $nazw) !== false;
+            $hasImie = ($imie === '' || strpos($needle, $imie) !== false);
+            $hit = $hasNazw && $hasImie;
+        }
+        if ($hit) $out[] = $r;
+    }
+    return $out;
+}
