@@ -271,19 +271,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <label class="form-label fw-semibold" for="ltime_from">
               <i class="bi bi-clock me-1 text-muted"></i>Początek
             </label>
-            <input type="time" class="form-control" id="ltime_from" name="time_from"
-                   value="<?= h($session['time_from']) ?>"
-                   onchange="recalcDur()"
-                   <?= !$can_write ? 'readonly' : '' ?>>
+            <select class="form-select" id="ltime_from" name="time_from"
+                    onchange="recalcDur()"
+                    <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_from'] ?? '') ?></select>
           </div>
           <div class="col-5">
             <label class="form-label fw-semibold" for="ltime_to">
               <i class="bi bi-clock-fill me-1 text-muted"></i>Koniec
             </label>
-            <input type="time" class="form-control" id="ltime_to" name="time_to"
-                   value="<?= h($session['time_to']) ?>"
-                   onchange="recalcDur()"
-                   <?= !$can_write ? 'readonly' : '' ?>>
+            <select class="form-select" id="ltime_to" name="time_to"
+                    onchange="recalcDur()"
+                    <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_to'] ?? '') ?></select>
           </div>
           <div class="col-2 d-flex flex-column justify-content-end">
             <div class="text-center pb-1">

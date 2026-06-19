@@ -323,13 +323,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                    value="<?= date('Y-m-d') ?>" required>
           </div>
           <div class="col-sm-2">
-            <label class="form-label small fw-semibold mb-1">Godz. od</label>
-            <input type="time" class="form-control form-control-sm" name="time_from" id="sess_tf">
+            <label class="form-label small fw-semibold mb-1" for="sess_tf">Godz. od</label>
+            <select class="form-select form-select-sm" name="time_from" id="sess_tf" onchange="updateDur()"><?= ti_time_options() ?></select>
           </div>
           <div class="col-sm-2">
-            <label class="form-label small fw-semibold mb-1">Godz. do</label>
-            <input type="time" class="form-control form-control-sm" name="time_to" id="sess_tt"
-                   onchange="updateDur()">
+            <label class="form-label small fw-semibold mb-1" for="sess_tt">Godz. do</label>
+            <select class="form-select form-select-sm" name="time_to" id="sess_tt" onchange="updateDur()"><?= ti_time_options() ?></select>
           </div>
           <div class="col-sm-2">
             <label class="form-label small fw-semibold mb-1">Czas (min)</label>

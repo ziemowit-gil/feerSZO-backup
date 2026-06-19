@@ -1300,6 +1300,28 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
     );
 }
 
+/**
+ * Opcje <option> z gotowymi slotami godzinowymi — czytelny wybór godzin lekcji.
+ * Domyślnie 07:00–21:00 co 15 min. Zachowuje wartość spoza zakresu (np. zapisaną wcześniej).
+ */
+function ti_time_options(string $selected = '', string $from = '07:00', string $to = '21:00', int $step = 15): string {
+    $sel   = substr(trim($selected), 0, 5);
+    $start = (int)substr($from, 0, 2) * 60 + (int)substr($from, 3, 2);
+    $end   = (int)substr($to, 0, 2) * 60 + (int)substr($to, 3, 2);
+    $vals  = [];
+    for ($m = $start; $m <= $end; $m += $step) {
+        $vals[] = str_pad((string)intdiv($m, 60), 2, '0', STR_PAD_LEFT) . ':'
+                . str_pad((string)($m % 60), 2, '0', STR_PAD_LEFT);
+    }
+    if ($sel !== '' && !in_array($sel, $vals, true)) $vals[] = $sel; // nietypowa zapisana godzina
+    sort($vals);
+    $out = '<option value="">— godz. —</option>';
+    foreach ($vals as $v) {
+        $out .= '<option value="' . $v . '"' . ($v === $sel ? ' selected' : '') . '>' . $v . '</option>';
+    }
+    return $out;
+}
+
 // ── Kanał iCal lekcji kursanta (subskrypcja Google/Apple/Outlook) ─────────────
 
 /** Token prywatnego kanału iCal kursanta (utwórz, jeśli brak). */
