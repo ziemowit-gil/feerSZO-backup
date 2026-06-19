@@ -19,6 +19,29 @@
    kolorze (niewidoczne). Ta reguła przywraca lekkie, czytelne tło. */
 .bg-opacity-15 { --bs-bg-opacity: 0.15; }
 
+/* ── Badge — kontrast (WCAG) ──────────────────────────────────────────────────
+   Bootstrap domyślnie daje biały tekst na każdym solidnym tle (białe na żółtym
+   bg-warning / cyjanie bg-info / jasnym bg-light = nieczytelne) oraz zbyt jasny
+   text-warning/text-info w „miękkich" badge. Poniżej wymuszamy czytelne kolory. */
+.badge { font-weight: 600; letter-spacing: .01em; }
+
+/* 1) Solidne warianty o jasnym tle → ciemny tekst zamiast białego */
+.badge.bg-warning,
+.badge.bg-info,
+.badge.bg-light   { color: #1f2937 !important; }
+.badge.bg-light   { border: 1px solid #e2e8f0; }
+.badge.bg-warning-subtle, .badge.bg-info-subtle, .badge.bg-light-subtle { color: #1f2937 !important; }
+
+/* 2) Miękkie badge (bg-opacity-15 + text-COLOR) → ciemniejszy, kontrastowy odcień
+      (wyższa specyficzność niż reguły z pkt 1, więc nie kolidują z solidnymi). */
+.badge.bg-opacity-15.text-warning   { color: #b45309 !important; }
+.badge.bg-opacity-15.text-info      { color: #0e7490 !important; }
+.badge.bg-opacity-15.text-secondary { color: #475569 !important; }
+.badge.bg-opacity-15.text-light     { color: #475569 !important; }
+.badge.bg-opacity-15.text-success   { color: #15803d !important; }
+.badge.bg-opacity-15.text-primary   { color: #1d4ed8 !important; }
+.badge.bg-opacity-15.text-danger    { color: #b91c1c !important; }
+
 /* ── Print ──────────────────────────────────── */
 @media print {
   #sidebar, #topbar, footer, .btn, .no-print, .modal { display: none !important; }
