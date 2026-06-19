@@ -8,6 +8,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -59,6 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         k30_ti_calendar_token_reset((int)$student['id']);
         header('Location: index.php?tab=lekcje&cal=reset'); exit;
     }
+
+    if ($op === 'toggle_sms_lessons') {
+        $on = !empty($_POST['enabled']) ? 1 : 0;
+        db_update('k30_ti_student_accounts', ['notify_sms_lessons' => $on], (int)$student['id']);
+        header('Location: index.php?tab=lekcje&sms=' . ($on ? 'on' : 'off')); exit;
+    }
 }
 
 // Kursy i lekcje kursanta
@@ -76,6 +83,11 @@ $homework_lessons = array_values(array_filter($lessons, fn($l) =>
     && ($l['status'] ?? '') === 'held'
     && (int)($l['att_cancelled'] ?? 0) !== 1
     && empty($l['self_prep_remote'])));
+
+// Powiadomienia SMS o zajęciach — zgoda beneficjenta (opt-in)
+$sms_pref       = (int)($account['notify_sms_lessons'] ?? 0);
+$sms_phone      = trim((string)($client['phone'] ?? ''));
+$sms_global_on  = function_exists('sms_is_enabled') && sms_is_enabled();
 
 // Prywatny kanał iCal lekcji (subskrypcja w Kalendarzu Google / Apple / Outlook)
 $cal_token  = k30_ti_calendar_token((int)$account['id']);
@@ -304,6 +316,47 @@ include __DIR__ . '/_layout_head.php';
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
     Zaplanowaną lekcję możesz odwołać, podając powód — odwołany udział nie jest liczony do ceny.
   </p>
+
+  <!-- ── Powiadomienia SMS o zajęciach (zgoda beneficjenta, opt-in) ───────────── -->
+  <section class="card mt-4" aria-labelledby="sms-heading">
+    <div class="card-body">
+      <h2 id="sms-heading" class="h6 fw-bold mb-2">
+        <i class="bi bi-chat-dots text-info me-2" aria-hidden="true"></i>Powiadomienia SMS o zajęciach
+      </h2>
+      <?php if (!$sms_global_on): ?>
+      <p class="text-body-secondary small mb-0">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.
+      </p>
+      <?php else: ?>
+        <?php if (($_GET['sms'] ?? '') === 'on'): ?>
+        <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Włączono powiadomienia SMS o zajęciach.</div>
+        <?php elseif (($_GET['sms'] ?? '') === 'off'): ?>
+        <div class="alert alert-secondary py-2 small" role="alert">Wyłączono powiadomienia SMS o zajęciach.</div>
+        <?php endif; ?>
+      <p class="text-body-secondary small mb-2">Otrzymasz krótki SMS, gdy prowadzący doda Ci nowe zajęcia.</p>
+      <form method="post" id="smsPrefForm">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op"     value="toggle_sms_lessons">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="smsToggle" name="enabled" value="1"
+                 <?= $sms_pref ? 'checked' : '' ?>
+                 onchange="document.getElementById('smsPrefForm').submit()">
+          <label class="form-check-label" for="smsToggle">Chcę dostawać SMS o nowych zajęciach</label>
+        </div>
+      </form>
+        <?php if ($sms_phone === ''): ?>
+      <p class="text-warning small mb-0 mt-2">
+        <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+        Brak numeru telefonu w Twoich danych — SMS nie dotrą, dopóki administrator go nie uzupełni.
+      </p>
+        <?php else: ?>
+      <p class="text-body-secondary small mb-0 mt-2">
+        <i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?>
+      </p>
+        <?php endif; ?>
+      <?php endif; ?>
+    </div>
+  </section>
 
   <!-- ── Synchronizacja z kalendarzem (Google / Apple / Outlook) ──────────────── -->
   <section class="card mt-4" aria-labelledby="cal-heading">

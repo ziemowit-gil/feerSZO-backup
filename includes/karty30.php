@@ -294,6 +294,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_at      DATETIME",
         // Token prywatnego kanału iCal (subskrypcja lekcji w Google/Apple/Outlook)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN calendar_token TEXT NOT NULL DEFAULT ''",
+        // Zgoda kursanta/beneficjenta na powiadomienia SMS o zajęciach (opt-in)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_lessons INTEGER NOT NULL DEFAULT 0",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -1320,6 +1322,29 @@ function ti_time_options(string $selected = '', string $from = '07:00', string $
         $out .= '<option value="' . $v . '"' . ($v === $sel ? ' selected' : '') . '>' . $v . '</option>';
     }
     return $out;
+}
+
+/**
+ * Wysyła SMS o zajęciach do aktywnych kursantów grupy, którzy WŁĄCZYLI powiadomienia
+ * (notify_sms_lessons=1) i mają numer telefonu. Zwraca liczbę wysłanych. Bezpieczne,
+ * gdy SMS wyłączony lub brak odbiorców (zwraca 0).
+ */
+function ti_lesson_sms_notify(int $courseId, string $message): int {
+    require_once __DIR__ . '/sms.php';
+    if (!function_exists('sms_is_enabled') || !sms_is_enabled()) return 0;
+    $rows = db_all(
+        "SELECT cl.phone
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_student_accounts a ON a.client_id = e.client_id AND a.is_active = 1 AND a.notify_sms_lessons = 1
+         JOIN k30_clients cl ON cl.id = e.client_id
+         WHERE e.course_id = ? AND e.status = 'active' AND cl.phone IS NOT NULL AND TRIM(cl.phone) <> ''",
+        [$courseId]
+    );
+    $sent = 0;
+    foreach ($rows as $r) {
+        try { sms_send($r['phone'], $message); $sent++; } catch (\Throwable $e) { /* pojedynczy błąd nie blokuje */ }
+    }
+    return $sent;
 }
 
 // ── Kanał iCal lekcji kursanta (subskrypcja Google/Apple/Outlook) ─────────────

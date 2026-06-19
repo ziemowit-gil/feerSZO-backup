@@ -82,7 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             try { db_insert('k30_ti_attendance', ['session_id'=>$sid,'client_id'=>(int)$e['client_id'],'attended'=>0]); }
             catch(\Throwable $ex) {}
         }
-        flash_set('success','Lekcja dodana.');
+        // Powiadomienia SMS o nowych zajęciach — tylko do kursantów, którzy je włączyli
+        $course_row = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$id]);
+        $when = $sess_data['lesson_date'] . ($tf !== '' ? ' o ' . $tf : '');
+        $sms_sent = ti_lesson_sms_notify((int)$id,
+            'Nowe zajecia: ' . ($course_row['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
+        flash_set('success', 'Lekcja dodana.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
         header('Location: lesson.php?id='.$sid); exit;
     }
 
