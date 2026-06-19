@@ -227,7 +227,7 @@ $PAGE_TITLE = 'Check-in QR';
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
                     <form method="post" action="">
-                        <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                         <input type="hidden" name="action" value="<?= $open_session ? 'checkout' : 'checkin' ?>">
 
                         <div class="row g-2 mb-3">

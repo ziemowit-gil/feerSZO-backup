@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* KROK 2 — import */
     } elseif (isset($_POST['do_import'])) {
-        csrf_check($_POST['csrf_token'] ?? '');
+        csrf_check();
 
         $headers  = $_SESSION[$csv_key . '_headers'] ?? [];
         $all_rows = $_SESSION[$csv_key] ?? [];
@@ -308,7 +308,6 @@ include __DIR__ . '/includes/header_crm.php';
 
   <form method="post">
     <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
-    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
     <input type="hidden" name="do_import"  value="1">
 
     <!-- Mapowanie kolumn -->

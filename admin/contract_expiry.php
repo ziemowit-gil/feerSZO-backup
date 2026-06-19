@@ -232,7 +232,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
   <form method="post" action="<?= APP_URL ?>/admin/contract_expiry.php" class="d-inline">
     <input type="hidden" name="action" value="send_reminders">
-    <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <button type="submit" class="btn btn-primary"
             onclick="return confirm('Wysłać przypomnienia do opiekunów wygasających umów?')">
       <i class="bi bi-send me-1"></i> Wyślij przypomnienia teraz
