@@ -544,15 +544,30 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           foreach ($grupy as $g) {
               $opts .= '<option value="'.$g['id'].'"'.(((int)($z['grupa_id']??0))===(int)$g['id']?' selected':'').'>'.h($g['nazwa']).'</option>';
           }
+          // Wykrycie podpisu elektronicznego (tylko dla istotnych rozszerzeń)
+          $sig  = ['signed'=>false];
+          $zext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
+          if (in_array($zext, EZD_SIG_EXTS, true)) {
+              $sig = ezd_signature_info(UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/' . $z['filename'], $z['original_name']);
+          }
           ?>
           <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.8rem">
             <i class="bi <?= ezd_file_icon($z['original_name']) ?> fs-5 flex-shrink-0"></i>
             <div class="flex-grow-1 overflow-hidden">
-              <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="text-decoration-none fw-semibold text-truncate d-block"><?= h($z['original_name']) ?></a>
+              <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="text-decoration-none fw-semibold text-truncate d-block"><?= h($z['original_name']) ?>
+                <?php if(!empty($sig['signed'])): ?><span class="badge bg-success bg-opacity-15 text-success border border-success ms-1" style="font-size:.6rem"><i class="bi bi-patch-check-fill me-1"></i>Podpis el.</span><?php endif; ?>
+              </a>
               <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · <?= h($z['uploader'] ?? '—') ?> · <?= date('d.m.Y H:i', strtotime($z['uploaded_at'])) ?>
                 <?php if($z['wersja']>1): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem">v<?= $z['wersja'] ?></span><?php endif; ?>
               </div>
             </div>
+            <?php if(!empty($sig['signed'])): ?>
+            <button type="button" class="btn btn-xs btn-outline-success btn-sm ezd-sig-btn flex-shrink-0" title="Dane podpisu elektronicznego"
+              data-file="<?= h($z['original_name']) ?>" data-type="<?= h((string)$sig['type']) ?>"
+              data-signer="<?= h((string)($sig['signer'] ?? '')) ?>" data-date="<?= h((string)($sig['signed_at'] ?? '')) ?>"
+              data-reason="<?= h((string)($sig['reason'] ?? '')) ?>" data-location="<?= h((string)($sig['location'] ?? '')) ?>"
+              data-note="<?= h((string)($sig['note'] ?? '')) ?>"><i class="bi bi-patch-check"></i></button>
+            <?php endif; ?>
             <?php if(can_edit() && $grupy): ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -626,6 +641,53 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
       </div>
     </div>
+
+    <!-- Modal: dane podpisu elektronicznego -->
+    <div class="modal fade" id="sigModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h6 class="modal-title"><i class="bi bi-patch-check-fill text-success me-2"></i>Podpis elektroniczny</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+          </div>
+          <div class="modal-body" style="font-size:.85rem">
+            <div class="text-muted mb-2" id="sig-file" style="font-size:.8rem"></div>
+            <dl class="row mb-0" style="row-gap:.4rem">
+              <dt class="col-4 text-muted fw-normal">Rodzaj</dt><dd class="col-8 mb-0" id="sig-type">—</dd>
+              <dt class="col-4 text-muted fw-normal">Podpisał(a)</dt><dd class="col-8 mb-0" id="sig-signer">—</dd>
+              <dt class="col-4 text-muted fw-normal">Data podpisu</dt><dd class="col-8 mb-0" id="sig-date">—</dd>
+              <dt class="col-4 text-muted fw-normal">Powód</dt><dd class="col-8 mb-0" id="sig-reason">—</dd>
+              <dt class="col-4 text-muted fw-normal">Miejsce</dt><dd class="col-8 mb-0" id="sig-location">—</dd>
+            </dl>
+            <div class="alert alert-light border mt-3 mb-0 py-2" style="font-size:.76rem">
+              <i class="bi bi-info-circle me-1"></i><span id="sig-note">Wykryto podpis elektroniczny w pliku. Pełną weryfikację (ważność certyfikatu, łańcuch zaufania) przeprowadź w dedykowanym walidatorze, np. <a href="https://weryfikacjapodpisu.pl" target="_blank" rel="noopener">weryfikacjapodpisu.pl</a> lub WebNotarius.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function(){
+      var modalEl = document.getElementById('sigModal');
+      if (!modalEl || typeof bootstrap === 'undefined') return;
+      var modal = new bootstrap.Modal(modalEl);
+      function setRow(id, val, fallback){ var el=document.getElementById(id); el.textContent = (val && val.trim()!=='') ? val : (fallback||'—'); }
+      document.querySelectorAll('.ezd-sig-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          document.getElementById('sig-file').textContent = btn.dataset.file || '';
+          setRow('sig-type',   btn.dataset.type);
+          setRow('sig-signer', btn.dataset.signer, 'nie podano w pliku');
+          setRow('sig-date',   btn.dataset.date,   'nie podano w pliku');
+          setRow('sig-reason', btn.dataset.reason);
+          setRow('sig-location', btn.dataset.location);
+          var note = document.getElementById('sig-note');
+          note.innerHTML = (btn.dataset.note && btn.dataset.note.trim()!=='' ? (btn.dataset.note + ' · ') : '')
+            + 'Wykryto podpis w pliku. Pełną weryfikację (ważność certyfikatu, łańcuch zaufania) wykonaj w walidatorze, np. <a href="https://weryfikacjapodpisu.pl" target="_blank" rel="noopener">weryfikacjapodpisu.pl</a>.';
+          modal.show();
+        });
+      });
+    })();
+    </script>
 
     <!-- Audit log -->
     <div class="mt-4">

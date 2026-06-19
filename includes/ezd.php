@@ -1893,3 +1893,83 @@ function _ezd_check_sprawa_open(array $sprawa): void {
         throw new \RuntimeException('Sprawa jest zamknięta. Edycja zablokowana dla nieadministratorów.');
     }
 }
+
+// ── Wykrywanie podpisu elektronicznego w plikach ─────────────────────────────
+
+const EZD_SIG_EXTS = ['pdf','xml','p7s','p7m','pkcs7','xades','asice','asics','sig'];
+
+/** Pomocnik: wyciąga literalny string ze słownika podpisu PDF: /Klucz (wartość). */
+function _ezd_pdf_str(string $data, string $key): ?string {
+    if (preg_match('/\/' . $key . '\s*\(((?:[^()\\\\]|\\\\.)*)\)/', $data, $m)) {
+        $s = trim(preg_replace('/\\\\([()\\\\])/', '$1', $m[1]));
+        return $s !== '' ? $s : null;
+    }
+    return null;
+}
+
+/**
+ * Heurystyczne wykrycie podpisu elektronicznego pliku + najlepsze dostępne dane.
+ * Obsługa: PAdES (PDF), XAdES/XML-DSig (XML), CAdES/PKCS#7 (.p7s/.p7m), ASiC.
+ * @return array{signed:bool,type:string,signer:?string,signed_at:?string,reason:?string,location:?string,note:?string}
+ */
+function ezd_signature_info(string $path, string $name): array {
+    $res = ['signed'=>false,'type'=>'','signer'=>null,'signed_at'=>null,'reason'=>null,'location'=>null,'note'=>null];
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    if (!is_file($path)) return $res;
+
+    // Pliki będące samym kontenerem podpisu
+    $sigExts = [
+        'p7s'=>'CAdES / PKCS#7','p7m'=>'CAdES / PKCS#7','pkcs7'=>'PKCS#7',
+        'xades'=>'XAdES','asice'=>'ASiC-E','asics'=>'ASiC-S','sig'=>'Podpis elektroniczny',
+    ];
+    if (isset($sigExts[$ext])) { $res['signed'] = true; $res['type'] = $sigExts[$ext]; }
+
+    // Czytanie zawartości (do 2 MB w całości; większe — początek + koniec)
+    $size = (int)@filesize($path);
+    if ($size > 0 && $size <= 2*1024*1024) {
+        $data = (string)@file_get_contents($path);
+    } else {
+        $fh = @fopen($path, 'rb'); $data = '';
+        if ($fh) { $data = (string)fread($fh, 524288); if ($size > 524288) { @fseek($fh, -524288, SEEK_END); $data .= "\n" . (string)fread($fh, 524288); } fclose($fh); }
+    }
+    if ($data === '') return $res;
+
+    // PAdES (podpisany PDF)
+    if ($ext === 'pdf' || strncmp($data, '%PDF', 4) === 0) {
+        if (preg_match('/\/ByteRange\s*\[/', $data) && preg_match('/\/(Sig|SubFilter|Contents)/', $data)) {
+            $res['signed'] = true;
+            if (preg_match('/\/SubFilter\s*\/([A-Za-z0-9.]+)/', $data, $m)) {
+                $sf = $m[1];
+                $res['type'] = str_contains($sf,'ETSI.CAdES') ? 'PAdES (ETSI.CAdES)'
+                    : (str_contains($sf,'adbe.pkcs7') ? 'PAdES (adbe.pkcs7)'
+                    : (str_contains($sf,'ETSI.RFC3161') ? 'Znacznik czasu (PAdES-T)' : 'PAdES (' . $sf . ')'));
+            } else { $res['type'] = 'PAdES'; }
+            $res['signer']   = _ezd_pdf_str($data, 'Name');
+            $res['reason']   = _ezd_pdf_str($data, 'Reason');
+            $res['location'] = _ezd_pdf_str($data, 'Location');
+            $mdate = _ezd_pdf_str($data, 'M');
+            if ($mdate && preg_match("/D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?/", $mdate, $d)) {
+                $res['signed_at'] = "$d[1]-$d[2]-$d[3]" . (!empty($d[4]) ? " {$d[4]}:" . ($d[5] ?? '00') : '');
+            }
+            $cnt = preg_match_all('/\/ByteRange\s*\[/', $data);
+            if ($cnt > 1) $res['note'] = 'Liczba podpisów: ' . $cnt;
+        }
+    }
+    // XAdES / XML-DSig
+    elseif ($ext === 'xml' || str_contains($data, '<ds:Signature') || preg_match('/<Signature[\s>]/', $data)) {
+        if (preg_match('/<(ds:)?Signature[\s>]/', $data) || stripos($data, 'XAdES') !== false) {
+            $res['signed'] = true;
+            $res['type'] = stripos($data, 'XAdES') !== false ? 'XAdES' : 'XML-DSig';
+            if (preg_match('/<(?:ds:)?X509SubjectName>([^<]+)</', $data, $m)) $res['signer'] = trim($m[1]);
+            if (preg_match('/<(?:xades:)?SigningTime>([^<]+)</', $data, $m)) $res['signed_at'] = substr(trim($m[1]), 0, 19);
+        }
+    }
+
+    // ASiC / inny ZIP z podpisami w META-INF
+    if (!$res['signed'] && in_array($ext, ['asice','asics','zip'], true)
+        && str_contains($data, 'META-INF/') && (str_contains($data, 'signature') || str_contains($data, 'signatures'))) {
+        $res['signed'] = true; $res['type'] = 'ASiC';
+    }
+
+    return $res;
+}
