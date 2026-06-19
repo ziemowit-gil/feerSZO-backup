@@ -140,6 +140,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </td>
           <?php if(is_admin()): ?>
           <td class="text-end">
+            <a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= $j['id'] ?>" class="btn btn-xs btn-outline-info btn-sm" title="Proces / workflow"><i class="bi bi-diagram-2"></i></a>
             <a href="<?= APP_URL ?>/ezd/jrwa/index.php?edit=<?= $j['id'] ?>#jrwa-form" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i></a>
             <?php if(!$j['teczki_count']): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć hasło <?= h($j['symbol']) ?> z wykazu akt?')">

@@ -280,34 +280,40 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
 
-    <!-- Workflow BPM — etapy obiegu -->
+    <!-- Workflow BPM — etapy obiegu (wg JRWA sprawy) -->
     <?php
-      $cur_etap = $sprawa['etap'] ?? 'wszczeta';
-      $cur_ord  = ezd_etap_meta($cur_etap)['order'];
-      $etap_keys = array_keys(EZD_ETAPY);
-      $cur_idx  = array_search($cur_etap, $etap_keys, true);
-      $next_etap = ($cur_idx !== false && isset($etap_keys[$cur_idx+1])) ? $etap_keys[$cur_idx+1] : null;
+      $wf_steps  = ezd_sprawa_workflow($sprawa);
+      $wf_keys   = array_column($wf_steps, 'key');
+      $cur_etap  = $sprawa['etap'] ?: ($wf_keys[0] ?? 'wszczeta');
+      $cur_idx   = array_search($cur_etap, $wf_keys, true);
+      if ($cur_idx === false) $cur_idx = -1; // etap spoza tego workflow → przed startem
+      $next_etap = $wf_keys[$cur_idx+1] ?? null;
+      $next_step = $next_etap !== null ? $wf_steps[$cur_idx+1] : null;
+      $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     ?>
     <div class="bc mb-4" id="workflow">
-      <div class="bc-h"><i class="bi bi-diagram-2"></i>Obieg sprawy (workflow)</div>
+      <div class="bc-h"><i class="bi bi-diagram-2"></i>Obieg sprawy (workflow)
+        <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-2" style="font-size:.6rem">wg JRWA <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
+        <?php if(is_admin()): ?><a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= (int)($sprawa['jrwa_id'] ?? 0) ?>" class="ms-auto text-muted" style="font-size:.7rem" title="Edytuj workflow tej JRWA"><i class="bi bi-pencil"></i></a><?php endif; ?>
+      </div>
       <div class="bc-b">
         <div class="ezd-stepper">
-          <?php foreach (EZD_ETAPY as $ek => $em):
-            $state = $em['order'] < $cur_ord ? 'done' : ($ek === $cur_etap ? 'current' : 'todo'); ?>
-          <div class="ezd-step ezd-step-<?= $state ?>" title="<?= h($em['label']) ?>">
-            <div class="ezd-step-dot"><i class="bi <?= $state==='done'?'bi-check-lg':$em['icon'] ?>"></i></div>
-            <div class="ezd-step-lbl"><?= h($em['label']) ?></div>
+          <?php foreach ($wf_steps as $i => $st):
+            $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
+          <div class="ezd-step ezd-step-<?= $state ?>" title="<?= h($st['label']) ?>">
+            <div class="ezd-step-dot"><i class="bi <?= $state==='done'?'bi-check-lg':($st['icon'] ?: 'bi-record-circle') ?>"></i></div>
+            <div class="ezd-step-lbl"><?= h($st['label']) ?></div>
           </div>
           <?php endforeach; ?>
         </div>
         <?php if($can_act): ?>
         <div class="d-flex gap-2 flex-wrap align-items-center mt-3 pt-3 border-top">
-          <?php if($next_etap): ?>
+          <?php if($next_step): ?>
           <form method="post" class="d-inline">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="set_etap">
-            <input type="hidden" name="etap" value="<?= $next_etap ?>">
-            <button class="btn btn-sm btn-primary"><i class="bi <?= ezd_etap_meta($next_etap)['icon'] ?> me-1"></i>Dalej: <?= h(ezd_etap_meta($next_etap)['label']) ?> →</button>
+            <input type="hidden" name="etap" value="<?= h($next_etap) ?>">
+            <button class="btn btn-sm btn-primary"><i class="bi <?= h($next_step['icon'] ?: 'bi-arrow-right') ?> me-1"></i>Dalej: <?= h($next_step['label']) ?> →</button>
           </form>
           <?php endif; ?>
           <form method="post" class="d-inline d-flex gap-1">
@@ -315,8 +321,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <input type="hidden" name="_action" value="set_etap">
             <select name="etap" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
               <option disabled selected>Przejdź do etapu…</option>
-              <?php foreach(EZD_ETAPY as $ek=>$em): ?>
-              <option value="<?= $ek ?>" <?= $ek===$cur_etap?'disabled':'' ?>><?= h($em['label']) ?></option>
+              <?php foreach($wf_steps as $st): ?>
+              <option value="<?= h($st['key']) ?>" <?= $st['key']===$cur_etap?'disabled':'' ?>><?= h($st['label']) ?></option>
               <?php endforeach; ?>
             </select>
           </form>

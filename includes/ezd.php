@@ -222,6 +222,16 @@
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Definicje workflow (BPM) per JRWA — kroki jako JSON
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_workflows (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        jrwa_id     INTEGER UNIQUE REFERENCES ezd_jrwa(id) ON DELETE CASCADE,
+        name        TEXT    NOT NULL DEFAULT '',
+        steps       TEXT    NOT NULL DEFAULT '[]',
+        updated_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Kolumny dokładane do istniejących tabel (idempotentnie)
     foreach ([
         "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
@@ -487,6 +497,7 @@ function ezd_teczka_update(int $id, array $d, int $user_id): void {
 function ezd_sprawa_get(int $id): ?array {
     return db_one(
         "SELECT s.*, t.symbol AS teczka_symbol, t.title AS teczka_title, t.rok AS teczka_rok,
+                t.jrwa_id AS jrwa_id,
                 u.name AS owner_name, c.name AS creator_name,
                 p.znak_sprawy AS parent_znak, p.title AS parent_title
          FROM ezd_sprawy s
@@ -621,44 +632,216 @@ function _ezd_next_numer(int $teczka_id, int $rok): int {
     return ($r['m'] ?? 0) + 1;
 }
 
-// ── Workflow BPM — etapy obiegu sprawy ───────────────────────────────────────
+// ── Workflow BPM — etapy obiegu sprawy (konfigurowalne per JRWA) ─────────────
+
+/** Domyślna ścieżka (gdy JRWA nie ma własnego workflow) — z EZD_ETAPY. */
+function ezd_workflow_default_steps(): array {
+    $steps = [];
+    foreach (EZD_ETAPY as $k => $m) {
+        $steps[] = ['key' => $k, 'label' => $m['label'], 'class' => $m['class'], 'icon' => $m['icon'], 'dyspozycja' => $m['dyspozycja'] ?? '', 'sla_days' => 0];
+    }
+    return $steps;
+}
+
+function ezd_workflow_get(?int $jrwa_id): ?array {
+    if (!$jrwa_id) return null;
+    return db_one("SELECT * FROM ezd_workflows WHERE jrwa_id=?", [$jrwa_id]);
+}
+
+/** Zwraca kroki workflow dla JRWA (własne lub domyślne). */
+function ezd_workflow_steps(?int $jrwa_id): array {
+    $w = ezd_workflow_get($jrwa_id);
+    if ($w && !empty($w['steps'])) {
+        $arr = json_decode($w['steps'], true);
+        if (is_array($arr) && $arr) return ezd_workflow_normalize($arr);
+    }
+    return ezd_workflow_default_steps();
+}
+
+/** Normalizuje kroki: zapewnia key/label/class/icon/dyspozycja/sla_days. */
+function ezd_workflow_normalize(array $steps): array {
+    $out = []; $i = 0;
+    foreach ($steps as $s) {
+        $label = trim((string)($s['label'] ?? ''));
+        if ($label === '') continue;
+        $key = trim((string)($s['key'] ?? ''));
+        if ($key === '') $key = 'k' . (++$i) . '_' . preg_replace('/[^a-z0-9]+/', '', strtolower(_ezd_ascii($label)));
+        $out[] = [
+            'key'        => $key,
+            'label'      => $label,
+            'class'      => in_array($s['class'] ?? '', ['secondary','primary','info','warning','success','danger','dark'], true) ? $s['class'] : 'secondary',
+            'icon'       => trim((string)($s['icon'] ?? '')) ?: 'bi-record-circle',
+            'dyspozycja' => array_key_exists($s['dyspozycja'] ?? '', EZD_DYSPOZYCJE) ? $s['dyspozycja'] : '',
+            'sla_days'   => max(0, (int)($s['sla_days'] ?? 0)),
+        ];
+    }
+    return $out;
+}
+
+function _ezd_ascii(string $s): string {
+    $from = ['ą','ć','ę','ł','ń','ó','ś','ź','ż','Ą','Ć','Ę','Ł','Ń','Ó','Ś','Ź','Ż'];
+    $to   = ['a','c','e','l','n','o','s','z','z','a','c','e','l','n','o','s','z','z'];
+    return str_replace($from, $to, $s);
+}
+
+/** Kroki workflow właściwe dla danej sprawy (po JRWA jej teczki). */
+function ezd_sprawa_workflow(array $sprawa): array {
+    $jrwa_id = isset($sprawa['jrwa_id']) ? (int)$sprawa['jrwa_id'] : 0;
+    if (!$jrwa_id && !empty($sprawa['teczka_id'])) {
+        $t = db_one("SELECT jrwa_id FROM ezd_teczki WHERE id=?", [(int)$sprawa['teczka_id']]);
+        $jrwa_id = (int)($t['jrwa_id'] ?? 0);
+    }
+    return ezd_workflow_steps($jrwa_id ?: null);
+}
+
+function ezd_workflow_save(int $jrwa_id, string $name, array $steps, int $user_id): void {
+    $steps = ezd_workflow_normalize($steps);
+    if (!$steps) throw new \RuntimeException('Workflow musi mieć co najmniej jeden etap.');
+    $json = json_encode(array_values($steps), JSON_UNESCAPED_UNICODE);
+    $exists = db_one("SELECT id FROM ezd_workflows WHERE jrwa_id=?", [$jrwa_id]);
+    if ($exists) {
+        db()->prepare("UPDATE ezd_workflows SET name=?, steps=?, updated_by=?, updated_at=datetime('now') WHERE jrwa_id=?")
+            ->execute([$name, $json, $user_id, $jrwa_id]);
+    } else {
+        db()->prepare("INSERT INTO ezd_workflows (jrwa_id,name,steps,updated_by) VALUES (?,?,?,?)")
+            ->execute([$jrwa_id, $name, $json, $user_id]);
+    }
+    ezd_log(null, null, null, null, $user_id, 'workflow_save', 'Zapisano workflow JRWA #' . $jrwa_id);
+}
+
+function ezd_workflow_delete(int $jrwa_id, int $user_id): void {
+    db()->prepare("DELETE FROM ezd_workflows WHERE jrwa_id=?")->execute([$jrwa_id]);
+    ezd_log(null, null, null, null, $user_id, 'workflow_delete', 'Przywrócono domyślny workflow JRWA #' . $jrwa_id);
+}
+
+/** Globalna mapa key→meta (domyślne + wszystkie własne) dla etykiet w listach. */
+function ezd_etap_label_map(): array {
+    static $map = null;
+    if ($map !== null) return $map;
+    $map = [];
+    foreach (ezd_workflow_default_steps() as $s) $map[$s['key']] = $s;
+    try {
+        foreach (db_all("SELECT steps FROM ezd_workflows") as $w) {
+            $arr = json_decode($w['steps'], true);
+            if (is_array($arr)) foreach ($arr as $s) { if (!empty($s['key'])) $map[$s['key']] = $s; }
+        }
+    } catch (\Throwable $e) {}
+    return $map;
+}
 
 function ezd_etap_meta(string $etap): array {
-    return EZD_ETAPY[$etap] ?? ['label' => $etap, 'icon' => 'bi-circle', 'class' => 'secondary', 'order' => 0];
+    $map = ezd_etap_label_map();
+    return $map[$etap] ?? ['label' => $etap, 'icon' => 'bi-record-circle', 'class' => 'secondary'];
 }
 
 function ezd_etap_badge(?string $etap): string {
     $etap = $etap ?: 'wszczeta';
     $m = ezd_etap_meta($etap);
-    return '<span class="badge bg-' . $m['class'] . ' bg-opacity-15 text-' . $m['class'] . ' border border-' . $m['class'] . '" style="font-size:.65rem"><i class="bi ' . $m['icon'] . ' me-1"></i>' . h($m['label']) . '</span>';
+    return '<span class="badge bg-' . $m['class'] . ' bg-opacity-15 text-' . $m['class'] . ' border border-' . $m['class'] . '" style="font-size:.65rem"><i class="bi ' . ($m['icon'] ?? 'bi-record-circle') . ' me-1"></i>' . h($m['label']) . '</span>';
 }
 
-/** Ustawia etap obiegu sprawy (z walidacją i logiem). Gdy etap=zakonczona → zamyka sprawę (o ile nie ciągła). */
+/**
+ * Ustawia etap obiegu sprawy wg workflow właściwego dla jej JRWA (walidacja + log).
+ * Ostatni krok zamyka sprawę (o ile nie ciągła); cofnięcie z ostatniego reotwiera;
+ * ruszenie z pierwszego kroku → status w toku.
+ */
 function ezd_sprawa_set_etap(int $id, string $etap, int $user_id): void {
-    if (!array_key_exists($etap, EZD_ETAPY)) throw new \RuntimeException('Nieznany etap obiegu.');
     $s = ezd_sprawa_get($id);
     if (!$s) return;
     if ($s['status'] === 'closed' && !is_admin()) throw new \RuntimeException('Sprawa jest zamknięta.');
 
-    $from = $s['etap'] ?? 'wszczeta';
+    $steps = ezd_sprawa_workflow($s);
+    $keys  = array_column($steps, 'key');
+    if (!in_array($etap, $keys, true)) throw new \RuntimeException('Nieznany etap w obiegu tej sprawy.');
+
+    $first = $keys[0] ?? null;
+    $last  = end($keys) ?: null;
+    $from  = $s['etap'] ?: $first;
     if ($from === $etap) return;
+
+    $labels = ezd_etap_label_map();
+    $from_lbl = $labels[$from]['label'] ?? $from;
+    $etap_lbl = $labels[$etap]['label'] ?? $etap;
 
     db()->prepare("UPDATE ezd_sprawy SET etap=?, updated_at=datetime('now') WHERE id=?")->execute([$etap, $id]);
 
-    // Domknięcie procesu: ostatni etap zamyka sprawę (chyba że ciągła)
-    if ($etap === 'zakonczona' && empty($s['ciagla']) && $s['status'] !== 'closed') {
+    if ($etap === $last && empty($s['ciagla']) && $s['status'] !== 'closed') {
+        // Ostatni krok → zamknięcie sprawy
         db()->prepare("UPDATE ezd_sprawy SET status='closed', closed_at=datetime('now') WHERE id=?")->execute([$id]);
         db()->prepare("UPDATE ezd_dekretacje SET status='zakonczone',completed_at=datetime('now') WHERE sprawa_id=? AND status='oczekuje'")->execute([$id]);
-    } elseif ($from === 'zakonczona' && $etap !== 'zakonczona' && $s['status'] === 'closed') {
-        // Cofnięcie z zakończenia — ponowne otwarcie
+    } elseif ($s['status'] === 'closed' && $etap !== $last) {
+        // Cofnięcie z zamknięcia → ponowne otwarcie
         db()->prepare("UPDATE ezd_sprawy SET status='in_progress', closed_at=NULL WHERE id=?")->execute([$id]);
-    } elseif ($from === 'wszczeta' && $s['status'] === 'open') {
-        // Ruszył obieg → w toku
+    } elseif ($s['status'] === 'open' && $etap !== $first) {
+        // Ruszenie obiegu poza krok startowy → w toku
         db()->prepare("UPDATE ezd_sprawy SET status='in_progress' WHERE id=?")->execute([$id]);
     }
 
-    ezd_log(null, $id, null, null, $user_id, 'etap_change',
-        'Etap obiegu: ' . (ezd_etap_meta($from)['label']) . ' → ' . (ezd_etap_meta($etap)['label']));
+    ezd_log(null, $id, null, null, $user_id, 'etap_change', 'Etap obiegu: ' . $from_lbl . ' → ' . $etap_lbl);
+}
+
+/** Generuje BPMN 2.0 XML z liniowej ścieżki kroków (start → zadania → koniec). */
+function ezd_workflow_to_bpmn(array $steps, string $name): string {
+    $steps = ezd_workflow_normalize($steps);
+    $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    $pid = 'Process_jrwa';
+    $flowEls = []; $shapes = []; $edges = [];
+    $x = 160; $y = 120; $gap = 150; $taskW = 110; $taskH = 70;
+
+    // Start event
+    $nodes = [];
+    $nodes[] = ['id' => 'StartEvent_1', 'type' => 'start', 'name' => 'Start', 'w' => 36, 'h' => 36];
+    foreach ($steps as $i => $st) $nodes[] = ['id' => 'Task_' . $i, 'type' => 'task', 'name' => $st['label'], 'w' => $taskW, 'h' => $taskH];
+    $nodes[] = ['id' => 'EndEvent_1', 'type' => 'end', 'name' => 'Koniec', 'w' => 36, 'h' => 36];
+
+    $defs = '';
+    foreach ($nodes as $n) {
+        if ($n['type'] === 'start') $defs .= '    <bpmn:startEvent id="' . $n['id'] . '" name="' . $esc($n['name']) . '" />' . "\n";
+        elseif ($n['type'] === 'end') $defs .= '    <bpmn:endEvent id="' . $n['id'] . '" name="' . $esc($n['name']) . '" />' . "\n";
+        else $defs .= '    <bpmn:task id="' . $n['id'] . '" name="' . $esc($n['name']) . '" />' . "\n";
+    }
+    // Sequence flows
+    $flows = '';
+    for ($i = 0; $i < count($nodes) - 1; $i++) {
+        $fid = 'Flow_' . $i;
+        $flows .= '    <bpmn:sequenceFlow id="' . $fid . '" sourceRef="' . $nodes[$i]['id'] . '" targetRef="' . $nodes[$i + 1]['id'] . '" />' . "\n";
+    }
+
+    // Diagram (DI)
+    $di = '';
+    $cx = $x;
+    $pos = [];
+    foreach ($nodes as $n) {
+        $cy = $y + (($taskH - $n['h']) / 2);
+        $pos[$n['id']] = ['x' => $cx, 'y' => $cy, 'w' => $n['w'], 'h' => $n['h'], 'cx' => $cx + $n['w'] / 2, 'cy' => $y + $taskH / 2];
+        $di .= '      <bpmndi:BPMNShape id="' . $n['id'] . '_di" bpmnElement="' . $n['id'] . '">' . "\n"
+             . '        <dc:Bounds x="' . (int)$cx . '" y="' . (int)$cy . '" width="' . $n['w'] . '" height="' . $n['h'] . '" />' . "\n"
+             . '      </bpmndi:BPMNShape>' . "\n";
+        $cx += $n['w'] + $gap;
+    }
+    for ($i = 0; $i < count($nodes) - 1; $i++) {
+        $a = $pos[$nodes[$i]['id']]; $b = $pos[$nodes[$i + 1]['id']];
+        $di .= '      <bpmndi:BPMNEdge id="Flow_' . $i . '_di" bpmnElement="Flow_' . $i . '">' . "\n"
+             . '        <di:waypoint x="' . (int)($a['x'] + $a['w']) . '" y="' . (int)$a['cy'] . '" />' . "\n"
+             . '        <di:waypoint x="' . (int)$b['x'] . '" y="' . (int)$b['cy'] . '" />' . "\n"
+             . '      </bpmndi:BPMNEdge>' . "\n";
+    }
+
+    return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+        . '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
+        . 'xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" '
+        . 'xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" '
+        . 'xmlns:di="http://www.omg.org/spec/DD/20100524/DI" '
+        . 'id="Definitions_ezd" targetNamespace="http://feer.org.pl/ezd">' . "\n"
+        . '  <bpmn:process id="' . $pid . '" name="' . $esc($name) . '" isExecutable="false">' . "\n"
+        . $defs . $flows
+        . '  </bpmn:process>' . "\n"
+        . '  <bpmndi:BPMNDiagram id="Diagram_1">' . "\n"
+        . '    <bpmndi:BPMNPlane id="Plane_1" bpmnElement="' . $pid . '">' . "\n"
+        . $di
+        . '    </bpmndi:BPMNPlane>' . "\n"
+        . '  </bpmndi:BPMNDiagram>' . "\n"
+        . '</bpmn:definitions>' . "\n";
 }
 
 // ── Pisma ────────────────────────────────────────────────────────────────────
@@ -1488,16 +1671,21 @@ function ezd_dekretacja_create(array $d, int $user_id): int {
     ezd_log(null, $d['sprawa_id'] ?: null, $d['pismo_id'] ?: null, $d['umowa_id'] ?: null,
             $user_id, 'dekretacja_create', EZD_DYSPOZYCJE[$d['dyspozycja'] ?? 'do_zalat'] . ' → #' . $d['wykonawca_id']);
 
-    // Workflow BPM: dyspozycja przesuwa etap obiegu do przodu (nigdy wstecz)
+    // Workflow BPM: dyspozycja przesuwa etap obiegu do przodu (nigdy wstecz) — wg workflow JRWA sprawy
     if (!empty($d['sprawa_id'])) {
         $dysp = $d['dyspozycja'] ?? 'do_zalat';
-        $target = null;
-        foreach (EZD_ETAPY as $ek => $em) { if (($em['dyspozycja'] ?? null) === $dysp) { $target = $ek; break; } }
-        if ($target) {
-            $sp = ezd_sprawa_get((int)$d['sprawa_id']);
-            $cur = $sp['etap'] ?? 'wszczeta';
-            if ($sp && $sp['status'] !== 'closed' && ezd_etap_meta($target)['order'] > ezd_etap_meta($cur)['order']) {
-                try { ezd_sprawa_set_etap((int)$d['sprawa_id'], $target, $user_id); } catch (\Throwable $e) {}
+        $sp = ezd_sprawa_get((int)$d['sprawa_id']);
+        if ($sp && $sp['status'] !== 'closed') {
+            $steps = ezd_sprawa_workflow($sp);
+            $keys  = array_column($steps, 'key');
+            $target = null;
+            foreach ($steps as $st) { if (($st['dyspozycja'] ?? '') === $dysp) { $target = $st['key']; break; } }
+            if ($target) {
+                $curIdx = array_search($sp['etap'] ?: ($keys[0] ?? ''), $keys, true);
+                $tgtIdx = array_search($target, $keys, true);
+                if ($tgtIdx !== false && ($curIdx === false || $tgtIdx > $curIdx)) {
+                    try { ezd_sprawa_set_etap((int)$d['sprawa_id'], $target, $user_id); } catch (\Throwable $e) {}
+                }
             }
         }
     }
