@@ -21,19 +21,31 @@ $_canva_cid       = (int)($_canva_contract_id ?? 0);
 if (!$_canva_invited && !$_canva_requested && !$_canva_cid) return;
 
 $_canva_csrf = function_exists('csrf_token') ? csrf_token() : '';
+
+// URL logowania jednokrotnego (IdP-initiated SSO) — null, gdy SP Canvy
+// nie jest zarejestrowany; wtedy fallback do logowania Microsoft na canva.com.
+$_canva_sso_url = null;
+require_once dirname(__DIR__, 2) . '/includes/canva.php';
+if (function_exists('canva_sso_url')) {
+    try { $_canva_sso_url = canva_sso_url(); } catch (\Throwable $e) { $_canva_sso_url = null; }
+}
+$_canva_login_href = $_canva_sso_url ?: 'https://www.canva.com';
+$_canva_login_sub  = $_canva_sso_url
+    ? 'Logowanie jednokrotne (SSO) — konto utworzy się automatycznie'
+    : 'Zaloguj się przez Microsoft na canva.com';
 ?>
 <?php if ($_canva_invited): ?>
-<!-- Już zaproszony → pokaż skrót (stan stabilny, bez JS) -->
-<a href="https://www.canva.com" target="_blank" rel="noopener"
+<!-- Dostęp przyznany → przycisk logowania (stan stabilny, bez JS) -->
+<a href="<?= h($_canva_login_href) ?>" target="_blank" rel="noopener"
    class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3 text-decoration-none"
    style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;transition:opacity .15s"
    onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
   <span style="width:38px;height:38px;background:rgba(255,255,255,.18);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem" aria-hidden="true">🎨</span>
   <div style="flex:1">
-    <div style="font-size:.82rem;font-weight:700;line-height:1.2">Canva Pro — masz dostęp!</div>
-    <div style="font-size:.76rem;opacity:.85">Zaloguj się przez Microsoft na canva.com</div>
+    <div style="font-size:.82rem;font-weight:700;line-height:1.2">Zaloguj do Canva</div>
+    <div style="font-size:.76rem;opacity:.85"><?= h($_canva_login_sub) ?></div>
   </div>
-  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.2rem;opacity:.7" aria-hidden="true"></i>
+  <i class="bi bi-box-arrow-up-right" style="font-size:1.05rem;opacity:.8" aria-hidden="true"></i>
 </a>
 
 <?php else: ?>
