@@ -292,6 +292,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_by_role TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_by      TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_at      DATETIME",
+        // Token prywatnego kanału iCal (subskrypcja lekcji w Google/Apple/Outlook)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN calendar_token TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -1296,6 +1298,117 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
          LIMIT " . max(1, $limit),
         [$client_id, $client_id]
     );
+}
+
+// ── Kanał iCal lekcji kursanta (subskrypcja Google/Apple/Outlook) ─────────────
+
+/** Token prywatnego kanału iCal kursanta (utwórz, jeśli brak). */
+function k30_ti_calendar_token(int $account_id): string {
+    $row = db_one("SELECT calendar_token FROM k30_ti_student_accounts WHERE id=?", [$account_id]);
+    $tok = (string)($row['calendar_token'] ?? '');
+    if ($tok === '') {
+        $tok = bin2hex(random_bytes(20));
+        db()->prepare("UPDATE k30_ti_student_accounts SET calendar_token=? WHERE id=?")->execute([$tok, $account_id]);
+    }
+    return $tok;
+}
+
+/** Nowy token kanału iCal — unieważnia poprzedni adres subskrypcji. */
+function k30_ti_calendar_token_reset(int $account_id): string {
+    $tok = bin2hex(random_bytes(20));
+    db()->prepare("UPDATE k30_ti_student_accounts SET calendar_token=? WHERE id=?")->execute([$tok, $account_id]);
+    return $tok;
+}
+
+/** Buduje treść pliku iCal (VCALENDAR) z lekcjami kursanta. */
+function k30_ti_calendar_ics(int $client_id, string $cal_name = 'Lekcje TI'): string {
+    $lessons = k30_ti_client_lessons($client_id, 500);
+    $host = parse_url(defined('APP_URL') ? APP_URL : '', PHP_URL_HOST) ?: 'szo';
+
+    // Escapowanie tekstu wg RFC 5545.
+    $esc = static fn(string $s): string =>
+        str_replace(["\\", "\n", "\r", ",", ";"], ["\\\\", "\\n", "", "\\,", "\\;"], $s);
+
+    // Zawijanie linii do 75 oktetów (na granicy znaków UTF-8).
+    $fold = static function (string $line): string {
+        if (strlen($line) <= 75) return $line;
+        $out = ''; $cur = ''; $len = 0;
+        foreach (mb_str_split($line) as $ch) {
+            $cl = strlen($ch);
+            if ($len + $cl > 73) { $out .= ($out === '' ? '' : "\r\n") . $cur; $cur = ' ' . $ch; $len = 1 + $cl; }
+            else { $cur .= $ch; $len += $cl; }
+        }
+        $out .= ($out === '' ? '' : "\r\n") . $cur;
+        return $out;
+    };
+
+    $lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//SZO//Karty30 TI//PL',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'X-WR-CALNAME:' . $esc($cal_name),
+        'X-WR-TIMEZONE:Europe/Warsaw',
+    ];
+
+    $now = gmdate('Ymd\THis\Z');
+
+    foreach ($lessons as $l) {
+        if (!empty($l['self_prep_remote'])) continue; // praca własna prowadzącego — nie lekcja kursanta
+        $date = (string)($l['lesson_date'] ?? '');
+        if ($date === '') continue;
+
+        $tf = trim((string)($l['time_from'] ?? ''));
+        $tt = trim((string)($l['time_to'] ?? ''));
+        $allDay = ($tf === '');
+
+        try {
+            if ($allDay) {
+                $start = new DateTime($date);
+                $end   = (clone $start)->modify('+1 day');
+                $dtStart = 'DTSTART;VALUE=DATE:' . $start->format('Ymd');
+                $dtEnd   = 'DTEND;VALUE=DATE:'   . $end->format('Ymd');
+            } else {
+                $start = new DateTime($date . ' ' . $tf);
+                if ($tt !== '') {
+                    $end = new DateTime($date . ' ' . $tt);
+                    if ($end <= $start) $end = (clone $start)->modify('+' . max(15, (int)($l['duration_min'] ?? 60)) . ' minutes');
+                } else {
+                    $end = (clone $start)->modify('+' . max(15, (int)($l['duration_min'] ?? 60)) . ' minutes');
+                }
+                // Czas lokalny „floating" — kalendarze interpretują w strefie użytkownika.
+                $dtStart = 'DTSTART:' . $start->format('Ymd\THis');
+                $dtEnd   = 'DTEND:'   . $end->format('Ymd\THis');
+            }
+        } catch (\Throwable $e) { continue; }
+
+        $course  = trim((string)($l['course_name'] ?? ''));
+        $topic   = trim((string)($l['topic'] ?? ''));
+        $summary = $course !== '' ? $course : 'Lekcja TI';
+        if ($topic !== '') $summary .= ' — ' . $topic;
+
+        $descParts = [];
+        if ($topic !== '')                 $descParts[] = 'Temat: ' . $topic;
+        if (!empty($l['has_homework']))    $descParts[] = 'Zadanie domowe: tak';
+        $desc = implode('\\n', array_map($esc, $descParts));
+
+        $cancelled = ((string)($l['status'] ?? '') === 'cancelled') || ((int)($l['att_cancelled'] ?? 0) === 1);
+
+        $lines[] = 'BEGIN:VEVENT';
+        $lines[] = 'UID:k30ti-' . (int)$l['id'] . '@' . $host;
+        $lines[] = 'DTSTAMP:' . $now;
+        $lines[] = $dtStart;
+        $lines[] = $dtEnd;
+        $lines[] = $fold('SUMMARY:' . $esc($summary));
+        if ($desc !== '') $lines[] = $fold('DESCRIPTION:' . $desc);
+        $lines[] = 'STATUS:' . ($cancelled ? 'CANCELLED' : 'CONFIRMED');
+        if ($cancelled) $lines[] = 'TRANSP:TRANSPARENT';
+        $lines[] = 'END:VEVENT';
+    }
+
+    $lines[] = 'END:VCALENDAR';
+    return implode("\r\n", $lines) . "\r\n";
 }
 
 // Lekcje

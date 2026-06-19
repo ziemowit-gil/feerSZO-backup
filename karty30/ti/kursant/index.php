@@ -54,6 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: index.php?tab=lekcje'); exit;
     }
+
+    if ($op === 'reset_calendar_token') {
+        k30_ti_calendar_token_reset((int)$student['id']);
+        header('Location: index.php?tab=lekcje&cal=reset'); exit;
+    }
 }
 
 // Kursy i lekcje kursanta
@@ -71,6 +76,12 @@ $homework_lessons = array_values(array_filter($lessons, fn($l) =>
     && ($l['status'] ?? '') === 'held'
     && (int)($l['att_cancelled'] ?? 0) !== 1
     && empty($l['self_prep_remote'])));
+
+// Prywatny kanał iCal lekcji (subskrypcja w Kalendarzu Google / Apple / Outlook)
+$cal_token  = k30_ti_calendar_token((int)$account['id']);
+$cal_https  = rtrim(APP_URL, '/') . '/karty30/ti/kursant/ical.php?id=' . (int)$account['id'] . '&t=' . $cal_token;
+$cal_webcal = preg_replace('#^https?://#i', 'webcal://', $cal_https);
+$cal_gcal   = 'https://calendar.google.com/calendar/r?cid=' . rawurlencode($cal_webcal);
 
 $org        = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
 $is_minor   = !empty($account['is_minor']);
@@ -293,6 +304,80 @@ include __DIR__ . '/_layout_head.php';
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
     Zaplanowaną lekcję możesz odwołać, podając powód — odwołany udział nie jest liczony do ceny.
   </p>
+
+  <!-- ── Synchronizacja z kalendarzem (Google / Apple / Outlook) ──────────────── -->
+  <section class="card mt-4" aria-labelledby="cal-heading">
+    <div class="card-body">
+      <h2 id="cal-heading" class="h6 fw-bold mb-2">
+        <i class="bi bi-calendar-plus text-info me-2" aria-hidden="true"></i>Synchronizacja z kalendarzem
+      </h2>
+      <p class="text-body-secondary small mb-3">
+        Dodaj swoje lekcje do Kalendarza Google, Apple lub Outlook. Kalendarz
+        odświeża się automatycznie, gdy prowadzący doda lub zmieni terminy.
+      </p>
+
+      <?php if (($_GET['cal'] ?? '') === 'reset'): ?>
+      <div class="alert alert-success py-2 small" role="alert">
+        <i class="bi bi-check-circle me-1" aria-hidden="true"></i>
+        Adres kalendarza został zmieniony. Poprzedni link przestał działać — zaktualizuj subskrypcję w swoim kalendarzu.
+      </div>
+      <?php endif; ?>
+
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <a href="<?= h($cal_gcal) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
+          <i class="bi bi-google me-1" aria-hidden="true"></i>Dodaj do Google Calendar
+        </a>
+        <a href="<?= h($cal_webcal) ?>" class="btn btn-sm btn-info">
+          <i class="bi bi-apple me-1" aria-hidden="true"></i>Subskrybuj (Apple / Outlook)
+        </a>
+        <a href="<?= h($cal_https) ?>" class="btn btn-sm btn-outline-secondary" download="lekcje.ics">
+          <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz plik .ics
+        </a>
+      </div>
+
+      <label class="form-label small fw-semibold" for="cal-url">Adres kanału (do ręcznego dodania „z adresu URL")</label>
+      <div class="input-group input-group-sm mb-2">
+        <input type="text" class="form-control" id="cal-url" value="<?= h($cal_https) ?>" readonly
+               aria-label="Adres kanału iCal" onclick="this.select()">
+        <button type="button" class="btn btn-outline-secondary" id="cal-copy">
+          <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj
+        </button>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
+        <p class="text-body-secondary mb-0" style="font-size:.78rem">
+          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>
+          Adres jest prywatny — nie udostępniaj go innym. Jeśli wyciekł, zresetuj go.
+        </p>
+        <form method="post" class="m-0" onsubmit="return confirm('Zresetować adres kalendarza? Dotychczasowa subskrypcja przestanie działać i trzeba ją dodać ponownie.')">
+          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+          <input type="hidden" name="_op"     value="reset_calendar_token">
+          <button type="submit" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Resetuj adres
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <script>
+  (function(){
+    var btn = document.getElementById('cal-copy');
+    var inp = document.getElementById('cal-url');
+    if (!btn || !inp) return;
+    btn.addEventListener('click', function(){
+      inp.select();
+      var done = function(){
+        var html = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Skopiowano';
+        setTimeout(function(){ btn.innerHTML = html; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(inp.value).then(done, function(){ try { document.execCommand('copy'); done(); } catch(e){} });
+      } else { try { document.execCommand('copy'); done(); } catch(e){} }
+    });
+  })();
+  </script>
 
   <!-- Modal: odwołanie udziału przez beneficjenta -->
   <div class="modal fade" id="cancelLessonModal" tabindex="-1" aria-hidden="true">
