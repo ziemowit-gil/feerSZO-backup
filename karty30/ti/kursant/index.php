@@ -659,22 +659,42 @@ include __DIR__ . '/_layout_head.php';
         + inner + '</div></div></div>';
     }
 
+    function meetingRow(m){
+      const [col,icon,lbl] = platMap[m.platform] || platMap.other;
+      return '<div class="list-group-item d-flex align-items-center gap-3 flex-wrap">'
+        + '<span class="badge text-bg-'+col+'"><i class="bi bi-'+icon+' me-1" aria-hidden="true"></i>'+lbl+'</span>'
+        + '<span class="flex-grow-1"><span class="fw-semibold">'+esc(m.title)+'</span>'
+        + (m.starts_at ? ' <span class="text-body-secondary small d-block d-sm-inline">'+fmtDate(m.starts_at)+'</span>' : '')+'</span>'
+        + '<a class="btn btn-outline-primary btn-sm" href="'+esc(m.join_url)+'" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Dołącz</a>'
+        + '</div>';
+    }
+
     function cardMeetings(d){
       let body;
       if (!d.meetings || !d.meetings.length){
         body = '<div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary">Brak zaplanowanych szkoleń online.</div>';
       } else {
-        body = '<div class="list-group">';
+        // Grupuj linki pod konkretną grupą (course_name); wspólne/tenantowe na końcu.
+        const groups = new Map();
         for (const m of d.meetings){
-          const [col,icon,lbl] = platMap[m.platform] || platMap.other;
-          body += '<div class="list-group-item d-flex align-items-center gap-3 flex-wrap">'
-            + '<span class="badge text-bg-'+col+'"><i class="bi bi-'+icon+' me-1" aria-hidden="true"></i>'+lbl+'</span>'
-            + '<span class="flex-grow-1"><span class="fw-semibold">'+esc(m.title)+'</span>'
-            + (m.starts_at ? ' <span class="text-body-secondary small d-block d-sm-inline">'+fmtDate(m.starts_at)+'</span>' : '')+'</span>'
-            + '<a class="btn btn-outline-primary btn-sm" href="'+esc(m.join_url)+'" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Dołącz</a>'
-            + '</div>';
+          const key = m.course_name || ' all';
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(m);
         }
-        body += '</div>';
+        const keys = [...groups.keys()].sort((a,b)=>{
+          if (a===' all') return 1; if (b===' all') return -1;
+          return a.localeCompare(b,'pl');
+        });
+        body = '';
+        for (const key of keys){
+          const isAll = key===' all';
+          const label = isAll ? 'Dla wszystkich grup' : key;
+          const gicon = isAll ? 'broadcast' : 'people-fill';
+          body += '<div class="mb-3">'
+            + '<div class="fw-semibold small text-uppercase text-body-secondary mb-2">'
+            + '<i class="bi bi-'+gicon+' me-1" aria-hidden="true"></i>'+esc(label)+'</div>'
+            + '<div class="list-group">' + groups.get(key).map(meetingRow).join('') + '</div></div>';
+        }
       }
       return '<div class="col-12"><div class="card"><div class="card-body">'
         + '<h2 class="h6 fw-bold d-flex align-items-center mb-3"><i class="bi bi-calendar-event me-2 text-primary" aria-hidden="true"></i>Nadchodzące szkolenia</h2>'

@@ -309,23 +309,32 @@ function ti_moodle_password_problem(string $p): string {
  * Scalona, posortowana lista nadchodzących szkoleń online.
  * Każdy element: ['title','platform'=>zoom|teams|other,'join_url','starts_at'].
  */
-function ti_upcoming_meetings(): array {
+function ti_upcoming_meetings(?int $clientId = null): array {
     $items = [];
 
-    // (a) Ręczne wpisy admina
+    // (a) Ręczne wpisy admina — przypisane do grupy (course_id) lub wspólne (NULL).
+    //     Dla kursanta pokazujemy tylko jego grupy + wspólne.
     try {
-        $rows = db_all(
-            "SELECT title, platform, join_url, starts_at FROM k30_ti_meetings
-             WHERE is_active=1 AND (starts_at IS NULL OR starts_at >= datetime('now','-1 hour'))
-             ORDER BY starts_at"
-        );
-        foreach ($rows as $m) {
+        $sql = "SELECT m.title, m.platform, m.join_url, m.starts_at, m.course_id, c.name AS course_name
+                FROM k30_ti_meetings m
+                LEFT JOIN k30_ti_courses c ON c.id = m.course_id
+                WHERE m.is_active=1 AND (m.starts_at IS NULL OR m.starts_at >= datetime('now','-1 hour'))";
+        $params = [];
+        if ($clientId !== null) {
+            $sql .= " AND (m.course_id IS NULL OR m.course_id IN (
+                          SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active'))";
+            $params[] = $clientId;
+        }
+        $sql .= " ORDER BY m.starts_at";
+        foreach (db_all($sql, $params) as $m) {
             if (!$m['join_url']) continue;
             $items[] = [
-                'title'     => $m['title'] ?: 'Szkolenie',
-                'platform'  => $m['platform'] ?: 'other',
-                'join_url'  => $m['join_url'],
-                'starts_at' => $m['starts_at'] ?: '',
+                'title'       => $m['title'] ?: 'Szkolenie',
+                'platform'    => $m['platform'] ?: 'other',
+                'join_url'    => $m['join_url'],
+                'starts_at'   => $m['starts_at'] ?: '',
+                'course_id'   => $m['course_id'] ? (int)$m['course_id'] : null,
+                'course_name' => $m['course_name'] ?: null,
             ];
         }
     } catch (\Throwable $e) { /* ignoruj */ }
@@ -338,10 +347,12 @@ function ti_upcoming_meetings(): array {
             $end   = date('Y-m-d\TH:i:s', strtotime('+30 days'));
             foreach (m365_training()->get_online_calendar_events($calUser, $start, $end) as $ev) {
                 $items[] = [
-                    'title'     => $ev['subject'],
-                    'platform'  => 'teams',
-                    'join_url'  => $ev['join_url'],
-                    'starts_at' => $ev['start'] ? date('Y-m-d H:i:s', strtotime($ev['start'])) : '',
+                    'title'       => $ev['subject'],
+                    'platform'    => 'teams',
+                    'join_url'    => $ev['join_url'],
+                    'starts_at'   => $ev['start'] ? date('Y-m-d H:i:s', strtotime($ev['start'])) : '',
+                    'course_id'   => null,
+                    'course_name' => null,
                 ];
             }
         } catch (\Throwable $e) { /* ignoruj */ }
@@ -352,10 +363,12 @@ function ti_upcoming_meetings(): array {
         try {
             foreach ((new ZoomAPI())->upcoming_meetings() as $m) {
                 $items[] = [
-                    'title'     => $m['title'],
-                    'platform'  => 'zoom',
-                    'join_url'  => $m['join_url'],
-                    'starts_at' => $m['start'] ? date('Y-m-d H:i:s', strtotime($m['start'])) : '',
+                    'title'       => $m['title'],
+                    'platform'    => 'zoom',
+                    'join_url'    => $m['join_url'],
+                    'starts_at'   => $m['start'] ? date('Y-m-d H:i:s', strtotime($m['start'])) : '',
+                    'course_id'   => null,
+                    'course_name' => null,
                 ];
             }
         } catch (\Throwable $e) { /* ignoruj */ }

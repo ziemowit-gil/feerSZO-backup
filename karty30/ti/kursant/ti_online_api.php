@@ -28,7 +28,10 @@ function ti_online_payload(int $sid): array {
     if (!empty($state['ms_enabled']) && empty($state['ms_active'])) {
         $state['ms_external_upn'] = ti_ms_external_upn($sid);
     }
-    return $state + ['meetings' => ti_upcoming_meetings()];
+    // Spotkania tylko dla grup kursanta (+ wspólne) — pogrupowane po grupie w panelu.
+    $row      = ti_student_row($sid);
+    $clientId = $row ? (int)$row['client_id'] : null;
+    return $state + ['meetings' => ti_upcoming_meetings($clientId)];
 }
 
 $modifying = in_array($action, ['ms_create', 'ms_delete', 'moodle_create', 'moodle_password'], true);
