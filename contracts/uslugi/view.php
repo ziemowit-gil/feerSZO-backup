@@ -244,7 +244,7 @@ include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
     <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
     <div class="col-md-4"><div class="detail-label">Platforma</div><div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
     <div class="col-md-4"><div class="detail-label">ID dokumentu</div><div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Plik potwierdzenia</div><div class="detail-value"><?= upload_link($row['plik_potwierdzenia']) ?></div></div>
+    <div class="col-md-4"><div class="detail-label">Plik potwierdzenia</div><div class="detail-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div></div>
     <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
     <div class="col-md-4"><div class="detail-label">Dostawca podpisu</div><div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
     <div class="col-md-4"><div class="detail-label">Nr certyfikatu</div><div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
@@ -309,12 +309,12 @@ include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
     <div class="card shadow-sm mb-3">
     <div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
     <div class="card-body">
-      <div class="mb-2"><div class="detail-label">Plik umowy</div><?= upload_link($row['plik_umowy']) ?></div>
+      <div class="mb-2"><div class="detail-label">Plik umowy</div><?= upload_link_signed($row['plik_umowy']) ?></div>
       <?php if ($row['zalaczniki']): ?>
       <div class="mb-2"><div class="detail-label">Załączniki</div><?= upload_link($row['zalaczniki']) ?></div>
       <?php endif; ?>
       <?php if ($row['plik_potwierdzenia'] && $row['forma_podpisania'] !== 'elektroniczna'): ?>
-      <div class="mb-2"><div class="detail-label">Plik potwierdzenia</div><?= upload_link($row['plik_potwierdzenia']) ?></div>
+      <div class="mb-2"><div class="detail-label">Plik potwierdzenia</div><?= upload_link_signed($row['plik_potwierdzenia']) ?></div>
       <?php endif; ?>
     </div>
     </div>

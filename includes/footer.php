@@ -19,6 +19,14 @@
 
 </div><!-- /main -->
 
+<?php
+// Modal „Podpis elektroniczny" + walidacja — globalnie dla zalogowanych.
+// Guard w partialu pomija render, jeśli widok dołączył go już samodzielnie.
+if (!defined('EZD_SIG_MODAL_RENDERED') && function_exists('current_user') && current_user()) {
+    require __DIR__ . '/ezd_sig_modal.php';
+}
+?>
+
 <?php require_once __DIR__ . '/chat_widget.php'; ?>
 <script>
 // Mobile sidebar toggle

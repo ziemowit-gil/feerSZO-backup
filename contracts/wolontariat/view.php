@@ -1153,7 +1153,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <?php if ($row['plik_potwierdzenia']): ?>
       <div class="cv-field">
         <div class="cv-label">Plik potwierdzenia</div>
-        <div class="cv-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+        <div class="cv-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div>
       </div>
       <?php endif; ?>
 
@@ -1184,7 +1184,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <?php if ($row['plik_potwierdzenia']): ?>
       <div class="cv-field">
         <div class="cv-label">Podpisany dokument</div>
-        <div class="cv-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+        <div class="cv-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div>
       </div>
       <?php endif; ?>
       <?php endif; ?>
@@ -1576,12 +1576,12 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     <div class="cv-fields">
       <div class="cv-field">
         <div class="cv-label">Plik porozumienia</div>
-        <div class="cv-value"><?= upload_link($row['plik_umowy']) ?></div>
+        <div class="cv-value"><?= upload_link_signed($row['plik_umowy']) ?></div>
       </div>
       <?php if ($row['plik_potwierdzenia']): ?>
       <div class="cv-field">
         <div class="cv-label">Potwierdzenie podpisania</div>
-        <div class="cv-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+        <div class="cv-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div>
       </div>
       <?php endif; ?>
       <?php if ($row['zgoda_opiekuna']): ?>
@@ -3678,7 +3678,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
           </div>
           <?php if ($row['plik_potwierdzenia']): ?>
           <div class="alert alert-info py-2 small">
-            <i class="bi bi-info-circle me-1"></i>Aktualny plik: <?= upload_link($row['plik_potwierdzenia']) ?>
+            <i class="bi bi-info-circle me-1"></i>Aktualny plik: <?= upload_link_signed($row['plik_potwierdzenia']) ?>
             <br>Wgranie nowego pliku zastąpi aktualny.
           </div>
           <?php endif; ?>

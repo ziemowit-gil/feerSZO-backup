@@ -277,7 +277,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
       </div>
       <div class="col-md-4">
         <div class="detail-label">Plik potwierdzenia</div>
-        <div class="detail-value"><?= upload_link($row['plik_potwierdzenia']) ?></div>
+        <div class="detail-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div>
       </div>
       <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
   <div class="col-md-4"><div class="detail-label">Dostawca podpisu</div><div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
@@ -360,7 +360,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
     <div class="card-body">
       <div class="mb-2">
         <div class="detail-label">Plik umowy</div>
-        <?= upload_link($row['plik_umowy']) ?>
+        <?= upload_link_signed($row['plik_umowy']) ?>
       </div>
     </div>
   </div>

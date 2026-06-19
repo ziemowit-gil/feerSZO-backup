@@ -1,5 +1,10 @@
-<?php /* Współdzielony modal „Podpis elektroniczny" + walidacja kryptograficzna (AJAX).
-   Wymaga przycisków .ezd-sig-btn z data-zal/data-file/data-type/... */ ?>
+<?php
+/* Współdzielony modal „Podpis elektroniczny" + walidacja kryptograficzna (AJAX).
+   Przyciski .ezd-sig-btn z data-validate (pełny URL endpointu) lub data-zal
+   (załącznik EZD) + data-file/data-type/data-signer/... Guard: render raz na stronę. */
+if (defined('EZD_SIG_MODAL_RENDERED')) return;
+define('EZD_SIG_MODAL_RENDERED', 1);
+?>
 <div class="modal fade" id="sigModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
@@ -33,13 +38,14 @@
   var modalEl = document.getElementById('sigModal');
   if (!modalEl || typeof bootstrap === 'undefined') return;
   var modal = new bootstrap.Modal(modalEl);
-  var curZal = null;
+  var curValidate = null;
   function setRow(id, val, fb){ var el=document.getElementById(id); el.textContent = (val && (''+val).trim()!=='') ? val : (fb||'—'); }
   function esc(s){ return (''+(s==null?'':s)).replace(/[<>&]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;'}[c];}); }
 
   document.querySelectorAll('.ezd-sig-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
-      curZal = btn.dataset.zal || null;
+      curValidate = btn.dataset.validate
+        || (btn.dataset.zal ? ('<?= APP_URL ?>/ezd/validate_signature.php?zal_id=' + encodeURIComponent(btn.dataset.zal)) : null);
       document.getElementById('sig-file').textContent = btn.dataset.file || '';
       setRow('sig-type', btn.dataset.type);
       setRow('sig-signer', btn.dataset.signer, 'nie podano w pliku');
@@ -51,18 +57,18 @@
         + 'Dane odczytane z pliku. Kliknij „Waliduj podpis", aby kryptograficznie sprawdzić certyfikat i integralność.';
       var v = document.getElementById('sig-validation'); v.style.display='none'; v.innerHTML='';
       var vb = document.getElementById('sig-validate-btn');
-      vb.disabled = !curZal; vb.innerHTML = '<i class="bi bi-shield-check me-1"></i>Waliduj podpis';
+      vb.disabled = !curValidate; vb.innerHTML = '<i class="bi bi-shield-check me-1"></i>Waliduj podpis';
       modal.show();
     });
   });
 
   document.getElementById('sig-validate-btn').addEventListener('click', function(){
-    if (!curZal) return;
+    if (!curValidate) return;
     var btn = this, v = document.getElementById('sig-validation');
     btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Walidacja…';
     v.style.display='block';
     v.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Trwa walidacja kryptograficzna…</div>';
-    fetch('<?= APP_URL ?>/ezd/validate_signature.php?zal_id=' + encodeURIComponent(curZal), {headers:{'X-Requested-With':'XMLHttpRequest'}})
+    fetch(curValidate, {headers:{'X-Requested-With':'XMLHttpRequest'}})
       .then(function(r){ return r.json(); })
       .then(function(d){ renderValidation(d, v); })
       .catch(function(){ v.innerHTML = '<div class="alert alert-danger py-2 mb-0">Błąd połączenia podczas walidacji.</div>'; })

@@ -136,6 +136,32 @@ function upload_link(?string $path): string {
          . '<i class="bi bi-file-earmark-pdf"></i> ' . h($name) . '</a>';
 }
 
+/**
+ * Jak upload_link(), ale dla plików podpisanych elektronicznie dokłada badge
+ * „Podpis el." + przycisk walidacji (modal #sigModal dołączany globalnie w footer.php;
+ * walidacja przez contracts/validate_signature.php).
+ */
+function upload_link_signed(?string $path): string {
+    $base = upload_link($path);
+    if (!$path) return $base;
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    require_once __DIR__ . '/sigcheck.php';
+    if (!in_array($ext, EZD_SIG_EXTS, true)) return $base;
+    $abs = UPLOAD_DIR . $path;
+    if (!is_file($abs)) return $base;
+    $sig = ezd_signature_info($abs, basename($path));
+    if (empty($sig['signed'])) return $base;
+    $vurl = APP_URL . '/contracts/validate_signature.php?file=' . rawurlencode($path);
+    return $base
+        . ' <span class="badge bg-success bg-opacity-15 text-success border border-success" style="font-size:.62rem"><i class="bi bi-patch-check-fill me-1"></i>Podpis el.</span>'
+        . ' <button type="button" class="btn btn-sm btn-outline-success ezd-sig-btn" title="Dane i walidacja podpisu"'
+        . ' data-validate="' . h($vurl) . '"'
+        . ' data-file="' . h(basename($path)) . '" data-type="' . h((string)$sig['type']) . '"'
+        . ' data-signer="' . h((string)($sig['signer'] ?? '')) . '" data-date="' . h((string)($sig['signed_at'] ?? '')) . '"'
+        . ' data-reason="' . h((string)($sig['reason'] ?? '')) . '" data-location="' . h((string)($sig['location'] ?? '')) . '"'
+        . ' data-note="' . h((string)($sig['note'] ?? '')) . '"><i class="bi bi-shield-check"></i> Podpis</button>';
+}
+
 function paginate(int $total, int $per_page, int $page, string $url_base): array {
     $pages = max(1, (int) ceil($total / $per_page));
     $page  = max(1, min($page, $pages));
