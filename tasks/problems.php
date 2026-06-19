@@ -227,12 +227,16 @@ require_once __DIR__ . '/includes/header_tasks.php';
 }
 .prob-task-link {
   flex: 1;
+  display: block;
+  background: none; border: none; padding: 0;
+  text-align: left; font-family: inherit;
   font-weight: 700; font-size: .92rem;
   color: #0f172a; text-decoration: none;
   cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .prob-task-link:hover { color: #2563eb; text-decoration: underline; }
+.prob-task-link:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 3px; }
 
 .prob-ws-chip {
   display: inline-flex; align-items: center; gap: .3rem;
@@ -433,13 +437,11 @@ require_once __DIR__ . '/includes/header_tasks.php';
           aria-hidden="true"></span>
 
     <!-- Nazwa zadania -->
-    <span class="prob-task-link"
-          tabindex="0" role="link"
-          onclick="taskOpenById(<?= $p['task_id'] ?>)"
-          onkeydown="if(event.key==='Enter')taskOpenById(<?= $p['task_id'] ?>)"
-          aria-label="Otwórz zadanie: <?= h($p['task_title']) ?>">
+    <button type="button" class="prob-task-link"
+            onclick="taskOpenById(<?= $p['task_id'] ?>)"
+            aria-label="Otwórz zadanie: <?= h($p['task_title']) ?>">
       <?= h($p['task_title']) ?>
-    </span>
+    </button>
 
     <!-- Obszar -->
     <span class="prob-ws-chip">

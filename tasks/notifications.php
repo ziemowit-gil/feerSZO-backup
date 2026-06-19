@@ -157,7 +157,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
   border-bottom: 1px solid #f8fafc;
 }
 .pref-row:last-child { border-bottom: none; }
-.pref-label { font-size: .88rem; color: #0f172a; }
+.pref-label { display: block; cursor: pointer; font-size: .88rem; color: #0f172a; }
 .pref-desc  { font-size: .75rem; color: #94a3b8; }
 
 /* Empty state */
@@ -283,8 +283,8 @@ require_once __DIR__ . '/includes/header_tasks.php';
         ?>
         <div class="pref-row">
           <div>
-            <div class="pref-label"><?= h($lbl) ?></div>
-            <div class="pref-desc"><?= h($desc) ?></div>
+            <label class="pref-label" for="pref-<?= $key ?>"><?= h($lbl) ?></label>
+            <div class="pref-desc" id="pref-desc-<?= $key ?>"><?= h($desc) ?></div>
           </div>
           <div class="form-check form-switch ms-3 mb-0" style="flex-shrink:0">
             <input class="form-check-input"
@@ -293,7 +293,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
                    id="pref-<?= $key ?>"
                    name="<?= $key ?>"
                    <?= $checked ? 'checked' : '' ?>
-                   aria-label="<?= h($lbl) ?>">
+                   aria-describedby="pref-desc-<?= $key ?>">
           </div>
         </div>
         <?php endforeach; ?>

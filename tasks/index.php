@@ -197,15 +197,16 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
     <div class="tk-kanban-hdr" style="border-top:3px solid <?= h($list['color'] ?: '#94a3b8') ?>">
       <div class="d-flex align-items-center gap-2">
         <?php if ($list['is_done_state']): ?>
-        <i class="bi bi-check-circle-fill text-success" style="font-size:.8rem"></i>
+        <i class="bi bi-check-circle-fill text-success" style="font-size:.8rem" aria-hidden="true"></i>
         <?php endif; ?>
         <span class="fw-semibold"><?= h($list['name']) ?></span>
         <span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.68rem"><?= count($col_tasks) ?></span>
       </div>
       <?php if ($can_add): ?>
       <button class="tk-col-add" title="Dodaj zadanie w tej kolumnie"
+              aria-label="Dodaj zadanie w kolumnie <?= h($list['name'] ?? '') ?>"
               onclick="openAddModal(<?= (int)$lid ?>)">
-        <i class="bi bi-plus-lg"></i>
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
       </button>
       <?php endif; ?>
     </div>
@@ -220,25 +221,28 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
       ?>
       <div class="tk-card <?= $t['_status']==='done'?'tk-card-done':'' ?>"
            data-task-id="<?= (int)$t['id'] ?>"
-           onclick="openTask(<?= (int)$t['id'] ?>)">
-        <div class="tk-card-pri-bar" style="background:<?= $k_pri_color ?>"></div>
+           role="button" tabindex="0"
+           aria-label="Zadanie: <?= h($t['title']) ?><?= $k_unit_name ? ', '.h($k_unit_name) : '' ?>, priorytet <?= h($k_pri_label) ?><?= $t['_overdue'] ? ', po terminie' : '' ?>"
+           onclick="openTask(<?= (int)$t['id'] ?>)"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTask(<?= (int)$t['id'] ?>)}">
+        <div class="tk-card-pri-bar" style="background:<?= $k_pri_color ?>" aria-hidden="true"></div>
         <div class="tk-card-inner">
           <div class="tk-card-title"><?= h($t['title']) ?></div>
           <?php if ($k_unit_name): ?>
           <div class="tk-card-unit">
-            <i class="bi bi-diagram-3"></i> <?= h($k_unit_name) ?>
+            <i class="bi bi-diagram-3" aria-hidden="true"></i> <?= h($k_unit_name) ?>
           </div>
           <?php endif; ?>
           <div class="tk-card-footer">
             <div class="d-flex align-items-center gap-1">
               <?php if ($t['due_date']): ?>
               <span class="tk-card-due <?= $t['_overdue'] ? 'overdue' : '' ?>">
-                <i class="bi bi-calendar3"></i> <?= h(date('d.m', strtotime($t['due_date']))) ?>
+                <i class="bi bi-calendar3" aria-hidden="true"></i> <?= h(date('d.m', strtotime($t['due_date']))) ?>
               </span>
               <?php endif; ?>
               <?php if ($t['st_total'] > 0): ?>
               <span class="tk-card-st" title="Podzadania">
-                <i class="bi bi-check2-square"></i> <?= (int)$t['st_done'] ?>/<?= (int)$t['st_total'] ?>
+                <i class="bi bi-check2-square" aria-hidden="true"></i> <?= (int)$t['st_done'] ?>/<?= (int)$t['st_total'] ?>
               </span>
               <?php endif; ?>
             </div>
@@ -462,7 +466,8 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
         <td style="text-align:center" onclick="event.stopPropagation()">
           <div class="dropdown d-inline-block">
             <button class="pri-btn btn btn-link btn-sm p-0" data-bs-toggle="dropdown"
-                    style="color:<?= $pri_meta[2] ?>;text-decoration:none" title="Zmień priorytet">
+                    style="color:<?= $pri_meta[2] ?>;text-decoration:none"
+                    aria-label="Priorytet: <?= h($pri_meta[1]) ?>. Kliknij, aby zmienić">
               <span aria-hidden="true"><?= $pri_meta[0] ?></span>
               <span style="font-size:.74rem"><?= $pri_meta[1] ?></span>
             </button>
@@ -889,6 +894,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .tk-col-add:hover{color:#2563eb;background:#eff6ff}
 .tk-card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:.4rem;cursor:pointer;transition:box-shadow .12s;overflow:hidden;display:flex}
 .tk-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.1);border-color:#cbd5e1}
+.tk-card:focus-visible{outline:2px solid var(--tk-focus);outline-offset:2px;border-color:transparent}
 .tk-card-done{opacity:.6}
 .tk-card-pri-bar{width:3px;flex-shrink:0}
 .tk-card-inner{flex:1;padding:.55rem .65rem;min-width:0}

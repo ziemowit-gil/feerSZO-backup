@@ -907,11 +907,18 @@ function td_render_mentions(string $text, array $users): string {
       <i class="bi bi-<?= $st['is_done'] ? 'check-square-fill text-success' : 'square text-muted' ?> flex-shrink-0"
          aria-hidden="true"></i>
       <?php endif; ?>
+      <?php if ($can_edit): ?>
       <span class="flex-grow-1 small td-st-title"
-            style="line-height:1.4<?= $can_edit ? ';cursor:text' : '' ?>"
-            <?= $can_edit ? 'onclick="tdStStartEdit(this,' . (int)$st['id'] . ')"' : '' ?>>
+            style="line-height:1.4;cursor:text"
+            role="button" tabindex="0"
+            aria-label="Edytuj podzadanie: <?= h($st['title']) ?>"
+            onclick="tdStStartEdit(this,<?= (int)$st['id'] ?>)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();tdStStartEdit(this,<?= (int)$st['id'] ?>)}">
         <?= h($st['title']) ?>
       </span>
+      <?php else: ?>
+      <span class="flex-grow-1 small td-st-title" style="line-height:1.4"><?= h($st['title']) ?></span>
+      <?php endif; ?>
       <?php if ($can_edit): ?>
       <button type="button"
               class="btn-close flex-shrink-0"
@@ -2127,7 +2134,13 @@ function tdStBuildRow(st) {
     span.className = 'flex-grow-1 small td-st-title';
     span.style.cssText = 'line-height:1.4;cursor:text';
     span.textContent   = st.title;
+    span.setAttribute('role', 'button');
+    span.setAttribute('tabindex', '0');
+    span.setAttribute('aria-label', 'Edytuj podzadanie: ' + st.title);
     span.addEventListener('click', function() { tdStStartEdit(span, st.id); });
+    span.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); tdStStartEdit(span, st.id); }
+    });
 
     const del = document.createElement('button');
     del.type  = 'button';
@@ -2485,23 +2498,37 @@ window.tdToggleTakeover = function() {
     btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 
     if (isOpen) {
-        // Zamknij kliknięciem poza
+        // Zamknij kliknięciem poza / klawiszem Escape
         setTimeout(() => {
             document.addEventListener('click', _tpOutsideClick, {once: false});
+            document.addEventListener('keydown', _tpKeydown);
         }, 10);
         document.getElementById('td-tp-search')?.focus();
     } else {
-        document.removeEventListener('click', _tpOutsideClick);
+        _tpCleanup();
     }
 };
 
+function _tpClose(returnFocus) {
+    document.getElementById('td-takeover-panel')?.classList.remove('open');
+    const btn = document.getElementById('td-takeover-btn');
+    btn?.setAttribute('aria-expanded', 'false');
+    _tpCleanup();
+    if (returnFocus) btn?.focus();
+}
+
+function _tpCleanup() {
+    document.removeEventListener('click', _tpOutsideClick);
+    document.removeEventListener('keydown', _tpKeydown);
+}
+
+function _tpKeydown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); _tpClose(true); }
+}
+
 function _tpOutsideClick(e) {
     const wrap = document.getElementById('td-takeover-wrap');
-    if (wrap && !wrap.contains(e.target)) {
-        document.getElementById('td-takeover-panel')?.classList.remove('open');
-        document.getElementById('td-takeover-btn')?.setAttribute('aria-expanded', 'false');
-        document.removeEventListener('click', _tpOutsideClick);
-    }
+    if (wrap && !wrap.contains(e.target)) _tpClose(false);
 }
 
 window.tdTpFilter = function(q) {
