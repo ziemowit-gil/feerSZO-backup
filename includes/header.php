@@ -736,135 +736,98 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   ?>
 
   <!-- ════════════════════════════════════════
-       1. LUDZIE — osoby, wolontariat, CRM, katalog, rekrutacja
+       1. UMOWY — wolontariat / zlecenie-praca-dzieło / inne / obsługa
   ════════════════════════════════════════ -->
-  <div class="sb-label">Ludzie</div>
-
-  <a class="sb-link<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php">
-    <i class="bi bi-people"></i> Osoby
-  </a>
-
-  <?php if (module_enabled('contract_wolontariat')): ?>
-  <a class="sb-link<?= _nav_active('/contracts/wolontariat/') ?>" href="<?= APP_URL ?>/contracts/wolontariat/list.php">
-    <i class="bi bi-heart"></i> Wolontariusze
-  </a>
-  <?php endif; ?>
-
-  <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
-  <a class="sb-link<?= _nav_active('/crm/') ?>" href="<?= APP_URL ?>/crm/dashboard.php">
-    <i class="bi bi-diagram-2"></i> CRM
-  </a>
-  <?php endif; ?>
-
-  <a class="sb-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
-    <i class="bi bi-person-lines-fill"></i> Katalog osób
-  </a>
-
-  <?php if (module_enabled('org_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/org/') ?>" href="<?= APP_URL ?>/org/index.php">
-    <i class="bi bi-diagram-3"></i> Struktura org.
-  </a>
-  <?php endif; ?>
-
-  <?php if (module_enabled('byli_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php">
-    <i class="bi bi-person-dash"></i> Byłe osoby
-  </a>
-  <?php endif; ?>
-
+  <div class="sb-label">Umowy</div>
   <?php
-  $_rek_ob_active = str_contains($_uri,'/contracts/rekrutacja') || str_contains($_uri,'/onboarding/');
-  $_rek_ob_badge  = $_rek_new + $_ob_new;
-  if (can_edit()):
+  $_ct_label = fn($s) => CONTRACT_TYPES[$s] ?? ucfirst($s);
+  $_ct_icon  = fn($s) => $_contract_icons[$s] ?? 'bi-file-text';
+  $_um_groups = [
+    'sb-um-wol'  => ['Wolontariat',               'bi-heart',             ['wolontariat']],
+    'sb-um-zpd'  => ['Zlecenie / Praca / Dzieło',  'bi-person-lines-fill', ['zlecenie','praca','dzielo']],
+    'sb-um-inne' => ['Inne umowy',                 'bi-file-text',         ['uslugi','powierzenie','inne']],
+  ];
+  foreach ($_um_groups as $gid => $g):
+    [$glabel, $gicon, $slugs] = $g;
+    $vis = array_values(array_filter($slugs, fn($s) => module_enabled('contract_' . $s)));
+    if (!$vis) continue;
+    $gactive = false; foreach ($vis as $s) { if (str_contains($_uri, "/contracts/$s/")) { $gactive = true; break; } }
   ?>
-  <button type="button" class="sb-type-btn <?= $_rek_ob_active ? 'type-open' : '' ?>"
-          data-bs-toggle="collapse" data-bs-target="#sb-rekrutacja"
-          aria-expanded="<?= $_rek_ob_active ? 'true' : 'false' ?>">
-    <i class="bi bi-person-plus"></i> Rekrutacja
-    <?php if ($_rek_ob_badge): ?><span class="badge bg-primary ms-auto" style="font-size:.62rem"><?= $_rek_ob_badge ?></span><?php endif; ?>
+  <button type="button" class="sb-type-btn <?= $gactive?'type-open':'' ?>" data-bs-toggle="collapse" data-bs-target="#<?= $gid ?>" aria-expanded="<?= $gactive?'true':'false' ?>">
+    <i class="bi <?= $gicon ?>"></i> <?= h($glabel) ?>
     <i class="bi bi-chevron-right sb-chevron"></i>
   </button>
-  <div class="collapse sb-sub <?= $_rek_ob_active ? 'show' : '' ?>" id="sb-rekrutacja">
-    <a class="sb-sub-link<?= _nav_active('/contracts/rekrutacja/') ?>" href="<?= APP_URL ?>/contracts/rekrutacja/index.php">
-      <i class="bi bi-megaphone"></i> Zgłoszenia
-      <?php if ($_rek_new): ?><span class="badge bg-primary ms-auto"><?= $_rek_new ?></span><?php endif; ?>
+  <div class="collapse sb-sub <?= $gactive?'show':'' ?>" id="<?= $gid ?>">
+    <?php foreach ($vis as $s): ?>
+    <a class="sb-sub-link<?= _nav_active("/contracts/$s/") ?>" href="<?= APP_URL ?>/contracts/<?= $s ?>/list.php">
+      <i class="bi <?= $_ct_icon($s) ?>"></i> <?= h($_ct_label($s)) ?>
     </a>
-    <?php if (module_enabled('onboarding_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/onboarding/') ?>" href="<?= APP_URL ?>/onboarding/index.php">
-      <i class="bi bi-person-check"></i> Onboarding
-      <?php if ($_ob_new): ?><span class="badge bg-warning text-dark ms-auto"><?= $_ob_new ?></span><?php endif; ?>
+    <?php endforeach; ?>
+  </div>
+  <?php endforeach; ?>
+
+  <?php
+  $_obs_um_has    = module_enabled('approvals_enabled') || module_enabled('letters_enabled') || module_enabled('terminations_enabled');
+  $_obs_um_active = str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters') || str_contains($_uri,'/admin/terminations');
+  if ($_obs_um_has):
+  ?>
+  <button type="button" class="sb-type-btn <?= $_obs_um_active?'type-open':'' ?>" data-bs-toggle="collapse" data-bs-target="#sb-um-obsluga" aria-expanded="<?= $_obs_um_active?'true':'false' ?>">
+    <i class="bi bi-gear-wide-connected"></i> Obsługa umów
+    <?php $_oub = $_pending + $_term_pending; if ($_oub): ?><span class="badge bg-warning text-dark ms-auto" style="font-size:.62rem"><?= $_oub ?></span><?php endif; ?>
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_obs_um_active?'show':'' ?>" id="sb-um-obsluga">
+    <?php if (module_enabled('approvals_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/contracts/approvals/') ?>" href="<?= APP_URL ?>/contracts/approvals/index.php">
+      <i class="bi bi-check2-square"></i> Akceptacje
+      <?php if ($_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_pending ?></span><?php endif; ?>
+    </a>
+    <?php endif; ?>
+    <?php if (module_enabled('letters_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/contracts/letters/') ?>" href="<?= APP_URL ?>/contracts/letters/index.php">
+      <i class="bi bi-envelope-paper"></i> Pisma
+    </a>
+    <?php endif; ?>
+    <?php if (module_enabled('terminations_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php">
+      <i class="bi bi-file-earmark-x"></i> Rozwiązania
+      <?php if ($_term_pending): ?><span class="badge bg-danger ms-auto"><?= $_term_pending ?></span><?php endif; ?>
     </a>
     <?php endif; ?>
   </div>
   <?php endif; ?>
 
   <!-- ════════════════════════════════════════
-       2. DOKUMENTY — umowy, akceptacje, pisma, archiwum
+       2. WOLONTARIAT — obsługa wolontariatu
   ════════════════════════════════════════ -->
-  <div class="sb-label">Dokumenty</div>
-
-  <?php
-  $_contracts_visible = array_filter(array_keys(CONTRACT_TYPES), fn($s) => module_enabled('contract_' . $s) && $s !== 'wolontariat');
-  $_contracts_active  = str_contains($_uri, '/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja') && !str_contains($_uri,'/contracts/zwroty') && !str_contains($_uri,'/contracts/letters') && !str_contains($_uri,'/contracts/approvals');
-  if ($_contracts_visible):
-  ?>
-  <button type="button" class="sb-type-btn <?= $_contracts_active ? 'type-open' : '' ?>"
-          data-bs-toggle="collapse" data-bs-target="#sb-umowy"
-          aria-expanded="<?= $_contracts_active ? 'true' : 'false' ?>">
-    <i class="bi bi-file-earmark-text"></i> Umowy
-    <i class="bi bi-chevron-right sb-chevron"></i>
-  </button>
-  <div class="collapse sb-sub <?= $_contracts_active ? 'show' : '' ?>" id="sb-umowy">
-    <?php foreach (CONTRACT_TYPES as $slug => $label):
-      if ($slug === 'wolontariat') continue;
-      if (!module_enabled('contract_' . $slug)) continue;
-      $icon = $_contract_icons[$slug] ?? 'bi-file-text';
-    ?>
-    <a class="sb-sub-link<?= _nav_active("/contracts/{$slug}/") ?>" href="<?= APP_URL ?>/contracts/<?= $slug ?>/list.php">
-      <i class="bi <?= $icon ?>"></i> <?= h($label) ?>
-    </a>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-
-  <?php if (module_enabled('approvals_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/contracts/approvals/') ?>" href="<?= APP_URL ?>/contracts/approvals/index.php">
-    <i class="bi bi-check2-square"></i> Akceptacje
-    <?php if ($_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_pending ?></span><?php endif; ?>
+  <div class="sb-label">Wolontariat</div>
+  <?php if (module_enabled('contract_wolontariat')): ?>
+  <a class="sb-link<?= _nav_active('/contracts/wolontariat/') ?>" href="<?= APP_URL ?>/contracts/wolontariat/list.php">
+    <i class="bi bi-heart"></i> Wolontariusze
   </a>
   <?php endif; ?>
-
-  <?php if (module_enabled('letters_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/contracts/letters/') ?>" href="<?= APP_URL ?>/contracts/letters/index.php">
-    <i class="bi bi-envelope-paper"></i> Pisma
+  <a class="sb-link<?= _nav_active('/contracts/rekrutacja/') ?>" href="<?= APP_URL ?>/contracts/rekrutacja/index.php">
+    <i class="bi bi-megaphone"></i> Zgłoszenia
+    <?php if ($_rek_new): ?><span class="badge bg-primary ms-auto"><?= $_rek_new ?></span><?php endif; ?>
+  </a>
+  <?php if (module_enabled('onboarding_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/onboarding/') ?>" href="<?= APP_URL ?>/onboarding/index.php">
+    <i class="bi bi-person-check"></i> Onboarding
+    <?php if ($_ob_new): ?><span class="badge bg-warning text-dark ms-auto"><?= $_ob_new ?></span><?php endif; ?>
   </a>
   <?php endif; ?>
-
-  <?php
-  $_more_docs_active = str_contains($_uri,'/reports/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/');
-  ?>
-  <button type="button" class="sb-type-btn <?= $_more_docs_active ? 'type-open' : '' ?>"
-          data-bs-toggle="collapse" data-bs-target="#sb-docs-more"
-          aria-expanded="<?= $_more_docs_active ? 'true' : 'false' ?>">
-    <i class="bi bi-folder2"></i> Archiwum
-    <i class="bi bi-chevron-right sb-chevron"></i>
-  </button>
-  <div class="collapse sb-sub <?= $_more_docs_active ? 'show' : '' ?>" id="sb-docs-more">
-    <?php if (module_enabled('reports_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/reports/') ?>" href="<?= APP_URL ?>/reports/index.php">
-      <i class="bi bi-bar-chart-line"></i> Raporty
-    </a>
-    <?php endif; ?>
-    <a class="sb-sub-link<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php">
-      <i class="bi bi-mailbox"></i> Korespondencja
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php">
-      <i class="bi bi-list-task"></i> Procedury
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php">
-      <i class="bi bi-file-ruled"></i> Uchwały
-    </a>
-  </div>
+  <?php if (module_enabled('timesheets_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/timesheets') ?>" href="<?= APP_URL ?>/admin/timesheets.php">
+    <i class="bi bi-clock-history"></i> Ewidencja godzin
+    <?php if ($_ts_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_ts_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('certificates_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>" href="<?= APP_URL ?>/admin/certificates.php">
+    <i class="bi bi-award"></i> Zaświadczenia
+    <?php if ($_cert_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_cert_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
 
   <!-- ════════════════════════════════════════
        2b. KANCELARIA EZD — samodzielny moduł
@@ -895,61 +858,30 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <?php endif; ?>
 
   <!-- ════════════════════════════════════════
-       3. OBSŁUGA — helpdesk, wiadomości, rozwiązania (flat, no collapsible)
+       3. IT — dostępy, konta, hasła
   ════════════════════════════════════════ -->
-  <?php
-  $_obs_has = module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('terminations_enabled');
-  if ($_obs_has):
-  ?>
-  <div class="sb-label">Obsługa</div>
-  <?php if (module_enabled('helpdesk_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php">
-    <i class="bi bi-ticket-perforated"></i> Helpdesk
-    <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
-  </a>
-  <?php if ($_alias_is_op): ?>
-  <a class="sb-link<?= _nav_active('/admin/email_aliasy') ?>" href="<?= APP_URL ?>/admin/email_aliasy.php">
-    <i class="bi bi-at"></i> Aliasy e-mail
-    <?php if ($_alias_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_alias_pending ?></span><?php endif; ?>
-  </a>
-  <?php endif; ?>
-  <?php endif; ?>
-  <?php if (module_enabled('messages_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
-    <i class="bi bi-chat-dots"></i> Wiadomości
-    <span class="badge bg-danger ms-auto" data-msg-sb-badge style="<?= $_msg_unread_total > 0 ? '' : 'display:none' ?>"><?= $_msg_unread_total ?></span>
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('terminations_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php">
-    <i class="bi bi-file-earmark-x"></i> Rozwiązania
-    <?php if ($_term_pending): ?><span class="badge bg-danger ms-auto"><?= $_term_pending ?></span><?php endif; ?>
-  </a>
-  <?php endif; ?>
-  <?php endif; ?>
-
-  <!-- ════════════════════════════════════════
-       4. REJESTRY — zaświadczenia, RODO [if can_edit]
-  ════════════════════════════════════════ -->
-  <?php if (can_edit()): ?>
-  <div class="sb-label">Rejestry</div>
-  <?php if (module_enabled('certificates_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>" href="<?= APP_URL ?>/admin/certificates.php">
-    <i class="bi bi-award"></i> Zaświadczenia
-    <?php if ($_cert_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_cert_pending ?></span><?php endif; ?>
-  </a>
-  <?php endif; ?>
-  <a class="sb-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php">
-    <i class="bi bi-shield-lock"></i> Rejestr RODO
-  </a>
-  <?php endif; ?>
+  <?php $_it_active = str_contains($_uri, '/it/'); ?>
+  <div class="sb-label">IT</div>
+  <button type="button" class="sb-type-btn <?= $_it_active ? 'type-open' : '' ?>"
+          data-bs-toggle="collapse" data-bs-target="#sb-it" aria-expanded="<?= $_it_active ? 'true' : 'false' ?>">
+    <i class="bi bi-hdd-network"></i> Dostępy IT
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_it_active ? 'show' : '' ?>" id="sb-it">
+    <a class="sb-sub-link<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php"><i class="bi bi-grid-1x2"></i> Dashboard IT</a>
+    <a class="sb-sub-link<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php"><i class="bi bi-person-badge"></i> Konta</a>
+    <a class="sb-sub-link<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php"><i class="bi bi-key"></i> Hasła</a>
+    <?php if (is_admin()): ?>
+    <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php"><i class="bi bi-gear"></i> Serwisy IT</a>
+    <?php endif; ?>
+  </div>
 
   <div class="sb-sep"></div>
 
   <!-- ════════════════════════════════════════
-       5. FINANSE I ZASOBY
+       4. FINANSE
   ════════════════════════════════════════ -->
-  <div class="sb-label">Finanse i zasoby</div>
+  <div class="sb-label">Finanse</div>
 
   <?php if (menu_visible('grants')): ?>
   <a class="sb-link<?= _nav_active('/grants/') ?>" href="<?= APP_URL ?>/grants/index.php">
@@ -973,13 +905,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <i class="bi bi-receipt-cutoff"></i> Zwroty kosztów
     <?php if ($_zwr_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_zwr_pending ?></span><?php endif; ?>
   </a>
-
-  <?php if (module_enabled('timesheets_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/admin/timesheets') ?>" href="<?= APP_URL ?>/admin/timesheets.php">
-    <i class="bi bi-clock-history"></i> Ewidencja godzin
-    <?php if ($_ts_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_ts_pending ?></span><?php endif; ?>
-  </a>
-  <?php endif; ?>
 
   <?php if ($_has_kdok):
     $_kdok_active = str_contains($_uri, '/ksiegowosc/');
@@ -1051,36 +976,92 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <div class="sb-sep"></div>
 
   <!-- ════════════════════════════════════════
-       6. DOSTĘPY IT — collapsible [if can_edit]
+       5. RODO
   ════════════════════════════════════════ -->
-  <?php if (can_edit()): ?>
-  <?php
-  $_it_active = str_contains($_uri, '/it/');
-  ?>
-  <button type="button" class="sb-type-btn <?= $_it_active ? 'type-open' : '' ?>"
-          data-bs-toggle="collapse" data-bs-target="#sb-it"
-          aria-expanded="<?= $_it_active ? 'true' : 'false' ?>">
-    <i class="bi bi-hdd-network"></i>
-    <span>Dostępy IT</span>
-    <i class="bi bi-chevron-right sb-chevron"></i>
-  </button>
-  <div class="collapse sb-sub <?= $_it_active ? 'show' : '' ?>" id="sb-it">
-    <a class="sb-sub-link<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php">
-      <i class="bi bi-grid-1x2"></i> Dashboard IT
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php">
-      <i class="bi bi-person-badge"></i> Konta
-    </a>
-    <a class="sb-sub-link<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php">
-      <i class="bi bi-key"></i> Hasła
-    </a>
-    <?php if (is_admin()): ?>
-    <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php">
-      <i class="bi bi-gear"></i> Serwisy IT
-    </a>
-    <?php endif; ?>
-  </div>
+  <div class="sb-label">RODO</div>
+  <a class="sb-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php">
+    <i class="bi bi-shield-lock"></i> Rejestr RODO
+  </a>
+
+  <div class="sb-sep"></div>
+
+  <!-- ════════════════════════════════════════
+       LUDZIE — osoby, CRM, katalog, struktura
+  ════════════════════════════════════════ -->
+  <div class="sb-label">Ludzie</div>
+  <a class="sb-link<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php">
+    <i class="bi bi-people"></i> Osoby
+  </a>
+  <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
+  <a class="sb-link<?= _nav_active('/crm/') ?>" href="<?= APP_URL ?>/crm/dashboard.php">
+    <i class="bi bi-diagram-2"></i> CRM
+  </a>
   <?php endif; ?>
+  <a class="sb-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
+    <i class="bi bi-person-lines-fill"></i> Katalog osób
+  </a>
+  <?php if (module_enabled('org_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/org/') ?>" href="<?= APP_URL ?>/org/index.php">
+    <i class="bi bi-diagram-3"></i> Struktura org.
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('byli_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php">
+    <i class="bi bi-person-dash"></i> Byłe osoby
+  </a>
+  <?php endif; ?>
+
+  <!-- ════════════════════════════════════════
+       OBSŁUGA — helpdesk, wiadomości, wydarzenia
+  ════════════════════════════════════════ -->
+  <?php
+  $_obs_has = module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled');
+  if ($_obs_has):
+  ?>
+  <div class="sb-label">Obsługa</div>
+  <?php if (module_enabled('helpdesk_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php">
+    <i class="bi bi-ticket-perforated"></i> Helpdesk
+    <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
+  </a>
+  <?php if ($_alias_is_op): ?>
+  <a class="sb-link<?= _nav_active('/admin/email_aliasy') ?>" href="<?= APP_URL ?>/admin/email_aliasy.php">
+    <i class="bi bi-at"></i> Aliasy e-mail
+    <?php if ($_alias_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_alias_pending ?></span><?php endif; ?>
+  </a>
+  <?php endif; ?>
+  <?php endif; ?>
+  <?php if (module_enabled('messages_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
+    <i class="bi bi-chat-dots"></i> Wiadomości
+    <span class="badge bg-danger ms-auto" data-msg-sb-badge style="<?= $_msg_unread_total > 0 ? '' : 'display:none' ?>"><?= $_msg_unread_total ?></span>
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('events_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/events/') ?>" href="<?= APP_URL ?>/events/dashboard.php">
+    <i class="bi bi-calendar-event"></i> Wydarzenia
+  </a>
+  <?php endif; ?>
+  <?php endif; ?>
+
+  <!-- ════════════════════════════════════════
+       ARCHIWUM I REJESTRY — raporty, korespondencja, procedury, uchwały
+  ════════════════════════════════════════ -->
+  <div class="sb-label">Archiwum i rejestry</div>
+  <?php if (module_enabled('reports_enabled')): ?>
+  <a class="sb-link<?= _nav_active('/reports/') ?>" href="<?= APP_URL ?>/reports/index.php">
+    <i class="bi bi-bar-chart-line"></i> Raporty
+  </a>
+  <?php endif; ?>
+  <a class="sb-link<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php">
+    <i class="bi bi-mailbox"></i> Korespondencja
+  </a>
+  <a class="sb-link<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php">
+    <i class="bi bi-list-task"></i> Procedury
+  </a>
+  <a class="sb-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php">
+    <i class="bi bi-file-ruled"></i> Uchwały
+  </a>
 
   <div class="sb-sep"></div>
 
