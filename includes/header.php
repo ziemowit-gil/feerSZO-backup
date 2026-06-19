@@ -985,83 +985,70 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 
   <div class="sb-sep"></div>
 
-  <!-- ════════════════════════════════════════
-       LUDZIE — osoby, CRM, katalog, struktura
-  ════════════════════════════════════════ -->
-  <div class="sb-label">Ludzie</div>
-  <a class="sb-link<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php">
-    <i class="bi bi-people"></i> Osoby
-  </a>
-  <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
-  <a class="sb-link<?= _nav_active('/crm/') ?>" href="<?= APP_URL ?>/crm/dashboard.php">
-    <i class="bi bi-diagram-2"></i> CRM
-  </a>
-  <?php endif; ?>
-  <a class="sb-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/">
-    <i class="bi bi-person-lines-fill"></i> Katalog osób
-  </a>
-  <?php if (module_enabled('org_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/org/') ?>" href="<?= APP_URL ?>/org/index.php">
-    <i class="bi bi-diagram-3"></i> Struktura org.
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('byli_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php">
-    <i class="bi bi-person-dash"></i> Byłe osoby
-  </a>
-  <?php endif; ?>
+  <div class="sb-label">Pozostałe</div>
 
-  <!-- ════════════════════════════════════════
-       OBSŁUGA — helpdesk, wiadomości, wydarzenia
-  ════════════════════════════════════════ -->
+  <!-- LUDZIE (zwijane) -->
+  <?php $_ludzie_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/'); ?>
+  <button type="button" class="sb-type-btn <?= $_ludzie_active?'type-open':'' ?>" data-bs-toggle="collapse" data-bs-target="#sb-ludzie" aria-expanded="<?= $_ludzie_active?'true':'false' ?>">
+    <i class="bi bi-people"></i> Ludzie
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_ludzie_active?'show':'' ?>" id="sb-ludzie">
+    <a class="sb-sub-link<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php"><i class="bi bi-people"></i> Osoby</a>
+    <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
+    <a class="sb-sub-link<?= _nav_active('/crm/') ?>" href="<?= APP_URL ?>/crm/dashboard.php"><i class="bi bi-diagram-2"></i> CRM</a>
+    <?php endif; ?>
+    <a class="sb-sub-link<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/"><i class="bi bi-person-lines-fill"></i> Katalog osób</a>
+    <?php if (module_enabled('org_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/org/') ?>" href="<?= APP_URL ?>/org/index.php"><i class="bi bi-diagram-3"></i> Struktura org.</a>
+    <?php endif; ?>
+    <?php if (module_enabled('byli_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php"><i class="bi bi-person-dash"></i> Byłe osoby</a>
+    <?php endif; ?>
+  </div>
+
+  <!-- OBSŁUGA (zwijane) -->
   <?php
-  $_obs_has = module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled');
+  $_obs_has    = module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled');
+  $_obs_active = str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/email_aliasy') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/');
+  $_obs_badge  = (int)$_hd_open + (int)$_msg_unread_total + ($_alias_is_op ? (int)$_alias_pending : 0);
   if ($_obs_has):
   ?>
-  <div class="sb-label">Obsługa</div>
-  <?php if (module_enabled('helpdesk_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php">
-    <i class="bi bi-ticket-perforated"></i> Helpdesk
-    <?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?>
-  </a>
-  <?php if ($_alias_is_op): ?>
-  <a class="sb-link<?= _nav_active('/admin/email_aliasy') ?>" href="<?= APP_URL ?>/admin/email_aliasy.php">
-    <i class="bi bi-at"></i> Aliasy e-mail
-    <?php if ($_alias_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_alias_pending ?></span><?php endif; ?>
-  </a>
-  <?php endif; ?>
-  <?php endif; ?>
-  <?php if (module_enabled('messages_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php">
-    <i class="bi bi-chat-dots"></i> Wiadomości
-    <span class="badge bg-danger ms-auto" data-msg-sb-badge style="<?= $_msg_unread_total > 0 ? '' : 'display:none' ?>"><?= $_msg_unread_total ?></span>
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('events_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/events/') ?>" href="<?= APP_URL ?>/events/dashboard.php">
-    <i class="bi bi-calendar-event"></i> Wydarzenia
-  </a>
-  <?php endif; ?>
+  <button type="button" class="sb-type-btn <?= $_obs_active?'type-open':'' ?>" data-bs-toggle="collapse" data-bs-target="#sb-obsluga" aria-expanded="<?= $_obs_active?'true':'false' ?>">
+    <i class="bi bi-headset"></i> Obsługa
+    <?php if ($_obs_badge): ?><span class="badge bg-primary ms-auto" style="font-size:.62rem"><?= $_obs_badge ?></span><?php endif; ?>
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_obs_active?'show':'' ?>" id="sb-obsluga">
+    <?php if (module_enabled('helpdesk_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php"><i class="bi bi-ticket-perforated"></i> Helpdesk<?php if ($_hd_open): ?><span class="badge bg-primary ms-auto"><?= $_hd_open ?></span><?php endif; ?></a>
+    <?php if ($_alias_is_op): ?>
+    <a class="sb-sub-link<?= _nav_active('/admin/email_aliasy') ?>" href="<?= APP_URL ?>/admin/email_aliasy.php"><i class="bi bi-at"></i> Aliasy e-mail<?php if ($_alias_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_alias_pending ?></span><?php endif; ?></a>
+    <?php endif; ?>
+    <?php endif; ?>
+    <?php if (module_enabled('messages_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php"><i class="bi bi-chat-dots"></i> Wiadomości<span class="badge bg-danger ms-auto" data-msg-sb-badge style="<?= $_msg_unread_total > 0 ? '' : 'display:none' ?>"><?= $_msg_unread_total ?></span></a>
+    <?php endif; ?>
+    <?php if (module_enabled('events_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/events/') ?>" href="<?= APP_URL ?>/events/dashboard.php"><i class="bi bi-calendar-event"></i> Wydarzenia</a>
+    <?php endif; ?>
+  </div>
   <?php endif; ?>
 
-  <!-- ════════════════════════════════════════
-       ARCHIWUM I REJESTRY — raporty, korespondencja, procedury, uchwały
-  ════════════════════════════════════════ -->
-  <div class="sb-label">Archiwum i rejestry</div>
-  <?php if (module_enabled('reports_enabled')): ?>
-  <a class="sb-link<?= _nav_active('/reports/') ?>" href="<?= APP_URL ?>/reports/index.php">
-    <i class="bi bi-bar-chart-line"></i> Raporty
-  </a>
-  <?php endif; ?>
-  <a class="sb-link<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php">
-    <i class="bi bi-mailbox"></i> Korespondencja
-  </a>
-  <a class="sb-link<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php">
-    <i class="bi bi-list-task"></i> Procedury
-  </a>
-  <a class="sb-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php">
-    <i class="bi bi-file-ruled"></i> Uchwały
-  </a>
+  <!-- ARCHIWUM I REJESTRY (zwijane) -->
+  <?php $_arch_active = str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/'); ?>
+  <button type="button" class="sb-type-btn <?= $_arch_active?'type-open':'' ?>" data-bs-toggle="collapse" data-bs-target="#sb-arch" aria-expanded="<?= $_arch_active?'true':'false' ?>">
+    <i class="bi bi-archive"></i> Archiwum i rejestry
+    <i class="bi bi-chevron-right sb-chevron"></i>
+  </button>
+  <div class="collapse sb-sub <?= $_arch_active?'show':'' ?>" id="sb-arch">
+    <?php if (module_enabled('reports_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/reports/') ?>" href="<?= APP_URL ?>/reports/index.php"><i class="bi bi-bar-chart-line"></i> Raporty</a>
+    <?php endif; ?>
+    <a class="sb-sub-link<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php"><i class="bi bi-mailbox"></i> Korespondencja</a>
+    <a class="sb-sub-link<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php"><i class="bi bi-list-task"></i> Procedury</a>
+    <a class="sb-sub-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php"><i class="bi bi-file-ruled"></i> Uchwały</a>
+  </div>
 
   <div class="sb-sep"></div>
 
