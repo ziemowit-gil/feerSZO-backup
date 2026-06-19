@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cons_dt_db = str_replace('T', ' ', $cons_dt) . (strlen($cons_dt) <= 16 ? ':00' : '');
 
     if (!$errors) {
-        db_update('k30_consultations', $id, [
+        db_update('k30_consultations', [
             'client_id'            => $client_id,
             'consultant_id'        => $consultant_id,
             'consultation_datetime'=> $cons_dt_db,
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'next_action'          => $next_action ?: null,
             'status'               => $status,
             'updated_at'           => date('Y-m-d H:i:s'),
-        ]);
+        ], $id);
         flash_set('success', 'Konsultacja zaktualizowana.');
         header('Location: view.php?id=' . $id);
         exit;

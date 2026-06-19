@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'sort_order'        => (int)($_POST['sort_order'] ?? 0),
         ];
         if ($data['fullname']) {
-            $id ? db_update('moodle_courses', $id, $data) : db_insert('moodle_courses', $data);
+            $id ? db_update('moodle_courses', $data, $id) : db_insert('moodle_courses', $data);
             flash_set('success', 'Kurs zapisany.');
         }
         header('Location: ' . APP_URL . '/admin/moodle.php?tab=courses'); exit;
@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['enrollment_id'] ?? 0);
         if (!moodle_configured()) {
             // Bez API — zatwierdź ręcznie
-            db_update('moodle_enrollments', $id, ['status' => 'zatwierdzony', 'enrolled_at' => date('Y-m-d H:i:s')]);
+            db_update('moodle_enrollments', ['status' => 'zatwierdzony', 'enrolled_at' => date('Y-m-d H:i:s')], $id);
             flash_set('success', 'Zapis zatwierdzony (bez automatycznego zapisu w Moodle — brak konfiguracji API).');
         } else {
             try {
@@ -128,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'reject_enrollment') {
         $id   = (int)($_POST['enrollment_id'] ?? 0);
         $note = trim($_POST['admin_note'] ?? '');
-        if ($id) db_update('moodle_enrollments', $id, ['status' => 'odrzucony', 'admin_note' => $note]);
+        if ($id) db_update('moodle_enrollments', ['status' => 'odrzucony', 'admin_note' => $note], $id);
         flash_set('success', 'Zapis odrzucony.');
         header('Location: ' . APP_URL . '/admin/moodle.php?tab=enrollments'); exit;
     }
@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = $_POST['status'] ?? '';
         $allowed = ['oczekuje', 'zatwierdzony', 'odrzucony', 'anulowany'];
         if ($id && in_array($status, $allowed, true)) {
-            db_update('moodle_enrollments', $id, ['status' => $status]);
+            db_update('moodle_enrollments', ['status' => $status], $id);
         }
         header('Location: ' . APP_URL . '/admin/moodle.php?tab=enrollments'); exit;
     }

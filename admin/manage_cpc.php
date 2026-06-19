@@ -273,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'uploaded_at'     => date('Y-m-d H:i:s'),
         ];
         if ($existing) {
-            db_update('k30_consultant_certs', $existing['id'], $cert_data);
+            db_update('k30_consultant_certs', $cert_data, $existing['id']);
         } else {
             $cert_data['user_id'] = $target_id;
             db_insert('k30_consultant_certs', $cert_data);

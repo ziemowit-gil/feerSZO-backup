@@ -77,12 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $contract_id) {
             $hours_total = round($minutes / 60, 2);
 
             // Zamykamy sesję check-in
-            db_update('checkin_sessions', $open_session['id'], [
+            db_update('checkin_sessions', [
                 'time_end'    => $time_input,
                 'date_end'    => $date_input,
                 'hours_total' => $hours_total,
                 'status'      => 'closed',
-            ]);
+            ], $open_session['id']);
 
             // Zapisujemy wpis do timesheets (rok/miesiac z daty startu)
             $rok    = (int)date('Y', $start_dt);
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $contract_id) {
                 $new_godziny = round($ts['godziny'] + $hours_total, 2);
                 $existing_opis = db_one("SELECT opis FROM timesheets WHERE id=?", [$ts['id']])['opis'] ?? '';
                 $new_opis = trim($existing_opis . "\n" . $opis_entry, "\n");
-                db_update('timesheets', $ts['id'], ['godziny' => $new_godziny, 'opis' => $new_opis]);
+                db_update('timesheets', ['godziny' => $new_godziny, 'opis' => $new_opis], $ts['id']);
             } else {
                 db_insert('timesheets', [
                     'contract_id' => $contract_id,

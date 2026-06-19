@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'uploaded_at'     => date('Y-m-d H:i:s'),
             ];
             if ($existing) {
-                db_update('k30_consultant_certs', $existing['id'], $data);
+                db_update('k30_consultant_certs', $data, $existing['id']);
                 flash_set('success', 'Certyfikat zaktualizowany. Ważny do: ' . date('d.m.Y', $parsed['valid_to']));
             } else {
                 $data['user_id'] = $user_id;

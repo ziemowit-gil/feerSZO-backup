@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!array_key_exists($status, K30_CLIENT_STATUSES)) $status = 'enrolled';
 
     if (!$errors) {
-        db_update('k30_clients', $id, [
+        db_update('k30_clients', [
             'name'                    => $name,
             'email'                   => $email ?: null,
             'phone'                   => $phone ?: null,
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'available_hours'         => $avail_h,
             'preferred_contact_method'=> $pcm,
             'updated_at'              => date('Y-m-d H:i:s'),
-        ]);
+        ], $id);
         flash_set('success', 'Dane beneficjenta zostały zaktualizowane.');
         header('Location: view.php?id=' . $id);
         exit;

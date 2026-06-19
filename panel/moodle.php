@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $enr = db_one("SELECT * FROM moodle_enrollments WHERE user_id=? AND course_id=? AND status='oczekuje'",
             [$user['id'], $course_id]);
         if ($enr) {
-            db_update('moodle_enrollments', $enr['id'], ['status' => 'anulowany']);
+            db_update('moodle_enrollments', ['status' => 'anulowany'], $enr['id']);
             flash_set('success', 'Wniosek o zapis anulowany.');
         }
     }

@@ -41,12 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($name && $label) {
             if ($id) {
-                db_update('application_types', $id, compact('label', 'icon', 'description', 'requires_contract', 'allow_attachment', 'is_active', 'sort_order') + [
+                db_update('application_types', compact('label', 'icon', 'description', 'requires_contract', 'allow_attachment', 'is_active', 'sort_order') + [
                     'requires_contract' => $requires,
                     'allow_attachment'  => $attachment,
                     'is_active'         => $active,
                     'sort_order'        => $sort,
-                ]);
+                ], $id);
             } else {
                 db_insert('application_types', [
                     'name'              => $name,
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id) {
             $cur = (int)(db_one("SELECT is_active FROM application_types WHERE id=?", [$id])['is_active'] ?? 0);
-            db_update('application_types', $id, ['is_active' => $cur ? 0 : 1]);
+            db_update('application_types', ['is_active' => $cur ? 0 : 1], $id);
         }
         header('Location: ' . APP_URL . '/admin/application_types.php#type-' . $id); exit;
     }
@@ -105,14 +105,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($type_id && $name && $label) {
             if ($fid) {
-                db_update('application_type_fields', $fid, [
+                db_update('application_type_fields', [
                     'label'        => $label,
                     'field_type'   => $ftype,
                     'options_json' => $opts_json,
                     'placeholder'  => $ph,
                     'required'     => $req,
                     'sort_order'   => $sort,
-                ]);
+                ], $fid);
             } else {
                 db_insert('application_type_fields', [
                     'type_id'      => $type_id,
@@ -154,8 +154,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $s1 = $fields[$idx]['sort_order'];
                 $s2 = $fields[$swap]['sort_order'];
                 if ($s1 === $s2) { $s1 = $idx * 10; $s2 = $swap * 10; }
-                db_update('application_type_fields', $fields[$idx]['id'],  ['sort_order' => $s2]);
-                db_update('application_type_fields', $fields[$swap]['id'], ['sort_order' => $s1]);
+                db_update('application_type_fields', ['sort_order' => $s2], $fields[$idx]['id']);
+                db_update('application_type_fields', ['sort_order' => $s1], $fields[$swap]['id']);
             }
         }
         header('Location: ' . APP_URL . '/admin/application_types.php#type-' . $type_id); exit;

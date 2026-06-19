@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         $start_time = $date . ' ' . $time . ':00';
-        db_update('k30_schedules', $id, [
+        db_update('k30_schedules', [
             'client_id'        => $client_id,
             'assigned_to'      => $assigned_to,
             'start_time'       => $start_time,
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'status'           => $status,
             'description'      => $description ?: null,
             'updated_at'       => date('Y-m-d H:i:s'),
-        ]);
+        ], $id);
         flash_set('success', 'Termin został zaktualizowany.');
         header('Location: view.php?id=' . $id);
         exit;

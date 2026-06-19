@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  'is_mandatory'=>$mand,'sort_order'=>$order,'updated_by'=>$uid,'updated_at'=>date('Y-m-d H:i:s')];
 
         if ($id) {
-            db_update('org_rules', $id, $data);
+            db_update('org_rules', $data, $id);
             flash_set('success', 'Zasada zaktualizowana.');
         } else {
             $data['created_by'] = $uid;
