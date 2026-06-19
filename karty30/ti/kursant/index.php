@@ -65,6 +65,13 @@ $total_lessons  = count($lessons);
 $attended_count = count(array_filter($lessons, fn($l) => $l['attended']));
 $pct = $total_lessons > 0 ? round($attended_count / $total_lessons * 100) : 0;
 
+// Zadania domowe — lekcje odbyte z oznaczonym zadaniem (do bloku na stronie głównej)
+$homework_lessons = array_values(array_filter($lessons, fn($l) =>
+    !empty($l['has_homework'])
+    && ($l['status'] ?? '') === 'held'
+    && (int)($l['att_cancelled'] ?? 0) !== 1
+    && empty($l['self_prep_remote'])));
+
 $org        = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
 $is_minor   = !empty($account['is_minor']);
 $months_pl  = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',
@@ -108,6 +115,37 @@ include __DIR__ . '/_layout_head.php';
 </nav>
 
 <main id="main" class="container-xl px-3 py-4">
+
+<?php if (!empty($homework_lessons)): ?>
+<!-- ── Zadania domowe — widoczne od razu po zalogowaniu ──────────────────────── -->
+<section class="card border-warning mb-4" aria-labelledby="hw-heading">
+  <div class="card-body">
+    <h2 id="hw-heading" class="h6 fw-bold mb-3">
+      <i class="bi bi-journal-text text-warning me-2" aria-hidden="true"></i>Zadania domowe
+      <span class="badge text-bg-warning ms-1"><?= count($homework_lessons) ?></span>
+    </h2>
+    <ul class="list-group list-group-flush">
+      <?php foreach (array_slice($homework_lessons, 0, 6) as $hl):
+        $hd = new DateTime($hl['lesson_date']);
+      ?>
+      <li class="list-group-item bg-transparent d-flex flex-wrap align-items-center gap-2 px-0">
+        <i class="bi bi-pencil-square text-warning" aria-hidden="true"></i>
+        <span class="fw-semibold"><?= $hl['topic'] ? h($hl['topic']) : 'Lekcja' ?></span>
+        <span class="text-body-secondary small">
+          <?= h($hl['course_name']) ?> ·
+          <?= $hd->format('d') ?> <?= $months_pl[(int)$hd->format('n')] ?> <?= $hd->format('Y') ?>
+        </span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php if (count($homework_lessons) > 6): ?>
+    <p class="text-body-secondary small mb-0 mt-2">
+      …i <?= count($homework_lessons) - 6 ?> więcej — zobacz w zakładce „Moje lekcje".
+    </p>
+    <?php endif; ?>
+  </div>
+</section>
+<?php endif; ?>
 
 <?php if ($tab === 'lekcje'): ?>
 
@@ -193,10 +231,17 @@ include __DIR__ . '/_layout_head.php';
             <td style="max-width:240px">
               <?php if ($l['topic']): ?>
               <?= h($l['topic']) ?>
-              <?php if ($l['has_homework'] ?? 0): ?>
+              <?php if (($l['has_homework'] ?? 0) && empty($l['self_prep_remote'])): ?>
               <span class="badge text-bg-warning ms-1"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>zadanie</span>
               <?php endif; ?>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+              <div class="mt-1">
+                <?php if (!empty($l['self_prep_remote'])): ?>
+                <span class="badge text-bg-info"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Przygotowanie materiałów</span>
+                <?php else: ?>
+                <span class="badge text-bg-secondary"><i class="bi bi-person-video3 me-1" aria-hidden="true"></i>Lekcja z uczestnikiem</span>
+                <?php endif; ?>
+              </div>
             </td>
             <?php $att_cancelled = (int)($l['att_cancelled'] ?? 0) === 1; ?>
             <td class="text-center">
