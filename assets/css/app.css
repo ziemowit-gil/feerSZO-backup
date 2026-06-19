@@ -14,6 +14,11 @@
 /* ── Upload ─────────────────────────────────── */
 .upload-hint { font-size: .8rem; color: #6c757d; }
 
+/* ── Utility: bg-opacity-15 (brak w Bootstrap 5 — domyślnie tylko 10/25/50/75/100) ─
+   Bez tego badge „bg-X bg-opacity-15 text-X" miały pełne tło i tekst w tym samym
+   kolorze (niewidoczne). Ta reguła przywraca lekkie, czytelne tło. */
+.bg-opacity-15 { --bs-bg-opacity: 0.15; }
+
 /* ── Print ──────────────────────────────────── */
 @media print {
   #sidebar, #topbar, footer, .btn, .no-print, .modal { display: none !important; }
