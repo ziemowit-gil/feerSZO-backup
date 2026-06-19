@@ -2060,7 +2060,8 @@ window.tdMarkDone = function() {
                 openTask(TID);
                 const card = document.querySelector('[data-task-id="<?= $id ?>"]');
                 if (card) card.classList.add('opacity-50');
-                setTimeout(() => location.reload(), 500);
+                if (typeof tkAjaxLoad === 'function') tkAjaxLoad();
+                else setTimeout(() => location.reload(), 500);
             } else {
                 if (btn) {
                     btn.disabled = false;
@@ -2074,7 +2075,7 @@ window.tdMarkDone = function() {
 window.tdReopen = function() {
     api('/tasks/api/task.php', {action:'reopen', id:TID})
         .then(r => {
-            if (r.ok) { srAnnounce('Zadanie wznowione.'); openTask(TID); setTimeout(() => location.reload(), 400); }
+            if (r.ok) { srAnnounce('Zadanie wznowione.'); openTask(TID); if (typeof tkAjaxLoad === 'function') tkAjaxLoad(); else setTimeout(() => location.reload(), 400); }
             else alert(r.error);
         });
 };

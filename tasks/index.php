@@ -1646,7 +1646,7 @@ function submitAddTask() {
         if (r.ok) {
             bootstrap.Modal.getInstance(document.getElementById('addTaskModal')).hide();
             tkAnnounce('Zadanie dodane.');
-            location.reload();
+            tkAjaxLoad();
         } else {
             const err = document.getElementById('at-error');
             err.textContent = r.error || 'Błąd zapisu.';
@@ -1719,7 +1719,7 @@ function bulkAction(action, extra = {}) {
         if (r.ok) {
             tkAnnounce((labels[action] || action) + ': ' + (r.data?.affected || ids.length) + ' zadań.');
             bulkClear();
-            location.reload();
+            tkAjaxLoad();
         } else {
             alert(r.error || 'Błąd zbiorczej akcji.');
         }
