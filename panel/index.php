@@ -486,6 +486,58 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
   <span class="visually-hidden">(otwiera w nowej karcie)</span>
 </a>
 
+<!-- ── Baner: aktywacja Canva (dla wolontariuszy z przyznanym dostępem) ──────── -->
+<?php
+$_canva_banner = false;
+if ($_active_row
+    && ($_active_contract['contract_type'] ?? '') === 'wolontariat'
+    && !empty($_active_row['canva_access'])) {
+    require_once dirname(__DIR__) . '/includes/canva.php';
+    $_canva_sso = function_exists('canva_sso_url') ? canva_sso_url() : null;
+    $_canva_activate_url = $_canva_sso ?: 'https://www.canva.com';
+    $_canva_activate_sub = $_canva_sso
+        ? 'Logowanie jednokrotne — konto utworzy się automatycznie'
+        : 'Zaloguj się przez „Continue with Microsoft" na canva.com';
+    $_canva_banner = true;
+}
+?>
+<?php if ($_canva_banner): ?>
+<style>
+.pvp-canva-baner {
+  display:flex; align-items:center; gap:1rem;
+  background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);
+  border-radius:12px; padding:.9rem 1.25rem; margin-bottom:1rem;
+  text-decoration:none; color:#fff;
+  box-shadow:0 4px 16px rgba(124,58,237,.3);
+  transition:opacity .15s;
+}
+.pvp-canva-baner:hover, .pvp-canva-baner:focus-visible {
+  opacity:.9; color:#fff; outline-offset:2px;
+}
+.pvp-canva-baner-icon {
+  width:40px; height:40px; border-radius:10px; flex-shrink:0;
+  background:rgba(255,255,255,.16); display:flex; align-items:center;
+  justify-content:center; font-size:1.3rem;
+}
+</style>
+<a href="<?= h($_canva_activate_url) ?>" target="_blank" rel="noopener noreferrer"
+   class="pvp-canva-baner"
+   aria-label="Aktywuj Canva — <?= h($_canva_activate_sub) ?> (otwiera w nowej karcie)">
+  <div class="pvp-canva-baner-icon" aria-hidden="true">🎨</div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:.72rem;font-weight:600;opacity:.78;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.1rem">
+      Masz dostęp do Canva Pro
+    </div>
+    <div style="font-size:1rem;font-weight:800;letter-spacing:-.01em">
+      Aktywuj Canva
+    </div>
+    <div style="font-size:.74rem;opacity:.85;margin-top:.1rem"><?= h($_canva_activate_sub) ?></div>
+  </div>
+  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.4rem;opacity:.7;flex-shrink:0" aria-hidden="true"></i>
+  <span class="visually-hidden">(otwiera w nowej karcie)</span>
+</a>
+<?php endif; ?>
+
 <?php
 // ── Zachęta do uzupełnienia profilu w katalogu ────────────────────────────────
 // Pokazuje się gdy profil jest niepełny (brak bio lub zdjęcia) — raz na sesję
@@ -917,25 +969,30 @@ $_pv_actions[] = [
 
 <!-- ── Canva Pro — prośba o dostęp ──────────────────────────────────────────── -->
 <?php
-$_canva_contract_id = (int)(($_active_contract['id'] ?? 0));
-$_canva_row = null;
-if ($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat') {
-    try {
-        $_canva_row = db_one(
-            "SELECT canva_access, canva_invited_at, canva_access_requested_at FROM umowy_wolontariat WHERE id=?",
-            [$_canva_contract_id]
-        );
-    } catch (\Throwable $e) {}
+// Gdy dostęp już przyznany, aktywację obsługuje duży baner na górze ($_canva_banner)
+// — wtedy karta tylko by się dublowała, więc jej nie pokazujemy. Karta zostaje dla
+// stanu prośby/oczekiwania (wolontariusz bez dostępu).
+if (empty($_canva_banner)) {
+    $_canva_contract_id = (int)(($_active_contract['id'] ?? 0));
+    $_canva_row = null;
+    if ($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat') {
+        try {
+            $_canva_row = db_one(
+                "SELECT canva_access, canva_invited_at, canva_access_requested_at FROM umowy_wolontariat WHERE id=?",
+                [$_canva_contract_id]
+            );
+        } catch (\Throwable $e) {}
+    }
+    $_canva_access     = !empty($_canva_row['canva_access']);
+    $_canva_invited    = !empty($_canva_row['canva_invited_at']);
+    $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
+    // Formularz pokazujemy tylko dla aktywnej umowy wolontariatu.
+    if (!$_canva_invited && !$_canva_requested
+        && !($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat')) {
+        $_canva_contract_id = 0;
+    }
+    include __DIR__ . '/includes/pv_canva_card.php';
 }
-$_canva_access     = !empty($_canva_row['canva_access']);
-$_canva_invited    = !empty($_canva_row['canva_invited_at']);
-$_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
-// Formularz pokazujemy tylko dla aktywnej umowy wolontariatu.
-if (!$_canva_invited && !$_canva_requested
-    && !($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat')) {
-    $_canva_contract_id = 0;
-}
-include __DIR__ . '/includes/pv_canva_card.php';
 ?>
 
 <!-- ═══ PANEL AKTYWNOŚCI ════════════════════════════════════════════════════ -->
