@@ -486,20 +486,15 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
   <span class="visually-hidden">(otwiera w nowej karcie)</span>
 </a>
 
-<!-- ── Baner: aktywacja Canva (dla wolontariuszy z przyznanym dostępem) ──────── -->
+<!-- ── Baner: aktywacja Canva (domyślnie dla każdego, też bez umowy) ─────────── -->
 <?php
-$_canva_banner = false;
-if ($_active_row
-    && ($_active_contract['contract_type'] ?? '') === 'wolontariat'
-    && !empty($_active_row['canva_access'])) {
-    require_once dirname(__DIR__) . '/includes/canva.php';
-    $_canva_sso = function_exists('canva_sso_url') ? canva_sso_url() : null;
-    $_canva_activate_url = $_canva_sso ?: 'https://www.canva.com';
-    $_canva_activate_sub = $_canva_sso
-        ? 'Logowanie jednokrotne — konto utworzy się automatycznie'
-        : 'Zaloguj się przez „Continue with Microsoft" na canva.com';
-    $_canva_banner = true;
-}
+require_once dirname(__DIR__) . '/includes/canva.php';
+$_canva_sso = function_exists('canva_sso_url') ? canva_sso_url() : null;
+$_canva_activate_url = $_canva_sso ?: 'https://www.canva.com';
+$_canva_activate_sub = $_canva_sso
+    ? 'Logowanie jednokrotne — konto utworzy się automatycznie'
+    : 'Zaloguj się przez „Continue with Microsoft" na canva.com';
+$_canva_banner = true;
 ?>
 <?php if ($_canva_banner): ?>
 <style>
@@ -526,7 +521,7 @@ if ($_active_row
   <div class="pvp-canva-baner-icon" aria-hidden="true">🎨</div>
   <div style="flex:1;min-width:0">
     <div style="font-size:.72rem;font-weight:600;opacity:.78;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.1rem">
-      Masz dostęp do Canva Pro
+      Canva Pro dla organizacji
     </div>
     <div style="font-size:1rem;font-weight:800;letter-spacing:-.01em">
       Aktywuj Canva
