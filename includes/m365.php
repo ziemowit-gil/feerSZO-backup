@@ -77,6 +77,11 @@ class M365Graph {
         }
     }
 
+    /** „Naturalny" login imie.nazwisko@domena dla domeny tej instancji (bez sufiksu liczbowego). */
+    public function natural_login(string $imie_nazwisko): string {
+        return self::generate_login($imie_nazwisko, $this->domain);
+    }
+
     public function unique_login(string $imie_nazwisko): string {
         $base = self::generate_login($imie_nazwisko, $this->domain);
         if (!$this->login_exists($base)) return $base;

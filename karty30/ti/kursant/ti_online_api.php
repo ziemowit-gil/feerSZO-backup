@@ -23,9 +23,12 @@ $action = $_POST['action'] ?? $_GET['action'] ?? 'list';
 
 /** Payload stanu dla front-endu. */
 function ti_online_payload(int $sid): array {
-    return ti_student_online_state($sid) + [
-        'meetings' => ti_upcoming_meetings(),
-    ];
+    $state = ti_student_online_state($sid);
+    // Konto MS o loginie imie.nazwisko utworzone poza systemem — pokaż info zamiast tworzenia.
+    if (!empty($state['ms_enabled']) && empty($state['ms_active'])) {
+        $state['ms_external_upn'] = ti_ms_external_upn($sid);
+    }
+    return $state + ['meetings' => ti_upcoming_meetings()];
 }
 
 $modifying = in_array($action, ['ms_create', 'ms_delete', 'moodle_create', 'moodle_password'], true);

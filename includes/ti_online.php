@@ -99,11 +99,39 @@ function ti_student_online_state(int $studentId): array {
  * Wysyła dane dostępowe e-mailem (na k30_clients.email) i SMS-em (na k30_clients.phone).
  * Zwraca ['ok','msg','upn'?,'password'?].
  */
+/**
+ * Jeśli kursant nie ma konta MS w systemie, a w tenancie istnieje już konto
+ * o „naturalnym" loginie imie.nazwisko (utworzone poza systemem) — zwraca ten UPN.
+ * Chroni przed utworzeniem duplikatu/kolizją i nadpisaniem. null = brak takiego konta.
+ */
+function ti_ms_external_upn(int $studentId): ?string {
+    if (!ti_ms_enabled()) return null;
+    $r = ti_student_row($studentId);
+    if (!$r || !empty($r['ms_user_id'])) return null; // mamy już własne konto — nie sprawdzamy
+    $name = trim($r['client_name'] ?: $r['login']);
+    if ($name === '') return null;
+    try {
+        $graph = m365_training();
+        $login = $graph->natural_login($name);
+        return $graph->login_exists($login) ? $login : null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
 function ti_ms_provision(int $studentId): array {
     if (!ti_ms_enabled()) return ['ok' => false, 'msg' => 'Moduł kont Microsoft nie jest skonfigurowany.'];
     $r = ti_student_row($studentId);
     if (!$r) return ['ok' => false, 'msg' => 'Konto kursanta nie istnieje.'];
     if (!empty($r['ms_user_id'])) return ['ok' => false, 'msg' => 'Konto Microsoft już istnieje (' . $r['ms_upn'] . ').'];
+
+    // Konto o loginie imie.nazwisko istnieje już w tenancie (spoza systemu) —
+    // nie tworzymy nowego, by nie zrobić duplikatu / nie nadpisać istniejącego.
+    $external = ti_ms_external_upn($studentId);
+    if ($external !== null) {
+        return ['ok' => false, 'msg' => 'Konto Microsoft o loginie ' . $external
+            . ' już istnieje (utworzone poza systemem). Zaloguj się nim — nie tworzymy nowego.'];
+    }
 
     $name = trim($r['client_name'] ?: $r['login']);
 

@@ -617,6 +617,12 @@ include __DIR__ . '/_layout_head.php';
             + 'Hasło tymczasowe (zapisz teraz, zmienisz przy pierwszym logowaniu): <span class="font-monospace fw-bold">'+esc(lastCreds.password)+'</span></div>';
         }
         inner += '<button type="button" class="btn btn-outline-danger btn-sm" data-act="ms_delete"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konto</button>';
+      } else if (d.ms_external_upn){
+        inner = '<div class="alert alert-info small py-2 mb-0">'
+          + '<i class="bi bi-info-circle me-1" aria-hidden="true"></i>'
+          + 'Konto Microsoft o loginie <span class="font-monospace fw-semibold">'+esc(d.ms_external_upn)+'</span> '
+          + 'już istnieje (utworzone poza systemem). Zaloguj się nim — <strong>nie tworzymy nowego</strong>, aby go nie nadpisać. '
+          + 'Jeśli to nie Twoje konto, skontaktuj się z administratorem.</div>';
       } else {
         inner = '<p class="text-body-secondary small mb-2">Nie masz jeszcze konta szkoleniowego. Utwórz je, aby korzystać z usług Microsoft i platformy e-learningowej.</p>'
           + '<button type="button" class="btn btn-primary btn-sm" data-act="ms_create"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Utwórz konto</button>';
