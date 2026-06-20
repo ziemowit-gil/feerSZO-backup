@@ -65,6 +65,19 @@ $_canva_login_sub  = $_canva_sso_url
   <i class="bi bi-box-arrow-up-right" style="font-size:1.05rem;opacity:.8" aria-hidden="true"></i>
 </a>
 
+<?php if (function_exists('canva_creator_enabled') && canva_creator_enabled()): ?>
+<a href="<?= h(rtrim(APP_URL,'/')) ?>/canva/creator.php"
+   class="d-flex align-items-center gap-3 mb-3 px-3 py-2 rounded-3 text-decoration-none"
+   style="background:#faf5ff;border:1.5px solid #e9d5ff;color:#6d28d9">
+  <span style="width:34px;height:34px;background:#f3e8ff;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem" aria-hidden="true">🎨</span>
+  <div style="flex:1">
+    <div style="font-size:.82rem;font-weight:700;line-height:1.2">Twórz w Canva</div>
+    <div style="font-size:.74rem;opacity:.85">Plakaty, posty, ulotki — bez wychodzenia z systemu</div>
+  </div>
+  <i class="bi bi-chevron-right" style="opacity:.6" aria-hidden="true"></i>
+</a>
+<?php endif; ?>
+
 <?php if ($_canva_by_admin && $_canva_login !== ''): ?>
 <!-- Dane konta wpisane przez administratora — wolontariusz je widzi -->
 <div class="mb-3 px-3 py-2 rounded-3" style="background:#faf5ff;border:1.5px solid #e9d5ff;font-size:.82rem">

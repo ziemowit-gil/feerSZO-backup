@@ -80,6 +80,31 @@ function canva_users_with_access(): array {
     } catch (\Throwable $e) { return []; }
 }
 
+/** Czy użytkownik ma dostęp do Canva (z umowy wolontariackiej lub na poziomie konta). */
+function canva_user_has_access(int $user_id): bool {
+    if ($user_id <= 0) return false;
+    $a = canva_user_access_get($user_id);
+    if ($a && (int)($a['access'] ?? 0) === 1) return true;
+    try {
+        $u = db_one("SELECT email FROM users WHERE id=?", [$user_id]);
+        if (!empty($u['email'])) {
+            $r = db_one("SELECT 1 AS x FROM umowy_wolontariat WHERE email=? AND canva_access=1 LIMIT 1", [$u['email']]);
+            if ($r) return true;
+        }
+    } catch (\Throwable $e) {}
+    return false;
+}
+
+/** Klucz API integracji „Canva Button" (Design Button SDK) — z ustawień org. */
+function canva_button_api_key(): string {
+    return trim((string)org_setting('canva_button_api_key'));
+}
+
+/** Czy kreator Canva (Design Button) jest skonfigurowany. */
+function canva_creator_enabled(): bool {
+    return canva_button_api_key() !== '';
+}
+
 /** Entity ID presetu Canva w katalogu SP. */
 const CANVA_SP_ENTITY = 'https://www.canva.com';
 

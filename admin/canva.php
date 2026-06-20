@@ -96,6 +96,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_revoke_canva_user'])
     flash_set('success', 'Wyłączono dostęp do Canva.');
     header('Location: canva.php'); exit;
 }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_apikey'])) {
+    csrf_check();
+    org_setting_set('canva_button_api_key', trim($_POST['canva_button_api_key'] ?? ''));
+    flash_set('success', 'Zapisano klucz API kreatora Canva.');
+    header('Location: canva.php'); exit;
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_user_acc'])) {
     csrf_check();
     $uid = (int)($_POST['user_id'] ?? 0);
@@ -151,6 +157,26 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- Canva Creator (Design Button) -->
+<div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-palette-fill me-2" style="color:#7c3aed"></i>Canva Creator — tworzenie projektów</div>
+  <div class="card-body">
+    <p class="text-muted mb-2" style="font-size:.84rem">Pozwala adminom i wolontariuszom (z dostępem) tworzyć projekty w Canva bez wychodzenia z systemu (Canva „Design Button"). Wymaga klucza API z <a href="https://www.canva.com/developers/" target="_blank" rel="noopener">Canva Developers</a> → Design Button.</p>
+    <form method="post" class="d-flex gap-2 flex-wrap align-items-end" style="max-width:640px">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_save_canva_apikey" value="1">
+      <div class="flex-grow-1">
+        <label class="form-label mb-1" style="font-size:.74rem">Klucz API „Canva Button"</label>
+        <input type="text" name="canva_button_api_key" class="form-control form-control-sm font-monospace"
+               value="<?= h(canva_button_api_key()) ?>" placeholder="np. AB1cd...">
+      </div>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
+      <a href="<?= APP_URL ?>/canva/creator.php" class="btn btn-sm <?= canva_creator_enabled()?'btn-outline-primary':'btn-outline-secondary disabled' ?>"><i class="bi bi-box-arrow-up-right me-1"></i>Otwórz kreator</a>
+    </form>
+    <?php if (canva_creator_enabled()): ?><div class="text-success mt-2" style="font-size:.78rem"><i class="bi bi-check-circle me-1"></i>Kreator aktywny — dostępny w panelu wolontariusza z dostępem do Canva.</div><?php endif; ?>
+  </div>
+</div>
 
 <!-- Statystyki -->
 <div class="row g-3 mb-3">
