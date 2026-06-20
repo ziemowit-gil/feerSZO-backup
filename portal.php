@@ -62,6 +62,10 @@ if ($k30_enabled) { try { $k30_today = (int)(db_one("SELECT COUNT(*) AS c FROM k
 
 $crm_enabled = module_enabled('crm_enabled') && (can_read('crm') || is_admin());
 
+// Moduł rezerwacji szkoleń (TidyCal)
+require_once __DIR__ . '/includes/tidycal.php';
+$szkolenia_enabled = tidycal_enabled() && (can_read('szkolenia') || is_admin());
+
 // Moduł Strategii
 require_once __DIR__ . '/includes/strategy.php';
 $strategy_enabled = can_read('umowy') || is_admin();
@@ -142,6 +146,16 @@ $modules = [
         'access' => $strategy_enabled,
         'stat'   => $strat_active . ' aktywnych celów',
         'badge'  => $strat_at_risk > 0 ? ('<i class="bi bi-exclamation-triangle-fill"></i> ' . $strat_at_risk . ' zagrożone') : null,
+    ],
+    [
+        'title'  => 'Umów się na szkolenie',
+        'desc'   => 'Rezerwacja terminu szkolenia online',
+        'icon'   => 'bi-calendar2-check',
+        'grad'   => 'linear-gradient(135deg,#7C3AED,#C084FC)',
+        'url'    => APP_URL . '/szkolenia/index.php',
+        'access' => $szkolenia_enabled,
+        'stat'   => null,
+        'badge'  => null,
     ],
     [
         'title'  => 'Katalog',

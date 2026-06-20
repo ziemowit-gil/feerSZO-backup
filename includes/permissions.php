@@ -27,6 +27,7 @@ const PERMISSION_MODULES = [
     'crm_ustawienia'   => 'CRM — Ustawienia (statusy, pola, role)',
     'karty30'          => 'Karty 30 — TyfloKonsultacje',
     'wydarzenia'    => 'Moduł Wydarzeń',
+    'szkolenia'     => 'Szkolenia (rezerwacja TidyCal)',
     'admin'         => 'Administracja',
 ];
 
@@ -52,6 +53,7 @@ const MODULE_REGISTRY = [
     'wiadomosci'    => ['label'=>'Wiadomości',     'url'=>'/komunikaty/index.php',            'paths'=>['/komunikaty/'],   'icon'=>'bi-chat-dots-fill',     'grad'=>'linear-gradient(135deg,#0E7490,#06B6D4)'],
     'karty30'       => ['label'=>'Karty 30',       'url'=>'/karty30/index.php',               'paths'=>['/karty30/'],      'icon'=>'bi-card-checklist',     'grad'=>'linear-gradient(135deg,#581C87,#7C3AED)'],
     'wydarzenia'    => ['label'=>'Wydarzenia',     'url'=>'/events/index.php',                'paths'=>['/events/'],       'icon'=>'bi-calendar-event-fill','grad'=>'linear-gradient(135deg,#9D174D,#EC4899)'],
+    'szkolenia'     => ['label'=>'Szkolenia',      'url'=>'/szkolenia/index.php',             'paths'=>['/szkolenia/'],    'icon'=>'bi-calendar2-check',    'grad'=>'linear-gradient(135deg,#7C3AED,#C084FC)'],
 ];
 
 // Moduły dostępne dla roli crm_only (tylko CRM — bez systemu głównego)

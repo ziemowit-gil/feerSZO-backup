@@ -23,6 +23,7 @@ $_msw_mods = [
     ['key'=>'reports',   'label'=>'Raporty',        'icon'=>'bi-bar-chart-line',    'mc'=>'#0284c7','mb'=>'#f0f9ff','url'=>APP_URL.'/reports/index.php',                  'check'=>null],
     ['key'=>'k30',       'label'=>'Karty 30',       'icon'=>'bi-card-checklist',    'mc'=>'#4f46e5','mb'=>'#eef2ff','url'=>APP_URL.'/karty30/index.php',                  'check'=>fn()=>can_read('karty30')],
     ['key'=>'helpdesk',  'label'=>'Helpdesk',       'icon'=>'bi-ticket-perforated', 'mc'=>'#b45309','mb'=>'#fffbeb','url'=>APP_URL.'/helpdesk/index.php',                 'check'=>fn()=>module_enabled('helpdesk_enabled')],
+    ['key'=>'szkolenia', 'label'=>'Szkolenia',      'icon'=>'bi-calendar2-check',   'mc'=>'#7c3aed','mb'=>'#f5f3ff','url'=>APP_URL.'/szkolenia/index.php',                'check'=>fn()=>function_exists('tidycal_enabled') && tidycal_enabled() && (can_read('szkolenia')||is_admin())],
     ['key'=>'rodo',      'label'=>'RODO',           'icon'=>'bi-shield-lock',       'mc'=>'#475569','mb'=>'#f8fafc','url'=>APP_URL.'/rodo/index.php',                     'check'=>null],
     ['key'=>'admin',     'label'=>'Admin',          'icon'=>'bi-gear-fill',         'mc'=>'#1e293b','mb'=>'#f1f5f9','url'=>APP_URL.'/admin/index.php',                    'check'=>fn()=>is_admin()],
 ];

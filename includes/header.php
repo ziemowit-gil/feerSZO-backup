@@ -1067,6 +1067,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <a class="sb-link<?= _nav_active('/admin/sharepoint') ?>" href="<?= APP_URL ?>/admin/sharepoint_settings.php">
     <i class="bi bi-cloud-upload"></i> SharePoint
   </a>
+  <a class="sb-link<?= _nav_active('/admin/tidycal') ?>" href="<?= APP_URL ?>/admin/tidycal_settings.php">
+    <i class="bi bi-calendar2-check"></i> Szkolenia (TidyCal)
+  </a>
   <?php endif; ?>
 
   <?php endif; /* can_edit */ ?>

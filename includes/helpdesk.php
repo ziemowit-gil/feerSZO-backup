@@ -99,6 +99,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN ext_handed_at DATETIME",
         "ALTER TABLE helpdesk_tickets ADD COLUMN access_token  TEXT",
         "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME", // SLA: pierwsza odpowiedź operatora
+        "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER",        // łączenie: id zgłoszenia głównego
     ] as $sql) { try { $pdo->exec($sql); } catch (\Throwable $e) {} }
     // SQLite dopuszcza wiele NULL w UNIQUE — token unikalny tylko dla wypełnionych.
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)"); } catch (\Throwable $e) {}

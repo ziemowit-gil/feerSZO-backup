@@ -38,6 +38,7 @@ $module_groups = [
         'apaczka_enabled'      => ['label' => 'Apaczka — przesyłki',         'icon' => 'bi-box-seam',         'desc' => 'Integracja z platformą Apaczka do zamawiania i śledzenia przesyłek kurierskich.',  'config' => 'apaczka_settings.php'],
         'furgonetka_enabled'   => ['label' => 'Furgonetka — przesyłki',      'icon' => 'bi-truck',            'desc' => 'Integracja z platformą Furgonetka do zamawiania przesyłek i etykiet.',             'config' => 'furgonetka_settings.php'],
         'ceidg_enabled'        => ['label' => 'CEIDG — weryfikacja firm',     'icon' => 'bi-building-check',   'desc' => 'Automatyczna weryfikacja danych wykonawców w rejestrze CEIDG (GUS).',              'config' => 'ceidg_settings.php'],
+        'tidycal_enabled'      => ['label' => 'TidyCal — rezerwacja szkoleń', 'icon' => 'bi-calendar2-check',  'desc' => 'Rezerwacja terminów szkoleń z panelu i portalu przez kalendarz TidyCal (wolne terminy, potwierdzenia).', 'config' => 'tidycal_settings.php'],
     ],
     'Typy umów' => [
         'contract_wolontariat' => ['label' => 'Umowa wolontariacka',           'icon' => 'bi-heart',            'desc' => 'Porozumienia wolontariackie (ustawa o działalności pożytku publicznego i o wolontariacie).'],

@@ -111,9 +111,12 @@ class TidyCal
         $ctx  = stream_context_create(['http' => $ctx_options]);
         $resp = @file_get_contents($url, false, $ctx);
 
-        // Status HTTP z nagłówków odpowiedzi.
+        // Status HTTP z nagłówków odpowiedzi (zgodnie z PHP 8.4+).
+        $hdrs = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?: [])
+            : ($http_response_header ?? []);
         $status = 0;
-        if (isset($http_response_header[0]) && preg_match('#\s(\d{3})\s#', $http_response_header[0], $m)) {
+        if (isset($hdrs[0]) && preg_match('#\s(\d{3})\s#', $hdrs[0], $m)) {
             $status = (int)$m[1];
         }
 
