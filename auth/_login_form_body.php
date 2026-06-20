@@ -1,35 +1,29 @@
 <?php
 /**
  * auth/_login_form_body.php
- * Treść formularzy logowania — dołączana z auth/login.php.
+ * Formularz logowania dla wybranej grupy ($view: 'priv' | 'feer').
+ * Dołączane z auth/login.php.
  * Wymagane zmienne: $ms_available, $sms_available, $code_available, $x509_available,
- *   $active_tab, $error, $info, $redirect, $sms_step, $sms_phone.
+ *   $active_tab, $error, $view, $redirect, $_url_feer.
  */
 
-// Mapowanie: błąd dotyczy obu pól (email + hasło) — tylko dla metody lokalnej
+// Błąd dotyczy obu pól (email + hasło) — tylko dla metody lokalnej
 $local_error_id = ($error && $active_tab === 'local') ? 'login-error-box' : '';
+$is_feer = ($view === 'feer');
 
-// Zbuduj listę alternatywnych metod (nie-lokalne, nie-MS365)
+// Alternatywne metody (modale) — dobrane do grupy
 $alt_tabs = [];
-if ($code_available) $alt_tabs['code'] = [
-    'icon'  => 'bi-key-fill',
-    'label' => 'Kod jednorazowy',
-    'desc'  => 'Pierwsze logowanie lub jednorazowy dostęp',
-];
-if ($sms_available) $alt_tabs['sms'] = [
-    'icon'  => 'bi-phone-fill',
-    'label' => 'Kod SMS',
-    'desc'  => 'Logowanie przez numer telefonu',
-];
-if ($x509_available) $alt_tabs['x509'] = [
-    'icon'  => 'bi-patch-check-fill',
-    'label' => 'Certyfikat X.509',
-    'desc'  => 'Plik .p12 dla administratora systemu',
-];
+if ($is_feer) {
+    if ($x509_available) $alt_tabs['x509'] = ['icon'=>'bi-patch-check-fill', 'label'=>'Certyfikat X.509',  'desc'=>'Plik .p12 dla administratora systemu'];
+    if ($code_available) $alt_tabs['code'] = ['icon'=>'bi-key-fill',         'label'=>'Kod jednorazowy',   'desc'=>'Jednorazowy dostęp od administratora'];
+} else {
+    if ($code_available) $alt_tabs['code'] = ['icon'=>'bi-key-fill',  'label'=>'Kod jednorazowy', 'desc'=>'Pierwsze logowanie lub jednorazowy dostęp'];
+    if ($sms_available)  $alt_tabs['sms']  = ['icon'=>'bi-phone-fill','label'=>'Kod SMS',        'desc'=>'Logowanie przez numer telefonu'];
+}
 ?>
 
-<?php if ($ms_available): ?>
-<!-- ── Microsoft 365 ─────────────────────────────────────────────────────── -->
+<?php if ($is_feer && $ms_available): ?>
+<!-- ── Microsoft 365 (tylko konto @feer.org.pl) ─────────────────────────── -->
 <a href="<?= h(ms_auth_url($redirect)) ?>"
    class="btn-ms365"
    aria-label="Zaloguj się przez konto Microsoft 365 — zostaniesz przekierowany na stronę Microsoft">
@@ -41,9 +35,9 @@ if ($x509_available) $alt_tabs['x509'] = [
   </svg>
   Zaloguj przez Microsoft 365
 </a>
-<p class="method-for">Dla administracji, koordynatorów i osób z kontem <strong>@feer.org.pl</strong> — jedno kliknięcie, bez wpisywania hasła</p>
+<p class="method-for">Konto <strong>@feer.org.pl</strong> — jedno kliknięcie, bez wpisywania hasła</p>
 
-<div class="or-div"><span>lub e-mailem i hasłem</span></div>
+<div class="or-div"><span>lub e-mailem służbowym i hasłem</span></div>
 <?php endif; ?>
 
 <!-- ── Formularz: e-mail i hasło ────────────────────────────────────────── -->
@@ -54,6 +48,7 @@ if ($x509_available) $alt_tabs['x509'] = [
       aria-labelledby="login-title">
   <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
   <input type="hidden" name="_method" value="local">
+  <input type="hidden" name="_view"   value="<?= h($view) ?>">
 
   <div style="margin-bottom:1rem">
     <label class="form-label" for="f-email">Adres e-mail</label>
@@ -61,7 +56,7 @@ if ($x509_available) $alt_tabs['x509'] = [
            name="email"
            id="f-email"
            class="form-control"
-           placeholder="nazwa@domena.pl"
+           placeholder="<?= $is_feer ? 'imie.nazwisko@feer.org.pl' : 'nazwa@domena.pl' ?>"
            autocomplete="email"
            inputmode="email"
            required
@@ -72,9 +67,13 @@ if ($x509_available) $alt_tabs['x509'] = [
            <?php else: ?>
            aria-describedby="f-email-hint"
            <?php endif; ?>
-           <?= !$ms_available ? 'autofocus' : '' ?>>
+           <?= (!$is_feer || !$ms_available) ? 'autofocus' : '' ?>>
     <div id="f-email-hint" class="form-hint">
-      E-mail służbowy <strong>@feer.org.pl</strong> albo Twój prywatny e-mail podany do WiadomościFEER.
+      <?php if ($is_feer): ?>
+      Twój e-mail służbowy <strong>@feer.org.pl</strong>.
+      <?php else: ?>
+      Twój prywatny e-mail podany do WiadomościFEER.
+      <?php endif; ?>
     </div>
   </div>
 
@@ -121,8 +120,20 @@ if ($x509_available) $alt_tabs['x509'] = [
   </button>
 </form>
 
+<?php if (!$is_feer): ?>
+<!-- ── Wyjątek: wolontariusz/zleceniobiorca z kontem @feer.org.pl ────────── -->
+<a href="<?= h($_url_feer) ?>" class="cross-link">
+  <i class="bi bi-building-fill" aria-hidden="true"></i>
+  <span class="cross-link-body">
+    <span class="cross-link-title">Masz włączone konto @feer.org.pl?</span>
+    <span class="cross-link-sub">Zaloguj się kontem służbowym</span>
+  </span>
+  <i class="bi bi-chevron-right arr" aria-hidden="true"></i>
+</a>
+<?php endif; ?>
+
 <!-- ── Problem z logowaniem → zgłoszenie do helpdesku (prefiks LOG) ──────── -->
-<p style="text-align:center;margin:.9rem 0 0">
+<p style="text-align:center;margin:1rem 0 0">
   <a href="<?= APP_URL ?>/auth/report_login_issue.php"
      class="forgot-link" style="font-size:.82rem"
      aria-label="Zgłoś problem z logowaniem — otwiera formularz weryfikacji tożsamości">

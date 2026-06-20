@@ -246,14 +246,23 @@ $_login_welcome = '';
 try { $_login_welcome = trim(org_setting('login_welcome_text') ?: ''); } catch (\Throwable $e) {}
 $_login_welcome_is_custom = ($_login_welcome !== '');
 
-// ── Dwie ścieżki logowania (wg grup) pokazywane w lewym panelu ────────────
-$_avail_methods = [];
-$_avail_methods[] = ['bi-person-badge', 'Wolontariusze i zleceniobiorcy', 'Prywatny e-mail i hasło — chyba że masz włączone konto @feer.org.pl'];
-if ($ms_available) {
-    $_avail_methods[] = ['bi-microsoft', 'Administracja i koordynatorzy', 'Wyłącznie konto @feer.org.pl (Microsoft 365 lub hasło)'];
-} else {
-    $_avail_methods[] = ['bi-envelope-at-fill', 'Administracja i koordynatorzy', 'Wyłącznie e-mail służbowy @feer.org.pl i hasło'];
+// ── Widok: najpierw wybór grupy, potem dopasowany formularz ──────────────
+//   choose → ekran wyboru rodzaju konta
+//   priv   → wolontariusze i zleceniobiorcy (prywatny e-mail)
+//   feer   → administracja i koordynatorzy (konto @feer.org.pl)
+$view = $_GET['view'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($active_tab === 'local')                          $view = $_POST['_view'] ?? 'priv';
+    elseif (in_array($active_tab, ['code','sms'], true))  $view = 'priv';
+    elseif ($active_tab === 'x509')                       $view = 'feer';
 }
+if (!in_array($view, ['priv','feer'], true)) $view = 'choose';
+
+// Adresy nawigacji między widokami (zachowują parametr redirect)
+$_q          = $raw_redirect ? ('&redirect=' . urlencode($raw_redirect)) : '';
+$_url_choose = APP_URL . '/auth/login.php' . ($raw_redirect ? ('?redirect=' . urlencode($raw_redirect)) : '');
+$_url_priv   = APP_URL . '/auth/login.php?view=priv' . $_q;
+$_url_feer   = APP_URL . '/auth/login.php?view=feer' . $_q;
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -265,7 +274,14 @@ if ($ms_available) {
 <?php branding_css($_b); ?>
 <style>
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background:#0f172a}
+html,body{height:100%;margin:0;padding:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:
+    radial-gradient(1100px 520px at 50% -8%, rgba(255,255,255,.07), transparent 60%),
+    linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#1e3a5f 100%);
+  background-attachment:fixed;
+}
 
 /* ── Skip link ───────────────────────────────────────────── */
 .skip-link{
@@ -280,69 +296,86 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 *:focus-visible{outline:3px solid #FBBF24!important;outline-offset:3px!important}
 *:focus:not(:focus-visible){outline:none}
 
-/* ── Shell ───────────────────────────────────────────────── */
-.login-shell{min-height:100vh;display:flex;align-items:stretch}
+/* ── Powłoka — wyśrodkowana karta ────────────────────────── */
+.login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem}
+.login-wrap{width:100%;max-width:440px}
 
-/* ── Lewa (dark) ─────────────────────────────────────────── */
-.login-left{
-  width:300px;flex-shrink:0;
-  background:linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#1e3a5f 100%);
-  display:flex;flex-direction:column;justify-content:space-between;
-  padding:2.25rem 1.75rem;
-  border-right:1px solid rgba(255,255,255,.06);
-  position:relative;overflow:hidden;
-}
-.login-left::after{
-  content:'';position:absolute;width:260px;height:260px;border-radius:50%;
-  border:55px solid rgba(255,255,255,.025);bottom:-80px;right:-80px;pointer-events:none;
+/* ── Karta ───────────────────────────────────────────────── */
+.login-card{
+  background:#fff;border-radius:18px;
+  box-shadow:0 18px 60px rgba(0,0,0,.30),0 4px 14px rgba(0,0,0,.14);
+  padding:2.25rem 2.25rem 1.9rem;
 }
 
-.left-logo{max-height:44px;max-width:140px;object-fit:contain;filter:brightness(0)invert(1);opacity:.85;display:block;margin-bottom:1rem}
-.left-icon{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#fff;margin-bottom:1rem}
-.left-org{font-size:1.05rem;font-weight:800;color:#fff;margin:0 0 .25rem;line-height:1.3}
-.left-tagline{font-size:.77rem;color:rgba(255,255,255,.45);margin:0 0 1.75rem;line-height:1.5}
-
-.left-methods-label{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:.65rem}
-.left-method{display:flex;align-items:flex-start;gap:.55rem;margin-bottom:.6rem}
-.left-method-icon{font-size:.9rem;color:rgba(255,255,255,.45);margin-top:.12rem;flex-shrink:0}
-.left-method-name{font-size:.81rem;font-weight:600;color:rgba(255,255,255,.7);line-height:1.3}
-.left-method-sub{font-size:.69rem;color:rgba(255,255,255,.32);margin-top:.06rem}
-
-.left-footer{position:relative;z-index:1}
-.left-change-org{
-  display:inline-flex;align-items:center;gap:.35rem;margin-bottom:.75rem;
-  font-size:.75rem;color:rgba(255,255,255,.4);text-decoration:none;
-  padding:.3rem .7rem;border:1px solid rgba(255,255,255,.15);border-radius:2rem;
-  transition:color .15s,border-color .15s;
+/* ── Branding (góra karty) ───────────────────────────────── */
+.brand{text-align:center;margin-bottom:1.6rem}
+.brand-logo{max-height:48px;max-width:210px;object-fit:contain;display:inline-block;margin-bottom:.7rem}
+.brand-icon{
+  width:56px;height:56px;border-radius:16px;margin:0 auto .7rem;
+  background:var(--c,#2563eb);color:var(--c-text,#fff);
+  display:flex;align-items:center;justify-content:center;font-size:1.7rem;
 }
-.left-change-org:hover{color:rgba(255,255,255,.8);border-color:rgba(255,255,255,.4)}
-.left-security{display:flex;align-items:center;gap:.4rem;font-size:.73rem;color:rgba(255,255,255,.3);margin-bottom:.4rem}
-.left-copyright{font-size:.68rem;color:rgba(255,255,255,.2)}
+.brand-org{font-size:1.15rem;font-weight:800;color:#0f172a;margin:0;line-height:1.3;letter-spacing:-.01em}
+.brand-tagline{font-size:.82rem;color:#64748b;margin:.3rem 0 0;line-height:1.5}
 
-/* ── Prawa (light) ───────────────────────────────────────── */
-.login-right{
-  flex:1;background:#F1F5F9;
-  display:flex;align-items:center;justify-content:center;
-  padding:2.5rem 1.5rem;overflow-y:auto;
+/* ── Nagłówek widoku ─────────────────────────────────────── */
+.view-head{margin-bottom:1.4rem}
+.view-head.center{text-align:center}
+.view-title{font-size:1.3rem;font-weight:800;color:#0f172a;margin:0;letter-spacing:-.01em;line-height:1.25}
+.view-sub{font-size:.9rem;color:#64748b;margin:.4rem 0 0;line-height:1.55}
+.view-sub strong{color:#334155;font-weight:700}
+.back-link{
+  display:inline-flex;align-items:center;gap:.4rem;margin-bottom:.95rem;
+  font-size:.82rem;font-weight:600;color:#64748b;text-decoration:none;
+  padding:.32rem .7rem;border:1px solid #e2e8f0;border-radius:2rem;
+  transition:color .12s,border-color .12s,background .12s;
 }
-.login-box{
-  width:100%;max-width:440px;
-  background:#fff;border-radius:16px;
-  box-shadow:0 8px 40px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.06);
-  padding:2rem 2.25rem;
-}
+.back-link:hover{color:var(--c,#2563eb);border-color:#cbd5e1;background:#f8fafc}
 
-/* Mobile-only org name above the form */
-.mobile-top{
-  display:none;align-items:center;gap:.6rem;
-  padding-bottom:1.25rem;margin-bottom:1.5rem;
-  border-bottom:1px solid #e2e8f0;
+/* ── Wybór grupy ─────────────────────────────────────────── */
+.chooser{display:flex;flex-direction:column;gap:.7rem}
+.choice{
+  display:flex;align-items:center;gap:1rem;
+  padding:1.05rem 1.1rem;border:2px solid #e2e8f0;border-radius:14px;
+  text-decoration:none;background:#fff;cursor:pointer;width:100%;text-align:left;
+  transition:border-color .14s,box-shadow .14s,transform .06s,background .14s;
 }
-.mobile-top-logo{max-height:26px;object-fit:contain;filter:none}
-.mobile-top-org{font-size:.9rem;font-weight:700;color:#0f172a}
+.choice:hover{border-color:var(--c,#2563eb);background:#f8fafc;box-shadow:0 0 0 4px rgba(37,99,235,.08)}
+.choice:active{transform:translateY(1px)}
+.choice-icon{
+  width:50px;height:50px;border-radius:13px;flex-shrink:0;
+  background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);
+  display:flex;align-items:center;justify-content:center;font-size:1.5rem;
+}
+.choice-icon.alt{background:#f1f5f9;color:#475569}
+.choice-body{flex:1;min-width:0}
+.choice-title{display:block;font-size:1rem;font-weight:700;color:#0f172a;line-height:1.3}
+.choice-sub{display:block;font-size:.81rem;color:#64748b;margin-top:.12rem;line-height:1.4}
+.choice-arrow{color:#cbd5e1;font-size:1rem;flex-shrink:0}
+.choice:hover .choice-arrow{color:var(--c,#2563eb)}
 
-/* ── Nagłówek formularza ─────────────────────────────────── */
-.login-heading{font-size:1.45rem;font-weight:800;color:#0f172a;margin:0 0 1.4rem;letter-spacing:-.01em}
+/* ── Link krzyżowy (wolontariusz → konto @feer.org.pl) ───── */
+.cross-link{
+  display:flex;align-items:center;gap:.65rem;margin-top:1.1rem;
+  padding:.7rem .85rem;border:1px solid #e2e8f0;border-radius:10px;
+  background:#f8fafc;text-decoration:none;
+  transition:border-color .12s,background .12s;
+}
+.cross-link:hover{border-color:var(--c,#2563eb);background:#fff}
+.cross-link > i:first-child{color:var(--c,#2563eb);font-size:1.05rem;flex-shrink:0}
+.cross-link-body{flex:1;min-width:0}
+.cross-link-title{display:block;font-size:.83rem;font-weight:600;color:#334155;line-height:1.3}
+.cross-link-sub{display:block;font-size:.75rem;color:#64748b;margin-top:.05rem}
+.cross-link .arr{color:#cbd5e1;flex-shrink:0;font-size:.8rem}
+
+/* ── Stopka pod kartą ────────────────────────────────────── */
+.login-foot{margin-top:1.3rem;text-align:center}
+.login-foot .sec{display:inline-flex;align-items:center;gap:.35rem;color:rgba(255,255,255,.5);font-size:.77rem}
+.login-foot .links{margin-top:.55rem}
+.login-foot a{color:rgba(255,255,255,.78);text-decoration:none;font-size:.8rem;font-weight:500}
+.login-foot a:hover{color:#fff;text-decoration:underline}
+.login-foot .dot{color:rgba(255,255,255,.3);margin:0 .5rem}
+.login-foot .cpy{display:block;margin-top:.55rem;color:rgba(255,255,255,.38);font-size:.72rem}
 
 /* ── Komunikaty ──────────────────────────────────────────── */
 .login-notice{
@@ -458,39 +491,8 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   font-family:monospace;font-weight:700;
 }
 
-/* ── Moduły systemu (lewa kolumna) ──────────────────────── */
-.left-about{margin:.85rem 0 1.35rem}
-.left-about-text{font-size:.79rem;color:rgba(255,255,255,.48);line-height:1.65;margin:0 0 .65rem}
-.left-modules{display:flex;flex-wrap:wrap;gap:.3rem}
-.left-module{
-  display:inline-flex;align-items:center;gap:.28rem;
-  font-size:.66rem;font-weight:600;
-  color:rgba(255,255,255,.42);background:rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.11);border-radius:2rem;
-  padding:.18rem .5rem;white-space:nowrap;
-}
-.left-module i{font-size:.7rem}
-
-/* ── Przewodnik: dwie ścieżki logowania (prawa kolumna) ──── */
-.login-paths{
-  border:1px solid #e2e8f0;border-radius:12px;
-  margin-bottom:1.4rem;overflow:hidden;background:#fff;
-}
-.login-path{
-  display:flex;align-items:flex-start;gap:.7rem;
-  padding:.85rem 1rem;
-}
-.login-path + .login-path{border-top:1px solid #eef2f7}
-.login-path-badge{
-  width:34px;height:34px;border-radius:9px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  font-size:1rem;background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);
-}
-.login-path-badge.alt{background:#f1f5f9;color:#475569}
-.login-path-title{font-size:.86rem;font-weight:700;color:#0f172a;line-height:1.3}
-.login-path-desc{font-size:.79rem;color:#64748b;line-height:1.55;margin-top:.1rem}
-.login-path-desc strong{color:#334155;font-weight:700}
-.login-welcome-text{font-size:.82rem;color:#64748b;line-height:1.6;margin:0 0 1.4rem}
+/* ── Tekst powitalny (konfigurowalny przez administratora) ── */
+.login-welcome-text{font-size:.84rem;color:#64748b;line-height:1.6;margin:0 0 1.2rem;text-align:center}
 
 /* ── Podpis pod blokiem metody (dla kogo) ─────────────────── */
 .method-for{font-size:.78rem;color:#64748b;text-align:center;margin:.45rem 0 0;line-height:1.45}
@@ -530,25 +532,12 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
 
 /* ── Mobile ──────────────────────────────────────────────── */
-@media(max-width:680px){
-  .login-shell{flex-direction:column}
-  .login-left{
-    width:100%;padding:.9rem 1.25rem;
-    flex-direction:row;align-items:center;gap:.75rem;
-    border-right:none;border-bottom:1px solid rgba(255,255,255,.07);
-  }
-  .login-left::after{display:none}
-  .login-left .left-methods-label,
-  .login-left .left-method,
-  .login-left .left-tagline,
-  .login-left .left-about,
-  .login-left .left-footer{display:none}
-  .login-left .left-org{font-size:.9rem;margin:0}
-  .login-right{padding:1.25rem 1rem;align-items:flex-start;background:#F1F5F9}
-  .login-box{box-shadow:none;border-radius:12px;padding:1.5rem 1.25rem}
-  .mobile-top{display:flex}
-  .login-left .left-logo{margin-bottom:0;max-height:28px}
-  .login-left .left-icon{width:30px;height:30px;font-size:1rem;margin-bottom:0}
+@media(max-width:520px){
+  .login-shell{padding:1.25rem .75rem;align-items:flex-start}
+  .login-card{padding:1.6rem 1.35rem 1.4rem;border-radius:14px}
+  .brand-org{font-size:1.05rem}
+  .choice{padding:.95rem .9rem;gap:.8rem}
+  .choice-icon{width:44px;height:44px;font-size:1.3rem}
 }
 </style>
 </head>
@@ -565,123 +554,30 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
      style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
 
 <div class="login-shell">
+<div class="login-wrap">
 
-<!-- ══ Lewa — branding ══════════════════════════════════════════════════════ -->
-<aside class="login-left" aria-label="Informacje o organizacji">
-  <div>
+<main class="login-card" id="login-form-area" tabindex="-1">
+
+  <!-- ══ Branding ══════════════════════════════════════════════════════════ -->
+  <div class="brand">
     <?php if ($_b['logo_url']): ?>
-    <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" class="left-logo">
+    <img src="<?= h($_b['logo_url']) ?>" alt="<?= h($org_name) ?>" class="brand-logo">
     <?php else: ?>
-    <div class="left-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></div>
+    <div class="brand-icon" aria-hidden="true"><i class="bi bi-building-heart"></i></div>
     <?php endif; ?>
-    <p class="left-org"><?= h($org_name) ?></p>
-    <?php if ($_login_tagline): ?><p class="left-tagline"><?= h($_login_tagline) ?></p><?php endif; ?>
-
-    <!-- Czym jest system -->
-    <div class="left-about">
-      <p class="left-about-text">Zarządzaj umowami, kontaktami, dokumentami i zasobami organizacji NGO — wszystko w jednym miejscu.</p>
-      <div class="left-modules" aria-label="Moduły systemu">
-        <span class="left-module"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Umowy</span>
-        <span class="left-module"><i class="bi bi-diagram-2-fill" aria-hidden="true"></i>CRM</span>
-        <span class="left-module"><i class="bi bi-lock-fill" aria-hidden="true"></i>RODO</span>
-        <span class="left-module"><i class="bi bi-box-seam" aria-hidden="true"></i>Zasoby</span>
-        <span class="left-module"><i class="bi bi-card-checklist" aria-hidden="true"></i>K30</span>
-        <span class="left-module"><i class="bi bi-currency-euro" aria-hidden="true"></i>Granty</span>
-        <span class="left-module"><i class="bi bi-lightning-fill" aria-hidden="true"></i>Działania</span>
-      </div>
-    </div>
-
-    <div>
-      <div class="left-methods-label" aria-label="Dostępne metody logowania">Metody logowania</div>
-      <?php foreach ($_avail_methods as [$icon, $name, $sub]): ?>
-      <div class="left-method">
-        <i class="bi <?= $icon ?> left-method-icon" aria-hidden="true"></i>
-        <div>
-          <div class="left-method-name"><?= h($name) ?></div>
-          <div class="left-method-sub"><?= h($sub) ?></div>
-        </div>
-      </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
-
-  <div class="left-footer">
-    <?php if ($sel_url): ?>
-    <a href="<?= h($sel_url) ?>" class="left-change-org">
-      <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
-      <?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?>
-    </a>
-    <?php endif; ?>
-    <div class="left-security">
-      <i class="bi bi-lock-fill" aria-hidden="true"></i>
-      Połączenie szyfrowane HTTPS
-    </div>
-    <div class="left-copyright">&copy; <?= date('Y') ?> · <?= h($org_name) ?></div>
-  </div>
-</aside>
-
-<!-- ══ Prawa — formularz ═════════════════════════════════════════════════════ -->
-<div class="login-right">
-<main class="login-box" id="login-form-area" tabindex="-1">
-
-  <!-- Miniaturowy nagłówek organizacji (mobile — gdy lewa kolumna zwinięta) -->
-  <div class="mobile-top" aria-hidden="true">
-    <?php if ($_b['logo_url']): ?>
-    <img src="<?= h($_b['logo_url']) ?>" alt="" class="mobile-top-logo">
-    <?php endif; ?>
-    <span class="mobile-top-org"><?= h($org_name) ?></span>
-  </div>
-
-  <h1 class="login-heading" id="login-title">Zaloguj się</h1>
-
-  <?php if ($_login_welcome_is_custom): ?>
-  <p class="login-welcome-text"><?= nl2br(h($_login_welcome)) ?></p>
-  <?php endif; ?>
-
-  <!-- Przewodnik: która ścieżka logowania dla której grupy -->
-  <div class="login-paths" role="note" aria-label="Jak się zalogować">
-    <div class="login-path">
-      <span class="login-path-badge" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
-      <div>
-        <div class="login-path-title">Wolontariusze i zleceniobiorcy</div>
-        <div class="login-path-desc">
-          Logujesz się swoim <strong>prywatnym e-mailem</strong> — tym podanym do WiadomościFEER — i hasłem.
-          Jeśli masz włączone logowanie kontem <strong>@feer.org.pl</strong>, użyj go zamiast prywatnego e-maila.
-        </div>
-      </div>
-    </div>
-    <div class="login-path">
-      <span class="login-path-badge alt" aria-hidden="true"><i class="bi <?= $ms_available ? 'bi-microsoft' : 'bi-envelope-at-fill' ?>"></i></span>
-      <div>
-        <div class="login-path-title">Administracja i koordynatorzy</div>
-        <div class="login-path-desc">
-          <?php if ($ms_available): ?>
-          Logujesz się <strong>wyłącznie</strong> kontem <strong>@feer.org.pl</strong> — przez <strong>Microsoft 365</strong> lub e-mailem służbowym i hasłem.
-          <?php else: ?>
-          Logujesz się <strong>wyłącznie</strong> e-mailem służbowym <strong>@feer.org.pl</strong> i hasłem.
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-    <div style="text-align:center;padding:.55rem;border-top:1px solid #eef2f7">
-      <a href="<?= APP_URL ?>/auth/help.php" class="forgot-link" style="font-size:.8rem"
-         aria-label="Otwórz instrukcję: jak się zalogować i jak ustalić login i hasło">
-        <i class="bi bi-question-circle" aria-hidden="true"></i>
-        Nie wiesz, jak się zalogować?
-      </a>
-    </div>
+    <p class="brand-org"><?= h($org_name) ?></p>
+    <?php if ($_login_tagline): ?><p class="brand-tagline"><?= h($_login_tagline) ?></p><?php endif; ?>
   </div>
 
   <?php
-  // Pokaż maksymalnie 1 komunikat — preferuj przypięty
+  // Komunikat administratora — pokazywany na każdym widoku (preferuj przypięty)
   $_ln_show = null;
   foreach ($_login_notices as $_ln_item) {
     if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; }
   }
   if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
   ?>
-  <?php if ($_ln_show): ?>
-  <?php $ln_pinned = (int)($_ln_show['is_pinned'] ?? 0); ?>
+  <?php if ($_ln_show): $ln_pinned = (int)($_ln_show['is_pinned'] ?? 0); ?>
   <div role="region" aria-label="Komunikat administratora" style="margin-bottom:1.25rem">
     <div class="login-notice <?= $ln_pinned ? 'pinned' : '' ?>">
       <i class="bi bi-<?= $ln_pinned ? 'pin-angle-fill' : 'megaphone-fill' ?>" aria-hidden="true"></i>
@@ -692,6 +588,54 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     </div>
   </div>
   <?php endif; ?>
+
+  <?php if ($view === 'choose'): ?>
+  <!-- ══ Widok: wybór rodzaju konta ════════════════════════════════════════ -->
+  <div class="view-head center">
+    <h1 class="view-title" id="login-title">Zaloguj się</h1>
+    <p class="view-sub">Wybierz, kim jesteś — pokażemy właściwy sposób logowania.</p>
+  </div>
+
+  <?php if ($_login_welcome_is_custom): ?>
+  <p class="login-welcome-text"><?= nl2br(h($_login_welcome)) ?></p>
+  <?php endif; ?>
+
+  <div class="chooser" role="group" aria-label="Wybierz rodzaj konta">
+    <a href="<?= h($_url_priv) ?>" class="choice">
+      <span class="choice-icon" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
+      <span class="choice-body">
+        <span class="choice-title">Wolontariusz / zleceniobiorca</span>
+        <span class="choice-sub">Logowanie prywatnym e-mailem i hasłem</span>
+      </span>
+      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
+    </a>
+    <a href="<?= h($_url_feer) ?>" class="choice">
+      <span class="choice-icon alt" aria-hidden="true"><i class="bi bi-building-fill"></i></span>
+      <span class="choice-body">
+        <span class="choice-title">Administracja / koordynator</span>
+        <span class="choice-sub">Logowanie kontem służbowym @feer.org.pl</span>
+      </span>
+      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
+    </a>
+  </div>
+
+  <?php else: ?>
+  <!-- ══ Widok: formularz wybranej grupy ═══════════════════════════════════ -->
+  <a href="<?= h($_url_choose) ?>" class="back-link">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i> Zmień rodzaj konta
+  </a>
+  <div class="view-head">
+    <h1 class="view-title" id="login-title">
+      <?= $view === 'feer' ? 'Administracja i koordynatorzy' : 'Wolontariusze i zleceniobiorcy' ?>
+    </h1>
+    <p class="view-sub">
+      <?php if ($view === 'feer'): ?>
+      Zaloguj się <strong>wyłącznie</strong> kontem służbowym <strong>@feer.org.pl</strong>.
+      <?php else: ?>
+      Zaloguj się swoim <strong>prywatnym e-mailem</strong> podanym do WiadomościFEER.
+      <?php endif; ?>
+    </p>
+  </div>
 
   <?php if ($error && $active_tab === 'local'): ?>
   <div class="login-alert login-alert-danger" role="alert" id="login-error-box">
@@ -707,10 +651,25 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   <?php endif; ?>
 
   <?php include __DIR__ . '/_login_form_body.php'; ?>
+  <?php endif; /* /view */ ?>
 
 </main>
-</div><!-- /login-right -->
 
+<!-- ══ Stopka pod kartą ════════════════════════════════════════════════════ -->
+<div class="login-foot">
+  <span class="sec"><i class="bi bi-lock-fill" aria-hidden="true"></i> Połączenie szyfrowane HTTPS</span>
+  <div class="links">
+    <a href="<?= APP_URL ?>/auth/help.php"
+       aria-label="Otwórz instrukcję: jak się zalogować i jak ustalić login i hasło">Jak się zalogować?</a>
+    <?php if ($sel_url): ?>
+    <span class="dot" aria-hidden="true">·</span>
+    <a href="<?= h($sel_url) ?>"><?= $is_tenant ? 'Zmień organizację' : 'Wybierz organizację' ?></a>
+    <?php endif; ?>
+  </div>
+  <span class="cpy">&copy; <?= date('Y') ?> · <?= h($org_name) ?></span>
+</div>
+
+</div><!-- /login-wrap -->
 </div><!-- /login-shell -->
 
 <!-- ══ Modale metod logowania (poza shell — prawidłowy stacking context) ════ -->
