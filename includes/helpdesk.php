@@ -240,6 +240,50 @@ function hd_reply_templates(array $ticket): array {
     ];
 }
 
+// ── Łączenie (scalanie) zgłoszeń ──────────────────────────────────────────────
+
+/**
+ * Łączy zgłoszenie źródłowe (duplikat) ze zgłoszeniem docelowym (głównym):
+ * przenosi wiadomości i załączniki do docelowego, zamyka źródłowe i ustawia
+ * merged_into. Operacja w transakcji. Zwraca ['ok'=>bool, 'error'?, 'target'?, 'source'?].
+ */
+function hd_merge(int $sourceId, int $targetId, array $operator): array {
+    if ($sourceId === $targetId) return ['ok' => false, 'error' => 'Nie można połączyć zgłoszenia z samym sobą.'];
+    $pdo = db();
+    $src = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$sourceId]);
+    $dst = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$targetId]);
+    if (!$src)                       return ['ok' => false, 'error' => 'Nie znaleziono zgłoszenia źródłowego.'];
+    if (!$dst)                       return ['ok' => false, 'error' => 'Nie znaleziono zgłoszenia docelowego.'];
+    if (!empty($src['merged_into'])) return ['ok' => false, 'error' => 'To zgłoszenie zostało już połączone z innym.'];
+    if (!empty($dst['merged_into'])) return ['ok' => false, 'error' => 'Zgłoszenie docelowe jest już połączone — wskaż zgłoszenie główne.'];
+
+    $op_name = $operator['name'] ?? '';
+    $op_id   = (int)($operator['id'] ?? 0) ?: null;
+    $now     = date('Y-m-d H:i:s');
+    try {
+        $pdo->beginTransaction();
+        // Przenieś wiadomości i załączniki do docelowego
+        $pdo->prepare("UPDATE helpdesk_messages    SET ticket_id=? WHERE ticket_id=?")->execute([$targetId, $sourceId]);
+        $pdo->prepare("UPDATE helpdesk_attachments SET ticket_id=? WHERE ticket_id=?")->execute([$targetId, $sourceId]);
+        // Notatka w docelowym
+        $pdo->prepare("INSERT INTO helpdesk_messages (ticket_id,user_id,user_name,body,is_internal) VALUES (?,?,?,?,1)")
+            ->execute([$targetId, $op_id, $op_name,
+                "Dołączono zgłoszenie {$src['number']} — {$src['title']} (zgłaszający: {$src['requester_name']})."]);
+        // Zamknij źródłowe i oznacz powiązanie
+        $pdo->prepare("UPDATE helpdesk_tickets SET status='zamknięte', merged_into=?, closed_at=?, updated_at=? WHERE id=?")
+            ->execute([$targetId, $now, $now, $sourceId]);
+        $pdo->prepare("INSERT INTO helpdesk_messages (ticket_id,user_id,user_name,body,is_internal) VALUES (?,?,?,?,1)")
+            ->execute([$sourceId, $op_id, $op_name,
+                "Połączono ze zgłoszeniem {$dst['number']}. Dalsza korespondencja w zgłoszeniu głównym."]);
+        $pdo->prepare("UPDATE helpdesk_tickets SET updated_at=? WHERE id=?")->execute([$now, $targetId]);
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        return ['ok' => false, 'error' => 'Błąd podczas łączenia: ' . $e->getMessage()];
+    }
+    return ['ok' => true, 'target' => $dst, 'source' => $src];
+}
+
 // ── Generowanie numeru ────────────────────────────────────────────────────────
 
 function hd_next_number(string $prefix = 'HD'): string {

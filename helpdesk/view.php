@@ -190,6 +190,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
     header('Location: view.php?id=' . $id); exit;
 }
 
+// ── Łączenie (scalanie) zgłoszeń ──────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_merge']) && $is_op) {
+    csrf_check();
+    $target_num = trim($_POST['merge_target'] ?? '');
+    $tgt = $target_num !== '' ? db_one("SELECT id FROM helpdesk_tickets WHERE number=?", [$target_num]) : null;
+    if (!$tgt && ctype_digit($target_num)) $tgt = db_one("SELECT id FROM helpdesk_tickets WHERE id=?", [(int)$target_num]);
+    if (!$tgt) {
+        flash_set('danger', 'Nie znaleziono zgłoszenia docelowego o numerze: ' . h($target_num));
+        header('Location: view.php?id=' . $id); exit;
+    }
+    $res = hd_merge($id, (int)$tgt['id'], $u);
+    if (!empty($res['ok'])) {
+        flash_set('success', 'Połączono ze zgłoszeniem ' . h($res['target']['number'] ?? ''));
+        header('Location: view.php?id=' . (int)$tgt['id']); exit;
+    }
+    flash_set('danger', h($res['error'] ?? 'Nie udało się połączyć zgłoszeń.'));
+    header('Location: view.php?id=' . $id); exit;
+}
+
 // ── Usuń zgłoszenie (admin) ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_delete']) && is_admin()) {
     csrf_check();
@@ -250,6 +269,30 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<?php if (!empty($ticket['merged_into'])):
+  $mt = db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [(int)$ticket['merged_into']]); ?>
+<div class="alert alert-secondary py-2 small d-flex align-items-center gap-2">
+  <i class="bi bi-union"></i>
+  <div>To zgłoszenie zostało połączone ze zgłoszeniem
+    <a href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$ticket['merged_into'] ?>"><strong><?= h($mt['number'] ?? '') ?></strong></a>.
+    Dalsza korespondencja odbywa się w zgłoszeniu głównym.</div>
+</div>
+<?php endif; ?>
+
+<?php
+  $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHERE merged_into=? ORDER BY id", [$id]) : [];
+?>
+<?php if ($merged_children): ?>
+<div class="alert alert-light border py-2 small d-flex align-items-start gap-2">
+  <i class="bi bi-diagram-3 mt-1"></i>
+  <div>Połączone z tym zgłoszeniem:
+    <?php foreach ($merged_children as $c): ?>
+    <a href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$c['id'] ?>" class="badge bg-light text-dark border text-decoration-none ms-1"><?= h($c['number']) ?></a>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="row g-3">
 
@@ -472,6 +515,32 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </form>
       <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Łączenie zgłoszeń (operatorzy) -->
+  <?php if ($is_op && empty($ticket['merged_into'])): ?>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-union me-1"></i>Połącz zgłoszenie
+    </div>
+    <div class="card-body small">
+      <p class="text-muted mb-2" style="font-size:.78rem">
+        Łączy to zgłoszenie (duplikat) ze zgłoszeniem głównym — wiadomości i załączniki
+        zostaną przeniesione, a to zgłoszenie zamknięte. Operacji nie można cofnąć.
+      </p>
+      <form method="post"
+            onsubmit="return confirm('Połączyć <?= h($ticket['number']) ?> ze wskazanym zgłoszeniem? Tej operacji nie można cofnąć.')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_merge" value="1">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text">#</span>
+          <input type="text" name="merge_target" class="form-control" required
+                 placeholder="numer zgł. głównego (np. HD00042)">
+          <button class="btn btn-outline-danger">Połącz</button>
+        </div>
+      </form>
     </div>
   </div>
   <?php endif; ?>

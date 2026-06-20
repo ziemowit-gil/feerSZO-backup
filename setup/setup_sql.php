@@ -916,6 +916,28 @@ function migrate_tenant_db(PDO $pdo): array {
         $run("$t.access_level", "ALTER TABLE $t ADD COLUMN access_level TEXT NOT NULL DEFAULT 'full'");
     }
 
+    // ── Schema v11: helpdesk — firma zewn., mikropanel, SLA, łączenie ─────────
+    // Tabele helpdesku powstają leniwie (helpdesk_migrate). Dokładamy kolumny
+    // tylko, gdy tabela już istnieje; nowe instalacje dostaną je z modułu.
+    $hd_has = true;
+    try {
+        $hd_has = (bool)$pdo->query(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='helpdesk_tickets'"
+        )->fetchColumn();
+    } catch (\Throwable $e) { $hd_has = true; /* nie-SQLite — spróbuj ALTERów */ }
+    if ($hd_has) {
+        $run('helpdesk_tickets.ext_vendor',        "ALTER TABLE helpdesk_tickets ADD COLUMN ext_vendor TEXT");
+        $run('helpdesk_tickets.ext_ref',           "ALTER TABLE helpdesk_tickets ADD COLUMN ext_ref TEXT");
+        $run('helpdesk_tickets.ext_reason',        "ALTER TABLE helpdesk_tickets ADD COLUMN ext_reason TEXT");
+        $run('helpdesk_tickets.ext_handed_at',     "ALTER TABLE helpdesk_tickets ADD COLUMN ext_handed_at DATETIME");
+        $run('helpdesk_tickets.access_token',      "ALTER TABLE helpdesk_tickets ADD COLUMN access_token TEXT");
+        $run('helpdesk_tickets.first_response_at', "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME");
+        $run('helpdesk_tickets.merged_into',       "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER");
+        $run('idx_hd_token',                       "CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)");
+    } else {
+        $results[] = ['skip', 'helpdesk_tickets (moduł utworzy schemat przy 1. użyciu)'];
+    }
+
     // ── Nowe domyślne settings ─────────────────────────────────────────────────
     $new_settings = [
         'wa_enabled' => '0', 'tasks_enabled' => '1',
