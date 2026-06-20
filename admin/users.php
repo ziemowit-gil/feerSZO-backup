@@ -133,6 +133,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: users.php');
         exit;
     }
+    // Dostęp do Canva (poziom konta — także dla kont bez umowy) + aprowizacja SSO/JIT
+    elseif ($action === 'canva_toggle') {
+        require_once dirname(__DIR__) . '/includes/canva.php';
+        $uid = intval($_POST['user_id'] ?? 0);
+        if ($uid && db_one("SELECT id FROM users WHERE id=?", [$uid])) {
+            $cur = canva_user_access_get($uid);
+            if ($cur && (int)($cur['access'] ?? 0) === 1) {
+                canva_user_revoke($uid);
+                log_user_action($uid, (int)current_user()['id'], 'note', 'Canva: wyłączono dostęp');
+                flash_set('success', 'Wyłączono dostęp do Canva.');
+            } else {
+                canva_user_grant($uid, (int)current_user()['id']);
+                log_user_action($uid, (int)current_user()['id'], 'note', 'Canva: włączono dostęp (aprowizacja SSO/JIT)');
+                flash_set('success', 'Włączono dostęp do Canva. Konto powstanie automatycznie przy pierwszym logowaniu SSO (aprowizacja JIT).');
+            }
+        }
+        header('Location: users.php' . (($_GET['role'] ?? '') ? '?role=' . urlencode($_GET['role']) : ''));
+        exit;
+    }
 
     // RESET PASSWORD (random)
     elseif ($action === 'reset_pass') {
@@ -261,6 +280,14 @@ $webauthn_uids = [];
 try {
     foreach (db_all("SELECT DISTINCT user_id FROM webauthn_credentials") as $wk) {
         $webauthn_uids[(int)$wk['user_id']] = true;
+    }
+} catch (\Throwable $e) {}
+
+// Użytkownicy z włączonym dostępem do Canva (poziom konta)
+$canva_uids = [];
+try {
+    foreach (db_all("SELECT user_id FROM canva_user_access WHERE access=1") as $cr) {
+        $canva_uids[(int)$cr['user_id']] = true;
     }
 } catch (\Throwable $e) {}
 
@@ -538,6 +565,18 @@ include dirname(__DIR__) . '/includes/header.php';
                   <i class="bi bi-person-<?= $u['is_active'] ? 'dash' : 'check' ?>"></i>
                 </button>
                 <?php endif; ?>
+              </form>
+              <?php $has_canva = isset($canva_uids[(int)$u['id']]); ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('<?= $has_canva ? 'Wyłączyć' : 'Włączyć' ?> dostęp do Canva dla <?= h(addslashes($u['name'])) ?>?')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="action" value="canva_toggle">
+                <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
+                <button type="submit" class="btn btn-sm <?= $has_canva ? 'text-white' : 'btn-outline-secondary' ?>"
+                        style="<?= $has_canva ? 'background:#7c3aed;border-color:#7c3aed' : '' ?>"
+                        title="<?= $has_canva ? 'Canva: dostęp włączony — kliknij, aby wyłączyć' : 'Canva: włącz dostęp (aprowizacja SSO/JIT)' ?>">
+                  <i class="bi bi-palette<?= $has_canva ? '-fill' : '' ?>"></i>
+                </button>
               </form>
               <button type="button" class="btn btn-sm btn-outline-danger"
                       title="Resetuj / ustaw hasło"
