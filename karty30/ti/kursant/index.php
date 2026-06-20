@@ -13,6 +13,14 @@ require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
 
+// Zakończenie podglądu administratora („zaloguj jako") — wróć do listy kont kursantów.
+if (isset($_GET['stop_impersonation'])) {
+    $was_imp = student_impersonator() !== null;
+    student_logout();
+    header('Location: ' . ($was_imp ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/accounts.php' : 'login.php'));
+    exit;
+}
+
 // Wylogowanie (przed jakimkolwiek wyjściem)
 if (isset($_GET['logout'])) { student_logout(); header('Location: login.php'); exit; }
 

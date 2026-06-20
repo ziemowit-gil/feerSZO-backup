@@ -40,6 +40,33 @@ function student_logout(): void {
     session_destroy();
 }
 
+/**
+ * Loguje administratora w sesji kursanta jako podgląd „zaloguj jako" (impersonacja).
+ * Sesja kursanta ma osobne ciasteczko (k30_student), więc sesja admina pozostaje
+ * nienaruszona. Zapisuje znacznik `imp` z danymi administratora.
+ *
+ * UWAGA: wywoływać po session_write_close() sesji głównej aplikacji — w przeciwnym
+ * razie PHP nie pozwoli otworzyć drugiej sesji w tym samym żądaniu.
+ */
+function student_impersonate(array $account, int $adminId, string $adminName): void {
+    student_start();
+    $_SESSION[STUDENT_SESSION_KEY] = [
+        'id'        => (int)$account['id'],
+        'client_id' => (int)$account['client_id'],
+        'login'     => $account['login'],
+        'ts'        => time(),
+        'imp'       => ['by' => $adminId, 'name' => $adminName],
+    ];
+    // świeży token CSRF dla sesji podglądu
+    $_SESSION['k30_student_csrf'] = bin2hex(random_bytes(16));
+}
+
+/** Zwraca dane administratora podszywającego się pod kursanta lub null (zwykłe logowanie). */
+function student_impersonator(): ?array {
+    $s = student_current();
+    return (is_array($s) && !empty($s['imp'])) ? $s['imp'] : null;
+}
+
 function student_require(): array {
     $s = student_current();
     if (!$s) {

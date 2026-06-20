@@ -38,6 +38,17 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>">
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
+<?php $KP_IMP = function_exists('student_impersonator') ? student_impersonator() : null; if ($KP_IMP): ?>
+<div class="alert alert-warning border-0 rounded-0 mb-0 py-2" role="alert">
+  <div class="container-fluid d-flex flex-wrap align-items-center gap-2 small">
+    <i class="bi bi-incognito" aria-hidden="true"></i>
+    <span>Podgląd panelu jako kursant — zalogowano przez administratora<?= !empty($KP_IMP['name']) ? ' (' . h($KP_IMP['name']) . ')' : '' ?>.</span>
+    <a href="index.php?stop_impersonation=1" class="btn btn-sm btn-warning py-0 ms-auto">
+      <i class="bi bi-box-arrow-left me-1" aria-hidden="true"></i>Zakończ podgląd
+    </a>
+  </div>
+</div>
+<?php endif; ?>
 <?php if ($KP_TOPBAR): ?>
 <header>
   <nav class="navbar bg-body-tertiary border-bottom" aria-label="Pasek użytkownika">

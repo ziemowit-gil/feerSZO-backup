@@ -166,6 +166,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: accounts.php'); exit;
     }
 
+    // ── Podszywanie się pod kursanta („zaloguj jako") ────────────────────────
+    if ($op === 'impersonate') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        if (!$acc || empty($acc['is_active'])) {
+            flash_set('danger', 'Konto nie istnieje lub jest nieaktywne.');
+            header('Location: accounts.php'); exit;
+        }
+        $admin     = current_user() ?: [];
+        $adminId   = (int)($admin['id'] ?? 0);
+        $adminName = (string)($admin['name'] ?? $admin['username'] ?? $admin['email'] ?? 'administrator');
+        // Zamknij sesję głównej aplikacji, otwórz osobną sesję kursanta (k30_student).
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+        student_impersonate($acc, $adminId, $adminName);
+        header('Location: ' . rtrim(APP_URL, '/') . '/karty30/ti/kursant/index.php');
+        exit;
+    }
+
     // ── Konto Microsoft 365 (tenant szkoleniowy) ─────────────────────────────
     if ($op === 'ms_create') {
         $aid = (int)($_POST['account_id'] ?? 0);
@@ -578,6 +596,17 @@ function printBulk(){
                 <a href="?guardian=<?= (int)$a['id'] ?>" class="btn btn-xs btn-sm btn-outline-info py-0 px-2 me-1" title="Opiekun / dostęp rodzica">
                   <i class="bi bi-people"></i>
                 </a>
+                <!-- Zaloguj jako kursant (podgląd) -->
+                <?php if ($a['is_active']): ?>
+                <form method="post" class="d-inline" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja administratora pozostanie aktywna w tej karcie.')">
+                  <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op"         value="impersonate">
+                  <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
+                  <button type="submit" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 me-1" title="Zaloguj jako kursant (podgląd w nowej karcie)">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                  </button>
+                </form>
+                <?php endif; ?>
                 <!-- Reset hasła -->
                 <form method="post" class="d-inline" onsubmit="return confirm('Zresetować hasło?')">
                   <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
