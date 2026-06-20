@@ -83,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once dirname(__DIR__) . '/includes/mail_queue.php';
                 $org     = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
                 $url     = APP_URL . '/helpdesk/view.php?id=' . $ticket_id;
+                $track   = h(hd_track_url(['id' => $ticket_id, 'access_token' => '']));
                 $num_h   = h($number);
                 $title_h = h($title);
                 $name_h  = h($req_name ?: ($u['name'] ?? ''));
@@ -110,6 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       Śledź status →
     </a>
   </div>
+  <p style="font-size:.85em;color:#6c757d;text-align:center">
+    Bez logowania możesz śledzić i kontynuować zgłoszenie pod adresem:<br>
+    <a href="{$track}" style="color:#1e40af">{$track}</a>
+  </p>
   <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
     {$org} · Helpdesk IT · odpowiedź zostanie wysłana na ten adres
   </p>

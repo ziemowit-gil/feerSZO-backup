@@ -101,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_new_ticket'])) {
                 $title_h = h($title);
                 $name_h  = h($req_name ?: ($u['name'] ?? ''));
                 $url     = APP_URL . '/panel/helpdesk.php#ticket-' . $ticket_id;
+                $track   = h(hd_track_url(['id' => $ticket_id, 'access_token' => '']));
                 $cat_h   = h(HD_CATEGORIES[$category] ?? $category);
                 $pri_h   = h(HD_PRIORITIES[$priority]['label'] ?? $priority);
                 $desc_h  = nl2br(h($description));
@@ -121,6 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_new_ticket'])) {
   <a href="{$url}" style="background:#1e40af;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600;margin-top:12px">
     Sprawdź status →
   </a>
+  <p style="font-size:.85em;color:#6c757d;margin-top:14px">
+    Bez logowania możesz śledzić i kontynuować zgłoszenie tutaj:<br>
+    <a href="{$track}" style="color:#1e40af">{$track}</a>
+  </p>
 </div></body></html>
 HTML
                 );

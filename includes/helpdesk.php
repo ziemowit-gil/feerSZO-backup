@@ -4,11 +4,12 @@
  */
 
 const HD_STATUSES = [
-    'nowe'       => ['label' => 'Nowe',       'class' => 'primary',   'icon' => 'bi-inbox-fill',       'text' => 'primary'],
-    'otwarte'    => ['label' => 'Otwarte',    'class' => 'warning',   'icon' => 'bi-folder2-open',     'text' => 'dark'],
-    'oczekuje'   => ['label' => 'Oczekuje',   'class' => 'secondary', 'icon' => 'bi-hourglass-split',  'text' => 'white'],
-    'rozwiązane' => ['label' => 'Rozwiązane', 'class' => 'info',      'icon' => 'bi-check-circle-fill','text' => 'dark'],
-    'zamknięte'  => ['label' => 'Zamknięte',  'class' => 'success',   'icon' => 'bi-lock-fill',        'text' => 'white'],
+    'nowe'            => ['label' => 'Nowe',                            'class' => 'primary',   'icon' => 'bi-inbox-fill',         'text' => 'primary'],
+    'otwarte'         => ['label' => 'Otwarte',                         'class' => 'warning',   'icon' => 'bi-folder2-open',       'text' => 'dark'],
+    'oczekuje'        => ['label' => 'Oczekuje',                        'class' => 'secondary', 'icon' => 'bi-hourglass-split',    'text' => 'white'],
+    'przekazane_zewn' => ['label' => 'Przekazano do firmy zewnętrznej', 'class' => 'dark',      'icon' => 'bi-box-arrow-up-right', 'text' => 'white'],
+    'rozwiązane'      => ['label' => 'Rozwiązane',                      'class' => 'info',      'icon' => 'bi-check-circle-fill',  'text' => 'dark'],
+    'zamknięte'       => ['label' => 'Zamknięte',                       'class' => 'success',   'icon' => 'bi-lock-fill',          'text' => 'white'],
 ];
 
 const HD_CATEGORIES = [
@@ -86,6 +87,18 @@ function helpdesk_migrate(): void {
 
     try { $pdo->exec("ALTER TABLE users ADD COLUMN helpdesk_operator INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
+    // Samonaprawa schematu — kolumny dla przekazania do firmy zewnętrznej
+    // oraz token publicznego mikropanelu podglądu/odpowiedzi.
+    foreach ([
+        "ALTER TABLE helpdesk_tickets ADD COLUMN ext_vendor    TEXT",
+        "ALTER TABLE helpdesk_tickets ADD COLUMN ext_ref       TEXT",
+        "ALTER TABLE helpdesk_tickets ADD COLUMN ext_reason    TEXT",
+        "ALTER TABLE helpdesk_tickets ADD COLUMN ext_handed_at DATETIME",
+        "ALTER TABLE helpdesk_tickets ADD COLUMN access_token  TEXT",
+    ] as $sql) { try { $pdo->exec($sql); } catch (\Throwable $e) {} }
+    // SQLite dopuszcza wiele NULL w UNIQUE — token unikalny tylko dla wypełnionych.
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)"); } catch (\Throwable $e) {}
+
     try {
         $s = db_one("SELECT id FROM settings WHERE key_='helpdesk_enabled'");
         if (!$s) $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['helpdesk_enabled', '1']);
@@ -110,6 +123,21 @@ function hd_can_view_ticket(array $ticket): bool {
     if (!$u) return false;
     if (hd_is_operator()) return true;
     return (int)($ticket['requester_id'] ?? 0) === (int)$u['id'];
+}
+
+// ── Publiczny mikropanel (dostęp po tokenie, bez logowania) ────────────────────
+
+/** Zwraca (tworząc w razie potrzeby) token publicznego podglądu zgłoszenia. */
+function hd_ticket_token(array $ticket): string {
+    if (!empty($ticket['access_token'])) return (string)$ticket['access_token'];
+    $tok = bin2hex(random_bytes(16));
+    try { db_update('helpdesk_tickets', ['access_token' => $tok], (int)$ticket['id']); } catch (\Throwable $e) {}
+    return $tok;
+}
+
+/** Pełny URL do mikropanelu podglądu/odpowiedzi (link dołączany do maili do zgłaszającego). */
+function hd_track_url(array $ticket): string {
+    return APP_URL . '/helpdesk/track.php?t=' . hd_ticket_token($ticket);
 }
 
 // ── Generowanie numeru ────────────────────────────────────────────────────────
@@ -145,19 +173,20 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
     $old_label = HD_STATUSES[$old_status]['label'] ?? $old_status;
     $new_label = HD_STATUSES[$new_status]['label'] ?? $new_status;
     $org       = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $url       = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $view_url  = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $track_url = hd_track_url($ticket);   // link bez logowania — umożliwia kontynuację
     $num       = $ticket['number'];
 
-    // SMS
+    // SMS — zgłaszający dostaje link do mikropanelu
     if (!empty($ticket['requester_phone'])) {
         try {
             require_once dirname(__DIR__) . '/includes/sms.php';
-            $sms = "[{$org}] Zgłoszenie {$num} – status: {$old_label} → {$new_label}. Szczegóły: {$url}";
+            $sms = "[{$org}] Zgłoszenie {$num} – status: {$old_label} → {$new_label}. Szczegóły: {$track_url}";
             sms_send($ticket['requester_phone'], $sms);
         } catch (\Throwable $e) {}
     }
 
-    // E-mail
+    // E-mail do zgłaszającego — CTA prowadzi do mikropanelu (podgląd + odpowiedź)
     $email = $ticket['requester_email'] ?? '';
     if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         try {
@@ -165,12 +194,12 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
             mail_queue_add(
                 $email, $ticket['requester_name'],
                 "[{$num}] Zmiana statusu zgłoszenia: {$new_label}",
-                _hd_email_status($ticket, $old_label, $new_label, $note, $org, $url)
+                _hd_email_status($ticket, $old_label, $new_label, $note, $org, $track_url)
             );
         } catch (\Throwable $e) {}
     }
 
-    // Powiadom przypisanego operatora (jeśli zmiana istotna)
+    // Powiadom przypisanego operatora — link do panelu wewnętrznego
     if (!empty($ticket['assigned_to'])) {
         try {
             $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
@@ -179,7 +208,7 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
                 mail_queue_add(
                     $op['email'], $op['name'] ?? '',
                     "[{$num}] Status: {$new_label} — {$ticket['title']}",
-                    _hd_email_status($ticket, $old_label, $new_label, $note, $org, $url)
+                    _hd_email_status($ticket, $old_label, $new_label, $note, $org, $view_url)
                 );
             }
         } catch (\Throwable $e) {}
@@ -188,14 +217,15 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
 
 function hd_notify_new_message(array $ticket, array $message): void {
     if ($message['is_internal']) return;
-    $org = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $url = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
-    $num = $ticket['number'];
+    $org       = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
+    $view_url  = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $track_url = hd_track_url($ticket);   // link bez logowania — umożliwia kontynuację
+    $num       = $ticket['number'];
 
     $msg_uid = (int)($message['user_id'] ?? 0);
     $req_uid = (int)($ticket['requester_id'] ?? 0);
 
-    // Wiadomość od operatora → powiadom zgłaszającego
+    // Wiadomość od operatora → powiadom zgłaszającego (link do mikropanelu)
     if ($msg_uid !== $req_uid && !empty($ticket['requester_email'])) {
         $email = $ticket['requester_email'];
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -204,7 +234,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
                 mail_queue_add(
                     $email, $ticket['requester_name'],
                     "[{$num}] Nowa odpowiedź na zgłoszenie",
-                    _hd_email_message($ticket, $message, $org, $url, false)
+                    _hd_email_message($ticket, $message, $org, $track_url, false)
                 );
             } catch (\Throwable $e) {}
         }
@@ -213,12 +243,12 @@ function hd_notify_new_message(array $ticket, array $message): void {
             try {
                 require_once dirname(__DIR__) . '/includes/sms.php';
                 sms_send($ticket['requester_phone'],
-                    "[{$org}] Zgłoszenie {$num}: nowa odpowiedź od operatora. Sprawdź: {$url}");
+                    "[{$org}] Zgłoszenie {$num}: nowa odpowiedź od operatora. Sprawdź: {$track_url}");
             } catch (\Throwable $e) {}
         }
     }
 
-    // Wiadomość od zgłaszającego → powiadom przypisanego operatora
+    // Wiadomość od zgłaszającego → powiadom przypisanego operatora (panel wewnętrzny)
     if ($msg_uid === $req_uid && !empty($ticket['assigned_to'])) {
         try {
             $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
@@ -227,7 +257,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
                 mail_queue_add(
                     $op['email'], $op['name'] ?? '',
                     "[{$num}] Odpowiedź użytkownika: {$ticket['title']}",
-                    _hd_email_message($ticket, $message, $org, $url, true)
+                    _hd_email_message($ticket, $message, $org, $view_url, true)
                 );
             }
         } catch (\Throwable $e) {}

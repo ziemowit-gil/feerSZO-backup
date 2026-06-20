@@ -34,6 +34,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status']) && $is
         $extra = [];
         if ($new_status === 'rozwiązane') $extra['resolved_at'] = date('Y-m-d H:i:s');
         if ($new_status === 'zamknięte')  $extra['closed_at']   = date('Y-m-d H:i:s');
+        if ($new_status === 'przekazane_zewn') {
+            $ext_vendor = trim($_POST['ext_vendor'] ?? '');
+            $ext_ref    = trim($_POST['ext_ref'] ?? '');
+            $ext_reason = trim($_POST['ext_reason'] ?? '');
+            $extra['ext_vendor']    = $ext_vendor;
+            $extra['ext_ref']       = $ext_ref;
+            $extra['ext_reason']    = $ext_reason;
+            $extra['ext_handed_at'] = date('Y-m-d H:i:s');
+            // Powód przekazania trafia też do notatki/powiadomienia, jeśli nie podano osobnej.
+            if ($note === '') {
+                $note = trim(($ext_vendor !== '' ? "Firma: {$ext_vendor}\n" : '')
+                           . ($ext_ref    !== '' ? "Nr zgłoszenia u firmy: {$ext_ref}\n" : '')
+                           . ($ext_reason !== '' ? "Powód: {$ext_reason}" : ''));
+            }
+        }
         db_update('helpdesk_tickets', array_merge(['status' => $new_status, 'updated_at' => date('Y-m-d H:i:s')], $extra), $id);
         if ($note) {
             db_insert('helpdesk_messages', [
@@ -303,7 +318,8 @@ include dirname(__DIR__) . '/includes/header.php';
         <input type="hidden" name="_set_status" value="1">
         <div class="d-flex flex-column gap-1 mb-2">
           <?php foreach (HD_STATUSES as $k => $s):
-            if ($k === $ticket['status']) continue; ?>
+            if ($k === $ticket['status']) continue;
+            if ($k === 'przekazane_zewn') continue; // ma własny formularz z polami firmy ?>
           <button type="submit" name="status" value="<?= h($k) ?>"
                   class="btn btn-sm btn-outline-<?= $s['class'] ?> text-start py-1">
             <i class="bi <?= $s['icon'] ?> me-1"></i><?= h($s['label']) ?>
@@ -313,6 +329,32 @@ include dirname(__DIR__) . '/includes/header.php';
         <textarea name="status_note" class="form-control form-control-sm mb-1" rows="2"
                   placeholder="Notatka do zmiany (opcjonalnie, wewnętrzna)"></textarea>
       </form>
+
+      <!-- Przekazanie do firmy zewnętrznej (osobny formularz z polami) -->
+      <?php if ($ticket['status'] !== 'przekazane_zewn'): ?>
+      <button class="btn btn-sm btn-dark text-start py-1 w-100 mt-1" type="button"
+              data-bs-toggle="collapse" data-bs-target="#hdExtForm" aria-expanded="false">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Przekaż do firmy zewnętrznej…
+      </button>
+      <div class="collapse mt-2" id="hdExtForm">
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_set_status" value="1">
+          <input type="hidden" name="status" value="przekazane_zewn">
+          <input type="text" name="ext_vendor" class="form-control form-control-sm mb-1"
+                 value="<?= h($ticket['ext_vendor'] ?? '') ?>"
+                 placeholder="Nazwa firmy zewnętrznej *" required>
+          <input type="text" name="ext_ref" class="form-control form-control-sm mb-1"
+                 value="<?= h($ticket['ext_ref'] ?? '') ?>"
+                 placeholder="Nr zgłoszenia u firmy (opcjonalnie)">
+          <textarea name="ext_reason" class="form-control form-control-sm mb-1" rows="2"
+                    placeholder="Powód / opis przekazania"><?= h($ticket['ext_reason'] ?? '') ?></textarea>
+          <button type="submit" class="btn btn-sm btn-dark w-100">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Oznacz jako przekazane
+          </button>
+        </form>
+      </div>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -360,6 +402,49 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </form>
       <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Firma zewnętrzna (gdy przekazano) -->
+  <?php if ($ticket['status'] === 'przekazane_zewn' || !empty($ticket['ext_vendor'])): ?>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold text-bg-dark" style="font-size:.85rem">
+      <i class="bi bi-box-arrow-up-right me-1"></i>Firma zewnętrzna
+    </div>
+    <div class="card-body small">
+      <div class="mb-1"><span class="text-muted">Firma:</span> <strong><?= h($ticket['ext_vendor'] ?: '—') ?></strong></div>
+      <?php if (!empty($ticket['ext_ref'])): ?>
+      <div class="mb-1"><span class="text-muted">Nr zgłoszenia u firmy:</span> <span class="font-monospace"><?= h($ticket['ext_ref']) ?></span></div>
+      <?php endif; ?>
+      <?php if (!empty($ticket['ext_handed_at'])): ?>
+      <div class="mb-1"><span class="text-muted">Przekazano:</span> <?= date('d.m.Y H:i', strtotime($ticket['ext_handed_at'])) ?></div>
+      <?php endif; ?>
+      <?php if (!empty($ticket['ext_reason'])): ?>
+      <div class="mt-2 p-2 rounded" style="background:#f8f9fa;white-space:pre-wrap"><?= nl2br(h($ticket['ext_reason'])) ?></div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Link do mikropanelu (operatorzy) -->
+  <?php if ($is_op): $track = hd_track_url($ticket); ?>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-link-45deg me-1"></i>Link dla zgłaszającego
+    </div>
+    <div class="card-body small">
+      <p class="text-muted mb-2" style="font-size:.78rem">
+        Publiczny podgląd i odpowiedź bez logowania (dołączany do maili do zgłaszającego).
+      </p>
+      <div class="input-group input-group-sm">
+        <input type="text" class="form-control font-monospace" style="font-size:.72rem"
+               value="<?= h($track) ?>" id="hdTrackUrl" readonly onclick="this.select()">
+        <button class="btn btn-outline-secondary" type="button"
+                onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('hdTrackUrl').value);this.innerHTML='<i class=\'bi bi-check2\'></i>'">
+          <i class="bi bi-clipboard"></i>
+        </button>
+      </div>
     </div>
   </div>
   <?php endif; ?>
