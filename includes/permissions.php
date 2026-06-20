@@ -72,6 +72,20 @@ function _permissions_init(): void {
         UNIQUE(role_id, module)
     )");
 
+    // Uprawnienia przyznane indywidualnie użytkownikowi — DODATKOWO ponad rolę.
+    // Efektywny dostęp = uprawnienia roli ∪ uprawnienia użytkownika (suma).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_permissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        module TEXT NOT NULL,
+        can_read INTEGER NOT NULL DEFAULT 0,
+        can_write INTEGER NOT NULL DEFAULT 0,
+        can_delete INTEGER NOT NULL DEFAULT 0,
+        granted_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, module)
+    )");
+
     // Seed default roles if table is empty
     $count = (int)$pdo->query("SELECT COUNT(*) FROM roles")->fetchColumn();
     if ($count === 0) {
@@ -198,7 +212,52 @@ function role_permissions(string $role_name): array {
     return $cache[$role_name] = $map;
 }
 
+// ── Indywidualne uprawnienia użytkownika (dodatkowe moduły ponad rolę) ─────────
+
+/** Mapa modułów przyznanych konkretnemu użytkownikowi: module => wiersz. */
+function user_permissions(int $user_id): array {
+    _permissions_init();
+    static $cache = [];
+    if ($user_id <= 0) return [];
+    if (isset($cache[$user_id])) return $cache[$user_id];
+    try {
+        $rows = db_all("SELECT * FROM user_permissions WHERE user_id = ?", [$user_id]);
+    } catch (\Throwable $e) {
+        return $cache[$user_id] = [];
+    }
+    $map = [];
+    foreach ($rows as $row) $map[$row['module']] = $row;
+    return $cache[$user_id] = $map;
+}
+
+/** Lista nazw modułów przyznanych użytkownikowi indywidualnie. */
+function user_extra_modules(int $user_id): array {
+    return array_keys(user_permissions($user_id));
+}
+
+/**
+ * Zapisz indywidualne uprawnienie użytkownika do modułu. Gdy wszystkie flagi
+ * fałszywe — usuwa wpis. Pomija nieznane moduły.
+ */
+function user_permission_set(int $user_id, string $module, bool $r, bool $w, bool $d, int $by = 0): void {
+    _permissions_init();
+    if ($user_id <= 0 || !isset(PERMISSION_MODULES[$module])) return;
+    try {
+        if (!$r && !$w && !$d) {
+            db()->prepare("DELETE FROM user_permissions WHERE user_id=? AND module=?")
+                ->execute([$user_id, $module]);
+            return;
+        }
+        db()->prepare(
+            "INSERT OR REPLACE INTO user_permissions
+                (user_id, module, can_read, can_write, can_delete, granted_by, created_at)
+             VALUES (?,?,?,?,?,?,datetime('now'))"
+        )->execute([$user_id, $module, $r ? 1 : 0, $w ? 1 : 0, $d ? 1 : 0, $by ?: null]);
+    } catch (\Throwable $e) {}
+}
+
 // ── Permission check functions ────────────────────────────────────────────────
+// Efektywny dostęp = uprawnienia roli ∪ uprawnienia indywidualne użytkownika.
 
 function can_read(string $module): bool {
     _permissions_init();
@@ -206,7 +265,9 @@ function can_read(string $module): bool {
     if (!$user) return false;
     if ($user['role'] === 'admin') return true;
     $perms = role_permissions($user['role']);
-    return !empty($perms[$module]['can_read']);
+    if (!empty($perms[$module]['can_read'])) return true;
+    $up = user_permissions((int)$user['id']);
+    return !empty($up[$module]['can_read']);
 }
 
 function can_write(string $module): bool {
@@ -215,7 +276,9 @@ function can_write(string $module): bool {
     if (!$user) return false;
     if ($user['role'] === 'admin') return true;
     $perms = role_permissions($user['role']);
-    return !empty($perms[$module]['can_write']);
+    if (!empty($perms[$module]['can_write'])) return true;
+    $up = user_permissions((int)$user['id']);
+    return !empty($up[$module]['can_write']);
 }
 
 function can_delete(string $module): bool {
@@ -224,7 +287,9 @@ function can_delete(string $module): bool {
     if (!$user) return false;
     if ($user['role'] === 'admin') return true;
     $perms = role_permissions($user['role']);
-    return !empty($perms[$module]['can_delete']);
+    if (!empty($perms[$module]['can_delete'])) return true;
+    $up = user_permissions((int)$user['id']);
+    return !empty($up[$module]['can_delete']);
 }
 
 /**

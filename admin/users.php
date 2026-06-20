@@ -291,6 +291,14 @@ try {
     }
 } catch (\Throwable $e) {}
 
+// Liczba dodatkowych modułów przypisanych indywidualnie (ponad rolę)
+$extra_mod_counts = [];
+try {
+    foreach (db_all("SELECT user_id, COUNT(*) AS c FROM user_permissions GROUP BY user_id") as $em) {
+        $extra_mod_counts[(int)$em['user_id']] = (int)$em['c'];
+    }
+} catch (\Throwable $e) {}
+
 // Stats
 $stats = db_one("SELECT
     COUNT(*) AS total,
@@ -578,6 +586,14 @@ include dirname(__DIR__) . '/includes/header.php';
                   <i class="bi bi-palette<?= $has_canva ? '-fill' : '' ?>"></i>
                 </button>
               </form>
+              <?php $extra_n = $extra_mod_counts[(int)$u['id']] ?? 0; ?>
+              <a href="<?= APP_URL ?>/admin/user_modules.php?uid=<?= intval($u['id']) ?>"
+                 class="btn btn-sm position-relative <?= $extra_n ? 'text-white' : 'btn-outline-secondary' ?>"
+                 style="<?= $extra_n ? 'background:#0d9488;border-color:#0d9488' : '' ?>"
+                 title="Dodatkowe moduły (ponad rolę)<?= $extra_n ? " — przypisano: $extra_n" : '' ?>">
+                <i class="bi bi-grid-3x3-gap<?= $extra_n ? '-fill' : '' ?>"></i>
+                <?php if ($extra_n): ?><span class="badge rounded-pill bg-light text-dark position-absolute top-0 start-100 translate-middle" style="font-size:.6rem"><?= $extra_n ?></span><?php endif; ?>
+              </a>
               <button type="button" class="btn btn-sm btn-outline-danger"
                       title="Resetuj / ustaw hasło"
                       data-bs-toggle="modal" data-bs-target="#passModal"
