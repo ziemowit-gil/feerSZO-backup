@@ -10,6 +10,9 @@
  *   certs/app.salt  — losowy salt 64-hex (dostępny przez cert-salt.php)
  *   certs/.htaccess — blokada bezpośredniego HTTP do katalogu
  *
+ * Logika generowania/zapisu jest w includes/app_cert.php (wspólna z
+ * cli/refresh_cert.php — jedno źródło prawdy dla plików app.*).
+ *
  * Użycie:
  *   php cli/generatorCertyfikatu.php [KRS] ["Nazwa organizacji"]
  *   php cli/generatorCertyfikatu.php              # odczyt KRS i nazwy z bazy
@@ -26,6 +29,7 @@ if (php_sapi_name() !== 'cli') {
 // ── Ładowanie konfiguracji ────────────────────────────────────────────────────
 $root = dirname(__DIR__);
 require_once $root . '/config.php';
+require_once $root . '/includes/app_cert.php';
 
 // ── Sprawdzenie OpenSSL ───────────────────────────────────────────────────────
 if (!extension_loaded('openssl')) {
@@ -33,46 +37,28 @@ if (!extension_loaded('openssl')) {
     exit(1);
 }
 
-// ── Katalog certyfikatów ──────────────────────────────────────────────────────
-$certs_dir = $root . '/certs';
-if (!is_dir($certs_dir)) {
-    mkdir($certs_dir, 0755, true);
-    echo "[INFO] Utworzono katalog: {$certs_dir}\n";
-}
-
-// Blokuj bezpośredni dostęp HTTP do katalogu certs/
-$htaccess = $certs_dir . '/.htaccess';
-if (!file_exists($htaccess)) {
-    file_put_contents($htaccess, "Require all denied\n");
-    echo "[INFO] Utworzono: {$htaccess}\n";
-}
-
-$crt_file  = $certs_dir . '/app.crt';
-$key_file  = $certs_dir . '/app.key';
-$sig_file  = $certs_dir . '/app.sig';
-$salt_file = $certs_dir . '/app.salt';
+// ── Katalog certyfikatów (+ .htaccess) ────────────────────────────────────────
+$certs_dir = app_cert_dir();
+$paths     = app_cert_paths();
+$crt_file  = $paths['crt'];
+$key_file  = $paths['key'];
+$sig_file  = $paths['sig'];
+$salt_file = $paths['salt'];
 
 // ── Sprawdzenie --status ──────────────────────────────────────────────────────
 if (in_array('--status', $argv, true)) {
-    if (!file_exists($crt_file)) {
-        echo "[STATUS] Brak certyfikatu ({$crt_file}).\n";
+    $st = app_cert_status();
+    if (!$st) {
+        echo "[STATUS] Brak certyfikatu lub plik nieprawidłowy ({$crt_file}).\n";
         exit(0);
     }
-    $pem    = file_get_contents($crt_file);
-    $parsed = openssl_x509_parse($pem);
-    if (!$parsed) {
-        echo "[STATUS] Plik certyfikatu jest nieprawidłowy.\n";
-        exit(1);
-    }
-    $from      = date('Y-m-d H:i', $parsed['validFrom_time_t']);
-    $to        = date('Y-m-d H:i', $parsed['validTo_time_t']);
-    $days_left = (int)ceil(($parsed['validTo_time_t'] - time()) / 86400);
-    $krs       = preg_replace('/^KRS:/', '', $parsed['subject']['serialNumber'] ?? '—');
-    $cn        = $parsed['subject']['CN'] ?? '—';
+    $from      = date('Y-m-d H:i', $st['valid_from']);
+    $to        = date('Y-m-d H:i', $st['valid_to']);
+    $days_left = $st['days_left'];
 
     echo "┌─ Certyfikat instalacyjny ─────────────────────────────────────────\n";
-    echo "│ KRS:         {$krs}\n";
-    echo "│ Organizacja: {$cn}\n";
+    echo "│ KRS:         " . ($st['krs'] ?: '—') . "\n";
+    echo "│ Organizacja: " . ($st['cn'] ?: '—') . "\n";
     echo "│ Ważny od:    {$from}\n";
     echo "│ Ważny do:    {$to}";
     if ($days_left < 0) {
@@ -82,70 +68,27 @@ if (in_array('--status', $argv, true)) {
     } else {
         echo "  [OK: {$days_left} dni]\n";
     }
-
-    // HMAC check
-    if (file_exists($sig_file)) {
-        $stored  = trim(file_get_contents($sig_file));
-        $expect  = hash_hmac('sha256', $pem, APP_KEY);
-        $hmac_ok = hash_equals($expect, $stored);
-        echo "│ HMAC:        " . ($hmac_ok ? "OK (powiązany z tą instalacją)" : "NIEZGODNY — certyfikat obcy lub APP_KEY zmieniony") . "\n";
-    } else {
-        echo "│ HMAC:        Brak pliku app.sig\n";
-    }
-
-    // Salt
-    if (file_exists($salt_file)) {
-        $salt = trim(file_get_contents($salt_file));
-        echo "│ Salt:        " . substr($salt, 0, 16) . "… (dostępny przez /cert-salt.php)\n";
-    } else {
-        echo "│ Salt:        Brak — wygeneruj certyfikat ponownie\n";
-    }
-
+    echo "│ HMAC:        " . ($st['hmac_ok'] ? "OK (powiązany z tą instalacją)" : "NIEZGODNY / brak app.sig") . "\n";
+    echo "│ Salt:        " . ($st['has_salt'] ? "dostępny (przez /cert-salt.php)" : "brak — wygeneruj ponownie") . "\n";
     echo "└───────────────────────────────────────────────────────────────────\n";
     exit(0);
 }
 
-// ── Odczyt KRS i nazwy ────────────────────────────────────────────────────────
-$arg_krs  = $argv[1] ?? null;
-$arg_name = $argv[2] ?? null;
-
-$krs  = '';
-$name = '';
-
-// Argument z CLI
-if ($arg_krs !== null && $arg_krs !== '') {
-    $krs  = preg_replace('/\D/', '', $arg_krs);
-    $name = $arg_name ?? '';
-}
-
-// Fallback: baza danych
-if ($krs === '' || $name === '') {
+// ── Odczyt KRS i nazwy (argumenty lub baza) ───────────────────────────────────
+if (($argv[1] ?? '') !== '') {
+    echo "[INFO] Pobieranie danych z argumentów...\n";
+} else {
     echo "[INFO] Pobieranie danych z bazy danych...\n";
-    try {
-        require_once $root . '/includes/db.php';
-
-        if ($krs === '') {
-            $row = db_one("SELECT value FROM settings WHERE key_='org_krs'");
-            $krs = preg_replace('/\D/', '', $row['value'] ?? '');
-        }
-        if ($name === '') {
-            $row  = db_one("SELECT value FROM settings WHERE key_='org_name'");
-            $name = trim($row['value'] ?? '');
-        }
-        if ($name === '' && defined('ORG_NAME')) {
-            $name = ORG_NAME;
-        }
-    } catch (\Throwable $e) {
-        fwrite(STDERR, "[BLAD] Nie można odczytać danych z bazy: " . $e->getMessage() . "\n");
-    }
 }
+$id   = app_cert_identity((string)($argv[1] ?? ''), (string)($argv[2] ?? ''));
+$krs  = $id['krs'];
+$name = $id['name'];
 
 if ($krs === '') {
     fwrite(STDERR, "[BLAD] Numer KRS jest wymagany.\n");
     fwrite(STDERR, "Użycie: php cli/generatorCertyfikatu.php <KRS> [\"Nazwa organizacji\"]\n");
     exit(1);
 }
-
 if ($name === '') {
     fwrite(STDERR, "[BLAD] Nazwa organizacji jest wymagana.\n");
     fwrite(STDERR, "Użycie: php cli/generatorCertyfikatu.php <KRS> \"Nazwa organizacji\"\n");
@@ -155,98 +98,26 @@ if ($name === '') {
 echo "[INFO] KRS:         {$krs}\n";
 echo "[INFO] Organizacja: {$name}\n";
 
-// ── Generowanie klucza prywatnego RSA-2048 ────────────────────────────────────
-echo "[INFO] Generowanie klucza RSA-2048...\n";
-$pkey = openssl_pkey_new([
-    'private_key_bits' => 2048,
-    'private_key_type' => OPENSSL_KEYTYPE_RSA,
-    'encrypt_key'      => false,
-]);
-
-if (!$pkey) {
-    fwrite(STDERR, "[BLAD] Generowanie klucza nie powiodło się: " . openssl_error_string() . "\n");
-    exit(1);
-}
-
-// ── Dane podmiotu certyfikatu ─────────────────────────────────────────────────
-$dn = [
-    'C'            => 'PL',
-    'ST'           => 'Polska',
-    'O'            => $name,
-    'OU'           => 'Rejestr Umow',
-    'CN'           => $name,
-    'serialNumber' => 'KRS:' . $krs,
-];
-
-// ── CSR ───────────────────────────────────────────────────────────────────────
-$csr = openssl_csr_new($dn, $pkey, ['digest_alg' => 'sha256']);
-if (!$csr) {
-    fwrite(STDERR, "[BLAD] Tworzenie CSR nie powiodło się: " . openssl_error_string() . "\n");
-    exit(1);
-}
-
-// ── Self-signed certificate (30 dni) ─────────────────────────────────────────
-echo "[INFO] Podpisywanie certyfikatu (30 dni)...\n";
-$cert = openssl_csr_sign($csr, null, $pkey, 30, ['digest_alg' => 'sha256'], (int)(microtime(true) * 1000) & 0x7FFFFFFF);
-if (!$cert) {
-    fwrite(STDERR, "[BLAD] Podpisywanie certyfikatu nie powiodło się: " . openssl_error_string() . "\n");
-    exit(1);
-}
-
-// ── Eksport PEM ───────────────────────────────────────────────────────────────
-$cert_pem = '';
-$key_pem  = '';
-
-openssl_x509_export($cert, $cert_pem);
-openssl_pkey_export($pkey, $key_pem);
-
-if ($cert_pem === '' || $key_pem === '') {
-    fwrite(STDERR, "[BLAD] Eksport PEM nie powiodł się.\n");
-    exit(1);
-}
-
-// ── Zapis plików ──────────────────────────────────────────────────────────────
-// app.crt
-if (file_put_contents($crt_file, $cert_pem) === false) {
-    fwrite(STDERR, "[BLAD] Zapis {$crt_file} nie powiodł się.\n");
+// ── Generowanie (30 dni) przez wspólny helper ─────────────────────────────────
+echo "[INFO] Generowanie certyfikatu (RSA-2048, 30 dni)...\n";
+$res = app_cert_generate($krs, $name, 30);
+if (!$res['ok']) {
+    fwrite(STDERR, "[BLAD] " . $res['msg'] . "\n");
     exit(1);
 }
 echo "[OK]   Zapisano: {$crt_file}\n";
-
-// app.key (chmod 600)
-if (file_put_contents($key_file, $key_pem) === false) {
-    fwrite(STDERR, "[BLAD] Zapis {$key_file} nie powiodł się.\n");
-    exit(1);
-}
-chmod($key_file, 0600);
 echo "[OK]   Zapisano: {$key_file}  (chmod 600)\n";
-
-// app.sig — HMAC(cert_pem, APP_KEY)
-$sig = hash_hmac('sha256', $cert_pem, APP_KEY);
-if (file_put_contents($sig_file, $sig) === false) {
-    fwrite(STDERR, "[BLAD] Zapis {$sig_file} nie powiodł się.\n");
-    exit(1);
-}
 echo "[OK]   Zapisano: {$sig_file}\n";
-
-// app.salt — losowy salt 64-hex (odnawiany razem z certyfikatem)
-$salt = bin2hex(random_bytes(32));
-if (file_put_contents($salt_file, $salt) === false) {
-    fwrite(STDERR, "[BLAD] Zapis {$salt_file} nie powiodł się.\n");
-    exit(1);
-}
-chmod($salt_file, 0640);
 echo "[OK]   Zapisano: {$salt_file}  (dostępny przez /cert-salt.php)\n";
 
 // ── Podsumowanie ──────────────────────────────────────────────────────────────
-$parsed    = openssl_x509_parse($cert_pem);
-$valid_to  = $parsed['validTo_time_t'] ?? 0;
+$valid_to  = $res['valid_to'];
 $days_left = (int)ceil(($valid_to - time()) / 86400);
 
 echo "\n┌─ Certyfikat wygenerowany pomyślnie ──────────────────────────────\n";
 echo "│ KRS:         KRS:{$krs}\n";
 echo "│ Organizacja: {$name}\n";
 echo "│ Ważny do:    " . date('Y-m-d', $valid_to) . " (za {$days_left} dni)\n";
-echo "│ HMAC:        {$sig}\n";
+echo "│ HMAC:        {$res['sig']}\n";
 echo "└──────────────────────────────────────────────────────────────────\n\n";
 echo "[OK] Gotowe. Uruchom ponownie serwer www, jeśli header.php był już załadowany.\n";
