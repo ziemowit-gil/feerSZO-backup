@@ -30,6 +30,30 @@ const PERMISSION_MODULES = [
     'admin'         => 'Administracja',
 ];
 
+/**
+ * Rejestr modułów dla launchera kont zawężonych (crm_only / ezd_only):
+ * moduł uprawnień → punkt wejścia + prefiksy ścieżek (allow-lista require_login)
+ * + prezentacja kafla. Tylko moduły mające samodzielny ekran.
+ */
+const MODULE_REGISTRY = [
+    'crm'           => ['label'=>'CRM',            'url'=>'/crm/dashboard.php',               'paths'=>['/crm/'],          'icon'=>'bi-diagram-2-fill',     'grad'=>'linear-gradient(135deg,#14532D,#16A34A)'],
+    'ezd'           => ['label'=>'Kancelaria EZD', 'url'=>'/ezd/index.php',                   'paths'=>['/ezd/'],          'icon'=>'bi-archive-fill',       'grad'=>'linear-gradient(135deg,#7C2D12,#B45309)'],
+    'umowy'         => ['label'=>'Umowy',          'url'=>'/contracts/wolontariat/list.php',  'paths'=>['/contracts/'],    'icon'=>'bi-file-earmark-text',  'grad'=>'linear-gradient(135deg,#1E3A5F,#1D6EF9)'],
+    'osoby'         => ['label'=>'Strony umów',    'url'=>'/persons/index.php',               'paths'=>['/persons/'],      'icon'=>'bi-people-fill',        'grad'=>'linear-gradient(135deg,#3730A3,#6366F1)'],
+    'granty'        => ['label'=>'Granty',         'url'=>'/grants/index.php',                'paths'=>['/grants/'],       'icon'=>'bi-cash-coin',          'grad'=>'linear-gradient(135deg,#14532D,#15803D)'],
+    'dzialania'     => ['label'=>'Działania',      'url'=>'/strategy/actions/index.php',      'paths'=>['/actions/','/strategy/actions/'], 'icon'=>'bi-lightning-charge-fill', 'grad'=>'linear-gradient(135deg,#155E75,#0891B2)'],
+    'raporty'       => ['label'=>'Raporty',        'url'=>'/reports/index.php',               'paths'=>['/reports/'],      'icon'=>'bi-bar-chart-line-fill','grad'=>'linear-gradient(135deg,#0C4A6E,#0284C7)'],
+    'org'           => ['label'=>'Struktura org.', 'url'=>'/org/index.php',                   'paths'=>['/org/'],          'icon'=>'bi-diagram-3-fill',     'grad'=>'linear-gradient(135deg,#0F766E,#14B8A6)'],
+    'procedury'     => ['label'=>'Procedury',      'url'=>'/procedures/index.php',            'paths'=>['/procedures/'],   'icon'=>'bi-journal-text',       'grad'=>'linear-gradient(135deg,#374151,#6B7280)'],
+    'zadania'       => ['label'=>'Zadania',        'url'=>'/tasks/dashboard.php',             'paths'=>['/tasks/'],        'icon'=>'bi-kanban-fill',        'grad'=>'linear-gradient(135deg,#9A3412,#EA580C)'],
+    'zgloszenia'    => ['label'=>'Zgłoszenia',     'url'=>'/helpdesk/index.php',              'paths'=>['/helpdesk/'],     'icon'=>'bi-ticket-perforated-fill','grad'=>'linear-gradient(135deg,#92400E,#D97706)'],
+    'zaswiadczenia' => ['label'=>'Zaświadczenia',  'url'=>'/certificates/issue.php',          'paths'=>['/certificates/'], 'icon'=>'bi-patch-check-fill',   'grad'=>'linear-gradient(135deg,#5B21B6,#8B5CF6)'],
+    'rozwiazania'   => ['label'=>'Rozwiązania',    'url'=>'/resolutions/index.php',           'paths'=>['/resolutions/'],  'icon'=>'bi-file-earmark-break',  'grad'=>'linear-gradient(135deg,#7F1D1D,#DC2626)'],
+    'wiadomosci'    => ['label'=>'Wiadomości',     'url'=>'/komunikaty/index.php',            'paths'=>['/komunikaty/'],   'icon'=>'bi-chat-dots-fill',     'grad'=>'linear-gradient(135deg,#0E7490,#06B6D4)'],
+    'karty30'       => ['label'=>'Karty 30',       'url'=>'/karty30/index.php',               'paths'=>['/karty30/'],      'icon'=>'bi-card-checklist',     'grad'=>'linear-gradient(135deg,#581C87,#7C3AED)'],
+    'wydarzenia'    => ['label'=>'Wydarzenia',     'url'=>'/events/index.php',                'paths'=>['/events/'],       'icon'=>'bi-calendar-event-fill','grad'=>'linear-gradient(135deg,#9D174D,#EC4899)'],
+];
+
 // Moduły dostępne dla roli crm_only (tylko CRM — bez systemu głównego)
 const CRM_ONLY_MODULES = ['crm'];
 
@@ -233,6 +257,42 @@ function user_permissions(int $user_id): array {
 /** Lista nazw modułów przyznanych użytkownikowi indywidualnie. */
 function user_extra_modules(int $user_id): array {
     return array_keys(user_permissions($user_id));
+}
+
+/** Bazowy moduł konta zawężonego (crm_only → 'crm', ezd_only → 'ezd') lub null. */
+function scoped_base_module(): ?string {
+    if (function_exists('is_crm_only') && is_crm_only()) return 'crm';
+    if (function_exists('is_ezd_only') && is_ezd_only()) return 'ezd';
+    return null;
+}
+
+/**
+ * Moduły do pokazania w launcherze konta zawężonego: bazowy + indywidualnie
+ * przyznane (tylko te z odczytem i obecne w MODULE_REGISTRY). Zwraca klucze.
+ */
+function scoped_launcher_module_keys(int $user_id): array {
+    $base = scoped_base_module();
+    if ($base === null) return [];
+    $keys = [];
+    foreach (user_permissions($user_id) as $mod => $row) {
+        if ($mod === $base) continue;
+        if (!empty($row['can_read']) && isset(MODULE_REGISTRY[$mod])) $keys[] = $mod;
+    }
+    return $keys; // bez bazowego — wołający dokłada bazowy na początek
+}
+
+/**
+ * Prefiksy ścieżek modułów przyznanych użytkownikowi indywidualnie — do
+ * rozszerzenia allow-listy require_login dla kont zawężonych.
+ */
+function user_extra_module_paths(int $user_id): array {
+    $paths = [];
+    foreach (user_permissions($user_id) as $mod => $row) {
+        if (!empty($row['can_read']) && isset(MODULE_REGISTRY[$mod])) {
+            foreach (MODULE_REGISTRY[$mod]['paths'] as $p) $paths[] = $p;
+        }
+    }
+    return array_values(array_unique($paths));
 }
 
 /**

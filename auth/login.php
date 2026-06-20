@@ -99,11 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash_set('warning', 'Administrator zresetował Twoje hasło. Ustaw nowe przed kontynuowaniem.');
                     header('Location: ' . APP_URL . '/panel/password.php?force=1'); exit;
                 }
-                if (($user['role'] ?? '') === 'crm_user') {
-                    header('Location: ' . APP_URL . '/crm/dashboard.php'); exit;
-                }
-                if (($user['role'] ?? '') === 'ezd_user') {
-                    header('Location: ' . APP_URL . '/ezd/index.php'); exit;
+                // Konta zawężone → portal.php zdecyduje: launcher (gdy są
+                // dodatkowe moduły) albo przekierowanie do modułu bazowego.
+                if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
+                    header('Location: ' . APP_URL . '/portal.php'); exit;
                 }
                 header('Location: ' . $redirect); exit;
             }

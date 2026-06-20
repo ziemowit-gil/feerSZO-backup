@@ -11,7 +11,6 @@ require_login();
 
 if (defined('CRM_STANDALONE') && CRM_STANDALONE) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 if (($_SESSION['user']['portal_scope'] ?? '') === 'tasks_only') { header('Location: ' . APP_URL . '/tasks/inbox.php'); exit; }
-if (($_SESSION['user']['portal_scope'] ?? '') === 'crm_only') { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 if (is_viewer()) {
     // Standalone volunteer (bez umowy) → tablica zadań, nie panel umów
     try {
@@ -22,7 +21,22 @@ if (is_viewer()) {
     } catch (\Throwable $e) {}
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
-if (is_crm_only()) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
+// Konta zawężone (crm_only / ezd_only): jeśli przyznano dodatkowe moduły ponad
+// rolę — pokaż launcher z modułem bazowym + dodatkowymi; w przeciwnym razie
+// przekieruj do modułu bazowego (zachowanie jak dotychczas).
+require_once __DIR__ . '/includes/permissions.php';
+$__base = scoped_base_module();
+if ($__base !== null) {
+    $__uid = (int)current_user()['id'];
+    $__extra = scoped_launcher_module_keys($__uid);
+    if (!$__extra) {
+        header('Location: ' . APP_URL . ($__base === 'crm' ? '/crm/dashboard.php' : '/ezd/index.php'));
+        exit;
+    }
+    $__launch_keys = array_merge([$__base], $__extra);
+    include __DIR__ . '/includes/scoped_launcher.php';
+    exit;
+}
 
 $_u   = current_user();
 $_fn  = explode(' ', trim($_u['first_name'] ?? $_u['name'] ?? $_u['email'] ?? 'Użytkowniku'))[0];

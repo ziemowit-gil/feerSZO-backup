@@ -86,11 +86,11 @@ include dirname(__DIR__) . '/includes/header.php';
 <?php endif; ?>
 
 <?php if ($is_scoped): ?>
-<div class="alert alert-warning">
-  <i class="bi bi-exclamation-triangle me-1"></i>
-  Rola tego konta jest <strong>zawężona</strong> (tylko CRM / tylko EZD) — po zalogowaniu użytkownik jest
-  przekierowywany do swojego modułu. Dodatkowe uprawnienia będą działać na poziomie sprawdzeń dostępu,
-  ale moduły mogą nie być widoczne w menu głównym.
+<div class="alert alert-info">
+  <i class="bi bi-info-circle me-1"></i>
+  Rola tego konta jest <strong>zawężona</strong> (tylko CRM / tylko EZD). Po przyznaniu dodatkowych modułów
+  użytkownik po zalogowaniu zobaczy <strong>launcher</strong> z modułem podstawowym i przyznanymi dodatkowo
+  (zamiast bezpośredniego przekierowania). Dostęp do tych modułów zostanie też dopuszczony w ścieżkach.
 </div>
 <?php endif; ?>
 

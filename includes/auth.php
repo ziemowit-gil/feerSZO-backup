@@ -104,6 +104,12 @@ function require_login(): void {
             }
         } catch (\Throwable $e) {}
 
+        // Launcher portalu + moduły przyznane indywidualnie (ponad rolę)
+        $allowed_prefixes[] = '/portal.php';
+        if (function_exists('user_extra_module_paths')) {
+            foreach (user_extra_module_paths((int)current_user()['id']) as $p) $allowed_prefixes[] = $p;
+        }
+
         $is_allowed = false;
         foreach ($allowed_prefixes as $p) {
             if (str_starts_with($rel, $p)) { $is_allowed = true; break; }
@@ -126,6 +132,13 @@ function require_login(): void {
             '/user/first_login_consent',
             '/panel/password', '/panel/2fa', '/panel/profile_edit', '/panel/sessions',
         ];
+
+        // Launcher portalu + moduły przyznane indywidualnie (ponad rolę)
+        $allowed_prefixes[] = '/portal.php';
+        if (function_exists('user_extra_module_paths')) {
+            foreach (user_extra_module_paths((int)current_user()['id']) as $p) $allowed_prefixes[] = $p;
+        }
+
         $is_allowed = false;
         foreach ($allowed_prefixes as $p) {
             if (str_starts_with($rel, $p)) { $is_allowed = true; break; }
