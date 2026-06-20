@@ -160,7 +160,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <th>Kategoria</th>
           <th>Priorytet</th>
           <th>Status</th>
-          <?php if ($is_op): ?><th>Zgłaszający</th><th>Przypisany</th><?php endif; ?>
+          <?php if ($is_op): ?><th>SLA</th><th>Zgłaszający</th><th>Przypisany</th><?php endif; ?>
           <th>Data</th>
         </tr>
       </thead>
@@ -183,6 +183,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <td><?= hd_priority_badge($t['priority']) ?></td>
           <td><?= hd_status_badge($t['status']) ?></td>
           <?php if ($is_op): ?>
+          <td><?= hd_sla_indicator($t) ?></td>
           <td class="text-muted small"><?= h($t['requester_name']) ?></td>
           <td class="small">
             <?= $t['assigned_name']

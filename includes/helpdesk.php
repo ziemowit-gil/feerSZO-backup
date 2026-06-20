@@ -26,11 +26,13 @@ const HD_CATEGORIES = [
     'bug_report'        => 'Zgłoszenie błędu',
 ];
 
+// Priorytety + cele SLA (w minutach): czas reakcji (pierwsza odpowiedź operatora)
+// oraz czas rozwiązania. Liczone w czasie kalendarzowym od utworzenia zgłoszenia.
 const HD_PRIORITIES = [
-    'niski'    => ['label' => 'Niski',     'class' => 'success',   'order' => 1],
-    'normalny' => ['label' => 'Normalny',  'class' => 'secondary', 'order' => 2],
-    'wysoki'   => ['label' => 'Wysoki',    'class' => 'warning',   'order' => 3],
-    'krytyczny'=> ['label' => 'Krytyczny', 'class' => 'danger',    'order' => 4],
+    'niski'    => ['label' => 'Niski',     'class' => 'success',   'order' => 1, 'sla_response' => 1440, 'sla_resolve' => 4320],
+    'normalny' => ['label' => 'Normalny',  'class' => 'secondary', 'order' => 2, 'sla_response' => 480,  'sla_resolve' => 1440],
+    'wysoki'   => ['label' => 'Wysoki',    'class' => 'warning',   'order' => 3, 'sla_response' => 120,  'sla_resolve' => 480],
+    'krytyczny'=> ['label' => 'Krytyczny', 'class' => 'danger',    'order' => 4, 'sla_response' => 30,   'sla_resolve' => 240],
 ];
 
 function helpdesk_migrate(): void {
@@ -95,6 +97,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN ext_reason    TEXT",
         "ALTER TABLE helpdesk_tickets ADD COLUMN ext_handed_at DATETIME",
         "ALTER TABLE helpdesk_tickets ADD COLUMN access_token  TEXT",
+        "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME", // SLA: pierwsza odpowiedź operatora
     ] as $sql) { try { $pdo->exec($sql); } catch (\Throwable $e) {} }
     // SQLite dopuszcza wiele NULL w UNIQUE — token unikalny tylko dla wypełnionych.
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)"); } catch (\Throwable $e) {}
@@ -256,6 +259,111 @@ function hd_priority_badge(string $priority): string {
     $p = HD_PRIORITIES[$priority] ?? ['label' => $priority, 'class' => 'secondary'];
     return '<span class="badge bg-' . $p['class'] . '-subtle border border-' . $p['class']
          . '-subtle text-' . $p['class'] . '-emphasis">' . h($p['label']) . '</span>';
+}
+
+// ── SLA — cele czasowe i śledzenie terminów ───────────────────────────────────
+
+/** Formatuje liczbę sekund jako zwięzły czas, np. "2d 3h", "4h 15m", "12m". */
+function hd_fmt_secs(int $s): string {
+    $s = abs($s);
+    $d = intdiv($s, 86400); $s %= 86400;
+    $h = intdiv($s, 3600);  $s %= 3600;
+    $m = intdiv($s, 60);
+    if ($d > 0) return $d . 'd ' . $h . 'h';
+    if ($h > 0) return $h . 'h ' . $m . 'm';
+    return $m . 'm';
+}
+
+/**
+ * Oblicza stan SLA zgłoszenia dla obu celów: reakcji i rozwiązania.
+ * Zwraca ['response'=>?part, 'resolution'=>?part], gdzie part to:
+ *   ['deadline'=>ts, 'done_at'=>ts|null, 'state'=>'met|breached|paused|due_soon|pending', 'left'=>sek (ujemne=po terminie), 'target_mins'=>int]
+ * Statusy „oczekuje" i „przekazane_zewn" wstrzymują zegar rozwiązania (stan paused).
+ */
+function hd_sla(array $ticket): array {
+    $out = ['response' => null, 'resolution' => null];
+    $pr  = HD_PRIORITIES[$ticket['priority'] ?? ''] ?? null;
+    $created = $ticket['created_at'] ?? null;
+    if (!$pr || !$created) return $out;
+
+    $ct  = strtotime($created);
+    $now = time();
+    $status = (string)($ticket['status'] ?? '');
+    $is_paused = in_array($status, ['oczekuje', 'przekazane_zewn'], true);
+    $is_closed = in_array($status, ['rozwiązane', 'zamknięte'], true);
+
+    $mk = function (int $deadline, ?int $done, bool $paused) use ($now): array {
+        if ($done !== null) {
+            return ['deadline' => $deadline, 'done_at' => $done, 'left' => $deadline - $done,
+                    'state' => $done <= $deadline ? 'met' : 'breached'];
+        }
+        if ($paused) {
+            return ['deadline' => $deadline, 'done_at' => null, 'left' => $deadline - $now, 'state' => 'paused'];
+        }
+        $left = $deadline - $now;
+        if ($left < 0)        $state = 'breached';
+        elseif ($left < 3600) $state = 'due_soon';   // < 1h do terminu
+        else                  $state = 'pending';
+        return ['deadline' => $deadline, 'done_at' => null, 'left' => $left, 'state' => $state];
+    };
+
+    // Reakcja — domknięta przez pierwszą odpowiedź operatora; nie wstrzymywana.
+    if (!empty($pr['sla_response'])) {
+        $dl   = $ct + (int)$pr['sla_response'] * 60;
+        $done = !empty($ticket['first_response_at']) ? strtotime($ticket['first_response_at']) : null;
+        $out['response'] = $mk($dl, $done, false) + ['target_mins' => (int)$pr['sla_response']];
+    }
+    // Rozwiązanie — domknięte przez resolved_at/closed_at; wstrzymywane w stanach oczekiwania.
+    if (!empty($pr['sla_resolve'])) {
+        $dl = $ct + (int)$pr['sla_resolve'] * 60;
+        $done = null;
+        if ($is_closed) {
+            $done = !empty($ticket['resolved_at']) ? strtotime($ticket['resolved_at'])
+                  : (!empty($ticket['closed_at']) ? strtotime($ticket['closed_at']) : $now);
+        }
+        $out['resolution'] = $mk($dl, $done, $is_paused && !$is_closed) + ['target_mins' => (int)$pr['sla_resolve']];
+    }
+    return $out;
+}
+
+/** Mapuje stan SLA na klasę Bootstrap + ikonę + krótki opis. */
+function _hd_sla_meta(array $part): array {
+    return match ($part['state']) {
+        'met'      => ['success',   'bi-check-circle-fill', 'w terminie'],
+        'breached' => ['danger',    'bi-exclamation-octagon-fill', ($part['done_at'] ? 'po terminie o ' : 'przekroczono o ') . hd_fmt_secs((int)$part['left'])],
+        'due_soon' => ['warning',   'bi-alarm-fill', 'pozostało ' . hd_fmt_secs((int)$part['left'])],
+        'paused'   => ['secondary', 'bi-pause-circle-fill', 'wstrzymane'],
+        default    => ['info',      'bi-clock', 'pozostało ' . hd_fmt_secs((int)$part['left'])],
+    };
+}
+
+/** Pełny badge SLA z etykietą celu (np. „Reakcja: w terminie"). */
+function hd_sla_badge(array $part, string $label): string {
+    [$cls, $icon, $txt] = _hd_sla_meta($part);
+    return '<span class="badge bg-' . $cls . '-subtle border border-' . $cls . '-subtle text-' . $cls . '-emphasis">'
+         . '<i class="bi ' . $icon . ' me-1"></i>' . h($label) . ': ' . h($txt) . '</span>';
+}
+
+/**
+ * Zwięzły wskaźnik SLA do listy zgłoszeń — pokazuje najpilniejszy stan
+ * (przekroczone > wkrótce > wstrzymane > w toku) lub „—" gdy SLA domknięte/N/D.
+ */
+function hd_sla_indicator(array $ticket): string {
+    $sla = hd_sla($ticket);
+    $parts = array_filter([$sla['response'] ?? null, $sla['resolution'] ?? null]);
+    if (!$parts) return '<span class="text-muted">—</span>';
+
+    // Jeśli oba domknięte (met/breached z done_at) — pokaż wynik rozwiązania.
+    $open = array_filter($parts, fn($p) => $p['done_at'] === null && $p['state'] !== 'met');
+    $rank = ['breached' => 0, 'due_soon' => 1, 'paused' => 2, 'pending' => 3, 'met' => 4];
+    $pick = null;
+    foreach (($open ?: $parts) as $p) {
+        if ($pick === null || $rank[$p['state']] < $rank[$pick['state']]) $pick = $p;
+    }
+    if (!$pick) return '<span class="text-muted">—</span>';
+    [$cls, $icon, $txt] = _hd_sla_meta($pick);
+    return '<span class="badge bg-' . $cls . '-subtle border border-' . $cls . '-subtle text-' . $cls . '-emphasis text-nowrap" title="' . h($txt) . '">'
+         . '<i class="bi ' . $icon . '"></i> ' . h($txt) . '</span>';
 }
 
 // ── Powiadomienia ─────────────────────────────────────────────────────────────

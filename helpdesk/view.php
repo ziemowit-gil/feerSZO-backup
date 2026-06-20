@@ -143,6 +143,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
         ]);
         db_update('helpdesk_tickets', ['updated_at' => date('Y-m-d H:i:s')], $id);
 
+        // SLA: pierwsza publiczna odpowiedź operatora domyka czas reakcji
+        if ($is_op && !$is_internal && empty($ticket['first_response_at'])) {
+            db_update('helpdesk_tickets', ['first_response_at' => date('Y-m-d H:i:s')], $id);
+        }
+
         // Załączniki do wiadomości
         if (!empty($_FILES['msg_attachments']['name'][0])) {
             $dir = UPLOAD_DIR . 'helpdesk/';
@@ -436,6 +441,44 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
   <?php endif; ?>
+
+  <!-- SLA (operatorzy) -->
+  <?php if ($is_op): $sla = hd_sla($ticket); if ($sla['response'] || $sla['resolution']):
+    $pr_sla = HD_PRIORITIES[$ticket['priority']] ?? []; ?>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold d-flex justify-content-between align-items-center" style="font-size:.85rem">
+      <span><i class="bi bi-speedometer2 me-1"></i>SLA</span>
+      <span class="text-muted fw-normal" style="font-size:.78rem"><?= h(HD_PRIORITIES[$ticket['priority']]['label'] ?? $ticket['priority']) ?></span>
+    </div>
+    <div class="card-body small">
+      <?php if ($sla['response']): ?>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <?= hd_sla_badge($sla['response'], 'Reakcja') ?>
+        <span class="text-muted text-nowrap ms-2" style="font-size:.74rem">
+          do <?= date('d.m H:i', $sla['response']['deadline']) ?>
+        </span>
+      </div>
+      <?php endif; ?>
+      <?php if ($sla['resolution']): ?>
+      <div class="d-flex justify-content-between align-items-center">
+        <?= hd_sla_badge($sla['resolution'], 'Rozwiązanie') ?>
+        <span class="text-muted text-nowrap ms-2" style="font-size:.74rem">
+          do <?= date('d.m H:i', $sla['resolution']['deadline']) ?>
+        </span>
+      </div>
+      <?php endif; ?>
+      <?php if (($sla['resolution']['state'] ?? '') === 'paused'): ?>
+      <div class="text-muted mt-2" style="font-size:.74rem">
+        <i class="bi bi-info-circle me-1"></i>Zegar rozwiązania wstrzymany (oczekiwanie / firma zewnętrzna).
+      </div>
+      <?php endif; ?>
+      <div class="text-muted mt-2" style="font-size:.72rem">
+        Cele: reakcja <?= hd_fmt_secs((int)($pr_sla['sla_response'] ?? 0) * 60) ?>,
+        rozwiązanie <?= hd_fmt_secs((int)($pr_sla['sla_resolve'] ?? 0) * 60) ?>.
+      </div>
+    </div>
+  </div>
+  <?php endif; endif; ?>
 
   <!-- Firma zewnętrzna (gdy przekazano) -->
   <?php if ($ticket['status'] === 'przekazane_zewn' || !empty($ticket['ext_vendor'])): ?>
