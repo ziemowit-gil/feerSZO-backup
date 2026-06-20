@@ -78,9 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status']) && $is
                 $msg .= '. Uwaga: nie udało się wysłać linku (sprawdź adres e-mail).';
             }
         }
+        // Po zmianie na statusy „komunikacyjne" przygotuj gotową publiczną odpowiedź
+        $tpl_for_status = ['przekazane_zewn' => 'przekazane_zewn', 'wymaga_prac' => 'wymaga_prac'];
+        $redir_tpl = $tpl_for_status[$new_status] ?? '';
+        if ($redir_tpl !== '') $msg .= '. Przygotowano szablon odpowiedzi poniżej — sprawdź i wyślij.';
         flash_set('success', $msg);
     }
-    header('Location: view.php?id=' . $id); exit;
+    header('Location: view.php?id=' . $id . (($redir_tpl ?? '') !== '' ? '&tpl=' . $redir_tpl : '')); exit;
 }
 
 // ── Udostępnienie podglądu innej osobie ───────────────────────────────────────
@@ -321,8 +325,15 @@ include dirname(__DIR__) . '/includes/header.php';
           </ul>
         </div>
         <?php endif; ?>
+        <?php
+          $tpl_prefill = '';
+          if ($is_op && isset($_GET['tpl'])) {
+              $rt = $reply_tpls ?? hd_reply_templates($ticket);
+              if (isset($rt[$_GET['tpl']])) $tpl_prefill = $rt[$_GET['tpl']]['body'];
+          }
+        ?>
         <textarea name="msg_body" id="hdMsgBody" class="form-control mb-2" rows="4" required
-                  placeholder="Wpisz odpowiedź…"></textarea>
+                  placeholder="Wpisz odpowiedź…" <?= $tpl_prefill !== '' ? 'autofocus' : '' ?>><?= h($tpl_prefill) ?></textarea>
         <?php if ($is_op): ?>
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" name="is_internal" id="is_internal" value="1">
@@ -469,7 +480,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <?php endif; ?>
       <?php if (($sla['resolution']['state'] ?? '') === 'paused'): ?>
       <div class="text-muted mt-2" style="font-size:.74rem">
-        <i class="bi bi-info-circle me-1"></i>Zegar rozwiązania wstrzymany (oczekiwanie / firma zewnętrzna).
+        <i class="bi bi-info-circle me-1"></i>Zegar rozwiązania wstrzymany (oczekiwanie / firma zewnętrzna / prace programistyczne).
       </div>
       <?php endif; ?>
       <div class="text-muted mt-2" style="font-size:.72rem">

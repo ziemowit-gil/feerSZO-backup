@@ -121,6 +121,16 @@ if ($x509_available) $alt_tabs['x509'] = [
   </button>
 </form>
 
+<!-- ── Problem z logowaniem → zgłoszenie do helpdesku (prefiks LOG) ──────── -->
+<p style="text-align:center;margin:.9rem 0 0">
+  <a href="<?= APP_URL ?>/auth/report_login_issue.php"
+     class="forgot-link" style="font-size:.82rem"
+     aria-label="Zgłoś problem z logowaniem — otwiera formularz weryfikacji tożsamości">
+    <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+    Masz problem z logowaniem? Zgłoś to
+  </a>
+</p>
+
 <?php if (!empty($alt_tabs)): ?>
 <!-- ── Więcej opcji — rozwijane (kod jednorazowy / SMS / X.509) ─────────── -->
 <details class="more-options"<?= in_array($active_tab, ['code','sms','x509'], true) ? ' open' : '' ?>>

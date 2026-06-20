@@ -8,6 +8,7 @@ const HD_STATUSES = [
     'otwarte'         => ['label' => 'Otwarte',                         'class' => 'warning',   'icon' => 'bi-folder2-open',       'text' => 'dark'],
     'oczekuje'        => ['label' => 'Oczekuje',                        'class' => 'secondary', 'icon' => 'bi-hourglass-split',    'text' => 'white'],
     'przekazane_zewn' => ['label' => 'Przekazano do firmy zewnętrznej', 'class' => 'dark',      'icon' => 'bi-box-arrow-up-right', 'text' => 'white'],
+    'wymaga_prac'     => ['label' => 'Wymaga prac programistycznych',   'class' => 'info',      'icon' => 'bi-code-slash',         'text' => 'dark'],
     'rozwiązane'      => ['label' => 'Rozwiązane',                      'class' => 'info',      'icon' => 'bi-check-circle-fill',  'text' => 'dark'],
     'zamknięte'       => ['label' => 'Zamknięte',                       'class' => 'success',   'icon' => 'bi-lock-fill',          'text' => 'white'],
 ];
@@ -223,6 +224,10 @@ function hd_reply_templates(array $ticket): array {
             'label' => 'Przekazano do firmy zewnętrznej',
             'body'  => "{$hello}\n\nUprzejmie informujemy, że zgłoszenie {$num} zostało przekazane do {$firma_txt}, która zajmie się jego dalszą realizacją.{$ref_line}\n\nDalsze aktualizacje będą się pojawiać w tym wątku. W razie pytań prosimy o odpowiedź na tę wiadomość.\n\nPozdrawiam,\n{$sig}",
         ],
+        'wymaga_prac' => [
+            'label' => 'Wymaga prac programistycznych',
+            'body'  => "{$hello}\n\nDziękujemy za zgłoszenie {$num}. Opisana sprawa wymaga prac programistycznych, dlatego nie rozwiążemy jej od razu — zaplanowaliśmy ją do wdrożenia w jednej z najbliższych wersji systemu.\n\nO udostępnieniu zmiany poinformujemy w tym wątku. Dziękujemy za cierpliwość i cenną uwagę.\n\nPozdrawiam,\n{$sig}",
+        ],
         'rozwiazane' => [
             'label' => 'Rozwiązano — prośba o potwierdzenie',
             'body'  => "{$hello}\n\nZgłoszenie {$num} zostało rozwiązane. Prosimy o sprawdzenie i potwierdzenie, czy wszystko działa prawidłowo. Jeśli w ciągu kilku dni nie otrzymamy odpowiedzi, zgłoszenie zostanie automatycznie zamknięte.\n\nPozdrawiam,\n{$sig}",
@@ -289,7 +294,7 @@ function hd_sla(array $ticket): array {
     $ct  = strtotime($created);
     $now = time();
     $status = (string)($ticket['status'] ?? '');
-    $is_paused = in_array($status, ['oczekuje', 'przekazane_zewn'], true);
+    $is_paused = in_array($status, ['oczekuje', 'przekazane_zewn', 'wymaga_prac'], true);
     $is_closed = in_array($status, ['rozwiązane', 'zamknięte'], true);
 
     $mk = function (int $deadline, ?int $done, bool $paused) use ($now): array {
