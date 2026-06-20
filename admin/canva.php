@@ -165,6 +165,9 @@ include dirname(__DIR__) . '/includes/header.php';
     (preset <code>canva</code>, entity&nbsp;ID <code>https://www.canva.com</code>) w
     <a href="<?= APP_URL ?>/admin/saml.php">ustawieniach SAML IdP</a>.
     Na planie Canva Pro zaproszenia wysyłasz ręcznie w panelu Canva i oznaczasz poniżej.
+    <div class="mt-2">
+      <a href="<?= APP_URL ?>/admin/saml_diag.php" class="btn btn-sm btn-outline-primary"><i class="bi bi-shield-lock me-1"></i>Diagnostyka SSO / błędy SAML</a>
+    </div>
   </div>
 </div>
 <?php endif; ?>
