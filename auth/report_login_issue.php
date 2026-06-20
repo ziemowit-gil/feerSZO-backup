@@ -162,6 +162,103 @@ function _li_find(string $name, string $email): ?array {
     return null;
 }
 
+/** Czyści cały stan procesu z sesji. */
+function _li_clear(): void {
+    foreach (['li_step','li_fails','li_found','li_table','li_id','li_keys','li_email','li_name',
+              'li_numer','li_opis','li_phone','li_dob','li_sms','li_sms_code','li_sms_exp','li_sms_fails'] as $k) {
+        unset($_SESSION[$k]);
+    }
+}
+
+/**
+ * Tworzy zgłoszenie helpdesk (prefiks LOG) na podstawie stanu z sesji po
+ * udanej weryfikacji, wysyła powiadomienia i czyści sesję.
+ * $method — opis sposobu weryfikacji do notatki operatora.
+ * Zwraca ['number'=>…, 'track'=>…, 'email'=>…].
+ */
+function _li_finish_ticket(string $method): array {
+    $org   = defined('ORG_NAME') ? ORG_NAME : '';
+    $email = (string)($_SESSION['li_email'] ?? '');
+    $name  = (string)($_SESSION['li_name'] ?? '');
+    $numer = (string)($_SESSION['li_numer'] ?? '');
+    $opis  = (string)($_SESSION['li_opis'] ?? '');
+    $tbl   = (string)($_SESSION['li_table'] ?? '');
+    $typ   = LI_TABLES[$tbl] ?? '';
+    $row   = (isset(LI_TABLES[$tbl]) && !empty($_SESSION['li_id']))
+        ? (db_one("SELECT * FROM {$tbl} WHERE id=?", [(int)$_SESSION['li_id']]) ?: [])
+        : [];
+
+    $number = hd_next_number('LOG');
+    $ticket_id = db_insert('helpdesk_tickets', [
+        'number'          => $number,
+        'title'           => 'Problem z logowaniem — ' . ($name ?: $email),
+        'description'     => $opis,
+        'category'        => 'it_konto',
+        'priority'        => 'wysoki',
+        'status'          => 'nowe',
+        'requester_id'    => null,
+        'requester_name'  => $name ?: 'Zgłaszający',
+        'requester_email' => $email ?: ($row['email'] ?? null),
+        'requester_phone' => $row['telefon'] ?? null,
+        'source'          => 'login_issue',
+    ]);
+    db_insert('helpdesk_messages', [
+        'ticket_id' => $ticket_id, 'user_id' => null,
+        'user_name' => $name ?: 'Zgłaszający', 'body' => $opis, 'is_internal' => 0,
+    ]);
+    db_insert('helpdesk_messages', [
+        'ticket_id' => $ticket_id, 'user_id' => null, 'user_name' => 'System',
+        'body' => "Zgłoszenie z ekranu logowania — tożsamość zweryfikowana ({$method}).\n"
+                . ($numer !== '' ? "Numer umowy: {$numer} " : '') . "(typ: {$typ}). E-mail kontaktowy: {$email}.",
+        'is_internal' => 1,
+    ]);
+
+    $track = hd_track_url(['id' => $ticket_id, 'access_token' => '']);
+
+    if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        try {
+            require_once dirname(__DIR__) . '/includes/mail_queue.php';
+            $num_h = h($number); $name_h = h($name ?: ''); $track_h = h($track); $org_h = h($org);
+            mail_queue_add($email, $name ?: '', "[{$number}] Zgłoszenie problemu z logowaniem przyjęte",
+                <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:#b45309;padding:20px 24px;border-radius:8px 8px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">🔐 Zgłoszenie przyjęte — {$org_h} Helpdesk</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+  <p>Witaj, <strong>{$name_h}</strong>!</p>
+  <p>Przyjęliśmy Twoje zgłoszenie problemu z logowaniem o numerze <strong>{$num_h}</strong>.
+     Zespół wsparcia skontaktuje się z Tobą najszybciej, jak to możliwe.</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{$track_h}" style="background:#b45309;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
+      Podgląd i odpowiedź →
+    </a>
+  </div>
+  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
+    Link umożliwia podgląd i odpowiedź bez logowania. {$org_h} · Helpdesk IT
+  </p>
+</div></body></html>
+HTML
+            );
+        } catch (\Throwable $e) {}
+    }
+    try {
+        require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL");
+        $url_op = APP_URL . '/helpdesk/view.php?id=' . $ticket_id;
+        foreach ($ops as $opx) {
+            if (empty($opx['email'])) continue;
+            mail_queue_add($opx['email'], $opx['name'] ?? '', "[{$number}] Problem z logowaniem: " . ($name ?: $email),
+                '<p><strong style="font-family:monospace">' . h($number) . '</strong> — problem z logowaniem (priorytet: wysoki)</p>'
+                . '<p>' . nl2br(h($opis)) . '</p>'
+                . '<p><a href="' . h($url_op) . '">Otwórz zgłoszenie →</a></p>');
+        }
+    } catch (\Throwable $e) {}
+
+    _li_clear();
+    return ['number' => $number, 'track' => $track, 'email' => $email];
+}
+
 // ── Stan ────────────────────────────────────────────────────────────────────────
 $step    = (int)($_SESSION['li_step'] ?? 1);
 $fails   = (int)($_SESSION['li_fails'] ?? 0);
@@ -175,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? '';
 
     if ($action === 'restart') {
-        foreach (['li_step','li_fails','li_found','li_table','li_id','li_keys','li_email','li_name','li_numer','li_opis'] as $k) unset($_SESSION[$k]);
+        _li_clear();
         header('Location: ' . APP_URL . '/auth/report_login_issue.php'); exit;
     }
 
@@ -210,6 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['li_name']  = $found ? (string)($rec['row']['imie_nazwisko'] ?? $name) : $name;
                 $_SESSION['li_numer'] = $found ? (string)($rec['row']['numer_umowy'] ?? '') : '';
                 $_SESSION['li_dob']   = $found && !empty($rec['row']['data_urodzenia']); // dostępny fallback dla PESEL
+                $_SESSION['li_phone'] = $found ? trim((string)($rec['row']['telefon'] ?? '')) : ''; // do weryfikacji SMS
                 $_SESSION['li_opis']  = $opis;
                 $step = 2;
                 $info = 'Potwierdź tożsamość, podając poniższe dane z Twojej umowy.';
@@ -241,96 +339,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($ok) {
-            // ── Utwórz zgłoszenie helpdesk z prefiksem LOG ────────────────────
-            $email = (string)($_SESSION['li_email'] ?? '');
-            $name  = (string)($_SESSION['li_name'] ?? '');
-            $numer = (string)($_SESSION['li_numer'] ?? '');
-            $opis  = (string)($_SESSION['li_opis'] ?? '');
-            $row   = $row ?? [];
-            $typ   = LI_TABLES[$tbl] ?? '';
-
-            $number = hd_next_number('LOG');
-            $ticket_id = db_insert('helpdesk_tickets', [
-                'number'          => $number,
-                'title'           => 'Problem z logowaniem — ' . ($name ?: $email),
-                'description'     => $opis,
-                'category'        => 'it_konto',
-                'priority'        => 'wysoki',
-                'status'          => 'nowe',
-                'requester_id'    => null,
-                'requester_name'  => $name ?: 'Zgłaszający',
-                'requester_email' => $email ?: ($row['email'] ?? null),
-                'requester_phone' => $row['telefon'] ?? null,
-                'source'          => 'login_issue',
-            ]);
-            // Publiczna treść = opis problemu
-            db_insert('helpdesk_messages', [
-                'ticket_id' => $ticket_id, 'user_id' => null,
-                'user_name' => $name ?: 'Zgłaszający', 'body' => $opis, 'is_internal' => 0,
-            ]);
-            // Notatka wewnętrzna z danymi identyfikacyjnymi (dane wrażliwe — tylko operatorzy)
-            db_insert('helpdesk_messages', [
-                'ticket_id' => $ticket_id, 'user_id' => null, 'user_name' => 'System',
-                'body' => "Zgłoszenie z ekranu logowania — tożsamość zweryfikowana danymi z kartoteki.\n"
-                        . ($numer !== '' ? "Numer umowy: {$numer} " : '') . "(typ: {$typ}). E-mail kontaktowy: {$email}.",
-                'is_internal' => 1,
-            ]);
-
-            $track = hd_track_url(['id' => $ticket_id, 'access_token' => '']);
-
-            // Potwierdzenie e-mail do zgłaszającego (z linkiem do mikropanelu)
-            if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                try {
-                    require_once dirname(__DIR__) . '/includes/mail_queue.php';
-                    $num_h = h($number); $name_h = h($name ?: ''); $track_h = h($track); $org_h = h($org);
-                    mail_queue_add($email, $name ?: '', "[{$number}] Zgłoszenie problemu z logowaniem przyjęte",
-                        <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#b45309;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🔐 Zgłoszenie przyjęte — {$org_h} Helpdesk</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Witaj, <strong>{$name_h}</strong>!</p>
-  <p>Przyjęliśmy Twoje zgłoszenie problemu z logowaniem o numerze <strong>{$num_h}</strong>.
-     Zespół wsparcia skontaktuje się z Tobą najszybciej, jak to możliwe.</p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$track_h}" style="background:#b45309;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Podgląd i odpowiedź →
-    </a>
-  </div>
-  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
-    Link umożliwia podgląd i odpowiedź bez logowania. {$org_h} · Helpdesk IT
-  </p>
-</div></body></html>
-HTML
-                    );
-                } catch (\Throwable $e) {}
-            }
-            // Powiadom operatorów helpdesku
-            try {
-                require_once dirname(__DIR__) . '/includes/mail_queue.php';
-                $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL");
-                $url_op = APP_URL . '/helpdesk/view.php?id=' . $ticket_id;
-                foreach ($ops as $opx) {
-                    if (empty($opx['email'])) continue;
-                    mail_queue_add($opx['email'], $opx['name'] ?? '', "[{$number}] Problem z logowaniem: " . ($name ?: $email),
-                        '<p><strong style="font-family:monospace">' . h($number) . '</strong> — problem z logowaniem (priorytet: wysoki)</p>'
-                        . '<p>' . nl2br(h($opis)) . '</p>'
-                        . '<p><a href="' . h($url_op) . '">Otwórz zgłoszenie →</a></p>');
-                }
-            } catch (\Throwable $e) {}
-
-            foreach (['li_step','li_fails','li_found','li_table','li_id','li_keys','li_email','li_name','li_numer','li_opis'] as $k) unset($_SESSION[$k]);
-            $done = ['number' => $number, 'track' => $track, 'email' => $email];
+            $done = _li_finish_ticket('dane z kartoteki');
             $step = 3;
         } else {
             $fails++;
             $_SESSION['li_fails'] = $fails;
             if ($fails >= 3) {
-                foreach (['li_step','li_fails','li_found','li_table','li_id','li_keys','li_email','li_name','li_numer','li_opis'] as $k) unset($_SESSION[$k]);
+                _li_clear();
                 $step = 1; $error = 'Zbyt wiele błędnych prób. Zacznij od początku.';
             } else { $error = LI_ERR_VERIFY; }
         }
+    }
+
+    // ── KROK 2 (alternatywa): wyślij kod SMS na numer z kartoteki ──────────────
+    elseif ($action === 'sms_send' && $step === 2) {
+        if (!_li_rate_ok()) { $error = LI_ERR_RATE; }
+        else {
+            _li_rate_record();
+            $phone = trim((string)($_SESSION['li_phone'] ?? ''));
+            $code  = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $_SESSION['li_sms']       = 1;
+            $_SESSION['li_sms_code']  = $code;
+            $_SESSION['li_sms_exp']   = time() + 600;   // 10 minut
+            $_SESSION['li_sms_fails'] = 0;
+            // Wyślij tylko gdy rozpoznano osobę i ma numer (anty-enumeracja: komunikat zawsze neutralny)
+            if (!empty($_SESSION['li_found']) && $phone !== '') {
+                try {
+                    require_once dirname(__DIR__) . '/includes/sms.php';
+                    sms_send($phone, "Kod weryfikacyjny zgłoszenia: {$code}. Ważny 10 minut. [{$org}]");
+                } catch (\Throwable $e) {}
+            }
+            $step = 2;
+            $info = 'Jeśli do Twojej umowy przypisany jest numer telefonu, wysłaliśmy na niego 6-cyfrowy kod. Jest ważny 10 minut.';
+        }
+    }
+
+    // ── KROK 2 (alternatywa): weryfikacja kodu SMS ────────────────────────────
+    elseif ($action === 'sms_verify' && $step === 2) {
+        $code_in = preg_replace('/\D/', '', (string)($_POST['sms_code'] ?? ''));
+        $stored  = (string)($_SESSION['li_sms_code'] ?? '');
+        $exp     = (int)($_SESSION['li_sms_exp'] ?? 0);
+        if ($stored !== '' && $exp > time() && hash_equals($stored, $code_in) && !empty($_SESSION['li_found'])) {
+            $done = _li_finish_ticket('kod SMS');
+            $step = 3;
+        } else {
+            $sf = (int)($_SESSION['li_sms_fails'] ?? 0) + 1;
+            $_SESSION['li_sms_fails'] = $sf;
+            if ($sf >= 3) {
+                unset($_SESSION['li_sms'], $_SESSION['li_sms_code'], $_SESSION['li_sms_exp'], $_SESSION['li_sms_fails']);
+                $error = 'Zbyt wiele błędnych kodów. Spróbuj weryfikacji danymi z umowy.';
+            } else {
+                $_SESSION['li_sms'] = 1;
+                $error = 'Kod jest nieprawidłowy lub wygasł.';
+            }
+            $step = 2;
+        }
+    }
+
+    // ── Powrót z trybu SMS do weryfikacji danymi ──────────────────────────────
+    elseif ($action === 'sms_cancel' && $step === 2) {
+        unset($_SESSION['li_sms'], $_SESSION['li_sms_code'], $_SESSION['li_sms_exp'], $_SESSION['li_sms_fails']);
+        $step = 2;
     }
 }
 
@@ -410,8 +479,46 @@ $step_labels = [1 => 'Identyfikacja', 2 => 'Weryfikacja', 3 => 'Gotowe'];
     </div>
   </div>
 
+  <?php elseif ($step === 2 && !empty($_SESSION['li_sms'])): ?>
+  <!-- ── Krok 2 (SMS): weryfikacja kodem ────────────────────────────────── -->
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <h6 class="fw-semibold mb-1">Weryfikacja kodem SMS</h6>
+      <p class="text-muted small mb-3">Wpisz 6-cyfrowy kod wysłany na numer telefonu przypisany do Twojej umowy.</p>
+      <form method="post" novalidate>
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="sms_verify">
+        <div class="mb-3">
+          <label class="form-label fw-semibold small" for="sms_code">Kod SMS (6 cyfr)</label>
+          <input type="text" class="form-control form-control-lg text-center" id="sms_code" name="sms_code"
+                 maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="000000"
+                 autocomplete="one-time-code" required autofocus
+                 style="letter-spacing:.3em;font-weight:600">
+        </div>
+        <div class="d-grid mb-2">
+          <button type="submit" class="btn btn-warning text-white"><i class="bi bi-check-circle me-1"></i>Potwierdź kod i wyślij zgłoszenie</button>
+        </div>
+        <?php if (!empty($_SESSION['li_sms_fails'])): ?>
+        <p class="text-danger small text-center mb-0">Błędny kod (<?= (int)$_SESSION['li_sms_fails'] ?>/3).</p>
+        <?php endif; ?>
+      </form>
+      <div class="text-center mt-2 d-flex justify-content-center gap-3 flex-wrap">
+        <form method="post" style="display:inline">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="sms_send">
+          <button type="submit" class="btn btn-link btn-sm text-muted p-0"><i class="bi bi-arrow-repeat me-1"></i>Wyślij kod ponownie</button>
+        </form>
+        <form method="post" style="display:inline">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="sms_cancel">
+          <button type="submit" class="btn btn-link btn-sm text-muted p-0"><i class="bi bi-list-check me-1"></i>Weryfikuj danymi z umowy</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <?php elseif ($step === 2): ?>
-  <!-- ── Krok 2: weryfikacja losowych danych ────────────────────────────── -->
+  <!-- ── Krok 2: weryfikacja danymi z kartoteki ─────────────────────────── -->
   <div class="card shadow-sm">
     <div class="card-body p-4">
       <h6 class="fw-semibold mb-1">Weryfikacja tożsamości</h6>
@@ -442,6 +549,18 @@ $step_labels = [1 => 'Identyfikacja', 2 => 'Weryfikacja', 3 => 'Gotowe'];
         <p class="text-danger small text-center mb-0">Błędna próba <?= (int)$fails ?>/3.</p>
         <?php endif; ?>
       </form>
+
+      <?php if (!empty($_SESSION['li_phone'])): ?>
+      <div class="text-center mt-3 pt-2 border-top">
+        <div class="text-muted mb-1" style="font-size:.78rem">Nie znasz tych danych?</div>
+        <form method="post" style="display:inline">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="sms_send">
+          <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-phone me-1"></i>Zweryfikuj kodem SMS</button>
+        </form>
+      </div>
+      <?php endif; ?>
+
       <div class="text-center mt-2">
         <form method="post" style="display:inline">
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
