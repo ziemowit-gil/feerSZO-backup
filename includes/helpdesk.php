@@ -187,6 +187,50 @@ HTML
     } catch (\Throwable $e) { return false; }
 }
 
+// ── Szablony odpowiedzi (canned responses) ────────────────────────────────────
+
+/**
+ * Gotowe szablony odpowiedzi operatora, z podstawionymi danymi zgłoszenia.
+ * Zwraca listę: ['key' => ['label' => ..., 'body' => ...], ...].
+ * Używane w formularzu odpowiedzi (helpdesk/view.php) — klik wstawia treść do pola.
+ */
+function hd_reply_templates(array $ticket): array {
+    $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
+    $name  = trim((string)($ticket['requester_name'] ?? ''));
+    $first = $name !== '' ? (preg_split('/\s+/', $name)[0] ?? $name) : '';
+    $hello = $first !== '' ? "Dzień dobry {$first}," : 'Dzień dobry,';
+    $num   = (string)($ticket['number'] ?? '');
+    $firma = trim((string)($ticket['ext_vendor'] ?? ''));
+    $firma_txt = $firma !== '' ? $firma : 'firmy zewnętrznej';
+    $ref   = trim((string)($ticket['ext_ref'] ?? ''));
+    $ref_line = $ref !== '' ? " Numer sprawy nadany przez firmę: {$ref}." : '';
+    $op    = trim((string)($ticket['assigned_name'] ?? ''));
+    $sig   = ($op !== '' ? $op . "\n" : '') . $org . ' · Helpdesk IT';
+
+    return [
+        'przyjete' => [
+            'label' => 'Przyjęto zgłoszenie',
+            'body'  => "{$hello}\n\nDziękujemy za zgłoszenie {$num}. Przyjęliśmy je do realizacji i zajmiemy się nim najszybciej, jak to możliwe. O postępach będziemy informować w tym wątku.\n\nPozdrawiam,\n{$sig}",
+        ],
+        'info' => [
+            'label' => 'Prośba o dodatkowe informacje',
+            'body'  => "{$hello}\n\nAby sprawnie zająć się zgłoszeniem {$num}, prosimy o dodatkowe informacje:\n- \n- \n\nPo otrzymaniu odpowiedzi wrócimy do sprawy. Możesz odpowiedzieć bezpośrednio w tym wątku.\n\nPozdrawiam,\n{$sig}",
+        ],
+        'przekazane_zewn' => [
+            'label' => 'Przekazano do firmy zewnętrznej',
+            'body'  => "{$hello}\n\nUprzejmie informujemy, że zgłoszenie {$num} zostało przekazane do {$firma_txt}, która zajmie się jego dalszą realizacją.{$ref_line}\n\nDalsze aktualizacje będą się pojawiać w tym wątku. W razie pytań prosimy o odpowiedź na tę wiadomość.\n\nPozdrawiam,\n{$sig}",
+        ],
+        'rozwiazane' => [
+            'label' => 'Rozwiązano — prośba o potwierdzenie',
+            'body'  => "{$hello}\n\nZgłoszenie {$num} zostało rozwiązane. Prosimy o sprawdzenie i potwierdzenie, czy wszystko działa prawidłowo. Jeśli w ciągu kilku dni nie otrzymamy odpowiedzi, zgłoszenie zostanie automatycznie zamknięte.\n\nPozdrawiam,\n{$sig}",
+        ],
+        'zamkniete' => [
+            'label' => 'Zamknięcie zgłoszenia',
+            'body'  => "{$hello}\n\nZamykamy zgłoszenie {$num}. Dziękujemy za kontakt — jeśli problem powróci lub pojawią się nowe pytania, prosimy o utworzenie nowego zgłoszenia.\n\nPozdrawiam,\n{$sig}",
+        ],
+    ];
+}
+
 // ── Generowanie numeru ────────────────────────────────────────────────────────
 
 function hd_next_number(string $prefix = 'HD'): string {

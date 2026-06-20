@@ -301,7 +301,22 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="card-body">
       <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <textarea name="msg_body" class="form-control mb-2" rows="4" required
+        <?php if ($is_op): $reply_tpls = hd_reply_templates($ticket); ?>
+        <div class="dropdown mb-2">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-card-text me-1"></i>Wstaw szablon odpowiedzi
+          </button>
+          <ul class="dropdown-menu" style="font-size:.85rem">
+            <?php foreach ($reply_tpls as $tk => $tpl): ?>
+            <li>
+              <button type="button" class="dropdown-item hd-tpl-btn"
+                      data-body="<?= h($tpl['body']) ?>"><?= h($tpl['label']) ?></button>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+        <?php endif; ?>
+        <textarea name="msg_body" id="hdMsgBody" class="form-control mb-2" rows="4" required
                   placeholder="Wpisz odpowiedź…"></textarea>
         <?php if ($is_op): ?>
         <div class="form-check mb-2">
@@ -582,6 +597,20 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
 </div>
+<?php endif; ?>
+
+<?php if ($is_op): ?>
+<script>
+document.querySelectorAll('.hd-tpl-btn').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var ta = document.getElementById('hdMsgBody');
+    if (!ta) return;
+    if (ta.value.trim() !== '' && !confirm('Zastąpić obecną treść wybranym szablonem?')) return;
+    ta.value = this.dataset.body;
+    ta.focus();
+  });
+});
+</script>
 <?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
