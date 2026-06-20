@@ -139,6 +139,13 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
 .pm:hover .pm-cta{background:rgba(255,255,255,.25)}
 .pm-badge{display:inline-flex;align-items:center;gap:.25rem;background:rgba(0,0,0,.25);color:#fff;font-size:.68rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;margin-bottom:.4rem}
 
+/* ── Karta zablokowana (brak dostępu) ──── */
+.pm-locked{cursor:not-allowed}
+.pm-locked .pm-h{filter:grayscale(.85);opacity:.55}
+.pm-locked .pm-f{opacity:.5;filter:grayscale(.7)}
+.pm-locked:hover{transform:none;box-shadow:none}
+.pm-lock{display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,0,0,.42);color:#fff;font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:20px;margin-bottom:.4rem}
+
 .pm-f{background:#fff;border:1px solid #E2E8F0;display:grid;grid-template-columns:1fr 1fr;border-top:none}
 .pm-s{padding:.6rem .85rem;border-right:1px solid #F1F5F9;border-top:1px solid #F1F5F9}
 .pm-s:nth-child(even){border-right:none}
@@ -314,76 +321,67 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
 
     </div>
 
-    <!-- Drugi rząd — moduły dodatkowe -->
+    <!-- Drugi rząd — moduły dodatkowe (wszystkie widoczne; bez dostępu = wyszarzone) -->
     <div class="pg-row2">
 
-      <?php if ($crm_enabled): ?>
-      <a href="<?= APP_URL ?>/crm/dashboard.php" class="pm">
+      <?php
+        // Każdy kafel renderujemy zawsze. Gdy użytkownik nie ma dostępu, kafel jest
+        // wyszarzony, nieklikalny i oznaczony „Brak dostępu".
+        $_lock = '<span class="pm-lock"><i class="bi bi-lock-fill"></i>Brak dostępu</span>';
+      ?>
+
+      <!-- CRM -->
+      <?php $a = $crm_enabled; ?>
+      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/crm/dashboard.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
         <div class="pm-h" style="background:linear-gradient(135deg,#14532D,#16A34A)">
+          <?php if (!$a): echo $_lock; endif; ?>
           <div class="pm-icon"><i class="bi bi-diagram-2-fill"></i></div>
           <div class="pm-title">CRM</div>
           <div class="pm-desc">Kontakty, sprawy, kampanie</div>
-          <div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div>
+          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
         </div>
         <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv"><?= $stats['crm'] ?></div><div class="pm-sl">Kontaktów</div></div>
+          <div class="pm-s"><div class="pm-sv"><?= $a ? $stats['crm'] : '—' ?></div><div class="pm-sl">Kontaktów</div></div>
           <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Otwartych spraw</div></div>
         </div>
-      </a>
-      <?php endif; ?>
+      </<?= $a ? 'a' : 'div' ?>>
 
-      <?php if ($k30_enabled): ?>
-      <a href="<?= APP_URL ?>/karty30/index.php" class="pm">
+      <!-- Karty 30 -->
+      <?php $a = $k30_enabled; ?>
+      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/karty30/index.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
         <div class="pm-h" style="background:linear-gradient(135deg,#581C87,#7C3AED)">
-          <?php if ($k30_today): ?><div class="pm-badge"><i class="bi bi-calendar-check-fill"></i><?= $k30_today ?> wizyt dziś</div><?php endif; ?>
+          <?php if (!$a): echo $_lock; elseif ($k30_today): ?><div class="pm-badge"><i class="bi bi-calendar-check-fill"></i><?= $k30_today ?> wizyt dziś</div><?php endif; ?>
           <div class="pm-icon"><i class="bi bi-card-checklist"></i></div>
           <div class="pm-title">Karty 30</div>
           <div class="pm-desc">Beneficjenci, harmonogram</div>
-          <div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div>
+          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
         </div>
         <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv"><?= $k30_today ?></div><div class="pm-sl">Wizyt dziś</div></div>
+          <div class="pm-s"><div class="pm-sv"><?= $a ? $k30_today : '—' ?></div><div class="pm-sl">Wizyt dziś</div></div>
           <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Beneficjentów</div></div>
         </div>
-      </a>
-      <?php endif; ?>
+      </<?= $a ? 'a' : 'div' ?>>
 
-      <?php if (is_admin()): ?>
-      <a href="<?= APP_URL ?>/admin/index.php" class="pm">
-        <div class="pm-h" style="background:linear-gradient(135deg,#1E293B,#475569)">
-          <div class="pm-icon"><i class="bi bi-shield-shaded"></i></div>
-          <div class="pm-title">Administrator</div>
-          <div class="pm-desc">Ustawienia, użytkownicy, moduły</div>
-          <div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div>
-        </div>
-        <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv" <?= $stats['approvals'] ? 'style="color:#D97706"' : '' ?>><?= $stats['approvals'] ?></div><div class="pm-sl">Do akceptacji</div></div>
-          <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Powiadomień sys.</div></div>
-        </div>
-      </a>
-      <?php endif; ?>
-
-      <?php if ($strategy_enabled): ?>
-      <a href="<?= APP_URL ?>/strategy/index.php" class="pm">
+      <!-- Strategia NGO -->
+      <?php $a = $strategy_enabled; ?>
+      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/strategy/index.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
         <div class="pm-h" style="background:linear-gradient(135deg,#4C1D95,#7C3AED)">
-          <?php if ($strat_at_risk > 0): ?>
-          <div class="pm-badge"><i class="bi bi-exclamation-triangle-fill"></i><?= $strat_at_risk ?> zagrożone</div>
-          <?php endif; ?>
+          <?php if (!$a): echo $_lock; elseif ($strat_at_risk > 0): ?><div class="pm-badge"><i class="bi bi-exclamation-triangle-fill"></i><?= $strat_at_risk ?> zagrożone</div><?php endif; ?>
           <div class="pm-icon"><i class="bi bi-bullseye"></i></div>
           <div class="pm-title">Strategia NGO</div>
           <div class="pm-desc">Cele strategiczne, sfery pożytku, sprawozdawczość</div>
-          <div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div>
+          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
         </div>
         <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv"><?= $strat_active ?></div><div class="pm-sl">Aktywnych celów</div></div>
+          <div class="pm-s"><div class="pm-sv"><?= $a ? $strat_active : '—' ?></div><div class="pm-sl">Aktywnych celów</div></div>
           <div class="pm-s">
-            <div class="pm-sv" <?= $strat_at_risk > 0 ? 'style="color:#DC2626"' : '' ?>><?= $strat_at_risk ?></div>
+            <div class="pm-sv" <?= ($a && $strat_at_risk > 0) ? 'style="color:#DC2626"' : '' ?>><?= $a ? $strat_at_risk : '—' ?></div>
             <div class="pm-sl">Zagrożonych</div>
           </div>
         </div>
-      </a>
-      <?php endif; ?>
+      </<?= $a ? 'a' : 'div' ?>>
 
+      <!-- Katalog -->
       <a href="<?= APP_URL ?>/directory/" class="pm">
         <div class="pm-h" style="background:linear-gradient(135deg,#4338CA,#6366F1)">
           <div class="pm-icon"><i class="bi bi-person-lines-fill"></i></div>
@@ -396,6 +394,22 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
           <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Jednostek</div></div>
         </div>
       </a>
+
+      <!-- Administrator -->
+      <?php $a = is_admin(); ?>
+      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/admin/index.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
+        <div class="pm-h" style="background:linear-gradient(135deg,#1E293B,#475569)">
+          <?php if (!$a): echo $_lock; endif; ?>
+          <div class="pm-icon"><i class="bi bi-shield-shaded"></i></div>
+          <div class="pm-title">Administrator</div>
+          <div class="pm-desc">Ustawienia, użytkownicy, moduły</div>
+          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
+        </div>
+        <div class="pm-f">
+          <div class="pm-s"><div class="pm-sv" <?= ($a && $stats['approvals']) ? 'style="color:#D97706"' : '' ?>><?= $a ? $stats['approvals'] : '—' ?></div><div class="pm-sl">Do akceptacji</div></div>
+          <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Powiadomień sys.</div></div>
+        </div>
+      </<?= $a ? 'a' : 'div' ?>>
 
     </div>
 
