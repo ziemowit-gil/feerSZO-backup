@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/permissions.php';
+require_once dirname(__DIR__) . '/includes/approval.php'; // log_user_action()
 
 require_role('admin');
 
