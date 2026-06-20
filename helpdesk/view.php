@@ -59,9 +59,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status']) && $is
                 'is_internal' => 1,
             ]);
         }
-        $ticket = array_merge($ticket, ['status' => $new_status]);
+        $ticket = array_merge($ticket, ['status' => $new_status], $extra);
         hd_notify_status_change($ticket, $old_status, $new_status, $note);
-        flash_set('success', 'Status zmieniony: ' . (HD_STATUSES[$new_status]['label'] ?? $new_status));
+        $msg = 'Status zmieniony: ' . (HD_STATUSES[$new_status]['label'] ?? $new_status);
+
+        // Opcjonalne udostępnienie podglądu osobie w firmie zewnętrznej
+        if ($new_status === 'przekazane_zewn' && !empty($_POST['share_with_vendor'])) {
+            $se = trim($_POST['share_email'] ?? '');
+            $sn = trim($_POST['share_name'] ?? '');
+            if (hd_share_ticket($ticket, $se, $sn, $extra['ext_reason'] ?? '', $u['name'] ?? '')) {
+                db_insert('helpdesk_messages', [
+                    'ticket_id' => $id, 'user_id' => $uid, 'user_name' => $u['name'] ?? '',
+                    'body' => 'Udostępniono podgląd zgłoszenia: ' . ($sn !== '' ? "{$sn} <{$se}>" : $se),
+                    'is_internal' => 1,
+                ]);
+                $msg .= '. Link wysłano do: ' . $se;
+            } elseif ($se !== '') {
+                $msg .= '. Uwaga: nie udało się wysłać linku (sprawdź adres e-mail).';
+            }
+        }
+        flash_set('success', $msg);
+    }
+    header('Location: view.php?id=' . $id); exit;
+}
+
+// ── Udostępnienie podglądu innej osobie ───────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_share']) && $is_op) {
+    csrf_check();
+    $se = trim($_POST['share_email'] ?? '');
+    $sn = trim($_POST['share_name'] ?? '');
+    $snote = trim($_POST['share_note'] ?? '');
+    if (hd_share_ticket($ticket, $se, $sn, $snote, $u['name'] ?? '')) {
+        db_insert('helpdesk_messages', [
+            'ticket_id' => $id, 'user_id' => $uid, 'user_name' => $u['name'] ?? '',
+            'body' => 'Udostępniono podgląd zgłoszenia: ' . ($sn !== '' ? "{$sn} <{$se}>" : $se),
+            'is_internal' => 1,
+        ]);
+        flash_set('success', 'Link do podglądu wysłano do: ' . $se);
+    } else {
+        flash_set('danger', 'Nie udało się udostępnić — sprawdź adres e-mail.');
     }
     header('Location: view.php?id=' . $id); exit;
 }
@@ -330,31 +366,11 @@ include dirname(__DIR__) . '/includes/header.php';
                   placeholder="Notatka do zmiany (opcjonalnie, wewnętrzna)"></textarea>
       </form>
 
-      <!-- Przekazanie do firmy zewnętrznej (osobny formularz z polami) -->
-      <?php if ($ticket['status'] !== 'przekazane_zewn'): ?>
+      <!-- Przekazanie do firmy zewnętrznej (modal) -->
       <button class="btn btn-sm btn-dark text-start py-1 w-100 mt-1" type="button"
-              data-bs-toggle="collapse" data-bs-target="#hdExtForm" aria-expanded="false">
-        <i class="bi bi-box-arrow-up-right me-1"></i>Przekaż do firmy zewnętrznej…
+              data-bs-toggle="modal" data-bs-target="#hdExtModal">
+        <i class="bi bi-box-arrow-up-right me-1"></i><?= $ticket['status'] === 'przekazane_zewn' ? 'Aktualizuj przekazanie…' : 'Przekaż do firmy zewnętrznej…' ?>
       </button>
-      <div class="collapse mt-2" id="hdExtForm">
-        <form method="post">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_set_status" value="1">
-          <input type="hidden" name="status" value="przekazane_zewn">
-          <input type="text" name="ext_vendor" class="form-control form-control-sm mb-1"
-                 value="<?= h($ticket['ext_vendor'] ?? '') ?>"
-                 placeholder="Nazwa firmy zewnętrznej *" required>
-          <input type="text" name="ext_ref" class="form-control form-control-sm mb-1"
-                 value="<?= h($ticket['ext_ref'] ?? '') ?>"
-                 placeholder="Nr zgłoszenia u firmy (opcjonalnie)">
-          <textarea name="ext_reason" class="form-control form-control-sm mb-1" rows="2"
-                    placeholder="Powód / opis przekazania"><?= h($ticket['ext_reason'] ?? '') ?></textarea>
-          <button type="submit" class="btn btn-sm btn-dark w-100">
-            <i class="bi bi-box-arrow-up-right me-1"></i>Oznacz jako przekazane
-          </button>
-        </form>
-      </div>
-      <?php endif; ?>
     </div>
   </div>
 
@@ -427,17 +443,17 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
   <?php endif; ?>
 
-  <!-- Link do mikropanelu (operatorzy) -->
+  <!-- Udostępnianie mikropanelu (operatorzy) -->
   <?php if ($is_op): $track = hd_track_url($ticket); ?>
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
-      <i class="bi bi-link-45deg me-1"></i>Link dla zgłaszającego
+      <i class="bi bi-share me-1"></i>Udostępnianie podglądu
     </div>
     <div class="card-body small">
       <p class="text-muted mb-2" style="font-size:.78rem">
-        Publiczny podgląd i odpowiedź bez logowania (dołączany do maili do zgłaszającego).
+        Publiczny podgląd i odpowiedź bez logowania. Ten sam link dołączany jest do maili do zgłaszającego.
       </p>
-      <div class="input-group input-group-sm">
+      <div class="input-group input-group-sm mb-3">
         <input type="text" class="form-control font-monospace" style="font-size:.72rem"
                value="<?= h($track) ?>" id="hdTrackUrl" readonly onclick="this.select()">
         <button class="btn btn-outline-secondary" type="button"
@@ -445,6 +461,22 @@ include dirname(__DIR__) . '/includes/header.php';
           <i class="bi bi-clipboard"></i>
         </button>
       </div>
+      <label class="text-muted mb-1" style="font-size:.78rem">
+        <i class="bi bi-person-plus me-1"></i>Udostępnij innej osobie (e-mailem)
+      </label>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_share" value="1">
+        <input type="email" name="share_email" class="form-control form-control-sm mb-1"
+               placeholder="adres e-mail" required>
+        <input type="text" name="share_name" class="form-control form-control-sm mb-1"
+               placeholder="imię i nazwisko (opcjonalnie)">
+        <textarea name="share_note" class="form-control form-control-sm mb-1" rows="2"
+                  placeholder="wiadomość dla odbiorcy (opcjonalnie)"></textarea>
+        <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+          <i class="bi bi-send me-1"></i>Wyślij link do podglądu
+        </button>
+      </form>
     </div>
   </div>
   <?php endif; ?>
@@ -492,5 +524,64 @@ include dirname(__DIR__) . '/includes/header.php';
 
 </div><!-- /col-4 -->
 </div><!-- /row -->
+
+<!-- ── Modal: przekazanie do firmy zewnętrznej ──────────────────────────────── -->
+<?php if ($is_op): ?>
+<div class="modal fade" id="hdExtModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_set_status" value="1">
+        <input type="hidden" name="status" value="przekazane_zewn">
+        <div class="modal-header text-bg-dark py-2">
+          <h5 class="modal-title fs-6"><i class="bi bi-box-arrow-up-right me-1"></i>Przekazanie do firmy zewnętrznej</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Nazwa firmy zewnętrznej <span class="text-danger">*</span></label>
+            <input type="text" name="ext_vendor" class="form-control form-control-sm"
+                   value="<?= h($ticket['ext_vendor'] ?? '') ?>" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Nr zgłoszenia u firmy</label>
+            <input type="text" name="ext_ref" class="form-control form-control-sm"
+                   value="<?= h($ticket['ext_ref'] ?? '') ?>" placeholder="opcjonalnie">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">Powód / opis przekazania</label>
+            <textarea name="ext_reason" class="form-control form-control-sm" rows="3"
+                      placeholder="dlaczego zgłoszenie trafia do firmy zewnętrznej"><?= h($ticket['ext_reason'] ?? '') ?></textarea>
+          </div>
+          <hr class="my-3">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="share_with_vendor" value="1" id="hdShareVendor"
+                   onchange="document.getElementById('hdVendorShare').classList.toggle('d-none', !this.checked)">
+            <label class="form-check-label small" for="hdShareVendor">
+              <i class="bi bi-person-plus me-1"></i>Udostępnij podgląd osobie w firmie (wyślij link e-mailem)
+            </label>
+          </div>
+          <div id="hdVendorShare" class="d-none">
+            <input type="email" name="share_email" class="form-control form-control-sm mb-1"
+                   placeholder="adres e-mail osoby w firmie">
+            <input type="text" name="share_name" class="form-control form-control-sm"
+                   placeholder="imię i nazwisko (opcjonalnie)">
+            <div class="form-text" style="font-size:.75rem">
+              Odbiorca dostanie link do mikropanelu — może podejrzeć zgłoszenie i odpowiadać bez logowania.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-sm btn-dark">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Oznacz jako przekazane
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

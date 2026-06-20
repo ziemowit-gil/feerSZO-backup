@@ -140,6 +140,53 @@ function hd_track_url(array $ticket): string {
     return APP_URL . '/helpdesk/track.php?t=' . hd_ticket_token($ticket);
 }
 
+/**
+ * Udostępnia mikropanel innej osobie niż zgłaszający (np. firmie zewnętrznej).
+ * Wysyła link do podglądu/odpowiedzi e-mailem. Zwraca true, gdy mail dodano do kolejki.
+ */
+function hd_share_ticket(array $ticket, string $email, string $name = '', string $note = '', string $by = ''): bool {
+    $email = trim($email);
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+    $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
+    $url   = hd_track_url($ticket);
+    $num   = h($ticket['number']);
+    $title = h($ticket['title']);
+    $to_h  = h($name ?: $email);
+    $by_h  = $by !== '' ? h($by) : $org;
+    $note_block = trim($note) !== ''
+        ? '<div style="background:#f8f9fa;border-left:3px solid #6c757d;padding:10px 14px;margin:14px 0;border-radius:0 4px 4px 0;font-size:.9em">'
+          . nl2br(h($note)) . '</div>'
+        : '';
+    try {
+        require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        mail_queue_add(
+            $email, $name,
+            "[{$ticket['number']}] Udostępniono Ci zgłoszenie — {$ticket['title']}",
+            <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:#0f172a;padding:20px 24px;border-radius:8px 8px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">🔗 Udostępnione zgłoszenie — {$org} Helpdesk</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+  <p>Witaj, <strong>{$to_h}</strong>!</p>
+  <p><strong>{$by_h}</strong> udostępnił(a) Ci zgłoszenie <strong>{$num}</strong> — <em>{$title}</em>.</p>
+  {$note_block}
+  <p>Poniższy link umożliwia podgląd zgłoszenia oraz dodawanie odpowiedzi <strong>bez logowania</strong>:</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{$url}" style="background:#0f172a;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz zgłoszenie →
+    </a>
+  </div>
+  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
+    Link jest osobisty — nie przekazuj go dalej. {$org} · Helpdesk IT
+  </p>
+</div></body></html>
+HTML
+        );
+        return true;
+    } catch (\Throwable $e) { return false; }
+}
+
 // ── Generowanie numeru ────────────────────────────────────────────────────────
 
 function hd_next_number(string $prefix = 'HD'): string {
