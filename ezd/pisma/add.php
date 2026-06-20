@@ -18,8 +18,10 @@ $PAGE_TITLE = 'Nowe pismo — '.$sprawa['znak_sprawy'];
 $users = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
 $today = date('Y-m-d');
 
+$kierunek_init = $_GET['kierunek'] ?? 'przychodzace';
+if (!array_key_exists($kierunek_init, EZD_KIERUNKI)) $kierunek_init = 'przychodzace';
 $row = [
-    'kierunek'    => 'przychodzace',
+    'kierunek'    => $kierunek_init,
     'title'       => '',
     'tresc'       => '',
     'nadawca'     => '',

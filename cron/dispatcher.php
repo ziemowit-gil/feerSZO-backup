@@ -50,6 +50,11 @@ $AGENTS = [
         'interval' => 86400,
         'schedule' => [8, 10],
     ],
+    'volunteer_account_reminder' => [
+        'file'     => __DIR__ . '/volunteer_account_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [8, 10],      // między 8:00 a 10:00
+    ],
     'zus_reminder' => [
         'file'     => __DIR__ . '/zus_reminder.php',
         'interval' => 86400,        // raz dziennie

@@ -1721,13 +1721,25 @@ function ezd_zalaczniki_by(int $sprawa_id, ?int $pismo_id = null, ?int $umowa_id
     return db_all("SELECT z.*,u.name AS uploader FROM ezd_zalaczniki z LEFT JOIN users u ON u.id=z.uploaded_by WHERE z.sprawa_id=? ORDER BY z.uploaded_at DESC", [$sprawa_id]);
 }
 
-function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null, ?int $grupa_id = null): ?string {
+function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null, ?int $grupa_id = null, ?string $custom_name = null): ?string {
     if (empty($_FILES[$field]['tmp_name'])) return 'Nie wybrano pliku.';
     $f = $_FILES[$field];
     if ($f['error'] !== UPLOAD_ERR_OK) return 'Błąd przesyłania (kod: ' . $f['error'] . ').';
     if ($f['size'] > EZD_MAX_SIZE)     return 'Plik za duży (maks. 25 MB).';
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, EZD_ALLOWED_EXT, true)) return 'Niedozwolony format pliku.';
+
+    // Nazwa wyświetlana — własna (jeśli podano) lub oryginalna nazwa pliku.
+    // Zawsze zachowujemy rzeczywiste rozszerzenie pliku.
+    $orig_name = $f['name'];
+    if ($custom_name !== null && trim($custom_name) !== '') {
+        $cn = str_replace(['/', '\\', "\0"], '', trim($custom_name));
+        $cn = trim(preg_replace('/\s+/', ' ', $cn));
+        if ($cn !== '') {
+            if (strtolower(pathinfo($cn, PATHINFO_EXTENSION)) !== $ext) $cn .= '.' . $ext;
+            $orig_name = mb_substr($cn, 0, 255);
+        }
+    }
 
     $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
@@ -1743,9 +1755,9 @@ function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id 
     db()->prepare(
         "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $grupa_id ?: null, $stored, $f['name'], $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
+    )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $grupa_id ?: null, $stored, $orig_name, $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
 
-    ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $f['name'] . " (v$wersja)");
+    ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $orig_name . " (v$wersja)");
     return null;
 }
 

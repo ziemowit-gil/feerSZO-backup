@@ -75,8 +75,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         $sent = false;
-        if ($wyslij_email && $odbiorca_email) {
-            $new_letter = get_letter($letter_id);
+
+        // Auto-wysyłka zaszyfrowana dla wolontariusza bez aktywnego konta (po 14 dniach).
+        // Ma pierwszeństwo przed zwykłym mailem, by nie wysłać niezaszyfrowanego linku.
+        require_once dirname(dirname(__DIR__)) . '/includes/secure_mail.php';
+        $new_letter = get_letter($letter_id);
+        $enc = $new_letter
+            ? send_encrypted_letter_to_volunteer($type, $cid, $new_letter, $row)
+            : ['sent' => false];
+        if (!empty($enc['sent'])) {
+            db()->prepare("UPDATE contract_letters SET email_sent=1 WHERE id=?")->execute([$letter_id]);
+            $sent = true;
+        } elseif ($wyslij_email && $odbiorca_email) {
             $sent = $new_letter ? letter_send_email($new_letter, $row) : false;
             if ($sent) {
                 db()->prepare("UPDATE contract_letters SET email_sent=1 WHERE id=?")->execute([$letter_id]);
@@ -88,7 +98,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             pdf_queue_add('letter', $letter_id, $tytul, $odbiorca ?: $default_odbiorca, (int)$user['id']);
         }
 
-        flash_set('success', 'Pismo zapisane pomyślnie.');
+        $flash_msg = 'Pismo zapisane pomyślnie.';
+        if (!empty($enc['sent'])) {
+            $flash_msg .= ' Wolontariusz nie ma konta — pismo wysłano automatycznie e-mailem jako '
+                        . 'zaszyfrowany ZIP na ' . h($enc['to']) . ' (hasło: ostatnie ' . SECURE_PESEL_DIGITS . ' cyfr PESEL).';
+        }
+        flash_set('success', $flash_msg);
         header('Location: ' . contract_url($type, $cid));
         exit;
     }

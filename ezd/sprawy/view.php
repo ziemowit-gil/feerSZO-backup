@@ -52,7 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'upload') {
         if (!can_edit()) { http_response_code(403); exit; }
         $grupa_id = (int)($_POST['grupa_id'] ?? 0) ?: null;
-        $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id);
+        $custom_name = trim($_POST['custom_name'] ?? '');
+        $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null);
         flash_set($err ? 'error' : 'success', $err ?: 'Plik dodany do repozytorium sprawy.');
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
@@ -636,6 +637,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <div class="d-flex gap-2 align-items-center flex-wrap">
               <input type="file" name="file" class="form-control form-control-sm" style="max-width:260px"
                      accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.pptx,.png,.jpg,.jpeg,.zip,.txt,.csv,.eml,.msg" required>
+              <input type="text" name="custom_name" class="form-control form-control-sm" style="max-width:240px"
+                     placeholder="Własna nazwa (opcjonalnie)" maxlength="200"
+                     title="Pozostaw puste, aby użyć oryginalnej nazwy pliku. Rozszerzenie zostanie zachowane.">
               <?php if($grupy): ?>
               <select name="grupa_id" class="form-select form-select-sm" style="max-width:200px">
                 <option value="0">— bez grupy —</option>
@@ -727,6 +731,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </a>
         <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>&kierunek=wychodzace" class="btn btn-sm btn-outline-primary w-100 text-start">
           <i class="bi bi-envelope-arrow-up me-2"></i>Dodaj pismo wychodzące
+        </a>
+        <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>&kierunek=wewnetrzne" class="btn btn-sm btn-outline-secondary w-100 text-start">
+          <i class="bi bi-arrow-left-right me-2"></i>Dodaj pismo wewnętrzne
         </a>
         <a href="<?= APP_URL ?>/ezd/umowy/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-warning w-100 text-start">
           <i class="bi bi-file-earmark-plus me-2"></i>Dodaj umowę / aneks

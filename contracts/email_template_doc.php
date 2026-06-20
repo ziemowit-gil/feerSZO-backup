@@ -13,6 +13,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/contract_template_engine.php';
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
+require_once dirname(__DIR__) . '/includes/secure_mail.php';
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 use PhpOffice\PhpWord\PhpWord;
@@ -66,12 +67,11 @@ if (!$to_email || !filter_var($to_email, FILTER_VALIDATE_EMAIL)) {
 }
 $to_name = $row['imie_nazwisko'] ?? $to_email;
 
-// ── Hasło: ostatnie 5 cyfr PESEL ─────────────────────────────────────────────
-$pesel = preg_replace('/\D/', '', $row['pesel'] ?? '');
-if (strlen($pesel) < 5) {
+// ── Hasło: ostatnie cyfry PESEL (SECURE_PESEL_DIGITS) ────────────────────────
+$zip_password = secure_pesel_password($row['pesel'] ?? '');
+if ($zip_password === null) {
     _fail('Brak numeru PESEL w umowie — nie można zaszyfrować dokumentu. Uzupełnij PESEL i spróbuj ponownie.', $return_url, $is_json);
 }
-$zip_password = substr($pesel, -5); // 5 ostatnich cyfr
 
 // ── Org data ──────────────────────────────────────────────────────────────────
 $stored  = org_setting('org_name');
@@ -164,23 +164,12 @@ $docx_path   = $tmp_dir . $docx_name;
 IOFactory::createWriter($phpWord, 'Word2007')->save($docx_path);
 
 // ── Zaszyfruj w ZIP (AES-256) ─────────────────────────────────────────────────
-$zip_name    = 'Dokument_' . $safe_name . '_' . date('Ymd') . '.zip';
-$zip_path    = $tmp_dir . $zip_name;
-
-if (file_exists($zip_path)) @unlink($zip_path);
-
-$zip = new ZipArchive();
-if ($zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-    @unlink($docx_path);
-    _fail('Błąd tworzenia archiwum ZIP.', $return_url, $is_json);
-}
-$zip->addFile($docx_path, $docx_name);
-if (!$zip->setEncryptionIndex(0, ZipArchive::EM_AES_256, $zip_password)) {
-    $zip->close(); @unlink($docx_path); @unlink($zip_path);
+$zip_path = zip_encrypt_file($docx_path, $docx_name, $zip_password);
+@unlink($docx_path); // DOCX już w ZIP — usuń plik tymczasowy
+if (!$zip_path) {
     _fail('Błąd szyfrowania ZIP — sprawdź czy libzip obsługuje AES.', $return_url, $is_json);
 }
-$zip->close();
-@unlink($docx_path); // DOCX już w ZIP — usuń plik tymczasowy
+$zip_name = basename($zip_path);
 
 // ── Wyślij e-mail ─────────────────────────────────────────────────────────────
 $org_short = $org;
