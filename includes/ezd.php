@@ -1638,6 +1638,92 @@ function ezd_corr_sprawa_id(string $direction, int $rok, int $user_id): int {
     return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Dziennik korespondencji '.($direction==='outgoing'?'wychodzącej':'przychodzącej').' '.$rok.' r.', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
 }
 
+// ── Rejestracja pism do wolontariuszy bez umowy w EZD (JRWA WOL) ─────────────
+
+function ezd_vol_jrwa(): string {
+    $s = trim((string)org_setting('vol_corr_ezd_jrwa'));
+    return $s !== '' ? $s : 'WOL';
+}
+
+/** Hasło JRWA wolontariatu — utworzone, jeśli nie istnieje. */
+function _ezd_vol_jrwa_id(): int {
+    $sym = ezd_vol_jrwa();
+    $j = db_one("SELECT id FROM ezd_jrwa WHERE symbol=?", [$sym]);
+    if ($j) return (int)$j['id'];
+    db()->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)")
+        ->execute([$sym, 'Wolontariat', 'B10', 'Sprawy i korespondencja dotycząca wolontariuszy', 200]);
+    return (int)db()->lastInsertId();
+}
+
+/** Teczka roczna „Pisma do wolontariuszy bez umowy {rok}" (utworzona w razie potrzeby). */
+function _ezd_vol_teczka_id(int $rok, int $user_id): int {
+    $jid = _ezd_vol_jrwa_id();
+    $t = db_one("SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1", [$jid, $rok]);
+    if ($t) return (int)$t['id'];
+    return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>ezd_vol_jrwa(), 'title'=>"Pisma do wolontariuszy bez umowy $rok", 'rok'=>$rok, 'owner_id'=>null], $user_id);
+}
+
+/** Sprawa ciągła „Pisma do wolontariuszy bez umowy {rok}" (utworzona w razie potrzeby). */
+function _ezd_vol_sprawa_id(int $rok, int $user_id): int {
+    $tid   = _ezd_vol_teczka_id($rok, $user_id);
+    $title = "Pisma do wolontariuszy bez umowy $rok";
+    $s = db_one("SELECT id FROM ezd_sprawy WHERE teczka_id=? AND title=? LIMIT 1", [$tid, $title]);
+    if ($s) return (int)$s['id'];
+    return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Rejestr pism wysłanych do wolontariuszy bez umowy w '.$rok.' r.', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
+}
+
+/**
+ * Dołącza istniejący plik z dysku jako załącznik EZD — odpowiednik ezd_upload() dla
+ * pliku, który nie pochodzi z $_FILES. Kopiuje plik do katalogu sprawy.
+ * @return int|null id załącznika lub null przy błędzie.
+ */
+function ezd_attach_path(string $srcPath, string $origName, int $sprawa_id, ?int $pismo_id, int $user_id): ?int {
+    if (!is_file($srcPath)) return null;
+    $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION)) ?: 'bin';
+    $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!@copy($srcPath, $dir . $stored)) return null;
+    $size = filesize($dir . $stored) ?: 0;
+    $mime = function_exists('mime_content_type') ? (mime_content_type($dir . $stored) ?: 'application/octet-stream') : 'application/octet-stream';
+    db()->prepare(
+        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$sprawa_id, $pismo_id, null, null, null, $stored, mb_substr($origName, 0, 255), $mime, $size, 1, null, $user_id]);
+    ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'upload', 'Wgrano plik: ' . $origName);
+    return (int)db()->lastInsertId();
+}
+
+/**
+ * Rejestruje pismo wysłane do wolontariusza bez umowy jako pismo EZD (wychodzące)
+ * w sprawie ciągłej pod JRWA WOL; dołącza oryginał dokumentu jako załącznik.
+ * @param array $d ['title','tresc','odbiorca','file_path','file_name']
+ * @return int|null id pisma EZD lub null gdy moduł EZD wyłączony.
+ */
+function ezd_register_volunteer_letter(array $d, int $user_id): ?int {
+    if (!module_enabled('ezd_enabled')) return null;
+    $rok = (int)date('Y');
+    $sprawa_id = _ezd_vol_sprawa_id($rok, $user_id ?: 0);
+    $pid = ezd_pismo_create([
+        'sprawa_id'   => $sprawa_id,
+        'kierunek'    => 'wychodzace',
+        'title'       => trim((string)($d['title'] ?? 'Pismo do wolontariusza')),
+        'tresc'       => (string)($d['tresc'] ?? ''),
+        'nadawca'     => '',
+        'odbiorca'    => trim((string)($d['odbiorca'] ?? '')),
+        'data_pisma'  => date('Y-m-d'),
+        'data_wplywu' => null,
+        'data_wysylki'=> date('Y-m-d'),
+        'status'      => 'zakonczone',
+        'owner_id'    => $user_id ?: null,
+    ], $user_id ?: 0);
+    if (!empty($d['file_path']) && is_file($d['file_path'])) {
+        try { ezd_attach_path($d['file_path'], $d['file_name'] ?? basename($d['file_path']), $sprawa_id, $pid, $user_id ?: 0); }
+        catch (\Throwable $e) {}
+    }
+    return $pid;
+}
+
 // ── Dekretacja ───────────────────────────────────────────────────────────────
 
 function ezd_dekretacje_by_sprawa(int $sprawa_id): array {

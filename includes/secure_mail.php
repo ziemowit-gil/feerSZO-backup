@@ -82,14 +82,39 @@ function volunteer_account_exists(array $contract): bool {
 /**
  * Treść HTML maila informującego o zaszyfrowanym załączniku.
  */
-function secure_doc_email_html(string $to_name, string $doc_title, string $org, int $digits = SECURE_PESEL_DIGITS): string {
+function secure_doc_email_html(
+    string $to_name,
+    string $doc_title,
+    string $org,
+    int $digits = SECURE_PESEL_DIGITS,
+    ?string $pass_instruction = null,
+    ?string $note = null
+): string {
     $to_name   = htmlspecialchars($to_name);
     $doc_title = htmlspecialchars($doc_title);
     $org       = htmlspecialchars($org);
+
+    // Domyślnie hasło = ostatnie cyfry PESEL (Etap 1); można nadpisać (np. „hasło z SMS").
+    $hint = $pass_instruction !== null
+        ? htmlspecialchars($pass_instruction)
+        : "ostatnie {$digits} cyfr Twojego numeru PESEL";
+
+    // Domyślna notka (brak konta); pusty string '' = brak notki.
+    if ($note === null) {
+        $note_html = '<p style="background:#e7f1ff;border:1px solid #b6d4fe;border-radius:6px;padding:12px 16px;font-size:.88em;margin:16px 0">'
+            . '💡 Otrzymujesz pisma e-mailem, bo nie masz jeszcze aktywnego konta w systemie. '
+            . 'Po założeniu konta wszystkie pisma będą dostępne online, bez konieczności podawania hasła.</p>';
+    } elseif ($note === '') {
+        $note_html = '';
+    } else {
+        $note_html = '<p style="background:#e7f1ff;border:1px solid #b6d4fe;border-radius:6px;padding:12px 16px;font-size:.88em;margin:16px 0">'
+            . htmlspecialchars($note) . '</p>';
+    }
+
     return <<<HTML
 <html><body style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
 <div style="background:#1a1a1a;padding:18px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">📄 Pismo do umowy — {$org}</h2>
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">📄 Pismo — {$org}</h2>
 </div>
 <div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
   <p>Witaj, <strong>{$to_name}</strong>!</p>
@@ -98,27 +123,36 @@ function secure_doc_email_html(string $to_name, string $doc_title, string $org, 
   <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:14px 18px;margin:16px 0">
     <p style="margin:0 0 8px;font-weight:700">🔒 Załącznik jest zaszyfrowany</p>
     <p style="margin:0;font-size:.92em">
-      Aby otworzyć plik ZIP, podaj hasło: <strong>ostatnie {$digits} cyfr Twojego numeru PESEL</strong>.
+      Aby otworzyć plik ZIP, podaj hasło: <strong>{$hint}</strong>.
     </p>
   </div>
 
   <div style="background:#f8f9fa;border-radius:6px;padding:12px 16px;margin:16px 0;font-size:.88em">
     <strong>Instrukcja:</strong><br>
     1. Pobierz i otwórz plik ZIP (<code>.zip</code>)<br>
-    2. Gdy pojawi się pytanie o hasło, wpisz <strong>ostatnie {$digits} cyfr swojego PESEL</strong><br>
+    2. Gdy pojawi się pytanie o hasło, wpisz <strong>{$hint}</strong><br>
     3. W środku znajdziesz dokument pisma
   </div>
 
-  <p style="background:#e7f1ff;border:1px solid #b6d4fe;border-radius:6px;padding:12px 16px;font-size:.88em;margin:16px 0">
-    💡 Otrzymujesz pisma e-mailem, bo nie masz jeszcze aktywnego konta w systemie.
-    Po założeniu konta wszystkie pisma będą dostępne online, bez konieczności podawania hasła.
-  </p>
+  {$note_html}
 
   <p style="color:#6c757d;font-size:.84em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
     Wiadomość wysłana automatycznie przez system {$org}. Jeśli masz pytania, skontaktuj się ze swoim opiekunem.
   </p>
 </div></body></html>
 HTML;
+}
+
+/**
+ * Losowe hasło z alfabetu bez znaków mylących (0/O, 1/I/L). Do haseł jednorazowych
+ * przekazywanych SMS-em (pisma do wolontariuszy bez umowy).
+ */
+function secure_random_password(int $len = 8): string {
+    $alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    $max = strlen($alphabet) - 1;
+    $out = '';
+    for ($i = 0; $i < $len; $i++) $out .= $alphabet[random_int(0, $max)];
+    return $out;
 }
 
 /**
@@ -267,4 +301,114 @@ function send_encrypted_letter_to_volunteer(string $type, int $contract_id, arra
     } catch (\Throwable $e) {}
 
     return $r('ok', true, $to_email);
+}
+
+/**
+ * Wysyła pismo do wolontariusza BEZ umowy (konto standalone, users.is_standalone_volunteer=1)
+ * jako zaszyfrowany ZIP, a losowe hasło przekazuje SMS-em. Rejestruje pismo w EZD (JRWA WOL).
+ *
+ * $letter: ['tytul'=>string, 'tresc'=>?string (HTML), 'plik'=>?string (ścieżka względem UPLOAD_DIR)].
+ * Zwraca ['sent'=>bool, 'reason'=>string, 'to'=>email, 'phone'=>masked, 'ezd_pismo_id'=>?int].
+ */
+function send_secure_letter_to_standalone_volunteer(int $user_id, array $letter, int $actor_id): array {
+    require_once __DIR__ . '/sms.php';
+    $r = fn(string $reason, bool $sent = false, array $extra = []) => array_merge(
+        ['sent' => $sent, 'reason' => $reason, 'to' => '', 'phone' => '', 'ezd_pismo_id' => null], $extra
+    );
+
+    $u = db_one("SELECT * FROM users WHERE id = ?", [$user_id]);
+    if (!$u) return $r('no_user');
+    if (empty($u['is_standalone_volunteer'])) return $r('not_standalone');
+    if (empty($u['is_active'])) return $r('inactive');
+
+    // Adresat: opiekun, gdy małoletni i ma dane; inaczej sam wolontariusz.
+    $is_minor = !empty($u['is_minor']);
+    $to_email = ($is_minor && !empty($u['guardian_email'])) ? $u['guardian_email'] : ($u['email'] ?? '');
+    $to_phone = ($is_minor && !empty($u['guardian_phone'])) ? $u['guardian_phone'] : ($u['phone_number'] ?? '');
+    $to_name  = trim((string)($u['first_name'] ?? '') . ' ' . (string)($u['last_name'] ?? '')) ?: ($u['name'] ?? $to_email);
+
+    if (!$to_email || !filter_var($to_email, FILTER_VALIDATE_EMAIL)) return $r('no_email');
+    if (!sms_is_enabled()) return $r('sms_disabled');
+    if (!trim((string)$to_phone)) return $r('no_phone');
+
+    // Źródło: załączony plik albo DOCX z treści.
+    $cleanup = [];
+    $entry_ext = 'pdf';
+    if (!empty($letter['plik'])) {
+        $src = UPLOAD_DIR . $letter['plik'];
+        if (!is_file($src)) return $r('file_missing');
+        $entry_ext = strtolower(pathinfo($letter['plik'], PATHINFO_EXTENSION)) ?: 'pdf';
+    } elseif (!empty($letter['tresc'])) {
+        $src = _secure_letter_docx($letter['tytul'] ?? 'Pismo', $letter['tresc']);
+        if (!$src) return $r('docx_failed');
+        $entry_ext = 'docx';
+        $cleanup[] = $src;
+    } else {
+        return $r('no_content');
+    }
+
+    $doc_title = trim((string)($letter['tytul'] ?? '')) ?: 'Pismo';
+    $safe = preg_replace('/[^A-Za-z0-9_-]/', '_', $doc_title);
+    $entry_name = 'Pismo_' . $safe . '_' . date('Ymd') . '.' . $entry_ext;
+
+    $password = secure_random_password();
+    $zip_path = zip_encrypt_file($src, $entry_name, $password);
+    if (!$zip_path) { foreach ($cleanup as $f) @unlink($f); return $r('zip_failed'); }
+
+    $org = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
+    $phone_masked = '***' . substr(preg_replace('/\D/', '', (string)$to_phone), -3);
+
+    // 1) Najpierw SMS z hasłem — bez tego załącznik jest bezużyteczny.
+    try {
+        sms_send($to_phone, "Haslo do pisma od {$org}: {$password} (jednorazowe, do pliku ZIP).");
+    } catch (\Throwable $e) {
+        foreach ($cleanup as $f) @unlink($f);
+        @unlink($zip_path);
+        return $r('sms_error:' . $e->getMessage());
+    }
+
+    // 2) E-mail z zaszyfrowanym ZIP.
+    $subject   = "Pismo: {$doc_title}" . ($org ? " — {$org}" : '');
+    $body_html = secure_doc_email_html($to_name, $doc_title, $org, SECURE_PESEL_DIGITS,
+        'hasło wysłane SMS-em na Twój telefon ' . $phone_masked,
+        'Hasło do pliku otrzymujesz osobnym SMS-em — ze względów bezpieczeństwa nie podajemy go w tej wiadomości.');
+    $body_text = "Pismo: {$doc_title}\n\nW załączniku zaszyfrowany plik ZIP.\n"
+               . "Hasło wysłaliśmy SMS-em na telefon {$phone_masked}.\n\n{$org}";
+
+    try {
+        mail_queue_add(
+            $to_email, $to_name, $subject, $body_html, $body_text,
+            'standalone_volunteer', $user_id, '', false,
+            [[
+                'path' => 'temp_docs/' . basename($zip_path),
+                'name' => basename($zip_path),
+                'mime' => 'application/zip',
+                'size' => filesize($zip_path),
+            ]]
+        );
+        mail_queue_process(1);
+    } catch (\Throwable $e) {
+        foreach ($cleanup as $f) @unlink($f);
+        @unlink($zip_path);
+        return $r('mail_error:' . $e->getMessage());
+    }
+
+    // 3) Rejestr EZD (oryginał dokumentu jako załącznik) — best-effort.
+    $ezd_pid = null;
+    try {
+        require_once __DIR__ . '/ezd.php';
+        if (function_exists('ezd_register_volunteer_letter')) {
+            $ezd_pid = ezd_register_volunteer_letter([
+                'title'     => $doc_title,
+                'tresc'     => !empty($letter['plik']) ? '' : (string)($letter['tresc'] ?? ''),
+                'odbiorca'  => $to_name . ' <' . $to_email . '>',
+                'file_path' => $src,
+                'file_name' => $entry_name,
+            ], $actor_id);
+        }
+    } catch (\Throwable $e) {}
+
+    foreach ($cleanup as $f) @unlink($f);
+
+    return $r('ok', true, ['to' => $to_email, 'phone' => $phone_masked, 'ezd_pismo_id' => $ezd_pid]);
 }

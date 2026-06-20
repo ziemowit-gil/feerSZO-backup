@@ -105,6 +105,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <a href="<?= APP_URL ?>/ezd/jrwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Wykaz akt (JRWA)</a>
   <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard me-1"></i>Rejestr pełnomocnictw</a>
   <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-award me-1"></i>Rejestr zaświadczeń</a>
+  <a href="<?= APP_URL ?>/ezd/wolontariusze/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-heart me-1"></i>Wolontariusze bez umowy</a>
 </div>
 
 <!-- Statystyki -->

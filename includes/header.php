@@ -528,6 +528,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <a class="sb-link<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php">
     <i class="bi bi-award"></i> Rejestr zaświadczeń
   </a>
+  <a class="sb-link<?= _nav_active('/ezd/wolontariusze/') ?>" href="<?= APP_URL ?>/ezd/wolontariusze/index.php">
+    <i class="bi bi-heart"></i> Wolontariusze bez umowy
+  </a>
   <?php else: ?>
   <div class="sb-label">Kancelaria EZD</div>
   <div class="px-3 py-2 text-muted" style="font-size:.8rem">Moduł EZD jest wyłączony. Skontaktuj się z administratorem.</div>
@@ -854,6 +857,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <a class="sb-link<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php">
     <i class="bi bi-award"></i> Rejestr zaświadczeń
+  </a>
+  <a class="sb-link<?= _nav_active('/ezd/wolontariusze/') ?>" href="<?= APP_URL ?>/ezd/wolontariusze/index.php">
+    <i class="bi bi-heart"></i> Wolontariusze bez umowy
   </a>
   <?php endif; ?>
 
