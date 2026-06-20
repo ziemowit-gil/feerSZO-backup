@@ -54,12 +54,50 @@ function _li_rate_record(): void {
 function _li_digits($s): string { return preg_replace('/\D/', '', (string)$s); }
 function _li_date($s): string { $t = strtotime((string)$s); return $t ? date('Y-m-d', $t) : ''; }
 
+/**
+ * Elastyczna weryfikacja daty urodzenia — akceptuje sam rok (RRRR),
+ * rok-miesiąc (RRRR-MM, MM.RRRR itp.) lub pełną datę. Im mniej szczegółów,
+ * tym luźniejsze porównanie (dla osób, które nie pamiętają dokładnej daty).
+ */
+function _li_dob_ok(string $input, string $dobRaw): bool {
+    $dob = _li_date($dobRaw);
+    if ($dob === '') return false;
+    $year = substr($dob, 0, 4);
+    $ym   = substr($dob, 0, 7);          // RRRR-MM
+    $in   = trim($input);
+    if ($in === '') return false;
+
+    // sam rok
+    if (preg_match('/^\d{4}$/', $in)) return $in === $year;
+
+    // wyłuskaj liczby; rozpoznaj rok (4 cyfry) + ewentualnie miesiąc/dzień
+    if (preg_match_all('/\d+/', $in, $mm)) {
+        $nums = $mm[0];
+        $y = null; $yidx = null;
+        foreach ($nums as $idx => $n) { if (strlen($n) === 4) { $y = $n; $yidx = $idx; break; } }
+        if ($y !== null) {
+            $rest = $nums; unset($rest[$yidx]); $rest = array_values($rest);
+            if (!$rest) return $y === $year;                                         // sam rok
+            if (count($rest) === 1) {                                                // rok-miesiąc
+                $mo = (int)$rest[0];
+                return ($y . '-' . str_pad((string)$mo, 2, '0', STR_PAD_LEFT)) === $ym;
+            }
+            // pełna data — kolejność dzień/miesiąc zależy od pozycji roku
+            if ($yidx === 0) { $mo = (int)$rest[0]; $d = (int)$rest[1]; }            // RRRR-MM-DD
+            else             { $d  = (int)$rest[0]; $mo = (int)$rest[1]; }            // DD.MM.RRRR
+            return $y === $year && $mo === (int)substr($dob, 5, 2) && $d === (int)substr($dob, 8, 2);
+        }
+    }
+    // ostatnia próba: pełna data parsowalna przez strtotime
+    return _li_date($in) !== '' && _li_date($in) === $dob;
+}
+
 /** Metadane pytania weryfikacyjnego (etykieta + podpowiedź). */
 function _li_meta(string $key): array {
     return [
         'pesel3'   => ['Ostatnie 3 cyfry numeru PESEL', '3 cyfry', 'numeric'],
         'telefon'  => ['Numer telefonu podany w umowie', 'np. 600100200', 'tel'],
-        'data_ur'  => ['Data urodzenia', 'RRRR-MM-DD', 'date'],
+        'data_ur'  => ['Data urodzenia', 'rok, rok-miesiąc lub pełna data', 'text'],
         'dok'      => ['Numer dokumentu tożsamości', 'seria i numer', 'text'],
         'data_zaw' => ['Data zawarcia umowy', 'RRRR-MM-DD', 'date'],
         'konto4'   => ['Ostatnie 4 cyfry numeru rachunku', '4 cyfry', 'numeric'],
@@ -90,7 +128,7 @@ function _li_match(string $key, string $input, array $row): bool {
             $a = _li_digits($row['telefon'] ?? ''); $b = _li_digits($input);
             return strlen($a) >= 9 && strlen($b) >= 9 && substr($a, -9) === substr($b, -9);
         case 'data_ur':
-            return _li_date($input) !== '' && _li_date($input) === _li_date($row['data_urodzenia'] ?? '');
+            return _li_dob_ok($input, (string)($row['data_urodzenia'] ?? ''));
         case 'dok':
             $d1 = trim((string)($row['seria_nr_dowodu'] ?? '')); $d2 = trim((string)($row['id_document_number'] ?? ''));
             return ($d1 !== '' && strcasecmp($d1, $input) === 0) || ($d2 !== '' && strcasecmp($d2, $input) === 0);
@@ -171,6 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['li_email'] = $email;
                 $_SESSION['li_name']  = $found ? (string)($rec['row']['imie_nazwisko'] ?? $name) : $name;
                 $_SESSION['li_numer'] = $found ? (string)($rec['row']['numer_umowy'] ?? '') : '';
+                $_SESSION['li_dob']   = $found && !empty($rec['row']['data_urodzenia']); // dostępny fallback dla PESEL
                 $_SESSION['li_opis']  = $opis;
                 $step = 2;
                 $info = 'Potwierdź tożsamość, podając poniższe dane z Twojej umowy.';
@@ -191,7 +230,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ok = true;
                 foreach ($keys as $k) {
                     if ($k === '_none') continue;
-                    if (!_li_match($k, (string)($_POST['ans'][$k] ?? ''), $row)) { $ok = false; break; }
+                    $pass = _li_match($k, (string)($_POST['ans'][$k] ?? ''), $row);
+                    // Fallback dla PESEL: gdy ktoś nie pamięta, akceptuj datę urodzenia (rok / rok-miesiąc)
+                    if (!$pass && $k === 'pesel3' && !empty($row['data_urodzenia'])) {
+                        $pass = _li_dob_ok((string)($_POST['ans']['pesel3_dob'] ?? ''), (string)$row['data_urodzenia']);
+                    }
+                    if (!$pass) { $ok = false; break; }
                 }
             }
         }
@@ -375,13 +419,20 @@ $step_labels = [1 => 'Identyfikacja', 2 => 'Weryfikacja', 3 => 'Gotowe'];
       <form method="post" novalidate>
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="_action" value="verify">
-        <?php foreach ($keys as $k): if ($k === '_none') continue; [$lbl, $hint, $mode] = _li_meta($k); ?>
+        <?php foreach ($keys as $k): if ($k === '_none') continue;
+          [$lbl, $hint, $mode] = _li_meta($k);
+          $pesel_dob = ($k === 'pesel3' && !empty($_SESSION['li_dob'])); // dostępny fallback datą urodzenia ?>
         <div class="mb-3">
           <label class="form-label fw-semibold small" for="ans_<?= h($k) ?>"><?= h($lbl) ?></label>
           <input type="text" class="form-control" id="ans_<?= h($k) ?>" name="ans[<?= h($k) ?>]"
                  placeholder="<?= h($hint) ?>"
                  <?= $mode === 'numeric' ? 'inputmode="numeric"' : ($mode === 'tel' ? 'inputmode="tel"' : '') ?>
-                 autocomplete="off" required>
+                 autocomplete="off" <?= $pesel_dob ? '' : 'required' ?>>
+          <?php if ($pesel_dob): ?>
+          <div class="form-text mt-1">Nie pamiętasz PESEL? Podaj zamiast tego datę urodzenia:</div>
+          <input type="text" class="form-control mt-1" name="ans[pesel3_dob]"
+                 placeholder="rok (np. 1990) lub rok-miesiąc (np. 1990-05)" autocomplete="off">
+          <?php endif; ?>
         </div>
         <?php endforeach; ?>
         <div class="d-grid mb-2">
