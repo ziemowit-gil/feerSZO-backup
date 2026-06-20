@@ -391,6 +391,10 @@ function karty30_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_cont_student ON k30_ti_vlab_containers(student_id,status)");
     // Konto systemowe na hoście, którego logowanie SSH wpuszcza kursanta do kontenera
     try { $pdo->exec("ALTER TABLE k30_ti_vlab_containers ADD COLUMN host_user TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // Wymuszona zmiana hasła SSH przy najbliższym logowaniu (1 = oczekuje, 0 = brak)
+    try { $pdo->exec("ALTER TABLE k30_ti_vlab_containers ADD COLUMN force_pw_pending INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // Domyślne wymuszanie zmiany hasła SSH przy pierwszym logowaniu (konfiguracja globalna)
+    try { $pdo->exec("ALTER TABLE k30_ti_vlab_config ADD COLUMN force_pw_first_login INTEGER NOT NULL DEFAULT 1"); } catch (\Throwable $e) {}
 
     // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
     foreach ([

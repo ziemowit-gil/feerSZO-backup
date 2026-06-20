@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'default_cpus'    => trim($_POST['default_cpus'] ?? ''),
             'default_mem'     => trim($_POST['default_mem'] ?? ''),
             'is_enabled'      => isset($_POST['is_enabled']) ? 1 : 0,
+            'force_pw_first_login' => isset($_POST['force_pw_first_login']) ? 1 : 0,
             'updated_by'      => $uid ?: null,
         ];
         // Hasło SSH zmieniamy tylko jeśli podane (puste = bez zmian)
@@ -110,17 +111,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$row || $row['status'] === 'removed') {
             flash_set('danger', 'Maszyna nie istnieje.');
         } else {
-            $hu = vlab_host_user_create($row); // ponowne wywołanie ustawia nowe hasło (chpasswd)
+            $c2    = vlab_config();
+            $force = !isset($c2['force_pw_first_login']) || (int)$c2['force_pw_first_login'] === 1;
+            $hu = vlab_host_user_create($row, $force); // ponowne wywołanie ustawia nowe hasło (chpasswd)
             if ($hu['ok']) {
-                $c2 = vlab_config();
-                db_update('k30_ti_vlab_containers', ['host_user' => $hu['user']], $cid);
+                db_update('k30_ti_vlab_containers', ['host_user' => $hu['user'], 'force_pw_pending' => $force ? 1 : 0], $cid);
                 vlab_log($cid, (int)$row['student_id'], 'host_pass_reset', true, $hu['user']);
                 flash_set('success', 'Konto SSH „' . $hu['user'] . '" — NOWE hasło: ' . $hu['password']
                     . '  (zapisz teraz; nie będzie pokazane ponownie). Logowanie: ssh ' . $hu['user']
-                    . '@' . ($c2['public_host'] ?? '') . ' -p ' . (int)($c2['ssh_port'] ?: 22));
+                    . '@' . ($c2['public_host'] ?? '') . ' -p ' . (int)($c2['ssh_port'] ?: 22)
+                    . ($force ? '  — kursant ustawi własne hasło przy pierwszym logowaniu.' : ''));
             } else {
                 flash_set('danger', 'Nie udało się ustawić hasła: ' . $hu['msg']);
             }
+        }
+        header('Location: vlab_admin.php'); exit;
+    }
+
+    // Wymuszenie zmiany hasła SSH przy następnym logowaniu (bez zmiany hasła).
+    if ($op === 'host_pass_force') {
+        $cid = (int)($_POST['container_id'] ?? 0);
+        $row = $cid ? db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [$cid]) : null;
+        if (!$row || $row['status'] === 'removed') {
+            flash_set('danger', 'Maszyna nie istnieje.');
+        } elseif (empty($row['host_user'])) {
+            flash_set('danger', 'Ta maszyna nie ma konta SSH na hoście.');
+        } else {
+            $r = vlab_host_user_force_pwchange($row);
+            if ($r['ok']) db_update('k30_ti_vlab_containers', ['force_pw_pending' => 1], $cid);
+            vlab_log($cid, (int)$row['student_id'], 'host_pass_force', $r['ok'], $row['host_user']);
+            flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
         }
         header('Location: vlab_admin.php'); exit;
     }
@@ -206,9 +226,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <option value="https" <?= $cfg['ttyd_scheme']==='https'?'selected':'' ?>>https</option>
               </select></div>
           </div>
-          <div class="form-check form-switch mb-3">
+          <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" name="ttyd_enabled" id="ttyd" <?= $cfg['ttyd_enabled'] ? 'checked' : '' ?>>
             <label class="form-check-label" for="ttyd">Terminal w przeglądarce (ttyd)</label>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" name="force_pw_first_login" id="fpw" <?= (!isset($cfg['force_pw_first_login']) || $cfg['force_pw_first_login']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="fpw">Wymuś zmianę hasła SSH przy pierwszym logowaniu</label>
+            <div class="form-text small">Konto na hoście dostaje <code>chage -d 0</code> — kursant ustawi własne hasło przy pierwszym logowaniu (wymaga <code>UsePAM yes</code> na hoście).</div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-4"><label class="form-label small">Limit maszyn / kursant</label>
@@ -324,7 +349,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <td class="small text-muted"><?= h($c['tpl_name'] ?? '—') ?></td>
             <td><span class="badge bg-<?= $stColor ?>"><?= h($c['status']) ?></span>
               <?= $c['error_msg'] ? '<div class="small text-danger">'.h(mb_substr($c['error_msg'],0,80)).'</div>' : '' ?></td>
-            <td class="small"><?= !empty($c['host_user']) ? '<code>'.h($c['host_user']).'</code>' : '<span class="text-muted">—</span>' ?></td>
+            <td class="small"><?= !empty($c['host_user']) ? '<code>'.h($c['host_user']).'</code>' : '<span class="text-muted">—</span>' ?>
+              <?= !empty($c['force_pw_pending']) ? '<span class="badge bg-warning text-dark" title="Kursant musi zmienić hasło przy następnym logowaniu"><i class="bi bi-key-fill"></i> zmiana hasła</span>' : '' ?></td>
             <td class="small"><?= $c['ssh_port'] ? (int)$c['ssh_port'] : '—' ?> / <?= $c['ttyd_port'] ? (int)$c['ttyd_port'] : '—' ?></td>
             <td class="small text-muted"><?= h($c['created_at']) ?></td>
             <td class="text-end text-nowrap">
@@ -334,6 +360,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
                 <button class="btn btn-sm btn-outline-secondary py-0" title="Ustaw/odtwórz hasło SSH (pokazywane raz)"><i class="bi bi-key"></i></button>
               </form>
+              <?php if (!empty($c['host_user'])): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Wymusić zmianę hasła SSH przy następnym logowaniu kursanta?')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="host_pass_force">
+                <input type="hidden" name="container_id" value="<?= (int)$c['id'] ?>">
+                <button class="btn btn-sm btn-outline-warning py-0" title="Wymuś zmianę hasła przy następnym logowaniu"><i class="bi bi-key-fill"></i></button>
+              </form>
+              <?php endif; ?>
               <form method="post" class="d-inline" onsubmit="return confirm('Wymusić usunięcie maszyny kursanta? Konto SSH na hoście też zostanie skasowane.')">
                 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="force_remove">

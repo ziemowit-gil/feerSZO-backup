@@ -506,7 +506,7 @@ include __DIR__ . '/_layout_head.php';
       return r.json();
     }
     const stMap = {running:['success','działa'], stopped:['secondary','zatrzymana'], error:['danger','błąd'], provisioning:['warning','tworzenie']};
-    const lastHostCreds = {}; // hasło SSH pokazywane jednorazowo po utworzeniu: {id: password}
+    const lastCreds = {}; // pełne dane logowania pokazywane JEDEN raz po utworzeniu: {id: creds}
 
     function render(d){
       if (!d.enabled){
@@ -527,7 +527,9 @@ include __DIR__ . '/_layout_head.php';
           html += '<div class="card mb-3"><div class="card-body">'
             + '<div class="d-flex align-items-center gap-2 mb-2">'
             + '<span class="fw-semibold">'+esc(m.label)+'</span>'
-            + '<span class="badge text-bg-'+col+'">'+lbl+'</span></div>';
+            + '<span class="badge text-bg-'+col+'">'+lbl+'</span>'
+            + (m.force_pw ? '<span class="badge text-bg-warning"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>zmień hasło przy logowaniu</span>' : '')
+            + '</div>';
           if (m.status === 'error' && m.error){
             html += '<p class="text-danger small mb-2">'+esc(m.error)+'</p>';
           }
@@ -536,14 +538,21 @@ include __DIR__ . '/_layout_head.php';
           const sshPort = m.host_user ? m.host_port : (m.ssh_port || 0);
           const sshOk   = m.status === 'running' && m.ssh_host && sshUser && sshPort;
           if (sshOk){
-            const pwd = lastHostCreds[m.id];
+            const c = lastCreds[m.id]; // pełne dane logowania, tylko bezpośrednio po utworzeniu
             html += '<div class="bg-body-tertiary border rounded p-2 mb-2 small font-monospace">'
+              + '<div class="fw-semibold mb-1" style="font-family:inherit"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Dane logowania (Docker)</div>'
               + '<div><span class="text-body-secondary">SSH:</span> ssh '+esc(sshUser)+'@'+esc(m.ssh_host)+' -p '+sshPort+'</div>';
-            if (pwd){
-              html += '<div class="d-flex align-items-center gap-2 mt-1"><span><span class="text-body-secondary">hasło (pokazywane tylko raz):</span> <span class="fw-bold">'+esc(pwd)+'</span></span>'
-                + '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-copy="'+esc(pwd)+'" aria-label="Kopiuj hasło SSH"><i class="bi bi-clipboard" aria-hidden="true"></i></button></div>';
+            if (c){
+              html += '<div class="d-flex align-items-center gap-2 mt-1"><span><span class="text-body-secondary">hasło SSH (pokazywane tylko raz):</span> <span class="fw-bold">'+esc(c.host_password)+'</span></span>'
+                + '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-copy="'+esc(c.host_password)+'" aria-label="Kopiuj hasło SSH"><i class="bi bi-clipboard" aria-hidden="true"></i></button></div>';
+              if (c.ttyd_user){
+                html += '<div class="mt-1"><span class="text-body-secondary">Login terminala (przeglądarka):</span> '+esc(c.ttyd_user)+' / <span class="fw-bold">'+esc(c.ttyd_password)+'</span></div>';
+              }
+              if (c.force_change){
+                html += '<div class="mt-1 text-warning" style="font-family:inherit"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła.</div>';
+              }
             } else if (m.host_user){
-              html += '<div class="mt-1 text-body-secondary" style="font-family:inherit"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Hasło wysłaliśmy e-mailem przy tworzeniu maszyny.</div>';
+              html += '<div class="mt-1 text-body-secondary" style="font-family:inherit"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Dane logowania wysłaliśmy e-mailem przy tworzeniu maszyny.</div>';
             } else {
               html += '<div class="mt-1 text-body-secondary" style="font-family:inherit"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Dane logowania zgodne z obrazem maszyny (hasło lub klucz SSH).</div>';
             }
@@ -601,7 +610,7 @@ include __DIR__ . '/_layout_head.php';
         if (label === null) return;
         createBtn.disabled = true; createBtn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Tworzę…';
         const r = await api('create', {template_id: createBtn.dataset.create, label});
-        if (r.id && r.host_password) lastHostCreds[r.id] = r.host_password; // pokaż hasło raz
+        if (r.id && r.creds) lastCreds[r.id] = r.creds; // pełne dane logowania — pokaż raz
         if (!r.ok) alert(r.msg || 'Błąd.');
         if (r.data) render(r.data); else reload();
         return;

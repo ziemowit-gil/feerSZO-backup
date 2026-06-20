@@ -139,9 +139,13 @@ function vlab_host_username(array $container): string {
  * Tworzy na hoście konto systemowe, którego logowanie SSH od razu wpuszcza
  * kursanta do kontenera (login shell = wrapper `docker exec`). Hasło jest
  * zwracane jednorazowo (NIE jest przechowywane w bazie).
+ *
+ * $forceChange=true → ustawia `chage -d 0`, więc sshd (UsePAM yes) wymusi zmianę
+ * hasła przy najbliższym logowaniu SSH (działa niezależnie od powłoki logowania).
+ *
  * Zwraca ['ok'=>bool,'user'=>string,'password'=>string,'msg'=>string].
  */
-function vlab_host_user_create(array $container): array {
+function vlab_host_user_create(array $container, bool $forceChange = false): array {
     $u    = vlab_host_username($container);
     $name = (string)$container['container_name'];
     if ($u === '' || $name === '') return ['ok' => false, 'msg' => 'Brak nazwy kontenera.'];
@@ -156,6 +160,7 @@ function vlab_host_user_create(array $container): array {
         "U='{$u}'",
         "NM='{$name}'",
         "P='{$pass}'",
+        'FORCE=' . ($forceChange ? '1' : '0'),
         'W="/usr/local/bin/vlab-$U"',
         // wrapper: natychmiast wchodzi do kontenera (root w kontenerze = sandbox)
         'printf \'#!/bin/sh\nexec docker exec -it %s bash -l 2>/dev/null || exec docker exec -it %s sh -l\n\' "$NM" "$NM" > "$W"',
@@ -164,6 +169,8 @@ function vlab_host_user_create(array $container): array {
         'id "$U" >/dev/null 2>&1 || useradd -m -s "$W" "$U"',
         'usermod -s "$W" "$U"',
         'printf \'%s:%s\' "$U" "$P" | chpasswd',
+        // wymuszenie zmiany hasła przy następnym logowaniu (jeśli zażądano)
+        '[ "$FORCE" = 1 ] && (chage -d 0 "$U" 2>/dev/null || passwd -e "$U" 2>/dev/null) || true',
         // dostęp do dockera dla wrappera (grupa docker; jeśli brak — pomijamy)
         'getent group docker >/dev/null 2>&1 && usermod -aG docker "$U" || true',
     ]);
@@ -172,7 +179,23 @@ function vlab_host_user_create(array $container): array {
     if (!$r['ok']) {
         return ['ok' => false, 'msg' => $r['err'] ?: 'Nie udało się utworzyć konta na hoście.'];
     }
-    return ['ok' => true, 'user' => $u, 'password' => $pass, 'msg' => 'Konto hosta utworzone.'];
+    return ['ok' => true, 'user' => $u, 'password' => $pass, 'force_change' => $forceChange, 'msg' => 'Konto hosta utworzone.'];
+}
+
+/**
+ * Wymusza zmianę hasła SSH konta hosta przy najbliższym logowaniu (bez zmiany
+ * samego hasła). Używa `chage -d 0` (fallback `passwd -e`). Zwraca ['ok','msg'].
+ */
+function vlab_host_user_force_pwchange(array $container): array {
+    $u = vlab_host_username($container);
+    if ($u === '') return ['ok' => false, 'msg' => 'Brak konta hosta dla tej maszyny.'];
+    $script = implode("\n", [
+        "U='{$u}'",
+        'id "$U" >/dev/null 2>&1 || { echo "no-user"; exit 1; }',
+        'chage -d 0 "$U" 2>/dev/null || passwd -e "$U"',
+    ]);
+    $r = vlab_ssh_root($script);
+    return ['ok' => $r['ok'], 'msg' => $r['ok'] ? 'Wymuszono zmianę hasła przy następnym logowaniu.' : ($r['err'] ?: 'Nie udało się wymusić zmiany hasła.')];
 }
 
 /** Usuwa konto systemowe hosta powiązane z kontenerem (best-effort). */
@@ -354,12 +377,17 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
     // Konto na hoście, którego logowanie SSH wpuszcza kursanta wprost do kontenera.
     $container = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [$id]);
     $hostUser = $hostPass = '';
+    // Domyślnie wymuszaj zmianę hasła przy pierwszym logowaniu (chyba że admin wyłączył).
+    $forceChange = !isset($cfg['force_pw_first_login']) || (int)$cfg['force_pw_first_login'] === 1;
     if ($container) {
-        $hu = vlab_host_user_create($container);
+        $hu = vlab_host_user_create($container, $forceChange);
         if ($hu['ok']) {
             $hostUser = $hu['user'];
             $hostPass = $hu['password'];
-            db_update('k30_ti_vlab_containers', ['host_user' => $hostUser], $id);
+            db_update('k30_ti_vlab_containers', [
+                'host_user'        => $hostUser,
+                'force_pw_pending' => $forceChange ? 1 : 0,
+            ], $id);
             $container['host_user'] = $hostUser;
         } else {
             // Kontener działa — nie przerywamy, ale sygnalizujemy problem z kontem hosta.
@@ -368,11 +396,27 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
     }
 
     // Dane dostępowe do maszyny wysyłamy kursantowi mailem (hasło do panelu idzie SMS-em).
-    if ($container) vlab_email_credentials($container, $hostUser, $hostPass);
+    if ($container) vlab_email_credentials($container, $hostUser, $hostPass, $forceChange && $hostUser !== '');
 
     $out = ['ok' => true, 'msg' => 'Maszyna utworzona.', 'id' => $id];
-    if ($hostUser !== '') { $out['host_user'] = $hostUser; $out['host_password'] = $hostPass; }
-    else { $out['msg'] = 'Maszyna utworzona, ale nie udało się założyć konta logowania na hoście — użyj terminala w przeglądarce lub zgłoś prowadzącemu.'; }
+    if ($hostUser !== '') {
+        // Pełny zestaw danych logowania — front pokazuje go JEDEN raz po utworzeniu.
+        $out['host_user']     = $hostUser;
+        $out['host_password'] = $hostPass;
+        $out['force_change']  = $forceChange;
+        $out['creds'] = [
+            'ssh_host'      => (string)($cfg['public_host'] ?? ''),
+            'ssh_port'      => (int)($cfg['ssh_port'] ?: 22),
+            'host_user'     => $hostUser,
+            'host_password' => $hostPass,
+            'ttyd_url'      => vlab_ttyd_url($container ?: []),
+            'ttyd_user'     => (string)($container['ttyd_user'] ?? ''),
+            'ttyd_password' => (string)($container['ttyd_password'] ?? ''),
+            'force_change'  => $forceChange,
+        ];
+    } else {
+        $out['msg'] = 'Maszyna utworzona, ale nie udało się założyć konta logowania na hoście — użyj terminala w przeglądarce lub zgłoś prowadzącemu.';
+    }
     return $out;
 }
 
@@ -380,7 +424,7 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
  * Wysyła kursantowi e-mail z danymi dostępowymi do kontenera (SSH + terminal ttyd).
  * Adres pobierany z k30_clients.email. Zwraca true gdy zlecono wysyłkę.
  */
-function vlab_email_credentials(array $container, string $hostUser = '', string $hostPass = ''): bool {
+function vlab_email_credentials(array $container, string $hostUser = '', string $hostPass = '', bool $forceChange = false): bool {
     $cfg    = vlab_config();
     $client = !empty($container['client_id'])
         ? db_one("SELECT name,email FROM k30_clients WHERE id=?", [$container['client_id']])
@@ -413,6 +457,9 @@ function vlab_email_credentials(array $container, string $hostUser = '', string 
         $rows .= "<tr><td style='padding:4px 12px;color:#555'>Połączenie SSH</td><td style='padding:4px 12px'><code>{$sshCmd}</code></td></tr>";
         if ($hostPass !== '') {
             $rows .= "<tr><td style='padding:4px 12px;color:#555'>Hasło SSH</td><td style='padding:4px 12px'><code>" . htmlspecialchars($hostPass, ENT_QUOTES) . "</code></td></tr>";
+        }
+        if ($forceChange) {
+            $rows .= "<tr><td style='padding:4px 12px;color:#555'>Uwaga</td><td style='padding:4px 12px'>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła.</td></tr>";
         }
     }
     if ($ttyd) {

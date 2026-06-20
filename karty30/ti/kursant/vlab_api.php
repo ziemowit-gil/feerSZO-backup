@@ -44,6 +44,7 @@ function vlab_payload(array $student): array {
             'ssh_user'   => $r['ssh_user'] ?? '',
             'ssh_port'   => (int)($r['ssh_port'] ?? 0),
             'ttyd_url'   => vlab_ttyd_url($r),
+            'force_pw'   => (int)($r['force_pw_pending'] ?? 0) === 1,
             'created_at' => $r['created_at'],
         ];
     }
