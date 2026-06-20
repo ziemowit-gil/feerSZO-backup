@@ -57,7 +57,7 @@ function _li_date($s): string { $t = strtotime((string)$s); return $t ? date('Y-
 /** Metadane pytania weryfikacyjnego (etykieta + podpowiedź). */
 function _li_meta(string $key): array {
     return [
-        'pesel5'   => ['Ostatnie 5 cyfr numeru PESEL', '5 cyfr', 'numeric'],
+        'pesel3'   => ['Ostatnie 3 cyfry numeru PESEL', '3 cyfry', 'numeric'],
         'telefon'  => ['Numer telefonu podany w umowie', 'np. 600100200', 'tel'],
         'data_ur'  => ['Data urodzenia', 'RRRR-MM-DD', 'date'],
         'dok'      => ['Numer dokumentu tożsamości', 'seria i numer', 'text'],
@@ -69,7 +69,7 @@ function _li_meta(string $key): array {
 /** Lista pytań możliwych do zadania dla danego rekordu (tylko niepuste pola). */
 function _li_available(array $row): array {
     $a = [];
-    if (!empty($row['pesel']))            $a[] = 'pesel5';
+    if (!empty($row['pesel']))            $a[] = 'pesel3';
     if (!empty($row['telefon']))          $a[] = 'telefon';
     if (!empty($row['data_urodzenia']))   $a[] = 'data_ur';
     if (!empty($row['seria_nr_dowodu']) || !empty($row['id_document_number'])) $a[] = 'dok';
@@ -83,9 +83,9 @@ function _li_match(string $key, string $input, array $row): bool {
     $input = trim($input);
     if ($input === '') return false;
     switch ($key) {
-        case 'pesel5':
+        case 'pesel3':
             $p = _li_digits($row['pesel'] ?? ''); $i = _li_digits($input);
-            return strlen($p) >= 5 && strlen($i) >= 4 && substr($p, -5) === substr($i, -5);
+            return strlen($p) >= 3 && strlen($i) >= 3 && substr($p, -3) === substr($i, -3);
         case 'telefon':
             $a = _li_digits($row['telefon'] ?? ''); $b = _li_digits($input);
             return strlen($a) >= 9 && strlen($b) >= 9 && substr($a, -9) === substr($b, -9);
@@ -103,18 +103,21 @@ function _li_match(string $key, string $input, array $row): bool {
     return false;
 }
 
-/** Znajduje rekord kartoteki po numerze umowy + imieniu i nazwisku. */
-function _li_find(string $numer, string $name): ?array {
+/** Znajduje rekord kartoteki po imieniu i nazwisku (opcjonalnie zawężając e-mailem). */
+function _li_find(string $name, string $email): ?array {
     $pdo = db();
     $nn = mb_strtolower(trim($name));
+    if ($nn === '') return null;
+    $em = mb_strtolower(trim($email));
     foreach (array_keys(LI_TABLES) as $tbl) {
         try {
-            $stmt = $pdo->prepare("SELECT * FROM {$tbl} WHERE numer_umowy = ? LIMIT 5");
-            $stmt->execute([$numer]);
+            $stmt = $pdo->prepare("SELECT * FROM {$tbl} WHERE imie_nazwisko LIKE ? LIMIT 20");
+            $stmt->execute([$name]);
             foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $r) {
-                if ($nn === '' || mb_strtolower(trim((string)($r['imie_nazwisko'] ?? ''))) === $nn) {
-                    return ['table' => $tbl, 'row' => $r];
-                }
+                if (mb_strtolower(trim((string)($r['imie_nazwisko'] ?? ''))) !== $nn) continue;
+                // jeśli rekord ma e-mail i podano e-mail — musi się zgadzać (zawęża duplikaty imion)
+                if (!empty($r['email']) && $em !== '' && mb_strtolower(trim((string)$r['email'])) !== $em) continue;
+                return ['table' => $tbl, 'row' => $r];
             }
         } catch (\Throwable $e) {}
     }
@@ -144,21 +147,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         else {
             _li_rate_record();
             $email = trim($_POST['email'] ?? '');
-            $numer = trim($_POST['numer_umowy'] ?? '');
             $name  = trim($_POST['imie_nazwisko'] ?? '');
             $opis  = trim($_POST['opis'] ?? '');
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $error = 'Podaj poprawny adres e-mail.';
-            elseif ($numer === '' || $name === '')          $error = 'Podaj numer umowy oraz imię i nazwisko.';
+            elseif ($name === '')                           $error = 'Podaj imię i nazwisko.';
             elseif (mb_strlen($opis) < 5)                   $error = 'Opisz krótko, na czym polega problem z logowaniem.';
             else {
-                $rec   = _li_find($numer, $name);
+                $rec   = _li_find($name, $email);
                 $found = $rec !== null;
                 $keys  = $found ? _li_available($rec['row']) : [];
                 shuffle($keys);
                 $keys  = array_slice($keys, 0, 2);
                 if ($found && !$keys) $keys = ['_none']; // brak danych do challenge — sama identyfikacja wystarczy
-                if (!$found)          $keys = ['pesel5']; // neutralny ekran kroku 2 (i tak nie przejdzie)
+                if (!$found)          $keys = ['pesel3']; // neutralny ekran kroku 2 (i tak nie przejdzie)
 
                 $_SESSION['li_step']  = 2;
                 $_SESSION['li_fails'] = 0;
@@ -168,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['li_keys']  = $keys;
                 $_SESSION['li_email'] = $email;
                 $_SESSION['li_name']  = $found ? (string)($rec['row']['imie_nazwisko'] ?? $name) : $name;
-                $_SESSION['li_numer'] = $numer;
+                $_SESSION['li_numer'] = $found ? (string)($rec['row']['numer_umowy'] ?? '') : '';
                 $_SESSION['li_opis']  = $opis;
                 $step = 2;
                 $info = 'Potwierdź tożsamość, podając poniższe dane z Twojej umowy.';
@@ -226,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db_insert('helpdesk_messages', [
                 'ticket_id' => $ticket_id, 'user_id' => null, 'user_name' => 'System',
                 'body' => "Zgłoszenie z ekranu logowania — tożsamość zweryfikowana danymi z kartoteki.\n"
-                        . "Numer umowy: {$numer} (typ: {$typ}). E-mail kontaktowy: {$email}.",
+                        . ($numer !== '' ? "Numer umowy: {$numer} " : '') . "(typ: {$typ}). E-mail kontaktowy: {$email}.",
                 'is_internal' => 1,
             ]);
 
@@ -414,12 +416,6 @@ $step_labels = [1 => 'Identyfikacja', 2 => 'Weryfikacja', 3 => 'Gotowe'];
           <div class="input-group"><span class="input-group-text"><i class="bi bi-envelope"></i></span>
             <input type="email" class="form-control" id="email" name="email" required autofocus
                    value="<?= h($_POST['email'] ?? '') ?>" placeholder="na ten adres wyślemy potwierdzenie"></div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold small" for="numer_umowy">Numer umowy</label>
-          <div class="input-group"><span class="input-group-text"><i class="bi bi-file-earmark-text"></i></span>
-            <input type="text" class="form-control" id="numer_umowy" name="numer_umowy" required
-                   value="<?= h($_POST['numer_umowy'] ?? '') ?>" placeholder="np. RU/0001/2024/AB"></div>
         </div>
         <div class="mb-3">
           <label class="form-label fw-semibold small" for="imie_nazwisko">Imię i nazwisko</label>
