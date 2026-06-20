@@ -1,6 +1,6 @@
 <?php
 /**
- * portal.php — Ekran wyboru modułu po zalogowaniu.
+ * portal.php — Ekran wyboru modułu po zalogowaniu (launcher modułów).
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
@@ -84,6 +84,72 @@ usort($_recent, fn($a,$b) => strcmp($b['created_at'], $a['created_at']));
 $_recent = array_slice($_recent, 0, 5);
 
 $_icons = ['wolontariat'=>'bi-heart','zlecenie'=>'bi-person-lines-fill','dzielo'=>'bi-palette','praca'=>'bi-briefcase','uslugi'=>'bi-building','inne'=>'bi-file-text'];
+
+// ── Definicja modułów (launcher) ─────────────────────────────────────────────
+// Każdy moduł jest zawsze widoczny. Gdy brak dostępu → kafel wyszarzony,
+// nieklikalny, z plakietką „Brak dostępu".
+$modules = [
+    [
+        'title'  => 'System Zarządzania',
+        'desc'   => 'Umowy, granty, działania, korespondencja, raporty',
+        'icon'   => 'bi-building-fill',
+        'grad'   => 'linear-gradient(135deg,#1E3A5F,#1D6EF9)',
+        'url'    => APP_URL . '/index.php',
+        'access' => true,
+        'stat'   => $stats['umowy'] . ' aktywnych umów',
+        'badge'  => $stats['approvals'] ? ('<i class="bi bi-clock-fill"></i> ' . $stats['approvals'] . ' do akceptacji') : null,
+    ],
+    [
+        'title'  => 'CRM',
+        'desc'   => 'Kontakty, sprawy, kampanie',
+        'icon'   => 'bi-diagram-2-fill',
+        'grad'   => 'linear-gradient(135deg,#14532D,#16A34A)',
+        'url'    => APP_URL . '/crm/dashboard.php',
+        'access' => $crm_enabled,
+        'stat'   => $stats['crm'] . ' kontaktów',
+        'badge'  => null,
+    ],
+    [
+        'title'  => 'Karty 30',
+        'desc'   => 'Beneficjenci, harmonogram wizyt',
+        'icon'   => 'bi-card-checklist',
+        'grad'   => 'linear-gradient(135deg,#581C87,#7C3AED)',
+        'url'    => APP_URL . '/karty30/index.php',
+        'access' => $k30_enabled,
+        'stat'   => $k30_today . ' wizyt dziś',
+        'badge'  => $k30_today ? ('<i class="bi bi-calendar-check-fill"></i> ' . $k30_today . ' dziś') : null,
+    ],
+    [
+        'title'  => 'Strategia NGO',
+        'desc'   => 'Cele strategiczne, sfery pożytku, sprawozdawczość',
+        'icon'   => 'bi-bullseye',
+        'grad'   => 'linear-gradient(135deg,#4C1D95,#7C3AED)',
+        'url'    => APP_URL . '/strategy/index.php',
+        'access' => $strategy_enabled,
+        'stat'   => $strat_active . ' aktywnych celów',
+        'badge'  => $strat_at_risk > 0 ? ('<i class="bi bi-exclamation-triangle-fill"></i> ' . $strat_at_risk . ' zagrożone') : null,
+    ],
+    [
+        'title'  => 'Katalog',
+        'desc'   => 'Współpracownicy, kontakty, jednostki',
+        'icon'   => 'bi-person-lines-fill',
+        'grad'   => 'linear-gradient(135deg,#4338CA,#6366F1)',
+        'url'    => APP_URL . '/directory/',
+        'access' => true,
+        'stat'   => null,
+        'badge'  => null,
+    ],
+    [
+        'title'  => 'Administrator',
+        'desc'   => 'Ustawienia, użytkownicy, moduły',
+        'icon'   => 'bi-shield-shaded',
+        'grad'   => 'linear-gradient(135deg,#1E293B,#475569)',
+        'url'    => APP_URL . '/admin/index.php',
+        'access' => is_admin(),
+        'stat'   => $stats['approvals'] ? ($stats['approvals'] . ' do akceptacji') : null,
+        'badge'  => null,
+    ],
+];
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -110,73 +176,65 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
 .pt-dot{position:absolute;top:-4px;right:-4px;min-width:15px;height:15px;border-radius:8px;background:#EF4444;color:#fff;font-size:.55rem;font-weight:700;padding:0 .2rem;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
 
 /* ── Layout ───────────────────────────── */
-.pw{max-width:1100px;margin:0 auto;padding:1.75rem 1.25rem 3rem}
+.pw{max-width:1120px;margin:0 auto;padding:1.75rem 1.25rem 3rem}
 
 /* ── Header splash ────────────────────── */
 .ph{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem}
 .ph-greet{font-size:1.65rem;font-weight:800;letter-spacing:-.03em;line-height:1.15}
 .ph-sub{font-size:.84rem;color:#64748B;margin-top:.25rem}
-.ph-stats{display:flex;gap:.6rem;flex-wrap:wrap;align-self:flex-end}
-.ph-stat{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:.5rem .9rem;text-align:center;min-width:72px}
-.ph-stat-n{font-size:1.3rem;font-weight:800;line-height:1;color:#0F172A}
-.ph-stat-l{font-size:.65rem;color:#94A3B8;margin-top:.15rem;white-space:nowrap}
+.ph-stats{display:flex;gap:.5rem;flex-wrap:wrap;align-self:flex-end}
+.chip{display:flex;align-items:center;gap:.5rem;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:.45rem .75rem}
+.chip-n{font-size:1.2rem;font-weight:800;line-height:1}
+.chip-l{font-size:.66rem;color:#94A3B8;line-height:1.15;white-space:nowrap}
 
-/* ── Grid główny ──────────────────────── */
-.pg{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto;gap:1rem}
-.pg-main{grid-column:1/3;grid-row:1/2}
-.pg-side{grid-column:3/4;grid-row:1/3;display:flex;flex-direction:column;gap:1rem}
-.pg-row2{grid-column:1/3;grid-row:2/3;display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+/* ── Banner ───────────────────────────── */
+.pban{display:flex;align-items:center;gap:.6rem;background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:.6rem 1rem;margin-bottom:1.5rem;font-size:.82rem;color:#92400E;text-decoration:none;transition:background .1s}
+.pban:hover{background:#FEF3C7;color:#92400E}
 
-/* ── Karty modułów ────────────────────── */
-.pm{border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;display:block;transition:transform .14s,box-shadow .14s}
-.pm:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.12);color:inherit}
-.pm-h{padding:1.25rem 1.35rem 1rem;position:relative;overflow:hidden}
-.pm-h::after{content:'';position:absolute;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.07);right:-40px;bottom:-70px;pointer-events:none}
-.pm-icon{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:#fff;margin-bottom:.6rem}
-.pm-title{font-size:1.05rem;font-weight:800;color:#fff;line-height:1.2}
-.pm-desc{font-size:.75rem;color:rgba(255,255,255,.72);margin-top:.25rem;line-height:1.4}
-.pm-cta{display:inline-flex;align-items:center;gap:.3rem;margin-top:.65rem;font-size:.74rem;font-weight:600;color:rgba(255,255,255,.8);padding:.25rem .6rem;border-radius:20px;background:rgba(255,255,255,.15);transition:background .1s}
-.pm:hover .pm-cta{background:rgba(255,255,255,.25)}
-.pm-badge{display:inline-flex;align-items:center;gap:.25rem;background:rgba(0,0,0,.25);color:#fff;font-size:.68rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;margin-bottom:.4rem}
+/* ── Nagłówki sekcji ──────────────────── */
+.sec-h{display:flex;align-items:center;gap:.5rem;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94A3B8;margin:0 .15rem .85rem}
+.sec-h .bi{font-size:.9rem}
 
-/* ── Karta zablokowana (brak dostępu) ──── */
-.pm-locked{cursor:not-allowed}
-.pm-locked .pm-h{filter:grayscale(.85);opacity:.55}
-.pm-locked .pm-f{opacity:.5;filter:grayscale(.7)}
-.pm-locked:hover{transform:none;box-shadow:none}
-.pm-lock{display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,0,0,.42);color:#fff;font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:20px;margin-bottom:.4rem}
+/* ── Launcher: siatka aplikacji ───────── */
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem}
+.app{position:relative;border-radius:18px;overflow:hidden;text-decoration:none;color:#fff;display:flex;flex-direction:column;min-height:168px;padding:1.15rem 1.2rem 1.05rem;transition:transform .14s,box-shadow .14s}
+.app::after{content:'';position:absolute;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.08);right:-45px;bottom:-65px;pointer-events:none}
+.app:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(2,6,23,.20);color:#fff}
+.app-ic{width:46px;height:46px;border-radius:13px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#fff}
+.app-title{font-size:1.08rem;font-weight:800;line-height:1.2;margin-top:.7rem;position:relative;z-index:1}
+.app-desc{font-size:.76rem;color:rgba(255,255,255,.78);margin-top:.22rem;line-height:1.4;flex:1;position:relative;z-index:1}
+.app-foot{display:flex;align-items:center;justify-content:space-between;gap:.4rem;margin-top:.85rem;position:relative;z-index:1}
+.app-stat{font-size:.71rem;font-weight:700;color:#fff;background:rgba(255,255,255,.18);padding:.18rem .55rem;border-radius:20px}
+.app-cta{display:inline-flex;align-items:center;gap:.25rem;font-size:.74rem;font-weight:700;color:rgba(255,255,255,.95);margin-left:auto}
+.app-badge{position:absolute;top:.85rem;right:.9rem;z-index:2;display:inline-flex;align-items:center;gap:.25rem;background:rgba(0,0,0,.28);color:#fff;font-size:.64rem;font-weight:700;padding:.16rem .5rem;border-radius:20px}
 
-.pm-f{background:#fff;border:1px solid #E2E8F0;display:grid;grid-template-columns:1fr 1fr;border-top:none}
-.pm-s{padding:.6rem .85rem;border-right:1px solid #F1F5F9;border-top:1px solid #F1F5F9}
-.pm-s:nth-child(even){border-right:none}
-.pm-s:nth-child(1),.pm-s:nth-child(2){border-top:none}
-.pm-sv{font-size:1.2rem;font-weight:800;color:#0F172A;line-height:1}
-.pm-sl{font-size:.65rem;color:#94A3B8;margin-top:.12rem}
+/* ── Kafel zablokowany (brak dostępu) ── */
+.app-locked{filter:grayscale(1);opacity:.6;cursor:not-allowed}
+.app-locked:hover{transform:none;box-shadow:none}
+.app-lock{position:absolute;top:.85rem;right:.9rem;z-index:2;display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,0,0,.48);color:#fff;font-size:.64rem;font-weight:700;padding:.16rem .55rem;border-radius:20px}
 
-/* ── Panel boczny — Ostatnie + Akcje ──── */
-.ps-card{background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden}
-.ps-head{padding:.65rem 1rem;border-bottom:1px solid #F1F5F9;font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94A3B8;display:flex;align-items:center;gap:.4rem}
+/* ── Sekcja dolna: ostatnie + akcje ───── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.75rem}
+.ps-card{background:#fff;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden}
+.ps-head{padding:.7rem 1rem;border-bottom:1px solid #F1F5F9;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94A3B8;display:flex;align-items:center;gap:.4rem}
 .ps-item{display:flex;align-items:center;gap:.65rem;padding:.55rem 1rem;border-bottom:1px solid #F8FAFC;text-decoration:none;color:inherit;transition:background .1s;font-size:.82rem}
 .ps-item:last-child{border-bottom:none}
 .ps-item:hover{background:#F8FAFC}
-.ps-item-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0}
+.ps-item-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0}
 .ps-item-name{font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ps-item-sub{font-size:.71rem;color:#94A3B8}
 
 /* ── Szybkie akcje ────────────────────── */
-.qa{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1.25rem}
-.qa-btn{display:inline-flex;align-items:center;gap:.3rem;background:#fff;border:1.5px solid #E2E8F0;border-radius:20px;padding:.3rem .75rem;font-size:.77rem;font-weight:500;color:#374151;text-decoration:none;transition:all .1s;white-space:nowrap}
+.qa{display:flex;flex-wrap:wrap;gap:.45rem;padding:.85rem 1rem 1rem}
+.qa-btn{display:inline-flex;align-items:center;gap:.35rem;background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:20px;padding:.35rem .8rem;font-size:.77rem;font-weight:500;color:#374151;text-decoration:none;transition:all .1s;white-space:nowrap}
 .qa-btn:hover{border-color:var(--c,#2563eb);color:var(--c,#2563eb);background:#EFF6FF}
 
-/* ── Banner ───────────────────────────── */
-.pban{display:flex;align-items:center;gap:.6rem;background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:10px;padding:.55rem 1rem;margin-bottom:1.25rem;font-size:.82rem;color:#92400E;text-decoration:none;transition:background .1s}
-.pban:hover{background:#FEF3C7;color:#92400E}
-
-@media(max-width:900px){.pg{grid-template-columns:1fr 1fr}.pg-main,.pg-row2{grid-column:1/3}.pg-side{grid-column:1/3;grid-row:auto;flex-direction:row}}
-@media(max-width:600px){.pg{grid-template-columns:1fr}.pg-main,.pg-row2,.pg-side{grid-column:1/2}.pg-row2{grid-template-columns:1fr}.ph-greet{font-size:1.3rem}.ph-stats{display:none}.pt{padding:0 .75rem}}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}.ph-greet{font-size:1.35rem}}
+@media(max-width:600px){.apps{grid-template-columns:1fr 1fr;gap:.7rem}.app{min-height:150px;padding:.9rem .95rem}.ph-stats{display:none}.pt{padding:0 .75rem}}
+@media(max-width:380px){.apps{grid-template-columns:1fr}}
 @keyframes fi{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-.ph{animation:fi .35s ease both}.pban{animation:fi .35s .05s ease both}.pg{animation:fi .4s .08s ease both}.qa{animation:fi .4s .12s ease both}
-@media(prefers-reduced-motion:reduce){.ph,.pban,.pg,.qa{animation:none}}
+.ph{animation:fi .35s ease both}.pban{animation:fi .35s .05s ease both}.apps{animation:fi .4s .08s ease both}.grid2{animation:fi .4s .12s ease both}
+@media(prefers-reduced-motion:reduce){.ph,.pban,.apps,.grid2{animation:none}}
 </style>
 </head>
 <body>
@@ -216,26 +274,26 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
       <div class="ph-sub"><?= date('l, j F Y') ?><?= $_org ? ' · ' . h($_org) : '' ?></div>
     </div>
     <div class="ph-stats">
-      <div class="ph-stat">
-        <div class="ph-stat-n" style="color:#2563EB"><?= $stats['umowy'] ?></div>
-        <div class="ph-stat-l">Aktywnych umów</div>
+      <div class="chip">
+        <div class="chip-n" style="color:#2563EB"><?= $stats['umowy'] ?></div>
+        <div class="chip-l">Aktywnych<br>umów</div>
       </div>
       <?php if ($stats['granty']): ?>
-      <div class="ph-stat">
-        <div class="ph-stat-n" style="color:#16A34A"><?= $stats['granty'] ?></div>
-        <div class="ph-stat-l">Grantów</div>
+      <div class="chip">
+        <div class="chip-n" style="color:#16A34A"><?= $stats['granty'] ?></div>
+        <div class="chip-l">Grantów</div>
       </div>
       <?php endif; ?>
       <?php if ($stats['approvals']): ?>
-      <div class="ph-stat">
-        <div class="ph-stat-n" style="color:#D97706"><?= $stats['approvals'] ?></div>
-        <div class="ph-stat-l">Do akceptacji</div>
+      <div class="chip">
+        <div class="chip-n" style="color:#D97706"><?= $stats['approvals'] ?></div>
+        <div class="chip-l">Do<br>akceptacji</div>
       </div>
       <?php endif; ?>
       <?php if ($_total_unread): ?>
-      <div class="ph-stat">
-        <div class="ph-stat-n" style="color:#EF4444"><?= $_total_unread ?></div>
-        <div class="ph-stat-l">Powiadomień</div>
+      <div class="chip">
+        <div class="chip-n" style="color:#EF4444"><?= $_total_unread ?></div>
+        <div class="chip-l">Powiadomień</div>
       </div>
       <?php endif; ?>
     </div>
@@ -249,188 +307,81 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
   </a>
   <?php endif; ?>
 
-  <!-- Siatka -->
-  <div class="pg">
-
-    <!-- GŁÓWNY moduł — SZO -->
-    <a href="<?= APP_URL ?>/index.php" class="pm pg-main">
-      <div class="pm-h" style="background:linear-gradient(135deg,#1E3A5F,#1D6EF9)">
-        <?php if ($stats['approvals']): ?>
-        <div class="pm-badge"><i class="bi bi-clock-fill"></i><?= $stats['approvals'] ?> do akceptacji</div>
-        <?php endif; ?>
-        <div class="pm-icon"><i class="bi bi-building-fill"></i></div>
-        <div class="pm-title">System Zarządzania Organizacją</div>
-        <div class="pm-desc">Umowy wolontariackie, zlecenia, granty, działania, korespondencja, raporty</div>
-        <div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div>
+  <!-- Launcher: wszystkie moduły -->
+  <div class="sec-h"><i class="bi bi-grid-3x3-gap-fill"></i> Moduły</div>
+  <div class="apps">
+    <?php foreach ($modules as $m):
+      $acc  = (bool)$m['access'];
+      $tag  = $acc ? 'a' : 'div';
+      $href = $acc ? ' href="' . h($m['url']) . '"' : '';
+    ?>
+    <<?= $tag ?><?= $href ?> class="app<?= $acc ? '' : ' app-locked' ?>" style="background:<?= $m['grad'] ?>">
+      <?php if (!$acc): ?>
+        <span class="app-lock"><i class="bi bi-lock-fill"></i>Brak dostępu</span>
+      <?php elseif (!empty($m['badge'])): ?>
+        <span class="app-badge"><?= $m['badge'] ?></span>
+      <?php endif; ?>
+      <div class="app-ic"><i class="bi <?= h($m['icon']) ?>"></i></div>
+      <div class="app-title"><?= h($m['title']) ?></div>
+      <div class="app-desc"><?= h($m['desc']) ?></div>
+      <div class="app-foot">
+        <?php if ($acc && !empty($m['stat'])): ?><span class="app-stat"><?= h($m['stat']) ?></span><?php endif; ?>
+        <?php if ($acc): ?><span class="app-cta">Otwórz <i class="bi bi-arrow-right"></i></span><?php endif; ?>
       </div>
-      <div class="pm-f">
-        <div class="pm-s"><div class="pm-sv"><?= $stats['umowy'] ?></div><div class="pm-sl">Aktywnych umów</div></div>
-        <div class="pm-s"><div class="pm-sv"><?= $stats['osoby'] ?></div><div class="pm-sl">Stron umów</div></div>
-        <div class="pm-s"><div class="pm-sv"><?= $stats['granty'] ?></div><div class="pm-sl">Aktywnych grantów</div></div>
-        <div class="pm-s"><div class="pm-sv"><?= $stats['dzialania'] ?></div><div class="pm-sl">Działań w toku</div></div>
-      </div>
-    </a>
+    </<?= $tag ?>>
+    <?php endforeach; ?>
+  </div>
 
-    <!-- Panel boczny -->
-    <div class="pg-side">
+  <!-- Sekcja dolna: ostatnie umowy + szybkie akcje -->
+  <div class="grid2">
 
-      <!-- Ostatnie umowy -->
-      <div class="ps-card" style="flex:1">
-        <div class="ps-head"><i class="bi bi-clock-history"></i> Ostatnie umowy</div>
-        <?php foreach ($_recent as $r):
-          $st = STATUS_LABELS[$r['status']] ?? ['class'=>'secondary','label'=>$r['status']];
-        ?>
-        <a href="<?= APP_URL ?>/contracts/<?= h($r['type']) ?>/view.php?id=<?= (int)$r['id'] ?>" class="ps-item">
-          <div class="ps-item-icon" style="background:#EFF6FF;color:#2563EB">
-            <i class="bi <?= h($_icons[$r['type']] ?? 'bi-file-text') ?>"></i>
-          </div>
-          <div style="flex:1;min-width:0">
-            <div class="ps-item-name"><?= h($r['imie_nazwisko'] ?? $r['numer_umowy'] ?? '—') ?></div>
-            <div class="ps-item-sub"><?= h($r['numer_umowy'] ?? '') ?> · <span class="badge bg-<?= h($st['class']) ?>" style="font-size:.6rem"><?= h($st['label']) ?></span></div>
-          </div>
-        </a>
-        <?php endforeach; ?>
-        <?php if (!$_recent): ?>
-        <div class="ps-item text-muted" style="justify-content:center;font-size:.8rem">Brak umów</div>
-        <?php endif; ?>
-        <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="ps-item" style="color:#2563EB;font-size:.78rem;justify-content:center;border-top:1px solid #F1F5F9">
-          Wszystkie umowy <i class="bi bi-arrow-right ms-1"></i>
-        </a>
-      </div>
-
-      <!-- Moje konto -->
-      <div class="ps-card">
-        <div class="ps-head"><i class="bi bi-person-circle"></i> Moje konto</div>
-        <a href="<?= APP_URL ?>/panel/index.php" class="ps-item">
-          <div class="ps-item-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-house"></i></div>
-          <div><div class="ps-item-name">Mój panel</div><div class="ps-item-sub">Umowy, wnioski, dokumenty</div></div>
-        </a>
-        <a href="<?= APP_URL ?>/komunikaty/index.php" class="ps-item">
-          <div class="ps-item-icon" style="background:#FFFBEB;color:#D97706"><i class="bi bi-megaphone"></i></div>
-          <div style="flex:1">
-            <div class="ps-item-name">Komunikaty</div>
-            <div class="ps-item-sub"><?= $_total_unread ? "{$_total_unread} nieprzeczytanych" : 'Brak nowych' ?></div>
-          </div>
-          <?php if ($_total_unread): ?><span class="badge bg-warning text-dark" style="font-size:.65rem"><?= $_total_unread ?></span><?php endif; ?>
-        </a>
-        <a href="<?= APP_URL ?>/auth/logout.php" class="ps-item" onclick="return confirm('Wylogować się?')" style="color:#EF4444">
-          <div class="ps-item-icon" style="background:#FEF2F2;color:#EF4444"><i class="bi bi-box-arrow-right"></i></div>
-          <div><div class="ps-item-name">Wyloguj się</div></div>
-        </a>
-      </div>
-
-    </div>
-
-    <!-- Drugi rząd — moduły dodatkowe (wszystkie widoczne; bez dostępu = wyszarzone) -->
-    <div class="pg-row2">
-
-      <?php
-        // Każdy kafel renderujemy zawsze. Gdy użytkownik nie ma dostępu, kafel jest
-        // wyszarzony, nieklikalny i oznaczony „Brak dostępu".
-        $_lock = '<span class="pm-lock"><i class="bi bi-lock-fill"></i>Brak dostępu</span>';
+    <!-- Ostatnie umowy -->
+    <div class="ps-card">
+      <div class="ps-head"><i class="bi bi-clock-history"></i> Ostatnie umowy</div>
+      <?php foreach ($_recent as $r):
+        $st = STATUS_LABELS[$r['status']] ?? ['class'=>'secondary','label'=>$r['status']];
       ?>
-
-      <!-- CRM -->
-      <?php $a = $crm_enabled; ?>
-      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/crm/dashboard.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
-        <div class="pm-h" style="background:linear-gradient(135deg,#14532D,#16A34A)">
-          <?php if (!$a): echo $_lock; endif; ?>
-          <div class="pm-icon"><i class="bi bi-diagram-2-fill"></i></div>
-          <div class="pm-title">CRM</div>
-          <div class="pm-desc">Kontakty, sprawy, kampanie</div>
-          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
+      <a href="<?= APP_URL ?>/contracts/<?= h($r['type']) ?>/view.php?id=<?= (int)$r['id'] ?>" class="ps-item">
+        <div class="ps-item-icon" style="background:#EFF6FF;color:#2563EB">
+          <i class="bi <?= h($_icons[$r['type']] ?? 'bi-file-text') ?>"></i>
         </div>
-        <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv"><?= $a ? $stats['crm'] : '—' ?></div><div class="pm-sl">Kontaktów</div></div>
-          <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Otwartych spraw</div></div>
-        </div>
-      </<?= $a ? 'a' : 'div' ?>>
-
-      <!-- Karty 30 -->
-      <?php $a = $k30_enabled; ?>
-      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/karty30/index.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
-        <div class="pm-h" style="background:linear-gradient(135deg,#581C87,#7C3AED)">
-          <?php if (!$a): echo $_lock; elseif ($k30_today): ?><div class="pm-badge"><i class="bi bi-calendar-check-fill"></i><?= $k30_today ?> wizyt dziś</div><?php endif; ?>
-          <div class="pm-icon"><i class="bi bi-card-checklist"></i></div>
-          <div class="pm-title">Karty 30</div>
-          <div class="pm-desc">Beneficjenci, harmonogram</div>
-          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
-        </div>
-        <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv"><?= $a ? $k30_today : '—' ?></div><div class="pm-sl">Wizyt dziś</div></div>
-          <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Beneficjentów</div></div>
-        </div>
-      </<?= $a ? 'a' : 'div' ?>>
-
-      <!-- Strategia NGO -->
-      <?php $a = $strategy_enabled; ?>
-      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/strategy/index.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
-        <div class="pm-h" style="background:linear-gradient(135deg,#4C1D95,#7C3AED)">
-          <?php if (!$a): echo $_lock; elseif ($strat_at_risk > 0): ?><div class="pm-badge"><i class="bi bi-exclamation-triangle-fill"></i><?= $strat_at_risk ?> zagrożone</div><?php endif; ?>
-          <div class="pm-icon"><i class="bi bi-bullseye"></i></div>
-          <div class="pm-title">Strategia NGO</div>
-          <div class="pm-desc">Cele strategiczne, sfery pożytku, sprawozdawczość</div>
-          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
-        </div>
-        <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv"><?= $a ? $strat_active : '—' ?></div><div class="pm-sl">Aktywnych celów</div></div>
-          <div class="pm-s">
-            <div class="pm-sv" <?= ($a && $strat_at_risk > 0) ? 'style="color:#DC2626"' : '' ?>><?= $a ? $strat_at_risk : '—' ?></div>
-            <div class="pm-sl">Zagrożonych</div>
-          </div>
-        </div>
-      </<?= $a ? 'a' : 'div' ?>>
-
-      <!-- Katalog -->
-      <a href="<?= APP_URL ?>/directory/" class="pm">
-        <div class="pm-h" style="background:linear-gradient(135deg,#4338CA,#6366F1)">
-          <div class="pm-icon"><i class="bi bi-person-lines-fill"></i></div>
-          <div class="pm-title">Katalog</div>
-          <div class="pm-desc">Współpracownicy, kontakty</div>
-          <div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div>
-        </div>
-        <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Osób</div></div>
-          <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Jednostek</div></div>
+        <div style="flex:1;min-width:0">
+          <div class="ps-item-name"><?= h($r['imie_nazwisko'] ?? $r['numer_umowy'] ?? '—') ?></div>
+          <div class="ps-item-sub"><?= h($r['numer_umowy'] ?? '') ?> · <span class="badge bg-<?= h($st['class']) ?>" style="font-size:.6rem"><?= h($st['label']) ?></span></div>
         </div>
       </a>
-
-      <!-- Administrator -->
-      <?php $a = is_admin(); ?>
-      <<?= $a ? 'a' : 'div' ?> <?= $a ? 'href="'.APP_URL.'/admin/index.php"' : '' ?> class="pm<?= $a ? '' : ' pm-locked' ?>">
-        <div class="pm-h" style="background:linear-gradient(135deg,#1E293B,#475569)">
-          <?php if (!$a): echo $_lock; endif; ?>
-          <div class="pm-icon"><i class="bi bi-shield-shaded"></i></div>
-          <div class="pm-title">Administrator</div>
-          <div class="pm-desc">Ustawienia, użytkownicy, moduły</div>
-          <?php if ($a): ?><div class="pm-cta">Wejdź <i class="bi bi-arrow-right"></i></div><?php endif; ?>
-        </div>
-        <div class="pm-f">
-          <div class="pm-s"><div class="pm-sv" <?= ($a && $stats['approvals']) ? 'style="color:#D97706"' : '' ?>><?= $a ? $stats['approvals'] : '—' ?></div><div class="pm-sl">Do akceptacji</div></div>
-          <div class="pm-s"><div class="pm-sv">—</div><div class="pm-sl">Powiadomień sys.</div></div>
-        </div>
-      </<?= $a ? 'a' : 'div' ?>>
-
+      <?php endforeach; ?>
+      <?php if (!$_recent): ?>
+      <div class="ps-item text-muted" style="justify-content:center;font-size:.8rem">Brak umów</div>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="ps-item" style="color:#2563EB;font-size:.78rem;justify-content:center;border-top:1px solid #F1F5F9">
+        Wszystkie umowy <i class="bi bi-arrow-right ms-1"></i>
+      </a>
     </div>
 
-  </div><!-- /pg -->
+    <!-- Szybkie akcje -->
+    <div class="ps-card">
+      <div class="ps-head"><i class="bi bi-lightning-charge-fill"></i> Szybkie akcje</div>
+      <nav class="qa">
+        <a href="<?= APP_URL ?>/contracts/wolontariat/add.php" class="qa-btn"><i class="bi bi-plus-circle text-primary"></i>Nowa umowa</a>
+        <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="qa-btn"><i class="bi bi-heart" style="color:#EF4444"></i>Wolontariusze</a>
+        <?php if (module_enabled('dyspozycyjnosc_enabled')):
+          $_urlop_pending = 0;
+          try { require_once __DIR__ . '/includes/dyspozycyjnosc.php'; $_urlop_pending = urlop_pending_count(); } catch (\Throwable $e) {}
+        ?>
+        <a href="<?= APP_URL ?>/contracts/wolontariat/urlopy.php" class="qa-btn"><i class="bi bi-airplane" style="color:#D97706"></i>Urlopy<?php if ($_urlop_pending): ?> <span class="badge bg-danger rounded-pill"><?= $_urlop_pending ?></span><?php endif; ?></a>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/strategy/actions/index.php" class="qa-btn"><i class="bi bi-lightning-charge text-primary"></i>Działania</a>
+        <a href="<?= APP_URL ?>/grants/index.php" class="qa-btn"><i class="bi bi-cash-coin text-success"></i>Granty</a>
+        <?php if ($crm_enabled): ?><a href="<?= APP_URL ?>/crm/index.php" class="qa-btn"><i class="bi bi-people" style="color:#16A34A"></i>Kontakty CRM</a><?php endif; ?>
+        <a href="<?= APP_URL ?>/reports/index.php" class="qa-btn"><i class="bi bi-bar-chart-line text-primary"></i>Raporty</a>
+        <a href="<?= APP_URL ?>/panel/index.php" class="qa-btn"><i class="bi bi-house text-success"></i>Mój panel</a>
+        <a href="<?= APP_URL ?>/komunikaty/index.php" class="qa-btn"><i class="bi bi-megaphone" style="color:#D97706"></i>Komunikaty<?php if ($_total_unread): ?> <span class="badge bg-danger rounded-pill"><?= $_total_unread ?></span><?php endif; ?></a>
+        <a href="<?= APP_URL ?>/search.php" class="qa-btn"><i class="bi bi-search text-muted"></i>Szukaj</a>
+      </nav>
+    </div>
 
-  <!-- Szybkie akcje -->
-  <nav class="qa">
-    <a href="<?= APP_URL ?>/contracts/wolontariat/add.php" class="qa-btn"><i class="bi bi-plus-circle text-primary"></i>Nowa umowa wolontariatu</a>
-    <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="qa-btn"><i class="bi bi-heart" style="color:#EF4444"></i>Wolontariusze</a>
-    <?php if (module_enabled('dyspozycyjnosc_enabled')):
-      $_urlop_pending = 0;
-      try { require_once __DIR__ . '/includes/dyspozycyjnosc.php'; $_urlop_pending = urlop_pending_count(); } catch (\Throwable $e) {}
-    ?>
-    <a href="<?= APP_URL ?>/contracts/wolontariat/urlopy.php" class="qa-btn"><i class="bi bi-airplane" style="color:#D97706"></i>Urlopy<?php if ($_urlop_pending): ?> <span class="badge bg-danger rounded-pill"><?= $_urlop_pending ?></span><?php endif; ?></a>
-    <?php endif; ?>
-    <a href="<?= APP_URL ?>/strategy/actions/index.php" class="qa-btn"><i class="bi bi-lightning-charge text-primary"></i>Działania</a>
-    <a href="<?= APP_URL ?>/grants/index.php" class="qa-btn"><i class="bi bi-cash-coin text-success"></i>Granty</a>
-    <?php if ($crm_enabled): ?><a href="<?= APP_URL ?>/crm/index.php" class="qa-btn"><i class="bi bi-people" style="color:#16A34A"></i>Kontakty CRM</a><?php endif; ?>
-    <a href="<?= APP_URL ?>/reports/index.php" class="qa-btn"><i class="bi bi-bar-chart-line text-primary"></i>Raporty</a>
-    <a href="<?= APP_URL ?>/search.php" class="qa-btn"><i class="bi bi-search text-muted"></i>Szukaj</a>
-  </nav>
+  </div>
 
 </main>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
