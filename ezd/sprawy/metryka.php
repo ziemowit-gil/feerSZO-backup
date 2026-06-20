@@ -1,6 +1,6 @@
 <?php
 /**
- * Metryka sprawy (wg art. 66a KPA) — chronologiczny rejestr czynności w sprawie,
+ * Metryka sprawy — chronologiczny rejestr czynności w sprawie,
  * budowany z dziennika operacji (ezd_log). Drukowalny.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -74,7 +74,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
     <div>
       <?php if($org_name): ?><div class="fw-bold" style="font-size:1.05rem"><?= h($org_name) ?></div><?php endif; ?>
-      <div class="mtr-meta">Metryka sprawy (art. 66a KPA)</div>
+      <div class="mtr-meta">Metryka sprawy — rejestr czynności</div>
     </div>
     <div class="text-end mtr-meta">
       <div><strong>Znak sprawy:</strong> <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span></div>

@@ -287,6 +287,15 @@
 
 // ── Stałe ────────────────────────────────────────────────────────────────────
 
+/**
+ * Tryb „mini" kancelarii — uproszczony rejestr spraw i dokumentów bez
+ * formalnych elementów postępowania (metryka, obieg/workflow BPM). Włączany
+ * w Ustawieniach EZD (ustawienie org `ezd_mini`).
+ */
+function ezd_mini(): bool {
+    return (string) org_setting('ezd_mini') === '1';
+}
+
 const EZD_UPLOAD_SUBDIR = 'ezd/';
 const EZD_ALLOWED_EXT   = ['pdf','doc','docx','xls','xlsx','odt','ods','pptx','png','jpg','jpeg','gif','zip','txt','csv','eml','msg'];
 const EZD_MAX_SIZE      = 25 * 1024 * 1024; // 25 MB

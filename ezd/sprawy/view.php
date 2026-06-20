@@ -42,6 +42,7 @@ foreach ($zalaczniki as $z) {
 
 $is_closed = $sprawa['status'] === 'closed';
 $can_act   = can_edit() && !$is_closed;
+$mini      = ezd_mini(); // tryb uproszczony — ukrywa metrykę i obieg/workflow
 
 // Obsługa POST (upload + dekretacja + zmiana statusu sprawy)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -259,9 +260,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
           </div>
           <div class="d-flex gap-2 flex-wrap flex-shrink-0">
-            <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Metryka sprawy (KPA)">
+            <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark" title="Drukuj sprawę do PDF (wszystkie lub jeden dokument)">
+              <i class="bi bi-printer me-1"></i>Drukuj sprawę
+            </a>
+            <?php if(!$mini): ?>
+            <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Metryka sprawy">
               <i class="bi bi-clipboard-check me-1"></i>Metryka
             </a>
+            <?php endif; ?>
             <?php if($can_act): ?>
             <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-info">
               <i class="bi bi-envelope-plus me-1"></i>Pismo
@@ -281,6 +287,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
 
     <!-- Workflow BPM — etapy obiegu (wg JRWA sprawy) -->
+    <?php if(!$mini): ?>
     <?php
       $wf_steps  = ezd_sprawa_workflow($sprawa);
       $wf_keys   = array_column($wf_steps, 'key');
@@ -333,6 +340,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; /* !mini */ ?>
 
     <!-- Timeline dokumentów -->
     <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size:.7rem;letter-spacing:.1em">

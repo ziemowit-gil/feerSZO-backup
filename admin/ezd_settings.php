@@ -15,6 +15,7 @@ $PAGE_TITLE = 'Ustawienia modułu Kancelaria EZD';
 
 $settings_keys = [
     'ezd_enabled',
+    'ezd_mini',
     'ezd_reminders_enabled',
     'ezd_peln_jrwa',
     'ezd_cert_jrwa',
@@ -26,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $values = [
         'ezd_enabled'           => isset($_POST['ezd_enabled'])           ? '1' : '0',
+        'ezd_mini'              => isset($_POST['ezd_mini'])              ? '1' : '0',
         'ezd_reminders_enabled' => isset($_POST['ezd_reminders_enabled']) ? '1' : '0',
         'ezd_peln_jrwa'         => trim($_POST['ezd_peln_jrwa'] ?? '') ?: '013',
         'ezd_cert_jrwa'         => trim($_POST['ezd_cert_jrwa'] ?? '') ?: '53',
@@ -80,6 +82,11 @@ include dirname(__DIR__) . '/includes/header.php';
             <input class="form-check-input" type="checkbox" role="switch" id="ezd_enabled" name="ezd_enabled" <?= module_enabled('ezd_enabled') ? 'checked' : '' ?>>
             <label class="form-check-label fw-semibold" for="ezd_enabled">Moduł włączony</label>
             <div class="form-text">Udostępnia sekcję „Kancelaria EZD" w menu (Teczki, Sprawy, Pisma, Dziennik podawczy, JRWA). To samo ustawienie znajdziesz w <a href="<?= APP_URL ?>/admin/modules_settings.php">Modułach</a>.</div>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="ezd_mini" name="ezd_mini" <?= $cfg['ezd_mini'] === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label fw-semibold" for="ezd_mini">Tryb „mini" (uproszczony)</label>
+            <div class="form-text">Uproszczony rejestr spraw i dokumentów — ukrywa formalne elementy postępowania w widoku sprawy: <strong>metrykę</strong> oraz <strong>obieg/workflow (BPM)</strong>. Pozostają: dane sprawy, pisma, dokumenty wewnętrzne, notatki, repozytorium plików i dekretacja.</div>
           </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" id="ezd_reminders_enabled" name="ezd_reminders_enabled" <?= $cfg['ezd_reminders_enabled'] !== '0' ? 'checked' : '' ?>>
