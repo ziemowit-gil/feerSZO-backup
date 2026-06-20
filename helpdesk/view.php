@@ -219,6 +219,11 @@ include dirname(__DIR__) . '/includes/header.php';
 .hd-msg-user   { background:#EEF4FF; border-left:3px solid #2563EB; }
 .hd-msg-op     { background:#F0FDF4; border-left:3px solid #16A34A; }
 .hd-msg-intern { background:#FFF7ED; border-left:3px dashed #EA580C; }
+.hd-body { white-space:pre-wrap; font-size:.9rem; }
+.hd-body.hd-clamp { max-height:11em; overflow:hidden;
+  -webkit-mask-image:linear-gradient(180deg,#000 70%,transparent);
+          mask-image:linear-gradient(180deg,#000 70%,transparent); }
+.hd-body.hd-expanded { max-height:none; -webkit-mask-image:none; mask-image:none; }
 </style>
 
 <!-- Nagłówek -->
@@ -253,11 +258,26 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <!-- Wiadomości -->
   <div class="mb-3">
-    <?php foreach ($messages as $m):
+    <?php
+      $total        = count($messages);
+      $recent_keep  = 3;
+      $hidden_count = ($total > $recent_keep + 1) ? $total - $recent_keep : 0;
+    ?>
+    <?php if ($hidden_count): ?>
+    <div class="text-center mb-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="hdToggleOlder(this)">
+        <i class="bi bi-chevron-down me-1"></i>Pokaż wcześniejsze wiadomości (<?= $hidden_count ?>)
+      </button>
+    </div>
+    <?php endif; ?>
+    <?php foreach ($messages as $i => $m):
       $is_mine     = (int)$m['user_id'] === $uid;
       $is_req      = (int)$m['user_id'] === (int)$ticket['requester_id'];
       $msg_class   = $m['is_internal'] ? 'hd-msg-intern' : ($is_req ? 'hd-msg-user' : 'hd-msg-op');
       $msg_atts    = array_filter($atts, fn($a) => (int)$a['message_id'] === (int)$m['id']);
+      $long        = mb_strlen($m['body']) > 600 || substr_count($m['body'], "\n") > 10;
+      if ($hidden_count && $i === 0)            echo '<div id="hdOlder" class="d-none">';
+      if ($hidden_count && $i === $hidden_count) echo '</div>';
     ?>
     <div class="hd-msg <?= $msg_class ?>">
       <div class="d-flex justify-content-between align-items-start mb-1">
@@ -269,7 +289,10 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
         <small class="text-muted"><?= date('d.m.Y H:i', strtotime($m['created_at'])) ?></small>
       </div>
-      <div style="white-space:pre-wrap;font-size:.9rem"><?= nl2br(h($m['body'])) ?></div>
+      <div class="hd-body<?= $long ? ' hd-clamp' : '' ?>"><?= nl2br(h($m['body'])) ?></div>
+      <?php if ($long): ?>
+      <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:.8rem" onclick="hdToggleBody(this)">Pokaż całość</button>
+      <?php endif; ?>
       <?php if ($msg_atts): ?>
       <div class="mt-2 d-flex flex-wrap gap-1">
         <?php foreach ($msg_atts as $a): ?>
@@ -652,6 +675,21 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 <?php endif; ?>
+
+<script>
+function hdToggleOlder(btn){
+  var o=document.getElementById('hdOlder'); if(!o) return;
+  var hidden=o.classList.toggle('d-none');
+  btn.innerHTML = hidden
+    ? '<i class="bi bi-chevron-down me-1"></i>Pokaż wcześniejsze wiadomości'
+    : '<i class="bi bi-chevron-up me-1"></i>Ukryj wcześniejsze wiadomości';
+}
+function hdToggleBody(btn){
+  var b=btn.previousElementSibling; if(!b) return;
+  var exp=b.classList.toggle('hd-expanded');
+  btn.textContent = exp ? 'Zwiń' : 'Pokaż całość';
+}
+</script>
 
 <?php if ($is_op): ?>
 <script>
