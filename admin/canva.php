@@ -65,9 +65,25 @@ HTML;
     header('Location: canva.php'); exit;
 }
 
+// ── Ręczne dane konta Canva (login/hasło) — wpisuje admin, widzi wolontariusz ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_acc'])) {
+    csrf_check();
+    $cid = (int)($_POST['cid'] ?? 0);
+    if ($cid && db_one("SELECT id FROM umowy_wolontariat WHERE id=?", [$cid])) {
+        $login = trim($_POST['canva_login'] ?? '');
+        $haslo = (string)($_POST['canva_haslo'] ?? '');
+        db()->prepare("UPDATE umowy_wolontariat SET canva_login=?, canva_haslo=?, canva_konto_zrodlo='admin', canva_konto_at=datetime('now','localtime') WHERE id=?")
+            ->execute([$login, $haslo, $cid]);
+        log_contract_action('wolontariat', $cid, (int)current_user()['id'], 'note', 'Admin: Canva — zapisano dane konta (login/hasło)');
+        flash_set('success', 'Zapisano dane konta Canva — wolontariusz zobaczy je w panelu.');
+    }
+    header('Location: canva.php'); exit;
+}
+
 // ── Dane ──────────────────────────────────────────────────────────────────────
 $pending = db_all(
-    "SELECT id, imie_nazwisko, email, m365_login, m365_user_id, numer_umowy, canva_invited_at, canva_email_sent_at
+    "SELECT id, imie_nazwisko, email, m365_login, m365_user_id, numer_umowy, canva_invited_at, canva_email_sent_at,
+            canva_login, canva_haslo, canva_konto_zrodlo
      FROM umowy_wolontariat
      WHERE canva_access=1
      ORDER BY canva_invited_at IS NOT NULL, imie_nazwisko"
@@ -201,6 +217,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <th>E-mail</th>
           <th>Login M365</th>
           <th>Numer umowy</th>
+          <th>Konto Canva (login/hasło)</th>
           <th>Status Canva</th>
           <th class="text-end">Akcje</th>
         </tr>
@@ -225,6 +242,23 @@ include dirname(__DIR__) . '/includes/header.php';
           <?php endif; ?>
         </td>
         <td class="font-monospace small"><?= h($p['numer_umowy'] ?: '—') ?></td>
+        <td style="min-width:230px">
+          <form method="post" class="d-flex flex-column gap-1">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_save_canva_acc" value="1">
+            <input type="hidden" name="cid" value="<?= (int)$p['id'] ?>">
+            <input type="text" name="canva_login" value="<?= h($p['canva_login'] ?? '') ?>" placeholder="login / e-mail" class="form-control form-control-sm" style="font-size:.74rem">
+            <div class="d-flex gap-1">
+              <input type="text" name="canva_haslo" value="<?= h($p['canva_haslo'] ?? '') ?>" placeholder="hasło (opcjonalne)" class="form-control form-control-sm" style="font-size:.74rem">
+              <button class="btn btn-sm btn-outline-primary" style="white-space:nowrap" title="Zapisz dane konta"><i class="bi bi-save"></i></button>
+            </div>
+            <?php if (($p['canva_konto_zrodlo'] ?? '')==='wolontariusz'): ?>
+            <span class="text-muted" style="font-size:.66rem"><i class="bi bi-person-badge me-1"></i>login podany przez wolontariusza</span>
+            <?php elseif (($p['canva_konto_zrodlo'] ?? '')==='admin' && !empty($p['canva_login'])): ?>
+            <span class="text-success" style="font-size:.66rem"><i class="bi bi-eye me-1"></i>widoczne dla wolontariusza w panelu</span>
+            <?php endif; ?>
+          </form>
+        </td>
         <td>
           <?php if ($p['_invited']): ?>
           <span class="badge bg-success" style="font-size:.72rem">

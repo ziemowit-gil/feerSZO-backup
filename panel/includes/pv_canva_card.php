@@ -17,6 +17,16 @@ $_canva_invited   = $_canva_invited   ?? false;
 $_canva_requested = $_canva_requested ?? false;
 $_canva_cid       = (int)($_canva_contract_id ?? 0);
 
+// Ręczne konto Canva (login/hasło) — wpisane przez admina lub wolontariusza.
+$_canva_acc = null;
+if ($_canva_cid && function_exists('db_one')) {
+    try { $_canva_acc = db_one("SELECT canva_login, canva_haslo, canva_konto_zrodlo, canva_konto_at FROM umowy_wolontariat WHERE id=?", [$_canva_cid]); }
+    catch (\Throwable $e) { $_canva_acc = null; }
+}
+$_canva_by_admin = ($_canva_acc['canva_konto_zrodlo'] ?? '') === 'admin';
+$_canva_login    = trim((string)($_canva_acc['canva_login'] ?? ''));
+$_canva_haslo    = (string)($_canva_acc['canva_haslo'] ?? '');
+
 // Pokazujemy kartę tylko gdy jest co pokazać.
 if (!$_canva_invited && !$_canva_requested && !$_canva_cid) return;
 
@@ -47,6 +57,43 @@ $_canva_login_sub  = $_canva_sso_url
   </div>
   <i class="bi bi-box-arrow-up-right" style="font-size:1.05rem;opacity:.8" aria-hidden="true"></i>
 </a>
+
+<?php if ($_canva_by_admin && $_canva_login !== ''): ?>
+<!-- Dane konta wpisane przez administratora — wolontariusz je widzi -->
+<div class="mb-3 px-3 py-2 rounded-3" style="background:#faf5ff;border:1.5px solid #e9d5ff;font-size:.82rem">
+  <div style="font-weight:700;color:#6d28d9;margin-bottom:.35rem"><i class="bi bi-key me-1"></i>Dane logowania do Canva</div>
+  <div class="d-flex align-items-center gap-2 mb-1">
+    <span class="text-muted" style="min-width:54px">Login:</span>
+    <code id="cvLogin" style="font-size:.82rem"><?= h($_canva_login) ?></code>
+    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('cvLogin').textContent)" title="Kopiuj"><i class="bi bi-clipboard"></i></button>
+  </div>
+  <?php if ($_canva_haslo !== ''): ?>
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted" style="min-width:54px">Hasło:</span>
+    <code id="cvPass" data-p="<?= h($_canva_haslo) ?>" style="font-size:.82rem">••••••••</code>
+    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="var c=document.getElementById('cvPass');var s=c.textContent==='••••••••';c.textContent=s?c.dataset.p:'••••••••';this.querySelector('i').className=s?'bi bi-eye-slash':'bi bi-eye'" title="Pokaż/ukryj"><i class="bi bi-eye"></i></button>
+    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('cvPass').dataset.p)" title="Kopiuj"><i class="bi bi-clipboard"></i></button>
+  </div>
+  <div class="text-muted mt-1" style="font-size:.72rem">Dane przekazane przez administratora. Zmień hasło po pierwszym logowaniu.</div>
+  <?php endif; ?>
+</div>
+<?php else: ?>
+<!-- Wolontariusz sam zakłada konto i podaje login (zachowane w panelu) -->
+<form method="post" class="mb-3 px-3 py-2 rounded-3" style="background:#faf5ff;border:1.5px solid #e9d5ff">
+  <?php if ($_canva_csrf !== ''): ?><input type="hidden" name="_csrf" value="<?= h($_canva_csrf) ?>"><?php endif; ?>
+  <input type="hidden" name="_save_canva_account" value="1">
+  <input type="hidden" name="canva_contract_id" value="<?= $_canva_cid ?>">
+  <label style="font-size:.78rem;font-weight:700;color:#6d28d9;display:block;margin-bottom:.3rem">
+    <i class="bi bi-person-badge me-1"></i>Założyłeś/aś konto Canva samodzielnie? Podaj login
+  </label>
+  <div class="d-flex gap-2">
+    <input type="text" name="canva_login" value="<?= h($_canva_login) ?>" placeholder="e-mail / login w Canva"
+           class="form-control form-control-sm" style="font-size:.82rem">
+    <button type="submit" class="btn btn-sm" style="background:#7c3aed;color:#fff;white-space:nowrap"><i class="bi bi-save me-1"></i>Zapisz</button>
+  </div>
+  <div class="text-muted mt-1" style="font-size:.72rem">Login zobaczy administrator — ułatwi to dodanie Cię do zespołu Canva.</div>
+</form>
+<?php endif; ?>
 
 <?php else: ?>
 <div id="pvCanvaCard"

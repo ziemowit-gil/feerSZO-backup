@@ -142,6 +142,25 @@ if ($_active_contract) {
 }
 
 // ── Prośba o dostęp do Canva — przez system Zatwierdzeń ──────────────────────
+// Wolontariusz podaje dane konta Canva, które sam założył (gdy admin nie wpisał).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_account'])) {
+    require_once dirname(__DIR__) . '/includes/functions.php';
+    if (isset($_POST['_csrf'])) csrf_check();
+    $cid = (int)($_POST['canva_contract_id'] ?? ($_active_contract['id'] ?? 0));
+    if ($cid && $_active_contract && (int)$_active_contract['id'] === $cid && $_active_contract['contract_type'] === 'wolontariat') {
+        $cur = db_one("SELECT canva_konto_zrodlo FROM umowy_wolontariat WHERE id=?", [$cid]);
+        if (($cur['canva_konto_zrodlo'] ?? '') === 'admin') {
+            flash_set('error', 'Dane konta Canva ustawił administrator — w razie potrzeby skontaktuj się z nim.');
+        } else {
+            $login = trim($_POST['canva_login'] ?? '');
+            db()->prepare("UPDATE umowy_wolontariat SET canva_login=?, canva_konto_zrodlo='wolontariusz', canva_konto_at=datetime('now','localtime') WHERE id=?")
+                ->execute([$login, $cid]);
+            flash_set('success', $login !== '' ? 'Zapisano login Twojego konta Canva.' : 'Wyczyszczono dane konta Canva.');
+        }
+    }
+    header('Location: ' . $_SERVER['REQUEST_URI']); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_request_canva'])) {
     require_once dirname(__DIR__) . '/includes/functions.php';
     // Wyspa React składa prośbę przez fetch (data-* + ?_ajax=1) → odpowiedź JSON.

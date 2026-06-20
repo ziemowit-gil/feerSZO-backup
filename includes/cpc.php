@@ -159,6 +159,12 @@ function cpc_migrate(): void {
         'canva_email_sent_at'       => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_email_sent_at DATETIME NULL",
         // Prośba o Canva (składana przez wolontariusza z panelu)
         'canva_access_requested_at' => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_access_requested_at DATETIME NULL",
+        // Ręczne konto Canva: login + hasło (gdy brak SSO/Enterprise).
+        // Wpisuje admin (widzi wolontariusz) albo wolontariusz (sam założył konto).
+        'canva_login'               => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_login TEXT NULL",
+        'canva_haslo'               => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_haslo TEXT NULL",
+        'canva_konto_zrodlo'        => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_konto_zrodlo TEXT NULL",
+        'canva_konto_at'            => "ALTER TABLE umowy_wolontariat ADD COLUMN canva_konto_at DATETIME NULL",
         // Token jednorazowy do uzupełnienia danych przez wolontariusza (przed 01.06.2026)
         'data_token'                => "ALTER TABLE umowy_wolontariat ADD COLUMN data_token TEXT NULL",
         'data_token_used_at'        => "ALTER TABLE umowy_wolontariat ADD COLUMN data_token_used_at DATETIME NULL",
