@@ -16,19 +16,26 @@
 $_canva_invited   = $_canva_invited   ?? false;
 $_canva_requested = $_canva_requested ?? false;
 $_canva_cid       = (int)($_canva_contract_id ?? 0);
+$_canva_scope     = $_canva_scope ?? 'contract';   // 'contract' | 'user'
+$_canva_uid       = (int)($_canva_user_id ?? 0);
 
 // Ręczne konto Canva (login/hasło) — wpisane przez admina lub wolontariusza.
-$_canva_acc = null;
-if ($_canva_cid && function_exists('db_one')) {
-    try { $_canva_acc = db_one("SELECT canva_login, canva_haslo, canva_konto_zrodlo, canva_konto_at FROM umowy_wolontariat WHERE id=?", [$_canva_cid]); }
-    catch (\Throwable $e) { $_canva_acc = null; }
+$_canva_login = ''; $_canva_haslo = ''; $_canva_by_admin = false;
+if ($_canva_scope === 'user' && $_canva_uid && function_exists('canva_user_access_get')) {
+    $a = canva_user_access_get($_canva_uid);
+    $_canva_login    = trim((string)($a['login'] ?? ''));
+    $_canva_haslo    = (string)($a['haslo'] ?? '');
+    $_canva_by_admin = ($a['konto_zrodlo'] ?? '') === 'admin';
+} elseif ($_canva_cid && function_exists('db_one')) {
+    try { $a = db_one("SELECT canva_login, canva_haslo, canva_konto_zrodlo FROM umowy_wolontariat WHERE id=?", [$_canva_cid]); }
+    catch (\Throwable $e) { $a = null; }
+    $_canva_login    = trim((string)($a['canva_login'] ?? ''));
+    $_canva_haslo    = (string)($a['canva_haslo'] ?? '');
+    $_canva_by_admin = ($a['canva_konto_zrodlo'] ?? '') === 'admin';
 }
-$_canva_by_admin = ($_canva_acc['canva_konto_zrodlo'] ?? '') === 'admin';
-$_canva_login    = trim((string)($_canva_acc['canva_login'] ?? ''));
-$_canva_haslo    = (string)($_canva_acc['canva_haslo'] ?? '');
 
 // Pokazujemy kartę tylko gdy jest co pokazać.
-if (!$_canva_invited && !$_canva_requested && !$_canva_cid) return;
+if (!$_canva_invited && !$_canva_requested && !$_canva_cid && !$_canva_uid) return;
 
 $_canva_csrf = function_exists('csrf_token') ? csrf_token() : '';
 
@@ -82,7 +89,9 @@ $_canva_login_sub  = $_canva_sso_url
 <form method="post" class="mb-3 px-3 py-2 rounded-3" style="background:#faf5ff;border:1.5px solid #e9d5ff">
   <?php if ($_canva_csrf !== ''): ?><input type="hidden" name="_csrf" value="<?= h($_canva_csrf) ?>"><?php endif; ?>
   <input type="hidden" name="_save_canva_account" value="1">
+  <input type="hidden" name="canva_scope" value="<?= h($_canva_scope) ?>">
   <input type="hidden" name="canva_contract_id" value="<?= $_canva_cid ?>">
+  <input type="hidden" name="canva_user_id" value="<?= $_canva_uid ?>">
   <label style="font-size:.78rem;font-weight:700;color:#6d28d9;display:block;margin-bottom:.3rem">
     <i class="bi bi-person-badge me-1"></i>Założyłeś/aś konto Canva samodzielnie? Podaj login
   </label>

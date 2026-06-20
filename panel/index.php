@@ -146,6 +146,21 @@ if ($_active_contract) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_account'])) {
     require_once dirname(__DIR__) . '/includes/functions.php';
     if (isset($_POST['_csrf'])) csrf_check();
+    // Tryb „user" — wolontariusz bez umowy zapisuje login swojego konta Canva.
+    if (($_POST['canva_scope'] ?? '') === 'user') {
+        require_once dirname(__DIR__) . '/includes/canva.php';
+        $uid = (int)($_POST['canva_user_id'] ?? 0);
+        if ($uid && $uid === (int)$user['id']) {
+            $a = canva_user_access_get($uid);
+            if (($a['konto_zrodlo'] ?? '') === 'admin') {
+                flash_set('error', 'Dane konta Canva ustawił administrator — w razie potrzeby skontaktuj się z nim.');
+            } else {
+                canva_user_set_account($uid, trim($_POST['canva_login'] ?? ''), (string)($a['haslo'] ?? ''), 'wolontariusz');
+                flash_set('success', 'Zapisano login Twojego konta Canva.');
+            }
+        }
+        header('Location: ' . $_SERVER['REQUEST_URI']); exit;
+    }
     $cid = (int)($_POST['canva_contract_id'] ?? ($_active_contract['id'] ?? 0));
     if ($cid && $_active_contract && (int)$_active_contract['id'] === $cid && $_active_contract['contract_type'] === 'wolontariat') {
         $cur = db_one("SELECT canva_konto_zrodlo FROM umowy_wolontariat WHERE id=?", [$cid]);
@@ -1000,10 +1015,21 @@ if (empty($_canva_banner)) {
     $_canva_access     = !empty($_canva_row['canva_access']);
     $_canva_invited    = !empty($_canva_row['canva_invited_at']);
     $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
+    $_canva_scope      = 'contract';
+    $_canva_user_id    = (int)($user['id'] ?? 0);
     // Formularz pokazujemy tylko dla aktywnej umowy wolontariatu.
     if (!$_canva_invited && !$_canva_requested
         && !($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat')) {
         $_canva_contract_id = 0;
+    }
+    // Brak dostępu z umowy → sprawdź dostęp przyznany na poziomie konta (wolo bez umowy).
+    if (!$_canva_access && !$_canva_invited && !$_canva_requested && !$_canva_contract_id) {
+        require_once dirname(__DIR__) . '/includes/canva.php';
+        $_cua = canva_user_access_get((int)($user['id'] ?? 0));
+        if ($_cua && (int)($_cua['access'] ?? 0) === 1) {
+            $_canva_scope    = 'user';
+            $_canva_invited  = true;   // dostęp włączony przez administratora
+        }
     }
     include __DIR__ . '/includes/pv_canva_card.php';
 }

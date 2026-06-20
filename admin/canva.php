@@ -80,7 +80,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_acc'])) {
     header('Location: canva.php'); exit;
 }
 
+// ── Dostęp Canva dla użytkownika BEZ umowy (poziom konta) ─────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_grant_canva_user'])) {
+    csrf_check();
+    $uid = (int)($_POST['user_id'] ?? 0);
+    if ($uid && db_one("SELECT id FROM users WHERE id=?", [$uid])) {
+        canva_user_grant($uid, (int)current_user()['id']);
+        flash_set('success', 'Włączono dostęp do Canva dla wybranego użytkownika.');
+    } else { flash_set('error', 'Wybierz użytkownika.'); }
+    header('Location: canva.php'); exit;
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_revoke_canva_user'])) {
+    csrf_check();
+    canva_user_revoke((int)($_POST['user_id'] ?? 0));
+    flash_set('success', 'Wyłączono dostęp do Canva.');
+    header('Location: canva.php'); exit;
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_user_acc'])) {
+    csrf_check();
+    $uid = (int)($_POST['user_id'] ?? 0);
+    if ($uid && db_one("SELECT id FROM users WHERE id=?", [$uid])) {
+        canva_user_set_account($uid, trim($_POST['canva_login'] ?? ''), (string)($_POST['canva_haslo'] ?? ''), 'admin');
+        flash_set('success', 'Zapisano dane konta Canva — użytkownik zobaczy je w panelu.');
+    }
+    header('Location: canva.php'); exit;
+}
+
 // ── Dane ──────────────────────────────────────────────────────────────────────
+$canva_user_grants = canva_users_with_access();
+// Użytkownicy do nadania dostępu (bez aktywnego dostępu na poziomie konta)
+$_granted_ids = array_map(fn($r) => (int)$r['user_id'], array_filter($canva_user_grants, fn($r) => (int)$r['access'] === 1));
+$canva_users_pick = db_all("SELECT id, name, email FROM users WHERE is_active=1 ORDER BY name");
+$canva_users_pick = array_filter($canva_users_pick, fn($u) => !in_array((int)$u['id'], $_granted_ids, true));
+
 $pending = db_all(
     "SELECT id, imie_nazwisko, email, m365_login, m365_user_id, numer_umowy, canva_invited_at, canva_email_sent_at,
             canva_login, canva_haslo, canva_konto_zrodlo
@@ -294,5 +326,71 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 <?php endif; ?>
+
+<!-- ── Dostęp Canva dla wolontariuszy BEZ umowy (poziom konta) ──────────────── -->
+<div class="card shadow-sm mt-4">
+  <div class="card-header fw-semibold"><i class="bi bi-person-gear me-2 text-primary"></i>Dostęp do Canva bez umowy</div>
+  <div class="card-body">
+    <p class="text-muted" style="font-size:.84rem">Włącz dostęp do Canva dla dowolnego konta użytkownika — także osoby <strong>bez umowy wolontariackiej</strong>. Użytkownik zobaczy w panelu przycisk logowania i dane konta (jeśli je wpiszesz).</p>
+    <form method="post" class="d-flex gap-2 flex-wrap align-items-end mb-3" style="max-width:560px">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_grant_canva_user" value="1">
+      <div class="flex-grow-1">
+        <label class="form-label mb-1" style="font-size:.74rem">Użytkownik</label>
+        <select name="user_id" class="form-select form-select-sm" required>
+          <option value="">— wybierz konto —</option>
+          <?php foreach ($canva_users_pick as $u): ?>
+          <option value="<?= (int)$u['id'] ?>"><?= h($u['name']) ?><?= $u['email'] ? ' · '.h($u['email']) : '' ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Włącz dostęp</button>
+    </form>
+
+    <?php $active_grants = array_filter($canva_user_grants, fn($g) => (int)$g['access'] === 1); ?>
+    <?php if ($active_grants): ?>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" style="font-size:.83rem">
+        <thead class="table-light"><tr><th>Użytkownik</th><th>E-mail</th><th>Konto Canva (login/hasło)</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($active_grants as $g): ?>
+        <tr>
+          <td class="fw-semibold"><?= h($g['user_name']) ?> <span class="badge bg-light text-muted border" style="font-size:.6rem"><?= h($g['user_role']) ?></span></td>
+          <td class="text-muted"><?= h($g['user_email'] ?: '—') ?></td>
+          <td style="min-width:230px">
+            <form method="post" class="d-flex flex-column gap-1">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_save_canva_user_acc" value="1">
+              <input type="hidden" name="user_id" value="<?= (int)$g['user_id'] ?>">
+              <input type="text" name="canva_login" value="<?= h($g['login'] ?? '') ?>" placeholder="login / e-mail" class="form-control form-control-sm" style="font-size:.74rem">
+              <div class="d-flex gap-1">
+                <input type="text" name="canva_haslo" value="<?= h($g['haslo'] ?? '') ?>" placeholder="hasło (opcjonalne)" class="form-control form-control-sm" style="font-size:.74rem">
+                <button class="btn btn-sm btn-outline-primary" title="Zapisz dane konta"><i class="bi bi-save"></i></button>
+              </div>
+              <?php if (($g['konto_zrodlo'] ?? '')==='wolontariusz'): ?>
+              <span class="text-muted" style="font-size:.66rem"><i class="bi bi-person-badge me-1"></i>login podany przez użytkownika</span>
+              <?php elseif (($g['konto_zrodlo'] ?? '')==='admin' && !empty($g['login'])): ?>
+              <span class="text-success" style="font-size:.66rem"><i class="bi bi-eye me-1"></i>widoczne dla użytkownika w panelu</span>
+              <?php endif; ?>
+            </form>
+          </td>
+          <td class="text-end">
+            <form method="post" onsubmit="return confirm('Wyłączyć dostęp do Canva dla tego użytkownika?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_revoke_canva_user" value="1">
+              <input type="hidden" name="user_id" value="<?= (int)$g['user_id'] ?>">
+              <button class="btn btn-sm btn-outline-danger" title="Wyłącz dostęp"><i class="bi bi-x-lg"></i></button>
+            </form>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php else: ?>
+    <div class="text-muted" style="font-size:.82rem">Brak dostępów przyznanych poza umowami.</div>
+    <?php endif; ?>
+  </div>
+</div>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
