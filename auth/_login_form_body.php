@@ -41,7 +41,7 @@ if ($x509_available) $alt_tabs['x509'] = [
   </svg>
   Zaloguj przez Microsoft 365
 </a>
-<p class="method-for">Dla osób z kontem <strong>@feer.org.pl</strong> — jedno kliknięcie, bez wpisywania hasła</p>
+<p class="method-for">Dla administracji, koordynatorów i osób z kontem <strong>@feer.org.pl</strong> — jedno kliknięcie, bez wpisywania hasła</p>
 
 <div class="or-div"><span>lub e-mailem i hasłem</span></div>
 <?php endif; ?>

@@ -244,14 +244,14 @@ $_login_welcome = '';
 try { $_login_welcome = trim(org_setting('login_welcome_text') ?: ''); } catch (\Throwable $e) {}
 $_login_welcome_is_custom = ($_login_welcome !== '');
 
-// ── Dwie ścieżki logowania pokazywane w lewym panelu ──────────────────────
+// ── Dwie ścieżki logowania (wg grup) pokazywane w lewym panelu ────────────
 $_avail_methods = [];
+$_avail_methods[] = ['bi-person-badge', 'Wolontariusze i zleceniobiorcy', 'Prywatny e-mail i hasło — chyba że masz włączone konto @feer.org.pl'];
 if ($ms_available) {
-    $_avail_methods[] = ['bi-microsoft', 'Masz konto @feer.org.pl', 'Microsoft 365 lub e-mail służbowy i hasło'];
+    $_avail_methods[] = ['bi-microsoft', 'Administracja i koordynatorzy', 'Wyłącznie konto @feer.org.pl (Microsoft 365 lub hasło)'];
 } else {
-    $_avail_methods[] = ['bi-envelope-at-fill', 'Masz konto @feer.org.pl', 'E-mail służbowy @feer.org.pl i hasło'];
+    $_avail_methods[] = ['bi-envelope-at-fill', 'Administracja i koordynatorzy', 'Wyłącznie e-mail służbowy @feer.org.pl i hasło'];
 }
-$_avail_methods[] = ['bi-person-badge', 'Nie masz konta @feer.org.pl', 'Prywatny e-mail (podany do WiadomościFEER) i hasło'];
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -636,27 +636,28 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   <p class="login-welcome-text"><?= nl2br(h($_login_welcome)) ?></p>
   <?php endif; ?>
 
-  <!-- Przewodnik: która ścieżka logowania dla kogo -->
+  <!-- Przewodnik: która ścieżka logowania dla której grupy -->
   <div class="login-paths" role="note" aria-label="Jak się zalogować">
     <div class="login-path">
-      <span class="login-path-badge" aria-hidden="true"><i class="bi <?= $ms_available ? 'bi-microsoft' : 'bi-envelope-at-fill' ?>"></i></span>
+      <span class="login-path-badge" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
       <div>
-        <div class="login-path-title">Masz konto @feer.org.pl</div>
+        <div class="login-path-title">Wolontariusze i zleceniobiorcy</div>
         <div class="login-path-desc">
-          <?php if ($ms_available): ?>
-          Zaloguj się przez <strong>Microsoft 365</strong> lub e-mailem służbowym i hasłem. Administracja zawsze kontem <strong>@feer.org.pl</strong>.
-          <?php else: ?>
-          Zaloguj się e-mailem służbowym <strong>@feer.org.pl</strong> i hasłem. Administracja zawsze kontem służbowym.
-          <?php endif; ?>
+          Logujesz się swoim <strong>prywatnym e-mailem</strong> — tym podanym do WiadomościFEER — i hasłem.
+          Jeśli masz włączone logowanie kontem <strong>@feer.org.pl</strong>, użyj go zamiast prywatnego e-maila.
         </div>
       </div>
     </div>
     <div class="login-path">
-      <span class="login-path-badge alt" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
+      <span class="login-path-badge alt" aria-hidden="true"><i class="bi <?= $ms_available ? 'bi-microsoft' : 'bi-envelope-at-fill' ?>"></i></span>
       <div>
-        <div class="login-path-title">Nie masz konta @feer.org.pl</div>
+        <div class="login-path-title">Administracja i koordynatorzy</div>
         <div class="login-path-desc">
-          Zaloguj się lokalnie swoim <strong>prywatnym e-mailem</strong> — tym podanym do WiadomościFEER — i ustawionym hasłem.
+          <?php if ($ms_available): ?>
+          Logujesz się <strong>wyłącznie</strong> kontem <strong>@feer.org.pl</strong> — przez <strong>Microsoft 365</strong> lub e-mailem służbowym i hasłem.
+          <?php else: ?>
+          Logujesz się <strong>wyłącznie</strong> e-mailem służbowym <strong>@feer.org.pl</strong> i hasłem.
+          <?php endif; ?>
         </div>
       </div>
     </div>
