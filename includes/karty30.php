@@ -1424,6 +1424,87 @@ function k30_ti_billing_model_label(int $code): string {
 /** Domyślny termin płatności (dni od wystawienia rozliczenia), gdy nie ustawiono na kursie/kursancie. */
 const K30_TI_PAY_DUE_DAYS_DEFAULT = 7;
 
+/** Płatnik rozliczenia (kod → etykieta). Domyślnie: beneficjent (pełnoletni) lub rodzic (małoletni). */
+const K30_TI_PAYERS = [
+    'beneficjent' => 'Beneficjent',
+    'rodzic'      => 'Inny – Rodzic',
+    'pfron'       => 'PFRON',
+    'feer'        => 'FEER',
+];
+
+/** Czy kursant jest małoletni (wg konta kursanta). */
+function k30_ti_client_is_minor(int $client_id): bool {
+    $a = db_one("SELECT is_minor FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [$client_id]);
+    return $a && !empty($a['is_minor']);
+}
+
+/** Domyślny płatnik dla klienta: 'rodzic' gdy małoletni, inaczej 'beneficjent'. */
+function k30_ti_default_payer(int $client_id): string {
+    return k30_ti_client_is_minor($client_id) ? 'rodzic' : 'beneficjent';
+}
+
+/** Efektywny kod płatnika rozliczenia (z rekordu lub domyślny wg wieku). */
+function k30_ti_billing_payer_type(array $b): string {
+    $t = (string)($b['payer_type'] ?? '');
+    if ($t !== '' && isset(K30_TI_PAYERS[$t])) return $t;
+    return k30_ti_default_payer((int)$b['client_id']);
+}
+
+/**
+ * Pełna etykieta płatnika z nazwą podmiotu/osoby.
+ * beneficjent → imię klienta; rodzic → opiekun (lub jawna nazwa); pfron/feer → nazwa stała.
+ */
+function k30_ti_billing_payer_label(array $b): string {
+    $type = k30_ti_billing_payer_type($b);
+    $base = K30_TI_PAYERS[$type] ?? $type;
+    $name = trim((string)($b['payer_name'] ?? ''));
+    if ($name !== '') return $base . ' — ' . $name;
+    if ($type === 'beneficjent') {
+        $cl = db_one("SELECT name FROM k30_clients WHERE id=?", [(int)$b['client_id']]);
+        return $base . ($cl ? ' — ' . $cl['name'] : '');
+    }
+    if ($type === 'rodzic') {
+        $g = db_one("SELECT guardian_name FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [(int)$b['client_id']]);
+        return $base . (!empty($g['guardian_name']) ? ' — ' . $g['guardian_name'] : '');
+    }
+    if ($type === 'feer') return defined('ORG_NAME') ? (string)ORG_NAME : 'FEER';
+    return $base;
+}
+
+/** Zapisuje przesłaną fakturę (PDF) do UPLOAD_DIR/ti_invoices/. Zwraca ['name','stored'] lub null. */
+function k30_ti_invoice_upload(string $field, string $prefix): ?array {
+    $f = $_FILES[$field] ?? null;
+    if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
+    if ($f['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Błąd przesyłania pliku.');
+    if ($f['size'] > 25 * 1024 * 1024) throw new RuntimeException('Plik zbyt duży (maks. 25 MB).');
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if ($ext !== 'pdf') throw new RuntimeException('Faktura musi być plikiem PDF.');
+    $dir = rtrim(UPLOAD_DIR, '/') . '/ti_invoices/';
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); @file_put_contents($dir . '.htaccess', "Deny from all\nOptions -Indexes\n"); }
+    $stored = $prefix . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(5)) . '.pdf';
+    if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) throw new RuntimeException('Nie udało się zapisać pliku.');
+    return ['name' => mb_substr($f['name'], 0, 200), 'stored' => $stored];
+}
+
+/** Wysyła fakturę do przeglądarki (download). Kończy skrypt. */
+function k30_ti_invoice_send_file(string $stored, string $orig = ''): void {
+    $path = rtrim(UPLOAD_DIR, '/') . '/ti_invoices/' . basename($stored);
+    if ($stored === '' || !is_file($path)) { http_response_code(404); exit('Plik nie istnieje.'); }
+    $name = preg_replace('/[\r\n"]+/', '', $orig !== '' ? $orig : basename($stored));
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="' . $name . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+
+/** Usuwa plik faktury z dysku (jeśli istnieje). */
+function k30_ti_invoice_delete_file(string $stored): void {
+    if ($stored === '') return;
+    $path = rtrim(UPLOAD_DIR, '/') . '/ti_invoices/' . basename($stored);
+    if (is_file($path)) @unlink($path);
+}
+
 /**
  * Efektywny termin płatności (liczba dni) dla zapisu kursanta.
  * Pierwszeństwo: indywidualnie na kursancie → domyślnie na kursie → globalna stała (7 dni).

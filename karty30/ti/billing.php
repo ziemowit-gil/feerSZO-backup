@@ -169,6 +169,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // Płatnik rozliczenia (beneficjent|rodzic|pfron|feer) + opcjonalna nazwa
+    if ($op === 'set_payer') {
+        $bid  = (int)($_POST['billing_id'] ?? 0);
+        $type = (string)($_POST['payer_type'] ?? '');
+        if (!isset(K30_TI_PAYERS[$type])) $type = '';
+        $name = mb_substr(trim((string)($_POST['payer_name'] ?? '')), 0, 200);
+        if ($bid) {
+            db()->prepare("UPDATE k30_ti_billing SET payer_type=?, payer_name=? WHERE id=?")
+               ->execute([$type, $name, $bid]);
+            flash_set('success', 'Płatnik zapisany.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Dodanie / wymiana faktury (FVAT) — plik PDF dołączany do rozliczenia
+    if ($op === 'upload_invoice') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $b   = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$bid]) : null;
+        if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
+        else {
+            try {
+                $up = k30_ti_invoice_upload('invoice', 'fv' . $bid);
+                if ($up) {
+                    if (!empty($b['invoice_path'])) k30_ti_invoice_delete_file($b['invoice_path']);
+                    db()->prepare("UPDATE k30_ti_billing SET invoice_path=?, invoice_name=?, invoice_at=datetime('now') WHERE id=?")
+                       ->execute([$up['stored'], $up['name'], $bid]);
+                    flash_set('success', 'Faktura dodana.');
+                } else {
+                    flash_set('danger', 'Nie wybrano pliku faktury (PDF).');
+                }
+            } catch (\Throwable $e) { flash_set('danger', $e->getMessage()); }
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Usunięcie faktury z rozliczenia
+    if ($op === 'delete_invoice') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $b   = $bid ? db_one("SELECT invoice_path FROM k30_ti_billing WHERE id=?", [$bid]) : null;
+        if ($b) {
+            if (!empty($b['invoice_path'])) k30_ti_invoice_delete_file($b['invoice_path']);
+            db()->prepare("UPDATE k30_ti_billing SET invoice_path='', invoice_name='', invoice_at=NULL WHERE id=?")->execute([$bid]);
+            flash_set('success', 'Faktura usunięta.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Miękkie usuwanie rozliczenia (status='cancelled') — tylko admin
     if ($op === 'delete') {
         if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
@@ -335,6 +382,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php if (!empty($bpay['account']) || !empty($bpay['title'])): ?>
             <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($bpay['account'] ?: '—') ?><?php if (!empty($bpay['title'])): ?> · „<?= h($bpay['title']) ?>"<?php endif; ?></div>
             <?php endif; ?>
+            <div class="text-muted" style="font-size:.72rem">
+              <i class="bi bi-person-badge me-1"></i>Płatnik: <?= h(k30_ti_billing_payer_label($b)) ?>
+            </div>
+            <?php if (!empty($b['invoice_path'])): ?>
+            <div style="font-size:.72rem">
+              <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
+              <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener">Faktura<?= !empty($b['invoice_at']) ? ' ('.h(substr($b['invoice_at'],0,10)).')' : '' ?></a>
+            </div>
+            <?php endif; ?>
             <?php if ($b['notes']): ?><div class="text-muted small"><?= h($b['notes']) ?></div><?php endif; ?>
           </td>
           <td><?= number_format((float)$b['hours_billed'],2,',','') ?> h<br>
@@ -481,6 +537,56 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               </div>
               <div class="form-text">Indywidualny termin dla tego rozliczenia. Puste = bez terminu.</div>
             </form>
+            <hr class="my-2">
+            <?php $payer_eff = k30_ti_billing_payer_type($b); $payer_def = k30_ti_default_payer((int)$b['client_id']); ?>
+            <form method="post" class="row g-2 align-items-end">
+              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"        value="set_payer">
+              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+              <div class="col-auto">
+                <label class="form-label small mb-0">Płatnik</label>
+                <select name="payer_type" class="form-select form-select-sm" style="max-width:200px">
+                  <option value="" <?= empty($b['payer_type']) ? 'selected' : '' ?>>— domyślnie (<?= h(K30_TI_PAYERS[$payer_def]) ?>) —</option>
+                  <?php foreach (K30_TI_PAYERS as $pk => $pl): ?>
+                  <option value="<?= h($pk) ?>" <?= ($b['payer_type'] ?? '') === $pk ? 'selected' : '' ?>><?= h($pl) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col">
+                <label class="form-label small mb-0">Nazwa płatnika (opcjonalnie)</label>
+                <input type="text" name="payer_name" class="form-control form-control-sm"
+                       value="<?= h($b['payer_name'] ?? '') ?>" placeholder="np. dane firmy / opiekuna do faktury">
+              </div>
+              <div class="col-auto">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-badge me-1"></i>Zapisz płatnika</button>
+              </div>
+            </form>
+            <hr class="my-2">
+            <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"        value="upload_invoice">
+              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+              <div class="col-auto">
+                <label class="form-label small mb-0">Faktura (FVAT, PDF)</label>
+                <input type="file" name="invoice" accept="application/pdf" class="form-control form-control-sm" style="max-width:260px">
+              </div>
+              <div class="col-auto">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-pdf me-1"></i><?= !empty($b['invoice_path']) ? 'Wymień fakturę' : 'Dodaj fakturę' ?></button>
+              </div>
+              <?php if (!empty($b['invoice_path'])): ?>
+              <div class="col-auto">
+                <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i><?= h($b['invoice_name'] ?: 'Pobierz') ?></a>
+              </div>
+              <?php endif; ?>
+            </form>
+            <?php if (!empty($b['invoice_path'])): ?>
+            <form method="post" class="mt-1" onsubmit="return confirm('Usunąć fakturę z tego rozliczenia?')">
+              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"        value="delete_invoice">
+              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+              <button class="btn btn-link btn-sm text-danger p-0"><i class="bi bi-trash me-1"></i>Usuń fakturę</button>
+            </form>
+            <?php endif; ?>
           </td>
         </tr>
         <?php endif; ?>

@@ -79,11 +79,12 @@ foreach ($rv_billing as $b) {
           <th scope="col">Do zapłaty</th>
           <th scope="col">Termin</th>
           <th scope="col">Status</th>
+          <th scope="col">Faktura</th>
         </tr>
       </thead>
       <tbody>
         <?php if (!$rv_billing): ?>
-        <tr><td colspan="6" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
+        <tr><td colspan="7" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
         <?php endif; ?>
         <?php foreach ($rv_billing as $b):
           [$lbl, $col] = $rv_st[$b['status']] ?? [$b['status'], 'secondary'];
@@ -109,6 +110,13 @@ foreach ($rv_billing as $b) {
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
           </td>
           <td><span class="badge text-bg-<?= $col ?>"><?= h($lbl) ?></span></td>
+          <td>
+            <?php if (!empty($b['invoice_path'])): ?>
+            <a href="invoice_file.php?id=<?= (int)$b['id'] ?>" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+              <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz FVAT
+            </a>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
         </tr>
         <?php endforeach; ?>
       </tbody>
