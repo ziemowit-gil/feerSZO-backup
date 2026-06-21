@@ -496,6 +496,22 @@ include __DIR__ . '/_layout_head.php';
     </div>
   </div>
 
+  <!-- Modal: dane logowania do maszyny (pokazywane jednorazowo po utworzeniu) -->
+  <div class="modal fade" id="vlabCredsModal" tabindex="-1" aria-labelledby="vlabCredsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="vlabCredsLabel"><i class="bi bi-key-fill text-warning me-2" aria-hidden="true"></i>Dane logowania do maszyny</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body" id="vlabCredsBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Zamknij</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
   (function(){
     const root = document.getElementById('vlab-root');
@@ -510,6 +526,28 @@ include __DIR__ . '/_layout_head.php';
     }
     const stMap = {running:['success','działa'], stopped:['secondary','zatrzymana'], error:['danger','błąd'], provisioning:['warning','tworzenie']};
     const lastCreds = {}; // pełne dane logowania pokazywane JEDEN raz po utworzeniu: {id: creds}
+
+    // Wiersz „etykieta + wartość + kopiuj" w modalu danych logowania
+    function credRow(label, value, mono){
+      if (!value) return '';
+      return '<div class="mb-2"><label class="form-label small text-body-secondary mb-1">'+esc(label)+'</label>'
+        + '<div class="input-group input-group-sm">'
+        + '<input type="text" class="form-control '+(mono?'font-monospace':'')+'" readonly value="'+esc(value)+'" onclick="this.select()">'
+        + '<button type="button" class="btn btn-outline-secondary" data-copy="'+esc(value)+'" aria-label="Kopiuj"><i class="bi bi-clipboard" aria-hidden="true"></i></button>'
+        + '</div></div>';
+    }
+    function showCredsModal(c){
+      if (!c) return;
+      const ssh = c.host_user && c.ssh_host ? 'ssh '+c.host_user+'@'+c.ssh_host+' -p '+(c.ssh_port||22) : '';
+      let h = '<p class="small text-body-secondary mb-3"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Te dane pokazujemy <strong>tylko teraz</strong>. Zapisz je — wysłaliśmy je również e-mailem.</p>';
+      h += credRow('Połączenie SSH', ssh, true);
+      h += credRow('Hasło SSH', c.host_password, true);
+      if (c.ttyd_url) h += credRow('Terminal w przeglądarce', c.ttyd_url, true);
+      if (c.ttyd_user) h += credRow('Login terminala', c.ttyd_user+' / '+c.ttyd_password, true);
+      if (c.force_change) h += '<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła.</div>';
+      document.getElementById('vlabCredsBody').innerHTML = h;
+      if (window.bootstrap) new bootstrap.Modal(document.getElementById('vlabCredsModal')).show();
+    }
 
     function render(d){
       if (d.disabled){
@@ -552,14 +590,8 @@ include __DIR__ . '/_layout_head.php';
               + '<div class="fw-semibold mb-1" style="font-family:inherit"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Dane logowania (Docker)</div>'
               + '<div><span class="text-body-secondary">SSH:</span> ssh '+esc(sshUser)+'@'+esc(m.ssh_host)+' -p '+sshPort+'</div>';
             if (c){
-              html += '<div class="d-flex align-items-center gap-2 mt-1"><span><span class="text-body-secondary">hasło SSH (pokazywane tylko raz):</span> <span class="fw-bold">'+esc(c.host_password)+'</span></span>'
-                + '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-copy="'+esc(c.host_password)+'" aria-label="Kopiuj hasło SSH"><i class="bi bi-clipboard" aria-hidden="true"></i></button></div>';
-              if (c.ttyd_user){
-                html += '<div class="mt-1"><span class="text-body-secondary">Login terminala (przeglądarka):</span> '+esc(c.ttyd_user)+' / <span class="fw-bold">'+esc(c.ttyd_password)+'</span></div>';
-              }
-              if (c.force_change){
-                html += '<div class="mt-1 text-warning" style="font-family:inherit"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła.</div>';
-              }
+              html += '<div class="mt-1" style="font-family:inherit"><button type="button" class="btn btn-sm btn-outline-primary py-0" data-show-creds="'+m.id+'"><i class="bi bi-key me-1" aria-hidden="true"></i>Pokaż dane logowania</button>'
+                + '<span class="text-body-secondary ms-2"><i class="bi bi-envelope me-1" aria-hidden="true"></i>wysłane też e-mailem</span></div>';
             } else if (m.host_user){
               html += '<div class="mt-1 text-body-secondary" style="font-family:inherit"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Dane logowania wysłaliśmy e-mailem przy tworzeniu maszyny.</div>';
             } else {
@@ -609,9 +641,18 @@ include __DIR__ . '/_layout_head.php';
 
     async function reload(){ const d = await api('list'); if (d.ok) render(d); }
 
+    // Kopiowanie w obrębie modalu danych logowania
+    document.getElementById('vlabCredsModal').addEventListener('click', (e)=>{
+      const cp = e.target.closest('[data-copy]');
+      if (cp){ navigator.clipboard?.writeText(cp.dataset.copy); const h=cp.innerHTML; cp.innerHTML='<i class="bi bi-check2" aria-hidden="true"></i>'; setTimeout(()=>{cp.innerHTML=h;},1200); }
+    });
+
     box.addEventListener('click', async (e)=>{
       const copyBtn = e.target.closest('[data-copy]');
       if (copyBtn){ navigator.clipboard?.writeText(copyBtn.dataset.copy); copyBtn.innerHTML='<i class="bi bi-check2" aria-hidden="true"></i>'; return; }
+
+      const showBtn = e.target.closest('[data-show-creds]');
+      if (showBtn){ showCredsModal(lastCreds[showBtn.dataset.showCreds]); return; }
 
       const createBtn = e.target.closest('[data-create]');
       if (createBtn){
@@ -622,6 +663,7 @@ include __DIR__ . '/_layout_head.php';
         if (r.id && r.creds) lastCreds[r.id] = r.creds; // pełne dane logowania — pokaż raz
         if (!r.ok) alert(r.msg || 'Błąd.');
         if (r.data) render(r.data); else reload();
+        if (r.ok && r.creds) showCredsModal(r.creds); // wyskakujące okienko z danymi logowania
         return;
       }
 

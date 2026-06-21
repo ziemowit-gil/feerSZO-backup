@@ -122,11 +122,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Wyślij nowe dane logowania także kursantowi (e-mail) — żeby je znał.
                 $row['host_user'] = $hu['user'];
                 $mailed = vlab_email_credentials($row, $hu['user'], $hu['password'], $force);
-                flash_set('success', 'Konto SSH „' . $hu['user'] . '" — NOWE hasło: ' . $hu['password']
-                    . '  (zapisz teraz; nie będzie pokazane ponownie). Logowanie: ssh ' . $hu['user']
-                    . '@' . ($c2['public_host'] ?? '') . ' -p ' . (int)($c2['ssh_port'] ?: 22)
-                    . ($force ? '  — kursant ustawi własne hasło przy pierwszym logowaniu.' : '')
-                    . ($mailed ? '  Dane wysłano też e-mailem do kursanta.' : '  (Nie udało się wysłać e-maila do kursanta — przekaż dane ręcznie.)'));
+                // Dane do wyświetlenia w wyskakującym okienku (modal) po przeładowaniu — jednorazowo.
+                if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+                $_SESSION['vlab_reset_creds'] = [
+                    'label'     => (string)($row['label'] ?? ''),
+                    'user'      => $hu['user'],
+                    'password'  => $hu['password'],
+                    'host'      => (string)($c2['public_host'] ?? ''),
+                    'port'      => (int)($c2['ssh_port'] ?: 22),
+                    'force'     => $force,
+                    'mailed'    => $mailed,
+                    'ttyd_url'  => vlab_ttyd_url($row),
+                    'ttyd_user' => (string)($row['ttyd_user'] ?? ''),
+                    'ttyd_pass' => (string)($row['ttyd_password'] ?? ''),
+                ];
+                flash_set('success', 'Hasło konta SSH „' . $hu['user'] . '" zostało zresetowane.'
+                    . ($mailed ? ' Dane wysłano też e-mailem do kursanta.' : ' (Nie udało się wysłać e-maila do kursanta — przekaż dane ręcznie.)'));
             } else {
                 flash_set('danger', 'Nie udało się ustawić hasła: ' . $hu['msg']);
             }
@@ -165,6 +176,9 @@ $containers = db_all(
      WHERE c.status!='removed'
      ORDER BY c.created_at DESC LIMIT 200"
 );
+// Dane logowania do pokazania w modalu (jednorazowo po resecie hasła)
+$reset_creds = $_SESSION['vlab_reset_creds'] ?? null;
+unset($_SESSION['vlab_reset_creds']);
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -401,5 +415,73 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php endif; ?>
   </div>
 </div>
+
+<?php if ($reset_creds):
+  $rc_ssh = 'ssh ' . $reset_creds['user'] . '@' . $reset_creds['host'] . ' -p ' . (int)$reset_creds['port'];
+?>
+<!-- Modal: nowe dane logowania po resecie hasła -->
+<div class="modal fade" id="credsModal" tabindex="-1" aria-labelledby="credsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="credsModalLabel"><i class="bi bi-key-fill text-warning me-2"></i>Nowe dane logowania</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">Maszyna: <strong><?= h($reset_creds['label']) ?></strong>. Te dane pokazujemy <strong>tylko teraz</strong> — zapisz lub przekaż kursantowi.</p>
+        <div class="mb-2">
+          <label class="form-label small text-muted mb-1">Połączenie SSH</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control font-monospace" readonly value="<?= h($rc_ssh) ?>" onclick="this.select()">
+            <button type="button" class="btn btn-outline-secondary" data-copy="<?= h($rc_ssh) ?>"><i class="bi bi-clipboard"></i></button>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small text-muted mb-1">Hasło SSH</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control font-monospace fw-bold" readonly value="<?= h($reset_creds['password']) ?>" onclick="this.select()">
+            <button type="button" class="btn btn-outline-secondary" data-copy="<?= h($reset_creds['password']) ?>"><i class="bi bi-clipboard"></i></button>
+          </div>
+        </div>
+        <?php if (!empty($reset_creds['ttyd_url'])): ?>
+        <div class="mb-2">
+          <label class="form-label small text-muted mb-1">Terminal w przeglądarce</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control font-monospace" readonly value="<?= h($reset_creds['ttyd_url']) ?>" onclick="this.select()">
+            <button type="button" class="btn btn-outline-secondary" data-copy="<?= h($reset_creds['ttyd_url']) ?>"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <?php if ($reset_creds['ttyd_user'] !== ''): ?>
+          <div class="small text-muted mt-1">Login terminala: <code><?= h($reset_creds['ttyd_user']) ?> / <?= h($reset_creds['ttyd_pass']) ?></code></div>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($reset_creds['force'])): ?>
+        <div class="alert alert-warning py-2 small mb-2"><i class="bi bi-shield-lock me-1"></i>Kursant ustawi własne hasło przy pierwszym logowaniu SSH.</div>
+        <?php endif; ?>
+        <div class="alert <?= !empty($reset_creds['mailed']) ? 'alert-info' : 'alert-secondary' ?> py-2 small mb-0">
+          <i class="bi bi-envelope me-1"></i>
+          <?= !empty($reset_creds['mailed']) ? 'Te dane wysłano też e-mailem do kursanta.' : 'Nie udało się wysłać e-maila — przekaż dane kursantowi ręcznie.' ?>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Zamknij</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var el = document.getElementById('credsModal');
+  if (el && window.bootstrap) new bootstrap.Modal(el).show();
+  document.querySelectorAll('#credsModal [data-copy]').forEach(function(b){
+    b.addEventListener('click', function(){
+      navigator.clipboard && navigator.clipboard.writeText(b.dataset.copy);
+      var h = b.innerHTML; b.innerHTML = '<i class="bi bi-check2"></i>';
+      setTimeout(function(){ b.innerHTML = h; }, 1200);
+    });
+  });
+})();
+</script>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
