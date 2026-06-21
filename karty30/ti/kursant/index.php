@@ -147,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $courses = k30_ti_client_courses($student['client_id']);
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
 $my_licenses = k30_ti_client_licenses($student['client_id']);
+$active_lesson = k30_ti_active_lesson_link($student['client_id']);
 
 // Statystyki
 $total_lessons  = count($lessons);
@@ -272,6 +273,26 @@ include __DIR__ . '/_layout_head.php';
 </nav>
 
 <main id="main" class="container-xl px-3 py-4">
+
+<?php if ($active_lesson): ?>
+<!-- ── Aktywny link do zajęć — widoczny od razu po wejściu do panelu ─────────── -->
+<div class="alert alert-success d-flex align-items-center gap-3 shadow-sm mb-4" role="alert">
+  <i class="bi bi-camera-video-fill fs-2 flex-shrink-0" aria-hidden="true"></i>
+  <div class="flex-grow-1 min-width-0">
+    <div class="fw-bold">Zajęcia online są dostępne — możesz dołączyć</div>
+    <div class="small">
+      <?= h($active_lesson['course_name']) ?>
+      <?php if (!empty($active_lesson['time_from'])): ?>
+      · <?= h($active_lesson['time_from']) ?><?= !empty($active_lesson['time_to']) ? '–'.h($active_lesson['time_to']) : '' ?>
+      <?php endif; ?>
+      <?php if (!empty($active_lesson['topic'])): ?> · <?= h($active_lesson['topic']) ?><?php endif; ?>
+    </div>
+  </div>
+  <a href="<?= h($active_lesson['eff_link']) ?>" target="_blank" rel="noopener" class="btn btn-success btn-lg flex-shrink-0">
+    <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Dołącz teraz
+  </a>
+</div>
+<?php endif; ?>
 
 <?php if (!empty($homework_lessons)): ?>
 <!-- ── Zadania domowe — widoczne od razu po zalogowaniu ──────────────────────── -->

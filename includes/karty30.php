@@ -1610,6 +1610,41 @@ function k30_ti_session_get(int $id): ?array {
     ) ?: null;
 }
 
+/**
+ * Lekcja, do której kursant może teraz dołączyć (aktywny link) — lub null.
+ * Kryteria: dziś, status 'planned', udział nieodwołany, istnieje link (lekcji
+ * lub stały link grupy) i bieżąca godzina mieści się w oknie
+ * [początek − 30 min, koniec]. Gdy lekcja nie ma godzin — aktywna cały dzień.
+ * Zwraca wiersz lekcji z dodatkowym kluczem 'eff_link'.
+ */
+function k30_ti_active_lesson_link(int $client_id): ?array {
+    $today = date('Y-m-d');
+    $rows = db_all(
+        "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url,
+                a.cancelled AS att_cancelled
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
+         WHERE s.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
+           AND s.lesson_date=? AND s.status='planned'
+         ORDER BY s.time_from",
+        [$client_id, $client_id, $today]
+    );
+    $now = time();
+    foreach ($rows as $r) {
+        if ((int)($r['att_cancelled'] ?? 0) === 1) continue;
+        $link = trim((string)($r['meeting_url'] ?? '')) !== '' ? $r['meeting_url'] : (string)($r['course_meeting_url'] ?? '');
+        if ($link === '') continue;
+        $tf = trim((string)($r['time_from'] ?? ''));
+        if ($tf === '') { $r['eff_link'] = $link; return $r; } // brak godzin — aktywne cały dzień
+        $start = strtotime($today.' '.$tf) - 30*60;
+        $tt    = trim((string)($r['time_to'] ?? ''));
+        $end   = $tt !== '' ? strtotime($today.' '.$tt) : strtotime($today.' '.$tf) + max(15,(int)$r['duration_min'])*60;
+        if ($now >= $start && $now <= $end) { $r['eff_link'] = $link; return $r; }
+    }
+    return null;
+}
+
 // ── Licencje na oprogramowanie ────────────────────────────────────────────────
 
 /** Katalog licencji. $active_only=true → tylko aktywne. Z liczbą przypisań. */
