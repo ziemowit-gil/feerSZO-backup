@@ -25,6 +25,12 @@ $org      = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
 $date_str = date('d.m.Y H:i');
 $count    = count($result['created']);
 $password = $result['password'];
+
+// Układ wydruku: 'table' = jedna lista; 'cards' = karteczki do pocięcia (N na stronę)
+$mode = ($_GET['mode'] ?? 'table') === 'cards' ? 'cards' : 'table';
+$per  = max(2, min(6, (int)($_GET['per'] ?? 2)));      // ile karteczek na stronę A4
+$cardH = round((297 - 30) / $per, 1) - 4;               // wys. karteczki (mm): pole A4 / per − odstęp
+$base  = htmlspecialchars(strtok((string)($_SERVER['REQUEST_URI'] ?? 'm365_bulk_print.php'), '?'), ENT_QUOTES) . '?ts=' . (int)$ts;
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -85,6 +91,29 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* Per-user cut lines dla nożyczek (opcjonalne) */
 .cut-hint { font-size: 9px; color: #cbd5e1; text-align: center; margin-top: 16px; }
+
+/* ── Karteczki do pocięcia (mode=cards) ─────────────────────────────── */
+.slips { display: flex; flex-direction: column; gap: 4mm; }
+.slip {
+  border: 1px dashed #94a3b8; border-radius: 6px; padding: 10px 16px;
+  height: <?= $cardH ?>mm; display: flex; flex-direction: column; justify-content: center;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.slip-org   { font-size: 11px; font-weight: 700; color: #1e293b; }
+.slip-sub   { font-size: 9px; color: #64748b; margin-bottom: 6px; }
+.slip-name  { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.slip-grid  { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 12px; }
+.slip-k     { color: #64748b; }
+.slip-v     { font-family: 'Courier New', monospace; font-weight: 700; }
+.slip-v.pass{ color: #dc2626; }
+.slip-note  { font-size: 9px; color: #78350f; margin-top: 6px; }
+@media screen { .slips { max-width: 540px; } .slip { background: #fff; } }
+@media print  {
+  .slips { gap: 4mm; }
+  /* dokładnie $per karteczek na stronę: po każdej $per-tej łamiemy stronę */
+  .slip:nth-child(<?= $per ?>n) { page-break-after: always; }
+  .slip:last-child { page-break-after: auto; }
+}
 </style>
 </head>
 <body>
@@ -99,7 +128,39 @@ tbody tr:last-child td { border-bottom: none; }
     Drukuj / Zapisz PDF
   </button>
   <button class="btn-close-win" onclick="window.close()">Zamknij</button>
+  <span style="flex:1"></span>
+  <a class="btn-close-win" style="text-decoration:none<?= $mode==='table'?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=table">Lista (1 strona)</a>
+  <a class="btn-close-win" style="text-decoration:none<?= ($mode==='cards'&&$per==2)?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=cards&per=2">Karteczki 2/str.</a>
+  <a class="btn-close-win" style="text-decoration:none<?= ($mode==='cards'&&$per==3)?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=cards&per=3">3/str.</a>
+  <a class="btn-close-win" style="text-decoration:none<?= ($mode==='cards'&&$per==4)?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=cards&per=4">4/str.</a>
 </div>
+
+<?php if ($mode === 'cards'): ?>
+<!-- Karteczki do pocięcia: jeden slip na beneficjenta, <?= $per ?> na stronę A4 -->
+<div class="slips">
+  <?php foreach ($result['created'] as $c): ?>
+  <div class="slip">
+    <div class="slip-org"><?= h($org) ?></div>
+    <div class="slip-sub">Dostęp do konta Microsoft 365</div>
+    <?php if (!empty($c['name'])): ?><div class="slip-name"><?= h($c['name']) ?></div><?php endif; ?>
+    <div class="slip-grid">
+      <span class="slip-k">Login (UPN):</span><span class="slip-v"><?= h($c['login']) ?></span>
+      <span class="slip-k">Hasło startowe:</span><span class="slip-v pass"><?= h($password) ?></span>
+      <?php if (!empty($c['emp_id'])): ?><span class="slip-k">ID konta:</span><span class="slip-v" style="color:#64748b"><?= h($c['emp_id']) ?></span><?php endif; ?>
+      <span class="slip-k">Portal:</span><span class="slip-v" style="font-weight:400">portal.office.com</span>
+    </div>
+    <div class="slip-note">Hasło zmień po pierwszym logowaniu. Nie udostępniaj danych osobom trzecim.</div>
+  </div>
+  <?php endforeach; ?>
+</div>
+<script>
+if (new URLSearchParams(window.location.search).get('auto') === '1') {
+    window.addEventListener('load', function() { window.print(); });
+}
+</script>
+</body>
+</html>
+<?php return; endif; ?>
 
 <div class="card">
 

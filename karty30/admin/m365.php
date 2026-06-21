@@ -971,12 +971,21 @@ endif; ?>
     <span class="text-muted small ms-1">
       hasło: <code class="text-danger fw-bold"><?= h($bulk_result['password']) ?></code>
     </span>
-    <?php if ($bulk_result['created']): ?>
-    <div class="ms-auto d-flex gap-2">
+    <?php if ($bulk_result['created']): $pbase = APP_URL . '/karty30/admin/m365_bulk_print.php?ts=' . $bulk_result['ts']; ?>
+    <div class="ms-auto btn-group">
       <button type="button" class="btn btn-sm btn-outline-secondary"
-              onclick="window.open('<?= APP_URL ?>/karty30/admin/m365_bulk_print.php?ts=<?= $bulk_result['ts'] ?>', '_blank')">
+              onclick="window.open('<?= $pbase ?>&mode=table', '_blank')">
         <i class="bi bi-printer me-1"></i>Drukuj tabelkę
       </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+        <span class="visually-hidden">Więcej opcji wydruku</span>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><h6 class="dropdown-header">Karteczki do pocięcia</h6></li>
+        <li><a class="dropdown-item" href="#" onclick="window.open('<?= $pbase ?>&mode=cards&per=2','_blank');return false;"><i class="bi bi-scissors me-2"></i>2 na stronę</a></li>
+        <li><a class="dropdown-item" href="#" onclick="window.open('<?= $pbase ?>&mode=cards&per=3','_blank');return false;"><i class="bi bi-scissors me-2"></i>3 na stronę</a></li>
+        <li><a class="dropdown-item" href="#" onclick="window.open('<?= $pbase ?>&mode=cards&per=4','_blank');return false;"><i class="bi bi-scissors me-2"></i>4 na stronę</a></li>
+      </ul>
     </div>
     <?php endif; ?>
   </div>
