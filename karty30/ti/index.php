@@ -91,6 +91,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header">Dostępy i narzędzia</h6></li>
       <li><a class="dropdown-item" href="online_admin.php"><i class="bi bi-camera-video me-2"></i>Nauka online</a></li>
+      <li><a class="dropdown-item" href="moodle_admin.php"><i class="bi bi-mortarboard me-2"></i>Moodle (serwery / kursy)</a></li>
       <li><a class="dropdown-item" href="licencje_admin.php"><i class="bi bi-key me-2"></i>Licencje</a></li>
       <li><a class="dropdown-item" href="vlab_admin.php"><i class="bi bi-hdd-stack me-2"></i>VLAB / Docker</a></li>
     </ul>

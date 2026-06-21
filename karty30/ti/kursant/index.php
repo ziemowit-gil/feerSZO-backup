@@ -10,6 +10,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_moodle.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -185,6 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $courses = k30_ti_client_courses($student['client_id']);
 $homeworks_student = k30_ti_homework_for_client($student['client_id']);
 $hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
+$moodle_courses_student = ti_moodle_courses_for_client($student['client_id']);
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
 $my_licenses = k30_ti_client_licenses($student['client_id']);
 $active_lesson = k30_ti_active_lesson_link($student['client_id']);
@@ -1451,6 +1453,30 @@ include __DIR__ . '/_layout_head.php';
   <?php endif; ?>
 
 <?php elseif ($tab === 'online'): ?>
+
+  <?php if ($moodle_courses_student): ?>
+  <section class="card mb-4" aria-labelledby="mdl-heading">
+    <div class="card-body">
+      <h2 id="mdl-heading" class="h6 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-2" aria-hidden="true"></i>Kursy Moodle</h2>
+      <p class="text-body-secondary small mb-3">Kursy e-learningowe przypięte do Twoich grup. Kliknij, aby otworzyć kurs na platformie Moodle.</p>
+      <div class="row g-2">
+        <?php foreach ($moodle_courses_student as $mc): ?>
+        <div class="col-md-6">
+          <a href="<?= h(ti_moodle_course_url($mc['base_url'], (int)$mc['moodle_course_id'])) ?>" target="_blank" rel="noopener"
+             class="d-flex align-items-center gap-2 text-decoration-none border rounded p-2 h-100">
+            <i class="bi bi-mortarboard-fill text-primary fs-5 flex-shrink-0" aria-hidden="true"></i>
+            <span class="flex-grow-1 min-width-0">
+              <span class="fw-semibold d-block text-truncate"><?= $mc['fullname'] ? h($mc['fullname']) : ('Kurs #'.(int)$mc['moodle_course_id']) ?></span>
+              <span class="small text-body-secondary"><?= h($mc['ti_course_name']) ?> · <?= h($mc['server_name']) ?></span>
+            </span>
+            <i class="bi bi-box-arrow-up-right text-body-secondary flex-shrink-0" aria-hidden="true"></i>
+          </a>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </section>
+  <?php endif; ?>
 
   <div id="online-root" data-token="<?= h($vlab_token) ?>">
     <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">

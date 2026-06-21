@@ -120,10 +120,15 @@ class MoodleAPI {
     private string $base;
     private string $token;
 
-    public function __construct() {
-        $url = rtrim(moodle_setting('url'), '/');
+    /**
+     * @param array $creds  Opcjonalnie ['url'=>..., 'token'=>...] — pozwala wskazać
+     *                      dowolny serwer Moodle (integracja wieloserwerowa, niezależna
+     *                      od globalnej konfiguracji SZO). Pusty = ustawienia globalne.
+     */
+    public function __construct(array $creds = []) {
+        $url = rtrim($creds['url'] ?? moodle_setting('url'), '/');
         $this->base  = $url . '/webservice/rest/server.php';
-        $this->token = moodle_setting('token');
+        $this->token = $creds['token'] ?? moodle_setting('token');
     }
 
     private function call(string $fn, array $params = []): mixed {
