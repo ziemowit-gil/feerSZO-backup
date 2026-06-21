@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'description'  => trim($_POST['description'] ?? ''),
             'docker_image' => trim($_POST['docker_image'] ?? ''),
             'run_cmd'      => trim($_POST['run_cmd'] ?? ''),
+            'default_ports' => trim($_POST['default_ports'] ?? ''),
             'cpus'         => trim($_POST['cpus'] ?? ''),
             'mem'          => trim($_POST['mem'] ?? ''),
             'expose_ssh'   => isset($_POST['expose_ssh']) ? 1 : 0,
@@ -339,7 +340,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       </div>
       <div class="card-body">
         <?php if ($show_tpl):
-          $t = $edit_tpl ?? ['id'=>0,'name'=>'','description'=>'','docker_image'=>'','run_cmd'=>'','cpus'=>'','mem'=>'','expose_ssh'=>1,'expose_ttyd'=>1,'is_active'=>1,'sort'=>0];
+          $t = $edit_tpl ?? ['id'=>0,'name'=>'','description'=>'','docker_image'=>'','run_cmd'=>'','default_ports'=>'','cpus'=>'','mem'=>'','expose_ssh'=>1,'expose_ttyd'=>1,'is_active'=>1,'sort'=>0];
         ?>
         <form method="post" class="mb-3">
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
@@ -353,6 +354,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input class="form-control form-control-sm" name="description" value="<?= h($t['description']) ?>"></div>
           <div class="mb-2"><label class="form-label small">Polecenie startowe (opcjonalnie)</label>
             <input class="form-control form-control-sm" name="run_cmd" value="<?= h($t['run_cmd']) ?>" placeholder="/entrypoint.sh"></div>
+          <div class="mb-2"><label class="form-label small">Sugerowane porty (podpowiedź przy tworzeniu)</label>
+            <input class="form-control form-control-sm" name="default_ports" value="<?= h($t['default_ports'] ?? '') ?>" placeholder="np. 80,443,8080">
+            <div class="form-text small">Wstępnie wypełni pole „porty do wystawienia" w kreatorze maszyny (kursant może zmienić).</div></div>
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label small">CPU</label>
               <input class="form-control form-control-sm" name="cpus" value="<?= h($t['cpus']) ?>" placeholder="(domyślne)"></div>

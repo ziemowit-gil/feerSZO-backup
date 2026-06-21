@@ -512,6 +512,36 @@ include __DIR__ . '/_layout_head.php';
     </div>
   </div>
 
+  <!-- Modal: tworzenie maszyny (nazwa + porty do wystawienia) -->
+  <div class="modal fade" id="vlabCreateModal" tabindex="-1" aria-labelledby="vlabCreateLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="vlabCreateForm">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="vlabCreateLabel"><i class="bi bi-plus-circle text-primary me-2" aria-hidden="true"></i>Nowa maszyna</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="vc-tpl">
+          <p class="small text-body-secondary mb-3">Szablon: <strong id="vc-tplname"></strong></p>
+          <div class="mb-3">
+            <label class="form-label" for="vc-label">Nazwa maszyny</label>
+            <input type="text" class="form-control" id="vc-label" value="lab" maxlength="32" placeholder="np. projekt-www">
+            <div class="form-text">Litery, cyfry i myślniki.</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label" for="vc-ports">Porty do wystawienia</label>
+            <input type="text" class="form-control" id="vc-ports" placeholder="np. 80, 443, 8080">
+            <div class="form-text">Porty usług w kontenerze, które chcesz wystawić (oddziel przecinkami). SSH i terminal są dostępne zawsze. Możesz zostawić puste.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary" id="vc-submit"><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Utwórz maszynę</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Modal: zarządzanie portami maszyny -->
   <div class="modal fade" id="vlabPortsModal" tabindex="-1" aria-labelledby="vlabPortsLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -683,7 +713,7 @@ include __DIR__ . '/_layout_head.php';
           html += '<div class="col-12 col-md-6 col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column">'
             + '<h3 class="h6 mb-1">'+esc(t.name)+'</h3>'
             + '<p class="text-body-secondary small flex-grow-1">'+esc(t.description||'')+'</p>'
-            + '<button type="button" class="btn btn-primary btn-sm" data-create="'+t.id+'" '+(canCreate?'':'disabled')+'>'
+            + '<button type="button" class="btn btn-primary btn-sm" data-create="'+t.id+'" data-tpl-name="'+esc(t.name)+'" data-tpl-ports="'+esc(t.default_ports||'')+'" '+(canCreate?'':'disabled')+'>'
             + '<i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Utwórz</button>'
             + '</div></div></div>';
         }
@@ -715,6 +745,24 @@ include __DIR__ . '/_layout_head.php';
       if (r.data) renderPorts(r.data); else { btn.disabled = false; btn.innerHTML = orig; }
     });
 
+    // Utworzenie maszyny z okienka (nazwa + porty)
+    document.getElementById('vlabCreateForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const btn = document.getElementById('vc-submit');
+      const tpl   = document.getElementById('vc-tpl').value;
+      const label = document.getElementById('vc-label').value.trim() || 'lab';
+      const ports = document.getElementById('vc-ports').value.trim();
+      btn.disabled = true; const orig = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Tworzę…';
+      const r = await api('create', {template_id: tpl, label, ports});
+      btn.disabled = false; btn.innerHTML = orig;
+      if (r.id && r.creds) lastCreds[r.id] = r.creds;
+      if (window.bootstrap) bootstrap.Modal.getInstance(document.getElementById('vlabCreateModal'))?.hide();
+      if (!r.ok) alert(r.msg || 'Błąd.');
+      if (r.data) render(r.data); else reload();
+      if (r.ok && r.creds) showCredsModal(r.creds);
+    });
+
     box.addEventListener('click', async (e)=>{
       const copyBtn = e.target.closest('[data-copy]');
       if (copyBtn){ navigator.clipboard?.writeText(copyBtn.dataset.copy); copyBtn.innerHTML='<i class="bi bi-check2" aria-hidden="true"></i>'; return; }
@@ -727,14 +775,12 @@ include __DIR__ . '/_layout_head.php';
 
       const createBtn = e.target.closest('[data-create]');
       if (createBtn){
-        const label = prompt('Nazwa maszyny (litery, cyfry, myślniki):', 'lab');
-        if (label === null) return;
-        createBtn.disabled = true; createBtn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Tworzę…';
-        const r = await api('create', {template_id: createBtn.dataset.create, label});
-        if (r.id && r.creds) lastCreds[r.id] = r.creds; // pełne dane logowania — pokaż raz
-        if (!r.ok) alert(r.msg || 'Błąd.');
-        if (r.data) render(r.data); else reload();
-        if (r.ok && r.creds) showCredsModal(r.creds); // wyskakujące okienko z danymi logowania
+        // Otwórz okienko: nazwa + porty do wystawienia (podpowiedź z szablonu)
+        document.getElementById('vc-tpl').value     = createBtn.dataset.create;
+        document.getElementById('vc-tplname').textContent = createBtn.dataset.tplName || '';
+        document.getElementById('vc-label').value    = 'lab';
+        document.getElementById('vc-ports').value    = createBtn.dataset.tplPorts || '';
+        if (window.bootstrap) new bootstrap.Modal(document.getElementById('vlabCreateModal')).show();
         return;
       }
 

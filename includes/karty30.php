@@ -451,6 +451,8 @@ function karty30_migrate(): void {
         UNIQUE(container_id, host_port, proto)
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_ports_cont ON k30_ti_vlab_ports(container_id)");
+    // Sugerowane porty do wystawienia dla szablonu (np. „80,443") — podpowiedź przy tworzeniu maszyny
+    try { $pdo->exec("ALTER TABLE k30_ti_vlab_templates ADD COLUMN default_ports TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
     foreach ([

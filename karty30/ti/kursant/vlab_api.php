@@ -23,7 +23,7 @@ $action = $_POST['action'] ?? $_GET['action'] ?? 'list';
 function vlab_payload(array $student): array {
     $cfg = vlab_config();
     $templates = $cfg['is_enabled']
-        ? db_all("SELECT id,name,description FROM k30_ti_vlab_templates WHERE is_active=1 ORDER BY sort,name")
+        ? db_all("SELECT id,name,description,default_ports FROM k30_ti_vlab_templates WHERE is_active=1 ORDER BY sort,name")
         : [];
     $rows = db_all(
         "SELECT * FROM k30_ti_vlab_containers WHERE student_id=? AND status!='removed' ORDER BY created_at DESC",
@@ -76,7 +76,8 @@ try {
         case 'create': {
             $tpl   = (int)($_POST['template_id'] ?? 0);
             $label = (string)($_POST['label'] ?? '');
-            $res   = vlab_provision($student['id'], (int)$student['client_id'], $tpl, $label);
+            $ports = (string)($_POST['ports'] ?? '');
+            $res   = vlab_provision($student['id'], (int)$student['client_id'], $tpl, $label, $ports);
             echo json_encode($res + ['data' => vlab_payload($student)]);
             break;
         }

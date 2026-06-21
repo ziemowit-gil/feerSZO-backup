@@ -302,10 +302,36 @@ function vlab_student_count(int $studentId): int {
 }
 
 /**
- * Provisioning nowego kontenera dla kursanta.
- * Zwraca ['ok'=>bool,'msg'=>string,'id'=>?int].
+ * Parsuje listę portów kontenera podaną przez użytkownika ("80, 443/tcp, 8080").
+ * Zwraca unikalną listę ['port'=>int,'proto'=>'tcp'|'udp'] (maks 12 pozycji),
+ * z pominięciem portów zarządzanych 22 (sshd) i 7681 (ttyd).
  */
-function vlab_provision(int $studentId, int $clientId, int $templateId, string $label): array {
+function vlab_parse_ports(string $spec): array {
+    $out = []; $seen = [];
+    foreach (preg_split('/[\s,;]+/', trim($spec)) as $tok) {
+        if ($tok === '') continue;
+        $proto = 'tcp';
+        if (preg_match('#^(\d{1,5})(?:/(tcp|udp))?$#i', $tok, $m)) {
+            $port = (int)$m[1];
+            if (!empty($m[2])) $proto = strtolower($m[2]);
+            if ($port < 1 || $port > 65535) continue;
+            if (in_array($port, [22, 7681], true)) continue; // zarządzane przez VLAB
+            $key = $port . '/' . $proto;
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $out[] = ['port' => $port, 'proto' => $proto];
+            if (count($out) >= 12) break;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Provisioning nowego kontenera dla kursanta.
+ * $ports — opcjonalna lista portów kontenera do wystawienia (np. „80,443"); SSH/terminal
+ * są wystawiane zawsze przez obraz. Zwraca ['ok'=>bool,'msg'=>string,'id'=>?int].
+ */
+function vlab_provision(int $studentId, int $clientId, int $templateId, string $label, string $ports = ''): array {
     if (!vlab_enabled()) return ['ok' => false, 'msg' => 'Moduł VLAB nie jest skonfigurowany.'];
     if (vlab_is_disabled()) return ['ok' => false, 'msg' => vlab_disabled_notice()];
 
@@ -355,8 +381,11 @@ function vlab_provision(int $studentId, int $clientId, int $templateId, string $
     ];
     $id = db_insert('k30_ti_vlab_containers', $row);
 
-    // Budowa polecenia docker run
+    // Budowa polecenia docker run. `-P` publikuje porty z EXPOSE obrazu (sshd 22 / ttyd 7681),
+    // a wybrane przez użytkownika porty publikujemy jawnie przez `-p <port>/<proto>` (losowy port hosta).
     $argv = ['docker', 'run', '-d', '--name', $name, '-P'];
+    $extraPorts = vlab_parse_ports($ports !== '' ? $ports : (string)($tpl['default_ports'] ?? ''));
+    foreach ($extraPorts as $p) { $argv[] = '-p'; $argv[] = $p['port'] . '/' . $p['proto']; }
     $cpus = $tpl['cpus'] !== '' ? $tpl['cpus'] : ($cfg['default_cpus'] ?? '');
     $mem  = $tpl['mem']  !== '' ? $tpl['mem']  : ($cfg['default_mem'] ?? '');
     if ($cpus !== '') { $argv[] = '--cpus'; $argv[] = $cpus; }
