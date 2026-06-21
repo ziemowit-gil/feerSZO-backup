@@ -128,6 +128,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: lesson.php?id=' . $session_id);
         exit;
     }
+
+    // Zapis linku do lekcji online — bez zmiany statusu lekcji
+    if ($op === 'save_link') {
+        $url = trim($_POST['meeting_url'] ?? '');
+        db()->prepare("UPDATE k30_ti_sessions SET meeting_url=?, updated_at=datetime('now') WHERE id=?")
+            ->execute([$url, $session_id]);
+        flash_set('success', $url !== '' ? 'Link do lekcji zapisany.' : 'Link do lekcji usunięty.');
+        header('Location: lesson.php?id=' . $session_id);
+        exit;
+    }
 }
 
 // Przeładuj
@@ -142,6 +152,10 @@ try {
     $rows = db_all("SELECT client_id, ind_notes FROM k30_ti_attendance WHERE session_id=?", [$session_id]);
     foreach ($rows as $r) $ind_notes_map[(int)$r['client_id']] = $r['ind_notes'];
 } catch (\Throwable $e) {}
+
+// Oceny lekcji od kursantów (1–5)
+$ratings     = k30_ti_session_ratings($session_id);
+$rating_avg  = $ratings ? round(array_sum(array_column($ratings, 'rating')) / count($ratings), 2) : 0;
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -221,6 +235,64 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- Link do lekcji online + oceny kursantów -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="section-head"><i class="bi bi-camera-video me-1 text-primary"></i>Link do lekcji online</div>
+        <?php if ($can_write): ?>
+        <form method="post" class="input-group input-group-sm">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op"   value="save_link">
+          <input type="url" class="form-control font-monospace" name="meeting_url"
+                 value="<?= h($session['meeting_url'] ?? '') ?>"
+                 placeholder="<?= !empty($session['course_meeting_url']) ? 'puste = stały link grupy' : 'https://… (Teams/Zoom/Meet)' ?>">
+          <button type="submit" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
+        </form>
+        <?php endif; ?>
+        <div class="small text-muted mt-2">
+          <?php if (!empty($session['meeting_url'])): ?>
+            Link tej lekcji: <a href="<?= h($session['meeting_url']) ?>" target="_blank" rel="noopener"><?= h($session['meeting_url']) ?></a>
+          <?php elseif (!empty($session['course_meeting_url'])): ?>
+            <i class="bi bi-link-45deg me-1"></i>Używany jest stały link grupy:
+            <a href="<?= h($session['course_meeting_url']) ?>" target="_blank" rel="noopener"><?= h($session['course_meeting_url']) ?></a>
+          <?php else: ?>
+            Brak linku — ustaw powyżej lub stały link w ustawieniach kursu.
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="section-head"><i class="bi bi-star me-1 text-warning"></i>Oceny kursantów</div>
+        <?php if ($ratings): ?>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="fs-4 fw-bold text-warning"><?= number_format($rating_avg, 2, ',', '') ?></span>
+          <span class="text-warning">
+            <?php for ($i=1;$i<=5;$i++): ?><i class="bi bi-star<?= $i <= round($rating_avg) ? '-fill' : '' ?>"></i><?php endfor; ?>
+          </span>
+          <span class="text-muted small">(<?= count($ratings) ?>)</span>
+        </div>
+        <ul class="list-unstyled small mb-0">
+          <?php foreach ($ratings as $rr): ?>
+          <li class="border-top pt-1 mt-1">
+            <span class="text-warning"><?php for ($i=1;$i<=5;$i++): ?><i class="bi bi-star<?= $i <= (int)$rr['rating'] ? '-fill' : '' ?>"></i><?php endfor; ?></span>
+            <span class="text-muted ms-1"><?= h($rr['client_name']) ?></span>
+            <?php if (!empty($rr['comment'])): ?><div class="text-body-secondary fst-italic">„<?= h($rr['comment']) ?>"</div><?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+        <?php else: ?>
+        <div class="text-muted small">Brak ocen. Kursanci mogą ocenić odbytą lekcję w swoim panelu.</div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
 
 <?php if ($session['status'] === 'cancelled'): ?>
 <div class="alert alert-danger d-flex align-items-start gap-2">

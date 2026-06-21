@@ -71,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             'duration_min' => $dur,
             'status'       => 'planned',
             'notes'        => trim($_POST['notes'] ?? ''),
+            'meeting_url'  => trim($_POST['meeting_url'] ?? ''),
             'created_by'   => current_user()['id'] ?? null,
             'created_at'   => date('Y-m-d H:i:s'),
         ];
@@ -108,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             'duration_min' => $src['duration_min'],
             'status'       => 'planned',
             'notes'        => $src['notes'],
+            'meeting_url'  => $src['meeting_url'] ?? '',
             'created_by'   => current_user()['id'] ?? null,
             'created_at'   => date('Y-m-d H:i:s'),
         ]);
@@ -340,7 +342,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input type="number" class="form-control form-control-sm" name="duration_min" id="sess_dur"
                    min="15" step="15" value="60">
           </div>
-          <div class="col-sm-3">
+          <div class="col-sm-9">
+            <label class="form-label small fw-semibold mb-1">
+              <i class="bi bi-camera-video me-1 text-primary"></i>Link do lekcji online <span class="text-muted fw-normal">(opcjonalnie)</span>
+            </label>
+            <input type="url" class="form-control form-control-sm" name="meeting_url"
+                   placeholder="<?= !empty($course['default_meeting_url']) ? 'puste = stały link grupy: '.h($course['default_meeting_url']) : 'https://… (Teams/Zoom/Meet)' ?>">
+          </div>
+          <div class="col-sm-3 d-flex align-items-end">
             <button type="submit" class="btn btn-sm btn-primary w-100">
               <i class="bi bi-plus-lg me-1"></i>Dodaj sesję
             </button>

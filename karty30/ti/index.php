@@ -33,11 +33,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete')
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $data = [
-        'name'          => trim($_POST['name'] ?? ''),
-        'description'   => trim($_POST['description'] ?? ''),
-        'instructor_id' => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
-        'location'      => trim($_POST['location'] ?? ''),
-        'is_active'     => isset($_POST['is_active']) ? 1 : 0,
+        'name'                => trim($_POST['name'] ?? ''),
+        'description'         => trim($_POST['description'] ?? ''),
+        'instructor_id'       => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
+        'location'            => trim($_POST['location'] ?? ''),
+        'default_meeting_url' => trim($_POST['default_meeting_url'] ?? ''),
+        'is_active'           => isset($_POST['is_active']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
 
@@ -121,6 +122,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <label class="form-label">Lokalizacja / sala</label>
           <input type="text" class="form-control" name="location" value="<?= h($f['location']) ?>" placeholder="Sala A, piętro 2…">
         </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">
+          <i class="bi bi-camera-video me-1 text-primary"></i>Stały link do zajęć online (grupa)
+        </label>
+        <input type="url" class="form-control" name="default_meeting_url"
+               value="<?= h($f['default_meeting_url'] ?? '') ?>"
+               placeholder="https://… (Teams/Zoom/Meet)">
+        <div class="form-text">Wspólny link dla wszystkich lekcji tej grupy. Można nadpisać linkiem konkretnej lekcji.</div>
       </div>
       <div class="mb-3">
         <label class="form-label">Opis</label>

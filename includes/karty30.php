@@ -280,6 +280,9 @@ function karty30_migrate(): void {
         // Praca własna prowadzącego — przygotowanie materiału do wykonania zdalnie
         "ALTER TABLE k30_ti_sessions ADD COLUMN self_prep_remote INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_sessions ADD COLUMN updated_at       DATETIME",
+        // Link do lekcji online (per-lekcja) + stały link grupy (kurs)
+        "ALTER TABLE k30_ti_sessions ADD COLUMN meeting_url      TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_courses  ADD COLUMN default_meeting_url TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
         // Odwołanie całej lekcji (Doradca/admin) — z powodem i autorem
         "ALTER TABLE k30_ti_sessions ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
@@ -323,6 +326,18 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_msg_student ON k30_ti_messages(student_id,created_at)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_msg_unread  ON k30_ti_messages(student_id,sender,is_read)");
+
+    // ── Oceny lekcji przez kursantów (1–5) ────────────────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_lesson_ratings (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id  INTEGER NOT NULL REFERENCES k30_ti_sessions(id) ON DELETE CASCADE,
+        client_id   INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        rating      INTEGER NOT NULL,                    -- 1..5
+        comment     TEXT    NOT NULL DEFAULT '',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(session_id, client_id)
+    )");
 
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
@@ -1349,18 +1364,21 @@ function k30_ti_client_billing(int $client_id): array {
 /** Ostatnie lekcje kursanta z obecnością (współdzielone: panel kursanta + rodzica). */
 function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
     return db_all(
-        "SELECT s.*, c.name AS course_name, a.attended, a.ind_notes,
+        "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url,
+                a.attended, a.ind_notes,
                 a.cancelled AS att_cancelled, a.cancel_reason AS att_cancel_reason,
-                a.cancelled_by_role AS att_cancelled_by_role
+                a.cancelled_by_role AS att_cancelled_by_role,
+                r.rating AS my_rating, r.comment AS my_comment
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
          LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
+         LEFT JOIN k30_ti_lesson_ratings r ON r.session_id=s.id AND r.client_id=?
          WHERE s.course_id IN (
              SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active'
          )
          ORDER BY s.lesson_date DESC, s.time_from DESC
          LIMIT " . max(1, $limit),
-        [$client_id, $client_id]
+        [$client_id, $client_id, $client_id]
     );
 }
 
@@ -1553,12 +1571,50 @@ function k30_ti_sessions(int $course_id, string $from='', string $to=''): array 
 function k30_ti_session_get(int $id): ?array {
     return db_one(
         "SELECT s.*, c.name AS course_name, c.id AS course_id,
+                c.default_meeting_url AS course_meeting_url,
                 u.name AS instructor_name
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
          LEFT JOIN users u ON u.id=c.instructor_id
          WHERE s.id=?", [$id]
     ) ?: null;
+}
+
+/** Oceny lekcji (1–5) od kursantów — z nazwą kursanta. Dla widoku prowadzącego. */
+function k30_ti_session_ratings(int $session_id): array {
+    return db_all(
+        "SELECT r.*, cl.name AS client_name
+         FROM k30_ti_lesson_ratings r
+         JOIN k30_clients cl ON cl.id=r.client_id
+         WHERE r.session_id=? ORDER BY r.updated_at DESC",
+        [$session_id]
+    );
+}
+
+/**
+ * Zapisuje/aktualizuje ocenę lekcji (1–5) przez kursanta. Upsert po (session_id, client_id).
+ * Waliduje, że lekcja należy do aktywnego zapisu kursanta i jest odbyta (held).
+ * Zwraca true gdy zapisano.
+ */
+function k30_ti_rate_lesson(int $session_id, int $client_id, int $rating, string $comment = ''): bool {
+    $rating = max(1, min(5, $rating));
+    $ok = db_one(
+        "SELECT s.id FROM k30_ti_sessions s
+         JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=? AND e.status='active'
+         WHERE s.id=? AND s.status='held'",
+        [$client_id, $session_id]
+    );
+    if (!$ok) return false;
+    $comment = mb_substr(trim($comment), 0, 1000);
+    try {
+        db()->prepare(
+            "INSERT INTO k30_ti_lesson_ratings (session_id, client_id, rating, comment)
+             VALUES (?,?,?,?)
+             ON CONFLICT(session_id, client_id)
+             DO UPDATE SET rating=excluded.rating, comment=excluded.comment, updated_at=datetime('now')"
+        )->execute([$session_id, $client_id, $rating, $comment]);
+        return true;
+    } catch (\Throwable $e) { return false; }
 }
 
 // Obecność — pobierz lub utwórz domyślną listę dla lekcji

@@ -65,6 +65,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=lekcje'); exit;
     }
 
+    // Ocena odbytej lekcji (1–5) przez kursanta
+    if ($op === 'rate_lesson') {
+        $sid    = (int)($_POST['session_id'] ?? 0);
+        $rating = (int)($_POST['rating'] ?? 0);
+        $cmt    = (string)($_POST['comment'] ?? '');
+        if ($sid && $rating >= 1 && $rating <= 5) {
+            if (k30_ti_rate_lesson($sid, (int)$student['client_id'], $rating, $cmt)) {
+                header('Location: index.php?tab=lekcje&rated=1'); exit;
+            }
+        }
+        header('Location: index.php?tab=lekcje'); exit;
+    }
+
     if ($op === 'reset_calendar_token') {
         k30_ti_calendar_token_reset((int)$student['id']);
         header('Location: index.php?tab=ustawienia&cal=reset'); exit;
@@ -288,6 +301,13 @@ include __DIR__ . '/_layout_head.php';
 
   <h1 class="h5 fw-bold mb-3">Moje lekcje</h1>
 
+  <?php if (isset($_GET['rated'])): ?>
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Dziękujemy za ocenę zajęć!
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php endif; ?>
+
   <!-- Statystyki -->
   <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
@@ -356,6 +376,7 @@ include __DIR__ . '/_layout_head.php';
           <?php foreach ($lessons as $l):
             $d   = new DateTime($l['lesson_date']);
             $dow = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$d->format('w')];
+            $eff_link = trim((string)($l['meeting_url'] ?? '')) !== '' ? $l['meeting_url'] : (string)($l['course_meeting_url'] ?? '');
           ?>
           <tr>
             <td class="text-nowrap">
@@ -404,10 +425,32 @@ include __DIR__ . '/_layout_head.php';
               <?php endif; ?>
             </td>
             <td class="text-end">
+              <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
+              <?php if ($eff_link !== '' && !$att_cancelled && in_array($l['status'], ['planned','held'], true)): ?>
+              <a href="<?= h($eff_link) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-success"
+                 title="Dołącz do lekcji online">
+                <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz
+              </a>
+              <?php endif; ?>
+              <?php if ($l['status'] === 'held' && $l['attended'] && !$att_cancelled):
+                $has_rating = !empty($l['my_rating']); ?>
+              <button type="button" class="btn btn-sm <?= $has_rating ? 'btn-outline-warning' : 'btn-warning' ?>"
+                      data-rate-session="<?= (int)$l['id'] ?>"
+                      data-rate-value="<?= (int)($l['my_rating'] ?? 0) ?>"
+                      data-rate-comment="<?= h($l['my_comment'] ?? '') ?>"
+                      data-lesson-label="<?= h($l['course_name'].' — '.$d->format('d.m.Y')) ?>"
+                      title="Oceń zajęcia">
+                <?php if ($has_rating): ?>
+                <i class="bi bi-star-fill me-1" aria-hidden="true"></i><?= (int)$l['my_rating'] ?>/5
+                <?php else: ?>
+                <i class="bi bi-star me-1" aria-hidden="true"></i>Oceń
+                <?php endif; ?>
+              </button>
+              <?php endif; ?>
               <?php if ($l['status'] === 'planned' && !$att_cancelled): ?>
               <button type="button" class="btn btn-sm btn-outline-danger"
                       data-cancel-session="<?= (int)$l['id'] ?>"
-                      data-lesson-label="<?= h($l['course_name'].' — '.(new DateTime($l['lesson_date']))->format('d.m.Y')) ?>">
+                      data-lesson-label="<?= h($l['course_name'].' — '.$d->format('d.m.Y')) ?>">
                 <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Odwołaj
               </button>
               <?php elseif ($l['status'] === 'planned' && $att_cancelled): ?>
@@ -419,9 +462,8 @@ include __DIR__ . '/_layout_head.php';
                   <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Cofnij
                 </button>
               </form>
-              <?php else: ?>
-              <span class="text-body-secondary">—</span>
               <?php endif; ?>
+              </div>
             </td>
           </tr>
           <?php endforeach; ?>
@@ -470,6 +512,71 @@ include __DIR__ . '/_layout_head.php';
         document.getElementById('cl_session_id').value = btn.getAttribute('data-cancel-session');
         document.getElementById('cl_lesson_label').textContent = btn.getAttribute('data-lesson-label') || '';
         document.getElementById('cl_reason').value = '';
+        new bootstrap.Modal(modalEl).show();
+      });
+    });
+  })();
+  </script>
+
+  <!-- Modal: ocena zajęć (1–5) -->
+  <div class="modal fade" id="rateLessonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" class="modal-content">
+        <input type="hidden" name="_token"     value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op"         value="rate_lesson">
+        <input type="hidden" name="session_id"  id="rl_session_id" value="">
+        <input type="hidden" name="rating"      id="rl_rating" value="0">
+        <div class="modal-header">
+          <h2 class="modal-title h5"><i class="bi bi-star-fill text-warning me-2" aria-hidden="true"></i>Oceń zajęcia</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Lekcja: <strong id="rl_lesson_label"></strong></p>
+          <p class="text-body-secondary small mb-2">Jak oceniasz te zajęcia w skali od 1 do 5?</p>
+          <div class="d-flex gap-1 mb-3 fs-2" id="rl_stars" role="radiogroup" aria-label="Ocena w gwiazdkach">
+            <?php for ($i=1;$i<=5;$i++): ?>
+            <button type="button" class="btn btn-link p-0 text-warning" data-star="<?= $i ?>"
+                    aria-label="<?= $i ?> z 5" style="line-height:1;text-decoration:none">
+              <i class="bi bi-star" aria-hidden="true"></i>
+            </button>
+            <?php endfor; ?>
+          </div>
+          <label class="form-label fw-semibold" for="rl_comment">Komentarz <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+          <textarea class="form-control" id="rl_comment" name="comment" rows="3" maxlength="1000"
+                    placeholder="Co było dobre, co można poprawić…"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning" id="rl_submit" disabled><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz ocenę</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    var modalEl = document.getElementById('rateLessonModal');
+    if (!modalEl) return;
+    var stars  = modalEl.querySelectorAll('#rl_stars [data-star]');
+    var field  = document.getElementById('rl_rating');
+    var submit = document.getElementById('rl_submit');
+    function paint(v){
+      stars.forEach(function(b){
+        var on = parseInt(b.getAttribute('data-star'),10) <= v;
+        b.querySelector('i').className = on ? 'bi bi-star-fill' : 'bi bi-star';
+      });
+      field.value = v;
+      submit.disabled = !(v >= 1 && v <= 5);
+    }
+    stars.forEach(function(b){
+      b.addEventListener('click', function(){ paint(parseInt(b.getAttribute('data-star'),10)); });
+    });
+    document.querySelectorAll('[data-rate-session]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        document.getElementById('rl_session_id').value = btn.getAttribute('data-rate-session');
+        document.getElementById('rl_lesson_label').textContent = btn.getAttribute('data-lesson-label') || '';
+        document.getElementById('rl_comment').value = btn.getAttribute('data-rate-comment') || '';
+        paint(parseInt(btn.getAttribute('data-rate-value'),10) || 0);
         new bootstrap.Modal(modalEl).show();
       });
     });
