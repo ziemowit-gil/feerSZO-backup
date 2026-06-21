@@ -329,6 +329,49 @@ include __DIR__ . '/_layout_head.php';
   </div>
   <?php endif; ?>
 
+  <!-- Profil kursanta -->
+  <?php
+    $contact_emails = [];
+    if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
+    if (!empty($account['ms_upn']))         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
+    if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];
+  ?>
+  <div class="card mb-4">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+      <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-bg-primary"
+           style="width:52px;height:52px;font-size:1.3rem" aria-hidden="true">
+        <i class="bi bi-person-fill"></i>
+      </div>
+      <div class="me-2">
+        <div class="h5 mb-0 fw-bold"><?= h($client['name'] ?? $student['login']) ?></div>
+        <div class="small text-body-secondary">
+          Nr kursanta:
+          <?php if (!empty($account['student_no'])): ?>
+          <span class="font-monospace fw-semibold"><?= h($account['student_no']) ?></span>
+          <?php else: ?><span class="fst-italic">nie nadano</span><?php endif; ?>
+        </div>
+      </div>
+      <div class="vr d-none d-md-block"></div>
+      <div class="small">
+        <div class="text-body-secondary text-uppercase fw-semibold" style="font-size:.68rem;letter-spacing:.05em">Grupy</div>
+        <div class="d-flex flex-wrap gap-1 mt-1">
+          <?php if ($courses): foreach ($courses as $c): ?>
+          <span class="badge text-bg-primary fw-normal"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($c['course_name']) ?></span>
+          <?php endforeach; else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+        </div>
+      </div>
+      <div class="vr d-none d-md-block"></div>
+      <div class="small">
+        <div class="text-body-secondary text-uppercase fw-semibold" style="font-size:.68rem;letter-spacing:.05em">E-maile kontaktowe</div>
+        <div class="mt-1">
+          <?php if ($contact_emails): foreach ($contact_emails as $em): ?>
+          <div><span class="text-body-secondary"><?= h($em[0]) ?>:</span> <a href="mailto:<?= h($em[1]) ?>" class="font-monospace"><?= h($em[1]) ?></a></div>
+          <?php endforeach; else: ?><span class="text-body-secondary">— brak —</span><?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Statystyki -->
   <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
@@ -361,16 +404,6 @@ include __DIR__ . '/_layout_head.php';
     </div>
   </div>
 
-  <!-- Moje kursy -->
-  <?php if ($courses): ?>
-  <div class="mb-3 d-flex flex-wrap gap-2" aria-label="Moje kursy">
-    <?php foreach ($courses as $c): ?>
-    <span class="badge text-bg-primary fs-6 fw-normal">
-      <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($c['course_name']) ?>
-    </span>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
 
   <!-- Lista lekcji -->
   <div class="card">

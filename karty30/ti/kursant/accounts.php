@@ -151,6 +151,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: accounts.php'); exit;
     }
 
+    // Nadanie / zmiana numeru kursanta (przez administratora)
+    if ($op === 'set_no') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $no  = trim($_POST['student_no'] ?? '');
+        if ($aid) {
+            db()->prepare("UPDATE k30_ti_student_accounts SET student_no=?, updated_at=datetime('now') WHERE id=?")
+               ->execute([mb_substr($no, 0, 40), $aid]);
+            flash_set('success', $no !== '' ? 'Numer kursanta zapisany.' : 'Numer kursanta usunięty.');
+        }
+        header('Location: accounts.php'); exit;
+    }
+
     if ($op === 'toggle') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
@@ -522,12 +534,22 @@ function printBulk(){
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <thead class="table-light">
-            <tr><th>Beneficjent</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
+            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
             <?php foreach ($accounts as $a): ?>
             <tr class="<?= $a['is_active'] ? '' : 'opacity-50' ?>">
               <td class="fw-semibold"><?= h($a['client_name']) ?></td>
+              <td>
+                <form method="post" class="d-flex gap-1">
+                  <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op"         value="set_no">
+                  <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
+                  <input type="text" name="student_no" value="<?= h($a['student_no'] ?? '') ?>"
+                         class="form-control form-control-sm font-monospace py-0" style="width:84px" placeholder="—" title="Numer kursanta">
+                  <button type="submit" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-1" title="Zapisz numer"><i class="bi bi-save"></i></button>
+                </form>
+              </td>
               <td class="font-monospace"><?= h($a['login']) ?></td>
               <td>
                 <span class="badge <?= $a['is_active'] ? 'bg-success' : 'bg-secondary' ?>">

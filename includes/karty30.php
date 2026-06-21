@@ -505,6 +505,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_name  TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_phone TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN guardian_email TEXT    NOT NULL DEFAULT ''",
+        // Numer kursanta — nadawany przez administratora
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN student_no     TEXT    NOT NULL DEFAULT ''",
         // ── Nauka online: konto MS (tenant szkoleniowy) + konto Moodle ────────
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_user_id        TEXT NOT NULL DEFAULT ''", // objectId w tenancie szkoleniowym
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_upn            TEXT NOT NULL DEFAULT ''", // login MS = login Moodle
