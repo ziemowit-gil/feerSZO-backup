@@ -422,6 +422,33 @@ function karty30_migrate(): void {
     // Czasowe wyłączenie VLAB dla kursantów + komunikat wyświetlany w panelu
     try { $pdo->exec("ALTER TABLE k30_ti_vlab_config ADD COLUMN is_disabled     INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_ti_vlab_config ADD COLUMN disabled_notice TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // Zarządzanie portami: zapora hosta (UFW) sterowana przez SSH + reguły NSG w Microsoft Azure (ARM API)
+    foreach ([
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN ufw_enabled     INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_enabled      INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_tenant       TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_client_id    TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_client_secret TEXT   NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_subscription TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_resource_group TEXT  NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_nsg          TEXT    NOT NULL DEFAULT ''",
+    ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
+    // Rejestr otwartych portów per kontener (UFW + Azure NSG)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_ports (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        container_id INTEGER NOT NULL REFERENCES k30_ti_vlab_containers(id) ON DELETE CASCADE,
+        host_port    INTEGER NOT NULL,
+        proto        TEXT    NOT NULL DEFAULT 'tcp',     -- 'tcp' | 'udp'
+        ufw_ok       INTEGER NOT NULL DEFAULT 0,
+        az_ok        INTEGER NOT NULL DEFAULT 0,
+        az_rule      TEXT    NOT NULL DEFAULT '',
+        az_priority  INTEGER,
+        note         TEXT    NOT NULL DEFAULT '',
+        created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(container_id, host_port, proto)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_ports_cont ON k30_ti_vlab_ports(container_id)");
 
     // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
     foreach ([

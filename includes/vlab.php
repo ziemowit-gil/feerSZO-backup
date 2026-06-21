@@ -536,6 +536,8 @@ function vlab_action(int $containerId, int $studentId, string $op): array {
         $upd['removed_at'] = date('Y-m-d H:i:s');
         // Skasuj powiązane konto systemowe na hoście (best-effort).
         if (!empty($row['host_user'])) vlab_host_user_remove($row);
+        // Zamknij i wyczyść wszystkie otwarte porty (UFW + Azure NSG) — best-effort.
+        foreach (vlab_ports_list($containerId) as $p) { try { vlab_port_close((int)$p['id']); } catch (\Throwable $e) {} }
     } elseif ($op === 'start' || $op === 'restart') {
         // porty mogą się zmienić po restarcie
         $tpl = $row['template_id'] ? db_one("SELECT * FROM k30_ti_vlab_templates WHERE id=?", [$row['template_id']]) : null;
@@ -567,4 +569,242 @@ function vlab_refresh(int $containerId, int $studentId): array {
     $map = ['running' => 'running', 'exited' => 'stopped', 'created' => 'stopped', 'paused' => 'stopped'];
     db_update('k30_ti_vlab_containers', ['status' => $map[$state] ?? 'error'], $containerId);
     return ['ok' => true, 'msg' => 'Zaktualizowano.'];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Zarządzanie portami: zapora hosta (UFW przez SSH) + reguły NSG w Microsoft Azure
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Normalizuje protokół do 'tcp'|'udp'. */
+function vlab_proto(string $p): string {
+    $p = strtolower(trim($p));
+    return $p === 'udp' ? 'udp' : 'tcp';
+}
+
+/** Wszystkie mapowania portów kontenera: [['cport'=>'80/tcp','host'=>49153], ...]. */
+function vlab_docker_ports_all(string $name): array {
+    $r = vlab_ssh_exec(['docker', 'port', $name]);
+    if (!$r['ok'] || trim($r['out']) === '') return [];
+    $out = [];
+    foreach (preg_split('/\r?\n/', trim($r['out'])) as $line) {
+        // format: "22/tcp -> 0.0.0.0:49153"
+        if (preg_match('#^(\d+/\w+)\s*->\s*.*?:(\d+)$#', trim($line), $m)) {
+            $out[] = ['cport' => $m[1], 'host' => (int)$m[2]];
+        }
+    }
+    return $out;
+}
+
+// ── UFW (zapora hosta) ───────────────────────────────────────────────────────
+
+/** Czy sterowanie UFW jest włączone w konfiguracji. */
+function vlab_ufw_enabled(): bool {
+    $c = vlab_config();
+    return !isset($c['ufw_enabled']) || (int)$c['ufw_enabled'] === 1;
+}
+
+/** Otwiera/zamyka port w UFW (allow / delete allow). Zwraca ['ok','msg']. */
+function vlab_ufw_set(int $port, string $proto, bool $allow): array {
+    if (!vlab_ufw_enabled()) return ['ok' => false, 'msg' => 'Sterowanie UFW wyłączone w konfiguracji.'];
+    if ($port < 1 || $port > 65535) return ['ok' => false, 'msg' => 'Nieprawidłowy numer portu.'];
+    $proto = vlab_proto($proto);
+    $rule  = $port . '/' . $proto;
+    // ufw musi istnieć; brak ufw → czytelny błąd
+    $script = $allow
+        ? "command -v ufw >/dev/null 2>&1 || { echo 'ufw-missing'; exit 1; }; ufw allow {$rule}"
+        : "command -v ufw >/dev/null 2>&1 || { echo 'ufw-missing'; exit 1; }; ufw delete allow {$rule} 2>/dev/null || true";
+    $r = vlab_ssh_root($script);
+    if (!$r['ok'] && strpos($r['out'] . $r['err'], 'ufw-missing') !== false) {
+        return ['ok' => false, 'msg' => 'Na hoście nie znaleziono UFW.'];
+    }
+    return ['ok' => $r['ok'], 'msg' => $r['ok'] ? 'OK' : ($r['err'] ?: 'Błąd UFW.')];
+}
+
+/** Surowy `ufw status` (best-effort, do podglądu). */
+function vlab_ufw_status(): string {
+    $r = vlab_ssh_root('command -v ufw >/dev/null 2>&1 && ufw status || echo "UFW niedostępne"');
+    return trim($r['out'] !== '' ? $r['out'] : $r['err']);
+}
+
+// ── Microsoft Azure (Network Security Group, ARM REST) ───────────────────────
+
+/** Czy integracja z Azure NSG jest skonfigurowana i włączona. */
+function vlab_azure_enabled(): bool {
+    $c = vlab_config();
+    return !empty($c['az_enabled']) && !empty($c['az_tenant']) && !empty($c['az_client_id'])
+        && !empty($c['az_client_secret']) && !empty($c['az_subscription'])
+        && !empty($c['az_resource_group']) && !empty($c['az_nsg']);
+}
+
+/** Lekki klient HTTP (JSON). Zwraca ['ok','code','body'(array|string),'err']. */
+function vlab_http(string $method, string $url, array $headers = [], $body = null): array {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST  => $method,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_HTTPHEADER     => $headers,
+    ]);
+    if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, is_string($body) ? $body : http_build_query($body));
+    $resp = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false) return ['ok' => false, 'code' => 0, 'body' => '', 'err' => $err ?: 'Błąd połączenia.'];
+    $json = json_decode($resp, true);
+    return ['ok' => $code >= 200 && $code < 300, 'code' => $code, 'body' => $json ?? $resp, 'err' => ''];
+}
+
+/** Token ARM (client credentials, scope management.azure.com). Zwraca ['ok','token'|'err']. */
+function vlab_azure_token(): array {
+    $c = vlab_config();
+    $r = vlab_http(
+        'POST',
+        "https://login.microsoftonline.com/{$c['az_tenant']}/oauth2/v2.0/token",
+        ['Content-Type: application/x-www-form-urlencoded'],
+        [
+            'grant_type'    => 'client_credentials',
+            'client_id'     => $c['az_client_id'],
+            'client_secret' => $c['az_client_secret'],
+            'scope'         => 'https://management.azure.com/.default',
+        ]
+    );
+    if (!$r['ok'] || empty($r['body']['access_token'])) {
+        $msg = is_array($r['body']) ? ($r['body']['error_description'] ?? json_encode($r['body'])) : (string)$r['body'];
+        return ['ok' => false, 'err' => 'Azure: nie udało się pobrać tokenu — ' . ($r['err'] ?: $msg)];
+    }
+    return ['ok' => true, 'token' => $r['body']['access_token']];
+}
+
+/** Bazowy URL reguły NSG. */
+function vlab_azure_rule_url(string $ruleName): string {
+    $c = vlab_config();
+    return "https://management.azure.com/subscriptions/{$c['az_subscription']}"
+        . "/resourceGroups/{$c['az_resource_group']}"
+        . "/providers/Microsoft.Network/networkSecurityGroups/{$c['az_nsg']}"
+        . "/securityRules/" . rawurlencode($ruleName) . "?api-version=2023-09-01";
+}
+
+/** Tworzy/aktualizuje regułę Allow Inbound w NSG. Zwraca ['ok','msg']. */
+function vlab_azure_rule_put(string $ruleName, int $port, string $proto, int $priority): array {
+    $t = vlab_azure_token();
+    if (!$t['ok']) return ['ok' => false, 'msg' => $t['err']];
+    $payload = json_encode(['properties' => [
+        'protocol'                 => vlab_proto($proto) === 'udp' ? 'Udp' : 'Tcp',
+        'sourcePortRange'          => '*',
+        'destinationPortRange'     => (string)$port,
+        'sourceAddressPrefix'      => '*',
+        'destinationAddressPrefix' => '*',
+        'access'                   => 'Allow',
+        'direction'                => 'Inbound',
+        'priority'                 => $priority,
+        'description'              => 'VLab port ' . $port . '/' . vlab_proto($proto),
+    ]]);
+    $r = vlab_http('PUT', vlab_azure_rule_url($ruleName),
+        ['Authorization: Bearer ' . $t['token'], 'Content-Type: application/json'], $payload);
+    if ($r['ok']) return ['ok' => true, 'msg' => 'OK'];
+    $msg = is_array($r['body']) ? ($r['body']['error']['message'] ?? json_encode($r['body'])) : (string)$r['body'];
+    return ['ok' => false, 'msg' => 'Azure NSG (HTTP ' . $r['code'] . '): ' . $msg];
+}
+
+/** Usuwa regułę NSG. Zwraca ['ok','msg']. */
+function vlab_azure_rule_delete(string $ruleName): array {
+    $t = vlab_azure_token();
+    if (!$t['ok']) return ['ok' => false, 'msg' => $t['err']];
+    $r = vlab_http('DELETE', vlab_azure_rule_url($ruleName), ['Authorization: Bearer ' . $t['token']]);
+    // 200/202 = usunięto, 204 = nie istniało — traktujemy jako sukces
+    if ($r['ok'] || $r['code'] === 404) return ['ok' => true, 'msg' => 'OK'];
+    $msg = is_array($r['body']) ? ($r['body']['error']['message'] ?? json_encode($r['body'])) : (string)$r['body'];
+    return ['ok' => false, 'msg' => 'Azure NSG (HTTP ' . $r['code'] . '): ' . $msg];
+}
+
+// ── Orkiestracja + rejestr ───────────────────────────────────────────────────
+
+/** Lista otwartych portów kontenera (z rejestru). */
+function vlab_ports_list(int $containerId): array {
+    return db_all("SELECT * FROM k30_ti_vlab_ports WHERE container_id=? ORDER BY host_port", [$containerId]);
+}
+
+/** Wybiera wolny priorytet reguły NSG (100–4096) nieużywany w rejestrze. */
+function vlab_azure_next_priority(): int {
+    $rows = db_all("SELECT az_priority FROM k30_ti_vlab_ports WHERE az_priority IS NOT NULL");
+    $used = array_map(fn($r) => (int)$r['az_priority'], $rows);
+    for ($p = 2000; $p <= 4000; $p++) {
+        if (!in_array($p, $used, true)) return $p;
+    }
+    return 4096;
+}
+
+/**
+ * Otwiera port dla kontenera: UFW (zapora hosta) + Azure NSG (jeśli włączone).
+ * Best-effort: każdy kanał raportowany osobno; wpis trafia do rejestru.
+ * Zwraca ['ok'=>bool,'msg'=>string,'ufw'=>bool,'azure'=>bool].
+ */
+function vlab_port_open(int $containerId, int $hostPort, string $proto, ?int $byUserId = null, string $note = ''): array {
+    $proto = vlab_proto($proto);
+    if ($hostPort < 1 || $hostPort > 65535) return ['ok' => false, 'msg' => 'Nieprawidłowy numer portu.'];
+    $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND status!='removed'", [$containerId]);
+    if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
+
+    $msgs = [];
+    // UFW
+    $ufwOk = false;
+    if (vlab_ufw_enabled()) {
+        $u = vlab_ufw_set($hostPort, $proto, true);
+        $ufwOk = $u['ok'];
+        $msgs[] = 'UFW: ' . ($u['ok'] ? 'otwarty' : $u['msg']);
+    } else {
+        $msgs[] = 'UFW: pominięty (wyłączony)';
+    }
+
+    // Azure NSG
+    $azOk = false; $rule = ''; $priority = null;
+    if (vlab_azure_enabled()) {
+        $rule     = 'vlab-' . $containerId . '-' . $hostPort . '-' . $proto;
+        // zachowaj istniejący priorytet, jeśli port był już w rejestrze
+        $existing = db_one("SELECT az_priority FROM k30_ti_vlab_ports WHERE container_id=? AND host_port=? AND proto=?", [$containerId, $hostPort, $proto]);
+        $priority = $existing && $existing['az_priority'] ? (int)$existing['az_priority'] : vlab_azure_next_priority();
+        $a = vlab_azure_rule_put($rule, $hostPort, $proto, $priority);
+        $azOk = $a['ok'];
+        $msgs[] = 'Azure: ' . ($a['ok'] ? 'reguła dodana (prio ' . $priority . ')' : $a['msg']);
+    } else {
+        $msgs[] = 'Azure: pominięty (niewłączony)';
+    }
+
+    // Rejestr (upsert)
+    $existing = db_one("SELECT id FROM k30_ti_vlab_ports WHERE container_id=? AND host_port=? AND proto=?", [$containerId, $hostPort, $proto]);
+    $data = [
+        'container_id' => $containerId, 'host_port' => $hostPort, 'proto' => $proto,
+        'ufw_ok' => $ufwOk ? 1 : 0, 'az_ok' => $azOk ? 1 : 0,
+        'az_rule' => $rule, 'az_priority' => $priority, 'note' => mb_substr($note, 0, 200),
+    ];
+    if ($existing) {
+        db_update('k30_ti_vlab_ports', $data, (int)$existing['id']);
+    } else {
+        $data['created_by'] = $byUserId ?: null;
+        $data['created_at'] = date('Y-m-d H:i:s');
+        db_insert('k30_ti_vlab_ports', $data);
+    }
+    vlab_log($containerId, (int)$cont['student_id'], 'port_open', $ufwOk || $azOk, $hostPort . '/' . $proto . ' — ' . implode('; ', $msgs));
+
+    $ok = $ufwOk || $azOk || (!vlab_ufw_enabled() && !vlab_azure_enabled());
+    return ['ok' => $ok, 'msg' => implode(' · ', $msgs), 'ufw' => $ufwOk, 'azure' => $azOk];
+}
+
+/** Zamyka port (UFW delete + usunięcie reguły NSG) i kasuje wpis z rejestru. */
+function vlab_port_close(int $portRowId): array {
+    $row = db_one("SELECT * FROM k30_ti_vlab_ports WHERE id=?", [$portRowId]);
+    if (!$row) return ['ok' => false, 'msg' => 'Wpis nie istnieje.'];
+    $msgs = [];
+    if (vlab_ufw_enabled()) {
+        $u = vlab_ufw_set((int)$row['host_port'], $row['proto'], false);
+        $msgs[] = 'UFW: ' . ($u['ok'] ? 'zamknięty' : $u['msg']);
+    }
+    if (vlab_azure_enabled() && $row['az_rule'] !== '') {
+        $a = vlab_azure_rule_delete($row['az_rule']);
+        $msgs[] = 'Azure: ' . ($a['ok'] ? 'reguła usunięta' : $a['msg']);
+    }
+    db()->prepare("DELETE FROM k30_ti_vlab_ports WHERE id=?")->execute([$portRowId]);
+    vlab_log((int)$row['container_id'], 0, 'port_close', true, $row['host_port'] . '/' . $row['proto'] . ' — ' . implode('; ', $msgs));
+    return ['ok' => true, 'msg' => implode(' · ', $msgs) ?: 'Port zamknięty.'];
 }

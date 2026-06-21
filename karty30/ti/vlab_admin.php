@@ -41,10 +41,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'force_pw_first_login' => isset($_POST['force_pw_first_login']) ? 1 : 0,
             'is_disabled'     => isset($_POST['is_disabled']) ? 1 : 0,
             'disabled_notice' => trim($_POST['disabled_notice'] ?? ''),
+            'ufw_enabled'     => isset($_POST['ufw_enabled']) ? 1 : 0,
+            'az_enabled'      => isset($_POST['az_enabled']) ? 1 : 0,
+            'az_tenant'       => trim($_POST['az_tenant'] ?? ''),
+            'az_client_id'    => trim($_POST['az_client_id'] ?? ''),
+            'az_subscription' => trim($_POST['az_subscription'] ?? ''),
+            'az_resource_group' => trim($_POST['az_resource_group'] ?? ''),
+            'az_nsg'          => trim($_POST['az_nsg'] ?? ''),
             'updated_by'      => $uid ?: null,
         ];
         // Hasło SSH zmieniamy tylko jeśli podane (puste = bez zmian)
         if (($_POST['ssh_password'] ?? '') !== '') $set['ssh_password'] = $_POST['ssh_password'];
+        // Sekret Azure zmieniamy tylko jeśli podany (puste = bez zmian)
+        if (($_POST['az_client_secret'] ?? '') !== '') $set['az_client_secret'] = $_POST['az_client_secret'];
         db_update('k30_ti_vlab_config', $set, 1);
         flash_set('success', 'Konfiguracja zapisana.');
         header('Location: vlab_admin.php'); exit;
@@ -275,6 +284,33 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
           <div class="mb-3"><label class="form-label small" for="disnote">Komunikat dla kursantów (gdy wyłączone)</label>
             <textarea class="form-control form-control-sm" name="disabled_notice" id="disnote" rows="2" placeholder="np. VLab jest niedostępny z powodu prac serwisowych do 18:00."><?= h($cfg['disabled_notice'] ?? '') ?></textarea></div>
+          <hr>
+          <p class="fw-semibold small mb-2"><i class="bi bi-hdd-network me-1"></i>Zarządzanie portami (zapora)</p>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="ufw_enabled" id="ufw" <?= (!isset($cfg['ufw_enabled']) || $cfg['ufw_enabled']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="ufw">Steruj zaporą hosta (UFW) przez SSH</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="az_enabled" id="az" <?= !empty($cfg['az_enabled']) ? 'checked' : '' ?>>
+            <label class="form-check-label">Otwieraj porty też w Microsoft Azure (NSG)</label>
+            <div class="form-text small">Wymaga aplikacji (service principal) z rolą <code>Network Contributor</code> na grupie zabezpieczeń sieci (NSG).</div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label small">Azure Tenant ID</label>
+              <input class="form-control form-control-sm" name="az_tenant" value="<?= h($cfg['az_tenant'] ?? '') ?>" placeholder="00000000-0000-…"></div>
+            <div class="col-6"><label class="form-label small">Client ID (app)</label>
+              <input class="form-control form-control-sm" name="az_client_id" value="<?= h($cfg['az_client_id'] ?? '') ?>"></div>
+          </div>
+          <div class="mb-2"><label class="form-label small">Client secret <span class="text-muted">(zostaw puste, by nie zmieniać)</span></label>
+            <input class="form-control form-control-sm" type="password" name="az_client_secret" value="" placeholder="<?= !empty($cfg['az_client_secret']) ? '••••••••' : '' ?>"></div>
+          <div class="row g-2 mb-3">
+            <div class="col-12"><label class="form-label small">Subscription ID</label>
+              <input class="form-control form-control-sm" name="az_subscription" value="<?= h($cfg['az_subscription'] ?? '') ?>"></div>
+            <div class="col-6"><label class="form-label small">Resource group</label>
+              <input class="form-control form-control-sm" name="az_resource_group" value="<?= h($cfg['az_resource_group'] ?? '') ?>"></div>
+            <div class="col-6"><label class="form-label small">Nazwa NSG</label>
+              <input class="form-control form-control-sm" name="az_nsg" value="<?= h($cfg['az_nsg'] ?? '') ?>"></div>
+          </div>
           <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz konfigurację</button>
         </form>
         <form method="post" class="mt-2">
@@ -386,6 +422,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <td class="small"><?= $c['ssh_port'] ? (int)$c['ssh_port'] : '—' ?> / <?= $c['ttyd_port'] ? (int)$c['ttyd_port'] : '—' ?></td>
             <td class="small text-muted"><?= h($c['created_at']) ?></td>
             <td class="text-end text-nowrap">
+              <a href="vlab_ports.php?container=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-primary py-0" title="Zarządzaj portami (UFW / Azure)"><i class="bi bi-hdd-network"></i></a>
               <form method="post" class="d-inline" onsubmit="return confirm('Ustawić NOWE hasło SSH dla tego konta? Stare przestanie działać.')">
                 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="host_pass_reset">
