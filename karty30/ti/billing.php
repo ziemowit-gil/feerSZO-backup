@@ -7,9 +7,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/stripe.php';
 
 k30_require_access();
 karty30_migrate();
+stripe_migrate();
 
 $PAGE_TITLE = 'Rozliczenia TI';
 $can_write  = can_write('karty30') || is_admin();
@@ -55,6 +57,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $bid = (int)($_POST['billing_id'] ?? 0);
         if ($bid) db()->prepare("UPDATE k30_ti_billing SET status='paid' WHERE id=?")->execute([$bid]);
         flash_set('success','Oznaczono jako opłacone.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Wygeneruj link do zapłaty Stripe dla rozliczenia
+    if ($op === 'stripe_link') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $b   = $bid ? db_one("SELECT b.*, cl.name AS client_name, cl.email AS client_email FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$bid]) : null;
+        if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
+        elseif (!stripe_enabled()) { flash_set('danger','Płatności Stripe nie są skonfigurowane (Administracja → Płatności / Stripe).'); }
+        else {
+            $amount = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            $back   = rtrim(APP_URL,'/') . '/karty30/ti/billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'');
+            try {
+                $r = stripe_create_checkout(
+                    'k30_ti_billing', $bid, $amount,
+                    'Zajęcia TI — ' . ($b['client_name'] ?? '') . ' (' . $month . '/' . $year . ')',
+                    $back . '&paid=1', $back,
+                    (string)($b['client_email'] ?? '')
+                );
+                flash_set('success', 'Link do zapłaty utworzony: ' . $r['url']);
+            } catch (\Throwable $e) {
+                flash_set('danger', 'Stripe: ' . $e->getMessage());
+            }
+        }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
@@ -115,6 +141,17 @@ $enrolled_active = db_all(
 );
 $billed_ids = array_column($billings, 'client_id');
 
+// Mapa płatności Stripe dla wyświetlanych rozliczeń (source_type=k30_ti_billing)
+$stripe_pay = [];
+$bids = array_column($billings, 'id');
+if ($bids) {
+    $in = implode(',', array_fill(0, count($bids), '?'));
+    foreach (db_all("SELECT * FROM stripe_payments WHERE source_type='k30_ti_billing' AND source_id IN ($in) ORDER BY id", $bids) as $sp) {
+        $stripe_pay[(int)$sp['source_id']] = $sp; // ostatni wygrywa
+    }
+}
+$stripe_on = stripe_enabled();
+
 // Podgląd kwot dla nieopłaconych
 $preview = [];
 foreach ($enrolled_active as $e) {
@@ -148,6 +185,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<?php if (isset($_GET['paid'])): ?>
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-check-circle me-1"></i>Dziękujemy — płatność została zainicjowana. Status zaktualizuje się po potwierdzeniu przez Stripe (webhook).
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
 
 <!-- Nawigacja miesięczna -->
 <div class="d-flex align-items-center gap-2 mb-4">
@@ -229,7 +273,23 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <i class="bi bi-percent"></i>
             </button>
             <?php endif; ?>
-            <?php if ($b['status'] === 'issued' && $can_write): ?>
+            <?php if ($b['status'] === 'issued' && $can_write):
+              $sp = $stripe_pay[(int)$b['id']] ?? null; ?>
+            <?php if ($stripe_on && $sp && $sp['status'] === 'pending' && !empty($sp['checkout_url'])): ?>
+            <a href="<?= h($sp['checkout_url']) ?>" target="_blank" rel="noopener"
+               class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" title="Otwórz link do zapłaty Stripe">
+              <i class="bi bi-link-45deg me-1"></i>Link
+            </a>
+            <?php elseif ($stripe_on): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="stripe_link">
+              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" title="Wygeneruj link do zapłaty Stripe">
+                <i class="bi bi-credit-card me-1"></i>Stripe
+              </button>
+            </form>
+            <?php endif; ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"         value="set_paid">

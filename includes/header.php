@@ -912,6 +912,12 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <?php if ($_zwr_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_zwr_pending ?></span><?php endif; ?>
   </a>
 
+  <?php if (is_admin()): ?>
+  <a class="sb-link<?= _nav_active('/admin/stripe_settings') ?>" href="<?= APP_URL ?>/admin/stripe_settings.php">
+    <i class="bi bi-credit-card"></i> Płatności / Stripe
+  </a>
+  <?php endif; ?>
+
   <?php if ($_has_kdok):
     $_kdok_active = str_contains($_uri, '/ksiegowosc/');
     $_kdok_sub_has = (is_admin() || kdok_has_role('zatwierdza'))
