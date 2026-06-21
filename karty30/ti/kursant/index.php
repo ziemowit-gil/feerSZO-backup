@@ -27,7 +27,7 @@ if (isset($_GET['stop_impersonation'])) {
 if (isset($_GET['logout'])) { student_logout(); header('Location: login.php'); exit; }
 
 $student    = student_require();
-$tab        = $_GET['tab'] ?? 'lekcje';
+$tab        = $_GET['tab'] ?? 'dane';
 $vlab_token = student_token();
 
 // Dane kursanta
@@ -274,6 +274,11 @@ include __DIR__ . '/_layout_head.php';
 <nav class="container-xl px-3 pt-3" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
     <li class="nav-item">
+      <a class="nav-link <?= $tab==='dane'?'active':'' ?>" href="?tab=dane" <?= $tab==='dane'?'aria-current="page"':'' ?>>
+        <i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Dane kursanta
+      </a>
+    </li>
+    <li class="nav-item">
       <a class="nav-link <?= $tab==='lekcje'?'active':'' ?>" href="?tab=lekcje" <?= $tab==='lekcje'?'aria-current="page"':'' ?>>
         <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Moje lekcje
       </a>
@@ -366,7 +371,79 @@ include __DIR__ . '/_layout_head.php';
 </div>
 <?php endif; ?>
 
-<?php if ($tab === 'lekcje'): ?>
+<?php if ($tab === 'dane'): ?>
+
+  <!-- ── Dane kursanta — strona startowa panelu ─────────────────────────────── -->
+  <h1 class="h5 fw-bold mb-3"><i class="bi bi-person-vcard text-primary me-1" aria-hidden="true"></i>Dane kursanta</h1>
+  <?php
+    $contact_emails = [];
+    if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
+    if (!empty($account['ms_upn']))         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
+    if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];
+  ?>
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-bg-primary"
+             style="width:56px;height:56px;font-size:1.4rem" aria-hidden="true">
+          <i class="bi bi-person-fill"></i>
+        </div>
+        <div>
+          <div class="h4 mb-0 fw-bold"><?= h($client['name'] ?? $student['login']) ?></div>
+          <div class="text-body-secondary">
+            Nr kursanta:
+            <?php if (!empty($account['student_no'])): ?>
+            <span class="font-monospace fw-semibold"><?= h($account['student_no']) ?></span>
+            <?php else: ?><span class="fst-italic">nie nadano</span><?php endif; ?>
+          </div>
+        </div>
+      </div>
+      <dl class="row mb-0">
+        <dt class="col-sm-3 text-body-secondary fw-normal">Grupy</dt>
+        <dd class="col-sm-9">
+          <?php if ($courses): foreach ($courses as $c): ?>
+          <span class="badge text-bg-primary fw-normal me-1 mb-1"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($c['course_name']) ?></span>
+          <?php endforeach; else: ?><span class="text-body-secondary">— brak —</span><?php endif; ?>
+        </dd>
+        <dt class="col-sm-3 text-body-secondary fw-normal">E-maile kontaktowe</dt>
+        <dd class="col-sm-9">
+          <?php if ($contact_emails): foreach ($contact_emails as $em): ?>
+          <div><span class="text-body-secondary"><?= h($em[0]) ?>:</span> <a href="mailto:<?= h($em[1]) ?>" class="font-monospace"><?= h($em[1]) ?></a></div>
+          <?php endforeach; else: ?><span class="text-body-secondary">— brak —</span><?php endif; ?>
+        </dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Skróty -->
+  <div class="row g-3">
+    <div class="col-6 col-lg-3">
+      <a href="?tab=lekcje" class="card h-100 text-decoration-none"><div class="card-body">
+        <div class="fs-3 fw-bold lh-1"><?= $total_lessons ?></div>
+        <div class="text-body-secondary small mt-1">Lekcji · <?= $pct ?>% frekwencji</div>
+      </div></a>
+    </div>
+    <div class="col-6 col-lg-3">
+      <a href="?tab=zadania" class="card h-100 text-decoration-none"><div class="card-body">
+        <div class="fs-3 fw-bold lh-1 <?= !empty($hw_pending) ? 'text-warning' : '' ?>"><?= count($hw_pending) ?></div>
+        <div class="text-body-secondary small mt-1">Zadań do oddania</div>
+      </div></a>
+    </div>
+    <div class="col-6 col-lg-3">
+      <a href="?tab=wiadomosci" class="card h-100 text-decoration-none"><div class="card-body">
+        <div class="fs-3 fw-bold lh-1 <?= $msg_unread > 0 ? 'text-danger' : '' ?>"><?= (int)$msg_unread ?></div>
+        <div class="text-body-secondary small mt-1">Nowych wiadomości</div>
+      </div></a>
+    </div>
+    <div class="col-6 col-lg-3">
+      <a href="?tab=licencje" class="card h-100 text-decoration-none"><div class="card-body">
+        <div class="fs-3 fw-bold lh-1"><?= count($my_licenses) ?></div>
+        <div class="text-body-secondary small mt-1">Licencji</div>
+      </div></a>
+    </div>
+  </div>
+
+<?php elseif ($tab === 'lekcje'): ?>
 
   <h1 class="h5 fw-bold mb-3">Moje lekcje</h1>
 
@@ -376,49 +453,6 @@ include __DIR__ . '/_layout_head.php';
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
   </div>
   <?php endif; ?>
-
-  <!-- Profil kursanta -->
-  <?php
-    $contact_emails = [];
-    if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
-    if (!empty($account['ms_upn']))         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
-    if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];
-  ?>
-  <div class="card mb-4">
-    <div class="card-body d-flex flex-wrap align-items-center gap-3">
-      <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-bg-primary"
-           style="width:52px;height:52px;font-size:1.3rem" aria-hidden="true">
-        <i class="bi bi-person-fill"></i>
-      </div>
-      <div class="me-2">
-        <div class="h5 mb-0 fw-bold"><?= h($client['name'] ?? $student['login']) ?></div>
-        <div class="small text-body-secondary">
-          Nr kursanta:
-          <?php if (!empty($account['student_no'])): ?>
-          <span class="font-monospace fw-semibold"><?= h($account['student_no']) ?></span>
-          <?php else: ?><span class="fst-italic">nie nadano</span><?php endif; ?>
-        </div>
-      </div>
-      <div class="vr d-none d-md-block"></div>
-      <div class="small">
-        <div class="text-body-secondary text-uppercase fw-semibold" style="font-size:.68rem;letter-spacing:.05em">Grupy</div>
-        <div class="d-flex flex-wrap gap-1 mt-1">
-          <?php if ($courses): foreach ($courses as $c): ?>
-          <span class="badge text-bg-primary fw-normal"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($c['course_name']) ?></span>
-          <?php endforeach; else: ?><span class="text-body-secondary">—</span><?php endif; ?>
-        </div>
-      </div>
-      <div class="vr d-none d-md-block"></div>
-      <div class="small">
-        <div class="text-body-secondary text-uppercase fw-semibold" style="font-size:.68rem;letter-spacing:.05em">E-maile kontaktowe</div>
-        <div class="mt-1">
-          <?php if ($contact_emails): foreach ($contact_emails as $em): ?>
-          <div><span class="text-body-secondary"><?= h($em[0]) ?>:</span> <a href="mailto:<?= h($em[1]) ?>" class="font-monospace"><?= h($em[1]) ?></a></div>
-          <?php endforeach; else: ?><span class="text-body-secondary">— brak —</span><?php endif; ?>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Statystyki -->
   <div class="row g-3 mb-4">
