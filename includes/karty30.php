@@ -255,6 +255,12 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_billing      ADD COLUMN due_date     DATE",
         "ALTER TABLE k30_ti_courses      ADD COLUMN pay_due_days INTEGER",
         "ALTER TABLE k30_ti_enrollments  ADD COLUMN pay_due_days INTEGER",
+        // Płatnik rozliczenia (beneficjent|rodzic|pfron|feer) + faktura (FVAT) załączona przez admina.
+        "ALTER TABLE k30_ti_billing ADD COLUMN payer_type   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN payer_name   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN invoice_path TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN invoice_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN invoice_at   DATETIME",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

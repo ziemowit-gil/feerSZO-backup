@@ -40,6 +40,13 @@ $due_today = (float)(db_one(
      WHERE DATE(s.start_time)=DATE('now') AND s.amount_due > 0 AND s.status NOT IN ('cancelled','rejected')"
 )['a'] ?? 0);
 
+// Konta M365 — terminy ważności (kolumny dokładane w karty30/admin/m365.php; _k() bezpieczne gdy brak)
+$_m365_base = "FROM k30_clients WHERE m365_user_id IS NOT NULL AND m365_user_id<>''"
+            . " AND m365_expires_at IS NOT NULL AND m365_expires_at<>''"
+            . " AND (m365_disabled_at IS NULL OR m365_disabled_at='')";
+$m365_exp7     = _k("SELECT COUNT(*) AS c $_m365_base AND date(m365_expires_at) BETWEEN date('now') AND date('now','+7 days')");
+$m365_expired  = _k("SELECT COUNT(*) AS c $_m365_base AND date(m365_expires_at) < date('now')");
+
 // Najbliższe terminy
 $upcoming = db_all(
     "SELECT s.id, s.start_time, s.duration_minutes, s.status, s.time_from, s.time_to,
@@ -236,6 +243,20 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
       'aria'  => 'Zatwierdzonych konsultacji: ' . $stats['consultations'],
     ],
   ];
+
+  // Konta M365 — termin ważności (tylko admin; pokazuj gdy są wygasające/wygasłe)
+  if (is_admin() && ($m365_exp7 > 0 || $m365_expired > 0)) {
+    $kpis[] = [
+      'val'   => $m365_exp7,
+      'lbl'   => 'Konta M365 wygasają (7 dni)',
+      'sub'   => $m365_expired ? $m365_expired . ' już wygasłych' : null,
+      'color' => $m365_expired ? '#dc2626' : '#b45309',
+      'bg'    => $m365_expired ? '#fee2e2' : '#fef3c7',
+      'icon'  => 'bi-microsoft',
+      'href'  => APP_URL.'/karty30/admin/m365.php',
+      'aria'  => 'Konta M365 wygasające w 7 dni: ' . $m365_exp7 . ($m365_expired ? ', już wygasłych: ' . $m365_expired : ''),
+    ];
+  }
   foreach ($kpis as $kpi):
     $tag   = $kpi['href'] ? 'a' : 'div';
     $extra = $kpi['href'] ? 'href="' . h($kpi['href']) . '"' : '';
