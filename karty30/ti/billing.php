@@ -424,9 +424,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </td>
           <td class="text-end text-nowrap">
             <?php if ($can_write): ?>
-            <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2" title="Opłata dodatkowa / rabat"
-                    data-bs-toggle="collapse" data-bs-target="#adj<?= (int)$b['id'] ?>">
-              <i class="bi bi-percent"></i>
+            <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
+                    title="Edytuj rozliczenie (korekta, termin, płatnik, faktura)"
+                    data-bs-toggle="modal" data-bs-target="#editBill<?= (int)$b['id'] ?>">
+              <i class="bi bi-pencil-square me-1"></i>Edytuj
             </button>
             <?php endif; ?>
             <?php if ($b['status'] === 'issued' && $can_write):
@@ -493,108 +494,149 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php endif; ?>
           </td>
         </tr>
-        <?php if ($can_write): ?>
-        <tr class="collapse" id="adj<?= (int)$b['id'] ?>">
-          <td colspan="7" class="bg-light">
-            <form method="post" class="row g-2 align-items-end">
-              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"        value="set_adjustment">
-              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
-              <div class="col-auto">
-                <label class="form-label small mb-0">Rodzaj</label>
-                <select name="adj_kind" class="form-select form-select-sm">
-                  <option value="fee"      <?= $adj > 0 ? 'selected' : '' ?>>Opłata dodatkowa (+)</option>
-                  <option value="discount" <?= $adj < 0 ? 'selected' : '' ?>>Rabat (−)</option>
-                </select>
-              </div>
-              <div class="col-auto">
-                <label class="form-label small mb-0">Kwota (zł)</label>
-                <input type="text" name="adj_value" class="form-control form-control-sm" style="max-width:120px"
-                       value="<?= $adj != 0 ? number_format(abs($adj),2,',','') : '' ?>" placeholder="0,00">
-              </div>
-              <div class="col">
-                <label class="form-label small mb-0">Opis (opcjonalnie)</label>
-                <input type="text" name="adj_note" class="form-control form-control-sm"
-                       value="<?= h($b['adjustment_note'] ?? '') ?>" placeholder="np. materiały, rabat lojalnościowy">
-              </div>
-              <div class="col-auto">
-                <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
-              </div>
-              <div class="form-text">Wpisz 0, aby usunąć korektę.</div>
-            </form>
-            <hr class="my-2">
-            <form method="post" class="row g-2 align-items-end">
-              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"        value="set_due">
-              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
-              <div class="col-auto">
-                <label class="form-label small mb-0">Termin płatności (indyw.)</label>
-                <input type="date" name="due_date" class="form-control form-control-sm" style="max-width:170px"
-                       value="<?= h($b['due_date'] ?? '') ?>">
-              </div>
-              <div class="col-auto">
-                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-check me-1"></i>Zapisz termin</button>
-              </div>
-              <div class="form-text">Indywidualny termin dla tego rozliczenia. Puste = bez terminu.</div>
-            </form>
-            <hr class="my-2">
-            <?php $payer_eff = k30_ti_billing_payer_type($b); $payer_def = k30_ti_default_payer((int)$b['client_id']); ?>
-            <form method="post" class="row g-2 align-items-end">
-              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"        value="set_payer">
-              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
-              <div class="col-auto">
-                <label class="form-label small mb-0">Płatnik</label>
-                <select name="payer_type" class="form-select form-select-sm" style="max-width:200px">
-                  <option value="" <?= empty($b['payer_type']) ? 'selected' : '' ?>>— domyślnie (<?= h(K30_TI_PAYERS[$payer_def]) ?>) —</option>
-                  <?php foreach (K30_TI_PAYERS as $pk => $pl): ?>
-                  <option value="<?= h($pk) ?>" <?= ($b['payer_type'] ?? '') === $pk ? 'selected' : '' ?>><?= h($pl) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col">
-                <label class="form-label small mb-0">Nazwa płatnika (opcjonalnie)</label>
-                <input type="text" name="payer_name" class="form-control form-control-sm"
-                       value="<?= h($b['payer_name'] ?? '') ?>" placeholder="np. dane firmy / opiekuna do faktury">
-              </div>
-              <div class="col-auto">
-                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-badge me-1"></i>Zapisz płatnika</button>
-              </div>
-            </form>
-            <hr class="my-2">
-            <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
-              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"        value="upload_invoice">
-              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
-              <div class="col-auto">
-                <label class="form-label small mb-0">Faktura (FVAT, PDF)</label>
-                <input type="file" name="invoice" accept="application/pdf" class="form-control form-control-sm" style="max-width:260px">
-              </div>
-              <div class="col-auto">
-                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-pdf me-1"></i><?= !empty($b['invoice_path']) ? 'Wymień fakturę' : 'Dodaj fakturę' ?></button>
-              </div>
-              <?php if (!empty($b['invoice_path'])): ?>
-              <div class="col-auto">
-                <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i><?= h($b['invoice_name'] ?: 'Pobierz') ?></a>
-              </div>
-              <?php endif; ?>
-            </form>
-            <?php if (!empty($b['invoice_path'])): ?>
-            <form method="post" class="mt-1" onsubmit="return confirm('Usunąć fakturę z tego rozliczenia?')">
-              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-              <input type="hidden" name="_op"        value="delete_invoice">
-              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
-              <button class="btn btn-link btn-sm text-danger p-0"><i class="bi bi-trash me-1"></i>Usuń fakturę</button>
-            </form>
-            <?php endif; ?>
-          </td>
-        </tr>
-        <?php endif; ?>
         <?php endforeach; ?>
       </tbody>
     </table>
   </div>
 </div>
+
+<!-- Modale edycji rozliczeń (poza tabelą — czytelne, bez obcinania) -->
+<?php if ($can_write): foreach ($billings as $b):
+  $adj      = (float)($b['adjustment'] ?? 0);
+  $tot      = (float)$b['amount'] + $adj;
+  $payer_def = k30_ti_default_payer((int)$b['client_id']);
+  $period   = ($months_pl[(int)$b['month']] ?? $b['month']) . ' ' . (int)$b['year'];
+?>
+<div class="modal fade" id="editBill<?= (int)$b['id'] ?>" tabindex="-1" aria-labelledby="editBillLbl<?= (int)$b['id'] ?>" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="editBillLbl<?= (int)$b['id'] ?>">
+          <i class="bi bi-receipt text-primary me-2" aria-hidden="true"></i>Rozliczenie — <?= h($b['client_name']) ?>
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-body-secondary small mb-3">
+          Okres: <strong><?= h($period) ?></strong> · Do zapłaty: <strong><?= number_format($tot,2,',',' ') ?> zł</strong>
+        </p>
+
+        <!-- Korekta -->
+        <section class="border rounded p-3 mb-3">
+          <h3 class="h6 fw-semibold mb-2"><i class="bi bi-percent text-secondary me-2" aria-hidden="true"></i>Korekta (opłata dodatkowa / rabat)</h3>
+          <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"        value="set_adjustment">
+            <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+            <div class="col-sm-4">
+              <label class="form-label small mb-0" for="adjkind<?= (int)$b['id'] ?>">Rodzaj</label>
+              <select name="adj_kind" id="adjkind<?= (int)$b['id'] ?>" class="form-select form-select-sm">
+                <option value="fee"      <?= $adj > 0 ? 'selected' : '' ?>>Opłata dodatkowa (+)</option>
+                <option value="discount" <?= $adj < 0 ? 'selected' : '' ?>>Rabat (−)</option>
+              </select>
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label small mb-0" for="adjval<?= (int)$b['id'] ?>">Kwota (zł)</label>
+              <input type="text" name="adj_value" id="adjval<?= (int)$b['id'] ?>" class="form-control form-control-sm"
+                     value="<?= $adj != 0 ? number_format(abs($adj),2,',','') : '' ?>" placeholder="0,00">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label small mb-0" for="adjnote<?= (int)$b['id'] ?>">Opis (opcjonalnie)</label>
+              <input type="text" name="adj_note" id="adjnote<?= (int)$b['id'] ?>" class="form-control form-control-sm"
+                     value="<?= h($b['adjustment_note'] ?? '') ?>" placeholder="np. materiały, rabat">
+            </div>
+            <div class="col-12 d-flex align-items-center gap-2">
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz korektę</button>
+              <span class="form-text mb-0">Wpisz 0, aby usunąć korektę.</span>
+            </div>
+          </form>
+        </section>
+
+        <!-- Termin płatności -->
+        <section class="border rounded p-3 mb-3">
+          <h3 class="h6 fw-semibold mb-2"><i class="bi bi-calendar-event text-secondary me-2" aria-hidden="true"></i>Termin płatności</h3>
+          <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"        value="set_due">
+            <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+            <div class="col-sm-6">
+              <label class="form-label small mb-0" for="due<?= (int)$b['id'] ?>">Termin (indywidualny)</label>
+              <input type="date" name="due_date" id="due<?= (int)$b['id'] ?>" class="form-control form-control-sm"
+                     value="<?= h($b['due_date'] ?? '') ?>">
+            </div>
+            <div class="col-12 d-flex align-items-center gap-2">
+              <button class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Zapisz termin</button>
+              <span class="form-text mb-0">Puste = bez terminu.</span>
+            </div>
+          </form>
+        </section>
+
+        <!-- Płatnik -->
+        <section class="border rounded p-3 mb-3">
+          <h3 class="h6 fw-semibold mb-2"><i class="bi bi-person-badge text-secondary me-2" aria-hidden="true"></i>Płatnik</h3>
+          <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"        value="set_payer">
+            <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+            <div class="col-sm-5">
+              <label class="form-label small mb-0" for="payer<?= (int)$b['id'] ?>">Płatnik</label>
+              <select name="payer_type" id="payer<?= (int)$b['id'] ?>" class="form-select form-select-sm">
+                <option value="" <?= empty($b['payer_type']) ? 'selected' : '' ?>>— domyślnie (<?= h(K30_TI_PAYERS[$payer_def]) ?>) —</option>
+                <?php foreach (K30_TI_PAYERS as $pk => $pl): ?>
+                <option value="<?= h($pk) ?>" <?= ($b['payer_type'] ?? '') === $pk ? 'selected' : '' ?>><?= h($pl) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-sm-7">
+              <label class="form-label small mb-0" for="payername<?= (int)$b['id'] ?>">Nazwa płatnika (opcjonalnie)</label>
+              <input type="text" name="payer_name" id="payername<?= (int)$b['id'] ?>" class="form-control form-control-sm"
+                     value="<?= h($b['payer_name'] ?? '') ?>" placeholder="np. dane firmy / opiekuna do faktury">
+            </div>
+            <div class="col-12">
+              <button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Zapisz płatnika</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Faktura (FVAT) -->
+        <section class="border rounded p-3">
+          <h3 class="h6 fw-semibold mb-2"><i class="bi bi-file-earmark-pdf text-secondary me-2" aria-hidden="true"></i>Faktura (FVAT)</h3>
+          <?php if (!empty($b['invoice_path'])): ?>
+          <p class="small mb-2">
+            <i class="bi bi-file-earmark-pdf text-danger me-1" aria-hidden="true"></i>Załączono:
+            <a href="billing_invoice.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener"><?= h($b['invoice_name'] ?: 'faktura.pdf') ?></a>
+            <?= !empty($b['invoice_at']) ? '<span class="text-body-secondary">('.h(substr($b['invoice_at'],0,10)).')</span>' : '' ?>
+          </p>
+          <?php endif; ?>
+          <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"        value="upload_invoice">
+            <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+            <div class="col-sm-8">
+              <label class="form-label small mb-0" for="inv<?= (int)$b['id'] ?>">Plik PDF</label>
+              <input type="file" name="invoice" id="inv<?= (int)$b['id'] ?>" accept="application/pdf" class="form-control form-control-sm">
+            </div>
+            <div class="col-12 d-flex align-items-center gap-2">
+              <button class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1" aria-hidden="true"></i><?= !empty($b['invoice_path']) ? 'Wymień fakturę' : 'Dodaj fakturę' ?></button>
+            </div>
+          </form>
+          <?php if (!empty($b['invoice_path'])): ?>
+          <form method="post" class="mt-2" onsubmit="return confirm('Usunąć fakturę z tego rozliczenia?')">
+            <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"        value="delete_invoice">
+            <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+            <button class="btn btn-link btn-sm text-danger p-0"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń fakturę</button>
+          </form>
+          <?php endif; ?>
+        </section>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zamknij</button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endforeach; endif; ?>
 <?php endif; ?>
 
 <!-- Podgląd — klienci z lekcjami bez rozliczenia -->

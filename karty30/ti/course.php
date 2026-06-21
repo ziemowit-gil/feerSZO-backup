@@ -240,7 +240,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($eff['pay_account'] ?: '—') ?><?php if (!empty($eff['pay_title'])): ?> · „<?= h($eff['pay_title']) ?>"<?php endif; ?></div>
                 <?php endif; ?>
                 <?php if ($can_write): ?>
-                <button type="button" class="btn btn-xs btn-sm btn-link p-0 ms-1 align-baseline" data-bs-toggle="collapse" data-bs-target="#bill<?= (int)$e['client_id'] ?>" title="Zmień rozliczanie"><i class="bi bi-pencil"></i></button>
+                <button type="button" class="btn btn-xs btn-sm btn-link p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#bill<?= (int)$e['client_id'] ?>" title="Zmień rozliczanie"><i class="bi bi-pencil"></i></button>
                 <?php endif; ?>
               </td>
               <td><span class="badge <?= $e['status']==='active'?'bg-success':'bg-secondary' ?>"><?= $e['status']==='active'?'Aktywny':'Nieaktywny' ?></span></td>
@@ -257,50 +257,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <?php endif; ?>
               </td>
             </tr>
-            <?php if ($can_write): ?>
-            <tr class="collapse" id="bill<?= (int)$e['client_id'] ?>">
-              <td colspan="4" class="bg-light">
-                <form method="post" class="row g-2 align-items-end">
-                  <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="_op"       value="set_billing">
-                  <input type="hidden" name="client_id" value="<?= (int)$e['client_id'] ?>">
-                  <div class="col-auto">
-                    <label class="form-label small mb-0">Model (override)</label>
-                    <select name="billing_model" class="form-select form-select-sm bill-model" onchange="billToggle(this)">
-                      <option value="0" <?= (int)$e['billing_model']===0?'selected':'' ?>>— jak kurs (<?= h(k30_ti_billing_model_label((int)($course['billing_model']?:2))) ?>) —</option>
-                      <?php foreach ([1,2,3] as $code): ?>
-                      <option value="<?= $code ?>" <?= (int)$e['billing_model']===$code?'selected':'' ?>>Indywidualny: <?= h(k30_ti_billing_model_label($code)) ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  <div class="col-auto bill-rate" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'display:none':'' ?>">
-                    <label class="form-label small mb-0">Stawka (zł/h)</label>
-                    <input type="number" name="hourly_rate" class="form-control form-control-sm" step="0.01" min="0" style="width:110px" value="<?= h(number_format((float)$e['hourly_rate'],2,'.','')) ?>">
-                  </div>
-                  <div class="col-auto bill-amount" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'':'display:none' ?>">
-                    <label class="form-label small mb-0">Kwota (zł)</label>
-                    <input type="number" name="billing_amount" class="form-control form-control-sm" step="0.01" min="0" style="width:120px" value="<?= h(number_format((float)$e['billing_amount'],2,'.','')) ?>">
-                  </div>
-                  <div class="col-12"></div>
-                  <div class="col-sm-5">
-                    <label class="form-label small mb-0">Nr konta (indyw., gdy kod 9999)</label>
-                    <input type="text" name="pay_account" class="form-control form-control-sm font-monospace" value="<?= h($e['pay_account'] ?? '') ?>" placeholder="puste = domyślny kursu">
-                  </div>
-                  <div class="col-sm-5">
-                    <label class="form-label small mb-0">Tytuł wpłaty (indyw.)</label>
-                    <input type="text" name="pay_title" class="form-control form-control-sm" value="<?= h($e['pay_title'] ?? '') ?>" placeholder="puste = domyślny kursu">
-                  </div>
-                  <div class="col-sm-2">
-                    <?php $course_due = (int)($course['pay_due_days'] ?? 0) ?: K30_TI_PAY_DUE_DAYS_DEFAULT; ?>
-                    <label class="form-label small mb-0">Termin płatn. (dni)</label>
-                    <input type="number" name="pay_due_days" class="form-control form-control-sm" min="0" max="365" value="<?= !empty($e['pay_due_days']) ? (int)$e['pay_due_days'] : '' ?>" placeholder="<?= $course_due ?>" title="puste = jak kurs (<?= $course_due ?> dni)">
-                  </div>
-                  <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button></div>
-                  <div class="form-text">Wybór indywidualnego modelu nadaje kursantowi kod 9999. Dane do wpłat działają tylko przy kodzie 9999 (inaczej obowiązują domyślne kursu).</div>
-                </form>
-              </td>
-            </tr>
-            <?php endif; ?>
             <?php endforeach; ?>
             <?php if (!$enrollments): ?>
             <tr><td colspan="4" class="text-muted text-center py-3">Brak uczestników.</td></tr>
@@ -308,6 +264,69 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </tbody>
         </table>
       </div>
+
+      <!-- Modale: indywidualne rozliczanie kursanta (czytelne okienka) -->
+      <?php if ($can_write): foreach ($enrollments as $e):
+        $course_due = (int)($course['pay_due_days'] ?? 0) ?: K30_TI_PAY_DUE_DAYS_DEFAULT; ?>
+      <div class="modal fade" id="bill<?= (int)$e['client_id'] ?>" tabindex="-1" aria-labelledby="billLbl<?= (int)$e['client_id'] ?>" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2 class="modal-title h5" id="billLbl<?= (int)$e['client_id'] ?>">
+                <i class="bi bi-cash-coin text-success me-2" aria-hidden="true"></i>Rozliczanie — <?= h($e['client_name']) ?>
+              </h2>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <form method="post">
+              <div class="modal-body">
+                <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op"       value="set_billing">
+                <input type="hidden" name="client_id" value="<?= (int)$e['client_id'] ?>">
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold mb-1" for="bm<?= (int)$e['client_id'] ?>">Model (override)</label>
+                  <select name="billing_model" id="bm<?= (int)$e['client_id'] ?>" class="form-select form-select-sm bill-model" onchange="billToggle(this)">
+                    <option value="0" <?= (int)$e['billing_model']===0?'selected':'' ?>>— jak kurs (<?= h(k30_ti_billing_model_label((int)($course['billing_model']?:2))) ?>) —</option>
+                    <?php foreach ([1,2,3] as $code): ?>
+                    <option value="<?= $code ?>" <?= (int)$e['billing_model']===$code?'selected':'' ?>>Indywidualny: <?= h(k30_ti_billing_model_label($code)) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="row g-2 mb-3">
+                  <div class="col-6 bill-rate" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'display:none':'' ?>">
+                    <label class="form-label small mb-0">Stawka (zł/h)</label>
+                    <input type="number" name="hourly_rate" class="form-control form-control-sm" step="0.01" min="0" value="<?= h(number_format((float)$e['hourly_rate'],2,'.','')) ?>">
+                  </div>
+                  <div class="col-6 bill-amount" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'':'display:none' ?>">
+                    <label class="form-label small mb-0">Kwota (zł)</label>
+                    <input type="number" name="billing_amount" class="form-control form-control-sm" step="0.01" min="0" value="<?= h(number_format((float)$e['billing_amount'],2,'.','')) ?>">
+                  </div>
+                </div>
+                <div class="row g-2">
+                  <div class="col-12">
+                    <label class="form-label small mb-0">Nr konta (indyw., gdy kod 9999)</label>
+                    <input type="text" name="pay_account" class="form-control form-control-sm font-monospace" value="<?= h($e['pay_account'] ?? '') ?>" placeholder="puste = domyślny kursu">
+                  </div>
+                  <div class="col-sm-8">
+                    <label class="form-label small mb-0">Tytuł wpłaty (indyw.)</label>
+                    <input type="text" name="pay_title" class="form-control form-control-sm" value="<?= h($e['pay_title'] ?? '') ?>" placeholder="puste = domyślny kursu">
+                  </div>
+                  <div class="col-sm-4">
+                    <label class="form-label small mb-0">Termin płatn. (dni)</label>
+                    <input type="number" name="pay_due_days" class="form-control form-control-sm" min="0" max="365" value="<?= !empty($e['pay_due_days']) ? (int)$e['pay_due_days'] : '' ?>" placeholder="<?= $course_due ?>" title="puste = jak kurs (<?= $course_due ?> dni)">
+                  </div>
+                </div>
+                <p class="form-text mt-2 mb-0">Wybór indywidualnego modelu nadaje kursantowi kod 9999. Dane do wpłat działają tylko przy kodzie 9999 (inaczej obowiązują domyślne kursu).</p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endforeach; endif; ?>
+
       <?php if ($can_write && $not_enrolled): ?>
       <div class="card-footer bg-light">
         <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
