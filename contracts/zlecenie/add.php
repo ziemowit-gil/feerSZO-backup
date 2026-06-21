@@ -77,6 +77,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         assign_nr_rejestru($data);
         $id = db_insert($TABLE, $data);
+
+        // Weryfikacja utrwalenia — wykryj „cichy" brak zapisu (sukces bez danych w bazie).
+        $missed = contract_assert_saved($TABLE, $id, $data);
+        if ($missed) {
+            error_log('[zlecenie/add] zapis nieutrwalony id=' . $id
+                . ' pola=' . implode(',', $missed)
+                . ' postVars=' . count($_POST)
+                . ' db=' . (defined('DB_PATH') ? DB_PATH : '?'));
+            flash_set('danger', 'Umowa NIE została poprawnie zapisana w bazie (' . count($missed)
+                . ' pól nie utrwalono). Zgłoś to administratorowi — sprawdź prawa zapisu do pliku bazy.');
+            header('Location: ' . APP_URL . "/contracts/{$TYPE}/add.php");
+            exit;
+        }
+
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'create', 'Dodano: ' . ($data['numer_umowy'] ?? ''));
         if (isset($_POST['nie_mam_drukarki'])) {

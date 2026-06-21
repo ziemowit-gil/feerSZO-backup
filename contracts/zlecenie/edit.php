@@ -76,6 +76,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
         $diff = format_field_diff($row, $save);
         db_update($TABLE, $save, $id);
+
+        // Weryfikacja utrwalenia — wykryj „cichy" brak zapisu (sukces bez zmian w bazie).
+        $missed = contract_assert_saved($TABLE, $id, $save);
+        if ($missed) {
+            error_log('[zlecenie/edit] zapis nieutrwalony id=' . $id
+                . ' pola=' . implode(',', $missed)
+                . ' postVars=' . count($_POST)
+                . ' db=' . (defined('DB_PATH') ? DB_PATH : '?'));
+            flash_set('danger', 'Zmiany NIE zostały zapisane w bazie (' . count($missed)
+                . ' pól nie utrwalono). Zgłoś to administratorowi — najczęstsze przyczyny to brak praw zapisu do pliku bazy lub odczyt z innej bazy niż zapis.');
+            header('Location: edit.php?id=' . $id);
+            exit;
+        }
+
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'edit', $diff ?: 'Edytowano umowę');
         flash_set('success', 'Zmiany zapisane.');
