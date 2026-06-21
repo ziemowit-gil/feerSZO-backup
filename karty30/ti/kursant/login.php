@@ -84,6 +84,15 @@ include __DIR__ . '/_layout_head.php';
       <p class="text-center text-body-secondary mt-3 mb-0" style="font-size:.78rem">
         Nie masz konta? Skontaktuj się z prowadzącym.
       </p>
+
+      <hr class="my-3">
+
+      <a href="parent.php" class="btn btn-outline-secondary w-100">
+        <i class="bi bi-people me-2" aria-hidden="true"></i>Logowanie dla rodzica / opiekuna
+      </a>
+      <p class="text-center text-body-secondary mt-2 mb-0" style="font-size:.78rem">
+        Rodzic małoletniego kursanta loguje się kodem SMS lub linkiem z e-maila.
+      </p>
     </div>
   </div>
 </main>

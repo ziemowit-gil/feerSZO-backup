@@ -146,6 +146,11 @@ include __DIR__ . '/_layout_head.php';
           <button class="btn btn-primary w-100"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
         </form>
       <?php endif; ?>
+
+      <hr class="my-3">
+      <a href="login.php" class="btn btn-link btn-sm w-100 text-decoration-none">
+        <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
+      </a>
     </div>
   </div>
 </main>
