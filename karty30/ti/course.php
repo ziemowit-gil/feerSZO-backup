@@ -61,9 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         if (!in_array($model, [0,1,2,3], true)) $model = 0;
         $amount = max(0, (float)str_replace(',','.', (string)($_POST['billing_amount'] ?? '0')));
         $rate   = max(0, (float)str_replace(',','.', (string)($_POST['hourly_rate'] ?? '0')));
+        $pay_account = trim($_POST['pay_account'] ?? '');
+        $pay_title   = trim($_POST['pay_title'] ?? '');
         if ($cid) {
-            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=? WHERE course_id=? AND client_id=?")
-               ->execute([$model, $amount, $rate, $id, $cid]);
+            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=?, pay_account=?, pay_title=? WHERE course_id=? AND client_id=?")
+               ->execute([$model, $amount, $rate, $pay_account, $pay_title, $id, $cid]);
             flash_set('success', $model > 0 ? 'Ustawiono indywidualny model rozliczania (kod 9999).' : 'Przywrócono model rozliczania kursu.');
         }
         header('Location: course.php?id='.$id.'#uczestnicy'); exit;
@@ -183,8 +185,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       </span>
       <?php $cbm = (int)($course['billing_model'] ?? 2) ?: 2; ?>
       <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-2">
-        <i class="bi bi-cash-coin me-1"></i>Rozliczanie: <?= h(k30_ti_billing_model_label($cbm)) ?><?php if ($cbm !== 2 && (float)($course['billing_amount'] ?? 0) > 0): ?> · <?= number_format((float)$course['billing_amount'],2,',','') ?> zł<?php endif; ?>
+        <i class="bi bi-cash-coin me-1"></i>Rozliczanie: <?= h(k30_ti_billing_model_label($cbm)) ?> <span class="opacity-75">(kod <?= $cbm ?>)</span><?php if ($cbm !== 2 && (float)($course['billing_amount'] ?? 0) > 0): ?> · <?= number_format((float)$course['billing_amount'],2,',','') ?> zł<?php endif; ?>
       </span>
+      <?php if (!empty($course['pay_account']) || !empty($course['pay_title'])): ?>
+      <span class="text-muted small ms-2"><i class="bi bi-bank me-1"></i><?= h($course['pay_account'] ?: '—') ?><?php if (!empty($course['pay_title'])): ?> · „<?= h($course['pay_title']) ?>"<?php endif; ?></span>
+      <?php endif; ?>
     </div>
   </div>
   <div class="ms-auto d-flex gap-2">
@@ -221,12 +226,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td>
                 <?php if ($eff['individual']): ?>
                 <span class="badge bg-warning text-dark" title="Indywidualne ustalenia">9999 · indyw.</span>
+                <?php else: ?>
+                <span class="badge bg-light text-secondary border" title="Kod modelu">kod <?= (int)$eff['code'] ?></span>
                 <?php endif; ?>
                 <span class="small"><?= h($eff['label']) ?>:</span>
                 <span class="fw-semibold small">
                   <?php if ($eff['model'] === 2): ?><?= number_format($eff['hourly_rate'],2,',','') ?> zł/h
                   <?php else: ?><?= number_format($eff['amount'],2,',','') ?> zł<?php endif; ?>
                 </span>
+                <?php if (!empty($eff['pay_account']) || !empty($eff['pay_title'])): ?>
+                <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($eff['pay_account'] ?: '—') ?><?php if (!empty($eff['pay_title'])): ?> · „<?= h($eff['pay_title']) ?>"<?php endif; ?></div>
+                <?php endif; ?>
                 <?php if ($can_write): ?>
                 <button type="button" class="btn btn-xs btn-sm btn-link p-0 ms-1 align-baseline" data-bs-toggle="collapse" data-bs-target="#bill<?= (int)$e['client_id'] ?>" title="Zmień rozliczanie"><i class="bi bi-pencil"></i></button>
                 <?php endif; ?>
@@ -269,8 +279,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                     <label class="form-label small mb-0">Kwota (zł)</label>
                     <input type="number" name="billing_amount" class="form-control form-control-sm" step="0.01" min="0" style="width:120px" value="<?= h(number_format((float)$e['billing_amount'],2,'.','')) ?>">
                   </div>
+                  <div class="col-12"></div>
+                  <div class="col-sm-5">
+                    <label class="form-label small mb-0">Nr konta (indyw., gdy kod 9999)</label>
+                    <input type="text" name="pay_account" class="form-control form-control-sm font-monospace" value="<?= h($e['pay_account'] ?? '') ?>" placeholder="puste = domyślny kursu">
+                  </div>
+                  <div class="col-sm-5">
+                    <label class="form-label small mb-0">Tytuł wpłaty (indyw.)</label>
+                    <input type="text" name="pay_title" class="form-control form-control-sm" value="<?= h($e['pay_title'] ?? '') ?>" placeholder="puste = domyślny kursu">
+                  </div>
                   <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button></div>
-                  <div class="form-text">Wybór indywidualnego modelu nadaje kursantowi kod 9999.</div>
+                  <div class="form-text">Wybór indywidualnego modelu nadaje kursantowi kod 9999. Dane do wpłat działają tylko przy kodzie 9999 (inaczej obowiązują domyślne kursu).</div>
                 </form>
               </td>
             </tr>

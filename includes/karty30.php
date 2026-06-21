@@ -289,6 +289,11 @@ function karty30_migrate(): void {
         // Override modelu na kursancie (zapisie): 0=dziedziczy z kursu, >0=indywidualny (kod 9999)
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
+        // Dane do wpłat: domyślne na kursie + indywidualne na kursancie (używane gdy kod 9999)
+        "ALTER TABLE k30_ti_courses ADD COLUMN pay_account TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_courses ADD COLUMN pay_title   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN pay_account TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN pay_title   TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
         // Odwołanie całej lekcji (Doradca/admin) — z powodem i autorem
         "ALTER TABLE k30_ti_sessions ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
@@ -1409,8 +1414,13 @@ function k30_ti_billing_model_label(int $code): string {
  * Zwraca ['model'=>int(1|2|3), 'code'=>int, 'individual'=>bool, 'amount'=>float, 'hourly_rate'=>float, 'label'=>string].
  */
 function k30_ti_effective_billing(array $enr, array $course): array {
+    $course_acct  = (string)($course['pay_account'] ?? '');
+    $course_title = (string)($course['pay_title'] ?? '');
     $emodel = (int)($enr['billing_model'] ?? 0);
-    if ($emodel > 0) { // override na kursancie
+    if ($emodel > 0) { // override na kursancie → kod 9999 (indywidualny)
+        // Dane do wpłat: indywidualne na kursancie mają pierwszeństwo (gdy ustawione), inaczej domyślne kursu
+        $acct  = trim((string)($enr['pay_account'] ?? '')) !== '' ? $enr['pay_account'] : $course_acct;
+        $title = trim((string)($enr['pay_title'] ?? ''))   !== '' ? $enr['pay_title']   : $course_title;
         return [
             'model'       => $emodel,
             'code'        => 9999,
@@ -1418,9 +1428,12 @@ function k30_ti_effective_billing(array $enr, array $course): array {
             'amount'      => (float)($enr['billing_amount'] ?? 0),
             'hourly_rate' => (float)($enr['hourly_rate'] ?? 0),
             'label'       => 'Indywidualny',
+            'pay_account' => $acct,
+            'pay_title'   => $title,
         ];
     }
     $cmodel = (int)($course['billing_model'] ?? 2) ?: 2;
+    // Kod != 9999 → zawsze dane domyślne kursu (override kursanta nieaktywny)
     return [
         'model'       => $cmodel,
         'code'        => $cmodel,
@@ -1428,6 +1441,41 @@ function k30_ti_effective_billing(array $enr, array $course): array {
         'amount'      => (float)($course['billing_amount'] ?? 0),
         'hourly_rate' => (float)($enr['hourly_rate'] ?? 0),
         'label'       => k30_ti_billing_model_label($cmodel),
+        'pay_account' => $course_acct,
+        'pay_title'   => $course_title,
+    ];
+}
+
+/**
+ * Efektywne dane do wpłat + kody modeli dla klienta (po aktywnych zapisach).
+ * Indywidualne dane (kod 9999 z ustawionym kontem) mają pierwszeństwo, inaczej
+ * domyślne kursu. Zwraca ['account'=>str, 'title'=>str, 'codes'=>int[]].
+ */
+function k30_ti_client_payment(int $client_id): array {
+    $enrs = db_all(
+        "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount,
+                c.pay_account AS course_pay_account, c.pay_title AS course_pay_title
+         FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+         WHERE e.client_id=? AND e.status='active' ORDER BY e.id",
+        [$client_id]
+    );
+    $codes = []; $indivPick = null; $firstPick = null;
+    foreach ($enrs as $e) {
+        $eff = k30_ti_effective_billing($e, [
+            'billing_model'  => $e['course_billing_model'],
+            'billing_amount' => $e['course_billing_amount'],
+            'pay_account'    => $e['course_pay_account'],
+            'pay_title'      => $e['course_pay_title'],
+        ]);
+        $codes[$eff['code']] = true;
+        if ($firstPick === null) $firstPick = $eff;
+        if ($indivPick === null && $eff['individual'] && trim((string)$eff['pay_account']) !== '') $indivPick = $eff;
+    }
+    $pick = $indivPick ?? $firstPick;
+    return [
+        'account' => $pick['pay_account'] ?? '',
+        'title'   => $pick['pay_title'] ?? '',
+        'codes'   => array_keys($codes),
     ];
 }
 

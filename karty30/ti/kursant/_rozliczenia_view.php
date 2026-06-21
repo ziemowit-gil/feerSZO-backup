@@ -16,6 +16,36 @@ foreach ($rv_billing as $b) {
 ?>
 <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-receipt text-primary" aria-hidden="true"></i>Rozliczenia</h2>
 
+<?php $rv_pay = k30_ti_client_payment((int)$rv_client_id); ?>
+<?php if ($rv_pay['account'] !== '' || $rv_pay['title'] !== '' || $rv_pay['codes']): ?>
+<div class="card mb-4 border-primary-subtle">
+  <div class="card-body py-3">
+    <div class="fw-semibold mb-1"><i class="bi bi-bank2 text-primary me-1" aria-hidden="true"></i>Dane do wpłaty</div>
+    <dl class="row small mb-0">
+      <?php if ($rv_pay['account'] !== ''): ?>
+      <dt class="col-sm-3 text-body-secondary fw-normal">Nr konta</dt>
+      <dd class="col-sm-9 font-monospace mb-1"><?= h($rv_pay['account']) ?></dd>
+      <?php endif; ?>
+      <?php if ($rv_pay['title'] !== ''): ?>
+      <dt class="col-sm-3 text-body-secondary fw-normal">Tytuł wpłaty</dt>
+      <dd class="col-sm-9 mb-1"><?= h($rv_pay['title']) ?></dd>
+      <?php endif; ?>
+      <?php if ($rv_pay['codes']): ?>
+      <dt class="col-sm-3 text-body-secondary fw-normal">Kod rozliczeń</dt>
+      <dd class="col-sm-9 mb-0">
+        <?php foreach ($rv_pay['codes'] as $code): ?>
+        <span class="badge <?= $code===9999 ? 'text-bg-warning' : 'text-bg-secondary' ?>"><?= $code===9999 ? '9999 · indywidualny' : (int)$code ?></span>
+        <?php endforeach; ?>
+      </dd>
+      <?php endif; ?>
+    </dl>
+    <?php if ($rv_pay['account'] === '' && $rv_pay['title'] === ''): ?>
+    <div class="text-body-secondary small">Dane do wpłaty nie zostały jeszcze ustawione — skontaktuj się z placówką.</div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <div class="row g-3 mb-4">
   <div class="col-12 col-md-4">
     <div class="card h-100"><div class="card-body">

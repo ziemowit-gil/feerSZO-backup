@@ -245,6 +245,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <tr>
           <td>
             <div class="fw-semibold"><?= h($b['client_name']) ?></div>
+            <?php $bpay = k30_ti_client_payment((int)$b['client_id']); ?>
+            <?php if ($bpay['codes']): ?>
+            <div class="small">
+              <?php foreach ($bpay['codes'] as $code): ?>
+              <span class="badge <?= $code===9999 ? 'bg-warning text-dark' : 'bg-light text-secondary border' ?>" title="Kod modelu rozliczania"><?= $code===9999 ? '9999 · indyw.' : 'kod '.(int)$code ?></span>
+              <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($bpay['account']) || !empty($bpay['title'])): ?>
+            <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($bpay['account'] ?: '—') ?><?php if (!empty($bpay['title'])): ?> · „<?= h($bpay['title']) ?>"<?php endif; ?></div>
+            <?php endif; ?>
             <?php if ($b['notes']): ?><div class="text-muted small"><?= h($b['notes']) ?></div><?php endif; ?>
           </td>
           <td><?= number_format((float)$b['hours_billed'],2,',','') ?> h<br>

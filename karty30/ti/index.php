@@ -40,6 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'default_meeting_url' => trim($_POST['default_meeting_url'] ?? ''),
         'billing_model'       => in_array((int)($_POST['billing_model'] ?? 2), [1,2,3], true) ? (int)$_POST['billing_model'] : 2,
         'billing_amount'      => max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0'))),
+        'pay_account'         => trim($_POST['pay_account'] ?? ''),
+        'pay_title'           => trim($_POST['pay_title'] ?? ''),
         'is_active'           => isset($_POST['is_active']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
@@ -165,6 +167,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <input type="number" class="form-control" name="billing_amount" step="0.01" min="0" value="<?= h(number_format((float)($f['billing_amount'] ?? 0),2,'.','')) ?>">
           <div class="form-text" id="bm_amount_help">dla modelu miesięcznego/stałego</div>
         </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label">Nr konta do wpłat <span class="text-muted small">(domyślny)</span></label>
+          <input type="text" class="form-control font-monospace" name="pay_account" value="<?= h($f['pay_account'] ?? '') ?>" placeholder="PL00 0000 0000 0000 0000 0000 0000">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label">Tytuł wpłaty <span class="text-muted small">(domyślny)</span></label>
+          <input type="text" class="form-control" name="pay_title" value="<?= h($f['pay_title'] ?? '') ?>" placeholder="np. Opłata za zajęcia TI">
+        </div>
+        <div class="col-12"><div class="form-text">Używane domyślnie dla kursantów; można nadpisać indywidualnie (kod 9999) przy uczestniku.</div></div>
       </div>
       <div class="mb-3">
         <label class="form-label">Opis</label>
