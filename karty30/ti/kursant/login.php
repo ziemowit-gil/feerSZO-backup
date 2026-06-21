@@ -57,7 +57,7 @@ include __DIR__ . '/_layout_head.php';
             <i class="bi bi-pc-display fs-2"></i>
           </span>
           <h2 class="h3 fw-bold mb-2">Panel kursanta</h2>
-          <p class="mb-0 opacity-75"><?= h($KP_ORG) ?><br>Zajęcia informatyki / TI</p>
+          <p class="mb-0 opacity-75"><?= h($KP_ORG) ?><br></p>
         </div>
         <ul class="list-unstyled d-flex flex-column gap-3 mt-5 mb-0 small">
           <li class="kp-auth-feat"><i class="bi bi-calendar-check"></i><span>Twoje lekcje, frekwencja i terminy zajęć</span></li>
