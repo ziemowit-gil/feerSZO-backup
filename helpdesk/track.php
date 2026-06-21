@@ -90,6 +90,18 @@ if ($ticket) {
 </head><body>
 <div class="container hd-wrap py-4">
 
+  <!-- Baner marki -->
+  <div class="d-flex align-items-center gap-2 mb-3 pb-3 border-bottom">
+    <div class="d-flex align-items-center justify-content-center rounded-circle text-white flex-shrink-0"
+         style="width:40px;height:40px;background:linear-gradient(135deg,#1e40af,#2563EB)">
+      <i class="bi bi-headset"></i>
+    </div>
+    <div class="lh-sm">
+      <div class="fw-bold"><?= h($org) ?></div>
+      <div class="text-muted" style="font-size:.78rem">Helpdesk IT · podgląd zgłoszenia</div>
+    </div>
+  </div>
+
 <?php if (!$ticket): ?>
   <div class="text-center py-5">
     <i class="bi bi-question-circle text-secondary" style="font-size:3rem"></i>

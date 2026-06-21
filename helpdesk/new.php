@@ -303,15 +303,23 @@ try {
     </div>
     <div class="card-body small">
       <?php foreach (HD_PRIORITIES as $k => $p): ?>
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <?= hd_priority_badge($k) ?>
-        <span class="text-muted"><?= match($k) {
-          'krytyczny' => 'Całkowity brak możliwości pracy',
-          'wysoki'    => 'Poważne utrudnienie pracy',
-          'normalny'  => 'Standardowy problem',
-          'niski'     => 'Drobna niedogodność',
-          default     => ''
-        } ?></span>
+      <div class="mb-2">
+        <div class="d-flex align-items-center gap-2">
+          <?= hd_priority_badge($k) ?>
+          <span class="text-muted"><?= match($k) {
+            'krytyczny' => 'Całkowity brak możliwości pracy',
+            'wysoki'    => 'Poważne utrudnienie pracy',
+            'normalny'  => 'Standardowy problem',
+            'niski'     => 'Drobna niedogodność',
+            default     => ''
+          } ?></span>
+        </div>
+        <?php if (!empty($p['sla_response']) || !empty($p['sla_resolve'])): ?>
+        <div class="text-muted ms-1" style="font-size:.72rem">
+          <i class="bi bi-speedometer2 me-1"></i>reakcja <?= hd_fmt_secs((int)($p['sla_response'] ?? 0) * 60) ?>
+          · rozwiązanie <?= hd_fmt_secs((int)($p['sla_resolve'] ?? 0) * 60) ?>
+        </div>
+        <?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>

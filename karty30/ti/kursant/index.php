@@ -11,9 +11,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_moodle.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/pfron.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
+pfron_migrate();
 
 // Zakończenie podglądu administratora („zaloguj jako") — wróć do listy kont kursantów.
 if (isset($_GET['stop_impersonation'])) {
@@ -115,6 +118,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $_SESSION['hw_flash'] = ['ok', 'Zadanie zostało oddane.'];
         header('Location: index.php?tab=zadania'); exit;
+    }
+
+    // PFRON — 2FA (nr telefonu + nr umowy) odblokowuje sekcję na czas sesji
+    if ($op === 'pfron_auth') {
+        if (pfron_is_locked()) {
+            $_SESSION['pfron_msg'] = ['err', 'Zbyt wiele prób. Spróbuj ponownie za kilka minut.'];
+        } else {
+            $cid = pfron_authenticate((string)($_POST['contract_no'] ?? ''), (string)($_POST['phone'] ?? ''));
+            if ($cid > 0) {
+                pfron_unlock($cid);
+                pfron_log($cid, 'ok');
+                $_SESSION['pfron_msg'] = ['ok', 'Dostęp do danych PFRON odblokowany.'];
+            } else {
+                pfron_register_fail();
+                pfron_log(0, 'fail');
+                $_SESSION['pfron_msg'] = ['err', 'Nieprawidłowy numer umowy lub telefon.'];
+            }
+        }
+        header('Location: index.php?tab=pfron'); exit;
+    }
+    if ($op === 'pfron_lock') {
+        pfron_lock_all();
+        header('Location: index.php?tab=pfron'); exit;
     }
 
     if ($op === 'reset_calendar_token') {
@@ -281,7 +307,7 @@ include __DIR__ . '/_layout_head.php';
 </main>
 <?php include __DIR__ . '/_layout_foot.php'; exit; endif; ?>
 
-<?php $dostepy_tabs = ['online','licencje','vlab']; $dostepy_active = in_array($tab, $dostepy_tabs, true); ?>
+<?php $dostepy_tabs = ['online','licencje','vlab','pfron']; $dostepy_active = in_array($tab, $dostepy_tabs, true); ?>
 <nav class="container-xl px-3 pt-3" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
     <li class="nav-item">
@@ -333,6 +359,12 @@ include __DIR__ . '/_layout_head.php';
         <li>
           <a class="dropdown-item <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab">
             <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab
+          </a>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <a class="dropdown-item <?= $tab==='pfron'?'active':'' ?>" href="?tab=pfron">
+            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>PFRON (konsultacje)
           </a>
         </li>
       </ul>
