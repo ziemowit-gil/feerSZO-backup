@@ -8,10 +8,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/stripe.php';
+require_once dirname(dirname(__DIR__)) . '/includes/payu.php';
 
 k30_require_access();
 karty30_migrate();
 stripe_migrate();
+payu_migrate();
 
 $PAGE_TITLE = 'Rozliczenia TI';
 $can_write  = can_write('karty30') || is_admin();
@@ -113,6 +115,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // Wygeneruj link do zapłaty PayU dla rozliczenia
+    if ($op === 'payu_link') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $b   = $bid ? db_one("SELECT b.*, cl.name AS client_name, cl.email AS client_email FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$bid]) : null;
+        if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
+        elseif (!payu_enabled()) { flash_set('danger','Płatności PayU nie są skonfigurowane (Integracje → Płatności / PayU).'); }
+        else {
+            $amount = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            $back   = rtrim(APP_URL,'/') . '/karty30/ti/billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'');
+            $notify = rtrim(APP_URL,'/') . '/api/payu_webhook.php';
+            try {
+                $r = payu_create_order(
+                    'k30_ti_billing', $bid, $amount,
+                    'Zajęcia TI — ' . ($b['client_name'] ?? '') . ' (' . $month . '/' . $year . ')',
+                    $back . '&paid=1', $notify,
+                    (string)($b['client_email'] ?? '')
+                );
+                flash_set('success', 'Link do zapłaty PayU utworzony: ' . $r['url']);
+            } catch (\Throwable $e) {
+                flash_set('danger', 'PayU: ' . $e->getMessage());
+            }
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Korekta rozliczenia — opłata dodatkowa (+) lub rabat (−)
     if ($op === 'set_adjustment') {
         $bid  = (int)($_POST['billing_id'] ?? 0);
@@ -194,6 +221,16 @@ if ($bids) {
 }
 $stripe_on = stripe_enabled();
 
+// Mapa płatności PayU dla wyświetlanych rozliczeń
+$payu_pay = [];
+if ($bids) {
+    $in = implode(',', array_fill(0, count($bids), '?'));
+    foreach (db_all("SELECT * FROM payu_payments WHERE source_type='k30_ti_billing' AND source_id IN ($in) ORDER BY id", $bids) as $pp) {
+        $payu_pay[(int)$pp['source_id']] = $pp; // ostatni wygrywa
+    }
+}
+$payu_on = payu_enabled();
+
 // Podgląd kwot dla nieopłaconych
 $preview = [];
 foreach ($enrolled_active as $e) {
@@ -230,7 +267,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <?php if (isset($_GET['paid'])): ?>
 <div class="alert alert-success alert-dismissible fade show">
-  <i class="bi bi-check-circle me-1"></i>Dziękujemy — płatność została zainicjowana. Status zaktualizuje się po potwierdzeniu przez Stripe (webhook).
+  <i class="bi bi-check-circle me-1"></i>Dziękujemy — płatność została zainicjowana. Status zaktualizuje się po potwierdzeniu przez operatora płatności (webhook).
   <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
@@ -350,6 +387,23 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
               <button type="submit" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" title="Wygeneruj link do zapłaty Stripe">
                 <i class="bi bi-credit-card me-1"></i>Stripe
+              </button>
+            </form>
+            <?php endif; ?>
+            <?php // ── PayU ──
+              $pu = $payu_pay[(int)$b['id']] ?? null; ?>
+            <?php if ($payu_on && $pu && $pu['status'] === 'pending' && !empty($pu['redirect_uri'])): ?>
+            <a href="<?= h($pu['redirect_uri']) ?>" target="_blank" rel="noopener"
+               class="btn btn-xs btn-sm btn-outline-success py-0 px-2" title="Otwórz link do zapłaty PayU">
+              <i class="bi bi-link-45deg me-1"></i>PayU
+            </a>
+            <?php elseif ($payu_on): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="payu_link">
+              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-success py-0 px-2" title="Wygeneruj link do zapłaty PayU">
+                <i class="bi bi-wallet2 me-1"></i>PayU
               </button>
             </form>
             <?php endif; ?>

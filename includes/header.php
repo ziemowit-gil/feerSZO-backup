@@ -912,12 +912,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <?php if ($_zwr_pending): ?><span class="badge bg-warning text-dark ms-auto"><?= $_zwr_pending ?></span><?php endif; ?>
   </a>
 
-  <?php if (is_admin()): ?>
-  <a class="sb-link<?= _nav_active('/admin/stripe_settings') ?>" href="<?= APP_URL ?>/admin/stripe_settings.php">
-    <i class="bi bi-credit-card"></i> Płatności / Stripe
-  </a>
-  <?php endif; ?>
-
   <?php if ($_has_kdok):
     $_kdok_active = str_contains($_uri, '/ksiegowosc/');
     $_kdok_sub_has = (is_admin() || kdok_has_role('zatwierdza'))
@@ -1069,10 +1063,17 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   ════════════════════════════════════════ -->
   <?php if (is_admin()): ?>
   <div class="sb-label">Admin</div>
-  <a class="sb-link<?= str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding') && !str_contains($_uri,'/admin/sharepoint') && !str_contains($_uri,'/admin/m365') ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
+  <a class="sb-link<?= str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding') && !str_contains($_uri,'/admin/sharepoint') && !str_contains($_uri,'/admin/m365') && !str_contains($_uri,'/admin/tidycal') && !str_contains($_uri,'/admin/stripe_settings') && !str_contains($_uri,'/admin/payu_settings') ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
     <i class="bi bi-shield-shaded"></i> Panel admina
     <?php if ($_adm_badge): ?><span class="badge bg-danger ms-auto"><?= $_adm_badge ?></span><?php endif; ?>
   </a>
+
+  <div class="sb-sep"></div>
+
+  <!-- ════════════════════════════════════════
+       8. INTEGRACJE [if is_admin]
+  ════════════════════════════════════════ -->
+  <div class="sb-label">Integracje</div>
   <a class="sb-link<?= _nav_active('/admin/m365') ?>" href="<?= APP_URL ?>/admin/m365_settings.php">
     <i class="bi bi-microsoft"></i> Microsoft 365
   </a>
@@ -1081,6 +1082,12 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   </a>
   <a class="sb-link<?= _nav_active('/admin/tidycal') ?>" href="<?= APP_URL ?>/admin/tidycal_settings.php">
     <i class="bi bi-calendar2-check"></i> Szkolenia (TidyCal)
+  </a>
+  <a class="sb-link<?= _nav_active('/admin/stripe_settings') ?>" href="<?= APP_URL ?>/admin/stripe_settings.php">
+    <i class="bi bi-credit-card"></i> Płatności / Stripe
+  </a>
+  <a class="sb-link<?= _nav_active('/admin/payu_settings') ?>" href="<?= APP_URL ?>/admin/payu_settings.php">
+    <i class="bi bi-wallet2"></i> Płatności / PayU
   </a>
   <?php endif; ?>
 

@@ -93,64 +93,94 @@ $KP_TOPBAR = [
     'user'  => $parent ? ('Opiekun: ' . $parent['name']) : '',
     'logout'=> $parent ? '?logout=1' : '',
 ];
-$KP_BODY_CLASS = $parent ? '' : 'd-flex flex-column';
+$KP_BODY_CLASS = $parent ? '' : 'd-flex align-items-center justify-content-center flex-column py-4 px-3';
 include __DIR__ . '/_layout_head.php';
 ?>
 
 <?php if (!$parent): ?>
-<main id="main" class="container d-flex align-items-center justify-content-center flex-grow-1 py-4">
-  <div class="card shadow-lg border-0 w-100" style="max-width:420px">
-    <div class="card-body p-4">
-      <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
-        <i class="bi bi-shield-lock text-primary" aria-hidden="true"></i>Dostęp do rozliczeń dziecka
-      </h1>
-      <p class="text-body-secondary small mb-3">
-        Zaloguj się kodem SMS wysłanym na numer opiekuna podany w placówce, lub skorzystaj z linku z e-maila.
-      </p>
+<main id="main" class="kp-auth-wrap">
+  <div class="card kp-auth-card shadow-lg border-0">
+    <div class="row g-0">
 
-      <?php if ($err): ?><div class="alert alert-danger py-2" role="alert"><?= h($err) ?></div><?php endif; ?>
-      <?php if ($info): ?><div class="alert alert-success py-2" role="status"><?= h($info) ?></div><?php endif; ?>
+      <!-- ── Panel marki (dekoracyjny — ukryty na telefonie) ───────────────── -->
+      <div class="col-md-5 kp-auth-hero d-none d-md-flex flex-column justify-content-between p-4 p-lg-5"
+           aria-hidden="true">
+        <div>
+          <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-4">
+            <i class="bi bi-people-fill fs-2"></i>
+          </span>
+          <h2 class="h3 fw-bold mb-2">Panel rodzica</h2>
+          <p class="mb-0 opacity-75"><?= h($org) ?></p>
+        </div>
+        <ul class="list-unstyled d-flex flex-column gap-3 mt-5 mb-0 small">
+          <li class="kp-auth-feat"><i class="bi bi-receipt"></i><span>Rozliczenia i terminy płatności dziecka</span></li>
+          <li class="kp-auth-feat"><i class="bi bi-calendar-check"></i><span>Frekwencja na zajęciach</span></li>
+          <li class="kp-auth-feat"><i class="bi bi-shield-lock"></i><span>Zarządzanie dostępem dziecka do panelu</span></li>
+        </ul>
+      </div>
 
-      <?php if ($stage === 'choose'):
-        $kids = $_SESSION['k30_parent_choose'] ?? []; ?>
-        <form method="post">
-          <input type="hidden" name="_op" value="choose">
-          <fieldset>
-            <legend class="form-label">Wybierz kursanta:</legend>
-            <?php foreach ($kids as $k): ?>
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="student_id" id="k<?= (int)$k['id'] ?>" value="<?= (int)$k['id'] ?>" required>
-              <label class="form-check-label" for="k<?= (int)$k['id'] ?>"><?= h($k['name']) ?></label>
-            </div>
-            <?php endforeach; ?>
-          </fieldset>
-          <button class="btn btn-primary w-100 mt-3">Pokaż rozliczenia</button>
-        </form>
-      <?php elseif ($stage === 'code'): ?>
-        <form method="post">
-          <input type="hidden" name="_op" value="otp_verify">
-          <label class="form-label" for="code">Kod z SMS</label>
-          <input class="form-control mb-3" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-cyfrowy kod" required autofocus>
-          <button class="btn btn-primary w-100">Zaloguj</button>
-        </form>
-        <form method="post" class="mt-2 text-center">
-          <input type="hidden" name="_op" value="otp_request">
-          <input type="hidden" name="phone" value="<?= h($_POST['phone'] ?? '') ?>">
-          <button class="btn btn-link btn-sm">Wyślij kod ponownie</button>
-        </form>
-      <?php else: ?>
-        <form method="post">
-          <input type="hidden" name="_op" value="otp_request">
-          <label class="form-label" for="phone">Numer telefonu opiekuna</label>
-          <input class="form-control mb-3" id="phone" name="phone" inputmode="tel" autocomplete="tel" placeholder="np. 600 100 200" required autofocus>
-          <button class="btn btn-primary w-100"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
-        </form>
-      <?php endif; ?>
+      <!-- ── Logowanie opiekuna (SMS / link) ──────────────────────────────── -->
+      <div class="col-md-7">
+        <div class="card-body p-4 p-lg-5">
+          <h1 class="h4 fw-bold d-flex align-items-center gap-2 mb-1">
+            <i class="bi bi-shield-lock text-primary d-md-none" aria-hidden="true"></i>Dostęp dla opiekuna
+          </h1>
+          <p class="text-body-secondary mb-4">
+            Zaloguj się kodem SMS wysłanym na numer opiekuna podany w placówce, lub skorzystaj z linku z e-maila.
+          </p>
 
-      <hr class="my-3">
-      <a href="login.php" class="btn btn-link btn-sm w-100 text-decoration-none">
-        <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
-      </a>
+          <?php if ($err): ?><div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert"><i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($err) ?></span></div><?php endif; ?>
+          <?php if ($info): ?><div class="alert alert-success d-flex align-items-center gap-2 py-2" role="status"><i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($info) ?></span></div><?php endif; ?>
+
+          <?php if ($stage === 'choose'):
+            $kids = $_SESSION['k30_parent_choose'] ?? []; ?>
+            <form method="post">
+              <input type="hidden" name="_op" value="choose">
+              <fieldset>
+                <legend class="form-label fw-semibold">Wybierz kursanta:</legend>
+                <?php foreach ($kids as $k): ?>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="student_id" id="k<?= (int)$k['id'] ?>" value="<?= (int)$k['id'] ?>" required>
+                  <label class="form-check-label" for="k<?= (int)$k['id'] ?>"><?= h($k['name']) ?></label>
+                </div>
+                <?php endforeach; ?>
+              </fieldset>
+              <button class="btn btn-primary btn-lg w-100 mt-3">Pokaż rozliczenia</button>
+            </form>
+          <?php elseif ($stage === 'code'): ?>
+            <form method="post">
+              <input type="hidden" name="_op" value="otp_verify">
+              <label class="form-label fw-semibold" for="code">Kod z SMS</label>
+              <div class="input-group input-group-lg mb-3">
+                <span class="input-group-text" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
+                <input class="form-control form-control-lg" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-cyfrowy kod" required autofocus>
+              </div>
+              <button class="btn btn-primary btn-lg w-100">Zaloguj</button>
+            </form>
+            <form method="post" class="mt-2 text-center">
+              <input type="hidden" name="_op" value="otp_request">
+              <input type="hidden" name="phone" value="<?= h($_POST['phone'] ?? '') ?>">
+              <button class="btn btn-link btn-sm">Wyślij kod ponownie</button>
+            </form>
+          <?php else: ?>
+            <form method="post">
+              <input type="hidden" name="_op" value="otp_request">
+              <label class="form-label fw-semibold" for="phone">Numer telefonu opiekuna</label>
+              <div class="input-group input-group-lg mb-3">
+                <span class="input-group-text" aria-hidden="true"><i class="bi bi-telephone"></i></span>
+                <input class="form-control form-control-lg" id="phone" name="phone" inputmode="tel" autocomplete="tel" placeholder="np. 600 100 200" required autofocus>
+              </div>
+              <button class="btn btn-primary btn-lg w-100"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
+            </form>
+          <?php endif; ?>
+
+          <hr class="my-4">
+          <a href="login.php" class="btn btn-outline-secondary w-100">
+            <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
+          </a>
+        </div>
+      </div>
+
     </div>
   </div>
 </main>

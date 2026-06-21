@@ -187,6 +187,17 @@ $courses = k30_ti_client_courses($student['client_id']);
 $homeworks_student = k30_ti_homework_for_client($student['client_id']);
 $hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
 $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']);
+
+// Zadania z Moodle — odśwież z serwera tylko przy wejściu na zakładkę (TTL wewnątrz);
+// listę czytamy z cache (tanio) na potrzeby licznika na innych zakładkach.
+if ($tab === 'zadania') {
+    ti_moodle_sync_client_assignments($student['client_id']);
+}
+$moodle_assignments = ti_moodle_assignments_for_client($student['client_id']);
+$moodle_hw_pending  = array_values(array_filter($moodle_assignments,
+    fn($a) => ($a['sub_status'] ?? '') !== 'submitted' && empty($a['sub_graded'])));
+$hw_pending_total   = count($hw_pending) + count($moodle_hw_pending);
+
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
 $my_licenses = k30_ti_client_licenses($student['client_id']);
 $active_lesson = k30_ti_active_lesson_link($student['client_id']);
@@ -286,7 +297,7 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item">
       <a class="nav-link <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
         <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zadania
-        <?php if (!empty($hw_pending)): ?><span class="badge text-bg-warning ms-1"><?= count($hw_pending) ?></span><?php endif; ?>
+        <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?></span><?php endif; ?>
       </a>
     </li>
     <?php if (!$is_minor): ?>
@@ -356,18 +367,21 @@ include __DIR__ . '/_layout_head.php';
 </div>
 <?php endif; ?>
 
-<?php if (!empty($hw_pending)):
-  $hw_first = $hw_pending[0]; ?>
-<!-- ── Zadania domowe do oddania — zwięzły banner widoczny po zalogowaniu ────── -->
+<?php if ($hw_pending_total > 0):
+  // Etykieta pierwszego oczekującego zadania (lokalne mają pierwszeństwo, potem Moodle)
+  if (!empty($hw_pending))           { $hw_first_t = $hw_pending[0]['title']; $hw_first_c = $hw_pending[0]['course_name']; }
+  else                               { $hw_first_t = $moodle_hw_pending[0]['name']; $hw_first_c = $moodle_hw_pending[0]['ti_course_name']; }
+?>
+<!-- ── Zadania do oddania — zwięzły banner widoczny po zalogowaniu ───────────── -->
 <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
   <i class="bi bi-journal-check flex-shrink-0" aria-hidden="true"></i>
   <div class="flex-grow-1 min-width-0 small">
-    <span class="fw-semibold">Zadania do oddania (<?= count($hw_pending) ?>)</span>
+    <span class="fw-semibold">Zadania do oddania (<?= $hw_pending_total ?>)</span>
     <span class="text-body-secondary">
-      · <?= h($hw_first['title']) ?> (<?= h($hw_first['course_name']) ?>)<?php if (count($hw_pending) > 1): ?> i <?= count($hw_pending) - 1 ?> więcej<?php endif; ?>
+      · <?= h($hw_first_t) ?> (<?= h($hw_first_c) ?>)<?php if ($hw_pending_total > 1): ?> i <?= $hw_pending_total - 1 ?> więcej<?php endif; ?>
     </span>
   </div>
-  <a href="?tab=zadania" class="btn btn-sm btn-outline-warning flex-shrink-0">Oddaj</a>
+  <a href="?tab=zadania" class="btn btn-sm btn-outline-warning flex-shrink-0">Zobacz</a>
 </div>
 <?php endif; ?>
 
@@ -425,7 +439,7 @@ include __DIR__ . '/_layout_head.php';
     </div>
     <div class="col-6 col-lg-3">
       <a href="?tab=zadania" class="card h-100 text-decoration-none"><div class="card-body">
-        <div class="fs-3 fw-bold lh-1 <?= !empty($hw_pending) ? 'text-warning' : '' ?>"><?= count($hw_pending) ?></div>
+        <div class="fs-3 fw-bold lh-1 <?= $hw_pending_total > 0 ? 'text-warning' : '' ?>"><?= $hw_pending_total ?></div>
         <div class="text-body-secondary small mt-1">Zadań do oddania</div>
       </div></a>
     </div>
@@ -734,7 +748,7 @@ include __DIR__ . '/_layout_head.php';
   <?php endif; ?>
 
   <?php if (!$homeworks_student): ?>
-  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak zadań domowych.</div>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= $moodle_assignments ? 'Brak zadań domowych od prowadzącego — sprawdź zadania z Moodle poniżej.' : 'Brak zadań domowych.' ?></div>
   <?php else: $now = date('Y-m-d H:i:s'); ?>
   <div class="d-flex flex-column gap-3">
     <?php foreach ($homeworks_student as $h):
@@ -807,6 +821,62 @@ include __DIR__ . '/_layout_head.php';
           </div>
         </form>
         <?php endif; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <!-- ── Zadania z Moodle (pobierane z serwera) ───────────────────────────── -->
+  <?php if ($moodle_assignments): $now_m = date('Y-m-d H:i:s'); ?>
+  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mt-4 mb-1">
+    <i class="bi bi-mortarboard text-primary" aria-hidden="true"></i>Zadania z Moodle
+    <?php if (!empty($moodle_hw_pending)): ?><span class="badge text-bg-warning"><?= count($moodle_hw_pending) ?> do zrobienia</span><?php endif; ?>
+  </h2>
+  <p class="text-body-secondary small mb-3">Zadania z kursów Moodle Twoich grup. Oddajesz je bezpośrednio w Moodle — tutaj pilnujesz terminów i statusu.</p>
+  <div class="d-flex flex-column gap-3">
+    <?php foreach ($moodle_assignments as $a):
+      $submitted = ($a['sub_status'] ?? '') === 'submitted';
+      $graded    = !empty($a['sub_graded']);
+      $due       = $a['due_at'] ?? '';
+      $overdue   = $due && $due < $now_m && !$submitted && !$graded;
+      // „Dodano”: data otwarcia z Moodle, a w razie braku — pierwsze pojawienie się w systemie
+      $added     = !empty($a['open_at']) ? $a['open_at'] : ($a['first_seen_at'] ?? '');
+      $link      = ti_moodle_assign_url((string)$a['base_url'], (int)$a['cmid']);
+    ?>
+    <div class="card <?= $graded ? 'border-success' : ($overdue ? 'border-danger' : '') ?>">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-start gap-2 mb-1">
+          <div class="flex-grow-1 min-width-0">
+            <div class="fw-bold"><?= h($a['name']) ?></div>
+            <div class="small text-body-secondary d-flex flex-wrap gap-2 mt-1">
+              <span><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($a['ti_course_name']) ?></span>
+              <?php if ($added): ?>
+              <span><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>dodano: <?= h(substr($added,0,10)) ?></span>
+              <?php endif; ?>
+              <?php if ($due): ?>
+              <span class="<?= $overdue ? 'text-danger fw-semibold' : '' ?>"><i class="bi bi-alarm me-1" aria-hidden="true"></i>termin: <?= h(substr($due,0,16)) ?></span>
+              <?php else: ?>
+              <span><i class="bi bi-alarm me-1" aria-hidden="true"></i>termin: brak</span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php if ($graded): ?>
+          <span class="badge text-bg-success">Ocena<?= $a['sub_grade'] !== '' ? ': '.h($a['sub_grade']) : '' ?></span>
+          <?php elseif ($submitted): ?>
+          <span class="badge text-bg-secondary">Oddane<?= !empty($a['sub_submitted_at']) ? ' '.h(substr($a['sub_submitted_at'],0,10)) : '' ?></span>
+          <?php elseif ($overdue): ?>
+          <span class="badge text-bg-danger">Po terminie</span>
+          <?php else: ?>
+          <span class="badge text-bg-warning">Do zrobienia</span>
+          <?php endif; ?>
+        </div>
+        <?php if (!empty($a['intro'])): ?>
+        <p class="small mb-2" style="white-space:pre-wrap"><?= h(mb_substr($a['intro'],0,300)) ?></p>
+        <?php endif; ?>
+        <a href="<?= h($link) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz w Moodle
+        </a>
       </div>
     </div>
     <?php endforeach; ?>

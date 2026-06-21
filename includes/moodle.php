@@ -233,6 +233,31 @@ class MoodleAPI {
     public function site_info(): array {
         return $this->call('core_webservice_get_site_info') ?? [];
     }
+
+    /**
+     * Pobierz zadania (mod_assign) dla podanych kursów Moodle.
+     * Zwraca [['courseid','assignments'=>[['id','cmid','name','duedate',
+     * 'allowsubmissionsfromdate','cutoffdate','timemodified','intro'], ...]], ...].
+     */
+    public function get_assignments(array $courseids): array {
+        $params = [];
+        foreach (array_values($courseids) as $i => $cid) {
+            $params["courseids[$i]"] = (int)$cid;
+        }
+        $r = $this->call('mod_assign_get_assignments', $params);
+        return $r['courses'] ?? [];
+    }
+
+    /**
+     * Status oddania zadania (mod_assign) dla konkretnego użytkownika.
+     * Zwraca surową odpowiedź ('lastattempt','feedback', ...) lub [] przy braku.
+     */
+    public function get_submission_status(int $assignid, int $userid): array {
+        return $this->call('mod_assign_get_submission_status', [
+            'assignid' => $assignid,
+            'userid'   => $userid,
+        ]) ?? [];
+    }
 }
 
 /**

@@ -34,6 +34,34 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 .skip-link:focus { transform:translateY(0); }
 .kp-brand i { color:#60a5fa; }
 .nav-tabs .nav-link.active { font-weight:600; }
+
+/* ── Ekran logowania (login.php / parent.php) ───────────────────────────── */
+.kp-auth-wrap { width:100%; max-width:920px; }
+.kp-auth-card { overflow:hidden; border-radius:1rem; }
+/* Panel marki (lewa kolumna) — dekoracyjny gradient + lista korzyści */
+.kp-auth-hero {
+  background:linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%);
+  color:#fff; position:relative;
+}
+.kp-auth-hero::after {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(circle at 80% 15%, rgba(255,255,255,.18), transparent 45%),
+             radial-gradient(circle at 10% 95%, rgba(255,255,255,.10), transparent 40%);
+}
+.kp-auth-hero > * { position:relative; z-index:1; }
+.kp-auth-logo {
+  width:64px; height:64px; border-radius:1rem;
+  background:rgba(255,255,255,.16); backdrop-filter:blur(4px);
+}
+.kp-auth-feat { display:flex; gap:.65rem; align-items:flex-start; }
+.kp-auth-feat i { font-size:1.15rem; opacity:.95; flex-shrink:0; margin-top:.1rem; }
+/* Wzmocnione pole formularza dla większej czytelności (WCAG 1.4.11 — granice) */
+.kp-auth-card .form-control { padding:.6rem .85rem; }
+.kp-auth-card .form-control-lg { font-size:1rem; }
+@media (max-width:767.98px){
+  .kp-auth-hero { display:none !important; } /* na telefonie tylko formularz */
+}
+@media (prefers-reduced-motion: reduce){ .skip-link { transition:none; } }
 </style>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>">
