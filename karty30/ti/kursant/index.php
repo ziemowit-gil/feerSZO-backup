@@ -13,10 +13,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_moodle.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/pfron.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
 pfron_migrate();
+helpdesk_migrate();
 
 // Zakończenie podglądu administratora („zaloguj jako") — wróć do listy kont kursantów.
 if (isset($_GET['stop_impersonation'])) {
@@ -368,6 +370,11 @@ include __DIR__ . '/_layout_head.php';
           </a>
         </li>
       </ul>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
+        <i class="bi bi-wrench-adjustable me-1" aria-hidden="true"></i>Zgłoś problem techniczny
+      </a>
     </li>
     <li class="nav-item">
       <a class="nav-link <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
@@ -1501,6 +1508,117 @@ include __DIR__ . '/_layout_head.php';
     Licencje na oprogramowanie (inne niż Microsoft&nbsp;365) przypisane do Ciebie. Klucze i hasła trzymaj w tajemnicy.
   </p>
   <?php $rv_client_id = $student['client_id']; include __DIR__ . '/_licencje_view.php'; ?>
+
+<?php elseif ($tab === 'pfron'):
+    $pf_msg      = $_SESSION['pfron_msg'] ?? null; unset($_SESSION['pfron_msg']);
+    $pf_unlocked = pfron_unlocked_ids();
+?>
+  <h1 class="h5 fw-bold mb-1"><i class="bi bi-shield-lock text-primary me-1" aria-hidden="true"></i>PFRON — konsultacje</h1>
+  <p class="text-body-secondary small mb-3">
+    Sekcja chroniona. Dane PFRON są przechowywane oddzielnie od Twojego konta — aby je zobaczyć,
+    potwierdź tożsamość numerem telefonu i numerem umowy PFRON.
+  </p>
+
+  <?php if ($pf_msg): ?>
+  <div class="alert alert-<?= $pf_msg[0]==='ok'?'success':'danger' ?> alert-dismissible fade show" role="alert">
+    <i class="bi bi-<?= $pf_msg[0]==='ok'?'check-circle':'exclamation-triangle' ?> me-1" aria-hidden="true"></i><?= h($pf_msg[1]) ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!$pf_unlocked): ?>
+  <div class="card" style="max-width:460px">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-lock me-1" aria-hidden="true"></i>Weryfikacja dwuskładnikowa</h2>
+      <?php if (pfron_is_locked()): ?>
+      <div class="alert alert-warning py-2 small">Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.</div>
+      <?php endif; ?>
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op"    value="pfron_auth">
+        <div class="mb-2">
+          <label class="form-label" for="pf_phone">Numer telefonu</label>
+          <input type="tel" class="form-control" id="pf_phone" name="phone" inputmode="tel" autocomplete="tel" required placeholder="np. 600 100 200">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="pf_contract">Numer umowy PFRON</label>
+          <input type="text" class="form-control font-monospace" id="pf_contract" name="contract_no" required placeholder="np. PFRON/2026/0001">
+        </div>
+        <button type="submit" class="btn btn-primary w-100" <?= pfron_is_locked() ? 'disabled' : '' ?>>
+          <i class="bi bi-unlock me-1" aria-hidden="true"></i>Odblokuj dostęp
+        </button>
+      </form>
+      <p class="text-body-secondary small mt-3 mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Dostęp jest aktywny przez 30 minut, po czym wymagamy ponownej weryfikacji.</p>
+    </div>
+  </div>
+  <?php else: ?>
+  <div class="d-flex justify-content-end mb-2">
+    <form method="post">
+      <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+      <input type="hidden" name="_op"    value="pfron_lock">
+      <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-lock me-1" aria-hidden="true"></i>Zablokuj dostęp</button>
+    </form>
+  </div>
+  <?php foreach ($pf_unlocked as $pf_cid):
+    $pf_c = pfron_contract_get($pf_cid); if (!$pf_c) continue;
+    $pf_cons = pfron_consultations($pf_cid);
+    $pf_left = pfron_hours_left($pf_c);
+    $pf_amt  = array_sum(array_map(fn($s) => (float)$s['amount_due'], $pf_cons));
+  ?>
+  <div class="card mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+      <span class="fw-semibold"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Umowa PFRON <?= h($pf_c['contract_number']) ?></span>
+      <span class="badge text-bg-<?= ($pf_c['status'] ?? '')==='active' ? 'success' : 'secondary' ?>"><?= h($pf_c['status'] ?? '') ?></span>
+      <?php if (!empty($pf_c['valid_from']) || !empty($pf_c['valid_to'])): ?>
+      <span class="text-body-secondary small"><i class="bi bi-calendar-range me-1" aria-hidden="true"></i><?= h($pf_c['valid_from'] ?? '—') ?> – <?= h($pf_c['valid_to'] ?? '—') ?></span>
+      <?php endif; ?>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-2">
+        <div class="col-6 col-md-3"><div class="border rounded p-2 text-center">
+          <div class="fs-5 fw-bold lh-1"><?= number_format((float)$pf_c['hours_limit'],1,',','') ?> h</div>
+          <div class="text-body-secondary small">Limit godzin</div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="border rounded p-2 text-center">
+          <div class="fs-5 fw-bold lh-1"><?= number_format((float)$pf_c['hours_used'],1,',','') ?> h</div>
+          <div class="text-body-secondary small">Wykorzystane</div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="border rounded p-2 text-center">
+          <div class="fs-5 fw-bold lh-1 <?= $pf_left <= 0 ? 'text-danger' : 'text-success' ?>"><?= number_format($pf_left,1,',','') ?> h</div>
+          <div class="text-body-secondary small">Pozostało</div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="border rounded p-2 text-center">
+          <div class="fs-5 fw-bold lh-1"><?= number_format($pf_amt,2,',',' ') ?> zł</div>
+          <div class="text-body-secondary small">Dopłaty (ponad limit)</div>
+        </div></div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <caption class="visually-hidden">Konsultacje rozliczane z PFRON dla umowy <?= h($pf_c['contract_number']) ?></caption>
+        <thead><tr><th scope="col">Data</th><th scope="col">Prowadzący</th><th scope="col">Godz.</th><th scope="col">Rozliczenie</th></tr></thead>
+        <tbody>
+          <?php if (!$pf_cons): ?>
+          <tr><td colspan="4" class="text-center text-body-secondary py-4">Brak konsultacji rozliczanych z PFRON.</td></tr>
+          <?php endif; ?>
+          <?php foreach ($pf_cons as $s):
+            $sd = $s['start_time'] ? new DateTime($s['start_time']) : null; ?>
+          <tr>
+            <td class="text-nowrap small"><?= $sd ? h($sd->format('d.m.Y H:i')) : '—' ?></td>
+            <td class="small"><?= $s['consultant_name'] ? h($s['consultant_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+            <td class="small text-nowrap"><?= number_format((float)$s['billed_hours'],2,',','') ?> h
+              <?php if ((float)$s['charged_hours'] > 0): ?><span class="text-danger">(+<?= number_format((float)$s['charged_hours'],2,',','') ?> h płatne)</span><?php endif; ?>
+            </td>
+            <td class="small"><?= $s['pfron_status'] ? h($s['pfron_status']) : ((float)$s['amount_due']>0 ? number_format((float)$s['amount_due'],2,',',' ').' zł' : '<span class="text-success">w ramach PFRON</span>') ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php endforeach; ?>
+  <p class="text-body-secondary small"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Dane PFRON są chronione i widoczne wyłącznie po weryfikacji. Dostęp wygasa po 30 minutach.</p>
+  <?php endif; ?>
 
 <?php elseif ($tab === 'online'): ?>
 
