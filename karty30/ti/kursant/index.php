@@ -303,35 +303,19 @@ include __DIR__ . '/_layout_head.php';
 </div>
 <?php endif; ?>
 
-<?php if (!empty($homework_lessons)): ?>
-<!-- ── Zadania domowe — widoczne od razu po zalogowaniu ──────────────────────── -->
-<section class="card border-warning mb-4" aria-labelledby="hw-heading">
-  <div class="card-body">
-    <h2 id="hw-heading" class="h6 fw-bold mb-3">
-      <i class="bi bi-journal-text text-warning me-2" aria-hidden="true"></i>Zadania domowe
-      <span class="badge text-bg-warning ms-1"><?= count($homework_lessons) ?></span>
-    </h2>
-    <ul class="list-group list-group-flush">
-      <?php foreach (array_slice($homework_lessons, 0, 6) as $hl):
-        $hd = new DateTime($hl['lesson_date']);
-      ?>
-      <li class="list-group-item bg-transparent d-flex flex-wrap align-items-center gap-2 px-0">
-        <i class="bi bi-pencil-square text-warning" aria-hidden="true"></i>
-        <span class="fw-semibold"><?= $hl['topic'] ? h($hl['topic']) : 'Lekcja' ?></span>
-        <span class="text-body-secondary small">
-          <?= h($hl['course_name']) ?> ·
-          <?= $hd->format('d') ?> <?= $months_pl[(int)$hd->format('n')] ?> <?= $hd->format('Y') ?>
-        </span>
-      </li>
-      <?php endforeach; ?>
-    </ul>
-    <?php if (count($homework_lessons) > 6): ?>
-    <p class="text-body-secondary small mb-0 mt-2">
-      …i <?= count($homework_lessons) - 6 ?> więcej — zobacz w zakładce „Moje lekcje".
-    </p>
-    <?php endif; ?>
+<?php if (!empty($homework_lessons)):
+  $hw_first = $homework_lessons[0]; ?>
+<!-- ── Zadania domowe — zwięzły banner widoczny po zalogowaniu ───────────────── -->
+<div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
+  <i class="bi bi-journal-text flex-shrink-0" aria-hidden="true"></i>
+  <div class="flex-grow-1 min-width-0 small">
+    <span class="fw-semibold">Zadania domowe (<?= count($homework_lessons) ?>)</span>
+    <span class="text-body-secondary">
+      · <?= $hw_first['topic'] ? h($hw_first['topic']) : 'Lekcja' ?> (<?= h($hw_first['course_name']) ?>)<?php if (count($homework_lessons) > 1): ?> i <?= count($homework_lessons) - 1 ?> więcej<?php endif; ?>
+    </span>
   </div>
-</section>
+  <a href="?tab=lekcje" class="btn btn-sm btn-outline-warning flex-shrink-0">Zobacz</a>
+</div>
 <?php endif; ?>
 
 <?php if ($tab === 'lekcje'): ?>
