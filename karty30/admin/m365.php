@@ -985,6 +985,8 @@ endif; ?>
         <li><a class="dropdown-item" href="#" onclick="window.open('<?= $pbase ?>&mode=cards&per=2','_blank');return false;"><i class="bi bi-scissors me-2"></i>2 na stronę</a></li>
         <li><a class="dropdown-item" href="#" onclick="window.open('<?= $pbase ?>&mode=cards&per=3','_blank');return false;"><i class="bi bi-scissors me-2"></i>3 na stronę</a></li>
         <li><a class="dropdown-item" href="#" onclick="window.open('<?= $pbase ?>&mode=cards&per=4','_blank');return false;"><i class="bi bi-scissors me-2"></i>4 na stronę</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="#" onclick="window.open('<?= $pbase ?>&mode=strips','_blank');return false;"><i class="bi bi-list me-2"></i>Paseczki — login+hasło w 1 linii</a></li>
       </ul>
     </div>
     <?php endif; ?>

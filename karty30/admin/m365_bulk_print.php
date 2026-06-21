@@ -26,8 +26,8 @@ $date_str = date('d.m.Y H:i');
 $count    = count($result['created']);
 $password = $result['password'];
 
-// Układ wydruku: 'table' = jedna lista; 'cards' = karteczki do pocięcia (N na stronę)
-$mode = ($_GET['mode'] ?? 'table') === 'cards' ? 'cards' : 'table';
+// Układ wydruku: 'table' = jedna lista; 'cards' = karteczki (N na stronę); 'strips' = wąskie paseczki (login+hasło w 1 linii)
+$mode = in_array($_GET['mode'] ?? 'table', ['cards', 'strips'], true) ? $_GET['mode'] : 'table';
 $per  = max(2, min(6, (int)($_GET['per'] ?? 2)));      // ile karteczek na stronę A4
 $cardH = round((297 - 30) / $per, 1) - 4;               // wys. karteczki (mm): pole A4 / per − odstęp
 $base  = htmlspecialchars(strtok((string)($_SERVER['REQUEST_URI'] ?? 'm365_bulk_print.php'), '?'), ENT_QUOTES) . '?ts=' . (int)$ts;
@@ -114,6 +114,19 @@ tbody tr:last-child td { border-bottom: none; }
   .slip:nth-child(<?= $per ?>n) { page-break-after: always; }
   .slip:last-child { page-break-after: auto; }
 }
+
+/* ── Paseczki: login + hasło w jednej linii (mode=strips) ─────────────── */
+.strips { margin-top: 4px; }
+.strip {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: nowrap;
+  padding: 6px 4px; border-bottom: 1px dashed #94a3b8;
+  break-inside: avoid; page-break-inside: avoid; font-size: 12px; white-space: nowrap; overflow: hidden;
+}
+.strip .s-name { font-weight: 700; min-width: 38mm; overflow: hidden; text-overflow: ellipsis; }
+.strip .s-k    { color: #64748b; }
+.strip .s-login{ font-family: 'Courier New', monospace; }
+.strip .s-pass { font-family: 'Courier New', monospace; font-weight: 800; color: #dc2626; }
+@media screen { .strips { max-width: 620px; } }
 </style>
 </head>
 <body>
@@ -133,7 +146,35 @@ tbody tr:last-child td { border-bottom: none; }
   <a class="btn-close-win" style="text-decoration:none<?= ($mode==='cards'&&$per==2)?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=cards&per=2">Karteczki 2/str.</a>
   <a class="btn-close-win" style="text-decoration:none<?= ($mode==='cards'&&$per==3)?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=cards&per=3">3/str.</a>
   <a class="btn-close-win" style="text-decoration:none<?= ($mode==='cards'&&$per==4)?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=cards&per=4">4/str.</a>
+  <a class="btn-close-win" style="text-decoration:none<?= $mode==='strips'?';background:#2563eb;color:#fff;border-color:#2563eb':'' ?>" href="<?= $base ?>&mode=strips">Paseczki (1 linia)</a>
 </div>
+
+<?php if ($mode === 'strips'): ?>
+<!-- Paseczki do pocięcia: login + hasło w jednej linii (tnij wzdłuż linii) -->
+<div class="doc-header">
+  <div>
+    <div class="org-name"><?= h($org) ?></div>
+    <div class="doc-title">Konta Microsoft 365 — paseczki do pocięcia</div>
+  </div>
+  <div class="doc-meta"><div>Wygenerowano: <?= $date_str ?></div><div>Liczba: <strong><?= $count ?></strong></div></div>
+</div>
+<div class="strips">
+  <?php foreach ($result['created'] as $c): ?>
+  <div class="strip">
+    <?php if (!empty($c['name'])): ?><span class="s-name"><?= h($c['name']) ?></span><?php endif; ?>
+    <span><span class="s-k">login:</span> <span class="s-login"><?= h($c['login']) ?></span></span>
+    <span><span class="s-k">hasło:</span> <span class="s-pass"><?= h($password) ?></span></span>
+  </div>
+  <?php endforeach; ?>
+</div>
+<script>
+if (new URLSearchParams(window.location.search).get('auto') === '1') {
+    window.addEventListener('load', function() { window.print(); });
+}
+</script>
+</body>
+</html>
+<?php return; endif; ?>
 
 <?php if ($mode === 'cards'): ?>
 <!-- Karteczki do pocięcia: jeden slip na beneficjenta, <?= $per ?> na stronę A4 -->
