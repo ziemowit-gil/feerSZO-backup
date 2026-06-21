@@ -79,6 +79,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <?php if ($can_write): ?>
   <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>"><i class="bi bi-envelope me-1"></i>Wiadomości<?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?></a>
   <a href="online_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-camera-video me-1"></i>Nauka online</a>
+  <a href="licencje_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-key me-1"></i>Licencje</a>
   <a href="vlab_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-hdd-stack me-1"></i>VLAB / Docker</a>
   <?php endif; ?>
   <?php if ($can_write && !$show_new && !$edit_row): ?>

@@ -339,6 +339,36 @@ function karty30_migrate(): void {
         UNIQUE(session_id, client_id)
     )");
 
+    // ── Licencje na oprogramowanie (inne niż MS365) ───────────────────────────
+    // Katalog licencji/oprogramowania (np. Adobe, Canva, antywirus, IDE)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_licenses (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        name         TEXT    NOT NULL,                   -- np. 'Adobe Creative Cloud'
+        vendor       TEXT    NOT NULL DEFAULT '',        -- producent/dostawca
+        category     TEXT    NOT NULL DEFAULT '',        -- np. grafika, antywirus, IDE
+        vendor_url   TEXT    NOT NULL DEFAULT '',        -- link do logowania/pobrania
+        seats_total  INTEGER NOT NULL DEFAULT 0,         -- liczba miejsc (0 = bez limitu)
+        notes        TEXT    NOT NULL DEFAULT '',
+        is_active    INTEGER NOT NULL DEFAULT 1,
+        created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Przypisania licencji do kursanta (po client_id — jak panel kursanta)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_client_licenses (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        license_id   INTEGER NOT NULL REFERENCES k30_ti_licenses(id) ON DELETE CASCADE,
+        client_id    INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        login        TEXT    NOT NULL DEFAULT '',        -- login/konto w danym sofcie
+        access_key   TEXT    NOT NULL DEFAULT '',        -- klucz licencyjny / hasło
+        notes        TEXT    NOT NULL DEFAULT '',
+        expires_at   DATE,                               -- ważność (opcjonalnie)
+        status       TEXT    NOT NULL DEFAULT 'active',  -- active | revoked
+        assigned_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        assigned_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_lic_client  ON k30_ti_client_licenses(client_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_lic_license ON k30_ti_client_licenses(license_id)");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1578,6 +1608,44 @@ function k30_ti_session_get(int $id): ?array {
          LEFT JOIN users u ON u.id=c.instructor_id
          WHERE s.id=?", [$id]
     ) ?: null;
+}
+
+// ── Licencje na oprogramowanie ────────────────────────────────────────────────
+
+/** Katalog licencji. $active_only=true → tylko aktywne. Z liczbą przypisań. */
+function k30_ti_licenses_all(bool $active_only = false): array {
+    $where = $active_only ? "WHERE l.is_active=1" : "";
+    return db_all(
+        "SELECT l.*,
+                (SELECT COUNT(*) FROM k30_ti_client_licenses cl
+                  WHERE cl.license_id=l.id AND cl.status='active') AS assigned_count
+         FROM k30_ti_licenses l $where ORDER BY l.is_active DESC, l.name"
+    );
+}
+
+/** Przypisania licencji dla danego kursanta (po client_id), z danymi katalogu. */
+function k30_ti_client_licenses(int $client_id, bool $active_only = true): array {
+    $where = "WHERE cl.client_id=?" . ($active_only ? " AND cl.status='active'" : "");
+    return db_all(
+        "SELECT cl.*, l.name AS license_name, l.vendor, l.category, l.vendor_url, l.is_active AS license_active
+         FROM k30_ti_client_licenses cl
+         JOIN k30_ti_licenses l ON l.id=cl.license_id
+         $where
+         ORDER BY l.name",
+        [$client_id]
+    );
+}
+
+/** Wszystkie przypisania danej licencji (dla widoku admina) — z nazwą kursanta. */
+function k30_ti_license_assignments(int $license_id): array {
+    return db_all(
+        "SELECT cl.*, c.name AS client_name
+         FROM k30_ti_client_licenses cl
+         JOIN k30_clients c ON c.id=cl.client_id
+         WHERE cl.license_id=? AND cl.status='active'
+         ORDER BY c.name",
+        [$license_id]
+    );
 }
 
 /** Oceny lekcji (1–5) od kursantów — z nazwą kursanta. Dla widoku prowadzącego. */
