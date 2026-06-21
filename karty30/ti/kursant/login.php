@@ -28,12 +28,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
 
     if ($account && password_verify($password, $account['password_hash'])) {
-        student_login_user($account);
-        db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now') WHERE id=?")
-           ->execute([$account['id']]);
-        header('Location: index.php'); exit;
+        if (!empty($account['child_access_blocked'])) {
+            $error = 'Dostęp do panelu został wstrzymany przez opiekuna. Skontaktuj się z rodzicem/opiekunem.';
+        } else {
+            student_login_user($account);
+            db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now') WHERE id=?")
+               ->execute([$account['id']]);
+            header('Location: index.php'); exit;
+        }
+    } else {
+        $error = 'Nieprawidłowy login lub hasło.';
     }
-    $error = 'Nieprawidłowy login lub hasło.';
 }
 
 $KP_TITLE = 'Logowanie — Panel kursanta';

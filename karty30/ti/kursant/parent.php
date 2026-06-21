@@ -14,8 +14,38 @@ karty30_migrate();
 
 $err = ''; $info = ''; $stage = 'phone'; // phone | code | choose
 
+/** Proste hasło dla dziecka: słowo + 2 cyfry. */
+function _parent_gen_child_pass(): string {
+    $w = ['Kot','Pies','Dom','Las','Rok','Mak','Lis','Sad','Byk','Dab'];
+    return $w[random_int(0, count($w)-1)] . random_int(10, 99);
+}
+
 // Wylogowanie
 if (isset($_GET['logout'])) { parent_logout(); header('Location: parent.php'); exit; }
+
+// ── Akcje zalogowanego rodzica: zarządzanie dostępem dziecka ─────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+    && in_array($_POST['_op'] ?? '', ['child_reset_pass', 'child_block', 'child_unblock'], true)) {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        $sid = (int)$p['student_id']; // tylko własne dziecko (z sesji), nigdy z POST
+        $op  = $_POST['_op'];
+        if ($op === 'child_block') {
+            db()->prepare("UPDATE k30_ti_student_accounts SET child_access_blocked=1, updated_at=datetime('now') WHERE id=?")->execute([$sid]);
+            $_SESSION['k30_parent_msg'] = ['ok', 'Wstrzymano dostęp dziecka do panelu.'];
+        } elseif ($op === 'child_unblock') {
+            db()->prepare("UPDATE k30_ti_student_accounts SET child_access_blocked=0, updated_at=datetime('now') WHERE id=?")->execute([$sid]);
+            $_SESSION['k30_parent_msg'] = ['ok', 'Przywrócono dostęp dziecka do panelu.'];
+        } else { // child_reset_pass
+            $pass = _parent_gen_child_pass();
+            db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=1, updated_at=datetime('now') WHERE id=?")
+               ->execute([password_hash($pass, PASSWORD_BCRYPT), $sid]);
+            $_SESSION['k30_parent_newpass'] = $pass;
+            $_SESSION['k30_parent_msg']     = ['ok', 'Ustawiono nowe hasło dziecka — przekaż je dziecku.'];
+        }
+    }
+    header('Location: parent.php'); exit;
+}
 
 // Link magiczny
 if (isset($_GET['t'])) {
@@ -125,6 +155,69 @@ include __DIR__ . '/_layout_head.php';
     <div>
       <h1 class="h5 fw-bold mb-0">Kursant: <?= h($parent['name']) ?></h1>
       <p class="text-body-secondary small mb-0">Rozliczenia i frekwencja</p>
+    </div>
+  </div>
+
+  <?php
+    // Zarządzanie dostępem dziecka
+    $childAcc   = db_one("SELECT login, child_access_blocked FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
+    $pmsg       = $_SESSION['k30_parent_msg'] ?? null;      unset($_SESSION['k30_parent_msg']);
+    $pnewpass   = $_SESSION['k30_parent_newpass'] ?? null;  unset($_SESSION['k30_parent_newpass']);
+    $login_url  = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
+    $blocked    = !empty($childAcc['child_access_blocked']);
+    $ptok       = student_token();
+  ?>
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header fw-semibold"><i class="bi bi-shield-lock me-2 text-primary" aria-hidden="true"></i>Zarządzaj dostępem dziecka</div>
+    <div class="card-body">
+      <?php if ($pmsg): ?>
+      <div class="alert alert-<?= $pmsg[0]==='ok'?'success':'danger' ?> py-2"><?= h($pmsg[1]) ?></div>
+      <?php endif; ?>
+      <?php if ($pnewpass): ?>
+      <div class="alert alert-warning d-flex align-items-start gap-2">
+        <i class="bi bi-key-fill fs-5" aria-hidden="true"></i>
+        <div>
+          <div class="fw-semibold">Nowe dane logowania dziecka — zapisz teraz, nie pokażemy ich ponownie.</div>
+          <div class="small mt-1">Login: <span class="font-monospace fw-bold"><?= h($childAcc['login'] ?? '') ?></span>
+            · Hasło: <span class="font-monospace fw-bold text-danger"><?= h($pnewpass) ?></span></div>
+          <div class="small text-body-secondary">Przy pierwszym logowaniu dziecko ustawi własne hasło. Logowanie: <a href="<?= h($login_url) ?>" target="_blank" rel="noopener"><?= h($login_url) ?></a></div>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <dl class="row small mb-3">
+        <dt class="col-sm-3 text-body-secondary fw-normal">Login dziecka</dt>
+        <dd class="col-sm-9 font-monospace"><?= h($childAcc['login'] ?? '—') ?></dd>
+        <dt class="col-sm-3 text-body-secondary fw-normal">Status dostępu</dt>
+        <dd class="col-sm-9">
+          <?php if ($blocked): ?><span class="badge text-bg-danger">wstrzymany przez opiekuna</span>
+          <?php else: ?><span class="badge text-bg-success">aktywny</span><?php endif; ?>
+        </dd>
+      </dl>
+
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" onsubmit="return confirm('Ustawić nowe hasło dziecka? Dotychczasowe przestanie działać.')">
+          <input type="hidden" name="_token" value="<?= h($ptok) ?>">
+          <input type="hidden" name="_op"    value="child_reset_pass">
+          <button class="btn btn-sm btn-outline-warning"><i class="bi bi-key me-1" aria-hidden="true"></i>Ustaw nowe hasło</button>
+        </form>
+        <?php if ($blocked): ?>
+        <form method="post" onsubmit="return confirm('Przywrócić dziecku dostęp do panelu?')">
+          <input type="hidden" name="_token" value="<?= h($ptok) ?>">
+          <input type="hidden" name="_op"    value="child_unblock">
+          <button class="btn btn-sm btn-outline-success"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Przywróć dostęp</button>
+        </form>
+        <?php else: ?>
+        <form method="post" onsubmit="return confirm('Wstrzymać dziecku dostęp do panelu? Nie będzie mogło się zalogować, dopóki nie przywrócisz dostępu.')">
+          <input type="hidden" name="_token" value="<?= h($ptok) ?>">
+          <input type="hidden" name="_op"    value="child_block">
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-lock me-1" aria-hidden="true"></i>Wstrzymaj dostęp</button>
+        </form>
+        <?php endif; ?>
+      </div>
+      <p class="text-body-secondary small mb-0 mt-2">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Tu zarządzasz logowaniem dziecka do panelu kursanta (hasło i wstrzymanie dostępu). Twój dostęp opiekuna pozostaje aktywny niezależnie.
+      </p>
     </div>
   </div>
 
