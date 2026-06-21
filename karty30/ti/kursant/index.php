@@ -208,6 +208,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            ->execute([password_hash($new, PASSWORD_BCRYPT), (int)$student['id']]);
         header('Location: index.php?tab=ustawienia&pwok=1'); exit;
     }
+
+    // Zgłoszenie problemu technicznego → ticket helpdesk z prefiksem KUR
+    if ($op === 'report_issue') {
+        $title = trim((string)($_POST['title'] ?? ''));
+        $desc  = trim((string)($_POST['description'] ?? ''));
+        $cat   = (string)($_POST['category'] ?? 'it_inne');
+        if (!isset(HD_CATEGORIES[$cat])) $cat = 'it_inne';
+        if ($title === '' || mb_strlen($desc) < 5) {
+            header('Location: index.php?tab=problem&err=1'); exit;
+        }
+        $rname  = trim((string)($client['name'] ?? '')) ?: (string)($account['login'] ?? 'Kursant');
+        $remail = trim((string)($client['email'] ?? ''));
+        $rphone = (!empty($account['is_minor']) && !empty($account['guardian_phone']))
+                ? (string)$account['guardian_phone'] : trim((string)($client['phone'] ?? ''));
+
+        $number    = hd_next_number('KUR');
+        $ticket_id = db_insert('helpdesk_tickets', [
+            'number'          => $number,
+            'title'           => mb_substr($title, 0, 200),
+            'description'     => mb_substr($desc, 0, 5000),
+            'category'        => $cat,
+            'priority'        => 'normalny',
+            'status'          => 'nowe',
+            'requester_id'    => null,
+            'requester_name'  => $rname,
+            'requester_email' => $remail !== '' ? $remail : null,
+            'requester_phone' => $rphone !== '' ? $rphone : null,
+            'source'          => 'panel_kursanta',
+        ]);
+        db_insert('helpdesk_messages', [
+            'ticket_id' => $ticket_id, 'user_id' => null,
+            'user_name' => $rname, 'body' => mb_substr($desc, 0, 5000), 'is_internal' => 0,
+        ]);
+        // Notatka wewnętrzna z kontekstem kursanta (tylko dla operatorów)
+        db_insert('helpdesk_messages', [
+            'ticket_id' => $ticket_id, 'user_id' => null, 'user_name' => 'System',
+            'body' => 'Zgłoszenie z panelu kursanta TI. Login: ' . (string)($account['login'] ?? '—')
+                    . (!empty($account['student_no']) ? ', nr kursanta: ' . $account['student_no'] : '') . '.',
+            'is_internal' => 1,
+        ]);
+        // Powiadom operatorów helpdesku
+        try {
+            require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+            $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL");
+            $url_op = rtrim(APP_URL, '/') . '/helpdesk/view.php?id=' . $ticket_id;
+            foreach ($ops as $opx) {
+                if (empty($opx['email'])) continue;
+                mail_queue_add($opx['email'], $opx['name'] ?? '', "[{$number}] Problem techniczny (kursant): " . $rname,
+                    '<p><strong style="font-family:monospace">' . h($number) . '</strong> — ' . h($title) . '</p>'
+                    . '<p>' . nl2br(h($desc)) . '</p>'
+                    . '<p><a href="' . h($url_op) . '">Otwórz zgłoszenie →</a></p>');
+            }
+        } catch (\Throwable $e) {}
+        header('Location: index.php?tab=problem&sent=1&num=' . rawurlencode($number)); exit;
+    }
 }
 
 // Kursy i lekcje kursanta
@@ -1807,6 +1862,60 @@ include __DIR__ . '/_layout_head.php';
     reload();
   })();
   </script>
+
+<?php elseif ($tab === 'problem'): ?>
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="h5 fw-bold mb-1"><i class="bi bi-wrench-adjustable text-primary me-2" aria-hidden="true"></i>Zgłoś problem techniczny</h1>
+    <p class="text-body-secondary small mb-3">
+      Masz kłopot z logowaniem, kontem Microsoft 365, Moodle, VLab lub innym narzędziem?
+      Opisz problem — zespół wsparcia IT zajmie się Twoim zgłoszeniem.
+    </p>
+
+    <?php if ((string)($_GET['sent'] ?? '') === '1'): ?>
+    <div class="alert alert-success d-flex align-items-start gap-2" role="alert">
+      <i class="bi bi-check-circle-fill mt-1" aria-hidden="true"></i>
+      <div>Zgłoszenie zostało przyjęte<?php if (!empty($_GET['num'])): ?> pod numerem <strong><?= h($_GET['num']) ?></strong><?php endif; ?>.
+        Skontaktujemy się z Tobą e-mailem lub telefonicznie.</div>
+    </div>
+    <?php endif; ?>
+    <?php if ((string)($_GET['err'] ?? '') === '1'): ?>
+    <div class="alert alert-danger py-2 small" role="alert"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Podaj temat oraz krótki opis problemu (min. 5 znaków).</div>
+    <?php endif; ?>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+          <input type="hidden" name="_op" value="report_issue">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="hd-title">Temat <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="hd-title" name="title" maxlength="200" required
+                   placeholder="np. Nie mogę zalogować się do Microsoft 365" value="<?= h($_POST['title'] ?? '') ?>">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="hd-cat">Czego dotyczy</label>
+            <select class="form-select" id="hd-cat" name="category">
+              <?php foreach (['it_konto'=>'Konto / logowanie','it_m365'=>'Microsoft 365','it_oprogramowanie'=>'Oprogramowanie / Moodle','it_siec'=>'Sieć / Internet','it_inne'=>'Inne'] as $ck => $cl): ?>
+              <option value="<?= h($ck) ?>" <?= ($_POST['category'] ?? '') === $ck ? 'selected' : '' ?>><?= h($cl) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="hd-desc">Opis problemu <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="hd-desc" name="description" rows="6" required
+                      placeholder="Co się dzieje? Kiedy wystąpiło? Jaki komunikat błędu widzisz? Czego już próbowałeś/aś?"><?= h($_POST['description'] ?? '') ?></textarea>
+          </div>
+          <div class="alert alert-light border small d-flex gap-2 mb-3">
+            <i class="bi bi-info-circle text-primary mt-1" aria-hidden="true"></i>
+            <div>Zgłoszenie wyślemy w Twoim imieniu jako <strong><?= h($client['name'] ?? ($account['login'] ?? '')) ?></strong><?php if (!empty($client['email'])): ?> (<?= h($client['email']) ?>)<?php endif; ?>. Odpowiedź otrzymasz tą samą drogą.</div>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij zgłoszenie</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 
 <?php endif; ?>
 
