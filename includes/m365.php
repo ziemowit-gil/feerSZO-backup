@@ -501,6 +501,33 @@ class M365Graph {
     }
 
     /**
+     * Tworzy nową grupę zabezpieczeń (Security Group) w Azure AD / Entra ID.
+     * Graph API: POST /v1.0/groups (securityEnabled=true, mailEnabled=false).
+     *
+     * @param  string $display_name   Nazwa wyświetlana grupy
+     * @param  string $mail_nickname  Alias (bez spacji); pusty = wygenerowany z nazwy
+     * @param  string $description     Opis (opcjonalnie)
+     * @return array  Odpowiedź API z kluczem 'id' (GUID grupy)
+     * @throws \RuntimeException gdy odpowiedź nie zawiera id
+     */
+    public function create_group(string $display_name, string $mail_nickname = '', string $description = ''): array {
+        $nick = $mail_nickname !== '' ? $mail_nickname : preg_replace('/[^a-zA-Z0-9._-]/', '', $display_name);
+        if ($nick === '') $nick = 'grp' . substr(bin2hex(random_bytes(4)), 0, 6);
+        $body = [
+            'displayName'     => $display_name,
+            'mailEnabled'     => false,
+            'mailNickname'    => $nick,
+            'securityEnabled' => true,
+        ];
+        if ($description !== '') $body['description'] = $description;
+        $resp = $this->http_post('https://graph.microsoft.com/v1.0/groups', $body);
+        if (empty($resp['id'])) {
+            throw new \RuntimeException('Błąd tworzenia grupy M365: ' . json_encode($resp));
+        }
+        return $resp;
+    }
+
+    /**
      * Usuwa użytkownika z grupy.
      * Graph API: DELETE /groups/{group_id}/members/{user_id}/$ref
      */

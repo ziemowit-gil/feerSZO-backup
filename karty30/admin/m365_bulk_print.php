@@ -25,6 +25,7 @@ $org      = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
 $date_str = date('d.m.Y H:i');
 $count    = count($result['created']);
 $password = $result['password'];
+$expires  = $result['expires'] ?? '';
 
 // Układ wydruku: 'table' = jedna lista; 'cards' = karteczki (N na stronę); 'strips' = wąskie paseczki (login+hasło w 1 linii)
 $mode = in_array($_GET['mode'] ?? 'table', ['cards', 'strips'], true) ? $_GET['mode'] : 'table';
@@ -164,6 +165,7 @@ tbody tr:last-child td { border-bottom: none; }
     <?php if (!empty($c['name'])): ?><span class="s-name"><?= h($c['name']) ?></span><?php endif; ?>
     <span><span class="s-k">login:</span> <span class="s-login"><?= h($c['login']) ?></span></span>
     <span><span class="s-k">hasło:</span> <span class="s-pass"><?= h($password) ?></span></span>
+    <?php if ($expires !== ''): ?><span><span class="s-k">do:</span> <span class="s-login"><?= h($expires) ?></span></span><?php endif; ?>
   </div>
   <?php endforeach; ?>
 </div>
@@ -188,6 +190,7 @@ if (new URLSearchParams(window.location.search).get('auto') === '1') {
       <span class="slip-k">Login (UPN):</span><span class="slip-v"><?= h($c['login']) ?></span>
       <span class="slip-k">Hasło startowe:</span><span class="slip-v pass"><?= h($password) ?></span>
       <?php if (!empty($c['emp_id'])): ?><span class="slip-k">ID konta:</span><span class="slip-v" style="color:#64748b"><?= h($c['emp_id']) ?></span><?php endif; ?>
+      <?php if ($expires !== ''): ?><span class="slip-k">Ważne do:</span><span class="slip-v" style="color:#b45309"><?= h($expires) ?></span><?php endif; ?>
       <span class="slip-k">Portal:</span><span class="slip-v" style="font-weight:400">portal.office.com</span>
     </div>
     <div class="slip-note">Hasło zmień po pierwszym logowaniu. Nie udostępniaj danych osobom trzecim.</div>
@@ -222,6 +225,7 @@ if (new URLSearchParams(window.location.search).get('auto') === '1') {
     <div>
       <div class="pass-label">⚠ Hasło startowe — jednakowe dla wszystkich kont</div>
       <div class="pass-value"><?= h($password) ?></div>
+      <?php if ($expires !== ''): ?><div class="pass-label" style="margin-top:4px">Konta ważne do: <strong><?= h($expires) ?></strong> — po tej dacie zostaną wyłączone.</div><?php endif; ?>
       <div class="pass-note">Przekaż hasło oddzielnie od tego dokumentu. Zalecana zmiana po pierwszym logowaniu.</div>
     </div>
   </div>

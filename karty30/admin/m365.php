@@ -111,6 +111,35 @@ try { db()->exec("ALTER TABLE k30_clients ADD COLUMN m365_login         TEXT"); 
 try { db()->exec("ALTER TABLE k30_clients ADD COLUMN m365_employee_id   TEXT"); } catch (\Throwable $e) {}
 try { db()->exec("ALTER TABLE k30_clients ADD COLUMN m365_license_sku   TEXT"); } catch (\Throwable $e) {}
 try { db()->exec("ALTER TABLE k30_clients ADD COLUMN m365_provisioned_at DATETIME"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE k30_clients ADD COLUMN m365_expires_at    DATE"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE k30_clients ADD COLUMN m365_disabled_at   DATETIME"); } catch (\Throwable $e) {}
+try { db()->exec("ALTER TABLE k30_clients ADD COLUMN m365_group_id      TEXT"); } catch (\Throwable $e) {}
+
+// Konta szkoleniowe (prefix{N}) — nie są powiązane z beneficjentem, więc trzymamy je tutaj,
+// by zapamiętać grupę MS365 i datę ważności (do automatycznego wyłączania przez cron).
+try {
+    db()->exec("CREATE TABLE IF NOT EXISTS k30_m365_accounts (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        m365_user_id    TEXT,
+        login           TEXT,
+        employee_id     TEXT,
+        group_id        TEXT,
+        group_name      TEXT,
+        expires_at      DATE,
+        disabled_at     DATETIME,
+        created_at      DATETIME DEFAULT (datetime('now'))
+    )");
+} catch (\Throwable $e) {}
+
+/** Waliduje datę „ważne do" (YYYY-MM-DD); zwraca pustą wartość, gdy brak/niepoprawna. */
+if (!function_exists('k30_m365_clean_date')) {
+    function k30_m365_clean_date(string $s): string {
+        $s = trim($s);
+        if ($s === '') return '';
+        $d = DateTime::createFromFormat('Y-m-d', $s);
+        return ($d && $d->format('Y-m-d') === $s) ? $s : '';
+    }
+}
 
 /**
  * Tłumaczy surowy błąd Azure AD / Graph na czytelny komunikat PL
@@ -190,6 +219,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: m365.php#test'); exit;
     }
 
+    // Utwórz nową grupę MS365 (z wyskakującego okna)
+    if ($action === 'create_group') {
+        $gname = trim($_POST['group_name'] ?? '');
+        $gnick = preg_replace('/[^a-zA-Z0-9._-]/', '', trim($_POST['group_nick'] ?? ''));
+        $gdesc = trim($_POST['group_desc'] ?? '');
+        $back  = ($_POST['back'] ?? '') === 'bulk' ? 'm365.php#bulk' : 'm365.php#provision';
+        if ($gname === '') { flash_set('danger','Podaj nazwę grupy.'); header('Location: '.$back); exit; }
+        try {
+            $g  = k30_m365();
+            $gr = $g->create_group($gname, $gnick, $gdesc);
+            flash_set('success', 'Grupa MS365 „' . h($gname) . '" utworzona. Możesz teraz przypisać do niej konta.');
+            // Zapamiętaj nową grupę w sesji, by zaznaczyć ją domyślnie w selektorach
+            if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+            $_SESSION['k30_m365_new_group'] = ['id' => $gr['id'] ?? '', 'name' => $gname, 'ts' => time()];
+        } catch (\Throwable $e) {
+            flash_set('danger', k30_m365_friendly_error($e->getMessage()));
+        }
+        header('Location: '.$back); exit;
+    }
+
     // Utwórz konto M365 dla beneficjenta
     if ($action === 'provision') {
         $client_id = (int)($_POST['client_id'] ?? 0);
@@ -213,17 +262,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Przypisz licencję
             $g->assign_license($user_id, $sku_id);
 
+            // Przypisz do grupy MS365 (opcjonalnie)
+            $group_id  = trim($_POST['group_id'] ?? '');
+            $group_msg = '';
+            if ($group_id !== '') {
+                try { $g->add_to_group($user_id, $group_id); $group_msg = "Dodano do grupy MS365.\n"; }
+                catch (\Throwable $eg) { $group_msg = 'Uwaga: nie udało się dodać do grupy — ' . strip_tags(k30_m365_friendly_error($eg->getMessage())) . "\n"; }
+            }
+
+            $expires = k30_m365_clean_date($_POST['expires_at'] ?? '');
             // Zapisz w bazie
             db()->prepare(
                 "UPDATE k30_clients SET
                     m365_user_id=?, m365_login=?, m365_employee_id=?,
-                    m365_license_sku=?, m365_provisioned_at=datetime('now')
+                    m365_license_sku=?, m365_provisioned_at=datetime('now'), m365_expires_at=?, m365_group_id=?
                  WHERE id=?"
-            )->execute([$user_id, $login, (string)$emp_id, $sku_id, $client_id]);
+            )->execute([$user_id, $login, (string)$emp_id, $sku_id, $expires ?: null, $group_id ?: null, $client_id]);
 
             flash_set('success',
                 "Konto M365 utworzone!\n" .
                 "Login: {$login} | ID: {$emp_id} | Hasło: {$password}\n" .
+                ($expires ? "Konto ważne do: {$expires}\n" : '') .
+                $group_msg .
                 "Zapisz hasło — nie będzie widoczne ponownie!"
             );
             // Zapisz hasło tymczasowo w sesji do wyświetlenia
@@ -233,6 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'password' => $password,
                 'emp_id'   => $emp_id,
                 'name'     => $client['name'],
+                'expires'  => $expires,
                 'ts'       => time(),
             ];
         } catch (\Throwable $e) {
@@ -258,6 +319,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: m365.php#provision'); exit;
         }
 
+        $expires  = k30_m365_clean_date($_POST['expires_at'] ?? '');
+        $group_id = trim($_POST['group_id'] ?? '');
+        $group_name = '';
+        if ($group_id !== '') {
+            foreach ($g->get_security_groups() as $gr) {
+                if (($gr['id'] ?? '') === $group_id) { $group_name = $gr['displayName'] ?? ''; break; }
+            }
+        }
         $created = []; $errors_bulk = [];
         foreach ($ids as $cid) {
             $client = db_one("SELECT * FROM k30_clients WHERE id=?", [$cid]);
@@ -270,12 +339,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user_id = $user['id'] ?? '';
                 if (!$user_id) throw new RuntimeException('Brak ID nowego użytkownika w odpowiedzi API.');
                 $g->assign_license($user_id, $sku_id);
+                if ($group_id !== '') { try { $g->add_to_group($user_id, $group_id); } catch (\Throwable $eg) {} }
                 db()->prepare(
                     "UPDATE k30_clients SET
                         m365_user_id=?, m365_login=?, m365_employee_id=?,
-                        m365_license_sku=?, m365_provisioned_at=datetime('now')
+                        m365_license_sku=?, m365_provisioned_at=datetime('now'), m365_expires_at=?, m365_group_id=?
                      WHERE id=?"
-                )->execute([$user_id, $login, (string)$emp_id, $sku_id, $cid]);
+                )->execute([$user_id, $login, (string)$emp_id, $sku_id, $expires ?: null, $group_id ?: null, $cid]);
                 $created[] = ['name' => $client['name'], 'login' => $login, 'emp_id' => $emp_id];
             } catch (\Throwable $ei) {
                 $errors_bulk[] = $client['name'] . ' — ' . k30_m365_friendly_error($ei->getMessage());
@@ -284,10 +354,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (session_status() !== PHP_SESSION_ACTIVE) session_start();
         $_SESSION['k30_m365_bulk_result'] = [
-            'created'  => $created,
-            'errors'   => $errors_bulk,
-            'password' => $password,
-            'ts'       => time(),
+            'created'    => $created,
+            'errors'     => $errors_bulk,
+            'password'   => $password,
+            'expires'    => $expires,
+            'group_name' => $group_name,
+            'ts'         => time(),
         ];
         flash_set('success', 'Zbiorczo utworzono kont: ' . count($created) . ' dla beneficjentów.');
         header('Location: m365.php#provision'); exit;
@@ -325,6 +397,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sku_id   = trim($_POST['sku_id'] ?? '') ?: k30_m365_setting('default_sku');
         $password = trim($_POST['bulk_password'] ?? '') ?: k30_simple_password();
         $domain   = k30_m365_setting('domain');
+        $group_id = trim($_POST['group_id'] ?? '');
+        $expires  = k30_m365_clean_date($_POST['expires_at'] ?? '');
 
         if (!$prefix) { flash_set('danger','Podaj prefix loginu.'); header('Location: m365.php#bulk'); exit; }
 
@@ -336,6 +410,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (\Throwable $e) {
             flash_set('danger', k30_m365_friendly_error($e->getMessage()));
             header('Location: m365.php#bulk'); exit;
+        }
+
+        // Nazwa grupy do zapisu/wyświetlenia
+        $group_name = '';
+        if ($group_id !== '') {
+            foreach ($g->get_security_groups() as $gr) {
+                if (($gr['id'] ?? '') === $group_id) { $group_name = $gr['displayName'] ?? ''; break; }
+            }
         }
 
         for ($i = $start; $i < $start + $count; $i++) {
@@ -352,6 +434,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($sku_id && $user_id) {
                     try { $g->assign_license($user_id, $sku_id); } catch (\Throwable $el) {}
                 }
+                if ($group_id !== '' && $user_id) {
+                    try { $g->add_to_group($user_id, $group_id); } catch (\Throwable $eg) {}
+                }
+                // Zapamiętaj konto szkoleniowe (grupa + ważność) do automatycznego wyłączania
+                try {
+                    db()->prepare(
+                        "INSERT INTO k30_m365_accounts(m365_user_id,login,employee_id,group_id,group_name,expires_at)
+                         VALUES(?,?,?,?,?,?)"
+                    )->execute([$user_id, $login, (string)$emp_id, $group_id ?: null, $group_name ?: null, $expires ?: null]);
+                } catch (\Throwable $ed) {}
                 $created[] = ['login' => $login, 'emp_id' => $emp_id];
             } catch (\Throwable $ei) {
                 $errors_bulk[] = "{$login} — " . k30_m365_friendly_error($ei->getMessage());
@@ -360,10 +452,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (session_status() !== PHP_SESSION_ACTIVE) session_start();
         $_SESSION['k30_m365_bulk_result'] = [
-            'created'  => $created,
-            'errors'   => $errors_bulk,
-            'password' => $password,
-            'ts'       => time(),
+            'created'    => $created,
+            'errors'     => $errors_bulk,
+            'password'   => $password,
+            'expires'    => $expires,
+            'group_name' => $group_name,
+            'ts'         => time(),
         ];
         flash_set('success', 'Masowe tworzenie: ' . count($created) . ' kont utworzonych.');
         header('Location: m365.php#bulk'); exit;
@@ -386,10 +480,36 @@ $is_conf = $cfg_use_own
     ? (!empty($cfg_tenant) && !empty($cfg_client) && $cfg_has_sec)
     : $main_m365_ok;
 
-// Licencje (jeśli skonfigurowane)
-$skus = [];
+// Licencje i grupy MS365 (jeśli skonfigurowane)
+$skus   = [];
+$groups = [];
 if ($is_conf) {
-    try { $skus = k30_m365()->get_subscribed_skus(); } catch (\Throwable $e) {}
+    try { $g0 = k30_m365(); $skus = $g0->get_subscribed_skus(); $groups = $g0->get_security_groups(); } catch (\Throwable $e) {}
+}
+
+// Świeżo utworzona grupa (z modalu) — zaznacz domyślnie w selektorach (ważne 5 min)
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+$new_group_id = '';
+if (!empty($_SESSION['k30_m365_new_group']) && (time() - ($_SESSION['k30_m365_new_group']['ts'] ?? 0)) < 300) {
+    $new_group_id = $_SESSION['k30_m365_new_group']['id'] ?? '';
+    unset($_SESSION['k30_m365_new_group']);
+}
+
+/** Renderuje <select> grupy MS365 z przyciskiem „nowa grupa" otwierającym modal. */
+function k30_m365_group_field(array $groups, string $new_group_id, bool $small = false, string $back = 'provision'): string {
+    $cls = $small ? 'form-select-sm' : '';
+    $opts = '<option value="">— bez grupy —</option>';
+    foreach ($groups as $gr) {
+        $gid = $gr['id'] ?? '';
+        $sel = ($gid !== '' && $gid === $new_group_id) ? ' selected' : '';
+        $opts .= '<option value="' . h($gid) . '"' . $sel . '>' . h($gr['displayName'] ?? $gid) . '</option>';
+    }
+    $btn = '<button type="button" class="btn btn-outline-secondary ' . ($small ? 'btn-sm' : '') . '" '
+         . 'data-bs-toggle="modal" data-bs-target="#newGroupModal" data-back="' . h($back) . '" '
+         . 'title="Utwórz nową grupę MS365"><i class="bi bi-plus-lg"></i></button>';
+    return '<div class="input-group ' . ($small ? 'input-group-sm' : '') . '">'
+         . '<select class="form-select ' . $cls . '" name="group_id">' . $opts . '</select>'
+         . $btn . '</div>';
 }
 
 $cfg_default_sku = k30_m365_setting('default_sku');
@@ -438,6 +558,10 @@ function k30_sku_label(string $part): string {
 $clients_with    = db_all("SELECT * FROM k30_clients WHERE m365_user_id IS NOT NULL AND m365_user_id!='' ORDER BY name");
 $clients_without = db_all("SELECT * FROM k30_clients WHERE (m365_user_id IS NULL OR m365_user_id='') ORDER BY name");
 
+// Konta szkoleniowe (prefix{N}) — z zapamiętaną grupą i ważnością
+$standalone_accounts = [];
+try { $standalone_accounts = db_all("SELECT * FROM k30_m365_accounts ORDER BY created_at DESC, id DESC LIMIT 200"); } catch (\Throwable $e) {}
+
 // Ostatnio wygenerowane hasło (z sesji, ważne 5 min)
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $last_pass = null;
@@ -481,6 +605,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <tr><th>Hasło</th><td class="font-monospace fw-bold"><?= h($last_pass['password']) ?></td></tr>
       <?php if ($last_pass['emp_id']): ?>
       <tr><th>ID konta</th><td class="font-monospace"><?= h($last_pass['emp_id']) ?></td></tr>
+      <?php endif; ?>
+      <?php if (!empty($last_pass['expires'])): ?>
+      <tr><th>Ważne do</th><td class="fw-bold"><?= h($last_pass['expires']) ?></td></tr>
       <?php endif; ?>
     </table>
   </div>
@@ -780,6 +907,18 @@ endif; ?>
               <?php endif; ?>
             </div>
           </div>
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label">Grupa MS365 <span class="text-muted small">(opcjonalnie)</span></label>
+              <?= k30_m365_group_field($groups, $new_group_id) ?>
+              <div class="form-text">Konto zostanie dodane do wybranej grupy. „+" tworzy nową grupę.</div>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Konto ważne do <span class="text-muted small">(opcjonalnie)</span></label>
+              <input type="date" class="form-control" name="expires_at" min="<?= date('Y-m-d') ?>">
+              <div class="form-text">Po tej dacie konto zostanie wyłączone (cron). Puste = bez ograniczenia.</div>
+            </div>
+          </div>
           <div class="alert alert-info small py-2 mb-3">
             <i class="bi bi-info-circle me-1"></i>
             System automatycznie wygeneruje:
@@ -831,10 +970,18 @@ endif; ?>
               <input type="text" class="form-control form-control-sm font-monospace" name="sku_id" value="<?= h($cfg_default_sku) ?>" placeholder="SKU ID licencji">
               <?php endif; ?>
             </div>
-            <div class="col-sm-5">
-              <label class="form-label small">Hasło startowe <span class="text-muted">(opcjonalnie)</span></label>
+            <div class="col-sm-3">
+              <label class="form-label small">Hasło startowe <span class="text-muted">(opc.)</span></label>
               <input type="text" class="form-control form-control-sm font-monospace" name="bulk_password" placeholder="(wygeneruj)">
             </div>
+            <div class="col-sm-2">
+              <label class="form-label small">Ważne do <span class="text-muted">(opc.)</span></label>
+              <input type="date" class="form-control form-control-sm" name="expires_at" min="<?= date('Y-m-d') ?>">
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Grupa MS365 <span class="text-muted">(opc.)</span></label>
+            <?= k30_m365_group_field($groups, $new_group_id, true) ?>
           </div>
           <button type="submit" class="btn btn-outline-success">
             <i class="bi bi-people me-1"></i>Utwórz zaznaczonym
@@ -949,6 +1096,18 @@ endif; ?>
           <?php endif; ?>
         </div>
       </div>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Grupa MS365 <span class="text-muted small">(opcjonalnie)</span></label>
+          <?= k30_m365_group_field($groups, $new_group_id, false, 'bulk') ?>
+          <div class="form-text">Wszystkie utworzone konta zostaną dodane do tej grupy.</div>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label fw-semibold">Konto ważne do <span class="text-muted small">(opc.)</span></label>
+          <input type="date" class="form-control" name="expires_at" min="<?= date('Y-m-d') ?>">
+          <div class="form-text">Po tej dacie — wyłączane (cron).</div>
+        </div>
+      </div>
       <div class="alert alert-light border py-2 mb-3 small font-monospace" id="bulk_preview">
         Przykład: kursant1@<?= h($cfg_domain) ?>, kursant2@<?= h($cfg_domain) ?>, …
       </div>
@@ -960,6 +1119,47 @@ endif; ?>
   </div>
 </div>
 
+<!-- Konta szkoleniowe — grupa i ważność -->
+<?php if ($standalone_accounts): ?>
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-mortarboard me-2 text-primary"></i>Konta szkoleniowe (prefix)
+    <span class="badge bg-secondary ms-2"><?= count($standalone_accounts) ?></span>
+    <span class="ms-auto text-muted small">grupa MS365 i data ważności</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0" style="font-size:.83rem">
+      <thead class="table-light">
+        <tr><th>Login (UPN)</th><th>ID</th><th>Grupa MS365</th><th>Ważne do</th><th>Status</th><th>Utworzono</th></tr>
+      </thead>
+      <tbody>
+        <?php $today = date('Y-m-d'); foreach ($standalone_accounts as $a):
+          $exp = $a['expires_at'] ?? '';
+          $expired = $exp && $exp < $today;
+        ?>
+        <tr>
+          <td class="font-monospace small"><?= h($a['login'] ?? '') ?></td>
+          <td class="font-monospace text-muted"><?= h($a['employee_id'] ?? '') ?></td>
+          <td class="small"><?= $a['group_name'] ? h($a['group_name']) : '<span class="text-muted">—</span>' ?></td>
+          <td class="small"><?= $exp ? h($exp) : '<span class="text-muted">bez ograniczenia</span>' ?></td>
+          <td>
+            <?php if (!empty($a['disabled_at'])): ?>
+              <span class="badge bg-secondary">wyłączone</span>
+            <?php elseif ($expired): ?>
+              <span class="badge bg-warning text-dark" title="Zostanie wyłączone przez cron">wygasło</span>
+            <?php else: ?>
+              <span class="badge bg-success-subtle text-success border border-success-subtle">aktywne</span>
+            <?php endif; ?>
+          </td>
+          <td class="text-muted small"><?= h(substr($a['created_at'] ?? '', 0, 10)) ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- Wynik masowego tworzenia -->
 <?php if ($bulk_result): ?>
 <div class="card border-0 shadow-sm mt-3" style="border-top:3px solid #f59e0b">
@@ -970,6 +1170,8 @@ endif; ?>
     </span>
     <span class="text-muted small ms-1">
       hasło: <code class="text-danger fw-bold"><?= h($bulk_result['password']) ?></code>
+      <?php if (!empty($bulk_result['expires'])): ?>· ważne do: <strong><?= h($bulk_result['expires']) ?></strong><?php endif; ?>
+      <?php if (!empty($bulk_result['group_name'])): ?>· grupa: <strong><?= h($bulk_result['group_name']) ?></strong><?php endif; ?>
     </span>
     <?php if ($bulk_result['created']): $pbase = APP_URL . '/karty30/admin/m365_bulk_print.php?ts=' . $bulk_result['ts']; ?>
     <div class="ms-auto btn-group">
@@ -1050,7 +1252,63 @@ function updatePreview() {
   if (count > 3) examples.push('…');
   document.getElementById('bulk_preview').textContent = 'Loginy: ' + examples.join(', ');
 }
+// Modal „Nowa grupa MS365": ustaw sekcję powrotu + auto-alias z nazwy
+(function(){
+  var modal = document.getElementById('newGroupModal');
+  if (!modal) return;
+  modal.addEventListener('show.bs.modal', function(ev){
+    var trigger = ev.relatedTarget;
+    var back = (trigger && trigger.getAttribute('data-back')) || 'provision';
+    var bf = document.getElementById('ng_back'); if (bf) bf.value = back;
+  });
+  var nameEl = document.getElementById('ng_name');
+  var nickEl = document.getElementById('ng_nick');
+  if (nameEl && nickEl) {
+    nameEl.addEventListener('input', function(){
+      if (nickEl.dataset.touched) return;
+      nickEl.value = nameEl.value.replace(/[^a-zA-Z0-9._-]/g,'').toLowerCase();
+    });
+    nickEl.addEventListener('input', function(){ nickEl.dataset.touched = '1'; });
+  }
+})();
 </script>
+
+<!-- Modal: utwórz nową grupę MS365 -->
+<div class="modal fade" id="newGroupModal" tabindex="-1" aria-labelledby="newGroupModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="create_group">
+        <input type="hidden" name="back" id="ng_back" value="provision">
+        <div class="modal-header">
+          <h5 class="modal-title" id="newGroupModalLabel"><i class="bi bi-people-fill text-primary me-2"></i>Nowa grupa MS365</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Tworzy grupę zabezpieczeń (Security Group) w Microsoft 365. Po utworzeniu zostanie automatycznie zaznaczona w selektorze grupy.</p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nazwa grupy <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="group_name" id="ng_name" required placeholder="np. Szkolenie Excel 2026">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Alias (mailNickname)</label>
+            <input type="text" class="form-control font-monospace" name="group_nick" id="ng_nick" placeholder="(auto z nazwy)" maxlength="60">
+            <div class="form-text">Bez spacji, tylko litery/cyfry/._- . Puste = wygenerowany z nazwy.</div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Opis <span class="text-muted small">(opcjonalnie)</span></label>
+            <input type="text" class="form-control" name="group_desc" maxlength="200">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Utwórz grupę</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

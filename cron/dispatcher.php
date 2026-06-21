@@ -74,6 +74,11 @@ $AGENTS = [
         'interval' => 3600,         // co godzinę
         'schedule' => [1, 23],
     ],
+    'k30_m365_expire' => [
+        'file'     => __DIR__ . '/k30_m365_expire.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [2, 5],       // między 2:00 a 5:00
+    ],
     'backup' => [
         'file'     => __DIR__ . '/agents/backup.php',
         'interval' => 86400,
