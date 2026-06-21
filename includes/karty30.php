@@ -419,6 +419,9 @@ function karty30_migrate(): void {
     try { $pdo->exec("ALTER TABLE k30_ti_vlab_containers ADD COLUMN force_pw_pending INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     // Domyślne wymuszanie zmiany hasła SSH przy pierwszym logowaniu (konfiguracja globalna)
     try { $pdo->exec("ALTER TABLE k30_ti_vlab_config ADD COLUMN force_pw_first_login INTEGER NOT NULL DEFAULT 1"); } catch (\Throwable $e) {}
+    // Czasowe wyłączenie VLAB dla kursantów + komunikat wyświetlany w panelu
+    try { $pdo->exec("ALTER TABLE k30_ti_vlab_config ADD COLUMN is_disabled     INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_ti_vlab_config ADD COLUMN disabled_notice TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
     foreach ([

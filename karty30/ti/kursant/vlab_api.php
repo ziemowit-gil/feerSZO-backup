@@ -50,6 +50,8 @@ function vlab_payload(array $student): array {
     }
     return [
         'enabled'   => (bool)$cfg['is_enabled'],
+        'disabled'  => vlab_is_disabled(),
+        'notice'    => vlab_is_disabled() ? vlab_disabled_notice() : '',
         'max'       => (int)$cfg['max_per_student'],
         'count'     => vlab_student_count($student['id']),
         'templates' => $templates,

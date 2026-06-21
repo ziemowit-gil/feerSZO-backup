@@ -55,6 +55,17 @@ function vlab_enabled(): bool {
     return !empty($c['is_enabled']) && $c['ssh_host'] !== '' && $c['ssh_user'] !== '';
 }
 
+/** Czy administrator wyłączył VLAB dla kursantów (tryb przerwy/konserwacji). */
+function vlab_is_disabled(): bool {
+    return !empty(vlab_config()['is_disabled']);
+}
+
+/** Komunikat wyświetlany kursantom przy wyłączonym VLAB (własny lub domyślny). */
+function vlab_disabled_notice(): string {
+    $n = trim((string)(vlab_config()['disabled_notice'] ?? ''));
+    return $n !== '' ? $n : 'Moduł VLab jest chwilowo niedostępny. Spróbuj ponownie później.';
+}
+
 /**
  * Wykonuje polecenie na zdalnym hoście po SSH.
  * $argv — tablica argumentów (pierwszy = program, np. 'docker'); każdy element escapowany.
@@ -286,6 +297,7 @@ function vlab_student_count(int $studentId): int {
  */
 function vlab_provision(int $studentId, int $clientId, int $templateId, string $label): array {
     if (!vlab_enabled()) return ['ok' => false, 'msg' => 'Moduł VLAB nie jest skonfigurowany.'];
+    if (vlab_is_disabled()) return ['ok' => false, 'msg' => vlab_disabled_notice()];
 
     $cfg = vlab_config();
     $tpl = db_one("SELECT * FROM k30_ti_vlab_templates WHERE id=? AND is_active=1", [$templateId]);
@@ -489,6 +501,7 @@ function vlab_email_credentials(array $container, string $hostUser = '', string 
  * Zwraca ['ok'=>bool,'msg'=>string].
  */
 function vlab_action(int $containerId, int $studentId, string $op): array {
+    if (vlab_is_disabled()) return ['ok' => false, 'msg' => vlab_disabled_notice()];
     $row = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND student_id=?", [$containerId, $studentId]);
     if (!$row) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
     if ($row['status'] === 'removed') return ['ok' => false, 'msg' => 'Maszyna została już usunięta.'];

@@ -39,6 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'default_mem'     => trim($_POST['default_mem'] ?? ''),
             'is_enabled'      => isset($_POST['is_enabled']) ? 1 : 0,
             'force_pw_first_login' => isset($_POST['force_pw_first_login']) ? 1 : 0,
+            'is_disabled'     => isset($_POST['is_disabled']) ? 1 : 0,
+            'disabled_notice' => trim($_POST['disabled_notice'] ?? ''),
             'updated_by'      => $uid ?: null,
         ];
         // Hasło SSH zmieniamy tylko jeśli podane (puste = bez zmian)
@@ -171,9 +173,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-hdd-stack text-primary me-2"></i>VLAB — wirtualne maszyny (Docker / SSH)</h4>
+  <?php if (!empty($cfg['is_disabled'])): ?>
+  <span class="badge bg-warning text-dark ms-auto"><i class="bi bi-pause-circle me-1"></i>Przerwa (wyłączony dla kursantów)</span>
+  <?php else: ?>
   <span class="badge <?= $cfg['is_enabled'] ? 'bg-success' : 'bg-secondary' ?> ms-auto">
     <?= $cfg['is_enabled'] ? 'Włączony' : 'Wyłączony' ?>
   </span>
+  <?php endif; ?>
 </div>
 
 <?= flash_html() ?>
@@ -243,6 +249,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="col-4"><label class="form-label small">Domyślna pamięć</label>
               <input class="form-control form-control-sm" name="default_mem" value="<?= h($cfg['default_mem']) ?>" placeholder="512m"></div>
           </div>
+          <hr>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="is_disabled" id="dis" <?= !empty($cfg['is_disabled']) ? 'checked' : '' ?>>
+            <label class="form-check-label fw-semibold text-danger" for="dis">Wyłącz VLab dla kursantów (tryb przerwy)</label>
+            <div class="form-text small">Zakładka VLab pozostaje widoczna, ale kursanci zobaczą tylko komunikat poniżej; tworzenie i obsługa maszyn są zablokowane.</div>
+          </div>
+          <div class="mb-3"><label class="form-label small" for="disnote">Komunikat dla kursantów (gdy wyłączone)</label>
+            <textarea class="form-control form-control-sm" name="disabled_notice" id="disnote" rows="2" placeholder="np. VLab jest niedostępny z powodu prac serwisowych do 18:00."><?= h($cfg['disabled_notice'] ?? '') ?></textarea></div>
           <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz konfigurację</button>
         </form>
         <form method="post" class="mt-2">

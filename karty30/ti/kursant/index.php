@@ -512,6 +512,12 @@ include __DIR__ . '/_layout_head.php';
     const lastCreds = {}; // pełne dane logowania pokazywane JEDEN raz po utworzeniu: {id: creds}
 
     function render(d){
+      if (d.disabled){
+        box.innerHTML = '<div class="alert alert-warning d-flex align-items-start gap-2" role="alert">'
+          + '<i class="bi bi-pause-circle-fill mt-1" aria-hidden="true"></i>'
+          + '<span style="white-space:pre-wrap">'+esc(d.notice || 'Moduł VLab jest chwilowo niedostępny.')+'</span></div>';
+        return;
+      }
       if (!d.enabled){
         box.innerHTML = '<div class="alert alert-warning d-flex align-items-center gap-2" role="alert">'
           + '<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>'
