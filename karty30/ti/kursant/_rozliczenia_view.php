@@ -107,40 +107,7 @@ foreach ($rv_billing as $b) {
   </div>
 </div>
 
-<?php if (!empty($rv_show_lessons)):
-  $rv_lessons = k30_ti_client_lessons((int)$rv_client_id, 40);
-  $rv_mon = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',7=>'Lip',8=>'Sie',9=>'Wrz',10=>'Paź',11=>'Lis',12=>'Gru'];
-?>
+<?php if (!empty($rv_show_lessons)): ?>
 <h2 class="h5 fw-bold d-flex align-items-center gap-2 mt-4 mb-3"><i class="bi bi-calendar-check text-primary" aria-hidden="true"></i>Frekwencja</h2>
-<div class="card">
-  <div class="table-responsive">
-    <table class="table align-middle mb-0">
-      <caption class="visually-hidden">Frekwencja na lekcjach</caption>
-      <thead>
-        <tr><th scope="col">Data</th><th scope="col">Kurs</th><th scope="col">Temat</th><th scope="col" class="text-center">Obecność</th></tr>
-      </thead>
-      <tbody>
-        <?php if (!$rv_lessons): ?>
-        <tr><td colspan="4" class="text-center text-body-secondary py-4">Brak lekcji.</td></tr>
-        <?php endif; ?>
-        <?php foreach ($rv_lessons as $l): $d = new DateTime($l['lesson_date']); ?>
-        <tr>
-          <td class="text-nowrap text-body-secondary small"><?= $d->format('d') ?> <?= $rv_mon[(int)$d->format('n')] ?> <?= $d->format('Y') ?></td>
-          <td class="text-body-secondary small"><?= h($l['course_name']) ?></td>
-          <td class="small"><?= $l['topic'] ? h($l['topic']) : '<span class="text-body-secondary">—</span>' ?></td>
-          <td class="text-center">
-            <?php if ($l['status'] !== 'held'): ?>
-            <span class="badge text-bg-secondary"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
-            <?php elseif ($l['attended']): ?>
-            <span class="badge text-bg-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>obecny</span>
-            <?php else: ?>
-            <span class="badge text-bg-danger"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>nieobecny</span>
-            <?php endif; ?>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
+<?php include __DIR__ . '/_frekwencja_view.php'; ?>
 <?php endif; ?>

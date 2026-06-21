@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
             $_SESSION['k30_parent_msg']     = ['ok', 'Ustawiono nowe hasło dziecka — przekaż je dziecku.'];
         }
     }
-    header('Location: parent.php'); exit;
+    header('Location: parent.php?ptab=dostep'); exit;
 }
 
 // Link magiczny
@@ -83,6 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $parent = parent_current();
+$ptab   = $_GET['ptab'] ?? 'rozliczenia';
+if (!in_array($ptab, ['rozliczenia','frekwencja','dostep'], true)) $ptab = 'rozliczenia';
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
 $KP_TITLE  = 'Panel rodzica';
 $KP_TOPBAR = [
@@ -148,26 +150,59 @@ include __DIR__ . '/_layout_head.php';
   </div>
 </main>
 
-<?php else: ?>
-<main id="main" class="container-xl px-3 py-4">
-  <div class="d-flex align-items-center gap-2 mb-3">
+<?php else:
+  $childAcc = db_one("SELECT login, child_access_blocked FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
+  $blocked  = !empty($childAcc['child_access_blocked']);
+?>
+<div class="container-xl px-3 pt-3">
+  <div class="d-flex align-items-center gap-2 mb-2">
     <i class="bi bi-mortarboard fs-3 text-primary" aria-hidden="true"></i>
     <div>
       <h1 class="h5 fw-bold mb-0">Kursant: <?= h($parent['name']) ?></h1>
-      <p class="text-body-secondary small mb-0">Rozliczenia i frekwencja</p>
+      <p class="text-body-secondary small mb-0">Panel opiekuna</p>
     </div>
   </div>
+  <nav aria-label="Sekcje panelu rodzica">
+    <ul class="nav nav-tabs">
+      <li class="nav-item">
+        <a class="nav-link <?= $ptab==='rozliczenia'?'active':'' ?>" href="?ptab=rozliczenia" <?= $ptab==='rozliczenia'?'aria-current="page"':'' ?>>
+          <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <?= $ptab==='frekwencja'?'active':'' ?>" href="?ptab=frekwencja" <?= $ptab==='frekwencja'?'aria-current="page"':'' ?>>
+          <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Frekwencja
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <?= $ptab==='dostep'?'active':'' ?>" href="?ptab=dostep" <?= $ptab==='dostep'?'aria-current="page"':'' ?>>
+          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Dostęp dziecka
+          <?php if ($blocked): ?><span class="badge text-bg-danger ms-1" title="Dostęp wstrzymany"><i class="bi bi-lock-fill" aria-hidden="true"></i></span><?php endif; ?>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</div>
 
-  <?php
-    // Zarządzanie dostępem dziecka
-    $childAcc   = db_one("SELECT login, child_access_blocked FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
-    $pmsg       = $_SESSION['k30_parent_msg'] ?? null;      unset($_SESSION['k30_parent_msg']);
-    $pnewpass   = $_SESSION['k30_parent_newpass'] ?? null;  unset($_SESSION['k30_parent_newpass']);
-    $login_url  = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
-    $blocked    = !empty($childAcc['child_access_blocked']);
-    $ptok       = student_token();
-  ?>
-  <div class="card border-0 shadow-sm mb-4">
+<main id="main" class="container-xl px-3 py-4">
+
+<?php if ($ptab === 'rozliczenia'):
+    $rv_client_id    = $parent['client_id'];
+    $rv_show_lessons = false;
+    include __DIR__ . '/_rozliczenia_view.php';
+?>
+
+<?php elseif ($ptab === 'frekwencja'): ?>
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-calendar-check text-primary" aria-hidden="true"></i>Frekwencja</h2>
+  <?php $rv_client_id = $parent['client_id']; include __DIR__ . '/_frekwencja_view.php'; ?>
+
+<?php elseif ($ptab === 'dostep'):
+    $pmsg      = $_SESSION['k30_parent_msg'] ?? null;      unset($_SESSION['k30_parent_msg']);
+    $pnewpass  = $_SESSION['k30_parent_newpass'] ?? null;  unset($_SESSION['k30_parent_newpass']);
+    $login_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
+    $ptok      = student_token();
+?>
+  <div class="card border-0 shadow-sm">
     <div class="card-header fw-semibold"><i class="bi bi-shield-lock me-2 text-primary" aria-hidden="true"></i>Zarządzaj dostępem dziecka</div>
     <div class="card-body">
       <?php if ($pmsg): ?>
@@ -220,12 +255,7 @@ include __DIR__ . '/_layout_head.php';
       </p>
     </div>
   </div>
-
-  <?php
-    $rv_client_id    = $parent['client_id'];
-    $rv_show_lessons = true;
-    include __DIR__ . '/_rozliczenia_view.php';
-  ?>
+<?php endif; ?>
 </main>
 <?php endif; ?>
 
