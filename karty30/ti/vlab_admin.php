@@ -300,7 +300,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" name="az_enabled" id="az" <?= !empty($cfg['az_enabled']) ? 'checked' : '' ?>>
             <label class="form-check-label">Otwieraj porty też w Microsoft Azure (NSG)</label>
-            <div class="form-text small">Wymaga aplikacji (service principal) z rolą <code>Network Contributor</code> na grupie zabezpieczeń sieci (NSG).</div>
+            <div class="form-text small">Wymaga aplikacji (service principal) z rolą <code>Network Contributor</code> na grupie zabezpieczeń sieci (NSG). Aplikację i rolę założysz skryptem <code>cli/azure_vlab_setup.sh</code> (wypisze poniższe dane).</div>
           </div>
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label small">Azure Tenant ID</label>
