@@ -432,6 +432,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_subscription TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_resource_group TEXT  NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_nsg          TEXT    NOT NULL DEFAULT ''",
+        // Czy kursant może sam otwierać/zamykać porty swoich maszyn (w obrębie ich mapowań)
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN ports_self_service INTEGER NOT NULL DEFAULT 1",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
     // Rejestr otwartych portów per kontener (UFW + Azure NSG)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_ports (

@@ -49,18 +49,19 @@ function vlab_payload(array $student): array {
         ];
     }
     return [
-        'enabled'   => (bool)$cfg['is_enabled'],
-        'disabled'  => vlab_is_disabled(),
-        'notice'    => vlab_is_disabled() ? vlab_disabled_notice() : '',
-        'max'       => (int)$cfg['max_per_student'],
-        'count'     => vlab_student_count($student['id']),
-        'templates' => $templates,
-        'machines'  => $machines,
+        'enabled'    => (bool)$cfg['is_enabled'],
+        'disabled'   => vlab_is_disabled(),
+        'notice'     => vlab_is_disabled() ? vlab_disabled_notice() : '',
+        'max'        => (int)$cfg['max_per_student'],
+        'count'      => vlab_student_count($student['id']),
+        'ports_self' => vlab_student_can_ports(),
+        'templates'  => $templates,
+        'machines'   => $machines,
     ];
 }
 
 // Operacje modyfikujące wymagają tokenu i metody POST
-$modifying = in_array($action, ['create', 'start', 'stop', 'restart', 'remove'], true);
+$modifying = in_array($action, ['create', 'start', 'stop', 'restart', 'remove', 'port_open', 'port_close'], true);
 if ($modifying) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'msg' => 'Metoda niedozwolona.']); exit; }
     student_token_check();
@@ -94,6 +95,30 @@ try {
             $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
             if ($id) vlab_refresh($id, $student['id']);
             echo json_encode(['ok' => true] + vlab_payload($student));
+            break;
+        }
+
+        case 'ports': {
+            if (!vlab_student_can_ports()) { echo json_encode(['ok' => false, 'msg' => 'Zarządzanie portami jest wyłączone.']); break; }
+            $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
+            echo json_encode(vlab_student_ports_data($id, $student['id']));
+            break;
+        }
+
+        case 'port_open': {
+            $id    = (int)($_POST['id'] ?? 0);
+            $port  = (int)($_POST['host_port'] ?? 0);
+            $proto = (string)($_POST['proto'] ?? 'tcp');
+            $res   = vlab_port_open_student($id, $student['id'], $port, $proto);
+            echo json_encode($res + ['data' => vlab_student_ports_data($id, $student['id'])]);
+            break;
+        }
+
+        case 'port_close': {
+            $id  = (int)($_POST['id'] ?? 0);          // container id (do odświeżenia listy)
+            $pid = (int)($_POST['port_id'] ?? 0);
+            $res = vlab_port_close_student($pid, $student['id']);
+            echo json_encode($res + ['data' => vlab_student_ports_data($id, $student['id'])]);
             break;
         }
 

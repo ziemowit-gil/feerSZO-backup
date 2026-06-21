@@ -808,3 +808,52 @@ function vlab_port_close(int $portRowId): array {
     vlab_log((int)$row['container_id'], 0, 'port_close', true, $row['host_port'] . '/' . $row['proto'] . ' — ' . implode('; ', $msgs));
     return ['ok' => true, 'msg' => implode(' · ', $msgs) ?: 'Port zamknięty.'];
 }
+
+// ── Samoobsługa kursanta (porty własnej maszyny) ─────────────────────────────
+
+/** Czy kursanci mogą sami zarządzać portami swoich maszyn (ustawienie admina). */
+function vlab_student_can_ports(): bool {
+    $c = vlab_config();
+    return !isset($c['ports_self_service']) || (int)$c['ports_self_service'] === 1;
+}
+
+/**
+ * Dane portów dla kursanta: mapowania kontenera (docker port) + aktualnie otwarte porty.
+ * Weryfikuje właściciela. Zwraca ['ok','mappings','open'] lub ['ok'=>false,'msg'].
+ */
+function vlab_student_ports_data(int $containerId, int $studentId): array {
+    $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND student_id=? AND status!='removed'", [$containerId, $studentId]);
+    if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
+    $maps = $cont['status'] === 'running' ? vlab_docker_ports_all($cont['container_name']) : [];
+    return ['ok' => true, 'mappings' => $maps, 'open' => vlab_ports_list($containerId)];
+}
+
+/** Otwiera port maszyny kursanta — tylko port należący do mapowań tej maszyny. */
+function vlab_port_open_student(int $containerId, int $studentId, int $hostPort, string $proto): array {
+    if (vlab_is_disabled())        return ['ok' => false, 'msg' => vlab_disabled_notice()];
+    if (!vlab_student_can_ports()) return ['ok' => false, 'msg' => 'Zarządzanie portami zostało wyłączone przez administratora.'];
+    $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND student_id=? AND status!='removed'", [$containerId, $studentId]);
+    if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
+
+    // Kursant może otwierać WYŁĄCZNIE port hosta będący mapowaniem swojego kontenera.
+    $belongs = false;
+    foreach (vlab_docker_ports_all($cont['container_name']) as $m) {
+        if ((int)$m['host'] === $hostPort) { $belongs = true; break; }
+    }
+    if (!$belongs) return ['ok' => false, 'msg' => 'Możesz otwierać tylko porty należące do Twojej maszyny.'];
+
+    return vlab_port_open($containerId, $hostPort, $proto, null, 'kursant');
+}
+
+/** Zamyka port maszyny kursanta (po weryfikacji właściciela). */
+function vlab_port_close_student(int $portRowId, int $studentId): array {
+    if (!vlab_student_can_ports()) return ['ok' => false, 'msg' => 'Zarządzanie portami zostało wyłączone przez administratora.'];
+    $row = db_one(
+        "SELECT p.id FROM k30_ti_vlab_ports p
+         JOIN k30_ti_vlab_containers c ON c.id=p.container_id
+         WHERE p.id=? AND c.student_id=?",
+        [$portRowId, $studentId]
+    );
+    if (!$row) return ['ok' => false, 'msg' => 'Wpis nie istnieje.'];
+    return vlab_port_close($portRowId);
+}

@@ -512,6 +512,19 @@ include __DIR__ . '/_layout_head.php';
     </div>
   </div>
 
+  <!-- Modal: zarządzanie portami maszyny -->
+  <div class="modal fade" id="vlabPortsModal" tabindex="-1" aria-labelledby="vlabPortsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="vlabPortsLabel"><i class="bi bi-hdd-network text-primary me-2" aria-hidden="true"></i>Porty maszyny</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body" id="vlabPortsBody"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
   (function(){
     const root = document.getElementById('vlab-root');
@@ -547,6 +560,43 @@ include __DIR__ . '/_layout_head.php';
       if (c.force_change) h += '<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Przy pierwszym logowaniu SSH system poprosi o ustawienie własnego hasła.</div>';
       document.getElementById('vlabCredsBody').innerHTML = h;
       if (window.bootstrap) new bootstrap.Modal(document.getElementById('vlabCredsModal')).show();
+    }
+
+    // ── Porty maszyny (samoobsługa kursanta) ──────────────────────────────
+    let portsForId = null;
+    const portsBody = () => document.getElementById('vlabPortsBody');
+    function renderPorts(d){
+      // mapa otwartych portów: "port/proto" → wiersz
+      const openMap = {};
+      (d.open || []).forEach(p => openMap[p.host_port + '/' + p.proto] = p);
+      let h = '<p class="small text-body-secondary">Otwórz port swojej maszyny, aby był dostępny z internetu. Możesz otwierać tylko porty wystawione przez maszynę.</p>';
+      if (!d.mappings || !d.mappings.length){
+        h += '<div class="alert alert-secondary py-2 small mb-0">Maszyna nie wystawia żadnych portów (lub jest zatrzymana).</div>';
+      } else {
+        h += '<table class="table table-sm align-middle"><thead><tr><th>Usługa (port kontenera)</th><th>Port hosta</th><th>Status</th><th></th></tr></thead><tbody>';
+        for (const mp of d.mappings){
+          const proto = mp.cport.indexOf('udp') >= 0 ? 'udp' : 'tcp';
+          const key = mp.host + '/' + proto;
+          const isOpen = !!openMap[key];
+          h += '<tr><td><code>'+esc(mp.cport)+'</code></td><td><code>'+mp.host+'</code></td>'
+            + '<td>'+(isOpen ? '<span class="badge text-bg-success">otwarty</span>' : '<span class="badge text-bg-secondary">zamknięty</span>')+'</td><td class="text-end">';
+          if (isOpen){
+            h += '<button type="button" class="btn btn-sm btn-outline-danger py-0" data-port-close="'+openMap[key].id+'"><i class="bi bi-lock me-1" aria-hidden="true"></i>Zamknij</button>';
+          } else {
+            h += '<button type="button" class="btn btn-sm btn-outline-primary py-0" data-port-open="'+mp.host+'" data-proto="'+proto+'"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Otwórz</button>';
+          }
+          h += '</td></tr>';
+        }
+        h += '</tbody></table>';
+      }
+      portsBody().innerHTML = h;
+    }
+    async function loadPorts(id){
+      portsForId = id;
+      portsBody().innerHTML = '<div class="text-body-secondary py-3 text-center">Ładowanie…</div>';
+      if (window.bootstrap) new bootstrap.Modal(document.getElementById('vlabPortsModal')).show();
+      const d = await api('ports', {id});
+      if (d.ok) renderPorts(d); else portsBody().innerHTML = '<div class="alert alert-danger py-2 small mb-0">'+esc(d.msg||'Błąd.')+'</div>';
     }
 
     function render(d){
@@ -606,6 +656,9 @@ include __DIR__ . '/_layout_head.php';
           if (sshOk){
             html += '<a class="btn btn-outline-primary btn-sm" href="ssh://'+esc(sshUser)+'@'+esc(m.ssh_host)+':'+sshPort+'" title="Otwiera klienta SSH zainstalowanego w systemie"><i class="bi bi-hdd-network me-1" aria-hidden="true"></i>Połącz po SSH</a>';
           }
+          if (d.ports_self && m.status === 'running'){
+            html += '<button type="button" class="btn btn-outline-primary btn-sm" data-ports="'+m.id+'"><i class="bi bi-hdd-network me-1" aria-hidden="true"></i>Porty</button>';
+          }
           if (m.status === 'running'){
             html += '<button type="button" class="btn btn-outline-secondary btn-sm" data-act="stop" data-id="'+m.id+'"><i class="bi bi-stop-circle me-1" aria-hidden="true"></i>Zatrzymaj</button>';
             html += '<button type="button" class="btn btn-outline-secondary btn-sm" data-act="restart" data-id="'+m.id+'"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Restart</button>';
@@ -647,12 +700,30 @@ include __DIR__ . '/_layout_head.php';
       if (cp){ navigator.clipboard?.writeText(cp.dataset.copy); const h=cp.innerHTML; cp.innerHTML='<i class="bi bi-check2" aria-hidden="true"></i>'; setTimeout(()=>{cp.innerHTML=h;},1200); }
     });
 
+    // Otwieranie/zamykanie portów w obrębie modalu portów
+    document.getElementById('vlabPortsModal').addEventListener('click', async (e)=>{
+      const openBtn = e.target.closest('[data-port-open]');
+      const closeBtn = e.target.closest('[data-port-close]');
+      if (!openBtn && !closeBtn) return;
+      const btn = openBtn || closeBtn;
+      btn.disabled = true; const orig = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-hourglass-split" aria-hidden="true"></i>';
+      let r;
+      if (openBtn) r = await api('port_open', {id: portsForId, host_port: openBtn.dataset.portOpen, proto: openBtn.dataset.proto});
+      else         r = await api('port_close', {id: portsForId, port_id: closeBtn.dataset.portClose});
+      if (!r.ok) alert(r.msg || 'Błąd.');
+      if (r.data) renderPorts(r.data); else { btn.disabled = false; btn.innerHTML = orig; }
+    });
+
     box.addEventListener('click', async (e)=>{
       const copyBtn = e.target.closest('[data-copy]');
       if (copyBtn){ navigator.clipboard?.writeText(copyBtn.dataset.copy); copyBtn.innerHTML='<i class="bi bi-check2" aria-hidden="true"></i>'; return; }
 
       const showBtn = e.target.closest('[data-show-creds]');
       if (showBtn){ showCredsModal(lastCreds[showBtn.dataset.showCreds]); return; }
+
+      const portsBtn = e.target.closest('[data-ports]');
+      if (portsBtn){ loadPorts(portsBtn.dataset.ports); return; }
 
       const createBtn = e.target.closest('[data-create]');
       if (createBtn){

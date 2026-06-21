@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_disabled'     => isset($_POST['is_disabled']) ? 1 : 0,
             'disabled_notice' => trim($_POST['disabled_notice'] ?? ''),
             'ufw_enabled'     => isset($_POST['ufw_enabled']) ? 1 : 0,
+            'ports_self_service' => isset($_POST['ports_self_service']) ? 1 : 0,
             'az_enabled'      => isset($_POST['az_enabled']) ? 1 : 0,
             'az_tenant'       => trim($_POST['az_tenant'] ?? ''),
             'az_client_id'    => trim($_POST['az_client_id'] ?? ''),
@@ -289,6 +290,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" name="ufw_enabled" id="ufw" <?= (!isset($cfg['ufw_enabled']) || $cfg['ufw_enabled']) ? 'checked' : '' ?>>
             <label class="form-check-label" for="ufw">Steruj zaporą hosta (UFW) przez SSH</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="ports_self_service" id="pself" <?= (!isset($cfg['ports_self_service']) || $cfg['ports_self_service']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="pself">Pozwól kursantom otwierać porty swoich maszyn</label>
+            <div class="form-text small">Kursant w panelu może otwierać/zamykać tylko porty wystawione przez własną maszynę.</div>
           </div>
           <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" name="az_enabled" id="az" <?= !empty($cfg['az_enabled']) ? 'checked' : '' ?>>
