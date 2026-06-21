@@ -78,6 +78,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=lekcje'); exit;
     }
 
+    // Oddanie zadania domowego (treść + opcjonalny plik)
+    if ($op === 'submit_homework') {
+        $hwid = (int)($_POST['homework_id'] ?? 0);
+        $hw = $hwid ? db_one(
+            "SELECT h.* FROM k30_ti_homework h
+             WHERE h.id=? AND h.is_active=1
+               AND h.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')",
+            [$hwid, $student['client_id']]
+        ) : null;
+        if (!$hw) { $_SESSION['hw_flash'] = ['err', 'Nie znaleziono zadania.']; header('Location: index.php?tab=zadania'); exit; }
+
+        $body = trim((string)($_POST['body'] ?? ''));
+        try { $up = k30_ti_homework_upload('file', 'sub' . (int)$student['client_id']); }
+        catch (\Throwable $e) { $_SESSION['hw_flash'] = ['err', $e->getMessage()]; header('Location: index.php?tab=zadania'); exit; }
+
+        $existing = db_one("SELECT * FROM k30_ti_homework_submissions WHERE homework_id=? AND client_id=?",
+                           [$hwid, (int)$student['client_id']]);
+        if ($existing) {
+            $sets = ['body' => mb_substr($body, 0, 5000), 'status' => 'submitted',
+                     'submitted_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')];
+            if ($up) {
+                if ($existing['file_path'] !== '') k30_ti_homework_delete_file($existing['file_path']);
+                $sets['file_name'] = $up['name']; $sets['file_path'] = $up['stored'];
+            }
+            $cols=[];$p=[]; foreach ($sets as $k=>$v){$cols[]="$k=?";$p[]=$v;} $p[]=(int)$existing['id'];
+            db()->prepare("UPDATE k30_ti_homework_submissions SET ".implode(',',$cols)." WHERE id=?")->execute($p);
+        } else {
+            db_insert('k30_ti_homework_submissions', [
+                'homework_id' => $hwid, 'client_id' => (int)$student['client_id'],
+                'body' => mb_substr($body, 0, 5000),
+                'file_name' => $up['name'] ?? '', 'file_path' => $up['stored'] ?? '',
+                'status' => 'submitted',
+            ]);
+        }
+        $_SESSION['hw_flash'] = ['ok', 'Zadanie zostało oddane.'];
+        header('Location: index.php?tab=zadania'); exit;
+    }
+
     if ($op === 'reset_calendar_token') {
         k30_ti_calendar_token_reset((int)$student['id']);
         header('Location: index.php?tab=ustawienia&cal=reset'); exit;
@@ -145,6 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Kursy i lekcje kursanta
 $courses = k30_ti_client_courses($student['client_id']);
+$homeworks_student = k30_ti_homework_for_client($student['client_id']);
+$hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
 $my_licenses = k30_ti_client_licenses($student['client_id']);
 $active_lesson = k30_ti_active_lesson_link($student['client_id']);
@@ -236,6 +276,12 @@ include __DIR__ . '/_layout_head.php';
         <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Moje lekcje
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
+        <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zadania
+        <?php if (!empty($hw_pending)): ?><span class="badge text-bg-warning ms-1"><?= count($hw_pending) ?></span><?php endif; ?>
+      </a>
+    </li>
     <?php if (!$is_minor): ?>
     <li class="nav-item">
       <a class="nav-link <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
@@ -303,18 +349,18 @@ include __DIR__ . '/_layout_head.php';
 </div>
 <?php endif; ?>
 
-<?php if (!empty($homework_lessons)):
-  $hw_first = $homework_lessons[0]; ?>
-<!-- ── Zadania domowe — zwięzły banner widoczny po zalogowaniu ───────────────── -->
+<?php if (!empty($hw_pending)):
+  $hw_first = $hw_pending[0]; ?>
+<!-- ── Zadania domowe do oddania — zwięzły banner widoczny po zalogowaniu ────── -->
 <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3" role="alert">
-  <i class="bi bi-journal-text flex-shrink-0" aria-hidden="true"></i>
+  <i class="bi bi-journal-check flex-shrink-0" aria-hidden="true"></i>
   <div class="flex-grow-1 min-width-0 small">
-    <span class="fw-semibold">Zadania domowe (<?= count($homework_lessons) ?>)</span>
+    <span class="fw-semibold">Zadania do oddania (<?= count($hw_pending) ?>)</span>
     <span class="text-body-secondary">
-      · <?= $hw_first['topic'] ? h($hw_first['topic']) : 'Lekcja' ?> (<?= h($hw_first['course_name']) ?>)<?php if (count($homework_lessons) > 1): ?> i <?= count($homework_lessons) - 1 ?> więcej<?php endif; ?>
+      · <?= h($hw_first['title']) ?> (<?= h($hw_first['course_name']) ?>)<?php if (count($hw_pending) > 1): ?> i <?= count($hw_pending) - 1 ?> więcej<?php endif; ?>
     </span>
   </div>
-  <a href="?tab=lekcje" class="btn btn-sm btn-outline-warning flex-shrink-0">Zobacz</a>
+  <a href="?tab=zadania" class="btn btn-sm btn-outline-warning flex-shrink-0">Oddaj</a>
 </div>
 <?php endif; ?>
 
@@ -636,6 +682,100 @@ include __DIR__ . '/_layout_head.php';
     });
   })();
   </script>
+
+<?php elseif ($tab === 'zadania'): ?>
+
+  <h1 class="h5 fw-bold mb-1"><i class="bi bi-journal-check text-primary me-1" aria-hidden="true"></i>Zadania domowe</h1>
+  <p class="text-body-secondary small mb-3">Oddaj zadanie wpisując treść i/lub załączając plik. Możesz poprawić oddanie do czasu oceny.</p>
+
+  <?php
+    $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']);
+    if ($hwf): ?>
+  <div class="alert alert-<?= $hwf[0]==='ok'?'success':'danger' ?> alert-dismissible fade show" role="alert">
+    <i class="bi bi-<?= $hwf[0]==='ok'?'check-circle':'exclamation-triangle' ?> me-1" aria-hidden="true"></i><?= h($hwf[1]) ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!$homeworks_student): ?>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak zadań domowych.</div>
+  <?php else: $now = date('Y-m-d H:i:s'); ?>
+  <div class="d-flex flex-column gap-3">
+    <?php foreach ($homeworks_student as $h):
+      $done    = !empty($h['sub_id']);
+      $graded  = ($h['sub_status'] ?? '') === 'graded';
+      $overdue = $h['due_at'] && $h['due_at'] < $now && !$done;
+    ?>
+    <div class="card <?= $graded ? 'border-success' : ($overdue ? 'border-danger' : '') ?>">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
+          <div class="flex-grow-1 min-width-0">
+            <div class="fw-bold"><?= h($h['title']) ?></div>
+            <div class="small text-body-secondary">
+              <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($h['course_name']) ?>
+              <?php if ($h['due_at']): ?>
+              · <span class="<?= $overdue ? 'text-danger fw-semibold' : '' ?>">termin: <?= h(substr($h['due_at'],0,16)) ?></span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php if ($graded): ?>
+          <span class="badge text-bg-success">Ocena: <?= h($h['sub_grade'] ?: 'zaliczone') ?></span>
+          <?php elseif ($done): ?>
+          <span class="badge text-bg-secondary">Oddane</span>
+          <?php elseif ($overdue): ?>
+          <span class="badge text-bg-danger">Po terminie</span>
+          <?php else: ?>
+          <span class="badge text-bg-warning">Do oddania</span>
+          <?php endif; ?>
+        </div>
+
+        <?php if ($h['description']): ?>
+        <p class="small mb-2" style="white-space:pre-wrap"><?= h($h['description']) ?></p>
+        <?php endif; ?>
+        <?php if ($h['attach_path']): ?>
+        <p class="small mb-2"><i class="bi bi-paperclip me-1" aria-hidden="true"></i>
+          <a href="homework_file.php?t=attach&hw=<?= (int)$h['id'] ?>"><?= h($h['attach_name']) ?></a> (materiał od prowadzącego)
+        </p>
+        <?php endif; ?>
+
+        <?php if ($done): ?>
+        <div class="border rounded p-2 mb-2 bg-body-tertiary small">
+          <div class="text-body-secondary mb-1">Twoje oddanie (<?= h(substr($h['sub_at'],0,16)) ?>):</div>
+          <?php if ($h['sub_body']): ?><div class="mb-1" style="white-space:pre-wrap"><?= h($h['sub_body']) ?></div><?php endif; ?>
+          <?php if ($h['sub_file_path']): ?>
+          <div><i class="bi bi-download me-1" aria-hidden="true"></i><a href="homework_file.php?t=sub&id=<?= (int)$h['sub_id'] ?>"><?= h($h['sub_file_name']) ?></a></div>
+          <?php endif; ?>
+          <?php if ($graded && $h['sub_feedback']): ?>
+          <div class="mt-1 text-success"><i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($h['sub_feedback']) ?></div>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!$graded): ?>
+        <form method="post" enctype="multipart/form-data" class="border-top pt-2">
+          <input type="hidden" name="_token"      value="<?= h($vlab_token) ?>">
+          <input type="hidden" name="_op"          value="submit_homework">
+          <input type="hidden" name="homework_id"  value="<?= (int)$h['id'] ?>">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Treść / komentarz</label>
+            <textarea class="form-control form-control-sm" name="body" rows="2" placeholder="Możesz wkleić odpowiedź lub dodać komentarz…"><?= h($h['sub_body'] ?? '') ?></textarea>
+          </div>
+          <div class="d-flex flex-wrap align-items-end gap-2">
+            <div class="flex-grow-1">
+              <label class="form-label small fw-semibold">Plik <span class="text-body-secondary fw-normal">(opc., maks. 25 MB)</span></label>
+              <input type="file" class="form-control form-control-sm" name="file">
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-upload me-1" aria-hidden="true"></i><?= $done ? 'Popraw oddanie' : 'Oddaj zadanie' ?>
+            </button>
+          </div>
+        </form>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
 
 <?php elseif ($tab === 'rozliczenia' && !$is_minor):
   $rv_client_id    = $student['client_id'];

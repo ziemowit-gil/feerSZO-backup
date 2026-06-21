@@ -369,6 +369,40 @@ function karty30_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_lic_client  ON k30_ti_client_licenses(client_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_lic_license ON k30_ti_client_licenses(license_id)");
 
+    // ── Zadania domowe (definicje) + oddawanie (submissions) ──────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_homework (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id    INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        session_id   INTEGER REFERENCES k30_ti_sessions(id) ON DELETE SET NULL, -- opcjonalnie powiązane z lekcją
+        title        TEXT    NOT NULL DEFAULT '',
+        description  TEXT    NOT NULL DEFAULT '',
+        due_at       DATETIME,                       -- termin oddania (opcjonalnie)
+        attach_name  TEXT    NOT NULL DEFAULT '',     -- załącznik prowadzącego (oryg. nazwa)
+        attach_path  TEXT    NOT NULL DEFAULT '',     -- nazwa pliku na dysku
+        is_active    INTEGER NOT NULL DEFAULT 1,
+        created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_homework_submissions (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        homework_id  INTEGER NOT NULL REFERENCES k30_ti_homework(id) ON DELETE CASCADE,
+        client_id    INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        body         TEXT    NOT NULL DEFAULT '',     -- treść / komentarz kursanta
+        file_name    TEXT    NOT NULL DEFAULT '',     -- oryginalna nazwa pliku
+        file_path    TEXT    NOT NULL DEFAULT '',     -- nazwa pliku na dysku
+        status       TEXT    NOT NULL DEFAULT 'submitted', -- submitted | graded
+        grade        TEXT    NOT NULL DEFAULT '',     -- ocena (dowolny format, np. 4 / 85%)
+        feedback     TEXT    NOT NULL DEFAULT '',     -- komentarz prowadzącego
+        graded_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        graded_at    DATETIME,
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(homework_id, client_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_hw_course ON k30_ti_homework(course_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_hw_sub_hw ON k30_ti_homework_submissions(homework_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_hw_sub_cl ON k30_ti_homework_submissions(client_id)");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1682,6 +1716,103 @@ function k30_ti_license_assignments(int $license_id): array {
          WHERE cl.license_id=? AND cl.status='active'
          ORDER BY c.name",
         [$license_id]
+    );
+}
+
+// ── Zadania domowe ────────────────────────────────────────────────────────────
+
+/** Katalog dozwolonych rozszerzeń plików zadań. */
+function k30_ti_homework_allowed_ext(): array {
+    return ['pdf','doc','docx','odt','rtf','txt','xls','xlsx','ods','csv','ppt','pptx','odp',
+            'png','jpg','jpeg','gif','webp','bmp','svg','zip','7z','rar','gz',
+            'py','java','c','cpp','cs','js','ts','html','css','sql','json','ipynb','md'];
+}
+
+/**
+ * Zapisuje przesłany plik zadania do UPLOAD_DIR/ti_homework/.
+ * @return array|null ['name'=>oryg, 'stored'=>nazwa-na-dysku] lub null gdy nie przesłano pliku.
+ * @throws RuntimeException przy błędzie/niedozwolonym pliku.
+ */
+function k30_ti_homework_upload(string $field, string $prefix): ?array {
+    $f = $_FILES[$field] ?? null;
+    if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
+    if ($f['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Błąd przesyłania pliku.');
+    if ($f['size'] > 25 * 1024 * 1024) throw new RuntimeException('Plik zbyt duży (maks. 25 MB).');
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, k30_ti_homework_allowed_ext(), true)) throw new RuntimeException('Niedozwolony typ pliku: .' . $ext);
+    $dir = rtrim(UPLOAD_DIR, '/') . '/ti_homework/';
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); @file_put_contents($dir . '.htaccess', "Deny from all\nOptions -Indexes\n"); }
+    $stored = $prefix . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(5)) . '.' . $ext;
+    if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) throw new RuntimeException('Nie udało się zapisać pliku.');
+    return ['name' => mb_substr($f['name'], 0, 200), 'stored' => $stored];
+}
+
+/** Wysyła plik zadania do przeglądarki (download). Kończy skrypt. */
+function k30_ti_homework_send_file(string $stored, string $orig = ''): void {
+    $path = rtrim(UPLOAD_DIR, '/') . '/ti_homework/' . basename($stored);
+    if ($stored === '' || !is_file($path)) { http_response_code(404); exit('Plik nie istnieje.'); }
+    $name = preg_replace('/[\r\n"]+/', '', $orig !== '' ? $orig : basename($stored));
+    header('Content-Type: ' . (mime_content_type($path) ?: 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . $name . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+
+/** Usuwa plik zadania z dysku (jeśli istnieje). */
+function k30_ti_homework_delete_file(string $stored): void {
+    if ($stored === '') return;
+    $path = rtrim(UPLOAD_DIR, '/') . '/ti_homework/' . basename($stored);
+    if (is_file($path)) @unlink($path);
+}
+
+/** Lista zadań (dla prowadzącego); $course_id=0 → wszystkie. Z licznikiem oddań. */
+function k30_ti_homework_list(int $course_id = 0): array {
+    $where = $course_id ? "WHERE h.course_id=?" : "";
+    $params = $course_id ? [$course_id] : [];
+    return db_all(
+        "SELECT h.*, c.name AS course_name,
+                (SELECT COUNT(*) FROM k30_ti_homework_submissions s WHERE s.homework_id=h.id) AS sub_count,
+                (SELECT COUNT(*) FROM k30_ti_homework_submissions s WHERE s.homework_id=h.id AND s.status='graded') AS graded_count
+         FROM k30_ti_homework h
+         JOIN k30_ti_courses c ON c.id=h.course_id
+         $where
+         ORDER BY h.is_active DESC, COALESCE(h.due_at,'9999') DESC, h.id DESC",
+        $params
+    );
+}
+
+function k30_ti_homework_get(int $id): ?array {
+    return db_one(
+        "SELECT h.*, c.name AS course_name FROM k30_ti_homework h
+         JOIN k30_ti_courses c ON c.id=h.course_id WHERE h.id=?", [$id]
+    ) ?: null;
+}
+
+/** Oddania danego zadania — z nazwą kursanta i informacją czy zapisany w kursie. */
+function k30_ti_homework_submissions(int $homework_id): array {
+    return db_all(
+        "SELECT s.*, cl.name AS client_name
+         FROM k30_ti_homework_submissions s
+         JOIN k30_clients cl ON cl.id=s.client_id
+         WHERE s.homework_id=? ORDER BY s.submitted_at DESC",
+        [$homework_id]
+    );
+}
+
+/** Zadania widoczne dla kursanta (jego aktywne kursy) wraz z jego oddaniem (jeśli jest). */
+function k30_ti_homework_for_client(int $client_id): array {
+    return db_all(
+        "SELECT h.*, c.name AS course_name,
+                s.id AS sub_id, s.body AS sub_body, s.file_name AS sub_file_name, s.file_path AS sub_file_path,
+                s.status AS sub_status, s.grade AS sub_grade, s.feedback AS sub_feedback, s.submitted_at AS sub_at
+         FROM k30_ti_homework h
+         JOIN k30_ti_courses c ON c.id=h.course_id
+         LEFT JOIN k30_ti_homework_submissions s ON s.homework_id=h.id AND s.client_id=?
+         WHERE h.is_active=1
+           AND h.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
+         ORDER BY COALESCE(h.due_at,'9999') ASC, h.id DESC",
+        [$client_id, $client_id]
     );
 }
 
