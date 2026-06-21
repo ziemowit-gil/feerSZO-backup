@@ -9,6 +9,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -74,6 +75,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db_update('k30_ti_student_accounts', ['notify_sms_lessons' => $on], (int)$student['id']);
         header('Location: index.php?tab=lekcje&sms=' . ($on ? 'on' : 'off')); exit;
     }
+
+    // Zapis ustawień powiadomień o wiadomościach (e-mail / SMS)
+    if ($op === 'msg_prefs') {
+        db_update('k30_ti_student_accounts', [
+            'notify_email_messages' => !empty($_POST['email']) ? 1 : 0,
+            'notify_sms_messages'   => !empty($_POST['sms'])   ? 1 : 0,
+        ], (int)$student['id']);
+        header('Location: index.php?tab=wiadomosci&prefs=1'); exit;
+    }
+
+    // Odpowiedź kursanta w wątku wiadomości
+    if ($op === 'msg_reply') {
+        $body = trim((string)($_POST['body'] ?? ''));
+        if ($body !== '') {
+            ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000));
+            header('Location: index.php?tab=wiadomosci&sent=1'); exit;
+        }
+        header('Location: index.php?tab=wiadomosci'); exit;
+    }
 }
 
 // Kursy i lekcje kursanta
@@ -96,6 +116,12 @@ $homework_lessons = array_values(array_filter($lessons, fn($l) =>
 $sms_pref       = (int)($account['notify_sms_lessons'] ?? 0);
 $sms_phone      = trim((string)($client['phone'] ?? ''));
 $sms_global_on  = function_exists('sms_is_enabled') && sms_is_enabled();
+
+// Wiadomości — licznik nieprzeczytanych + ustawienia powiadomień
+$msg_unread     = ti_msg_unread_for_student((int)$student['id']);
+$msg_pref_email = (int)($account['notify_email_messages'] ?? 1);
+$msg_pref_sms   = (int)($account['notify_sms_messages'] ?? 0);
+$msg_email_addr = trim((string)($client['email'] ?? ''));
 
 // Prywatny kanał iCal lekcji (subskrypcja w Kalendarzu Google / Apple / Outlook)
 $cal_token  = k30_ti_calendar_token((int)$account['id']);
@@ -135,6 +161,12 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item">
       <a class="nav-link <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab" <?= $tab==='vlab'?'aria-current="page"':'' ?>>
         <i class="bi bi-code-square me-1" aria-hidden="true"></i>VLab
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='wiadomosci'?'active':'' ?>" href="?tab=wiadomosci" <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
+        <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wiadomości
+        <?php if ($msg_unread > 0): ?><span class="badge text-bg-danger ms-1"><?= $msg_unread ?></span><?php endif; ?>
       </a>
     </li>
     <li class="nav-item">
@@ -638,6 +670,104 @@ include __DIR__ . '/_layout_head.php';
     reload();
   })();
   </script>
+
+<?php elseif ($tab === 'wiadomosci'):
+  // Oznacz wiadomości od prowadzącego jako przeczytane przy wejściu na zakładkę
+  ti_msg_mark_read_for_student((int)$student['id']);
+  $messages = ti_msg_list_for_student((int)$student['id']);
+?>
+
+  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-envelope text-primary" aria-hidden="true"></i>Wiadomości
+  </h1>
+  <p class="text-body-secondary small mb-3">Wiadomości od prowadzącego. Możesz odpowiedzieć — odpowiedź trafi do prowadzącego.</p>
+
+  <?php if (($_GET['sent'] ?? '') === '1'): ?>
+  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Wiadomość wysłana.</div>
+  <?php elseif (($_GET['prefs'] ?? '') === '1'): ?>
+  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Ustawienia powiadomień zapisane.</div>
+  <?php endif; ?>
+
+  <div class="row g-4">
+    <!-- Wątek wiadomości -->
+    <div class="col-12 col-lg-8">
+      <section class="card" aria-labelledby="msg-thread-h">
+        <div class="card-body">
+          <h2 id="msg-thread-h" class="h6 fw-bold mb-3"><i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>Twój wątek</h2>
+          <?php if (!$messages): ?>
+            <div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary">
+              Brak wiadomości. Gdy prowadzący coś napisze, pojawi się tutaj.
+            </div>
+          <?php else: ?>
+            <div class="d-flex flex-column gap-2 mb-3" style="max-height:55vh;overflow-y:auto">
+              <?php foreach ($messages as $m):
+                $mine = ($m['sender'] ?? '') === 'student';
+                $ts   = $m['created_at'] ? date('d.m.Y H:i', strtotime($m['created_at'])) : '';
+              ?>
+              <div class="d-flex <?= $mine ? 'justify-content-end' : 'justify-content-start' ?>">
+                <div class="p-2 px-3 rounded-3 <?= $mine ? 'bg-primary text-white' : 'bg-body-tertiary border' ?>" style="max-width:85%">
+                  <div class="small fw-semibold mb-1 <?= $mine ? 'text-white-50' : 'text-body-secondary' ?>">
+                    <?= $mine ? 'Ty' : h($m['sender_name'] !== '' ? $m['sender_name'] : 'Prowadzący') ?>
+                    <span class="ms-2 fw-normal"><?= h($ts) ?></span>
+                  </div>
+                  <?php if (!$mine && trim((string)$m['subject']) !== ''): ?>
+                  <div class="fw-bold mb-1"><?= h($m['subject']) ?></div>
+                  <?php endif; ?>
+                  <div style="white-space:pre-wrap;word-break:break-word"><?= nl2br(h($m['body'])) ?></div>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+
+          <form method="post" class="mt-2">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="msg_reply">
+            <label class="form-label small fw-semibold" for="msg-body">Napisz wiadomość do prowadzącego</label>
+            <textarea class="form-control mb-2" id="msg-body" name="body" rows="3" maxlength="4000" required placeholder="Treść wiadomości…"></textarea>
+            <button class="btn btn-primary btn-sm"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij</button>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <!-- Ustawienia powiadomień -->
+    <div class="col-12 col-lg-4">
+      <section class="card" aria-labelledby="msg-prefs-h">
+        <div class="card-body">
+          <h2 id="msg-prefs-h" class="h6 fw-bold mb-2"><i class="bi bi-bell me-2 text-info" aria-hidden="true"></i>Powiadomienia o wiadomościach</h2>
+          <p class="text-body-secondary small mb-3">Wybierz, jak chcesz być informowany o nowych wiadomościach.</p>
+          <form method="post" id="msgPrefsForm">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="msg_prefs">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" role="switch" id="prefEmail" name="email" value="1"
+                     <?= $msg_pref_email ? 'checked' : '' ?> onchange="document.getElementById('msgPrefsForm').submit()">
+              <label class="form-check-label" for="prefEmail"><i class="bi bi-envelope me-1" aria-hidden="true"></i>E-mail</label>
+            </div>
+            <?php if ($msg_pref_email && $msg_email_addr === ''): ?>
+            <p class="text-warning small ms-4 mb-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak adresu e-mail w Twoich danych.</p>
+            <?php elseif ($msg_email_addr !== ''): ?>
+            <p class="text-body-secondary small ms-4 mb-2" style="margin-top:-4px"><?= h($msg_email_addr) ?></p>
+            <?php endif; ?>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" role="switch" id="prefSms" name="sms" value="1"
+                     <?= $msg_pref_sms ? 'checked' : '' ?> <?= $sms_global_on ? '' : 'disabled' ?>
+                     onchange="document.getElementById('msgPrefsForm').submit()">
+              <label class="form-check-label" for="prefSms"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>SMS</label>
+            </div>
+            <?php if (!$sms_global_on): ?>
+            <p class="text-body-secondary small ms-4 mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.</p>
+            <?php elseif ($sms_phone === ''): ?>
+            <p class="text-warning small ms-4 mb-0"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak numeru telefonu w Twoich danych.</p>
+            <?php else: ?>
+            <p class="text-body-secondary small ms-4 mb-0" style="margin-top:-2px"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
+            <?php endif; ?>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
 
 <?php elseif ($tab === 'online'): ?>
 

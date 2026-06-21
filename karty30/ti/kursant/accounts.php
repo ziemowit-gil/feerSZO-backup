@@ -596,6 +596,10 @@ function printBulk(){
                 <a href="?guardian=<?= (int)$a['id'] ?>" class="btn btn-xs btn-sm btn-outline-info py-0 px-2 me-1" title="Opiekun / dostęp rodzica">
                   <i class="bi bi-people"></i>
                 </a>
+                <!-- Wyślij wiadomość -->
+                <a href="../messages.php?student=<?= (int)$a['id'] ?>" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 me-1" title="Wyślij wiadomość">
+                  <i class="bi bi-envelope"></i>
+                </a>
                 <!-- Zaloguj jako kursant (podgląd) -->
                 <?php if ($a['is_active']): ?>
                 <form method="post" class="d-inline" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja administratora pozostanie aktywna w tej karcie.')">

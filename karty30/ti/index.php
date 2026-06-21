@@ -8,12 +8,14 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_messages.php';
 
 k30_require_access();
 karty30_migrate();
 
 $PAGE_TITLE = 'Zajęcia TI — Karty 30';
 $can_write  = can_write('karty30') || is_admin();
+$msg_unread_staff = ti_msg_unread_for_staff();
 $can_delete = is_admin(); // usuwanie kursów — tylko administrator (globalnie)
 
 // Miękkie usuwanie kursu (status='cancelled') — tylko admin
@@ -74,7 +76,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i>Zajęcia informatyki / TI</h4>
   <?php if ($can_write): ?>
-  <a href="online_admin.php" class="btn btn-outline-secondary btn-sm <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>"><i class="bi bi-camera-video me-1"></i>Nauka online</a>
+  <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>"><i class="bi bi-envelope me-1"></i>Wiadomości<?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?></a>
+  <a href="online_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-camera-video me-1"></i>Nauka online</a>
   <a href="vlab_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-hdd-stack me-1"></i>VLAB / Docker</a>
   <?php endif; ?>
   <?php if ($can_write && !$show_new && !$edit_row): ?>

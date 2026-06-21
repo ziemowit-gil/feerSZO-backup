@@ -296,9 +296,28 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN calendar_token TEXT NOT NULL DEFAULT ''",
         // Zgoda kursanta/beneficjenta na powiadomienia SMS o zajęciach (opt-in)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_lessons INTEGER NOT NULL DEFAULT 0",
+        // Powiadomienia o nowych wiadomościach w panelu (do wyboru przez kursanta)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_messages INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_messages   INTEGER NOT NULL DEFAULT 0",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
+
+    // ── Moduł wiadomości kursant ↔ prowadzący ─────────────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_messages (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id     INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        sender         TEXT    NOT NULL DEFAULT 'staff',   -- 'staff' | 'student'
+        sender_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        sender_name    TEXT    NOT NULL DEFAULT '',
+        subject        TEXT    NOT NULL DEFAULT '',
+        body           TEXT    NOT NULL DEFAULT '',
+        is_read        INTEGER NOT NULL DEFAULT 0,         -- czy odczytane przez drugą stronę
+        read_at        DATETIME,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_msg_student ON k30_ti_messages(student_id,created_at)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_msg_unread  ON k30_ti_messages(student_id,sender,is_read)");
 
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
