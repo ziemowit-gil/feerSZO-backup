@@ -67,13 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'reset_calendar_token') {
         k30_ti_calendar_token_reset((int)$student['id']);
-        header('Location: index.php?tab=lekcje&cal=reset'); exit;
+        header('Location: index.php?tab=ustawienia&cal=reset'); exit;
     }
 
     if ($op === 'toggle_sms_lessons') {
         $on = !empty($_POST['enabled']) ? 1 : 0;
         db_update('k30_ti_student_accounts', ['notify_sms_lessons' => $on], (int)$student['id']);
-        header('Location: index.php?tab=lekcje&sms=' . ($on ? 'on' : 'off')); exit;
+        header('Location: index.php?tab=ustawienia&sms=' . ($on ? 'on' : 'off')); exit;
     }
 
     // Zapis ustawień powiadomień o wiadomościach (e-mail / SMS)
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'notify_email_messages' => !empty($_POST['email']) ? 1 : 0,
             'notify_sms_messages'   => !empty($_POST['sms'])   ? 1 : 0,
         ], (int)$student['id']);
-        header('Location: index.php?tab=wiadomosci&prefs=1'); exit;
+        header('Location: index.php?tab=ustawienia&prefs=1'); exit;
     }
 
     // Odpowiedź kursanta w wątku wiadomości
@@ -172,6 +172,11 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item">
       <a class="nav-link <?= $tab==='online'?'active':'' ?>" href="?tab=online" <?= $tab==='online'?'aria-current="page"':'' ?>>
         <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Szkolenia online
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
+        <i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia
       </a>
     </li>
   </ul>
@@ -356,121 +361,6 @@ include __DIR__ . '/_layout_head.php';
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
     Zaplanowaną lekcję możesz odwołać, podając powód — odwołany udział nie jest liczony do ceny.
   </p>
-
-  <!-- ── Powiadomienia SMS o zajęciach (zgoda beneficjenta, opt-in) ───────────── -->
-  <section class="card mt-4" aria-labelledby="sms-heading">
-    <div class="card-body">
-      <h2 id="sms-heading" class="h6 fw-bold mb-2">
-        <i class="bi bi-chat-dots text-info me-2" aria-hidden="true"></i>Powiadomienia SMS o zajęciach
-      </h2>
-      <?php if (!$sms_global_on): ?>
-      <p class="text-body-secondary small mb-0">
-        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.
-      </p>
-      <?php else: ?>
-        <?php if (($_GET['sms'] ?? '') === 'on'): ?>
-        <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Włączono powiadomienia SMS o zajęciach.</div>
-        <?php elseif (($_GET['sms'] ?? '') === 'off'): ?>
-        <div class="alert alert-secondary py-2 small" role="alert">Wyłączono powiadomienia SMS o zajęciach.</div>
-        <?php endif; ?>
-      <p class="text-body-secondary small mb-2">Otrzymasz krótki SMS, gdy prowadzący doda Ci nowe zajęcia.</p>
-      <form method="post" id="smsPrefForm">
-        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-        <input type="hidden" name="_op"     value="toggle_sms_lessons">
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" role="switch" id="smsToggle" name="enabled" value="1"
-                 <?= $sms_pref ? 'checked' : '' ?>
-                 onchange="document.getElementById('smsPrefForm').submit()">
-          <label class="form-check-label" for="smsToggle">Chcę dostawać SMS o nowych zajęciach</label>
-        </div>
-      </form>
-        <?php if ($sms_phone === ''): ?>
-      <p class="text-warning small mb-0 mt-2">
-        <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-        Brak numeru telefonu w Twoich danych — SMS nie dotrą, dopóki administrator go nie uzupełni.
-      </p>
-        <?php else: ?>
-      <p class="text-body-secondary small mb-0 mt-2">
-        <i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?>
-      </p>
-        <?php endif; ?>
-      <?php endif; ?>
-    </div>
-  </section>
-
-  <!-- ── Synchronizacja z kalendarzem (Google / Apple / Outlook) ──────────────── -->
-  <section class="card mt-4" aria-labelledby="cal-heading">
-    <div class="card-body">
-      <h2 id="cal-heading" class="h6 fw-bold mb-2">
-        <i class="bi bi-calendar-plus text-info me-2" aria-hidden="true"></i>Synchronizacja z kalendarzem
-      </h2>
-      <p class="text-body-secondary small mb-3">
-        Dodaj swoje lekcje do Kalendarza Google, Apple lub Outlook. Kalendarz
-        odświeża się automatycznie, gdy prowadzący doda lub zmieni terminy.
-      </p>
-
-      <?php if (($_GET['cal'] ?? '') === 'reset'): ?>
-      <div class="alert alert-success py-2 small" role="alert">
-        <i class="bi bi-check-circle me-1" aria-hidden="true"></i>
-        Adres kalendarza został zmieniony. Poprzedni link przestał działać — zaktualizuj subskrypcję w swoim kalendarzu.
-      </div>
-      <?php endif; ?>
-
-      <div class="d-flex flex-wrap gap-2 mb-3">
-        <a href="<?= h($cal_gcal) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
-          <i class="bi bi-google me-1" aria-hidden="true"></i>Dodaj do Google Calendar
-        </a>
-        <a href="<?= h($cal_webcal) ?>" class="btn btn-sm btn-info">
-          <i class="bi bi-apple me-1" aria-hidden="true"></i>Subskrybuj (Apple / Outlook)
-        </a>
-        <a href="<?= h($cal_https) ?>" class="btn btn-sm btn-outline-secondary" download="lekcje.ics">
-          <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz plik .ics
-        </a>
-      </div>
-
-      <label class="form-label small fw-semibold" for="cal-url">Adres kanału (do ręcznego dodania „z adresu URL")</label>
-      <div class="input-group input-group-sm mb-2">
-        <input type="text" class="form-control" id="cal-url" value="<?= h($cal_https) ?>" readonly
-               aria-label="Adres kanału iCal" onclick="this.select()">
-        <button type="button" class="btn btn-outline-secondary" id="cal-copy">
-          <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj
-        </button>
-      </div>
-
-      <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
-        <p class="text-body-secondary mb-0" style="font-size:.78rem">
-          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>
-          Adres jest prywatny — nie udostępniaj go innym. Jeśli wyciekł, zresetuj go.
-        </p>
-        <form method="post" class="m-0" onsubmit="return confirm('Zresetować adres kalendarza? Dotychczasowa subskrypcja przestanie działać i trzeba ją dodać ponownie.')">
-          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-          <input type="hidden" name="_op"     value="reset_calendar_token">
-          <button type="submit" class="btn btn-sm btn-outline-danger">
-            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Resetuj adres
-          </button>
-        </form>
-      </div>
-    </div>
-  </section>
-
-  <script>
-  (function(){
-    var btn = document.getElementById('cal-copy');
-    var inp = document.getElementById('cal-url');
-    if (!btn || !inp) return;
-    btn.addEventListener('click', function(){
-      inp.select();
-      var done = function(){
-        var html = btn.innerHTML;
-        btn.innerHTML = '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Skopiowano';
-        setTimeout(function(){ btn.innerHTML = html; }, 1500);
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(inp.value).then(done, function(){ try { document.execCommand('copy'); done(); } catch(e){} });
-      } else { try { document.execCommand('copy'); done(); } catch(e){} }
-    });
-  })();
-  </script>
 
   <!-- Modal: odwołanie udziału przez beneficjenta -->
   <div class="modal fade" id="cancelLessonModal" tabindex="-1" aria-hidden="true">
@@ -684,59 +574,75 @@ include __DIR__ . '/_layout_head.php';
 
   <?php if (($_GET['sent'] ?? '') === '1'): ?>
   <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Wiadomość wysłana.</div>
+  <?php endif; ?>
+
+  <section class="card" aria-labelledby="msg-thread-h">
+    <div class="card-body">
+      <h2 id="msg-thread-h" class="h6 fw-bold mb-3"><i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>Twój wątek</h2>
+      <?php if (!$messages): ?>
+        <div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary">
+          Brak wiadomości. Gdy prowadzący coś napisze, pojawi się tutaj.
+        </div>
+      <?php else: ?>
+        <div class="d-flex flex-column gap-2 mb-3" style="max-height:60vh;overflow-y:auto">
+          <?php foreach ($messages as $m):
+            $mine = ($m['sender'] ?? '') === 'student';
+            $ts   = $m['created_at'] ? date('d.m.Y H:i', strtotime($m['created_at'])) : '';
+          ?>
+          <div class="d-flex <?= $mine ? 'justify-content-end' : 'justify-content-start' ?>">
+            <div class="p-2 px-3 rounded-3 <?= $mine ? 'bg-primary text-white' : 'bg-body-tertiary border' ?>" style="max-width:85%">
+              <div class="small fw-semibold mb-1 <?= $mine ? 'text-white-50' : 'text-body-secondary' ?>">
+                <?= $mine ? 'Ty' : h($m['sender_name'] !== '' ? $m['sender_name'] : 'Prowadzący') ?>
+                <span class="ms-2 fw-normal"><?= h($ts) ?></span>
+              </div>
+              <?php if (!$mine && trim((string)$m['subject']) !== ''): ?>
+              <div class="fw-bold mb-1"><?= h($m['subject']) ?></div>
+              <?php endif; ?>
+              <div style="white-space:pre-wrap;word-break:break-word"><?= nl2br(h($m['body'])) ?></div>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <form method="post" class="mt-2">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op" value="msg_reply">
+        <label class="form-label small fw-semibold" for="msg-body">Napisz wiadomość do prowadzącego</label>
+        <textarea class="form-control mb-2" id="msg-body" name="body" rows="3" maxlength="4000" required placeholder="Treść wiadomości…"></textarea>
+        <button class="btn btn-primary btn-sm"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij</button>
+      </form>
+      <p class="text-body-secondary small mb-0 mt-3">
+        <i class="bi bi-gear me-1" aria-hidden="true"></i>Powiadomienia o nowych wiadomościach ustawisz w zakładce
+        <a href="?tab=ustawienia">Ustawienia</a>.
+      </p>
+    </div>
+  </section>
+
+<?php elseif ($tab === 'ustawienia'): ?>
+
+  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-gear text-primary" aria-hidden="true"></i>Ustawienia i preferencje
+  </h1>
+  <p class="text-body-secondary small mb-3">Powiadomienia oraz synchronizacja lekcji z Twoim kalendarzem.</p>
+
+  <?php if (($_GET['sms'] ?? '') === 'on'): ?>
+  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Włączono powiadomienia SMS o zajęciach.</div>
+  <?php elseif (($_GET['sms'] ?? '') === 'off'): ?>
+  <div class="alert alert-secondary py-2 small" role="alert">Wyłączono powiadomienia SMS o zajęciach.</div>
   <?php elseif (($_GET['prefs'] ?? '') === '1'): ?>
   <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Ustawienia powiadomień zapisane.</div>
+  <?php elseif (($_GET['cal'] ?? '') === 'reset'): ?>
+  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Adres kalendarza został zmieniony. Poprzedni link przestał działać — zaktualizuj subskrypcję w swoim kalendarzu.</div>
   <?php endif; ?>
 
   <div class="row g-4">
-    <!-- Wątek wiadomości -->
-    <div class="col-12 col-lg-8">
-      <section class="card" aria-labelledby="msg-thread-h">
-        <div class="card-body">
-          <h2 id="msg-thread-h" class="h6 fw-bold mb-3"><i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>Twój wątek</h2>
-          <?php if (!$messages): ?>
-            <div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary">
-              Brak wiadomości. Gdy prowadzący coś napisze, pojawi się tutaj.
-            </div>
-          <?php else: ?>
-            <div class="d-flex flex-column gap-2 mb-3" style="max-height:55vh;overflow-y:auto">
-              <?php foreach ($messages as $m):
-                $mine = ($m['sender'] ?? '') === 'student';
-                $ts   = $m['created_at'] ? date('d.m.Y H:i', strtotime($m['created_at'])) : '';
-              ?>
-              <div class="d-flex <?= $mine ? 'justify-content-end' : 'justify-content-start' ?>">
-                <div class="p-2 px-3 rounded-3 <?= $mine ? 'bg-primary text-white' : 'bg-body-tertiary border' ?>" style="max-width:85%">
-                  <div class="small fw-semibold mb-1 <?= $mine ? 'text-white-50' : 'text-body-secondary' ?>">
-                    <?= $mine ? 'Ty' : h($m['sender_name'] !== '' ? $m['sender_name'] : 'Prowadzący') ?>
-                    <span class="ms-2 fw-normal"><?= h($ts) ?></span>
-                  </div>
-                  <?php if (!$mine && trim((string)$m['subject']) !== ''): ?>
-                  <div class="fw-bold mb-1"><?= h($m['subject']) ?></div>
-                  <?php endif; ?>
-                  <div style="white-space:pre-wrap;word-break:break-word"><?= nl2br(h($m['body'])) ?></div>
-                </div>
-              </div>
-              <?php endforeach; ?>
-            </div>
-          <?php endif; ?>
-
-          <form method="post" class="mt-2">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op" value="msg_reply">
-            <label class="form-label small fw-semibold" for="msg-body">Napisz wiadomość do prowadzącego</label>
-            <textarea class="form-control mb-2" id="msg-body" name="body" rows="3" maxlength="4000" required placeholder="Treść wiadomości…"></textarea>
-            <button class="btn btn-primary btn-sm"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij</button>
-          </form>
-        </div>
-      </section>
-    </div>
-
-    <!-- Ustawienia powiadomień -->
-    <div class="col-12 col-lg-4">
-      <section class="card" aria-labelledby="msg-prefs-h">
+    <!-- ── Powiadomienia o wiadomościach (e-mail / SMS) ──────────────────────── -->
+    <div class="col-12 col-lg-6">
+      <section class="card h-100" aria-labelledby="msg-prefs-h">
         <div class="card-body">
           <h2 id="msg-prefs-h" class="h6 fw-bold mb-2"><i class="bi bi-bell me-2 text-info" aria-hidden="true"></i>Powiadomienia o wiadomościach</h2>
-          <p class="text-body-secondary small mb-3">Wybierz, jak chcesz być informowany o nowych wiadomościach.</p>
+          <p class="text-body-secondary small mb-3">Wybierz, jak chcesz być informowany o nowych wiadomościach od prowadzącego.</p>
           <form method="post" id="msgPrefsForm">
             <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
             <input type="hidden" name="_op" value="msg_prefs">
@@ -767,7 +673,86 @@ include __DIR__ . '/_layout_head.php';
         </div>
       </section>
     </div>
+
+    <!-- ── Powiadomienia SMS o zajęciach ─────────────────────────────────────── -->
+    <div class="col-12 col-lg-6">
+      <section class="card h-100" aria-labelledby="sms-heading">
+        <div class="card-body">
+          <h2 id="sms-heading" class="h6 fw-bold mb-2"><i class="bi bi-chat-dots text-info me-2" aria-hidden="true"></i>Powiadomienia SMS o zajęciach</h2>
+          <?php if (!$sms_global_on): ?>
+          <p class="text-body-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.</p>
+          <?php else: ?>
+          <p class="text-body-secondary small mb-2">Otrzymasz krótki SMS, gdy prowadzący doda Ci nowe zajęcia.</p>
+          <form method="post" id="smsPrefForm">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op"     value="toggle_sms_lessons">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="smsToggle" name="enabled" value="1"
+                     <?= $sms_pref ? 'checked' : '' ?>
+                     onchange="document.getElementById('smsPrefForm').submit()">
+              <label class="form-check-label" for="smsToggle">Chcę dostawać SMS o nowych zajęciach</label>
+            </div>
+          </form>
+            <?php if ($sms_phone === ''): ?>
+          <p class="text-warning small mb-0 mt-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak numeru telefonu w Twoich danych — SMS nie dotrą, dopóki administrator go nie uzupełni.</p>
+            <?php else: ?>
+          <p class="text-body-secondary small mb-0 mt-2"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
+            <?php endif; ?>
+          <?php endif; ?>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Synchronizacja z kalendarzem (Google / Apple / Outlook) ──────────── -->
+    <div class="col-12">
+      <section class="card" aria-labelledby="cal-heading">
+        <div class="card-body">
+          <h2 id="cal-heading" class="h6 fw-bold mb-2"><i class="bi bi-calendar-plus text-info me-2" aria-hidden="true"></i>Synchronizacja z kalendarzem</h2>
+          <p class="text-body-secondary small mb-3">Dodaj swoje lekcje do Kalendarza Google, Apple lub Outlook. Kalendarz odświeża się automatycznie, gdy prowadzący doda lub zmieni terminy.</p>
+
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <a href="<?= h($cal_gcal) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary"><i class="bi bi-google me-1" aria-hidden="true"></i>Dodaj do Google Calendar</a>
+            <a href="<?= h($cal_webcal) ?>" class="btn btn-sm btn-info"><i class="bi bi-apple me-1" aria-hidden="true"></i>Subskrybuj (Apple / Outlook)</a>
+            <a href="<?= h($cal_https) ?>" class="btn btn-sm btn-outline-secondary" download="lekcje.ics"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz plik .ics</a>
+          </div>
+
+          <label class="form-label small fw-semibold" for="cal-url">Adres kanału (do ręcznego dodania „z adresu URL")</label>
+          <div class="input-group input-group-sm mb-2">
+            <input type="text" class="form-control" id="cal-url" value="<?= h($cal_https) ?>" readonly aria-label="Adres kanału iCal" onclick="this.select()">
+            <button type="button" class="btn btn-outline-secondary" id="cal-copy"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
+            <p class="text-body-secondary mb-0" style="font-size:.78rem"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Adres jest prywatny — nie udostępniaj go innym. Jeśli wyciekł, zresetuj go.</p>
+            <form method="post" class="m-0" onsubmit="return confirm('Zresetować adres kalendarza? Dotychczasowa subskrypcja przestanie działać i trzeba ją dodać ponownie.')">
+              <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+              <input type="hidden" name="_op"     value="reset_calendar_token">
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Resetuj adres</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
+
+  <script>
+  (function(){
+    var btn = document.getElementById('cal-copy');
+    var inp = document.getElementById('cal-url');
+    if (!btn || !inp) return;
+    btn.addEventListener('click', function(){
+      inp.select();
+      var done = function(){
+        var html = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Skopiowano';
+        setTimeout(function(){ btn.innerHTML = html; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(inp.value).then(done, function(){ try { document.execCommand('copy'); done(); } catch(e){} });
+      } else { try { document.execCommand('copy'); done(); } catch(e){} }
+    });
+  })();
+  </script>
 
 <?php elseif ($tab === 'online'): ?>
 
