@@ -616,53 +616,62 @@ function printBulk(){
               </td>
               <td class="text-muted"><?= $a['last_login'] ? date('d.m.Y H:i', strtotime($a['last_login'])) : '—' ?></td>
               <td class="text-end">
-                <!-- Opiekun / dostęp rodzica -->
-                <a href="?guardian=<?= (int)$a['id'] ?>" class="btn btn-xs btn-sm btn-outline-info py-0 px-2 me-1" title="Opiekun / dostęp rodzica">
-                  <i class="bi bi-people"></i>
-                </a>
-                <!-- Wyślij wiadomość -->
-                <a href="../messages.php?student=<?= (int)$a['id'] ?>" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 me-1" title="Wyślij wiadomość">
-                  <i class="bi bi-envelope"></i>
-                </a>
-                <!-- Zaloguj jako kursant (podgląd) -->
-                <?php if ($a['is_active']): ?>
-                <form method="post" class="d-inline" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja administratora pozostanie aktywna w tej karcie.')">
-                  <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="_op"         value="impersonate">
-                  <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
-                  <button type="submit" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 me-1" title="Zaloguj jako kursant (podgląd w nowej karcie)">
-                    <i class="bi bi-box-arrow-in-right"></i>
+                <?php $aname = h($a['client_name']); ?>
+                <div class="dropdown">
+                  <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                          data-acct-menu data-bs-toggle="dropdown" aria-expanded="false"
+                          aria-label="Działania dla kursanta <?= $aname ?>">
+                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i><span class="d-none d-xl-inline ms-1">Działania</span>
                   </button>
-                </form>
-                <?php endif; ?>
-                <!-- Reset hasła -->
-                <form method="post" class="d-inline" onsubmit="return confirm('Zresetować hasło?')">
-                  <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="_op"         value="reset_pass">
-                  <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
-                  <button type="submit" class="btn btn-xs btn-sm btn-outline-warning py-0 px-2 me-1" title="Resetuj hasło">
-                    <i class="bi bi-key"></i>
-                  </button>
-                </form>
-                <!-- Blokuj/odblokuj -->
-                <form method="post" class="d-inline">
-                  <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="_op"         value="toggle">
-                  <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
-                  <button type="submit" class="btn btn-xs btn-sm py-0 px-2 me-1 <?= $a['is_active'] ? 'btn-outline-secondary' : 'btn-outline-success' ?>"
-                          title="<?= $a['is_active'] ? 'Zablokuj' : 'Odblokuj' ?>">
-                    <i class="bi <?= $a['is_active'] ? 'bi-lock' : 'bi-unlock' ?>"></i>
-                  </button>
-                </form>
-                <!-- Usuń -->
-                <form method="post" class="d-inline" onsubmit="return confirm('Usunąć konto?')">
-                  <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="_op"         value="delete">
-                  <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
-                  <button type="submit" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Usuń konto">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </form>
+                  <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><h6 class="dropdown-header"><?= $aname ?></h6></li>
+
+                    <?php if ($a['is_active']): ?>
+                    <li>
+                      <form method="post" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja administratora pozostanie aktywna w tej karcie.')">
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="impersonate">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-in-right me-2 text-primary" aria-hidden="true"></i>Zaloguj jako kursant <span class="text-body-secondary small">(podgląd)</span></button>
+                      </form>
+                    </li>
+                    <?php endif; ?>
+                    <li><a class="dropdown-item" href="../messages.php?student=<?= (int)$a['id'] ?>"><i class="bi bi-envelope me-2" aria-hidden="true"></i>Wyślij wiadomość</a></li>
+                    <li><a class="dropdown-item" href="?guardian=<?= (int)$a['id'] ?>"><i class="bi bi-people me-2 text-info" aria-hidden="true"></i>Opiekun / dostęp rodzica</a></li>
+
+                    <li><hr class="dropdown-divider"></li>
+
+                    <li>
+                      <form method="post" onsubmit="return confirm('Zresetować hasło?')">
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="reset_pass">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-key me-2 text-warning" aria-hidden="true"></i>Resetuj hasło</button>
+                      </form>
+                    </li>
+                    <li>
+                      <form method="post">
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="toggle">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item">
+                          <i class="bi <?= $a['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-2" aria-hidden="true"></i><?= $a['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
+                        </button>
+                      </form>
+                    </li>
+
+                    <li><hr class="dropdown-divider"></li>
+
+                    <li>
+                      <form method="post" onsubmit="return confirm('Usunąć konto „<?= h(addslashes($a['client_name'])) ?>”? Tej operacji nie można cofnąć.')">
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="delete">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash me-2" aria-hidden="true"></i>Usuń konto</button>
+                      </form>
+                    </li>
+                  </ul>
+                </div>
               </td>
             </tr>
             <?php endforeach; ?>
@@ -674,5 +683,20 @@ function printBulk(){
   </div>
 
 </div>
+
+<script>
+// Menu działań w wierszu: Popper ze strategią 'fixed', aby rozwijane menu nie
+// było obcinane przez overflow kontenera .table-responsive.
+(function(){
+  if (typeof bootstrap === 'undefined') return;
+  document.querySelectorAll('[data-acct-menu]').forEach(function(el){
+    bootstrap.Dropdown.getOrCreateInstance(el, {
+      popperConfig: function(defaultConfig){
+        return Object.assign({}, defaultConfig, { strategy: 'fixed' });
+      }
+    });
+  });
+})();
+</script>
 
 <?php include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/footer_k30.php'; ?>
