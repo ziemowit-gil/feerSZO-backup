@@ -3,16 +3,15 @@
  * Partial: widok rozliczeń (+ opcjonalnie frekwencji). Bootstrap 5.3 + WCAG.
  * Wymaga: $rv_client_id (int), $rv_show_lessons (bool).
  */
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 $rv_billing = k30_ti_client_billing((int)$rv_client_id);
 $rv_months  = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
 $rv_st = ['draft'=>['Robocze','secondary'], 'issued'=>['Wystawione','primary'], 'paid'=>['Opłacone','success']];
-$rv_total = 0.0; $rv_paid = 0.0;
-foreach ($rv_billing as $b) {
-    $t = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
-    $rv_total += $t;
-    if ($b['status']==='paid') $rv_paid += $t;
-}
+// Saldo z księgi wpłat (nadpłata/niedopłata)
+$rv_bal   = ti_client_balance((int)$rv_client_id);
+$rv_total = $rv_bal['charges'];
+$rv_paid  = $rv_bal['payments'];
 ?>
 <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-receipt text-primary" aria-hidden="true"></i>Rozliczenia</h2>
 
@@ -61,11 +60,25 @@ foreach ($rv_billing as $b) {
   </div>
   <div class="col-6 col-md-4">
     <div class="card h-100"><div class="card-body">
-      <div class="fs-4 fw-bold lh-1"><?= number_format(max(0, $rv_total - $rv_paid), 2, ',', ' ') ?> zł</div>
+      <?php if ($rv_bal['credit'] > 0.005): ?>
+      <div class="fs-4 fw-bold lh-1 text-success"><?= number_format($rv_bal['credit'], 2, ',', ' ') ?> zł</div>
+      <div class="text-body-secondary small mt-1"><i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>Nadpłata (na kolejne zajęcia)</div>
+      <?php elseif ($rv_bal['debt'] > 0.005): ?>
+      <div class="fs-4 fw-bold lh-1 text-danger"><?= number_format($rv_bal['debt'], 2, ',', ' ') ?> zł</div>
       <div class="text-body-secondary small mt-1">Do zapłaty</div>
+      <?php else: ?>
+      <div class="fs-4 fw-bold lh-1">0,00 zł</div>
+      <div class="text-body-secondary small mt-1">Saldo rozliczone</div>
+      <?php endif; ?>
     </div></div>
   </div>
 </div>
+<?php if ($rv_bal['credit'] > 0.005): ?>
+<div class="alert alert-success d-flex align-items-center gap-2" role="status">
+  <i class="bi bi-piggy-bank-fill" aria-hidden="true"></i>
+  <span>Na koncie jest nadpłata <strong><?= number_format($rv_bal['credit'], 2, ',', ' ') ?> zł</strong> — zostanie automatycznie zaliczona na poczet kolejnych zajęć.</span>
+</div>
+<?php endif; ?>
 
 <div class="card">
   <div class="table-responsive">

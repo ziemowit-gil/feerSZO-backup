@@ -9,11 +9,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/stripe.php';
 require_once dirname(dirname(__DIR__)) . '/includes/payu.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_payments.php';
 
 k30_require_access();
 karty30_migrate();
 stripe_migrate();
 payu_migrate();
+ti_payments_migrate();
 
 $PAGE_TITLE = 'Rozliczenia TI';
 $can_write  = can_write('karty30') || is_admin();
@@ -35,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $notes     = trim($_POST['notes'] ?? '');
         if ($client_id) {
             $bid = k30_ti_issue_billing($client_id, $month, $year, $notes);
+            ti_billing_recompute($client_id); // auto-pobranie z ewentualnej nadpłaty
             $n   = k30_ti_billing_notify($bid);
             $extra = '';
             if (!empty($n['ok'])) {
@@ -59,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $sms = 0; $eml = 0;
         foreach ($clients_with_sessions as $c) {
             $bid = k30_ti_issue_billing((int)$c['client_id'], $month, $year);
+            ti_billing_recompute((int)$c['client_id']); // auto-pobranie z nadpłaty
             $n   = k30_ti_billing_notify($bid);
             if (!empty($n['sms']))   $sms++;
             if (!empty($n['email'])) $eml++;
@@ -84,10 +88,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // „Opłacone" = zarejestruj wpłatę na pozostałą do zapłaty kwotę (księga + saldo)
     if ($op === 'set_paid') {
         $bid = (int)($_POST['billing_id'] ?? 0);
-        if ($bid) db()->prepare("UPDATE k30_ti_billing SET status='paid' WHERE id=?")->execute([$bid]);
-        flash_set('success','Oznaczono jako opłacone.');
+        $b   = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$bid]) : null;
+        if ($b) {
+            $due       = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            $remaining = round($due - (float)($b['paid_amount'] ?? 0), 2);
+            if ($remaining > 0) {
+                $r = ti_payment_add((int)$b['client_id'], $remaining, date('Y-m-d'), 'manual', 'Oznaczono jako opłacone (rozl. '.$b['month'].'/'.$b['year'].')');
+                flash_set('success', 'Zarejestrowano wpłatę ' . number_format($remaining,2,',',' ') . ' zł.' . (!empty($r['emailed']) ? ' Wysłano e-mail.' : ''));
+            } else {
+                flash_set('info', 'Rozliczenie jest już w pełni pokryte.');
+            }
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Ręczna wpłata (dowolna kwota) — może utworzyć nadpłatę
+    if ($op === 'add_payment') {
+        $client_id = (int)($_POST['client_id'] ?? 0);
+        $amount    = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $paid_at   = trim($_POST['paid_at'] ?? '');
+        $method    = in_array($_POST['method'] ?? '', ['transfer','cash','stripe','payu','other'], true) ? $_POST['method'] : 'transfer';
+        $note      = trim($_POST['note'] ?? '');
+        if ($client_id && $amount > 0) {
+            $r = ti_payment_add($client_id, $amount, $paid_at, $method, $note);
+            $msg = 'Wpłata ' . number_format($amount,2,',',' ') . ' zł zapisana.';
+            if ($r['credit'] > 0) $msg .= ' Nadpłata: ' . number_format($r['credit'],2,',',' ') . ' zł' . (!empty($r['emailed']) ? ' (wysłano e-mail).' : '.');
+            flash_set('success', $msg);
+        } else {
+            flash_set('danger', 'Podaj kursanta i kwotę wpłaty.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Usunięcie wpłaty (korekta)
+    if ($op === 'del_payment') {
+        ti_payment_delete((int)($_POST['payment_id'] ?? 0));
+        flash_set('success', 'Wpłata usunięta, saldo przeliczone.');
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
@@ -257,6 +296,13 @@ $enrolled_active = db_all(
 );
 $billed_ids = array_column($billings, 'client_id');
 
+// Saldo (nadpłata/niedopłata) per kursant — dla wyświetlanych rozliczeń
+$balances = [];
+foreach (array_unique($billed_ids) as $bcid) { $balances[(int)$bcid] = ti_client_balance((int)$bcid); }
+
+// Kursanci z niedopłatą (globalnie) — flaga dla panelu admina
+$debtors = ti_clients_with_debt();
+
 // Mapa płatności Stripe dla wyświetlanych rozliczeń (source_type=k30_ti_billing)
 $stripe_pay = [];
 $bids = array_column($billings, 'id');
@@ -346,6 +392,33 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <?php endif; ?>
 </div>
 
+<!-- Niedopłaty (flaga dla admina) -->
+<?php if ($debtors): ?>
+<div class="card border-0 shadow-sm mb-4 border-start border-danger border-4">
+  <div class="card-header fw-semibold d-flex align-items-center bg-danger-subtle text-danger-emphasis">
+    <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>Niedopłaty
+    <span class="badge bg-danger ms-2"><?= count($debtors) ?></span>
+    <span class="ms-auto small fw-normal">Łącznie brakuje: <?= number_format(array_sum(array_map(fn($d)=>(float)$d['debt'],$debtors)),2,',',' ') ?> zł</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
+      <caption class="visually-hidden">Kursanci z niedopłatą</caption>
+      <thead class="table-light"><tr><th>Kursant</th><th>Należności</th><th>Wpłacono</th><th>Brakuje</th></tr></thead>
+      <tbody>
+        <?php foreach ($debtors as $d): ?>
+        <tr>
+          <td class="fw-semibold"><?= h($d['client_name']) ?></td>
+          <td><?= number_format((float)$d['charges'],2,',',' ') ?> zł</td>
+          <td><?= number_format((float)$d['paid'],2,',',' ') ?> zł</td>
+          <td class="fw-bold text-danger"><?= number_format((float)$d['debt'],2,',',' ') ?> zł</td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- Wystawione rozliczenia -->
 <?php if ($billings): ?>
 <div class="card border-0 shadow-sm mb-4">
@@ -382,6 +455,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php if (!empty($bpay['account']) || !empty($bpay['title'])): ?>
             <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($bpay['account'] ?: '—') ?><?php if (!empty($bpay['title'])): ?> · „<?= h($bpay['title']) ?>"<?php endif; ?></div>
             <?php endif; ?>
+            <?php $bbal = $balances[(int)$b['client_id']] ?? null; if ($bbal && $bbal['credit'] > 0.005): ?>
+            <div class="small mt-1"><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Nadpłata zostanie użyta na kolejne zajęcia"><i class="bi bi-piggy-bank me-1"></i>nadpłata <?= number_format($bbal['credit'],2,',',' ') ?> zł</span></div>
+            <?php elseif ($bbal && $bbal['debt'] > 0.005): ?>
+            <div class="small mt-1"><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Saldo ujemne kursanta"><i class="bi bi-exclamation-triangle me-1"></i>niedopłata <?= number_format($bbal['debt'],2,',',' ') ?> zł</span></div>
+            <?php endif; ?>
             <div class="text-muted" style="font-size:.72rem">
               <i class="bi bi-person-badge me-1"></i>Płatnik: <?= h(k30_ti_billing_payer_label($b)) ?>
             </div>
@@ -406,7 +484,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <span class="text-muted">—</span>
             <?php endif; ?>
           </td>
-          <td class="fw-bold"><?= number_format($tot,2,',','') ?> zł</td>
+          <?php $paid = (float)($b['paid_amount'] ?? 0); $rem = round($tot - $paid, 2); ?>
+          <td class="fw-bold">
+            <?= number_format($tot,2,',','') ?> zł
+            <?php if ($paid > 0.005 && $rem > 0.005): ?>
+            <div class="small text-danger fw-normal">wpłacono <?= number_format($paid,2,',',' ') ?> · brakuje <?= number_format($rem,2,',',' ') ?> zł</div>
+            <?php elseif ($paid > 0.005): ?>
+            <div class="small text-success fw-normal">pokryte</div>
+            <?php endif; ?>
+          </td>
           <td>
             <?php if (!empty($b['due_date'])):
               $overdue = $b['status'] !== 'paid' && $b['due_date'] < date('Y-m-d'); ?>
@@ -421,6 +507,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <span class="badge" style="background:<?= h($bs['bg']) ?>;color:<?= h($bs['color']) ?>;border:1px solid <?= h($bs['color']) ?>44;font-size:.74rem">
               <?= h($bs['label']) ?>
             </span>
+            <?php if ($b['status'] !== 'paid' && $rem > 0.005 && $paid > 0.005): ?>
+            <span class="badge bg-danger ms-1" title="Częściowo opłacone">niedopłata</span>
+            <?php endif; ?>
           </td>
           <td class="text-end text-nowrap">
             <?php if ($can_write): ?>
@@ -517,9 +606,73 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
+        <?php $cbal = $balances[(int)$b['client_id']] ?? ti_client_balance((int)$b['client_id']); $cpayments = ti_payments_for_client((int)$b['client_id']); ?>
         <p class="text-body-secondary small mb-3">
           Okres: <strong><?= h($period) ?></strong> · Do zapłaty: <strong><?= number_format($tot,2,',',' ') ?> zł</strong>
+          <?php if ($cbal['credit'] > 0.005): ?> · <span class="text-success fw-semibold">nadpłata: <?= number_format($cbal['credit'],2,',',' ') ?> zł</span>
+          <?php elseif ($cbal['debt'] > 0.005): ?> · <span class="text-danger fw-semibold">niedopłata: <?= number_format($cbal['debt'],2,',',' ') ?> zł</span>
+          <?php else: ?> · <span class="text-success">saldo rozliczone</span><?php endif; ?>
         </p>
+
+        <!-- Wpłaty i saldo -->
+        <section class="border rounded p-3 mb-3">
+          <h3 class="h6 fw-semibold mb-2"><i class="bi bi-cash-stack text-success me-2" aria-hidden="true"></i>Wpłaty i saldo</h3>
+          <form method="post" class="row g-2 align-items-end mb-2">
+            <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"        value="add_payment">
+            <input type="hidden" name="client_id"  value="<?= (int)$b['client_id'] ?>">
+            <div class="col-sm-3">
+              <label class="form-label small mb-0" for="payamt<?= (int)$b['id'] ?>">Kwota (zł)</label>
+              <input type="text" name="amount" id="payamt<?= (int)$b['id'] ?>" class="form-control form-control-sm" placeholder="0,00" inputmode="decimal">
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label small mb-0" for="paydt<?= (int)$b['id'] ?>">Data</label>
+              <input type="date" name="paid_at" id="paydt<?= (int)$b['id'] ?>" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>">
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label small mb-0" for="paymeth<?= (int)$b['id'] ?>">Metoda</label>
+              <select name="method" id="paymeth<?= (int)$b['id'] ?>" class="form-select form-select-sm">
+                <option value="transfer">Przelew</option>
+                <option value="cash">Gotówka</option>
+                <option value="other">Inna</option>
+              </select>
+            </div>
+            <div class="col-sm-3 d-flex align-items-end">
+              <button class="btn btn-sm btn-success w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj wpłatę</button>
+            </div>
+            <div class="col-12"><input type="text" name="note" class="form-control form-control-sm" placeholder="Notatka (opcjonalnie)"></div>
+            <div class="col-12"><span class="form-text">Wpłata wyższa niż należność utworzy nadpłatę (rodzic/opiekun dostanie e-mail). Nadpłata jest automatycznie używana na kolejne zajęcia.</span></div>
+          </form>
+          <?php if ($cpayments): ?>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.82rem">
+              <caption class="visually-hidden">Historia wpłat kursanta</caption>
+              <thead class="table-light"><tr><th>Data</th><th>Kwota</th><th>Metoda</th><th>Notatka</th><th class="text-end">Akcje</th></tr></thead>
+              <tbody>
+                <?php foreach ($cpayments as $pm):
+                  $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','other'=>'Inna'][$pm['method']] ?? $pm['method']; ?>
+                <tr>
+                  <td class="text-nowrap"><?= h(substr($pm['paid_at'] ?: $pm['created_at'], 0, 10)) ?></td>
+                  <td class="fw-semibold text-success">+<?= number_format((float)$pm['amount'],2,',',' ') ?> zł</td>
+                  <td><?= h($mlabel) ?></td>
+                  <td class="text-body-secondary"><?= h(mb_substr($pm['note'] ?? '', 0, 60)) ?></td>
+                  <td class="text-end">
+                    <form method="post" class="d-inline" onsubmit="return confirm('Usunąć tę wpłatę? Saldo zostanie przeliczone.')">
+                      <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+                      <input type="hidden" name="_op"          value="del_payment">
+                      <input type="hidden" name="payment_id"   value="<?= (int)$pm['id'] ?>">
+                      <button class="btn btn-xs btn-sm btn-outline-danger py-0 px-1" title="Usuń wpłatę"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+          <?php else: ?>
+          <p class="text-body-secondary small mb-0">Brak zarejestrowanych wpłat.</p>
+          <?php endif; ?>
+        </section>
 
         <!-- Korekta -->
         <section class="border rounded p-3 mb-3">

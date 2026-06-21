@@ -226,7 +226,13 @@ function stripe_mark_paid(int $payment_id): void {
     // Propagacja do źródła
     try {
         if ($p['source_type'] === 'k30_ti_billing' && (int)$p['source_id'] > 0) {
-            db()->prepare("UPDATE k30_ti_billing SET status='paid' WHERE id=?")->execute([(int)$p['source_id']]);
+            $bill = db_one("SELECT client_id FROM k30_ti_billing WHERE id=?", [(int)$p['source_id']]);
+            if ($bill) {
+                // Zapisz wpłatę do księgi TI — saldo/nadpłata przeliczane automatycznie
+                require_once __DIR__ . '/ti_payments.php';
+                ti_payment_add((int)$bill['client_id'], (float)$p['amount_grosze'] / 100, date('Y-m-d'),
+                               'stripe', 'Płatność Stripe', 'stripe', (int)$p['source_id']);
+            }
         }
         // Kolejne źródła można dodać tutaj (zlecenie_rozliczenia, umowy_uslugi…)
     } catch (\Throwable $e) {}

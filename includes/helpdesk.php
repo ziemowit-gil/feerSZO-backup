@@ -416,6 +416,83 @@ function hd_sla_indicator(array $ticket): string {
          . '<i class="bi ' . $icon . '"></i> ' . h($txt) . '</span>';
 }
 
+// ── Interfejs konsoli (split-view) ────────────────────────────────────────────
+
+/** Wspólny arkusz stylów konsoli helpdesku (lista + panel + dymki wiadomości). */
+function hd_ui_css(): string {
+    return <<<CSS
+<style>
+.hd-skip{position:absolute;left:1rem;top:-3rem;background:#2563EB;color:#fff;padding:.5rem 1rem;border-radius:0 0 6px 6px;z-index:1080;text-decoration:none;font-weight:600;transition:top .12s}
+.hd-skip:focus{top:0}
+.hd-console :focus-visible{outline:3px solid #2563EB;outline-offset:2px;border-radius:4px}
+.hd-console{display:flex;gap:14px;align-items:flex-start}
+.hd-list-col{flex:0 0 340px;max-width:340px}
+.hd-pane-col{flex:1 1 auto;min-width:0}
+@media(max-width:900px){
+  .hd-list-col{flex-basis:100%;max-width:100%}
+  .hd-console.hd-show-pane .hd-list-col{display:none}
+  .hd-console:not(.hd-show-pane) .hd-pane-col{display:none}
+}
+.hd-list{max-height:calc(100vh - 220px);overflow:auto;border:1px solid #e5e7eb;border-radius:12px;background:#fff;position:relative;transition:opacity .15s}
+.hd-list[aria-busy=true]{opacity:.5;pointer-events:none}
+.hd-row{display:block;padding:10px 12px;border-bottom:1px solid #f1f3f5;text-decoration:none;color:inherit;cursor:pointer}
+.hd-row:last-child{border-bottom:none}
+.hd-row:hover{background:#f8fafc}
+.hd-row.active{background:#EEF4FF;box-shadow:inset 3px 0 0 #2563EB}
+.hd-row-top{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.hd-row-num{font:600 .72rem ui-monospace,SFMono-Regular,Menlo,monospace;color:#64748b}
+.hd-row-time{font-size:.7rem;color:#94a3b8;white-space:nowrap}
+.hd-row-title{font-weight:600;font-size:.86rem;margin:.15rem 0;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hd-row-meta{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.hd-pane{min-height:340px}
+.hd-pane-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#94a3b8;padding:4rem 1rem;border:1px dashed #cbd5e1;border-radius:12px;background:#fff;min-height:340px}
+.hd-pane-empty i{font-size:2.6rem;color:#cbd5e1;margin-bottom:.6rem}
+.hd-msg{border-radius:10px;padding:14px 18px;margin-bottom:12px}
+.hd-msg-user{background:#EEF4FF;border-left:3px solid #2563EB}
+.hd-msg-op{background:#F0FDF4;border-left:3px solid #16A34A}
+.hd-msg-intern{background:#FFF7ED;border-left:3px dashed #EA580C}
+.hd-body{white-space:pre-wrap;font-size:.9rem}
+.hd-body.hd-clamp{max-height:11em;overflow:hidden;-webkit-mask-image:linear-gradient(180deg,#000 70%,transparent);mask-image:linear-gradient(180deg,#000 70%,transparent)}
+.hd-body.hd-expanded{max-height:none;-webkit-mask-image:none;mask-image:none}
+.hd-toast-wrap{position:fixed;bottom:1.2rem;right:1.2rem;z-index:1090;display:flex;flex-direction:column;gap:.5rem}
+.hd-toast{background:#fff;border-left:4px solid #2563EB;box-shadow:0 6px 20px rgba(0,0,0,.15);border-radius:8px;padding:.7rem 1rem;font-size:.85rem;min-width:240px;max-width:360px;animation:hdToastIn .2s ease}
+.hd-toast.ok{border-color:#16A34A}.hd-toast.err{border-color:#DC2626}
+@keyframes hdToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+CSS;
+}
+
+/** Renderuje wiersze listy zgłoszeń do konsoli (lub pusty stan). */
+function hd_console_rows(array $tickets, bool $is_op, int $selId = 0): string {
+    if (!$tickets) {
+        return '<div class="hd-pane-empty" style="border:none;background:transparent;min-height:200px">'
+             . '<i class="bi bi-inbox"></i><div>Brak zgłoszeń spełniających kryteria.</div></div>';
+    }
+    $now = time();
+    $h = '';
+    foreach ($tickets as $t) {
+        $age = max(0, $now - strtotime($t['updated_at'] ?? 'now'));
+        $ago = $age < 3600 ? max(1, (int)($age / 60)) . ' min'
+             : ($age < 86400 ? (int)($age / 3600) . ' godz' : (int)($age / 86400) . ' dni');
+        $active = ((int)$t['id'] === $selId) ? ' active' : '';
+        $h .= '<a class="hd-row' . $active . '" data-id="' . (int)$t['id'] . '" href="' . APP_URL . '/helpdesk/view.php?id=' . (int)$t['id'] . '">';
+        $h .= '<div class="hd-row-top"><span class="hd-row-num">' . h($t['number']) . '</span><span class="hd-row-time">' . $ago . ' temu</span></div>';
+        $h .= '<div class="hd-row-title">' . h($t['title']) . '</div>';
+        $h .= '<div class="hd-row-meta">' . hd_status_badge($t['status']) . hd_priority_badge($t['priority']);
+        if ($is_op) $h .= hd_sla_indicator($t);
+        $h .= '</div>';
+        if ($is_op) {
+            $assignee = !empty($t['assigned_name'])
+                ? ' · <i class="bi bi-person-check text-success"></i> ' . h($t['assigned_name'])
+                : ' · <span class="text-danger">nieprzypisane</span>';
+            $h .= '<div class="hd-row-meta mt-1"><span class="text-muted" style="font-size:.72rem">'
+                . '<i class="bi bi-person me-1"></i>' . h($t['requester_name']) . $assignee . '</span></div>';
+        }
+        $h .= '</a>';
+    }
+    return $h;
+}
+
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function hd_notify_status_change(array $ticket, string $old_status, string $new_status, string $note = ''): void {
