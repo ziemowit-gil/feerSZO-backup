@@ -40,6 +40,11 @@ function k30m_graph(): M365Graph {
     ]);
 }
 
+// Upewnij się, że kolumny istnieją (gdy panel m365.php nie był jeszcze otwarty)
+foreach (['m365_expires_at DATE', 'm365_disabled_at DATETIME'] as $col) {
+    try { db()->exec("ALTER TABLE k30_clients ADD COLUMN $col"); } catch (\Throwable $e) {}
+}
+
 $rows = db_all(
     "SELECT id, name, m365_user_id, m365_login, m365_expires_at
      FROM k30_clients
