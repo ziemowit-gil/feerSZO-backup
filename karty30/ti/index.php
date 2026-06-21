@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'billing_amount'      => max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0'))),
         'pay_account'         => trim($_POST['pay_account'] ?? ''),
         'pay_title'           => trim($_POST['pay_title'] ?? ''),
+        'pay_due_days'        => ((int)($_POST['pay_due_days'] ?? 0)) ?: null,
         'is_active'           => isset($_POST['is_active']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
@@ -176,6 +177,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <div class="col-sm-6">
           <label class="form-label">Tytuł wpłaty <span class="text-muted small">(domyślny)</span></label>
           <input type="text" class="form-control" name="pay_title" value="<?= h($f['pay_title'] ?? '') ?>" placeholder="np. Opłata za zajęcia TI">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label">Termin płatności <span class="text-muted small">(dni)</span></label>
+          <input type="number" class="form-control" name="pay_due_days" min="0" max="365" value="<?= !empty($f['pay_due_days']) ? (int)$f['pay_due_days'] : '' ?>" placeholder="<?= K30_TI_PAY_DUE_DAYS_DEFAULT ?> (domyślnie)">
+          <div class="form-text">Liczba dni od wystawienia rozliczenia. Puste = <?= K30_TI_PAY_DUE_DAYS_DEFAULT ?> dni.</div>
         </div>
         <div class="col-12"><div class="form-text">Używane domyślnie dla kursantów; można nadpisać indywidualnie (kod 9999) przy uczestniku.</div></div>
       </div>

@@ -63,9 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $rate   = max(0, (float)str_replace(',','.', (string)($_POST['hourly_rate'] ?? '0')));
         $pay_account = trim($_POST['pay_account'] ?? '');
         $pay_title   = trim($_POST['pay_title'] ?? '');
+        $due_days    = ((int)($_POST['pay_due_days'] ?? 0)) ?: null;
         if ($cid) {
-            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=?, pay_account=?, pay_title=? WHERE course_id=? AND client_id=?")
-               ->execute([$model, $amount, $rate, $pay_account, $pay_title, $id, $cid]);
+            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=?, pay_account=?, pay_title=?, pay_due_days=? WHERE course_id=? AND client_id=?")
+               ->execute([$model, $amount, $rate, $pay_account, $pay_title, $due_days, $id, $cid]);
             flash_set('success', $model > 0 ? 'Ustawiono indywidualny model rozliczania (kod 9999).' : 'Przywrócono model rozliczania kursu.');
         }
         header('Location: course.php?id='.$id.'#uczestnicy'); exit;
@@ -190,6 +191,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php if (!empty($course['pay_account']) || !empty($course['pay_title'])): ?>
       <span class="text-muted small ms-2"><i class="bi bi-bank me-1"></i><?= h($course['pay_account'] ?: '—') ?><?php if (!empty($course['pay_title'])): ?> · „<?= h($course['pay_title']) ?>"<?php endif; ?></span>
       <?php endif; ?>
+      <span class="text-muted small ms-2"><i class="bi bi-calendar-event me-1"></i>Termin płatności: <?= (int)($course['pay_due_days'] ?? 0) ?: K30_TI_PAY_DUE_DAYS_DEFAULT ?> dni<?php if (empty($course['pay_due_days'])): ?> <span class="opacity-75">(domyślnie)</span><?php endif; ?></span>
     </div>
   </div>
   <div class="ms-auto d-flex gap-2">
@@ -287,6 +289,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                   <div class="col-sm-5">
                     <label class="form-label small mb-0">Tytuł wpłaty (indyw.)</label>
                     <input type="text" name="pay_title" class="form-control form-control-sm" value="<?= h($e['pay_title'] ?? '') ?>" placeholder="puste = domyślny kursu">
+                  </div>
+                  <div class="col-sm-2">
+                    <?php $course_due = (int)($course['pay_due_days'] ?? 0) ?: K30_TI_PAY_DUE_DAYS_DEFAULT; ?>
+                    <label class="form-label small mb-0">Termin płatn. (dni)</label>
+                    <input type="number" name="pay_due_days" class="form-control form-control-sm" min="0" max="365" value="<?= !empty($e['pay_due_days']) ? (int)$e['pay_due_days'] : '' ?>" placeholder="<?= $course_due ?>" title="puste = jak kurs (<?= $course_due ?> dni)">
                   </div>
                   <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button></div>
                   <div class="form-text">Wybór indywidualnego modelu nadaje kursantowi kod 9999. Dane do wpłat działają tylko przy kodzie 9999 (inaczej obowiązują domyślne kursu).</div>

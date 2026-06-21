@@ -77,12 +77,13 @@ foreach ($rv_billing as $b) {
           <th scope="col">Godziny</th>
           <th scope="col">Korekta</th>
           <th scope="col">Do zapłaty</th>
+          <th scope="col">Termin</th>
           <th scope="col">Status</th>
         </tr>
       </thead>
       <tbody>
         <?php if (!$rv_billing): ?>
-        <tr><td colspan="5" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
+        <tr><td colspan="6" class="text-center text-body-secondary py-4">Brak rozliczeń.</td></tr>
         <?php endif; ?>
         <?php foreach ($rv_billing as $b):
           [$lbl, $col] = $rv_st[$b['status']] ?? [$b['status'], 'secondary'];
@@ -99,6 +100,14 @@ foreach ($rv_billing as $b) {
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
           </td>
           <td class="fw-bold"><?= number_format($tot, 2, ',', ' ') ?> zł</td>
+          <td>
+            <?php if (!empty($b['due_date'])):
+              $rv_overdue = $b['status'] !== 'paid' && $b['due_date'] < date('Y-m-d'); ?>
+              <span class="<?= $rv_overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?>">
+                <?= date('d.m.Y', strtotime($b['due_date'])) ?>
+              </span>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+          </td>
           <td><span class="badge text-bg-<?= $col ?>"><?= h($lbl) ?></span></td>
         </tr>
         <?php endforeach; ?>

@@ -198,6 +198,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (trim($_POST['default_sku'] ?? '') !== '') {
             k30_m365_save('default_sku', trim($_POST['default_sku']));
         }
+        // Grupa, do której automatycznie dołączane są nowe konta (pusta = brak)
+        k30_m365_save('default_group_id', trim($_POST['default_group_id'] ?? ''));
         if (trim($_POST['client_secret'] ?? '') !== '') {
             k30_m365_save('client_secret', trim($_POST['client_secret']));
         }
@@ -263,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $g->assign_license($user_id, $sku_id);
 
             // Przypisz do grupy MS365 (opcjonalnie)
-            $group_id  = trim($_POST['group_id'] ?? '');
+            $group_id  = trim($_POST['group_id'] ?? '') ?: k30_m365_setting('default_group_id');
             $group_msg = '';
             if ($group_id !== '') {
                 try { $g->add_to_group($user_id, $group_id); $group_msg = "Dodano do grupy MS365.\n"; }
@@ -320,7 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $expires  = k30_m365_clean_date($_POST['expires_at'] ?? '');
-        $group_id = trim($_POST['group_id'] ?? '');
+        $group_id = trim($_POST['group_id'] ?? '') ?: k30_m365_setting('default_group_id');
         $group_name = '';
         if ($group_id !== '') {
             foreach ($g->get_security_groups() as $gr) {
@@ -397,7 +399,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sku_id   = trim($_POST['sku_id'] ?? '') ?: k30_m365_setting('default_sku');
         $password = trim($_POST['bulk_password'] ?? '') ?: k30_simple_password();
         $domain   = k30_m365_setting('domain');
-        $group_id = trim($_POST['group_id'] ?? '');
+        $group_id = trim($_POST['group_id'] ?? '') ?: k30_m365_setting('default_group_id');
         $expires  = k30_m365_clean_date($_POST['expires_at'] ?? '');
 
         if (!$prefix) { flash_set('danger','Podaj prefix loginu.'); header('Location: m365.php#bulk'); exit; }
@@ -498,10 +500,12 @@ if (!empty($_SESSION['k30_m365_new_group']) && (time() - ($_SESSION['k30_m365_ne
 /** Renderuje <select> grupy MS365 z przyciskiem „nowa grupa" otwierającym modal. */
 function k30_m365_group_field(array $groups, string $new_group_id, bool $small = false, string $back = 'provision'): string {
     $cls = $small ? 'form-select-sm' : '';
+    // Domyślnie zaznacz grupę ustawioną przez admina (gdy nie wskazano innej)
+    $preselect = $new_group_id !== '' ? $new_group_id : k30_m365_setting('default_group_id');
     $opts = '<option value="">— bez grupy —</option>';
     foreach ($groups as $gr) {
         $gid = $gr['id'] ?? '';
-        $sel = ($gid !== '' && $gid === $new_group_id) ? ' selected' : '';
+        $sel = ($gid !== '' && $gid === $preselect) ? ' selected' : '';
         $opts .= '<option value="' . h($gid) . '"' . $sel . '>' . h($gr['displayName'] ?? $gid) . '</option>';
     }
     $btn = '<button type="button" class="btn btn-outline-secondary ' . ($small ? 'btn-sm' : '') . '" '
@@ -512,7 +516,8 @@ function k30_m365_group_field(array $groups, string $new_group_id, bool $small =
          . $btn . '</div>';
 }
 
-$cfg_default_sku = k30_m365_setting('default_sku');
+$cfg_default_sku       = k30_m365_setting('default_sku');
+$cfg_default_group_id  = k30_m365_setting('default_group_id');
 
 // Czytelne nazwy licencji M365 (skuPartNumber → label PL)
 function k30_sku_label(string $part): string {
@@ -714,6 +719,30 @@ endif; ?>
                      value="<?= h($cfg_default_sku) ?>" placeholder="SKU ID licencji">
               <span class="input-group-text text-muted small">Nie udało się pobrać listy</span>
             </div>
+            <?php else: ?>
+            <div class="text-muted small">Dostępne po skonfigurowaniu połączenia.</div>
+            <?php endif; ?>
+          </div>
+
+          <!-- Domyślna grupa (nowe konta dołączane automatycznie) -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              <i class="bi bi-people me-1 text-primary"></i>Domyślna grupa
+            </label>
+            <?php if ($groups): ?>
+            <select class="form-select" name="default_group_id">
+              <option value="">— bez grupy —</option>
+              <?php foreach ($groups as $gr): ?>
+              <option value="<?= h($gr['id'] ?? '') ?>" <?= $cfg_default_group_id === ($gr['id'] ?? '') ? 'selected' : '' ?>>
+                <?= h($gr['displayName'] ?? ($gr['id'] ?? '')) ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Każde nowe konto M365 zostanie automatycznie dodane do tej grupy (można nadpisać przy tworzeniu).</div>
+            <?php elseif ($is_conf): ?>
+            <input type="text" class="form-control font-monospace" name="default_group_id"
+                   value="<?= h($cfg_default_group_id) ?>" placeholder="ID grupy (GUID)">
+            <div class="form-text">Nie udało się pobrać listy grup — wpisz ID grupy ręcznie.</div>
             <?php else: ?>
             <div class="text-muted small">Dostępne po skonfigurowaniu połączenia.</div>
             <?php endif; ?>

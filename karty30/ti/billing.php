@@ -129,6 +129,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // Indywidualny termin płatności dla pojedynczego rozliczenia
+    if ($op === 'set_due') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $due = trim($_POST['due_date'] ?? '');
+        // Walidacja formatu YYYY-MM-DD (puste = wyczyść termin)
+        $val = ($due !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) ? $due : null;
+        if ($bid) {
+            db()->prepare("UPDATE k30_ti_billing SET due_date=? WHERE id=?")->execute([$val, $bid]);
+            flash_set('success', $val ? 'Termin płatności zapisany.' : 'Termin płatności wyczyszczony.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Miękkie usuwanie rozliczenia (status='cancelled') — tylko admin
     if ($op === 'delete') {
         if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
@@ -262,7 +275,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Klient</th><th>Godz.</th><th>Korekta</th><th>Do zapłaty</th><th>Status</th><th class="text-end">Akcje</th></tr>
+        <tr><th>Klient</th><th>Godz.</th><th>Korekta</th><th>Do zapłaty</th><th>Termin</th><th>Status</th><th class="text-end">Akcje</th></tr>
       </thead>
       <tbody>
         <?php foreach ($billings as $b):
@@ -301,6 +314,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php endif; ?>
           </td>
           <td class="fw-bold"><?= number_format($tot,2,',','') ?> zł</td>
+          <td>
+            <?php if (!empty($b['due_date'])):
+              $overdue = $b['status'] !== 'paid' && $b['due_date'] < date('Y-m-d'); ?>
+              <span class="<?= $overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?>" <?= $overdue ? 'title="Po terminie"' : '' ?>>
+                <?= date('d.m.Y', strtotime($b['due_date'])) ?><?php if ($overdue): ?> <i class="bi bi-exclamation-triangle-fill"></i><?php endif; ?>
+              </span>
+            <?php else: ?>
+              <span class="text-muted">—</span>
+            <?php endif; ?>
+          </td>
           <td>
             <span class="badge" style="background:<?= h($bs['bg']) ?>;color:<?= h($bs['color']) ?>;border:1px solid <?= h($bs['color']) ?>44;font-size:.74rem">
               <?= h($bs['label']) ?>
@@ -362,7 +385,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </tr>
         <?php if ($can_write): ?>
         <tr class="collapse" id="adj<?= (int)$b['id'] ?>">
-          <td colspan="6" class="bg-light">
+          <td colspan="7" class="bg-light">
             <form method="post" class="row g-2 align-items-end">
               <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"        value="set_adjustment">
@@ -388,6 +411,21 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
               </div>
               <div class="form-text">Wpisz 0, aby usunąć korektę.</div>
+            </form>
+            <hr class="my-2">
+            <form method="post" class="row g-2 align-items-end">
+              <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"        value="set_due">
+              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+              <div class="col-auto">
+                <label class="form-label small mb-0">Termin płatności (indyw.)</label>
+                <input type="date" name="due_date" class="form-control form-control-sm" style="max-width:170px"
+                       value="<?= h($b['due_date'] ?? '') ?>">
+              </div>
+              <div class="col-auto">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-check me-1"></i>Zapisz termin</button>
+              </div>
+              <div class="form-text">Indywidualny termin dla tego rozliczenia. Puste = bez terminu.</div>
             </form>
           </td>
         </tr>

@@ -250,6 +250,11 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_billing ADD COLUMN adjustment_note TEXT NOT NULL DEFAULT ''",
         // Znacznik wysłanego powiadomienia o wystawieniu rozliczenia (SMS/e-mail)
         "ALTER TABLE k30_ti_billing ADD COLUMN notified_at     DATETIME",
+        // Termin płatności: data na rozliczeniu (indywidualnie per płatność),
+        // domyślna liczba dni na kursie i nadpisanie indywidualne kursanta (zapis).
+        "ALTER TABLE k30_ti_billing      ADD COLUMN due_date     DATE",
+        "ALTER TABLE k30_ti_courses      ADD COLUMN pay_due_days INTEGER",
+        "ALTER TABLE k30_ti_enrollments  ADD COLUMN pay_due_days INTEGER",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -1410,6 +1415,22 @@ function k30_ti_billing_model_label(int $code): string {
     return K30_TI_BILLING_MODELS[$code]['label'] ?? ('model ' . $code);
 }
 
+/** Domyślny termin płatności (dni od wystawienia rozliczenia), gdy nie ustawiono na kursie/kursancie. */
+const K30_TI_PAY_DUE_DAYS_DEFAULT = 7;
+
+/**
+ * Efektywny termin płatności (liczba dni) dla zapisu kursanta.
+ * Pierwszeństwo: indywidualnie na kursancie → domyślnie na kursie → globalna stała (7 dni).
+ * 0/null = brak ustawienia (dziedzicz wyżej).
+ */
+function k30_ti_effective_due_days(array $enr, array $course): int {
+    $e = (int)($enr['pay_due_days'] ?? 0);
+    if ($e > 0) return $e;
+    $c = (int)($course['pay_due_days'] ?? 0);
+    if ($c > 0) return $c;
+    return K30_TI_PAY_DUE_DAYS_DEFAULT;
+}
+
 /**
  * Wyznacza efektywny model rozliczania dla zapisu (override na kursancie ma
  * pierwszeństwo nad modelem kursu). Override → kod 9999 (indywidualny).
@@ -1432,6 +1453,7 @@ function k30_ti_effective_billing(array $enr, array $course): array {
             'label'       => 'Indywidualny',
             'pay_account' => $acct,
             'pay_title'   => $title,
+            'due_days'    => k30_ti_effective_due_days($enr, $course),
         ];
     }
     $cmodel = (int)($course['billing_model'] ?? 2) ?: 2;
@@ -1445,6 +1467,7 @@ function k30_ti_effective_billing(array $enr, array $course): array {
         'label'       => k30_ti_billing_model_label($cmodel),
         'pay_account' => $course_acct,
         'pay_title'   => $course_title,
+        'due_days'    => k30_ti_effective_due_days($enr, $course),
     ];
 }
 
@@ -1456,7 +1479,8 @@ function k30_ti_effective_billing(array $enr, array $course): array {
 function k30_ti_client_payment(int $client_id): array {
     $enrs = db_all(
         "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount,
-                c.pay_account AS course_pay_account, c.pay_title AS course_pay_title
+                c.pay_account AS course_pay_account, c.pay_title AS course_pay_title,
+                c.pay_due_days AS course_pay_due_days
          FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
          WHERE e.client_id=? AND e.status='active' ORDER BY e.id",
         [$client_id]
@@ -1468,6 +1492,7 @@ function k30_ti_client_payment(int $client_id): array {
             'billing_amount' => $e['course_billing_amount'],
             'pay_account'    => $e['course_pay_account'],
             'pay_title'      => $e['course_pay_title'],
+            'pay_due_days'   => $e['course_pay_due_days'],
         ]);
         $codes[$eff['code']] = true;
         if ($firstPick === null) $firstPick = $eff;
@@ -1475,9 +1500,10 @@ function k30_ti_client_payment(int $client_id): array {
     }
     $pick = $indivPick ?? $firstPick;
     return [
-        'account' => $pick['pay_account'] ?? '',
-        'title'   => $pick['pay_title'] ?? '',
-        'codes'   => array_keys($codes),
+        'account'  => $pick['pay_account'] ?? '',
+        'title'    => $pick['pay_title'] ?? '',
+        'codes'    => array_keys($codes),
+        'due_days' => (int)($pick['due_days'] ?? K30_TI_PAY_DUE_DAYS_DEFAULT),
     ];
 }
 
@@ -2127,8 +2153,12 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
     $calc = k30_ti_calculate_billing($client_id, $month, $year);
     // Pobierz stawkę — używamy sredniej lub ze zróżnicowanych kursów (uproszczenie: sumujemy w calculate)
     // Zwróć istniejące lub utwórz
-    $ex = db_one("SELECT id FROM k30_ti_billing WHERE client_id=? AND month=? AND year=?",
+    $ex = db_one("SELECT id, due_date FROM k30_ti_billing WHERE client_id=? AND month=? AND year=?",
                  [$client_id, $month, $year]);
+    // Termin płatności = data wystawienia + efektywna liczba dni (kursant → kurs → 7)
+    $pay      = k30_ti_client_payment($client_id);
+    $due_days = (int)($pay['due_days'] ?? K30_TI_PAY_DUE_DAYS_DEFAULT) ?: K30_TI_PAY_DUE_DAYS_DEFAULT;
+    $due_date = date('Y-m-d', strtotime("+{$due_days} days"));
     $data = [
         'hours_billed' => $calc['hours_billed'],
         'amount'       => $calc['amount'],
@@ -2137,6 +2167,8 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
         'status'       => 'issued',
     ];
     if ($ex) {
+        // Zachowaj indywidualnie ustawiony termin; uzupełnij tylko gdy go brak.
+        if (empty($ex['due_date'])) $data['due_date'] = $due_date;
         $set = []; $p = [];
         foreach ($data as $k => $v) { $set[] = "$k=?"; $p[] = $v; }
         $p[] = $ex['id'];
@@ -2145,6 +2177,7 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
     }
     return db_insert('k30_ti_billing', array_merge($data, [
         'client_id' => $client_id, 'month' => $month, 'year' => $year,
+        'due_date'  => $due_date,
         'created_at'=> date('Y-m-d H:i:s'),
     ]));
 }
@@ -2173,6 +2206,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
     $period   = ($months[(int)$b['month']] ?? $b['month']) . ' ' . (int)$b['year'];
     $amount   = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
     $amount_s = number_format($amount, 2, ',', ' ');
+    $due_s    = !empty($b['due_date']) ? date('d.m.Y', strtotime($b['due_date'])) : '';
     $org      = defined('ORG_NAME') ? ORG_NAME : 'Placówka';
     $pay      = k30_ti_client_payment((int)$b['client_id']);
     $base     = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
@@ -2186,6 +2220,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
         if (function_exists('sms_is_enabled') && sms_is_enabled()) {
             // bez polskich znaków — bramki SMS
             $msg = "{$org}: rozliczenie za {$period}: {$amount_s} zl."
+                 . ($due_s !== '' ? " Termin platnosci: {$due_s}." : '')
                  . ($pay['account'] !== '' ? " Wplata na: {$pay['account']}." : '')
                  . " Szczegoly w panelu kursanta.";
             $msg = strtr($msg, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
@@ -2199,6 +2234,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
         require_once __DIR__ . '/mail_queue.php';
         $rows = "<tr><td style='padding:4px 12px 4px 0;color:#555'>Okres:</td><td><strong>" . h($period) . "</strong></td></tr>"
               . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kwota do zapłaty:</td><td><strong>" . h($amount_s) . " zł</strong></td></tr>";
+        if ($due_s !== '')          $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Termin płatności:</td><td><strong>" . h($due_s) . "</strong></td></tr>";
         if ($pay['account'] !== '') $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Nr konta:</td><td><strong>" . h($pay['account']) . "</strong></td></tr>";
         if ($pay['title'] !== '')   $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Tytuł wpłaty:</td><td>" . h($pay['title']) . "</td></tr>";
         $html = "<p>Dzień dobry" . ($toName ? ', ' . h($toName) : '') . ",</p>"
