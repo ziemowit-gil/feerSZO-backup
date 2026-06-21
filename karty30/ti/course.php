@@ -360,9 +360,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <div class="card-header fw-semibold d-flex align-items-center">
         <i class="bi bi-calendar3 me-2 text-primary"></i>Lekcje (ostatnie 30 dni)
         <span class="badge bg-secondary ms-2"><?= count($sessions) ?></span>
-        <a href="lesson.php?course_id=<?= $id ?>&new=1" class="btn btn-xs btn-sm btn-outline-secondary ms-auto py-0 px-2">
-          <i class="bi bi-plus-lg me-1"></i>Nowa
-        </a>
+        <?php if ($can_write): ?>
+        <button type="button" class="btn btn-xs btn-sm btn-outline-primary ms-auto py-0 px-2"
+                data-bs-toggle="modal" data-bs-target="#addLessonModal">
+          <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
+        </button>
+        <?php endif; ?>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -407,68 +410,79 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </tr>
             <?php endforeach; ?>
             <?php if (!$sessions): ?>
-            <tr><td colspan="5" class="text-muted text-center py-3">Brak lekcji. <a href="lesson.php?course_id=<?= $id ?>&new=1">Dodaj pierwszą</a>.</td></tr>
+            <tr><td colspan="5" class="text-muted text-center py-3">Brak lekcji. <?php if ($can_write): ?><a href="#" data-bs-toggle="modal" data-bs-target="#addLessonModal">Dodaj pierwszą</a>.<?php endif; ?></td></tr>
             <?php endif; ?>
           </tbody>
         </table>
       </div>
-      <?php if ($can_write): ?>
-      <div class="card-footer bg-light">
-        <form method="post" class="row g-2 align-items-end" id="add_session_form">
-          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_op"   value="add_lesson">
-          <div class="col-sm-3">
-            <label class="form-label small fw-semibold mb-1">Data <span class="text-danger">*</span></label>
-            <input type="date" class="form-control form-control-sm" name="lesson_date"
-                   value="<?= date('Y-m-d') ?>" required>
-          </div>
-          <div class="col-sm-2">
-            <label class="form-label small fw-semibold mb-1" for="sess_tf">Godz. od</label>
-            <select class="form-select form-select-sm" name="time_from" id="sess_tf" onchange="updateDur()"><?= ti_time_options() ?></select>
-          </div>
-          <div class="col-sm-2">
-            <label class="form-label small fw-semibold mb-1" for="sess_tt">Godz. do</label>
-            <select class="form-select form-select-sm" name="time_to" id="sess_tt" onchange="updateDur()"><?= ti_time_options() ?></select>
-          </div>
-          <div class="col-sm-2">
-            <label class="form-label small fw-semibold mb-1">Czas (min)</label>
-            <input type="number" class="form-control form-control-sm" name="duration_min" id="sess_dur"
-                   min="15" step="15" value="60">
-          </div>
-          <div class="col-sm-9">
-            <label class="form-label small fw-semibold mb-1">
-              <i class="bi bi-camera-video me-1 text-primary"></i>Link do lekcji online <span class="text-muted fw-normal">(opcjonalnie)</span>
-            </label>
-            <input type="url" class="form-control form-control-sm" name="meeting_url"
-                   placeholder="<?= !empty($course['default_meeting_url']) ? 'puste = stały link grupy: '.h($course['default_meeting_url']) : 'https://… (Teams/Zoom/Meet)' ?>">
-          </div>
-          <div class="col-sm-3 d-flex align-items-end">
-            <button type="submit" class="btn btn-sm btn-primary w-100">
-              <i class="bi bi-plus-lg me-1"></i>Dodaj sesję
-            </button>
-          </div>
-        </form>
-        <div class="form-text mt-1">
-          <i class="bi bi-info-circle me-1"></i>
-          Lekcje mogą być w dowolnych dniach i o dowolnych godzinach — bez ograniczeń tygodniowych.
-        </div>
-        <script>
-        function updateDur() {
-          var tf = document.getElementById('sess_tf').value;
-          var tt = document.getElementById('sess_tt').value;
-          if (tf && tt) {
-            var m = (new Date('1970-01-01T'+tt) - new Date('1970-01-01T'+tf)) / 60000;
-            if (m > 0) document.getElementById('sess_dur').value = Math.round(m);
-          }
-        }
-        document.getElementById('sess_tf').addEventListener('change', updateDur);
-        </script>
-      </div>
-      <?php endif; ?>
     </div>
   </div>
 
 </div>
+
+<!-- Modal: dodanie lekcji (czytelne okienko zamiast ciasnego formularza w stopce) -->
+<?php if ($can_write): ?>
+<div class="modal fade" id="addLessonModal" tabindex="-1" aria-labelledby="addLessonLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" id="add_session_form">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op"   value="add_lesson">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="addLessonLabel"><i class="bi bi-calendar-plus text-primary me-2" aria-hidden="true"></i>Dodaj lekcję</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="sess_date">Data <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" name="lesson_date" id="sess_date"
+                   value="<?= date('Y-m-d') ?>" required>
+          </div>
+          <div class="row g-2 mb-3 align-items-end">
+            <div class="col-5">
+              <label class="form-label fw-semibold" for="sess_tf">Godz. od</label>
+              <select class="form-select" name="time_from" id="sess_tf" onchange="updateDur()"><?= ti_time_options() ?></select>
+            </div>
+            <div class="col-5">
+              <label class="form-label fw-semibold" for="sess_tt">Godz. do</label>
+              <select class="form-select" name="time_to" id="sess_tt" onchange="updateDur()"><?= ti_time_options() ?></select>
+            </div>
+            <div class="col-2">
+              <label class="form-label fw-semibold" for="sess_dur">Min</label>
+              <input type="number" class="form-control" name="duration_min" id="sess_dur" min="15" step="15" value="60">
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold" for="sess_url">
+              <i class="bi bi-camera-video me-1 text-primary" aria-hidden="true"></i>Link do lekcji online <span class="text-muted fw-normal">(opcjonalnie)</span>
+            </label>
+            <input type="url" class="form-control" name="meeting_url" id="sess_url"
+                   placeholder="<?= !empty($course['default_meeting_url']) ? 'puste = stały link grupy' : 'https://… (Teams/Zoom/Meet)' ?>">
+            <?php if (!empty($course['default_meeting_url'])): ?>
+            <div class="form-text">Puste = stały link grupy: <span class="font-monospace"><?= h($course['default_meeting_url']) ?></span></div>
+            <?php endif; ?>
+          </div>
+          <p class="form-text mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Lekcje mogą być w dowolnych dniach i godzinach — bez ograniczeń tygodniowych.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj lekcję</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+function updateDur() {
+  var tf = document.getElementById('sess_tf').value;
+  var tt = document.getElementById('sess_tt').value;
+  if (tf && tt) {
+    var m = (new Date('1970-01-01T'+tt) - new Date('1970-01-01T'+tf)) / 60000;
+    if (m > 0) document.getElementById('sess_dur').value = Math.round(m);
+  }
+}
+</script>
+<?php endif; ?>
 
 <script>
 // Inline edycja stawki
