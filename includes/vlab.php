@@ -131,12 +131,22 @@ function vlab_ssh_exec(array $argv): array {
 /**
  * Wykonuje skrypt powłoki na hoście z uprawnieniami roota.
  * Najpierw przez `sudo -n` (wymaga passwordless sudo dla użytkownika SSH);
- * gdy sudo niedostępne, próbuje wprost (gdy użytkownik SSH jest rootem).
+ * gdy sudo niedostępne/wymaga hasła/tty, próbuje wprost (gdy użytkownik SSH jest rootem).
+ * Gdy oba podejścia zawiodą z braku uprawnień, zwraca czytelny komunikat.
  */
 function vlab_ssh_root(string $script): array {
     $r = vlab_ssh_exec(['sudo', '-n', 'sh', '-c', $script]);
-    if (!$r['ok'] && preg_match('/\bsudo\b|not found|no tty|a password is required/i', $r['err'] . ' ' . $r['out'])) {
+    // sudo niedostępne / wymaga hasła / wymaga tty / nieznane polecenie → spróbuj wprost (root)
+    if (!$r['ok'] && preg_match('/\bsudo\b|not found|command not found|tty|password is required|a terminal is required/i', $r['err'] . ' ' . $r['out'])) {
         $r = vlab_ssh_exec(['sh', '-c', $script]);
+    }
+    // Oba podejścia bez uprawnień → jasna wskazówka dla administratora
+    if (!$r['ok'] && preg_match('/permission denied|operation not permitted|must be (root|superuser)|only root/i', $r['err'] . ' ' . $r['out'])) {
+        $c = vlab_config();
+        $r['err'] = 'Konto SSH „' . ($c['ssh_user'] ?? '?') . '" nie ma uprawnień root ani bezhasłowego sudo na hoście '
+            . '(' . ($c['ssh_host'] ?? '?') . ') — nie można zarządzać kontami systemowymi. '
+            . 'Skonfiguruj passwordless sudo dla useradd/usermod/chpasswd/chage lub łącz się jako root. '
+            . 'Szczegóły: ' . trim($r['err'] !== '' ? $r['err'] : $r['out']);
     }
     return $r;
 }

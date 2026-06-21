@@ -559,6 +559,39 @@ function assign_nr_rejestru(array &$data): void {
 }
 
 /**
+ * Weryfikuje, czy zapis (INSERT/UPDATE) faktycznie utrwalił dane w bazie.
+ * Odczytuje rekord po zapisie i porównuje z wartościami, które miały być zapisane.
+ * Zwraca listę nazw pól, których wartość w bazie ≠ wartość zapisywana
+ * (luźne porównanie liczb, by uniknąć fałszywych alarmów typu 4200.50 vs 4200.5).
+ *
+ * Pusta tablica = wszystko utrwalone. Niepusta = „cichy" brak zapisu
+ * (np. obcięty POST, blokada zapisu bazy, odczyt z innej bazy niż zapis).
+ *
+ * Pola plikowe i znaczniki czasu są pomijane (mogą się różnić zgodnie z logiką).
+ */
+function contract_assert_saved(string $table, int $id, array $written): array {
+    static $skip = ['updated_at', 'created_at', 'created_by', 'plik_umowy', 'plik_potwierdzenia'];
+    try {
+        $db = db_one("SELECT * FROM {$table} WHERE id = ?", [$id]);
+    } catch (\Throwable $e) {
+        return []; // nie blokujemy zapisu z powodu błędu samej weryfikacji
+    }
+    if (!$db) return ['__row_missing'];
+
+    $bad = [];
+    foreach ($written as $k => $v) {
+        if (in_array($k, $skip, true)) continue;
+        if (!array_key_exists($k, $db)) continue; // kolumna spoza tabeli — pomiń
+        $a = (string)($db[$k] ?? '');
+        $b = (string)($v ?? '');
+        if ($a === $b) continue;
+        if (is_numeric($a) && is_numeric($b) && (float)$a === (float)$b) continue; // 4200.50 == 4200.5
+        $bad[] = $k;
+    }
+    return $bad;
+}
+
+/**
  * Generuje przycisk usuwania dla uniwersalnego handlera /delete.php.
  *
  * @param string $table     Nazwa tabeli (musi być w konfiguracji delete.php)

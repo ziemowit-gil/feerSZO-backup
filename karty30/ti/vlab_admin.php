@@ -119,10 +119,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($hu['ok']) {
                 db_update('k30_ti_vlab_containers', ['host_user' => $hu['user'], 'force_pw_pending' => $force ? 1 : 0], $cid);
                 vlab_log($cid, (int)$row['student_id'], 'host_pass_reset', true, $hu['user']);
+                // Wyślij nowe dane logowania także kursantowi (e-mail) — żeby je znał.
+                $row['host_user'] = $hu['user'];
+                $mailed = vlab_email_credentials($row, $hu['user'], $hu['password'], $force);
                 flash_set('success', 'Konto SSH „' . $hu['user'] . '" — NOWE hasło: ' . $hu['password']
                     . '  (zapisz teraz; nie będzie pokazane ponownie). Logowanie: ssh ' . $hu['user']
                     . '@' . ($c2['public_host'] ?? '') . ' -p ' . (int)($c2['ssh_port'] ?: 22)
-                    . ($force ? '  — kursant ustawi własne hasło przy pierwszym logowaniu.' : ''));
+                    . ($force ? '  — kursant ustawi własne hasło przy pierwszym logowaniu.' : '')
+                    . ($mailed ? '  Dane wysłano też e-mailem do kursanta.' : '  (Nie udało się wysłać e-maila do kursanta — przekaż dane ręcznie.)'));
             } else {
                 flash_set('danger', 'Nie udało się ustawić hasła: ' . $hu['msg']);
             }
