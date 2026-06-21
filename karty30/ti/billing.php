@@ -32,8 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $client_id = (int)($_POST['client_id'] ?? 0);
         $notes     = trim($_POST['notes'] ?? '');
         if ($client_id) {
-            k30_ti_issue_billing($client_id, $month, $year, $notes);
-            flash_set('success','Rozliczenie wystawione.');
+            $bid = k30_ti_issue_billing($client_id, $month, $year, $notes);
+            $n   = k30_ti_billing_notify($bid);
+            $extra = '';
+            if (!empty($n['ok'])) {
+                $parts = [];
+                if (!empty($n['sms']))   $parts[] = 'SMS';
+                if (!empty($n['email'])) $parts[] = 'e-mail';
+                $extra = $parts ? ' Wysłano: ' . implode(' i ', $parts) . '.' : ' (brak danych kontaktowych do powiadomienia).';
+            }
+            flash_set('success', 'Rozliczenie wystawione.' . $extra);
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -46,10 +54,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
              WHERE a.attended=1 AND strftime('%m',s.lesson_date)=? AND strftime('%Y',s.lesson_date)=?",
             [sprintf('%02d',$month), (string)$year]
         );
+        $sms = 0; $eml = 0;
         foreach ($clients_with_sessions as $c) {
-            k30_ti_issue_billing((int)$c['client_id'], $month, $year);
+            $bid = k30_ti_issue_billing((int)$c['client_id'], $month, $year);
+            $n   = k30_ti_billing_notify($bid);
+            if (!empty($n['sms']))   $sms++;
+            if (!empty($n['email'])) $eml++;
         }
-        flash_set('success','Wystawiono ' . count($clients_with_sessions) . ' rozliczeń.');
+        flash_set('success', 'Wystawiono ' . count($clients_with_sessions) . ' rozliczeń. Powiadomienia: SMS ' . $sms . ', e-mail ' . $eml . '.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Ponowne wysłanie powiadomienia o rozliczeniu (SMS + e-mail)
+    if ($op === 'notify') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        if ($bid) {
+            $n = k30_ti_billing_notify($bid, true);
+            if (!empty($n['ok'])) {
+                $parts = [];
+                if (!empty($n['sms']))   $parts[] = 'SMS';
+                if (!empty($n['email'])) $parts[] = 'e-mail';
+                flash_set('success', $parts ? 'Wysłano powiadomienie: ' . implode(' i ', $parts) . '.' : 'Brak danych kontaktowych (telefon/e-mail).');
+            } else {
+                flash_set('danger', $n['msg'] ?? 'Nie udało się wysłać powiadomienia.');
+            }
+        }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
@@ -307,6 +336,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
               <button type="submit" class="btn btn-xs btn-sm btn-outline-success py-0 px-2">
                 <i class="bi bi-check-lg me-1"></i>Opłacone
+              </button>
+            </form>
+            <form method="post" class="d-inline" onsubmit="return confirm('Wysłać powiadomienie (SMS + e-mail) o tym rozliczeniu?')">
+              <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op"         value="notify">
+              <input type="hidden" name="billing_id"  value="<?= (int)$b['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
+                      title="<?= !empty($b['notified_at']) ? 'Powiadomiono '.h(substr($b['notified_at'],0,16)).' — wyślij ponownie' : 'Wyślij powiadomienie SMS + e-mail' ?>">
+                <i class="bi bi-send<?= !empty($b['notified_at']) ? '-check' : '' ?>"></i>
               </button>
             </form>
             <?php endif; ?>

@@ -248,6 +248,8 @@ function karty30_migrate(): void {
     foreach ([
         "ALTER TABLE k30_ti_billing ADD COLUMN adjustment      REAL NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_billing ADD COLUMN adjustment_note TEXT NOT NULL DEFAULT ''",
+        // Znacznik wysłanego powiadomienia o wystawieniu rozliczenia (SMS/e-mail)
+        "ALTER TABLE k30_ti_billing ADD COLUMN notified_at     DATETIME",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -2145,6 +2147,73 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
         'client_id' => $client_id, 'month' => $month, 'year' => $year,
         'created_at'=> date('Y-m-d H:i:s'),
     ]));
+}
+
+/**
+ * Powiadomienie o wystawieniu rozliczenia — SMS (kwota za okres) + e-mail.
+ * Adresat: dla małoletnich opiekun (telefon/e-mail), inaczej kursant (k30_clients).
+ * Domyślnie wysyła tylko raz (gdy notified_at puste); $force=true wymusza ponowną wysyłkę.
+ * Zwraca ['ok','sms'=>bool,'email'=>bool,'skipped'=>bool,'msg'].
+ */
+function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
+    $b = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$billing_id]);
+    if (!$b) return ['ok' => false, 'msg' => 'Brak rozliczenia.'];
+    if (!$force && !empty($b['notified_at'])) return ['ok' => false, 'skipped' => true, 'msg' => 'Powiadomienie już wysłano.'];
+
+    $client = db_one("SELECT * FROM k30_clients WHERE id=?", [(int)$b['client_id']]) ?: [];
+    $acc    = db_one("SELECT is_minor, guardian_name, guardian_phone, guardian_email
+                      FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [(int)$b['client_id']]);
+    $minor  = $acc && !empty($acc['is_minor']);
+    $phone  = $minor && !empty($acc['guardian_phone']) ? $acc['guardian_phone'] : (string)($client['phone'] ?? '');
+    $email  = $minor && !empty($acc['guardian_email']) ? $acc['guardian_email'] : (string)($client['email'] ?? '');
+    $toName = $minor && !empty($acc['guardian_name'])  ? $acc['guardian_name']  : (string)($client['name'] ?? '');
+
+    $months = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
+               7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+    $period   = ($months[(int)$b['month']] ?? $b['month']) . ' ' . (int)$b['year'];
+    $amount   = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+    $amount_s = number_format($amount, 2, ',', ' ');
+    $org      = defined('ORG_NAME') ? ORG_NAME : 'Placówka';
+    $pay      = k30_ti_client_payment((int)$b['client_id']);
+    $base     = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
+    $portal   = $base . '/karty30/ti/kursant/login.php';
+
+    $sms_sent = false; $mail_sent = false;
+
+    // ── SMS ──
+    if ($phone !== '') {
+        require_once __DIR__ . '/sms.php';
+        if (function_exists('sms_is_enabled') && sms_is_enabled()) {
+            // bez polskich znaków — bramki SMS
+            $msg = "{$org}: rozliczenie za {$period}: {$amount_s} zl."
+                 . ($pay['account'] !== '' ? " Wplata na: {$pay['account']}." : '')
+                 . " Szczegoly w panelu kursanta.";
+            $msg = strtr($msg, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
+                                'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z']);
+            try { sms_send($phone, $msg); $sms_sent = true; } catch (\Throwable $e) {}
+        }
+    }
+
+    // ── E-mail ──
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        require_once __DIR__ . '/mail_queue.php';
+        $rows = "<tr><td style='padding:4px 12px 4px 0;color:#555'>Okres:</td><td><strong>" . h($period) . "</strong></td></tr>"
+              . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kwota do zapłaty:</td><td><strong>" . h($amount_s) . " zł</strong></td></tr>";
+        if ($pay['account'] !== '') $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Nr konta:</td><td><strong>" . h($pay['account']) . "</strong></td></tr>";
+        if ($pay['title'] !== '')   $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Tytuł wpłaty:</td><td>" . h($pay['title']) . "</td></tr>";
+        $html = "<p>Dzień dobry" . ($toName ? ', ' . h($toName) : '') . ",</p>"
+              . "<p>Wystawiliśmy rozliczenie za zajęcia (" . h($org) . ") za okres <strong>" . h($period) . "</strong>.</p>"
+              . "<table style='border-collapse:collapse;font-family:Arial,sans-serif'>" . $rows . "</table>"
+              . "<p>Szczegóły i historia rozliczeń w panelu kursanta: <a href='" . h($portal) . "'>" . h($portal) . "</a></p>"
+              . "<p style='color:#888;font-size:12px'>Wiadomość wygenerowana automatycznie.</p>";
+        try {
+            mail_queue_add($email, $toName, "Rozliczenie za {$period} — {$org}", $html, '', 'ti_billing', $billing_id, '', false);
+            $mail_sent = true;
+        } catch (\Throwable $e) {}
+    }
+
+    db()->prepare("UPDATE k30_ti_billing SET notified_at=datetime('now') WHERE id=?")->execute([$billing_id]);
+    return ['ok' => true, 'sms' => $sms_sent, 'email' => $mail_sent, 'phone' => $phone, 'email_addr' => $email];
 }
 
 // ── Lista oczekujących ─────────────────────────────────────────────────────────
