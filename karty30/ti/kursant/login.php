@@ -129,8 +129,8 @@ include __DIR__ . '/_layout_head.php';
           
 
           <a href="pfron.php" class="btn btn-outline-secondary w-100">
-            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (beneficjent)
-          </a>
+            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd) </a>
+          
           <p class="text-body-secondary mt-2 mb-0" style="font-size:.78rem">
           </p>
         </div>
