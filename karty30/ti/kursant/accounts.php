@@ -82,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'login'         => $login,
             'password_hash' => $hash,
             'is_active'     => 1,
+            'must_change_password' => 1, // kursant ustawi własne hasło przy pierwszym logowaniu
             'created_by'    => (int)(current_user()['id'] ?? 0),
             'created_at'    => date('Y-m-d H:i:s'),
             'updated_at'    => date('Y-m-d H:i:s'),
@@ -119,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'login'         => $login,
                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                 'is_active'     => 1,
+                'must_change_password' => 1,
                 'created_by'    => $uid,
                 'created_at'    => date('Y-m-d H:i:s'),
                 'updated_at'    => date('Y-m-d H:i:s'),
@@ -139,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acc  = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
         if (!$acc) { flash_set('danger','Konto nie istnieje.'); header('Location: accounts.php'); exit; }
         $pass = _gen_student_pass();
-        db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, updated_at=datetime('now') WHERE id=?")
+        db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=1, updated_at=datetime('now') WHERE id=?")
            ->execute([password_hash($pass, PASSWORD_BCRYPT), $aid]);
         if (session_status() !== PHP_SESSION_ACTIVE) session_start();
         $c = db_one("SELECT name, phone FROM k30_clients WHERE id=?", [$acc['client_id']]);

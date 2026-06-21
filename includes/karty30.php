@@ -299,6 +299,11 @@ function karty30_migrate(): void {
         // Powiadomienia o nowych wiadomościach w panelu (do wyboru przez kursanta)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_messages INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_messages   INTEGER NOT NULL DEFAULT 0",
+        // Wymuszenie zmiany hasła przy następnym logowaniu (np. po nadaniu hasła przez admina)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN must_change_password  INTEGER NOT NULL DEFAULT 0",
+        // Dodatkowe numery telefonu do powiadomień SMS (np. rodzic/opiekun)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone2 TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone3 TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -1356,18 +1361,33 @@ function ti_lesson_sms_notify(int $courseId, string $message): int {
     require_once __DIR__ . '/sms.php';
     if (!function_exists('sms_is_enabled') || !sms_is_enabled()) return 0;
     $rows = db_all(
-        "SELECT cl.phone
+        "SELECT cl.phone, a.notify_phone2, a.notify_phone3
          FROM k30_ti_enrollments e
          JOIN k30_ti_student_accounts a ON a.client_id = e.client_id AND a.is_active = 1 AND a.notify_sms_lessons = 1
          JOIN k30_clients cl ON cl.id = e.client_id
-         WHERE e.course_id = ? AND e.status = 'active' AND cl.phone IS NOT NULL AND TRIM(cl.phone) <> ''",
+         WHERE e.course_id = ? AND e.status = 'active'",
         [$courseId]
     );
     $sent = 0;
     foreach ($rows as $r) {
-        try { sms_send($r['phone'], $message); $sent++; } catch (\Throwable $e) { /* pojedynczy błąd nie blokuje */ }
+        foreach (k30_ti_sms_numbers($r) as $num) {
+            try { sms_send($num, $message); $sent++; } catch (\Throwable $e) { /* pojedynczy błąd nie blokuje */ }
+        }
     }
     return $sent;
+}
+
+/**
+ * Zwraca listę unikalnych, niepustych numerów SMS dla kursanta z wiersza zawierającego
+ * `phone` (główny, z k30_clients) oraz opcjonalne `notify_phone2` / `notify_phone3`.
+ */
+function k30_ti_sms_numbers(array $row): array {
+    $out = [];
+    foreach (['phone', 'notify_phone2', 'notify_phone3'] as $k) {
+        $p = trim((string)($row[$k] ?? ''));
+        if ($p !== '' && !in_array($p, $out, true)) $out[] = $p;
+    }
+    return $out;
 }
 
 // ── Kanał iCal lekcji kursanta (subskrypcja Google/Apple/Outlook) ─────────────

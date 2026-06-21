@@ -110,7 +110,8 @@ function ti_msg_student_reply(int $studentId, string $body): int {
 /** Wysyła powiadomienie do kursanta o nowej wiadomości (e-mail i/lub SMS wg ustawień). */
 function ti_msg_notify_student(int $studentId, string $subject, string $body): void {
     $acc = db_one(
-        "SELECT a.notify_email_messages, a.notify_sms_messages, cl.name, cl.email, cl.phone
+        "SELECT a.notify_email_messages, a.notify_sms_messages, a.notify_phone2, a.notify_phone3,
+                cl.name, cl.email, cl.phone
          FROM k30_ti_student_accounts a LEFT JOIN k30_clients cl ON cl.id=a.client_id
          WHERE a.id=?",
         [$studentId]
@@ -144,10 +145,10 @@ function ti_msg_notify_student(int $studentId, string $subject, string $body): v
     if (!empty($acc['notify_sms_messages'])) {
         if (!function_exists('sms_send')) @require_once __DIR__ . '/sms.php';
         if (function_exists('sms_send') && function_exists('sms_is_enabled') && sms_is_enabled()) {
-            $phone = trim((string)($acc['phone'] ?? ''));
-            if ($phone !== '') {
-                $txt = "{$org}: nowa wiadomosc w panelu kursanta. Zaloguj sie, aby przeczytac.";
-                try { sms_send($phone, $txt); } catch (\Throwable $e) {}
+            $txt  = "{$org}: nowa wiadomosc w panelu kursanta. Zaloguj sie, aby przeczytac.";
+            $nums = function_exists('k30_ti_sms_numbers') ? k30_ti_sms_numbers($acc) : array_filter([trim((string)($acc['phone'] ?? ''))]);
+            foreach ($nums as $num) {
+                try { sms_send($num, $txt); } catch (\Throwable $e) {}
             }
         }
     }

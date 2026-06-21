@@ -94,6 +94,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: index.php?tab=wiadomosci'); exit;
     }
+
+    // Zapis dodatkowych numerów telefonu do powiadomień SMS
+    if ($op === 'notify_phones') {
+        db_update('k30_ti_student_accounts', [
+            'notify_phone2' => mb_substr(trim((string)($_POST['phone2'] ?? '')), 0, 30),
+            'notify_phone3' => mb_substr(trim((string)($_POST['phone3'] ?? '')), 0, 30),
+        ], (int)$student['id']);
+        header('Location: index.php?tab=ustawienia&phones=1'); exit;
+    }
+
+    // Zmiana hasła do panelu (samoobsługa oraz wymuszona po nadaniu hasła przez admina)
+    if ($op === 'change_password') {
+        $cur = (string)($_POST['current'] ?? '');
+        $new = (string)($_POST['new'] ?? '');
+        $cnf = (string)($_POST['confirm'] ?? '');
+        $acc = db_one("SELECT password_hash FROM k30_ti_student_accounts WHERE id=?", [(int)$student['id']]);
+        $forced = !empty($account['must_change_password']);
+        $err = '';
+        if (!$acc || !password_verify($cur, $acc['password_hash'])) {
+            $err = 'Aktualne hasło jest nieprawidłowe.';
+        } elseif (mb_strlen($new) < 8) {
+            $err = 'Nowe hasło musi mieć co najmniej 8 znaków.';
+        } elseif ($new !== $cnf) {
+            $err = 'Nowe hasła nie są identyczne.';
+        } elseif ($new === $cur) {
+            $err = 'Nowe hasło musi różnić się od dotychczasowego.';
+        }
+        if ($err !== '') {
+            header('Location: index.php?tab=ustawienia' . ($forced ? '&force_pw=1' : '') . '&pwerr=' . rawurlencode($err)); exit;
+        }
+        db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=0, updated_at=datetime('now') WHERE id=?")
+           ->execute([password_hash($new, PASSWORD_BCRYPT), (int)$student['id']]);
+        header('Location: index.php?tab=ustawienia&pwok=1'); exit;
+    }
 }
 
 // Kursy i lekcje kursanta
@@ -143,6 +177,41 @@ $KP_TOPBAR = [
 ];
 include __DIR__ . '/_layout_head.php';
 ?>
+
+<?php if (!empty($account['must_change_password'])):
+  // Wymuszona zmiana hasła (np. po nadaniu/zresetowaniu hasła przez admina) — blokuje panel.
+  $pwerr = (string)($_GET['pwerr'] ?? '');
+?>
+<main id="main" class="container-xl px-3 py-4" style="max-width:480px">
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+      <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-2"><i class="bi bi-shield-lock text-primary" aria-hidden="true"></i>Ustaw nowe hasło</h1>
+      <p class="text-body-secondary small mb-3">Aby kontynuować, ustaw własne hasło do panelu. To wymagane po nadaniu hasła przez administratora.</p>
+      <?php if ($pwerr !== ''): ?>
+      <div class="alert alert-danger py-2 small" role="alert"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i><?= h($pwerr) ?></div>
+      <?php endif; ?>
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op" value="change_password">
+        <div class="mb-3">
+          <label class="form-label" for="cp-cur">Aktualne hasło</label>
+          <input type="password" class="form-control" id="cp-cur" name="current" required autocomplete="current-password" autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="cp-new">Nowe hasło</label>
+          <input type="password" class="form-control" id="cp-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znaków">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="cp-cnf">Powtórz nowe hasło</label>
+          <input type="password" class="form-control" id="cp-cnf" name="confirm" required minlength="8" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-primary w-100 fw-semibold"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz nowe hasło</button>
+      </form>
+      <p class="text-center mt-3 mb-0"><a href="index.php?logout=1" class="small text-body-secondary">Wyloguj się</a></p>
+    </div>
+  </div>
+</main>
+<?php include __DIR__ . '/_layout_foot.php'; exit; endif; ?>
 
 <nav class="container-xl px-3 pt-3" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
@@ -273,6 +342,8 @@ include __DIR__ . '/_layout_head.php';
             <th scope="col">Kurs</th>
             <th scope="col">Godziny</th>
             <th scope="col">Temat</th>
+            <th scope="col">Zadanie</th>
+            <th scope="col">Typ lekcji</th>
             <th scope="col" class="text-center">Obecność</th>
             <th scope="col">Uwagi</th>
             <th scope="col" class="text-end">Akcje</th>
@@ -280,7 +351,7 @@ include __DIR__ . '/_layout_head.php';
         </thead>
         <tbody>
           <?php if (!$lessons): ?>
-          <tr><td colspan="7" class="text-center text-body-secondary py-4">Brak lekcji.</td></tr>
+          <tr><td colspan="9" class="text-center text-body-secondary py-4">Brak lekcji.</td></tr>
           <?php endif; ?>
           <?php foreach ($lessons as $l):
             $d   = new DateTime($l['lesson_date']);
@@ -299,17 +370,19 @@ include __DIR__ . '/_layout_head.php';
             <td style="max-width:240px">
               <?php if ($l['topic']): ?>
               <?= h($l['topic']) ?>
-              <?php if (($l['has_homework'] ?? 0) && empty($l['self_prep_remote'])): ?>
-              <span class="badge text-bg-warning ms-1"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>zadanie</span>
-              <?php endif; ?>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
-              <div class="mt-1">
-                <?php if (!empty($l['self_prep_remote'])): ?>
-                <span class="badge text-bg-info"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Przygotowanie materiałów</span>
-                <?php else: ?>
-                <span class="badge text-bg-secondary"><i class="bi bi-person-video3 me-1" aria-hidden="true"></i>Lekcja z uczestnikiem</span>
-                <?php endif; ?>
-              </div>
+            </td>
+            <td>
+              <?php if (($l['has_homework'] ?? 0) && empty($l['self_prep_remote'])): ?>
+              <span class="badge text-bg-warning"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>zadanie</span>
+              <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
+            </td>
+            <td>
+              <?php if (!empty($l['self_prep_remote'])): ?>
+              <span class="badge text-bg-info"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Przygotowanie materiałów</span>
+              <?php else: ?>
+              <span class="badge text-bg-secondary"><i class="bi bi-person-video3 me-1" aria-hidden="true"></i>Lekcja z uczestnikiem</span>
+              <?php endif; ?>
             </td>
             <?php $att_cancelled = (int)($l['att_cancelled'] ?? 0) === 1; ?>
             <td class="text-center">
@@ -634,6 +707,13 @@ include __DIR__ . '/_layout_head.php';
   <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Ustawienia powiadomień zapisane.</div>
   <?php elseif (($_GET['cal'] ?? '') === 'reset'): ?>
   <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Adres kalendarza został zmieniony. Poprzedni link przestał działać — zaktualizuj subskrypcję w swoim kalendarzu.</div>
+  <?php elseif (($_GET['pwok'] ?? '') === '1'): ?>
+  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Hasło zostało zmienione.</div>
+  <?php elseif (($_GET['phones'] ?? '') === '1'): ?>
+  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Numery do powiadomień SMS zapisane.</div>
+  <?php endif; ?>
+  <?php if (($_GET['pwerr'] ?? '') !== ''): ?>
+  <div class="alert alert-danger py-2 small" role="alert"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i><?= h((string)$_GET['pwerr']) ?></div>
   <?php endif; ?>
 
   <div class="row g-4">
@@ -699,6 +779,62 @@ include __DIR__ . '/_layout_head.php';
           <p class="text-body-secondary small mb-0 mt-2"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
             <?php endif; ?>
           <?php endif; ?>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Zmiana hasła ──────────────────────────────────────────────────────── -->
+    <div class="col-12 col-lg-6">
+      <section class="card h-100" aria-labelledby="pw-heading">
+        <div class="card-body">
+          <h2 id="pw-heading" class="h6 fw-bold mb-2"><i class="bi bi-shield-lock me-2 text-info" aria-hidden="true"></i>Zmień hasło</h2>
+          <p class="text-body-secondary small mb-3">Ustaw własne hasło do panelu kursanta.</p>
+          <form method="post" autocomplete="off">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="change_password">
+            <div class="mb-2">
+              <label class="form-label small" for="cps-cur">Aktualne hasło</label>
+              <input type="password" class="form-control form-control-sm" id="cps-cur" name="current" required autocomplete="current-password">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="cps-new">Nowe hasło</label>
+              <input type="password" class="form-control form-control-sm" id="cps-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znaków">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="cps-cnf">Powtórz nowe hasło</label>
+              <input type="password" class="form-control form-control-sm" id="cps-cnf" name="confirm" required minlength="8" autocomplete="new-password">
+            </div>
+            <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz hasło</button>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Dodatkowe numery do powiadomień SMS ───────────────────────────────── -->
+    <div class="col-12 col-lg-6">
+      <section class="card h-100" aria-labelledby="ph-heading">
+        <div class="card-body">
+          <h2 id="ph-heading" class="h6 fw-bold mb-2"><i class="bi bi-telephone-plus me-2 text-info" aria-hidden="true"></i>Dodatkowe numery do SMS</h2>
+          <p class="text-body-secondary small mb-3">Powiadomienia SMS (o zajęciach i wiadomościach) wyślemy też na te numery — np. do rodzica lub opiekuna.</p>
+          <?php if ($sms_phone !== ''): ?>
+          <p class="text-body-secondary small mb-2"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer główny: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
+          <?php endif; ?>
+          <form method="post">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="notify_phones">
+            <div class="mb-2">
+              <label class="form-label small" for="ph2">Drugi numer</label>
+              <input type="tel" class="form-control form-control-sm" id="ph2" name="phone2" maxlength="30" value="<?= h((string)($account['notify_phone2'] ?? '')) ?>" placeholder="np. 600 700 800">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="ph3">Trzeci numer</label>
+              <input type="tel" class="form-control form-control-sm" id="ph3" name="phone3" maxlength="30" value="<?= h((string)($account['notify_phone3'] ?? '')) ?>" placeholder="np. 600 700 900">
+            </div>
+            <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz numery</button>
+            <?php if (!$sms_global_on): ?>
+            <p class="text-body-secondary small mb-0 mt-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Bramka SMS jest obecnie niedostępna.</p>
+            <?php endif; ?>
+          </form>
         </div>
       </section>
     </div>
