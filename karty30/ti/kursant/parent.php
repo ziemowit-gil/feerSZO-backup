@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $parent = parent_current();
 $ptab   = $_GET['ptab'] ?? 'rozliczenia';
-if (!in_array($ptab, ['rozliczenia','frekwencja','dostep'], true)) $ptab = 'rozliczenia';
+if (!in_array($ptab, ['rozliczenia','frekwencja','licencje','dostep'], true)) $ptab = 'rozliczenia';
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
 $KP_TITLE  = 'Panel rodzica';
 $KP_TOPBAR = [
@@ -158,6 +158,7 @@ include __DIR__ . '/_layout_head.php';
 <?php else:
   $childAcc = db_one("SELECT login, child_access_blocked FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
   $blocked  = !empty($childAcc['child_access_blocked']);
+  $childLicCount = count(k30_ti_client_licenses((int)$parent['client_id']));
 ?>
 <div class="container-xl px-3 pt-3">
   <div class="d-flex align-items-center gap-2 mb-2">
@@ -177,6 +178,12 @@ include __DIR__ . '/_layout_head.php';
       <li class="nav-item">
         <a class="nav-link <?= $ptab==='frekwencja'?'active':'' ?>" href="?ptab=frekwencja" <?= $ptab==='frekwencja'?'aria-current="page"':'' ?>>
           <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Frekwencja
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <?= $ptab==='licencje'?'active':'' ?>" href="?ptab=licencje" <?= $ptab==='licencje'?'aria-current="page"':'' ?>>
+          <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje
+          <?php if ($childLicCount > 0): ?><span class="badge text-bg-secondary ms-1"><?= $childLicCount ?></span><?php endif; ?>
         </a>
       </li>
       <li class="nav-item">
@@ -200,6 +207,11 @@ include __DIR__ . '/_layout_head.php';
 <?php elseif ($ptab === 'frekwencja'): ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-calendar-check text-primary" aria-hidden="true"></i>Frekwencja</h2>
   <?php $rv_client_id = $parent['client_id']; include __DIR__ . '/_frekwencja_view.php'; ?>
+
+<?php elseif ($ptab === 'licencje'): ?>
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-1"><i class="bi bi-key text-primary" aria-hidden="true"></i>Licencje dziecka</h2>
+  <p class="text-body-secondary small mb-3">Licencje na oprogramowanie (inne niż Microsoft&nbsp;365) przypisane dziecku. Klucze i hasła trzymaj w tajemnicy.</p>
+  <?php $rv_client_id = $parent['client_id']; include __DIR__ . '/_licencje_view.php'; ?>
 
 <?php elseif ($ptab === 'dostep'):
     $pmsg      = $_SESSION['k30_parent_msg'] ?? null;      unset($_SESSION['k30_parent_msg']);
