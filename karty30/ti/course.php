@@ -54,6 +54,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: course.php?id='.$id.'#uczestnicy'); exit;
     }
 
+    // Indywidualny model rozliczania kursanta (override). model=0 → dziedziczy z kursu.
+    if ($op === 'set_billing') {
+        $cid   = (int)($_POST['client_id'] ?? 0);
+        $model = (int)($_POST['billing_model'] ?? 0);
+        if (!in_array($model, [0,1,2,3], true)) $model = 0;
+        $amount = max(0, (float)str_replace(',','.', (string)($_POST['billing_amount'] ?? '0')));
+        $rate   = max(0, (float)str_replace(',','.', (string)($_POST['hourly_rate'] ?? '0')));
+        if ($cid) {
+            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=? WHERE course_id=? AND client_id=?")
+               ->execute([$model, $amount, $rate, $id, $cid]);
+            flash_set('success', $model > 0 ? 'Ustawiono indywidualny model rozliczania (kod 9999).' : 'Przywrócono model rozliczania kursu.');
+        }
+        header('Location: course.php?id='.$id.'#uczestnicy'); exit;
+    }
+
     if ($op === 'add_lesson') {
         $tf   = trim($_POST['time_from'] ?? '');
         $tt   = trim($_POST['time_to']   ?? '');
@@ -166,6 +181,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <span class="ms-2 text-primary-emphasis">
         <i class="bi bi-arrow-repeat me-1"></i>Lekcje definiują daty i godziny
       </span>
+      <?php $cbm = (int)($course['billing_model'] ?? 2) ?: 2; ?>
+      <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-2">
+        <i class="bi bi-cash-coin me-1"></i>Rozliczanie: <?= h(k30_ti_billing_model_label($cbm)) ?><?php if ($cbm !== 2 && (float)($course['billing_amount'] ?? 0) > 0): ?> · <?= number_format((float)$course['billing_amount'],2,',','') ?> zł<?php endif; ?>
+      </span>
     </div>
   </div>
   <div class="ms-auto d-flex gap-2">
@@ -192,26 +211,25 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <div class="card-body p-0">
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
-            <tr><th>Klient</th><th>Stawka (zł/h)</th><th>Status</th><th class="text-end">Akcje</th></tr>
+            <tr><th>Klient</th><th>Rozliczanie</th><th>Status</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
-            <?php foreach ($enrollments as $e): ?>
+            <?php foreach ($enrollments as $e):
+              $eff = k30_ti_effective_billing($e, $course); ?>
             <tr class="<?= $e['status']!=='active'?'text-muted opacity-75':'' ?>">
               <td><a href="<?= APP_URL ?>/karty30/clients/view.php?id=<?= (int)$e['client_id'] ?>"><?= h($e['client_name']) ?></a></td>
               <td>
-                <form method="post" class="d-inline rate-form">
-                  <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="_op"        value="update_rate">
-                  <input type="hidden" name="client_id"  value="<?= (int)$e['client_id'] ?>">
-                  <span class="rate-display" title="Kliknij by edytować">
-                    <?= number_format((float)$e['hourly_rate'],2,',','') ?> zł/h
-                  </span>
-                  <span class="rate-edit input-group input-group-sm" style="width:130px">
-                    <input type="number" class="form-control" name="hourly_rate" step="0.01" min="0"
-                           value="<?= h($e['hourly_rate']) ?>">
-                    <button type="submit" class="btn btn-success px-2"><i class="bi bi-check"></i></button>
-                  </span>
-                </form>
+                <?php if ($eff['individual']): ?>
+                <span class="badge bg-warning text-dark" title="Indywidualne ustalenia">9999 · indyw.</span>
+                <?php endif; ?>
+                <span class="small"><?= h($eff['label']) ?>:</span>
+                <span class="fw-semibold small">
+                  <?php if ($eff['model'] === 2): ?><?= number_format($eff['hourly_rate'],2,',','') ?> zł/h
+                  <?php else: ?><?= number_format($eff['amount'],2,',','') ?> zł<?php endif; ?>
+                </span>
+                <?php if ($can_write): ?>
+                <button type="button" class="btn btn-xs btn-sm btn-link p-0 ms-1 align-baseline" data-bs-toggle="collapse" data-bs-target="#bill<?= (int)$e['client_id'] ?>" title="Zmień rozliczanie"><i class="bi bi-pencil"></i></button>
+                <?php endif; ?>
               </td>
               <td><span class="badge <?= $e['status']==='active'?'bg-success':'bg-secondary' ?>"><?= $e['status']==='active'?'Aktywny':'Nieaktywny' ?></span></td>
               <td class="text-end">
@@ -227,6 +245,36 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <?php endif; ?>
               </td>
             </tr>
+            <?php if ($can_write): ?>
+            <tr class="collapse" id="bill<?= (int)$e['client_id'] ?>">
+              <td colspan="4" class="bg-light">
+                <form method="post" class="row g-2 align-items-end">
+                  <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op"       value="set_billing">
+                  <input type="hidden" name="client_id" value="<?= (int)$e['client_id'] ?>">
+                  <div class="col-auto">
+                    <label class="form-label small mb-0">Model (override)</label>
+                    <select name="billing_model" class="form-select form-select-sm bill-model" onchange="billToggle(this)">
+                      <option value="0" <?= (int)$e['billing_model']===0?'selected':'' ?>>— jak kurs (<?= h(k30_ti_billing_model_label((int)($course['billing_model']?:2))) ?>) —</option>
+                      <?php foreach ([1,2,3] as $code): ?>
+                      <option value="<?= $code ?>" <?= (int)$e['billing_model']===$code?'selected':'' ?>>Indywidualny: <?= h(k30_ti_billing_model_label($code)) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="col-auto bill-rate" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'display:none':'' ?>">
+                    <label class="form-label small mb-0">Stawka (zł/h)</label>
+                    <input type="number" name="hourly_rate" class="form-control form-control-sm" step="0.01" min="0" style="width:110px" value="<?= h(number_format((float)$e['hourly_rate'],2,'.','')) ?>">
+                  </div>
+                  <div class="col-auto bill-amount" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'':'display:none' ?>">
+                    <label class="form-label small mb-0">Kwota (zł)</label>
+                    <input type="number" name="billing_amount" class="form-control form-control-sm" step="0.01" min="0" style="width:120px" value="<?= h(number_format((float)$e['billing_amount'],2,'.','')) ?>">
+                  </div>
+                  <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button></div>
+                  <div class="form-text">Wybór indywidualnego modelu nadaje kursantowi kod 9999.</div>
+                </form>
+              </td>
+            </tr>
+            <?php endif; ?>
             <?php endforeach; ?>
             <?php if (!$enrollments): ?>
             <tr><td colspan="4" class="text-muted text-center py-3">Brak uczestników.</td></tr>
@@ -433,6 +481,17 @@ function openClone(lessonId, date, timeFrom, timeTo) {
   d.setDate(d.getDate() + 7);
   document.getElementById('clone_date').value = d.toISOString().slice(0,10);
   new bootstrap.Modal(document.getElementById('cloneModal')).show();
+}
+// Override rozliczania kursanta — pokaż stawkę (godzinowy) lub kwotę (miesięczny/stały)
+function billToggle(sel) {
+  var row = sel.closest('form');
+  if (!row) return;
+  var v = parseInt(sel.value, 10);          // 0=jak kurs, 1=mies., 2=godz., 3=stały
+  var amount = (v === 1 || v === 3);
+  var rateEl = row.querySelector('.bill-rate');
+  var amtEl  = row.querySelector('.bill-amount');
+  if (rateEl) rateEl.style.display = amount ? 'none' : '';
+  if (amtEl)  amtEl.style.display  = amount ? '' : 'none';
 }
 </script>
 

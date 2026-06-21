@@ -38,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'instructor_id'       => ((int)($_POST['instructor_id'] ?? 0)) ?: null,
         'location'            => trim($_POST['location'] ?? ''),
         'default_meeting_url' => trim($_POST['default_meeting_url'] ?? ''),
+        'billing_model'       => in_array((int)($_POST['billing_model'] ?? 2), [1,2,3], true) ? (int)$_POST['billing_model'] : 2,
+        'billing_amount'      => max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0'))),
         'is_active'           => isset($_POST['is_active']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
@@ -148,6 +150,22 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                placeholder="https://… (Teams/Zoom/Meet)">
         <div class="form-text">Wspólny link dla wszystkich lekcji tej grupy. Można nadpisać linkiem konkretnej lekcji.</div>
       </div>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold"><i class="bi bi-cash-coin me-1 text-success"></i>Model rozliczania</label>
+          <?php $bm = (int)($f['billing_model'] ?? 2) ?: 2; ?>
+          <select class="form-select" name="billing_model" id="bm_select" onchange="bmToggle()">
+            <?php foreach ([1,2,3] as $code): ?>
+            <option value="<?= $code ?>" <?= $bm===$code?'selected':'' ?>><?= h(k30_ti_billing_model_label($code)) ?> — <?= h(K30_TI_BILLING_MODELS[$code]['desc']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-sm-6" id="bm_amount_wrap" style="<?= $bm===2?'display:none':'' ?>">
+          <label class="form-label fw-semibold">Kwota (zł)</label>
+          <input type="number" class="form-control" name="billing_amount" step="0.01" min="0" value="<?= h(number_format((float)($f['billing_amount'] ?? 0),2,'.','')) ?>">
+          <div class="form-text" id="bm_amount_help">dla modelu miesięcznego/stałego</div>
+        </div>
+      </div>
       <div class="mb-3">
         <label class="form-label">Opis</label>
         <textarea class="form-control" name="description" rows="2" placeholder="Czego dotyczą zajęcia…"><?= h($f['description']) ?></textarea>
@@ -223,5 +241,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+<script>
+function bmToggle() {
+  var sel = document.getElementById('bm_select');
+  if (!sel) return;
+  var v = parseInt(sel.value, 10);
+  var wrap = document.getElementById('bm_amount_wrap');
+  var help = document.getElementById('bm_amount_help');
+  if (wrap) wrap.style.display = (v === 2) ? 'none' : '';      // godzinowy = stawka per uczestnik
+  if (help) help.textContent = (v === 1) ? 'stała kwota za miesiąc' : (v === 3 ? 'jednorazowa stała kwota' : '');
+}
+bmToggle();
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

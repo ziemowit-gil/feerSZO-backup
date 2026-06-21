@@ -158,7 +158,7 @@ foreach ($enrolled_active as $e) {
     $cid = (int)$e['client_id'];
     if (in_array($cid, $billed_ids)) continue;
     $calc = k30_ti_calculate_billing($cid, $month, $year);
-    if ($calc['hours_billed'] > 0) {
+    if ($calc['hours_billed'] > 0 || $calc['amount'] > 0) {
         $preview[$cid] = array_merge($calc, ['client_name' => $e['client_name']]);
     }
 }

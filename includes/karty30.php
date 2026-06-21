@@ -283,6 +283,12 @@ function karty30_migrate(): void {
         // Link do lekcji online (per-lekcja) + stały link grupy (kurs)
         "ALTER TABLE k30_ti_sessions ADD COLUMN meeting_url      TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_courses  ADD COLUMN default_meeting_url TEXT NOT NULL DEFAULT ''",
+        // Model rozliczania kursu: 1=miesięczny, 2=godzinowy (domyślny), 3=stały
+        "ALTER TABLE k30_ti_courses ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 2",
+        "ALTER TABLE k30_ti_courses ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
+        // Override modelu na kursancie (zapisie): 0=dziedziczy z kursu, >0=indywidualny (kod 9999)
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
         // Odwołanie całej lekcji (Doradca/admin) — z powodem i autorem
         "ALTER TABLE k30_ti_sessions ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
@@ -1377,6 +1383,52 @@ const K30_TI_BILLING_STATUSES = [
     'cancelled' => ['label'=>'Anulowane', 'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
 ];
 
+/**
+ * Modele rozliczania zajęć TI (kod → opis).
+ *   1 — miesięczny (stała kwota za miesiąc)
+ *   2 — godzinowy  (stawka × godziny obecności) — domyślny, zgodny z dotychczasowym
+ *   3 — stały      (jednorazowa stała kwota)
+ *   9999 — indywidualny — gdy ustawiony override na kursancie (zapisie)
+ */
+const K30_TI_BILLING_MODELS = [
+    1    => ['label' => 'Miesięczny', 'desc' => 'stała kwota za miesiąc'],
+    2    => ['label' => 'Godzinowy',  'desc' => 'stawka × godziny obecności'],
+    3    => ['label' => 'Stały',      'desc' => 'jednorazowa stała kwota'],
+    9999 => ['label' => 'Indywidualny', 'desc' => 'ustalenia indywidualne kursanta'],
+];
+
+function k30_ti_billing_model_label(int $code): string {
+    return K30_TI_BILLING_MODELS[$code]['label'] ?? ('model ' . $code);
+}
+
+/**
+ * Wyznacza efektywny model rozliczania dla zapisu (override na kursancie ma
+ * pierwszeństwo nad modelem kursu). Override → kod 9999 (indywidualny).
+ * Zwraca ['model'=>int(1|2|3), 'code'=>int, 'individual'=>bool, 'amount'=>float, 'hourly_rate'=>float, 'label'=>string].
+ */
+function k30_ti_effective_billing(array $enr, array $course): array {
+    $emodel = (int)($enr['billing_model'] ?? 0);
+    if ($emodel > 0) { // override na kursancie
+        return [
+            'model'       => $emodel,
+            'code'        => 9999,
+            'individual'  => true,
+            'amount'      => (float)($enr['billing_amount'] ?? 0),
+            'hourly_rate' => (float)($enr['hourly_rate'] ?? 0),
+            'label'       => 'Indywidualny',
+        ];
+    }
+    $cmodel = (int)($course['billing_model'] ?? 2) ?: 2;
+    return [
+        'model'       => $cmodel,
+        'code'        => $cmodel,
+        'individual'  => false,
+        'amount'      => (float)($course['billing_amount'] ?? 0),
+        'hourly_rate' => (float)($enr['hourly_rate'] ?? 0),
+        'label'       => k30_ti_billing_model_label($cmodel),
+    ];
+}
+
 // Kursy — pomija usunięte (status='cancelled')
 function k30_ti_courses(bool $active_only = true): array {
     $w = "WHERE c.status!='cancelled'";
@@ -1967,28 +2019,54 @@ function k30_ti_cancel_session(int $session_id, string $reason, string $role, st
 function k30_ti_calculate_billing(int $client_id, int $month, int $year): array {
     $from = sprintf('%04d-%02d-01', $year, $month);
     $to   = date('Y-m-t', strtotime($from));
-    // Lekcje odbyłe, na których klient był obecny
-    $rows = db_all(
-        "SELECT s.duration_min, e.hourly_rate
-         FROM k30_ti_attendance a
-         JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status='held' AND s.lesson_date BETWEEN ? AND ?
-         JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id AND e.status='active'
-         WHERE a.client_id=? AND a.attended=1 AND COALESCE(a.cancelled,0)=0",
-        [$from, $to, $client_id]
+
+    // Aktywne zapisy klienta wraz z modelem rozliczania kursu
+    $enrs = db_all(
+        "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_courses c ON c.id=e.course_id
+         WHERE e.client_id=? AND e.status='active'",
+        [$client_id]
     );
+
     $hours  = 0.0;
     $amount = 0.0;
-    foreach ($rows as $r) {
-        $h       = (float)$r['duration_min'] / 60;
-        $hours  += $h;
-        $amount += $h * (float)$r['hourly_rate'];
+    $models = [];
+    foreach ($enrs as $e) {
+        // Godziny obecności w tym kursie w danym miesiącu
+        $rows = db_all(
+            "SELECT s.duration_min
+             FROM k30_ti_attendance a
+             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status='held'
+                  AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
+             WHERE a.client_id=? AND a.attended=1 AND COALESCE(a.cancelled,0)=0",
+            [(int)$e['course_id'], $from, $to, $client_id]
+        );
+        $ch = 0.0;
+        foreach ($rows as $r) $ch += (float)$r['duration_min'] / 60;
+        $hours += $ch;
+
+        $eff = k30_ti_effective_billing($e, [
+            'billing_model'  => $e['course_billing_model'],
+            'billing_amount' => $e['course_billing_amount'],
+        ]);
+        $models[$eff['code']] = true;
+        if ($eff['model'] === 1 || $eff['model'] === 3) {
+            // miesięczny / stały — kwota niezależna od godzin (naliczana gdy zapis aktywny)
+            $amount += $eff['amount'];
+        } else {
+            // godzinowy
+            $amount += $ch * $eff['hourly_rate'];
+        }
     }
+
     return [
         'client_id'   => $client_id,
         'month'       => $month,
         'year'        => $year,
         'hours_billed'=> round($hours, 4),
         'amount'      => round($amount, 2),
+        'models'      => array_keys($models), // kody zastosowanych modeli (info)
     ];
 }
 
