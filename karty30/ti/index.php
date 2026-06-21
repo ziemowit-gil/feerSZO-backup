@@ -77,10 +77,23 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i>Zajęcia informatyki / TI</h4>
   <?php if ($can_write): ?>
-  <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>"><i class="bi bi-envelope me-1"></i>Wiadomości<?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?></a>
-  <a href="online_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-camera-video me-1"></i>Nauka online</a>
-  <a href="licencje_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-key me-1"></i>Licencje</a>
-  <a href="vlab_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-hdd-stack me-1"></i>VLAB / Docker</a>
+  <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>">
+    <i class="bi bi-envelope me-1"></i>Wiadomości<?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?>
+  </a>
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-grid me-1"></i>Zarządzanie
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      <li><h6 class="dropdown-header">Rozliczenia</h6></li>
+      <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia miesięczne</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><h6 class="dropdown-header">Dostępy i narzędzia</h6></li>
+      <li><a class="dropdown-item" href="online_admin.php"><i class="bi bi-camera-video me-2"></i>Nauka online</a></li>
+      <li><a class="dropdown-item" href="licencje_admin.php"><i class="bi bi-key me-2"></i>Licencje</a></li>
+      <li><a class="dropdown-item" href="vlab_admin.php"><i class="bi bi-hdd-stack me-2"></i>VLAB / Docker</a></li>
+    </ul>
+  </div>
   <?php endif; ?>
   <?php if ($can_write && !$show_new && !$edit_row): ?>
   <a href="?new=1" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowy kurs</a>

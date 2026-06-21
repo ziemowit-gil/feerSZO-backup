@@ -228,6 +228,7 @@ include __DIR__ . '/_layout_head.php';
 </main>
 <?php include __DIR__ . '/_layout_foot.php'; exit; endif; ?>
 
+<?php $dostepy_tabs = ['online','licencje','vlab']; $dostepy_active = in_array($tab, $dostepy_tabs, true); ?>
 <nav class="container-xl px-3 pt-3" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
     <li class="nav-item">
@@ -243,26 +244,34 @@ include __DIR__ . '/_layout_head.php';
     </li>
     <?php endif; ?>
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab" <?= $tab==='vlab'?'aria-current="page"':'' ?>>
-        <i class="bi bi-code-square me-1" aria-hidden="true"></i>VLab
-      </a>
-    </li>
-    <li class="nav-item">
       <a class="nav-link <?= $tab==='wiadomosci'?'active':'' ?>" href="?tab=wiadomosci" <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
         <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wiadomości
         <?php if ($msg_unread > 0): ?><span class="badge text-bg-danger ms-1"><?= $msg_unread ?></span><?php endif; ?>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $tab==='online'?'active':'' ?>" href="?tab=online" <?= $tab==='online'?'aria-current="page"':'' ?>>
-        <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Szkolenia online
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle <?= $dostepy_active?'active':'' ?>" href="#" role="button"
+         data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-grid me-1" aria-hidden="true"></i>Dostępy i narzędzia
       </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje" <?= $tab==='licencje'?'aria-current="page"':'' ?>>
-        <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje
-        <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-1"><?= count($my_licenses) ?></span><?php endif; ?>
-      </a>
+      <ul class="dropdown-menu">
+        <li>
+          <a class="dropdown-item <?= $tab==='online'?'active':'' ?>" href="?tab=online">
+            <i class="bi bi-camera-video me-2" aria-hidden="true"></i>Szkolenia online
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje">
+            <i class="bi bi-key me-2" aria-hidden="true"></i>Licencje
+            <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-2"><?= count($my_licenses) ?></span><?php endif; ?>
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab">
+            <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab
+          </a>
+        </li>
+      </ul>
     </li>
     <li class="nav-item">
       <a class="nav-link <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
