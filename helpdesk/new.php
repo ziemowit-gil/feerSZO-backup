@@ -176,11 +176,17 @@ try {
 } catch (\Throwable $e) {}
 ?>
 
-<div class="d-flex align-items-center gap-2 mb-3">
-  <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-sm btn-outline-secondary">
+<div class="d-flex align-items-center gap-3 mb-4 p-3 rounded-3 shadow-sm"
+     style="background:linear-gradient(90deg,#1e40af,#2563EB);color:#fff">
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-sm btn-light" aria-label="Wróć do konsoli">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <h4 class="mb-0 fw-bold"><i class="bi bi-plus-circle text-primary me-2"></i>Nowe zgłoszenie IT</h4>
+  <div class="d-flex align-items-center justify-content-center rounded-circle bg-white bg-opacity-25 flex-shrink-0"
+       style="width:46px;height:46px"><i class="bi bi-plus-circle fs-4"></i></div>
+  <div>
+    <div class="fw-bold fs-5">Nowe zgłoszenie IT</div>
+    <div class="small opacity-75">Helpdesk — opisz problem, a zajmiemy się nim zgodnie z priorytetem (SLA).</div>
+  </div>
 </div>
 
 <?php if ($errors): ?>
