@@ -120,6 +120,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-journal-check text-primary me-2"></i>Zadania domowe</h4>
   <a href="materials.php" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-collection-play me-1"></i>Materiały / eLearning</a>
+  <a href="grades.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-table me-1"></i>Dziennik ocen</a>
 </div>
 
 <?= flash_html() ?>

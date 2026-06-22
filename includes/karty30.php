@@ -446,6 +446,26 @@ function karty30_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_mat_course  ON k30_ti_materials(course_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_mat_session ON k30_ti_materials(session_id)");
 
+    // ── Oceny (e-dziennik) ─────────────────────────────────────────────────────
+    // value_text = ocena widoczna (np. '5', '4+', '2-', 'np', 'bz'); value_num = wartość
+    // do średniej ważonej (NULL → nie liczy się). weight = waga oceny.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_grades (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id   INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        client_id   INTEGER NOT NULL REFERENCES k30_clients(id)    ON DELETE CASCADE,
+        session_id  INTEGER REFERENCES k30_ti_sessions(id)         ON DELETE SET NULL,
+        category    TEXT    NOT NULL DEFAULT 'inne',  -- sprawdzian|kartkowka|odpowiedz|zadanie|projekt|aktywnosc|inne
+        value_text  TEXT    NOT NULL DEFAULT '',
+        value_num   REAL,                              -- NULL = nie liczona do średniej
+        weight      REAL    NOT NULL DEFAULT 1,
+        description TEXT    NOT NULL DEFAULT '',
+        graded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        graded_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_course ON k30_ti_grades(course_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_client ON k30_ti_grades(client_id)");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2118,6 +2138,117 @@ function k30_ti_materials_for_client(int $client_id): array {
            AND m.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
          ORDER BY COALESCE(s.lesson_date,'') DESC, m.id DESC",
         [$client_id]
+    );
+}
+
+// ── Oceny / e-dziennik ────────────────────────────────────────────────────────
+
+/** Katalog kategorii ocen: slug => ['label','weight' (domyślna waga),'short']. */
+function k30_ti_grade_categories(): array {
+    return [
+        'sprawdzian' => ['label' => 'Sprawdzian',     'weight' => 3, 'short' => 'Spr'],
+        'kartkowka'  => ['label' => 'Kartkówka',      'weight' => 2, 'short' => 'Kar'],
+        'odpowiedz'  => ['label' => 'Odpowiedź',      'weight' => 2, 'short' => 'Odp'],
+        'projekt'    => ['label' => 'Projekt',        'weight' => 3, 'short' => 'Prj'],
+        'zadanie'    => ['label' => 'Zadanie domowe', 'weight' => 1, 'short' => 'ZD'],
+        'aktywnosc'  => ['label' => 'Aktywność',      'weight' => 1, 'short' => 'Akt'],
+        'inne'       => ['label' => 'Inne',           'weight' => 1, 'short' => 'In'],
+    ];
+}
+function k30_ti_grade_category_label(string $c): string {
+    $cats = k30_ti_grade_categories(); return $cats[$c]['label'] ?? ucfirst($c);
+}
+
+/**
+ * Zamienia ocenę tekstową na wartość liczbową do średniej ważonej.
+ * '4+' → 4.5, '3-' → 2.75, '5' → 5; 'np','bz','nb','0','+','-' → null (nie liczona).
+ */
+function k30_ti_grade_parse_num(string $text): ?float {
+    $t = trim($text);
+    if ($t === '') return null;
+    if (preg_match('/^([1-6])\s*([+\-])?$/u', $t, $m)) {
+        $v = (float)$m[1];
+        if (($m[2] ?? '') === '+') $v += 0.5;
+        elseif (($m[2] ?? '') === '-') $v -= 0.25;
+        return $v;
+    }
+    // czysta liczba (np. wartość ułamkowa wpisana ręcznie)
+    if (is_numeric($t)) { $v = (float)$t; return ($v >= 1 && $v <= 6) ? $v : null; }
+    return null; // np / bz / nb / nieobecność itp.
+}
+
+/** Kolor (hex) tła oznaczenia oceny wg wartości liczbowej — styl e-dziennika. */
+function k30_ti_grade_color(?float $num): array {
+    if ($num === null) return ['#6c757d', '#fff'];          // szary — nie liczona
+    $f = (int)floor($num + 0.001);
+    return [
+        1 => ['#dc3545', '#fff'],  // czerwony
+        2 => ['#fd7e14', '#fff'],  // pomarańczowy
+        3 => ['#ffc107', '#212529'],// żółty (ciemny tekst)
+        4 => ['#0dcaf0', '#212529'],// błękit
+        5 => ['#198754', '#fff'],  // zielony
+        6 => ['#6f42c1', '#fff'],  // fiolet
+    ][$f] ?? ['#6c757d', '#fff'];
+}
+
+/** HTML oznaczenia (badge) oceny z kolorem i tooltipem (kategoria/opis/waga). */
+function k30_ti_grade_badge(array $g): string {
+    [$bg, $fg] = k30_ti_grade_color(isset($g['value_num']) ? (float)$g['value_num'] : null);
+    if (!isset($g['value_num']) || $g['value_num'] === null) [$bg, $fg] = ['#6c757d', '#fff'];
+    $cat   = k30_ti_grade_category_label((string)($g['category'] ?? 'inne'));
+    $w     = rtrim(rtrim((string)($g['weight'] ?? 1), '0'), '.');
+    $title = $cat . ' · waga ' . ($w === '' ? '1' : $w)
+           . (($g['description'] ?? '') !== '' ? ' · ' . $g['description'] : '')
+           . (($g['graded_at'] ?? '') !== '' ? ' · ' . substr((string)$g['graded_at'], 0, 10) : '');
+    return '<span class="badge" style="background:' . $bg . ';color:' . $fg
+         . ';font-size:.85rem;min-width:1.6rem" title="' . h($title) . '">' . h((string)$g['value_text']) . '</span>';
+}
+
+/** Średnia ważona z tablicy ocen (pomija value_num = null). Zwraca null gdy brak. */
+function k30_ti_grades_average(array $grades): ?float {
+    $sum = 0.0; $w = 0.0;
+    foreach ($grades as $g) {
+        if (!isset($g['value_num']) || $g['value_num'] === null) continue;
+        $gw   = (float)($g['weight'] ?? 1);
+        $sum += (float)$g['value_num'] * $gw;
+        $w   += $gw;
+    }
+    return $w > 0 ? round($sum / $w, 2) : null;
+}
+
+/** Wszystkie oceny w kursie (e-dziennik) — z nazwą kursanta i lekcją. */
+function k30_ti_course_grades(int $course_id): array {
+    return db_all(
+        "SELECT g.*, cl.name AS client_name, s.lesson_date AS session_date, s.topic AS session_topic
+         FROM k30_ti_grades g
+         JOIN k30_clients cl ON cl.id=g.client_id
+         LEFT JOIN k30_ti_sessions s ON s.id=g.session_id
+         WHERE g.course_id=?
+         ORDER BY g.graded_at DESC, g.id DESC", [$course_id]
+    );
+}
+
+/** Pojedyncza ocena z nazwą kursu i kursanta. */
+function k30_ti_grade_get(int $id): ?array {
+    return db_one(
+        "SELECT g.*, c.name AS course_name, cl.name AS client_name
+         FROM k30_ti_grades g
+         JOIN k30_ti_courses c ON c.id=g.course_id
+         JOIN k30_clients cl   ON cl.id=g.client_id
+         WHERE g.id=?", [$id]
+    ) ?: null;
+}
+
+/** Oceny kursanta z jego aktywnych kursów — z nazwą kursu i lekcją (widok kursanta). */
+function k30_ti_client_grades(int $client_id): array {
+    return db_all(
+        "SELECT g.*, c.name AS course_name, s.lesson_date AS session_date, s.topic AS session_topic
+         FROM k30_ti_grades g
+         JOIN k30_ti_courses c ON c.id=g.course_id
+         LEFT JOIN k30_ti_sessions s ON s.id=g.session_id
+         WHERE g.client_id=?
+           AND g.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
+         ORDER BY c.name, g.graded_at DESC, g.id DESC", [$client_id, $client_id]
     );
 }
 

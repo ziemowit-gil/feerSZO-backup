@@ -270,6 +270,10 @@ $courses = k30_ti_client_courses($student['client_id']);
 $homeworks_student = k30_ti_homework_for_client($student['client_id']);
 $hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
 $materials_student = k30_ti_materials_for_client($student['client_id']);
+// Oceny (e-dziennik) — pogrupowane wg kursu, ze średnią ważoną
+$grades_student = k30_ti_client_grades($student['client_id']);
+$grades_by_course = [];
+foreach ($grades_student as $g) { $grades_by_course[$g['course_name']][] = $g; }
 $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']);
 
 // Zadania z Moodle — odśwież z serwera tylko przy wejściu na zakładkę (TTL wewnątrz);
@@ -831,7 +835,37 @@ include __DIR__ . '/_layout_head.php';
 <?php elseif ($tab === 'zadania'): ?>
 
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
-  <p class="text-body-secondary small mb-3">Materiały do nauki od prowadzącego oraz zadania domowe do oddania.</p>
+  <p class="text-body-secondary small mb-3">Twoje oceny, materiały do nauki od prowadzącego oraz zadania domowe do oddania.</p>
+
+  <!-- ── Oceny (e-dziennik) ───────────────────────────────────────────────── -->
+  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-table text-primary" aria-hidden="true"></i>Oceny
+  </h2>
+  <?php if (!$grades_student): ?>
+  <p class="text-body-secondary small mb-4">Brak ocen. Pojawią się tutaj, gdy prowadzący je wystawi.</p>
+  <?php else: ?>
+  <div class="d-flex flex-column gap-2 mb-4">
+    <?php foreach ($grades_by_course as $cname => $cgr):
+      $avg = k30_ti_grades_average($cgr);
+      [$abg,$afg] = k30_ti_grade_color($avg);
+    ?>
+    <div class="card">
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+          <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
+          <?php if ($avg !== null): ?>
+          <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
+          <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
+          <?php endif; ?>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+          <?php foreach ($cgr as $g): ?><?= k30_ti_grade_badge($g) ?><?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
 
   <!-- ── Materiały dydaktyczne (od prowadzącego) ──────────────────────────── -->
   <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
