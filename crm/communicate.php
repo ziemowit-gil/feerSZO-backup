@@ -590,14 +590,26 @@ include __DIR__ . '/includes/header_crm.php';
         <div class="crm-section-title">Zmienne szablonu</div>
         <table class="table table-sm table-borderless mb-0" style="font-size:.78rem">
           <tbody>
+            <tr><td colspan="2" class="text-uppercase fw-bold" style="font-size:.66rem;letter-spacing:.05em;color:#5E6470">Odbiorca</td></tr>
             <tr><td class="font-monospace text-success">{imie}</td><td>Imię (pierwsze słowo)</td></tr>
             <tr><td class="font-monospace text-success">{imie_nazwisko}</td><td>Pełne imię i nazwisko</td></tr>
             <tr><td class="font-monospace text-success">{email}</td><td>Adres e-mail</td></tr>
             <tr><td class="font-monospace text-success">{organizacja}</td><td>Nazwa firmy / org.</td></tr>
             <tr><td class="font-monospace text-success">{stanowisko}</td><td>Stanowisko</td></tr>
             <tr><td class="font-monospace text-success">{data}</td><td>Dzisiejsza data</td></tr>
+            <tr><td colspan="2" class="text-uppercase fw-bold pt-2" style="font-size:.66rem;letter-spacing:.05em;color:#5E6470">Nadawca (Ty)</td></tr>
+            <tr><td class="font-monospace text-success">{nadawca_imie_nazwisko}</td><td>Twoje imię i nazwisko</td></tr>
+            <tr><td class="font-monospace text-success">{nadawca_email}</td><td>Twój e-mail</td></tr>
+            <tr><td class="font-monospace text-success">{nadawca_telefon}</td><td>Twój telefon</td></tr>
           </tbody>
         </table>
+        <?php $cm_missing = CrmManager::senderMissing(); if ($cm_missing): ?>
+        <div class="d-flex align-items-start gap-2 mt-2 p-2" style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;font-size:.74rem;color:#92400E">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+          <span>Twoje dane nadawcy są niekompletne (brak: <strong><?= h(implode(', ', $cm_missing)) ?></strong>).
+            <a href="<?= APP_URL ?>/panel/index.php" style="color:#92400E;font-weight:600">Uzupełnij →</a></span>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
 

@@ -18,7 +18,11 @@ crm_migrate();
 
 $crm_can_write  = can_write('crm') || is_admin();
 $crm_can_delete = can_delete('crm') || is_admin();
+$is_admin_user  = is_admin();
 $PAGE_TITLE = 'CRM — Szablony wiadomości';
+
+// Brakujące dane nadawcy (do monitu o uzupełnieniu profilu)
+$sender_missing = CrmManager::senderMissing();
 
 $CHANNELS = [
     'email' => ['label' => 'E-mail', 'icon' => 'bi-envelope-fill', 'color' => '#0176D3'],
@@ -39,7 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         $body    = trim($_POST['body'] ?? '');
         $active  = !empty($_POST['is_active']) ? 1 : 0;
 
-        if ($name === '' || $body === '') {
+        // Szablon zastrzeżony — flagę ustawia wyłącznie administrator
+        $existing = $tid ? db_one("SELECT * FROM crm_templates WHERE id=?", [$tid]) : null;
+        $locked   = $is_admin_user
+            ? (!empty($_POST['is_locked']) ? 1 : 0)
+            : (int)($existing['is_locked'] ?? 0);
+
+        if ($action === 'update' && $existing && (int)$existing['is_locked'] === 1 && !$is_admin_user) {
+            flash_set('danger', 'Szablon zastrzeżony — może go edytować tylko administrator.');
+        } elseif ($name === '' || $body === '') {
             flash_set('danger', 'Nazwa i treść szablonu są wymagane.');
         } else {
             // Unikalność nazwy (z pominięciem edytowanego rekordu)
@@ -48,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
                 flash_set('danger', 'Szablon o nazwie „' . $name . '" już istnieje.');
             } elseif ($action === 'update' && $tid) {
                 db()->prepare(
-                    "UPDATE crm_templates SET name=?, channel=?, subject=?, body=?, is_active=?, updated_at=? WHERE id=?"
-                )->execute([$name, $channel, $subject, $body, $active, date('Y-m-d H:i:s'), $tid]);
+                    "UPDATE crm_templates SET name=?, channel=?, subject=?, body=?, is_active=?, is_locked=?, updated_at=? WHERE id=?"
+                )->execute([$name, $channel, $subject, $body, $active, $locked, date('Y-m-d H:i:s'), $tid]);
                 flash_set('success', 'Szablon „' . $name . '" zaktualizowany.');
             } else {
                 db_insert('crm_templates', [
@@ -58,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
                     'subject'    => $subject,
                     'body'       => $body,
                     'is_active'  => $active,
+                    'is_locked'  => $locked,
                     'created_by' => $user_id,
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s'),
@@ -69,8 +82,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
 
     if ($action === 'toggle') {
         $tid = (int)($_POST['template_id'] ?? 0);
-        $t   = db_one("SELECT id, is_active FROM crm_templates WHERE id=?", [$tid]);
-        if ($t) {
+        $t   = db_one("SELECT id, is_active, is_locked FROM crm_templates WHERE id=?", [$tid]);
+        if ($t && (int)$t['is_locked'] === 1 && !$is_admin_user) {
+            flash_set('danger', 'Szablon zastrzeżony — może go zmieniać tylko administrator.');
+        } elseif ($t) {
             $new = $t['is_active'] ? 0 : 1;
             db()->prepare("UPDATE crm_templates SET is_active=?, updated_at=? WHERE id=?")
                 ->execute([$new, date('Y-m-d H:i:s'), $tid]);
@@ -80,8 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
 
     if ($action === 'delete' && $crm_can_delete) {
         $tid = (int)($_POST['template_id'] ?? 0);
-        $t   = db_one("SELECT name FROM crm_templates WHERE id=?", [$tid]);
-        if ($t) {
+        $t   = db_one("SELECT name, is_locked FROM crm_templates WHERE id=?", [$tid]);
+        if ($t && (int)$t['is_locked'] === 1 && !$is_admin_user) {
+            flash_set('danger', 'Szablon zastrzeżony — może go usunąć tylko administrator.');
+        } elseif ($t) {
             db()->prepare("DELETE FROM crm_templates WHERE id=?")->execute([$tid]);
             flash_set('success', 'Szablon „' . ($t['name'] ?? '') . '" usunięty.');
         }
@@ -144,17 +161,38 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
+<!-- Monit: niekompletne dane nadawcy (zalogowanego użytkownika) -->
+<?php if ($sender_missing): ?>
+<div class="alert alert-warning d-flex align-items-start gap-2 mb-3" role="alert" style="border-radius:10px">
+  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div style="font-size:.86rem">
+    Twoje dane używane w zmiennych nadawcy są niekompletne — brakuje:
+    <strong><?= h(implode(', ', $sender_missing)) ?></strong>.
+    Szablony ze zmiennymi <code>{nadawca_…}</code> wstawią w tych miejscach pustą wartość.
+    <a href="<?= APP_URL ?>/panel/index.php" class="alert-link">Uzupełnij lub zweryfikuj swoje dane →</a>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- Pomoc: zmienne -->
 <div class="cv-panel" style="background:var(--crm-primary-bg);border-color:var(--crm-primary-light)">
-  <div class="cv-panel__body" style="padding:.7rem 1rem">
-    <span class="fw-semibold" style="font-size:.82rem;color:var(--crm-primary-dark)">
-      <i class="bi bi-braces me-1" aria-hidden="true"></i>Zmienne (kliknij, aby skopiować):
-    </span>
-    <span class="d-inline-flex flex-wrap gap-1 ms-1 align-middle">
+  <div class="cv-panel__body" style="padding:.7rem 1rem;font-size:.82rem">
+    <div class="d-flex flex-wrap align-items-center gap-1">
+      <span class="fw-semibold" style="color:var(--crm-primary-dark)">
+        <i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Odbiorca:
+      </span>
       <?php foreach (['{imie}','{imie_nazwisko}','{email}','{telefon}','{organizacja}','{stanowisko}'] as $v): ?>
       <button type="button" class="var-chip" onclick="tplCopyVar(this)" data-var="<?= h($v) ?>"><?= h($v) ?></button>
       <?php endforeach; ?>
-    </span>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-1 mt-2">
+      <span class="fw-semibold" style="color:var(--crm-primary-dark)">
+        <i class="bi bi-person-badge-fill me-1" aria-hidden="true"></i>Nadawca (Ty):
+      </span>
+      <?php foreach (['{nadawca_imie}','{nadawca_nazwisko}','{nadawca_imie_nazwisko}','{nadawca_email}','{nadawca_telefon}'] as $v): ?>
+      <button type="button" class="var-chip" onclick="tplCopyVar(this)" data-var="<?= h($v) ?>"><?= h($v) ?></button>
+      <?php endforeach; ?>
+    </div>
   </div>
 </div>
 
@@ -173,8 +211,12 @@ include __DIR__ . '/includes/header_crm.php';
 
 <div class="d-flex flex-column gap-2 mt-3">
   <?php foreach ($templates as $t):
-    $ch  = $CHANNELS[$t['channel']] ?? $CHANNELS['email'];
-    $off = (int)$t['is_active'] !== 1;
+    $ch     = $CHANNELS[$t['channel']] ?? $CHANNELS['email'];
+    $off    = (int)$t['is_active'] !== 1;
+    $locked = (int)($t['is_locked'] ?? 0) === 1;
+    // Zastrzeżony szablon może modyfikować tylko administrator
+    $can_mod_this = $crm_can_write  && (!$locked || $is_admin_user);
+    $can_del_this = $crm_can_delete && (!$locked || $is_admin_user);
   ?>
   <div class="tpl-row<?= $off ? ' is-off' : '' ?>">
     <div class="tpl-icon" style="background:<?= $ch['color'] ?>" aria-hidden="true">
@@ -186,6 +228,11 @@ include __DIR__ . '/includes/header_crm.php';
         <span class="tpl-badge" style="background:<?= $ch['color'] ?>1a;color:<?= $ch['color'] ?>">
           <i class="bi <?= $ch['icon'] ?>" aria-hidden="true"></i><?= $ch['label'] ?>
         </span>
+        <?php if ($locked): ?>
+        <span class="tpl-badge" style="background:#FEF3E2;color:#92400E" title="Edytować i usuwać może tylko administrator">
+          <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Zastrzeżony
+        </span>
+        <?php endif; ?>
         <?php if ($off): ?>
         <span class="tpl-badge" style="background:#F3F4F6;color:#5E6470">
           <i class="bi bi-pause-circle" aria-hidden="true"></i>Wyłączony
@@ -198,12 +245,19 @@ include __DIR__ . '/includes/header_crm.php';
       <div class="tpl-preview"><?= h(mb_substr($t['body'], 0, 240)) ?></div>
       <div class="tpl-meta mt-1">Zmieniono: <?= h(date('d.m.Y', strtotime($t['updated_at'] ?? $t['created_at'] ?? 'now'))) ?></div>
     </div>
-    <?php if ($crm_can_write): ?>
+    <?php if ($crm_can_write && $locked && !$is_admin_user): ?>
+    <div class="tpl-actions align-items-center">
+      <span class="cv-meta" style="white-space:nowrap" title="Edytować i usuwać może tylko administrator">
+        <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>tylko admin
+      </span>
+    </div>
+    <?php elseif ($crm_can_write): ?>
     <div class="tpl-actions">
       <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj" aria-label="Edytuj szablon <?= h($t['name']) ?>"
               onclick='tplEdit(<?= json_encode([
                   'id' => (int)$t['id'], 'name' => $t['name'], 'channel' => $t['channel'],
-                  'subject' => $t['subject'] ?? '', 'body' => $t['body'], 'is_active' => (int)$t['is_active'],
+                  'subject' => $t['subject'] ?? '', 'body' => $t['body'],
+                  'is_active' => (int)$t['is_active'], 'is_locked' => (int)($t['is_locked'] ?? 0),
               ], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>
         <i class="bi bi-pencil" aria-hidden="true"></i>
       </button>
@@ -217,7 +271,7 @@ include __DIR__ . '/includes/header_crm.php';
           <i class="bi <?= $off ? 'bi-play-circle' : 'bi-pause-circle' ?>" aria-hidden="true"></i>
         </button>
       </form>
-      <?php if ($crm_can_delete): ?>
+      <?php if ($can_del_this): ?>
       <form method="post" class="d-inline"
             onsubmit="return confirm('Usunąć szablon „<?= h(addslashes($t['name'])) ?>”? Tej operacji nie można cofnąć.')">
         <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
@@ -280,6 +334,14 @@ include __DIR__ . '/includes/header_crm.php';
                 <input type="checkbox" id="tpl_active" name="is_active" value="1" class="form-check-input" checked>
                 <label class="form-check-label small" for="tpl_active">Aktywny (dostępny przy wysyłce)</label>
               </div>
+              <?php if ($is_admin_user): ?>
+              <div class="form-check mt-1">
+                <input type="checkbox" id="tpl_locked" name="is_locked" value="1" class="form-check-input">
+                <label class="form-check-label small" for="tpl_locked">
+                  <i class="bi bi-shield-lock-fill me-1" style="color:#92400E" aria-hidden="true"></i>Szablon zastrzeżony — edytować i usuwać może tylko administrator
+                </label>
+              </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -305,6 +367,7 @@ function tplNew() {
   document.getElementById('tplId').value     = '';
   document.getElementById('tplModalLabel').innerHTML = '<i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Nowy szablon';
   document.getElementById('tpl_active').checked = true;
+  var lk = document.getElementById('tpl_locked'); if (lk) lk.checked = false;
   tplToggleSubject();
 }
 
@@ -316,6 +379,7 @@ function tplEdit(t) {
   document.getElementById('tpl_subject').value= t.subject || '';
   document.getElementById('tpl_body').value   = t.body || '';
   document.getElementById('tpl_active').checked = (t.is_active === 1 || t.is_active === '1');
+  var lk = document.getElementById('tpl_locked'); if (lk) lk.checked = (t.is_locked === 1 || t.is_locked === '1');
   document.getElementById('tplModalLabel').innerHTML = '<i class="bi bi-pencil me-2" aria-hidden="true"></i>Edytuj szablon';
   tplToggleSubject();
   new bootstrap.Modal(document.getElementById('tplModal')).show();

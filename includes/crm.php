@@ -336,10 +336,13 @@ function crm_migrate(): void {
         body        TEXT    NOT NULL,
         variables   TEXT,
         is_active   INTEGER NOT NULL DEFAULT 1,
+        is_locked   INTEGER NOT NULL DEFAULT 0,
         created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // Szablon zastrzeżony (is_locked=1) — edytować/usuwać może tylko administrator.
+    try { $pdo->exec("ALTER TABLE crm_templates ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Log synchronizacji
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_sync_log (
@@ -1315,10 +1318,18 @@ class CrmManager
 
     // ── Szablony ──────────────────────────────────────────────────────────────
 
-    /** Podstawia zmienne szablonu ({imie}, {email}, …) danymi kontaktu. */
-    public static function renderTemplate(string $tpl, array $contact): string
+    /**
+     * Podstawia zmienne szablonu danymi kontaktu (odbiorcy) oraz nadawcy
+     * (zalogowanego użytkownika CRM). Zmienne nadawcy: {nadawca_imie},
+     * {nadawca_nazwisko}, {nadawca_imie_nazwisko}, {nadawca_email}, {nadawca_telefon}.
+     *
+     * @param array|null $user Dane nadawcy; domyślnie bieżący użytkownik.
+     */
+    public static function renderTemplate(string $tpl, array $contact, ?array $user = null): string
     {
+        $snd = self::senderData($user);
         $vars = [
+            // Odbiorca (kontakt)
             '{imie}'          => explode(' ', $contact['imie_nazwisko'] ?? '')[0] ?? '',
             '{imie_nazwisko}' => $contact['imie_nazwisko'] ?? '',
             '{email}'         => $contact['email'] ?? '',
@@ -1329,8 +1340,69 @@ class CrmManager
             '{powiat}'        => $contact['powiat'] ?? '',
             '{gmina}'         => $contact['gmina'] ?? '',
             '{data}'          => date('d.m.Y'),
+            // Nadawca (zalogowany użytkownik)
+            '{nadawca_imie}'          => $snd['imie'],
+            '{nadawca_nazwisko}'      => $snd['nazwisko'],
+            '{nadawca_imie_nazwisko}' => $snd['imie_nazwisko'],
+            '{nadawca_email}'         => $snd['email'],
+            '{nadawca_telefon}'       => $snd['telefon'],
         ];
         return str_replace(array_keys($vars), array_values($vars), $tpl);
+    }
+
+    /** Dane nadawcy (zalogowanego użytkownika) do zmiennych {nadawca_*}. */
+    public static function senderData(?array $user = null): array
+    {
+        static $cache = [];
+        if ($user === null && function_exists('current_user')) $user = current_user() ?: [];
+        $user = $user ?: [];
+
+        // Sesja przechowuje tylko id/name/email/role — first_name/last_name/phone_number
+        // dociągamy z bazy (z cache per użytkownik, bezpieczne dla pętli wysyłki masowej).
+        $uid = (int)($user['id'] ?? 0);
+        if ($uid && (!array_key_exists('first_name', $user) || !array_key_exists('phone_number', $user))) {
+            if (!array_key_exists($uid, $cache)) {
+                try {
+                    $cache[$uid] = db_one(
+                        "SELECT first_name, last_name, email, phone_number, name FROM users WHERE id=?",
+                        [$uid]
+                    ) ?: [];
+                } catch (\Throwable $e) { $cache[$uid] = []; }
+            }
+            $user = array_merge($cache[$uid], $user); // wartości jawnie przekazane mają priorytet
+        }
+
+        $fn = trim($user['first_name'] ?? '');
+        $ln = trim($user['last_name'] ?? '');
+        $full = trim($fn . ' ' . $ln);
+        if ($full === '') $full = trim($user['name'] ?? '');
+        return [
+            'imie'          => $fn,
+            'nazwisko'      => $ln,
+            'imie_nazwisko' => $full,
+            'email'         => trim($user['email'] ?? ''),
+            'telefon'       => trim($user['phone_number'] ?? ''),
+        ];
+    }
+
+    /**
+     * Lista braków w danych nadawcy (puste pola) — do monitu o uzupełnienie.
+     * Zwraca etykiety pól, np. ['Imię', 'Numer telefonu'].
+     */
+    public static function senderMissing(?array $user = null): array
+    {
+        $s = self::senderData($user);
+        $labels = [
+            'imie'     => 'Imię',
+            'nazwisko' => 'Nazwisko',
+            'email'    => 'Adres e-mail',
+            'telefon'  => 'Numer telefonu',
+        ];
+        $missing = [];
+        foreach ($labels as $k => $label) {
+            if (($s[$k] ?? '') === '') $missing[] = $label;
+        }
+        return $missing;
     }
 
     // ── Statystyki ────────────────────────────────────────────────────────────
