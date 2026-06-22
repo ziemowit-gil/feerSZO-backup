@@ -15,10 +15,7 @@ crm_migrate();
 $PAGE_TITLE  = 'Kalendarz CRM';
 $can_write   = can_write('crm') || is_admin();
 
-// Kontakty do autouzupełniania w modalu
-$contacts = db_all(
-    "SELECT id, imie_nazwisko, type FROM crm_contacts WHERE crm_active=1 ORDER BY imie_nazwisko LIMIT 300"
-);
+// Kontakt w modalu wybierany przez aktywne wyszukiwanie (crm/api/contacts_search.php)
 // Użytkownicy do wyboru uczestników wydarzenia
 $cal_users = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
 
@@ -344,17 +341,19 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
       </div>
 
-      <!-- Kontakt -->
+      <!-- Kontakt — aktywne wyszukiwanie (typeahead) -->
       <div class="mb-3">
-        <label class="form-label fw-semibold small">Kontakt <span class="text-muted fw-normal">(opcjonalny)</span></label>
-        <select id="evContact" class="form-select form-select-sm">
-          <option value="">— brak powiązania —</option>
-          <?php foreach ($contacts as $c): ?>
-          <option value="<?= (int)$c['id'] ?>">
-            <?= h($c['imie_nazwisko']) ?><?= $c['type']==='organizacja' ? ' [org]' : '' ?>
-          </option>
-          <?php endforeach; ?>
-        </select>
+        <label class="form-label fw-semibold small" for="evContactSearch">Kontakt <span class="text-muted fw-normal">(opcjonalny)</span></label>
+        <div style="position:relative">
+          <input type="hidden" id="evContact" value="">
+          <input type="text" id="evContactSearch" class="form-control form-control-sm" autocomplete="off"
+                 placeholder="Wpisz nazwisko lub nazwę firmy…">
+          <button type="button" id="evContactClear" aria-label="Wyczyść kontakt"
+                  style="position:absolute;right:.4rem;top:50%;transform:translateY(-50%);display:none;
+                         border:none;background:none;color:#9CA3AF;cursor:pointer;font-size:1.1rem;line-height:1">&times;</button>
+          <div id="evContactResults" class="list-group shadow-sm"
+               style="display:none;position:absolute;left:0;right:0;z-index:3000;max-height:240px;overflow:auto"></div>
+        </div>
       </div>
 
       <!-- Uczestnicy -->
@@ -938,6 +937,8 @@ const Cal = (function() {
     document.getElementById('evAllDay').checked = !!e.all_day;
     document.getElementById('evDesc').value  = e.description||'';
     document.getElementById('evContact').value = e.contact_id||'';
+    (function(){ var s=document.getElementById('evContactSearch'), c=document.getElementById('evContactClear');
+      if(s) s.value = e.contact_name||''; if(c) c.style.display = e.contact_name ? '' : 'none'; })();
     document.getElementById('evColor').value = e.color||'#2E844A';
     if (!e.all_day) {
       document.getElementById('evTimeRow').style.display='';
@@ -953,6 +954,49 @@ const Cal = (function() {
   }
   function closeModal() { document.getElementById('calModal').classList.remove('open'); }
 
+  // ── Kontakt: aktywne wyszukiwanie (typeahead) ──────────────────────────────
+  (function(){
+    var inp = document.getElementById('evContactSearch'),
+        hid = document.getElementById('evContact'),
+        res = document.getElementById('evContactResults'),
+        clr = document.getElementById('evContactClear');
+    if (!inp || !hid || !res) return;
+    var URL = '<?= APP_URL ?>/crm/api/contacts_search.php', t = null;
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+    function hide(){ res.style.display='none'; res.innerHTML=''; }
+    function showClr(){ if(clr) clr.style.display = inp.value!=='' ? '' : 'none'; }
+    inp.addEventListener('input', function(){
+      hid.value = '';           // dopóki użytkownik nie wybierze pozycji — brak powiązania
+      showClr();
+      var q = inp.value.trim();
+      clearTimeout(t);
+      if (q.length < 2){ hide(); return; }
+      t = setTimeout(function(){
+        fetch(URL + '?q=' + encodeURIComponent(q) + '&limit=20')
+          .then(function(r){ return r.json(); })
+          .then(function(rows){
+            if (!rows || !rows.length){ res.innerHTML = '<div class="list-group-item small text-muted">Brak wyników</div>'; res.style.display='block'; return; }
+            res.innerHTML = rows.map(function(c){
+              var sub = [c.organizacja, c.email].filter(Boolean).join(' · ');
+              return '<button type="button" class="list-group-item list-group-item-action py-1 px-2" data-id="'+c.id+'" data-name="'+esc(c.name)+'">'
+                + '<span class="fw-semibold small">'+esc(c.name)+(c.type==='organizacja'?' <span class="text-muted">[org]</span>':'')+'</span>'
+                + (sub ? '<div class="text-muted" style="font-size:.72rem">'+esc(sub)+'</div>' : '')
+                + '</button>';
+            }).join('');
+            res.style.display='block';
+          }).catch(hide);
+      }, 250);
+    });
+    res.addEventListener('click', function(e){
+      var b = e.target.closest('[data-id]'); if (!b) return;
+      hid.value = b.getAttribute('data-id');
+      inp.value = b.getAttribute('data-name');
+      hide(); showClr(); inp.focus();
+    });
+    if (clr) clr.addEventListener('click', function(){ hid.value=''; inp.value=''; hide(); showClr(); inp.focus(); });
+    document.addEventListener('click', function(e){ if (!res.contains(e.target) && e.target !== inp) hide(); });
+  })();
+
   function clearModal() {
     ['evId','evTitle','evDesc','evEndDate'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
     document.getElementById('evDate').value    = toISO(_today);
@@ -961,6 +1005,8 @@ const Cal = (function() {
     document.getElementById('evTime').value    = '';
     document.getElementById('evEndTime').value = '';
     document.getElementById('evContact').value = '';
+    (function(){ var s=document.getElementById('evContactSearch'), c=document.getElementById('evContactClear'), r=document.getElementById('evContactResults');
+      if(s) s.value=''; if(c) c.style.display='none'; if(r){ r.style.display='none'; r.innerHTML=''; } })();
     document.getElementById('evColor').value   = '#2E844A';
     document.getElementById('evError').style.display='none';
     document.querySelectorAll('#evParticipants .ev-part').forEach(cb=>cb.checked=false);

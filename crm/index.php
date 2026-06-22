@@ -742,55 +742,66 @@ include __DIR__ . '/includes/header_crm.php';
 
 </form>
 
-<!-- Chip tagi -->
-<?php if ($all_tags): ?>
-<div class="crm-filter-chips mb-1" role="group" aria-label="Filtruj po tagu">
-  <span class="text-muted small me-1" aria-hidden="true">
-    <i class="bi bi-tags me-1"></i>Tagi:
-  </span>
-  <?php foreach ($all_tags as $t):
-    $active = $filters['tag'] === $t['tag'];
-    $chip_url = APP_URL . '/crm/index.php?' . http_build_query(array_filter(array_merge($filters, ['tag' => $active ? '' : $t['tag'], 'page' => 1])));
-  ?>
-  <a href="<?= h($chip_url) ?>"
-     class="crm-chip <?= $active ? 'active' : '' ?>"
-     aria-pressed="<?= $active ? 'true' : 'false' ?>"
-     aria-label="<?= $active ? 'Usuń filtr: ' : 'Filtruj po tagu: ' ?><?= h($t['tag']) ?>">
-    <?= h($t['tag']) ?>
-    <span class="text-muted ms-1" aria-hidden="true"><?= (int)$t['cnt'] ?></span>
-  </a>
-  <?php endforeach; ?>
-  <a href="<?= APP_URL ?>/crm/tags.php" class="text-muted ms-1"
-     style="font-size:.75rem;text-decoration:none" aria-label="Zarządzaj tagami">
-    <i class="bi bi-gear" aria-hidden="true"></i>
-  </a>
-</div>
-<?php endif; ?>
+<!-- Filtry Tagi / Grupy — kompaktowe rozwijane (zamiast długich rzędów chipów) -->
+<?php if ($all_tags || $all_groups): ?>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2" aria-label="Filtry tagów i grup">
 
-<!-- Chip grupy -->
-<?php if ($all_groups): ?>
-<div class="crm-filter-chips mb-2" role="group" aria-label="Filtruj po grupie">
-  <span class="text-muted small me-1" aria-hidden="true">
-    <i class="bi bi-collection me-1"></i>Grupy:
-  </span>
-  <?php foreach ($all_groups as $g):
-    $gactive  = (int)$filters['group'] === (int)$g['id'];
-    $gchip_url = APP_URL . '/crm/index.php?' . http_build_query(array_filter(array_merge($filters, ['group' => $gactive ? '' : $g['id'], 'page' => 1])));
-  ?>
-  <a href="<?= h($gchip_url) ?>"
-     class="crm-chip <?= $gactive ? 'active' : '' ?>"
-     aria-pressed="<?= $gactive ? 'true' : 'false' ?>"
-     aria-label="<?= $gactive ? 'Usuń filtr grupy: ' : 'Filtruj po grupie: ' ?><?= h($g['name']) ?>"
-     style="<?= $gactive ? '' : 'border-color:' . h($g['color']) . '55' ?>">
-    <i class="bi <?= h($g['icon']) ?> me-1" aria-hidden="true" style="color:<?= h($g['color']) ?>"></i>
-    <?= h($g['name']) ?>
-    <span class="text-muted ms-1" aria-hidden="true"><?= (int)$g['member_count'] ?></span>
-  </a>
-  <?php endforeach; ?>
-  <a href="<?= APP_URL ?>/crm/groups.php" class="text-muted ms-1"
-     style="font-size:.75rem;text-decoration:none" aria-label="Zarządzaj grupami">
-    <i class="bi bi-gear" aria-hidden="true"></i>
-  </a>
+  <?php if ($all_tags): $_tag_on = ($filters['tag'] ?? '') !== ''; ?>
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle<?= $_tag_on ? ' active' : '' ?>"
+            type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-tags me-1"></i>Tagi<?= $_tag_on ? ': ' . h($filters['tag']) : '' ?>
+      <span class="badge bg-secondary ms-1"><?= count($all_tags) ?></span>
+    </button>
+    <ul class="dropdown-menu" style="max-height:340px;overflow:auto;min-width:248px">
+      <?php if ($_tag_on): ?>
+      <li><a class="dropdown-item text-muted" href="<?= h(APP_URL.'/crm/index.php?'.http_build_query(array_filter(array_merge($filters,['tag'=>'','page'=>1])))) ?>"><i class="bi bi-x-circle me-2"></i>Wyczyść filtr</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <?php endif; ?>
+      <?php foreach ($all_tags as $t):
+        $active = ($filters['tag'] ?? '') === $t['tag'];
+        $chip_url = APP_URL . '/crm/index.php?' . http_build_query(array_filter(array_merge($filters, ['tag' => $active ? '' : $t['tag'], 'page' => 1])));
+      ?>
+      <li><a class="dropdown-item d-flex justify-content-between align-items-center<?= $active ? ' active' : '' ?>" href="<?= h($chip_url) ?>">
+        <span><?= h($t['tag']) ?></span>
+        <span class="badge bg-light text-muted border ms-2"><?= (int)$t['cnt'] ?></span>
+      </a></li>
+      <?php endforeach; ?>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item small text-muted" href="<?= APP_URL ?>/crm/tags.php"><i class="bi bi-gear me-2"></i>Zarządzaj tagami</a></li>
+    </ul>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($all_groups): $_grp_on = (int)($filters['group'] ?? 0) > 0; ?>
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle<?= $_grp_on ? ' active' : '' ?>"
+            type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-collection me-1"></i>Grupy<?php
+        if ($_grp_on) { foreach ($all_groups as $g) { if ((int)$g['id'] === (int)$filters['group']) { echo ': ' . h($g['name']); break; } } }
+      ?>
+      <span class="badge bg-secondary ms-1"><?= count($all_groups) ?></span>
+    </button>
+    <ul class="dropdown-menu" style="max-height:340px;overflow:auto;min-width:248px">
+      <?php if ($_grp_on): ?>
+      <li><a class="dropdown-item text-muted" href="<?= h(APP_URL.'/crm/index.php?'.http_build_query(array_filter(array_merge($filters,['group'=>'','page'=>1])))) ?>"><i class="bi bi-x-circle me-2"></i>Wyczyść filtr</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <?php endif; ?>
+      <?php foreach ($all_groups as $g):
+        $gactive  = (int)($filters['group'] ?? 0) === (int)$g['id'];
+        $gchip_url = APP_URL . '/crm/index.php?' . http_build_query(array_filter(array_merge($filters, ['group' => $gactive ? '' : $g['id'], 'page' => 1])));
+      ?>
+      <li><a class="dropdown-item d-flex justify-content-between align-items-center<?= $gactive ? ' active' : '' ?>" href="<?= h($gchip_url) ?>">
+        <span><i class="bi <?= h($g['icon']) ?> me-2" style="color:<?= h($g['color']) ?>"></i><?= h($g['name']) ?></span>
+        <span class="badge bg-light text-muted border ms-2"><?= (int)$g['member_count'] ?></span>
+      </a></li>
+      <?php endforeach; ?>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item small text-muted" href="<?= APP_URL ?>/crm/groups.php"><i class="bi bi-gear me-2"></i>Zarządzaj grupami</a></li>
+    </ul>
+  </div>
+  <?php endif; ?>
+
 </div>
 <?php endif; ?>
 
