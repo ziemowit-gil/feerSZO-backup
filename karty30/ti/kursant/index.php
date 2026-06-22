@@ -580,6 +580,22 @@ include __DIR__ . '/_layout_head.php';
 
   <!-- ── Dane kursanta — strona startowa panelu ─────────────────────────────── -->
   <h1 class="h5 fw-bold mb-3"><i class="bi bi-person-vcard text-primary me-1" aria-hidden="true"></i>Dane kursanta</h1>
+
+  <!-- ── Duży skrót do eLearning — widoczny po zalogowaniu ────────────────────── -->
+  <div class="card border-0 shadow-sm mb-4 text-bg-primary">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+      <i class="bi bi-mortarboard-fill flex-shrink-0" style="font-size:2.6rem" aria-hidden="true"></i>
+      <div class="flex-grow-1 min-width-0">
+        <h2 class="h5 fw-bold mb-1">Dydaktyka / eLearning</h2>
+        <p class="mb-1">Materiały do nauki, zadania domowe i oceny — wszystko w jednym miejscu.</p>
+        <p class="small mb-0"><i class="bi bi-stars me-1" aria-hidden="true"></i>Nowość — docelowo eLearning prawdopodobnie zastąpi zadania z Moodle.</p>
+      </div>
+      <a href="?tab=zadania" class="btn btn-light btn-lg fw-semibold flex-shrink-0">
+        <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przejdź do eLearning
+        <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-2"><?= $hw_pending_total ?><span class="visually-hidden"> zadań do oddania</span></span><?php endif; ?>
+      </a>
+    </div>
+  </div>
   <?php
     $contact_emails = [];
     if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
