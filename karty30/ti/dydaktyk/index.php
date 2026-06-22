@@ -175,6 +175,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // Bezpośrednie odwołanie / przywrócenie udziału kursanta (prowadzący / admin)
+    if ($op === 'cancel_attendee' || $op === 'restore_attendee') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        $cid = (int)($_POST['client_id'] ?? 0);
+        if ($sid && $cid && dyd_owns_session($uid, $sid)) {
+            if ($op === 'cancel_attendee') {
+                $reason = trim($_POST['reason'] ?? '');
+                $role   = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
+                k30_ti_cancel_attendance($sid, $cid, $reason !== '' ? $reason : 'Odwołane przez prowadzącego', $role, (string)($me['name'] ?? ''));
+                flash_set('success', 'Udział kursanta odwołany — nie będzie liczony do ceny.');
+            } else {
+                k30_ti_uncancel_attendance($sid, $cid);
+                flash_set('success', 'Udział kursanta przywrócony.');
+            }
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
+    // Odwołanie / przywrócenie całej lekcji (prowadzący / admin)
+    if ($op === 'cancel_session' || $op === 'uncancel_session') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        if ($sid && dyd_owns_session($uid, $sid)) {
+            if ($op === 'cancel_session') {
+                $reason = trim($_POST['reason'] ?? '');
+                if ($reason === '') { flash_set('danger', 'Podaj powód odwołania lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+                $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
+                k30_ti_cancel_session($sid, $reason, $role, (string)($me['name'] ?? ''));
+                flash_set('success', 'Lekcja odwołana — nie zostanie policzona do ceny.');
+            } else {
+                db()->prepare(
+                    "UPDATE k30_ti_sessions SET status='planned', cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL, updated_at=datetime('now') WHERE id=?"
+                )->execute([$sid]);
+                flash_set('success', 'Lekcja przywrócona (zaplanowana).');
+            }
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     // ── ZADANIA DOMOWE ──────────────────────────────────────────────────────────
     if ($op === 'save_homework') {
         $hid       = (int)($_POST['homework_id'] ?? 0);
@@ -437,13 +475,21 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
         <button type="button" class="btn btn-link btn-sm ms-auto p-0 att-toggle-all" data-target="<?= $pfx ?>">Zaznacz / odznacz wszystkich</button>
       </div>
       <div class="list-group">
-        <?php foreach ($rows as $r): $cid = (int)$r['client_id']; $canc = (int)($r['cancelled'] ?? 0) === 1; ?>
-        <label class="list-group-item d-flex align-items-center gap-2 <?= $canc?'opacity-50':'' ?>">
-          <input class="form-check-input mt-0" type="checkbox" name="attended[]" value="<?= $cid ?>"
-                 <?= (int)$r['attended']===1?'checked':'' ?> <?= $canc?'disabled':'' ?>>
-          <span class="flex-grow-1"><?= h($r['client_name']) ?></span>
-          <?php if ($canc): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-x-circle me-1"></i>udział odwołany</span><?php endif; ?>
-        </label>
+        <?php foreach ($rows as $r): $cid = (int)$r['client_id']; $canc = (int)($r['cancelled'] ?? 0) === 1; $pend = (int)($r['cancel_pending'] ?? 0) === 1; ?>
+        <div class="list-group-item d-flex align-items-center gap-2 <?= $canc?'opacity-75':'' ?>">
+          <label class="d-flex align-items-center gap-2 flex-grow-1 mb-0">
+            <input class="form-check-input mt-0" type="checkbox" name="attended[]" value="<?= $cid ?>"
+                   <?= (int)$r['attended']===1?'checked':'' ?> <?= $canc?'disabled':'' ?>>
+            <span><?= h($r['client_name']) ?></span>
+          </label>
+          <?php if ($canc): ?>
+          <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-x-circle me-1"></i>odwołany</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Przywróć udział" onclick="dydRestoreAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-arrow-counterclockwise"></i></button>
+          <?php else: ?>
+          <?php if ($pend): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1"></i>czeka</span><?php endif; ?>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Odwołaj udział (nie liczone do ceny)" onclick="dydCancelAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-x-circle"></i></button>
+          <?php endif; ?>
+        </div>
         <?php endforeach; ?>
       </div>
       <p class="text-body-secondary small mt-2 mb-0">Zapis oznaczy zaplanowaną lekcję jako odbytą. Osób z odwołanym udziałem nie liczy się do obecności.</p>
@@ -760,6 +806,21 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <div class="mt-2 d-flex gap-2 flex-wrap">
             <button type="button" class="btn btn-sm btn-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"><i class="bi bi-people me-1"></i>Obecność</button>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
+            <?php if (($s['status'] ?? '') === 'cancelled'): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="uncancel_session">
+              <input type="hidden" name="_tab" value="lekcje">
+              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+              <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć lekcję</button>
+            </form>
+            <?php else: ?>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
+                    onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y', strtotime($s['lesson_date'])).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>)">
+              <i class="bi bi-x-circle me-1"></i>Odwołaj lekcję
+            </button>
+            <?php endif; ?>
             <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-list-check me-1"></i>Szczegóły</a>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
@@ -893,6 +954,41 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </div></div>
     </div>
     <?php endif; ?>
+
+    <!-- Ukryty formularz akcji obecności (odwołaj/przywróć udział) -->
+    <form method="post" id="dydAttAction" class="d-none">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op"         id="daa_op"  value="">
+      <input type="hidden" name="_tab"        value="lekcje">
+      <input type="hidden" name="course_id"   value="<?= $cur_course ?>">
+      <input type="hidden" name="session_id"  id="daa_sid" value="">
+      <input type="hidden" name="client_id"   id="daa_cid" value="">
+    </form>
+
+    <!-- Modal: odwołanie całej lekcji (z powodem) -->
+    <div class="modal fade" id="cancelSessionModal" tabindex="-1" aria-labelledby="cancelSession_t" aria-hidden="true">
+      <div class="modal-dialog"><form method="post" class="modal-content">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="cancel_session">
+        <input type="hidden" name="_tab" value="lekcje">
+        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+        <input type="hidden" name="session_id" id="cs_sid" value="">
+        <div class="modal-header">
+          <h5 class="modal-title" id="cancelSession_t"><i class="bi bi-x-circle text-danger me-2"></i>Odwołanie lekcji</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Lekcja: <strong id="cs_label"></strong></p>
+          <p class="text-body-secondary small mb-2">Odwołana lekcja nie zostanie policzona do ceny. Podaj powód.</p>
+          <label class="form-label fw-semibold" for="cs_reason">Powód odwołania</label>
+          <textarea class="form-control" id="cs_reason" name="reason" rows="3" required placeholder="np. choroba prowadzącego, awaria sprzętu…"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle me-1"></i>Odwołaj lekcję</button>
+        </div>
+      </form></div>
+    </div>
     <?php endif; ?>
 
     <?php /* ═══════════════════════ ZADANIA ═══════════════════════ */ ?>
@@ -1016,6 +1112,29 @@ document.addEventListener('click', function(e){
   var allChecked = Array.prototype.every.call(boxes, function(c){ return c.checked; });
   Array.prototype.forEach.call(boxes, function(c){ c.checked = !allChecked; });
 });
+
+// Odwołanie / przywrócenie udziału kursanta (z modalu obecności) — przez ukryty formularz.
+function dydCancelAtt(sid, cid) {
+  if (!confirm('Odwołać udział tego kursanta? Nie będzie liczony do ceny.')) return;
+  document.getElementById('daa_op').value = 'cancel_attendee';
+  document.getElementById('daa_sid').value = sid;
+  document.getElementById('daa_cid').value = cid;
+  document.getElementById('dydAttAction').submit();
+}
+function dydRestoreAtt(sid, cid) {
+  if (!confirm('Przywrócić udział tego kursanta?')) return;
+  document.getElementById('daa_op').value = 'restore_attendee';
+  document.getElementById('daa_sid').value = sid;
+  document.getElementById('daa_cid').value = cid;
+  document.getElementById('dydAttAction').submit();
+}
+// Odwołanie całej lekcji — otwiera modal z powodem.
+function dydOpenCancelSession(sid, label) {
+  document.getElementById('cs_sid').value = sid;
+  document.getElementById('cs_label').textContent = label || '';
+  var t = document.getElementById('cs_reason'); if (t) t.value = '';
+  new bootstrap.Modal(document.getElementById('cancelSessionModal')).show();
+}
 
 // Wyszukiwarka „Powiązana lekcja": tekst → ukryte session_id (mapa etykieta→id).
 (function(){

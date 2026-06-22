@@ -2549,7 +2549,7 @@ function k30_ti_cancel_attendance(int $session_id, int $client_id, string $reaso
     if ($ex) {
         db()->prepare(
             "UPDATE k30_ti_attendance
-             SET attended=0, cancelled=1, cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now')
+             SET attended=0, cancelled=1, cancel_pending=0, cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now')
              WHERE id=?"
         )->execute([$reason, $role, $by_label, (int)$ex['id']]);
     } else {
@@ -2558,6 +2558,7 @@ function k30_ti_cancel_attendance(int $session_id, int $client_id, string $reaso
             'client_id'         => $client_id,
             'attended'          => 0,
             'cancelled'         => 1,
+            'cancel_pending'    => 0,
             'cancel_reason'     => $reason,
             'cancelled_by_role' => $role,
             'cancelled_by'      => $by_label,
