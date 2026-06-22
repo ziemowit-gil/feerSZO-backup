@@ -127,6 +127,23 @@ function ti_leaves_for_client(int $client_id, int $days = 30): array {
     );
 }
 
+/**
+ * Własne nieobecności prowadzącego: trwające dziś + nadchodzące w ciągu N dni.
+ * Do komunikatu (bannera) w panelu dydaktyka — przypomnienie o zaplanowanym urlopie.
+ */
+function ti_leaves_for_instructor(int $instructor_id, int $days = 60): array {
+    ti_leaves_migrate();
+    if (!$instructor_id) return [];
+    $today = date('Y-m-d');
+    $until = date('Y-m-d', strtotime("+{$days} days"));
+    return db_all(
+        "SELECT * FROM k30_ti_instructor_leaves
+         WHERE instructor_id=? AND date_to >= ? AND date_from <= ?
+         ORDER BY date_from ASC",
+        [$instructor_id, $today, $until]
+    );
+}
+
 /** Aktywni kursanci uczeni przez danego prowadzącego (adresaci powiadomień o urlopie). */
 function ti_leave_affected_students(int $instructor_id): array {
     ti_leaves_migrate();

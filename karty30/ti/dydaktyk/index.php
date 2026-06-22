@@ -10,12 +10,14 @@
  * Wzorowane na panelu kursanta (wspólny layout, ciemny motyw, WCAG).
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 
 karty30_migrate();
 $me  = dyd_require();
 $uid = (int)$me['id'];
 
-$courses = dyd_courses($uid);
+$courses   = dyd_courses($uid);
+$my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
 
 // ── Pobieranie załączników (zadania / materiały) — tylko z własnych kursów ────
 if (isset($_GET['dl'])) {
@@ -300,6 +302,25 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   </div>
 
   <?= flash_html() ?>
+
+  <?php // Komunikat o zaplanowanej / trwającej nieobecności prowadzącego
+  if ($my_leaves): $today = date('Y-m-d');
+    foreach ($my_leaves as $lv):
+      $current = $lv['date_from'] <= $today;
+      $range   = date('d.m.Y', strtotime($lv['date_from']));
+      if ($lv['date_to'] !== $lv['date_from']) $range .= ' – ' . date('d.m.Y', strtotime($lv['date_to']));
+  ?>
+  <div class="alert <?= $current ? 'alert-warning' : 'alert-info' ?> d-flex align-items-start gap-2" role="alert">
+    <i class="bi bi-airplane-fill fs-5 mt-1 flex-shrink-0" aria-hidden="true"></i>
+    <div>
+      <strong><?= $current ? 'Trwa Twoja nieobecność' : 'Masz zaplanowaną nieobecność' ?>
+        (<?= h(ti_leave_type_label($lv['type'])) ?>)</strong> — termin <strong><?= h($range) ?></strong>.
+      <?php if (!empty($lv['note'])): ?><div class="small mt-1"><?= h($lv['note']) ?></div><?php endif; ?>
+      <div class="small mt-1">W tym czasie zaplanuj odwołanie lub przełożenie lekcji.
+        <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/urlopy.php">Nieobecności prowadzących</a>.</div>
+    </div>
+  </div>
+  <?php endforeach; endif; ?>
 
   <?php if (!$courses): ?>
     <div class="card border-0 shadow-sm"><div class="card-body p-4 text-center text-body-secondary">
