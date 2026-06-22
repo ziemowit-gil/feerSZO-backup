@@ -145,6 +145,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                . htmlspecialchars($ticket_code) . '</span>
   <div style="margin-top:8px;font-size:.82rem;color:#64748b">Kod biletu — zachowaj go</div>
 </div>
+' . ($status === 'confirmed' && ($event['type'] ?? '') === 'webinar' && !empty($event['meeting_url']) ? '
+<div style="text-align:center;margin:24px 0">
+  <a href="' . htmlspecialchars($event['meeting_url']) . '"
+     style="background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;padding:12px 28px;border-radius:8px;display:inline-block">
+     ▶ Dołącz do wydarzenia online</a>
+  <div style="margin-top:10px;font-size:.82rem;color:#64748b;word-break:break-all">
+    Link do spotkania: <a href="' . htmlspecialchars($event['meeting_url']) . '">' . htmlspecialchars($event['meeting_url']) . '</a>
+  </div>
+  <div style="margin-top:4px;font-size:.78rem;color:#94a3b8">Zachowaj tę wiadomość — link będzie potrzebny, aby dołączyć.</div>
+</div>' : '') . '
 ' . ($status === 'waitlist' ? '<p style="color:#d97706">⚠️ Zostałeś/aś zapisany/a na listę oczekujących.</p>' : '') . '
 <p style="color:#64748b;font-size:.85rem">Organizator: ' . htmlspecialchars($org) . '</p>';
             mail_queue_add($email, $first_name . ' ' . $last_name, $subj, $html, '', 'event', (int)$event['id']);
@@ -212,7 +222,15 @@ body{background:var(--ev-purple-bg);min-height:100vh}
             <?php if ($status === 'confirmed'): ?>
             <p class="text-muted small mb-2">Twój kod biletu:</p>
             <div class="ticket-code"><?= h($ticket_code) ?></div>
+            <?php if ($event['type'] === 'webinar' && !empty($event['meeting_url'])): ?>
+            <a href="<?= h($event['meeting_url']) ?>" target="_blank" rel="noopener"
+               class="btn btn-sm mt-3" style="background:var(--ev-purple);color:#fff">
+                <i class="bi bi-camera-video me-1"></i>Dołącz do wydarzenia online
+            </a>
+            <p class="text-muted small mt-2 mb-0">Link wysłaliśmy też na Twój e-mail.</p>
+            <?php else: ?>
             <p class="text-muted small mt-2">Zachowaj ten kod — będzie potrzebny przy wejściu.</p>
+            <?php endif; ?>
             <?php else: ?>
             <p class="text-muted small">Zostaniesz powiadomiony, jeśli zwolni się miejsce.</p>
             <?php endif; ?>
