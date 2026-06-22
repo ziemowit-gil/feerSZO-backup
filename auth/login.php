@@ -22,6 +22,11 @@ $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
     ? $raw_redirect : APP_URL . '/portal.php';
 
+// Logowanie dydaktyka — bez własnego redirectu kieruj po zalogowaniu do panelu dydaktyka.
+if (!$raw_redirect && (($_GET['view'] ?? ($_POST['_view'] ?? '')) === 'dydaktyk')) {
+    $redirect = APP_URL . '/karty30/ti/dydaktyk/index.php';
+}
+
 // ── Feature flags ─────────────────────────────────────────────────────────
 function _login_method_enabled(string $key, bool $default = true): bool {
     try {
@@ -256,13 +261,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (in_array($active_tab, ['code','sms'], true))  $view = 'priv';
     elseif ($active_tab === 'x509')                       $view = 'feer';
 }
-if (!in_array($view, ['priv','feer'], true)) $view = 'choose';
+if (!in_array($view, ['priv','feer','dydaktyk'], true)) $view = 'choose';
 
 // Adresy nawigacji między widokami (zachowują parametr redirect)
 $_q          = $raw_redirect ? ('&redirect=' . urlencode($raw_redirect)) : '';
 $_url_choose = APP_URL . '/auth/login.php' . ($raw_redirect ? ('?redirect=' . urlencode($raw_redirect)) : '');
 $_url_priv   = APP_URL . '/auth/login.php?view=priv' . $_q;
 $_url_feer   = APP_URL . '/auth/login.php?view=feer' . $_q;
+$_url_dyd    = APP_URL . '/auth/login.php?view=dydaktyk' . $_q;
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -617,6 +623,14 @@ body{
       </span>
       <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
     </a>
+    <a href="<?= h($_url_dyd) ?>" class="choice">
+      <span class="choice-icon" aria-hidden="true"><i class="bi bi-easel2"></i></span>
+      <span class="choice-body">
+        <span class="choice-title">Dydaktyk / prowadzący zajęcia TI</span>
+        <span class="choice-sub">Logowanie e-mailem do panelu dydaktyka</span>
+      </span>
+      <i class="bi bi-chevron-right choice-arrow" aria-hidden="true"></i>
+    </a>
   </div>
 
   <?php else: ?>
@@ -626,11 +640,13 @@ body{
   </a>
   <div class="view-head">
     <h1 class="view-title" id="login-title">
-      <?= $view === 'feer' ? 'Administracja i koordynatorzy' : 'Wolontariusze i zleceniobiorcy' ?>
+      <?= $view === 'feer' ? 'Administracja i koordynatorzy' : ($view === 'dydaktyk' ? 'Dydaktyk / prowadzący' : 'Wolontariusze i zleceniobiorcy') ?>
     </h1>
     <p class="view-sub">
       <?php if ($view === 'feer'): ?>
       Zaloguj się <strong>wyłącznie</strong> kontem służbowym <strong>@feer.org.pl</strong>.
+      <?php elseif ($view === 'dydaktyk'): ?>
+      Zaloguj się swoim <strong>e-mailem i hasłem</strong> do SZO — przeniesiemy Cię prosto do <strong>panelu dydaktyka</strong>.
       <?php else: ?>
       Zaloguj się swoim <strong>prywatnym e-mailem</strong> podanym do WiadomościFEER.
       <?php endif; ?>
