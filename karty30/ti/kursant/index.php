@@ -425,7 +425,7 @@ include __DIR__ . '/_layout_head.php';
 
 <?php
   // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
-  $nauka_tabs     = ['lekcje','zadania','oceny','plan'];
+  $nauka_tabs     = ['lekcje','zadania','oceny','plan','testy'];
   $dostepy_tabs   = ['online','vlab','licencje','pfron'];
   $pomoc_tabs     = ['problem','ustawienia'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
@@ -458,6 +458,8 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-table me-2" aria-hidden="true"></i>Oceny</a></li>
         <li><a class="dropdown-item <?= $tab==='plan'?'active':'' ?>" href="?tab=plan" <?= $tab==='plan'?'aria-current="page"':'' ?>>
           <i class="bi bi-list-check me-2" aria-hidden="true"></i>Plan nauczania</a></li>
+        <li><a class="dropdown-item <?= $tab==='testy'?'active':'' ?>" href="?tab=testy" <?= $tab==='testy'?'aria-current="page"':'' ?>>
+          <i class="bi bi-card-checklist me-2" aria-hidden="true"></i>Testy</a></li>
       </ul>
     </li>
 
@@ -1654,6 +1656,53 @@ include __DIR__ . '/_layout_head.php';
   </div>
   <?php endforeach; ?>
   <?php endif; ?>
+
+<?php elseif ($tab === 'testy'): ?>
+  <h1 class="h5 fw-bold mb-3"><i class="bi bi-card-checklist text-primary me-2" aria-hidden="true"></i>Testy</h1>
+  <?php
+    $any_test = false;
+    foreach ($courses as $c):
+      $cid_t = (int)$c['course_id'];
+      $clist = k30_ti_tests_list($cid_t, true);
+      if (!$clist) continue;
+      $any_test = true;
+  ?>
+  <div class="card bg-body-tertiary border-0 shadow-sm mb-4">
+    <div class="card-header fw-semibold"><i class="bi bi-mortarboard me-2" aria-hidden="true"></i><?= h($c['course_name']) ?></div>
+    <ul class="list-group list-group-flush">
+      <?php foreach ($clist as $t):
+        $best = k30_ti_test_best_attempt((int)$t['id'], (int)$student['client_id']);
+        $open = db_one("SELECT id FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status='in_progress' ORDER BY id DESC LIMIT 1", [(int)$t['id'], (int)$student['client_id']]);
+        $nq   = (int)$t['n_questions'];
+      ?>
+      <li class="list-group-item bg-transparent d-flex align-items-center flex-wrap gap-2">
+        <div class="me-auto">
+          <span class="fw-semibold"><?= h($t['title']) ?></span>
+          <?php if (trim((string)$t['description']) !== ''): ?><span class="d-block text-body-secondary small"><?= h($t['description']) ?></span><?php endif; ?>
+          <span class="small text-body-secondary"><?= $nq ?> pytań<?php if ((int)$t['time_limit_min']>0): ?> · <?= (int)$t['time_limit_min'] ?> min<?php endif; ?><?php if ((int)$t['pass_pct']>0): ?> · próg <?= (int)$t['pass_pct'] ?>%<?php endif; ?></span>
+        </div>
+        <?php
+          if ($best) {
+            $mx = (float)$best['max_score']; $pct = $mx>0 ? round(100*(float)$best['score']/$mx) : 0;
+            $passed = (int)$t['pass_pct']===0 || $pct >= (int)$t['pass_pct'];
+            if ($best['status']==='submitted' && (int)$best['needs_review']===1) {
+              echo '<span class="badge text-bg-info"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Czeka na ocenę</span>';
+            } else {
+              echo '<span class="badge '.($passed?'text-bg-success':'text-bg-secondary').'">Wynik: '.$pct.'%</span>';
+            }
+          }
+        ?>
+        <?php if ($nq > 0): ?>
+        <a href="test.php?test=<?= (int)$t['id'] ?>" class="btn btn-sm btn-primary">
+          <i class="bi bi-<?= $open ? 'play-fill' : ($best ? 'arrow-repeat' : 'pencil-square') ?> me-1" aria-hidden="true"></i><?= $open ? 'Kontynuuj' : ($best ? 'Rozwiąż ponownie' : 'Rozwiąż') ?>
+        </a>
+        <?php else: ?><span class="badge text-bg-light text-dark border">wkrótce</span><?php endif; ?>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endforeach; ?>
+  <?php if (!$any_test): ?><div class="alert alert-secondary">Brak udostępnionych testów.</div><?php endif; ?>
 
 <?php elseif ($tab === 'wiadomosci'):
   // Oznacz wiadomości od prowadzącego jako przeczytane przy wejściu na zakładkę

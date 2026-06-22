@@ -712,6 +712,73 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_sc_session ON k30_ti_session_curriculum(session_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_sc_curr    ON k30_ti_session_curriculum(curriculum_id)");
+
+    // ── Testy / quizy (kreator + podejścia kursanta) ──────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_tests (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id      INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        title          TEXT    NOT NULL DEFAULT '',
+        description    TEXT    NOT NULL DEFAULT '',
+        time_limit_min INTEGER NOT NULL DEFAULT 0,   -- 0 = bez limitu czasu
+        pass_pct       INTEGER NOT NULL DEFAULT 0,   -- próg zaliczenia w % (0 = brak)
+        shuffle        INTEGER NOT NULL DEFAULT 0,   -- losowa kolejność pytań
+        is_active      INTEGER NOT NULL DEFAULT 0,   -- udostępniony kursantom
+        sync_grade     INTEGER NOT NULL DEFAULT 0,   -- wynik trafia do e-dziennika
+        created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tests_course ON k30_ti_tests(course_id)");
+
+    // Pytania: single = jedna poprawna, multi = wiele poprawnych, open = otwarte (ocena ręczna)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_test_questions (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        test_id      INTEGER NOT NULL REFERENCES k30_ti_tests(id) ON DELETE CASCADE,
+        position     INTEGER NOT NULL DEFAULT 0,
+        type         TEXT    NOT NULL DEFAULT 'single', -- single | multi | open
+        prompt       TEXT    NOT NULL DEFAULT '',
+        points       REAL    NOT NULL DEFAULT 1,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tq_test ON k30_ti_test_questions(test_id,position)");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_test_options (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        question_id  INTEGER NOT NULL REFERENCES k30_ti_test_questions(id) ON DELETE CASCADE,
+        position     INTEGER NOT NULL DEFAULT 0,
+        label        TEXT    NOT NULL DEFAULT '',
+        is_correct   INTEGER NOT NULL DEFAULT 0
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_topt_q ON k30_ti_test_options(question_id,position)");
+
+    // Podejście kursanta do testu
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_test_attempts (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        test_id      INTEGER NOT NULL REFERENCES k30_ti_tests(id)   ON DELETE CASCADE,
+        client_id    INTEGER NOT NULL REFERENCES k30_clients(id)    ON DELETE CASCADE,
+        status       TEXT    NOT NULL DEFAULT 'in_progress', -- in_progress | submitted | graded
+        score        REAL    NOT NULL DEFAULT 0,
+        max_score    REAL    NOT NULL DEFAULT 0,
+        needs_review INTEGER NOT NULL DEFAULT 0,   -- czeka na ręczną ocenę pytań otwartych
+        started_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        submitted_at DATETIME,
+        graded_at    DATETIME
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tatt_test   ON k30_ti_test_attempts(test_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tatt_client ON k30_ti_test_attempts(client_id)");
+
+    // Odpowiedzi w podejściu
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_test_answers (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id     INTEGER NOT NULL REFERENCES k30_ti_test_attempts(id)  ON DELETE CASCADE,
+        question_id    INTEGER NOT NULL REFERENCES k30_ti_test_questions(id) ON DELETE CASCADE,
+        option_ids     TEXT    NOT NULL DEFAULT '',   -- wybrane id wariantów (CSV) dla single/multi
+        answer_text    TEXT    NOT NULL DEFAULT '',   -- treść dla pytań otwartych
+        points_awarded REAL,                          -- NULL = jeszcze nieoceniona (otwarte)
+        is_correct     INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(attempt_id, question_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tans_att ON k30_ti_test_answers(attempt_id)");
 }
 
 // Konfiguracja statusów harmonogramu
@@ -3189,4 +3256,245 @@ function k30_ti_curriculum_import_csv(int $course_id, string $raw, ?int $created
         $added++;
     }
     return ['added' => $added, 'errors' => $errors];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TESTY / QUIZY (k30_ti_tests…) — kreator, podejścia, ocena, sync do dziennika
+// ═══════════════════════════════════════════════════════════════════════════
+
+const K30_TI_QUESTION_TYPES = [
+    'single' => 'Jednokrotny wybór',
+    'multi'  => 'Wielokrotny wybór',
+    'open'   => 'Pytanie otwarte',
+];
+
+function k30_ti_tests_list(int $course_id, bool $only_active = false): array {
+    $sql = "SELECT t.*,
+                   (SELECT COUNT(*) FROM k30_ti_test_questions q WHERE q.test_id=t.id) AS n_questions,
+                   (SELECT COUNT(*) FROM k30_ti_test_attempts a WHERE a.test_id=t.id)   AS n_attempts
+            FROM k30_ti_tests t WHERE t.course_id=?"
+         . ($only_active ? " AND t.is_active=1" : "")
+         . " ORDER BY t.title COLLATE NOCASE, t.id";
+    return db_all($sql, [$course_id]);
+}
+
+function k30_ti_test_get(int $id): ?array {
+    return db_one("SELECT * FROM k30_ti_tests WHERE id=?", [$id]);
+}
+
+function k30_ti_test_save(array $data, ?int $id = null, ?int $created_by = null): int {
+    $f = [
+        'title'          => trim((string)($data['title'] ?? '')),
+        'description'    => trim((string)($data['description'] ?? '')),
+        'time_limit_min' => max(0, (int)($data['time_limit_min'] ?? 0)),
+        'pass_pct'       => max(0, min(100, (int)($data['pass_pct'] ?? 0))),
+        'shuffle'        => !empty($data['shuffle'])    ? 1 : 0,
+        'is_active'      => !empty($data['is_active'])  ? 1 : 0,
+        'sync_grade'     => !empty($data['sync_grade']) ? 1 : 0,
+    ];
+    if ($id) { db_update('k30_ti_tests', $f, $id); return $id; }
+    $f['course_id']  = (int)$data['course_id'];
+    $f['created_by'] = $created_by;
+    return db_insert('k30_ti_tests', $f);
+}
+
+function k30_ti_test_delete(int $id): void {
+    db()->prepare("DELETE FROM k30_ti_tests WHERE id=?")->execute([$id]);
+}
+
+function k30_ti_test_questions(int $test_id): array {
+    return db_all("SELECT * FROM k30_ti_test_questions WHERE test_id=? ORDER BY position, id", [$test_id]);
+}
+
+function k30_ti_test_question_get(int $id): ?array {
+    return db_one("SELECT * FROM k30_ti_test_questions WHERE id=?", [$id]);
+}
+
+function k30_ti_test_options(int $question_id): array {
+    return db_all("SELECT * FROM k30_ti_test_options WHERE question_id=? ORDER BY position, id", [$question_id]);
+}
+
+function k30_ti_test_max_score(int $test_id): float {
+    $r = db_one("SELECT COALESCE(SUM(points),0) AS s FROM k30_ti_test_questions WHERE test_id=?", [$test_id]);
+    return (float)($r['s'] ?? 0);
+}
+
+/**
+ * Zapis pytania wraz z wariantami. $data: type, prompt, points, options (array
+ * elementów ['label'=>..,'is_correct'=>0|1]). Dla 'open' warianty ignorowane.
+ * Zwraca id pytania.
+ */
+function k30_ti_test_question_save(array $data, ?int $id = null): int {
+    $type = in_array($data['type'] ?? '', ['single','multi','open'], true) ? $data['type'] : 'single';
+    $f = [
+        'type'   => $type,
+        'prompt' => trim((string)($data['prompt'] ?? '')),
+        'points' => max(0, (float)str_replace(',', '.', (string)($data['points'] ?? 1))) ?: 1,
+    ];
+    if ($id) {
+        db()->prepare("UPDATE k30_ti_test_questions SET type=?, prompt=?, points=? WHERE id=?")
+            ->execute([$f['type'], $f['prompt'], $f['points'], $id]);
+    } else {
+        $tid = (int)$data['test_id'];
+        $pos = (int)(db_one("SELECT COALESCE(MAX(position),0)+1 AS p FROM k30_ti_test_questions WHERE test_id=?", [$tid])['p'] ?? 1);
+        $id  = db_insert('k30_ti_test_questions', ['test_id'=>$tid, 'position'=>$pos] + $f);
+    }
+    // Warianty: zastąp komplet (tylko dla pytań zamkniętych)
+    db()->prepare("DELETE FROM k30_ti_test_options WHERE question_id=?")->execute([$id]);
+    if ($type !== 'open') {
+        $pos = 1;
+        foreach (($data['options'] ?? []) as $opt) {
+            $label = trim((string)($opt['label'] ?? ''));
+            if ($label === '') continue;
+            db_insert('k30_ti_test_options', [
+                'question_id' => $id, 'position' => $pos++,
+                'label' => $label, 'is_correct' => !empty($opt['is_correct']) ? 1 : 0,
+            ]);
+        }
+    }
+    return $id;
+}
+
+function k30_ti_test_question_delete(int $id): void {
+    db()->prepare("DELETE FROM k30_ti_test_questions WHERE id=?")->execute([$id]);
+}
+
+function k30_ti_test_question_reorder(int $test_id, array $ordered_ids): void {
+    $stmt = db()->prepare("UPDATE k30_ti_test_questions SET position=? WHERE id=? AND test_id=?");
+    $pos = 1;
+    foreach ($ordered_ids as $qid) { $stmt->execute([$pos++, (int)$qid, $test_id]); }
+}
+
+function k30_ti_test_attempt_get(int $id): ?array {
+    return db_one("SELECT * FROM k30_ti_test_attempts WHERE id=?", [$id]);
+}
+
+function k30_ti_test_attempts_for_client(int $client_id, ?int $test_id = null): array {
+    $sql = "SELECT * FROM k30_ti_test_attempts WHERE client_id=?";
+    $p = [$client_id];
+    if ($test_id) { $sql .= " AND test_id=?"; $p[] = $test_id; }
+    $sql .= " ORDER BY id DESC";
+    return db_all($sql, $p);
+}
+
+function k30_ti_test_attempts_for_test(int $test_id): array {
+    return db_all(
+        "SELECT a.*, cl.name AS client_name FROM k30_ti_test_attempts a
+         JOIN k30_clients cl ON cl.id=a.client_id WHERE a.test_id=? ORDER BY a.id DESC",
+        [$test_id]
+    );
+}
+
+/** Najlepsze (najwyższy wynik) zakończone podejście kursanta do testu. */
+function k30_ti_test_best_attempt(int $test_id, int $client_id): ?array {
+    return db_one(
+        "SELECT * FROM k30_ti_test_attempts
+         WHERE test_id=? AND client_id=? AND status IN ('submitted','graded')
+         ORDER BY score DESC, id DESC LIMIT 1",
+        [$test_id, $client_id]
+    );
+}
+
+/** Rozpocznij podejście (lub zwróć trwające). Zwraca id podejścia. */
+function k30_ti_test_start_attempt(int $test_id, int $client_id): int {
+    $open = db_one("SELECT id FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status='in_progress' ORDER BY id DESC LIMIT 1", [$test_id, $client_id]);
+    if ($open) return (int)$open['id'];
+    return db_insert('k30_ti_test_attempts', [
+        'test_id' => $test_id, 'client_id' => $client_id,
+        'status' => 'in_progress', 'max_score' => k30_ti_test_max_score($test_id),
+    ]);
+}
+
+/**
+ * Zapisz i oceń podejście. $answers: question_id => ['option_ids'=>[..], 'text'=>..].
+ * Pytania zamknięte oceniane automatycznie, otwarte → ręczna ocena (needs_review).
+ */
+function k30_ti_test_submit(int $attempt_id, array $answers): void {
+    $att = k30_ti_test_attempt_get($attempt_id);
+    if (!$att || $att['status'] !== 'in_progress') return;
+    $questions = k30_ti_test_questions((int)$att['test_id']);
+    $score = 0.0; $max = 0.0; $needs_review = false;
+    $pdo = db();
+    $pdo->prepare("DELETE FROM k30_ti_test_answers WHERE attempt_id=?")->execute([$attempt_id]);
+
+    foreach ($questions as $q) {
+        $qid = (int)$q['id'];
+        $pts = (float)$q['points'];
+        $max += $pts;
+        $a   = $answers[$qid] ?? [];
+        $sel = array_map('intval', (array)($a['option_ids'] ?? []));
+        $txt = trim((string)($a['text'] ?? ''));
+
+        if ($q['type'] === 'open') {
+            $needs_review = true;
+            db_insert('k30_ti_test_answers', [
+                'attempt_id'=>$attempt_id, 'question_id'=>$qid,
+                'answer_text'=>$txt, 'points_awarded'=>null, 'is_correct'=>0,
+            ]);
+            continue;
+        }
+        // Zamknięte: poprawne = dokładnie zbiór poprawnych wariantów
+        $correct = array_map(fn($o)=>(int)$o['id'], array_filter(k30_ti_test_options($qid), fn($o)=>(int)$o['is_correct']===1));
+        sort($sel); sort($correct);
+        $ok = ($sel === $correct && $correct !== []);
+        if ($ok) $score += $pts;
+        db_insert('k30_ti_test_answers', [
+            'attempt_id'=>$attempt_id, 'question_id'=>$qid,
+            'option_ids'=>implode(',', $sel), 'points_awarded'=>$ok ? $pts : 0, 'is_correct'=>$ok ? 1 : 0,
+        ]);
+    }
+
+    $status = $needs_review ? 'submitted' : 'graded';
+    $pdo->prepare(
+        "UPDATE k30_ti_test_attempts SET status=?, score=?, max_score=?, needs_review=?, submitted_at=datetime('now'), graded_at=" . ($needs_review ? "NULL" : "datetime('now')") . " WHERE id=?"
+    )->execute([$status, $score, $max, $needs_review ? 1 : 0, $attempt_id]);
+
+    if (!$needs_review) k30_ti_test_sync_grade($attempt_id);
+}
+
+/** Ręczna ocena pytań otwartych. $points: question_id => liczba punktów. */
+function k30_ti_test_grade_open(int $attempt_id, array $points): void {
+    $att = k30_ti_test_attempt_get($attempt_id);
+    if (!$att) return;
+    $upd = db()->prepare("UPDATE k30_ti_test_answers SET points_awarded=?, is_correct=? WHERE attempt_id=? AND question_id=?");
+    foreach ($points as $qid => $p) {
+        $q = k30_ti_test_question_get((int)$qid);
+        if (!$q) continue;
+        $val = max(0, min((float)$q['points'], (float)str_replace(',', '.', (string)$p)));
+        $upd->execute([$val, $val >= (float)$q['points'] && $val > 0 ? 1 : 0, $attempt_id, (int)$qid]);
+    }
+    // Przelicz wynik z sumy przyznanych punktów
+    $row = db_one("SELECT COALESCE(SUM(points_awarded),0) AS s, SUM(CASE WHEN points_awarded IS NULL THEN 1 ELSE 0 END) AS pending FROM k30_ti_test_answers WHERE attempt_id=?", [$attempt_id]);
+    $pending = (int)($row['pending'] ?? 0);
+    db()->prepare(
+        "UPDATE k30_ti_test_attempts SET score=?, needs_review=?, status=?, graded_at=" . ($pending ? "NULL" : "datetime('now')") . " WHERE id=?"
+    )->execute([(float)$row['s'], $pending ? 1 : 0, $pending ? 'submitted' : 'graded', $attempt_id]);
+    if (!$pending) k30_ti_test_sync_grade($attempt_id);
+}
+
+/** Jeśli test ma sync_grade — zapisz wynik podejścia do e-dziennika (1–6 wg %). */
+function k30_ti_test_sync_grade(int $attempt_id): void {
+    $att = k30_ti_test_attempt_get($attempt_id);
+    if (!$att || $att['status'] !== 'graded') return;
+    $test = k30_ti_test_get((int)$att['test_id']);
+    if (!$test || empty($test['sync_grade'])) return;
+    $max = (float)$att['max_score'];
+    if ($max <= 0) return;
+    $pct  = 100 * (float)$att['score'] / $max;
+    // Skala szkolna z procentów
+    $grade = $pct >= 90 ? '5' : ($pct >= 75 ? '4' : ($pct >= 60 ? '3' : ($pct >= 50 ? '2' : '1')));
+    $vnum  = (float)$grade;
+    $desc  = 'Test: ' . ($test['title'] ?? '') . ' (' . round($pct) . '%)';
+    // Aktualizuj istniejący wpis dla tego podejścia albo utwórz nowy
+    $existing = db_one("SELECT id FROM k30_ti_grades WHERE hw_submission_id IS NULL AND course_id=? AND client_id=? AND description=?", [(int)$test['course_id'], (int)$att['client_id'], $desc]);
+    if ($existing) {
+        db()->prepare("UPDATE k30_ti_grades SET value_text=?, value_num=?, graded_at=datetime('now') WHERE id=?")
+            ->execute([$grade, $vnum, (int)$existing['id']]);
+    } else {
+        db_insert('k30_ti_grades', [
+            'course_id'=>(int)$test['course_id'], 'client_id'=>(int)$att['client_id'],
+            'category'=>'sprawdzian', 'value_text'=>$grade, 'value_num'=>$vnum,
+            'weight'=>3, 'description'=>$desc,
+        ]);
+    }
 }
