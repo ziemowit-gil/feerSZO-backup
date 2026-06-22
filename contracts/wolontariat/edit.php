@@ -242,21 +242,24 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 }
 #edit-topbar .etb-nav a:hover { background: #f1f5f9; color: #1e293b; }
 
-/* ── Section nav pills ─────────────────────────────────── */
+/* ── Section nav — boczny układ (jak w podglądzie) ─────── */
+.edit-layout { display: flex; gap: 1rem; align-items: flex-start; }
+.edit-main   { flex: 1 1 auto; min-width: 0; }
 #sec-nav {
-  display: flex; gap: .3rem; flex-wrap: wrap;
-  margin-bottom: 1.5rem; padding: .6rem .75rem;
+  flex: 0 0 208px; max-width: 208px;
+  display: flex; flex-direction: column; gap: .18rem;
+  margin-bottom: 0; padding: .5rem;
   background: #f8fafc; border-radius: .6rem; border: 1px solid #e2e8f0;
+  position: sticky; top: 64px;
 }
 #sec-nav a {
-  font-size: .75rem; font-weight: 600; padding: .28rem .65rem;
-  border-radius: 20px; text-decoration: none;
-  color: #475569; background: #fff; border: 1px solid #e2e8f0;
-  white-space: nowrap; transition: all .12s;
+  font-size: .8rem; font-weight: 600; padding: .45rem .7rem;
+  border-radius: 8px; text-decoration: none;
+  color: #475569; background: transparent; border: none;
+  white-space: normal; transition: all .12s; display: block;
 }
-#sec-nav a:hover, #sec-nav a.active {
-  background: #2563eb; color: #fff; border-color: #2563eb;
-}
+#sec-nav a:hover  { background: #eef2f7; color: #1e293b; }
+#sec-nav a.active { background: #2563eb; color: #fff; }
 
 /* ── Section headers ───────────────────────────────────── */
 .esec {
@@ -331,6 +334,12 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 @media (max-width: 991px) {
   .edit-sidebar { position: static; }
   #edit-topbar  { margin: -.75rem -.75rem .5rem; padding: .5rem .75rem; }
+  .edit-layout  { flex-direction: column; }
+  #sec-nav {
+    flex-basis: auto; max-width: none; width: 100%;
+    flex-direction: row; flex-wrap: wrap; position: static; margin-bottom: 1rem;
+  }
+  #sec-nav a { width: auto; }
 }
 </style>
 
@@ -391,7 +400,10 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 </div>
 <?php endif; ?>
 
-<!-- ── Section jump nav ───────────────────────────────── -->
+<!-- ── Boczny układ: nawigacja sekcji + formularz ─────────── -->
+<div class="edit-layout">
+
+<!-- ── Section jump nav (boczna, przyklejona) ─────────────── -->
 <nav id="sec-nav" aria-label="Sekcje formularza">
   <a href="#sec-podstawowe">📋 Porozumienie</a>
   <a href="#sec-wolontariusz">👤 Wolontariusz</a>
@@ -404,6 +416,7 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   <a href="#sec-zaawansowane">⚙ Zaawansowane</a>
 </nav>
 
+<div class="edit-main">
 <form method="post" enctype="multipart/form-data" id="editForm"
       data-cpc="<?= in_array(current_user()['role'] ?? '', ['admin','editor']) ? '1' : '0' ?>"
       data-cpc-meta=''
@@ -1533,6 +1546,8 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 </div><!-- /col-lg-4 -->
 </div><!-- /row -->
 </form>
+</div><!-- /edit-main -->
+</div><!-- /edit-layout -->
 
 <script>
 // ── Forma podpisania ─────────────────────────────────────
