@@ -72,6 +72,24 @@ $waiting_top = db_all(
      LIMIT 5"
 );
 
+// ── Moduł Dydaktyka (TI) — statystyki ────────────────────────────────────────
+@require_once __DIR__ . '/../includes/ti_messages.php';
+$ti = [
+    'courses'       => _k("SELECT COUNT(*) AS c FROM k30_ti_courses WHERE status!='cancelled' AND is_active=1"),
+    'students'      => _k("SELECT COUNT(DISTINCT client_id) AS c FROM k30_ti_enrollments WHERE status='active'"),
+    'lessons_upc'   => _k("SELECT COUNT(*) AS c FROM k30_ti_sessions WHERE status='planned' AND lesson_date>=date('now')"),
+    'lessons_today' => _k("SELECT COUNT(*) AS c FROM k30_ti_sessions WHERE status='planned' AND lesson_date=date('now')"),
+    'hw_active'     => _k("SELECT COUNT(*) AS c FROM k30_ti_homework WHERE is_active=1"),
+    'hw_tograde'    => _k("SELECT COUNT(*) AS c FROM k30_ti_homework_submissions WHERE status='submitted'"),
+];
+$ti_msg_unread = function_exists('ti_msg_unread_for_staff') ? (int)ti_msg_unread_for_staff() : 0;
+$ti_lessons = db_all(
+    "SELECT s.id, s.lesson_date, s.time_from, s.time_to, c.name AS course_name
+     FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+     WHERE s.status='planned' AND s.lesson_date>=date('now')
+     ORDER BY s.lesson_date, s.time_from LIMIT 6"
+);
+
 include __DIR__ . '/includes/header_k30.php';
 ?>
 
@@ -146,6 +164,29 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
 
 /* ── Waiting priority badge ─────────────────────────────────── */
 .wp { display:inline-flex;align-items:center;gap:.25rem;padding:.15em .5em;border-radius:4px;font-size:.7rem;font-weight:700 }
+
+/* ── Panele modułów (2 działające moduły) ───────────────────── */
+.mod-panel { display:flex; flex-direction:column; height:100%; border-top:3px solid var(--mod,#6366f1); }
+.mod-head { display:flex; align-items:center; gap:.8rem; padding:1rem 1.1rem; border-bottom:1px solid #f1f5f9; }
+.mod-ic { width:46px; height:46px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.35rem; background:var(--mod,#6366f1); color:#fff; }
+.mod-title { font-size:1.05rem; font-weight:800; margin:0; line-height:1.2; color:#0f172a; }
+.mod-sub { font-size:.76rem; color:#64748b; }
+.mod-cta { white-space:nowrap; }
+/* Mini KPI w panelu modułu */
+.mod-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#eef0f4; border-bottom:1px solid #f1f5f9; }
+.mstat { background:#fff; padding:.7rem .8rem; text-decoration:none; display:block; transition:background .12s; }
+.mstat:hover { background:#f8fafc; }
+.mstat-val { font-size:1.45rem; font-weight:800; line-height:1; color:var(--mod,#1e293b); }
+.mstat-lbl { font-size:.7rem; color:#64748b; font-weight:600; margin-top:.2rem; }
+.mstat-sub { font-size:.64rem; color:#94a3b8; }
+/* Lista skrótów modułu */
+.mod-links { display:flex; flex-wrap:wrap; gap:.4rem; padding:.85rem 1rem; margin-top:auto; border-top:1px solid #f1f5f9; }
+.mod-link { display:inline-flex; align-items:center; gap:.35rem; font-size:.78rem; font-weight:600; text-decoration:none; color:#374151; border:1.5px solid #e2e8f0; border-radius:7px; padding:.3rem .6rem; transition:background .12s,border-color .12s,color .12s; }
+.mod-link:hover { background:var(--k30-purple-bg); border-color:var(--k30-purple-mid); color:var(--k30-purple); }
+.mod-mini { display:flex; align-items:center; gap:.6rem; padding:.5rem 1rem; border-bottom:1px solid #f8fafc; font-size:.82rem; text-decoration:none; color:#1e293b; }
+.mod-mini:last-of-type { border-bottom:0; }
+.mod-mini:hover { background:#f8fafc; }
+.mod-mini-date { flex-shrink:0; width:42px; text-align:center; }
 </style>
 
 <!-- Nagłówek strony -->
@@ -156,7 +197,7 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
   </div>
   <div>
     <h1 class="h4 mb-0 fw-bold">Dydaktyka — Karty 30</h1>
-    <p class="text-muted mb-0" style="font-size:.84rem">Beneficjenci · Wizyty · Konsultacje · Dydaktyka (TI)</p>
+    <p class="text-muted mb-0" style="font-size:.84rem">Dwa moduły: <strong>Konsultacje i wizyty</strong> · <strong>Dydaktyka (TI)</strong></p>
   </div>
   <?php if ($can_write): ?>
   <nav class="ms-auto d-flex gap-2 flex-wrap" aria-label="Szybkie akcje">
@@ -176,197 +217,123 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
   <?php endif; ?>
 </div>
 
-<!-- KPI -->
-<section aria-label="Podsumowanie statystyk">
-<div class="row g-3 mb-4">
+<!-- M365 — alert administracyjny (gdy konta wygasają) -->
+<?php if (is_admin() && ($m365_exp7 > 0 || $m365_expired > 0)): ?>
+<a href="<?= APP_URL ?>/karty30/admin/m365.php" class="d-flex align-items-center gap-2 text-decoration-none mb-3 p-2 rounded"
+   style="border:1.5px solid <?= $m365_expired ? '#dc2626' : '#f59e0b' ?>;background:<?= $m365_expired ? '#fef2f2' : '#fffbeb' ?>;color:<?= $m365_expired ? '#7f1d1d' : '#78350f' ?>;font-size:.85rem">
+  <i class="bi bi-microsoft" aria-hidden="true"></i>
+  <span><strong><?= $m365_exp7 ?></strong> kont M365 wygasa w ciągu 7 dni<?= $m365_expired ? ', <strong>'.$m365_expired.'</strong> już wygasło' : '' ?> — kliknij, aby zarządzać.</span>
+</a>
+<?php endif; ?>
 
-  <?php
-  $kpis = [
-    [
-      'val'   => $stats['clients'],
-      'lbl'   => 'Beneficjentów',
-      'sub'   => null,
-      'color' => '#0f4c91',
-      'bg'    => '#dbeafe',
-      'icon'  => 'bi-people-fill',
-      'href'  => APP_URL.'/karty30/clients/index.php',
-      'aria'  => 'Beneficjentów: ' . $stats['clients'],
-    ],
-    [
-      'val'   => $stats['today'],
-      'lbl'   => 'Wizyt dziś',
-      'sub'   => date('d.m.Y'),
-      'color' => '#15803d',
-      'bg'    => '#dcfce7',
-      'icon'  => 'bi-calendar-check-fill',
-      'href'  => APP_URL.'/karty30/schedules/index.php',
-      'aria'  => 'Wizyt dziś: ' . $stats['today'],
-    ],
-    [
-      'val'   => $stats['week'],
-      'lbl'   => 'Wizyt w tym tygodniu',
-      'sub'   => null,
-      'color' => '#b45309',
-      'bg'    => '#fef3c7',
-      'icon'  => 'bi-calendar-week-fill',
-      'href'  => APP_URL.'/karty30/schedules/calendar.php',
-      'aria'  => 'Wizyt w tym tygodniu: ' . $stats['week'],
-    ],
-    [
-      'val'   => $stats['waiting'],
-      'lbl'   => 'Oczekuje na termin',
-      'sub'   => $stats['waiting_urgent'] ? $stats['waiting_urgent'] . ' pilnych' : null,
-      'color' => $stats['waiting_urgent'] ? '#dc2626' : '#7c3aed',
-      'bg'    => $stats['waiting_urgent'] ? '#fee2e2' : '#f5f3ff',
-      'icon'  => 'bi-hourglass-split',
-      'href'  => APP_URL.'/karty30/waiting/index.php',
-      'aria'  => 'Na liście oczekujących: ' . $stats['waiting'] . ($stats['waiting_urgent'] ? ', w tym ' . $stats['waiting_urgent'] . ' pilnych' : ''),
-    ],
-    [
-      'val'   => number_format($pfron_month, 1, ',', ''),
-      'lbl'   => 'Godz. PFRON (m-c)',
-      'sub'   => date('m/Y'),
-      'color' => '#6d28d9',
-      'bg'    => '#ede9fe',
-      'icon'  => 'bi-building-fill-check',
-      'href'  => null,
-      'aria'  => 'Godziny PFRON w tym miesiącu: ' . number_format($pfron_month, 1, ',', ''),
-    ],
-    [
-      'val'   => $stats['consultations'],
-      'lbl'   => 'Konsultacji (łącznie)',
-      'sub'   => null,
-      'color' => '#0e7490',
-      'bg'    => '#cffafe',
-      'icon'  => 'bi-clipboard2-check-fill',
-      'href'  => APP_URL.'/karty30/consultations/index.php',
-      'aria'  => 'Zatwierdzonych konsultacji: ' . $stats['consultations'],
-    ],
-  ];
+<!-- ══ DWA DZIAŁAJĄCE MODUŁY ══════════════════════════════════════ -->
+<section aria-label="Moduły" class="row g-3 mb-3">
 
-  // Konta M365 — termin ważności (tylko admin; pokazuj gdy są wygasające/wygasłe)
-  if (is_admin() && ($m365_exp7 > 0 || $m365_expired > 0)) {
-    $kpis[] = [
-      'val'   => $m365_exp7,
-      'lbl'   => 'Konta M365 wygasają (7 dni)',
-      'sub'   => $m365_expired ? $m365_expired . ' już wygasłych' : null,
-      'color' => $m365_expired ? '#dc2626' : '#b45309',
-      'bg'    => $m365_expired ? '#fee2e2' : '#fef3c7',
-      'icon'  => 'bi-microsoft',
-      'href'  => APP_URL.'/karty30/admin/m365.php',
-      'aria'  => 'Konta M365 wygasające w 7 dni: ' . $m365_exp7 . ($m365_expired ? ', już wygasłych: ' . $m365_expired : ''),
-    ];
-  }
-  foreach ($kpis as $kpi):
-    $tag   = $kpi['href'] ? 'a' : 'div';
-    $extra = $kpi['href'] ? 'href="' . h($kpi['href']) . '"' : '';
-  ?>
-  <div class="col-6 col-sm-4 col-xl-2">
-    <<?= $tag ?> <?= $extra ?> class="kpi"
-       style="--kpi-color:<?= h($kpi['color']) ?>;--kpi-bg:<?= h($kpi['bg']) ?>"
-       <?= $kpi['href'] ? 'aria-label="' . h($kpi['aria']) . '"' : 'aria-label="' . h($kpi['aria']) . '"' ?>>
-      <div class="kpi-icon" aria-hidden="true"><i class="bi <?= h($kpi['icon']) ?>"></i></div>
-      <div class="kpi-val" aria-hidden="true"><?= $kpi['val'] ?></div>
-      <div class="kpi-lbl" aria-hidden="true"><?= h($kpi['lbl']) ?></div>
-      <?php if ($kpi['sub']): ?>
-      <div class="kpi-sub" aria-hidden="true"><?= h($kpi['sub']) ?></div>
-      <?php endif; ?>
-    </<?= $tag ?>>
+  <!-- Moduł 1: Konsultacje i wizyty -->
+  <div class="col-lg-6">
+    <div class="panel mod-panel" style="--mod:#0f4c91">
+      <div class="mod-head">
+        <div class="mod-ic" aria-hidden="true"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+        <div>
+          <h2 class="mod-title">Konsultacje i wizyty</h2>
+          <div class="mod-sub">Beneficjenci · harmonogram · konsultacje · PFRON</div>
+        </div>
+        <a class="btn btn-k30 btn-sm ms-auto mod-cta" href="<?= APP_URL ?>/karty30/schedules/index.php" aria-label="Otwórz moduł Konsultacje i wizyty">Otwórz</a>
+      </div>
+      <div class="mod-kpis">
+        <a class="mstat" href="<?= APP_URL ?>/karty30/clients/index.php" aria-label="Beneficjentów: <?= $stats['clients'] ?>"><div class="mstat-val" aria-hidden="true"><?= $stats['clients'] ?></div><div class="mstat-lbl" aria-hidden="true">Beneficjentów</div></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/schedules/index.php" aria-label="Wizyt dziś: <?= $stats['today'] ?>, w tygodniu: <?= $stats['week'] ?>"><div class="mstat-val" aria-hidden="true"><?= $stats['today'] ?></div><div class="mstat-lbl" aria-hidden="true">Wizyt dziś</div><div class="mstat-sub" aria-hidden="true"><?= $stats['week'] ?> w tygodniu</div></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/waiting/index.php" aria-label="Oczekuje na termin: <?= $stats['waiting'] ?><?= $stats['waiting_urgent'] ? ', w tym pilnych: '.$stats['waiting_urgent'] : '' ?>"><div class="mstat-val" aria-hidden="true" style="<?= $stats['waiting_urgent']?'color:#dc2626':'' ?>"><?= $stats['waiting'] ?></div><div class="mstat-lbl" aria-hidden="true">Oczekuje</div><?php if ($stats['waiting_urgent']): ?><div class="mstat-sub" aria-hidden="true" style="color:#dc2626"><?= $stats['waiting_urgent'] ?> pilnych</div><?php endif; ?></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/consultations/index.php" aria-label="Konsultacji łącznie: <?= $stats['consultations'] ?>"><div class="mstat-val" aria-hidden="true"><?= $stats['consultations'] ?></div><div class="mstat-lbl" aria-hidden="true">Konsultacji</div></a>
+        <div class="mstat" aria-label="Godziny PFRON w tym miesiącu: <?= number_format($pfron_month,1,',','') ?>"><div class="mstat-val" aria-hidden="true"><?= number_format($pfron_month,1,',','') ?></div><div class="mstat-lbl" aria-hidden="true">Godz. PFRON</div><div class="mstat-sub" aria-hidden="true"><?= date('m/Y') ?></div></div>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/schedules/calendar.php" aria-label="Kalendarz wizyt"><div class="mstat-val" aria-hidden="true" style="font-size:1.2rem"><i class="bi bi-calendar-week"></i></div><div class="mstat-lbl" aria-hidden="true">Kalendarz</div></a>
+      </div>
+      <div role="list" aria-label="Najbliższe terminy">
+        <?php if ($upcoming): foreach (array_slice($upcoming,0,4) as $s):
+          $dt = new DateTime($s['start_time']); $isToday = $dt->format('Y-m-d') === date('Y-m-d');
+          $tstr = $s['time_from'] ?: $dt->format('H:i'); ?>
+        <a class="mod-mini" role="listitem" href="<?= APP_URL ?>/karty30/schedules/view.php?id=<?= (int)$s['id'] ?>"
+           aria-label="<?= h($s['client_name']) ?>, <?= $isToday?'dziś':$dt->format('d.m') ?> <?= h($tstr) ?>">
+          <div class="mod-mini-date" aria-hidden="true"><div style="font-size:1.05rem;font-weight:800;line-height:1;color:<?= $isToday?'var(--k30-purple)':'#1e293b' ?>"><?= $dt->format('d') ?></div><div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase"><?= $dt->format('m') ?></div></div>
+          <div style="flex:1;min-width:0" aria-hidden="true"><div class="fw-semibold text-truncate"><?= h($s['client_name']) ?></div><div style="font-size:.73rem;color:#64748b" class="text-truncate"><?= h($tstr) ?><?= $isToday?' · dziś':'' ?><?= $s['consultant_name']?' · '.h($s['consultant_name']):'' ?></div></div>
+          <span aria-hidden="true"><?= k30_status_badge($s['status']) ?></span>
+        </a>
+        <?php endforeach; else: ?>
+        <div class="text-muted text-center py-3" style="font-size:.82rem" role="status">Brak nadchodzących wizyt</div>
+        <?php endif; ?>
+      </div>
+      <nav class="mod-links" aria-label="Skróty: Konsultacje i wizyty">
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/clients/index.php"><i class="bi bi-people-fill" aria-hidden="true"></i>Beneficjenci</a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/schedules/index.php"><i class="bi bi-calendar3" aria-hidden="true"></i>Harmonogram</a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/consultations/index.php"><i class="bi bi-clipboard2-check" aria-hidden="true"></i>Konsultacje</a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/waiting/index.php"><i class="bi bi-hourglass-split" aria-hidden="true"></i>Oczekujący<?php if($stats['waiting']): ?> (<?= $stats['waiting'] ?>)<?php endif; ?></a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/reports/index.php"><i class="bi bi-bar-chart-line" aria-hidden="true"></i>Raporty</a>
+      </nav>
+    </div>
   </div>
-  <?php endforeach; ?>
 
-</div>
+  <!-- Moduł 2: Dydaktyka (TI) -->
+  <div class="col-lg-6">
+    <div class="panel mod-panel" style="--mod:#4338ca">
+      <div class="mod-head">
+        <div class="mod-ic" aria-hidden="true"><i class="bi bi-pc-display"></i></div>
+        <div>
+          <h2 class="mod-title">Dydaktyka (TI)</h2>
+          <div class="mod-sub">Kursy · lekcje · zadania · e-dziennik</div>
+        </div>
+        <a class="btn btn-k30 btn-sm ms-auto mod-cta" href="<?= APP_URL ?>/karty30/ti/index.php" aria-label="Otwórz moduł Dydaktyka TI">Otwórz</a>
+      </div>
+      <div class="mod-kpis">
+        <a class="mstat" href="<?= APP_URL ?>/karty30/ti/index.php" aria-label="Aktywnych kursów: <?= $ti['courses'] ?>"><div class="mstat-val" aria-hidden="true"><?= $ti['courses'] ?></div><div class="mstat-lbl" aria-hidden="true">Kursy</div></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/ti/kursant/accounts.php" aria-label="Aktywnych kursantów: <?= $ti['students'] ?>"><div class="mstat-val" aria-hidden="true"><?= $ti['students'] ?></div><div class="mstat-lbl" aria-hidden="true">Kursanci</div></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/ti/index.php" aria-label="Najbliższych lekcji: <?= $ti['lessons_upc'] ?><?= $ti['lessons_today']?', dziś: '.$ti['lessons_today']:'' ?>"><div class="mstat-val" aria-hidden="true"><?= $ti['lessons_upc'] ?></div><div class="mstat-lbl" aria-hidden="true">Lekcje</div><?php if($ti['lessons_today']): ?><div class="mstat-sub" aria-hidden="true"><?= $ti['lessons_today'] ?> dziś</div><?php endif; ?></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/ti/homework.php" aria-label="Oddań do oceny: <?= $ti['hw_tograde'] ?>"><div class="mstat-val" aria-hidden="true" style="<?= $ti['hw_tograde']?'color:#b45309':'' ?>"><?= $ti['hw_tograde'] ?></div><div class="mstat-lbl" aria-hidden="true">Do oceny</div></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/ti/homework.php" aria-label="Aktywnych zadań: <?= $ti['hw_active'] ?>"><div class="mstat-val" aria-hidden="true"><?= $ti['hw_active'] ?></div><div class="mstat-lbl" aria-hidden="true">Zadania</div></a>
+        <a class="mstat" href="<?= APP_URL ?>/karty30/ti/messages.php" aria-label="Nieprzeczytanych wiadomości: <?= $ti_msg_unread ?>"><div class="mstat-val" aria-hidden="true" style="<?= $ti_msg_unread?'color:#dc2626':'' ?>"><?= $ti_msg_unread ?></div><div class="mstat-lbl" aria-hidden="true">Wiadomości</div></a>
+      </div>
+      <div role="list" aria-label="Najbliższe lekcje">
+        <?php if ($ti_lessons): foreach (array_slice($ti_lessons,0,4) as $l):
+          $ld = new DateTime($l['lesson_date']); $isT = $ld->format('Y-m-d') === date('Y-m-d'); ?>
+        <a class="mod-mini" role="listitem" href="<?= APP_URL ?>/karty30/ti/lesson.php?id=<?= (int)$l['id'] ?>"
+           aria-label="<?= h($l['course_name']) ?>, <?= $isT?'dziś':$ld->format('d.m') ?><?= $l['time_from']?' '.h($l['time_from']):'' ?>">
+          <div class="mod-mini-date" aria-hidden="true"><div style="font-size:1.05rem;font-weight:800;line-height:1;color:<?= $isT?'var(--k30-purple)':'#1e293b' ?>"><?= $ld->format('d') ?></div><div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase"><?= $ld->format('m') ?></div></div>
+          <div style="flex:1;min-width:0" aria-hidden="true"><div class="fw-semibold text-truncate"><?= h($l['course_name']) ?></div><div style="font-size:.73rem;color:#64748b"><?= $l['time_from']?h($l['time_from']):'—' ?><?= $l['time_to']?'–'.h($l['time_to']):'' ?><?= $isT?' · dziś':'' ?></div></div>
+          <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+        </a>
+        <?php endforeach; else: ?>
+        <div class="text-muted text-center py-3" style="font-size:.82rem" role="status">Brak zaplanowanych lekcji</div>
+        <?php endif; ?>
+      </div>
+      <nav class="mod-links" aria-label="Skróty: Dydaktyka TI">
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/ti/index.php"><i class="bi bi-pc-display" aria-hidden="true"></i>Kursy</a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/ti/materials.php"><i class="bi bi-collection-play" aria-hidden="true"></i>Materiały</a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/ti/homework.php"><i class="bi bi-journal-check" aria-hidden="true"></i>Zadania</a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/ti/grades.php"><i class="bi bi-table" aria-hidden="true"></i>Dziennik</a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/ti/messages.php"><i class="bi bi-envelope" aria-hidden="true"></i>Wiadomości<?php if($ti_msg_unread): ?> (<?= $ti_msg_unread ?>)<?php endif; ?></a>
+        <a class="mod-link" href="<?= APP_URL ?>/karty30/ti/dydaktyk/login.php"><i class="bi bi-easel2" aria-hidden="true"></i>Panel dydaktyka</a>
+      </nav>
+    </div>
+  </div>
+
 </section>
 
-<!-- Główna zawartość -->
+<!-- ══ Szczegóły: kolejka oczekujących + informacje bieżące ════════ -->
 <div class="row g-3">
 
-  <!-- Kolumna lewa: terminy + oczekujący -->
+  <!-- Oczekujący na termin (moduł Konsultacje) -->
   <div class="col-lg-7">
-
-    <!-- Najbliższe terminy -->
-    <section aria-labelledby="upcoming-heading" class="panel mb-3">
-      <div class="panel-head">
-        <span id="upcoming-heading">
-          <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Najbliższe terminy
-        </span>
-        <a href="<?= APP_URL ?>/karty30/schedules/index.php"
-           class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.73rem">
-          Wszystkie <span class="visually-hidden">terminy</span>
-        </a>
-      </div>
-
-      <?php if ($upcoming): ?>
-      <ul class="list-unstyled mb-0" role="list">
-        <?php foreach ($upcoming as $s):
-          $sc       = K30_SCHEDULE_STATUSES[$s['status']] ?? K30_SCHEDULE_STATUSES['preliminary'];
-          $dt       = new DateTime($s['start_time']);
-          $isToday  = $dt->format('Y-m-d') === date('Y-m-d');
-          $isTomorrow = $dt->format('Y-m-d') === date('Y-m-d', strtotime('+1 day'));
-          $dow      = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$dt->format('w')];
-          $time_str = $s['time_from'] ?: $dt->format('H:i');
-        ?>
-        <li role="listitem">
-          <a href="<?= APP_URL ?>/karty30/schedules/view.php?id=<?= (int)$s['id'] ?>"
-             class="panel-row"
-             aria-label="<?= h($s['client_name']) ?>, <?= $isToday ? 'dziś' : ($isTomorrow ? 'jutro' : '') ?> <?= $dt->format('d.m') ?> <?= $time_str ?>">
-            <!-- Data -->
-            <div style="flex-shrink:0;width:44px;text-align:center" aria-hidden="true">
-              <div style="font-size:1.2rem;font-weight:800;line-height:1;color:<?= $isToday?'var(--k30-purple)':'#1e293b' ?>"><?= $dt->format('d') ?></div>
-              <div style="font-size:.62rem;text-transform:uppercase;color:#94a3b8;font-weight:600"><?= $dow ?></div>
-              <?php if ($isToday): ?>
-              <div style="font-size:.58rem;background:var(--k30-purple);color:#fff;border-radius:3px;padding:.05em .3em;margin-top:.1rem;font-weight:700">DZIŚ</div>
-              <?php elseif ($isTomorrow): ?>
-              <div style="font-size:.58rem;background:#f59e0b;color:#fff;border-radius:3px;padding:.05em .3em;margin-top:.1rem;font-weight:700">JUTRO</div>
-              <?php endif; ?>
-            </div>
-            <!-- Dane -->
-            <div style="flex:1;min-width:0" aria-hidden="true">
-              <div class="fw-semibold text-truncate" style="font-size:.86rem"><?= h($s['client_name']) ?></div>
-              <div style="font-size:.74rem;color:#64748b" class="d-flex gap-2 flex-wrap">
-                <span><?= h($time_str) ?><?= $s['time_to'] ? '–'.h($s['time_to']) : '' ?></span>
-                <?php if ($s['consultant_name']): ?>
-                <span>· <?= h($s['consultant_name']) ?></span>
-                <?php endif; ?>
-                <?php if ($s['is_remote']): ?>
-                <span class="text-info">· Zdalnie</span>
-                <?php elseif ($s['resource_name']): ?>
-                <span>· <?= h($s['resource_name']) ?></span>
-                <?php endif; ?>
-              </div>
-            </div>
-            <!-- Billing + status -->
-            <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0" aria-hidden="true">
-              <?php $bt = K30_BILLING_TYPES[$s['billing_type']] ?? null; if ($bt): ?>
-              <span style="font-size:.65rem;font-weight:700;color:<?= h($bt['color']) ?>"><?= h($bt['label']) ?></span>
-              <?php endif; ?>
-              <?= k30_status_badge($s['status']) ?>
-            </div>
-          </a>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-      <?php else: ?>
-      <div class="text-center py-4 text-muted" role="status">
-        <i class="bi bi-calendar-x d-block mb-2 opacity-25" style="font-size:1.8rem" aria-hidden="true"></i>
-        Brak nadchodzących wizyt
-      </div>
-      <?php endif; ?>
-    </section>
-
-    <!-- Lista oczekujących (top 5) -->
-    <?php if ($waiting_top): ?>
     <section aria-labelledby="waiting-heading" class="panel">
       <div class="panel-head">
         <span id="waiting-heading">
           <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Oczekujący na termin
-          <span class="badge bg-warning text-dark ms-1" aria-label="<?= $stats['waiting'] ?> oczekujących"><?= $stats['waiting'] ?></span>
+          <?php if ($stats['waiting']): ?><span class="badge bg-warning text-dark ms-1" aria-label="<?= $stats['waiting'] ?> oczekujących"><?= $stats['waiting'] ?></span><?php endif; ?>
         </span>
         <a href="<?= APP_URL ?>/karty30/waiting/index.php"
            class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.73rem">
           Pełna kolejka <span class="visually-hidden">oczekujących</span>
         </a>
       </div>
+      <?php if ($waiting_top): ?>
       <ul class="list-unstyled mb-0" role="list">
         <?php foreach ($waiting_top as $w):
           $p    = K30_WAIT_PRIORITIES[$w['priority']] ?? K30_WAIT_PRIORITIES['zwykly'];
@@ -410,46 +377,17 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
         </li>
         <?php endforeach; ?>
       </ul>
+      <?php else: ?>
+      <div class="text-center py-4 text-muted" role="status">
+        <i class="bi bi-check2-circle d-block mb-2 opacity-25" style="font-size:1.8rem" aria-hidden="true"></i>
+        Brak osób oczekujących na termin
+      </div>
+      <?php endif; ?>
     </section>
-    <?php endif; ?>
-
   </div>
 
-  <!-- Kolumna prawa: szybkie akcje + skróty -->
+  <!-- Informacje bieżące -->
   <div class="col-lg-5">
-
-    <!-- Szybkie akcje -->
-    <section aria-labelledby="actions-heading" class="panel mb-3">
-      <div class="panel-head" id="actions-heading">
-        <span><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Moduły</span>
-      </div>
-      <div class="p-3 d-grid gap-2">
-        <?php
-        $links = [
-          [APP_URL.'/karty30/clients/index.php',          'bi-people-fill',       'Beneficjenci',        'outline'],
-          [APP_URL.'/karty30/schedules/index.php',        'bi-calendar3',          'Harmonogram wizyt',   'outline'],
-          [APP_URL.'/karty30/schedules/calendar.php',     'bi-calendar-week',      'Kalendarz',           'outline'],
-          [APP_URL.'/karty30/consultations/index.php',    'bi-clipboard2-check',   'Konsultacje',         'outline'],
-          [APP_URL.'/karty30/ti/index.php',               'bi-pc-display',         'Zajęcia TI',          'outline'],
-          [APP_URL.'/karty30/waiting/index.php',          'bi-hourglass-split',    'Lista oczekujących',  'warn'],
-          [APP_URL.'/karty30/reports/index.php',          'bi-bar-chart-line',     'Raporty',             'outline'],
-          [APP_URL.'/karty30/schedules/quick.php',        'bi-lightning-charge',   'Szybka rezerwacja',   'outline'],
-        ];
-        foreach ($links as [$href, $icon, $label, $type]):
-        ?>
-        <a href="<?= h($href) ?>"
-           class="qa qa-<?= $type ?>"
-           aria-label="<?= h($label) ?>">
-          <i class="bi <?= h($icon) ?>" aria-hidden="true"></i><?= h($label) ?>
-          <?php if ($label === 'Lista oczekujących' && $stats['waiting']): ?>
-          <span class="badge bg-warning text-dark ms-auto" aria-hidden="true"><?= $stats['waiting'] ?></span>
-          <?php endif; ?>
-        </a>
-        <?php endforeach; ?>
-      </div>
-    </section>
-
-    <!-- Szybkie informacje -->
     <section aria-labelledby="info-heading" class="panel">
       <div class="panel-head" id="info-heading">
         <span><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Informacje bieżące</span>
@@ -467,6 +405,14 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
           <dt class="col-6 text-muted fw-normal">Godz. PFRON (m-c)</dt>
           <dd class="col-6 fw-semibold mb-1"><?= number_format($pfron_month, 2, ',', '') ?> h</dd>
 
+          <dt class="col-6 text-muted fw-normal">Lekcje TI dziś</dt>
+          <dd class="col-6 fw-semibold mb-1"><?= (int)$ti['lessons_today'] ?></dd>
+
+          <?php if ($ti['hw_tograde']): ?>
+          <dt class="col-6 text-muted fw-normal">Zadań do oceny</dt>
+          <dd class="col-6 mb-1"><a href="<?= APP_URL ?>/karty30/ti/homework.php" class="fw-semibold" style="color:#b45309"><?= (int)$ti['hw_tograde'] ?></a></dd>
+          <?php endif; ?>
+
           <?php if ($stats['blacklist']): ?>
           <dt class="col-6 text-muted fw-normal">Czarna lista</dt>
           <dd class="col-6 mb-1">
@@ -483,7 +429,6 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
         </dl>
       </div>
     </section>
-
   </div>
 
 </div>
