@@ -70,6 +70,18 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 .dyd-hw-chevron { transition:transform .15s ease; }
 .dyd-hw[open] > .dyd-hw-summary .dyd-hw-chevron { transform:rotate(180deg); }
 @media (prefers-reduced-motion: reduce){ .skip-link { transition:none; } .dyd-hw-chevron { transition:none; } }
+
+/* ── Widok kalendarza lekcji (popup) ─────────────────────────────────────── */
+.kp-cal { table-layout:fixed; }
+.kp-cal th, .kp-cal td { width:14.28%; }
+.kp-cal td { vertical-align:top; height:64px; padding:.25rem; }
+.kp-cal-empty { background:var(--bs-tertiary-bg); }
+.kp-cal-day.has-lesson { background:rgba(37,99,235,.12); }
+.kp-cal-day.is-today { outline:2px solid var(--bs-primary); outline-offset:-2px; }
+.kp-cal-num { font-size:.8rem; color:var(--bs-secondary-color); }
+.kp-cal-ev { font-size:.72rem; line-height:1.2; background:var(--bs-primary); color:#fff;
+  border-radius:.25rem; padding:1px 4px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kp-cal-ev.cancelled { background:var(--bs-secondary-bg); color:var(--bs-secondary-color); text-decoration:line-through; }
 </style>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>">

@@ -715,11 +715,25 @@ include __DIR__ . '/_layout_head.php';
 
   <!-- Lista lekcji — zwijane grupy: nadchodzące / minione -->
   <?php
-    // Podział lekcji: nadchodzące (dziś i później) + minione (były)
+    // Podział lekcji względem dziś (okno ±7 dni):
+    //   near     – ostatnie i najbliższe (±7 dni) → zawsze widoczne
+    //   up_far   – nadchodzące dalej niż 7 dni → zwinięte
+    //   past_far – minione wcześniej niż 7 dni → zwinięte
     $today_ymd = date('Y-m-d');
-    $up = $past = [];
-    foreach ($lessons as $l) { if ((string)($l['lesson_date'] ?? '') >= $today_ymd) $up[] = $l; else $past[] = $l; }
-    usort($up, fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date'])); // najbliższa najpierw
+    $d_soon = date('Y-m-d', strtotime('+7 days'));
+    $d_ago  = date('Y-m-d', strtotime('-7 days'));
+    $near = $up_far = $past_far = [];
+    $cal_by_date = [];                       // widok kalendarza: 'Y-m-d' => [lekcje]
+    foreach ($lessons as $l) {
+        $ld = (string)($l['lesson_date'] ?? '');
+        $cal_by_date[$ld][] = $l;
+        if ($ld >= $d_ago && $ld <= $d_soon) $near[] = $l;
+        elseif ($ld > $d_soon)               $up_far[] = $l;
+        else                                 $past_far[] = $l;
+    }
+    usort($near,   fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date'])); // chronologicznie
+    usort($up_far, fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date'])); // najbliższa pierwsza
+    // $past_far zostaje malejąco (z zapytania) — od najnowszej
 
     // Wiersz pojedynczej lekcji — współdzielony przez obie grupy
     $lessonRow = function(array $l) use ($months_pl, $vlab_token) {
@@ -846,27 +860,110 @@ include __DIR__ . '/_layout_head.php';
   </div></div>
   <?php else: ?>
 
-  <?php if ($up): ?>
-  <details class="card dyd-hw mb-3" open>
+  <!-- Pasek narzędzi: widok kalendarza -->
+  <div class="d-flex justify-content-end mb-2">
+    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#lessonsCalModal">
+      <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Widok kalendarza
+    </button>
+  </div>
+
+  <!-- Najbliższe (±7 dni) — zawsze widoczne -->
+  <div class="card mb-3">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-calendar2-week text-primary" aria-hidden="true"></i><span>Najbliższe lekcje</span>
+      <span class="text-body-secondary fw-normal small">(ostatnie i nadchodzące 7 dni)</span>
+      <?php if ($near): ?><span class="badge text-bg-secondary ms-auto"><?= count($near) ?></span><?php endif; ?>
+    </div>
+    <?php if ($near) { $lessonTable($near); } else { ?>
+    <div class="card-body text-body-secondary small">Brak lekcji w oknie ±7 dni — rozwiń sekcje poniżej, aby zobaczyć dalsze terminy.</div>
+    <?php } ?>
+  </div>
+
+  <!-- Nadchodzące dalej niż 7 dni — zwinięte -->
+  <?php if ($up_far): ?>
+  <details class="card dyd-hw mb-3">
     <summary class="card-header fw-semibold dyd-hw-summary d-flex align-items-center gap-2">
-      <i class="bi bi-calendar2-week text-primary" aria-hidden="true"></i><span>Nadchodzące lekcje</span>
-      <span class="badge text-bg-secondary"><?= count($up) ?></span>
+      <i class="bi bi-calendar-plus text-primary" aria-hidden="true"></i><span>Nadchodzące później (ponad 7 dni)</span>
+      <span class="badge text-bg-secondary"><?= count($up_far) ?></span>
       <i class="bi bi-chevron-down dyd-hw-chevron ms-auto text-body-secondary" aria-hidden="true"></i>
     </summary>
-    <?php $lessonTable($up); ?>
+    <?php $lessonTable($up_far); ?>
   </details>
   <?php endif; ?>
 
-  <?php if ($past): ?>
-  <details class="card dyd-hw"<?= $up ? '' : ' open' ?>>
+  <!-- Minione wcześniej niż 7 dni — zwinięte -->
+  <?php if ($past_far): ?>
+  <details class="card dyd-hw">
     <summary class="card-header fw-semibold dyd-hw-summary d-flex align-items-center gap-2">
-      <i class="bi bi-clock-history text-body-secondary" aria-hidden="true"></i><span>Minione lekcje</span>
-      <span class="badge text-bg-secondary"><?= count($past) ?></span>
+      <i class="bi bi-clock-history text-body-secondary" aria-hidden="true"></i><span>Minione (wcześniej niż 7 dni)</span>
+      <span class="badge text-bg-secondary"><?= count($past_far) ?></span>
       <i class="bi bi-chevron-down dyd-hw-chevron ms-auto text-body-secondary" aria-hidden="true"></i>
     </summary>
-    <?php $lessonTable($past); ?>
+    <?php $lessonTable($past_far); ?>
   </details>
   <?php endif; ?>
+
+  <?php
+    // ── Widok kalendarza (popup) — miesiące z lekcjami ──────────────────────
+    $cal_months = [];
+    foreach (array_keys($cal_by_date) as $ld) { if ($ld !== '') $cal_months[substr($ld, 0, 7)] = true; }
+    $cal_months = array_keys($cal_months); sort($cal_months);
+    $months_full = [1=>'Styczeń',2=>'Luty',3=>'Marzec',4=>'Kwiecień',5=>'Maj',6=>'Czerwiec',
+                    7=>'Lipiec',8=>'Sierpień',9=>'Wrzesień',10=>'Październik',11=>'Listopad',12=>'Grudzień'];
+    $wd_short = ['Pn','Wt','Śr','Cz','Pt','So','Nd'];
+    $wd_full  = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
+  ?>
+  <div class="modal fade" id="lessonsCalModal" tabindex="-1" aria-labelledby="lessonsCalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="lessonsCalTitle"><i class="bi bi-calendar3 me-2" aria-hidden="true"></i>Kalendarz lekcji</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <?php foreach ($cal_months as $ym):
+            $year = (int)substr($ym, 0, 4); $mon = (int)substr($ym, 5, 2);
+            $first = mktime(0, 0, 0, $mon, 1, $year);
+            $daysIn = (int)date('t', $first);
+            $startDow = (int)date('N', $first);   // 1=Pn … 7=Nd
+          ?>
+          <table class="table table-bordered kp-cal mb-4">
+            <caption class="fw-semibold text-body mb-1"><?= $months_full[$mon] ?> <?= $year ?></caption>
+            <thead><tr>
+              <?php foreach ($wd_short as $i => $w): ?><th scope="col" class="text-center small text-body-secondary" abbr="<?= h($wd_full[$i]) ?>"><?= $w ?></th><?php endforeach; ?>
+            </tr></thead>
+            <tbody><tr>
+              <?php
+                for ($i = 1; $i < $startDow; $i++) echo '<td class="kp-cal-empty" aria-hidden="true"></td>';
+                $col = $startDow - 1;
+                for ($day = 1; $day <= $daysIn; $day++):
+                    $ymd = sprintf('%04d-%02d-%02d', $year, $mon, $day);
+                    $dayLessons = $cal_by_date[$ymd] ?? [];
+                    $isToday = $ymd === $today_ymd;
+              ?>
+              <td class="kp-cal-day<?= $dayLessons ? ' has-lesson' : '' ?><?= $isToday ? ' is-today' : '' ?>"<?= $isToday ? ' aria-current="date"' : '' ?>>
+                <div class="kp-cal-num <?= $isToday ? 'fw-bold' : '' ?>"><?= $day ?></div>
+                <?php foreach ($dayLessons as $dl):
+                  $canc = (string)($dl['status'] ?? '') === 'cancelled' || (int)($dl['att_cancelled'] ?? 0) === 1; ?>
+                <div class="kp-cal-ev<?= $canc ? ' cancelled' : '' ?>" title="<?= h(($dl['time_from'] ? substr($dl['time_from'],0,5).' ' : '').($dl['topic'] ?: $dl['course_name'])) ?>">
+                  <?php if ($dl['time_from']): ?><span class="fw-semibold"><?= h(substr($dl['time_from'],0,5)) ?></span> <?php endif; ?><?= h($dl['topic'] ?: $dl['course_name']) ?>
+                </div>
+                <?php endforeach; ?>
+              </td>
+              <?php
+                  $col++;
+                  if ($col % 7 === 0 && $day < $daysIn) echo '</tr><tr>';
+                endfor;
+                while ($col % 7 !== 0) { echo '<td class="kp-cal-empty" aria-hidden="true"></td>'; $col++; }
+              ?>
+            </tr></tbody>
+          </table>
+          <?php endforeach; ?>
+          <p class="text-body-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Widoczne są miesiące z zaplanowanymi lekcjami; dzisiejszy dzień jest wyróżniony.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <?php endif; ?>
 
