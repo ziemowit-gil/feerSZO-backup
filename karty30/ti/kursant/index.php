@@ -1012,10 +1012,16 @@ include __DIR__ . '/_layout_head.php';
       </h2>
 
       <?php if ($grp['materials']): ?>
-      <div class="text-body-secondary small fw-semibold mb-1"><i class="bi bi-collection-play me-1" aria-hidden="true"></i>Materiały</div>
-      <div class="d-flex flex-column gap-2 mb-3">
-        <?php foreach ($grp['materials'] as $m) { include __DIR__ . '/_dyd_material.php'; } ?>
-      </div>
+      <details class="dyd-hw mb-3">
+        <summary class="dyd-hw-summary text-body-secondary small fw-semibold mb-1 d-flex align-items-center gap-2">
+          <i class="bi bi-collection-play" aria-hidden="true"></i><span>Materiały</span>
+          <span class="badge text-bg-secondary"><?= count($grp['materials']) ?></span>
+          <i class="bi bi-chevron-down dyd-hw-chevron ms-auto" aria-hidden="true"></i>
+        </summary>
+        <div class="d-flex flex-column gap-2 mt-1">
+          <?php foreach ($grp['materials'] as $m) { include __DIR__ . '/_dyd_material.php'; } ?>
+        </div>
+      </details>
       <?php endif; ?>
 
       <?php if ($grp['homeworks']): ?>
