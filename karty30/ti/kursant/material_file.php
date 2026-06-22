@@ -20,7 +20,13 @@ $m = db_one(
        AND course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')",
     [(int)($_GET['id'] ?? 0), $cid]
 );
-if ($m && $m['attach_path'] !== '') k30_ti_homework_send_file($m['attach_path'], $m['attach_name']);
+if ($m && $m['attach_path'] !== '') {
+    if (!k30_ti_is_available($m['open_at'] ?? null, $m['close_at'] ?? null)) {
+        http_response_code(403);
+        exit('Materiał jest obecnie niedostępny.');
+    }
+    k30_ti_homework_send_file($m['attach_path'], $m['attach_name']);
+}
 
 http_response_code(404);
 exit('Plik nie istnieje.');

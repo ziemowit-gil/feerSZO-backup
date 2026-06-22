@@ -38,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $title     = trim($_POST['title'] ?? '');
         $desc      = trim($_POST['description'] ?? '');
         $url       = trim($_POST['url'] ?? '');
+        $dt        = fn($k) => ($v = trim($_POST[$k] ?? '')) !== '' ? str_replace('T',' ',$v) . (strlen($v)===16?':00':'') : null;
+        $open_at   = $dt('open_at');
+        $close_at  = $dt('close_at');
         if (!$course_id || $title === '') { flash_set('danger','Wybierz kurs i podaj tytuł materiału.'); header('Location: materials.php'); exit; }
         // Lekcja musi należeć do wybranego kursu
         if ($session_id) {
@@ -52,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $m = k30_ti_material_get($mid);
             $set = ['course_id'=>$course_id, 'session_id'=>$session_id, 'type'=>$type,
                     'title'=>$title, 'description'=>$desc, 'url'=>$url,
+                    'open_at'=>$open_at, 'close_at'=>$close_at,
                     'is_active'=>isset($_POST['is_active'])?1:0];
             if ($up) { // nowy załącznik — usuń stary
                 if ($m && $m['attach_path'] !== '') k30_ti_homework_delete_file($m['attach_path']);
@@ -59,14 +63,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             }
             $cols=[];$p=[]; foreach ($set as $k=>$v){$cols[]="$k=?";$p[]=$v;} $p[]=$mid;
             db()->prepare("UPDATE k30_ti_materials SET ".implode(',',$cols)." WHERE id=?")->execute($p);
+            if (isset($_POST['notify'])) {
+                k30_ti_notify_dydaktyka($course_id, 'Zmiana w materiale: ' . $title,
+                    'Prowadzący zaktualizował materiał „' . htmlspecialchars($title, ENT_QUOTES) . '" w sekcji Dydaktyka / eLearning.',
+                    rtrim(APP_URL,'/') . '/karty30/ti/kursant/index.php?tab=zadania',
+                    (defined('ORG_NAME')?ORG_NAME:'TI') . ': zaktualizowano material "' . $title . '".');
+            }
             flash_set('success','Materiał zaktualizowany.');
         } else {
-            db_insert('k30_ti_materials', [
+            $new_id = db_insert('k30_ti_materials', [
                 'course_id'=>$course_id, 'session_id'=>$session_id, 'type'=>$type,
                 'title'=>$title, 'description'=>$desc, 'url'=>$url,
+                'open_at'=>$open_at, 'close_at'=>$close_at,
                 'attach_name'=>$up['name']??'', 'attach_path'=>$up['stored']??'',
                 'is_active'=>1, 'created_by'=>current_user()['id']??null,
             ]);
+            if (isset($_POST['notify'])) {
+                k30_ti_notify_dydaktyka($course_id, 'Nowy materiał: ' . $title,
+                    'Prowadzący dodał nowy materiał „' . htmlspecialchars($title, ENT_QUOTES) . '" w sekcji Dydaktyka / eLearning.',
+                    rtrim(APP_URL,'/') . '/karty30/ti/kursant/index.php?tab=zadania',
+                    (defined('ORG_NAME')?ORG_NAME:'TI') . ': nowy material "' . $title . '" w panelu kursanta.');
+            }
             flash_set('success','Materiał dodany.');
         }
         header('Location: materials.php'); exit;
@@ -88,7 +105,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 $courses   = k30_ti_courses(false);
 $edit_id   = (int)($_GET['edit'] ?? 0);
 $edit_row  = $edit_id ? k30_ti_material_get($edit_id) : null;
-$ef        = $edit_row ?: ['id'=>0,'course_id'=>0,'session_id'=>0,'type'=>'zadanie','title'=>'','description'=>'','url'=>'','attach_name'=>'','is_active'=>1];
+$ef        = $edit_row ?: ['id'=>0,'course_id'=>0,'session_id'=>0,'type'=>'zadanie','title'=>'','description'=>'','url'=>'','attach_name'=>'','open_at'=>'','close_at'=>'','is_active'=>1];
+$dtv       = fn($v) => $v ? h(str_replace(' ','T',substr($v,0,16))) : '';
 $materials = k30_ti_materials_list();
 // Wszystkie lekcje (do selecta powiązania, filtrowane po kursie w JS)
 $all_sessions = db_all("SELECT id, course_id, lesson_date, topic FROM k30_ti_sessions ORDER BY lesson_date DESC, id DESC");
@@ -126,6 +144,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td>
                 <span class="fw-semibold"><?= h($m['title']) ?></span>
                 <?php if (!$m['is_active']): ?><span class="badge bg-secondary ms-1">ukryte</span><?php endif; ?>
+                <?php $av = k30_ti_avail_status($m['open_at'] ?? null, $m['close_at'] ?? null);
+                  if ($av['state']==='upcoming'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1"><i class="bi bi-clock me-1"></i><?= h($av['label']) ?></span>
+                  <?php elseif ($av['state']==='closed'): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle ms-1"><i class="bi bi-lock me-1"></i><?= h($av['label']) ?></span>
+                  <?php elseif (($m['close_at'] ?? '')!==''): ?><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1"><?= h($av['label']) ?></span><?php endif; ?>
                 <?php if ($m['description']): ?><div class="text-muted small" style="max-width:280px"><?= h(mb_substr($m['description'],0,120)) ?></div><?php endif; ?>
               </td>
               <td class="small"><?= h($m['course_name']) ?>
@@ -212,12 +234,27 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input type="file" class="form-control" name="attach">
             <?php if (!empty($ef['attach_name'])): ?><div class="form-text">Obecny: <?= h($ef['attach_name']) ?> (prześlij nowy, aby zastąpić)</div><?php endif; ?>
           </div>
+          <div class="row g-2">
+            <div class="col-6 mb-2">
+              <label class="form-label">Otwarcie <span class="text-muted small">(opc.)</span></label>
+              <input type="datetime-local" class="form-control" name="open_at" value="<?= $dtv($ef['open_at']) ?>">
+            </div>
+            <div class="col-6 mb-2">
+              <label class="form-label">Zamknięcie <span class="text-muted small">(opc.)</span></label>
+              <input type="datetime-local" class="form-control" name="close_at" value="<?= $dtv($ef['close_at']) ?>">
+            </div>
+          </div>
+          <div class="form-text mb-2">Materiał jest dostępny dla kursanta między datą otwarcia a zamknięcia. Puste = bez ograniczeń.</div>
           <?php if ($edit_row): ?>
-          <div class="form-check form-switch mb-3">
+          <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" name="is_active" id="mat_act" <?= $ef['is_active']?'checked':'' ?>>
             <label class="form-check-label" for="mat_act">Widoczne dla kursantów</label>
           </div>
           <?php endif; ?>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" name="notify" id="mat_notify" value="1">
+            <label class="form-check-label" for="mat_notify">Powiadom kursantów (e-mail / SMS wg ich ustawień)</label>
+          </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary"><?= $edit_row ? 'Zapisz' : 'Dodaj materiał' ?></button>
             <?php if ($edit_row): ?><a href="materials.php" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>

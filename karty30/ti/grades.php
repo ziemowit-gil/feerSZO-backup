@@ -19,6 +19,12 @@ $CATS       = k30_ti_grade_categories();
 
 $course_id  = (int)($_GET['course'] ?? 0);
 
+// Eksport PDF dziennika ocen kursu
+if (isset($_GET['pdf']) && $course_id) {
+    require_once dirname(dirname(__DIR__)) . '/includes/ti_grades_pdf.php';
+    ti_grades_pdf_course($course_id);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $op = $_POST['_op'] ?? '';
@@ -127,6 +133,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <div class="card-header fw-semibold d-flex align-items-center">
         <span><i class="bi bi-people me-2"></i><?= h($course['name']) ?></span>
         <span class="badge bg-secondary ms-2"><?= count($roster) ?> kursantów</span>
+        <a href="?course=<?= $course_id ?>&pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">

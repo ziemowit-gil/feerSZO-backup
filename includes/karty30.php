@@ -331,6 +331,9 @@ function karty30_migrate(): void {
         // Dodatkowe numery telefonu do powiadomień SMS (np. rodzic/opiekun)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone2 TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone3 TEXT NOT NULL DEFAULT ''",
+        // Powiadomienia o zmianach w dydaktyce/eLearningu (nowe materiały, zadania, terminy)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_dydaktyka INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_dydaktyka   INTEGER NOT NULL DEFAULT 0",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -465,6 +468,19 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_course ON k30_ti_grades(course_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_client ON k30_ti_grades(client_id)");
+
+    // Migracja: daty otwarcia/zamknięcia materiałów i zadań + powiązanie oceny z oddaniem zadania
+    foreach ([
+        "ALTER TABLE k30_ti_materials ADD COLUMN open_at  DATETIME",
+        "ALTER TABLE k30_ti_materials ADD COLUMN close_at DATETIME",
+        "ALTER TABLE k30_ti_homework  ADD COLUMN open_at  DATETIME",
+        "ALTER TABLE k30_ti_homework  ADD COLUMN close_at DATETIME",
+        // Ocena w dzienniku wygenerowana z oceny zadania domowego (auto-sync) — by aktualizować, nie duplikować
+        "ALTER TABLE k30_ti_grades    ADD COLUMN hw_submission_id INTEGER",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_hwsub ON k30_ti_grades(hw_submission_id)"); } catch (\Throwable $e) {}
 
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
@@ -2060,10 +2076,12 @@ function k30_ti_homework_submissions(int $homework_id): array {
 function k30_ti_homework_for_client(int $client_id): array {
     return db_all(
         "SELECT h.*, c.name AS course_name,
+                les.lesson_date AS session_date, les.topic AS session_topic,
                 s.id AS sub_id, s.body AS sub_body, s.file_name AS sub_file_name, s.file_path AS sub_file_path,
                 s.status AS sub_status, s.grade AS sub_grade, s.feedback AS sub_feedback, s.submitted_at AS sub_at
          FROM k30_ti_homework h
          JOIN k30_ti_courses c ON c.id=h.course_id
+         LEFT JOIN k30_ti_sessions les ON les.id=h.session_id
          LEFT JOIN k30_ti_homework_submissions s ON s.homework_id=h.id AND s.client_id=?
          WHERE h.is_active=1
            AND h.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
@@ -2250,6 +2268,101 @@ function k30_ti_client_grades(int $client_id): array {
            AND g.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
          ORDER BY c.name, g.graded_at DESC, g.id DESC", [$client_id, $client_id]
     );
+}
+
+// ── Dostępność (daty otwarcia/zamknięcia) + powiadomienia o zmianach ───────────
+
+/**
+ * Status dostępności materiału/zadania wg dat otwarcia i zamknięcia.
+ * Zwraca ['state'=>'upcoming'|'open'|'closed', 'label'=>string, 'open_at'=>?, 'close_at'=>?].
+ */
+function k30_ti_avail_status(?string $open_at, ?string $close_at, ?string $now = null): array {
+    $now = $now ?: date('Y-m-d H:i:s');
+    $open  = ($open_at  ?? '') !== '' ? $open_at  : null;
+    $close = ($close_at ?? '') !== '' ? $close_at : null;
+    if ($open && $now < $open)  return ['state'=>'upcoming', 'label'=>'dostępne od '  . substr($open,0,16),  'open_at'=>$open, 'close_at'=>$close];
+    if ($close && $now > $close) return ['state'=>'closed',   'label'=>'zamknięte '    . substr($close,0,16), 'open_at'=>$open, 'close_at'=>$close];
+    return ['state'=>'open', 'label'=>$close ? 'dostępne do ' . substr($close,0,16) : 'dostępne', 'open_at'=>$open, 'close_at'=>$close];
+}
+/** Czy zasób jest teraz dostępny dla kursanta (otwarte okno). */
+function k30_ti_is_available(?string $open_at, ?string $close_at, ?string $now = null): bool {
+    return k30_ti_avail_status($open_at, $close_at, $now)['state'] === 'open';
+}
+
+/**
+ * Powiadamia kursantów aktywnie zapisanych w kursie o zmianie w dydaktyce/eLearningu
+ * (nowy/zmieniony materiał lub zadanie), zgodnie z ich ustawieniami (e-mail / SMS).
+ */
+function k30_ti_notify_dydaktyka(int $course_id, string $subject, string $bodyHtml, string $url, string $smsText): void {
+    $rows = db_all(
+        "SELECT a.id, a.notify_email_dydaktyka, a.notify_sms_dydaktyka, a.notify_phone2, a.notify_phone3,
+                cl.name, cl.email, cl.phone
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_student_accounts a ON a.client_id=e.client_id AND a.is_active=1
+         JOIN k30_clients cl ON cl.id=e.client_id
+         WHERE e.course_id=? AND e.status='active'",
+        [$course_id]
+    );
+    if (!$rows) return;
+    $org = defined('ORG_NAME') ? ORG_NAME : 'Panel kursanta';
+    foreach ($rows as $acc) {
+        // E-mail
+        if (!empty($acc['notify_email_dydaktyka'])) {
+            $email = trim((string)($acc['email'] ?? ''));
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+                if (function_exists('mail_queue_add')) {
+                    $name = htmlspecialchars((string)($acc['name'] ?? ''), ENT_QUOTES);
+                    $html = "<p>Cześć {$name},</p><p>{$bodyHtml}</p>"
+                          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Otwórz panel kursanta</a>.</p>"
+                          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}. Powiadomienia możesz wyłączyć w Ustawieniach.</p>";
+                    try { mail_queue_add($email, (string)($acc['name'] ?? ''), "{$org}: " . $subject, $html, '', 'ti_dydaktyka', (int)$acc['id'], '', true); } catch (\Throwable $e) {}
+                }
+            }
+        }
+        // SMS
+        if (!empty($acc['notify_sms_dydaktyka'])) {
+            if (!function_exists('sms_send')) @require_once __DIR__ . '/sms.php';
+            if (function_exists('sms_send') && function_exists('sms_is_enabled') && sms_is_enabled()) {
+                $nums = function_exists('k30_ti_sms_numbers') ? k30_ti_sms_numbers($acc) : array_filter([trim((string)($acc['phone'] ?? ''))]);
+                foreach ($nums as $num) { try { sms_send($num, $smsText); } catch (\Throwable $e) {} }
+            }
+        }
+    }
+}
+
+/**
+ * Synchronizuje ocenę z dziennika z oceną zadania domowego (oddanie).
+ * Tworzy/aktualizuje wpis w k30_ti_grades powiązany przez hw_submission_id.
+ * $gradeText pusty → usuwa powiązaną ocenę z dziennika.
+ */
+function k30_ti_grade_sync_from_homework(int $submission_id, ?int $byUserId = null): void {
+    $s = db_one(
+        "SELECT s.*, h.course_id, h.session_id, h.title
+         FROM k30_ti_homework_submissions s
+         JOIN k30_ti_homework h ON h.id=s.homework_id
+         WHERE s.id=?", [$submission_id]
+    );
+    if (!$s) return;
+    $existing = db_one("SELECT id FROM k30_ti_grades WHERE hw_submission_id=?", [$submission_id]);
+    $grade = trim((string)($s['grade'] ?? ''));
+    if ($grade === '') { // brak oceny → usuń ewentualny wpis
+        if ($existing) db()->prepare("DELETE FROM k30_ti_grades WHERE id=?")->execute([(int)$existing['id']]);
+        return;
+    }
+    $vnum = k30_ti_grade_parse_num($grade);
+    $desc = 'Zadanie domowe: ' . mb_substr((string)$s['title'], 0, 120);
+    if ($existing) {
+        db()->prepare(
+            "UPDATE k30_ti_grades SET value_text=?, value_num=?, description=?, session_id=?, graded_at=datetime('now') WHERE id=?"
+        )->execute([$grade, $vnum, $desc, $s['session_id'] ?: null, (int)$existing['id']]);
+    } else {
+        db_insert('k30_ti_grades', [
+            'course_id'=>(int)$s['course_id'], 'client_id'=>(int)$s['client_id'], 'session_id'=>$s['session_id'] ?: null,
+            'category'=>'zadanie', 'value_text'=>$grade, 'value_num'=>$vnum, 'weight'=>1,
+            'description'=>$desc, 'graded_by'=>$byUserId, 'hw_submission_id'=>$submission_id,
+        ]);
+    }
 }
 
 /** Oceny lekcji (1–5) od kursantów — z nazwą kursanta. Dla widoku prowadzącego. */

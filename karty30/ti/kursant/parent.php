@@ -83,8 +83,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $parent = parent_current();
+
+// Eksport PDF wykazu ocen dziecka
+if ($parent && isset($_GET['grades_pdf'])) {
+    require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_grades_pdf.php';
+    ti_grades_pdf_student((int)$parent['client_id'], $parent['name'] ?? '');
+}
+
 $ptab   = $_GET['ptab'] ?? 'rozliczenia';
-if (!in_array($ptab, ['rozliczenia','frekwencja','licencje','dostep'], true)) $ptab = 'rozliczenia';
+if (!in_array($ptab, ['rozliczenia','frekwencja','oceny','licencje','dostep'], true)) $ptab = 'rozliczenia';
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
 $KP_TITLE  = 'Panel rodzica';
 $KP_TOPBAR = [
@@ -211,6 +218,11 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link <?= $ptab==='oceny'?'active':'' ?>" href="?ptab=oceny" <?= $ptab==='oceny'?'aria-current="page"':'' ?>>
+          <i class="bi bi-table me-1" aria-hidden="true"></i>Oceny
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link <?= $ptab==='licencje'?'active':'' ?>" href="?ptab=licencje" <?= $ptab==='licencje'?'aria-current="page"':'' ?>>
           <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje
           <?php if ($childLicCount > 0): ?><span class="badge text-bg-secondary ms-1"><?= $childLicCount ?></span><?php endif; ?>
@@ -237,6 +249,42 @@ include __DIR__ . '/_layout_head.php';
 <?php elseif ($ptab === 'frekwencja'): ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-calendar-check text-primary" aria-hidden="true"></i>Frekwencja</h2>
   <?php $rv_client_id = $parent['client_id']; include __DIR__ . '/_frekwencja_view.php'; ?>
+
+<?php elseif ($ptab === 'oceny'):
+    $pg = k30_ti_client_grades((int)$parent['client_id']);
+    $pg_by_course = [];
+    foreach ($pg as $g) { $pg_by_course[$g['course_name']][] = $g; }
+?>
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-table text-primary" aria-hidden="true"></i>Oceny dziecka
+    <?php if ($pg): ?><a href="?grades_pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF</a><?php endif; ?>
+  </h2>
+  <p class="text-body-secondary small mb-3">Oceny wystawione przez prowadzących wraz ze średnią ważoną per kurs.</p>
+  <?php if (!$pg): ?>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak ocen.</div>
+  <?php else: ?>
+  <div class="d-flex flex-column gap-2">
+    <?php foreach ($pg_by_course as $cname => $cgr):
+      $avg = k30_ti_grades_average($cgr);
+      [$abg,$afg] = k30_ti_grade_color($avg);
+    ?>
+    <div class="card">
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+          <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
+          <?php if ($avg !== null): ?>
+          <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
+          <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
+          <?php endif; ?>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+          <?php foreach ($cgr as $g): ?><?= k30_ti_grade_badge($g) ?><?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
 
 <?php elseif ($ptab === 'licencje'): ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-1"><i class="bi bi-key text-primary" aria-hidden="true"></i>Licencje dziecka</h2>

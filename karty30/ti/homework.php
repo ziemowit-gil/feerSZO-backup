@@ -38,14 +38,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $desc      = trim($_POST['description'] ?? '');
         $due       = trim($_POST['due_at'] ?? '');
         $due_sql   = $due !== '' ? str_replace('T', ' ', $due) . (strlen($due) === 16 ? ':00' : '') : null;
+        $dt        = fn($k) => ($v = trim($_POST[$k] ?? '')) !== '' ? str_replace('T',' ',$v) . (strlen($v)===16?':00':'') : null;
+        $session_id= (int)($_POST['session_id'] ?? 0) ?: null;
+        $open_at   = $dt('open_at');
+        $close_at  = $dt('close_at');
         if (!$course_id || $title === '') { flash_set('danger','Wybierz kurs i podaj tytuł zadania.'); header('Location: homework.php'); exit; }
+        if ($session_id && !db_one("SELECT 1 FROM k30_ti_sessions WHERE id=? AND course_id=?", [$session_id, $course_id])) $session_id = null;
 
         try { $up = k30_ti_homework_upload('attach', 'hw'); }
         catch (\Throwable $e) { flash_set('danger', $e->getMessage()); header('Location: homework.php'); exit; }
 
         if ($hid) {
             $hw = k30_ti_homework_get($hid);
-            $set = ['course_id'=>$course_id, 'title'=>$title, 'description'=>$desc, 'due_at'=>$due_sql,
+            $set = ['course_id'=>$course_id, 'session_id'=>$session_id, 'title'=>$title, 'description'=>$desc,
+                    'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
                     'is_active'=>isset($_POST['is_active'])?1:0];
             if ($up) { // nowy załącznik — usuń stary
                 if ($hw && $hw['attach_path'] !== '') k30_ti_homework_delete_file($hw['attach_path']);
@@ -53,13 +59,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             }
             $cols=[];$p=[]; foreach ($set as $k=>$v){$cols[]="$k=?";$p[]=$v;} $p[]=$hid;
             db()->prepare("UPDATE k30_ti_homework SET ".implode(',',$cols)." WHERE id=?")->execute($p);
+            if (isset($_POST['notify'])) {
+                k30_ti_notify_dydaktyka($course_id, 'Zmiana w zadaniu: ' . $title,
+                    'Prowadzący zaktualizował zadanie domowe „' . htmlspecialchars($title, ENT_QUOTES) . '".',
+                    rtrim(APP_URL,'/') . '/karty30/ti/kursant/index.php?tab=zadania',
+                    (defined('ORG_NAME')?ORG_NAME:'TI') . ': zmiana w zadaniu "' . $title . '".');
+            }
             flash_set('success','Zadanie zaktualizowane.');
         } else {
             db_insert('k30_ti_homework', [
-                'course_id'=>$course_id, 'title'=>$title, 'description'=>$desc, 'due_at'=>$due_sql,
+                'course_id'=>$course_id, 'session_id'=>$session_id, 'title'=>$title, 'description'=>$desc,
+                'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
                 'attach_name'=>$up['name']??'', 'attach_path'=>$up['stored']??'',
                 'is_active'=>1, 'created_by'=>current_user()['id']??null,
             ]);
+            if (isset($_POST['notify'])) {
+                k30_ti_notify_dydaktyka($course_id, 'Nowe zadanie: ' . $title,
+                    'Prowadzący dodał nowe zadanie domowe „' . htmlspecialchars($title, ENT_QUOTES) . '"'
+                        . ($due_sql ? ' (termin: ' . substr($due_sql,0,16) . ')' : '') . '.',
+                    rtrim(APP_URL,'/') . '/karty30/ti/kursant/index.php?tab=zadania',
+                    (defined('ORG_NAME')?ORG_NAME:'TI') . ': nowe zadanie "' . $title . '"' . ($due_sql ? ', termin ' . substr($due_sql,0,16) : '') . '.');
+            }
             flash_set('success','Zadanie utworzone.');
         }
         header('Location: homework.php'); exit;
@@ -92,7 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                  SET grade=?, feedback=?, status=?, graded_by=?, graded_at=datetime('now'), updated_at=datetime('now')
                  WHERE id=?"
             )->execute([$grade, $fb, ($grade!==''||$fb!=='')?'graded':'submitted', current_user()['id']??null, $sid]);
-            flash_set('success','Ocena zapisana.');
+            // Auto-sync oceny do dziennika (e-dziennik)
+            k30_ti_grade_sync_from_homework($sid, current_user()['id']??null);
+            flash_set('success','Ocena zapisana' . ($grade!=='' ? ' i dodana do dziennika ocen.' : '.'));
         }
         header('Location: homework.php?id=' . (int)$s['homework_id']); exit;
     }
@@ -103,7 +125,9 @@ $view_id   = (int)($_GET['id'] ?? 0);
 $view_hw   = $view_id ? k30_ti_homework_get($view_id) : null;
 $edit_id   = (int)($_GET['edit'] ?? 0);
 $edit_row  = $edit_id ? k30_ti_homework_get($edit_id) : null;
-$ef        = $edit_row ?: ['id'=>0,'course_id'=>0,'title'=>'','description'=>'','due_at'=>'','attach_name'=>'','is_active'=>1];
+$ef        = $edit_row ?: ['id'=>0,'course_id'=>0,'session_id'=>0,'title'=>'','description'=>'','due_at'=>'','open_at'=>'','close_at'=>'','attach_name'=>'','is_active'=>1];
+$dtv       = fn($v) => $v ? h(str_replace(' ','T',substr($v,0,16))) : '';
+$all_sessions = db_all("SELECT id, course_id, lesson_date, topic FROM k30_ti_sessions ORDER BY lesson_date DESC, id DESC");
 $homeworks = k30_ti_homework_list();
 $subs      = $view_hw ? k30_ti_homework_submissions($view_id) : [];
 $now       = date('Y-m-d H:i:s');
@@ -196,6 +220,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td><a href="?id=<?= (int)$h['id'] ?>" class="fw-semibold text-decoration-none"><?= h($h['title']) ?></a>
                 <?php if (!$h['is_active']): ?><span class="badge bg-secondary ms-1">nieaktywne</span><?php endif; ?>
                 <?php if ($h['attach_path']): ?><i class="bi bi-paperclip text-muted ms-1" title="załącznik"></i><?php endif; ?>
+                <?php $hav = k30_ti_avail_status($h['open_at'] ?? null, $h['close_at'] ?? null, $now);
+                  if ($hav['state']==='upcoming'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1"><i class="bi bi-clock me-1"></i><?= h($hav['label']) ?></span>
+                  <?php elseif ($hav['state']==='closed'): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle ms-1"><i class="bi bi-lock me-1"></i><?= h($hav['label']) ?></span><?php endif; ?>
               </td>
               <td class="small"><?= h($h['course_name']) ?></td>
               <td class="small text-nowrap <?= $overdue ? 'text-danger' : '' ?>"><?= $h['due_at'] ? h(substr($h['due_at'],0,16)) : '—' ?></td>
@@ -233,10 +260,21 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <input type="hidden" name="homework_id"   value="<?= (int)$ef['id'] ?>">
           <div class="mb-2">
             <label class="form-label fw-semibold">Kurs / grupa <span class="text-danger">*</span></label>
-            <select class="form-select" name="course_id" required>
+            <select class="form-select" name="course_id" id="hw-course" required>
               <option value="">— wybierz —</option>
               <?php foreach ($courses as $c): ?>
               <option value="<?= (int)$c['id'] ?>" <?= (int)$ef['course_id']===(int)$c['id']?'selected':'' ?>><?= h($c['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Powiązana lekcja <span class="text-muted small">(opc.)</span></label>
+            <select class="form-select" name="session_id" id="hw-session">
+              <option value="" data-course="">— bez powiązania —</option>
+              <?php foreach ($all_sessions as $s): ?>
+              <option value="<?= (int)$s['id'] ?>" data-course="<?= (int)$s['course_id'] ?>" <?= (int)($ef['session_id']??0)===(int)$s['id']?'selected':'' ?>>
+                <?= h(substr($s['lesson_date'],0,10)) ?><?= $s['topic'] ? ' · '.h(mb_substr($s['topic'],0,40)) : '' ?>
+              </option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -250,19 +288,34 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
           <div class="mb-2">
             <label class="form-label">Termin oddania <span class="text-muted small">(opc.)</span></label>
-            <input type="datetime-local" class="form-control" name="due_at" value="<?= $ef['due_at'] ? h(str_replace(' ','T',substr($ef['due_at'],0,16))) : '' ?>">
+            <input type="datetime-local" class="form-control" name="due_at" value="<?= $dtv($ef['due_at']) ?>">
           </div>
+          <div class="row g-2">
+            <div class="col-6 mb-2">
+              <label class="form-label">Otwarcie <span class="text-muted small">(opc.)</span></label>
+              <input type="datetime-local" class="form-control" name="open_at" value="<?= $dtv($ef['open_at']) ?>">
+            </div>
+            <div class="col-6 mb-2">
+              <label class="form-label">Zamknięcie <span class="text-muted small">(opc.)</span></label>
+              <input type="datetime-local" class="form-control" name="close_at" value="<?= $dtv($ef['close_at']) ?>">
+            </div>
+          </div>
+          <div class="form-text mb-2">Otwarcie/zamknięcie steruje dostępnością. Po dacie zamknięcia kursant nie może już oddać zadania.</div>
           <div class="mb-2">
             <label class="form-label">Załącznik prowadzącego <span class="text-muted small">(opc.)</span></label>
             <input type="file" class="form-control" name="attach">
             <?php if (!empty($ef['attach_name'])): ?><div class="form-text">Obecny: <?= h($ef['attach_name']) ?> (prześlij nowy, aby zastąpić)</div><?php endif; ?>
           </div>
           <?php if ($edit_row): ?>
-          <div class="form-check form-switch mb-3">
+          <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" name="is_active" id="hw_act" <?= $ef['is_active']?'checked':'' ?>>
             <label class="form-check-label" for="hw_act">Aktywne (widoczne dla kursantów)</label>
           </div>
           <?php endif; ?>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" name="notify" id="hw_notify" value="1">
+            <label class="form-check-label" for="hw_notify">Powiadom kursantów (e-mail / SMS wg ich ustawień)</label>
+          </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary"><?= $edit_row ? 'Zapisz' : 'Utwórz zadanie' ?></button>
             <?php if ($edit_row): ?><a href="homework.php" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>
@@ -273,5 +326,25 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
   <?php endif; ?>
 </div>
+
+<script>
+// Filtrowanie listy lekcji wg wybranego kursu.
+(function(){
+  var course = document.getElementById('hw-course');
+  var sess   = document.getElementById('hw-session');
+  if (!course || !sess) return;
+  function refresh(keep){
+    var cid = course.value;
+    Array.prototype.forEach.call(sess.options, function(o){
+      var oc = o.getAttribute('data-course');
+      var show = (oc === '' || oc === cid);
+      o.hidden = !show; o.disabled = !show;
+    });
+    if (!keep && sess.selectedOptions.length && sess.selectedOptions[0].hidden) sess.value = '';
+  }
+  course.addEventListener('change', function(){ refresh(false); });
+  refresh(true);
+})();
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

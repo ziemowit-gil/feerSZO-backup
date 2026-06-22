@@ -32,6 +32,13 @@ if (isset($_GET['stop_impersonation'])) {
 if (isset($_GET['logout'])) { student_logout(); header('Location: login.php'); exit; }
 
 $student    = student_require();
+
+// Eksport PDF wykazu ocen kursanta
+if (isset($_GET['grades_pdf'])) {
+    $cl = db_one("SELECT name FROM k30_clients WHERE id=?", [$student['client_id']]);
+    require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_grades_pdf.php';
+    ti_grades_pdf_student((int)$student['client_id'], $cl['name'] ?? '');
+}
 $tab        = $_GET['tab'] ?? 'dane';
 $vlab_token = student_token();
 
@@ -94,6 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$hwid, $student['client_id']]
         ) : null;
         if (!$hw) { $_SESSION['hw_flash'] = ['err', 'Nie znaleziono zadania.']; header('Location: index.php?tab=zadania'); exit; }
+        // Okno dostępności (otwarcie/zamknięcie) ustawione przez prowadzącego
+        $av = k30_ti_avail_status($hw['open_at'] ?? null, $hw['close_at'] ?? null);
+        if ($av['state'] === 'upcoming') { $_SESSION['hw_flash'] = ['err', 'To zadanie jest jeszcze niedostępne (' . $av['label'] . ').']; header('Location: index.php?tab=zadania'); exit; }
+        if ($av['state'] === 'closed')   { $_SESSION['hw_flash'] = ['err', 'Termin oddania tego zadania został zamknięty (' . $av['label'] . ').']; header('Location: index.php?tab=zadania'); exit; }
 
         $body = trim((string)($_POST['body'] ?? ''));
         try { $up = k30_ti_homework_upload('file', 'sub' . (int)$student['client_id']); }
@@ -163,6 +174,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'notify_sms_messages'   => !empty($_POST['sms'])   ? 1 : 0,
         ], (int)$student['id']);
         header('Location: index.php?tab=ustawienia&prefs=1'); exit;
+    }
+
+    // Zapis ustawień powiadomień o zmianach w dydaktyce/eLearningu (e-mail / SMS)
+    if ($op === 'dyd_prefs') {
+        db_update('k30_ti_student_accounts', [
+            'notify_email_dydaktyka' => !empty($_POST['email']) ? 1 : 0,
+            'notify_sms_dydaktyka'   => !empty($_POST['sms'])   ? 1 : 0,
+        ], (int)$student['id']);
+        header('Location: index.php?tab=ustawienia&dyd=1'); exit;
     }
 
     // Odpowiedź kursanta w wątku wiadomości
@@ -311,6 +331,8 @@ $sms_global_on  = function_exists('sms_is_enabled') && sms_is_enabled();
 $msg_unread     = ti_msg_unread_for_student((int)$student['id']);
 $msg_pref_email = (int)($account['notify_email_messages'] ?? 1);
 $msg_pref_sms   = (int)($account['notify_sms_messages'] ?? 0);
+$dyd_pref_email = (int)($account['notify_email_dydaktyka'] ?? 1);
+$dyd_pref_sms   = (int)($account['notify_sms_dydaktyka'] ?? 0);
 $msg_email_addr = trim((string)($client['email'] ?? ''));
 
 // Prywatny kanał iCal lekcji (subskrypcja w Kalendarzu Google / Apple / Outlook)
@@ -840,6 +862,7 @@ include __DIR__ . '/_layout_head.php';
   <!-- ── Oceny (e-dziennik) ───────────────────────────────────────────────── -->
   <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
     <i class="bi bi-table text-primary" aria-hidden="true"></i>Oceny
+    <?php if ($grades_student): ?><a href="?grades_pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF</a><?php endif; ?>
   </h2>
   <?php if (!$grades_student): ?>
   <p class="text-body-secondary small mb-4">Brak ocen. Pojawią się tutaj, gdy prowadzący je wystawi.</p>
@@ -876,20 +899,28 @@ include __DIR__ . '/_layout_head.php';
   <p class="text-body-secondary small mb-4">Brak materiałów. Prowadzący doda je tutaj wraz z lekcjami.</p>
   <?php else: ?>
   <div class="d-flex flex-column gap-2 mb-4">
-    <?php foreach ($materials_student as $m): ?>
-    <div class="card">
+    <?php foreach ($materials_student as $m):
+      $mav = k30_ti_avail_status($m['open_at'] ?? null, $m['close_at'] ?? null);
+      $mopen = $mav['state'] === 'open';
+    ?>
+    <div class="card <?= $mopen ? '' : 'opacity-75' ?>">
       <div class="card-body py-2">
         <div class="d-flex flex-wrap align-items-start gap-2">
           <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle text-nowrap">
             <i class="bi bi-<?= h(k30_ti_material_type_icon($m['type'])) ?> me-1" aria-hidden="true"></i><?= h(k30_ti_material_type_label($m['type'])) ?>
           </span>
           <div class="flex-grow-1 min-width-0">
-            <div class="fw-semibold"><?= h($m['title']) ?></div>
+            <div class="fw-semibold"><?= h($m['title']) ?>
+              <?php if ($mav['state']==='upcoming'): ?><span class="badge text-bg-warning ms-1"><i class="bi bi-clock me-1" aria-hidden="true"></i><?= h($mav['label']) ?></span>
+              <?php elseif ($mav['state']==='closed'): ?><span class="badge text-bg-secondary ms-1"><i class="bi bi-lock me-1" aria-hidden="true"></i><?= h($mav['label']) ?></span>
+              <?php elseif (($m['close_at'] ?? '')!==''): ?><span class="badge text-bg-light text-dark border ms-1"><?= h($mav['label']) ?></span><?php endif; ?>
+            </div>
             <div class="small text-body-secondary">
               <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($m['course_name']) ?>
               <?php if ($m['session_date']): ?> · <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>lekcja <?= h(substr($m['session_date'],0,10)) ?><?php if ($m['session_topic']): ?> (<?= h(mb_substr($m['session_topic'],0,40)) ?>)<?php endif; ?><?php endif; ?>
             </div>
             <?php if ($m['description']): ?><p class="small mb-1 mt-1" style="white-space:pre-wrap"><?= h($m['description']) ?></p><?php endif; ?>
+            <?php if ($mopen): ?>
             <div class="d-flex flex-wrap gap-2 mt-1">
               <?php if ($m['url']): ?>
               <a href="<?= h($m['url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
@@ -902,6 +933,9 @@ include __DIR__ . '/_layout_head.php';
               </a>
               <?php endif; ?>
             </div>
+            <?php elseif ($mav['state']==='upcoming'): ?>
+            <div class="small text-body-secondary mt-1"><i class="bi bi-lock me-1" aria-hidden="true"></i>Materiał będzie dostępny od <?= h(substr($mav['open_at'],0,16)) ?>.</div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -934,16 +968,25 @@ include __DIR__ . '/_layout_head.php';
       $done    = !empty($h['sub_id']);
       $graded  = ($h['sub_status'] ?? '') === 'graded';
       $overdue = $h['due_at'] && $h['due_at'] < $now && !$done;
+      $hav     = k30_ti_avail_status($h['open_at'] ?? null, $h['close_at'] ?? null, $now);
+      $hopen   = $hav['state'] === 'open';
     ?>
-    <div class="card <?= $graded ? 'border-success' : ($overdue ? 'border-danger' : '') ?>">
+    <div class="card <?= $graded ? 'border-success' : ($overdue || $hav['state']==='closed' ? 'border-danger' : '') ?> <?= $hav['state']==='upcoming' ? 'opacity-75' : '' ?>">
       <div class="card-body">
         <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
           <div class="flex-grow-1 min-width-0">
             <div class="fw-bold"><?= h($h['title']) ?></div>
             <div class="small text-body-secondary">
               <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($h['course_name']) ?>
+              <?php if ($h['session_date'] ?? null): ?> · <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>lekcja <?= h(substr($h['session_date'],0,10)) ?><?php endif; ?>
               <?php if ($h['due_at']): ?>
               · <span class="<?= $overdue ? 'text-danger fw-semibold' : '' ?>">termin: <?= h(substr($h['due_at'],0,16)) ?></span>
+              <?php endif; ?>
+              <?php if (($h['open_at'] ?? '')!=='' && $hav['state']==='upcoming'): ?>
+              · <span class="text-warning-emphasis">otwarcie: <?= h(substr($h['open_at'],0,16)) ?></span>
+              <?php endif; ?>
+              <?php if (($h['close_at'] ?? '')!==''): ?>
+              · <span class="<?= $hav['state']==='closed' ? 'text-danger fw-semibold' : '' ?>">zamknięcie: <?= h(substr($h['close_at'],0,16)) ?></span>
               <?php endif; ?>
             </div>
           </div>
@@ -951,6 +994,10 @@ include __DIR__ . '/_layout_head.php';
           <span class="badge text-bg-success">Ocena: <?= h($h['sub_grade'] ?: 'zaliczone') ?></span>
           <?php elseif ($done): ?>
           <span class="badge text-bg-secondary">Oddane</span>
+          <?php elseif ($hav['state']==='upcoming'): ?>
+          <span class="badge text-bg-warning"><i class="bi bi-clock me-1" aria-hidden="true"></i>Wkrótce</span>
+          <?php elseif ($hav['state']==='closed'): ?>
+          <span class="badge text-bg-danger"><i class="bi bi-lock me-1" aria-hidden="true"></i>Zamknięte</span>
           <?php elseif ($overdue): ?>
           <span class="badge text-bg-danger">Po terminie</span>
           <?php else: ?>
@@ -961,7 +1008,7 @@ include __DIR__ . '/_layout_head.php';
         <?php if ($h['description']): ?>
         <p class="small mb-2" style="white-space:pre-wrap"><?= h($h['description']) ?></p>
         <?php endif; ?>
-        <?php if ($h['attach_path']): ?>
+        <?php if ($h['attach_path'] && $hav['state']!=='upcoming'): ?>
         <p class="small mb-2"><i class="bi bi-paperclip me-1" aria-hidden="true"></i>
           <a href="homework_file.php?t=attach&hw=<?= (int)$h['id'] ?>"><?= h($h['attach_name']) ?></a> (materiał od prowadzącego)
         </p>
@@ -980,7 +1027,7 @@ include __DIR__ . '/_layout_head.php';
         </div>
         <?php endif; ?>
 
-        <?php if (!$graded): ?>
+        <?php if (!$graded && $hopen): ?>
         <form method="post" enctype="multipart/form-data" class="border-top pt-2">
           <input type="hidden" name="_token"      value="<?= h($vlab_token) ?>">
           <input type="hidden" name="_op"          value="submit_homework">
@@ -999,6 +1046,10 @@ include __DIR__ . '/_layout_head.php';
             </button>
           </div>
         </form>
+        <?php elseif (!$graded && $hav['state']==='upcoming'): ?>
+        <div class="border-top pt-2 small text-body-secondary"><i class="bi bi-clock me-1" aria-hidden="true"></i>Oddawanie będzie możliwe od <?= h(substr($hav['open_at'],0,16)) ?>.</div>
+        <?php elseif (!$graded && $hav['state']==='closed' && !$done): ?>
+        <div class="border-top pt-2 small text-danger"><i class="bi bi-lock me-1" aria-hidden="true"></i>Oddawanie tego zadania zostało zamknięte (<?= h(substr($hav['close_at'],0,16)) ?>).</div>
         <?php endif; ?>
       </div>
     </div>
@@ -1499,6 +1550,39 @@ include __DIR__ . '/_layout_head.php';
             <p class="text-warning small ms-4 mb-0"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak numeru telefonu w Twoich danych.</p>
             <?php else: ?>
             <p class="text-body-secondary small ms-4 mb-0" style="margin-top:-2px"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
+            <?php endif; ?>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Powiadomienia o zmianach w dydaktyce / eLearningu ─────────────────── -->
+    <div class="col-12 col-lg-6">
+      <section class="card h-100" aria-labelledby="dyd-prefs-h">
+        <div class="card-body">
+          <h2 id="dyd-prefs-h" class="h6 fw-bold mb-2"><i class="bi bi-mortarboard me-2 text-info" aria-hidden="true"></i>Powiadomienia o materiałach i zadaniach</h2>
+          <p class="text-body-secondary small mb-3">Daj znać, jak chcesz być informowany o nowych lub zmienionych materiałach i zadaniach domowych.</p>
+          <form method="post" id="dydPrefsForm">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="dyd_prefs">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" role="switch" id="dydEmail" name="email" value="1"
+                     <?= $dyd_pref_email ? 'checked' : '' ?> onchange="document.getElementById('dydPrefsForm').submit()">
+              <label class="form-check-label" for="dydEmail"><i class="bi bi-envelope me-1" aria-hidden="true"></i>E-mail</label>
+            </div>
+            <?php if ($dyd_pref_email && $msg_email_addr === ''): ?>
+            <p class="text-warning small ms-4 mb-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak adresu e-mail w Twoich danych.</p>
+            <?php elseif ($msg_email_addr !== ''): ?>
+            <p class="text-body-secondary small ms-4 mb-2" style="margin-top:-4px"><?= h($msg_email_addr) ?></p>
+            <?php endif; ?>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" role="switch" id="dydSms" name="sms" value="1"
+                     <?= $dyd_pref_sms ? 'checked' : '' ?> <?= $sms_global_on ? '' : 'disabled' ?>
+                     onchange="document.getElementById('dydPrefsForm').submit()">
+              <label class="form-check-label" for="dydSms"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>SMS</label>
+            </div>
+            <?php if (!$sms_global_on): ?>
+            <p class="text-body-secondary small ms-4 mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.</p>
             <?php endif; ?>
           </form>
         </div>
