@@ -783,14 +783,14 @@ include __DIR__ . '/_layout_head.php';
                   $hdone = !empty($lh['sub_id']); $hgraded = ($lh['sub_status'] ?? '') === 'graded';
                   $hcls  = $hgraded ? 'text-bg-success' : ($hdone ? 'text-bg-secondary' : 'text-bg-warning');
                   $hlbl  = $hgraded ? 'ocenione' : ($hdone ? 'oddane' : 'do oddania'); ?>
-                <a href="?tab=zadania" class="badge <?= $hcls ?> text-decoration-none text-wrap text-start"
-                   title="<?= h($lh['title']) ?> — <?= $hlbl ?>">
-                  <i class="bi bi-journal-text me-1" aria-hidden="true"></i><?= h($lh['title']) ?>
+                <a href="?tab=zadania" class="text-decoration-none small d-flex align-items-center gap-1 flex-wrap" title="<?= h($lh['title']) ?>">
+                  <span class="text-body text-break"><?= h($lh['title']) ?></span>
+                  <span class="badge <?= $hcls ?>"><?= $hlbl ?></span>
                 </a>
                 <?php endforeach; ?>
               </div>
               <?php elseif (($l['has_homework'] ?? 0) && empty($l['self_prep_remote'])): ?>
-              <a href="?tab=zadania" class="badge text-bg-warning text-decoration-none"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>zadanie</a>
+              <a href="?tab=zadania" class="badge text-bg-warning text-decoration-none">do oddania</a>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
             </td>
             <td>
