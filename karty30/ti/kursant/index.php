@@ -425,7 +425,7 @@ include __DIR__ . '/_layout_head.php';
 
 <?php
   // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
-  $nauka_tabs     = ['lekcje','zadania','oceny'];
+  $nauka_tabs     = ['lekcje','zadania','oceny','plan'];
   $dostepy_tabs   = ['online','vlab','licencje','pfron'];
   $pomoc_tabs     = ['problem','ustawienia'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
@@ -456,6 +456,8 @@ include __DIR__ . '/_layout_head.php';
           <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-2"><?= $hw_pending_total ?></span><?php endif; ?></a></li>
         <li><a class="dropdown-item <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
           <i class="bi bi-table me-2" aria-hidden="true"></i>Oceny</a></li>
+        <li><a class="dropdown-item <?= $tab==='plan'?'active':'' ?>" href="?tab=plan" <?= $tab==='plan'?'aria-current="page"':'' ?>>
+          <i class="bi bi-list-check me-2" aria-hidden="true"></i>Plan nauczania</a></li>
       </ul>
     </li>
 
@@ -1590,6 +1592,68 @@ include __DIR__ . '/_layout_head.php';
     reload();
   })();
   </script>
+
+<?php elseif ($tab === 'plan'): ?>
+  <h1 class="h5 fw-bold mb-3"><i class="bi bi-list-check text-primary me-2" aria-hidden="true"></i>Plan nauczania</h1>
+  <p class="text-body-secondary small mb-3">Program kursu i postęp realizacji. Punkty oznaczone jako „zrealizowane” mają już odbytą lekcję.</p>
+  <?php if (!$courses): ?>
+    <div class="alert alert-secondary">Nie jesteś zapisany na żaden kurs.</div>
+  <?php else: foreach ($courses as $c):
+    $cid_p = (int)$c['course_id'];
+    $plan  = k30_ti_curriculum_list($cid_p, true);
+    if (!$plan) continue;
+    // Status realizacji punktu: najlepsza z powiązanych lekcji (held > planned > brak)
+    $cov = [];
+    foreach (db_all(
+        "SELECT sc.curriculum_id AS cidp, s.status AS st
+         FROM k30_ti_session_curriculum sc JOIN k30_ti_sessions s ON s.id=sc.session_id
+         WHERE s.course_id=?", [$cid_p]) as $row) {
+        $k = (int)$row['cidp']; $st = $row['st'];
+        $rank = $st === 'held' ? 2 : ($st === 'planned' ? 1 : 0);
+        if (!isset($cov[$k]) || $rank > $cov[$k]) $cov[$k] = $rank;
+    }
+    $done = 0; foreach ($plan as $p) { if (($cov[(int)$p['id']] ?? 0) === 2) $done++; }
+    $pct  = count($plan) > 0 ? (int)round($done * 100 / count($plan)) : 0;
+  ?>
+  <div class="card bg-body-tertiary border-0 shadow-sm mb-4">
+    <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2">
+      <span><i class="bi bi-mortarboard me-2" aria-hidden="true"></i><?= h($c['course_name']) ?></span>
+      <span class="badge text-bg-secondary ms-auto"><?= $done ?>/<?= count($plan) ?> zrealizowane</span>
+    </div>
+    <div class="card-body py-2 border-bottom">
+      <div class="progress" role="progressbar" aria-label="Postęp realizacji planu: <?= h($c['course_name']) ?>"
+           aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100" style="height:.6rem">
+        <div class="progress-bar <?= $pct >= 100 ? 'bg-success' : '' ?>" style="width:<?= $pct ?>%"></div>
+      </div>
+    </div>
+    <ul class="list-group list-group-flush">
+      <?php $last_sec = null; foreach ($plan as $p):
+        $sec = (string)$p['section'];
+        if ($sec !== $last_sec): $last_sec = $sec; ?>
+        <li class="list-group-item bg-transparent fw-semibold small text-uppercase text-body-secondary py-1">
+          <i class="bi bi-folder2 me-1" aria-hidden="true"></i><?= $sec !== '' ? h($sec) : 'Program' ?>
+        </li>
+      <?php endif;
+        $rank = $cov[(int)$p['id']] ?? 0;
+        [$badge_cls, $badge_txt, $badge_ico] = $rank === 2
+          ? ['text-bg-success', 'Zrealizowane', 'bi-check-circle-fill']
+          : ($rank === 1 ? ['text-bg-info', 'Zaplanowane', 'bi-calendar-event']
+                         : ['text-bg-secondary', 'W planie', 'bi-hourglass']);
+      ?>
+      <li class="list-group-item bg-transparent d-flex align-items-start gap-2">
+        <span class="badge <?= $badge_cls ?> flex-shrink-0 mt-1"><i class="bi <?= $badge_ico ?> me-1" aria-hidden="true"></i><?= $badge_txt ?></span>
+        <span>
+          <span class="fw-semibold"><?= h($p['title']) ?></span>
+          <?php if (trim((string)$p['description']) !== ''): ?>
+          <span class="d-block text-body-secondary small"><?= nl2br(h($p['description'])) ?></span>
+          <?php endif; ?>
+        </span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endforeach; ?>
+  <?php endif; ?>
 
 <?php elseif ($tab === 'wiadomosci'):
   // Oznacz wiadomości od prowadzącego jako przeczytane przy wejściu na zakładkę

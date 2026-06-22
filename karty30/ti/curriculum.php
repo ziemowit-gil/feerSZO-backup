@@ -104,9 +104,15 @@ if ($course && $items) {
     foreach ($rows as $r) { $item_lessons[(int)$r['curriculum_id']][] = $r; }
 }
 
-// Statystyka
-$total_min = 0; $n_active = 0;
-foreach ($items as $it) { $total_min += (int)$it['est_minutes']; if ($it['is_active']) $n_active++; }
+// Statystyka + pokrycie planu (ile aktywnych punktów ma już przypisaną lekcję)
+$total_min = 0; $n_active = 0; $n_covered = 0;
+foreach ($items as $it) {
+    $total_min += (int)$it['est_minutes'];
+    if (!$it['is_active']) continue;
+    $n_active++;
+    if (!empty($item_lessons[(int)$it['id']])) $n_covered++;
+}
+$cov_pct = $n_active > 0 ? (int)round($n_covered * 100 / $n_active) : 0;
 
 // Edycja pozycji
 $edit_id  = (int)($_GET['edit'] ?? 0);
@@ -184,6 +190,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <span class="badge bg-secondary"><?= count($items) ?> pozycji</span>
         <?php if ($total_min > 0): ?><span class="badge bg-light text-dark border">≈ <?= (int)round($total_min/60) ?> h planu</span><?php endif; ?>
       </div>
+      <?php if ($n_active > 0): ?>
+      <div class="card-body border-bottom py-2">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <span class="small fw-semibold">Pokrycie planu lekcjami</span>
+          <span class="small text-muted"><?= $n_covered ?> z <?= $n_active ?> punktów (<?= $cov_pct ?>%)</span>
+        </div>
+        <div class="progress" role="progressbar" aria-label="Pokrycie planu lekcjami"
+             aria-valuenow="<?= $cov_pct ?>" aria-valuemin="0" aria-valuemax="100" style="height:.6rem">
+          <div class="progress-bar <?= $cov_pct >= 100 ? 'bg-success' : '' ?>" style="width:<?= $cov_pct ?>%"></div>
+        </div>
+      </div>
+      <?php endif; ?>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <caption class="visually-hidden">Pozycje planu nauczania kursu <?= h($course['name']) ?>, uporządkowane wg działów i kolejności</caption>
@@ -217,7 +235,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td class="small">
                 <?php if ($lessons): foreach ($lessons as $ls): ?>
                   <span class="badge bg-info-subtle text-info-emphasis border me-1" title="<?= h($ls['topic'] ?? '') ?>"><?= h(substr($ls['lesson_date'],0,10)) ?></span>
-                <?php endforeach; else: ?><span class="text-muted">—</span><?php endif; ?>
+                <?php endforeach; elseif ($it['is_active']): ?>
+                  <span class="badge bg-warning-subtle text-warning-emphasis border"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>brak lekcji</span>
+                <?php else: ?><span class="text-muted">—</span><?php endif; ?>
               </td>
               <?php if ($can_write): ?>
               <td class="text-end text-nowrap">
