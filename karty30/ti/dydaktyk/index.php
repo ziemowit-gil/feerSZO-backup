@@ -286,6 +286,8 @@ $sessions = $materials = $homeworks = [];
 $all_sessions = [];
 if ($cur_course) {
     $sessions     = k30_ti_sessions($cur_course);
+    usort($sessions, fn($a, $b) => strcmp((string)$b['lesson_date'], (string)$a['lesson_date'])
+        ?: strcmp((string)($b['time_from'] ?? ''), (string)($a['time_from'] ?? ''))); // najnowsze na górze
     $homeworks    = k30_ti_homework_list($cur_course);
     $materials    = k30_ti_materials_list($cur_course);
     $all_sessions = db_all("SELECT id, lesson_date, topic FROM k30_ti_sessions WHERE course_id=? ORDER BY lesson_date DESC, id DESC", [$cur_course]);
@@ -677,7 +679,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <span><?= h($pr['name']) ?><?php if ($pr['cancel_reason']): ?> <span class="text-body-secondary">— <?= h($pr['cancel_reason']) ?></span><?php endif; ?></span>
               <div class="ms-auto d-flex gap-1">
                 <form method="post" class="d-inline" onsubmit="return confirm('Potwierdzić odwołanie udziału tego kursanta?')">
-                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
                   <input type="hidden" name="_op" value="confirm_cancel">
                   <input type="hidden" name="_tab" value="lekcje">
                   <input type="hidden" name="course_id" value="<?= $cur_course ?>">
@@ -686,7 +688,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                   <button class="btn btn-sm btn-danger py-0 px-2"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Potwierdź odwołanie</button>
                 </form>
                 <form method="post" class="d-inline">
-                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
                   <input type="hidden" name="_op" value="reject_cancel">
                   <input type="hidden" name="_tab" value="lekcje">
                   <input type="hidden" name="course_id" value="<?= $cur_course ?>">

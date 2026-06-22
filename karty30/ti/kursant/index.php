@@ -746,8 +746,8 @@ include __DIR__ . '/_layout_head.php';
         elseif ($ld > $d_soon)               $up_far[] = $l;
         else                                 $past_far[] = $l;
     }
-    usort($near,   fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date'])); // chronologicznie
-    usort($up_far, fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date'])); // najbliższa pierwsza
+    usort($near,   fn($a, $b) => strcmp((string)$b['lesson_date'], (string)$a['lesson_date'])); // najnowsze na górze
+    usort($up_far, fn($a, $b) => strcmp((string)$b['lesson_date'], (string)$a['lesson_date'])); // najnowsze na górze
     // $past_far zostaje malejąco (z zapytania) — od najnowszej
 
     // Zadania domowe podpięte pod konkretną lekcję (session_id => [zadania])
