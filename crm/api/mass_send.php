@@ -98,6 +98,15 @@ if ($action === 'start') {
     $dw_raw   = (array)($body['dw'] ?? []);
     $dw_clean = array_values(array_filter($dw_raw, fn($e) => filter_var(trim($e), FILTER_VALIDATE_EMAIL)));
 
+    // Nadawca: konto systemowe albo skrzynka M365 zalogowanego użytkownika
+    $from_email = '';
+    if ($channel === 'email' && ($body['send_as'] ?? 'system') === 'me') {
+        $cu = current_user();
+        if (!empty($cu['microsoft_id']) && !empty($cu['email']) && _mail_m365_configured()) {
+            $from_email = trim($cu['email']);
+        }
+    }
+
     // Pierwsza grupa dla kompatybilności wstecznej
     $group_ids_arr = array_filter(array_map('intval', (array)($body['group_ids'] ?? [])));
     if (!$group_ids_arr && ($body['group_id'] ?? 0)) $group_ids_arr = [(int)$body['group_id']];
@@ -120,7 +129,7 @@ if ($action === 'start') {
 
     // Zapisz listę odbiorców i DW w body jako JSON
     db()->prepare("UPDATE crm_mass_sends SET body=? WHERE id=?")
-        ->execute([json_encode(['body'=>$msg,'ids'=>$ids,'dw'=>$dw_clean,'subject'=>$subject]), $send_id]);
+        ->execute([json_encode(['body'=>$msg,'ids'=>$ids,'dw'=>$dw_clean,'subject'=>$subject,'from_email'=>$from_email]), $send_id]);
 
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);
 }
@@ -139,6 +148,7 @@ if ($action === 'execute') {
     $channel  = $ms['channel'];
     $subject  = $ms['subject'] ?? '';
     $tpl      = $ms['template_name'] ?? '';
+    $from_email = $payload['from_email'] ?? '';
 
     $ok = $fail = 0;
     foreach ($ids as $cid) {
@@ -151,7 +161,7 @@ if ($action === 'execute') {
         $rendered_subject = CrmManager::renderTemplate($subject, $contact);
 
         try {
-            CrmManager::sendAndLog((int)$cid, $channel, $rendered_body, $rendered_subject, $tpl, true);
+            CrmManager::sendAndLog((int)$cid, $channel, $rendered_body, $rendered_subject, $tpl, true, [], $from_email);
             $ok++;
         } catch (\Throwable $e) {
             $fail++;

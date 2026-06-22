@@ -58,12 +58,24 @@ $history = db_all(
 
 $templates = db_all("SELECT * FROM crm_templates WHERE is_active=1 ORDER BY channel, name");
 
+// Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
+$_cu_now        = current_user();
+$can_send_as_me = $m365_ok && !empty($_cu_now['microsoft_id']) && !empty($_cu_now['email']);
+$my_ms_email    = $can_send_as_me ? trim($_cu_now['email']) : '';
+$sys_from_email = _mail_setting('m365_send_from_email');
+
 include __DIR__ . '/includes/header_crm.php';
 ?>
 
 <style>
 .ms-section { background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:1.25rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.04) }
-.ms-section-title { font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6B7280;padding-bottom:.5rem;border-bottom:1px solid #F3F4F6;margin-bottom:.85rem }
+.ms-section-title { font-size:.9rem;font-weight:700;color:#181818;padding-bottom:.5rem;border-bottom:1px solid #F3F4F6;margin-bottom:.85rem }
+/* Krok formularza (numer + tytuł + podpowiedź) */
+.ms-step { display:flex; align-items:center; gap:.6rem; margin-bottom:1rem; padding-bottom:.6rem; border-bottom:1px solid #F3F4F6 }
+.ms-step__num { width:28px;height:28px;border-radius:50%;background:var(--crm-primary);color:#fff;font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0 }
+.ms-step__t { font-size:1rem;font-weight:700;color:#181818;line-height:1.15 }
+.ms-step__h { font-size:.77rem;color:#5E6470;margin-top:.05rem }
+.ms-step__main { flex:1;min-width:0 }
 .group-pill { display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .75rem;border-radius:2rem;border:1.5px solid #E5E7EB;cursor:pointer;font-size:.78rem;font-weight:500;color:#374151;background:#fff;transition:all .12s;margin:.15rem }
 .group-pill:hover { border-color:#9CA3AF }
 .group-pill.selected { color:#fff;border-color:transparent;font-weight:600 }
@@ -119,7 +131,13 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- Kanał -->
   <div class="ms-section">
-    <div class="ms-section-title">1. Kanał wysyłki</div>
+    <div class="ms-step">
+      <span class="ms-step__num" aria-hidden="true">1</span>
+      <div class="ms-step__main">
+        <div class="ms-step__t">Kanał wysyłki</div>
+        <div class="ms-step__h">Wybierz, czym wyślesz wiadomość</div>
+      </div>
+    </div>
 
     <?php if ($mail_warning): ?>
     <div class="alert alert-warning py-2 px-3 small mb-3 d-flex align-items-center gap-2">
@@ -162,13 +180,31 @@ include __DIR__ . '/includes/header_crm.php';
       <?php endif; ?>
     </div>
     <input type="hidden" id="ms_channel" value="email">
+
+    <?php if ($can_send_as_me): ?>
+    <div id="ms_sender_row" class="mt-3">
+      <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2" for="ms_send_as">
+        <i class="bi bi-person-badge text-primary" aria-hidden="true"></i> Konto nadawcy (e-mail)
+      </label>
+      <select id="ms_send_as" class="form-select form-select-sm" style="max-width:420px">
+        <option value="system">Konto systemowe<?= $sys_from_email ? ' (' . h($sys_from_email) . ')' : '' ?></option>
+        <option value="me">Moje konto Microsoft — <?= h($my_ms_email) ?></option>
+      </select>
+      <div class="form-text" style="font-size:.74rem">
+        Wybierając swoje konto, wiadomości wyjdą z Twojej skrzynki M365 i trafią do „Elementów wysłanych".
+      </div>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- Odbiorcy -->
   <div class="ms-section">
-    <div class="ms-section-title d-flex align-items-center justify-content-between">
-      2. Odbiorcy
-      <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;font-size:.75rem">grupy + indywidualni kontakci</span>
+    <div class="ms-step">
+      <span class="ms-step__num" aria-hidden="true">2</span>
+      <div class="ms-step__main">
+        <div class="ms-step__t">Odbiorcy</div>
+        <div class="ms-step__h">Grupy, tagi oraz pojedyncze kontakty</div>
+      </div>
     </div>
 
     <?php
@@ -308,9 +344,13 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- Temat i treść -->
   <div class="ms-section">
-    <div class="ms-section-title d-flex align-items-center justify-content-between">
-      3. Treść wiadomości
-      <select id="ms_tpl_select" class="form-select form-select-sm" style="width:auto;font-size:.75rem" onchange="MS.loadTemplate()">
+    <div class="ms-step">
+      <span class="ms-step__num" aria-hidden="true">3</span>
+      <div class="ms-step__main">
+        <div class="ms-step__t">Treść wiadomości</div>
+        <div class="ms-step__h">Wpisz treść lub wybierz szablon</div>
+      </div>
+      <select id="ms_tpl_select" class="form-select form-select-sm" style="width:auto;max-width:200px;font-size:.78rem" onchange="MS.loadTemplate()">
         <option value="">— Wybierz szablon —</option>
         <?php foreach ($templates as $t): ?>
         <option value="<?= (int)$t['id'] ?>"
@@ -329,13 +369,17 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <div class="mb-2">
-      <span class="text-muted" style="font-size:.73rem">Zmienne: </span>
+      <span class="cv-muted" style="font-size:.74rem">Odbiorca: </span>
       <?php foreach (['{imie}','{imie_nazwisko}','{email}','{organizacja}','{data}'] as $v): ?>
       <button type="button" class="btn btn-outline-secondary py-0 px-1 me-1"
               style="font-size:.68rem;font-family:monospace;line-height:1.6"
-              onclick="MS.insertVar('<?= $v ?>')">
-        <?= h($v) ?>
-      </button>
+              onclick="MS.insertVar('<?= $v ?>')"><?= h($v) ?></button>
+      <?php endforeach; ?>
+      <span class="cv-muted ms-2" style="font-size:.74rem">Nadawca: </span>
+      <?php foreach (['{nadawca_imie_nazwisko}','{nadawca_email}','{nadawca_telefon}'] as $v): ?>
+      <button type="button" class="btn btn-outline-secondary py-0 px-1 me-1"
+              style="font-size:.68rem;font-family:monospace;line-height:1.6"
+              onclick="MS.insertVar('<?= $v ?>')"><?= h($v) ?></button>
       <?php endforeach; ?>
     </div>
 
@@ -358,7 +402,13 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- Podgląd + send -->
   <div class="ms-section mb-3">
-    <div class="ms-section-title">4. Wyślij</div>
+    <div class="ms-step">
+      <span class="ms-step__num" aria-hidden="true">4</span>
+      <div class="ms-step__main">
+        <div class="ms-step__t">Wyślij</div>
+        <div class="ms-step__h">Sprawdź podsumowanie i wyślij</div>
+      </div>
+    </div>
 
     <div class="mb-3 p-3 rounded" style="background:#F9FAFB;border:1px solid #E5E7EB">
       <div class="d-flex justify-content-between mb-1" style="font-size:.82rem">
@@ -677,6 +727,8 @@ const MS = (function() {
     document.getElementById('ms_quill_wrap').style.display = ch==='email' ? '' : 'none';
     document.getElementById('ms_plain_wrap').style.display  = ch==='sms'   ? '' : 'none';
     document.getElementById('emailSubjectRow').style.display= ch==='email' ? '' : 'none';
+    var senderRow = document.getElementById('ms_sender_row');
+    if (senderRow) senderRow.style.display = ch==='email' ? '' : 'none';
     document.getElementById('sendChannel').textContent = ch==='email' ? 'E-mail' : 'SMS';
     updateSmsCount();
     renderContactChips(); // odśwież chipy — wyszarz bez wymaganego pola
@@ -867,6 +919,7 @@ const MS = (function() {
       body: msgBody,
       template_name: tplText,
       dw: dw,
+      send_as: (document.getElementById('ms_send_as')?.value) || 'system',
     };
 
     const startRes = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(startPayload)}).then(r=>r.json());
