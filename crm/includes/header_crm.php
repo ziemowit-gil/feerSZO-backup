@@ -158,7 +158,9 @@ body {
   transition: all .12s;
   white-space: nowrap;
 }
-.crm-topbar-sys-link:hover { color: var(--crm-primary); border-color: var(--crm-primary); background: var(--crm-primary-bg); }
+.crm-topbar-sys-link:hover,
+.crm-topbar-sys-link.active { color: var(--crm-primary); border-color: var(--crm-primary); background: var(--crm-primary-bg); }
+.crm-topbar-sys-link i { font-size: .9rem; }
 
 /* ══ TOP NAVBAR (poziome menu — pod topbarem) ════════════════════════ */
 .crm-navbar {
@@ -379,6 +381,13 @@ window.openCommModal = function(contactId, channel) {
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/crm/settings/"
+       class="crm-topbar-sys-link<?= _crm_nav_active('/crm/settings') ? ' active' : '' ?>"
+       title="Ustawienia CRM">
+      <i class="bi bi-gear-fill"></i><span class="d-none d-lg-inline">Ustawienia</span>
+    </a>
+    <?php endif; ?>
     <?php $msw_active='crm'; $msw_dark=false; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
     <?php if ($_cu): ?>
@@ -453,11 +462,6 @@ window.openCommModal = function(contactId, channel) {
     <a href="<?= APP_URL ?>/crm/tags.php" class="crm-navlink<?= _crm_nav_active('/crm/tags') ?>"<?= _crm_nav_active('/crm/tags') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-tags-fill"></i><span>Tagi</span>
     </a>
-    <?php if (is_admin()): ?>
-    <a href="<?= APP_URL ?>/crm/settings/" class="crm-navlink<?= _crm_nav_active('/crm/settings') ?>"<?= _crm_nav_active('/crm/settings') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-gear-fill"></i><span>Ustawienia</span>
-    </a>
-    <?php endif; ?>
   </div>
 
   <?php if ($_crm_can_write): ?>
