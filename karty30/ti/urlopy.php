@@ -40,14 +40,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         if ($lid) {
             db()->prepare("UPDATE k30_ti_instructor_leaves SET instructor_id=?, date_from=?, date_to=?, type=?, note=? WHERE id=?")
                ->execute([$iid, $from, $to, $type, $note, $lid]);
-            flash_set('success', 'Urlop zaktualizowany.');
+            $saved_id = $lid; $msg = 'Urlop zaktualizowany.';
         } else {
-            db_insert('k30_ti_instructor_leaves', [
+            $saved_id = db_insert('k30_ti_instructor_leaves', [
                 'instructor_id' => $iid, 'date_from' => $from, 'date_to' => $to,
                 'type' => $type, 'note' => $note, 'created_by' => current_user()['id'] ?? null,
             ]);
-            flash_set('success', 'Urlop dodany.');
+            $msg = 'Urlop dodany.';
         }
+        // Powiadom kursantów prowadzącego (idempotentnie — tylko o nowym/zmienionym zakresie)
+        $n = ti_leaves_notify((int)$saved_id);
+        if ($n > 0) $msg .= " Wysłano powiadomienie e-mail o nieobecności do kursantów ({$n}).";
+        flash_set('success', $msg);
         header('Location: urlopy.php'); exit;
     }
 

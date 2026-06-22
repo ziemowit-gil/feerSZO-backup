@@ -14,6 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_moodle.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/pfron.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -329,6 +330,9 @@ $lessons = k30_ti_client_lessons($student['client_id'], 40);
 $my_licenses = k30_ti_client_licenses($student['client_id']);
 $active_lesson = k30_ti_active_lesson_link($student['client_id']);
 
+// Urlopy / nieobecności prowadzących kursanta (trwające + nadchodzące 30 dni)
+$instructor_leaves = ti_leaves_for_client((int)$student['client_id'], 30);
+
 // Statystyki
 $total_lessons  = count($lessons);
 $attended_count = count(array_filter($lessons, fn($l) => $l['attended']));
@@ -410,30 +414,49 @@ include __DIR__ . '/_layout_head.php';
 </main>
 <?php include __DIR__ . '/_layout_foot.php'; exit; endif; ?>
 
-<?php $dostepy_tabs = ['online','licencje','vlab','pfron']; $dostepy_active = in_array($tab, $dostepy_tabs, true); ?>
+<?php
+  // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
+  $nauka_tabs     = ['lekcje','zadania','oceny'];
+  $dostepy_tabs   = ['online','vlab','licencje','pfron'];
+  $pomoc_tabs     = ['problem','ustawienia'];
+  $nauka_active   = in_array($tab, $nauka_tabs, true);
+  $dostepy_active = in_array($tab, $dostepy_tabs, true);
+  $pomoc_active   = in_array($tab, $pomoc_tabs, true);
+?>
 <nav class="container-xl px-3 pt-3" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
+
     <li class="nav-item">
       <a class="nav-link <?= $tab==='dane'?'active':'' ?>" href="?tab=dane" <?= $tab==='dane'?'aria-current="page"':'' ?>>
         <i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Dane kursanta
       </a>
     </li>
+
+    <!-- Nauka: lekcje, dydaktyka/eLearning, oceny -->
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle <?= $nauka_active?'active':'' ?>" href="#" role="button"
+         data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Nauka
+        <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?><span class="visually-hidden"> zadań do oddania</span></span><?php endif; ?>
+      </a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item <?= $tab==='lekcje'?'active':'' ?>" href="?tab=lekcje" <?= $tab==='lekcje'?'aria-current="page"':'' ?>>
+          <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>Moje lekcje</a></li>
+        <li><a class="dropdown-item <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
+          <i class="bi bi-journal-check me-2" aria-hidden="true"></i>Dydaktyka / eLearning
+          <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-2"><?= $hw_pending_total ?></span><?php endif; ?></a></li>
+        <li><a class="dropdown-item <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
+          <i class="bi bi-table me-2" aria-hidden="true"></i>Oceny</a></li>
+      </ul>
+    </li>
+
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='lekcje'?'active':'' ?>" href="?tab=lekcje" <?= $tab==='lekcje'?'aria-current="page"':'' ?>>
-        <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Moje lekcje
+      <a class="nav-link <?= $tab==='wiadomosci'?'active':'' ?>" href="?tab=wiadomosci" <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
+        <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wiadomości
+        <?php if ($msg_unread > 0): ?><span class="badge text-bg-danger ms-1"><?= $msg_unread ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif; ?>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
-        <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Dydaktyka / eLearning
-        <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?></span><?php endif; ?>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
-        <i class="bi bi-table me-1" aria-hidden="true"></i>Oceny
-      </a>
-    </li>
+
     <?php if (!$is_minor): ?>
     <li class="nav-item">
       <a class="nav-link <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
@@ -441,52 +464,41 @@ include __DIR__ . '/_layout_head.php';
       </a>
     </li>
     <?php endif; ?>
-    <li class="nav-item">
-      <a class="nav-link <?= $tab==='wiadomosci'?'active':'' ?>" href="?tab=wiadomosci" <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
-        <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wiadomości
-        <?php if ($msg_unread > 0): ?><span class="badge text-bg-danger ms-1"><?= $msg_unread ?></span><?php endif; ?>
-      </a>
-    </li>
+
+    <!-- Dostępy i narzędzia -->
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle <?= $dostepy_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-grid me-1" aria-hidden="true"></i>Dostępy i narzędzia
+        <i class="bi bi-grid me-1" aria-hidden="true"></i>Dostępy
       </a>
       <ul class="dropdown-menu">
-        <li>
-          <a class="dropdown-item <?= $tab==='online'?'active':'' ?>" href="?tab=online">
-            <i class="bi bi-camera-video me-2" aria-hidden="true"></i>Szkolenia online
-          </a>
-        </li>
-        <li>
-          <a class="dropdown-item <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje">
-            <i class="bi bi-key me-2" aria-hidden="true"></i>Licencje
-            <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-2"><?= count($my_licenses) ?></span><?php endif; ?>
-          </a>
-        </li>
-        <li>
-          <a class="dropdown-item <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab">
-            <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab
-          </a>
-        </li>
+        <li><a class="dropdown-item <?= $tab==='online'?'active':'' ?>" href="?tab=online" <?= $tab==='online'?'aria-current="page"':'' ?>>
+          <i class="bi bi-camera-video me-2" aria-hidden="true"></i>Szkolenia online</a></li>
+        <li><a class="dropdown-item <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab" <?= $tab==='vlab'?'aria-current="page"':'' ?>>
+          <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab</a></li>
+        <li><a class="dropdown-item <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje" <?= $tab==='licencje'?'aria-current="page"':'' ?>>
+          <i class="bi bi-key me-2" aria-hidden="true"></i>Licencje
+          <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-2"><?= count($my_licenses) ?></span><?php endif; ?></a></li>
         <li><hr class="dropdown-divider"></li>
-        <li>
-          <a class="dropdown-item <?= $tab==='pfron'?'active':'' ?>" href="?tab=pfron">
-            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>PFRON (konsultacje)
-          </a>
-        </li>
+        <li><a class="dropdown-item <?= $tab==='pfron'?'active':'' ?>" href="?tab=pfron" <?= $tab==='pfron'?'aria-current="page"':'' ?>>
+          <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>PFRON (konsultacje)</a></li>
       </ul>
     </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
-        <i class="bi bi-wrench-adjustable me-1" aria-hidden="true"></i>Zgłoś problem techniczny
+
+    <!-- Pomoc -->
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle <?= $pomoc_active?'active':'' ?>" href="#" role="button"
+         data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-life-preserver me-1" aria-hidden="true"></i>Pomoc
       </a>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
+          <i class="bi bi-wrench-adjustable me-2" aria-hidden="true"></i>Zgłoś problem techniczny</a></li>
+        <li><a class="dropdown-item <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
+          <i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia</a></li>
+      </ul>
     </li>
-    <li class="nav-item">
-      <a class="nav-link <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
-        <i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia
-      </a>
-    </li>
+
   </ul>
 </nav>
 
@@ -527,6 +539,40 @@ include __DIR__ . '/_layout_head.php';
     </span>
   </div>
   <a href="?tab=zadania" class="btn btn-sm btn-outline-warning flex-shrink-0">Zobacz</a>
+</div>
+<?php endif; ?>
+
+<?php if ($instructor_leaves): $today_d = date('Y-m-d'); ?>
+<!-- ── Zaplanowane nieobecności prowadzących — informacja po zalogowaniu ─────── -->
+<div class="alert alert-info d-flex gap-2 mb-3" role="note" aria-label="Zaplanowana nieobecność prowadzącego">
+  <i class="bi bi-airplane fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div class="flex-grow-1 min-width-0">
+    <div class="fw-semibold mb-1">Zaplanowana nieobecność prowadzącego</div>
+    <ul class="list-unstyled small mb-0 d-flex flex-column gap-1">
+      <?php foreach ($instructor_leaves as $lv):
+        $ongoing = $lv['date_from'] <= $today_d && $lv['date_to'] >= $today_d;
+        $df = date('d.m.Y', strtotime($lv['date_from']));
+        $dt = date('d.m.Y', strtotime($lv['date_to']));
+        $range = $df === $dt ? $df : "$df – $dt";
+        $courses = trim((string)($lv['course_names'] ?? ''));
+      ?>
+      <li>
+        <strong><?= h($lv['instructor_name']) ?></strong>
+        — <?= h(mb_strtolower(ti_leave_type_label($lv['type']))) ?>,
+        <span class="text-nowrap"><?= h($range) ?></span>
+        <?php if ($ongoing): ?>
+        <span class="badge text-bg-warning ms-1">trwa teraz</span>
+        <?php else: ?>
+        <span class="badge text-bg-secondary ms-1">wkrótce</span>
+        <?php endif; ?>
+        <?php if ($courses !== ''): ?>
+        <span class="d-block text-body-secondary">Dotyczy zajęć: <?= h(str_replace(',', ', ', $courses)) ?></span>
+        <?php endif; ?>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <div class="small text-body-secondary mt-1">W tym czasie zajęcia mogą zostać odwołane lub przełożone — sprawdź harmonogram w zakładce „Moje lekcje”.</div>
+  </div>
 </div>
 <?php endif; ?>
 
