@@ -252,7 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Dane do widoku ──────────────────────────────────────────────────────────
 $course   = null;
 foreach ($courses as $c) { if ((int)$c['id'] === $cur_course) { $course = $c; break; } }
-$edit_id  = (int)($_GET['edit'] ?? 0);
 $dtv      = fn($v) => $v ? h(str_replace(' ', 'T', substr($v, 0, 16))) : '';
 
 $sessions = $materials = $homeworks = [];
@@ -264,15 +263,211 @@ if ($cur_course) {
     $all_sessions = db_all("SELECT id, lesson_date, topic FROM k30_ti_sessions WHERE course_id=? ORDER BY lesson_date DESC, id DESC", [$cur_course]);
 }
 
-// Wiersz do edycji wg zakładki
-$edit_lesson = $edit_hw = $edit_mat = null;
-if ($edit_id && $cur_course) {
-    if ($tab === 'lekcje'   && dyd_owns_session($uid, $edit_id)) $edit_lesson = k30_ti_session_get($edit_id);
-    if ($tab === 'zadania') { $r = k30_ti_homework_get($edit_id); if ($r && (int)$r['course_id'] === $cur_course) $edit_hw = $r; }
-    if ($tab === 'materialy'){ $r = k30_ti_material_get($edit_id); if ($r && (int)$r['course_id'] === $cur_course) $edit_mat = $r; }
-}
 $TYPES = k30_ti_material_types();
 $STATUS = K30_TI_SESSION_STATUSES;
+
+// ── Formularze renderowane w wyskakujących okienkach (dodawanie + edycja) ─────
+// $r = wiersz do edycji lub null (dodawanie). $pfx = unikalny prefiks id pól/modalu.
+
+$lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
+    $isEdit = (bool)$r; ?>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op" value="save_lesson">
+    <input type="hidden" name="_tab" value="lekcje">
+    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+    <input type="hidden" name="session_id" value="<?= (int)($r['id'] ?? 0) ?>">
+    <div class="modal-header">
+      <h5 class="modal-title" id="<?= $pfx ?>_t"><i class="bi bi-<?= $isEdit?'pencil':'calendar-plus' ?> me-2"></i><?= $isEdit?'Edytuj lekcję':'Nowa lekcja' ?></h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_date">Data <span class="text-danger">*</span></label>
+        <input type="date" class="form-control" id="<?= $pfx ?>_date" name="lesson_date" required value="<?= h($r['lesson_date'] ?? date('Y-m-d')) ?>">
+      </div>
+      <div class="row g-2">
+        <div class="col-6 mb-2">
+          <label class="form-label" for="<?= $pfx ?>_from">Od</label>
+          <select class="form-select" id="<?= $pfx ?>_from" name="time_from"><?= ti_time_options($r['time_from'] ?? '') ?></select>
+        </div>
+        <div class="col-6 mb-2">
+          <label class="form-label" for="<?= $pfx ?>_to">Do</label>
+          <select class="form-select" id="<?= $pfx ?>_to" name="time_to"><?= ti_time_options($r['time_to'] ?? '') ?></select>
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
+        <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML">
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
+        <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
+      </div>
+      <?php if ($isEdit): ?>
+      <div class="mb-1">
+        <label class="form-label" for="<?= $pfx ?>_status">Status</label>
+        <select class="form-select" id="<?= $pfx ?>_status" name="status">
+          <option value="planned" <?= ($r['status']??'')==='planned'?'selected':'' ?>>Zaplanowana</option>
+          <option value="held" <?= ($r['status']??'')==='held'?'selected':'' ?>>Odbyła się</option>
+        </select>
+        <?php if (($r['status']??'')==='cancelled'): ?><div class="form-text text-warning">Lekcja odwołana — zapis zmieni status.</div><?php endif; ?>
+      </div>
+      <?php else: ?>
+      <div class="form-check form-switch mb-1">
+        <input class="form-check-input" type="checkbox" name="notify" id="<?= $pfx ?>_notify" value="1">
+        <label class="form-check-label" for="<?= $pfx ?>_notify">Powiadom kursantów SMS o nowych zajęciach</label>
+      </div>
+      <?php endif; ?>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+      <button type="submit" class="btn btn-primary"><?= $isEdit?'Zapisz zmiany':'Dodaj lekcję' ?></button>
+    </div>
+  </form>
+<?php };
+
+$hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, $dtv) {
+    $isEdit = (bool)$r; ?>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op" value="save_homework">
+    <input type="hidden" name="_tab" value="zadania">
+    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+    <input type="hidden" name="homework_id" value="<?= (int)($r['id'] ?? 0) ?>">
+    <div class="modal-header">
+      <h5 class="modal-title" id="<?= $pfx ?>_t"><i class="bi bi-<?= $isEdit?'pencil':'journal-plus' ?> me-2"></i><?= $isEdit?'Edytuj zadanie':'Nowe zadanie' ?></h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_title">Tytuł <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="<?= $pfx ?>_title" name="title" required value="<?= h($r['title'] ?? '') ?>" placeholder="np. Ćwiczenie 1 — formularz HTML">
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_desc">Polecenie / opis</label>
+        <textarea class="form-control" id="<?= $pfx ?>_desc" name="description" rows="3"><?= h($r['description'] ?? '') ?></textarea>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_session">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
+        <select class="form-select" id="<?= $pfx ?>_session" name="session_id">
+          <option value="">— bez powiązania —</option>
+          <?php foreach ($all_sessions as $s): ?>
+          <option value="<?= (int)$s['id'] ?>" <?= (int)($r['session_id']??0)===(int)$s['id']?'selected':'' ?>><?= h(date('d.m.Y', strtotime($s['lesson_date']))) ?><?= $s['topic']?' · '.h(mb_substr($s['topic'],0,30)):'' ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_due">Termin oddania <span class="text-body-secondary small">(opc.)</span></label>
+        <input type="datetime-local" class="form-control" id="<?= $pfx ?>_due" name="due_at" value="<?= $dtv($r['due_at'] ?? '') ?>">
+      </div>
+      <div class="row g-2">
+        <div class="col-6 mb-2">
+          <label class="form-label" for="<?= $pfx ?>_open">Otwarcie <span class="text-body-secondary small">(opc.)</span></label>
+          <input type="datetime-local" class="form-control" id="<?= $pfx ?>_open" name="open_at" value="<?= $dtv($r['open_at'] ?? '') ?>">
+        </div>
+        <div class="col-6 mb-2">
+          <label class="form-label" for="<?= $pfx ?>_close">Zamknięcie <span class="text-body-secondary small">(opc.)</span></label>
+          <input type="datetime-local" class="form-control" id="<?= $pfx ?>_close" name="close_at" value="<?= $dtv($r['close_at'] ?? '') ?>">
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_attach">Załącznik <span class="text-body-secondary small">(opc., maks. 25 MB)</span></label>
+        <input type="file" class="form-control" id="<?= $pfx ?>_attach" name="attach">
+        <?php if (!empty($r['attach_name'])): ?><div class="form-text">Obecny: <?= h($r['attach_name']) ?> (prześlij nowy, aby zastąpić)</div><?php endif; ?>
+      </div>
+      <?php if ($isEdit): ?>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="is_active" id="<?= $pfx ?>_act" <?= $r['is_active']?'checked':'' ?>>
+        <label class="form-check-label" for="<?= $pfx ?>_act">Widoczne dla kursantów</label>
+      </div>
+      <?php endif; ?>
+      <div class="form-check form-switch mb-1">
+        <input class="form-check-input" type="checkbox" name="notify" id="<?= $pfx ?>_notify" value="1">
+        <label class="form-check-label" for="<?= $pfx ?>_notify">Powiadom kursantów (e-mail / SMS)</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+      <button type="submit" class="btn btn-primary"><?= $isEdit?'Zapisz zmiany':'Dodaj zadanie' ?></button>
+    </div>
+  </form>
+<?php };
+
+$matFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, $TYPES, $dtv) {
+    $isEdit = (bool)$r; ?>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op" value="save_material">
+    <input type="hidden" name="_tab" value="materialy">
+    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+    <input type="hidden" name="material_id" value="<?= (int)($r['id'] ?? 0) ?>">
+    <div class="modal-header">
+      <h5 class="modal-title" id="<?= $pfx ?>_t"><i class="bi bi-<?= $isEdit?'pencil':'collection' ?> me-2"></i><?= $isEdit?'Edytuj materiał':'Nowy materiał' ?></h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_type">Typ <span class="text-danger">*</span></label>
+        <select class="form-select" id="<?= $pfx ?>_type" name="type" required>
+          <?php foreach ($TYPES as $slug=>$ti): ?>
+          <option value="<?= h($slug) ?>" <?= ($r['type']??'zadanie')===$slug?'selected':'' ?>><?= h($ti['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_title">Tytuł <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="<?= $pfx ?>_title" name="title" required value="<?= h($r['title'] ?? '') ?>" placeholder="np. Dokumentacja HTML — MDN">
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_desc">Opis</label>
+        <textarea class="form-control" id="<?= $pfx ?>_desc" name="description" rows="3"><?= h($r['description'] ?? '') ?></textarea>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_session">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
+        <select class="form-select" id="<?= $pfx ?>_session" name="session_id">
+          <option value="">— bez powiązania —</option>
+          <?php foreach ($all_sessions as $s): ?>
+          <option value="<?= (int)$s['id'] ?>" <?= (int)($r['session_id']??0)===(int)$s['id']?'selected':'' ?>><?= h(date('d.m.Y', strtotime($s['lesson_date']))) ?><?= $s['topic']?' · '.h(mb_substr($s['topic'],0,30)):'' ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_url">Link (URL) <span class="text-body-secondary small">(opc.)</span></label>
+        <input type="url" class="form-control" id="<?= $pfx ?>_url" name="url" value="<?= h($r['url'] ?? '') ?>" placeholder="https://…">
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_attach">Plik <span class="text-body-secondary small">(opc., maks. 25 MB)</span></label>
+        <input type="file" class="form-control" id="<?= $pfx ?>_attach" name="attach">
+        <?php if (!empty($r['attach_name'])): ?><div class="form-text">Obecny: <?= h($r['attach_name']) ?> (prześlij nowy, aby zastąpić)</div><?php endif; ?>
+      </div>
+      <div class="row g-2">
+        <div class="col-6 mb-2">
+          <label class="form-label" for="<?= $pfx ?>_open">Otwarcie <span class="text-body-secondary small">(opc.)</span></label>
+          <input type="datetime-local" class="form-control" id="<?= $pfx ?>_open" name="open_at" value="<?= $dtv($r['open_at'] ?? '') ?>">
+        </div>
+        <div class="col-6 mb-2">
+          <label class="form-label" for="<?= $pfx ?>_close">Zamknięcie <span class="text-body-secondary small">(opc.)</span></label>
+          <input type="datetime-local" class="form-control" id="<?= $pfx ?>_close" name="close_at" value="<?= $dtv($r['close_at'] ?? '') ?>">
+        </div>
+      </div>
+      <?php if ($isEdit): ?>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="is_active" id="<?= $pfx ?>_act" <?= $r['is_active']?'checked':'' ?>>
+        <label class="form-check-label" for="<?= $pfx ?>_act">Widoczne dla kursantów</label>
+      </div>
+      <?php endif; ?>
+      <div class="form-check form-switch mb-1">
+        <input class="form-check-input" type="checkbox" name="notify" id="<?= $pfx ?>_notify" value="1">
+        <label class="form-check-label" for="<?= $pfx ?>_notify">Powiadom kursantów (e-mail / SMS)</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+      <button type="submit" class="btn btn-primary"><?= $isEdit?'Zapisz zmiany':'Dodaj materiał' ?></button>
+    </div>
+  </form>
+<?php };
 
 $KP_TITLE  = 'Panel dydaktyka';
 $KP_TOPBAR = [
@@ -287,8 +482,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   .dyd-wrap { max-width:1100px; }
   .dyd-course-pills .nav-link { border:1px solid var(--bs-border-color); }
   .dyd-course-pills .nav-link.active { background:#2563eb; border-color:#2563eb; }
-  .dyd-card-form { position:sticky; top:1rem; }
-  @media (max-width:991.98px){ .dyd-card-form { position:static; } }
   .badge-soft { background:rgba(37,99,235,.12); color:#93c5fd; border:1px solid rgba(37,99,235,.35); }
 </style>
 
@@ -371,308 +564,153 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endforeach; ?>
   </ul>
 
-  <div class="row g-4">
+  <div class="dyd-tabpane">
 
     <?php /* ═══════════════════════ LEKCJE ═══════════════════════ */ ?>
     <?php if ($tab === 'lekcje'): ?>
-    <div class="col-lg-7">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header fw-semibold bg-transparent"><i class="bi bi-calendar-week me-2"></i>Lekcje</div>
-        <div class="list-group list-group-flush">
-          <?php if (!$sessions): ?><div class="list-group-item text-body-secondary py-3">Brak lekcji. Dodaj pierwszą po prawej.</div><?php endif; ?>
-          <?php foreach ($sessions as $s): $st = $STATUS[$s['status']] ?? $STATUS['planned']; ?>
-          <div class="list-group-item">
-            <div class="d-flex flex-wrap align-items-center gap-2">
-              <span class="fw-semibold"><i class="bi bi-calendar-event me-1 text-primary"></i><?= date('d.m.Y', strtotime($s['lesson_date'])) ?></span>
-              <?php if ($s['time_from']): ?><span class="text-body-secondary small"><i class="bi bi-clock me-1"></i><?= h($s['time_from']) ?><?= $s['time_to'] ? '–'.h($s['time_to']) : '' ?></span><?php endif; ?>
-              <span class="badge ms-1" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>33"><?= h($st['label']) ?></span>
-              <span class="text-body-secondary small ms-auto"><i class="bi bi-people me-1"></i><?= (int)$s['attended_count'] ?>/<?= (int)$s['total_count'] ?></span>
-            </div>
-            <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>
-            <div class="mt-2 d-flex gap-2">
-              <a href="index.php?course=<?= $cur_course ?>&tab=lekcje&edit=<?= (int)$s['id'] ?>#form" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-              <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-list-check me-1"></i>Obecność / szczegóły</a>
-              <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
-                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-                <input type="hidden" name="_op" value="delete_lesson">
-                <input type="hidden" name="_tab" value="lekcje">
-                <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash"></i></button>
-              </form>
-            </div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent d-flex align-items-center">
+        <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
+        <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addL">
+          <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
+        </button>
+      </div>
+      <div class="list-group list-group-flush">
+        <?php if (!$sessions): ?><div class="list-group-item text-body-secondary py-3">Brak lekcji. Kliknij „Dodaj lekcję", aby utworzyć pierwszą.</div><?php endif; ?>
+        <?php foreach ($sessions as $s): $st = $STATUS[$s['status']] ?? $STATUS['planned']; ?>
+        <div class="list-group-item">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold"><i class="bi bi-calendar-event me-1 text-primary"></i><?= date('d.m.Y', strtotime($s['lesson_date'])) ?></span>
+            <?php if ($s['time_from']): ?><span class="text-body-secondary small"><i class="bi bi-clock me-1"></i><?= h($s['time_from']) ?><?= $s['time_to'] ? '–'.h($s['time_to']) : '' ?></span><?php endif; ?>
+            <span class="badge ms-1" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>33"><?= h($st['label']) ?></span>
+            <span class="text-body-secondary small ms-auto"><i class="bi bi-people me-1"></i><?= (int)$s['attended_count'] ?>/<?= (int)$s['total_count'] ?></span>
           </div>
-          <?php endforeach; ?>
+          <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>
+          <div class="mt-2 d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
+            <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-list-check me-1"></i>Obecność / szczegóły</a>
+            <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op" value="delete_lesson">
+              <input type="hidden" name="_tab" value="lekcje">
+              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+              <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń lekcję"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
         </div>
+        <?php endforeach; ?>
       </div>
     </div>
-    <div class="col-lg-5" id="form">
-      <div class="card border-0 shadow-sm dyd-card-form">
-        <div class="card-header fw-semibold bg-transparent"><i class="bi bi-<?= $edit_lesson?'pencil':'plus-lg' ?> me-2"></i><?= $edit_lesson ? 'Edytuj lekcję' : 'Nowa lekcja' ?></div>
-        <div class="card-body">
-          <form method="post">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_op" value="save_lesson">
-            <input type="hidden" name="_tab" value="lekcje">
-            <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-            <input type="hidden" name="session_id" value="<?= (int)($edit_lesson['id'] ?? 0) ?>">
-            <div class="mb-2">
-              <label class="form-label fw-semibold" for="l_date">Data <span class="text-danger">*</span></label>
-              <input type="date" class="form-control" id="l_date" name="lesson_date" required value="<?= h($edit_lesson['lesson_date'] ?? date('Y-m-d')) ?>">
-            </div>
-            <div class="row g-2">
-              <div class="col-6 mb-2">
-                <label class="form-label" for="l_from">Od</label>
-                <select class="form-select" id="l_from" name="time_from"><?= ti_time_options($edit_lesson['time_from'] ?? '') ?></select>
-              </div>
-              <div class="col-6 mb-2">
-                <label class="form-label" for="l_to">Do</label>
-                <select class="form-select" id="l_to" name="time_to"><?= ti_time_options($edit_lesson['time_to'] ?? '') ?></select>
-              </div>
-            </div>
-            <div class="mb-2">
-              <label class="form-label fw-semibold" for="l_topic">Temat lekcji</label>
-              <input type="text" class="form-control" id="l_topic" name="topic" value="<?= h($edit_lesson['topic'] ?? '') ?>" placeholder="np. Podstawy HTML">
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="l_notes">Notatki</label>
-              <textarea class="form-control" id="l_notes" name="notes" rows="2"><?= h($edit_lesson['notes'] ?? '') ?></textarea>
-            </div>
-            <?php if ($edit_lesson): ?>
-            <div class="mb-2">
-              <label class="form-label" for="l_status">Status</label>
-              <select class="form-select" id="l_status" name="status">
-                <option value="planned" <?= ($edit_lesson['status']??'')==='planned'?'selected':'' ?>>Zaplanowana</option>
-                <option value="held" <?= ($edit_lesson['status']??'')==='held'?'selected':'' ?>>Odbyła się</option>
-              </select>
-              <?php if (($edit_lesson['status']??'')==='cancelled'): ?><div class="form-text text-warning">Lekcja odwołana — przywrócenie zmieni status.</div><?php endif; ?>
-            </div>
-            <?php else: ?>
-            <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" name="notify" id="l_notify" value="1">
-              <label class="form-check-label" for="l_notify">Powiadom kursantów SMS o nowych zajęciach</label>
-            </div>
-            <?php endif; ?>
-            <div class="d-flex gap-2 mt-2">
-              <button class="btn btn-primary"><?= $edit_lesson ? 'Zapisz' : 'Dodaj lekcję' ?></button>
-              <?php if ($edit_lesson): ?><a href="index.php?course=<?= $cur_course ?>&tab=lekcje" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>
-            </div>
-          </form>
-        </div>
-      </div>
+    <!-- Wyskakujące okienka: dodawanie + edycja lekcji -->
+    <div class="modal fade" id="addL" tabindex="-1" aria-labelledby="addL_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $lessonFormHtml(null, 'addL'); ?></div></div>
     </div>
+    <?php foreach ($sessions as $s): ?>
+    <div class="modal fade" id="edL<?= (int)$s['id'] ?>" tabindex="-1" aria-labelledby="edL<?= (int)$s['id'] ?>_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $lessonFormHtml($s, 'edL'.(int)$s['id']); ?></div></div>
+    </div>
+    <?php endforeach; ?>
     <?php endif; ?>
 
     <?php /* ═══════════════════════ ZADANIA ═══════════════════════ */ ?>
     <?php if ($tab === 'zadania'): ?>
-    <div class="col-lg-7">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header fw-semibold bg-transparent"><i class="bi bi-journal-check me-2"></i>Zadania domowe</div>
-        <div class="list-group list-group-flush">
-          <?php if (!$homeworks): ?><div class="list-group-item text-body-secondary py-3">Brak zadań. Dodaj pierwsze po prawej.</div><?php endif; ?>
-          <?php foreach ($homeworks as $hw): $av = k30_ti_avail_status($hw['open_at']??null, $hw['close_at']??null); ?>
-          <div class="list-group-item <?= $hw['is_active']?'':'opacity-50' ?>">
-            <div class="d-flex flex-wrap align-items-center gap-2">
-              <span class="fw-semibold"><?= h($hw['title']) ?></span>
-              <?php if (!$hw['is_active']): ?><span class="badge bg-secondary">ukryte</span><?php endif; ?>
-              <?php if ($av['state']==='upcoming'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-clock me-1"></i><?= h($av['label']) ?></span>
-              <?php elseif ($av['state']==='closed'): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-lock me-1"></i><?= h($av['label']) ?></span><?php endif; ?>
-              <span class="text-body-secondary small ms-auto"><i class="bi bi-inbox me-1"></i><?= (int)$hw['sub_count'] ?> oddań · <?= (int)$hw['graded_count'] ?> ocen.</span>
-            </div>
-            <?php if ($hw['due_at']): ?><div class="text-body-secondary small mt-1"><i class="bi bi-calendar-check me-1"></i>termin: <?= h(substr($hw['due_at'],0,16)) ?></div><?php endif; ?>
-            <?php if ($hw['description']): ?><div class="small mt-1"><?= nl2br(h(mb_substr($hw['description'],0,160))) ?></div><?php endif; ?>
-            <div class="mt-2 d-flex gap-2 flex-wrap">
-              <?php if ($hw['attach_path']): ?><a href="?dl=hw&id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-paperclip me-1"></i>załącznik</a><?php endif; ?>
-              <a href="index.php?course=<?= $cur_course ?>&tab=zadania&edit=<?= (int)$hw['id'] ?>#form" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-              <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/homework.php?id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-check2-square me-1"></i>Oddania / oceny</a>
-              <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć zadanie wraz z oddaniami?')">
-                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-                <input type="hidden" name="_op" value="delete_homework">
-                <input type="hidden" name="_tab" value="zadania">
-                <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                <input type="hidden" name="homework_id" value="<?= (int)$hw['id'] ?>">
-                <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash"></i></button>
-              </form>
-            </div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent d-flex align-items-center">
+        <span class="fw-semibold"><i class="bi bi-journal-check me-2"></i>Zadania domowe</span>
+        <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addH">
+          <i class="bi bi-plus-lg me-1"></i>Dodaj zadanie
+        </button>
+      </div>
+      <div class="list-group list-group-flush">
+        <?php if (!$homeworks): ?><div class="list-group-item text-body-secondary py-3">Brak zadań. Kliknij „Dodaj zadanie", aby utworzyć pierwsze.</div><?php endif; ?>
+        <?php foreach ($homeworks as $hw): $av = k30_ti_avail_status($hw['open_at']??null, $hw['close_at']??null); ?>
+        <div class="list-group-item <?= $hw['is_active']?'':'opacity-50' ?>">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold"><?= h($hw['title']) ?></span>
+            <?php if (!$hw['is_active']): ?><span class="badge bg-secondary">ukryte</span><?php endif; ?>
+            <?php if ($av['state']==='upcoming'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-clock me-1"></i><?= h($av['label']) ?></span>
+            <?php elseif ($av['state']==='closed'): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-lock me-1"></i><?= h($av['label']) ?></span><?php endif; ?>
+            <span class="text-body-secondary small ms-auto"><i class="bi bi-inbox me-1"></i><?= (int)$hw['sub_count'] ?> oddań · <?= (int)$hw['graded_count'] ?> ocen.</span>
           </div>
-          <?php endforeach; ?>
+          <?php if ($hw['due_at']): ?><div class="text-body-secondary small mt-1"><i class="bi bi-calendar-check me-1"></i>termin: <?= h(substr($hw['due_at'],0,16)) ?></div><?php endif; ?>
+          <?php if ($hw['description']): ?><div class="small mt-1"><?= nl2br(h(mb_substr($hw['description'],0,160))) ?></div><?php endif; ?>
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            <?php if ($hw['attach_path']): ?><a href="?dl=hw&id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-paperclip me-1"></i>załącznik</a><?php endif; ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edH<?= (int)$hw['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
+            <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/homework.php?id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-check2-square me-1"></i>Oddania / oceny</a>
+            <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć zadanie wraz z oddaniami?')">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op" value="delete_homework">
+              <input type="hidden" name="_tab" value="zadania">
+              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+              <input type="hidden" name="homework_id" value="<?= (int)$hw['id'] ?>">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń zadanie"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
         </div>
+        <?php endforeach; ?>
       </div>
     </div>
-    <div class="col-lg-5" id="form">
-      <div class="card border-0 shadow-sm dyd-card-form">
-        <div class="card-header fw-semibold bg-transparent"><i class="bi bi-<?= $edit_hw?'pencil':'plus-lg' ?> me-2"></i><?= $edit_hw ? 'Edytuj zadanie' : 'Nowe zadanie' ?></div>
-        <div class="card-body">
-          <form method="post" enctype="multipart/form-data">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_op" value="save_homework">
-            <input type="hidden" name="_tab" value="zadania">
-            <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-            <input type="hidden" name="homework_id" value="<?= (int)($edit_hw['id'] ?? 0) ?>">
-            <div class="mb-2">
-              <label class="form-label fw-semibold" for="h_title">Tytuł <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="h_title" name="title" required value="<?= h($edit_hw['title'] ?? '') ?>" placeholder="np. Ćwiczenie 1 — formularz HTML">
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="h_desc">Polecenie / opis</label>
-              <textarea class="form-control" id="h_desc" name="description" rows="3"><?= h($edit_hw['description'] ?? '') ?></textarea>
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="h_session">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
-              <select class="form-select" id="h_session" name="session_id">
-                <option value="">— bez powiązania —</option>
-                <?php foreach ($all_sessions as $s): ?>
-                <option value="<?= (int)$s['id'] ?>" <?= (int)($edit_hw['session_id']??0)===(int)$s['id']?'selected':'' ?>><?= h(date('d.m.Y', strtotime($s['lesson_date']))) ?><?= $s['topic']?' · '.h(mb_substr($s['topic'],0,30)):'' ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="h_due">Termin oddania <span class="text-body-secondary small">(opc.)</span></label>
-              <input type="datetime-local" class="form-control" id="h_due" name="due_at" value="<?= $dtv($edit_hw['due_at'] ?? '') ?>">
-            </div>
-            <div class="row g-2">
-              <div class="col-6 mb-2">
-                <label class="form-label" for="h_open">Otwarcie <span class="text-body-secondary small">(opc.)</span></label>
-                <input type="datetime-local" class="form-control" id="h_open" name="open_at" value="<?= $dtv($edit_hw['open_at'] ?? '') ?>">
-              </div>
-              <div class="col-6 mb-2">
-                <label class="form-label" for="h_close">Zamknięcie <span class="text-body-secondary small">(opc.)</span></label>
-                <input type="datetime-local" class="form-control" id="h_close" name="close_at" value="<?= $dtv($edit_hw['close_at'] ?? '') ?>">
-              </div>
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="h_attach">Załącznik <span class="text-body-secondary small">(opc., maks. 25 MB)</span></label>
-              <input type="file" class="form-control" id="h_attach" name="attach">
-              <?php if (!empty($edit_hw['attach_name'])): ?><div class="form-text">Obecny: <?= h($edit_hw['attach_name']) ?> (prześlij nowy, aby zastąpić)</div><?php endif; ?>
-            </div>
-            <?php if ($edit_hw): ?>
-            <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" name="is_active" id="h_act" <?= $edit_hw['is_active']?'checked':'' ?>>
-              <label class="form-check-label" for="h_act">Widoczne dla kursantów</label>
-            </div>
-            <?php endif; ?>
-            <div class="form-check form-switch mb-3">
-              <input class="form-check-input" type="checkbox" name="notify" id="h_notify" value="1">
-              <label class="form-check-label" for="h_notify">Powiadom kursantów (e-mail / SMS)</label>
-            </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn-primary"><?= $edit_hw ? 'Zapisz' : 'Dodaj zadanie' ?></button>
-              <?php if ($edit_hw): ?><a href="index.php?course=<?= $cur_course ?>&tab=zadania" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>
-            </div>
-          </form>
-        </div>
-      </div>
+    <!-- Wyskakujące okienka: dodawanie + edycja zadań -->
+    <div class="modal fade" id="addH" tabindex="-1" aria-labelledby="addH_t" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $hwFormHtml(null, 'addH'); ?></div></div>
     </div>
+    <?php foreach ($homeworks as $hw): ?>
+    <div class="modal fade" id="edH<?= (int)$hw['id'] ?>" tabindex="-1" aria-labelledby="edH<?= (int)$hw['id'] ?>_t" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $hwFormHtml($hw, 'edH'.(int)$hw['id']); ?></div></div>
+    </div>
+    <?php endforeach; ?>
     <?php endif; ?>
 
     <?php /* ═══════════════════════ MATERIAŁY ═══════════════════════ */ ?>
     <?php if ($tab === 'materialy'): ?>
-    <div class="col-lg-7">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header fw-semibold bg-transparent"><i class="bi bi-collection-play me-2"></i>Materiały / eLearning</div>
-        <div class="list-group list-group-flush">
-          <?php if (!$materials): ?><div class="list-group-item text-body-secondary py-3">Brak materiałów. Dodaj pierwszy po prawej.</div><?php endif; ?>
-          <?php foreach ($materials as $m): $av = k30_ti_avail_status($m['open_at']??null, $m['close_at']??null); ?>
-          <div class="list-group-item <?= $m['is_active']?'':'opacity-50' ?>">
-            <div class="d-flex flex-wrap align-items-center gap-2">
-              <span class="badge badge-soft"><i class="bi bi-<?= h(k30_ti_material_type_icon($m['type'])) ?> me-1"></i><?= h(k30_ti_material_type_label($m['type'])) ?></span>
-              <span class="fw-semibold"><?= h($m['title']) ?></span>
-              <?php if (!$m['is_active']): ?><span class="badge bg-secondary">ukryte</span><?php endif; ?>
-              <?php if ($av['state']==='upcoming'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-clock me-1"></i><?= h($av['label']) ?></span>
-              <?php elseif ($av['state']==='closed'): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-lock me-1"></i><?= h($av['label']) ?></span><?php endif; ?>
-            </div>
-            <?php if ($m['session_date']): ?><div class="text-body-secondary small mt-1"><i class="bi bi-calendar-event me-1"></i>lekcja <?= h(date('d.m.Y', strtotime($m['session_date']))) ?></div><?php endif; ?>
-            <?php if ($m['description']): ?><div class="small mt-1"><?= nl2br(h(mb_substr($m['description'],0,160))) ?></div><?php endif; ?>
-            <div class="mt-2 d-flex gap-2 flex-wrap">
-              <?php if ($m['attach_path']): ?><a href="?dl=mat&id=<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-download me-1"></i><?= h(mb_substr($m['attach_name'],0,20)) ?></a><?php endif; ?>
-              <?php if ($m['url']): ?><a href="<?= h($m['url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-box-arrow-up-right me-1"></i>link</a><?php endif; ?>
-              <a href="index.php?course=<?= $cur_course ?>&tab=materialy&edit=<?= (int)$m['id'] ?>#form" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-              <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć materiał?')">
-                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-                <input type="hidden" name="_op" value="delete_material">
-                <input type="hidden" name="_tab" value="materialy">
-                <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                <input type="hidden" name="material_id" value="<?= (int)$m['id'] ?>">
-                <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash"></i></button>
-              </form>
-            </div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent d-flex align-items-center">
+        <span class="fw-semibold"><i class="bi bi-collection-play me-2"></i>Materiały / eLearning</span>
+        <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addM">
+          <i class="bi bi-plus-lg me-1"></i>Dodaj materiał
+        </button>
+      </div>
+      <div class="list-group list-group-flush">
+        <?php if (!$materials): ?><div class="list-group-item text-body-secondary py-3">Brak materiałów. Kliknij „Dodaj materiał", aby utworzyć pierwszy.</div><?php endif; ?>
+        <?php foreach ($materials as $m): $av = k30_ti_avail_status($m['open_at']??null, $m['close_at']??null); ?>
+        <div class="list-group-item <?= $m['is_active']?'':'opacity-50' ?>">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="badge badge-soft"><i class="bi bi-<?= h(k30_ti_material_type_icon($m['type'])) ?> me-1"></i><?= h(k30_ti_material_type_label($m['type'])) ?></span>
+            <span class="fw-semibold"><?= h($m['title']) ?></span>
+            <?php if (!$m['is_active']): ?><span class="badge bg-secondary">ukryte</span><?php endif; ?>
+            <?php if ($av['state']==='upcoming'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-clock me-1"></i><?= h($av['label']) ?></span>
+            <?php elseif ($av['state']==='closed'): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-lock me-1"></i><?= h($av['label']) ?></span><?php endif; ?>
           </div>
-          <?php endforeach; ?>
+          <?php if ($m['session_date']): ?><div class="text-body-secondary small mt-1"><i class="bi bi-calendar-event me-1"></i>lekcja <?= h(date('d.m.Y', strtotime($m['session_date']))) ?></div><?php endif; ?>
+          <?php if ($m['description']): ?><div class="small mt-1"><?= nl2br(h(mb_substr($m['description'],0,160))) ?></div><?php endif; ?>
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            <?php if ($m['attach_path']): ?><a href="?dl=mat&id=<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-download me-1"></i><?= h(mb_substr($m['attach_name'],0,20)) ?></a><?php endif; ?>
+            <?php if ($m['url']): ?><a href="<?= h($m['url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-box-arrow-up-right me-1"></i>link</a><?php endif; ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edM<?= (int)$m['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
+            <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć materiał?')">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op" value="delete_material">
+              <input type="hidden" name="_tab" value="materialy">
+              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+              <input type="hidden" name="material_id" value="<?= (int)$m['id'] ?>">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń materiał"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
         </div>
+        <?php endforeach; ?>
       </div>
     </div>
-    <div class="col-lg-5" id="form">
-      <div class="card border-0 shadow-sm dyd-card-form">
-        <div class="card-header fw-semibold bg-transparent"><i class="bi bi-<?= $edit_mat?'pencil':'plus-lg' ?> me-2"></i><?= $edit_mat ? 'Edytuj materiał' : 'Nowy materiał' ?></div>
-        <div class="card-body">
-          <form method="post" enctype="multipart/form-data">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_op" value="save_material">
-            <input type="hidden" name="_tab" value="materialy">
-            <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-            <input type="hidden" name="material_id" value="<?= (int)($edit_mat['id'] ?? 0) ?>">
-            <div class="mb-2">
-              <label class="form-label fw-semibold" for="m_type">Typ <span class="text-danger">*</span></label>
-              <select class="form-select" id="m_type" name="type" required>
-                <?php foreach ($TYPES as $slug=>$ti): ?>
-                <option value="<?= h($slug) ?>" <?= ($edit_mat['type']??'zadanie')===$slug?'selected':'' ?>><?= h($ti['label']) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="mb-2">
-              <label class="form-label fw-semibold" for="m_title">Tytuł <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="m_title" name="title" required value="<?= h($edit_mat['title'] ?? '') ?>" placeholder="np. Dokumentacja HTML — MDN">
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="m_desc">Opis</label>
-              <textarea class="form-control" id="m_desc" name="description" rows="3"><?= h($edit_mat['description'] ?? '') ?></textarea>
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="m_session">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
-              <select class="form-select" id="m_session" name="session_id">
-                <option value="">— bez powiązania —</option>
-                <?php foreach ($all_sessions as $s): ?>
-                <option value="<?= (int)$s['id'] ?>" <?= (int)($edit_mat['session_id']??0)===(int)$s['id']?'selected':'' ?>><?= h(date('d.m.Y', strtotime($s['lesson_date']))) ?><?= $s['topic']?' · '.h(mb_substr($s['topic'],0,30)):'' ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="m_url">Link (URL) <span class="text-body-secondary small">(opc.)</span></label>
-              <input type="url" class="form-control" id="m_url" name="url" value="<?= h($edit_mat['url'] ?? '') ?>" placeholder="https://…">
-            </div>
-            <div class="mb-2">
-              <label class="form-label" for="m_attach">Plik <span class="text-body-secondary small">(opc., maks. 25 MB)</span></label>
-              <input type="file" class="form-control" id="m_attach" name="attach">
-              <?php if (!empty($edit_mat['attach_name'])): ?><div class="form-text">Obecny: <?= h($edit_mat['attach_name']) ?> (prześlij nowy, aby zastąpić)</div><?php endif; ?>
-            </div>
-            <div class="row g-2">
-              <div class="col-6 mb-2">
-                <label class="form-label" for="m_open">Otwarcie <span class="text-body-secondary small">(opc.)</span></label>
-                <input type="datetime-local" class="form-control" id="m_open" name="open_at" value="<?= $dtv($edit_mat['open_at'] ?? '') ?>">
-              </div>
-              <div class="col-6 mb-2">
-                <label class="form-label" for="m_close">Zamknięcie <span class="text-body-secondary small">(opc.)</span></label>
-                <input type="datetime-local" class="form-control" id="m_close" name="close_at" value="<?= $dtv($edit_mat['close_at'] ?? '') ?>">
-              </div>
-            </div>
-            <?php if ($edit_mat): ?>
-            <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" name="is_active" id="m_act" <?= $edit_mat['is_active']?'checked':'' ?>>
-              <label class="form-check-label" for="m_act">Widoczne dla kursantów</label>
-            </div>
-            <?php endif; ?>
-            <div class="form-check form-switch mb-3">
-              <input class="form-check-input" type="checkbox" name="notify" id="m_notify" value="1">
-              <label class="form-check-label" for="m_notify">Powiadom kursantów (e-mail / SMS)</label>
-            </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn-primary"><?= $edit_mat ? 'Zapisz' : 'Dodaj materiał' ?></button>
-              <?php if ($edit_mat): ?><a href="index.php?course=<?= $cur_course ?>&tab=materialy" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>
-            </div>
-          </form>
-        </div>
-      </div>
+    <!-- Wyskakujące okienka: dodawanie + edycja materiałów -->
+    <div class="modal fade" id="addM" tabindex="-1" aria-labelledby="addM_t" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $matFormHtml(null, 'addM'); ?></div></div>
     </div>
+    <?php foreach ($materials as $m): ?>
+    <div class="modal fade" id="edM<?= (int)$m['id'] ?>" tabindex="-1" aria-labelledby="edM<?= (int)$m['id'] ?>_t" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $matFormHtml($m, 'edM'.(int)$m['id']); ?></div></div>
+    </div>
+    <?php endforeach; ?>
     <?php endif; ?>
 
   </div>
