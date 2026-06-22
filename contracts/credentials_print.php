@@ -158,7 +158,9 @@ header('Content-Type: text/html; charset=utf-8');
   .sign { display: flex; gap: 60px; margin-top: 48px; }
   .sign div { flex: 1; border-top: 1px solid #1a1a1a; padding-top: 6px; text-align: center; color: #555; font-size: 12px; }
   .noprint { margin: 18px 0; }
-  .page-break { page-break-before: always; }
+  /* Każda strona dokumentu na osobnej kartce */
+  .sheet { break-after: page; page-break-after: always; }
+  .sheet:last-of-type { break-after: auto; page-break-after: auto; }
   .decl p { line-height: 1.6; margin: 10px 0; }
   .decl .lead { font-size: 14px; }
   .fill { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
@@ -176,6 +178,8 @@ header('Content-Type: text/html; charset=utf-8');
     <a href="<?= h($back) ?>" style="margin-left:10px">← Powrót do umowy</a>
   </div>
 
+  <!-- ── Strona 1: dane logowania ─────────────────────────────────────────── -->
+  <div class="sheet">
   <div class="head">
     <div>
       <h1>Dane logowania</h1>
@@ -225,11 +229,11 @@ header('Content-Type: text/html; charset=utf-8');
     <div>Wydał(a) — podpis</div>
     <div>Odebrał(a) — podpis i data</div>
   </div>
+  </div><!-- /sheet 1 -->
 
   <!-- ── Strona 2: oświadczenie o wydaniu danych dostępowych ──────────────── -->
   <?php $svc_list = implode(', ', array_map(fn($c) => $c['service'], $creds)); ?>
-  <div class="page-break"></div>
-
+  <div class="sheet">
   <div class="head">
     <div>
       <h1>Oświadczenie o wydaniu danych dostępowych</h1>
@@ -272,6 +276,7 @@ header('Content-Type: text/html; charset=utf-8');
       <div class="line">Podpis odbierającego i data</div>
     </div>
   </div>
+  </div><!-- /sheet 2 -->
 
   <script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 350); });</script>
 </body>
