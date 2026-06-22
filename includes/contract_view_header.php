@@ -98,21 +98,35 @@ $_cvh_accent = match($_cvh_st['class']) {
 
   <div class="contract-hero-top">
 
-    <!-- Left: type + number -->
+    <!-- Left: osoba (tytuł) + typ/numer (nadtytuł) -->
     <div class="contract-hero-id">
-      <div class="contract-hero-type">
+      <div class="contract-hero-eyebrow">
         <i class="bi <?= h($_cvh_icon) ?>"></i>
         <?= h($_cvh_label) ?>
-        <span style="font-weight:400;opacity:.55;margin-left:.5rem;letter-spacing:0"><?= h($_cvh_row['numer_umowy']) ?></span>
         <?php if (!empty($_cvh_row['numer_umowy'])): ?>
+        <span class="cvh-num"><?= h($_cvh_row['numer_umowy']) ?></span>
         <button type="button"
                 data-copy="<?= h($_cvh_row['numer_umowy']) ?>"
                 title="Kopiuj numer umowy"
-                style="background:none;border:none;padding:0 0 0 .3rem;color:#94a3b8;cursor:pointer;font-size:.85rem;line-height:1;vertical-align:middle">
+                style="background:none;border:none;padding:0 0 0 .25rem;color:#94a3b8;cursor:pointer;font-size:.8rem;line-height:1;vertical-align:middle">
           <i class="bi bi-copy"></i>
         </button>
         <?php endif; ?>
       </div>
+      <div class="contract-hero-title"><?= h($_cvh_person ?: $_cvh_label) ?></div>
+      <?php if ($_cvh_person && $_cvh_person_sub): ?>
+      <div class="contract-hero-subtitle">
+        <?= h($_cvh_person_sub) ?>
+        <?php if (filter_var($_cvh_person_sub, FILTER_VALIDATE_EMAIL)): ?>
+        <button type="button"
+                data-copy="<?= h($_cvh_person_sub) ?>"
+                title="Kopiuj e-mail"
+                style="background:none;border:none;padding:0;color:#94a3b8;cursor:pointer;font-size:.78rem;line-height:1;vertical-align:middle">
+          <i class="bi bi-copy"></i>
+        </button>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
     </div>
 
     <!-- Right: actions -->
@@ -138,8 +152,8 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php $_cvh_wid = (int)($_cvh_id ?? 0); $_cvh_burl = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $_cvh_wid; ?>
       <div class="dropdown">
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                data-bs-toggle="dropdown" aria-expanded="false" title="Dokumenty do wydruku i pobrania">
-          <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline">Dokumenty</span>
+                data-bs-toggle="dropdown" aria-expanded="false" title="Dokumenty, koperty i wydruki">
+          <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline">Dokumenty i wydruki</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end" style="min-width:230px">
           <li><h6 class="dropdown-header"><i class="bi bi-folder2-open me-1"></i>Karta do segregatora</h6></li>
@@ -196,23 +210,26 @@ $_cvh_accent = match($_cvh_st['class']) {
           </li>
           <?php endif; ?>
           <li><hr class="dropdown-divider"></li>
-          <li><h6 class="dropdown-header"><i class="bi bi-envelope me-1"></i>Koperty</h6></li>
-          <li>
-            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=koperta_a4&preview=1" target="_blank">
-              <i class="bi bi-printer me-2 text-danger"></i>Koperta A4 (210×297 mm)
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=koperta_c4&preview=1" target="_blank">
-              <i class="bi bi-printer me-2 text-danger"></i>Koperta C4 (229×324 mm)
-            </a>
-          </li>
-          <li><hr class="dropdown-divider"></li>
           <li>
             <a class="dropdown-item" href="<?= APP_URL ?>/contracts/wolontariat/print.php?id=<?= $_cvh_wid ?>" target="_blank">
               <i class="bi bi-file-earmark-text me-2 text-secondary"></i>Wydruk umowy (pełny)
             </a>
           </li>
+          <?php
+            // Koperty i szablony pism — wspólne wzory (zamiast osobnego dropdownu „Wydruki", bez duplikatu)
+            $_cvh_frag_src = 'contract_id=' . $_cvh_wid . '&type=' . rawurlencode((string)$_cvh_type);
+            $_cvh_env_frag = function_exists('envelope_dropdown_html')       ? envelope_dropdown_html($_cvh_frag_src, ['fragment' => true]) : '';
+            $_cvh_doc_frag = function_exists('print_template_dropdown_html')  ? print_template_dropdown_html($_cvh_frag_src, ['fragment' => true]) : '';
+          ?>
+          <li><hr class="dropdown-divider"></li>
+          <?php if ($_cvh_env_frag !== ''): ?>
+          <?= $_cvh_env_frag ?>
+          <?php else: ?>
+          <li><h6 class="dropdown-header"><i class="bi bi-envelope me-1"></i>Koperty</h6></li>
+          <li><a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=koperta_a4&preview=1" target="_blank"><i class="bi bi-printer me-2 text-danger"></i>Koperta A4 (210×297 mm)</a></li>
+          <li><a class="dropdown-item" href="<?= $_cvh_burl ?>&typ=koperta_c4&preview=1" target="_blank"><i class="bi bi-printer me-2 text-danger"></i>Koperta C4 (229×324 mm)</a></li>
+          <?php endif; ?>
+          <?php if ($_cvh_doc_frag !== ''): ?><li><hr class="dropdown-divider"></li><?= $_cvh_doc_frag ?><?php endif; ?>
         </ul>
       </div>
       <?php endif; ?>
@@ -229,7 +246,9 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
       <?php endif; ?>
       <?php $_cvh_src = 'contract_id=' . (int)($_cvh_id ?? 0) . '&type=' . rawurlencode((string)($_cvh_type ?? '')); ?>
+      <?php if (($_cvh_type ?? '') !== 'wolontariat'): /* dla wolontariatu wydruki są w dropdownie „Dokumenty i wydruki" */ ?>
       <?= wydruki_dropdown_html($_cvh_src) ?>
+      <?php endif; ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark" title="Drukuj tę stronę">
         <i class="bi bi-printer"></i>
       </button>
@@ -324,27 +343,6 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
     </div>
 
-    <!-- Person -->
-    <?php if ($_cvh_person): ?>
-    <div class="contract-hero-stat">
-      <div class="cvh-stat-label">Strona umowy</div>
-      <div class="cvh-stat-val fw-semibold"><?= h($_cvh_person) ?></div>
-      <?php if ($_cvh_person_sub): ?>
-      <div class="cvh-stat-sub" style="display:inline-flex;align-items:center;gap:.25rem">
-        <?= h($_cvh_person_sub) ?>
-        <?php if (filter_var($_cvh_person_sub, FILTER_VALIDATE_EMAIL)): ?>
-        <button type="button"
-                data-copy="<?= h($_cvh_person_sub) ?>"
-                title="Kopiuj e-mail"
-                style="background:none;border:none;padding:0;color:#94a3b8;cursor:pointer;font-size:.8rem;line-height:1;flex-shrink:0">
-          <i class="bi bi-copy"></i>
-        </button>
-        <?php endif; ?>
-      </div>
-      <?php endif; ?>
-    </div>
-    <?php endif; ?>
-
     <!-- Amount -->
     <?php if ($_cvh_amount !== null && $_cvh_amount !== ''): ?>
     <div class="contract-hero-stat">
@@ -419,21 +417,30 @@ $_cvh_accent = match($_cvh_st['class']) {
   gap: 1rem;
   margin-bottom: .85rem;
 }
-.contract-hero-type {
+.contract-hero-eyebrow {
   font-size: .72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .1em;
   color: #64748b;
-  margin-bottom: .2rem;
+  margin-bottom: .15rem;
 }
-.contract-hero-type i { margin-right: .3rem; }
-.contract-hero-num {
-  font-size: 1.55rem;
+.contract-hero-eyebrow i { margin-right: .3rem; }
+.contract-hero-eyebrow .cvh-num { font-weight: 600; opacity: .6; margin-left: .45rem; letter-spacing: 0; }
+.contract-hero-title {
+  font-size: 1.5rem;
   font-weight: 800;
   color: #1e293b;
   letter-spacing: -.02em;
-  line-height: 1.1;
+  line-height: 1.15;
+}
+.contract-hero-subtitle {
+  font-size: .82rem;
+  color: #64748b;
+  margin-top: .1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
 }
 .contract-hero-actions {
   display: flex;
@@ -522,7 +529,7 @@ $_cvh_accent = match($_cvh_st['class']) {
   font-size: .75rem;
 }
 @media (max-width: 576px) {
-  .contract-hero-num { font-size: 1.2rem; }
+  .contract-hero-title { font-size: 1.2rem; }
   .contract-hero-stat { min-width: 100px; }
 }
 </style>
