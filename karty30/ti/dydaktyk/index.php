@@ -294,6 +294,25 @@ if ($cur_course) {
 $TYPES = k30_ti_material_types();
 $STATUS = K30_TI_SESSION_STATUSES;
 
+// Lekcje do wyszukiwarki „Powiązana lekcja" (etykiety unikalne — do mapowania w JS)
+$session_opts = []; $session_label_by_id = []; $_lbl_seen = [];
+foreach ($all_sessions as $s) {
+    $lbl = date('d.m.Y', strtotime($s['lesson_date'])) . ($s['topic'] !== '' && $s['topic'] !== null ? ' · ' . mb_substr($s['topic'], 0, 40) : '');
+    if (isset($_lbl_seen[$lbl])) { $_lbl_seen[$lbl]++; $lbl .= ' (' . $_lbl_seen[$lbl] . ')'; } else { $_lbl_seen[$lbl] = 1; }
+    $session_opts[] = ['id' => (int)$s['id'], 'label' => $lbl];
+    $session_label_by_id[(int)$s['id']] = $lbl;
+}
+
+/** Wyszukiwarka lekcji (pole tekstowe + lista) zwracająca session_id w ukrytym polu. */
+$sessionPicker = function (string $pfx, int $selId) use ($session_label_by_id) { ?>
+  <input type="text" class="form-control dyd-lesson-combo" id="<?= $pfx ?>_session_txt"
+         list="dyd-session-list" data-target="<?= $pfx ?>_session" autocomplete="off"
+         value="<?= h($session_label_by_id[$selId] ?? '') ?>"
+         placeholder="Wpisz datę lub temat i wybierz z listy…" aria-describedby="<?= $pfx ?>_session_help">
+  <input type="hidden" name="session_id" id="<?= $pfx ?>_session" value="<?= $selId ?: '' ?>">
+  <div class="form-text" id="<?= $pfx ?>_session_help">Zacznij pisać, aby wyszukać lekcję. Puste pole = bez powiązania.</div>
+<?php };
+
 // ── Formularze renderowane w wyskakujących okienkach (dodawanie + edycja) ─────
 // $r = wiersz do edycji lub null (dodawanie). $pfx = unikalny prefiks id pól/modalu.
 
@@ -396,7 +415,7 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
   </form>
 <?php };
 
-$hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, $dtv) {
+$hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $dtv, $sessionPicker) {
     $isEdit = (bool)$r; ?>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
@@ -418,13 +437,8 @@ $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, 
         <textarea class="form-control" id="<?= $pfx ?>_desc" name="description" rows="3"><?= h($r['description'] ?? '') ?></textarea>
       </div>
       <div class="mb-2">
-        <label class="form-label" for="<?= $pfx ?>_session">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
-        <select class="form-select" id="<?= $pfx ?>_session" name="session_id">
-          <option value="">— bez powiązania —</option>
-          <?php foreach ($all_sessions as $s): ?>
-          <option value="<?= (int)$s['id'] ?>" <?= (int)($r['session_id']??0)===(int)$s['id']?'selected':'' ?>><?= h(date('d.m.Y', strtotime($s['lesson_date']))) ?><?= $s['topic']?' · '.h(mb_substr($s['topic'],0,30)):'' ?></option>
-          <?php endforeach; ?>
-        </select>
+        <label class="form-label" for="<?= $pfx ?>_session_txt">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
+        <?php $sessionPicker($pfx, (int)($r['session_id'] ?? 0)); ?>
       </div>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_due">Termin oddania <span class="text-body-secondary small">(opc.)</span></label>
@@ -463,7 +477,7 @@ $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, 
   </form>
 <?php };
 
-$matFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, $TYPES, $dtv) {
+$matFormHtml = function(?array $r, string $pfx) use ($cur_course, $TYPES, $dtv, $sessionPicker) {
     $isEdit = (bool)$r; ?>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
@@ -493,13 +507,8 @@ $matFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions,
         <textarea class="form-control" id="<?= $pfx ?>_desc" name="description" rows="3"><?= h($r['description'] ?? '') ?></textarea>
       </div>
       <div class="mb-2">
-        <label class="form-label" for="<?= $pfx ?>_session">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
-        <select class="form-select" id="<?= $pfx ?>_session" name="session_id">
-          <option value="">— bez powiązania —</option>
-          <?php foreach ($all_sessions as $s): ?>
-          <option value="<?= (int)$s['id'] ?>" <?= (int)($r['session_id']??0)===(int)$s['id']?'selected':'' ?>><?= h(date('d.m.Y', strtotime($s['lesson_date']))) ?><?= $s['topic']?' · '.h(mb_substr($s['topic'],0,30)):'' ?></option>
-          <?php endforeach; ?>
-        </select>
+        <label class="form-label" for="<?= $pfx ?>_session_txt">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
+        <?php $sessionPicker($pfx, (int)($r['session_id'] ?? 0)); ?>
       </div>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_url">Link (URL) <span class="text-body-secondary small">(opc.)</span></label>
@@ -825,6 +834,13 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <?php endif; /* $course */ ?>
   <?php endif; /* $courses */ ?>
 
+  <!-- Wspólna lista lekcji dla wyszukiwarek „Powiązana lekcja" -->
+  <datalist id="dyd-session-list">
+    <?php foreach ($session_opts as $o): ?>
+    <option data-id="<?= (int)$o['id'] ?>" value="<?= h($o['label']) ?>"></option>
+    <?php endforeach; ?>
+  </datalist>
+
 </main>
 <script>
 // „Zaznacz / odznacz wszystkich" w oknie sprawdzania obecności.
@@ -835,5 +851,16 @@ document.addEventListener('click', function(e){
   var allChecked = Array.prototype.every.call(boxes, function(c){ return c.checked; });
   Array.prototype.forEach.call(boxes, function(c){ c.checked = !allChecked; });
 });
+
+// Wyszukiwarka „Powiązana lekcja": tekst → ukryte session_id (mapa etykieta→id).
+(function(){
+  var map = {};
+  document.querySelectorAll('#dyd-session-list option').forEach(function(o){ map[o.value] = o.getAttribute('data-id'); });
+  document.addEventListener('input', function(e){
+    var inp = e.target.closest('.dyd-lesson-combo'); if (!inp) return;
+    var hid = document.getElementById(inp.getAttribute('data-target')); if (!hid) return;
+    hid.value = map[inp.value] || '';   // dopasowano z listy → id; w innym wypadku brak powiązania
+  });
+})();
 </script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
