@@ -113,6 +113,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // Seria lekcji — powtarzalne co N tygodni
+    if ($op === 'save_lesson_series') {
+        $date  = trim($_POST['lesson_date'] ?? '');
+        $tf    = trim($_POST['time_from'] ?? '');
+        $tt    = trim($_POST['time_to'] ?? '');
+        $topic = trim($_POST['topic'] ?? '');
+        $every = max(1, (int)($_POST['weeks'] ?? 1));
+        $count = max(1, min(52, (int)($_POST['count'] ?? 1)));
+        if ($date === '' || !DateTime::createFromFormat('Y-m-d', $date)) {
+            flash_set('danger', 'Podaj poprawną datę startową serii.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
+        $dur = 60;
+        if ($tf && $tt) { $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60; if ($m > 0) $dur = (int)$m; }
+        $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]);
+        $created = 0;
+        for ($i = 0; $i < $count; $i++) {
+            $d = date('Y-m-d', strtotime($date . ' +' . ($i * $every) . ' weeks'));
+            $sid = db_insert('k30_ti_sessions', [
+                'course_id' => $course_id, 'lesson_date' => $d, 'time_from' => $tf, 'time_to' => $tt,
+                'duration_min' => $dur, 'status' => 'planned', 'topic' => $topic, 'notes' => '',
+                'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            foreach ($enrollees as $e) {
+                try { db_insert('k30_ti_attendance', ['session_id' => $sid, 'client_id' => (int)$e['client_id'], 'attended' => 0]); }
+                catch (\Throwable $ex) {}
+            }
+            $created++;
+        }
+        flash_set('success', "Utworzono serię: {$created} lekcji (co {$every} tyg.).");
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     if ($op === 'save_attendance') {
         $sid = (int)($_POST['session_id'] ?? 0);
         if (dyd_owns_session($uid, $sid)) {
@@ -662,12 +694,22 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     </div>
     <?php endif; ?>
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-transparent d-flex align-items-center">
+      <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
         <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
-        <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning ms-2"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
-        <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addL">
-          <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
-        </button>
+        <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
+        <div class="ms-auto d-flex gap-2">
+          <?php if ($all_sessions): ?>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydCalModal">
+            <i class="bi bi-calendar3 me-1"></i>Kalendarz
+          </button>
+          <?php endif; ?>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSeries">
+            <i class="bi bi-calendar-plus me-1"></i>Seria
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addL">
+            <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
+          </button>
+        </div>
       </div>
       <div class="list-group list-group-flush">
         <?php if (!$sessions): ?><div class="list-group-item text-body-secondary py-3">Brak lekcji. Kliknij „Dodaj lekcję", aby utworzyć pierwszą.</div><?php endif; ?>
@@ -744,6 +786,113 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $attFormHtml($s, k30_ti_session_attendance((int)$s['id']), 'attL'.(int)$s['id']); ?></div></div>
     </div>
     <?php endforeach; ?>
+
+    <!-- Modal: seria lekcji (powtarzalne) -->
+    <div class="modal fade" id="addSeries" tabindex="-1" aria-labelledby="addSeries_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="save_lesson_series">
+          <input type="hidden" name="_tab" value="lekcje">
+          <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addSeries_t"><i class="bi bi-calendar-plus me-2"></i>Seria lekcji</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-body-secondary small">Utworzy kilka lekcji powtarzających się co wybraną liczbę tygodni, od daty startowej.</p>
+            <div class="mb-2">
+              <label class="form-label fw-semibold" for="series_date">Data startowa <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="series_date" name="lesson_date" required value="<?= h(date('Y-m-d')) ?>">
+            </div>
+            <div class="row g-2">
+              <div class="col-6 mb-2">
+                <label class="form-label" for="series_from">Od</label>
+                <select class="form-select" id="series_from" name="time_from"><?= ti_time_options('') ?></select>
+              </div>
+              <div class="col-6 mb-2">
+                <label class="form-label" for="series_to">Do</label>
+                <select class="form-select" id="series_to" name="time_to"><?= ti_time_options('') ?></select>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="series_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
+              <input type="text" class="form-control" id="series_topic" name="topic" placeholder="np. Zajęcia cykliczne">
+            </div>
+            <div class="row g-2">
+              <div class="col-6 mb-2">
+                <label class="form-label" for="series_weeks">Co ile tygodni</label>
+                <input type="number" class="form-control" id="series_weeks" name="weeks" min="1" max="8" value="1">
+              </div>
+              <div class="col-6 mb-2">
+                <label class="form-label" for="series_count">Liczba lekcji</label>
+                <input type="number" class="form-control" id="series_count" name="count" min="1" max="52" value="8">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-calendar-plus me-1"></i>Utwórz serię</button>
+          </div>
+        </form>
+      </div></div>
+    </div>
+
+    <!-- Modal: widok kalendarza lekcji -->
+    <?php if ($all_sessions):
+      $cal_by_date = [];
+      foreach ($all_sessions as $s) { $cal_by_date[(string)$s['lesson_date']][] = $s; }
+      $cal_months = []; foreach (array_keys($cal_by_date) as $ld) { if ($ld !== '') $cal_months[substr($ld,0,7)] = true; }
+      $cal_months = array_keys($cal_months); sort($cal_months);
+      $months_full = [1=>'Styczeń',2=>'Luty',3=>'Marzec',4=>'Kwiecień',5=>'Maj',6=>'Czerwiec',7=>'Lipiec',8=>'Sierpień',9=>'Wrzesień',10=>'Październik',11=>'Listopad',12=>'Grudzień'];
+      $wd_short = ['Pn','Wt','Śr','Cz','Pt','So','Nd']; $wd_full = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
+      $today_ymd = date('Y-m-d');
+    ?>
+    <div class="modal fade" id="dydCalModal" tabindex="-1" aria-labelledby="dydCalTitle" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dydCalTitle"><i class="bi bi-calendar3 me-2"></i>Kalendarz lekcji — <?= h($course['name'] ?? '') ?></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <?php foreach ($cal_months as $ym):
+            $year = (int)substr($ym,0,4); $mon = (int)substr($ym,5,2);
+            $daysIn = (int)date('t', mktime(0,0,0,$mon,1,$year));
+            $startDow = (int)date('N', mktime(0,0,0,$mon,1,$year));
+          ?>
+          <table class="table table-bordered kp-cal mb-4">
+            <caption class="fw-semibold text-body mb-1"><?= $months_full[$mon] ?> <?= $year ?></caption>
+            <thead><tr><?php foreach ($wd_short as $i=>$w): ?><th scope="col" class="text-center small text-body-secondary" abbr="<?= h($wd_full[$i]) ?>"><?= $w ?></th><?php endforeach; ?></tr></thead>
+            <tbody><tr>
+              <?php
+                for ($i=1;$i<$startDow;$i++) echo '<td class="kp-cal-empty" aria-hidden="true"></td>';
+                $col = $startDow - 1;
+                for ($day=1;$day<=$daysIn;$day++):
+                  $ymd = sprintf('%04d-%02d-%02d',$year,$mon,$day);
+                  $dl = $cal_by_date[$ymd] ?? []; $isToday = $ymd===$today_ymd;
+              ?>
+              <td class="kp-cal-day<?= $dl?' has-lesson':'' ?><?= $isToday?' is-today':'' ?>"<?= $isToday?' aria-current="date"':'' ?>>
+                <div class="kp-cal-num <?= $isToday?'fw-bold':'' ?>"><?= $day ?></div>
+                <?php foreach ($dl as $e): ?>
+                <div class="kp-cal-ev" title="<?= h(($e['time_from']??'' ? substr($e['time_from'],0,5).' ' : '').($e['topic'] ?: 'Lekcja')) ?>">
+                  <?php if (!empty($e['time_from'])): ?><span class="fw-semibold"><?= h(substr($e['time_from'],0,5)) ?></span> <?php endif; ?><?= h($e['topic'] ?: 'Lekcja') ?>
+                </div>
+                <?php endforeach; ?>
+              </td>
+              <?php
+                  $col++;
+                  if ($col % 7 === 0 && $day < $daysIn) echo '</tr><tr>';
+                endfor;
+                while ($col % 7 !== 0) { echo '<td class="kp-cal-empty" aria-hidden="true"></td>'; $col++; }
+              ?>
+            </tr></tbody>
+          </table>
+          <?php endforeach; ?>
+          <p class="text-body-secondary small mb-0"><i class="bi bi-info-circle me-1"></i>Miesiące z lekcjami; dzisiejszy dzień jest wyróżniony.</p>
+        </div>
+      </div></div>
+    </div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <?php /* ═══════════════════════ ZADANIA ═══════════════════════ */ ?>
