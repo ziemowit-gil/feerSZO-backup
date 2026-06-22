@@ -129,6 +129,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         exit;
     }
 
+    // Potwierdzenie / odrzucenie prośby kursanta o odwołanie udziału (czeka na potwierdzenie)
+    if ($op === 'confirm_cancel_req' || $op === 'reject_cancel_req') {
+        $cid = (int)($_POST['client_id'] ?? 0);
+        if ($cid) {
+            if ($op === 'confirm_cancel_req') {
+                k30_ti_confirm_cancel_attendance($session_id, $cid);
+                k30_ti_notify_student_cancel_decision($session_id, $cid, true);
+                flash_set('success', 'Odwołanie potwierdzone — kursant został powiadomiony.');
+            } else {
+                k30_ti_uncancel_attendance($session_id, $cid);
+                k30_ti_notify_student_cancel_decision($session_id, $cid, false);
+                flash_set('success', 'Prośba o odwołanie odrzucona — kursant został powiadomiony.');
+            }
+        }
+        header('Location: lesson.php?id=' . $session_id);
+        exit;
+    }
+
     // Zapis linku do lekcji online — bez zmiany statusu lekcji
     if ($op === 'save_link') {
         $url = trim($_POST['meeting_url'] ?? '');
@@ -164,6 +182,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 .att-row.present  { background: #f0fdf4; }
 .att-row.absent   { background: #fafafa; }
 .att-row.cancelled{ background: #fef2f2; }
+.att-row.pending  { background: #fffbeb; }
 .att-cb           { width: 1.3em; height: 1.3em; flex-shrink: 0; cursor: pointer; }
 .section-head     { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 12px; }
 </style>
@@ -454,11 +473,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <?php foreach ($attendance as $a):
           $cid       = (int)$a['client_id'];
           $cancelled = (int)($a['cancelled'] ?? 0) === 1;
+          $pending   = (int)($a['cancel_pending'] ?? 0) === 1;
           $present   = !$cancelled && (bool)$a['attended'];
           $note      = $ind_notes_map[$cid] ?? '';
           $role_lbl  = K30_TI_CANCEL_ROLES[$a['cancelled_by_role'] ?? ''] ?? ($a['cancelled_by_role'] ?? '');
         ?>
-        <div class="list-group-item att-row <?= $cancelled ? 'cancelled' : ($present ? 'present' : 'absent') ?> py-2 px-3"
+        <div class="list-group-item att-row <?= $pending ? 'pending' : ($cancelled ? 'cancelled' : ($present ? 'present' : 'absent')) ?> py-2 px-3"
              id="row_<?= $cid ?>">
           <div class="d-flex align-items-center gap-3">
             <input class="att-cb form-check-input" type="checkbox"
@@ -476,7 +496,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <?= number_format((float)$a['hourly_rate'], 2, ',', '') ?> zł/h
             </div>
             <?php if ($can_write): ?>
-              <?php if ($cancelled): ?>
+              <?php if ($pending): ?>
+              <button type="button" class="btn btn-xs btn-sm btn-success py-0 px-2 flex-shrink-0"
+                      onclick="confirmCancelReq(<?= $cid ?>)" title="Potwierdź odwołanie udziału">
+                <i class="bi bi-check-lg me-1"></i>Potwierdź
+              </button>
+              <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
+                      onclick="rejectCancelReq(<?= $cid ?>)" title="Odrzuć prośbę (przywróć udział)">
+                <i class="bi bi-x-lg"></i>
+              </button>
+              <?php elseif ($cancelled): ?>
               <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
                       onclick="restoreAtt(<?= $cid ?>)" title="Przywróć udział">
                 <i class="bi bi-arrow-counterclockwise"></i>
@@ -490,7 +519,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <?php endif; ?>
             <?php endif; ?>
           </div>
-          <?php if ($cancelled): ?>
+          <?php if ($pending): ?>
+          <div class="mt-1 ms-5 small text-warning-emphasis">
+            <i class="bi bi-hourglass-split me-1"></i>Prośba o odwołanie udziału — czeka na potwierdzenie.
+            <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
+            <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
+            <span class="text-muted d-block">Zgłosił(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
+            <?php endif; ?>
+          </div>
+          <?php elseif ($cancelled): ?>
           <div class="mt-1 ms-5 small text-danger">
             <i class="bi bi-x-octagon me-1"></i>Udział odwołany — nie liczony do ceny.
             <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
@@ -604,6 +641,18 @@ function openCancelAtt(cid, name) {
 function restoreAtt(cid) {
   if (!confirm('Przywrócić udział uczestnika?')) return;
   document.getElementById('aa_op').value  = 'restore_attendee';
+  document.getElementById('aa_cid').value = cid;
+  document.getElementById('attActionForm').submit();
+}
+function confirmCancelReq(cid) {
+  if (!confirm('Potwierdzić odwołanie udziału? Kursant zostanie powiadomiony.')) return;
+  document.getElementById('aa_op').value  = 'confirm_cancel_req';
+  document.getElementById('aa_cid').value = cid;
+  document.getElementById('attActionForm').submit();
+}
+function rejectCancelReq(cid) {
+  if (!confirm('Odrzucić prośbę i przywrócić udział? Kursant zostanie powiadomiony.')) return;
+  document.getElementById('aa_op').value  = 'reject_cancel_req';
   document.getElementById('aa_cid').value = cid;
   document.getElementById('attActionForm').submit();
 }

@@ -2639,6 +2639,50 @@ function k30_ti_notify_instructor_cancel_request(int $session_id, int $client_id
 }
 
 /**
+ * Powiadom kursanta (i opiekuna małoletniego) o decyzji prowadzącego ws. odwołania:
+ * $confirmed=true → potwierdzone, false → odrzucone (udział przywrócony).
+ */
+function k30_ti_notify_student_cancel_decision(int $session_id, int $client_id, bool $confirmed): void {
+    $row = db_one(
+        "SELECT s.lesson_date, s.time_from, c.name AS course_name, cl.name AS client_name, cl.email,
+                a.is_minor, a.guardian_email
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         JOIN k30_clients cl ON cl.id=?
+         LEFT JOIN k30_ti_student_accounts a ON a.client_id=cl.id AND a.is_active=1
+         WHERE s.id=? LIMIT 1",
+        [$client_id, $session_id]
+    );
+    if (!$row) return;
+    $emails = [];
+    $primary = trim((string)($row['email'] ?? ''));
+    if ($primary !== '' && filter_var($primary, FILTER_VALIDATE_EMAIL)) $emails[$primary] = (string)$row['client_name'];
+    $gemail = trim((string)($row['guardian_email'] ?? ''));
+    if (!empty($row['is_minor']) && $gemail !== '' && filter_var($gemail, FILTER_VALIDATE_EMAIL)) $emails[$gemail] = (string)$row['client_name'];
+    if (!$emails) return;
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return;
+    $org  = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    $url  = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
+    $when = date('d.m.Y', strtotime($row['lesson_date'])) . ($row['time_from'] ? ' o ' . substr($row['time_from'], 0, 5) : '');
+    $crs  = htmlspecialchars((string)$row['course_name'], ENT_QUOTES);
+    if ($confirmed) {
+        $subject = "potwierdzono odwołanie udziału — {$when}";
+        $lead = "Twoja prośba o odwołanie udziału w lekcji <strong>{$crs}</strong> ({$when}) została <strong>potwierdzona</strong>. Udział nie zostanie policzony do ceny.";
+    } else {
+        $subject = "odrzucono prośbę o odwołanie — {$when}";
+        $lead = "Twoja prośba o odwołanie udziału w lekcji <strong>{$crs}</strong> ({$when}) została <strong>odrzucona</strong> — udział pozostaje aktualny.";
+    }
+    $html = "<p>Dzień dobry,</p><p>{$lead}</p>"
+          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Otwórz panel kursanta</a></p>"
+          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
+    foreach ($emails as $addr => $nm) {
+        try { mail_queue_add($addr, $nm, "{$org}: {$subject}", $html, '', 'ti_cancel_decision', $session_id, '', false); }
+        catch (\Throwable $e) {}
+    }
+}
+
+/**
  * Odwołuje całą lekcję (Doradca / admin) — status='cancelled', z powodem i autorem.
  * Odwołana lekcja nie jest liczona do ceny (rozliczenie bierze tylko status='held').
  */

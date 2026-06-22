@@ -132,10 +132,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($sid && $cid && dyd_owns_session($uid, $sid)) {
             if ($op === 'confirm_cancel') {
                 k30_ti_confirm_cancel_attendance($sid, $cid);
-                flash_set('success', 'Odwołanie potwierdzone — udział nie będzie liczony do ceny.');
+                k30_ti_notify_student_cancel_decision($sid, $cid, true);
+                flash_set('success', 'Odwołanie potwierdzone — udział nie będzie liczony do ceny. Kursant został powiadomiony.');
             } else {
                 k30_ti_uncancel_attendance($sid, $cid);
-                flash_set('success', 'Prośba o odwołanie odrzucona — udział przywrócony.');
+                k30_ti_notify_student_cancel_decision($sid, $cid, false);
+                flash_set('success', 'Prośba o odwołanie odrzucona — udział przywrócony. Kursant został powiadomiony.');
             }
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
@@ -292,6 +294,11 @@ if ($cur_course) {
     $materials    = k30_ti_materials_list($cur_course);
     $all_sessions = db_all("SELECT id, lesson_date, topic FROM k30_ti_sessions WHERE course_id=? ORDER BY lesson_date DESC, id DESC", [$cur_course]);
 }
+
+// Liczba oczekujących próśb o odwołanie udziału w kursie (do licznika)
+$pending_cancel_total = $cur_course ? (int)(db_one(
+    "SELECT COUNT(*) n FROM k30_ti_attendance a JOIN k30_ti_sessions s ON s.id=a.session_id
+     WHERE s.course_id=? AND a.cancel_pending=1", [$cur_course])['n'] ?? 0) : 0;
 
 $TYPES = k30_ti_material_types();
 $STATUS = K30_TI_SESSION_STATUSES;
@@ -648,9 +655,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
     <?php /* ═══════════════════════ LEKCJE ═══════════════════════ */ ?>
     <?php if ($tab === 'lekcje'): ?>
+    <?php if ($pending_cancel_total > 0): ?>
+    <div class="alert alert-warning d-flex align-items-center gap-2 py-2" role="status">
+      <i class="bi bi-hourglass-split flex-shrink-0" aria-hidden="true"></i>
+      <span><strong><?= $pending_cancel_total ?></strong> <?= $pending_cancel_total === 1 ? 'prośba' : 'prośby' ?> o odwołanie udziału czeka na Twoje potwierdzenie — przy odpowiednich lekcjach poniżej.</span>
+    </div>
+    <?php endif; ?>
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-transparent d-flex align-items-center">
         <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
+        <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning ms-2"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
         <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addL">
           <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
         </button>
