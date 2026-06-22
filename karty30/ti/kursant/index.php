@@ -713,36 +713,16 @@ include __DIR__ . '/_layout_head.php';
   </div>
 
 
-  <!-- Lista lekcji -->
-  <div class="card">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <caption class="visually-hidden">Lista ostatnich lekcji z obecnością</caption>
-        <thead>
-          <tr>
-            <th scope="col">Data</th>
-            <th scope="col">Kurs</th>
-            <th scope="col">Godziny</th>
-            <th scope="col">Temat</th>
-            <th scope="col">Zadanie</th>
-            <th scope="col">Typ lekcji</th>
-            <th scope="col" class="text-center">Obecność</th>
-            <th scope="col">Uwagi</th>
-            <th scope="col" class="text-end">Akcje</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php if (!$lessons): ?>
-          <tr><td colspan="9" class="text-center text-body-secondary py-4">
-            <?php if ($active_enroll_count === 0): ?>
-            <i class="bi bi-person-x me-1" aria-hidden="true"></i>Nie masz aktywnego zapisu na żaden kurs, dlatego nie ma jeszcze lekcji.
-            <span class="d-block mt-1">Jeśli to pomyłka — skontaktuj się z prowadzącym.</span>
-            <?php else: ?>
-            <i class="bi bi-calendar-x me-1" aria-hidden="true"></i>Twój kurs nie ma jeszcze zaplanowanych lekcji. Pojawią się tutaj, gdy prowadzący je doda.
-            <?php endif; ?>
-          </td></tr>
-          <?php endif; ?>
-          <?php foreach ($lessons as $l):
+  <!-- Lista lekcji — zwijane grupy: nadchodzące / minione -->
+  <?php
+    // Podział lekcji: nadchodzące (dziś i później) + minione (były)
+    $today_ymd = date('Y-m-d');
+    $up = $past = [];
+    foreach ($lessons as $l) { if ((string)($l['lesson_date'] ?? '') >= $today_ymd) $up[] = $l; else $past[] = $l; }
+    usort($up, fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date'])); // najbliższa najpierw
+
+    // Wiersz pojedynczej lekcji — współdzielony przez obie grupy
+    $lessonRow = function(array $l) use ($months_pl, $vlab_token) {
             $d   = new DateTime($l['lesson_date']);
             $dow = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$d->format('w')];
             $eff_link = trim((string)($l['meeting_url'] ?? '')) !== '' ? $l['meeting_url'] : (string)($l['course_meeting_url'] ?? '');
@@ -835,11 +815,60 @@ include __DIR__ . '/_layout_head.php';
               </div>
             </td>
           </tr>
-          <?php endforeach; ?>
-        </tbody>
+    <?php }; // $lessonRow
+
+    // Tabela lekcji z nagłówkiem — współdzielona przez obie grupy
+    $lessonTable = function(array $rows) use ($lessonRow) { ?>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <caption class="visually-hidden">Lista lekcji z obecnością</caption>
+        <thead>
+          <tr>
+            <th scope="col">Data</th><th scope="col">Kurs</th><th scope="col">Godziny</th>
+            <th scope="col">Temat</th><th scope="col">Zadanie</th><th scope="col">Typ lekcji</th>
+            <th scope="col" class="text-center">Obecność</th><th scope="col">Uwagi</th>
+            <th scope="col" class="text-end">Akcje</th>
+          </tr>
+        </thead>
+        <tbody><?php foreach ($rows as $l) $lessonRow($l); ?></tbody>
       </table>
     </div>
-  </div>
+    <?php }; ?>
+
+  <?php if (!$lessons): ?>
+  <div class="card"><div class="card-body text-center text-body-secondary py-4">
+    <?php if ($active_enroll_count === 0): ?>
+    <i class="bi bi-person-x me-1" aria-hidden="true"></i>Nie masz aktywnego zapisu na żaden kurs, dlatego nie ma jeszcze lekcji.
+    <span class="d-block mt-1">Jeśli to pomyłka — skontaktuj się z prowadzącym.</span>
+    <?php else: ?>
+    <i class="bi bi-calendar-x me-1" aria-hidden="true"></i>Twój kurs nie ma jeszcze zaplanowanych lekcji. Pojawią się tutaj, gdy prowadzący je doda.
+    <?php endif; ?>
+  </div></div>
+  <?php else: ?>
+
+  <?php if ($up): ?>
+  <details class="card dyd-hw mb-3" open>
+    <summary class="card-header fw-semibold dyd-hw-summary d-flex align-items-center gap-2">
+      <i class="bi bi-calendar2-week text-primary" aria-hidden="true"></i><span>Nadchodzące lekcje</span>
+      <span class="badge text-bg-secondary"><?= count($up) ?></span>
+      <i class="bi bi-chevron-down dyd-hw-chevron ms-auto text-body-secondary" aria-hidden="true"></i>
+    </summary>
+    <?php $lessonTable($up); ?>
+  </details>
+  <?php endif; ?>
+
+  <?php if ($past): ?>
+  <details class="card dyd-hw"<?= $up ? '' : ' open' ?>>
+    <summary class="card-header fw-semibold dyd-hw-summary d-flex align-items-center gap-2">
+      <i class="bi bi-clock-history text-body-secondary" aria-hidden="true"></i><span>Minione lekcje</span>
+      <span class="badge text-bg-secondary"><?= count($past) ?></span>
+      <i class="bi bi-chevron-down dyd-hw-chevron ms-auto text-body-secondary" aria-hidden="true"></i>
+    </summary>
+    <?php $lessonTable($past); ?>
+  </details>
+  <?php endif; ?>
+
+  <?php endif; ?>
 
   <p class="text-body-secondary small mt-2">
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
