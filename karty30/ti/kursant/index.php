@@ -269,6 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $courses = k30_ti_client_courses($student['client_id']);
 $homeworks_student = k30_ti_homework_for_client($student['client_id']);
 $hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
+$materials_student = k30_ti_materials_for_client($student['client_id']);
 $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']);
 
 // Zadania z Moodle — odśwież z serwera tylko przy wejściu na zakładkę (TTL wewnątrz);
@@ -379,7 +380,7 @@ include __DIR__ . '/_layout_head.php';
     </li>
     <li class="nav-item">
       <a class="nav-link <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
-        <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zadania
+        <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Dydaktyka / eLearning
         <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?></span><?php endif; ?>
       </a>
     </li>
@@ -829,7 +830,57 @@ include __DIR__ . '/_layout_head.php';
 
 <?php elseif ($tab === 'zadania'): ?>
 
-  <h1 class="h5 fw-bold mb-1"><i class="bi bi-journal-check text-primary me-1" aria-hidden="true"></i>Zadania domowe</h1>
+  <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
+  <p class="text-body-secondary small mb-3">Materiały do nauki od prowadzącego oraz zadania domowe do oddania.</p>
+
+  <!-- ── Materiały dydaktyczne (od prowadzącego) ──────────────────────────── -->
+  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-collection-play text-primary" aria-hidden="true"></i>Materiały
+    <?php if ($materials_student): ?><span class="badge text-bg-secondary"><?= count($materials_student) ?></span><?php endif; ?>
+  </h2>
+  <?php if (!$materials_student): ?>
+  <p class="text-body-secondary small mb-4">Brak materiałów. Prowadzący doda je tutaj wraz z lekcjami.</p>
+  <?php else: ?>
+  <div class="d-flex flex-column gap-2 mb-4">
+    <?php foreach ($materials_student as $m): ?>
+    <div class="card">
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-start gap-2">
+          <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle text-nowrap">
+            <i class="bi bi-<?= h(k30_ti_material_type_icon($m['type'])) ?> me-1" aria-hidden="true"></i><?= h(k30_ti_material_type_label($m['type'])) ?>
+          </span>
+          <div class="flex-grow-1 min-width-0">
+            <div class="fw-semibold"><?= h($m['title']) ?></div>
+            <div class="small text-body-secondary">
+              <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($m['course_name']) ?>
+              <?php if ($m['session_date']): ?> · <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>lekcja <?= h(substr($m['session_date'],0,10)) ?><?php if ($m['session_topic']): ?> (<?= h(mb_substr($m['session_topic'],0,40)) ?>)<?php endif; ?><?php endif; ?>
+            </div>
+            <?php if ($m['description']): ?><p class="small mb-1 mt-1" style="white-space:pre-wrap"><?= h($m['description']) ?></p><?php endif; ?>
+            <div class="d-flex flex-wrap gap-2 mt-1">
+              <?php if ($m['url']): ?>
+              <a href="<?= h($m['url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz link
+              </a>
+              <?php endif; ?>
+              <?php if ($m['attach_path']): ?>
+              <a href="material_file.php?id=<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-download me-1" aria-hidden="true"></i><?= h(mb_substr($m['attach_name'],0,40)) ?>
+              </a>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <!-- ── Zadania domowe ───────────────────────────────────────────────────── -->
+  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-journal-check text-primary" aria-hidden="true"></i>Zadania domowe
+    <?php if (count($hw_pending) > 0): ?><span class="badge text-bg-warning"><?= count($hw_pending) ?> do oddania</span><?php endif; ?>
+  </h2>
   <p class="text-body-secondary small mb-3">Oddaj zadanie wpisując treść i/lub załączając plik. Możesz poprawić oddanie do czasu oceny.</p>
 
   <?php

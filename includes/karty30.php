@@ -427,6 +427,25 @@ function karty30_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_hw_sub_hw ON k30_ti_homework_submissions(homework_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_hw_sub_cl ON k30_ti_homework_submissions(client_id)");
 
+    // ── Materiały dydaktyczne / eLearning (powiązane z lekcją) ─────────────────
+    // Typ materiału: zadanie | link | plik | dokumentacja | wideo | prezentacja | inne.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_materials (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id    INTEGER NOT NULL REFERENCES k30_ti_courses(id)  ON DELETE CASCADE,
+        session_id   INTEGER REFERENCES k30_ti_sessions(id)          ON DELETE SET NULL, -- opcjonalne powiązanie z lekcją
+        type         TEXT    NOT NULL DEFAULT 'material', -- zadanie|link|plik|dokumentacja|wideo|prezentacja|inne
+        title        TEXT    NOT NULL DEFAULT '',
+        description  TEXT    NOT NULL DEFAULT '',
+        url          TEXT    NOT NULL DEFAULT '',         -- dla typu link/wideo/dokumentacja online
+        attach_name  TEXT    NOT NULL DEFAULT '',         -- załączony plik (oryg. nazwa)
+        attach_path  TEXT    NOT NULL DEFAULT '',         -- nazwa pliku na dysku
+        is_active    INTEGER NOT NULL DEFAULT 1,
+        created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_mat_course  ON k30_ti_materials(course_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_mat_session ON k30_ti_materials(session_id)");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2030,6 +2049,75 @@ function k30_ti_homework_for_client(int $client_id): array {
            AND h.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
          ORDER BY COALESCE(h.due_at,'9999') ASC, h.id DESC",
         [$client_id, $client_id]
+    );
+}
+
+// ── Materiały dydaktyczne / eLearning ─────────────────────────────────────────
+
+/** Katalog typów materiału: slug => ['label','icon' (Bootstrap Icons)]. */
+function k30_ti_material_types(): array {
+    return [
+        'zadanie'      => ['label' => 'Zadanie',      'icon' => 'pencil-square'],
+        'link'         => ['label' => 'Link',         'icon' => 'link-45deg'],
+        'plik'         => ['label' => 'Plik',         'icon' => 'file-earmark-arrow-down'],
+        'dokumentacja' => ['label' => 'Dokumentacja', 'icon' => 'journal-text'],
+        'wideo'        => ['label' => 'Wideo',         'icon' => 'play-btn'],
+        'prezentacja'  => ['label' => 'Prezentacja',  'icon' => 'easel'],
+        'inne'         => ['label' => 'Inne',          'icon' => 'collection'],
+    ];
+}
+
+/** Etykieta typu materiału (z fallbackiem). */
+function k30_ti_material_type_label(string $type): string {
+    $t = k30_ti_material_types();
+    return $t[$type]['label'] ?? ucfirst($type);
+}
+/** Ikona typu materiału (Bootstrap Icons). */
+function k30_ti_material_type_icon(string $type): string {
+    $t = k30_ti_material_types();
+    return $t[$type]['icon'] ?? 'collection';
+}
+
+/** Lista materiałów (dla prowadzącego); $course_id=0 → wszystkie. Z kursem i lekcją. */
+function k30_ti_materials_list(int $course_id = 0): array {
+    $where  = $course_id ? "WHERE m.course_id=?" : "";
+    $params = $course_id ? [$course_id] : [];
+    return db_all(
+        "SELECT m.*, c.name AS course_name,
+                s.lesson_date AS session_date, s.topic AS session_topic
+         FROM k30_ti_materials m
+         JOIN k30_ti_courses c   ON c.id=m.course_id
+         LEFT JOIN k30_ti_sessions s ON s.id=m.session_id
+         $where
+         ORDER BY m.is_active DESC, c.name, m.id DESC",
+        $params
+    );
+}
+
+/** Pojedynczy materiał z nazwą kursu i lekcją. */
+function k30_ti_material_get(int $id): ?array {
+    return db_one(
+        "SELECT m.*, c.name AS course_name,
+                s.lesson_date AS session_date, s.topic AS session_topic
+         FROM k30_ti_materials m
+         JOIN k30_ti_courses c   ON c.id=m.course_id
+         LEFT JOIN k30_ti_sessions s ON s.id=m.session_id
+         WHERE m.id=?", [$id]
+    ) ?: null;
+}
+
+/** Materiały widoczne dla kursanta (jego aktywne kursy). */
+function k30_ti_materials_for_client(int $client_id): array {
+    return db_all(
+        "SELECT m.*, c.name AS course_name,
+                s.lesson_date AS session_date, s.topic AS session_topic
+         FROM k30_ti_materials m
+         JOIN k30_ti_courses c   ON c.id=m.course_id
+         LEFT JOIN k30_ti_sessions s ON s.id=m.session_id
+         WHERE m.is_active=1
+           AND m.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
+         ORDER BY COALESCE(s.lesson_date,'') DESC, m.id DESC",
+        [$client_id]
     );
 }
 
