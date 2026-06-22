@@ -55,7 +55,9 @@ try {
 <title><?= h($_crm_title) ?> — CRM<?= $_org_name ? ' · ' . h($_org_name) : '' ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/crm-module.css">
+<?php $_crm_css_path = dirname(dirname(__DIR__)) . '/assets/css/crm-module.css';
+      $_crm_css_v = @filemtime($_crm_css_path) ?: date('Ymd'); ?>
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/crm-module.css?v=<?= $_crm_css_v ?>">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <style>
 /* ── CRM Shell ───────────────────────────────────────────────────────── */
@@ -439,7 +441,7 @@ window.openCommModal = function(contactId, channel) {
   <?php
   // Aktywność kategorii (gdy którakolwiek pozycja podrzędna jest aktywna)
   $_act_kontakty = (str_contains($_uri,'/crm/index') || str_contains($_uri,'/crm/groups') || str_contains($_uri,'/crm/group/') || str_contains($_uri,'/crm/tags')) ? ' active' : '';
-  $_act_komun    = (str_contains($_uri,'/crm/communicate') || str_contains($_uri,'/crm/mass_send') || str_contains($_uri,'/crm/form/') || str_contains($_uri,'/crm/webmail')) ? ' active' : '';
+  $_act_komun    = (str_contains($_uri,'/crm/communicate') || str_contains($_uri,'/crm/mass_send') || str_contains($_uri,'/crm/templates') || str_contains($_uri,'/crm/form/') || str_contains($_uri,'/crm/webmail')) ? ' active' : '';
   ?>
   <div class="crm-navbar-scroll">
 
@@ -471,6 +473,7 @@ window.openCommModal = function(contactId, channel) {
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/communicate.php"><i class="bi bi-send-fill me-2"></i>Wyślij wiadomość</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/mass_send.php"><i class="bi bi-megaphone-fill me-2"></i>Wysyłka masowa</a></li>
         <?php if ($_crm_can_write): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/templates.php"><i class="bi bi-file-earmark-text-fill me-2"></i>Szablony wiadomości</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/form/manage.php"><i class="bi bi-window-split me-2"></i>Formularze</a></li>
         <?php endif; ?>
         <?php if (crm_setting('roundcube_url')): ?>

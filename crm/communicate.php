@@ -548,11 +548,18 @@ include __DIR__ . '/includes/header_crm.php';
       <div class="card-body">
         <div class="crm-section-title d-flex align-items-center justify-content-between">
           Szablony
-          <button type="button" class="btn btn-sm btn-crm-outline py-0 px-2"
-                  data-bs-toggle="modal" data-bs-target="#newTemplateModal"
-                  style="font-size:.72rem;text-transform:none;letter-spacing:0">
-            <i class="bi bi-plus me-1"></i>Nowy
-          </button>
+          <span class="d-flex align-items-center gap-2">
+            <a href="<?= APP_URL ?>/crm/templates.php"
+               style="font-size:.72rem;text-transform:none;letter-spacing:0;text-decoration:none;color:var(--crm-text-light)"
+               title="Zarządzaj szablonami (edycja, usuwanie)">
+              <i class="bi bi-gear me-1"></i>Zarządzaj
+            </a>
+            <button type="button" class="btn btn-sm btn-crm-outline py-0 px-2"
+                    data-bs-toggle="modal" data-bs-target="#newTemplateModal"
+                    style="font-size:.72rem;text-transform:none;letter-spacing:0">
+              <i class="bi bi-plus me-1"></i>Nowy
+            </button>
+          </span>
         </div>
         <?php if ($templates): ?>
           <?php foreach ($templates as $tpl): ?>
