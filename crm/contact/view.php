@@ -494,7 +494,7 @@ function _cv_communications_html(array $contact, int $id): string {
             <div class="crm-note-meta">
               <i class="bi bi-person me-1" aria-hidden="true"></i><?= h($comm['sender_name'] ?? '—') ?>
               · <?= date_pl($comm['sent_at']) ?>
-              <span class="badge ms-1" style="font-size:.65rem;background:<?= in_array($comm['status'], ['wysłana','zsynchronizowana'], true)?'#EFF7ED;color:#2E844A':'#fef2f2;color:#dc2626' ?>">
+              <span class="badge ms-1" style="font-size:.65rem;background:<?= in_array($comm['status'], ['wysłana','zsynchronizowana','odebrana'], true)?'#EFF7ED;color:#2E844A':'#fef2f2;color:#dc2626' ?>">
                 <?= h($comm['status']) ?>
               </span>
             </div>

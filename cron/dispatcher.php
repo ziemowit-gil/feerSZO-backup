@@ -103,6 +103,11 @@ $AGENTS = [
         'file'     => __DIR__ . '/sync_users_to_test.php',
         'interval' => 3600,         // co godzinę
     ],
+    'crm_inbox_watch' => [
+        'file'     => __DIR__ . '/crm_inbox_watch.php',
+        'interval' => 600,          // co 10 min
+        'schedule' => [6, 23],      // w godzinach pracy
+    ],
 ];
 
 $lock_dir = sys_get_temp_dir();

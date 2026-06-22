@@ -437,6 +437,28 @@ class M365Graph {
 
     // ── HTTP helpers ─────────────────────────────────────────────────────────
 
+    /**
+     * Wiadomości ze skrzynki odbiorczej (Inbox) danej skrzynki/użytkownika.
+     * Wymaga uprawnienia aplikacji Mail.Read (client credentials).
+     *
+     * @param string $mailbox UPN/adres skrzynki (np. fundacja@feer.org.pl)
+     * @param string $since   ISO 8601 UTC (np. 2026-06-01T00:00:00Z); '' = bez filtra
+     * @param int    $top     maks. liczba wiadomości (rosnąco wg daty)
+     * @return array lista wiadomości Graph (value[])
+     */
+    public function inbox_messages(string $mailbox, string $since = '', int $top = 50): array {
+        $select = 'id,receivedDateTime,subject,bodyPreview,from,sender';
+        $url = "https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox)
+             . "/mailFolders/inbox/messages?\$select={$select}"
+             . "&\$top=" . max(1, min(200, (int)$top))
+             . "&\$orderby=" . rawurlencode('receivedDateTime asc');
+        if ($since !== '') {
+            $url .= "&\$filter=" . rawurlencode("receivedDateTime ge {$since}");
+        }
+        $resp = $this->http_get($url);
+        return $resp['value'] ?? [];
+    }
+
     private function http_get(string $url): array {
         $ctx = stream_context_create(['http' => [
             'method' => 'GET',

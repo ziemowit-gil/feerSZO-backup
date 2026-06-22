@@ -326,6 +326,9 @@ function crm_migrate(): void {
         sent_at       DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_contact ON crm_communications(contact_id)");
+    // Identyfikator zewnętrzny (np. ID wiadomości Graph) — deduplikacja przychodzących. v1.9
+    try { $pdo->exec("ALTER TABLE crm_communications ADD COLUMN external_id TEXT"); } catch (\Throwable $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_comm_extid ON crm_communications(external_id)"); } catch (\Throwable $e) {}
 
     // Szablony wiadomości
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_templates (
