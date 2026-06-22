@@ -109,10 +109,41 @@ include __DIR__ . '/includes/header_crm.php';
 .group-select-item .gsi-check { width:14px;height:14px;border:2px solid #D1D5DB;border-radius:3px;flex-shrink:0;transition:all .12s;display:flex;align-items:center;justify-content:center }
 .group-select-item.selected .gsi-check { background:#0176D3;border-color:#0176D3 }
 .group-select-count { font-size:.68rem;color:#9CA3AF;margin-left:auto }
-.channel-btn { display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.85rem 1.25rem;border-radius:10px;border:2px solid #E5E7EB;cursor:pointer;transition:all .15s;flex:1;text-align:center }
+.channel-btn { display:flex;flex-direction:row;align-items:center;gap:.55rem;padding:.55rem .9rem;border-radius:9px;border:1.5px solid #E5E7EB;cursor:pointer;transition:all .12s;flex:1;text-align:left }
 .channel-btn.active { border-color:var(--ch-color);background:var(--ch-bg);color:var(--ch-color) }
-.channel-btn i { font-size:1.5rem }
-.channel-btn span { font-size:.78rem;font-weight:600 }
+.channel-btn i { font-size:1.15rem }
+.channel-btn span { font-size:.82rem;font-weight:600 }
+.channel-btn .ch-text { display:flex;flex-direction:column;line-height:1.15;text-align:left }
+
+/* ── Kreator (wizard) ─────────────────────────────────────────────────── */
+.ms-stepper { display:flex; gap:.4rem; margin-bottom:1rem; flex-wrap:wrap; }
+.ms-stepper-item { display:flex; align-items:center; gap:.45rem; padding:.4rem .7rem; border-radius:8px;
+  background:#fff; border:1px solid #E5E7EB; font-size:.82rem; color:#5E6470; cursor:pointer; flex:1; min-width:120px; }
+.ms-stepper-item .ms-stepper-num { width:22px;height:22px;border-radius:50%;background:#E5E7EB;color:#5E6470;
+  font-weight:700;font-size:.76rem;display:flex;align-items:center;justify-content:center;flex-shrink:0 }
+.ms-stepper-item.active { border-color:var(--crm-primary); background:var(--crm-primary-bg); color:var(--crm-primary-dark); font-weight:600 }
+.ms-stepper-item.active .ms-stepper-num { background:var(--crm-primary); color:#fff }
+.ms-stepper-item.done .ms-stepper-num { background:var(--crm-primary); color:#fff }
+.ms-stepper-item.done { color:var(--crm-primary-dark); }
+.ms-stepper-item:focus-visible { outline:3px solid var(--crm-accent); outline-offset:2px }
+.wiz-pane { display:none }
+.wiz-pane.wiz-active { display:block }
+.ms-wiznav { display:flex; align-items:center; gap:.6rem; margin:.25rem 0 1rem }
+.ms-wiznav-spacer { flex:1 }
+.ms-wizard, .ms-stepper, .crm-page-header { max-width:820px; margin-left:auto; margin-right:auto }
+.ms-wizard ~ .ms-section { max-width:820px; margin-left:auto; margin-right:auto }
+/* Grupy — kompaktowa lista zamiast dużych kafli */
+.ms-group-list { border:1px solid var(--crm-border); border-radius:9px; max-height:230px; overflow-y:auto; }
+.ms-group-row { display:flex; align-items:center; gap:.55rem; padding:.45rem .7rem; cursor:pointer;
+  border-bottom:1px solid #F3F4F6; font-size:.84rem; color:#374151; }
+.ms-group-row:last-child { border-bottom:none }
+.ms-group-row:hover { background:#F9FAFB }
+.ms-group-row.is-child { padding-left:1.9rem; font-size:.8rem }
+.ms-group-row .gsi-check { width:17px;height:17px;border:2px solid #CBD5E1;border-radius:4px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center }
+.ms-group-row.selected { background:var(--crm-primary-bg) }
+.ms-group-row.selected .gsi-check { background:var(--crm-primary);border-color:var(--crm-primary) }
+.ms-group-row .group-select-count { font-size:.72rem;color:#5E6470;margin-left:auto }
 .hist-row { display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid #F3F4F6;font-size:.82rem }
 .hist-row:last-child { border-bottom:none }
 </style>
@@ -124,13 +155,21 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
-<div class="row g-3">
+<!-- ══ KREATOR: stepper ══════════════════════════════════════════════════════ -->
+<div class="ms-stepper" id="msStepper" role="list" aria-label="Kroki wysyłki masowej">
+  <?php foreach (['Kanał','Odbiorcy','Treść','Wyślij'] as $i => $lbl): $n = $i + 1; ?>
+  <div class="ms-stepper-item<?= $n === 1 ? ' active' : '' ?>" data-step="<?= $n ?>" role="listitem"
+       tabindex="0" onclick="MS.wizGo(<?= $n ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();MS.wizGo(<?= $n ?>)}">
+    <span class="ms-stepper-num"><?= $n ?></span>
+    <span class="ms-stepper-label"><?= h($lbl) ?></span>
+  </div>
+  <?php endforeach; ?>
+</div>
 
-<!-- ══ LEWA: formularz ══════════════════════════════════════════════════════ -->
-<div class="col-lg-8">
+<div class="ms-wizard" id="msWizard">
 
-  <!-- Kanał -->
-  <div class="ms-section">
+  <!-- KROK 1: Kanał -->
+  <div class="ms-section wiz-pane wiz-active" data-step="1">
     <div class="ms-step">
       <span class="ms-step__num" aria-hidden="true">1</span>
       <div class="ms-step__main">
@@ -155,27 +194,33 @@ include __DIR__ . '/includes/header_crm.php';
       <div class="channel-btn active" id="ch-email" data-channel="email"
            style="--ch-color:#0176D3;--ch-bg:#EEF4FF" onclick="MS.setChannel('email')">
         <i class="bi bi-envelope-fill" style="color:#0176D3"></i>
-        <span>E-mail</span>
-        <?php if ($m365_ok): ?>
-        <small style="color:#0078d4;font-size:.68rem;font-weight:600"><i class="bi bi-microsoft"></i> Microsoft 365</small>
-        <?php elseif ($smtp_ok): ?>
-        <small style="color:#059669;font-size:.68rem;font-weight:600"><i class="bi bi-server"></i> SMTP</small>
-        <?php else: ?>
-        <small class="text-warning" style="font-size:.68rem"><i class="bi bi-exclamation-triangle"></i> PHP mail()</small>
-        <?php endif; ?>
+        <div class="ch-text">
+          <span>E-mail</span>
+          <?php if ($m365_ok): ?>
+          <small style="color:#0078d4;font-size:.68rem;font-weight:600"><i class="bi bi-microsoft"></i> Microsoft 365</small>
+          <?php elseif ($smtp_ok): ?>
+          <small style="color:#059669;font-size:.68rem;font-weight:600"><i class="bi bi-server"></i> SMTP</small>
+          <?php else: ?>
+          <small class="text-warning" style="font-size:.68rem"><i class="bi bi-exclamation-triangle"></i> PHP mail()</small>
+          <?php endif; ?>
+        </div>
       </div>
       <?php if ($sms_ok): ?>
       <div class="channel-btn" id="ch-sms" data-channel="sms"
            style="--ch-color:#D97706;--ch-bg:#FEF3E2" onclick="MS.setChannel('sms')">
         <i class="bi bi-phone-fill" style="color:#D97706"></i>
-        <span>SMS</span>
-        <small class="text-muted" style="font-size:.68rem">SMSAPI.pl</small>
+        <div class="ch-text">
+          <span>SMS</span>
+          <small class="text-muted" style="font-size:.68rem">SMSAPI.pl</small>
+        </div>
       </div>
       <?php else: ?>
       <div class="channel-btn" style="opacity:.4;cursor:default">
         <i class="bi bi-phone" style="color:#9CA3AF"></i>
-        <span style="color:#9CA3AF">SMS</span>
-        <small style="font-size:.68rem;color:#9CA3AF">Niekonfigurowany</small>
+        <div class="ch-text">
+          <span style="color:#5E6470">SMS</span>
+          <small style="font-size:.68rem;color:#5E6470">Niekonfigurowany</small>
+        </div>
       </div>
       <?php endif; ?>
     </div>
@@ -198,7 +243,7 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 
   <!-- Odbiorcy -->
-  <div class="ms-section">
+  <div class="ms-section wiz-pane" data-step="2">
     <div class="ms-step">
       <span class="ms-step__num" aria-hidden="true">2</span>
       <div class="ms-step__main">
@@ -216,53 +261,46 @@ include __DIR__ . '/includes/header_crm.php';
     $groups_json = json_encode(array_values($groups), JSON_UNESCAPED_UNICODE);
     ?>
 
-    <!-- ─── Wybór grupy: przycisk + dropdown ─── -->
+    <!-- ─── Grupy: kompaktowa, zawsze widoczna lista ─── -->
     <div class="mb-3">
       <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2">
         <i class="bi bi-people-fill text-primary"></i> Grupy
+        <span id="groupPickerLabel" class="cv-muted fw-normal" style="font-size:.74rem"></span>
       </label>
-      <div class="position-relative d-inline-block">
-        <button type="button" id="groupPickerBtn" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
-                onclick="MS.toggleGroupPicker(event)">
-          <i class="bi bi-people"></i>
-          <span id="groupPickerLabel">Wybierz grupę…</span>
-          <i class="bi bi-chevron-down ms-1" style="font-size:.7rem"></i>
-        </button>
-        <div id="groupPickerDropdown" class="group-select-dropdown" style="display:none">
-          <div class="px-2 py-1 border-bottom" style="position:sticky;top:0;background:#fff;z-index:1">
-            <input type="text" id="groupPickerSearch" class="form-control form-control-sm"
-                   placeholder="Szukaj grupy…" oninput="MS.filterGroupPicker(this.value)">
-          </div>
-          <?php if (!$groups): ?>
-          <div class="px-3 py-2 text-muted small">Brak grup. <a href="<?= APP_URL ?>/crm/groups.php">Utwórz →</a></div>
-          <?php endif; ?>
-          <?php foreach ($parent_groups as $g): ?>
-          <div class="group-select-item" data-id="<?= (int)$g['id'] ?>"
-               data-name="<?= h($g['name']) ?>"
-               data-color="<?= h($g['color']) ?>"
-               data-icon="<?= h($g['icon']) ?>"
-               data-count="<?= (int)$g['member_count'] ?>"
-               onclick="MS.pickGroup(this)">
-            <div class="gsi-check"><i class="bi bi-check" style="font-size:.7rem;color:#fff;display:none"></i></div>
-            <i class="bi <?= h($g['icon']) ?>" style="color:<?= h($g['color']) ?>"></i>
-            <span><?= h($g['name']) ?></span>
-            <span class="group-select-count"><?= (int)$g['member_count'] ?></span>
-          </div>
-          <?php foreach (($child_groups[$g['id']] ?? []) as $cg): ?>
-          <div class="group-select-item is-child" data-id="<?= (int)$cg['id'] ?>"
-               data-name="<?= h($cg['name']) ?>"
-               data-color="<?= h($cg['color']) ?>"
-               data-icon="<?= h($cg['icon']) ?>"
-               data-count="<?= (int)$cg['member_count'] ?>"
-               onclick="MS.pickGroup(this)">
-            <div class="gsi-check"><i class="bi bi-check" style="font-size:.7rem;color:#fff;display:none"></i></div>
-            <i class="bi <?= h($cg['icon']) ?>" style="color:<?= h($cg['color']) ?>;font-size:.85rem"></i>
-            <span><?= h($cg['name']) ?></span>
-            <span class="group-select-count"><?= (int)$cg['member_count'] ?></span>
-          </div>
-          <?php endforeach; ?>
-          <?php endforeach; ?>
+      <?php if ($groups): ?>
+      <input type="text" id="groupPickerSearch" class="form-control form-control-sm mb-1"
+             placeholder="Szukaj grupy…" oninput="MS.filterGroupPicker(this.value)">
+      <?php endif; ?>
+      <div id="groupPickerDropdown" class="ms-group-list">
+        <?php if (!$groups): ?>
+        <div class="px-3 py-2 text-muted small">Brak grup. <a href="<?= APP_URL ?>/crm/groups.php">Utwórz →</a></div>
+        <?php endif; ?>
+        <?php foreach ($parent_groups as $g): ?>
+        <div class="group-select-item" data-id="<?= (int)$g['id'] ?>"
+             data-name="<?= h($g['name']) ?>"
+             data-color="<?= h($g['color']) ?>"
+             data-icon="<?= h($g['icon']) ?>"
+             data-count="<?= (int)$g['member_count'] ?>"
+             onclick="MS.pickGroup(this)">
+          <div class="gsi-check"><i class="bi bi-check" style="font-size:.7rem;color:#fff;display:none"></i></div>
+          <i class="bi <?= h($g['icon']) ?>" style="color:<?= h($g['color']) ?>"></i>
+          <span><?= h($g['name']) ?></span>
+          <span class="group-select-count"><?= (int)$g['member_count'] ?></span>
         </div>
+        <?php foreach (($child_groups[$g['id']] ?? []) as $cg): ?>
+        <div class="group-select-item is-child" data-id="<?= (int)$cg['id'] ?>"
+             data-name="<?= h($cg['name']) ?>"
+             data-color="<?= h($cg['color']) ?>"
+             data-icon="<?= h($cg['icon']) ?>"
+             data-count="<?= (int)$cg['member_count'] ?>"
+             onclick="MS.pickGroup(this)">
+          <div class="gsi-check"><i class="bi bi-check" style="font-size:.7rem;color:#fff;display:none"></i></div>
+          <i class="bi <?= h($cg['icon']) ?>" style="color:<?= h($cg['color']) ?>;font-size:.85rem"></i>
+          <span><?= h($cg['name']) ?></span>
+          <span class="group-select-count"><?= (int)$cg['member_count'] ?></span>
+        </div>
+        <?php endforeach; ?>
+        <?php endforeach; ?>
       </div>
       <!-- Wybrane grupy jako pills -->
       <div id="selectedGroupPills" class="mt-2 d-flex flex-wrap gap-1"></div>
@@ -318,7 +356,7 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 
   <!-- ─── DW (Do Wiadomości / CC) ─── -->
-  <div class="ms-section">
+  <div class="ms-section wiz-pane" data-step="2">
     <div class="ms-section-title d-flex align-items-center gap-2">
       <i class="bi bi-person-check" style="font-size:.9rem"></i> DW — Do Wiadomości
       <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;font-size:.72rem">
@@ -343,7 +381,7 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 
   <!-- Temat i treść -->
-  <div class="ms-section">
+  <div class="ms-section wiz-pane" data-step="3">
     <div class="ms-step">
       <span class="ms-step__num" aria-hidden="true">3</span>
       <div class="ms-step__main">
@@ -395,13 +433,8 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
   </div>
 
-</div><!-- /col-8 -->
-
-<!-- ══ PRAWA: akcje + historia ══════════════════════════════════════════════ -->
-<div class="col-lg-4">
-
-  <!-- Podgląd + send -->
-  <div class="ms-section mb-3">
+  <!-- KROK 4: Wyślij -->
+  <div class="ms-section wiz-pane" data-step="4">
     <div class="ms-step">
       <span class="ms-step__num" aria-hidden="true">4</span>
       <div class="ms-step__main">
@@ -440,11 +473,24 @@ include __DIR__ . '/includes/header_crm.php';
     <div class="form-text text-center mt-1" style="font-size:.72rem">
       Wysyłka uruchamiana synchronicznie — nie zamykaj okna.
     </div>
+  </div><!-- /krok 4 -->
+
+  <!-- Nawigacja kreatora -->
+  <div class="ms-wiznav">
+    <button type="button" class="btn btn-outline-secondary" id="wizBackBtn" onclick="MS.wizBack()" disabled>
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wstecz
+    </button>
+    <div class="ms-wiznav-spacer"></div>
+    <button type="button" class="btn btn-crm-primary" id="wizNextBtn" onclick="MS.wizNext()">
+      Dalej<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+    </button>
   </div>
 
-  <!-- Historia -->
-  <?php if ($history): ?>
-  <div class="ms-section">
+</div><!-- /ms-wizard -->
+
+<!-- Historia -->
+<?php if ($history): ?>
+<div class="ms-section">
     <div class="ms-section-title">Ostatnie wysyłki</div>
     <?php foreach ($history as $hs): ?>
     <div class="hist-row">
@@ -464,9 +510,6 @@ include __DIR__ . '/includes/header_crm.php';
     <?php endforeach; ?>
   </div>
   <?php endif; ?>
-
-</div>
-</div><!-- /row -->
 
 <!-- Quill -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
@@ -708,9 +751,6 @@ const MS = (function() {
 
   // Zamknij dropdowny po kliknięciu poza
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('#groupPickerBtn') && !e.target.closest('#groupPickerDropdown')) {
-      document.getElementById('groupPickerDropdown').style.display = 'none';
-    }
     if (!e.target.closest('#contactSearchInput') && !e.target.closest('#contactDropdown')) {
       document.getElementById('contactDropdown').style.display = 'none';
     }
@@ -942,10 +982,57 @@ const MS = (function() {
     setTimeout(()=>location.reload(), 2500);
   }
 
+  // ── Kreator (wizard) ─────────────────────────────────────────────────────────
+  let _step = 1;
+  const WIZ_STEPS = 4;
+
+  function wizShow(n) {
+    _step = Math.max(1, Math.min(WIZ_STEPS, n));
+    document.querySelectorAll('.wiz-pane').forEach(p => {
+      p.classList.toggle('wiz-active', parseInt(p.dataset.step) === _step);
+    });
+    document.querySelectorAll('#msStepper .ms-stepper-item').forEach(it => {
+      const s = parseInt(it.dataset.step);
+      it.classList.toggle('active', s === _step);
+      it.classList.toggle('done',   s <  _step);
+    });
+    const back = document.getElementById('wizBackBtn');
+    const next = document.getElementById('wizNextBtn');
+    if (back) back.disabled = (_step === 1);
+    if (next) next.style.display = (_step === WIZ_STEPS) ? 'none' : '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function wizValidate(step) {
+    if (step === 2 && _total === 0) {
+      alert('Wybierz co najmniej jednego odbiorcę (grupa, tag lub kontakt).');
+      return false;
+    }
+    if (step === 3) {
+      if (!getBody()) { alert('Wpisz treść wiadomości.'); return false; }
+      if (_channel === 'email' && !document.getElementById('ms_subject').value.trim()) {
+        alert('Podaj temat e-maila.'); return false;
+      }
+    }
+    return true;
+  }
+
+  function wizNext() { if (wizValidate(_step)) wizShow(_step + 1); }
+  function wizBack() { wizShow(_step - 1); }
+  function wizGo(n) {
+    if (n > _step) { // wchcąc iść do przodu — waliduj kolejne kroki
+      for (let s = _step; s < n; s++) { if (!wizValidate(s)) { wizShow(s); return; } }
+    }
+    wizShow(n);
+  }
+
+  wizShow(1);
+
   return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
-           preview, send, insertVar, loadTemplate };
+           preview, send, insertVar, loadTemplate,
+           wizNext, wizBack, wizGo };
 })();
 </script>
 
