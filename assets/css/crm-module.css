@@ -697,3 +697,17 @@ a.cv-chip:hover i { color: var(--crm-primary-dark); }
 
 /* Pasek danych pod nagłówkiem rekordu */
 .cv-quickbar { display: flex; flex-wrap: wrap; gap: .5rem .6rem; align-items: center; }
+
+/* ── Stopka CRM (SZU) ─────────────────────────────────────────────────── */
+.crm-footer { color: #3E3E3C; }
+.crm-footer-brand { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; }
+.crm-footer-logo { color: var(--crm-primary); font-size: .9rem; display: inline-flex; }
+.crm-footer-brand strong { color: var(--crm-text); font-weight: 800; letter-spacing: .04em; }
+.crm-footer-mod { color: #5E6470; font-weight: 500; }
+.crm-footer-org { color: #5E6470; }
+.crm-footer-sep { color: #B6BDC6; }
+.crm-footer-meta { display: inline-flex; align-items: center; gap: .55rem; font-size: .78rem; color: #5E6470; }
+.crm-footer-name { color: #5E6470; }
+.crm-footer-ver { color: var(--crm-primary-dark); font-family: monospace; font-size: .74rem; text-decoration: none; font-weight: 600; }
+.crm-footer-ver:hover { text-decoration: underline; }
+@media (max-width: 600px) { .crm-footer-name { display: none; } }
