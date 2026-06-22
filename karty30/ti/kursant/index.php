@@ -327,6 +327,11 @@ $moodle_hw_pending  = array_values(array_filter($moodle_assignments,
 $hw_pending_total   = count($hw_pending) + count($moodle_hw_pending);
 
 $lessons = k30_ti_client_lessons($student['client_id'], 40);
+// Do diagnozy pustej listy lekcji: czy kursant ma aktywny zapis na jakikolwiek kurs?
+$active_enroll_count = (int)(db_one(
+    "SELECT COUNT(*) n FROM k30_ti_enrollments WHERE client_id=? AND status='active'",
+    [$student['client_id']]
+)['n'] ?? 0);
 $my_licenses = k30_ti_client_licenses($student['client_id']);
 $active_lesson = k30_ti_active_lesson_link($student['client_id']);
 
@@ -728,7 +733,14 @@ include __DIR__ . '/_layout_head.php';
         </thead>
         <tbody>
           <?php if (!$lessons): ?>
-          <tr><td colspan="9" class="text-center text-body-secondary py-4">Brak lekcji.</td></tr>
+          <tr><td colspan="9" class="text-center text-body-secondary py-4">
+            <?php if ($active_enroll_count === 0): ?>
+            <i class="bi bi-person-x me-1" aria-hidden="true"></i>Nie masz aktywnego zapisu na żaden kurs, dlatego nie ma jeszcze lekcji.
+            <span class="d-block mt-1">Jeśli to pomyłka — skontaktuj się z prowadzącym.</span>
+            <?php else: ?>
+            <i class="bi bi-calendar-x me-1" aria-hidden="true"></i>Twój kurs nie ma jeszcze zaplanowanych lekcji. Pojawią się tutaj, gdy prowadzący je doda.
+            <?php endif; ?>
+          </td></tr>
           <?php endif; ?>
           <?php foreach ($lessons as $l):
             $d   = new DateTime($l['lesson_date']);
