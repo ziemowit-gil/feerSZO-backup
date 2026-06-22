@@ -158,6 +158,15 @@ header('Content-Type: text/html; charset=utf-8');
   .sign { display: flex; gap: 60px; margin-top: 48px; }
   .sign div { flex: 1; border-top: 1px solid #1a1a1a; padding-top: 6px; text-align: center; color: #555; font-size: 12px; }
   .noprint { margin: 18px 0; }
+  .page-break { page-break-before: always; }
+  .decl p { line-height: 1.6; margin: 10px 0; }
+  .decl .lead { font-size: 14px; }
+  .fill { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
+  .sign2 { display: flex; gap: 60px; margin-top: 70px; align-items: flex-end; }
+  .sign2 .col { flex: 1; }
+  .sign2 .line { border-top: 1px solid #1a1a1a; padding-top: 6px; text-align: center; color: #555; font-size: 12px; }
+  .stamp { width: 210px; height: 130px; border: 1px dashed #999; border-radius: 6px;
+           display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 12px; text-align: center; }
   @media print { .noprint { display: none; } body { padding: 0; } }
 </style>
 </head>
@@ -215,6 +224,53 @@ header('Content-Type: text/html; charset=utf-8');
   <div class="sign">
     <div>Wydał(a) — podpis</div>
     <div>Odebrał(a) — podpis i data</div>
+  </div>
+
+  <!-- ── Strona 2: oświadczenie o wydaniu danych dostępowych ──────────────── -->
+  <?php $svc_list = implode(', ', array_map(fn($c) => $c['service'], $creds)); ?>
+  <div class="page-break"></div>
+
+  <div class="head">
+    <div>
+      <h1>Oświadczenie o wydaniu danych dostępowych</h1>
+      <div class="muted"><?= h($org) ?></div>
+    </div>
+    <div class="muted" style="text-align:right">Data:<br><?= h($now) ?></div>
+  </div>
+
+  <div class="decl">
+    <p class="lead">
+      Niniejszym potwierdza się, że dla osoby <strong><?= h($person_name ?: '—') ?></strong>
+      <?= $numer_umowy !== '' ? '(umowa nr <strong>' . h($numer_umowy) . '</strong>)' : '' ?>
+      zostały <strong>wydane (zresetowane) dane dostępowe</strong> do: <strong><?= h($svc_list) ?></strong>.
+    </p>
+    <p>
+      Dane wydano w formie wydruku przekazanego osobiście, ponieważ nie było możliwe
+      przekazanie ich kanałem standardowym (SMS / e-mail).
+    </p>
+    <p><strong>Podstawa wydania:</strong> <?= h($basis) ?></p>
+    <p><strong>Powód / uzasadnienie:</strong> <?= nl2br(h($reason)) ?></p>
+    <p>
+      Dotychczasowe hasła zostały unieważnione. Hasła wydane są tymczasowe — przy pierwszym
+      logowaniu wymagana jest zmiana hasła. Odbiorca zobowiązuje się do zachowania danych
+      w poufności i nieudostępniania ich osobom trzecim.
+    </p>
+    <p style="margin-top:18px">
+      Dane wydał(a): <strong><?= h($me['name'] ?? $me['email'] ?? '—') ?></strong>,
+      dnia <span class="fill">&nbsp;<?= h(date('Y-m-d')) ?>&nbsp;</span>
+    </p>
+  </div>
+
+  <div class="sign2">
+    <div class="col">
+      <div class="stamp">pieczątka organizacji</div>
+    </div>
+    <div class="col">
+      <div class="line">Podpis osoby wydającej</div>
+    </div>
+    <div class="col">
+      <div class="line">Podpis odbierającego i data</div>
+    </div>
   </div>
 
   <script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 350); });</script>
