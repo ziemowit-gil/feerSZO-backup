@@ -2673,6 +2673,71 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   </div>
   <?php endif; ?>
 
+  <?php if (can_edit() && ($row['m365_konto'] || $row['email'])): ?>
+  <div class="border-top pt-3 mb-3">
+    <div class="small fw-semibold text-muted mb-2">
+      <i class="bi bi-printer me-1 text-primary"></i>Wydruk danych logowania (Office&nbsp;/&nbsp;System)
+    </div>
+    <details class="border rounded p-3" style="background:#fafafa">
+      <summary class="fw-semibold" style="cursor:pointer">
+        <i class="bi bi-key me-1"></i>Wygeneruj i wydrukuj login + hasło
+      </summary>
+      <div class="alert alert-warning py-2 px-3 small mt-3 mb-3">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        Hasła nie są przechowywane jawnie — wydruk <strong>resetuje hasło</strong> i drukuje nowe.
+        Stosuj wyłącznie, gdy nie można przekazać danych SMS-em/e-mailem. Operacja jest zapisywana w dzienniku umowy.
+      </div>
+      <form method="post" action="<?= APP_URL ?>/contracts/credentials_print.php" target="_blank"
+            onsubmit="return confirm('Zresetować hasło i wydrukować dane logowania?\nDotychczasowe hasło przestanie działać.')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="type"  value="wolontariat">
+        <input type="hidden" name="id"    value="<?= $id ?>">
+
+        <div class="mb-2">
+          <div class="small fw-semibold mb-1">Co wydrukować?</div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="scope[]" value="office" id="cp_office"
+                   <?= $row['m365_konto'] ? 'checked' : '' ?> <?= $row['m365_konto'] ? '' : 'disabled' ?>>
+            <label class="form-check-label" for="cp_office">
+              Microsoft 365 (Office) <?= $row['m365_konto'] ? '' : '<span class="text-muted small">— brak konta</span>' ?>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="scope[]" value="system" id="cp_system"
+                   <?= $row['email'] ? 'checked' : '' ?> <?= $row['email'] ? '' : 'disabled' ?>>
+            <label class="form-check-label" for="cp_system">
+              System (portal) <?= $row['email'] ? '' : '<span class="text-muted small">— brak e-maila</span>' ?>
+            </label>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1" for="cp_basis">Podstawa <span class="text-danger">*</span></label>
+          <select class="form-select form-select-sm" name="basis" id="cp_basis" required>
+            <option value="">— wybierz —</option>
+            <option>Wolontariusz nie otrzymuje SMS-ów</option>
+            <option>Brak telefonu komórkowego</option>
+            <option>Brak / błędny adres e-mail</option>
+            <option>Problem techniczny z odbiorem wiadomości</option>
+            <option>Przekazanie osobiste na życzenie</option>
+            <option>Inne (opisz w polu poniżej)</option>
+          </select>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1" for="cp_reason">Powód / uzasadnienie <span class="text-danger">*</span></label>
+          <textarea class="form-control form-control-sm" name="reason" id="cp_reason" rows="2" required
+                    placeholder="np. wolontariusz zgłosił brak odbioru SMS, dane przekazane osobiście"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="bi bi-printer me-1"></i>Resetuj hasło i wydrukuj
+        </button>
+      </form>
+    </details>
+  </div>
+  <?php endif; ?>
+
   <?php
   $_local_users = db_all("SELECT id, name, email, microsoft_id FROM users WHERE is_active = 1 ORDER BY name");
   ?>
