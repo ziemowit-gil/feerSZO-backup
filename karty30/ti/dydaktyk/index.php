@@ -113,6 +113,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    if ($op === 'save_attendance') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        if (dyd_owns_session($uid, $sid)) {
+            $att = array_map('intval', (array)($_POST['attended'] ?? []));
+            k30_ti_save_attendance($sid, $att);
+            // Sprawdzenie obecności oznacza, że lekcja się odbyła (gdy była zaplanowana).
+            db()->prepare("UPDATE k30_ti_sessions SET status='held', updated_at=datetime('now') WHERE id=? AND status='planned'")->execute([$sid]);
+            flash_set('success', 'Obecność zapisana.');
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     // ── ZADANIA DOMOWE ──────────────────────────────────────────────────────────
     if ($op === 'save_homework') {
         $hid       = (int)($_POST['homework_id'] ?? 0);
@@ -323,6 +335,47 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
     <div class="modal-footer">
       <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
       <button type="submit" class="btn btn-primary"><?= $isEdit?'Zapisz zmiany':'Dodaj lekcję' ?></button>
+    </div>
+  </form>
+<?php };
+
+// Sprawdzanie obecności na lekcji — lista zapisanych kursantów z polami wyboru.
+$attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
+    $present = 0; foreach ($rows as $r) { if ((int)$r['attended'] === 1) $present++; } ?>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op" value="save_attendance">
+    <input type="hidden" name="_tab" value="lekcje">
+    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+    <div class="modal-header">
+      <h5 class="modal-title" id="<?= $pfx ?>_t"><i class="bi bi-people me-2"></i>Obecność — <?= date('d.m.Y', strtotime($s['lesson_date'])) ?></h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <?php if (!$rows): ?>
+      <p class="text-body-secondary mb-0">Brak zapisanych kursantów w tym kursie.</p>
+      <?php else: ?>
+      <div class="d-flex align-items-center mb-2">
+        <span class="text-body-secondary small">Zaznacz obecnych (<?= $present ?>/<?= count($rows) ?>).</span>
+        <button type="button" class="btn btn-link btn-sm ms-auto p-0 att-toggle-all" data-target="<?= $pfx ?>">Zaznacz / odznacz wszystkich</button>
+      </div>
+      <div class="list-group">
+        <?php foreach ($rows as $r): $cid = (int)$r['client_id']; $canc = (int)($r['cancelled'] ?? 0) === 1; ?>
+        <label class="list-group-item d-flex align-items-center gap-2 <?= $canc?'opacity-50':'' ?>">
+          <input class="form-check-input mt-0" type="checkbox" name="attended[]" value="<?= $cid ?>"
+                 <?= (int)$r['attended']===1?'checked':'' ?> <?= $canc?'disabled':'' ?>>
+          <span class="flex-grow-1"><?= h($r['client_name']) ?></span>
+          <?php if ($canc): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-x-circle me-1"></i>udział odwołany</span><?php endif; ?>
+        </label>
+        <?php endforeach; ?>
+      </div>
+      <p class="text-body-secondary small mt-2 mb-0">Zapis oznaczy zaplanowaną lekcję jako odbytą. Osób z odwołanym udziałem nie liczy się do obecności.</p>
+      <?php endif; ?>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+      <?php if ($rows): ?><button type="submit" class="btn btn-primary"><i class="bi bi-check2-square me-1"></i>Zapisz obecność</button><?php endif; ?>
     </div>
   </form>
 <?php };
@@ -586,9 +639,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <span class="text-body-secondary small ms-auto"><i class="bi bi-people me-1"></i><?= (int)$s['attended_count'] ?>/<?= (int)$s['total_count'] ?></span>
           </div>
           <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>
-          <div class="mt-2 d-flex gap-2">
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-sm btn-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"><i class="bi bi-people me-1"></i>Obecność</button>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
-            <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-list-check me-1"></i>Obecność / szczegóły</a>
+            <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-list-check me-1"></i>Szczegóły</a>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op" value="delete_lesson">
@@ -609,6 +663,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php foreach ($sessions as $s): ?>
     <div class="modal fade" id="edL<?= (int)$s['id'] ?>" tabindex="-1" aria-labelledby="edL<?= (int)$s['id'] ?>_t" aria-hidden="true">
       <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $lessonFormHtml($s, 'edL'.(int)$s['id']); ?></div></div>
+    </div>
+    <div class="modal fade" id="attL<?= (int)$s['id'] ?>" tabindex="-1" aria-labelledby="attL<?= (int)$s['id'] ?>_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $attFormHtml($s, k30_ti_session_attendance((int)$s['id']), 'attL'.(int)$s['id']); ?></div></div>
     </div>
     <?php endforeach; ?>
     <?php endif; ?>
@@ -718,4 +775,14 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <?php endif; /* $courses */ ?>
 
 </main>
+<script>
+// „Zaznacz / odznacz wszystkich" w oknie sprawdzania obecności.
+document.addEventListener('click', function(e){
+  var b = e.target.closest('.att-toggle-all'); if (!b) return;
+  var modal = b.closest('.modal'); if (!modal) return;
+  var boxes = modal.querySelectorAll('input[name="attended[]"]:not(:disabled)');
+  var allChecked = Array.prototype.every.call(boxes, function(c){ return c.checked; });
+  Array.prototype.forEach.call(boxes, function(c){ c.checked = !allChecked; });
+});
+</script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
