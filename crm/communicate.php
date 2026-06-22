@@ -241,6 +241,25 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 <?php endif; ?>
 
+<style>
+/* Lekka przebudowa — kroki formularza komunikacji */
+.comm-step { display:flex; align-items:center; gap:.6rem; margin-bottom:.9rem; }
+.comm-step__num {
+  width:27px; height:27px; border-radius:50%;
+  background:var(--crm-primary); color:#fff;
+  font-weight:700; font-size:.84rem; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.comm-step__t { font-size:.98rem; font-weight:700; color:var(--crm-text); line-height:1.15; }
+.comm-step__h { font-size:.77rem; color:#5E6470; margin-top:.05rem; }
+.comm-send-bar {
+  display:flex; flex-wrap:wrap; align-items:center; gap:.75rem 1rem;
+  background:var(--crm-primary-bg); border:1px solid var(--crm-primary-light);
+  border-radius:10px; padding:.85rem 1rem;
+}
+.comm-send-bar .btn-send { font-size:1rem; padding:.6rem 1.5rem; }
+</style>
+
 <div class="row g-3">
 
   <!-- Formularz -->
@@ -251,7 +270,13 @@ include __DIR__ . '/includes/header_crm.php';
     <!-- Odbiorcy -->
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-body">
-        <div class="crm-section-title">Odbiorcy</div>
+        <div class="comm-step">
+          <span class="comm-step__num" aria-hidden="true">1</span>
+          <div>
+            <div class="comm-step__t">Odbiorcy</div>
+            <div class="comm-step__h">Wybierz, do kogo wysłać wiadomość</div>
+          </div>
+        </div>
 
         <?php if ($preselect_contact_id): ?>
         <!-- Jeden odbiorca (prefill z contact view) -->
@@ -342,7 +367,13 @@ include __DIR__ . '/includes/header_crm.php';
     <!-- Kanał + szablon -->
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-body">
-        <div class="crm-section-title">Kanał i szablon</div>
+        <div class="comm-step">
+          <span class="comm-step__num" aria-hidden="true">2</span>
+          <div>
+            <div class="comm-step__t">Kanał i szablon</div>
+            <div class="comm-step__h">Jak wyślesz i z którego konta</div>
+          </div>
+        </div>
 
         <div class="row g-3 mb-3">
           <div class="col-sm-4">
@@ -393,8 +424,14 @@ include __DIR__ . '/includes/header_crm.php';
     <!-- Treść wiadomości -->
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          <span>Treść wiadomości</span>
+        <div class="crm-section-title d-flex align-items-center justify-content-between" style="text-transform:none;letter-spacing:0;border:0;padding:0">
+          <div class="comm-step mb-0">
+            <span class="comm-step__num" aria-hidden="true">3</span>
+            <div>
+              <div class="comm-step__t">Treść wiadomości</div>
+              <div class="comm-step__h">Wpisz treść lub użyj szablonu / AI</div>
+            </div>
+          </div>
           <div class="d-flex align-items-center gap-2">
             <!-- AI -->
             <button type="button" class="btn btn-sm btn-outline-primary"
@@ -477,21 +514,17 @@ include __DIR__ . '/includes/header_crm.php';
           <div class="form-text">Dozwolone: PDF, Word, Excel, obrazy, archiwa ZIP.</div>
         </div>
 
-        <div class="row g-3 align-items-center">
-          <div class="col">
-            <div class="form-check">
-              <input type="checkbox" name="do_send" id="do_send"
-                     class="form-check-input" value="1" checked>
-              <label class="form-check-label" for="do_send">
-                Faktycznie wyślij wiadomość (odznacz = tylko zaloguj w historii)
-              </label>
-            </div>
+        <div class="comm-send-bar">
+          <div class="form-check mb-0 flex-grow-1">
+            <input type="checkbox" name="do_send" id="do_send"
+                   class="form-check-input" value="1" checked>
+            <label class="form-check-label" for="do_send">
+              <strong>Wyślij teraz</strong> — odznacz, aby tylko zapisać w historii kontaktu (bez wysyłki)
+            </label>
           </div>
-          <div class="col-auto">
-            <button type="submit" class="btn btn-crm-primary">
-              <i class="bi bi-send-fill me-1"></i>Wyślij
-            </button>
-          </div>
+          <button type="submit" class="btn btn-crm-primary btn-send">
+            <i class="bi bi-send-fill me-1" aria-hidden="true"></i>Wyślij wiadomość
+          </button>
         </div>
         <div class="d-flex flex-wrap gap-2 mt-2">
           <?php if ($m365_mail_configured): ?>

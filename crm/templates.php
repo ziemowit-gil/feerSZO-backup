@@ -327,7 +327,21 @@ include __DIR__ . '/includes/header_crm.php';
               <label class="form-label fw-semibold small" for="tpl_body">Treść <span class="text-danger" aria-hidden="true">*</span></label>
               <textarea id="tpl_body" name="body" class="form-control form-control-sm" rows="8" required
                         placeholder="Treść wiadomości. Możesz używać zmiennych, np. {imie}."></textarea>
-              <div class="form-text" style="font-size:.74rem">Zmienne: {imie}, {imie_nazwisko}, {email}, {telefon}, {organizacja}, {stanowisko}.</div>
+              <div class="mt-2">
+                <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                  <span class="cv-meta me-1"><i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Odbiorca:</span>
+                  <?php foreach (['{imie}','{imie_nazwisko}','{email}','{telefon}','{organizacja}','{stanowisko}'] as $v): ?>
+                  <button type="button" class="var-chip" onclick="tplInsertVar('<?= h($v) ?>')" title="Wstaw <?= h($v) ?> w treści"><?= h($v) ?></button>
+                  <?php endforeach; ?>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-1">
+                  <span class="cv-meta me-1"><i class="bi bi-person-badge-fill me-1" aria-hidden="true"></i>Nadawca (Ty):</span>
+                  <?php foreach (['{nadawca_imie}','{nadawca_imie_nazwisko}','{nadawca_email}','{nadawca_telefon}'] as $v): ?>
+                  <button type="button" class="var-chip" onclick="tplInsertVar('<?= h($v) ?>')" title="Wstaw <?= h($v) ?> w treści"><?= h($v) ?></button>
+                  <?php endforeach; ?>
+                </div>
+                <div class="form-text" style="font-size:.74rem">Kliknij zmienną, aby wstawić ją w miejscu kursora.</div>
+              </div>
             </div>
             <div class="col-12">
               <div class="form-check">
@@ -391,6 +405,18 @@ function tplCopyVar(btn) {
   var orig = btn.textContent;
   btn.textContent = 'skopiowano!';
   setTimeout(function(){ btn.textContent = orig; }, 900);
+}
+
+// Wstaw zmienną w miejscu kursora w treści szablonu
+function tplInsertVar(v) {
+  var ta = document.getElementById('tpl_body');
+  if (!ta) return;
+  var s = (ta.selectionStart != null) ? ta.selectionStart : ta.value.length;
+  var e = (ta.selectionEnd   != null) ? ta.selectionEnd   : ta.value.length;
+  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+  ta.focus();
+  var pos = s + v.length;
+  ta.setSelectionRange(pos, pos);
 }
 </script>
 

@@ -273,6 +273,13 @@ function crm_migrate(): void {
         "ALTER TABLE crm_contacts ADD COLUMN powiat          TEXT",
         "ALTER TABLE crm_contacts ADD COLUMN gmina           TEXT",
         "ALTER TABLE crm_contacts ADD COLUMN teryt_kod       TEXT",
+        // Strukturalny adres (używany przez createContact/updateContact i formularze) — v1.9
+        "ALTER TABLE crm_contacts ADD COLUMN addr_street     TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN addr_house      TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN addr_flat       TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN addr_postal     TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN addr_city       TEXT",
+        "ALTER TABLE crm_contacts ADD COLUMN addr_country    TEXT",
     ];
     foreach ($extra_cols as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
