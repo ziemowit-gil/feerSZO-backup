@@ -604,3 +604,96 @@
   border-color: var(--crm-primary);
   box-shadow: 0 0 0 .15rem rgba(79,70,229,.18);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   WIDOK REKORDU — karta kontaktu (contact/view.php) i sprawy (cases/view.php)
+   Przebudowa pod czytelność + WCAG 2.1 AA (kontrast ≥ 4.5:1, focus, ARIA).
+   Klasy `cv-*` są lokalne dla tych dwóch widoków — nie kolidują z resztą CRM.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Panel sekcji — jedna spójna karta zamiast .card border-0 shadow-sm */
+.cv-panel {
+  background: #fff;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius-lg);
+  box-shadow: var(--crm-shadow);
+  margin-bottom: 1rem;
+}
+.cv-panel__body { padding: 1.05rem 1.15rem; }
+.cv-panel--danger { border-color: #F1B0B0; }
+
+/* Nagłówek sekcji — ikona + tytuł + miejsce na licznik/akcję */
+.cv-shead {
+  display: flex; align-items: center; gap: .55rem;
+  margin: 0 0 .85rem;
+  padding-bottom: .55rem;
+  border-bottom: 1px solid var(--crm-border);
+}
+.cv-shead__icon { font-size: 1.05rem; color: var(--crm-primary); flex-shrink: 0; }
+.cv-shead__title {
+  font-size: .95rem; font-weight: 700; color: var(--crm-text);
+  margin: 0; flex: 1; min-width: 0;
+}
+.cv-shead__title.danger { color: #B42318; }
+.cv-shead__aside { margin-left: auto; display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+
+/* Licznik (np. liczba notatek) */
+.cv-count {
+  background: #EAEFF2; color: #3E3E3C;
+  font-size: .74rem; font-weight: 700;
+  padding: .1rem .55rem; border-radius: 999px;
+  min-width: 1.5rem; text-align: center; line-height: 1.4;
+}
+
+/* Tekst pomocniczy — WCAG AA. #5E6470 ≈ 5.6:1 na białym (gray-400 #9CA3AF nie spełnia) */
+.cv-muted { color: #5E6470 !important; }
+.cv-meta  { font-size: .8rem; color: #5E6470; }
+.cv-meta a { color: var(--crm-accent); text-decoration: none; }
+.cv-meta a:hover { text-decoration: underline; }
+
+/* Lista danych (definicje) */
+.cv-dl { margin: 0; display: grid; gap: .7rem; }
+.cv-dl > div { min-width: 0; }
+.cv-dl dt {
+  font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: #5E6470; margin: 0 0 .12rem;
+}
+.cv-dl dd { font-size: .9rem; font-weight: 500; color: var(--crm-text); margin: 0; word-break: break-word; }
+.cv-dl dd a { color: var(--crm-accent); }
+
+/* Chip danych kontaktowych (e-mail / telefon / adres) */
+.cv-chip {
+  display: inline-flex; align-items: center; gap: .45rem;
+  font-size: .86rem; color: #374151; text-decoration: none;
+  padding: .4rem .7rem; border-radius: 8px;
+  background: #fff; border: 1px solid var(--crm-border);
+  max-width: 100%;
+}
+.cv-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-chip i { color: var(--crm-primary); flex-shrink: 0; }
+a.cv-chip:hover { border-color: var(--crm-primary); color: var(--crm-primary-dark); background: var(--crm-primary-bg); }
+a.cv-chip:hover i { color: var(--crm-primary-dark); }
+
+/* Zakładki widoku rekordu (Bootstrap nav-tabs + ARIA) */
+.cv-tabs { border-bottom: 2px solid var(--crm-border); gap: .15rem; flex-wrap: wrap; }
+.cv-tabs .nav-link {
+  border: none; border-bottom: 3px solid transparent;
+  border-radius: 0; margin-bottom: -2px;
+  padding: .6rem .95rem;
+  font-size: .88rem; font-weight: 600; color: #5E6470;
+  display: inline-flex; align-items: center; gap: .45rem;
+}
+.cv-tabs .nav-link:hover { color: var(--crm-primary-dark); background: var(--crm-primary-bg); }
+.cv-tabs .nav-link.active {
+  color: var(--crm-primary-dark); background: transparent;
+  border-bottom-color: var(--crm-primary);
+}
+.cv-tabs .nav-link i { font-size: 1rem; }
+.cv-tabs .nav-link:focus-visible { outline: 3px solid var(--crm-accent); outline-offset: -3px; }
+
+/* Pusty stan sekcji */
+.cv-empty { text-align: center; padding: 1.6rem 1rem; color: #5E6470; font-size: .86rem; }
+.cv-empty i { display: block; font-size: 1.8rem; opacity: .35; margin-bottom: .5rem; }
+
+/* Pasek danych pod nagłówkiem rekordu */
+.cv-quickbar { display: flex; flex-wrap: wrap; gap: .5rem .6rem; align-items: center; }

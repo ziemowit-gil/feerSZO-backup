@@ -428,7 +428,7 @@ function _cv_activities_html(int $id, bool $can_w, bool $can_d): string {
       <?php endif; ?>
       <?php if ($done): ?>
       <details class="mt-2">
-        <summary style="font-size:.75rem;color:#9CA3AF;cursor:pointer;list-style:none;display:flex;align-items:center;gap:.4rem">
+        <summary style="font-size:.8rem;color:#5E6470;cursor:pointer;list-style:none;display:flex;align-items:center;gap:.4rem">
           <i class="bi bi-chevron-right" style="font-size:.65rem;transition:transform .2s" id="done-chevron" aria-hidden="true"></i>
           Wykonane (<?= count($done) ?>)
         </summary>
@@ -436,11 +436,11 @@ function _cv_activities_html(int $id, bool $can_w, bool $can_d): string {
           $atc = $cfg[$act['type']] ?? $cfg['other'];
         ?>
         <div class="act-row done mt-1">
-          <div class="act-type-icon" style="background:#F3F4F6;color:#9CA3AF">
+          <div class="act-type-icon" style="background:#F3F4F6;color:#6B7280">
             <i class="bi <?= $atc['icon'] ?>" aria-hidden="true"></i>
           </div>
           <div class="act-info">
-            <div class="act-title" style="text-decoration:line-through;color:#9CA3AF"><?= h($act['title']) ?></div>
+            <div class="act-title" style="text-decoration:line-through;color:#6B7280"><?= h($act['title']) ?></div>
             <?php if ($act['outcome']): ?><div class="act-desc"><?= h($act['outcome']) ?></div><?php endif; ?>
             <div class="act-meta"><?= $act['completed_at'] ? date('d.m.Y', strtotime($act['completed_at'])) : '' ?></div>
           </div>
@@ -740,8 +740,8 @@ include __DIR__ . '/../includes/header_crm.php';
 })();
 </script>
 
-<!-- ══ CONTACT HEADER ═════════════════════════════════════════════════════════ -->
-<div class="card mb-3 border-0 overflow-hidden shadow-sm">
+<!-- ══ NAGŁÓWEK REKORDU ═══════════════════════════════════════════════════════ -->
+<div class="cv-panel" style="overflow:hidden">
   <div class="crm-contact-header">
     <div class="crm-contact-avatar-lg" aria-hidden="true">
       <?= h($contact['avatar_initials'] ?: CrmManager::makeInitials($contact['imie_nazwisko'])) ?>
@@ -749,441 +749,457 @@ include __DIR__ . '/../includes/header_crm.php';
     <div class="flex-grow-1 min-w-0">
       <h1 class="crm-contact-name"><?= h($contact['imie_nazwisko']) ?></h1>
       <div class="crm-contact-sub">
+        <i class="bi <?= $contact['type'] === 'organizacja' ? 'bi-building' : 'bi-person' ?> me-1" aria-hidden="true"></i>
+        <?= $contact['type'] === 'organizacja' ? 'Organizacja / firma' : 'Osoba fizyczna' ?>
         <?php if ($_sfv['stanowisko'] && $contact['stanowisko']): ?>
-          <span><?= h($contact['stanowisko']) ?></span><?php if ($_sfv['organizacja'] && $contact['organizacja']): ?> · <?php endif; ?>
+          · <?= h($contact['stanowisko']) ?>
         <?php endif; ?>
-        <?php if ($_sfv['organizacja'] && $contact['organizacja']): ?>
-          <span><i class="bi bi-building me-1" aria-hidden="true"></i><?= h($contact['organizacja']) ?></span>
+        <?php if ($_sfv['organizacja'] && $contact['organizacja'] && $contact['type'] !== 'organizacja'): ?>
+          · <i class="bi bi-building me-1" aria-hidden="true"></i><?= h($contact['organizacja']) ?>
         <?php endif; ?>
       </div>
     </div>
-    <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0">
+    <div class="flex-shrink-0">
       <?php $sc = crm_statuses()[$contact['status']] ?? ['label' => $contact['status'], 'color' => '#939393']; ?>
-      <span class="crm-badge crm-badge-<?= h($contact['status']) ?>" style="font-size:.8rem">
+      <span class="crm-badge crm-badge-<?= h($contact['status']) ?>" style="font-size:.82rem">
         <?= h($sc['label']) ?>
       </span>
-      <div class="d-flex gap-2 flex-wrap justify-content-end">
-        <?php if ($crm_can_write): ?>
-        <a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>"
-           class="btn btn-sm btn-light">
-          <i class="bi bi-pencil-fill me-1" aria-hidden="true"></i>Edytuj
-        </a>
-        <?php endif; ?>
-        <button type="button" class="btn btn-sm btn-light"
-                onclick="openCommModal(<?= $id ?>,'email')">
-          <i class="bi bi-send-fill me-1" aria-hidden="true"></i>Wiadomość
-        </button>
-        <?php if ($crm_can_write): ?>
-        <button type="button" class="btn btn-sm btn-light"
-                data-bs-toggle="modal" data-bs-target="#convertTypeModal"
-                title="Zmień typ kontaktu: Osoba ↔ Organizacja">
-          <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwertuj
-        </button>
-        <?php endif; ?>
-        <?php if ($crm_can_write && $contract_import_data): ?>
-        <button type="button" class="btn btn-sm btn-light"
-                data-bs-toggle="modal" data-bs-target="#importContractModal"
-                title="Zaciągnij dane osobowe z umów tej osoby">
-          <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Zaciągnij z umowy
-        </button>
-        <?php endif; ?>
-        <?php if ($roundcube_url && $contact['email']): ?>
-        <a href="<?= APP_URL ?>/crm/webmail.php?compose_to=<?= urlencode($contact['email']) ?>"
-           class="btn btn-sm btn-light"
-           title="Napisz przez Roundcube">
-          <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Roundcube
-        </a>
-        <?php endif; ?>
-      </div>
     </div>
   </div>
 
-  <!-- Quick info strip -->
-  <div class="card-body py-2 border-top d-flex flex-wrap gap-3"
-       style="background:#f9fafb;font-size:.84rem">
+  <!-- Pasek akcji -->
+  <div class="cv-panel__body d-flex flex-wrap gap-2" style="border-top:1px solid var(--crm-border)">
+    <?php if ($crm_can_write): ?>
+    <a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>" class="btn btn-sm btn-crm-primary">
+      <i class="bi bi-pencil-fill me-1" aria-hidden="true"></i>Edytuj dane
+    </a>
+    <?php endif; ?>
+    <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'email')">
+      <i class="bi bi-envelope-fill me-1" aria-hidden="true"></i>Wyślij e-mail
+    </button>
+    <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'sms')">
+      <i class="bi bi-phone-fill me-1" aria-hidden="true"></i>Wyślij SMS
+    </button>
+    <?php if ($crm_can_write): ?>
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            data-bs-toggle="modal" data-bs-target="#convertTypeModal"
+            title="Zmień typ kontaktu: Osoba ↔ Organizacja">
+      <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwertuj typ
+    </button>
+    <?php endif; ?>
+    <?php if ($crm_can_write && $contract_import_data): ?>
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            data-bs-toggle="modal" data-bs-target="#importContractModal"
+            title="Zaciągnij dane osobowe z umów tej osoby">
+      <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Zaciągnij z umowy
+    </button>
+    <?php endif; ?>
+    <?php if ($roundcube_url && $contact['email']): ?>
+    <a href="<?= APP_URL ?>/crm/webmail.php?compose_to=<?= urlencode($contact['email']) ?>"
+       class="btn btn-sm btn-outline-secondary" title="Napisz przez Roundcube">
+      <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Roundcube
+    </a>
+    <?php endif; ?>
+  </div>
+
+  <!-- Pasek danych kontaktowych -->
+  <div class="cv-panel__body cv-quickbar" style="background:#F9FAFB;border-top:1px solid var(--crm-border)">
     <?php if ($_sfv['email'] && $contact['email']): ?>
-    <a href="mailto:<?= h($contact['email']) ?>"
-       class="text-decoration-none text-muted cv-contact-chip">
-      <i class="bi bi-envelope-fill me-1 text-secondary" aria-hidden="true"></i><?= h($contact['email']) ?>
+    <a href="mailto:<?= h($contact['email']) ?>" class="cv-chip">
+      <i class="bi bi-envelope-fill" aria-hidden="true"></i><span><?= h($contact['email']) ?></span>
     </a>
     <?php endif; ?>
     <?php if ($_sfv['telefon'] && $contact['telefon']): ?>
-    <a href="tel:<?= h($contact['telefon']) ?>"
-       class="text-decoration-none text-muted cv-contact-chip">
-      <i class="bi bi-telephone-fill me-1 text-secondary" aria-hidden="true"></i><?= h($contact['telefon']) ?>
+    <a href="tel:<?= h($contact['telefon']) ?>" class="cv-chip">
+      <i class="bi bi-telephone-fill" aria-hidden="true"></i><span><?= h($contact['telefon']) ?></span>
     </a>
     <?php endif; ?>
     <?php $addr_display = address_format($contact); if ($_sfv['adres'] && $addr_display): ?>
-    <span class="text-muted">
-      <i class="bi bi-geo-alt-fill me-1 text-secondary" aria-hidden="true"></i><?= h($addr_display) ?>
+    <span class="cv-chip">
+      <i class="bi bi-geo-alt-fill" aria-hidden="true"></i><span><?= h($addr_display) ?></span>
     </span>
     <?php endif; ?>
     <?php if ($_sfv['nip'] && $contact['nip']): ?>
-    <span class="text-muted">NIP: <?= h($contact['nip']) ?></span>
+    <span class="cv-chip">
+      <i class="bi bi-hash" aria-hidden="true"></i><span>NIP: <?= h($contact['nip']) ?></span>
+    </span>
     <?php endif; ?>
-    <span class="ms-auto text-muted" style="font-size:.75rem">
+    <span class="ms-auto cv-meta">
       Dodano: <?= date_pl($contact['created_at']) ?>
-      <?php if (($contact['source'] ?? '') !== 'manual'): ?>
-        · Źródło: <?= h($contact['source'] ?? '') ?>
-      <?php endif; ?>
+      <?php if (($contact['source'] ?? '') !== 'manual'): ?>· Źródło: <?= h($contact['source'] ?? '') ?><?php endif; ?>
     </span>
   </div>
 </div>
 
-<!-- ══ TREŚĆ: 3 KOLUMNY ══════════════════════════════════════════════════════ -->
+<!-- ══ TREŚĆ: aside referencyjny + główna z zakładkami ════════════════════════ -->
 <!-- Live region dla ogłoszeń AJAX -->
 <div id="cv-live" role="status" aria-live="polite" aria-atomic="true" class="visually-hidden"></div>
 
+<?php
+// Konfiguracja statusów spraw (mini-lista w zakładce „Sprawy")
+$case_status_cfg = [
+    'open'        => ['label'=>'Otwarta',   'color'=>'#1D4ED8','bg'=>'#EEF4FF'],
+    'in_progress' => ['label'=>'W toku',    'color'=>'#B45309','bg'=>'#FEF3E2'],
+    'closed'      => ['label'=>'Zamknięta', 'color'=>'#2E844A','bg'=>'#EFF7ED'],
+    'cancelled'   => ['label'=>'Anulowana', 'color'=>'#5E6470','bg'=>'#F3F4F6'],
+];
+?>
+
 <div class="row g-3">
 
-  <!-- ── LEWA ──────────────────────────────────────────────────────────────── -->
-  <div class="col-lg-3">
+  <!-- ── ASIDE: tożsamość i dane referencyjne ──────────────────────────────── -->
+  <div class="col-lg-4">
 
     <!-- Tagi -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title">
-          <i class="bi bi-tags me-1" aria-hidden="true"></i>Tagi
-        </div>
-        <?= _cv_tags_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-tags cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Tagi</h2>
       </div>
-    </div>
+      <?= _cv_tags_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+    </div></div>
 
     <!-- Pola dodatkowe -->
     <?php if ($_custom_field_defs): ?>
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          <span>Dodatkowe informacje</span>
-          <?php if ($crm_can_write): ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-card-list cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Dodatkowe informacje</h2>
+        <?php if ($crm_can_write): ?>
+        <div class="cv-shead__aside">
           <a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>"
-             class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj pola">
-            <i class="bi bi-pencil" style="font-size:.75rem" aria-hidden="true"></i>
+             class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj pola" aria-label="Edytuj pola dodatkowe">
+            <i class="bi bi-pencil" aria-hidden="true"></i>
           </a>
-          <?php endif; ?>
         </div>
-        <dl class="mb-0" style="font-size:.84rem">
-          <?php
-          $any_value = false;
-          foreach ($_custom_field_defs as $fd):
-            $val = $_custom_field_values[(int)$fd['id']] ?? '';
-            if ($val === '' && $val !== '0') continue;
-            $any_value = true;
-          ?>
-          <dt class="text-muted fw-normal mb-0" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">
-            <?= h($fd['label']) ?>
-          </dt>
-          <dd class="mb-2 fw-semibold">
+        <?php endif; ?>
+      </div>
+      <?php
+      $any_value = false;
+      foreach ($_custom_field_defs as $fd) {
+        $val = $_custom_field_values[(int)$fd['id']] ?? '';
+        if ($val !== '' || $val === '0') { $any_value = true; break; }
+      }
+      ?>
+      <?php if ($any_value): ?>
+      <dl class="cv-dl">
+        <?php foreach ($_custom_field_defs as $fd):
+          $val = $_custom_field_values[(int)$fd['id']] ?? '';
+          if ($val === '' && $val !== '0') continue;
+        ?>
+        <div>
+          <dt><?= h($fd['label']) ?></dt>
+          <dd>
             <?php if ($fd['field_type'] === 'url'): ?>
               <a href="<?= h($val) ?>" target="_blank" rel="noopener"><?= h($val) ?></a>
             <?php elseif ($fd['field_type'] === 'email'): ?>
               <a href="mailto:<?= h($val) ?>"><?= h($val) ?></a>
             <?php elseif ($fd['field_type'] === 'checkbox'): ?>
-              <?= $val ? '<i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i> Tak' : '<i class="bi bi-x-circle text-muted" aria-hidden="true"></i> Nie' ?>
+              <?= $val ? '<i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i> Tak' : '<i class="bi bi-x-circle cv-muted" aria-hidden="true"></i> Nie' ?>
             <?php elseif ($fd['field_type'] === 'textarea'): ?>
               <span style="white-space:pre-line"><?= h($val) ?></span>
             <?php else: ?><?= h($val) ?><?php endif; ?>
           </dd>
-          <?php endforeach; ?>
-        </dl>
-        <?php if (!$any_value): ?>
-        <p class="text-muted small mb-0">Brak wypełnionych pól.
-          <?php if ($crm_can_write): ?><a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>">Uzupełnij</a><?php endif; ?>
-        </p>
-        <?php endif; ?>
-      </div>
-    </div>
+        </div>
+        <?php endforeach; ?>
+      </dl>
+      <?php else: ?>
+      <p class="cv-meta mb-0">Brak wypełnionych pól.
+        <?php if ($crm_can_write): ?><a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>">Uzupełnij</a><?php endif; ?>
+      </p>
+      <?php endif; ?>
+    </div></div>
     <?php endif; ?>
 
     <!-- Powiązane konta -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title">
-          <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Powiązane konta
-        </div>
-        <?= _cv_relations_html($contact, $id, $crm_can_write, $crm_can_delete, $all_contacts_for_relation) ?>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-link-45deg cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Powiązane konta</h2>
       </div>
-    </div>
+      <?= _cv_relations_html($contact, $id, $crm_can_write, $crm_can_delete, $all_contacts_for_relation) ?>
+    </div></div>
 
     <!-- Grupy -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          <span><i class="bi bi-collection me-1" aria-hidden="true"></i>Grupy</span>
-          <a href="<?= APP_URL ?>/crm/groups.php" class="text-muted"
-             style="font-size:.72rem;text-decoration:none" aria-label="Zarządzaj grupami">Zarządzaj</a>
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-collection cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Grupy</h2>
+        <div class="cv-shead__aside">
+          <a href="<?= APP_URL ?>/crm/groups.php" class="cv-meta" style="text-decoration:none">Zarządzaj</a>
         </div>
-        <?= _cv_groups_html($contact, $id, $crm_can_write) ?>
       </div>
-    </div>
+      <?= _cv_groups_html($contact, $id, $crm_can_write) ?>
+    </div></div>
 
-    <!-- Wolontariat -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          <span><i class="bi bi-people-fill me-1" aria-hidden="true"></i>Wolontariat</span>
-          <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="text-muted"
-             style="font-size:.72rem;text-decoration:none">Wszystkie</a>
-        </div>
-        <?php if (!($contact['email'] ?? '')): ?>
-        <p class="text-muted small mb-0">Brak e-mail — nie można dopasować.</p>
-        <?php else: ?>
+    <!-- Informacje o rekordzie -->
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-info-circle cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Informacje o rekordzie</h2>
+      </div>
+      <table class="table table-sm table-borderless mb-0" style="font-size:.84rem">
+        <tbody>
+          <tr><td class="cv-muted pe-2">ID</td><td>#<?= $id ?></td></tr>
+          <tr><td class="cv-muted pe-2">Typ</td>
+              <td><?= $contact['type'] === 'organizacja' ? 'Organizacja' : 'Osoba' ?></td></tr>
+          <tr><td class="cv-muted pe-2">Źródło</td><td><?= h(ucfirst($contact['source'] ?? '')) ?></td></tr>
+          <tr><td class="cv-muted pe-2">Dodano</td><td><?= date_pl($contact['created_at']) ?></td></tr>
+          <tr><td class="cv-muted pe-2">Zmieniono</td><td><?= date_pl($contact['updated_at']) ?></td></tr>
+          <?php if ($contact['synced_at']): ?>
+          <tr><td class="cv-muted pe-2">Zsync.</td><td><?= date_pl($contact['synced_at']) ?></td></tr>
+          <?php endif; ?>
+          <?php if ($contact['person_id']): ?>
+          <tr><td class="cv-muted pe-2">Osoba</td>
+              <td><a href="<?= APP_URL ?>/persons/view.php?id=<?= (int)$contact['person_id'] ?>">#<?= (int)$contact['person_id'] ?></a></td></tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div></div>
 
-        <!-- Rekrutacje -->
-        <?php if ($volunteer_recruitments):
-          $app_statuses = [
-            'new'=>['label'=>'Nowa','color'=>'#0176D3'],'reviewing'=>['label'=>'W ocenie','color'=>'#FE9339'],
-            'interview'=>['label'=>'Rozmowa','color'=>'#7F2B8B'],'accepted'=>['label'=>'Przyjęta','color'=>'#2E844A'],
-            'rejected'=>['label'=>'Odrzucona','color'=>'#E31010'],'withdrawn'=>['label'=>'Wycofana','color'=>'#939393'],
-          ];
-          foreach ($volunteer_recruitments as $app):
-            $ast = $app_statuses[$app['status']] ?? ['label'=>$app['status'],'color'=>'#939393'];
-        ?>
-        <div class="d-flex align-items-start gap-2 p-2 border rounded mb-1" style="font-size:.8rem">
-          <i class="bi bi-person-check mt-1 flex-shrink-0" style="color:<?= h($ast['color']) ?>" aria-hidden="true"></i>
-          <div class="flex-grow-1 overflow-hidden">
-            <a href="<?= APP_URL ?>/contracts/rekrutacja/view.php?id=<?= (int)$app['offer_id'] ?>"
-               class="fw-semibold text-dark text-decoration-none d-block text-truncate">
-              <?= h($app['offer_title'] ?: '—') ?>
-            </a>
-            <div class="text-muted" style="font-size:.72rem">
-              <span style="color:<?= h($ast['color']) ?>;font-weight:600"><?= h($ast['label']) ?></span>
-              <?php if ($app['created_at']): ?> · <?= date('d.m.Y', strtotime($app['created_at'])) ?><?php endif; ?>
+    <!-- Strefa zagrożenia -->
+    <?php if ($crm_can_delete): ?>
+    <div class="cv-panel cv-panel--danger"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-exclamation-octagon cv-shead__icon" style="color:#B42318" aria-hidden="true"></i>
+        <h2 class="cv-shead__title danger">Strefa zagrożenia</h2>
+      </div>
+      <form method="post">
+        <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action"    value="delete">
+        <input type="hidden" name="contact_id" value="<?= $id ?>">
+        <button class="btn btn-outline-danger btn-sm w-100" type="submit"
+                data-contact-name="<?= h($contact['imie_nazwisko']) ?>"
+                id="cv-delete-btn"
+                aria-label="Usuń kontakt <?= h($contact['imie_nazwisko']) ?>">
+          <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń kontakt
+        </button>
+      </form>
+      <p class="cv-meta mt-2 mb-0">Soft-delete — dane nie zostaną trwale skasowane.</p>
+    </div></div>
+    <?php endif; ?>
+
+  </div><!-- /aside -->
+
+  <!-- ── GŁÓWNA: zakładki ───────────────────────────────────────────────────── -->
+  <div class="col-lg-8">
+
+    <ul class="nav cv-tabs mb-3" id="cvTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="cv-tab-activity-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-activity" type="button" role="tab"
+                aria-controls="cv-tab-activity" aria-selected="true">
+          <i class="bi bi-activity" aria-hidden="true"></i>Aktywność
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-notes-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-notes" type="button" role="tab"
+                aria-controls="cv-tab-notes" aria-selected="false">
+          <i class="bi bi-sticky" aria-hidden="true"></i>Notatki
+          <span class="cv-count"><?= count($contact['notes']) ?></span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-cases-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-cases" type="button" role="tab"
+                aria-controls="cv-tab-cases" aria-selected="false">
+          <i class="bi bi-briefcase" aria-hidden="true"></i>Sprawy
+          <span class="cv-count"><?= count($contact_cases) ?></span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-engage-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-engage" type="button" role="tab"
+                aria-controls="cv-tab-engage" aria-selected="false">
+          <i class="bi bi-people-fill" aria-hidden="true"></i>Zaangażowanie
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+
+      <!-- ZAKŁADKA: Aktywność -->
+      <div class="tab-pane fade show active" id="cv-tab-activity" role="tabpanel"
+           aria-labelledby="cv-tab-activity-btn" tabindex="0">
+
+        <div class="cv-panel" id="activities-section"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-lightning-charge-fill cv-shead__icon" style="color:#B45309" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Planowane działania</h2>
+          </div>
+          <?= _cv_activities_html($id, $crm_can_write, $crm_can_delete) ?>
+        </div></div>
+
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-chat-left-text cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Historia komunikacji</h2>
+            <div class="cv-shead__aside">
+              <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'email')">
+                <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
+              </button>
             </div>
           </div>
-        </div>
-        <?php endforeach;
-        else: ?><p class="text-muted mb-1" style="font-size:.78rem">Brak rekrutacji.</p><?php endif; ?>
+          <?= _cv_communications_html($contact, $id) ?>
+        </div></div>
 
-        <!-- Umowy wolontariackie -->
-        <div class="border-top pt-2 mt-2">
-          <?php if ($volunteer_contracts):
-            $contract_statuses = [
-              'projekt'=>['label'=>'Projekt','color'=>'#64748b'],'podpisana'=>['label'=>'Podpisana','color'=>'#0176D3'],
-              'w realizacji'=>['label'=>'W realizacji','color'=>'#2E844A'],'zakończona'=>['label'=>'Zakończona','color'=>'#032D60'],
-              'rozwiązana'=>['label'=>'Rozwiązana','color'=>'#FE9339'],'anulowana'=>['label'=>'Anulowana','color'=>'#E31010'],
-            ];
-            foreach ($volunteer_contracts as $wol):
-              $wst = $contract_statuses[$wol['status']] ?? ['label'=>$wol['status'],'color'=>'#939393'];
-          ?>
-          <div class="d-flex align-items-start gap-2 p-2 border rounded mb-1" style="font-size:.8rem">
-            <i class="bi bi-file-earmark-text mt-1 flex-shrink-0" style="color:<?= h($wst['color']) ?>" aria-hidden="true"></i>
-            <div class="flex-grow-1 overflow-hidden">
-              <a href="<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= (int)$wol['id'] ?>"
-                 class="fw-semibold text-dark text-decoration-none d-block text-truncate">
-                <?= h($wol['numer_umowy'] ?: '#' . $wol['id']) ?>
+      </div>
+
+      <!-- ZAKŁADKA: Notatki -->
+      <div class="tab-pane fade" id="cv-tab-notes" role="tabpanel"
+           aria-labelledby="cv-tab-notes-btn" tabindex="0">
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-sticky cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Notatki</h2>
+            <div class="cv-shead__aside"><span class="cv-count"><?= count($contact['notes']) ?></span></div>
+          </div>
+          <?= _cv_notes_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
+        </div></div>
+      </div>
+
+      <!-- ZAKŁADKA: Sprawy -->
+      <div class="tab-pane fade" id="cv-tab-cases" role="tabpanel"
+           aria-labelledby="cv-tab-cases-btn" tabindex="0">
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-briefcase cv-shead__icon" style="color:#1D4ED8" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Sprawy</h2>
+            <div class="cv-shead__aside">
+              <span class="cv-count"><?= count($contact_cases) ?></span>
+              <?php if ($crm_can_write): ?>
+              <a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>"
+                 class="btn btn-crm-outline btn-sm py-0 px-2">
+                <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowa
               </a>
-              <div class="text-muted" style="font-size:.72rem">
-                <span style="color:<?= h($wst['color']) ?>;font-weight:600"><?= h($wst['label']) ?></span>
-                <?php if ($wol['data_od']): ?> · <?= date('d.m.Y', strtotime($wol['data_od'])) ?><?php endif; ?>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php if ($contact_cases): ?>
+          <div class="d-flex flex-column">
+            <?php foreach ($contact_cases as $cs):
+              $csc = $case_status_cfg[$cs['status']] ?? $case_status_cfg['open'];
+            ?>
+            <a href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$cs['id'] ?>"
+               class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"
+               style="color:#181818;font-size:.88rem">
+              <span style="width:8px;height:8px;border-radius:50%;background:<?= $csc['color'] ?>;flex-shrink:0" aria-hidden="true"></span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">
+                <?= h($cs['title']) ?>
+              </span>
+              <span style="display:inline-flex;align-items:center;padding:.12rem .55rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:<?= $csc['bg'] ?>;color:<?= $csc['color'] ?>;white-space:nowrap">
+                <?= $csc['label'] ?>
+              </span>
+            </a>
+            <?php endforeach; ?>
+          </div>
+          <a href="<?= APP_URL ?>/crm/cases/index.php?contact_id=<?= (int)$id ?>"
+             class="btn btn-crm-outline btn-sm w-100 mt-3">
+            Wszystkie sprawy tego kontaktu
+          </a>
+          <?php else: ?>
+          <div class="cv-empty">
+            <i class="bi bi-briefcase" aria-hidden="true"></i>
+            Brak spraw
+            <?php if ($crm_can_write): ?>
+            <div class="mt-1"><a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>">Utwórz pierwszą →</a></div>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
+        </div></div>
+      </div>
+
+      <!-- ZAKŁADKA: Zaangażowanie (działania + wolontariat) -->
+      <div class="tab-pane fade" id="cv-tab-engage" role="tabpanel"
+           aria-labelledby="cv-tab-engage-btn" tabindex="0">
+
+        <!-- Działania powiązane -->
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-calendar-event cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Działania</h2>
+            <div class="cv-shead__aside">
+              <a href="<?= APP_URL ?>/strategy/actions/index.php" class="cv-meta" style="text-decoration:none">Wszystkie</a>
+            </div>
+          </div>
+          <?= _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)) ?>
+        </div></div>
+
+        <!-- Wolontariat -->
+        <div class="cv-panel"><div class="cv-panel__body">
+          <div class="cv-shead">
+            <i class="bi bi-people-fill cv-shead__icon" aria-hidden="true"></i>
+            <h2 class="cv-shead__title">Wolontariat</h2>
+            <div class="cv-shead__aside">
+              <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="cv-meta" style="text-decoration:none">Wszystkie</a>
+            </div>
+          </div>
+          <?php if (!($contact['email'] ?? '')): ?>
+          <p class="cv-meta mb-0">Brak e-mail — nie można dopasować.</p>
+          <?php else: ?>
+
+          <!-- Rekrutacje -->
+          <?php if ($volunteer_recruitments):
+            $app_statuses = [
+              'new'=>['label'=>'Nowa','color'=>'#1D4ED8'],'reviewing'=>['label'=>'W ocenie','color'=>'#B45309'],
+              'interview'=>['label'=>'Rozmowa','color'=>'#7F2B8B'],'accepted'=>['label'=>'Przyjęta','color'=>'#2E844A'],
+              'rejected'=>['label'=>'Odrzucona','color'=>'#DC2626'],'withdrawn'=>['label'=>'Wycofana','color'=>'#5E6470'],
+            ];
+            foreach ($volunteer_recruitments as $app):
+              $ast = $app_statuses[$app['status']] ?? ['label'=>$app['status'],'color'=>'#5E6470'];
+          ?>
+          <div class="d-flex align-items-start gap-2 p-2 border rounded mb-1" style="font-size:.86rem">
+            <i class="bi bi-person-check mt-1 flex-shrink-0" style="color:<?= h($ast['color']) ?>" aria-hidden="true"></i>
+            <div class="flex-grow-1 overflow-hidden">
+              <a href="<?= APP_URL ?>/contracts/rekrutacja/view.php?id=<?= (int)$app['offer_id'] ?>"
+                 class="fw-semibold text-dark text-decoration-none d-block text-truncate">
+                <?= h($app['offer_title'] ?: '—') ?>
+              </a>
+              <div class="cv-meta">
+                <span style="color:<?= h($ast['color']) ?>;font-weight:600"><?= h($ast['label']) ?></span>
+                <?php if ($app['created_at']): ?> · <?= date('d.m.Y', strtotime($app['created_at'])) ?><?php endif; ?>
               </div>
             </div>
           </div>
           <?php endforeach;
-          else: ?><p class="text-muted mb-0" style="font-size:.78rem">Brak umów wolontariackich.</p><?php endif; ?>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
+          else: ?><p class="cv-meta mb-1">Brak rekrutacji.</p><?php endif; ?>
 
-    <!-- Działania systemowe -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          <span><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Działania</span>
-          <a href="<?= APP_URL ?>/strategy/actions/index.php" class="text-muted"
-             style="font-size:.72rem;text-decoration:none">Wszystkie</a>
-        </div>
-        <?= _cv_action_links_html($contact_actions, $id, $crm_can_write, $available_actions, !empty($all_actions_raw)) ?>
-      </div>
-    </div>
-
-  </div><!-- /lewa -->
-
-  <!-- ── ŚRODKOWA ───────────────────────────────────────────────────────────── -->
-  <div class="col-lg-6">
-
-    <!-- Planowane działania CRM -->
-    <div class="card border-0 shadow-sm mb-3" id="activities-section">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between mb-0">
-          <span><i class="bi bi-lightning-charge-fill me-1" style="color:#D97706" aria-hidden="true"></i>Planowane działania</span>
-        </div>
-        <?= _cv_activities_html($id, $crm_can_write, $crm_can_delete) ?>
-      </div>
-    </div>
-
-    <!-- Notatki -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          <span>Notatki</span>
-          <span class="text-muted" style="font-size:.78rem;text-transform:none;letter-spacing:0">
-            <?= count($contact['notes']) ?>
-          </span>
-        </div>
-        <?= _cv_notes_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
-      </div>
-    </div>
-
-    <!-- Historia komunikacji -->
-    <div class="card border-0 shadow-sm">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          Historia komunikacji
-          <button type="button" class="btn btn-sm btn-crm-outline"
-                  style="font-size:.72rem;padding:.15rem .5rem;text-transform:none;letter-spacing:0"
-                  onclick="openCommModal(<?= $id ?>,'email')">
-            <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
-          </button>
-        </div>
-        <?= _cv_communications_html($contact, $id) ?>
-      </div>
-    </div>
-
-  </div><!-- /środkowa -->
-
-  <!-- ── PRAWA ──────────────────────────────────────────────────────────────── -->
-  <div class="col-lg-3">
-
-    <!-- Akcje -->
-    <?php if ($crm_can_write): ?>
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title">Akcje</div>
-        <div class="d-grid gap-2">
-          <a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>" class="btn btn-sm btn-crm-outline">
-            <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj dane
-          </a>
-          <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'email')">
-            <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wyślij e-mail
-          </button>
-          <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'sms')">
-            <i class="bi bi-phone me-1" aria-hidden="true"></i>Wyślij SMS
-          </button>
-          <?php if ($contact['email']): ?>
-          <a href="mailto:<?= h($contact['email']) ?>" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Klient mailowy
-          </a>
-          <?php if ($roundcube_url): ?>
-          <a href="<?= APP_URL ?>/crm/webmail.php?compose_to=<?= urlencode($contact['email'] ?? '') ?>"
-             class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Roundcube
-          </a>
-          <?php endif; ?>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Meta rekord -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body" style="font-size:.8rem">
-        <div class="crm-section-title">Informacje o rekordzie</div>
-        <table class="table table-sm table-borderless mb-0" style="font-size:.8rem">
-          <tbody>
-            <tr><td class="text-muted pe-2">ID</td><td>#<?= $id ?></td></tr>
-            <tr><td class="text-muted pe-2">Typ</td>
-                <td><?= $contact['type'] === 'organizacja' ? 'Organizacja' : 'Osoba' ?></td></tr>
-            <tr><td class="text-muted pe-2">Źródło</td><td><?= h(ucfirst($contact['source'] ?? '')) ?></td></tr>
-            <tr><td class="text-muted pe-2">Dodano</td><td><?= date_pl($contact['created_at']) ?></td></tr>
-            <tr><td class="text-muted pe-2">Zmieniono</td><td><?= date_pl($contact['updated_at']) ?></td></tr>
-            <?php if ($contact['synced_at']): ?>
-            <tr><td class="text-muted pe-2">Zsync.</td><td><?= date_pl($contact['synced_at']) ?></td></tr>
-            <?php endif; ?>
-            <?php if ($contact['person_id']): ?>
-            <tr><td class="text-muted pe-2">Osoba</td>
-                <td><a href="<?= APP_URL ?>/persons/view.php?id=<?= (int)$contact['person_id'] ?>">#<?= (int)$contact['person_id'] ?></a></td></tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Sprawy -->
-    <?php
-    $case_status_cfg = [
-        'open'        => ['label'=>'Otwarta',   'color'=>'#2563EB','bg'=>'#EEF4FF'],
-        'in_progress' => ['label'=>'W toku',    'color'=>'#D97706','bg'=>'#FEF3E2'],
-        'closed'      => ['label'=>'Zamknięta', 'color'=>'#2E844A','bg'=>'#EFF7ED'],
-        'cancelled'   => ['label'=>'Anulowana', 'color'=>'#9CA3AF','bg'=>'#F3F4F6'],
-    ];
-    ?>
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="crm-section-title d-flex align-items-center justify-content-between">
-          <span><i class="bi bi-briefcase me-1" style="color:#0176D3" aria-hidden="true"></i>Sprawy</span>
-          <div class="d-flex align-items-center gap-2">
-            <span class="text-muted" style="font-size:.78rem;text-transform:none;letter-spacing:0"><?= count($contact_cases) ?></span>
-            <?php if ($crm_can_write): ?>
-            <a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>"
-               class="btn btn-crm-outline btn-sm py-0 px-2" style="font-size:.72rem;text-transform:none;letter-spacing:0">
-              <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowa
-            </a>
-            <?php endif; ?>
+          <!-- Umowy wolontariackie -->
+          <div class="border-top pt-2 mt-2">
+            <?php if ($volunteer_contracts):
+              $contract_statuses = [
+                'projekt'=>['label'=>'Projekt','color'=>'#5E6470'],'podpisana'=>['label'=>'Podpisana','color'=>'#1D4ED8'],
+                'w realizacji'=>['label'=>'W realizacji','color'=>'#2E844A'],'zakończona'=>['label'=>'Zakończona','color'=>'#032D60'],
+                'rozwiązana'=>['label'=>'Rozwiązana','color'=>'#B45309'],'anulowana'=>['label'=>'Anulowana','color'=>'#DC2626'],
+              ];
+              foreach ($volunteer_contracts as $wol):
+                $wst = $contract_statuses[$wol['status']] ?? ['label'=>$wol['status'],'color'=>'#5E6470'];
+            ?>
+            <div class="d-flex align-items-start gap-2 p-2 border rounded mb-1" style="font-size:.86rem">
+              <i class="bi bi-file-earmark-text mt-1 flex-shrink-0" style="color:<?= h($wst['color']) ?>" aria-hidden="true"></i>
+              <div class="flex-grow-1 overflow-hidden">
+                <a href="<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= (int)$wol['id'] ?>"
+                   class="fw-semibold text-dark text-decoration-none d-block text-truncate">
+                  <?= h($wol['numer_umowy'] ?: '#' . $wol['id']) ?>
+                </a>
+                <div class="cv-meta">
+                  <span style="color:<?= h($wst['color']) ?>;font-weight:600"><?= h($wst['label']) ?></span>
+                  <?php if ($wol['data_od']): ?> · <?= date('d.m.Y', strtotime($wol['data_od'])) ?><?php endif; ?>
+                </div>
+              </div>
+            </div>
+            <?php endforeach;
+            else: ?><p class="cv-meta mb-0">Brak umów wolontariackich.</p><?php endif; ?>
           </div>
-        </div>
-        <?php if ($contact_cases): ?>
-        <div style="max-height:260px;overflow-y:auto">
-          <?php foreach ($contact_cases as $cs):
-            $csc = $case_status_cfg[$cs['status']] ?? $case_status_cfg['open'];
-          ?>
-          <a href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$cs['id'] ?>"
-             class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"
-             style="color:#111827;font-size:.83rem">
-            <span style="width:7px;height:7px;border-radius:50%;background:<?= $csc['color'] ?>;flex-shrink:0" aria-hidden="true"></span>
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">
-              <?= h($cs['title']) ?>
-            </span>
-            <span style="display:inline-flex;align-items:center;padding:.1rem .5rem;border-radius:2rem;font-size:.68rem;font-weight:600;background:<?= $csc['bg'] ?>;color:<?= $csc['color'] ?>;white-space:nowrap">
-              <?= $csc['label'] ?>
-            </span>
-          </a>
-          <?php endforeach; ?>
-        </div>
-        <a href="<?= APP_URL ?>/crm/cases/index.php?contact_id=<?= (int)$id ?>"
-           class="btn btn-crm-outline btn-sm w-100 mt-2" style="font-size:.78rem">
-          Wszystkie sprawy
-        </a>
-        <?php else: ?>
-        <div class="text-muted text-center py-3" style="font-size:.82rem">
-          <i class="bi bi-briefcase d-block mb-1 opacity-25" style="font-size:1.4rem" aria-hidden="true"></i>
-          Brak spraw
-          <?php if ($crm_can_write): ?>
-          <br><a href="<?= APP_URL ?>/crm/cases/add.php?contact_id=<?= (int)$id ?>" style="font-size:.78rem">
-            Utwórz pierwszą →
-          </a>
           <?php endif; ?>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
+        </div></div>
 
-    <!-- Strefa zagrożenia -->
-    <?php if ($crm_can_delete): ?>
-    <div class="card border-0 shadow-sm border-danger-subtle">
-      <div class="card-body">
-        <div class="crm-section-title text-danger">Strefa zagrożenia</div>
-        <form method="post">
-          <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action"    value="delete">
-          <input type="hidden" name="contact_id" value="<?= $id ?>">
-          <button class="btn btn-outline-danger btn-sm w-100" type="submit"
-                  data-contact-name="<?= h($contact['imie_nazwisko']) ?>"
-                  id="cv-delete-btn"
-                  aria-label="Usuń kontakt <?= h($contact['imie_nazwisko']) ?>">
-            <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń kontakt
-          </button>
-        </form>
-        <p class="text-muted mt-2 mb-0" style="font-size:.72rem">
-          Soft-delete — dane nie zostaną trwale skasowane.
-        </p>
       </div>
-    </div>
-    <?php endif; ?>
 
-  </div><!-- /prawa -->
+    </div><!-- /tab-content -->
+
+  </div><!-- /główna -->
 </div><!-- /row -->
 
 <!-- ══ MODALS: Planowane działania ═══════════════════════════════════════════ -->
@@ -1292,7 +1308,7 @@ include __DIR__ . '/../includes/header_crm.php';
 .act-type-icon { width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;margin-top:.05rem }
 .act-info { flex:1;min-width:0 }
 .act-title { font-size:.84rem;font-weight:600;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
-.act-meta  { font-size:.72rem;color:#9CA3AF;margin-top:1px }
+.act-meta  { font-size:.76rem;color:#5E6470;margin-top:1px }
 .act-desc  { font-size:.76rem;color:#6B7280;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
 .act-actions { display:flex;gap:.25rem;flex-shrink:0;align-items:flex-start;margin-top:.05rem }
 .act-type-pill { display:flex;align-items:center;gap:.35rem;padding:.3rem .65rem;border-radius:2rem;border:1.5px solid #E5E7EB;font-size:.74rem;font-weight:600;color:#6B7280;background:#fff;cursor:pointer;transition:all .12s }

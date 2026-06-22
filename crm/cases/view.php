@@ -32,7 +32,7 @@ $status_cfg = [
     'open'        => ['label'=>'Otwarta',   'color'=>'#2563EB','bg'=>'#EEF4FF','icon'=>'bi-circle'],
     'in_progress' => ['label'=>'W toku',    'color'=>'#D97706','bg'=>'#FEF3E2','icon'=>'bi-arrow-clockwise'],
     'closed'      => ['label'=>'Zamknięta', 'color'=>'#2E844A','bg'=>'#EFF7ED','icon'=>'bi-check-circle'],
-    'cancelled'   => ['label'=>'Anulowana', 'color'=>'#9CA3AF','bg'=>'#F3F4F6','icon'=>'bi-x-circle'],
+    'cancelled'   => ['label'=>'Anulowana', 'color'=>'#5E6470','bg'=>'#F3F4F6','icon'=>'bi-x-circle'],
 ];
 $priority_cfg = [
     'low'    => ['label'=>'Niski',  'color'=>'#6B7280'],
@@ -362,12 +362,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 <style>
 .case-note { background:#FFFBEA;border:1px solid #FDE68A;border-radius:8px;padding:.8rem 1rem;margin-bottom:.6rem }
-.case-note-body { font-size:.88rem;color:#111827;white-space:pre-wrap;word-break:break-word }
-.case-note-meta { font-size:.73rem;color:#9CA3AF;margin-top:.35rem }
-.file-row { display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;border-bottom:1px solid #F3F4F6;font-size:.84rem }
+.case-note-body { font-size:.9rem;color:#181818;white-space:pre-wrap;word-break:break-word }
+.case-note-meta { font-size:.78rem;color:#5E6470;margin-top:.4rem }
+.file-row { display:flex;align-items:center;gap:.75rem;padding:.65rem .9rem;border-bottom:1px solid #ECECEC;font-size:.88rem }
 .file-row:last-child { border-bottom:none }
 .file-icon { width:34px;height:34px;border-radius:7px;background:#EEF4FF;color:#0176D3;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0 }
-.case-section-title { font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6B7280;padding-bottom:.4rem;border-bottom:1px solid #F3F4F6;margin-bottom:.75rem }
 </style>
 
 <!-- Breadcrumb -->
@@ -380,16 +379,16 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </nav>
 
 <!-- Nagłówek sprawy -->
-<div class="mb-3" id="case-header" style="border-radius:14px;overflow:hidden;border:1.5px solid #E5E7EB;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.06)">
+<div class="cv-panel mb-3" id="case-header" style="overflow:hidden">
   <!-- Pasek statusu -->
-  <div style="height:4px;background:<?= $sc['color'] ?>"></div>
+  <div style="height:4px;background:<?= $sc['color'] ?>" aria-hidden="true"></div>
 
   <div style="padding:1.1rem 1.4rem 1rem">
     <div class="d-flex align-items-start gap-3 flex-wrap">
 
-      <!-- Ikona + status badge -->
-      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:.4rem;margin-top:.1rem">
-        <div style="width:42px;height:42px;border-radius:11px;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;display:flex;align-items:center;justify-content:center;font-size:1.25rem;border:1.5px solid <?= $sc['color'] ?>22">
+      <!-- Ikona sprawy -->
+      <div style="flex-shrink:0;margin-top:.1rem">
+        <div style="width:46px;height:46px;border-radius:11px;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;display:flex;align-items:center;justify-content:center;font-size:1.3rem;border:1.5px solid <?= $sc['color'] ?>44" aria-hidden="true">
           <i class="bi bi-briefcase-fill"></i>
         </div>
       </div>
@@ -397,39 +396,39 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <!-- Treść główna -->
       <div style="flex:1;min-width:0">
         <?php if (!empty($case['case_number'])): ?>
-        <div style="font-family:monospace;font-size:.8rem;font-weight:700;color:#1D4ED8;letter-spacing:.05em;margin-bottom:.3rem">
+        <div style="font-family:monospace;font-size:.82rem;font-weight:700;color:#1D4ED8;letter-spacing:.05em;margin-bottom:.3rem">
           <?= h($case['case_number']) ?>
         </div>
         <?php endif; ?>
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
-          <h1 style="font-size:1.1rem;font-weight:700;margin:0;color:#111827;line-height:1.3"><?= h($case['title']) ?></h1>
-          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .65rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;border:1px solid <?= $sc['color'] ?>44">
-            <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
+          <h1 style="font-size:1.2rem;font-weight:700;margin:0;color:#181818;line-height:1.3"><?= h($case['title']) ?></h1>
+          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .65rem;border-radius:2rem;font-size:.76rem;font-weight:600;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;border:1px solid <?= $sc['color'] ?>66">
+            <i class="bi <?= $sc['icon'] ?>" aria-hidden="true"></i><?= $sc['label'] ?>
           </span>
-          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .65rem;border-radius:2rem;font-size:.72rem;font-weight:600;background:#F9FAFB;color:<?= $pc['color'] ?>;border:1px solid <?= $pc['color'] ?>55">
-            <span style="width:6px;height:6px;border-radius:50%;background:<?= $pc['color'] ?>;display:inline-block"></span>
-            <?= $pc['label'] ?>
+          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .65rem;border-radius:2rem;font-size:.76rem;font-weight:600;background:#F9FAFB;color:<?= $pc['color'] ?>;border:1px solid <?= $pc['color'] ?>66">
+            <span style="width:6px;height:6px;border-radius:50%;background:<?= $pc['color'] ?>;display:inline-block" aria-hidden="true"></span>
+            Priorytet: <?= $pc['label'] ?>
           </span>
         </div>
 
         <!-- Metadane w wierszu -->
-        <div style="font-size:.79rem;color:#6B7280;display:flex;flex-wrap:wrap;gap:.1rem .9rem;margin-top:.25rem">
+        <div class="cv-meta" style="display:flex;flex-wrap:wrap;gap:.1rem .9rem;margin-top:.3rem">
           <span>
-            <i class="bi bi-person me-1" style="color:#9CA3AF"></i>
-            <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= $case['ct_id'] ?>" style="color:#0176D3;text-decoration:none;font-weight:500">
+            <i class="bi bi-person me-1" style="color:#5E6470" aria-hidden="true"></i>
+            <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= $case['ct_id'] ?>" style="color:var(--crm-accent);text-decoration:none;font-weight:600">
               <?= h($case['contact_name']) ?>
             </a>
           </span>
-          <span><i class="bi bi-calendar3 me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= date('d.m.Y', strtotime($case['created_at'])) ?></span>
-          <span><i class="bi bi-chat me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= count($notes) ?> notatek</span>
-          <span><i class="bi bi-paperclip me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= count($files) ?> plików</span>
-          <span><i class="bi bi-envelope me-1" style="color:#9CA3AF" aria-hidden="true"></i><?= count($letters) ?> pism</span>
+          <span><i class="bi bi-calendar3 me-1" style="color:#5E6470" aria-hidden="true"></i><?= date('d.m.Y', strtotime($case['created_at'])) ?></span>
+          <span><i class="bi bi-chat me-1" style="color:#5E6470" aria-hidden="true"></i><?= count($notes) ?> notatek</span>
+          <span><i class="bi bi-paperclip me-1" style="color:#5E6470" aria-hidden="true"></i><?= count($files) ?> plików</span>
+          <span><i class="bi bi-envelope me-1" style="color:#5E6470" aria-hidden="true"></i><?= count($letters) ?> pism</span>
           <?php if ($case['closed_at']): ?>
-          <span style="color:#D97706"><i class="bi bi-flag me-1" aria-hidden="true"></i>Zamknięta <?= date('d.m.Y', strtotime($case['closed_at'])) ?></span>
+          <span style="color:#B45309;font-weight:600"><i class="bi bi-flag me-1" aria-hidden="true"></i>Zamknięta <?= date('d.m.Y', strtotime($case['closed_at'])) ?></span>
           <?php endif; ?>
           <?php if ($ezd_sprawa): ?>
-          <span><i class="bi bi-folder2-open me-1" style="color:#9CA3AF" aria-hidden="true"></i>
-            <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$ezd_sprawa['id'] ?>" style="color:#0176D3;text-decoration:none">
+          <span><i class="bi bi-folder2-open me-1" style="color:#5E6470" aria-hidden="true"></i>
+            <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$ezd_sprawa['id'] ?>" style="color:var(--crm-accent);text-decoration:none">
               <?= h($ezd_sprawa['znak_sprawy']) ?>
             </a>
           </span>
@@ -441,12 +440,13 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <?php if ($can_write): ?>
       <div class="d-flex align-items-start gap-2 flex-shrink-0 flex-wrap">
         <button type="button" class="btn btn-sm btn-warning"
-                data-bs-toggle="modal" data-bs-target="#modalPismo" style="font-size:.8rem">
-          <i class="bi bi-envelope-plus me-1"></i>Nowe pismo
+                data-bs-toggle="modal" data-bs-target="#modalPismo" style="font-size:.82rem">
+          <i class="bi bi-envelope-plus me-1" aria-hidden="true"></i>Nowe pismo
         </button>
         <button type="button" class="btn btn-sm btn-outline-secondary"
-                data-bs-toggle="collapse" data-bs-target="#collapseEditMeta" style="font-size:.8rem">
-          <i class="bi bi-pencil me-1"></i>Edytuj
+                data-bs-toggle="collapse" data-bs-target="#collapseEditMeta"
+                aria-expanded="false" aria-controls="collapseEditMeta" style="font-size:.82rem">
+          <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj
         </button>
       </div>
       <?php endif; ?>
@@ -454,7 +454,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
     <!-- Opis -->
     <?php if ($case['description']): ?>
-    <div style="margin-top:.75rem;padding:.6rem .8rem;background:#F8FAFF;border-radius:8px;font-size:.84rem;color:#374151;white-space:pre-wrap;border-left:3px solid <?= $sc['color'] ?>55">
+    <div style="margin-top:.8rem;padding:.7rem .9rem;background:#F8FAFF;border-radius:8px;font-size:.9rem;color:#374151;white-space:pre-wrap;border-left:3px solid <?= $sc['color'] ?>88">
       <?= h($case['description']) ?>
     </div>
     <?php endif; ?>
@@ -494,13 +494,43 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 <div class="row g-3">
 
-<!-- ══ LEWA: notatki + pliki ═══════════════════════════════════════════════ -->
+<!-- ══ GŁÓWNA: notatki / pisma / pliki w zakładkach ═══════════════════════════ -->
 <div class="col-lg-8">
 
+  <ul class="nav cv-tabs mb-3" id="caseTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="case-tab-notes-btn" data-bs-toggle="tab"
+              data-bs-target="#notes" type="button" role="tab"
+              aria-controls="notes" aria-selected="true">
+        <i class="bi bi-chat-dots" aria-hidden="true"></i>Notatki <span class="cv-count"><?= count($notes) ?></span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="case-tab-pisma-btn" data-bs-toggle="tab"
+              data-bs-target="#pisma" type="button" role="tab"
+              aria-controls="pisma" aria-selected="false">
+        <i class="bi bi-envelope" aria-hidden="true"></i>Pisma <span class="cv-count"><?= count($letters) ?></span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="case-tab-files-btn" data-bs-toggle="tab"
+              data-bs-target="#files" type="button" role="tab"
+              aria-controls="files" aria-selected="false">
+        <i class="bi bi-paperclip" aria-hidden="true"></i>Pliki <span class="cv-count"><?= count($files) ?></span>
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+
   <!-- ── NOTATKI ─────────────────────────────────────────────────────────── -->
-  <div class="card border-0 shadow-sm mb-3" id="notes">
-    <div class="card-body">
-      <div class="case-section-title"><i class="bi bi-chat-dots me-1"></i>Notatki (<?= count($notes) ?>)</div>
+  <div class="tab-pane fade show active" id="notes" role="tabpanel" aria-labelledby="case-tab-notes-btn" tabindex="0">
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-chat-dots cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Notatki</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($notes) ?></span></div>
+      </div>
 
       <?php if ($notes): ?>
       <?php foreach ($notes as $n):
@@ -550,20 +580,24 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       });
       </script>
       <?php endif; ?>
-    </div>
+    </div></div>
   </div>
 
   <!-- ── PISMA ─────────────────────────────────────────────────────────── -->
-  <div class="card border-0 shadow-sm mb-3" id="pisma">
-    <div class="card-body">
-      <div class="case-section-title d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-envelope me-1"></i>Pisma (<?= count($letters) ?>)</span>
-        <?php if ($can_write): ?>
-        <button type="button" class="btn btn-warning btn-sm py-0 px-2"
-                data-bs-toggle="modal" data-bs-target="#modalPismo" style="font-size:.75rem">
-          <i class="bi bi-plus me-1"></i>Nowe pismo
-        </button>
-        <?php endif; ?>
+  <div class="tab-pane fade" id="pisma" role="tabpanel" aria-labelledby="case-tab-pisma-btn" tabindex="0">
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-envelope cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Pisma</h2>
+        <div class="cv-shead__aside">
+          <span class="cv-count"><?= count($letters) ?></span>
+          <?php if ($can_write): ?>
+          <button type="button" class="btn btn-warning btn-sm py-0 px-2"
+                  data-bs-toggle="modal" data-bs-target="#modalPismo">
+            <i class="bi bi-plus me-1" aria-hidden="true"></i>Nowe pismo
+          </button>
+          <?php endif; ?>
+        </div>
       </div>
 
       <?php if ($letters): ?>
@@ -579,15 +613,15 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           <div style="flex:1;min-width:0">
             <div class="fw-semibold" style="color:#1E3A5F"><?= h($l['tytul']) ?></div>
             <div class="d-flex flex-wrap gap-1 mt-1">
-              <span class="badge bg-<?= $ld['class'] ?> bg-opacity-15 text-<?= $ld['class'] ?> border border-<?= $ld['class'] ?>" style="font-size:.63rem">
+              <span class="badge bg-<?= $ld['class'] ?> bg-opacity-15 text-<?= $ld['class'] ?> border border-<?= $ld['class'] ?>" style="font-size:.7rem">
                 <i class="bi <?= $ld['icon'] ?> me-1"></i><?= $ld['label'] ?>
               </span>
-              <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:.63rem">
+              <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:.7rem">
                 <i class="bi <?= $lt['icon'] ?> me-1"></i><?= $lt['label'] ?>
               </span>
               <?php if (!empty($l['pilnosc']) && $l['pilnosc'] !== 'zwykłe'): ?>
               <?php $pilnosc_cls = ['pilne'=>'warning','poufne'=>'danger','ściśle_tajne'=>'danger'][$l['pilnosc']] ?? 'secondary'; ?>
-              <span class="badge bg-<?= $pilnosc_cls ?> bg-opacity-15 text-<?= $pilnosc_cls ?> border border-<?= $pilnosc_cls ?>" style="font-size:.63rem;text-transform:uppercase">
+              <span class="badge bg-<?= $pilnosc_cls ?> bg-opacity-15 text-<?= $pilnosc_cls ?> border border-<?= $pilnosc_cls ?>" style="font-size:.7rem;text-transform:uppercase">
                 <?= h($l['pilnosc']) ?>
               </span>
               <?php endif; ?>
@@ -595,12 +629,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <code style="font-size:.65rem;color:#6B7280;background:#F3F4F6;padding:.1rem .35rem;border-radius:4px"><?= h($l['sygnatura']) ?></code>
               <?php endif; ?>
               <?php if ($is_edoreczenia): ?>
-              <span class="badge" style="font-size:.63rem;background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE">
+              <span class="badge" style="font-size:.7rem;background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE">
                 <i class="bi bi-shield-check me-1"></i>eDoręczenia
               </span>
               <?php endif; ?>
             </div>
-            <div style="font-size:.72rem;color:#9CA3AF;margin-top:.25rem;display:flex;flex-wrap:wrap;gap:0 .75rem">
+            <div style="font-size:.72rem;color:#5E6470;margin-top:.25rem;display:flex;flex-wrap:wrap;gap:0 .75rem">
               <?php if ($l['nadawca']): ?><span><?= h($l['nadawca']) ?> → <?= h($l['odbiorca'] ?? '—') ?></span><?php endif; ?>
               <?= $l['data_pisma'] ? '<span><i class="bi bi-calendar3 me-1"></i>' . date('d.m.Y', strtotime($l['data_pisma'])) . '</span>' : '' ?>
               <?php if (!empty($l['termin_odpowiedzi'])): ?>
@@ -668,18 +702,22 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </div>
       <?php endforeach; ?>
       <?php else: ?>
-      <div class="text-muted text-center py-3" style="font-size:.85rem">
-        <i class="bi bi-envelope d-block mb-2 opacity-25" style="font-size:1.5rem"></i>
-        Brak pism — użyj przycisku „Nowe pismo" aby dodać.
+      <div class="cv-empty">
+        <i class="bi bi-envelope" aria-hidden="true"></i>
+        Brak pism — użyj przycisku „Nowe pismo", aby dodać.
       </div>
       <?php endif; ?>
-    </div>
+    </div></div>
   </div>
 
   <!-- ── PLIKI ───────────────────────────────────────────────────────────── -->
-  <div class="card border-0 shadow-sm" id="files">
-    <div class="card-body">
-      <div class="case-section-title"><i class="bi bi-paperclip me-1"></i>Pliki (<?= count($files) ?>)</div>
+  <div class="tab-pane fade" id="files" role="tabpanel" aria-labelledby="case-tab-files-btn" tabindex="0">
+    <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-paperclip cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Pliki</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($files) ?></span></div>
+      </div>
 
       <?php if ($files): ?>
       <?php
@@ -710,7 +748,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           <?php if ($f['description']): ?>
           <div class="text-muted" style="font-size:.75rem"><?= h($f['description']) ?></div>
           <?php endif; ?>
-          <div style="font-size:.72rem;color:#9CA3AF">
+          <div style="font-size:.72rem;color:#5E6470">
             <?= h($f['original_name']) ?> <?= $size ? "· $size" : '' ?>
             · <?= date('d.m.Y H:i', strtotime($f['created_at'])) ?>
           </div>
@@ -742,7 +780,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
             class="<?= $files ? 'mt-3 pt-3 border-top' : 'mt-2' ?>" id="upload-form">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="upload_file">
-        <div class="case-section-title mb-2">Dodaj plik</div>
+        <div class="fw-semibold mb-2" style="font-size:.88rem;color:var(--crm-text)">Dodaj plik</div>
         <div class="row g-2">
           <div class="col-12">
             <input type="file" name="case_file" class="form-control form-control-sm" required
@@ -764,19 +802,22 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         </div>
       </form>
       <?php endif; ?>
-    </div>
+    </div></div>
   </div>
 
-</div><!-- /col-8 -->
+  </div><!-- /tab-content -->
+</div><!-- /główna -->
 
-<!-- ══ PRAWA: sidebar ═══════════════════════════════════════════════════════ -->
+<!-- ══ ASIDE: status, aktywność, współdzielenie, EZD ════════════════════════ -->
 <div class="col-lg-4">
 
   <!-- Status -->
   <?php if ($can_write): ?>
-  <div class="card border-0 shadow-sm mb-3" id="status">
-    <div class="card-body">
-      <div class="case-section-title">Zmień status</div>
+  <div class="cv-panel" id="status"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-flag cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Zmień status</h2>
+      </div>
       <form method="post" class="d-flex flex-column gap-2">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="set_status">
@@ -794,10 +835,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <?php endif; ?>
 
   <!-- Aktywność -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body py-2 px-3">
-      <div class="case-section-title mb-2">Aktywność</div>
-      <div style="font-size:.79rem;display:flex;flex-direction:column;gap:.35rem">
+  <div class="cv-panel"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-clock-history cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Aktywność</h2>
+      </div>
+      <div style="font-size:.84rem;display:flex;flex-direction:column;gap:.4rem">
         <div class="d-flex justify-content-between">
           <span class="text-muted">Utworzona</span>
           <span><?= date('d.m.Y H:i', strtotime($case['created_at'])) ?></span>
@@ -808,8 +851,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         </div>
         <?php if ($case['closed_at']): ?>
         <div class="d-flex justify-content-between">
-          <span class="text-muted">Zamknięta</span>
-          <span style="color:#D97706"><?= date('d.m.Y H:i', strtotime($case['closed_at'])) ?></span>
+          <span class="cv-muted">Zamknięta</span>
+          <span style="color:#B45309;font-weight:600"><?= date('d.m.Y H:i', strtotime($case['closed_at'])) ?></span>
         </div>
         <?php endif; ?>
         <hr class="my-1">
@@ -831,9 +874,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
   <!-- Współdzielenie -->
   <?php if ($can_manage_shares || $shares): ?>
-  <div class="card border-0 shadow-sm mb-3" id="share">
-    <div class="card-body">
-      <div class="case-section-title"><i class="bi bi-people me-1"></i>Współdzielenie (<?= count($shares) ?>)</div>
+  <div class="cv-panel" id="share"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-people cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Współdzielenie</h2>
+        <div class="cv-shead__aside"><span class="cv-count"><?= count($shares) ?></span></div>
+      </div>
 
       <?php if ($shares): ?>
       <ul class="list-group list-group-flush mb-2">
@@ -907,9 +953,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
   <!-- EZD -->
   <?php if (module_enabled('ezd_enabled')): ?>
-  <div class="card border-0 shadow-sm mb-3" id="ezd">
-    <div class="card-body">
-      <div class="case-section-title"><i class="bi bi-folder2-open me-1"></i>Powiązanie z EZD</div>
+  <div class="cv-panel" id="ezd"><div class="cv-panel__body">
+      <div class="cv-shead">
+        <i class="bi bi-folder2-open cv-shead__icon" aria-hidden="true"></i>
+        <h2 class="cv-shead__title">Powiązanie z EZD</h2>
+      </div>
 
       <?php if ($ezd_sprawa): ?>
       <div style="background:#FFFBF0;border:1px solid #FDE68A;border-radius:8px;padding:.65rem .85rem;font-size:.82rem;margin-bottom:.75rem">
@@ -917,7 +965,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           <code style="font-size:.75rem;color:#1d4ed8"><?= h($ezd_sprawa['znak_sprawy']) ?></code>
         </div>
         <div style="color:#374151"><?= h($ezd_sprawa['title']) ?></div>
-        <div style="font-size:.72rem;color:#9CA3AF;margin-top:.2rem">
+        <div style="font-size:.72rem;color:#5E6470;margin-top:.2rem">
           Status: <?= h($ezd_sprawa['status'] ?? '—') ?>
           · <?= h($ezd_sprawa['teczka_symbol'] ?? '') ?>
         </div>
@@ -1000,7 +1048,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
           <!-- ── SEKCJA 1: Klasyfikacja ──────────────────────────────── -->
           <div class="px-3 pt-3 pb-2">
-            <div class="fw-bold text-uppercase mb-2" style="font-size:.65rem;letter-spacing:.1em;color:#9CA3AF"><i class="bi bi-tag me-1"></i>Klasyfikacja</div>
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.72rem;letter-spacing:.08em;color:#5E6470"><i class="bi bi-tag me-1"></i>Klasyfikacja</div>
             <div class="row g-2">
               <div class="col-sm-4">
                 <label class="form-label small fw-semibold mb-1">Kierunek <span class="text-danger">*</span></label>
@@ -1037,7 +1085,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
           <!-- ── SEKCJA 2: Metadane ──────────────────────────────────── -->
           <div class="px-3 py-2">
-            <div class="fw-bold text-uppercase mb-2" style="font-size:.65rem;letter-spacing:.1em;color:#9CA3AF"><i class="bi bi-info-circle me-1"></i>Metadane pisma</div>
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.72rem;letter-spacing:.08em;color:#5E6470"><i class="bi bi-info-circle me-1"></i>Metadane pisma</div>
             <div class="row g-2">
               <div class="col-sm-4">
                 <label class="form-label small fw-semibold mb-1">Sygnatura / numer</label>
@@ -1103,7 +1151,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
           <!-- ── SEKCJA 3: Strony ────────────────────────────────────── -->
           <div class="px-3 py-2">
-            <div class="fw-bold text-uppercase mb-2" style="font-size:.65rem;letter-spacing:.1em;color:#9CA3AF"><i class="bi bi-people me-1"></i>Strony</div>
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.72rem;letter-spacing:.08em;color:#5E6470"><i class="bi bi-people me-1"></i>Strony</div>
             <div class="row g-2">
               <div class="col-sm-6">
                 <label class="form-label small fw-semibold mb-1">Nadawca</label>
@@ -1137,7 +1185,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
           <!-- ── SEKCJA 4: Treść ────────────────────────────────────── -->
           <div class="px-3 py-2">
-            <div class="fw-bold text-uppercase mb-2" style="font-size:.65rem;letter-spacing:.1em;color:#9CA3AF"><i class="bi bi-file-text me-1"></i>Treść i załączniki</div>
+            <div class="fw-bold text-uppercase mb-2" style="font-size:.72rem;letter-spacing:.08em;color:#5E6470"><i class="bi bi-file-text me-1"></i>Treść i załączniki</div>
             <div class="row g-2">
               <div class="col-12">
                 <label class="form-label small fw-semibold mb-1">Podstawa prawna</label>
@@ -1264,4 +1312,33 @@ function pismoEdit(l) {
 </script>
 <?php endif; ?>
 
+<script>
+/* Aktywacja zakładki na podstawie kotwicy URL (#notes/#pisma/#files) — po
+   przekierowaniach POST oraz przy kliknięciu w odnośnik wewnętrzny. */
+(function () {
+  if (typeof bootstrap === 'undefined') return;
+  var contentTabs = { '#notes': '#case-tab-notes-btn', '#pisma': '#case-tab-pisma-btn', '#files': '#case-tab-files-btn' };
+
+  function activateFromHash(hash) {
+    var btnSel = contentTabs[hash];
+    if (!btnSel) return false;
+    var btn = document.querySelector(btnSel);
+    if (btn) { bootstrap.Tab.getOrCreateInstance(btn).show(); return true; }
+    return false;
+  }
+
+  // Przy starcie strony
+  if (window.location.hash) activateFromHash(window.location.hash);
+
+  // Reakcja na zmianę kotwicy w trakcie (np. klik w link do sekcji)
+  window.addEventListener('hashchange', function () { activateFromHash(window.location.hash); });
+
+  // Aktualizuj kotwicę po ręcznym wyborze zakładki (spójność z linkami)
+  document.querySelectorAll('#caseTabs [data-bs-target]').forEach(function (b) {
+    b.addEventListener('shown.bs.tab', function () {
+      history.replaceState(null, '', b.getAttribute('data-bs-target'));
+    });
+  });
+})();
+</script>
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>
