@@ -866,6 +866,14 @@ if (!empty($_GET['show_aneks'])): ?>
 }
 .cv-table tr:last-child td { border-bottom: none; }
 
+/* Grupy działań (toolbar z etykietą) — porządkują przyciski w sekcjach IT */
+.act-grp { padding: .8rem 0; border-top: 1px dashed #E2E8F0; }
+.act-grp:first-of-type { border-top: none; padding-top: .2rem; }
+.act-grp-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: #64748B; margin-bottom: .5rem; display: flex; align-items: center; gap: .4rem; }
+.act-grp-btns { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.act-grp .form-text { margin-top: .4rem; }
+
 /* Stary .detail-label/.detail-value — zachowaj kompatybilność */
 .detail-label { font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94A3B8;margin-bottom:.2rem; }
 .detail-value { font-size:.9rem;color:#1E293B;line-height:1.4; }
@@ -2550,17 +2558,18 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
       <div class="detail-value"><?= yn($row['m365_licencja_przypisana']) ?></div></div>
   </div>
 
-  <?php if (can_edit()): ?>
-  <div class="d-flex gap-2 flex-wrap mb-3">
-    <?php if ($_it_m365_acc): ?>
+  <?php if (can_edit() && $_it_m365_acc): ?>
+  <div class="act-grp">
+    <div class="act-grp-label"><i class="bi bi-gear-fill"></i>Zarządzanie kontem</div>
+    <div class="act-grp-btns">
       <?php if ($_it_m365_acc['is_active']): ?>
       <form method="post" action="<?= APP_URL ?>/it/action.php">
         <?= csrf_field() ?>
         <input type="hidden" name="account_id" value="<?= $_it_m365_acc['id'] ?>">
         <input type="hidden" name="action" value="disable">
         <input type="hidden" name="back" value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=m365') ?>">
-        <button class="btn btn-sm btn-warning" data-confirm="Wyłączyć konto M365?">
-          <i class="bi bi-pause-circle"></i> Wyłącz konto
+        <button class="btn btn-sm btn-outline-warning" data-confirm="Wyłączyć konto M365?">
+          <i class="bi bi-pause-circle me-1"></i>Wyłącz konto
         </button>
       </form>
       <?php else: ?>
@@ -2569,33 +2578,20 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
         <input type="hidden" name="account_id" value="<?= $_it_m365_acc['id'] ?>">
         <input type="hidden" name="action" value="enable">
         <input type="hidden" name="back" value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=m365') ?>">
-        <button class="btn btn-sm btn-success"><i class="bi bi-play-circle"></i> Włącz konto</button>
-      </form>
-      <?php endif; ?>
-      <?php if ($row['email']): ?>
-      <form method="post" action="<?= APP_URL ?>/it/action.php">
-        <?= csrf_field() ?>
-        <input type="hidden" name="account_id" value="<?= $_it_m365_acc['id'] ?>">
-        <input type="hidden" name="action" value="reset_password">
-        <input type="hidden" name="back" value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=m365') ?>">
-        <button class="btn btn-sm btn-outline-primary" data-confirm="Zresetować hasło i wysłać nowe na <?= h($row['email']) ?>?">
-          <i class="bi bi-envelope"></i> Reset hasła + mail
-        </button>
+        <button class="btn btn-sm btn-outline-success"><i class="bi bi-play-circle me-1"></i>Włącz konto</button>
       </form>
       <?php endif; ?>
       <a href="<?= APP_URL ?>/it/accounts.php?id=<?= $_it_m365_acc['id'] ?>" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-hdd-network me-1" style="color:#fd7e14"></i> Zarządzaj w IT
+        <i class="bi bi-hdd-network me-1" style="color:#fd7e14"></i>Zarządzaj w IT
       </a>
-    <?php endif; ?>
+    </div>
   </div>
   <?php endif; ?>
 
   <?php if ($row['m365_konto'] && $row['email'] && can_edit()): ?>
-  <div class="border-top pt-3 mb-3">
-    <div class="small fw-semibold text-muted mb-2">
-      <i class="bi bi-key-fill me-1 text-primary"></i>Wyślij dane logowania do Office 365
-    </div>
-    <div class="d-flex flex-wrap gap-2">
+  <div class="act-grp">
+    <div class="act-grp-label"><i class="bi bi-key-fill"></i>Przekazanie danych logowania M365</div>
+    <div class="act-grp-btns">
       <!-- ZALECANE: link jednorazowy — hasło widoczne dopiero po kliknięciu -->
       <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php"
             onsubmit="return confirm('Wysłać bezpieczny link aktywacyjny M365 na <?= h(addslashes($row['email'])) ?>?\nWolontariusz kliknie link i zobaczy swoje dane logowania.')">
@@ -2604,10 +2600,22 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
         <input type="hidden" name="id"      value="<?= $id ?>">
         <input type="hidden" name="action"  value="send_m365_setup_link">
         <button class="btn btn-sm btn-primary">
-          <i class="bi bi-link-45deg me-1"></i>Wyślij link aktywacyjny
+          <i class="bi bi-link-45deg me-1"></i>Link aktywacyjny
           <span class="badge bg-light text-primary ms-1" style="font-size:.65rem">Zalecane</span>
         </button>
       </form>
+      <!-- Reset hasła + mail (przez moduł IT) -->
+      <?php if ($_it_m365_acc): ?>
+      <form method="post" action="<?= APP_URL ?>/it/action.php">
+        <?= csrf_field() ?>
+        <input type="hidden" name="account_id" value="<?= $_it_m365_acc['id'] ?>">
+        <input type="hidden" name="action" value="reset_password">
+        <input type="hidden" name="back" value="<?= h(APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=m365') ?>">
+        <button class="btn btn-sm btn-outline-primary" data-confirm="Zresetować hasło i wysłać nowe na <?= h($row['email']) ?>?">
+          <i class="bi bi-arrow-repeat me-1"></i>Reset hasła + mail
+        </button>
+      </form>
+      <?php endif; ?>
       <!-- Stara metoda: hasło w mailu -->
       <form method="post" action="<?= APP_URL ?>/contracts/m365_action.php"
             onsubmit="return confirm('Wysłać hasło tymczasowe M365 bezpośrednio na <?= h(addslashes($row['email'])) ?>?')">
@@ -2616,68 +2624,20 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
         <input type="hidden" name="id"      value="<?= $id ?>">
         <input type="hidden" name="action"  value="send_setup_email">
         <button class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-envelope me-1"></i>Wyślij hasło e-mailem
+          <i class="bi bi-envelope me-1"></i>Hasło e-mailem
         </button>
       </form>
     </div>
-    <div class="form-text mt-1">
-      <strong>Link aktywacyjny</strong> — wolontariusz klika link i widzi dane logowania (hasło nie jest widoczne w mailu).
-      <strong>Hasło e-mailem</strong> — stara metoda, hasło tymczasowe bezpośrednio w treści wiadomości.
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <?php if ($row['email'] && can_edit()): ?>
-  <div class="border-top pt-3 mb-3">
-    <div class="small fw-semibold text-muted mb-2"><i class="bi bi-display me-1 text-primary"></i>Akcje portalu wolontariusza</div>
-    <div class="d-flex flex-wrap gap-2">
-
-      <!-- E-mail powitalny -->
-      <form method="post"
-            onsubmit="return confirm('Wysłać e-mail powitalny do <?= h(addslashes($row['email'] ?? '')) ?>?\nHasło zostanie zresetowane.')">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <button type="submit" name="_resend_welcome" value="1"
-                class="btn btn-sm btn-outline-success"
-                title="Wyślij e-mail powitalny z nowym hasłem tymczasowym">
-          <i class="bi bi-envelope-heart me-1"></i>E-mail powitalny
-        </button>
-      </form>
-
-      <!-- Kod jednorazowy -->
-      <form method="post">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <button type="submit" name="_resend_portal" value="1"
-                class="btn btn-sm btn-outline-primary"
-                title="Wyślij jednorazowy kod dostępu do portalu (ważny 7 dni)">
-          <i class="bi bi-send me-1"></i>Kod jednorazowy
-        </button>
-      </form>
-
-      <!-- Zmiana hasła — link do ustawienia -->
-      <form method="post"
-            onsubmit="return confirm('Wysłać link do ustawienia hasła portalu na e-mail wolontariusza?')">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <button type="submit" name="_set_portal_pass" value="1"
-                class="btn btn-sm btn-outline-warning"
-                title="Wyślij jednorazowy link do ustawienia hasła portalu">
-          <i class="bi bi-key me-1"></i>Zmiana hasła (portal)
-        </button>
-      </form>
-
-    </div>
-    <div class="form-text mt-1">
-      <strong>E-mail powitalny</strong> — resetuje hasło i wysyła nowe.
-      <strong>Kod jednorazowy</strong> — logowanie bez hasła (7 dni).
-      <strong>Zmiana hasła</strong> — jednorazowy link do ustawienia własnego hasła.
+    <div class="form-text">
+      <strong>Link aktywacyjny</strong> (zalecane) — wolontariusz klika i widzi dane, hasło nie trafia do maila.
+      <strong>Hasło e-mailem</strong> — hasło tymczasowe w treści wiadomości.
     </div>
   </div>
   <?php endif; ?>
 
   <?php if (can_edit() && ($row['m365_konto'] || $row['email'])): ?>
-  <div class="border-top pt-3 mb-3">
-    <div class="small fw-semibold text-muted mb-2">
-      <i class="bi bi-printer me-1 text-primary"></i>Wydruk danych logowania (Office&nbsp;/&nbsp;System)
-    </div>
+  <div class="act-grp">
+    <div class="act-grp-label"><i class="bi bi-printer"></i>Wydruk danych logowania (Office / System)</div>
     <details class="border rounded p-3" style="background:#fafafa">
       <summary class="fw-semibold" style="cursor:pointer">
         <i class="bi bi-key me-1"></i>Wygeneruj i wydrukuj login + hasło
@@ -2741,8 +2701,14 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <?php
   $_local_users = db_all("SELECT id, name, email, microsoft_id FROM users WHERE is_active = 1 ORDER BY name");
   ?>
+  <?php if (can_edit()): ?>
+  <details class="act-grp">
+    <summary style="cursor:pointer;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748B">
+      <i class="bi bi-link-45deg me-1"></i>Konto lokalne / powiązanie (zaawansowane)
+    </summary>
+  <?php endif; ?>
   <?php if (can_edit() && $row['m365_user_id']): ?>
-  <div class="border-top pt-3">
+  <div class="pt-3">
     <div class="d-flex align-items-center gap-2 mb-2">
       <span class="small fw-semibold text-muted"><i class="bi bi-link-45deg"></i> Powiązanie z kontem lokalnym</span>
       <?php
@@ -2836,6 +2802,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
     <?php endif; ?>
   </div>
   <?php endif; ?>
+  <?php if (can_edit()): ?></details><?php endif; ?>
 
   <?php elseif ($m365_enabled && can_edit()): ?>
   <p class="text-muted mb-2">Brak powiązanego konta Microsoft 365.</p>
@@ -2871,6 +2838,47 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
       <span class="cv-section-title">Portal i Dostęp IT</span>
     </div>
     <?php if (can_edit()): ?>
+
+    <?php if ($row['email']): ?>
+    <!-- Akcje logowania do portalu (konto systemowe na podstawie e-maila) -->
+    <div class="act-grp" style="border-top:none;padding-top:0">
+      <div class="act-grp-label"><i class="bi bi-box-arrow-in-right"></i>Logowanie do portalu (konto systemowe)</div>
+      <div class="act-grp-btns">
+        <!-- E-mail powitalny -->
+        <form method="post"
+              onsubmit="return confirm('Wysłać e-mail powitalny do <?= h(addslashes($row['email'] ?? '')) ?>?\nHasło zostanie zresetowane.')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <button type="submit" name="_resend_welcome" value="1" class="btn btn-sm btn-outline-success"
+                  title="Wyślij e-mail powitalny z nowym hasłem tymczasowym">
+            <i class="bi bi-envelope-heart me-1"></i>E-mail powitalny
+          </button>
+        </form>
+        <!-- Kod jednorazowy -->
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <button type="submit" name="_resend_portal" value="1" class="btn btn-sm btn-outline-primary"
+                  title="Wyślij jednorazowy kod dostępu do portalu (ważny 7 dni)">
+            <i class="bi bi-send me-1"></i>Kod jednorazowy
+          </button>
+        </form>
+        <!-- Zmiana hasła — link do ustawienia -->
+        <form method="post"
+              onsubmit="return confirm('Wysłać link do ustawienia hasła portalu na e-mail wolontariusza?')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <button type="submit" name="_set_portal_pass" value="1" class="btn btn-sm btn-outline-warning"
+                  title="Wyślij jednorazowy link do ustawienia hasła portalu">
+            <i class="bi bi-key me-1"></i>Link zmiany hasła
+          </button>
+        </form>
+      </div>
+      <div class="form-text">
+        <strong>E-mail powitalny</strong> — resetuje hasło i wysyła nowe.
+        <strong>Kod jednorazowy</strong> — logowanie bez hasła (7 dni).
+        <strong>Link zmiany hasła</strong> — jednorazowy link do ustawienia własnego hasła.
+      </div>
+    </div>
+    <?php endif; ?>
+
     <div class="alert alert-primary d-flex gap-2 py-2 mb-3" style="font-size:.83rem;background:#eff6ff;border-color:#bfdbfe;color:#1e40af">
       <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
       <div>
