@@ -14,7 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 
 karty30_migrate();
 $me  = dyd_require();
-$uid = (int)$me['id'];
+$uid = (int)$me['user_id'];
 
 $courses   = dyd_courses($uid);
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
@@ -49,7 +49,7 @@ $dt_in = fn($k) => ($v = trim($_POST[$k] ?? '')) !== '' ? str_replace('T', ' ', 
 
 // ── Operacje zapisu ───────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
+    dyd_token_check();
     $op        = $_POST['_op'] ?? '';
     $course_id = (int)($_POST['course_id'] ?? 0);
     $back_tab  = in_array($_POST['_tab'] ?? '', ['lekcje','zadania','materialy'], true) ? $_POST['_tab'] : 'lekcje';
@@ -284,7 +284,7 @@ $STATUS = K30_TI_SESSION_STATUSES;
 $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
     $isEdit = (bool)$r; ?>
   <form method="post">
-    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_lesson">
     <input type="hidden" name="_tab" value="lekcje">
     <input type="hidden" name="course_id" value="<?= $cur_course ?>">
@@ -343,7 +343,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
 $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
     $present = 0; foreach ($rows as $r) { if ((int)$r['attended'] === 1) $present++; } ?>
   <form method="post">
-    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_attendance">
     <input type="hidden" name="_tab" value="lekcje">
     <input type="hidden" name="course_id" value="<?= $cur_course ?>">
@@ -383,7 +383,7 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
 $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, $dtv) {
     $isEdit = (bool)$r; ?>
   <form method="post" enctype="multipart/form-data">
-    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_homework">
     <input type="hidden" name="_tab" value="zadania">
     <input type="hidden" name="course_id" value="<?= $cur_course ?>">
@@ -450,7 +450,7 @@ $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, 
 $matFormHtml = function(?array $r, string $pfx) use ($cur_course, $all_sessions, $TYPES, $dtv) {
     $isEdit = (bool)$r; ?>
   <form method="post" enctype="multipart/form-data">
-    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_material">
     <input type="hidden" name="_tab" value="materialy">
     <input type="hidden" name="course_id" value="<?= $cur_course ?>">
@@ -527,7 +527,7 @@ $KP_TOPBAR = [
     'brand'  => 'Panel dydaktyka',
     'icon'   => 'easel2',
     'user'   => $me['name'] ?? '',
-    'logout' => rtrim(APP_URL, '/') . '/auth/logout.php',
+    'logout' => 'logout.php',
 ];
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
@@ -644,7 +644,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
             <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-list-check me-1"></i>Szczegóły</a>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
-              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="delete_lesson">
               <input type="hidden" name="_tab" value="lekcje">
               <input type="hidden" name="course_id" value="<?= $cur_course ?>">
@@ -697,7 +697,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edH<?= (int)$hw['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
             <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/homework.php?id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-check2-square me-1"></i>Oddania / oceny</a>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć zadanie wraz z oddaniami?')">
-              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="delete_homework">
               <input type="hidden" name="_tab" value="zadania">
               <input type="hidden" name="course_id" value="<?= $cur_course ?>">
@@ -747,7 +747,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <?php if ($m['url']): ?><a href="<?= h($m['url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-box-arrow-up-right me-1"></i>link</a><?php endif; ?>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edM<?= (int)$m['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć materiał?')">
-              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="delete_material">
               <input type="hidden" name="_tab" value="materialy">
               <input type="hidden" name="course_id" value="<?= $cur_course ?>">

@@ -3,13 +3,32 @@ DirectoryIndex index.php
 
 RewriteEngine On
 
-# ── Subdomena ti*. → panel kursanta TI ──────────────────────────────────────
-# Każdy host zaczynający się od „ti" (np. ti.feer.org.pl, ti-lab.example.org)
-# WEWNĘTRZNIE serwuje panel kursanta (URL w przeglądarce zostaje czysty, jak przy
-# aliasach CRM). Pomijamy sam katalog panelu (aby nie zapętlić) oraz zasoby
-# statyczne / strony błędów.
+# ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
+# Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
+# (URL w przeglądarce zostaje czysty). Krótkie adresy:
+#   ti.feer.org.pl/            → panel kursanta
+#   ti.feer.org.pl/kursant     → panel kursanta
+#   ti.feer.org.pl/dydaktyk    → panel dydaktyka (prowadzącego)
+
+# /dydaktyk → wymuś końcowy ukośnik, aby ścieżki względne w panelu (login.php,
+# logout.php) rozwiązywały się względem /dydaktyk/ (to nie jest panel domyślny).
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
-RewriteCond %{REQUEST_URI} !^/karty30/ti/kursant/ [NC]
+RewriteRule ^dydaktyk$        /dydaktyk/ [R=301,L]
+RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteRule ^dydaktyk/$       /karty30/ti/dydaktyk/index.php [L]
+RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteRule ^dydaktyk/(.+)$   /karty30/ti/dydaktyk/$1 [L]
+
+# /kursant → jawny alias panelu kursanta (domyślnie i tak trafia tu cała subdomena).
+RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteRule ^kursant/?$       /karty30/ti/kursant/index.php [L]
+RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteRule ^kursant/(.+)$    /karty30/ti/kursant/$1 [L]
+
+# Domyślnie cała subdomena ti.* serwuje panel kursanta. Wykluczamy już-przepisane
+# ścieżki /karty30/ (kursant i dydaktyk — by nie zapętlić) oraz statykę.
+RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 

@@ -131,7 +131,7 @@ include __DIR__ . '/_layout_head.php';
           <a href="pfron.php" class="btn btn-outline-secondary w-100">
             <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd) </a>
 
-          <a href="../dydaktyk/index.php" class="btn btn-outline-secondary w-100 mt-2">
+          <a href="../dydaktyk/login.php" class="btn btn-outline-secondary w-100 mt-2">
             <i class="bi bi-easel me-2" aria-hidden="true"></i>Panel dydaktyka (prowadzącego)
           </a>
 

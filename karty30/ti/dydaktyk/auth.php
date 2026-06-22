@@ -2,52 +2,111 @@
 /**
  * Panel dydaktyka TI — autoryzacja.
  *
- * Dydaktyk = zalogowany użytkownik SZO będący doradcą TyfloKonsultacji
- * (k30_consultant=1) lub mający dostęp do modułu Karty 30 / administrator.
- * Logowanie odbywa się jak do całego SZO (wspólna sesja, wspólny CSRF) —
- * brak osobnego ekranu logowania.
+ * Osobna sesja (jak panel kursanta), więc działa też na subdomenie ti.* —
+ * niezależnie od sesji głównej SZO. Logowanie odbywa się danymi z SZO
+ * (e-mail + hasło). Dostęp mają doradcy TI (k30_consultant), pracownicy
+ * modułu Karty 30 (zapis) oraz administratorzy.
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
+// auth.php SZO (ładuje też permissions.php) — udostępnia auth_start() używane przez
+// flash_*() oraz role_permissions()/user_permissions(). Naszej sesji nie zmienia
+// (auth_start jest no-op przy aktywnej sesji panelu). Musi być przed karty30.php.
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 
-/**
- * Wymaga zalogowanego doradcy TI. Przy braku logowania przekierowuje do
- * logowania SZO; przy braku roli doradcy zwraca 403. Zwraca rekord użytkownika.
- */
-function dyd_require(): array {
-    require_login();                       // logowanie jak do SZO
-    if (!k30_is_consultant()) {            // doradca / dostęp K30 / admin
-        http_response_code(403);
-        $KP_TITLE = 'Brak dostępu — Panel dydaktyka';
-        include __DIR__ . '/../kursant/_layout_head.php';
-        echo '<main id="main" class="container py-5" style="max-width:560px">'
-           . '<div class="card border-0 shadow-sm"><div class="card-body p-4 text-center">'
-           . '<i class="bi bi-shield-lock fs-1 text-warning"></i>'
-           . '<h1 class="h4 fw-bold mt-3">Brak dostępu</h1>'
-           . '<p class="text-body-secondary mb-3">Panel dydaktyka jest dostępny wyłącznie dla doradców TyfloKonsultacji.</p>'
-           . '<a href="' . h(APP_URL) . '" class="btn btn-primary"><i class="bi bi-house me-1"></i>Wróć do SZO</a>'
-           . '</div></div></main>';
-        include __DIR__ . '/../kursant/_layout_foot.php';
-        exit;
+const DYD_SESSION_KEY = 'k30_ti_dyd';
+const DYD_SESSION_TTL = 3600 * 8; // 8h
+
+function dyd_start(): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_name('k30_dydaktyk');
+        session_start();
     }
-    return current_user();
 }
 
-/** Czy użytkownik jest pracownikiem K30 (admin / zapis Karty 30) — widzi wszystkie kursy. */
+function dyd_current(): ?array {
+    dyd_start();
+    $s = $_SESSION[DYD_SESSION_KEY] ?? null;
+    if (!$s) return null;
+    if ((time() - ($s['ts'] ?? 0)) > DYD_SESSION_TTL) { unset($_SESSION[DYD_SESSION_KEY]); return null; }
+    return $s;
+}
+
+/**
+ * Weryfikuje dane logowania SZO (e-mail + hasło) i uprawnienia dydaktyka.
+ * Zwraca dane do zapisania w sesji lub null (błędne dane / brak uprawnień).
+ */
+function dyd_authenticate(string $email, string $password): ?array {
+    $u = db_one("SELECT * FROM users WHERE email=? AND is_active=1", [$email]);
+    if (!$u || empty($u['password']) || !password_verify($password, $u['password'])) return null;
+    $role = $u['role'] ?? '';
+    $rp = role_permissions($role);
+    $up = user_permissions((int)$u['id']);
+    $is_staff      = ($role === 'admin') || !empty($rp['karty30']['can_write']) || !empty($up['karty30']['can_write']);
+    $is_consultant = $is_staff || !empty($u['k30_consultant'])
+                     || !empty($rp['karty30']['can_read']) || !empty($up['karty30']['can_read']);
+    if (!$is_consultant) return null; // konto bez uprawnień doradcy/dydaktyka TI
+    return [
+        'user_id'  => (int)$u['id'],
+        'name'     => $u['name'] ?? $email,
+        'email'    => $u['email'] ?? $email,
+        'role'     => $role,
+        'is_staff' => $is_staff,
+    ];
+}
+
+function dyd_login_user(array $data): void {
+    dyd_start();
+    $data['ts'] = time();
+    $_SESSION[DYD_SESSION_KEY] = $data;
+    $_SESSION['k30_dyd_csrf']  = bin2hex(random_bytes(16));
+}
+
+function dyd_logout(): void {
+    dyd_start();
+    unset($_SESSION[DYD_SESSION_KEY]);
+    session_destroy();
+}
+
+/** Wymaga zalogowanego dydaktyka; przy braku sesji → strona logowania. */
+function dyd_require(): array {
+    $s = dyd_current();
+    if (!$s) { header('Location: login.php'); exit; }
+    return $s;
+}
+
+/** Token CSRF panelu dydaktyka (osobna sesja k30_dydaktyk). */
+function dyd_token(): string {
+    dyd_start();
+    if (empty($_SESSION['k30_dyd_csrf'])) $_SESSION['k30_dyd_csrf'] = bin2hex(random_bytes(16));
+    return $_SESSION['k30_dyd_csrf'];
+}
+
+/** Weryfikacja tokenu CSRF — kończy żądanie 403 przy niezgodności. */
+function dyd_token_check(): void {
+    dyd_start();
+    $sent = $_POST['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if (!hash_equals($_SESSION['k30_dyd_csrf'] ?? '', (string)$sent)) {
+        http_response_code(403);
+        exit('Nieprawidłowy token sesji.');
+    }
+}
+
+/** Czy zalogowany dydaktyk jest pracownikiem K30 (widzi wszystkie kursy). */
 function dyd_is_staff(): bool {
-    return is_admin() || can_write('karty30');
+    $s = dyd_current();
+    return $s ? !empty($s['is_staff']) : false;
 }
 
-/** Czy dany dydaktyk może zarządzać kursem (własny kurs lub pracownik K30). */
+/** Czy dydaktyk może zarządzać kursem (własny kurs lub pracownik K30). */
 function dyd_owns_course(int $uid, int $course_id): bool {
     if (!$course_id) return false;
     return dyd_is_staff() || k30_ti_instructor_owns_course($uid, $course_id);
 }
 
-/** Czy dany dydaktyk może zarządzać lekcją (jej kurs jest jego — lub pracownik K30). */
+/** Czy dydaktyk może zarządzać lekcją (jej kurs jest jego — lub pracownik K30). */
 function dyd_owns_session(int $uid, int $session_id): bool {
     if (!$session_id) return false;
     return dyd_is_staff() || k30_ti_instructor_owns_session($uid, $session_id);
