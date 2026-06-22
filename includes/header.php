@@ -1268,6 +1268,17 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
             <div class="msw-ic" style="--mc:#6d28d9;--mb:#f5f3ff"><i class="bi bi-card-checklist"></i></div>
             <span>Karty 30</span>
           </a>
+          <?php else: ?>
+          <?php // Doradca TI bez dostępu do całego modułu Karty 30 — wejście do panelu dydaktyka
+            $_dyd_show = false;
+            if ($_u = current_user()) { try { $_dyd_show = !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)$_u['id']])['k30_consultant']); } catch (\Throwable $e) {} }
+            if ($_dyd_show): ?>
+          <a href="<?= APP_URL ?>/karty30/ti/dydaktyk/index.php"
+             class="msw-tile <?= str_contains($_uri,'/karty30/ti/dydaktyk') ? 'msw-on' : '' ?>">
+            <div class="msw-ic" style="--mc:#2563eb;--mb:#eff6ff"><i class="bi bi-easel2"></i></div>
+            <span>Dydaktyka</span>
+          </a>
+          <?php endif; ?>
           <?php endif; ?>
 
           <?php if (module_enabled('helpdesk_enabled')): ?>

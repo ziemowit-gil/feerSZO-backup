@@ -81,6 +81,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i>Zajęcia informatyki / TI</h4>
+  <a href="dydaktyk/index.php" class="btn btn-outline-primary btn-sm ms-auto" title="Uproszczony panel prowadzącego — Twoje kursy">
+    <i class="bi bi-easel2 me-1"></i>Panel dydaktyka
+  </a>
   <?php if ($can_write): ?>
   <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>">
     <i class="bi bi-envelope me-1"></i>Wiadomości<?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?>

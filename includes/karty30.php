@@ -482,6 +482,21 @@ function karty30_migrate(): void {
     }
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_hwsub ON k30_ti_grades(hw_submission_id)"); } catch (\Throwable $e) {}
 
+    // ── Konta dydaktyków (prowadzących) — osobny panel, bez dostępu do modułu głównego ──
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_accounts (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        login         TEXT    NOT NULL UNIQUE,
+        password_hash TEXT    NOT NULL,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        must_change_password INTEGER NOT NULL DEFAULT 0,
+        last_login    DATETIME,
+        created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_instr_user ON k30_ti_instructor_accounts(user_id)");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2367,6 +2382,64 @@ function k30_ti_grade_sync_from_homework(int $submission_id, ?int $byUserId = nu
             'description'=>$desc, 'graded_by'=>$byUserId, 'hw_submission_id'=>$submission_id,
         ]);
     }
+}
+
+// ── Konta dydaktyków (prowadzących) ───────────────────────────────────────────
+
+/** Konto dydaktyka po loginie (z danymi użytkownika). */
+function k30_ti_instructor_account_by_login(string $login): ?array {
+    return db_one(
+        "SELECT a.*, u.name AS user_name, u.email AS user_email
+         FROM k30_ti_instructor_accounts a JOIN users u ON u.id=a.user_id
+         WHERE a.login=?", [$login]
+    ) ?: null;
+}
+/** Konto dydaktyka po id konta. */
+function k30_ti_instructor_account_get(int $id): ?array {
+    return db_one(
+        "SELECT a.*, u.name AS user_name, u.email AS user_email
+         FROM k30_ti_instructor_accounts a JOIN users u ON u.id=a.user_id
+         WHERE a.id=?", [$id]
+    ) ?: null;
+}
+/** Konto dydaktyka powiązane z użytkownikiem (jeśli istnieje). */
+function k30_ti_instructor_account_for_user(int $user_id): ?array {
+    return db_one("SELECT * FROM k30_ti_instructor_accounts WHERE user_id=?", [$user_id]) ?: null;
+}
+
+/** Kursy prowadzone przez danego użytkownika (dydaktyka). */
+function k30_ti_instructor_courses(int $user_id, bool $active_only = false): array {
+    $w = "c.instructor_id=?" . ($active_only ? " AND c.status='active'" : "");
+    return db_all(
+        "SELECT c.*,
+                (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS enrolled_count
+         FROM k30_ti_courses c WHERE $w ORDER BY c.status='active' DESC, c.name", [$user_id]
+    );
+}
+/** Czy dany kurs prowadzi ten dydaktyk. */
+function k30_ti_instructor_owns_course(int $user_id, int $course_id): bool {
+    return (bool) db_one("SELECT 1 FROM k30_ti_courses WHERE id=? AND instructor_id=?", [$course_id, $user_id]);
+}
+/** Czy dana lekcja należy do kursu prowadzonego przez tego dydaktyka. */
+function k30_ti_instructor_owns_session(int $user_id, int $session_id): bool {
+    return (bool) db_one(
+        "SELECT 1 FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.id=? AND c.instructor_id=?", [$session_id, $user_id]
+    );
+}
+
+/** Lista dydaktyków (użytkownicy będący prowadzącymi kursów) + status konta panelu. */
+function k30_ti_instructor_list(): array {
+    return db_all(
+        "SELECT u.id AS user_id, u.name AS user_name, u.email AS user_email,
+                a.id AS account_id, a.login, a.is_active, a.last_login,
+                (SELECT COUNT(*) FROM k30_ti_courses c WHERE c.instructor_id=u.id) AS course_count
+         FROM users u
+         JOIN k30_ti_courses c2 ON c2.instructor_id=u.id
+         LEFT JOIN k30_ti_instructor_accounts a ON a.user_id=u.id
+         GROUP BY u.id
+         ORDER BY u.name"
+    );
 }
 
 /** Oceny lekcji (1–5) od kursantów — z nazwą kursanta. Dla widoku prowadzącego. */
