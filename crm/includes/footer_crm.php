@@ -13,7 +13,7 @@ catch (\Throwable $e) { $__v = defined('APP_VERSION') ? APP_VERSION : ''; }
 <footer class="crm-footer" role="contentinfo">
   <span class="crm-footer-brand">
     <span class="crm-footer-logo" aria-hidden="true"><i class="bi bi-diagram-2-fill"></i></span>
-    <strong>SZU</strong>
+    <strong>SZO</strong>
     <span class="crm-footer-mod">Moduł CRM</span>
     <?php if ($_org_name_f): ?>
     <span class="crm-footer-sep" aria-hidden="true">·</span>
@@ -21,7 +21,7 @@ catch (\Throwable $e) { $__v = defined('APP_VERSION') ? APP_VERSION : ''; }
     <?php endif; ?>
   </span>
   <span class="crm-footer-meta">
-    <span class="crm-footer-name">System Zarządzania Umowami</span>
+    <span class="crm-footer-name">System Obsługi Organizacji</span>
     <?php if ($__v): ?>
     <a href="<?= APP_URL ?>/admin/version.php" class="crm-footer-ver" title="Informacje o wersji">v<?= h($__v) ?></a>
     <?php endif; ?>
