@@ -69,6 +69,11 @@ $m365_mail_configured = _mail_m365_configured();
 $mail_channel = $m365_mail_configured ? 'Microsoft 365' : (
     _mail_setting('smtp_host') ? 'SMTP' : 'PHP mail()'
 );
+// Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
+$_cu_now        = current_user();
+$can_send_as_me = $m365_mail_configured && !empty($_cu_now['microsoft_id']) && !empty($_cu_now['email']);
+$my_ms_email    = $can_send_as_me ? trim($_cu_now['email']) : '';
+$sys_from_email = _mail_setting('m365_send_from_email');
 
 // ── POST: wyślij wiadomość ────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -79,6 +84,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body      = trim($_POST['body'] ?? '');
     $tpl_name  = trim($_POST['template_name'] ?? '');
     $do_send   = !empty($_POST['do_send']);
+
+    // Nadawca: konto systemowe (domyślnie) albo skrzynka M365 zalogowanego użytkownika
+    $send_as    = ($_POST['send_as'] ?? 'system') === 'me' ? 'me' : 'system';
+    $from_email = '';
+    if ($channel === 'email' && $send_as === 'me') {
+        $cu = current_user();
+        if (!empty($cu['microsoft_id']) && !empty($cu['email']) && _mail_m365_configured()) {
+            $from_email = trim($cu['email']);
+        }
+    }
 
     // Obsługa załączników (tylko dla e-mail)
     $attachments = [];
@@ -127,7 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $rendered_subject,
                 $tpl_name,
                 $do_send && $immediate,
-                $channel === 'email' ? $attachments : []
+                $channel === 'email' ? $attachments : [],
+                $from_email
             );
             if ($do_send && !$immediate && $channel === 'email' && !empty($contact['email'])) {
                 // Wysyłka wsadowa — dodaj do kolejki bez natychmiastowego procesu
@@ -135,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $html_body = $is_html ? $rendered_body : nl2br(htmlspecialchars($rendered_body));
                 $crm_footer = trim(org_setting('crm_email_footer') ?? '');
                 if ($crm_footer) $html_body .= "\n<hr>\n" . $crm_footer;
-                mail_queue_add($contact['email'], $contact['imie_nazwisko'] ?? '', $rendered_subject ?: 'Wiadomość', $html_body, $rendered_body, 'crm', $cid, '', false, $attachments);
+                mail_queue_add($contact['email'], $contact['imie_nazwisko'] ?? '', $rendered_subject ?: 'Wiadomość', $html_body, $rendered_body, 'crm', $cid, '', false, $attachments, $from_email);
             }
             $sent_count++;
         }
@@ -356,6 +372,20 @@ include __DIR__ . '/includes/header_crm.php';
             </select>
           </div>
         </div>
+
+        <?php if ($can_send_as_me): ?>
+        <div id="senderRow" class="mb-1" style="display:<?= $preselect_channel === 'email' ? '' : 'none' ?>">
+          <label class="form-label" for="send_as"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Konto nadawcy (e-mail)</label>
+          <select name="send_as" id="send_as" class="form-select" aria-describedby="senderHelp">
+            <option value="system">Konto systemowe<?= $sys_from_email ? ' (' . h($sys_from_email) . ')' : '' ?></option>
+            <option value="me">Moje konto Microsoft — <?= h($my_ms_email) ?></option>
+          </select>
+          <div id="senderHelp" class="form-text" style="font-size:.74rem">
+            Wybierając swoje konto, wiadomość wyjdzie z Twojej skrzynki Microsoft 365 i zostanie zapisana w „Elementach wysłanych".
+          </div>
+        </div>
+        <?php endif; ?>
+
         <input type="hidden" name="template_name" id="template_name_hidden" value="">
       </div>
     </div>
@@ -863,6 +893,8 @@ include __DIR__ . '/includes/header_crm.php';
     var ch  = (document.getElementById('channel') || {}).value || 'email';
     var row = document.getElementById('subjectRow');
     if (row) row.style.display = ch === 'email' ? '' : 'none';
+    var srow = document.getElementById('senderRow');
+    if (srow) srow.style.display = ch === 'email' ? '' : 'none';
   }
 
   function updateCharCount() {

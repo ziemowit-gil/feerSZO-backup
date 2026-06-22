@@ -1253,7 +1253,8 @@ class CrmManager
         string $subject       = '',
         string $template_name = '',
         bool   $do_send       = true,
-        array  $attachments   = []
+        array  $attachments   = [],
+        string $from_email    = ''   // skrzynka nadawcy (np. konto M365 usera); '' = systemowy
     ): int {
         $user    = current_user();
         $user_id = (int)($user['id'] ?? 0);
@@ -1288,7 +1289,7 @@ class CrmManager
                     if ($crm_footer !== '') {
                         $html_body .= "\n<hr>\n" . $crm_footer;
                     }
-                    mail_queue_add($contact['email'], $to_name, $subject ?: 'Wiadomość', $html_body, $body, 'crm', $contact_id, '', false, $attachments);
+                    mail_queue_add($contact['email'], $to_name, $subject ?: 'Wiadomość', $html_body, $body, 'crm', $contact_id, '', false, $attachments, $from_email);
                     // Wyślij natychmiast (nie czekaj na cron) — przez M365/SMTP/mail()
                     mail_queue_process(1);
                     $status = 'wysłana';

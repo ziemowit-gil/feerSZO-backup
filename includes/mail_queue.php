@@ -38,6 +38,8 @@
     } catch (\Throwable $e) {}
     // Kolumna attachments (JSON) — dodana w v1.6
     try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); } catch (\Throwable $e) {}
+    // Nadawca nadrzędny (np. skrzynka zalogowanego usera M365) — v1.9
+    try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN from_email TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 })();
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -94,7 +96,8 @@ function mail_queue_add(
     ?int   $context_id   = null,
     string $scheduled_at = '',
     bool   $immediate    = false,
-    array  $attachments  = []   // [['path'=>..., 'name'=>..., 'mime'=>..., 'size'=>...], ...]
+    array  $attachments  = [],  // [['path'=>..., 'name'=>..., 'mime'=>..., 'size'=>...], ...]
+    string $from_email   = ''   // nadawca nadrzędny (np. skrzynka usera M365); '' = nadawca systemowy
 ): int {
     if (!$body_text) {
         $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_html));
@@ -103,13 +106,13 @@ function mail_queue_add(
     }
     $att_json = $attachments ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '[]';
     db()->prepare(
-        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments)
-         VALUES (?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments,from_email)
+         VALUES (?,?,?,?,?,?,?,?,?,?)"
     )->execute([
         $to_email, $to_name, $subject, $body_html, $body_text,
         $context_type, $context_id,
         $scheduled_at ?: date('Y-m-d H:i:s'),
-        $att_json,
+        $att_json, $from_email,
     ]);
     $mail_id = (int)db()->lastInsertId();
 
@@ -336,8 +339,9 @@ function _mail_send_m365(array $msg): bool {
     $tenant   = _mail_setting('m365_tenant_id');
     $client   = _mail_setting('m365_graph_client_id');
     $secret   = _mail_setting('m365_graph_client_secret');
-    // Fallback: jeśli send_from_email nie ustawione, użyj sender_user_id (Azure Object ID)
-    $from     = _mail_setting('m365_send_from_email') ?: _mail_setting('m365_sender_user_id');
+    // Nadawca: nadrzędny z wiadomości (skrzynka usera) > ustawienie globalne > sender_user_id
+    $from_override = trim($msg['from_email'] ?? '');
+    $from     = $from_override ?: (_mail_setting('m365_send_from_email') ?: _mail_setting('m365_sender_user_id'));
 
     // Pobierz token
     $tok_resp = _mail_http_post(
@@ -379,6 +383,13 @@ function _mail_send_m365(array $msg): bool {
         ],
         'saveToSentItems' => false,
     ];
+
+    // Wysyłka z konta konkretnego użytkownika: nie wymuszaj nadawcy/nazwy organizacji
+    // (skrzynka sama poda swoją tożsamość) i zostaw kopię w „Elementach wysłanych".
+    if ($from_override) {
+        unset($payload['message']['from']);
+        $payload['saveToSentItems'] = true;
+    }
 
     // Załączniki M365
     $attachments = json_decode($msg['attachments'] ?? '[]', true) ?: [];
