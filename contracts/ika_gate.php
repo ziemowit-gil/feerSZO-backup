@@ -529,7 +529,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 }
 .mode-setup .gate-box-head-icon{background:rgba(245,158,11,.25);color:#fcd34d}
 .mode-email .gate-box-head-icon{background:rgba(16,185,129,.25);color:#6ee7b7}
-.gate-box-head-title{font-size:.97rem;font-weight:700;color:#fff}
+.gate-box-head-title{font-size:.97rem;font-weight:700;color:#fff;margin:0;line-height:1.3}
 .gate-box-head-sub{font-size:.74rem;color:rgba(255,255,255,.5);margin-top:.12rem}
 
 .gate-box-body{padding:1.35rem 1.4rem}
@@ -571,7 +571,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 }
 .pesel-box:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.15));background:#fff}
 .pesel-box.is-error{border-color:#ef4444;background:#fff5f5}
-.pesel-pos{font-size:.68rem;color:#94a3b8;text-align:center;margin-top:.2rem;font-weight:600}
+.pesel-pos{font-size:.68rem;color:#586577;text-align:center;margin-top:.2rem;font-weight:600}
 
 /* ── Przycisk główny ─────────────────────────────────────────── */
 .btn-gate{
@@ -587,7 +587,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 .btn-gate.btn-setup{--c:#d97706;--c-dark:#b45309;--c-ring:rgba(217,119,6,.35)}
 
 /* ── Separator ───────────────────────────────────────────────── */
-.or-sep{display:flex;align-items:center;gap:.75rem;margin:.9rem 0;color:#94a3b8;font-size:.73rem}
+.or-sep{display:flex;align-items:center;gap:.75rem;margin:.9rem 0;color:#586577;font-size:.73rem}
 .or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:#e2e8f0}
 
 /* ── Linki odzyskiwania ──────────────────────────────────────── */
@@ -599,13 +599,13 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   cursor:pointer;transition:all .12s;width:100%;text-align:left;
 }
 .recovery-btn:hover{border-color:var(--c,#2563eb);color:var(--c,#2563eb);background:#f0f7ff;transform:translateX(2px)}
-.recovery-btn i{color:#94a3b8;font-size:.88rem;flex-shrink:0;transition:color .12s}
+.recovery-btn i{color:#586577;font-size:.88rem;flex-shrink:0;transition:color .12s}
 .recovery-btn:hover i{color:var(--c,#2563eb)}
 
 /* ── Setup form ──────────────────────────────────────────────── */
 .setup-field{margin-bottom:.9rem}
 .setup-label{font-size:.77rem;font-weight:600;color:#374151;margin-bottom:.3rem;display:block}
-.setup-label span{font-weight:400;color:#94a3b8;font-size:.72rem;margin-left:.3rem}
+.setup-label span{font-weight:400;color:#586577;font-size:.72rem;margin-left:.3rem}
 .setup-input{
   width:100%;border:1.5px solid #CBD5E1;border-radius:.6rem;
   padding:.52rem .8rem;font-size:.9rem;color:#0f172a;
@@ -644,13 +644,58 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   .btn-gate{background:#000!important;border-color:#000!important}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+
+/* ══ WCAG 2.1 AA — korekty kontrastu i widoczności fokusu ════════════════════
+   Tekst pomocniczy na ciemnym panelu miał kontrast ~2–3:1 (alpha .2–.45).
+   Podnosimy do ≥4.5:1 (na najjaśniejszej części tła kart ≈ #2a3f5f). */
+.gate-org small        { color:#bcc8d9 }            /* było rgba .3  */
+.user-card-role        { color:#cbd5e1 }            /* było rgba .4  */
+.dest-card-label       { color:#bcc8d9 }            /* było rgba .3  */
+.dest-resource         { color:#cbd5e1 }            /* było rgba .45 */
+.dest-module           { color:#eef2f8 }
+.gate-info-row         { color:#cbd5e1 }            /* było rgba .45 */
+.gate-box-head-sub     { color:#cbd5e1 }            /* było rgba .5  */
+.gate-left-footer      { color:#bcc8d9 }            /* było rgba .2  */
+.gate-left-footer a    { color:#cbd5e1 }            /* było rgba .3  */
+.gate-left-footer a:hover { color:#fff }
+.sec-bar .sec-label    { color:#cbd5e1 }
+.sec-bar .sec-strong   { color:#fff }
+.method-tab            { color:#586577 }            /* jasna strona, ~4.3→~5:1 */
+
+/* Widoczny wskaźnik fokusu klawiatury (WCAG 2.4.7 / 2.4.11) */
+a:focus-visible,
+button:focus-visible,
+.method-tab:focus-visible,
+.recovery-btn:focus-visible,
+.btn-gate:focus-visible{
+  outline:3px solid #2563eb;
+  outline-offset:2px;
+  border-radius:6px;
+}
+/* Na ciemnym panelu — jasny pierścień, by był widoczny na granatowym tle */
+.gate-left a:focus-visible{ outline-color:#fff }
+/* Pola kodu — mocny, nieprzezroczysty pierścień zamiast ledwie widocznego cienia */
+.digit-box:focus-visible,
+.pesel-box:focus-visible,
+.setup-input:focus-visible{
+  outline:3px solid var(--c,#1d4ed8);
+  outline-offset:1px;
+}
+/* Element pokazany przez bieżący błąd nie powinien sam usuwać konturu */
+.skip-to-form{
+  position:absolute;left:-9999px;top:0;z-index:50;
+  background:#2563eb;color:#fff;padding:.55rem 1rem;border-radius:0 0 8px 0;
+  font-size:.85rem;font-weight:600;text-decoration:none;
+}
+.skip-to-form:focus{ left:0 }
 </style>
 </head>
 <body>
+<a href="#gate-main" class="skip-to-form">Przejdź do formularza weryfikacji</a>
 <div class="gate-shell">
 
 <!-- ══ Lewa ═══════════════════════════════════════════════════════════════════ -->
-<div class="gate-left">
+<aside class="gate-left" aria-label="Kontekst weryfikacji tożsamości">
   <div>
 
     <!-- Logo + org -->
@@ -706,8 +751,8 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
         <div class="sec-dot" style="background:<?= $i <= $dots ? '#2563eb' : 'rgba(255,255,255,.12)' ?>"></div>
         <?php endfor; ?>
       </div>
-      <span style="font-size:.7rem;color:rgba(255,255,255,.4)">
-        Ochrona: <strong style="color:rgba(255,255,255,.6)"><?= $dots >= 4 ? 'Krytyczna' : ($dots >= 3 ? 'Wysoka' : 'Standardowa') ?></strong>
+      <span class="sec-label" style="font-size:.74rem">
+        Poziom ochrony: <strong class="sec-strong"><?= $dots >= 4 ? 'Krytyczna' : ($dots >= 3 ? 'Wysoka' : 'Standardowa') ?></strong>
       </span>
     </div>
 
@@ -736,10 +781,10 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     <a href="<?= h($back_url) ?>"><i class="bi bi-arrow-left-circle"></i> Anuluj i wróć</a>
     <div style="margin-top:.35rem">&copy; <?= date('Y') ?> · <?= h($org_name) ?></div>
   </div>
-</div>
+</aside>
 
 <!-- ══ Prawa ════════════════════════════════════════════════════════════════════ -->
-<div class="gate-right">
+<main class="gate-right" id="gate-main">
 <div class="gate-box">
 
   <!-- Header boksa -->
@@ -774,9 +819,9 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   };
   ?>
   <div class="gate-box-head<?= $head_mode_class ?>">
-    <div class="gate-box-head-icon"><i class="bi <?= $head_icon ?>"></i></div>
+    <div class="gate-box-head-icon" aria-hidden="true"><i class="bi <?= $head_icon ?>"></i></div>
     <div>
-      <div class="gate-box-head-title"><?= $head_title ?></div>
+      <h1 class="gate-box-head-title"><?= $head_title ?></h1>
       <div class="gate-box-head-sub"><?= $head_sub ?></div>
     </div>
   </div>
@@ -837,7 +882,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
       </button>
     </form>
     <div style="margin-top:.8rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.77rem;color:#94a3b8;text-decoration:none">
+      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.77rem;color:#586577;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Inna metoda
       </a>
     </div>
@@ -859,7 +904,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
                maxlength="10" placeholder="np. A3B7C2D8E1"
                autocomplete="off" spellcheck="false"
                oninput="this.value=this.value.toUpperCase().replace(/[^0-9A-F]/g,'')">
-        <div style="font-size:.7rem;color:#94a3b8;margin-top:.25rem">10 znaków: cyfry i litery A–F</div>
+        <div style="font-size:.7rem;color:#586577;margin-top:.25rem">10 znaków: cyfry i litery A–F</div>
       </div>
       <div class="or-sep" style="margin:.65rem 0"></div>
       <div class="setup-field">
@@ -887,7 +932,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
       </button>
     </form>
     <div style="margin-top:.7rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.76rem;color:#94a3b8;text-decoration:none">
+      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.76rem;color:#586577;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Mam już kod IKA
       </a>
     </div>
@@ -916,7 +961,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     <?php endif; ?>
 
     <!-- ── Panel IKA ─────────────────────────────────────── -->
-    <div id="panel-ika" <?= ($show_method_tabs && $active_method !== 'ika') ? 'hidden' : '' ?>>
+    <div id="panel-ika" <?= $show_method_tabs ? 'role="tabpanel" aria-labelledby="tab-btn-ika" tabindex="0"' : '' ?> <?= ($show_method_tabs && $active_method !== 'ika') ? 'hidden' : '' ?>>
 
       <?php if ($is_blocked): ?>
       <div class="state-box">
@@ -948,7 +993,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
         <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
 
-        <p style="font-size:.78rem;color:#94a3b8;text-align:center;margin-bottom:.4rem">Wpisz 6-cyfrowy kod IKA</p>
+        <p style="font-size:.78rem;color:#586577;text-align:center;margin-bottom:.4rem">Wpisz 6-cyfrowy kod IKA</p>
         <div class="digit-row" id="ikaDigits" role="group" aria-label="Kod IKA — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
           <input type="text" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
@@ -982,14 +1027,14 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
         <a href="?to=<?= urlencode($return_to) ?>&mode=email_verify" class="recovery-btn">
           <i class="bi bi-envelope-arrow-down-fill"></i>
           Wyślij jednorazowy kod e-mail
-          <span style="margin-left:auto;font-size:.7rem;color:#94a3b8"><?= h($user_email) ?></span>
+          <span style="margin-left:auto;font-size:.7rem;color:#586577"><?= h($user_email) ?></span>
         </a>
         <?php endif; ?>
         <?php if ($pesel_available): ?>
         <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
           <i class="bi bi-card-text"></i>
           Zweryfikuj cyframi PESEL
-          <span style="margin-left:auto;font-size:.7rem;color:#94a3b8">z kartoteki</span>
+          <span style="margin-left:auto;font-size:.7rem;color:#586577">z kartoteki</span>
         </a>
         <?php endif; ?>
       </div>
@@ -1001,7 +1046,8 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 
     <!-- ── Panel E-mail ──────────────────────────────────── -->
     <?php if ($email_is_primary || $page_mode === 'email_verify' || (!$show_method_tabs && $page_mode === 'email_verify')): ?>
-    <div id="panel-email" <?= ($show_method_tabs && $active_method !== 'email') ? 'hidden' : '' ?>
+    <div id="panel-email" <?= $show_method_tabs ? 'role="tabpanel" aria-labelledby="tab-btn-email" tabindex="0"' : '' ?>
+         <?= ($show_method_tabs && $active_method !== 'email') ? 'hidden' : '' ?>
          <?= (!$email_is_primary && $page_mode !== 'email_verify') ? 'hidden' : '' ?>>
 
       <?php if (!$otp_ready): ?>
@@ -1061,7 +1107,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
           <input type="hidden" name="_mode" value="request_email_otp">
           <input type="hidden" name="to"    value="<?= h($return_to) ?>">
           <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
-          <button type="submit" style="background:none;border:none;color:#94a3b8;font-size:.77rem;cursor:pointer;padding:0">
+          <button type="submit" style="background:none;border:none;color:#586577;font-size:.77rem;cursor:pointer;padding:0">
             <i class="bi bi-arrow-clockwise me-1"></i>Wyślij nowy kod
           </button>
         </form>
@@ -1077,7 +1123,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
       <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
         <i class="bi bi-card-text"></i>
         Zweryfikuj cyframi PESEL
-        <span style="margin-left:auto;font-size:.7rem;color:#94a3b8">z kartoteki umów</span>
+        <span style="margin-left:auto;font-size:.7rem;color:#586577">z kartoteki umów</span>
       </a>
     </div>
     <?php endif; ?>
@@ -1086,7 +1132,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
 
   </div><!-- /gate-box-body -->
 </div><!-- /gate-box -->
-</div><!-- /gate-right -->
+</main><!-- /gate-right -->
 </div><!-- /gate-shell -->
 
 <script>
@@ -1109,6 +1155,26 @@ function switchMethod(name) {
   }
 }
 window.switchMethod = switchMethod;
+
+/* Nawigacja klawiaturą po zakładkach metod (strzałki / Home / End) */
+(function(){
+  var tablist = document.querySelector('.method-tabs[role=tablist]');
+  if (!tablist) return;
+  var tabs = Array.from(tablist.querySelectorAll('[role=tab]'));
+  tablist.addEventListener('keydown', function(e){
+    var i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    var n = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (i + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') n = 0;
+    else if (e.key === 'End') n = tabs.length - 1;
+    if (n === null) return;
+    e.preventDefault();
+    tabs[n].focus();
+    tabs[n].click();
+  });
+})();
 
 /* ── Helper: 6-box digit group ─────────────────────────── */
 function initDigitGroup(groupId, hiddenId, btnId, spinnerId) {
