@@ -263,27 +263,40 @@ include __DIR__ . '/_layout_head.php';
   <?php if (!$pg): ?>
   <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak ocen.</div>
   <?php else: ?>
-  <div class="d-flex flex-column gap-2">
-    <?php foreach ($pg_by_course as $cname => $cgr):
-      $avg = k30_ti_grades_average($cgr);
-      [$abg,$afg] = k30_ti_grade_color($avg);
-    ?>
-    <div class="card">
-      <div class="card-body py-2">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-          <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
-          <?php if ($avg !== null): ?>
-          <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
-          <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
-          <?php endif; ?>
-        </div>
-        <div class="d-flex flex-wrap gap-1">
-          <?php foreach ($cgr as $g): ?><?= k30_ti_grade_badge($g) ?><?php endforeach; ?>
-        </div>
-      </div>
+  <?php foreach ($pg_by_course as $cname => $cgr):
+    $avg = k30_ti_grades_average($cgr);
+    [$abg,$afg] = k30_ti_grade_color($avg);
+  ?>
+  <div class="card mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
+      <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
+      <span class="badge text-bg-secondary"><?= count($cgr) ?> ocen</span>
+      <?php if ($avg !== null): ?>
+      <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
+      <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
+      <?php endif; ?>
     </div>
-    <?php endforeach; ?>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
+        <thead class="table-light">
+          <tr><th>Data</th><th>Ocena</th><th>Waga</th><th>Kategoria</th><th>Za co</th><th>Wystawił(a)</th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($cgr as $g): ?>
+          <tr>
+            <td class="text-nowrap small"><?= h(substr($g['graded_at'],0,10)) ?></td>
+            <td><?= k30_ti_grade_badge($g) ?></td>
+            <td class="small"><?= h(rtrim(rtrim(number_format((float)$g['weight'],2,'.',''),'0'),'.') ?: '1') ?></td>
+            <td class="small"><?= h(k30_ti_grade_category_label($g['category'])) ?></td>
+            <td class="small"><?= $g['description'] ? h($g['description']) : '<span class="text-body-secondary">—</span>' ?></td>
+            <td class="small text-nowrap"><?= !empty($g['graded_by_name']) ? h($g['graded_by_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
   </div>
+  <?php endforeach; ?>
   <?php endif; ?>
 
 <?php elseif ($ptab === 'licencje'): ?>

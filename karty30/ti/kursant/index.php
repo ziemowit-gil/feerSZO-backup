@@ -881,99 +881,7 @@ include __DIR__ . '/_layout_head.php';
 <?php elseif ($tab === 'zadania'): ?>
 
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
-  <p class="text-body-secondary small mb-3">Twoje oceny, materiały do nauki od prowadzącego oraz zadania domowe do oddania.</p>
-
-  <!-- ── Oceny (e-dziennik) ───────────────────────────────────────────────── -->
-  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
-    <i class="bi bi-table text-primary" aria-hidden="true"></i>Oceny
-    <?php if ($grades_student): ?><a href="?grades_pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF</a><?php endif; ?>
-  </h2>
-  <?php if (!$grades_student): ?>
-  <p class="text-body-secondary small mb-4">Brak ocen. Pojawią się tutaj, gdy prowadzący je wystawi.</p>
-  <?php else: ?>
-  <div class="d-flex flex-column gap-2 mb-4">
-    <?php foreach ($grades_by_course as $cname => $cgr):
-      $avg = k30_ti_grades_average($cgr);
-      [$abg,$afg] = k30_ti_grade_color($avg);
-    ?>
-    <div class="card">
-      <div class="card-body py-2">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-          <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
-          <?php if ($avg !== null): ?>
-          <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
-          <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
-          <?php endif; ?>
-        </div>
-        <div class="d-flex flex-wrap gap-1">
-          <?php foreach ($cgr as $g): ?><?= k30_ti_grade_badge($g) ?><?php endforeach; ?>
-        </div>
-      </div>
-    </div>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-
-  <!-- ── Materiały dydaktyczne (od prowadzącego) ──────────────────────────── -->
-  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
-    <i class="bi bi-collection-play text-primary" aria-hidden="true"></i>Materiały
-    <?php if ($materials_student): ?><span class="badge text-bg-secondary"><?= count($materials_student) ?></span><?php endif; ?>
-  </h2>
-  <?php if (!$materials_student): ?>
-  <p class="text-body-secondary small mb-4">Brak materiałów. Prowadzący doda je tutaj wraz z lekcjami.</p>
-  <?php else: ?>
-  <div class="d-flex flex-column gap-2 mb-4">
-    <?php foreach ($materials_student as $m):
-      $mav = k30_ti_avail_status($m['open_at'] ?? null, $m['close_at'] ?? null);
-      $mopen = $mav['state'] === 'open';
-    ?>
-    <div class="card <?= $mopen ? '' : 'opacity-75' ?>">
-      <div class="card-body py-2">
-        <div class="d-flex flex-wrap align-items-start gap-2">
-          <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle text-nowrap">
-            <i class="bi bi-<?= h(k30_ti_material_type_icon($m['type'])) ?> me-1" aria-hidden="true"></i><?= h(k30_ti_material_type_label($m['type'])) ?>
-          </span>
-          <div class="flex-grow-1 min-width-0">
-            <div class="fw-semibold"><?= h($m['title']) ?>
-              <?php if ($mav['state']==='upcoming'): ?><span class="badge text-bg-warning ms-1"><i class="bi bi-clock me-1" aria-hidden="true"></i><?= h($mav['label']) ?></span>
-              <?php elseif ($mav['state']==='closed'): ?><span class="badge text-bg-secondary ms-1"><i class="bi bi-lock me-1" aria-hidden="true"></i><?= h($mav['label']) ?></span>
-              <?php elseif (($m['close_at'] ?? '')!==''): ?><span class="badge text-bg-light text-dark border ms-1"><?= h($mav['label']) ?></span><?php endif; ?>
-            </div>
-            <div class="small text-body-secondary">
-              <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($m['course_name']) ?>
-              <?php if ($m['session_date']): ?> · <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>lekcja <?= h(substr($m['session_date'],0,10)) ?><?php if ($m['session_topic']): ?> (<?= h(mb_substr($m['session_topic'],0,40)) ?>)<?php endif; ?><?php endif; ?>
-            </div>
-            <?php if ($m['description']): ?><p class="small mb-1 mt-1" style="white-space:pre-wrap"><?= h($m['description']) ?></p><?php endif; ?>
-            <?php if ($mopen): ?>
-            <div class="d-flex flex-wrap gap-2 mt-1">
-              <?php if ($m['url']): ?>
-              <a href="<?= h($m['url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz link
-              </a>
-              <?php endif; ?>
-              <?php if ($m['attach_path']): ?>
-              <a href="material_file.php?id=<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-download me-1" aria-hidden="true"></i><?= h(mb_substr($m['attach_name'],0,40)) ?>
-              </a>
-              <?php endif; ?>
-            </div>
-            <?php elseif ($mav['state']==='upcoming'): ?>
-            <div class="small text-body-secondary mt-1"><i class="bi bi-lock me-1" aria-hidden="true"></i>Materiał będzie dostępny od <?= h(substr($mav['open_at'],0,16)) ?>.</div>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-
-  <!-- ── Zadania domowe ───────────────────────────────────────────────────── -->
-  <h2 class="h6 fw-bold d-flex align-items-center gap-2 mb-1">
-    <i class="bi bi-journal-check text-primary" aria-hidden="true"></i>Zadania domowe
-    <?php if (count($hw_pending) > 0): ?><span class="badge text-bg-warning"><?= count($hw_pending) ?> do oddania</span><?php endif; ?>
-  </h2>
-  <p class="text-body-secondary small mb-3">Oddaj zadanie wpisując treść i/lub załączając plik. Możesz poprawić oddanie do czasu oceny.</p>
+  <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny”.</p>
 
   <?php
     $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']);
@@ -984,101 +892,37 @@ include __DIR__ . '/_layout_head.php';
   </div>
   <?php endif; ?>
 
-  <?php if (!$homeworks_student): ?>
-  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= $moodle_assignments ? 'Brak zadań domowych od prowadzącego — sprawdź zadania z Moodle poniżej.' : 'Brak zadań domowych.' ?></div>
+  <?php if (!$dyd_groups): ?>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= $moodle_assignments ? 'Brak materiałów i zadań od prowadzącego — sprawdź zadania z Moodle poniżej.' : 'Brak materiałów i zadań.' ?></div>
   <?php else: $now = date('Y-m-d H:i:s'); ?>
-  <div class="d-flex flex-column gap-3">
-    <?php foreach ($homeworks_student as $h):
-      $done    = !empty($h['sub_id']);
-      $graded  = ($h['sub_status'] ?? '') === 'graded';
-      $overdue = $h['due_at'] && $h['due_at'] < $now && !$done;
-      $hav     = k30_ti_avail_status($h['open_at'] ?? null, $h['close_at'] ?? null, $now);
-      $hopen   = $hav['state'] === 'open';
-    ?>
-    <div class="card <?= $graded ? 'border-success' : ($overdue || $hav['state']==='closed' ? 'border-danger' : '') ?> <?= $hav['state']==='upcoming' ? 'opacity-75' : '' ?>">
-      <div class="card-body">
-        <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
-          <div class="flex-grow-1 min-width-0">
-            <div class="fw-bold"><?= h($h['title']) ?></div>
-            <div class="small text-body-secondary">
-              <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($h['course_name']) ?>
-              <?php if ($h['session_date'] ?? null): ?> · <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>lekcja <?= h(substr($h['session_date'],0,10)) ?><?php endif; ?>
-              <?php if ($h['due_at']): ?>
-              · <span class="<?= $overdue ? 'text-danger fw-semibold' : '' ?>">termin: <?= h(substr($h['due_at'],0,16)) ?></span>
-              <?php endif; ?>
-              <?php if (($h['open_at'] ?? '')!=='' && $hav['state']==='upcoming'): ?>
-              · <span class="text-warning-emphasis">otwarcie: <?= h(substr($h['open_at'],0,16)) ?></span>
-              <?php endif; ?>
-              <?php if (($h['close_at'] ?? '')!==''): ?>
-              · <span class="<?= $hav['state']==='closed' ? 'text-danger fw-semibold' : '' ?>">zamknięcie: <?= h(substr($h['close_at'],0,16)) ?></span>
-              <?php endif; ?>
-            </div>
-          </div>
-          <?php if ($graded): ?>
-          <span class="badge text-bg-success">Ocena: <?= h($h['sub_grade'] ?: 'zaliczone') ?></span>
-          <?php elseif ($done): ?>
-          <span class="badge text-bg-secondary">Oddane</span>
-          <?php elseif ($hav['state']==='upcoming'): ?>
-          <span class="badge text-bg-warning"><i class="bi bi-clock me-1" aria-hidden="true"></i>Wkrótce</span>
-          <?php elseif ($hav['state']==='closed'): ?>
-          <span class="badge text-bg-danger"><i class="bi bi-lock me-1" aria-hidden="true"></i>Zamknięte</span>
-          <?php elseif ($overdue): ?>
-          <span class="badge text-bg-danger">Po terminie</span>
-          <?php else: ?>
-          <span class="badge text-bg-warning">Do oddania</span>
-          <?php endif; ?>
-        </div>
+    <?php foreach ($dyd_groups as $grp): ?>
+    <section class="mb-4">
+      <h2 class="h6 fw-bold d-flex flex-wrap align-items-center gap-2 mb-2 pb-1 border-bottom">
+        <?php if ($grp['session_id']): ?>
+        <i class="bi bi-calendar-event text-primary" aria-hidden="true"></i>
+        <span>Lekcja <?= h(substr($grp['date'],0,10)) ?></span>
+        <?php if ($grp['topic']): ?><span class="text-body-secondary fw-normal">· <?= h($grp['topic']) ?></span><?php endif; ?>
+        <span class="text-body-secondary fw-normal small ms-1"><?= h($grp['course_name']) ?></span>
+        <?php else: ?>
+        <i class="bi bi-folder2-open text-primary" aria-hidden="true"></i><span>Bez przypisanej lekcji</span>
+        <?php endif; ?>
+      </h2>
 
-        <?php if ($h['description']): ?>
-        <p class="small mb-2" style="white-space:pre-wrap"><?= h($h['description']) ?></p>
-        <?php endif; ?>
-        <?php if ($h['attach_path'] && $hav['state']!=='upcoming'): ?>
-        <p class="small mb-2"><i class="bi bi-paperclip me-1" aria-hidden="true"></i>
-          <a href="homework_file.php?t=attach&hw=<?= (int)$h['id'] ?>"><?= h($h['attach_name']) ?></a> (materiał od prowadzącego)
-        </p>
-        <?php endif; ?>
-
-        <?php if ($done): ?>
-        <div class="border rounded p-2 mb-2 bg-body-tertiary small">
-          <div class="text-body-secondary mb-1">Twoje oddanie (<?= h(substr($h['sub_at'],0,16)) ?>):</div>
-          <?php if ($h['sub_body']): ?><div class="mb-1" style="white-space:pre-wrap"><?= h($h['sub_body']) ?></div><?php endif; ?>
-          <?php if ($h['sub_file_path']): ?>
-          <div><i class="bi bi-download me-1" aria-hidden="true"></i><a href="homework_file.php?t=sub&id=<?= (int)$h['sub_id'] ?>"><?= h($h['sub_file_name']) ?></a></div>
-          <?php endif; ?>
-          <?php if ($graded && $h['sub_feedback']): ?>
-          <div class="mt-1 text-success"><i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($h['sub_feedback']) ?></div>
-          <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <?php if (!$graded && $hopen): ?>
-        <form method="post" enctype="multipart/form-data" class="border-top pt-2">
-          <input type="hidden" name="_token"      value="<?= h($vlab_token) ?>">
-          <input type="hidden" name="_op"          value="submit_homework">
-          <input type="hidden" name="homework_id"  value="<?= (int)$h['id'] ?>">
-          <div class="mb-2">
-            <label class="form-label small fw-semibold">Treść / komentarz</label>
-            <textarea class="form-control form-control-sm" name="body" rows="2" placeholder="Możesz wkleić odpowiedź lub dodać komentarz…"><?= h($h['sub_body'] ?? '') ?></textarea>
-          </div>
-          <div class="d-flex flex-wrap align-items-end gap-2">
-            <div class="flex-grow-1">
-              <label class="form-label small fw-semibold">Plik <span class="text-body-secondary fw-normal">(opc., maks. 25 MB)</span></label>
-              <input type="file" class="form-control form-control-sm" name="file">
-            </div>
-            <button type="submit" class="btn btn-sm btn-primary">
-              <i class="bi bi-upload me-1" aria-hidden="true"></i><?= $done ? 'Popraw oddanie' : 'Oddaj zadanie' ?>
-            </button>
-          </div>
-        </form>
-        <?php elseif (!$graded && $hav['state']==='upcoming'): ?>
-        <div class="border-top pt-2 small text-body-secondary"><i class="bi bi-clock me-1" aria-hidden="true"></i>Oddawanie będzie możliwe od <?= h(substr($hav['open_at'],0,16)) ?>.</div>
-        <?php elseif (!$graded && $hav['state']==='closed' && !$done): ?>
-        <div class="border-top pt-2 small text-danger"><i class="bi bi-lock me-1" aria-hidden="true"></i>Oddawanie tego zadania zostało zamknięte (<?= h(substr($hav['close_at'],0,16)) ?>).</div>
-        <?php endif; ?>
+      <?php if ($grp['materials']): ?>
+      <div class="text-body-secondary small fw-semibold mb-1"><i class="bi bi-collection-play me-1" aria-hidden="true"></i>Materiały</div>
+      <div class="d-flex flex-column gap-2 mb-3">
+        <?php foreach ($grp['materials'] as $m) { include __DIR__ . '/_dyd_material.php'; } ?>
       </div>
-    </div>
+      <?php endif; ?>
+
+      <?php if ($grp['homeworks']): ?>
+      <div class="text-body-secondary small fw-semibold mb-1"><i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zadania domowe</div>
+      <div class="d-flex flex-column gap-3">
+        <?php foreach ($grp['homeworks'] as $h) { include __DIR__ . '/_dyd_homework.php'; } ?>
+      </div>
+      <?php endif; ?>
+    </section>
     <?php endforeach; ?>
-  </div>
   <?php endif; ?>
 
   <!-- ── Zadania z Moodle (pobierane z serwera) ───────────────────────────── -->
@@ -1135,6 +979,53 @@ include __DIR__ . '/_layout_head.php';
     </div>
     <?php endforeach; ?>
   </div>
+  <?php endif; ?>
+
+<?php elseif ($tab === 'oceny'): ?>
+
+  <h1 class="h5 fw-bold mb-1 d-flex align-items-center gap-2">
+    <i class="bi bi-table text-primary" aria-hidden="true"></i>Oceny
+    <?php if ($grades_student): ?><a href="?grades_pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF</a><?php endif; ?>
+  </h1>
+  <p class="text-body-secondary small mb-3">Oceny wystawione przez prowadzących, ze średnią ważoną dla każdego kursu.</p>
+
+  <?php if (!$grades_student): ?>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak ocen. Pojawią się tutaj, gdy prowadzący je wystawi.</div>
+  <?php else: ?>
+    <?php foreach ($grades_by_course as $cname => $cgr):
+      $avg = k30_ti_grades_average($cgr);
+      [$abg,$afg] = k30_ti_grade_color($avg);
+    ?>
+    <div class="card mb-3">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
+        <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
+        <span class="badge text-bg-secondary"><?= count($cgr) ?> ocen</span>
+        <?php if ($avg !== null): ?>
+        <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
+        <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
+        <?php endif; ?>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
+          <thead class="table-light">
+            <tr><th>Data</th><th>Ocena</th><th>Waga</th><th>Kategoria</th><th>Za co</th><th>Wystawił(a)</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach ($cgr as $g): ?>
+            <tr>
+              <td class="text-nowrap small"><?= h(substr($g['graded_at'],0,10)) ?></td>
+              <td><?= k30_ti_grade_badge($g) ?></td>
+              <td class="small"><?= h(rtrim(rtrim(number_format((float)$g['weight'],2,'.',''),'0'),'.') ?: '1') ?></td>
+              <td class="small"><?= h(k30_ti_grade_category_label($g['category'])) ?></td>
+              <td class="small"><?= $g['description'] ? h($g['description']) : '<span class="text-body-secondary">—</span>' ?></td>
+              <td class="small text-nowrap"><?= !empty($g['graded_by_name']) ? h($g['graded_by_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <?php endforeach; ?>
   <?php endif; ?>
 
 <?php elseif ($tab === 'rozliczenia' && !$is_minor):

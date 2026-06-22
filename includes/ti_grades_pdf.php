@@ -136,11 +136,13 @@ function ti_grades_pdf_student(int $client_id, string $student_name = ''): void 
         // tabela ocen
         $pdf->SetFont('DejaVu', 'B', 8);
         $pdf->SetFillColor(248,248,248);
+        $wDesc = $W-22-16-12-30-38;
         $pdf->Cell(22, 6, ti_pdf_txt('Data'),      1, 0, 'C', true);
         $pdf->Cell(16, 6, ti_pdf_txt('Ocena'),     1, 0, 'C', true);
         $pdf->Cell(12, 6, ti_pdf_txt('Waga'),      1, 0, 'C', true);
-        $pdf->Cell(34, 6, ti_pdf_txt('Kategoria'), 1, 0, 'C', true);
-        $pdf->Cell($W-22-16-12-34, 6, ti_pdf_txt('Za co'), 1, 1, 'L', true);
+        $pdf->Cell(30, 6, ti_pdf_txt('Kategoria'), 1, 0, 'C', true);
+        $pdf->Cell($wDesc, 6, ti_pdf_txt('Za co'), 1, 0, 'L', true);
+        $pdf->Cell(38, 6, ti_pdf_txt('Wystawił(a)'), 1, 1, 'L', true);
         $pdf->SetFont('DejaVu', '', 8);
         foreach (array_reverse($cgr) as $g) {
             if ($pdf->GetY() > 280) { $pdf->AddPage(); }
@@ -153,8 +155,9 @@ function ti_grades_pdf_student(int $client_id, string $student_name = ''): void 
             $pdf->Cell(16, 6, ti_pdf_txt((string)$g['value_text']), 1, 0, 'C', true);
             $pdf->SetTextColor(0,0,0); $pdf->SetFont('DejaVu','',8);
             $pdf->Cell(12, 6, ti_pdf_txt(rtrim(rtrim(number_format((float)$g['weight'],2,'.',''),'0'),'.') ?: '1'), 1, 0, 'C');
-            $pdf->Cell(34, 6, ti_pdf_txt(k30_ti_grade_category_label((string)$g['category'])), 1, 0, 'L');
-            $pdf->Cell($W-22-16-12-34, 6, ti_pdf_txt(mb_substr((string)$g['description'],0,60)), 1, 1, 'L');
+            $pdf->Cell(30, 6, ti_pdf_txt(k30_ti_grade_category_label((string)$g['category'])), 1, 0, 'L');
+            $pdf->Cell($wDesc, 6, ti_pdf_txt(mb_substr((string)$g['description'],0,45)), 1, 0, 'L');
+            $pdf->Cell(38, 6, ti_pdf_txt(mb_substr((string)($g['graded_by_name'] ?? ''),0,22)), 1, 1, 'L');
         }
         $pdf->Ln(3);
     }
