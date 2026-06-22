@@ -94,6 +94,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             'created_at'   => date('Y-m-d H:i:s'),
         ];
         if (!$sess_data['lesson_date']) { flash_set('danger','Data lekcji jest wymagana.'); header('Location: course.php?id='.$id.'#lekcje'); exit; }
+        // Zajęcia tylko w dostępności prowadzącego — admin może nadpisać
+        $av = ti_instructor_available_at(ti_course_instructor_id((int)$id), $sess_data['lesson_date'], $tf, $tt);
+        if (!$av['ok'] && empty($_POST['ignore_availability'])) {
+            flash_set('warning', $av['reason'] . ' Aby dodać mimo to, zaznacz „Dodaj poza dostępnością".');
+            header('Location: course.php?id='.$id.'#lekcje'); exit;
+        }
         $sid = db_insert('k30_ti_sessions', $sess_data);
         // Wstępnie utwórz obecność dla wszystkich aktywnych uczestników
         $enrolled = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$id]);
@@ -117,6 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $src      = $src_id ? db_one("SELECT * FROM k30_ti_sessions WHERE id=?", [$src_id]) : null;
         if (!$src || !$new_date) {
             flash_set('danger','Podaj datę dla sklonowanej lekcji.');
+            header('Location: course.php?id='.$id.'#lekcje'); exit;
+        }
+        // Dostępność prowadzącego dla nowego terminu — admin może nadpisać
+        $av = ti_instructor_available_at(ti_course_instructor_id((int)$src['course_id']), $new_date, (string)$src['time_from'], (string)$src['time_to']);
+        if (!$av['ok'] && empty($_POST['ignore_availability'])) {
+            flash_set('warning', $av['reason'] . ' Aby sklonować mimo to, zaznacz „Klonuj poza dostępnością".');
             header('Location: course.php?id='.$id.'#lekcje'); exit;
         }
         $new_id = db_insert('k30_ti_sessions', [
@@ -462,7 +474,24 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="form-text">Puste = stały link grupy: <span class="font-monospace"><?= h($course['default_meeting_url']) ?></span></div>
             <?php endif; ?>
           </div>
-          <p class="form-text mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Lekcje mogą być w dowolnych dniach i godzinach — bez ograniczeń tygodniowych.</p>
+          <?php $c_av = ti_instructor_availability(ti_course_instructor_id((int)$id)); ?>
+          <?php if ($c_av): ?>
+          <div class="form-text mb-2"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Dostępność prowadzącego:
+            <?php
+              $byd = [];
+              foreach ($c_av as $w) { $byd[(int)$w['day_of_week']][] = substr($w['time_from'],0,5).'–'.substr($w['time_to'],0,5); }
+              $parts = [];
+              foreach ([1,2,3,4,5,6,0] as $dw) { if (!empty($byd[$dw])) $parts[] = mb_substr(K30_TI_DAYS[$dw],0,2,'UTF-8').' '.implode('/', $byd[$dw]); }
+              echo h(implode(' · ', $parts));
+            ?>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="ignore_availability" id="sess_ignore" value="1">
+            <label class="form-check-label" for="sess_ignore">Dodaj poza dostępnością (nadpisanie administratora)</label>
+          </div>
+          <?php else: ?>
+          <p class="form-text mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Prowadzący nie ma zdefiniowanej dostępności — lekcje bez ograniczeń. <a href="availability.php?instructor=<?= ti_course_instructor_id((int)$id) ?>">Ustaw dostępność</a>.</p>
+          <?php endif; ?>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
@@ -515,8 +544,14 @@ document.querySelectorAll('.rate-form').forEach(function(form) {
             <label class="form-label fw-semibold">Nowa data lekcji <span class="text-danger">*</span></label>
             <input type="date" class="form-control" name="clone_date" id="clone_date"
                    value="<?= date('Y-m-d') ?>" required min="<?= date('Y-m-d') ?>">
-            <div class="form-text">Godziny (<?= '' ?>od–do) i czas trwania zostaną skopiowane z oryginału.</div>
+            <div class="form-text">Godziny (od–do) i czas trwania zostaną skopiowane z oryginału.</div>
           </div>
+          <?php if (ti_instructor_availability(ti_course_instructor_id((int)$id))): ?>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="ignore_availability" id="clone_ignore" value="1">
+            <label class="form-check-label" for="clone_ignore">Klonuj poza dostępnością prowadzącego (nadpisanie)</label>
+          </div>
+          <?php endif; ?>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>

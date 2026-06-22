@@ -18,6 +18,7 @@ $uid = (int)$me['user_id'];
 
 $courses   = dyd_courses($uid);
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
+$my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
 
 // ── Pobieranie załączników (zadania / materiały) — tylko z własnych kursów ────
 if (isset($_GET['dl'])) {
@@ -39,7 +40,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'dostepnosc'], true)) $tab = 'lekcje';
 
 /** Adres powrotu zachowujący kurs i zakładkę. */
 function dyd_back(int $course, string $tab): string {
@@ -54,7 +55,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $course_id = (int)($_POST['course_id'] ?? 0);
     $back_tab  = in_array($_POST['_tab'] ?? '', ['lekcje','zadania','materialy'], true) ? $_POST['_tab'] : 'lekcje';
 
-    // Każda operacja wymaga własności kursu.
+    // ── Dostępność prowadzącego (własna, niezależna od kursu) ───────────────────
+    if ($op === 'avail_add') {
+        $dw = (int)($_POST['day_of_week'] ?? -1);
+        if (!ti_avail_add($uid, $dw, $_POST['time_from'] ?? '', $_POST['time_to'] ?? '')) {
+            flash_set('danger', 'Podaj poprawny dzień oraz godziny od–do (od < do).');
+        } else {
+            flash_set('success', 'Dodano okno dostępności.');
+        }
+        header('Location: index.php?course=' . $course_id . '&tab=dostepnosc'); exit;
+    }
+    if ($op === 'avail_delete') {
+        ti_avail_delete((int)($_POST['avail_id'] ?? 0), $uid);
+        flash_set('success', 'Usunięto okno dostępności.');
+        header('Location: index.php?course=' . $course_id . '&tab=dostepnosc'); exit;
+    }
+
+    // Pozostałe operacje wymagają własności kursu.
     if (!dyd_owns_course($uid, $course_id)) { http_response_code(403); exit('Brak uprawnień do tego kursu.'); }
 
     // ── LEKCJE ────────────────────────────────────────────────────────────────
@@ -71,6 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($m > 0) $dur = (int)$m;
         }
         if ($date === '') { flash_set('danger', 'Data lekcji jest wymagana.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+
+        // Zajęcia tylko w dostępności prowadzącego (gdy zdefiniowana)
+        $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
+        if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
         if ($sid && dyd_owns_session($uid, $sid)) {
             $st = in_array($_POST['status'] ?? '', ['planned','held'], true) ? $_POST['status'] : 'planned';
@@ -128,6 +149,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $dur = 60;
         if ($tf && $tt) { $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60; if ($m > 0) $dur = (int)$m; }
+        // Cała seria ma ten sam dzień tygodnia i godziny — sprawdzamy raz
+        $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
+        if (!$av['ok']) { flash_set('danger', $av['reason'] . ' Seria nie została utworzona.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         $enrollees = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]);
         $created = 0;
         for ($i = 0; $i < $count; $i++) {
@@ -750,7 +774,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
                'zadania'=>['Zadania','journal-check',count($homeworks)],
-               'materialy'=>['Materiały','collection-play',count($materials)]];
+               'materialy'=>['Materiały','collection-play',count($materials)],
+               'dostepnosc'=>['Dostępność','clock-history',count($my_avail)]];
       foreach ($tabs as $k=>$ti): ?>
     <li class="nav-item" role="presentation">
       <a class="nav-link <?= $tab===$k?'active':'' ?>" href="index.php?course=<?= $cur_course ?>&tab=<?= $k ?>">
@@ -1121,6 +1146,69 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $matFormHtml($m, 'edM'.(int)$m['id']); ?></div></div>
     </div>
     <?php endforeach; ?>
+    <?php endif; ?>
+
+    <?php /* ═══════════════════════ DOSTĘPNOŚĆ ═══════════════════════ */ ?>
+    <?php if ($tab === 'dostepnosc'):
+      $av_by_day = [];
+      foreach ($my_avail as $w) { $av_by_day[(int)$w['day_of_week']][] = $w; }
+    ?>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent">
+        <span class="fw-semibold"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Moja dostępność w tygodniu</span>
+      </div>
+      <div class="card-body">
+        <p class="text-body-secondary small">Zajęcia można dodać tylko w godzinach Twojej dostępności. Bez zdefiniowanych okien obowiązują dotychczasowe zasady (bez ograniczeń). Możesz dodać kilka okien w jednym dniu.</p>
+        <div class="row g-3">
+          <?php foreach ([1,2,3,4,5,6,0] as $dw): $wins = $av_by_day[$dw] ?? []; ?>
+          <div class="col-md-6 col-lg-4">
+            <div class="border rounded p-2 h-100">
+              <div class="fw-semibold mb-2"><i class="bi bi-calendar-day me-1 text-primary" aria-hidden="true"></i><?= h(K30_TI_DAYS[$dw]) ?></div>
+              <?php if (!$wins): ?><div class="text-body-secondary small mb-2">— niedostępny —</div><?php endif; ?>
+              <?php foreach ($wins as $w): ?>
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge text-bg-primary"><?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?></span>
+                <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć to okno dostępności?')">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="avail_delete">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="avail_id" value="<?= (int)$w['id'] ?>">
+                  <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń okno" aria-label="Usuń okno <?= h(K30_TI_DAYS[$dw]) ?> <?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?>"><i class="bi bi-trash" aria-hidden="true"></i></button>
+                </form>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+
+        <hr>
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="avail_add">
+          <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+          <div class="col-sm-4">
+            <label class="form-label fw-semibold" for="av_dow">Dzień tygodnia</label>
+            <select class="form-select" id="av_dow" name="day_of_week" required>
+              <?php foreach ([1,2,3,4,5,6,0] as $dw): ?>
+              <option value="<?= $dw ?>"><?= h(K30_TI_DAYS[$dw]) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label fw-semibold" for="av_from">Od</label>
+            <select class="form-select" id="av_from" name="time_from"><?= ti_time_options('09:00') ?></select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label fw-semibold" for="av_to">Do</label>
+            <select class="form-select" id="av_to" name="time_to"><?= ti_time_options('13:00') ?></select>
+          </div>
+          <div class="col-sm-2">
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj</button>
+          </div>
+        </form>
+      </div>
+    </div>
     <?php endif; ?>
 
   </div>

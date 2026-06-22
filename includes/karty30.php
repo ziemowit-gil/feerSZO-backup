@@ -639,6 +639,11 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN student_no     TEXT    NOT NULL DEFAULT ''",
         // Blokada dostępu dziecka do panelu nałożona przez opiekuna (kontrola rodzicielska)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN child_access_blocked INTEGER NOT NULL DEFAULT 0",
+        // Konto rodzica/opiekuna (login + hasło) — login = pierwsza litera imienia.nazwisko-r
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_login         TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_password_hash TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_must_change   INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_last_login    DATETIME",
         // ── Nauka online: konto MS (tenant szkoleniowy) + konto Moodle ────────
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_user_id        TEXT NOT NULL DEFAULT ''", // objectId w tenancie szkoleniowym
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN ms_upn            TEXT NOT NULL DEFAULT ''", // login MS = login Moodle
@@ -779,6 +784,20 @@ function karty30_migrate(): void {
         UNIQUE(attempt_id, question_id)
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tans_att ON k30_ti_test_answers(attempt_id)");
+
+    // ── Dostępność prowadzących w tygodniu (okna godzinowe per dzień) ─────────
+    // day_of_week zgodne z PHP date('w') i K30_TI_DAYS: 0=Nd, 1=Pn … 6=Sb.
+    // Dozwolone wiele okien w jednym dniu (np. 9:00–12:00 i 15:00–18:00).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_availability (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        day_of_week   INTEGER NOT NULL,
+        time_from     TEXT    NOT NULL DEFAULT '',
+        time_to       TEXT    NOT NULL DEFAULT '',
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_avail_instr ON k30_ti_instructor_availability(instructor_id, day_of_week)");
 }
 
 // Konfiguracja statusów harmonogramu
@@ -3497,4 +3516,91 @@ function k30_ti_test_sync_grade(int $attempt_id): void {
             'weight'=>3, 'description'=>$desc,
         ]);
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DOSTĘPNOŚĆ PROWADZĄCYCH (k30_ti_instructor_availability) — sloty tygodniowe
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Minuty od północy z 'HH:MM' (0 dla pustej). */
+function ti_hm2min(string $hm): int {
+    $hm = trim($hm);
+    if (strlen($hm) < 4) return 0;
+    return (int)substr($hm, 0, 2) * 60 + (int)substr($hm, 3, 2);
+}
+
+/** Aktywne okna dostępności prowadzącego, posortowane Pn→Nd, potem od godziny. */
+function ti_instructor_availability(int $instructor_id): array {
+    if (!$instructor_id) return [];
+    return db_all(
+        "SELECT * FROM k30_ti_instructor_availability
+         WHERE instructor_id=? AND is_active=1
+         ORDER BY (day_of_week + 6) % 7, time_from",
+        [$instructor_id]
+    );
+}
+
+/** Dodaj okno dostępności. Zwraca false przy błędnych godzinach. */
+function ti_avail_add(int $instructor_id, int $dow, string $from, string $to): bool {
+    $from = substr(trim($from), 0, 5);
+    $to   = substr(trim($to), 0, 5);
+    if (!$instructor_id || $dow < 0 || $dow > 6) return false;
+    if ($from === '' || $to === '' || ti_hm2min($from) >= ti_hm2min($to)) return false;
+    db_insert('k30_ti_instructor_availability', [
+        'instructor_id' => $instructor_id, 'day_of_week' => $dow,
+        'time_from' => $from, 'time_to' => $to, 'is_active' => 1,
+    ]);
+    return true;
+}
+
+function ti_avail_delete(int $id, int $instructor_id): void {
+    db()->prepare("DELETE FROM k30_ti_instructor_availability WHERE id=? AND instructor_id=?")
+        ->execute([$id, $instructor_id]);
+}
+
+/**
+ * Czy prowadzący jest dostępny w danym terminie?
+ * Zwraca ['ok'=>bool, 'configured'=>bool, 'reason'=>string].
+ *  - brak instruktora lub brak zdefiniowanej dostępności → ok=true (nie egzekwujemy),
+ *  - kolizja z urlopem/nieobecnością → ok=false,
+ *  - poza oknami danego dnia → ok=false.
+ */
+function ti_instructor_available_at(int $instructor_id, string $date, string $time_from, string $time_to = ''): array {
+    $res = ['ok' => true, 'configured' => false, 'reason' => ''];
+    if (!$instructor_id || $date === '') return $res;
+
+    // Kolizja z nieobecnością (urlop/chorobowe) — jeśli moduł urlopów dostępny
+    if (function_exists('ti_instructor_on_leave')) {
+        $lv = ti_instructor_on_leave($instructor_id, $date);
+        if ($lv) {
+            $t = trim((string)($lv['type'] ?? '')) ?: 'nieobecność';
+            return ['ok' => false, 'configured' => true, 'reason' => 'Prowadzący ma w tym dniu nieobecność (' . $t . ').'];
+        }
+    }
+
+    $rows = ti_instructor_availability($instructor_id);
+    $res['configured'] = (bool)$rows;
+    if (!$rows) return $res;   // brak zdefiniowanej dostępności → bez ograniczeń
+
+    $dow = (int)date('w', strtotime($date));
+    $day = array_values(array_filter($rows, fn($r) => (int)$r['day_of_week'] === $dow));
+    if (!$day) {
+        $dname = K30_TI_DAYS[$dow] ?? '';
+        return ['ok' => false, 'configured' => true, 'reason' => 'Prowadzący nie jest dostępny w wybranym dniu' . ($dname ? ' (' . $dname . ')' : '') . '.'];
+    }
+    $f = ti_hm2min($time_from);
+    $t = $time_to !== '' ? ti_hm2min($time_to) : $f;
+    foreach ($day as $w) {
+        if ($f >= ti_hm2min($w['time_from']) && $t <= ti_hm2min($w['time_to'])) {
+            return ['ok' => true, 'configured' => true, 'reason' => ''];
+        }
+    }
+    $win = implode(', ', array_map(fn($w) => substr($w['time_from'],0,5) . '–' . substr($w['time_to'],0,5), $day));
+    return ['ok' => false, 'configured' => true, 'reason' => 'Termin poza godzinami dostępności prowadzącego (' . $win . ').'];
+}
+
+/** Skrót: id prowadzącego kursu. */
+function ti_course_instructor_id(int $course_id): int {
+    if (!$course_id) return 0;
+    return (int)(db_one("SELECT instructor_id FROM k30_ti_courses WHERE id=?", [$course_id])['instructor_id'] ?? 0);
 }
