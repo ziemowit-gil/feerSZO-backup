@@ -59,6 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             ]);
             flash_set('success','Ocena wystawiona.');
         }
+        // Powiadom kursanta o ocenie (opcjonalnie)
+        if (isset($_POST['notify'])) {
+            k30_ti_notify_grade($cid, $client_id, $vtext, $CATS[$cat]['label'] ?? $cat, $desc);
+        }
         header('Location: grades.php?course='.$cid); exit;
     }
 
@@ -271,6 +275,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <option value="<?= (int)$s['id'] ?>" <?= (int)$gf['session_id']===(int)$s['id']?'selected':'' ?>><?= h(substr($s['lesson_date'],0,10)) ?><?= $s['topic'] ? ' · '.h(mb_substr($s['topic'],0,30)) : '' ?></option>
               <?php endforeach; ?>
             </select>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" name="notify" id="grade-notify" value="1" checked>
+            <label class="form-check-label" for="grade-notify">Powiadom kursanta e-mailem o ocenie</label>
           </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary"><?= $edit_row ? 'Zapisz' : 'Wystaw ocenę' ?></button>

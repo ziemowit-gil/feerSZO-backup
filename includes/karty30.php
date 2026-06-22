@@ -2682,6 +2682,44 @@ function k30_ti_notify_student_cancel_decision(int $session_id, int $client_id, 
     }
 }
 
+/** Powiadom kursanta (i opiekuna małoletniego) e-mailem o nowej/zmienionej ocenie. */
+function k30_ti_notify_grade(int $course_id, int $client_id, string $valueText, string $categoryLabel, string $description): void {
+    $row = db_one(
+        "SELECT c.name AS course_name, cl.name AS client_name, cl.email,
+                a.is_minor, a.guardian_email, a.notify_email_dydaktyka
+         FROM k30_ti_courses c
+         JOIN k30_clients cl ON cl.id=?
+         LEFT JOIN k30_ti_student_accounts a ON a.client_id=cl.id AND a.is_active=1
+         WHERE c.id=? LIMIT 1",
+        [$client_id, $course_id]
+    );
+    if (!$row) return;
+    // Szanuj wyłączone powiadomienia dydaktyczne (gdy konto istnieje i pref=0)
+    if ($row['notify_email_dydaktyka'] !== null && (int)$row['notify_email_dydaktyka'] === 0) return;
+    $emails = [];
+    $primary = trim((string)($row['email'] ?? ''));
+    if ($primary !== '' && filter_var($primary, FILTER_VALIDATE_EMAIL)) $emails[$primary] = (string)$row['client_name'];
+    $gemail = trim((string)($row['guardian_email'] ?? ''));
+    if (!empty($row['is_minor']) && $gemail !== '' && filter_var($gemail, FILTER_VALIDATE_EMAIL)) $emails[$gemail] = (string)$row['client_name'];
+    if (!$emails) return;
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return;
+    $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=oceny';
+    $crs = htmlspecialchars((string)$row['course_name'], ENT_QUOTES);
+    $val = htmlspecialchars($valueText, ENT_QUOTES);
+    $catTxt = $categoryLabel !== '' ? ' (' . htmlspecialchars($categoryLabel, ENT_QUOTES) . ')' : '';
+    $html = "<p>Dzień dobry,</p>"
+          . "<p>W kursie <strong>{$crs}</strong> wystawiono ocenę: <strong>{$val}</strong>{$catTxt}.</p>"
+          . ($description !== '' ? "<p>" . htmlspecialchars($description, ENT_QUOTES) . "</p>" : "")
+          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Zobacz oceny w panelu kursanta</a></p>"
+          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
+    foreach ($emails as $addr => $nm) {
+        try { mail_queue_add($addr, $nm, "{$org}: nowa ocena — " . (string)$row['course_name'], $html, '', 'ti_grade', $course_id, '', false); }
+        catch (\Throwable $e) {}
+    }
+}
+
 /**
  * Odwołuje całą lekcję (Doradca / admin) — status='cancelled', z powodem i autorem.
  * Odwołana lekcja nie jest liczona do ceny (rozliczenie bierze tylko status='held').
