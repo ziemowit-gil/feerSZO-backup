@@ -79,6 +79,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [2, 5],       // między 2:00 a 5:00
     ],
+    'k30_ti_billing_autoissue' => [
+        'file'     => __DIR__ . '/k30_ti_billing_autoissue.php',
+        'interval' => 86400,        // raz dziennie (skrypt działa tylko w ostatni dzień miesiąca)
+        'schedule' => [21, 23],     // wieczorem ostatniego dnia miesiąca
+    ],
     'backup' => [
         'file'     => __DIR__ . '/agents/backup.php',
         'interval' => 86400,
