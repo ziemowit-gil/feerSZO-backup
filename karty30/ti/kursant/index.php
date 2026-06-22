@@ -750,8 +750,12 @@ include __DIR__ . '/_layout_head.php';
     usort($up_far, fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date'])); // najbliższa pierwsza
     // $past_far zostaje malejąco (z zapytania) — od najnowszej
 
+    // Zadania domowe podpięte pod konkretną lekcję (session_id => [zadania])
+    $hw_by_session = [];
+    foreach ($homeworks_student as $hw) { $sid = (int)($hw['session_id'] ?? 0); if ($sid) $hw_by_session[$sid][] = $hw; }
+
     // Wiersz pojedynczej lekcji — współdzielony przez obie grupy
-    $lessonRow = function(array $l) use ($months_pl, $vlab_token) {
+    $lessonRow = function(array $l) use ($months_pl, $vlab_token, $hw_by_session) {
             $d   = new DateTime($l['lesson_date']);
             $dow = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$d->format('w')];
             $eff_link = trim((string)($l['meeting_url'] ?? '')) !== '' ? $l['meeting_url'] : (string)($l['course_meeting_url'] ?? '');
@@ -771,9 +775,22 @@ include __DIR__ . '/_layout_head.php';
               <?= h($l['topic']) ?>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
             </td>
-            <td>
-              <?php if (($l['has_homework'] ?? 0) && empty($l['self_prep_remote'])): ?>
-              <span class="badge text-bg-warning"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>zadanie</span>
+            <td style="max-width:220px">
+              <?php $lesson_hws = $hw_by_session[(int)$l['id']] ?? [];
+                if ($lesson_hws): ?>
+              <div class="d-flex flex-column gap-1">
+                <?php foreach ($lesson_hws as $lh):
+                  $hdone = !empty($lh['sub_id']); $hgraded = ($lh['sub_status'] ?? '') === 'graded';
+                  $hcls  = $hgraded ? 'text-bg-success' : ($hdone ? 'text-bg-secondary' : 'text-bg-warning');
+                  $hlbl  = $hgraded ? 'ocenione' : ($hdone ? 'oddane' : 'do oddania'); ?>
+                <a href="?tab=zadania" class="badge <?= $hcls ?> text-decoration-none text-wrap text-start"
+                   title="<?= h($lh['title']) ?> — <?= $hlbl ?>">
+                  <i class="bi bi-journal-text me-1" aria-hidden="true"></i><?= h($lh['title']) ?>
+                </a>
+                <?php endforeach; ?>
+              </div>
+              <?php elseif (($l['has_homework'] ?? 0) && empty($l['self_prep_remote'])): ?>
+              <a href="?tab=zadania" class="badge text-bg-warning text-decoration-none"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>zadanie</a>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
             </td>
             <td>
