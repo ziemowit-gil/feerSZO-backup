@@ -319,6 +319,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_by_role TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_by      TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_attendance ADD COLUMN cancelled_at      DATETIME",
+        // Prośba kursanta o odwołanie udziału czeka na potwierdzenie prowadzącego
+        "ALTER TABLE k30_ti_attendance ADD COLUMN cancel_pending    INTEGER NOT NULL DEFAULT 0",
         // Token prywatnego kanału iCal (subskrypcja lekcji w Google/Apple/Outlook)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN calendar_token TEXT NOT NULL DEFAULT ''",
         // Zgoda kursanta/beneficjenta na powiadomienia SMS o zajęciach (opt-in)
@@ -1719,7 +1721,8 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
     return db_all(
         "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url,
                 a.attended, a.ind_notes,
-                a.cancelled AS att_cancelled, a.cancel_reason AS att_cancel_reason,
+                a.cancelled AS att_cancelled, a.cancel_pending AS att_cancel_pending,
+                a.cancel_reason AS att_cancel_reason,
                 a.cancelled_by_role AS att_cancelled_by_role,
                 r.rating AS my_rating, r.comment AS my_comment
          FROM k30_ti_sessions s
@@ -2567,9 +2570,72 @@ function k30_ti_cancel_attendance(int $session_id, int $client_id, string $reaso
 function k30_ti_uncancel_attendance(int $session_id, int $client_id): void {
     db()->prepare(
         "UPDATE k30_ti_attendance
-         SET cancelled=0, cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL
+         SET cancelled=0, cancel_pending=0, cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL
          WHERE session_id=? AND client_id=?"
     )->execute([$session_id, $client_id]);
+}
+
+/**
+ * Prośba o odwołanie udziału (np. od beneficjenta) — NIE odwołuje od razu,
+ * tylko ustawia stan „czeka na potwierdzenie" i powiadamia prowadzącego mailem.
+ * Potwierdzenie (k30_ti_confirm_cancel_attendance) zmienia to w faktyczne odwołanie.
+ */
+function k30_ti_request_cancel_attendance(int $session_id, int $client_id, string $reason, string $role, string $by_label): void {
+    $role = array_key_exists($role, K30_TI_CANCEL_ROLES) ? $role : 'beneficjent';
+    $ex = db_one("SELECT id FROM k30_ti_attendance WHERE session_id=? AND client_id=?", [$session_id, $client_id]);
+    if ($ex) {
+        db()->prepare(
+            "UPDATE k30_ti_attendance
+             SET cancel_pending=1, cancelled=0, cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now')
+             WHERE id=?"
+        )->execute([$reason, $role, $by_label, (int)$ex['id']]);
+    } else {
+        db_insert('k30_ti_attendance', [
+            'session_id' => $session_id, 'client_id' => $client_id, 'attended' => 0,
+            'cancel_pending' => 1, 'cancelled' => 0, 'cancel_reason' => $reason,
+            'cancelled_by_role' => $role, 'cancelled_by' => $by_label, 'cancelled_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+    k30_ti_notify_instructor_cancel_request($session_id, $client_id, $reason);
+}
+
+/** Potwierdzenie prośby o odwołanie przez prowadzącego — udział staje się odwołany. */
+function k30_ti_confirm_cancel_attendance(int $session_id, int $client_id): void {
+    db()->prepare(
+        "UPDATE k30_ti_attendance SET cancelled=1, cancel_pending=0, attended=0 WHERE session_id=? AND client_id=?"
+    )->execute([$session_id, $client_id]);
+}
+
+/** E-mail do prowadzącego o prośbie kursanta o odwołanie udziału w lekcji. */
+function k30_ti_notify_instructor_cancel_request(int $session_id, int $client_id, string $reason): void {
+    $row = db_one(
+        "SELECT s.lesson_date, s.time_from, c.name AS course_name, c.instructor_id,
+                COALESCE(NULLIF(TRIM(u.first_name||' '||u.last_name),''), u.name) AS instructor_name,
+                u.email AS instructor_email, cl.name AS client_name
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         LEFT JOIN users u ON u.id=c.instructor_id
+         JOIN k30_clients cl ON cl.id=?
+         WHERE s.id=?",
+        [$client_id, $session_id]
+    );
+    if (!$row) return;
+    $email = trim((string)($row['instructor_email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return;
+    $org  = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    $when = date('d.m.Y', strtotime($row['lesson_date'])) . ($row['time_from'] ? ' o ' . substr($row['time_from'], 0, 5) : '');
+    $url  = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/dydaktyk/index.php';
+    $html = "<p>Dzień dobry,</p>"
+          . "<p><strong>" . htmlspecialchars((string)$row['client_name'], ENT_QUOTES) . "</strong> prosi o odwołanie udziału w lekcji "
+          . "<strong>" . htmlspecialchars((string)$row['course_name'], ENT_QUOTES) . "</strong> (" . htmlspecialchars($when, ENT_QUOTES) . ").</p>"
+          . ($reason !== '' ? "<p>Powód: " . htmlspecialchars($reason, ENT_QUOTES) . "</p>" : "")
+          . "<p>Prośba czeka na Twoje potwierdzenie. Otwórz panel dydaktyka, aby potwierdzić lub odrzucić odwołanie.</p>"
+          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Panel dydaktyka</a></p>"
+          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
+    try { mail_queue_add($email, (string)($row['instructor_name'] ?? ''), "{$org}: prośba o odwołanie lekcji — {$when}", $html, '', 'ti_cancel_req', $session_id, '', false); }
+    catch (\Throwable $e) {}
 }
 
 /**

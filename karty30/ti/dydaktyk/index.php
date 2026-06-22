@@ -125,6 +125,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // Potwierdzenie / odrzucenie prośby kursanta o odwołanie udziału w lekcji
+    if ($op === 'confirm_cancel' || $op === 'reject_cancel') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        $cid = (int)($_POST['client_id'] ?? 0);
+        if ($sid && $cid && dyd_owns_session($uid, $sid)) {
+            if ($op === 'confirm_cancel') {
+                k30_ti_confirm_cancel_attendance($sid, $cid);
+                flash_set('success', 'Odwołanie potwierdzone — udział nie będzie liczony do ceny.');
+            } else {
+                k30_ti_uncancel_attendance($sid, $cid);
+                flash_set('success', 'Prośba o odwołanie odrzucona — udział przywrócony.');
+            }
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     // ── ZADANIA DOMOWE ──────────────────────────────────────────────────────────
     if ($op === 'save_homework') {
         $hid       = (int)($_POST['homework_id'] ?? 0);
@@ -639,6 +655,41 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <span class="text-body-secondary small ms-auto"><i class="bi bi-people me-1"></i><?= (int)$s['attended_count'] ?>/<?= (int)$s['total_count'] ?></span>
           </div>
           <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>
+          <?php
+            $pending = db_all(
+              "SELECT a.client_id, cl.name, a.cancel_reason
+               FROM k30_ti_attendance a JOIN k30_clients cl ON cl.id=a.client_id
+               WHERE a.session_id=? AND a.cancel_pending=1 ORDER BY cl.name", [(int)$s['id']]);
+            if ($pending): ?>
+          <div class="alert alert-warning py-2 px-2 mt-2 mb-0 small">
+            <div class="fw-semibold mb-1"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Prośby o odwołanie udziału — czekają na potwierdzenie</div>
+            <?php foreach ($pending as $pr): ?>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+              <span><?= h($pr['name']) ?><?php if ($pr['cancel_reason']): ?> <span class="text-body-secondary">— <?= h($pr['cancel_reason']) ?></span><?php endif; ?></span>
+              <div class="ms-auto d-flex gap-1">
+                <form method="post" class="d-inline" onsubmit="return confirm('Potwierdzić odwołanie udziału tego kursanta?')">
+                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op" value="confirm_cancel">
+                  <input type="hidden" name="_tab" value="lekcje">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                  <input type="hidden" name="client_id" value="<?= (int)$pr['client_id'] ?>">
+                  <button class="btn btn-sm btn-danger py-0 px-2"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Potwierdź odwołanie</button>
+                </form>
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op" value="reject_cancel">
+                  <input type="hidden" name="_tab" value="lekcje">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                  <input type="hidden" name="client_id" value="<?= (int)$pr['client_id'] ?>">
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Odrzuć</button>
+                </form>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
           <div class="mt-2 d-flex gap-2 flex-wrap">
             <button type="button" class="btn btn-sm btn-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"><i class="bi bi-people me-1"></i>Obecność</button>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>

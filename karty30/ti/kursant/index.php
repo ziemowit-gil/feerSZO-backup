@@ -64,19 +64,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              WHERE s.id=?",
             [$student['client_id'], $sid]
         );
+        $cancel_flag = '';
         if ($own && $own['status'] === 'planned') {
             if ($op === 'cancel_lesson') {
                 $reason = trim($_POST['reason'] ?? '');
-                k30_ti_cancel_attendance(
+                // Prośba o odwołanie — czeka na potwierdzenie prowadzącego (mail do niego)
+                k30_ti_request_cancel_attendance(
                     $sid, $student['client_id'],
                     $reason !== '' ? $reason : 'Odwołane przez beneficjenta',
                     'beneficjent', $client['name'] ?? ''
                 );
+                $cancel_flag = 'requested';
             } else {
                 k30_ti_uncancel_attendance($sid, $student['client_id']);
+                $cancel_flag = 'withdrawn';
             }
         }
-        header('Location: index.php?tab=lekcje'); exit;
+        header('Location: index.php?tab=lekcje' . ($cancel_flag ? '&cancel=' . $cancel_flag : '')); exit;
     }
 
     // Ocena odbytej lekcji (1–5) przez kursanta
@@ -679,6 +683,17 @@ include __DIR__ . '/_layout_head.php';
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
   </div>
   <?php endif; ?>
+  <?php if (($_GET['cancel'] ?? '') === 'requested'): ?>
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Prośba o odwołanie została wysłana do prowadzącego i czeka na potwierdzenie.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php elseif (($_GET['cancel'] ?? '') === 'withdrawn'): ?>
+  <div class="alert alert-secondary alert-dismissible fade show" role="alert">
+    <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Prośba o odwołanie została wycofana.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php endif; ?>
 
   <!-- Statystyki -->
   <div class="row g-3 mb-4">
@@ -768,9 +783,11 @@ include __DIR__ . '/_layout_head.php';
               <span class="badge text-bg-secondary"><i class="bi bi-person-video3 me-1" aria-hidden="true"></i>Lekcja z uczestnikiem</span>
               <?php endif; ?>
             </td>
-            <?php $att_cancelled = (int)($l['att_cancelled'] ?? 0) === 1; ?>
+            <?php $att_cancelled = (int)($l['att_cancelled'] ?? 0) === 1; $att_pending = (int)($l['att_cancel_pending'] ?? 0) === 1; ?>
             <td class="text-center">
-              <?php if ($att_cancelled): ?>
+              <?php if ($att_pending): ?>
+              <span class="badge text-bg-warning" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Czeka na potwierdzenie</span>
+              <?php elseif ($att_cancelled): ?>
               <span class="badge text-bg-danger" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>odwołane</span>
               <?php elseif ($l['status'] !== 'held'): ?>
               <span class="badge text-bg-secondary"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
@@ -810,21 +827,21 @@ include __DIR__ . '/_layout_head.php';
                 <?php endif; ?>
               </button>
               <?php endif; ?>
-              <?php if ($l['status'] === 'planned' && !$att_cancelled): ?>
+              <?php if ($l['status'] === 'planned' && $att_pending): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Wycofać prośbę o odwołanie i potwierdzić udział?')">
+                <input type="hidden" name="_token"     value="<?= h($vlab_token) ?>">
+                <input type="hidden" name="_op"         value="uncancel_lesson">
+                <input type="hidden" name="session_id"  value="<?= (int)$l['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Cofnij prośbę
+                </button>
+              </form>
+              <?php elseif ($l['status'] === 'planned' && !$att_cancelled): ?>
               <button type="button" class="btn btn-sm btn-outline-danger"
                       data-cancel-session="<?= (int)$l['id'] ?>"
                       data-lesson-label="<?= h($l['course_name'].' — '.$d->format('d.m.Y')) ?>">
                 <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Odwołaj
               </button>
-              <?php elseif ($l['status'] === 'planned' && $att_cancelled): ?>
-              <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć odwołanie i potwierdzić udział?')">
-                <input type="hidden" name="_token"     value="<?= h($vlab_token) ?>">
-                <input type="hidden" name="_op"         value="uncancel_lesson">
-                <input type="hidden" name="session_id"  value="<?= (int)$l['id'] ?>">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Cofnij
-                </button>
-              </form>
               <?php endif; ?>
               </div>
             </td>
@@ -969,10 +986,10 @@ include __DIR__ . '/_layout_head.php';
 
   <p class="text-body-secondary small mt-2">
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-    Zaplanowaną lekcję możesz odwołać, podając powód — odwołany udział nie jest liczony do ceny.
+    Zaplanowaną lekcję możesz poprosić o odwołanie, podając powód — prośba czeka na potwierdzenie prowadzącego. Po potwierdzeniu udział nie jest liczony do ceny.
   </p>
 
-  <!-- Modal: odwołanie udziału przez beneficjenta -->
+  <!-- Modal: prośba o odwołanie udziału przez beneficjenta -->
   <div class="modal fade" id="cancelLessonModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <form method="post" class="modal-content">
@@ -980,19 +997,19 @@ include __DIR__ . '/_layout_head.php';
         <input type="hidden" name="_op"          value="cancel_lesson">
         <input type="hidden" name="session_id"   id="cl_session_id" value="">
         <div class="modal-header">
-          <h2 class="modal-title h5"><i class="bi bi-x-circle text-danger me-2" aria-hidden="true"></i>Odwołanie lekcji</h2>
+          <h2 class="modal-title h5"><i class="bi bi-hourglass-split text-warning me-2" aria-hidden="true"></i>Prośba o odwołanie lekcji</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
         </div>
         <div class="modal-body">
           <p class="mb-2">Lekcja: <strong id="cl_lesson_label"></strong></p>
-          <p class="text-body-secondary small mb-2">Odwołany udział nie zostanie policzony do ceny. Podaj powód odwołania.</p>
+          <p class="text-body-secondary small mb-2">Prośba zostanie wysłana do prowadzącego i będzie czekać na jego potwierdzenie. Po potwierdzeniu udział nie zostanie policzony do ceny. Podaj powód.</p>
           <label class="form-label fw-semibold" for="cl_reason">Powód odwołania</label>
           <textarea class="form-control" id="cl_reason" name="reason" rows="3" required
                     placeholder="np. choroba, kolizja z innymi obowiązkami…"></textarea>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Odwołaj lekcję</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij prośbę o odwołanie</button>
         </div>
       </form>
     </div>
