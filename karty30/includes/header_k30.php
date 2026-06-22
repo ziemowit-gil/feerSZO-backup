@@ -252,6 +252,24 @@ body {
 .k30-sidebar::-webkit-scrollbar { width: 6px; }
 .k30-sidebar::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
 
+/* Notka o zmianie zakresu / nazwy modułu */
+.k30-rename-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .45rem;
+  margin: .6rem .6rem .2rem;
+  padding: .55rem .7rem;
+  background: var(--k30-purple-bg);
+  border: 1px solid var(--k30-purple-light);
+  border-left: 3px solid var(--k30-purple-mid);
+  border-radius: 6px;
+  font-size: .74rem;
+  line-height: 1.4;
+  color: var(--k30-text-sub);
+}
+.k30-rename-note i { color: var(--k30-purple); font-size: .9rem; flex-shrink: 0; margin-top: .1rem; }
+.k30-rename-note strong { color: var(--k30-text); }
+
 /* Nav label — ukryty wizualnie ale widoczny dla czytników */
 .k30-nav-label {
   font-size: .7rem;
@@ -643,7 +661,14 @@ body {
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 
 <!-- ══ SIDEBAR — lewa nawigacja ══════════════════════════════════════ -->
-<nav class="k30-sidebar" id="k30-nav" aria-label="Nawigacja TyfloKonsultacje">
+<nav class="k30-sidebar" id="k30-nav" aria-label="Nawigacja modułu">
+
+  <!-- Informacja o zmianie zakresu / nazwy modułu -->
+  <div class="k30-rename-note" role="note"
+       aria-label="Moduł obsługuje teraz także Dydaktykę i wkrótce zmieni nazwę z TyfloKonsultacje na Dydaktyka">
+    <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+    <span>Moduł obsługuje teraz także <strong>Dydaktykę</strong>. Wkrótce zmieni nazwę z „TyfloKonsultacje" na <strong>„Dydaktyka"</strong>.</span>
+  </div>
 
   <div class="k30-nav-label" aria-hidden="true">Menu główne</div>
 
@@ -711,23 +736,65 @@ body {
   <?php endif; ?>
 
   <div class="k30-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="k30-nav-label" aria-hidden="true">Zajęcia TI</div>
+  <div class="k30-nav-label" aria-hidden="true">Dydaktyka (TI)</div>
 
   <a href="<?= APP_URL ?>/karty30/ti/index.php"
      class="k30-nav-link"
      <?= _k30_active('/karty30/ti/index') || _k30_active('/karty30/ti/course') || _k30_active('/karty30/ti/lesson') ? 'aria-current="page"' : '' ?>
      aria-label="Kursy i zajęcia informatyki">
     <i class="bi bi-pc-display" aria-hidden="true"></i>
-    Kursy TI
+    Kursy i zajęcia
+  </a>
+
+  <?php if ($_can_write): ?>
+  <a href="<?= APP_URL ?>/karty30/ti/materials.php"
+     class="k30-nav-link"
+     <?= _k30_active('/karty30/ti/materials') ? 'aria-current="page"' : '' ?>
+     aria-label="Materiały dydaktyczne i eLearning">
+    <i class="bi bi-collection-play" aria-hidden="true"></i>
+    Materiały / eLearning
+  </a>
+
+  <a href="<?= APP_URL ?>/karty30/ti/homework.php"
+     class="k30-nav-link"
+     <?= _k30_active('/karty30/ti/homework') ? 'aria-current="page"' : '' ?>
+     aria-label="Zadania domowe kursantów">
+    <i class="bi bi-journal-check" aria-hidden="true"></i>
+    Zadania domowe
+  </a>
+
+  <a href="<?= APP_URL ?>/karty30/ti/grades.php"
+     class="k30-nav-link"
+     <?= _k30_active('/karty30/ti/grades') ? 'aria-current="page"' : '' ?>
+     aria-label="Dziennik ocen — e-dziennik">
+    <i class="bi bi-table" aria-hidden="true"></i>
+    Dziennik ocen
+  </a>
+
+  <a href="<?= APP_URL ?>/karty30/ti/messages.php"
+     class="k30-nav-link"
+     <?= _k30_active('/karty30/ti/messages') ? 'aria-current="page"' : '' ?>
+     aria-label="Wiadomości z kursantami">
+    <i class="bi bi-envelope" aria-hidden="true"></i>
+    Wiadomości
+  </a>
+
+  <a href="<?= APP_URL ?>/karty30/ti/urlopy.php"
+     class="k30-nav-link"
+     <?= _k30_active('/karty30/ti/urlopy') ? 'aria-current="page"' : '' ?>
+     aria-label="Urlopy prowadzących">
+    <i class="bi bi-airplane" aria-hidden="true"></i>
+    Urlopy prowadzących
   </a>
 
   <a href="<?= APP_URL ?>/karty30/ti/billing.php"
      class="k30-nav-link"
      <?= _k30_active('/karty30/ti/billing') ? 'aria-current="page"' : '' ?>
-     aria-label="Miesięczne rozliczenia zajęć TI">
+     aria-label="Miesięczne rozliczenia zajęć">
     <i class="bi bi-receipt" aria-hidden="true"></i>
-    Rozliczenia TI
+    Rozliczenia
   </a>
+  <?php endif; ?>
 
   <div class="k30-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="k30-nav-label" aria-hidden="true">Konsultacje i raporty</div>
@@ -797,6 +864,32 @@ body {
        aria-label="Konta kursantów TI — panel kursanta">
       <i class="bi bi-person-badge" aria-hidden="true"></i>
       Konta kursantów
+    </a>
+
+    <div class="k30-nav-label" aria-hidden="true">Dydaktyka — dostępy i narzędzia</div>
+    <a href="<?= APP_URL ?>/karty30/ti/online_admin.php" class="k30-nav-link"
+       <?= _k30_active('/karty30/ti/online_admin') ? 'aria-current="page"' : '' ?>
+       aria-label="Nauka online — konta MS, Moodle, spotkania Zoom/Teams">
+      <i class="bi bi-camera-video" aria-hidden="true"></i>
+      Nauka online
+    </a>
+    <a href="<?= APP_URL ?>/karty30/ti/moodle_admin.php" class="k30-nav-link"
+       <?= _k30_active('/karty30/ti/moodle_admin') ? 'aria-current="page"' : '' ?>
+       aria-label="Moodle — serwery i kursy">
+      <i class="bi bi-mortarboard" aria-hidden="true"></i>
+      Moodle
+    </a>
+    <a href="<?= APP_URL ?>/karty30/ti/licencje_admin.php" class="k30-nav-link"
+       <?= _k30_active('/karty30/ti/licencje_admin') ? 'aria-current="page"' : '' ?>
+       aria-label="Licencje na oprogramowanie">
+      <i class="bi bi-key" aria-hidden="true"></i>
+      Licencje
+    </a>
+    <a href="<?= APP_URL ?>/karty30/ti/vlab_admin.php" class="k30-nav-link"
+       <?= _k30_active('/karty30/ti/vlab_admin') ? 'aria-current="page"' : '' ?>
+       aria-label="VLAB — laboratoria Docker / SSH">
+      <i class="bi bi-hdd-stack" aria-hidden="true"></i>
+      VLAB / Docker
     </a>
     <a href="<?= APP_URL ?>/karty30/admin/clean_k30.php" class="k30-nav-link"
        <?= _k30_active('/karty30/admin/clean_k30') ? 'aria-current="page"' : '' ?>
