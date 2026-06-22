@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, status=?, updated_at=datetime('now')
                  WHERE id=?"
             )->execute([$date, $tf, $tt, $dur, $topic, $notes, $st, $sid]);
+            k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             flash_set('success', 'Lekcja zaktualizowana.');
         } else {
             $sid = db_insert('k30_ti_sessions', [
@@ -87,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'status'      => 'planned', 'topic' => $topic, 'notes' => $notes,
                 'created_by'  => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
+            k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             // Wstępna obecność dla aktywnych uczestników
             foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]) as $e) {
                 try { db_insert('k30_ti_attendance', ['session_id'=>$sid, 'client_id'=>(int)$e['client_id'], 'attended'=>0]); }
@@ -429,6 +431,36 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
         <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
+      </div>
+      <?php
+        // Realizowane punkty planu nauczania — progressive disclosure (rozwijane),
+        // natywny multi-select dla pełnej obsługi klawiaturą i czytnikiem ekranu.
+        $_curr = k30_ti_curriculum_list($cur_course, true);
+        $_sel  = $isEdit ? k30_ti_session_curriculum_ids((int)$r['id']) : [];
+      ?>
+      <div class="mb-2">
+        <?php if ($_curr): ?>
+        <details<?= $_sel ? ' open' : '' ?>>
+          <summary class="form-label fw-semibold mb-1" style="cursor:pointer">
+            Realizowane punkty planu <span class="badge bg-secondary"><?= count($_sel) ?></span>
+          </summary>
+          <div class="form-text mb-1" id="<?= $pfx ?>_curr_hint">Zaznacz punkty planu realizowane na tej lekcji. Klawiatura: strzałki + spacja (wielokrotny wybór).</div>
+          <?php $_bySec = []; foreach ($_curr as $ci) { $_bySec[(string)$ci['section']][] = $ci; } ?>
+          <select class="form-select" name="curriculum_ids[]" id="<?= $pfx ?>_curr" multiple
+                  size="<?= min(10, max(4, count($_curr))) ?>"
+                  aria-describedby="<?= $pfx ?>_curr_hint" aria-label="Realizowane punkty planu nauczania">
+            <?php foreach ($_bySec as $sec=>$list): ?>
+            <optgroup label="<?= h($sec !== '' ? $sec : 'Bez działu') ?>">
+              <?php foreach ($list as $ci): ?>
+              <option value="<?= (int)$ci['id'] ?>" <?= in_array((int)$ci['id'],$_sel,true)?'selected':'' ?>><?= h($ci['title']) ?></option>
+              <?php endforeach; ?>
+            </optgroup>
+            <?php endforeach; ?>
+          </select>
+        </details>
+        <?php else: ?>
+        <div class="form-text"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak zdefiniowanego planu nauczania dla tego kursu — punkty planu doda administrator.</div>
+        <?php endif; ?>
       </div>
       <?php if ($isEdit): ?>
       <div class="mb-1">

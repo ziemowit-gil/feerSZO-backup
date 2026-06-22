@@ -684,6 +684,34 @@ function karty30_migrate(): void {
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_meetings_starts ON k30_ti_meetings(is_active,starts_at)");
+
+    // ── Plan nauczania (program / sylabus kursu) ──────────────────────────────
+    // Pozycje planu uporządkowane w obrębie kursu, opcjonalnie zgrupowane w działy
+    // (section). Lekcja realizuje N punktów planu (tabela łącząca poniżej).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_curriculum (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id    INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        section      TEXT    NOT NULL DEFAULT '',   -- dział / moduł programu (grupowanie)
+        position     INTEGER NOT NULL DEFAULT 0,    -- kolejność w obrębie kursu
+        title        TEXT    NOT NULL DEFAULT '',   -- temat / punkt planu
+        description  TEXT    NOT NULL DEFAULT '',   -- szczegóły, efekty kształcenia
+        est_minutes  INTEGER NOT NULL DEFAULT 0,    -- szacowany czas realizacji (min)
+        is_active    INTEGER NOT NULL DEFAULT 1,
+        created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_curr_course ON k30_ti_curriculum(course_id,position)");
+
+    // Powiązanie: które punkty planu realizuje dana lekcja (wiele-do-wielu)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_session_curriculum (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id    INTEGER NOT NULL REFERENCES k30_ti_sessions(id)    ON DELETE CASCADE,
+        curriculum_id INTEGER NOT NULL REFERENCES k30_ti_curriculum(id)  ON DELETE CASCADE,
+        UNIQUE(session_id, curriculum_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_sc_session ON k30_ti_session_curriculum(session_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_sc_curr    ON k30_ti_session_curriculum(curriculum_id)");
 }
 
 // Konfiguracja statusów harmonogramu
@@ -3005,4 +3033,160 @@ function k30_waiting_send_sms(int $id, string $message): bool {
         error_log('[k30_wait_sms] ' . $e->getMessage());
         return false;
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PLAN NAUCZANIA (k30_ti_curriculum) — CRUD, powiązanie z lekcją, import CSV
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Pozycje planu kursu, uporządkowane: dział → kolejność. */
+function k30_ti_curriculum_list(int $course_id, bool $only_active = false): array {
+    $sql = "SELECT * FROM k30_ti_curriculum WHERE course_id=?"
+         . ($only_active ? " AND is_active=1" : "")
+         . " ORDER BY section COLLATE NOCASE, position, id";
+    return db_all($sql, [$course_id]);
+}
+
+function k30_ti_curriculum_get(int $id): ?array {
+    return db_one("SELECT * FROM k30_ti_curriculum WHERE id=?", [$id]);
+}
+
+/** Następna pozycja (na końcu listy kursu). */
+function k30_ti_curriculum_next_position(int $course_id): int {
+    $r = db_one("SELECT COALESCE(MAX(position),0)+1 AS p FROM k30_ti_curriculum WHERE course_id=?", [$course_id]);
+    return (int)($r['p'] ?? 1);
+}
+
+/** Zapis pozycji planu. Zwraca id (nowe lub istniejące). */
+function k30_ti_curriculum_save(array $data, ?int $id = null, ?int $created_by = null): int {
+    $fields = [
+        'section'     => trim((string)($data['section'] ?? '')),
+        'title'       => trim((string)($data['title'] ?? '')),
+        'description' => trim((string)($data['description'] ?? '')),
+        'est_minutes' => max(0, (int)($data['est_minutes'] ?? 0)),
+        'is_active'   => !empty($data['is_active']) ? 1 : 0,
+    ];
+    if ($id) {
+        db_update('k30_ti_curriculum', $fields, $id);
+        return $id;
+    }
+    $fields['course_id']  = (int)$data['course_id'];
+    $fields['position']   = isset($data['position'])
+        ? (int)$data['position']
+        : k30_ti_curriculum_next_position((int)$data['course_id']);
+    $fields['created_by'] = $created_by;
+    return db_insert('k30_ti_curriculum', $fields);
+}
+
+function k30_ti_curriculum_delete(int $id): void {
+    db()->prepare("DELETE FROM k30_ti_curriculum WHERE id=?")->execute([$id]);
+}
+
+/** Zapis nowej kolejności pozycji w obrębie kursu (lista id w docelowej kolejności). */
+function k30_ti_curriculum_reorder(int $course_id, array $ordered_ids): void {
+    $pdo = db();
+    $stmt = $pdo->prepare("UPDATE k30_ti_curriculum SET position=?, updated_at=datetime('now') WHERE id=? AND course_id=?");
+    $pos = 1;
+    foreach ($ordered_ids as $cid) {
+        $stmt->execute([$pos++, (int)$cid, $course_id]);
+    }
+}
+
+/** Identyfikatory punktów planu realizowanych przez lekcję. */
+function k30_ti_session_curriculum_ids(int $session_id): array {
+    $rows = db_all("SELECT curriculum_id FROM k30_ti_session_curriculum WHERE session_id=?", [$session_id]);
+    return array_map(fn($r) => (int)$r['curriculum_id'], $rows);
+}
+
+/** Pełne wiersze punktów planu realizowanych przez lekcję (do wyświetlenia). */
+function k30_ti_session_curriculum_items(int $session_id): array {
+    return db_all(
+        "SELECT c.* FROM k30_ti_session_curriculum sc
+         JOIN k30_ti_curriculum c ON c.id=sc.curriculum_id
+         WHERE sc.session_id=?
+         ORDER BY c.section COLLATE NOCASE, c.position, c.id",
+        [$session_id]
+    );
+}
+
+/** Ustaw (zastąp) zestaw punktów planu realizowanych przez lekcję. */
+function k30_ti_session_set_curriculum(int $session_id, array $curriculum_ids): void {
+    $pdo = db();
+    $pdo->prepare("DELETE FROM k30_ti_session_curriculum WHERE session_id=?")->execute([$session_id]);
+    if (!$curriculum_ids) return;
+    $ins = $pdo->prepare("INSERT OR IGNORE INTO k30_ti_session_curriculum (session_id, curriculum_id) VALUES (?,?)");
+    foreach (array_unique(array_map('intval', $curriculum_ids)) as $cid) {
+        if ($cid > 0) $ins->execute([$session_id, $cid]);
+    }
+}
+
+/**
+ * Import planu nauczania z CSV.
+ * Kolumny (z separatorem ; lub ,): dział, temat[, opis][, czas_min].
+ * Pierwszy wiersz traktowany jako nagłówek, jeśli wygląda na etykiety.
+ * Zwraca ['added'=>int, 'errors'=>[['line'=>int,'msg'=>string], ...]].
+ */
+function k30_ti_curriculum_import_csv(int $course_id, string $raw, ?int $created_by = null): array {
+    $added  = 0;
+    $errors = [];
+    // Usuń BOM, ujednolić końce linii
+    $raw   = preg_replace('/^\xEF\xBB\xBF/', '', $raw);
+    $raw   = str_replace(["\r\n", "\r"], "\n", $raw);
+    $lines = explode("\n", $raw);
+
+    // Wykryj separator po pierwszej niepustej linii
+    $delim = ';';
+    foreach ($lines as $ln) {
+        if (trim($ln) === '') continue;
+        $delim = (substr_count($ln, ';') >= substr_count($ln, ',')) ? ';' : ',';
+        break;
+    }
+
+    $pos      = k30_ti_curriculum_next_position($course_id);
+    $first    = true;
+    foreach ($lines as $i => $line) {
+        $lineNo = $i + 1;
+        if (trim($line) === '') { $first = false; continue; }
+        $cols = str_getcsv($line, $delim, '"', '');
+        $cols = array_map(fn($c) => trim((string)$c), $cols);
+
+        // Pomiń wiersz nagłówka (etykiety kolumn)
+        if ($first) {
+            $first = false;
+            $joined = mb_strtolower(implode(' ', $cols), 'UTF-8');
+            if (preg_match('/(dzia|temat|section|title|opis|czas|minut)/u', $joined)
+                && !preg_match('/\d{2,}/', $joined)) {
+                continue;
+            }
+        }
+
+        $section = $cols[0] ?? '';
+        $title   = $cols[1] ?? '';
+        $desc    = $cols[2] ?? '';
+        $minsRaw = $cols[3] ?? '';
+
+        if ($title === '') {
+            $errors[] = ['line' => $lineNo, 'msg' => 'brak tematu (kolumna 2 „temat" jest pusta)'];
+            continue;
+        }
+        $mins = 0;
+        if ($minsRaw !== '') {
+            if (!preg_match('/^\d+$/', $minsRaw)) {
+                $errors[] = ['line' => $lineNo, 'msg' => 'czas „' . $minsRaw . '" nie jest liczbą minut (kolumna 4)'];
+                continue;
+            }
+            $mins = (int)$minsRaw;
+        }
+        k30_ti_curriculum_save([
+            'course_id'   => $course_id,
+            'section'     => $section,
+            'title'       => $title,
+            'description' => $desc,
+            'est_minutes' => $mins,
+            'is_active'   => 1,
+            'position'    => $pos++,
+        ], null, $created_by);
+        $added++;
+    }
+    return ['added' => $added, 'errors' => $errors];
 }
