@@ -278,6 +278,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: accounts.php?guardian=' . $aid); exit;
     }
+
+    // Utwórz konto rodzica (login: pierwsza litera imienia.nazwisko-r + hasło)
+    if ($op === 'parent_account_create') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one(
+            "SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a
+             JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$aid]
+        ) : null;
+        if (!$acc) { flash_set('danger','Konto kursanta nie istnieje.'); header('Location: accounts.php'); exit; }
+        if (!empty($acc['parent_login'])) {
+            flash_set('warning', 'Konto rodzica już istnieje (login: ' . $acc['parent_login'] . '). Użyj „Resetuj hasło".');
+            header('Location: accounts.php?guardian=' . $aid); exit;
+        }
+        // login z imienia i nazwiska dziecka z dopiskiem „-r" (rodzic), unikalny
+        $base  = _gen_student_login($acc['client_name'], '-r');
+        $login = $base; $i = 2;
+        while (db_one("SELECT id FROM k30_ti_student_accounts WHERE parent_login=?", [$login])) {
+            $login = $base . $i++;
+        }
+        $pass = _gen_student_pass();
+        db()->prepare(
+            "UPDATE k30_ti_student_accounts
+             SET parent_login=?, parent_password_hash=?, parent_must_change=1, updated_at=datetime('now')
+             WHERE id=?"
+        )->execute([$login, password_hash($pass, PASSWORD_BCRYPT), $aid]);
+
+        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+        $_SESSION['new_parent_creds'] = ['login' => $login, 'password' => $pass, 'name' => $acc['client_name']];
+        // Wyślij dane SMS-em na numer opiekuna (jeśli jest i SMS włączony)
+        $gphone = trim($acc['guardian_phone'] ?? '');
+        $sms = '';
+        if ($gphone !== '' && sms_is_enabled()) {
+            try {
+                $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
+                sms_send($gphone, "{$org} - panel rodzica. Login: {$login}, haslo: {$pass}");
+                $sms = ' Dane wysłano SMS-em na numer opiekuna.';
+            } catch (\Throwable $e) { $sms = ' (błąd wysyłki SMS: ' . $e->getMessage() . ')'; }
+        }
+        flash_set('success', "Konto rodzica utworzone. Login: {$login}." . $sms);
+        header('Location: accounts.php?guardian=' . $aid); exit;
+    }
+
+    // Reset hasła konta rodzica
+    if ($op === 'parent_account_reset') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        if (!$acc || empty($acc['parent_login'])) { flash_set('danger','Konto rodzica nie istnieje.'); header('Location: accounts.php?guardian=' . $aid); exit; }
+        $pass = _gen_student_pass();
+        db()->prepare(
+            "UPDATE k30_ti_student_accounts SET parent_password_hash=?, parent_must_change=1, updated_at=datetime('now') WHERE id=?"
+        )->execute([password_hash($pass, PASSWORD_BCRYPT), $aid]);
+        $cl = db_one("SELECT name FROM k30_clients WHERE id=?", [$acc['client_id']]);
+        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+        $_SESSION['new_parent_creds'] = ['login' => $acc['parent_login'], 'password' => $pass, 'name' => $cl['name'] ?? ''];
+        $gphone = trim($acc['guardian_phone'] ?? '');
+        $sms = '';
+        if ($gphone !== '' && sms_is_enabled()) {
+            try {
+                $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
+                sms_send($gphone, "{$org} - panel rodzica. Login: {$acc['parent_login']}, haslo: {$pass}");
+                $sms = ' Dane wysłano SMS-em na numer opiekuna.';
+            } catch (\Throwable $e) { $sms = ' (błąd wysyłki SMS: ' . $e->getMessage() . ')'; }
+        }
+        flash_set('success', "Hasło konta rodzica zresetowane (login: {$acc['parent_login']})." . $sms);
+        header('Location: accounts.php?guardian=' . $aid); exit;
+    }
+
+    // Usuń konto rodzica
+    if ($op === 'parent_account_delete') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        if ($aid) {
+            db()->prepare(
+                "UPDATE k30_ti_student_accounts
+                 SET parent_login='', parent_password_hash='', parent_must_change=0, updated_at=datetime('now')
+                 WHERE id=?"
+            )->execute([$aid]);
+            flash_set('success', 'Konto rodzica usunięte.');
+        }
+        header('Location: accounts.php?guardian=' . $aid); exit;
+    }
 }
 
 // Wczytaj
@@ -303,6 +383,8 @@ $ms_online_enabled     = ti_ms_enabled();
 $moodle_online_enabled = ti_moodle_enabled();
 $parent_link = $_SESSION['parent_link'] ?? null;
 unset($_SESSION['parent_link']);
+$new_parent_creds = $_SESSION['new_parent_creds'] ?? null;
+unset($_SESSION['new_parent_creds']);
 
 // Edytor opiekuna
 $guardian_id  = (int)($_GET['guardian'] ?? 0);
@@ -410,6 +492,23 @@ function printBulk(){
 </div>
 <?php endif; ?>
 
+<!-- Nowo utworzone konto rodzica -->
+<?php if ($new_parent_creds): ?>
+<div class="alert alert-warning d-flex gap-3 align-items-start mb-4 shadow-sm">
+  <i class="bi bi-people-fill fs-4 flex-shrink-0" style="color:#b45309"></i>
+  <div class="flex-grow-1">
+    <div class="fw-bold mb-2">⚠ Dane konta rodzica — przekaż opiekunowi i zamknij!</div>
+    <table class="table table-sm table-bordered mb-2" style="max-width:380px;background:#fff;font-size:.88rem">
+      <tr><th>Kursant</th><td><?= h($new_parent_creds['name']) ?></td></tr>
+      <tr><th>Login rodzica</th><td class="font-monospace fw-bold"><?= h($new_parent_creds['login']) ?></td></tr>
+      <tr><th>Hasło</th><td class="font-monospace fw-bold text-danger"><?= h($new_parent_creds['password']) ?></td></tr>
+    </table>
+    <div class="small text-muted">Logowanie rodzica (login + hasło): <a href="<?= h($parent_portal_url) ?>" target="_blank"><?= h($parent_portal_url) ?></a></div>
+  </div>
+  <button type="button" class="btn-close" onclick="this.closest('.alert').remove()"></button>
+</div>
+<?php endif; ?>
+
 <!-- Edytor opiekuna / dostęp rodzica -->
 <?php if ($guardian_acc): ?>
 <div class="card border-0 shadow-sm mb-4" style="max-width:640px">
@@ -454,6 +553,44 @@ function printBulk(){
       <input type="hidden" name="account_id" value="<?= (int)$guardian_acc['id'] ?>">
       <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope-paper me-1"></i>Wygeneruj i wyślij link rodzicowi</button>
     </form>
+
+    <hr class="my-3">
+
+    <!-- Konto rodzica: login + hasło -->
+    <div class="fw-semibold mb-1"><i class="bi bi-person-lock me-1 text-primary"></i>Konto rodzica (login i hasło)</div>
+    <p class="text-muted small mb-2">
+      Stałe konto dla opiekuna do logowania <strong>loginem i hasłem</strong> — przydatne, gdy rodzic nie odbiera SMS-ów ani e-maili.
+      Login w formacie <code>pierwsza-litera-imienia.nazwisko-r</code> (na podstawie danych kursanta).
+    </p>
+    <?php if (!empty($guardian_acc['parent_login'])): ?>
+    <dl class="row small mb-2">
+      <dt class="col-sm-4 text-muted fw-normal">Login rodzica</dt>
+      <dd class="col-sm-8 font-monospace fw-bold"><?= h($guardian_acc['parent_login']) ?></dd>
+      <dt class="col-sm-4 text-muted fw-normal">Ostatnie logowanie</dt>
+      <dd class="col-sm-8"><?= !empty($guardian_acc['parent_last_login']) ? date('d.m.Y H:i', strtotime($guardian_acc['parent_last_login'])) : '—' ?></dd>
+    </dl>
+    <div class="d-flex gap-2 flex-wrap">
+      <form method="post" onsubmit="return confirm('Zresetować hasło konta rodzica?')">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op" value="parent_account_reset">
+        <input type="hidden" name="account_id" value="<?= (int)$guardian_acc['id'] ?>">
+        <button class="btn btn-outline-warning btn-sm"><i class="bi bi-key me-1"></i>Resetuj hasło</button>
+      </form>
+      <form method="post" onsubmit="return confirm('Usunąć konto rodzica? Opiekun straci możliwość logowania loginem i hasłem.')">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op" value="parent_account_delete">
+        <input type="hidden" name="account_id" value="<?= (int)$guardian_acc['id'] ?>">
+        <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Usuń konto rodzica</button>
+      </form>
+    </div>
+    <?php else: ?>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="parent_account_create">
+      <input type="hidden" name="account_id" value="<?= (int)$guardian_acc['id'] ?>">
+      <button class="btn btn-primary btn-sm"><i class="bi bi-person-plus me-1"></i>Utwórz konto rodzica</button>
+    </form>
+    <?php endif; ?>
   </div>
 </div>
 <?php endif; ?>

@@ -12,7 +12,8 @@ require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
 
-$err = ''; $info = ''; $stage = 'phone'; // phone | code | choose
+$err = ''; $info = ''; $stage = 'phone'; // phone | code | choose | pwd
+if (($_GET['m'] ?? '') === 'pwd') $stage = 'pwd';
 
 /** Proste hasło dla dziecka: słowo + 2 cyfry. */
 function _parent_gen_child_pass(): string {
@@ -25,11 +26,28 @@ if (isset($_GET['logout'])) { parent_logout(); header('Location: parent.php'); e
 
 // ── Akcje zalogowanego rodzica: zarządzanie dostępem dziecka ─────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST'
-    && in_array($_POST['_op'] ?? '', ['child_reset_pass', 'child_block', 'child_unblock'], true)) {
+    && in_array($_POST['_op'] ?? '', ['child_reset_pass', 'child_block', 'child_unblock', 'parent_self_pass'], true)) {
     $p = parent_current();
     if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
         $sid = (int)$p['student_id']; // tylko własne dziecko (z sesji), nigdy z POST
         $op  = $_POST['_op'];
+        if ($op === 'parent_self_pass') {
+            // Zmiana hasła własnego konta rodzica (login + hasło)
+            $new1 = (string)($_POST['new_pass'] ?? '');
+            $new2 = (string)($_POST['new_pass2'] ?? '');
+            if (mb_strlen($new1) < 8) {
+                $_SESSION['k30_parent_msg'] = ['err', 'Hasło musi mieć co najmniej 8 znaków.'];
+            } elseif ($new1 !== $new2) {
+                $_SESSION['k30_parent_msg'] = ['err', 'Hasła nie są identyczne.'];
+            } else {
+                db()->prepare("UPDATE k30_ti_student_accounts SET parent_password_hash=?, parent_must_change=0, updated_at=datetime('now') WHERE id=?")
+                   ->execute([password_hash($new1, PASSWORD_BCRYPT), $sid]);
+                student_start();
+                if (isset($_SESSION[PARENT_SESSION_KEY])) $_SESSION[PARENT_SESSION_KEY]['must_change'] = 0;
+                $_SESSION['k30_parent_msg'] = ['ok', 'Hasło opiekuna zostało zmienione.'];
+            }
+            header('Location: parent.php?ptab=dostep'); exit;
+        }
         if ($op === 'child_block') {
             db()->prepare("UPDATE k30_ti_student_accounts SET child_access_blocked=1, updated_at=datetime('now') WHERE id=?")->execute([$sid]);
             $_SESSION['k30_parent_msg'] = ['ok', 'Wstrzymano dostęp dziecka do panelu.'];
@@ -79,6 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             parent_login_for_student($sid); header('Location: parent.php'); exit;
         }
         $err = 'Wybierz kursanta.'; $stage = 'choose';
+    } elseif ($op === 'pwd_login') {
+        // Logowanie loginem i hasłem (konto rodzica)
+        if (parent_login_with_password($_POST['login'] ?? '', $_POST['password'] ?? '')) {
+            header('Location: parent.php'); exit;
+        }
+        $err = 'Nieprawidłowy login lub hasło konta rodzica.'; $stage = 'pwd';
     }
 }
 
@@ -154,6 +178,26 @@ include __DIR__ . '/_layout_head.php';
               </fieldset>
               <button class="btn btn-primary btn-lg w-100 mt-3">Pokaż rozliczenia</button>
             </form>
+          <?php elseif ($stage === 'pwd'): ?>
+            <form method="post" autocomplete="on">
+              <input type="hidden" name="_op" value="pwd_login">
+              <label class="form-label fw-semibold" for="plogin">Login rodzica</label>
+              <div class="input-group input-group-lg mb-3">
+                <span class="input-group-text" aria-hidden="true"><i class="bi bi-person"></i></span>
+                <input class="form-control form-control-lg" id="plogin" name="login" autocomplete="username"
+                       value="<?= h($_POST['login'] ?? '') ?>" placeholder="np. j.kowalski-r" required autofocus>
+              </div>
+              <label class="form-label fw-semibold" for="ppass">Hasło</label>
+              <div class="input-group input-group-lg mb-3">
+                <span class="input-group-text" aria-hidden="true"><i class="bi bi-lock"></i></span>
+                <input class="form-control form-control-lg" id="ppass" name="password" type="password"
+                       autocomplete="current-password" placeholder="••••••••" required>
+              </div>
+              <button class="btn btn-primary btn-lg w-100"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj</button>
+            </form>
+            <div class="text-center mt-3">
+              <a href="parent.php" class="btn btn-link btn-sm">Wolisz logowanie kodem SMS?</a>
+            </div>
           <?php elseif ($stage === 'code'): ?>
             <form method="post">
               <input type="hidden" name="_op" value="otp_verify">
@@ -181,6 +225,14 @@ include __DIR__ . '/_layout_head.php';
             </form>
           <?php endif; ?>
 
+          <?php if ($stage !== 'pwd'): ?>
+          <div class="text-center mt-3">
+            <a href="parent.php?m=pwd" class="btn btn-link btn-sm">
+              <i class="bi bi-person-lock me-1" aria-hidden="true"></i>Masz konto rodzica (login i hasło)? Zaloguj się
+            </a>
+          </div>
+          <?php endif; ?>
+
           <hr class="my-4">
           <a href="login.php" class="btn btn-outline-secondary w-100">
             <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
@@ -193,10 +245,20 @@ include __DIR__ . '/_layout_head.php';
 </main>
 
 <?php else:
-  $childAcc = db_one("SELECT login, child_access_blocked FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
+  $childAcc = db_one("SELECT login, child_access_blocked, parent_login FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
   $blocked  = !empty($childAcc['child_access_blocked']);
   $childLicCount = count(k30_ti_client_licenses((int)$parent['client_id']));
+  $parentHasAccount = !empty($childAcc['parent_login']);
+  $parentMustChange = !empty($parent['must_change']);
 ?>
+<?php if ($parentMustChange): ?>
+<div class="container-xl px-3 pt-3">
+  <div class="alert alert-warning d-flex align-items-center gap-2 mb-0" role="alert">
+    <i class="bi bi-shield-exclamation fs-5" aria-hidden="true"></i>
+    <div>Korzystasz z hasła tymczasowego. <a href="?ptab=dostep">Ustaw własne hasło</a> w zakładce „Dostęp dziecka".</div>
+  </div>
+</div>
+<?php endif; ?>
 <div class="container-xl px-3 pt-3">
   <div class="d-flex align-items-center gap-2 mb-2">
     <i class="bi bi-mortarboard fs-3 text-primary" aria-hidden="true"></i>
@@ -363,6 +425,33 @@ include __DIR__ . '/_layout_head.php';
       </p>
     </div>
   </div>
+
+  <?php if ($parentHasAccount): ?>
+  <div class="card border-0 shadow-sm mt-3">
+    <div class="card-header fw-semibold"><i class="bi bi-person-lock me-2 text-primary" aria-hidden="true"></i>Hasło opiekuna</div>
+    <div class="card-body">
+      <dl class="row small mb-3">
+        <dt class="col-sm-3 text-body-secondary fw-normal">Twój login</dt>
+        <dd class="col-sm-9 font-monospace"><?= h($childAcc['parent_login']) ?></dd>
+      </dl>
+      <form method="post" class="row g-2" style="max-width:480px">
+        <input type="hidden" name="_token" value="<?= h($ptok) ?>">
+        <input type="hidden" name="_op"    value="parent_self_pass">
+        <div class="col-12">
+          <label class="form-label small fw-semibold" for="pnew">Nowe hasło (min. 8 znaków)</label>
+          <input type="password" class="form-control form-control-sm" id="pnew" name="new_pass" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label small fw-semibold" for="pnew2">Powtórz nowe hasło</label>
+          <input type="password" class="form-control form-control-sm" id="pnew2" name="new_pass2" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-sm btn-primary"><i class="bi bi-key me-1" aria-hidden="true"></i>Zmień hasło</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
 <?php endif; ?>
 </main>
 <?php endif; ?>

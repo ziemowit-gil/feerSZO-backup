@@ -113,18 +113,39 @@ function parent_current(): ?array {
 }
 
 /** Zaloguj rodzica do widoku konkretnego kursanta (po OTP lub linku magicznym). */
-function parent_login_for_student(int $studentId): bool {
+function parent_login_for_student(int $studentId, array $extra = []): bool {
     $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=? AND is_active=1", [$studentId]);
     if (!$acc) return false;
     $client = db_one("SELECT name FROM k30_clients WHERE id=?", [$acc['client_id']]);
     student_start();
-    $_SESSION[PARENT_SESSION_KEY] = [
+    $_SESSION[PARENT_SESSION_KEY] = array_merge([
         'student_id' => (int)$acc['id'],
         'client_id'  => (int)$acc['client_id'],
         'name'       => $client['name'] ?? $acc['login'],
         'ts'         => time(),
-    ];
+    ], $extra);
     return true;
+}
+
+/**
+ * Logowanie rodzica loginem i hasłem (konto rodzica: login pierwsza-litera-imienia.nazwisko-r).
+ * Zwraca true po zalogowaniu. Ustawia w sesji znacznik konta hasłowego oraz wymóg zmiany hasła.
+ */
+function parent_login_with_password(string $login, string $pass): bool {
+    $login = strtolower(trim($login));
+    if ($login === '' || $pass === '') return false;
+    $acc = db_one(
+        "SELECT * FROM k30_ti_student_accounts WHERE parent_login=? AND parent_login!='' AND is_active=1",
+        [$login]
+    );
+    if (!$acc || empty($acc['parent_password_hash'])) return false;
+    if (!password_verify($pass, $acc['parent_password_hash'])) return false;
+    db()->prepare("UPDATE k30_ti_student_accounts SET parent_last_login=datetime('now') WHERE id=?")
+       ->execute([(int)$acc['id']]);
+    return parent_login_for_student((int)$acc['id'], [
+        'auth'         => 'password',
+        'must_change'  => !empty($acc['parent_must_change']) ? 1 : 0,
+    ]);
 }
 
 function parent_logout(): void {
