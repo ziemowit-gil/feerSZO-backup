@@ -204,6 +204,14 @@ body {
   display: flex; align-items: center; gap: .4rem; flex-shrink: 0;
   padding-left: .6rem; margin-left: .25rem; border-left: 1px solid #E5E7EB;
 }
+.crm-navbar .dropdown-menu {
+  font-size: .85rem; border-color: #E5E7EB; border-radius: 9px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.12); padding: .3rem;
+}
+.crm-navbar .dropdown-item { padding: .45rem .8rem; border-radius: 6px; }
+.crm-navbar .dropdown-item i { color: #9CA3AF; }
+.crm-navbar .dropdown-item:hover { background: #F1F5F9; color: var(--crm-primary); }
+.crm-navbar .dropdown-item:hover i { color: var(--crm-primary); }
 
 /* ══ MAIN CONTENT ═══════════════════════════════════════════════════ */
 .crm-shell {
@@ -381,6 +389,13 @@ window.openCommModal = function(contactId, channel) {
       <span class="d-none d-sm-inline">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
+    <?php $_crm_has_ms = !empty($_cu['microsoft_id'] ?? ''); if ($_crm_has_ms): ?>
+    <a href="<?= APP_URL ?>/crm/calendar_settings.php"
+       class="crm-topbar-sys-link<?= _crm_nav_active('/crm/calendar_settings') ? ' active' : '' ?>"
+       title="Synchronizuj swój kalendarz Outlook">
+      <i class="bi bi-microsoft"></i><span class="d-none d-lg-inline">Outlook</span>
+    </a>
+    <?php endif; ?>
     <?php if (is_admin()): ?>
     <a href="<?= APP_URL ?>/crm/settings/"
        class="crm-topbar-sys-link<?= _crm_nav_active('/crm/settings') ? ' active' : '' ?>"
@@ -421,47 +436,58 @@ window.openCommModal = function(contactId, channel) {
 <!-- ══ TOP NAVBAR (poziome menu) ════════════════════════════════════════════════ -->
 <nav class="crm-navbar" role="navigation" aria-label="Nawigacja CRM">
 
+  <?php
+  // Aktywność kategorii (gdy którakolwiek pozycja podrzędna jest aktywna)
+  $_act_kontakty = (str_contains($_uri,'/crm/index') || str_contains($_uri,'/crm/groups') || str_contains($_uri,'/crm/group/') || str_contains($_uri,'/crm/tags')) ? ' active' : '';
+  $_act_komun    = (str_contains($_uri,'/crm/communicate') || str_contains($_uri,'/crm/mass_send') || str_contains($_uri,'/crm/form/') || str_contains($_uri,'/crm/webmail')) ? ' active' : '';
+  ?>
   <div class="crm-navbar-scroll">
+
     <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-navlink<?= _crm_nav_active('/crm/dashboard') ?>"<?= _crm_nav_active('/crm/dashboard') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
     </a>
-    <a href="<?= APP_URL ?>/crm/index.php" class="crm-navlink<?= _crm_nav_active('/crm/index') ?>"<?= _crm_nav_active('/crm/index') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-people-fill"></i><span>Kontakty</span>
-      <?php if ($_crm_total): ?><span class="crm-nav-badge"><?= $_crm_total > 999 ? '999+' : $_crm_total ?></span><?php endif; ?>
-    </a>
-    <a href="<?= APP_URL ?>/crm/communicate.php" class="crm-navlink<?= _crm_nav_active('/crm/communicate') ?>"<?= _crm_nav_active('/crm/communicate') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-send-fill"></i><span>Komunikacja</span>
-    </a>
-    <?php if (crm_setting('roundcube_url')): ?>
-    <a href="<?= APP_URL ?>/crm/webmail.php" class="crm-navlink<?= _crm_nav_active('/crm/webmail') ?>" title="FEER Webmail (Roundcube)"<?= _crm_nav_active('/crm/webmail') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-envelope-at-fill"></i><span>Webmail</span>
-    </a>
-    <?php endif; ?>
-    <a href="<?= APP_URL ?>/crm/mass_send.php" class="crm-navlink<?= _crm_nav_active('/crm/mass_send') ?>"<?= _crm_nav_active('/crm/mass_send') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-megaphone-fill"></i><span>Wysyłka masowa</span>
-    </a>
-    <?php if ($_crm_can_write): ?>
-    <a href="<?= APP_URL ?>/crm/form/manage.php" class="crm-navlink<?= _crm_nav_active('/crm/form/') ?>"<?= _crm_nav_active('/crm/form/') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-window-split"></i><span>Formularze</span>
-    </a>
-    <?php endif; ?>
-    <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-navlink<?= _crm_nav_active('/crm/calendar') ?>"<?= _crm_nav_active('/crm/calendar') ? ' aria-current="page"' : '' ?>>
+
+    <!-- Kategoria: Kontakty -->
+    <div class="dropdown">
+      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+         class="crm-navlink dropdown-toggle<?= $_act_kontakty ?>">
+        <i class="bi bi-people-fill"></i><span>Kontakty</span>
+        <?php if ($_crm_total): ?><span class="crm-nav-badge"><?= $_crm_total > 999 ? '999+' : $_crm_total ?></span><?php endif; ?>
+      </a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/index.php"><i class="bi bi-people-fill me-2"></i>Wszystkie kontakty</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/groups.php"><i class="bi bi-collection-fill me-2"></i>Grupy</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/tags.php"><i class="bi bi-tags-fill me-2"></i>Tagi</a></li>
+      </ul>
+    </div>
+
+    <!-- Kategoria: Komunikacja -->
+    <div class="dropdown">
+      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+         class="crm-navlink dropdown-toggle<?= $_act_komun ?>">
+        <i class="bi bi-send-fill"></i><span>Komunikacja</span>
+      </a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/communicate.php"><i class="bi bi-send-fill me-2"></i>Wyślij wiadomość</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/mass_send.php"><i class="bi bi-megaphone-fill me-2"></i>Wysyłka masowa</a></li>
+        <?php if ($_crm_can_write): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/form/manage.php"><i class="bi bi-window-split me-2"></i>Formularze</a></li>
+        <?php endif; ?>
+        <?php if (crm_setting('roundcube_url')): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/webmail.php"><i class="bi bi-envelope-at-fill me-2"></i>Webmail (Roundcube)</a></li>
+        <?php endif; ?>
+      </ul>
+    </div>
+
+    <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-navlink<?= str_contains($_uri,'/crm/calendar.php') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/calendar.php') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-calendar3-fill"></i><span>Kalendarz</span>
     </a>
-    <?php $_crm_has_ms = !empty($_cu['microsoft_id'] ?? ''); if ($_crm_has_ms): ?>
-    <a href="<?= APP_URL ?>/crm/calendar_settings.php" class="crm-navlink<?= _crm_nav_active('/crm/calendar_settings') ?>" title="Synchronizuj swój kalendarz Outlook"<?= _crm_nav_active('/crm/calendar_settings') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-microsoft"></i><span>Outlook</span>
-    </a>
-    <?php endif; ?>
+
     <a href="<?= APP_URL ?>/crm/cases/index.php" class="crm-navlink<?= _crm_nav_active('/crm/cases') ?>"<?= _crm_nav_active('/crm/cases') ? ' aria-current="page"' : '' ?>>
       <i class="bi bi-briefcase-fill"></i><span>Sprawy</span>
     </a>
-    <a href="<?= APP_URL ?>/crm/groups.php" class="crm-navlink<?= _crm_nav_active('/crm/groups') ?><?= _crm_nav_active('/crm/group/') ?>">
-      <i class="bi bi-collection-fill"></i><span>Grupy</span>
-    </a>
-    <a href="<?= APP_URL ?>/crm/tags.php" class="crm-navlink<?= _crm_nav_active('/crm/tags') ?>"<?= _crm_nav_active('/crm/tags') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-tags-fill"></i><span>Tagi</span>
-    </a>
+
   </div>
 
   <?php if ($_crm_can_write): ?>
@@ -480,6 +506,18 @@ window.openCommModal = function(contactId, channel) {
   <?php endif; ?>
 
 </nav>
+<script>
+// Kategorie w pasku menu: Popper ze strategią 'fixed', aby rozwijane menu nie było
+// obcinane przez przewijany w poziomie kontener nawigacji.
+(function(){
+  if (typeof bootstrap === 'undefined') return;
+  document.querySelectorAll('[data-crm-dd]').forEach(function(el){
+    bootstrap.Dropdown.getOrCreateInstance(el, {
+      popperConfig: function(defaultCfg){ return Object.assign({}, defaultCfg, { strategy: 'fixed' }); }
+    });
+  });
+})();
+</script>
 
 <!-- ══ SHELL WRAPPER ═══════════════════════════════════════════════════════════ -->
 <div class="crm-shell">
