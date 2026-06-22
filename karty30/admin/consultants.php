@@ -25,7 +25,7 @@ if (!is_admin()) {
     exit;
 }
 
-$PAGE_TITLE = 'Doradcy TyfloKonsultacje';
+$PAGE_TITLE = 'Doradcy — Dydaktyka';
 $errors = [];
 $success_msg = '';
 
@@ -103,14 +103,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <nav aria-label="Ścieżka nawigacji" class="mb-3">
   <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">TyfloKonsultacje</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka</a></li>
     <li class="breadcrumb-item active" aria-current="page">Zarządzanie doradcami</li>
   </ol>
 </nav>
 
 <div class="k30-page-header">
   <div>
-    <h1 class="k30-page-title">Doradcy TyfloKonsultacje</h1>
+    <h1 class="k30-page-title">Doradcy konsultacji</h1>
     <p class="k30-page-subtitle">
       Zarządzaj uprawnieniem „Prowadzenie konsultacji Tyflo".
       Doradcą może być dowolny aktywny użytkownik — w tym wolontariusz.
@@ -141,7 +141,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
   <?php if ($consultants): ?>
   <div class="card shadow-sm">
-    <table class="k30-table" aria-label="Lista doradców TyfloKonsultacje">
+    <table class="k30-table" aria-label="Lista doradców konsultacji">
       <thead>
         <tr>
           <th scope="col">Imię i nazwisko</th>

@@ -75,7 +75,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <nav aria-label="Ścieżka nawigacji" class="mb-3">
   <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">TyfloKonsultacje</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka</a></li>
     <li class="breadcrumb-item"><a href="index.php">Beneficjenci</a></li>
     <li class="breadcrumb-item active" aria-current="page">Nowy beneficjent</li>
   </ol>

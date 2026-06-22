@@ -129,7 +129,7 @@ table.info tr:nth-child(even) td { background: #f8fafc; }
   <div class="header">
     <div>
       <div class="org-name"><?= h($org) ?></div>
-      <div class="doc-title">Karta terminu konsultacji TyfloKonsultacje / Karty 30</div>
+      <div class="doc-title">Karta terminu konsultacji — Dydaktyka / Karty 30</div>
       <?php if ($series_info): ?>
       <div style="margin-top:6px"><span class="series-badge">↻ <?= h($series_info) ?></span></div>
       <?php endif; ?>

@@ -1,6 +1,6 @@
 <?php
 /**
- * includes/karty30.php — Moduł TyfloKonsultacje / Karty 30.
+ * includes/karty30.php — Moduł Dydaktyka / Karty 30 (d. TyfloKonsultacje).
  * Auto-migracja tabel k30_* + funkcje pomocnicze.
  */
 
@@ -2234,13 +2234,15 @@ function k30_ti_grades_average(array $grades): ?float {
     return $w > 0 ? round($sum / $w, 2) : null;
 }
 
-/** Wszystkie oceny w kursie (e-dziennik) — z nazwą kursanta i lekcją. */
+/** Wszystkie oceny w kursie (e-dziennik) — z nazwą kursanta, lekcją i autorem. */
 function k30_ti_course_grades(int $course_id): array {
     return db_all(
-        "SELECT g.*, cl.name AS client_name, s.lesson_date AS session_date, s.topic AS session_topic
+        "SELECT g.*, cl.name AS client_name, s.lesson_date AS session_date, s.topic AS session_topic,
+                u.name AS graded_by_name
          FROM k30_ti_grades g
          JOIN k30_clients cl ON cl.id=g.client_id
          LEFT JOIN k30_ti_sessions s ON s.id=g.session_id
+         LEFT JOIN users u ON u.id=g.graded_by
          WHERE g.course_id=?
          ORDER BY g.graded_at DESC, g.id DESC", [$course_id]
     );
@@ -2257,13 +2259,15 @@ function k30_ti_grade_get(int $id): ?array {
     ) ?: null;
 }
 
-/** Oceny kursanta z jego aktywnych kursów — z nazwą kursu i lekcją (widok kursanta). */
+/** Oceny kursanta z jego aktywnych kursów — z nazwą kursu, lekcją i autorem (widok kursanta). */
 function k30_ti_client_grades(int $client_id): array {
     return db_all(
-        "SELECT g.*, c.name AS course_name, s.lesson_date AS session_date, s.topic AS session_topic
+        "SELECT g.*, c.name AS course_name, s.lesson_date AS session_date, s.topic AS session_topic,
+                u.name AS graded_by_name
          FROM k30_ti_grades g
          JOIN k30_ti_courses c ON c.id=g.course_id
          LEFT JOIN k30_ti_sessions s ON s.id=g.session_id
+         LEFT JOIN users u ON u.id=g.graded_by
          WHERE g.client_id=?
            AND g.course_id IN (SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active')
          ORDER BY c.name, g.graded_at DESC, g.id DESC", [$client_id, $client_id]

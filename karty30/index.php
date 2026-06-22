@@ -9,7 +9,7 @@ k30_require_access();
 ika_require(APP_URL . '/karty30/index.php');
 karty30_migrate();
 
-$PAGE_TITLE = 'TyfloKonsultacje — Karty 30';
+$PAGE_TITLE = 'Dydaktyka — Karty 30';
 $can_write  = can_write('karty30') || is_admin() || k30_is_consultant();
 
 // ── Statystyki ──────────────────────────────────────────────────────────────
@@ -150,13 +150,13 @@ a.panel-row:focus-visible { outline:3px solid var(--k30-focus); outline-offset:-
 
 <!-- Nagłówek strony -->
 <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
-  <div role="img" aria-label="TyfloKonsultacje"
+  <div role="img" aria-label="Dydaktyka"
        style="width:46px;height:46px;border-radius:11px;background:var(--k30-purple);display:flex;align-items:center;justify-content:center;flex-shrink:0">
     <i class="bi bi-card-checklist text-white" style="font-size:1.3rem" aria-hidden="true"></i>
   </div>
   <div>
-    <h1 class="h4 mb-0 fw-bold">TyfloKonsultacje — Karty 30</h1>
-    <p class="text-muted mb-0" style="font-size:.84rem">Beneficjenci · Wizyty · Konsultacje · Zajęcia TI</p>
+    <h1 class="h4 mb-0 fw-bold">Dydaktyka — Karty 30</h1>
+    <p class="text-muted mb-0" style="font-size:.84rem">Beneficjenci · Wizyty · Konsultacje · Dydaktyka (TI)</p>
   </div>
   <?php if ($can_write): ?>
   <nav class="ms-auto d-flex gap-2 flex-wrap" aria-label="Szybkie akcje">

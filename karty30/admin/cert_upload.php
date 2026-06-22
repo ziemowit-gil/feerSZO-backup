@@ -149,7 +149,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <nav aria-label="Ścieżka nawigacji" class="mb-3">
   <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">TyfloKonsultacje</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Dydaktyka</a></li>
     <li class="breadcrumb-item"><a href="consultants.php">Doradcy</a></li>
     <li class="breadcrumb-item active" aria-current="page">Certyfikaty x509</li>
   </ol>
@@ -199,7 +199,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
   <?php if ($consultants): ?>
   <div class="card shadow-sm">
-    <table class="k30-table" aria-label="Certyfikaty x509 doradców TyfloKonsultacje">
+    <table class="k30-table" aria-label="Certyfikaty x509 doradców">
       <thead>
         <tr>
           <th scope="col">Doradca</th>

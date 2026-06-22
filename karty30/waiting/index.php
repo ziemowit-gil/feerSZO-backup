@@ -103,7 +103,7 @@ foreach (['active','waiting','contacted','scheduled','cancelled'] as $s) {
 }
 
 // Szablon SMS
-$org = defined('ORG_NAME') ? ORG_NAME : 'TyfloKonsultacje';
+$org = defined('ORG_NAME') ? ORG_NAME : 'Dydaktyka';
 $sms_template = "Dzień dobry! {$org} informuje, że możemy zaproponować Panu/Pani termin konsultacji. Prosimy o kontakt tel. lub odpowiedź na tę wiadomość.";
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
@@ -383,7 +383,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               Domyślny
             </button>
             <button type="button" class="btn btn-xs btn-sm btn-outline-secondary"
-                    onclick="var m=document.getElementById('sms_msg');m.value='Prosimy o kontakt w sprawie umówienia terminu konsultacji TyfloKonsultacje: tel. ';document.getElementById('sms_len').textContent=m.value.length">
+                    onclick="var m=document.getElementById('sms_msg');m.value='Prosimy o kontakt w sprawie umówienia terminu konsultacji: tel. ';document.getElementById('sms_len').textContent=m.value.length">
               Krótki
             </button>
           </div>

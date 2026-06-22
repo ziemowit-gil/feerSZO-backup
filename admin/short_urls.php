@@ -110,7 +110,7 @@ $hardcoded = [
     ['slug'=>'osoby',          'target'=>'/persons/',          'label'=>'Strony umów'],
     ['slug'=>'raporty',        'target'=>'/reports/',          'label'=>'Raporty'],
     ['slug'=>'procedury',      'target'=>'/procedures/',       'label'=>'Procedury'],
-    ['slug'=>'tyflo',          'target'=>'/karty30/',          'label'=>'TyfloKonsultacje Karty 30'],
+    ['slug'=>'tyflo',          'target'=>'/karty30/',          'label'=>'Dydaktyka Karty 30 (d. TyfloKonsultacje)'],
     ['slug'=>'crm',            'target'=>'/crm/dashboard.php','label'=>'CRM'],
     ['slug'=>'moj-panel',      'target'=>'/panel/',            'label'=>'Panel użytkownika'],
     ['slug'=>'korespondencja', 'target'=>'/correspondence/',   'label'=>'Korespondencja'],

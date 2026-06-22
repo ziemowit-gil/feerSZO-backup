@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/includes/footer_k30.php — Zamknięcie layoutu TyfloKonsultacje.
+ * karty30/includes/footer_k30.php — Zamknięcie layoutu modułu Dydaktyka (d. TyfloKonsultacje).
  * Zamyka: <main>, .k30-shell, uruchamia Bootstrap JS + dostępny skrypt.
  */
 $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
@@ -11,7 +11,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 <footer class="k30-footer" role="contentinfo">
   <span>
     <i class="bi bi-card-checklist me-1" aria-hidden="true" style="color:#7C3AED"></i>
-    <strong>TyfloKonsultacje</strong> — Karty 30
+    <strong>Dydaktyka</strong> — Karty 30
     <?php if ($_org_f): ?> · <?= h($_org_f) ?><?php endif; ?>
   </span>
   <span style="color:#9CA3AF;font-size:.78rem;display:flex;align-items:center;gap:.5rem">

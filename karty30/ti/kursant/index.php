@@ -294,6 +294,25 @@ $materials_student = k30_ti_materials_for_client($student['client_id']);
 $grades_student = k30_ti_client_grades($student['client_id']);
 $grades_by_course = [];
 foreach ($grades_student as $g) { $grades_by_course[$g['course_name']][] = $g; }
+
+// Dydaktyka pogrupowana wg lekcji (materiały + zadania); klucz 0 = bez przypisanej lekcji
+$dyd_groups = [];
+$dyd_add = function(array $item, bool $isHw) use (&$dyd_groups) {
+    $sid = (int)($item['session_id'] ?? 0);
+    if (!isset($dyd_groups[$sid])) {
+        $dyd_groups[$sid] = ['session_id'=>$sid, 'course_name'=>$item['course_name'] ?? '',
+            'date'=>$item['session_date'] ?? '', 'topic'=>$item['session_topic'] ?? '',
+            'materials'=>[], 'homeworks'=>[]];
+    }
+    $dyd_groups[$sid][$isHw ? 'homeworks' : 'materials'][] = $item;
+};
+foreach ($materials_student as $m) { $dyd_add($m, false); }
+foreach ($homeworks_student as $h) { $dyd_add($h, true); }
+uasort($dyd_groups, function($a, $b) {
+    if ($a['session_id'] === 0) return 1;   // grupa „bez lekcji" na końcu
+    if ($b['session_id'] === 0) return -1;
+    return strcmp((string)$b['date'], (string)$a['date']); // lekcje od najnowszej
+});
 $moodle_courses_student = ti_moodle_courses_for_client($student['client_id']);
 
 // Zadania z Moodle — odśwież z serwera tylko przy wejściu na zakładkę (TTL wewnątrz);
@@ -408,6 +427,11 @@ include __DIR__ . '/_layout_head.php';
       <a class="nav-link <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
         <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Dydaktyka / eLearning
         <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?></span><?php endif; ?>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
+        <i class="bi bi-table me-1" aria-hidden="true"></i>Oceny
       </a>
     </li>
     <?php if (!$is_minor): ?>

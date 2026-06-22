@@ -947,7 +947,7 @@ function toggleIka(uid, btn) {
 <div class="mt-5" id="k30-section">
   <h5 class="fw-bold mb-1 d-flex align-items-center gap-2">
     <i class="bi bi-card-checklist text-purple" style="color:#7C3AED"></i>
-    Doradcy TyfloKonsultacje — IKA i certyfikaty x509
+    Doradcy Dydaktyki — IKA i certyfikaty x509
   </h5>
   <p class="text-muted small mb-3">
     Doradcy K30 mogą mieć dowolną rolę systemową (także wolontariusz/widz).

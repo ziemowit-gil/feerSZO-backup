@@ -78,7 +78,7 @@ function _ika_parse_destination(string $url): array {
     $map = [
         '/admin/users'             => ['bi-people',              '#6d28d9', 'Panel administratora', 'Zarządzanie użytkownikami'],
         '/admin/'                  => ['bi-shield-lock',          '#6d28d9', 'Panel administratora', 'Ustawienia systemu'],
-        '/karty30/'                => ['bi-person-vcard',         '#dc2626', 'TyfloKonsultacje',     'Karty konsultacji 30'],
+        '/karty30/'                => ['bi-person-vcard',         '#dc2626', 'Dydaktyka',            'Karty 30 — dydaktyka i konsultacje'],
         '/crm/contact'             => ['bi-person-fill',          '#059669', 'CRM',                  'Profil kontaktu' . $id_str],
         '/crm/case'                => ['bi-briefcase-fill',       '#059669', 'CRM',                  'Sprawa' . $id_str],
         '/crm/letter'              => ['bi-envelope-paper-fill',  '#059669', 'CRM — Pisma',          'Pismo' . $id_str],
@@ -171,7 +171,7 @@ $role_label = match(true) {
     $role === 'admin'    => 'Administrator',
     $role === 'editor'   => 'Edytor',
     $role === 'crm_user' => 'Użytkownik CRM',
-    $_ika_k30            => 'Doradca TyfloKonsultacje',
+    $_ika_k30            => 'Doradca — Dydaktyka',
     default              => ucfirst($role),
 };
 
@@ -732,7 +732,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
   </div>
 
   <div class="gate-left-footer">
-    <?php $back_url = match($dest_ctx['module']) {'CRM' => APP_URL . '/crm/dashboard.php', 'TyfloKonsultacje' => APP_URL . '/karty30/index.php', default => APP_URL . '/index.php'}; ?>
+    <?php $back_url = match($dest_ctx['module']) {'CRM' => APP_URL . '/crm/dashboard.php', 'Dydaktyka' => APP_URL . '/karty30/index.php', default => APP_URL . '/index.php'}; ?>
     <a href="<?= h($back_url) ?>"><i class="bi bi-arrow-left-circle"></i> Anuluj i wróć</a>
     <div style="margin-top:.35rem">&copy; <?= date('Y') ?> · <?= h($org_name) ?></div>
   </div>
@@ -754,7 +754,7 @@ html,body{height:100%;margin:0;padding:0;background:#0f172a}
     $page_mode === 'pesel'                                       => 'bi-card-text',
     $page_mode === 'email_verify' && !$show_method_tabs          => 'bi-envelope-check',
     $dest_ctx['module'] === 'CRM'                                => 'bi-diagram-2-fill',
-    $dest_ctx['module'] === 'TyfloKonsultacje'                   => 'bi-card-checklist',
+    $dest_ctx['module'] === 'Dydaktyka'                          => 'bi-card-checklist',
     $dest_ctx['module'] === 'Panel administratora'               => 'bi-shield-lock',
     default                                                      => 'bi-shield-check',
   };

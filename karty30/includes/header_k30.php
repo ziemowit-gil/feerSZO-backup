@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/includes/header_k30.php — Dostępny layout TyfloKonsultacje.
+ * karty30/includes/header_k30.php — Dostępny layout modułu Dydaktyka (d. TyfloKonsultacje).
  *
  * Pełna dostępność WCAG 2.1 AA:
  *  - Skip link jako pierwszy element focusowalny
@@ -36,7 +36,7 @@ k30_require_access();
 })();
 
 $_ku        = current_user();
-$_k30_title = $PAGE_TITLE ?? 'TyfloKonsultacje';
+$_k30_title = $PAGE_TITLE ?? 'Dydaktyka';
 $_uri       = $_SERVER['REQUEST_URI'] ?? '';
 $_org_name  = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 $_can_write = can_write('karty30') || is_admin();
@@ -64,17 +64,17 @@ function _k30_active(string $path): bool {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h($_k30_title) ?> — TyfloKonsultacje<?= $_org_name ? ' · ' . h($_org_name) : '' ?></title>
+<title><?= h($_k30_title) ?> — Dydaktyka<?= $_org_name ? ' · ' . h($_org_name) : '' ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════════════
-   TyfloKonsultacje — dostępny layout
+   Dydaktyka (d. TyfloKonsultacje) — dostępny layout
    Priorytet: czytelność, kontrast, widoczny focus, semantyka
    ═══════════════════════════════════════════════════════════════════ */
 
-/* ── Paleta TyfloKonsultacje ────────────────────────────────────────
+/* ── Paleta Dydaktyka ───────────────────────────────────────────────
    Główny kolor: indigo-900 (#1e1b4b → topbar) + indigo-600 (#4f46e5 → akcenty)
    Kontrast topbar/biały: 14:1 ✓ WCAG AAA
    Kontrast tekstu: 17:1 ✓ WCAG AAA
@@ -592,12 +592,12 @@ body {
 <header class="k30-topbar" role="banner">
 
   <!-- Logo / brand -->
-  <a href="<?= APP_URL ?>/karty30/index.php" class="k30-brand" aria-label="TyfloKonsultacje Karty 30 — strona główna">
+  <a href="<?= APP_URL ?>/karty30/index.php" class="k30-brand" aria-label="Dydaktyka Karty 30 — strona główna">
     <div class="k30-brand-icon" aria-hidden="true">
       <i class="bi bi-card-checklist"></i>
     </div>
     <div>
-      <div>TyfloKonsultacje</div>
+      <div>Dydaktyka</div>
       <div class="k30-brand-sub">Karty 30<?= $_org_name ? ' · ' . h(mb_substr($_org_name, 0, 20, 'UTF-8')) : '' ?></div>
     </div>
   </a>
@@ -663,11 +663,11 @@ body {
 <!-- ══ SIDEBAR — lewa nawigacja ══════════════════════════════════════ -->
 <nav class="k30-sidebar" id="k30-nav" aria-label="Nawigacja modułu">
 
-  <!-- Informacja o zmianie zakresu / nazwy modułu -->
+  <!-- Informacja o zmianie nazwy modułu -->
   <div class="k30-rename-note" role="note"
-       aria-label="Moduł obsługuje teraz także Dydaktykę i wkrótce zmieni nazwę z TyfloKonsultacje na Dydaktyka">
+       aria-label="Moduł zmienił nazwę z TyfloKonsultacje na Dydaktyka i obejmuje także dawne konsultacje">
     <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
-    <span>Moduł obsługuje teraz także <strong>Dydaktykę</strong>. Wkrótce zmieni nazwę z „TyfloKonsultacje" na <strong>„Dydaktyka"</strong>.</span>
+    <span>Moduł zmienił nazwę z „TyfloKonsultacje" na <strong>„Dydaktyka"</strong>. Dawne konsultacje znajdziesz w sekcji „Konsultacje i raporty".</span>
   </div>
 
   <div class="k30-nav-label" aria-hidden="true">Menu główne</div>
@@ -675,7 +675,7 @@ body {
   <a href="<?= APP_URL ?>/karty30/index.php"
      class="k30-nav-link"
      <?= _k30_active('/karty30/index') ? 'aria-current="page"' : '' ?>
-     aria-label="Dashboard TyfloKonsultacje — strona główna modułu">
+     aria-label="Dashboard Dydaktyka — strona główna modułu">
     <i class="bi bi-grid-1x2-fill" aria-hidden="true"></i>
     Dashboard
   </a>

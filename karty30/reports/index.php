@@ -21,7 +21,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </ol>
 </nav>
 
-<h4 class="fw-bold mb-4"><i class="bi bi-bar-chart text-secondary me-2"></i>Raporty — TyfloKonsultacje</h4>
+<h4 class="fw-bold mb-4"><i class="bi bi-bar-chart text-secondary me-2"></i>Raporty — Dydaktyka</h4>
 
 <div class="row g-3">
   <div class="col-md-4">
