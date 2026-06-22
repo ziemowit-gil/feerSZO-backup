@@ -62,6 +62,7 @@ try {
 :root {
   --crm-sidebar-w: 220px;
   --crm-topbar-h: 52px;
+  --crm-navbar-h: 46px;
 }
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -89,9 +90,9 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 
-/* Brand w topbarze (widoczny gdy sidebar zwinięty / mobile) */
+/* Brand w topbarze */
 .crm-topbar-brand {
-  width: var(--crm-sidebar-w);
+  width: auto;
   display: flex;
   align-items: center;
   gap: .6rem;
@@ -159,85 +160,54 @@ body {
 }
 .crm-topbar-sys-link:hover { color: var(--crm-primary); border-color: var(--crm-primary); background: var(--crm-primary-bg); }
 
-/* ══ SIDEBAR ══════════════════════════════════════════════════════════ */
-.crm-sidebar {
+/* ══ TOP NAVBAR (poziome menu — pod topbarem) ════════════════════════ */
+.crm-navbar {
   position: fixed;
   top: var(--crm-topbar-h);
-  left: 0;
-  bottom: 0;
-  width: var(--crm-sidebar-w);
+  left: 0; right: 0;
+  height: var(--crm-navbar-h);
+  z-index: 1035;
   background: #fff;
-  border-right: 1px solid #E5E7EB;
+  border-bottom: 1px solid #E5E7EB;
   display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  z-index: 1030;
-  transition: transform .25s;
+  align-items: center;
+  gap: .25rem;
+  padding: 0 1rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
 }
-.crm-sidebar::-webkit-scrollbar { width: 4px; }
-.crm-sidebar::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 2px; }
-
-/* Sidebar group */
-.crm-nav-group { padding: .75rem .75rem .25rem; }
-.crm-nav-group-label {
-  font-size: .65rem; font-weight: 700; letter-spacing: .08em;
-  text-transform: uppercase; color: #9CA3AF;
-  padding: 0 .5rem; margin-bottom: .25rem;
+.crm-navbar-scroll {
+  display: flex; align-items: center; gap: .1rem;
+  flex: 1; height: 100%;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
 }
-
-/* Sidebar nav link */
-.crm-nav-item {
-  display: flex; align-items: center; gap: .6rem;
-  padding: .45rem .7rem;
-  border-radius: 7px;
-  font-size: .84rem; font-weight: 500;
-  color: #374151;
-  text-decoration: none;
-  transition: background .1s, color .1s;
-  margin-bottom: 1px;
-  position: relative;
+.crm-navbar-scroll::-webkit-scrollbar { display: none; }
+.crm-navlink {
+  display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap;
+  padding: .4rem .7rem; border-radius: 7px;
+  font-size: .83rem; font-weight: 500; color: #374151;
+  text-decoration: none; flex-shrink: 0; transition: background .1s, color .1s;
 }
-.crm-nav-item i { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; color: #9CA3AF; transition: color .1s; }
-.crm-nav-item:hover { background: #F9FAFB; color: var(--crm-primary); }
-.crm-nav-item:hover i { color: var(--crm-primary); }
-.crm-nav-item.active {
-  background: var(--crm-primary-bg);
-  color: var(--crm-primary);
-  font-weight: 600;
+.crm-navlink i { font-size: .95rem; color: #9CA3AF; transition: color .1s; }
+.crm-navlink:hover { background: #F9FAFB; color: var(--crm-primary); }
+.crm-navlink:hover i { color: var(--crm-primary); }
+.crm-navlink.active { background: var(--crm-primary-bg); color: var(--crm-primary); font-weight: 600; }
+.crm-navlink.active i { color: var(--crm-primary); }
+.crm-navlink .crm-nav-badge {
+  background: #E5E7EB; color: #6B7280; font-size: .65rem; font-weight: 700;
+  padding: .1rem .4rem; border-radius: 10px; min-width: 18px; text-align: center;
 }
-.crm-nav-item.active i { color: var(--crm-primary); }
-.crm-nav-item.active::before {
-  content: '';
-  position: absolute; left: 0; top: 20%; bottom: 20%;
-  width: 3px; border-radius: 0 3px 3px 0;
-  background: var(--crm-primary);
+.crm-navlink.active .crm-nav-badge { background: var(--crm-primary); color: #fff; }
+.crm-navbar-actions {
+  display: flex; align-items: center; gap: .4rem; flex-shrink: 0;
+  padding-left: .6rem; margin-left: .25rem; border-left: 1px solid #E5E7EB;
 }
-.crm-nav-badge {
-  margin-left: auto;
-  background: #E5E7EB; color: #6B7280;
-  font-size: .65rem; font-weight: 700;
-  padding: .1rem .4rem; border-radius: 10px;
-  min-width: 18px; text-align: center;
-}
-.crm-nav-item.active .crm-nav-badge { background: var(--crm-primary); color: #fff; }
-
-/* Sidebar divider */
-.crm-nav-divider { height: 1px; background: #F3F4F6; margin: .5rem .75rem; }
-
-/* Sidebar bottom section */
-.crm-sidebar-bottom {
-  margin-top: auto;
-  border-top: 1px solid #F3F4F6;
-  padding: .75rem;
-}
-.crm-sidebar-bottom .crm-nav-item { font-size: .8rem; }
 
 /* ══ MAIN CONTENT ═══════════════════════════════════════════════════ */
 .crm-shell {
-  margin-top: var(--crm-topbar-h);
-  margin-left: var(--crm-sidebar-w);
-  min-height: calc(100vh - var(--crm-topbar-h));
+  margin-top: calc(var(--crm-topbar-h) + var(--crm-navbar-h));
+  margin-left: 0;
+  min-height: calc(100vh - var(--crm-topbar-h) - var(--crm-navbar-h));
   display: flex;
   flex-direction: column;
 }
@@ -257,25 +227,18 @@ body {
   margin-left: 0;
 }
 
-/* ══ TRYB PEŁNOEKRANOWY (bez sidebara) ═══════════════════════════════ */
-.crm-shell   { transition: margin-left .22s; }
-.crm-sidebar { transition: transform .22s; }
-body.crm-fullscreen .crm-sidebar      { transform: translateX(-220px); }
-body.crm-fullscreen .crm-shell        { margin-left: 0; }
-body.crm-fullscreen .crm-content      { max-width: 100%; }
-body.crm-fullscreen .crm-topbar-brand { width: auto; border-right: none; }
+/* ══ TRYB PEŁNOEKRANOWY ══════════════════════════════════════════════ */
+body.crm-fullscreen .crm-content { max-width: 100%; }
 
 /* ══ RESPONSIVE ══════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  :root { --crm-sidebar-w: 0px; }
-  .crm-sidebar { transform: translateX(-220px); }
-  .crm-sidebar.open { transform: translateX(0); width: 220px; }
-  .crm-topbar-brand { width: auto; border-right: none; }
+  .crm-topbar-brand { border-right: none; }
   .crm-topbar-username { display: none; }
   .crm-topbar-sys-link { display: none; }
   #mod-sw { display: none; }
-  .crm-shell { margin-left: 0; }
   .crm-content { padding: 1rem .75rem; }
+  /* Na telefonie skróć przyciski akcji do samych ikon */
+  .crm-navbar-actions .crm-act-label { display: none; }
 }
 
 /* ══ PAGE HEADER (standardowy nagłówek strony) ═══════════════════════ */
@@ -381,17 +344,7 @@ window.openCommModal = function(contactId, channel) {
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <header class="crm-topbar" role="banner">
 
-  <!-- Przycisk hamburger (tylko mobile) -->
-  <button type="button"
-          class="crm-sidebar-toggle"
-          id="crmSidebarToggle"
-          aria-controls="crmSidebar"
-          aria-expanded="false"
-          aria-label="Otwórz nawigację">
-    <i class="bi bi-list" aria-hidden="true"></i>
-  </button>
-
-  <!-- Brand (lewa część topbara, nad sidebarem) -->
+  <!-- Brand (lewa część topbara) -->
   <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-topbar-brand" aria-label="CRM — dashboard">
     <div class="crm-topbar-brand-icon" aria-hidden="true"><i class="bi bi-diagram-2-fill"></i></div>
     <div>
@@ -456,134 +409,73 @@ window.openCommModal = function(contactId, channel) {
 </header>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 
-<!-- ══ SIDEBAR ══════════════════════════════════════════════════════════════════ -->
-<aside class="crm-sidebar" id="crmSidebar" role="navigation" aria-label="Nawigacja CRM">
+<!-- ══ TOP NAVBAR (poziome menu) ════════════════════════════════════════════════ -->
+<nav class="crm-navbar" role="navigation" aria-label="Nawigacja CRM">
 
-  <!-- Główna nawigacja -->
-  <div class="crm-nav-group">
-    <div class="crm-nav-group-label">Menu</div>
-
-    <a href="<?= APP_URL ?>/crm/dashboard.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/dashboard') ?>">
-      <i class="bi bi-grid-1x2-fill"></i>
-      <span>Dashboard</span>
+  <div class="crm-navbar-scroll">
+    <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-navlink<?= _crm_nav_active('/crm/dashboard') ?>"<?= _crm_nav_active('/crm/dashboard') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
     </a>
-
-    <a href="<?= APP_URL ?>/crm/index.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/index') ?>">
-      <i class="bi bi-people-fill"></i>
-      <span>Kontakty</span>
-      <?php if ($_crm_total): ?>
-      <span class="crm-nav-badge"><?= $_crm_total > 999 ? '999+' : $_crm_total ?></span>
-      <?php endif; ?>
+    <a href="<?= APP_URL ?>/crm/index.php" class="crm-navlink<?= _crm_nav_active('/crm/index') ?>"<?= _crm_nav_active('/crm/index') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-people-fill"></i><span>Kontakty</span>
+      <?php if ($_crm_total): ?><span class="crm-nav-badge"><?= $_crm_total > 999 ? '999+' : $_crm_total ?></span><?php endif; ?>
     </a>
-
-    <a href="<?= APP_URL ?>/crm/communicate.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/communicate') ?>">
-      <i class="bi bi-send-fill"></i>
-      <span>Komunikacja</span>
+    <a href="<?= APP_URL ?>/crm/communicate.php" class="crm-navlink<?= _crm_nav_active('/crm/communicate') ?>"<?= _crm_nav_active('/crm/communicate') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-send-fill"></i><span>Komunikacja</span>
     </a>
-
     <?php if (crm_setting('roundcube_url')): ?>
-    <a href="<?= APP_URL ?>/crm/webmail.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/webmail') ?>"
-       title="FEER Webmail (Roundcube)">
-      <i class="bi bi-envelope-at-fill"></i>
-      <span>Webmail</span>
+    <a href="<?= APP_URL ?>/crm/webmail.php" class="crm-navlink<?= _crm_nav_active('/crm/webmail') ?>" title="FEER Webmail (Roundcube)"<?= _crm_nav_active('/crm/webmail') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-envelope-at-fill"></i><span>Webmail</span>
     </a>
     <?php endif; ?>
-
-    <a href="<?= APP_URL ?>/crm/mass_send.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/mass_send') ?>">
-      <i class="bi bi-megaphone-fill"></i>
-      <span>Wysyłka masowa</span>
+    <a href="<?= APP_URL ?>/crm/mass_send.php" class="crm-navlink<?= _crm_nav_active('/crm/mass_send') ?>"<?= _crm_nav_active('/crm/mass_send') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-megaphone-fill"></i><span>Wysyłka masowa</span>
     </a>
-
     <?php if ($_crm_can_write): ?>
-    <a href="<?= APP_URL ?>/crm/form/manage.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/form/') ?>">
-      <i class="bi bi-window-split"></i>
-      <span>Formularze</span>
+    <a href="<?= APP_URL ?>/crm/form/manage.php" class="crm-navlink<?= _crm_nav_active('/crm/form/') ?>"<?= _crm_nav_active('/crm/form/') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-window-split"></i><span>Formularze</span>
     </a>
     <?php endif; ?>
-
-    <a href="<?= APP_URL ?>/crm/calendar.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/calendar') ?>">
-      <i class="bi bi-calendar3-fill"></i>
-      <span>Kalendarz</span>
+    <a href="<?= APP_URL ?>/crm/calendar.php" class="crm-navlink<?= _crm_nav_active('/crm/calendar') ?>"<?= _crm_nav_active('/crm/calendar') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-calendar3-fill"></i><span>Kalendarz</span>
     </a>
-    <?php
-    // Pokaż link sync tylko dla użytkowników z kontem Office 365
-    $_crm_has_ms = !empty($_cu['microsoft_id'] ?? '');
-    if ($_crm_has_ms): ?>
-    <a href="<?= APP_URL ?>/crm/calendar_settings.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/calendar_settings') ?>"
-       title="Synchronizuj swój kalendarz Outlook">
-      <i class="bi bi-microsoft"></i>
-      <span>Mój Outlook sync</span>
+    <?php $_crm_has_ms = !empty($_cu['microsoft_id'] ?? ''); if ($_crm_has_ms): ?>
+    <a href="<?= APP_URL ?>/crm/calendar_settings.php" class="crm-navlink<?= _crm_nav_active('/crm/calendar_settings') ?>" title="Synchronizuj swój kalendarz Outlook"<?= _crm_nav_active('/crm/calendar_settings') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-microsoft"></i><span>Outlook</span>
     </a>
     <?php endif; ?>
-
-    <a href="<?= APP_URL ?>/crm/cases/index.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/cases') ?>">
-      <i class="bi bi-briefcase-fill"></i>
-      <span>Sprawy</span>
+    <a href="<?= APP_URL ?>/crm/cases/index.php" class="crm-navlink<?= _crm_nav_active('/crm/cases') ?>"<?= _crm_nav_active('/crm/cases') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-briefcase-fill"></i><span>Sprawy</span>
     </a>
-
-    <a href="<?= APP_URL ?>/crm/groups.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/groups') ?><?= _crm_nav_active('/crm/group/') ?>">
-      <i class="bi bi-collection-fill"></i>
-      <span>Grupy</span>
+    <a href="<?= APP_URL ?>/crm/groups.php" class="crm-navlink<?= _crm_nav_active('/crm/groups') ?><?= _crm_nav_active('/crm/group/') ?>">
+      <i class="bi bi-collection-fill"></i><span>Grupy</span>
     </a>
-
-    <a href="<?= APP_URL ?>/crm/tags.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/tags') ?>">
-      <i class="bi bi-tags-fill"></i>
-      <span>Tagi</span>
+    <a href="<?= APP_URL ?>/crm/tags.php" class="crm-navlink<?= _crm_nav_active('/crm/tags') ?>"<?= _crm_nav_active('/crm/tags') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-tags-fill"></i><span>Tagi</span>
     </a>
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/crm/settings/" class="crm-navlink<?= _crm_nav_active('/crm/settings') ?>"<?= _crm_nav_active('/crm/settings') ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-gear-fill"></i><span>Ustawienia</span>
+    </a>
+    <?php endif; ?>
   </div>
 
   <?php if ($_crm_can_write): ?>
-  <div class="crm-nav-divider"></div>
-  <div class="crm-nav-group">
-    <div class="crm-nav-group-label">Dodaj</div>
-    <a href="<?= APP_URL ?>/crm/contact/add_person.php"
-       class="crm-nav-item<?= _crm_nav_active('add_person') ?>">
-      <i class="bi bi-person-plus"></i>
-      <span>Nowa osoba</span>
+  <!-- Szybkie akcje -->
+  <div class="crm-navbar-actions">
+    <a href="<?= APP_URL ?>/crm/contact/add_person.php" class="btn btn-crm-primary btn-sm" title="Dodaj nową osobę">
+      <i class="bi bi-person-plus"></i> <span class="crm-act-label">Dodaj osobę</span>
     </a>
-    <a href="<?= APP_URL ?>/crm/contact/add_org.php"
-       class="crm-nav-item<?= _crm_nav_active('add_org') ?>">
-      <i class="bi bi-building-add"></i>
-      <span>Nowa firma / org.</span>
+    <a href="<?= APP_URL ?>/crm/contact/add_org.php" class="btn btn-crm-outline btn-sm" title="Dodaj nową firmę / organizację">
+      <i class="bi bi-building-add"></i> <span class="crm-act-label">Dodaj firmę</span>
     </a>
-    <?php if ($_crm_can_write): ?>
-    <a href="<?= APP_URL ?>/crm/contact/import.php"
-       class="crm-nav-item<?= _crm_nav_active('/crm/contact/import') ?>">
+    <a href="<?= APP_URL ?>/crm/contact/import.php" class="btn btn-crm-ghost btn-sm" title="Import CSV">
       <i class="bi bi-upload"></i>
-      <span>Import CSV</span>
     </a>
-    <?php endif; ?>
   </div>
   <?php endif; ?>
 
-  <!-- Dolna sekcja sidebar -->
-  <div class="crm-sidebar-bottom">
-    <?php if (is_admin()): ?>
-    <a href="<?= APP_URL ?>/crm/settings/" class="crm-nav-item <?= _crm_nav_active('/crm/settings') ?>">
-      <i class="bi bi-gear-fill"></i>
-      <span>Ustawienia CRM</span>
-    </a>
-    <?php endif; ?>
-    <?php if (!defined('CRM_STANDALONE') || !CRM_STANDALONE): ?>
-    <a href="<?= APP_URL ?>/index.php" class="crm-nav-item">
-      <i class="bi bi-box-arrow-left"></i>
-      <span>System główny</span>
-    </a>
-    <?php endif; ?>
-  </div>
-
-</aside>
+</nav>
 
 <!-- ══ SHELL WRAPPER ═══════════════════════════════════════════════════════════ -->
 <div class="crm-shell">
