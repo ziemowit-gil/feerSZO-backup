@@ -28,52 +28,8 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 (function() {
   'use strict';
 
-  // 1. Mobile sidebar toggle
-  var sidebar = document.getElementById('k30-nav');
-  var topbar  = document.querySelector('.k30-topbar');
-  if (sidebar && topbar) {
-    // Przycisk hamburger (mobile) — dodaj dynamicznie
-    var hbtn = document.createElement('button');
-    hbtn.type = 'button';
-    hbtn.className = 'k30-sys-link d-md-none';
-    hbtn.setAttribute('aria-label', 'Otwórz nawigację');
-    hbtn.setAttribute('aria-expanded', 'false');
-    hbtn.setAttribute('aria-controls', 'k30-nav');
-    hbtn.innerHTML = '<i class="bi bi-list" aria-hidden="true"></i>';
-    hbtn.style.cssText = 'margin-right:.5rem;margin-left:.75rem';
-    topbar.insertBefore(hbtn, topbar.querySelector('.k30-brand').nextSibling);
-
-    hbtn.addEventListener('click', function() {
-      var open = sidebar.classList.toggle('open');
-      hbtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      hbtn.setAttribute('aria-label', open ? 'Zamknij nawigację' : 'Otwórz nawigację');
-      if (open) {
-        // Fokus na pierwszym linku w sidebarze
-        var firstLink = sidebar.querySelector('.k30-nav-link');
-        if (firstLink) firstLink.focus();
-      }
-    });
-
-    // Zamknij sidebar po kliknięciu poza nim (mobile)
-    document.addEventListener('click', function(e) {
-      if (window.innerWidth < 768 && sidebar.classList.contains('open')
-          && !sidebar.contains(e.target) && !hbtn.contains(e.target)) {
-        sidebar.classList.remove('open');
-        hbtn.setAttribute('aria-expanded', 'false');
-        hbtn.setAttribute('aria-label', 'Otwórz nawigację');
-        hbtn.focus();
-      }
-    });
-
-    // Zamknij Escape
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-        sidebar.classList.remove('open');
-        hbtn.setAttribute('aria-expanded', 'false');
-        hbtn.focus();
-      }
-    });
-  }
+  // 1. Menu główne jest teraz poziomym paskiem na górze (k30-menubar) —
+  //    zawsze widoczne i responsywne (zawijanie), więc nie potrzebuje hamburgera.
 
   // 2. Potwierdzenia usunięcia — ogłoś intencję
   document.querySelectorAll('[data-confirm]').forEach(function(el) {
@@ -98,7 +54,7 @@ $_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
   }
 
   // 5. Ogłoś aktywną stronę w nawigacji dla czytników
-  var activePage = document.querySelector('.k30-nav-link[aria-current="page"]');
+  var activePage = document.querySelector('.k30-menu-link[aria-current="page"], .k30-menubar .dropdown-item[aria-current="page"]');
   if (activePage) {
     var live = document.getElementById('k30-live');
     if (live) live.textContent = 'Jesteś na stronie: ' + activePage.textContent.trim();
