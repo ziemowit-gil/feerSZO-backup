@@ -20,8 +20,7 @@ $test    = $test_id ? k30_ti_test_get($test_id) : null;
 // Test musi istnieć, być aktywny i dotyczyć kursu, na który kursant jest zapisany
 $enrolled_courses = array_map(fn($c)=>(int)$c['course_id'], k30_ti_client_courses((int)$student['client_id']));
 if (!$test || empty($test['is_active']) || !in_array((int)$test['course_id'], $enrolled_courses, true)) {
-    flash_set('danger', 'Test jest niedostępny.');
-    header('Location: index.php?tab=testy'); exit;
+    header('Location: index.php?tab=testy&err=unavailable'); exit;
 }
 
 $questions = k30_ti_test_questions($test_id);
@@ -66,8 +65,6 @@ include __DIR__ . '/_layout_head.php';
   <li class="breadcrumb-item"><a href="index.php?tab=testy">Testy</a></li>
   <li class="breadcrumb-item active"><?= h($test['title']) ?></li>
 </ol></nav>
-
-<?= flash_html() ?>
 
 <?php if ($done && $last):
   $mx  = (float)$last['max_score'];

@@ -1659,6 +1659,9 @@ include __DIR__ . '/_layout_head.php';
 
 <?php elseif ($tab === 'testy'): ?>
   <h1 class="h5 fw-bold mb-3"><i class="bi bi-card-checklist text-primary me-2" aria-hidden="true"></i>Testy</h1>
+  <?php if (($_GET['err'] ?? '') === 'unavailable'): ?>
+  <div class="alert alert-warning" role="alert"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Wybrany test jest niedostępny lub został ukryty.</div>
+  <?php endif; ?>
   <?php
     $any_test = false;
     foreach ($courses as $c):
