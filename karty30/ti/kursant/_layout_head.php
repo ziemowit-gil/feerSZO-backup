@@ -61,7 +61,15 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 @media (max-width:767.98px){
   .kp-auth-hero { display:none !important; } /* na telefonie tylko formularz */
 }
-@media (prefers-reduced-motion: reduce){ .skip-link { transition:none; } }
+/* ── Zwijane oddane zadania (Dydaktyka / eLearning) ──────────────────────── */
+.dyd-hw-summary { cursor:pointer; list-style:none; }
+.dyd-hw-summary::-webkit-details-marker { display:none; }   /* Safari/Chrome */
+.dyd-hw-summary::marker { content:""; }                      /* Firefox */
+.dyd-hw-summary:hover { background:var(--bs-tertiary-bg); }
+.dyd-hw-summary:focus-visible { outline:3px solid #60a5fa; outline-offset:-3px; }
+.dyd-hw-chevron { transition:transform .15s ease; }
+.dyd-hw[open] > .dyd-hw-summary .dyd-hw-chevron { transform:rotate(180deg); }
+@media (prefers-reduced-motion: reduce){ .skip-link { transition:none; } .dyd-hw-chevron { transition:none; } }
 </style>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>">

@@ -5,10 +5,14 @@ $graded  = ($h['sub_status'] ?? '') === 'graded';
 $overdue = $h['due_at'] && $h['due_at'] < $now && !$done;
 $hav     = k30_ti_avail_status($h['open_at'] ?? null, $h['close_at'] ?? null, $now);
 $hopen   = $hav['state'] === 'open';
-?>
-<div class="card <?= $graded ? 'border-success' : ($overdue || $hav['state']==='closed' ? 'border-danger' : '') ?> <?= $hav['state']==='upcoming' ? 'opacity-75' : '' ?>">
-  <div class="card-body">
-    <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
+// Oddane zadania zwijamy, by nie zaśmiecały listy — pełną treść można rozwinąć (a11y: <details>).
+$collapsible = $done;
+$cardCls = ($graded ? 'border-success' : ($overdue || $hav['state']==='closed' ? 'border-danger' : ''))
+         . ($hav['state']==='upcoming' ? ' opacity-75' : '');
+
+// ── Nagłówek (zawsze widoczny / treść <summary>) ─────────────────────────────
+ob_start(); ?>
+    <div class="d-flex flex-wrap align-items-start gap-2 <?= $collapsible ? '' : 'mb-2' ?>">
       <div class="flex-grow-1 min-width-0">
         <div class="fw-bold"><?= h($h['title']) ?></div>
         <div class="small text-body-secondary">
@@ -37,8 +41,14 @@ $hopen   = $hav['state'] === 'open';
       <?php else: ?>
       <span class="badge text-bg-warning">Do oddania</span>
       <?php endif; ?>
+      <?php if ($collapsible): ?>
+      <i class="bi bi-chevron-down dyd-hw-chevron flex-shrink-0 text-body-secondary" aria-hidden="true"></i>
+      <?php endif; ?>
     </div>
+<?php $hdr = ob_get_clean();
 
+// ── Treść zwijana (opis, materiał, oddanie, formularz) ───────────────────────
+ob_start(); ?>
     <?php if ($h['description']): ?>
     <p class="small mb-2" style="white-space:pre-wrap"><?= h($h['description']) ?></p>
     <?php endif; ?>
@@ -85,5 +95,22 @@ $hopen   = $hav['state'] === 'open';
     <?php elseif (!$graded && $hav['state']==='closed' && !$done): ?>
     <div class="border-top pt-2 small text-danger"><i class="bi bi-lock me-1" aria-hidden="true"></i>Oddawanie tego zadania zostało zamknięte (<?= h(substr($hav['close_at'],0,16)) ?>).</div>
     <?php endif; ?>
+<?php $bdy = ob_get_clean();
+?>
+<?php if ($collapsible): ?>
+<details class="card dyd-hw <?= $cardCls ?>">
+  <summary class="card-body py-2 dyd-hw-summary">
+<?= $hdr ?>
+  </summary>
+  <div class="card-body pt-0">
+<?= $bdy ?>
+  </div>
+</details>
+<?php else: ?>
+<div class="card <?= $cardCls ?>">
+  <div class="card-body">
+<?= $hdr ?>
+<?= $bdy ?>
   </div>
 </div>
+<?php endif; ?>
