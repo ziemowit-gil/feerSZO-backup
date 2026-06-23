@@ -296,6 +296,10 @@ function karty30_migrate(): void {
         // Link do lekcji online (per-lekcja) + stały link grupy (kurs)
         "ALTER TABLE k30_ti_sessions ADD COLUMN meeting_url      TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_courses  ADD COLUMN default_meeting_url TEXT NOT NULL DEFAULT ''",
+        // Oceny (e-dziennik) włączone dla kursu (0=wyłączone — np. kurs dla dorosłych)
+        "ALTER TABLE k30_ti_courses ADD COLUMN grades_enabled INTEGER NOT NULL DEFAULT 1",
+        // Oceny włączone dla osoby globalnie (per osoba) — niezależnie od kursu
+        "ALTER TABLE k30_clients   ADD COLUMN ti_grades_enabled INTEGER NOT NULL DEFAULT 1",
         // Model rozliczania kursu: 1=miesięczny, 2=godzinowy (domyślny), 3=stały
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 2",
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
@@ -1805,7 +1809,8 @@ function k30_ti_course_get(int $id): ?array {
 // Zapisy
 function k30_ti_enrollments(int $course_id): array {
     return db_all(
-        "SELECT e.*, cl.name AS client_name, cl.email AS client_email, cl.phone AS client_phone
+        "SELECT e.*, cl.name AS client_name, cl.email AS client_email, cl.phone AS client_phone,
+                cl.ti_grades_enabled AS client_grades_enabled
          FROM k30_ti_enrollments e
          JOIN k30_clients cl ON cl.id=e.client_id
          WHERE e.course_id=? ORDER BY cl.name", [$course_id]
@@ -3499,6 +3504,8 @@ function k30_ti_test_sync_grade(int $attempt_id): void {
     if (!$att || $att['status'] !== 'graded') return;
     $test = k30_ti_test_get((int)$att['test_id']);
     if (!$test || empty($test['sync_grade'])) return;
+    // Oceny wyłączone dla kursu lub osoby → nie zapisuj do e-dziennika
+    if (!k30_ti_grades_allowed((int)$test['course_id'], (int)$att['client_id'])) return;
     $max = (float)$att['max_score'];
     if ($max <= 0) return;
     $pct  = 100 * (float)$att['score'] / $max;
@@ -3605,4 +3612,25 @@ function ti_instructor_available_at(int $instructor_id, string $date, string $ti
 function ti_course_instructor_id(int $course_id): int {
     if (!$course_id) return 0;
     return (int)(db_one("SELECT instructor_id FROM k30_ti_courses WHERE id=?", [$course_id])['instructor_id'] ?? 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  OCENY — włączanie/wyłączanie per kurs i per osoba (e-dziennik)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Czy w kursie w ogóle prowadzi się oceny? */
+function k30_ti_course_grades_enabled(int $course_id): bool {
+    $r = db_one("SELECT grades_enabled FROM k30_ti_courses WHERE id=?", [$course_id]);
+    return $r === null ? true : (int)($r['grades_enabled'] ?? 1) === 1;
+}
+
+/** Czy osoba ma globalnie włączone oceny w TI? */
+function k30_ti_client_grades_enabled(int $client_id): bool {
+    $r = db_one("SELECT ti_grades_enabled FROM k30_clients WHERE id=?", [$client_id]);
+    return $r === null ? true : (int)($r['ti_grades_enabled'] ?? 1) === 1;
+}
+
+/** Czy dla danej osoby w danym kursie wolno wystawiać/oglądać oceny? (kurs ∧ osoba) */
+function k30_ti_grades_allowed(int $course_id, int $client_id): bool {
+    return k30_ti_course_grades_enabled($course_id) && k30_ti_client_grades_enabled($client_id);
 }

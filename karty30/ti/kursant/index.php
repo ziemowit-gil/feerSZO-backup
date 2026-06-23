@@ -296,7 +296,13 @@ $homeworks_student = k30_ti_homework_for_client($student['client_id']);
 $hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
 $materials_student = k30_ti_materials_for_client($student['client_id']);
 // Oceny (e-dziennik) — pogrupowane wg kursu, ze średnią ważoną
+// Respektuj wyłączenie ocen: globalnie dla osoby oraz per kurs.
 $grades_student = k30_ti_client_grades($student['client_id']);
+if (!k30_ti_client_grades_enabled((int)$student['client_id'])) {
+    $grades_student = [];
+} else {
+    $grades_student = array_values(array_filter($grades_student, fn($g) => k30_ti_course_grades_enabled((int)$g['course_id'])));
+}
 $grades_by_course = [];
 foreach ($grades_student as $g) { $grades_by_course[$g['course_name']][] = $g; }
 

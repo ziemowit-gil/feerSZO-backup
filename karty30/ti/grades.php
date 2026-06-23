@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         // kursant musi być zapisany w kursie
         $ok = $cid && $client_id && db_one("SELECT 1 FROM k30_ti_enrollments WHERE course_id=? AND client_id=?", [$cid, $client_id]);
         if (!$ok || $vtext === '') { flash_set('danger','Wybierz kurs, kursanta i wpisz ocenę.'); header('Location: grades.php?course='.$cid); exit; }
+        if (!k30_ti_grades_allowed($cid, $client_id)) { flash_set('danger','Oceny są wyłączone dla tego kursu lub tej osoby.'); header('Location: grades.php?course='.$cid); exit; }
         if ($session_id && !db_one("SELECT 1 FROM k30_ti_sessions WHERE id=? AND course_id=?", [$session_id, $cid])) $session_id = null;
         $vnum = k30_ti_grade_parse_num($vtext);
 
@@ -73,6 +74,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         if ($g) { db()->prepare("DELETE FROM k30_ti_grades WHERE id=?")->execute([$gid]); flash_set('success','Ocena usunięta.'); }
         header('Location: grades.php?course='.(int)($g['course_id'] ?? 0)); exit;
     }
+
+    // Włącz/wyłącz oceny dla całego kursu (per kurs)
+    if ($op === 'toggle_course_grades') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        $c   = $cid ? k30_ti_course_get($cid) : null;
+        if ($c) {
+            $new = empty($c['grades_enabled']) ? 1 : 0;
+            db()->prepare("UPDATE k30_ti_courses SET grades_enabled=? WHERE id=?")->execute([$new, $cid]);
+            flash_set('success', $new ? 'Oceny w tym kursie włączone.' : 'Oceny w tym kursie wyłączone.');
+        }
+        header('Location: grades.php?course='.$cid); exit;
+    }
+
+    // Włącz/wyłącz oceny dla osoby globalnie (per osoba)
+    if ($op === 'toggle_client_grades') {
+        $cid       = (int)($_POST['course_id'] ?? 0);
+        $client_id = (int)($_POST['client_id'] ?? 0);
+        $cl = $client_id ? db_one("SELECT name, ti_grades_enabled FROM k30_clients WHERE id=?", [$client_id]) : null;
+        if ($cl) {
+            $new = empty($cl['ti_grades_enabled']) ? 1 : 0;
+            db()->prepare("UPDATE k30_clients SET ti_grades_enabled=? WHERE id=?")->execute([$new, $client_id]);
+            flash_set('success', ($new ? 'Oceny włączone' : 'Oceny wyłączone') . ' dla: ' . ($cl['name'] ?? '') . ' (globalnie).');
+        }
+        header('Location: grades.php?course='.$cid); exit;
+    }
 }
 
 $courses = k30_ti_courses(false);
@@ -80,6 +106,7 @@ $course  = $course_id ? k30_ti_course_get($course_id) : null;
 $roster  = $course ? array_values(array_filter(k30_ti_enrollments($course_id), fn($e)=>$e['status']==='active')) : [];
 $grades  = $course ? k30_ti_course_grades($course_id) : [];
 $sessions= $course ? db_all("SELECT id, lesson_date, topic FROM k30_ti_sessions WHERE course_id=? ORDER BY lesson_date DESC, id DESC", [$course_id]) : [];
+$course_grades_on = $course ? k30_ti_course_grades_enabled($course_id) : true;
 
 // Oceny pogrupowane wg kursanta
 $by_client = [];
@@ -137,15 +164,29 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <div class="card-header fw-semibold d-flex align-items-center gap-2 flex-wrap">
         <span><i class="bi bi-people me-2"></i><?= h($course['name']) ?></span>
         <span class="badge bg-secondary"><?= count($roster) ?> kursantów</span>
-        <?php if ($can_write): ?>
-        <a href="?course=<?= $course_id ?>&new=1" class="btn btn-sm btn-primary ms-auto">
-          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Wystaw ocenę
-        </a>
-        <a href="?course=<?= $course_id ?>&pdf=1" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
-        <?php else: ?>
-        <a href="?course=<?= $course_id ?>&pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
-        <?php endif; ?>
+        <?php if (!$course_grades_on): ?><span class="badge bg-warning text-dark"><i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Oceny wyłączone</span><?php endif; ?>
+        <div class="ms-auto d-flex gap-2 flex-wrap">
+          <?php if ($can_write): ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op" value="toggle_course_grades">
+            <input type="hidden" name="course_id" value="<?= $course_id ?>">
+            <button class="btn btn-sm btn-outline-secondary" title="Włącz/wyłącz oceny w tym kursie">
+              <i class="bi bi-<?= $course_grades_on ? 'toggle-on text-success' : 'toggle-off' ?> me-1" aria-hidden="true"></i><?= $course_grades_on ? 'Oceny: wł.' : 'Oceny: wył.' ?>
+            </button>
+          </form>
+          <?php if ($can_write && $course_grades_on): ?>
+          <a href="?course=<?= $course_id ?>&new=1" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Wystaw ocenę</a>
+          <?php endif; ?>
+          <?php endif; ?>
+          <a href="?course=<?= $course_id ?>&pdf=1" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+        </div>
       </div>
+      <?php if (!$course_grades_on): ?>
+      <div class="alert alert-warning rounded-0 border-0 border-bottom mb-0 py-2 small">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Oceny w tym kursie są wyłączone — e-dziennik nie jest prowadzony. Włącz powyżej, aby wystawiać oceny.
+      </div>
+      <?php endif; ?>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light"><tr><th>Kursant</th><th>Oceny</th><th class="text-end text-nowrap">Średnia</th><?php if ($can_write): ?><th></th><?php endif; ?></tr></thead>
@@ -155,9 +196,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               $cgr = $by_client[(int)$e['client_id']] ?? [];
               $avg = k30_ti_grades_average($cgr);
               [$abg,$afg] = k30_ti_grade_color($avg);
+              $person_on = (int)($e['client_grades_enabled'] ?? 1) === 1;
+              $eff_on    = $course_grades_on && $person_on;
             ?>
-            <tr>
-              <td class="fw-semibold text-nowrap"><?= h($e['client_name']) ?></td>
+            <tr class="<?= $person_on ? '' : 'opacity-75' ?>">
+              <td class="fw-semibold text-nowrap">
+                <?= h($e['client_name']) ?>
+                <?php if (!$person_on): ?><span class="badge bg-warning text-dark ms-1" title="Oceny wyłączone dla tej osoby (globalnie)"><i class="bi bi-slash-circle" aria-hidden="true"></i> oceny wył.</span><?php endif; ?>
+              </td>
               <td>
                 <?php if (!$cgr): ?><span class="text-muted small">— brak ocen —</span><?php endif; ?>
                 <div class="d-flex flex-wrap gap-1">
@@ -173,8 +219,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <?php else: ?><span class="text-muted">—</span><?php endif; ?>
               </td>
               <?php if ($can_write): ?>
-              <td class="text-end">
-                <a href="?course=<?= $course_id ?>&student=<?= (int)$e['client_id'] ?>" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" title="Wystaw ocenę" aria-label="Wystaw ocenę: <?= h($e['client_name']) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i></a>
+              <td class="text-end text-nowrap">
+                <?php if ($eff_on): ?>
+                <a href="?course=<?= $course_id ?>&student=<?= (int)$e['client_id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2" title="Wystaw ocenę" aria-label="Wystaw ocenę: <?= h($e['client_name']) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i></a>
+                <?php endif; ?>
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op" value="toggle_client_grades">
+                  <input type="hidden" name="course_id" value="<?= $course_id ?>">
+                  <input type="hidden" name="client_id" value="<?= (int)$e['client_id'] ?>">
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="<?= $person_on ? 'Wyłącz oceny tej osoby (globalnie)' : 'Włącz oceny tej osoby' ?>" aria-label="<?= $person_on ? 'Wyłącz' : 'Włącz' ?> oceny: <?= h($e['client_name']) ?>"><i class="bi bi-<?= $person_on ? 'toggle-on text-success' : 'toggle-off' ?>" aria-hidden="true"></i></button>
+                </form>
               </td>
               <?php endif; ?>
             </tr>
