@@ -137,6 +137,23 @@ include __DIR__ . '/../includes/header_crm.php';
 .btn-main-submit:hover { background: var(--crm-navy, #032D60); }
 /* ID-field monospace */
 .field-id { font-family: ui-monospace, SFMono-Regular, monospace; letter-spacing: .05em; }
+/* Karta importu — wyróżnienie */
+.of-importer { background: linear-gradient(180deg, var(--crm-primary-bg, #EEF4FF) 0, #fff 70%); }
+/* Kafelki typu podmiotu (CEIDG / KRS) */
+.of-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+@media (max-width: 575px) { .of-type-grid { grid-template-columns: 1fr; } }
+.of-type-pill {
+  display: flex; align-items: center; gap: .6rem; padding: .65rem .8rem;
+  border: 1.5px solid #e2e8f0; border-radius: .55rem; cursor: pointer;
+  background: #fff; transition: border-color .12s, background .12s, box-shadow .12s;
+}
+.of-type-pill:hover { border-color: #93c5fd; }
+.of-type-pill--active { border-color: var(--crm-primary, #0176D3); background: var(--crm-primary-bg, #EEF4FF); box-shadow: 0 0 0 3px var(--acc-ring, rgba(1,118,211,.1)); }
+.of-type-ico { width: 34px; height: 34px; flex-shrink: 0; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: var(--crm-primary-bg, #EEF4FF); color: var(--crm-primary, #0176D3); }
+.of-type-txt { display: flex; flex-direction: column; line-height: 1.2; }
+.of-type-txt strong { font-size: .9rem; color: #1e293b; }
+.of-type-txt small { font-size: .72rem; color: #64748b; }
+.of-type-pill input { position: absolute; opacity: 0; pointer-events: none; }
 </style>
 
 <!-- Breadcrumb -->
@@ -180,6 +197,74 @@ include __DIR__ . '/../includes/header_crm.php';
 
 <form method="post" novalidate class="of-accent" aria-label="Formularz firmy / organizacji CRM">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+
+<!-- ══ TYP PODMIOTU + SZYBKI IMPORT (CEIDG / KRS) ════════════════════════════ -->
+<div class="card border-0 shadow-sm mb-3 of-importer">
+  <div class="card-body">
+    <div class="sec-label">
+      <i class="bi bi-magic" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
+      Typ podmiotu i szybki import danych
+    </div>
+
+    <!-- Wybór typu — steruje źródłem importu -->
+    <div class="of-type-grid mb-3" role="radiogroup" aria-label="Typ podmiotu i źródło importu">
+      <label class="of-type-pill" data-mode="ceidg">
+        <input type="radio" name="_import_mode" value="ceidg" class="form-check-input mt-0"
+               onchange="setImportMode('ceidg')">
+        <span class="of-type-ico" aria-hidden="true"><i class="bi bi-shop"></i></span>
+        <span class="of-type-txt">
+          <strong>Firma (JDG)</strong>
+          <small>Jednoosobowa działalność — import z <b>CEIDG</b> po NIP</small>
+        </span>
+      </label>
+      <label class="of-type-pill of-type-pill--active" data-mode="krs">
+        <input type="radio" name="_import_mode" value="krs" class="form-check-input mt-0" checked
+               onchange="setImportMode('krs')">
+        <span class="of-type-ico" aria-hidden="true"><i class="bi bi-bank"></i></span>
+        <span class="of-type-txt">
+          <strong>Organizacja / spółka</strong>
+          <small>Fundacja, stowarzyszenie, sp. z o.o. — import z <b>KRS</b></small>
+        </span>
+      </label>
+    </div>
+
+    <!-- Pole wyszukiwania (adaptacyjne: NIP dla CEIDG / KRS dla rejestru) -->
+    <label class="form-label small fw-semibold mb-1" id="importInputLabel" for="importInput">
+      Numer KRS
+    </label>
+    <div class="input-group input-group-sm mb-2" style="max-width:480px">
+      <input type="text" id="importInput" class="form-control font-monospace"
+             placeholder="0000000000" maxlength="10" inputmode="numeric"
+             oninput="this.value=this.value.replace(/\D/g,'').slice(0, importMode==='ceidg'?10:10)"
+             aria-describedby="importInputLabel">
+      <button type="button" class="btn" id="importBtn"
+              style="background:var(--crm-primary,#0176D3);color:#fff;border:none"
+              onclick="entitySearch()">
+        <i class="bi bi-search me-1" aria-hidden="true"></i><span id="importBtnLabel">Szukaj w KRS</span>
+      </button>
+    </div>
+    <div id="importStatus" style="font-size:.8rem;min-height:1.2rem" aria-live="polite"></div>
+
+    <!-- Podgląd wyników -->
+    <div id="importResult" class="mt-2" style="display:none;max-width:560px">
+      <div class="alert alert-success py-2 mb-2 d-flex align-items-start gap-2" style="font-size:.82rem">
+        <i class="bi bi-check-circle-fill flex-shrink-0 mt-1 text-success" aria-hidden="true"></i>
+        <div id="importResultBody"></div>
+      </div>
+      <button type="button" class="btn btn-sm w-100"
+              style="background:var(--crm-primary,#0176D3);color:#fff;border:none;max-width:560px"
+              onclick="entityApply()">
+        <i class="bi bi-arrow-down-circle me-1" aria-hidden="true"></i>Zastosuj dane do formularza
+      </button>
+    </div>
+
+    <p class="field-hint mt-2 mb-0">
+      Nie znasz numeru? Możesz też
+      <a id="gusLink" href="#" target="_blank" rel="noopener" onclick="return openGUS()">sprawdzić podmiot w wyszukiwarce GUS</a>
+      i uzupełnić pola ręcznie.
+    </p>
+  </div>
+</div>
 
 <div class="row g-3">
 
@@ -485,58 +570,6 @@ include __DIR__ . '/../includes/header_crm.php';
     </div>
   </div>
 
-  <!-- Import z KRS -->
-  <div class="card border-0 shadow-sm mb-3" id="krs-import-card">
-    <div class="card-body">
-      <div class="sec-label" style="color:var(--crm-primary,#0176D3)">
-        <i class="bi bi-database-fill-down" style="color:var(--crm-primary,#0176D3)"></i>
-        Import z KRS
-      </div>
-      <p class="text-muted mb-2" style="font-size:.78rem">
-        Wpisz numer KRS, by automatycznie uzupełnić nazwę, NIP, REGON, adres i formę prawną z Krajowego Rejestru Sądowego.
-      </p>
-      <div class="input-group input-group-sm mb-2">
-        <input type="text" id="krsInput" class="form-control font-monospace"
-               placeholder="0000000000" maxlength="10" inputmode="numeric"
-               oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"
-               aria-label="Numer KRS do wyszukania">
-        <button type="button" class="btn btn-outline-secondary" id="krsLookupBtn"
-                onclick="krsLookup()" aria-label="Pobierz dane z KRS">
-          <i class="bi bi-search"></i> Szukaj
-        </button>
-      </div>
-      <div id="krsStatus" style="font-size:.78rem;min-height:1.2rem"></div>
-
-      <!-- Podgląd wyników KRS -->
-      <div id="krsResult" class="mt-2" style="display:none">
-        <div class="alert alert-success py-2 mb-2 d-flex align-items-start gap-2" style="font-size:.8rem">
-          <i class="bi bi-check-circle-fill flex-shrink-0 mt-1 text-success"></i>
-          <div id="krsResultBody"></div>
-        </div>
-        <button type="button" class="btn btn-sm w-100"
-                style="background:var(--crm-primary,#0176D3);color:#fff;border:none"
-                onclick="krsApply()">
-          <i class="bi bi-arrow-down-circle me-1"></i>Zastosuj dane do formularza
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- NIP szybki lookup GUS -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-      <div class="sec-label">Weryfikacja GUS</div>
-      <p class="text-muted mb-2" style="font-size:.78rem">
-        Po wpisaniu NIP można zweryfikować dane w rejestrze GUS (REGON Online).
-      </p>
-      <a id="gusLink" href="#" target="_blank" rel="noopener"
-         class="btn btn-outline-secondary w-100 btn-sm" style="font-size:.8rem"
-         onclick="return openGUS()" aria-label="Sprawdź NIP w rejestrze GUS">
-        <i class="bi bi-search me-1"></i>Sprawdź w GUS
-      </a>
-    </div>
-  </div>
-
   <!-- Przycisk wyślij -->
   <div class="card border-0 shadow-sm">
     <div class="card-body">
@@ -613,160 +646,208 @@ document.querySelectorAll('[name="status"]').forEach(function(r) {
   if (n && n.value) updateOrgPreview(n.value);
 })();
 
-// ── KRS Lookup ────────────────────────────────────────────────────────────────
-var _krsData = null;
+// ── Import danych podmiotu: CEIDG (JDG po NIP) lub KRS ─────────────────────────
+var importMode = 'krs';      // 'ceidg' | 'krs'
+var _importData = null;
 
-function krsLookup() {
-  var krs = (document.getElementById('krsInput')?.value || '').replace(/\D/g,'');
-  if (!krs || krs.length < 6) {
-    krsSetStatus('warning', 'Wpisz numer KRS (min. 6 cyfr).');
+// Konfiguracja per-tryb (etykiety, API, walidacja)
+var IMPORT_CFG = {
+  ceidg: {
+    label:   'Numer NIP firmy',
+    btn:     'Szukaj w CEIDG',
+    ph:      '0000000000',
+    api:     '<?= APP_URL ?>/api/ceidg.php?nip=',
+    param:   'nip',
+    digits:  10,
+    source:  'CEIDG',
+  },
+  krs: {
+    label:   'Numer KRS',
+    btn:     'Szukaj w KRS',
+    ph:      '0000000000',
+    api:     '<?= APP_URL ?>/api/krs.php?krs=',
+    param:   'krs',
+    digits:  10,
+    minLen:  6,
+    source:  'KRS',
+  }
+};
+
+function setImportMode(mode) {
+  if (!IMPORT_CFG[mode]) return;
+  importMode = mode;
+  var cfg = IMPORT_CFG[mode];
+
+  // Podświetl wybrany kafelek
+  document.querySelectorAll('.of-type-pill').forEach(function(p) {
+    p.classList.toggle('of-type-pill--active', p.getAttribute('data-mode') === mode);
+  });
+
+  // Zaktualizuj etykiety i pole
+  var lbl = document.getElementById('importInputLabel');
+  var inp = document.getElementById('importInput');
+  var bl  = document.getElementById('importBtnLabel');
+  if (lbl) lbl.textContent = cfg.label;
+  if (bl)  bl.textContent  = cfg.btn;
+  if (inp) { inp.value = ''; inp.placeholder = cfg.ph; inp.setAttribute('maxlength', cfg.digits); }
+
+  // Wyczyść poprzednie wyniki
+  _importData = null;
+  importSetStatus('', '');
+  var res = document.getElementById('importResult');
+  if (res) res.style.display = 'none';
+}
+
+function entitySearch() {
+  var cfg = IMPORT_CFG[importMode];
+  var val = (document.getElementById('importInput')?.value || '').replace(/\D/g,'');
+  var minLen = cfg.minLen || cfg.digits;
+  if (!val || val.length < minLen) {
+    importSetStatus('warning', 'Wpisz numer ' + (importMode==='ceidg'?'NIP (10 cyfr)':'KRS (min. ' + minLen + ' cyfr)') + '.');
     return;
   }
 
-  var btn = document.getElementById('krsLookupBtn');
-  var res = document.getElementById('krsResult');
+  var btn = document.getElementById('importBtn');
+  var res = document.getElementById('importResult');
   if (btn) btn.disabled = true;
   if (res) res.style.display = 'none';
-  krsSetStatus('info', '<span class="spinner-border spinner-border-sm me-1"></span>Pobieranie danych z KRS…');
+  importSetStatus('info', '<span class="spinner-border spinner-border-sm me-1"></span>Pobieranie danych z ' + cfg.source + '…');
 
-  fetch('<?= APP_URL ?>/api/krs.php?krs=' + encodeURIComponent(krs), {
-    headers: { 'Accept': 'application/json' }
-  })
+  fetch(cfg.api + encodeURIComponent(val), { headers: { 'Accept': 'application/json' } })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (btn) btn.disabled = false;
     if (data.error) {
-      krsSetStatus('danger', '<i class="bi bi-x-circle me-1"></i>' + data.error);
+      importSetStatus('danger', '<i class="bi bi-x-circle me-1"></i>' + escHtml(data.error));
       return;
     }
-    _krsData = data;
-    krsSetStatus('success', '<i class="bi bi-check-circle me-1"></i>Znaleziono: <strong>' + escHtml(data.nazwa) + '</strong> (' + escHtml(data.rejestr_label || data.rejestr) + ')');
+    _importData = data;
+    var srcLbl = importMode === 'krs' ? (data.rejestr_label || cfg.source) : cfg.source;
+    importSetStatus('success', '<i class="bi bi-check-circle me-1"></i>Znaleziono: <strong>' + escHtml(data.nazwa) + '</strong> (' + escHtml(srcLbl) + ')');
 
-    // Wypełnij podgląd
-    var body = document.getElementById('krsResultBody');
+    var body = document.getElementById('importResultBody');
     if (body) {
       body.innerHTML = [
         '<strong>' + escHtml(data.nazwa) + '</strong>',
         data.forma_prawna ? '<br><span class="text-muted">Forma: </span>' + escHtml(data.forma_prawna) : '',
+        data.krs   ? '<br><span class="text-muted">KRS: </span><code>' + escHtml(data.krs) + '</code>' : '',
         data.nip   ? '<br><span class="text-muted">NIP: </span><code>' + escHtml(data.nip) + '</code>' : '',
         data.regon ? '<br><span class="text-muted">REGON: </span><code>' + escHtml(data.regon) + '</code>' : '',
         data.adres ? '<br><span class="text-muted">Adres: </span>' + escHtml(data.adres) : '',
+        (importMode==='ceidg' && data.status) ? '<br><span class="text-muted">Status: </span>' + escHtml(data.status) + (data.aktywna ? '' : ' ⚠️') : '',
       ].join('');
     }
     if (res) res.style.display = '';
   })
   .catch(function(err) {
     if (btn) btn.disabled = false;
-    krsSetStatus('danger', '<i class="bi bi-x-circle me-1"></i>Błąd połączenia: ' + err.message);
+    importSetStatus('danger', '<i class="bi bi-x-circle me-1"></i>Błąd połączenia: ' + escHtml(err.message));
   });
 }
 
-function krsApply() {
-  if (!_krsData) return;
-  var d = _krsData;
+function entityApply() {
+  if (!_importData) return;
+  var d = _importData;
 
-  function setField(id, val) {
-    var el = document.getElementById(id);
-    if (el && val) { el.value = val; el.classList.add('autofilled-krs'); setTimeout(function(){ el.classList.remove('autofilled-krs'); }, 1200); }
-  }
-  function setSelect(id, val) {
-    var el = document.getElementById(id);
-    if (!el || !val) return;
-    // Spróbuj dopasować wartość (case-insensitive)
-    for (var i = 0; i < el.options.length; i++) {
-      if (el.options[i].value.toLowerCase() === val.toLowerCase() ||
-          el.options[i].text.toLowerCase().includes(val.toLowerCase().slice(0, 8))) {
-        el.selectedIndex = i; break;
-      }
+  setField('nazwa', d.nazwa);
+  setField('nip',   d.nip);
+  setField('krs',   d.krs);      // brak w CEIDG → pominięte
+  setField('regon', d.regon);
+
+  if (d.adres) applyAddress(d.adres);
+
+  // Forma prawna
+  if (importMode === 'ceidg') {
+    // JDG zawsze → jednoosobowa działalność gospodarcza
+    setSelect('forma_prawna', 'jednoosobowa');
+  } else {
+    var formaMap = {
+      'fundacja': 'fundacja',
+      'stowarzyszenie': 'stowarzyszenie',
+      'spółka z ograniczoną odpowiedzialnością': 'sp_z_oo',
+      'spółka akcyjna': 'sa',
+      'spółdzielnia': 'spoldzielnia',
+    };
+    var fp = (d.forma_prawna || '').toLowerCase();
+    for (var key in formaMap) {
+      if (fp.indexOf(key) !== -1) { setSelect('forma_prawna', formaMap[key]); break; }
     }
   }
 
-  setField('nazwa',  d.nazwa);
-  setField('nip',    d.nip);
-  setField('krs',    d.krs);
-  setField('regon',  d.regon);
-
-  // Wypełnij strukturalne pola adresowe z KRS
-  if (d.adres) {
-    (function() {
-      var adres = d.adres.trim();
-      // Parsuj: "ul. Ulica NrDomu/Lokal, KOD Miasto" lub "ul. Ulica NrDomu, KOD Miasto"
-      var postalCity = adres.match(/(\d{2}-\d{3})\s+(.+)$/);
-      var code = '', city = '', street = '', house = '', flat = '';
-      if (postalCity) {
-        code   = postalCity[1];
-        city   = postalCity[2].trim();
-        var rem = adres.replace(/,?\s*\d{2}-\d{3}\s+.+$/, '').trim();
-        // Ostatni token — numer domu (ewentualnie z lokalem /X)
-        var hm = rem.match(/^(.*?)\s+([\d\w]+(?:\/[\w\d]+)?)$/);
-        if (hm && /^\d/.test(hm[2])) {
-          street = hm[1].trim();
-          var nr = hm[2];
-          if (nr.indexOf('/') !== -1) {
-            var nrParts = nr.split('/');
-            house = nrParts[0]; flat = nrParts[1];
-          } else {
-            house = nr;
-          }
-        } else {
-          street = rem;
-        }
-      } else {
-        street = adres;
-      }
-      var w = document.querySelector('.addr-widget');
-      if (!w) return;
-      function setAddr(cls, val) {
-        var el = w.querySelector('[name="' + cls + '"]');
-        if (el && val) { el.value = val; el.classList.add('autofilled-krs'); setTimeout(function(){ el.classList.remove('autofilled-krs'); }, 1200); }
-      }
-      setAddr('addr_street',  street);
-      setAddr('addr_house',   house);
-      setAddr('addr_flat',    flat);
-      setAddr('addr_postal',  code);
-      setAddr('addr_city',    city);
-    })();
-  }
-
-  // Forma prawna — mapowanie
-  var formaMap = {
-    'fundacja': 'fundacja',
-    'stowarzyszenie': 'stowarzyszenie',
-    'spółka z ograniczoną odpowiedzialnością': 'sp_z_oo',
-    'spółka akcyjna': 'sa',
-    'spółdzielnia': 'spoldzielnia',
-  };
-  var fp = (d.forma_prawna || '').toLowerCase();
-  var mapped = null;
-  for (var key in formaMap) {
-    if (fp.includes(key)) { mapped = formaMap[key]; break; }
-  }
-  if (mapped) setSelect('forma_prawna', mapped);
-
   if (d.nazwa) updateOrgPreview(d.nazwa);
 
-  krsSetStatus('success', '<i class="bi bi-check-circle me-1"></i>Dane zastosowane! Sprawdź i uzupełnij brakujące pola.');
-  document.getElementById('krsResult').style.display = 'none';
-
-  // Przewiń do pola Nazwa
+  importSetStatus('success', '<i class="bi bi-check-circle me-1"></i>Dane zastosowane! Sprawdź i uzupełnij brakujące pola.');
+  var res = document.getElementById('importResult');
+  if (res) res.style.display = 'none';
   document.getElementById('nazwa')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function krsSetStatus(type, html) {
-  var el = document.getElementById('krsStatus');
+// ── Helpery wspólne ────────────────────────────────────────────────────────────
+function setField(id, val) {
+  var el = document.getElementById(id);
+  if (el && val) { el.value = val; el.classList.add('autofilled-krs'); setTimeout(function(){ el.classList.remove('autofilled-krs'); }, 1200); }
+}
+function setSelect(id, val) {
+  var el = document.getElementById(id);
+  if (!el || !val) return;
+  for (var i = 0; i < el.options.length; i++) {
+    if (el.options[i].value.toLowerCase() === val.toLowerCase() ||
+        el.options[i].text.toLowerCase().indexOf(val.toLowerCase().slice(0, 8)) !== -1) {
+      el.selectedIndex = i; break;
+    }
+  }
+}
+// Rozbija jednoliniowy adres ("ul. Ulica 5/12, 00-000 Miasto") na pola widgetu
+function applyAddress(adres) {
+  adres = (adres || '').trim();
+  var postalCity = adres.match(/(\d{2}-\d{3})\s+(.+)$/);
+  var code = '', city = '', street = '', house = '', flat = '';
+  if (postalCity) {
+    code = postalCity[1];
+    city = postalCity[2].trim();
+    var rem = adres.replace(/,?\s*\d{2}-\d{3}\s+.+$/, '').trim();
+    var hm = rem.match(/^(.*?)\s+([\d\w]+(?:\/[\w\d]+)?)$/);
+    if (hm && /^\d/.test(hm[2])) {
+      street = hm[1].trim();
+      var nr = hm[2];
+      if (nr.indexOf('/') !== -1) { var p = nr.split('/'); house = p[0]; flat = p[1]; }
+      else { house = nr; }
+    } else { street = rem; }
+  } else { street = adres; }
+
+  var w = document.querySelector('.addr-widget');
+  if (!w) return;
+  function setAddr(name, val) {
+    var el = w.querySelector('[name="' + name + '"]');
+    if (el && val) { el.value = val; el.classList.add('autofilled-krs'); setTimeout(function(){ el.classList.remove('autofilled-krs'); }, 1200); }
+  }
+  setAddr('addr_street', street);
+  setAddr('addr_house',  house);
+  setAddr('addr_flat',   flat);
+  setAddr('addr_postal', code);
+  setAddr('addr_city',   city);
+}
+function importSetStatus(type, html) {
+  var el = document.getElementById('importStatus');
   if (!el) return;
+  if (!html) { el.innerHTML = ''; return; }
   var colors = { info:'#0176D3', success:'#2E844A', warning:'#D97706', danger:'#DC2626' };
   el.innerHTML = '<span style="color:' + (colors[type]||'#374151') + '">' + html + '</span>';
 }
-
 function escHtml(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Szukaj po Enter w polu KRS
-document.getElementById('krsInput')?.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { e.preventDefault(); krsLookup(); }
+// Szukaj po Enter w polu importu
+document.getElementById('importInput')?.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); entitySearch(); }
 });
+
+// Ustaw tryb początkowy zgodnie z zaznaczonym radiem (domyślnie KRS)
+(function() {
+  var checked = document.querySelector('input[name="_import_mode"]:checked');
+  setImportMode(checked ? checked.value : 'krs');
+})();
 </script>
 
 <style>
