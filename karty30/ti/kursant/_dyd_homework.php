@@ -52,6 +52,12 @@ ob_start(); ?>
     <?php if ($h['description']): ?>
     <p class="small mb-2" style="white-space:pre-wrap"><?= h($h['description']) ?></p>
     <?php endif; ?>
+    <?php if (trim((string)($h['hint'] ?? '')) !== ''): ?>
+    <details class="mb-2">
+      <summary class="small text-info-emphasis" style="cursor:pointer"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i>Podpowiedź</summary>
+      <div class="small mt-1 ps-3" style="white-space:pre-wrap"><?= h($h['hint']) ?></div>
+    </details>
+    <?php endif; ?>
     <?php if ($h['attach_path'] && $hav['state']!=='upcoming'): ?>
     <p class="small mb-2"><i class="bi bi-paperclip me-1" aria-hidden="true"></i>
       <a href="homework_file.php?t=attach&hw=<?= (int)$h['id'] ?>"><?= h($h['attach_name']) ?></a> (materiał od prowadzącego)

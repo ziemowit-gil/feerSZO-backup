@@ -245,6 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $session_id= (int)($_POST['session_id'] ?? 0) ?: null;
         $title     = trim($_POST['title'] ?? '');
         $desc      = trim($_POST['description'] ?? '');
+        $hint      = trim($_POST['hint'] ?? '');
         $due       = trim($_POST['due_at'] ?? '');
         $due_sql   = $due !== '' ? str_replace('T', ' ', $due) . (strlen($due) === 16 ? ':00' : '') : null;
         $open_at   = $dt_in('open_at');
@@ -259,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hw = k30_ti_homework_get($hid);
             if (!$hw || !dyd_owns_course($uid, (int)$hw['course_id'])) { http_response_code(403); exit('Brak uprawnień.'); }
             $set = ['course_id'=>$course_id, 'session_id'=>$session_id, 'title'=>$title, 'description'=>$desc,
-                    'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
+                    'hint'=>$hint, 'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
                     'is_active'=>isset($_POST['is_active'])?1:0];
             if ($up) {
                 if ($hw['attach_path'] !== '') k30_ti_homework_delete_file($hw['attach_path']);
@@ -277,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             db_insert('k30_ti_homework', [
                 'course_id'=>$course_id, 'session_id'=>$session_id, 'title'=>$title, 'description'=>$desc,
-                'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
+                'hint'=>$hint, 'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
                 'attach_name'=>$up['name']??'', 'attach_path'=>$up['stored']??'',
                 'is_active'=>1, 'created_by'=>$uid,
             ]);
@@ -578,6 +579,10 @@ $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $dtv, $sessionP
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_desc">Polecenie / opis</label>
         <textarea class="form-control" id="<?= $pfx ?>_desc" name="description" rows="3"><?= h($r['description'] ?? '') ?></textarea>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_hint"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i>Podpowiedź <span class="text-body-secondary small">(opc.)</span></label>
+        <textarea class="form-control" id="<?= $pfx ?>_hint" name="hint" rows="2" placeholder="Wskazówka dla kursanta"><?= h($r['hint'] ?? '') ?></textarea>
       </div>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_session_txt">Powiązana lekcja <span class="text-body-secondary small">(opc.)</span></label>
@@ -1069,7 +1074,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <span class="text-body-secondary small ms-auto"><i class="bi bi-inbox me-1"></i><?= (int)$hw['sub_count'] ?> oddań · <?= (int)$hw['graded_count'] ?> ocen.</span>
           </div>
           <?php if ($hw['due_at']): ?><div class="text-body-secondary small mt-1"><i class="bi bi-calendar-check me-1"></i>termin: <?= h(substr($hw['due_at'],0,16)) ?></div><?php endif; ?>
-          <?php if ($hw['description']): ?><div class="small mt-1"><?= nl2br(h(mb_substr($hw['description'],0,160))) ?></div><?php endif; ?>
+          <?php if ($hw['description']): ?><div class="small mt-1" style="white-space:pre-wrap"><?= nl2br(h($hw['description'])) ?></div><?php endif; ?>
+          <?php if (trim((string)($hw['hint'] ?? '')) !== ''): ?><div class="small mt-1 text-info-emphasis" style="white-space:pre-wrap"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i><strong>Podpowiedź:</strong> <?= nl2br(h($hw['hint'])) ?></div><?php endif; ?>
           <div class="mt-2 d-flex gap-2 flex-wrap">
             <?php if ($hw['attach_path']): ?><a href="?dl=hw&id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-paperclip me-1"></i>załącznik</a><?php endif; ?>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edH<?= (int)$hw['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>

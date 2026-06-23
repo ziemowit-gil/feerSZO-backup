@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $course_id = (int)($_POST['course_id'] ?? 0);
         $title     = trim($_POST['title'] ?? '');
         $desc      = trim($_POST['description'] ?? '');
+        $hint      = trim($_POST['hint'] ?? '');
         $due       = trim($_POST['due_at'] ?? '');
         $due_sql   = $due !== '' ? str_replace('T', ' ', $due) . (strlen($due) === 16 ? ':00' : '') : null;
         $dt        = fn($k) => ($v = trim($_POST[$k] ?? '')) !== '' ? str_replace('T',' ',$v) . (strlen($v)===16?':00':'') : null;
@@ -51,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         if ($hid) {
             $hw = k30_ti_homework_get($hid);
             $set = ['course_id'=>$course_id, 'session_id'=>$session_id, 'title'=>$title, 'description'=>$desc,
-                    'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
+                    'hint'=>$hint, 'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
                     'is_active'=>isset($_POST['is_active'])?1:0];
             if ($up) { // nowy załącznik — usuń stary
                 if ($hw && $hw['attach_path'] !== '') k30_ti_homework_delete_file($hw['attach_path']);
@@ -69,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         } else {
             db_insert('k30_ti_homework', [
                 'course_id'=>$course_id, 'session_id'=>$session_id, 'title'=>$title, 'description'=>$desc,
-                'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
+                'hint'=>$hint, 'due_at'=>$due_sql, 'open_at'=>$open_at, 'close_at'=>$close_at,
                 'attach_name'=>$up['name']??'', 'attach_path'=>$up['stored']??'',
                 'is_active'=>1, 'created_by'=>current_user()['id']??null,
             ]);
@@ -125,7 +126,7 @@ $view_id   = (int)($_GET['id'] ?? 0);
 $view_hw   = $view_id ? k30_ti_homework_get($view_id) : null;
 $edit_id   = (int)($_GET['edit'] ?? 0);
 $edit_row  = $edit_id ? k30_ti_homework_get($edit_id) : null;
-$ef        = $edit_row ?: ['id'=>0,'course_id'=>0,'session_id'=>0,'title'=>'','description'=>'','due_at'=>'','open_at'=>'','close_at'=>'','attach_name'=>'','is_active'=>1];
+$ef        = $edit_row ?: ['id'=>0,'course_id'=>0,'session_id'=>0,'title'=>'','description'=>'','hint'=>'','due_at'=>'','open_at'=>'','close_at'=>'','attach_name'=>'','is_active'=>1];
 $dtv       = fn($v) => $v ? h(str_replace(' ','T',substr($v,0,16))) : '';
 $all_sessions = db_all("SELECT id, course_id, lesson_date, topic FROM k30_ti_sessions ORDER BY lesson_date DESC, id DESC");
 $homeworks = k30_ti_homework_list();
@@ -158,6 +159,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
   <div class="card-body">
     <?php if ($view_hw['description']): ?><p class="mb-2" style="white-space:pre-wrap"><?= h($view_hw['description']) ?></p><?php endif; ?>
+    <?php if (trim((string)($view_hw['hint'] ?? '')) !== ''): ?>
+    <div class="alert alert-info py-2 mb-2"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i><strong>Podpowiedź:</strong> <span style="white-space:pre-wrap"><?= h($view_hw['hint']) ?></span></div>
+    <?php endif; ?>
     <?php if ($view_hw['attach_path']): ?>
     <p class="mb-0"><i class="bi bi-paperclip me-1"></i><a href="?dl=attach&hw=<?= (int)$view_hw['id'] ?>"><?= h($view_hw['attach_name']) ?></a></p>
     <?php endif; ?>
@@ -285,6 +289,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <div class="mb-2">
             <label class="form-label">Treść / polecenie</label>
             <textarea class="form-control" name="description" rows="4" placeholder="Opis zadania, wymagania…"><?= h($ef['description']) ?></textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i>Podpowiedź <span class="text-muted small">(opc.)</span></label>
+            <textarea class="form-control" name="hint" rows="2" placeholder="Wskazówka dla kursanta — od czego zacząć, na co zwrócić uwagę…"><?= h($ef['hint'] ?? '') ?></textarea>
           </div>
           <div class="mb-2">
             <label class="form-label">Termin oddania <span class="text-muted small">(opc.)</span></label>

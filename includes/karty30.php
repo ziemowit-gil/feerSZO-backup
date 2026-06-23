@@ -477,6 +477,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_materials ADD COLUMN close_at DATETIME",
         "ALTER TABLE k30_ti_homework  ADD COLUMN open_at  DATETIME",
         "ALTER TABLE k30_ti_homework  ADD COLUMN close_at DATETIME",
+        // Podpowiedź do zadania (wskazówka dla kursanta)
+        "ALTER TABLE k30_ti_homework  ADD COLUMN hint     TEXT NOT NULL DEFAULT ''",
         // Ocena w dzienniku wygenerowana z oceny zadania domowego (auto-sync) — by aktualizować, nie duplikować
         "ALTER TABLE k30_ti_grades    ADD COLUMN hw_submission_id INTEGER",
     ] as $_sql) {
