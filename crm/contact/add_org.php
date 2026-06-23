@@ -23,6 +23,10 @@ if (!can_write('crm') && !is_admin()) {
 }
 crm_migrate();
 
+// Wygeneruj token CSRF możliwie wcześnie — gwarancja, że jest w sesji
+// zanim formularz zostanie wyrenderowany (i zanim padnie jakikolwiek redirect).
+csrf_token();
+
 $edit_id  = (int)($_GET['id'] ?? 0);
 $is_edit  = $edit_id > 0;
 $row      = [];
@@ -40,8 +44,22 @@ if ($is_edit) {
 $PAGE_TITLE = $is_edit ? 'Edytuj firmę: ' . $row['imie_nazwisko'] : 'Nowa firma / organizacja';
 
 // ── POST ─────────────────────────────────────────────────────────────────────
+// Łagodna weryfikacja CSRF: zamiast twardego die() (który kasuje cały, długi
+// formularz firmy — zwłaszcza po imporcie z KRS), przy niezgodnym tokenie
+// wracamy do formularza z wpisanymi danymi i świeżym tokenem. Bezpieczeństwo
+// zachowane: zapis następuje wyłącznie po poprawnym hash_equals + blokadzie zapisu.
+$csrf_failed = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
+    if (!hash_equals((string)($_SESSION['csrf'] ?? ''), (string)($_POST['_csrf'] ?? ''))) {
+        $csrf_failed = true;
+        $errors[] = 'Sesja lub formularz wygasły (np. otwarty zbyt długo / w innej karcie). '
+                  . 'Twoje dane zostały zachowane — kliknij „Utwórz kontakt” jeszcze raz.';
+        $row = array_merge($row, $_POST);
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf_failed) {
+    if (function_exists('system_block_writes')) system_block_writes();
 
     $nazwa = trim($_POST['nazwa'] ?? '');
 
@@ -106,32 +124,17 @@ include __DIR__ . '/../includes/header_crm.php';
 ?>
 
 <style>
-/* Formularz firmy — akcent fioletowy (wyróżnienie od osobowego niebieskiego) */
-.org-accent { --form-accent: #7F2B8B; --form-accent-bg: #F5F0FF; --form-accent-border: #C4B5FD; }
-.org-header-bar {
-  background: linear-gradient(90deg, #581C87, #7F2B8B);
-  border-radius: 10px; padding: 1.25rem 1.5rem; color: #fff; margin-bottom: 1.5rem;
-  display: flex; align-items: center; gap: 1rem;
-}
-.org-header-icon {
-  width: 48px; height: 48px; border-radius: 12px;
-  background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.4);
-  display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;
-}
-.step-label {
-  font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
-  color: #64748b; margin-bottom: .75rem; margin-top: .25rem;
-  display: flex; align-items: center; gap: .4rem;
-}
-.step-label::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
-.field-hint { font-size: .76rem; color: #94a3b8; margin-top: .2rem; }
-.form-control:focus { border-color: #7F2B8B; box-shadow: 0 0 0 3px rgba(127,43,139,.1); }
-.btn-org-submit {
-  background: #7F2B8B; color: #fff; border: none; border-radius: .5rem;
-  padding: .75rem 1.5rem; font-size: .95rem; font-weight: 600; width: 100%;
-  transition: background .15s; cursor: pointer;
-}
-.btn-org-submit:hover { background: #581C87; }
+/* Formularz firmy — spójny z formularzem osoby i resztą CRM (akcent CRM-primary). */
+.of-accent        { --acc: var(--crm-primary, #0176D3); --acc-ring: rgba(1,118,211,.12); }
+.of-header        { background: linear-gradient(90deg, var(--crm-navy, #032D60), var(--crm-primary, #0176D3)); border-radius:10px; padding:1.25rem 1.5rem; color:#fff; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; }
+.of-header-icon   { width:48px; height:48px; border-radius:12px; background:rgba(255,255,255,.2); border:2px solid rgba(255,255,255,.4); display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0; }
+.sec-label        { font-size:.67rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#64748b; margin-bottom:.8rem; display:flex; align-items:center; gap:.4rem; }
+.sec-label::after { content:''; flex:1; height:1px; background:#e2e8f0; }
+.field-hint       { font-size:.75rem; color:#94a3b8; margin-top:.2rem; }
+.form-control:focus,
+.form-select:focus { border-color: var(--crm-primary, #0176D3); box-shadow:0 0 0 3px var(--acc-ring, rgba(1,118,211,.12)); }
+.btn-main-submit  { background: var(--crm-primary, #0176D3); color:#fff; border:none; border-radius:.5rem; padding:.75rem 1.5rem; font-size:.95rem; font-weight:600; width:100%; transition:background .15s; cursor:pointer; }
+.btn-main-submit:hover { background: var(--crm-navy, #032D60); }
 /* ID-field monospace */
 .field-id { font-family: ui-monospace, SFMono-Regular, monospace; letter-spacing: .05em; }
 </style>
@@ -148,20 +151,22 @@ include __DIR__ . '/../includes/header_crm.php';
 </nav>
 
 <!-- Header formularza -->
-<div class="org-header-bar" role="banner">
-  <div class="org-header-icon" aria-hidden="true"><i class="bi bi-building-fill"></i></div>
+<div class="of-header of-accent" role="banner">
+  <div class="of-header-icon" aria-hidden="true"><i class="bi bi-building-fill"></i></div>
   <div>
     <div style="font-size:1.15rem;font-weight:700">
       <?= $is_edit ? 'Edytuj firmę / organizację' : 'Nowy kontakt — Firma / Organizacja' ?>
     </div>
     <div style="font-size:.82rem;opacity:.8">Partner, darczyńca instytucjonalny, kontrahent, stowarzyszenie</div>
   </div>
-  <div class="ms-auto d-flex gap-2">
+  <?php if (!$is_edit): ?>
+  <div class="ms-auto">
     <a href="<?= APP_URL ?>/crm/contact/add_person.php" class="btn btn-sm btn-light opacity-75"
        aria-label="Przełącz na formularz osoby fizycznej">
-      <i class="bi bi-person me-1"></i>To osoba? Użyj formularza osoby
+      <i class="bi bi-person me-1"></i>To osoba?
     </a>
   </div>
+  <?php endif; ?>
 </div>
 
 <?php if ($errors): ?>
@@ -173,7 +178,7 @@ include __DIR__ . '/../includes/header_crm.php';
 </div>
 <?php endif; ?>
 
-<form method="post" novalidate aria-label="Formularz firmy / organizacji CRM">
+<form method="post" novalidate class="of-accent" aria-label="Formularz firmy / organizacji CRM">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
 <div class="row g-3">
@@ -184,8 +189,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- 1. Dane rejestrowe -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <div class="step-label">
-        <i class="bi bi-building text-purple" style="color:#7F2B8B" aria-hidden="true"></i>
+      <div class="sec-label">
+        <i class="bi bi-building" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
         Dane rejestrowe
       </div>
 
@@ -260,8 +265,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- 2. Numery identyfikacyjne -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <div class="step-label">
-        <i class="bi bi-fingerprint" style="color:#7F2B8B" aria-hidden="true"></i>
+      <div class="sec-label">
+        <i class="bi bi-fingerprint" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
         Numery identyfikacyjne
       </div>
       <div class="row g-3">
@@ -308,8 +313,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- 3. Dane kontaktowe -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <div class="step-label">
-        <i class="bi bi-telephone" style="color:#7F2B8B" aria-hidden="true"></i>
+      <div class="sec-label">
+        <i class="bi bi-telephone" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
         Dane kontaktowe
       </div>
       <div class="row g-3">
@@ -349,8 +354,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- 4. Osoba kontaktowa -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <div class="step-label">
-        <i class="bi bi-person-badge" style="color:#7F2B8B" aria-hidden="true"></i>
+      <div class="sec-label">
+        <i class="bi bi-person-badge" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
         Osoba kontaktowa
       </div>
       <div class="row g-3">
@@ -388,7 +393,7 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- 5b. Terytorium -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <div class="step-label">
+      <div class="sec-label">
         <i class="bi bi-map" style="color:#059669" aria-hidden="true"></i>
         Terytorium
       </div>
@@ -422,8 +427,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- 5. Notatka -->
   <div class="card border-0 shadow-sm">
     <div class="card-body">
-      <div class="step-label">
-        <i class="bi bi-sticky" style="color:#7F2B8B" aria-hidden="true"></i>
+      <div class="sec-label">
+        <i class="bi bi-sticky" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
         Notatka wstępna
       </div>
       <label class="visually-hidden" for="notatka">Notatka o firmie / organizacji</label>
@@ -441,7 +446,7 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Status -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <div class="step-label">Status w CRM</div>
+      <div class="sec-label">Status w CRM</div>
       <div class="d-flex flex-column gap-2" role="radiogroup" aria-label="Wybierz status kontaktu">
         <?php foreach (crm_statuses() as $sk => $sv): ?>
         <label class="d-flex align-items-center gap-2 p-2 border rounded"
@@ -462,7 +467,7 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Podgląd awatara -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body text-center">
-      <div class="step-label" style="justify-content:center">Podgląd awatara</div>
+      <div class="sec-label" style="justify-content:center">Podgląd awatara</div>
       <div id="avatarPreview"
            style="width:72px;height:72px;border-radius:14px;background:var(--crm-navy,#032D60);color:#fff;
                   display:flex;align-items:center;justify-content:center;font-size:1.6rem;
@@ -483,8 +488,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Import z KRS -->
   <div class="card border-0 shadow-sm mb-3" id="krs-import-card">
     <div class="card-body">
-      <div class="step-label" style="color:#7F2B8B">
-        <i class="bi bi-database-fill-down" style="color:#7F2B8B"></i>
+      <div class="sec-label" style="color:var(--crm-primary,#0176D3)">
+        <i class="bi bi-database-fill-down" style="color:var(--crm-primary,#0176D3)"></i>
         Import z KRS
       </div>
       <p class="text-muted mb-2" style="font-size:.78rem">
@@ -509,7 +514,7 @@ include __DIR__ . '/../includes/header_crm.php';
           <div id="krsResultBody"></div>
         </div>
         <button type="button" class="btn btn-sm w-100"
-                style="background:#7F2B8B;color:#fff;border:none"
+                style="background:var(--crm-primary,#0176D3);color:#fff;border:none"
                 onclick="krsApply()">
           <i class="bi bi-arrow-down-circle me-1"></i>Zastosuj dane do formularza
         </button>
@@ -520,7 +525,7 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- NIP szybki lookup GUS -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <div class="step-label">Weryfikacja GUS</div>
+      <div class="sec-label">Weryfikacja GUS</div>
       <p class="text-muted mb-2" style="font-size:.78rem">
         Po wpisaniu NIP można zweryfikować dane w rejestrze GUS (REGON Online).
       </p>
@@ -535,7 +540,7 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Przycisk wyślij -->
   <div class="card border-0 shadow-sm">
     <div class="card-body">
-      <button type="submit" class="btn-org-submit"
+      <button type="submit" class="btn-main-submit"
               aria-label="<?= $is_edit ? 'Zapisz zmiany w firmie' : 'Utwórz kontakt firmy lub organizacji' ?>">
         <i class="bi bi-building-check me-2" aria-hidden="true"></i>
         <?= $is_edit ? 'Zapisz zmiany' : 'Utwórz kontakt' ?>
