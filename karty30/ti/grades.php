@@ -130,14 +130,21 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>Wybierz kurs, aby zobaczyć i wystawiać oceny.</div>
 <?php else: ?>
 
-<div class="row g-4">
+<div>
   <!-- Dziennik: kursanci × oceny -->
-  <div class="col-lg-8">
+  <div>
     <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold d-flex align-items-center">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2 flex-wrap">
         <span><i class="bi bi-people me-2"></i><?= h($course['name']) ?></span>
-        <span class="badge bg-secondary ms-2"><?= count($roster) ?> kursantów</span>
+        <span class="badge bg-secondary"><?= count($roster) ?> kursantów</span>
+        <?php if ($can_write): ?>
+        <a href="?course=<?= $course_id ?>&new=1" class="btn btn-sm btn-primary ms-auto">
+          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Wystaw ocenę
+        </a>
+        <a href="?course=<?= $course_id ?>&pdf=1" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+        <?php else: ?>
         <a href="?course=<?= $course_id ?>&pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+        <?php endif; ?>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -167,7 +174,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               </td>
               <?php if ($can_write): ?>
               <td class="text-end">
-                <a href="?course=<?= $course_id ?>&student=<?= (int)$e['client_id'] ?>#grade-form" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" title="Wystaw ocenę"><i class="bi bi-plus-lg"></i></a>
+                <a href="?course=<?= $course_id ?>&student=<?= (int)$e['client_id'] ?>" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" title="Wystaw ocenę" aria-label="Wystaw ocenę: <?= h($e['client_name']) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i></a>
               </td>
               <?php endif; ?>
             </tr>
@@ -215,20 +222,26 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </div>
   </div>
 
-  <!-- Formularz oceny -->
-  <?php if ($can_write): ?>
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm" id="grade-form">
-      <div class="card-header fw-semibold"><i class="bi bi-<?= $edit_row ? 'pencil' : 'plus-lg' ?> me-2"></i><?= $edit_row ? 'Edytuj ocenę' : 'Wystaw ocenę' ?></div>
-      <div class="card-body">
-        <form method="post">
-          <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_op"        value="save_grade">
-          <input type="hidden" name="grade_id"   value="<?= (int)$gf['id'] ?>">
-          <input type="hidden" name="course_id"  value="<?= $course_id ?>">
+</div>
+
+<!-- ══ Modal: wystawianie / edycja oceny (pop-up, WAI-ARIA dialog) ══════════ -->
+<?php if ($can_write): ?>
+<div class="modal fade" id="gradeModal" tabindex="-1" aria-labelledby="gradeModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op"        value="save_grade">
+        <input type="hidden" name="grade_id"   value="<?= (int)$gf['id'] ?>">
+        <input type="hidden" name="course_id"  value="<?= $course_id ?>">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="gradeModalTitle"><i class="bi bi-<?= $edit_row ? 'pencil' : 'plus-lg' ?> me-2" aria-hidden="true"></i><?= $edit_row ? 'Edytuj ocenę' : 'Wystaw ocenę' ?></h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
           <div class="mb-2">
-            <label class="form-label fw-semibold">Kursant <span class="text-danger">*</span></label>
-            <select class="form-select" name="client_id" required <?= $edit_row?'disabled':'' ?>>
+            <label class="form-label fw-semibold" for="grade-client">Kursant <span class="text-danger" aria-hidden="true">*</span></label>
+            <select class="form-select" id="grade-client" name="client_id" required <?= $edit_row?'disabled':'' ?>>
               <option value="">— wybierz —</option>
               <?php foreach ($roster as $e): ?>
               <option value="<?= (int)$e['client_id'] ?>" <?= (int)$gf['client_id']===(int)$e['client_id']?'selected':'' ?>><?= h($e['client_name']) ?></option>
@@ -238,7 +251,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
           <div class="row g-2">
             <div class="col-7 mb-2">
-              <label class="form-label fw-semibold">Kategoria</label>
+              <label class="form-label fw-semibold" for="grade-cat">Kategoria</label>
               <select class="form-select" name="category" id="grade-cat">
                 <?php foreach ($CATS as $slug=>$ci): ?>
                 <option value="<?= h($slug) ?>" data-weight="<?= (float)$ci['weight'] ?>" <?= $gf['category']===$slug?'selected':'' ?>><?= h($ci['label']) ?></option>
@@ -246,12 +259,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               </select>
             </div>
             <div class="col-5 mb-2">
-              <label class="form-label fw-semibold">Waga</label>
+              <label class="form-label fw-semibold" for="grade-weight">Waga</label>
               <input type="number" class="form-control" name="weight" id="grade-weight" min="0.5" max="10" step="0.5" value="<?= h(rtrim(rtrim(number_format((float)$gf['weight'],2,'.',''),'0'),'.') ?: '1') ?>">
             </div>
           </div>
           <div class="mb-2">
-            <label class="form-label fw-semibold">Ocena <span class="text-danger">*</span></label>
+            <label class="form-label fw-semibold" for="grade-value">Ocena <span class="text-danger" aria-hidden="true">*</span></label>
             <div class="d-flex flex-wrap gap-1 mb-2" id="grade-quick">
               <?php foreach (['1','2-','2','2+','3-','3','3+','4-','4','4+','5-','5','5+','6'] as $q): ?>
               <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 grade-q"><?= h($q) ?></button>
@@ -264,32 +277,33 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="form-text">1–6 z opcjonalnym + / −. Wpisy <code>np</code>, <code>bz</code>, <code>nb</code> nie liczą się do średniej.</div>
           </div>
           <div class="mb-2">
-            <label class="form-label">Za co / opis</label>
-            <input type="text" class="form-control" name="description" value="<?= h($gf['description']) ?>" placeholder="np. Sprawdzian — pętle i funkcje">
+            <label class="form-label" for="grade-desc">Za co / opis</label>
+            <input type="text" class="form-control" id="grade-desc" name="description" value="<?= h($gf['description']) ?>" placeholder="np. Sprawdzian — pętle i funkcje">
           </div>
           <div class="mb-3">
-            <label class="form-label">Powiązana lekcja <span class="text-muted small">(opc.)</span></label>
-            <select class="form-select" name="session_id">
+            <label class="form-label" for="grade-session">Powiązana lekcja <span class="text-muted small">(opc.)</span></label>
+            <select class="form-select" id="grade-session" name="session_id">
               <option value="">— bez powiązania —</option>
               <?php foreach ($sessions as $s): ?>
               <option value="<?= (int)$s['id'] ?>" <?= (int)$gf['session_id']===(int)$s['id']?'selected':'' ?>><?= h(substr($s['lesson_date'],0,10)) ?><?= $s['topic'] ? ' · '.h(mb_substr($s['topic'],0,30)) : '' ?></option>
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="form-check form-switch mb-3">
+          <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" role="switch" name="notify" id="grade-notify" value="1" checked>
             <label class="form-check-label" for="grade-notify">Powiadom kursanta e-mailem o ocenie</label>
           </div>
-          <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary"><?= $edit_row ? 'Zapisz' : 'Wystaw ocenę' ?></button>
-            <?php if ($edit_row): ?><a href="grades.php?course=<?= $course_id ?>" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>
-          </div>
-        </form>
-      </div>
+        </div>
+        <div class="modal-footer">
+          <?php if ($edit_row): ?><a href="grades.php?course=<?= $course_id ?>" class="btn btn-outline-secondary">Anuluj</a>
+          <?php else: ?><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button><?php endif; ?>
+          <button type="submit" class="btn btn-primary"><?= $edit_row ? 'Zapisz' : 'Wystaw ocenę' ?></button>
+        </div>
+      </form>
     </div>
   </div>
-  <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <script>
 (function(){
@@ -309,6 +323,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       b.addEventListener('click', function(){ val.value = b.textContent.trim(); val.focus(); });
     });
   }
+  // Auto-otwarcie pop-upu: nowa ocena / edycja / wystawianie dla wybranego kursanta
+  <?php if ($can_write && ($edit_row || $presel || isset($_GET['new']))): ?>
+  var gm = document.getElementById('gradeModal');
+  if (gm && window.bootstrap) { new bootstrap.Modal(gm).show(); }
+  <?php endif; ?>
 })();
 </script>
 <?php endif; ?>
