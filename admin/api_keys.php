@@ -16,6 +16,8 @@ const API_PERMISSIONS = [
     'contracts:read'  => 'Umowy — odczyt',
     'tasks:read'      => 'Zadania — odczyt',
     'users:read'      => 'Użytkownicy — odczyt',
+    'crm:read'        => 'CRM — odczyt kontaktów',
+    'crm:write'       => 'CRM — zapis kontaktów (twórz / edytuj / usuń)',
 ];
 
 $errors    = [];
@@ -177,6 +179,72 @@ if ($keys):
   </div>
 </div>
 <?php endif; ?>
+
+<?php
+// ── Dokumentacja CRM API ─────────────────────────────────────────────────────
+$api_base = rtrim(APP_URL, '/') . '/api/v1';
+?>
+<div class="card mb-4">
+  <div class="card-header bg-white fw-semibold d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-book me-2"></i>Dokumentacja — CRM API</span>
+    <code class="small text-muted"><?= h($api_base) ?>/crm.php</code>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Uwierzytelnianie: nagłówek <code>Authorization: Bearer &lt;klucz&gt;</code>
+      (lub parametr <code>?api_key=&lt;klucz&gt;</code>). Odczyt wymaga uprawnienia
+      <code>crm:read</code>, zapis — <code>crm:write</code>. Treść żądań POST/PATCH w formacie
+      <code>application/json</code>. Klienci bez PATCH/DELETE mogą użyć
+      <code>?_method=PATCH</code> lub nagłówka <code>X-HTTP-Method-Override</code>.
+    </p>
+
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Metoda</th><th>Ścieżka</th><th>Uprawnienie</th><th>Opis</th></tr>
+        </thead>
+        <tbody class="small">
+          <tr><td><span class="badge bg-success">GET</span></td><td><code>/crm.php</code></td><td><code>crm:read</code></td>
+              <td>Lista kontaktów. Filtry: <code>q, status, type, source, branza, tag, wojewodztwo, has_email, has_phone, created_from, created_to</code>; paginacja <code>page, per_page</code> (maks. 100).</td></tr>
+          <tr><td><span class="badge bg-success">GET</span></td><td><code>/crm.php?id=N</code></td><td><code>crm:read</code></td>
+              <td>Pojedynczy kontakt z tagami, notatkami i grupami.</td></tr>
+          <tr><td><span class="badge bg-primary">POST</span></td><td><code>/crm.php</code></td><td><code>crm:write</code></td>
+              <td>Utwórz kontakt. Wymagane: <code>imie_nazwisko</code> (lub <code>imie</code>+<code>nazwisko</code>). Domyślnie <code>type=osoba</code>, <code>status=prospect</code>, <code>source=api</code>.</td></tr>
+          <tr><td><span class="badge bg-warning text-dark">PATCH</span></td><td><code>/crm.php?id=N</code></td><td><code>crm:write</code></td>
+              <td>Aktualizuj wybrane pola kontaktu.</td></tr>
+          <tr><td><span class="badge bg-danger">DELETE</span></td><td><code>/crm.php?id=N</code></td><td><code>crm:write</code></td>
+              <td>Usuń kontakt (soft-delete).</td></tr>
+          <tr><td><span class="badge bg-primary">POST</span></td><td><code>/crm.php?id=N&amp;resource=notes</code></td><td><code>crm:write</code></td>
+              <td>Dodaj notatkę. Body: <code>{"note": "...", "pinned": false}</code>.</td></tr>
+          <tr><td><span class="badge bg-primary">POST</span></td><td><code>/crm.php?id=N&amp;resource=tags</code></td><td><code>crm:write</code></td>
+              <td>Dodaj tag. Body: <code>{"tag": "..."}</code>.</td></tr>
+          <tr><td><span class="badge bg-danger">DELETE</span></td><td><code>/crm.php?id=N&amp;resource=tags&amp;tag=X</code></td><td><code>crm:write</code></td>
+              <td>Usuń tag <code>X</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="small fw-semibold mb-1">Przykłady (curl):</p>
+    <pre class="bg-dark text-light p-3 rounded small mb-0" style="white-space:pre-wrap"># Lista aktywnych kontaktów-organizacji
+curl -H "Authorization: Bearer $KEY" \
+  "<?= h($api_base) ?>/crm.php?type=organizacja&per_page=20"
+
+# Utworzenie kontaktu
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"imie_nazwisko":"Anna Kowalska","email":"anna@example.pl","status":"prospect"}' \
+  "<?= h($api_base) ?>/crm.php"
+
+# Aktualizacja
+curl -X PATCH -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"telefon":"+48 600 100 200"}' \
+  "<?= h($api_base) ?>/crm.php?id=123"
+
+# Dodanie notatki
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"note":"Pierwszy kontakt telefoniczny."}' \
+  "<?= h($api_base) ?>/crm.php?id=123&resource=notes"</pre>
+  </div>
+</div>
 
 <?php
 // ── Create new key form ────────────────────────────────────────────────────

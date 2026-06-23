@@ -1175,13 +1175,14 @@ class CrmManager
     // ── Notatki ───────────────────────────────────────────────────────────────
 
     /** Dodaje notatkę, zwraca jej ID. */
-    public static function addNote(int $contact_id, string $body, int $user_id, bool $pinned = false): int
+    public static function addNote(int $contact_id, string $body, ?int $user_id, bool $pinned = false): int
     {
         $id = db_insert('crm_notes', [
             'contact_id' => $contact_id,
             'body'       => trim($body),
             'is_pinned'  => $pinned ? 1 : 0,
-            'created_by' => $user_id,
+            // NULL gdy brak prawidłowego użytkownika (np. zapis przez API key) — chroni FK users(id)
+            'created_by' => ($user_id && $user_id > 0) ? $user_id : null,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
         db()->prepare("UPDATE crm_contacts SET updated_at=? WHERE id=?")
