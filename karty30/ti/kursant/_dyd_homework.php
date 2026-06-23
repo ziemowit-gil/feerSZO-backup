@@ -45,6 +45,9 @@ ob_start(); ?>
       <i class="bi bi-chevron-down dyd-hw-chevron flex-shrink-0 text-body-secondary" aria-hidden="true"></i>
       <?php endif; ?>
     </div>
+    <?php if ($graded && trim((string)($h['sub_feedback'] ?? '')) !== ''): ?>
+    <div class="small text-success mt-2" style="white-space:pre-wrap"><i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><strong>Komentarz prowadzącego:</strong> <?= h($h['sub_feedback']) ?></div>
+    <?php endif; ?>
 <?php $hdr = ob_get_clean();
 
 // ── Treść zwijana (opis, materiał, oddanie, formularz) ───────────────────────
@@ -70,9 +73,6 @@ ob_start(); ?>
       <?php if ($h['sub_body']): ?><div class="mb-1" style="white-space:pre-wrap"><?= h($h['sub_body']) ?></div><?php endif; ?>
       <?php if ($h['sub_file_path']): ?>
       <div><i class="bi bi-download me-1" aria-hidden="true"></i><a href="homework_file.php?t=sub&id=<?= (int)$h['sub_id'] ?>"><?= h($h['sub_file_name']) ?></a></div>
-      <?php endif; ?>
-      <?php if ($graded && $h['sub_feedback']): ?>
-      <div class="mt-1 text-success"><i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($h['sub_feedback']) ?></div>
       <?php endif; ?>
     </div>
     <?php endif; ?>
