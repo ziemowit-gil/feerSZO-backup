@@ -552,8 +552,9 @@ include __DIR__ . '/includes/header_crm.php';
            id="crm-search-input"
            value="<?= h($filters['q']) ?>"
            class="form-control"
-           placeholder="Szukaj kontaktów…"
-           aria-label="Szukaj kontaktów"
+           placeholder="Szukaj kontaktów…  ( / )"
+           title="Skrót: naciśnij / aby szukać, n aby dodać osobę"
+           aria-label="Szukaj kontaktów (skrót: ukośnik)"
            autocomplete="off">
   </div>
 
@@ -632,11 +633,13 @@ include __DIR__ . '/includes/header_crm.php';
     <i class="bi bi-sliders me-1" aria-hidden="true"></i>Zaawansowane<?= $adv_active ? ' •' : '' ?>
   </button>
 
-  <?php if (array_filter($filters)): ?>
+  <?php $active_filters = count(array_filter($filters)); if ($active_filters): ?>
   <a href="<?= APP_URL ?>/crm/index.php"
-     class="btn btn-outline-secondary btn-sm"
-     aria-label="Wyczyść wszystkie filtry">
-    <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Wyczyść
+     class="btn btn-outline-danger btn-sm"
+     aria-label="Wyczyść wszystkie filtry (aktywne: <?= $active_filters ?>)"
+     title="Wyczyść wszystkie aktywne filtry">
+    <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Wyczyść filtry
+    <span class="badge bg-danger ms-1"><?= $active_filters ?></span>
   </a>
   <?php endif; ?>
 
@@ -1395,6 +1398,32 @@ document.addEventListener('click', function(e) {
       .then(function(r){ return r.json(); })
       .then(function(d){ if(d.ok) expandTr.querySelector('td').innerHTML = d.html; });
 });
+</script>
+
+<script>
+// ── Skróty klawiszowe CRM ──────────────────────────────────────────────────
+//   /  → fokus na pole szukania
+//   n  → Dodaj osobę (dla uprawnionych)
+(function(){
+  function isTyping(el){
+    if (!el) return false;
+    var t = el.tagName;
+    return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || el.isContentEditable;
+  }
+  document.addEventListener('keydown', function(e){
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isTyping(document.activeElement)) return;
+    if (e.key === '/') {
+      var s = document.getElementById('crm-search-input');
+      if (s) { e.preventDefault(); s.focus(); s.select(); }
+    } else if (e.key === 'n' || e.key === 'N') {
+      <?php if (can_write('crm') || is_admin()): ?>
+      e.preventDefault();
+      window.location.href = '<?= APP_URL ?>/crm/contact/add_person.php';
+      <?php endif; ?>
+    }
+  });
+})();
 </script>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
