@@ -804,6 +804,22 @@ function karty30_migrate(): void {
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_avail_instr ON k30_ti_instructor_availability(instructor_id, day_of_week)");
+
+    // ── Komunikacja: log masowych wysyłek e-mail/SMS do kursantów ─────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_comm_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel      TEXT    NOT NULL DEFAULT '',   -- email | sms | email+sms
+        filter_type  TEXT    NOT NULL DEFAULT '',   -- grupa | prowadzacy | dzien
+        filter_label TEXT    NOT NULL DEFAULT '',
+        subject      TEXT    NOT NULL DEFAULT '',
+        body         TEXT    NOT NULL DEFAULT '',
+        recipients   INTEGER NOT NULL DEFAULT 0,
+        sent_ok      INTEGER NOT NULL DEFAULT 0,
+        sent_fail    INTEGER NOT NULL DEFAULT 0,
+        created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_comm_log_created ON k30_ti_comm_log(created_at)");
 }
 
 // Konfiguracja statusów harmonogramu
@@ -3633,4 +3649,57 @@ function k30_ti_client_grades_enabled(int $client_id): bool {
 /** Czy dla danej osoby w danym kursie wolno wystawiać/oglądać oceny? (kurs ∧ osoba) */
 function k30_ti_grades_allowed(int $course_id, int $client_id): bool {
     return k30_ti_course_grades_enabled($course_id) && k30_ti_client_grades_enabled($client_id);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  KOMUNIKACJA — odbiorcy wysyłki e-mail/SMS (per grupa / prowadzący / dzień)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Zbiór kursów na podstawie trybu filtra.
+ *  - 'grupa'      → $opts['course_ids'] (lista id)
+ *  - 'prowadzacy' → $opts['instructor_id'] (kursy prowadzone przez tę osobę)
+ *  - 'dzien'      → $opts['date'] (kursy mające lekcję w danym dniu)
+ */
+function k30_ti_comm_course_ids(string $mode, array $opts): array {
+    if ($mode === 'grupa') {
+        return array_values(array_unique(array_filter(array_map('intval', (array)($opts['course_ids'] ?? [])))));
+    }
+    if ($mode === 'prowadzacy') {
+        $iid = (int)($opts['instructor_id'] ?? 0);
+        if (!$iid) return [];
+        return array_map(fn($r) => (int)$r['id'], db_all("SELECT id FROM k30_ti_courses WHERE instructor_id=?", [$iid]));
+    }
+    if ($mode === 'dzien') {
+        $d = trim((string)($opts['date'] ?? ''));
+        if ($d === '') return [];
+        return array_map(fn($r) => (int)$r['course_id'], db_all("SELECT DISTINCT course_id FROM k30_ti_sessions WHERE lesson_date=?", [$d]));
+    }
+    return [];
+}
+
+/** Unikalni aktywni kursanci z danych kursów (id, nazwa, e-mail, telefon). */
+function k30_ti_comm_recipients(array $course_ids): array {
+    $course_ids = array_values(array_unique(array_filter(array_map('intval', $course_ids))));
+    if (!$course_ids) return [];
+    $ph = implode(',', array_fill(0, count($course_ids), '?'));
+    return db_all(
+        "SELECT cl.id AS client_id, cl.name, cl.email, cl.phone
+         FROM k30_ti_enrollments e
+         JOIN k30_clients cl ON cl.id=e.client_id
+         WHERE e.status='active' AND e.course_id IN ($ph)
+         GROUP BY cl.id
+         ORDER BY cl.name COLLATE NOCASE",
+        $course_ids
+    );
+}
+
+/** Lista osób prowadzących (instruktorów) TI — id + nazwa. */
+function k30_ti_instructors(): array {
+    return db_all(
+        "SELECT u.id, u.name, u.email FROM users u
+         WHERE u.id IN (SELECT instructor_id FROM k30_ti_courses WHERE instructor_id IS NOT NULL)
+            OR u.id IN (SELECT user_id FROM k30_ti_instructor_accounts)
+         ORDER BY u.name COLLATE NOCASE"
+    );
 }

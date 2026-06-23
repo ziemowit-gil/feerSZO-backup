@@ -780,6 +780,7 @@ $g_kons = _k30_active('/karty30/clients') || _k30_active('/karty30/waiting')
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/homework.php" <?= _k30_active('/karty30/ti/homework') ? 'aria-current="page"' : '' ?>><i class="bi bi-journal-check" aria-hidden="true"></i>Zadania domowe</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/grades.php" <?= _k30_active('/karty30/ti/grades') ? 'aria-current="page"' : '' ?>><i class="bi bi-table" aria-hidden="true"></i>Dziennik ocen</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/messages.php" <?= _k30_active('/karty30/ti/messages') ? 'aria-current="page"' : '' ?>><i class="bi bi-envelope" aria-hidden="true"></i>Wiadomości</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/komunikacja.php" <?= _k30_active('/karty30/ti/komunikacja') ? 'aria-current="page"' : '' ?>><i class="bi bi-megaphone" aria-hidden="true"></i>Komunikacja (e-mail/SMS)</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/urlopy.php" <?= _k30_active('/karty30/ti/urlopy') ? 'aria-current="page"' : '' ?>><i class="bi bi-airplane" aria-hidden="true"></i>Urlopy prowadzących</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/billing.php" <?= _k30_active('/karty30/ti/billing') ? 'aria-current="page"' : '' ?>><i class="bi bi-receipt" aria-hidden="true"></i>Rozliczenia</a></li>
         <?php endif; ?>
