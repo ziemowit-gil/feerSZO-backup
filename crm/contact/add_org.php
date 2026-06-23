@@ -198,71 +198,24 @@ include __DIR__ . '/../includes/header_crm.php';
 <form method="post" novalidate class="of-accent" aria-label="Formularz firmy / organizacji CRM">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
-<!-- ══ TYP PODMIOTU + SZYBKI IMPORT (CEIDG / KRS) ════════════════════════════ -->
+<!-- ══ SZYBKI IMPORT — przycisk otwierający kreator (CEIDG / KRS) ═════════════ -->
 <div class="card border-0 shadow-sm mb-3 of-importer">
-  <div class="card-body">
-    <div class="sec-label">
-      <i class="bi bi-magic" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
-      Typ podmiotu i szybki import danych
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="of-type-ico" style="width:42px;height:42px;font-size:1.3rem" aria-hidden="true">
+      <i class="bi bi-stars"></i>
     </div>
-
-    <!-- Wybór typu — steruje źródłem importu -->
-    <div class="of-type-grid mb-3" role="radiogroup" aria-label="Typ podmiotu i źródło importu">
-      <label class="of-type-pill" data-mode="ceidg">
-        <input type="radio" name="_import_mode" value="ceidg" class="form-check-input mt-0"
-               onchange="setImportMode('ceidg')">
-        <span class="of-type-ico" aria-hidden="true"><i class="bi bi-shop"></i></span>
-        <span class="of-type-txt">
-          <strong>Firma (JDG)</strong>
-          <small>Jednoosobowa działalność — import z <b>CEIDG</b> po NIP</small>
-        </span>
-      </label>
-      <label class="of-type-pill of-type-pill--active" data-mode="krs">
-        <input type="radio" name="_import_mode" value="krs" class="form-check-input mt-0" checked
-               onchange="setImportMode('krs')">
-        <span class="of-type-ico" aria-hidden="true"><i class="bi bi-bank"></i></span>
-        <span class="of-type-txt">
-          <strong>Organizacja / spółka</strong>
-          <small>Fundacja, stowarzyszenie, sp. z o.o. — import z <b>KRS</b></small>
-        </span>
-      </label>
-    </div>
-
-    <!-- Pole wyszukiwania (adaptacyjne: NIP dla CEIDG / KRS dla rejestru) -->
-    <label class="form-label small fw-semibold mb-1" id="importInputLabel" for="importInput">
-      Numer KRS
-    </label>
-    <div class="input-group input-group-sm mb-2" style="max-width:480px">
-      <input type="text" id="importInput" class="form-control font-monospace"
-             placeholder="0000000000" maxlength="10" inputmode="numeric"
-             oninput="this.value=this.value.replace(/\D/g,'').slice(0, importMode==='ceidg'?10:10)"
-             aria-describedby="importInputLabel">
-      <button type="button" class="btn" id="importBtn"
-              style="background:var(--crm-primary,#0176D3);color:#fff;border:none"
-              onclick="entitySearch()">
-        <i class="bi bi-search me-1" aria-hidden="true"></i><span id="importBtnLabel">Szukaj w KRS</span>
-      </button>
-    </div>
-    <div id="importStatus" style="font-size:.8rem;min-height:1.2rem" aria-live="polite"></div>
-
-    <!-- Podgląd wyników -->
-    <div id="importResult" class="mt-2" style="display:none;max-width:560px">
-      <div class="alert alert-success py-2 mb-2 d-flex align-items-start gap-2" style="font-size:.82rem">
-        <i class="bi bi-check-circle-fill flex-shrink-0 mt-1 text-success" aria-hidden="true"></i>
-        <div id="importResultBody"></div>
+    <div class="flex-grow-1" style="min-width:200px">
+      <div style="font-weight:700;color:#1e293b">Szybkie wypełnienie z rejestru</div>
+      <div class="field-hint">Zaciągnij dane firmy z <b>CEIDG</b> (JDG po NIP) lub organizacji z <b>KRS</b> — dane zobaczysz w oknie i potwierdzisz przed importem.</div>
+      <div id="importApplied" class="text-success mt-1" style="font-size:.8rem;display:none">
+        <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i><span></span>
       </div>
-      <button type="button" class="btn btn-sm w-100"
-              style="background:var(--crm-primary,#0176D3);color:#fff;border:none;max-width:560px"
-              onclick="entityApply()">
-        <i class="bi bi-arrow-down-circle me-1" aria-hidden="true"></i>Zastosuj dane do formularza
-      </button>
     </div>
-
-    <p class="field-hint mt-2 mb-0">
-      Nie znasz numeru? Możesz też
-      <a id="gusLink" href="#" target="_blank" rel="noopener" onclick="return openGUS()">sprawdzić podmiot w wyszukiwarce GUS</a>
-      i uzupełnić pola ręcznie.
-    </p>
+    <button type="button" class="btn flex-shrink-0"
+            style="background:var(--crm-primary,#0176D3);color:#fff;border:none"
+            data-bs-toggle="modal" data-bs-target="#importWizardModal">
+      <i class="bi bi-magic me-1" aria-hidden="true"></i>Otwórz kreatora importu
+    </button>
   </div>
 </div>
 
@@ -595,6 +548,102 @@ include __DIR__ . '/../includes/header_crm.php';
 </div><!-- /row -->
 </form>
 
+<!-- ══ MODAL: KREATOR IMPORTU (CEIDG / KRS) ══════════════════════════════════ -->
+<div class="modal fade" id="importWizardModal" tabindex="-1" aria-labelledby="importWizardTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5 mb-0" id="importWizardTitle">
+          <i class="bi bi-magic me-2" style="color:var(--crm-primary,#0176D3)" aria-hidden="true"></i>
+          Kreator importu danych podmiotu
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- KROK 1: wybór typu + wyszukiwanie -->
+        <div id="iw-step-search">
+          <p class="text-muted small mb-2">Wybierz typ podmiotu i podaj numer — dane pobierzemy z właściwego rejestru i pokażemy do zatwierdzenia.</p>
+
+          <div class="of-type-grid mb-3" role="radiogroup" aria-label="Typ podmiotu i źródło importu">
+            <label class="of-type-pill" data-mode="ceidg">
+              <input type="radio" name="_import_mode" value="ceidg" class="form-check-input mt-0"
+                     onchange="setImportMode('ceidg')">
+              <span class="of-type-ico" aria-hidden="true"><i class="bi bi-shop"></i></span>
+              <span class="of-type-txt">
+                <strong>Firma (JDG)</strong>
+                <small>Jednoosobowa działalność — import z <b>CEIDG</b> po NIP</small>
+              </span>
+            </label>
+            <label class="of-type-pill of-type-pill--active" data-mode="krs">
+              <input type="radio" name="_import_mode" value="krs" class="form-check-input mt-0" checked
+                     onchange="setImportMode('krs')">
+              <span class="of-type-ico" aria-hidden="true"><i class="bi bi-bank"></i></span>
+              <span class="of-type-txt">
+                <strong>Organizacja / spółka</strong>
+                <small>Fundacja, stowarzyszenie, sp. z o.o. — import z <b>KRS</b></small>
+              </span>
+            </label>
+          </div>
+
+          <label class="form-label small fw-semibold mb-1" id="importInputLabel" for="importInput">Numer KRS</label>
+          <div class="input-group input-group-sm mb-2" style="max-width:420px">
+            <input type="text" id="importInput" class="form-control font-monospace"
+                   placeholder="0000000000" maxlength="10" inputmode="numeric"
+                   oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"
+                   aria-describedby="importInputLabel">
+            <button type="button" class="btn" id="importBtn"
+                    style="background:var(--crm-primary,#0176D3);color:#fff;border:none"
+                    onclick="entitySearch()">
+              <i class="bi bi-search me-1" aria-hidden="true"></i><span id="importBtnLabel">Szukaj w KRS</span>
+            </button>
+          </div>
+          <div id="importStatus" style="font-size:.82rem;min-height:1.2rem" aria-live="polite"></div>
+
+          <p class="field-hint mt-2 mb-0">
+            Nie znasz numeru? Możesz
+            <a id="gusLink" href="#" target="_blank" rel="noopener" onclick="return openGUS()">sprawdzić podmiot w wyszukiwarce GUS</a>
+            i uzupełnić pola ręcznie.
+          </p>
+        </div>
+
+        <!-- KROK 2: podgląd danych przed importem -->
+        <div id="iw-step-review" style="display:none">
+          <div class="alert alert-success d-flex align-items-start gap-2 py-2" role="status">
+            <i class="bi bi-check-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+            <div>
+              <strong>Znaleziono podmiot</strong> w rejestrze <span id="iw-source-label">KRS</span>.
+              Sprawdź dane poniżej i potwierdź import do formularza.
+            </div>
+          </div>
+          <dl class="cv-dl mb-0" id="importReviewTable" style="display:grid;grid-template-columns:auto 1fr;gap:.35rem 1rem"></dl>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <!-- stopka kroku wyszukiwania -->
+        <div id="iw-foot-search" class="d-flex gap-2 w-100 justify-content-end">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button>
+        </div>
+        <!-- stopka kroku podglądu -->
+        <div id="iw-foot-review" class="d-flex gap-2 w-100 justify-content-between" style="display:none!important">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="iwBackToSearch()">
+            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Szukaj ponownie
+          </button>
+          <button type="button" class="btn btn-sm"
+                  style="background:var(--crm-primary,#0176D3);color:#fff;border:none"
+                  onclick="entityApply()">
+            <i class="bi bi-arrow-down-circle me-1" aria-hidden="true"></i>Zaimportuj do formularza
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <script>
 // Aktualizuje podgląd awatara po wpisaniu nazwy
 function updateOrgPreview(val) {
@@ -691,11 +740,10 @@ function setImportMode(mode) {
   if (bl)  bl.textContent  = cfg.btn;
   if (inp) { inp.value = ''; inp.placeholder = cfg.ph; inp.setAttribute('maxlength', cfg.digits); }
 
-  // Wyczyść poprzednie wyniki
+  // Wyczyść poprzednie wyniki i wróć do kroku wyszukiwania
   _importData = null;
   importSetStatus('', '');
-  var res = document.getElementById('importResult');
-  if (res) res.style.display = 'none';
+  iwSetStep('search');
 }
 
 function entitySearch() {
@@ -708,9 +756,7 @@ function entitySearch() {
   }
 
   var btn = document.getElementById('importBtn');
-  var res = document.getElementById('importResult');
   if (btn) btn.disabled = true;
-  if (res) res.style.display = 'none';
   importSetStatus('info', '<span class="spinner-border spinner-border-sm me-1"></span>Pobieranie danych z ' + cfg.source + '…');
 
   fetch(cfg.api + encodeURIComponent(val), { headers: { 'Accept': 'application/json' } })
@@ -722,27 +768,64 @@ function entitySearch() {
       return;
     }
     _importData = data;
-    var srcLbl = importMode === 'krs' ? (data.rejestr_label || cfg.source) : cfg.source;
-    importSetStatus('success', '<i class="bi bi-check-circle me-1"></i>Znaleziono: <strong>' + escHtml(data.nazwa) + '</strong> (' + escHtml(srcLbl) + ')');
-
-    var body = document.getElementById('importResultBody');
-    if (body) {
-      body.innerHTML = [
-        '<strong>' + escHtml(data.nazwa) + '</strong>',
-        data.forma_prawna ? '<br><span class="text-muted">Forma: </span>' + escHtml(data.forma_prawna) : '',
-        data.krs   ? '<br><span class="text-muted">KRS: </span><code>' + escHtml(data.krs) + '</code>' : '',
-        data.nip   ? '<br><span class="text-muted">NIP: </span><code>' + escHtml(data.nip) + '</code>' : '',
-        data.regon ? '<br><span class="text-muted">REGON: </span><code>' + escHtml(data.regon) + '</code>' : '',
-        data.adres ? '<br><span class="text-muted">Adres: </span>' + escHtml(data.adres) : '',
-        (importMode==='ceidg' && data.status) ? '<br><span class="text-muted">Status: </span>' + escHtml(data.status) + (data.aktywna ? '' : ' ⚠️') : '',
-      ].join('');
-    }
-    if (res) res.style.display = '';
+    importSetStatus('', '');
+    iwShowReview(data);
   })
   .catch(function(err) {
     if (btn) btn.disabled = false;
     importSetStatus('danger', '<i class="bi bi-x-circle me-1"></i>Błąd połączenia: ' + escHtml(err.message));
   });
+}
+
+// Przełącza widoczny krok kreatora (search ↔ review) wraz ze stopką
+function iwSetStep(step) {
+  var review = step === 'review';
+  var s = document.getElementById('iw-step-search');
+  var r = document.getElementById('iw-step-review');
+  var fs = document.getElementById('iw-foot-search');
+  var fr = document.getElementById('iw-foot-review');
+  if (s)  s.style.display  = review ? 'none' : '';
+  if (r)  r.style.display  = review ? '' : 'none';
+  if (fs) fs.style.setProperty('display', review ? 'none' : 'flex', 'important');
+  if (fr) fr.style.setProperty('display', review ? 'flex' : 'none', 'important');
+}
+
+function iwBackToSearch() {
+  iwSetStep('search');
+  importSetStatus('', '');
+  document.getElementById('importInput')?.focus();
+}
+
+// Renderuje znalezione dane w popupie (krok podglądu) PRZED importem
+function iwShowReview(d) {
+  var cfg = IMPORT_CFG[importMode];
+  var srcLbl = importMode === 'krs' ? (d.rejestr_label || cfg.source) : cfg.source;
+  var lbl = document.getElementById('iw-source-label');
+  if (lbl) lbl.textContent = srcLbl;
+
+  var rows = [
+    ['Nazwa',        d.nazwa,        false],
+    ['Forma prawna', d.forma_prawna, false],
+    ['KRS',          d.krs,          true],
+    ['NIP',          d.nip,          true],
+    ['REGON',        d.regon,        true],
+    ['Adres',        d.adres,        false],
+  ];
+  if (importMode === 'ceidg' && d.status) {
+    rows.push(['Status', d.status + (d.aktywna ? ' ✓' : ' ⚠️ (nieaktywna)'), false]);
+  }
+
+  var html = '';
+  rows.forEach(function(r) {
+    if (!r[1]) return;
+    var val = r[2] ? '<code>' + escHtml(r[1]) + '</code>' : escHtml(r[1]);
+    html += '<dt class="text-muted fw-normal">' + escHtml(r[0]) + '</dt>'
+          + '<dd class="mb-0 fw-semibold">' + val + '</dd>';
+  });
+  var table = document.getElementById('importReviewTable');
+  if (table) table.innerHTML = html;
+
+  iwSetStep('review');
 }
 
 function entityApply() {
@@ -776,9 +859,24 @@ function entityApply() {
 
   if (d.nazwa) updateOrgPreview(d.nazwa);
 
-  importSetStatus('success', '<i class="bi bi-check-circle me-1"></i>Dane zastosowane! Sprawdź i uzupełnij brakujące pola.');
-  var res = document.getElementById('importResult');
-  if (res) res.style.display = 'none';
+  var src = importMode === 'krs' ? (d.rejestr_label || 'KRS') : 'CEIDG';
+
+  // Zamknij modal kreatora
+  var modalEl = document.getElementById('importWizardModal');
+  if (modalEl && window.bootstrap) {
+    var inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    inst.hide();
+  }
+
+  // Potwierdzenie przy karcie + zresetuj kreatora do kroku wyszukiwania
+  var applied = document.getElementById('importApplied');
+  if (applied) {
+    applied.querySelector('span').textContent = 'Dane zaimportowane z ' + src + '. Sprawdź i uzupełnij brakujące pola.';
+    applied.style.display = '';
+  }
+  iwSetStep('search');
+  importSetStatus('', '');
+
   document.getElementById('nazwa')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -848,6 +946,12 @@ document.getElementById('importInput')?.addEventListener('keydown', function(e) 
   var checked = document.querySelector('input[name="_import_mode"]:checked');
   setImportMode(checked ? checked.value : 'krs');
 })();
+
+// Po otwarciu kreatora: krok wyszukiwania + focus na polu numeru
+document.getElementById('importWizardModal')?.addEventListener('shown.bs.modal', function() {
+  iwSetStep('search');
+  document.getElementById('importInput')?.focus();
+});
 </script>
 
 <style>
