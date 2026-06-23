@@ -183,8 +183,22 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 .att-row.absent   { background: #fafafa; }
 .att-row.cancelled{ background: #fef2f2; }
 .att-row.pending  { background: #fffbeb; }
-.att-cb           { width: 1.3em; height: 1.3em; flex-shrink: 0; cursor: pointer; }
+.att-cb           { width: 1.4em; height: 1.4em; flex-shrink: 0; cursor: pointer; }
 .section-head     { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 12px; }
+/* Karta główna — obecność na pierwszym planie */
+.lesson-primary   { border: 2px solid var(--k30-purple, #4338ca) !important; }
+.lesson-primary > .card-header { background: var(--k30-purple-bg, #eef2ff); }
+/* Pasek statystyk podsumowania */
+.lesson-stats     { display:flex; flex-wrap:wrap; gap:.5rem; }
+.lesson-stat      { flex:1 1 8rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:.6rem .9rem; }
+.lesson-stat .lbl { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+.lesson-stat .val { font-size:1.4rem; font-weight:800; line-height:1.1; }
+/* Zwijana sekcja „Informacje o lekcji" */
+details.lesson-card > summary { cursor:pointer; list-style:none; }
+details.lesson-card > summary::-webkit-details-marker { display:none; }
+details.lesson-card > summary .chev { transition: transform .15s ease; }
+details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce){ details.lesson-card > summary .chev { transition:none; } }
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
@@ -255,8 +269,219 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <?= flash_html() ?>
 
-<!-- Link do lekcji online + oceny kursantów -->
-<div class="row g-3 mb-3">
+<?php if ($session['status'] === 'cancelled'): ?>
+<div class="alert alert-danger d-flex align-items-start gap-2">
+  <i class="bi bi-x-octagon-fill mt-1"></i>
+  <div>
+    <div class="fw-semibold">Lekcja odwołana — nie liczona do ceny.</div>
+    <?php if (!empty($session['cancel_reason'])): ?>
+    <div class="mt-1"><span class="text-muted">Powód:</span> <?= h($session['cancel_reason']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($session['cancelled_by_role']) || !empty($session['cancelled_by'])):
+      $role_lbl = K30_TI_CANCEL_ROLES[$session['cancelled_by_role']] ?? $session['cancelled_by_role']; ?>
+    <div class="small text-muted mt-1">
+      Odwołał(a): <?= h(trim(($role_lbl ? $role_lbl : '') . ($session['cancelled_by'] ? ' — '.$session['cancelled_by'] : ''))) ?>
+      <?php if (!empty($session['cancelled_at'])): ?> · <?= h(date('d.m.Y H:i', strtotime($session['cancelled_at']))) ?><?php endif; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php else: ?>
+
+<form method="post" id="lesson_form">
+<input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+<input type="hidden" name="_op"   value="save_lesson">
+
+<!-- ══ Podsumowanie (gdy odbyta) — pasek statystyk u góry ══ -->
+<?php if ($is_held && $attendance):
+  $present   = array_filter($attendance, fn($a) => $a['attended']);
+  $total_h   = (float)$session['duration_min'] / 60;
+  $total_pln = array_sum(array_map(fn($a) => $total_h * (float)$a['hourly_rate'], $present));
+?>
+<div class="lesson-stats mb-3">
+  <div class="lesson-stat"><div class="lbl">Obecni</div><div class="val text-success"><?= count($present) ?><span class="text-muted fs-6">/<?= count($attendance) ?></span></div></div>
+  <div class="lesson-stat"><div class="lbl">Czas lekcji</div><div class="val"><?= number_format($total_h,2,',','') ?> h</div></div>
+  <div class="lesson-stat"><div class="lbl">Kwota</div><div class="val text-primary"><?= number_format($total_pln,2,',','') ?> zł</div></div>
+</div>
+<?php endif; ?>
+
+<!-- ══ GŁÓWNE: Lista obecności (na pierwszym planie) ══ -->
+<div class="card border-0 shadow-sm lesson-primary mb-3">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-person-check me-2 text-primary"></i>Lista obecności
+    <span class="badge bg-secondary ms-2"><?= count($attendance) ?></span>
+    <?php if ($can_write && $attendance): ?>
+    <div class="ms-auto d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="toggleAll(true)">Wszyscy ✓</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="toggleAll(false)">Brak ✗</button>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <?php if (!$attendance): ?>
+  <div class="card-body text-muted">
+    Brak uczestników kursu.
+    <a href="course.php?id=<?= (int)$session['course_id'] ?>#uczestnicy">Dodaj uczestników</a>.
+  </div>
+  <?php else: ?>
+  <div class="list-group list-group-flush" id="att_list">
+    <?php foreach ($attendance as $a):
+      $cid       = (int)$a['client_id'];
+      $cancelled = (int)($a['cancelled'] ?? 0) === 1;
+      $pending   = (int)($a['cancel_pending'] ?? 0) === 1;
+      $present   = !$cancelled && (bool)$a['attended'];
+      $note      = $ind_notes_map[$cid] ?? '';
+      $role_lbl  = K30_TI_CANCEL_ROLES[$a['cancelled_by_role'] ?? ''] ?? ($a['cancelled_by_role'] ?? '');
+    ?>
+    <div class="list-group-item att-row <?= $pending ? 'pending' : ($cancelled ? 'cancelled' : ($present ? 'present' : 'absent')) ?> py-2 px-3"
+         id="row_<?= $cid ?>">
+      <div class="d-flex align-items-center gap-3">
+        <input class="att-cb form-check-input" type="checkbox"
+               name="attended[]" value="<?= $cid ?>"
+               <?= $present ? 'checked' : '' ?>
+               onchange="rowToggle(this)"
+               aria-label="Obecny: <?= h($a['client_name']) ?>"
+               <?= (!$can_write || $cancelled) ? 'disabled' : '' ?>>
+        <div class="flex-grow-1 min-width-0">
+          <div class="fw-semibold text-truncate <?= $cancelled ? 'text-decoration-line-through text-muted' : '' ?>"><?= h($a['client_name']) ?></div>
+          <?php if ($a['client_email']): ?>
+          <div class="text-muted" style="font-size:.75rem"><?= h($a['client_email']) ?></div>
+          <?php endif; ?>
+        </div>
+        <div class="text-muted text-end flex-shrink-0" style="font-size:.78rem">
+          <?= number_format((float)$a['hourly_rate'], 2, ',', '') ?> zł/h
+        </div>
+        <?php if ($can_write): ?>
+          <?php if ($pending): ?>
+          <button type="button" class="btn btn-sm btn-success py-0 px-2 flex-shrink-0"
+                  onclick="confirmCancelReq(<?= $cid ?>)" title="Potwierdź odwołanie udziału">
+            <i class="bi bi-check-lg me-1"></i>Potwierdź
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
+                  onclick="rejectCancelReq(<?= $cid ?>)" title="Odrzuć prośbę (przywróć udział)" aria-label="Odrzuć prośbę o odwołanie">
+            <i class="bi bi-x-lg"></i>
+          </button>
+          <?php elseif ($cancelled): ?>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
+                  onclick="restoreAtt(<?= $cid ?>)" title="Przywróć udział" aria-label="Przywróć udział: <?= h($a['client_name']) ?>">
+            <i class="bi bi-arrow-counterclockwise"></i>
+          </button>
+          <?php else: ?>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 flex-shrink-0"
+                  onclick="openCancelAtt(<?= $cid ?>, <?= htmlspecialchars(json_encode($a['client_name']), ENT_QUOTES) ?>)"
+                  title="Odwołaj udział (nie liczone do ceny)" aria-label="Odwołaj udział: <?= h($a['client_name']) ?>">
+            <i class="bi bi-x-circle"></i>
+          </button>
+          <?php endif; ?>
+        <?php endif; ?>
+      </div>
+      <?php if ($pending): ?>
+      <div class="mt-1 ms-5 small text-warning-emphasis">
+        <i class="bi bi-hourglass-split me-1"></i>Prośba o odwołanie udziału — czeka na potwierdzenie.
+        <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
+        <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
+        <span class="text-muted d-block">Zgłosił(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
+        <?php endif; ?>
+      </div>
+      <?php elseif ($cancelled): ?>
+      <div class="mt-1 ms-5 small text-danger">
+        <i class="bi bi-x-octagon me-1"></i>Udział odwołany — nie liczony do ceny.
+        <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
+        <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
+        <span class="text-muted d-block">Odwołał(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
+        <?php endif; ?>
+      </div>
+      <?php else: ?>
+      <!-- Uwagi indywidualne -->
+      <div class="mt-1 ms-5">
+        <input type="text"
+               class="form-control form-control-sm border-0 bg-transparent px-0"
+               name="ind_notes[<?= $cid ?>]"
+               value="<?= h($note) ?>"
+               placeholder="Uwaga do uczestnika…"
+               aria-label="Uwaga indywidualna: <?= h($a['client_name']) ?>"
+               <?= !$can_write ? 'readonly' : '' ?>
+               style="font-size:.78rem;color:#64748b">
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+  </div>
+
+  <?php if ($can_write): ?>
+  <div class="card-footer d-flex align-items-center justify-content-between gap-2">
+    <span class="text-muted small" id="att_count">
+      Zaznaczono: <strong id="att_num"><?= count(array_filter($attendance,fn($a)=>$a['attended'])) ?></strong>/<?= count($attendance) ?>
+    </span>
+    <button type="submit" class="btn btn-success btn-lg">
+      <i class="bi bi-check2-all me-1"></i>Zapisz lekcję
+    </button>
+  </div>
+  <?php endif; ?>
+  <?php endif; // !$attendance ?>
+</div>
+
+<!-- ══ Zwijane: informacje o lekcji (temat, godziny, zadanie, uwagi) ══ -->
+<details class="card border-0 shadow-sm lesson-card mb-3"<?= (trim((string)($session['topic'] ?? ''))==='' && trim((string)($session['instructor_notes'] ?? ''))==='') ? ' open' : '' ?>>
+  <summary class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-journal-text me-2 text-primary"></i>Informacje o lekcji
+    <span class="text-muted fw-normal small ms-2">temat · godziny · zadanie · uwagi</span>
+    <i class="bi bi-chevron-down chev ms-auto" aria-hidden="true"></i>
+  </summary>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <label class="form-label fw-semibold" for="topic"><i class="bi bi-journal-text me-1 text-primary"></i>Temat lekcji</label>
+        <input type="text" class="form-control" id="topic" name="topic"
+               value="<?= h($session['topic'] ?? '') ?>"
+               placeholder="np. Obsługa poczty e-mail, Tworzenie dokumentów w Word…"
+               <?= !$can_write ? 'readonly' : '' ?>>
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label fw-semibold d-block">Czas zajęć</label>
+        <div class="row g-2">
+          <div class="col-5">
+            <select class="form-select" id="ltime_from" name="time_from" aria-label="Początek" onchange="recalcDur()" <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_from'] ?? '') ?></select>
+          </div>
+          <div class="col-2 text-center pt-2 text-muted">–</div>
+          <div class="col-5">
+            <select class="form-select" id="ltime_to" name="time_to" aria-label="Koniec" onchange="recalcDur()" <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_to'] ?? '') ?></select>
+          </div>
+        </div>
+        <div class="form-text">Czas trwania: <span class="fw-semibold" id="dur_display"><?php $dm=(int)$session['duration_min']; echo $dm>=60 ? floor($dm/60).'h'.($dm%60?' '.($dm%60).'m':'') : $dm.'m'; ?></span></div>
+        <input type="hidden" id="ldur" name="duration_min" value="<?= (int)$session['duration_min'] ?>">
+      </div>
+    </div>
+
+    <div class="row g-2 mt-1">
+      <div class="col-md-6">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="has_homework" name="has_homework" value="1"
+                 <?= ($session['has_homework'] ?? 0) ? 'checked' : '' ?> <?= !$can_write ? 'disabled' : '' ?>>
+          <label class="form-check-label fw-semibold" for="has_homework"><i class="bi bi-pencil-square me-1 text-warning"></i>Zadano zadanie domowe</label>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="self_prep_remote" name="self_prep_remote" value="1"
+                 <?= ($session['self_prep_remote'] ?? 0) ? 'checked' : '' ?> <?= !$can_write ? 'disabled' : '' ?>>
+          <label class="form-check-label fw-semibold" for="self_prep_remote"><i class="bi bi-laptop me-1 text-info"></i>Praca własna prowadzącego (materiał zdalny)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label fw-semibold" for="inst_notes"><i class="bi bi-chat-square-text me-1 text-secondary"></i>Uwagi prowadzącego</label>
+      <textarea class="form-control" id="inst_notes" name="instructor_notes" rows="3"
+                placeholder="Postępy grupy, trudności, tematy do powtórzenia…"
+                <?= !$can_write ? 'readonly' : '' ?>><?= h($session['instructor_notes'] ?? '') ?></textarea>
+    </div>
+  </div>
+</details>
+</form>
+
+<!-- ══ Dół: link do lekcji online + oceny kursantów ══ -->
+<div class="row g-3">
   <div class="col-lg-7">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
@@ -266,7 +491,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op"   value="save_link">
           <input type="url" class="form-control font-monospace" name="meeting_url"
-                 value="<?= h($session['meeting_url'] ?? '') ?>"
+                 value="<?= h($session['meeting_url'] ?? '') ?>" aria-label="Link do lekcji online"
                  placeholder="<?= !empty($session['course_meeting_url']) ? 'puste = stały link grupy' : 'https://… (Teams/Zoom/Meet)' ?>">
           <button type="submit" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
         </form>
@@ -312,261 +537,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </div>
   </div>
 </div>
-
-<?php if ($session['status'] === 'cancelled'): ?>
-<div class="alert alert-danger d-flex align-items-start gap-2">
-  <i class="bi bi-x-octagon-fill mt-1"></i>
-  <div>
-    <div class="fw-semibold">Lekcja odwołana — nie liczona do ceny.</div>
-    <?php if (!empty($session['cancel_reason'])): ?>
-    <div class="mt-1"><span class="text-muted">Powód:</span> <?= h($session['cancel_reason']) ?></div>
-    <?php endif; ?>
-    <?php if (!empty($session['cancelled_by_role']) || !empty($session['cancelled_by'])):
-      $role_lbl = K30_TI_CANCEL_ROLES[$session['cancelled_by_role']] ?? $session['cancelled_by_role']; ?>
-    <div class="small text-muted mt-1">
-      Odwołał(a): <?= h(trim(($role_lbl ? $role_lbl : '') . ($session['cancelled_by'] ? ' — '.$session['cancelled_by'] : ''))) ?>
-      <?php if (!empty($session['cancelled_at'])): ?> · <?= h(date('d.m.Y H:i', strtotime($session['cancelled_at']))) ?><?php endif; ?>
-    </div>
-    <?php endif; ?>
-  </div>
-</div>
-<?php else: ?>
-
-<form method="post" id="lesson_form">
-<input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-<input type="hidden" name="_op"   value="save_lesson">
-
-<div class="row g-4">
-
-  <!-- LEWA: Metadane lekcji -->
-  <div class="col-lg-5">
-
-    <!-- Temat i czas trwania -->
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-body">
-        <div class="section-head">Informacje o lekcji</div>
-
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="topic">
-            <i class="bi bi-journal-text me-1 text-primary"></i>Temat lekcji
-          </label>
-          <input type="text" class="form-control" id="topic" name="topic"
-                 value="<?= h($session['topic'] ?? '') ?>"
-                 placeholder="np. Obsługa poczty e-mail, Tworzenie dokumentów w Word…"
-                 <?= !$can_write ? 'readonly' : '' ?>>
-        </div>
-
-        <!-- Godziny — od/do → czas trwania wyliczany automatycznie -->
-        <div class="row g-2 mb-3">
-          <div class="col-5">
-            <label class="form-label fw-semibold" for="ltime_from">
-              <i class="bi bi-clock me-1 text-muted"></i>Początek
-            </label>
-            <select class="form-select" id="ltime_from" name="time_from"
-                    onchange="recalcDur()"
-                    <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_from'] ?? '') ?></select>
-          </div>
-          <div class="col-5">
-            <label class="form-label fw-semibold" for="ltime_to">
-              <i class="bi bi-clock-fill me-1 text-muted"></i>Koniec
-            </label>
-            <select class="form-select" id="ltime_to" name="time_to"
-                    onchange="recalcDur()"
-                    <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_to'] ?? '') ?></select>
-          </div>
-          <div class="col-2 d-flex flex-column justify-content-end">
-            <div class="text-center pb-1">
-              <div class="text-muted" style="font-size:.68rem">czas</div>
-              <div class="fw-bold" id="dur_display" style="font-size:1rem">
-                <?php
-                  $dm = (int)$session['duration_min'];
-                  echo $dm >= 60
-                    ? floor($dm/60).'h'.($dm%60 ? ' '.($dm%60).'m' : '')
-                    : $dm.'m';
-                ?>
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- Ukryte pole duration_min — wyliczane przez JS -->
-        <input type="hidden" id="ldur" name="duration_min" value="<?= (int)$session['duration_min'] ?>">
-
-        <!-- Zadanie domowe -->
-        <div class="form-check form-switch mb-2">
-          <input class="form-check-input" type="checkbox" role="switch"
-                 id="has_homework" name="has_homework" value="1"
-                 <?= ($session['has_homework'] ?? 0) ? 'checked' : '' ?>
-                 <?= !$can_write ? 'disabled' : '' ?>>
-          <label class="form-check-label fw-semibold" for="has_homework">
-            <i class="bi bi-pencil-square me-1 text-warning"></i>Zadano zadanie domowe
-          </label>
-        </div>
-
-        <!-- Praca własna prowadzącego — materiał do wykonania zdalnie -->
-        <div class="form-check form-switch mb-3">
-          <input class="form-check-input" type="checkbox" role="switch"
-                 id="self_prep_remote" name="self_prep_remote" value="1"
-                 <?= ($session['self_prep_remote'] ?? 0) ? 'checked' : '' ?>
-                 <?= !$can_write ? 'disabled' : '' ?>>
-          <label class="form-check-label fw-semibold" for="self_prep_remote">
-            <i class="bi bi-laptop me-1 text-info"></i>Praca własna prowadzącego — przygotowanie materiału do wykonania zdalnie
-          </label>
-        </div>
-
-        <!-- Uwagi prowadzącego -->
-        <div>
-          <label class="form-label fw-semibold" for="inst_notes">
-            <i class="bi bi-chat-square-text me-1 text-secondary"></i>Uwagi prowadzącego
-          </label>
-          <textarea class="form-control" id="inst_notes" name="instructor_notes"
-                    rows="4" placeholder="Postępy grupy, trudności, tematy do powtórzenia…"
-                    <?= !$can_write ? 'readonly' : '' ?>><?= h($session['instructor_notes'] ?? '') ?></textarea>
-        </div>
-      </div>
-    </div>
-
-    <!-- Podsumowanie (gdy odbyta) -->
-    <?php if ($is_held && $attendance):
-      $present = array_filter($attendance, fn($a) => $a['attended']);
-      $total_h = (float)$session['duration_min'] / 60;
-      $total_pln = array_sum(array_map(fn($a) => $total_h * (float)$a['hourly_rate'], $present));
-    ?>
-    <div class="card border-0 shadow-sm">
-      <div class="card-body">
-        <div class="section-head">Podsumowanie</div>
-        <div class="d-flex gap-4 flex-wrap">
-          <div><div class="text-muted small">Obecni</div>
-            <div class="fw-bold fs-4 text-success"><?= count($present) ?><span class="text-muted fs-6">/<?= count($attendance) ?></span></div></div>
-          <div><div class="text-muted small">Czas</div>
-            <div class="fw-bold fs-4"><?= number_format($total_h,2,',','') ?> h</div></div>
-          <div><div class="text-muted small">Kwota</div>
-            <div class="fw-bold fs-4 text-primary"><?= number_format($total_pln,2,',','') ?> zł</div></div>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
-  </div>
-
-  <!-- PRAWA: Lista obecności -->
-  <div class="col-lg-7">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold d-flex align-items-center">
-        <i class="bi bi-person-check me-2 text-primary"></i>Lista obecności
-        <span class="badge bg-secondary ms-2"><?= count($attendance) ?></span>
-        <?php if ($can_write && $attendance): ?>
-        <div class="ms-auto d-flex gap-2">
-          <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
-                  onclick="toggleAll(true)">Wszyscy ✓</button>
-          <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
-                  onclick="toggleAll(false)">Brak ✗</button>
-        </div>
-        <?php endif; ?>
-      </div>
-
-      <?php if (!$attendance): ?>
-      <div class="card-body text-muted">
-        Brak uczestników kursu.
-        <a href="course.php?id=<?= (int)$session['course_id'] ?>#uczestnicy">Dodaj uczestników</a>.
-      </div>
-      <?php else: ?>
-      <div class="list-group list-group-flush" id="att_list">
-        <?php foreach ($attendance as $a):
-          $cid       = (int)$a['client_id'];
-          $cancelled = (int)($a['cancelled'] ?? 0) === 1;
-          $pending   = (int)($a['cancel_pending'] ?? 0) === 1;
-          $present   = !$cancelled && (bool)$a['attended'];
-          $note      = $ind_notes_map[$cid] ?? '';
-          $role_lbl  = K30_TI_CANCEL_ROLES[$a['cancelled_by_role'] ?? ''] ?? ($a['cancelled_by_role'] ?? '');
-        ?>
-        <div class="list-group-item att-row <?= $pending ? 'pending' : ($cancelled ? 'cancelled' : ($present ? 'present' : 'absent')) ?> py-2 px-3"
-             id="row_<?= $cid ?>">
-          <div class="d-flex align-items-center gap-3">
-            <input class="att-cb form-check-input" type="checkbox"
-                   name="attended[]" value="<?= $cid ?>"
-                   <?= $present ? 'checked' : '' ?>
-                   onchange="rowToggle(this)"
-                   <?= (!$can_write || $cancelled) ? 'disabled' : '' ?>>
-            <div class="flex-grow-1 min-width-0">
-              <div class="fw-semibold text-truncate <?= $cancelled ? 'text-decoration-line-through text-muted' : '' ?>"><?= h($a['client_name']) ?></div>
-              <?php if ($a['client_email']): ?>
-              <div class="text-muted" style="font-size:.75rem"><?= h($a['client_email']) ?></div>
-              <?php endif; ?>
-            </div>
-            <div class="text-muted text-end flex-shrink-0" style="font-size:.78rem">
-              <?= number_format((float)$a['hourly_rate'], 2, ',', '') ?> zł/h
-            </div>
-            <?php if ($can_write): ?>
-              <?php if ($pending): ?>
-              <button type="button" class="btn btn-xs btn-sm btn-success py-0 px-2 flex-shrink-0"
-                      onclick="confirmCancelReq(<?= $cid ?>)" title="Potwierdź odwołanie udziału">
-                <i class="bi bi-check-lg me-1"></i>Potwierdź
-              </button>
-              <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
-                      onclick="rejectCancelReq(<?= $cid ?>)" title="Odrzuć prośbę (przywróć udział)">
-                <i class="bi bi-x-lg"></i>
-              </button>
-              <?php elseif ($cancelled): ?>
-              <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
-                      onclick="restoreAtt(<?= $cid ?>)" title="Przywróć udział">
-                <i class="bi bi-arrow-counterclockwise"></i>
-              </button>
-              <?php else: ?>
-              <button type="button" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2 flex-shrink-0"
-                      onclick="openCancelAtt(<?= $cid ?>, <?= htmlspecialchars(json_encode($a['client_name']), ENT_QUOTES) ?>)"
-                      title="Odwołaj udział (nie liczone do ceny)">
-                <i class="bi bi-x-circle"></i>
-              </button>
-              <?php endif; ?>
-            <?php endif; ?>
-          </div>
-          <?php if ($pending): ?>
-          <div class="mt-1 ms-5 small text-warning-emphasis">
-            <i class="bi bi-hourglass-split me-1"></i>Prośba o odwołanie udziału — czeka na potwierdzenie.
-            <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
-            <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
-            <span class="text-muted d-block">Zgłosił(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
-            <?php endif; ?>
-          </div>
-          <?php elseif ($cancelled): ?>
-          <div class="mt-1 ms-5 small text-danger">
-            <i class="bi bi-x-octagon me-1"></i>Udział odwołany — nie liczony do ceny.
-            <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
-            <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
-            <span class="text-muted d-block">Odwołał(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
-            <?php endif; ?>
-          </div>
-          <?php else: ?>
-          <!-- Uwagi indywidualne -->
-          <div class="mt-1 ms-5">
-            <input type="text"
-                   class="form-control form-control-sm border-0 bg-transparent px-0"
-                   name="ind_notes[<?= $cid ?>]"
-                   value="<?= h($note) ?>"
-                   placeholder="Uwaga do uczestnika…"
-                   <?= !$can_write ? 'readonly' : '' ?>
-                   style="font-size:.78rem;color:#64748b">
-          </div>
-          <?php endif; ?>
-        </div>
-        <?php endforeach; ?>
-      </div>
-
-      <?php if ($can_write): ?>
-      <div class="card-footer d-flex align-items-center justify-content-between gap-2">
-        <span class="text-muted small" id="att_count">
-          Zaznaczono: <strong id="att_num"><?= count(array_filter($attendance,fn($a)=>$a['attended'])) ?></strong>/<?= count($attendance) ?>
-        </span>
-        <button type="submit" class="btn btn-success">
-          <i class="bi bi-check2-all me-1"></i>Zapisz lekcję
-        </button>
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-</div><!-- /row -->
-</form>
-<?php endif; // $is_held ?>
 <?php endif; // cancelled ?>
 
 <?php if ($can_write): ?>
