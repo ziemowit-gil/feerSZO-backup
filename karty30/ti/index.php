@@ -71,6 +71,30 @@ $edit_row    = $edit_id ? k30_ti_course_get($edit_id) : null;
 $show_new    = isset($_GET['new']);
 $instructors = k30_get_consultants();
 
+// Odwołania — przegląd dla kadry/administratora (ze wszystkich kursów).
+// Prośby kursantów czekające na potwierdzenie + ostatnio odwołane lekcje.
+$cancel_pending = []; $cancelled_lessons = [];
+if ($can_write) {
+    $cancel_pending = db_all(
+        "SELECT a.session_id, a.client_id, a.cancel_reason, a.cancelled_by, a.cancelled_by_role,
+                cl.name AS client_name, s.lesson_date, s.time_from, c.name AS course_name
+         FROM k30_ti_attendance a
+         JOIN k30_ti_sessions s ON s.id=a.session_id
+         JOIN k30_ti_courses  c ON c.id=s.course_id
+         JOIN k30_clients     cl ON cl.id=a.client_id
+         WHERE a.cancel_pending=1
+         ORDER BY s.lesson_date DESC, c.name COLLATE NOCASE"
+    );
+    $cancelled_lessons = db_all(
+        "SELECT s.id, s.lesson_date, s.time_from, s.cancel_reason, s.cancelled_by, s.cancelled_by_role, s.cancelled_at,
+                c.name AS course_name
+         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.status='cancelled'
+         ORDER BY COALESCE(s.cancelled_at, s.lesson_date) DESC, s.id DESC
+         LIMIT 10"
+    );
+}
+
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
@@ -114,6 +138,58 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<?php if ($can_write && ($cancel_pending || $cancelled_lessons)): ?>
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2 flex-wrap">
+    <span><i class="bi bi-x-octagon text-danger me-2" aria-hidden="true"></i>Odwołania</span>
+    <?php if ($cancel_pending): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= count($cancel_pending) ?> do potwierdzenia</span><?php endif; ?>
+  </div>
+  <div class="card-body">
+    <?php if ($cancel_pending): ?>
+    <div class="fw-semibold small text-uppercase text-secondary mb-2">Prośby kursantów o odwołanie udziału — czekają na potwierdzenie</div>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light"><tr><th scope="col">Data lekcji</th><th scope="col">Kurs</th><th scope="col">Kursant</th><th scope="col">Powód</th><th scope="col" class="text-end">Akcja</th></tr></thead>
+        <tbody>
+          <?php foreach ($cancel_pending as $p): ?>
+          <tr>
+            <td class="text-nowrap small"><?= h(date('d.m.Y', strtotime($p['lesson_date']))) ?><?= $p['time_from'] ? ' '.h(substr($p['time_from'],0,5)) : '' ?></td>
+            <td class="small"><?= h($p['course_name']) ?></td>
+            <td class="small fw-semibold"><?= h($p['client_name']) ?></td>
+            <td class="small"><?= trim((string)$p['cancel_reason'])!=='' ? h($p['cancel_reason']) : '<span class="text-muted">—</span>' ?></td>
+            <td class="text-end"><a href="lesson.php?id=<?= (int)$p['session_id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2">Rozpatrz</a></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($cancelled_lessons): ?>
+    <div class="fw-semibold small text-uppercase text-secondary mb-2">Ostatnio odwołane lekcje</div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" style="font-size:.88rem">
+        <thead class="table-light"><tr><th scope="col">Data</th><th scope="col">Kurs</th><th scope="col">Powód</th><th scope="col">Odwołał(a)</th><th scope="col"></th></tr></thead>
+        <tbody>
+          <?php foreach ($cancelled_lessons as $cl):
+            $rl = K30_TI_CANCEL_ROLES[$cl['cancelled_by_role'] ?? ''] ?? ($cl['cancelled_by_role'] ?? '');
+          ?>
+          <tr>
+            <td class="text-nowrap small"><?= h(date('d.m.Y', strtotime($cl['lesson_date']))) ?><?= $cl['time_from'] ? ' '.h(substr($cl['time_from'],0,5)) : '' ?></td>
+            <td class="small"><?= h($cl['course_name']) ?></td>
+            <td class="small"><?= trim((string)$cl['cancel_reason'])!=='' ? h($cl['cancel_reason']) : '<span class="text-muted">—</span>' ?></td>
+            <td class="small"><?= h(trim((string)($rl ?: '') . (!empty($cl['cancelled_by']) ? ' — '.$cl['cancelled_by'] : ''))) ?: '<span class="text-muted">—</span>' ?></td>
+            <td class="text-end"><a href="lesson.php?id=<?= (int)$cl['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2">Otwórz</a></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php if ($show_new || $edit_row):
   $f = $edit_row ?? ['name'=>'','description'=>'','instructor_id'=>null,'location'=>'','is_active'=>1];
