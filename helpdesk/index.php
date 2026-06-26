@@ -1,9 +1,9 @@
 <?php
 /**
- * helpdesk/index.php — Konsola helpdesku (inbox split-view).
- *  Lewa kolumna: lista zgłoszeń (filtry + szukanie, ładowane przez AJAX ?_ajax=1).
- *  Prawa kolumna: panel szczegółów wybranego zgłoszenia (helpdesk/view.php?_pane=1),
- *  z akcjami wykonywanymi przez XHR (X-Requested-With) → JSON.
+ * helpdesk/index.php — Lista zgłoszeń helpdesku.
+ *
+ * Wzorzec CRM: crm-object-header + crm-filter-bar + tabela AJAX (?_ajax=1).
+ * Kliknięcie w wiersz → helpdesk/view.php?id=X (pełna strona).
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -13,477 +13,544 @@ require_once dirname(__DIR__) . '/includes/helpdesk.php';
 helpdesk_migrate();
 require_login();
 
-$u     = current_user();
-$uid   = (int)$u['id'];
-$is_op = hd_is_operator();
+$u      = current_user();
+$uid    = (int)$u['id'];
+$is_op  = hd_is_operator();
 
-// ── Filtry ──────────────────────────────────────────────────────────────────
+// ── Filtry ────────────────────────────────────────────────────────────────────
+$f_q        = trim($_GET['q'] ?? '');
 $f_status   = $_GET['status'] ?? '';
 $f_category = $_GET['category'] ?? '';
-$f_q        = trim($_GET['q'] ?? '');
-$f_view     = ($is_op && in_array($_GET['view'] ?? '', ['all', 'unassigned'], true))
+$f_priority = $_GET['priority'] ?? '';
+$f_view     = ($is_op && in_array($_GET['view'] ?? '', ['all', 'unassigned', 'mine'], true))
             ? $_GET['view'] : ($is_op ? 'all' : 'mine');
-$sel_id     = (int)($_GET['id'] ?? 0);
+$page       = max(1, (int)($_GET['page'] ?? 1));
+$per_page   = 25;
 
-$where = ['1=1']; $params = [];
+$where  = ['1=1']; $params = [];
 if (!$is_op || $f_view === 'mine') {
-    $where[] = 'requester_id = ?'; $params[] = $uid;
+    $where[] = 't.requester_id = ?'; $params[] = $uid;
 } elseif ($f_view === 'unassigned') {
-    $where[] = 'assigned_to IS NULL';
-    $where[] = "status NOT IN ('zamknięte')";
+    $where[] = 't.assigned_to IS NULL';
+    $where[] = "t.status NOT IN ('zamknięte')";
 }
-if ($f_status && isset(HD_STATUSES[$f_status])) { $where[] = 'status = ?'; $params[] = $f_status; }
-if ($f_category && isset(HD_CATEGORIES[$f_category])) { $where[] = 'category = ?'; $params[] = $f_category; }
+if ($f_status && isset(HD_STATUSES[$f_status]))       { $where[] = 't.status = ?';   $params[] = $f_status; }
+if ($f_category && isset(HD_CATEGORIES[$f_category])) { $where[] = 't.category = ?'; $params[] = $f_category; }
+if ($f_priority && isset(HD_PRIORITIES[$f_priority])) { $where[] = 't.priority = ?'; $params[] = $f_priority; }
 if ($f_q !== '') {
-    $where[] = '(number LIKE ? OR title LIKE ? OR requester_name LIKE ?)';
+    $where[] = '(t.number LIKE ? OR t.title LIKE ? OR t.requester_name LIKE ?)';
     $like = '%' . $f_q . '%'; $params[] = $like; $params[] = $like; $params[] = $like;
 }
 $where_sql = implode(' AND ', $where);
 
+$total_all = (int)(db_one(
+    "SELECT COUNT(*) AS c FROM helpdesk_tickets t WHERE {$where_sql}", $params
+)['c'] ?? 0);
+
+$offset = ($page - 1) * $per_page;
 $tickets = db_all(
     "SELECT t.*, u.name AS assigned_name
      FROM helpdesk_tickets t LEFT JOIN users u ON u.id = t.assigned_to
      WHERE {$where_sql}
      ORDER BY CASE t.status WHEN 'nowe' THEN 0 WHEN 'otwarte' THEN 1 WHEN 'oczekuje' THEN 2 ELSE 3 END,
-              t.updated_at DESC", $params);
+              t.updated_at DESC
+     LIMIT {$per_page} OFFSET {$offset}", $params);
 
-// Licznik nieodczytanych (tylko dla operatorów — zgłaszający nie potrzebują)
-$unread_ids = $is_op ? hd_unread_ids($uid) : [];
+$paging = paginate($total_all, $per_page, $page,
+    APP_URL . '/helpdesk/index.php?' . http_build_query(array_filter([
+        'q' => $f_q, 'status' => $f_status, 'category' => $f_category,
+        'priority' => $f_priority, 'view' => $f_view,
+    ])));
 
-// ── Endpoint AJAX: fragment listy ─────────────────────────────────────────────
+$unread_ids  = $is_op ? hd_unread_ids($uid) : [];
+$unread_set  = array_flip($unread_ids);
+$cnt_unread  = count($unread_ids);
+
+// ── Statystyki ────────────────────────────────────────────────────────────────
+$stats = [];
+try {
+    $stat_rows = db_all(
+        "SELECT status, COUNT(*) AS c FROM helpdesk_tickets
+         " . ($is_op ? '' : "WHERE requester_id={$uid}") . "
+         GROUP BY status", []);
+    foreach ($stat_rows as $s) $stats[$s['status']] = (int)$s['c'];
+} catch (\Throwable $e) {}
+$cnt_total      = array_sum($stats);
+$cnt_nowe       = ($stats['nowe'] ?? 0) + ($stats['otwarte'] ?? 0);
+$cnt_oczekuje   = $stats['oczekuje'] ?? 0;
+$cnt_unassigned = $is_op ? (int)(db_one(
+    "SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE assigned_to IS NULL AND status NOT IN ('zamknięte')", []
+)['c'] ?? 0) : 0;
+
+// ── Renderer tabeli (strona pełna + AJAX) ────────────────────────────────────
+function _hd_table_html(
+    array $tickets, int $total, array $paging, int $per_page,
+    bool $is_op, array $unread_set, string $f_view
+): string {
+    ob_start(); ?>
+    <div class="crm-list-card">
+    <?php if ($tickets): ?>
+    <div class="table-responsive">
+      <table class="crm-table" id="hdTicketTable" aria-label="Zgłoszenia helpdesk — <?= $total ?> rekordów">
+        <thead>
+          <tr>
+            <th scope="col">Numer</th>
+            <th scope="col">Tytuł</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="d-none d-md-table-cell">Priorytet</th>
+            <th scope="col" class="d-none d-lg-table-cell">Kategoria</th>
+            <th scope="col" class="d-none d-md-table-cell">Zgłaszający</th>
+            <?php if ($is_op): ?>
+            <th scope="col" class="d-none d-lg-table-cell">Operator</th>
+            <?php endif; ?>
+            <th scope="col" class="d-none d-xl-table-cell">Zaktualizowano</th>
+            <th scope="col"><span class="visually-hidden">Akcje</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($tickets as $t):
+            $unread   = isset($unread_set[(int)$t['id']]);
+            $st       = HD_STATUSES[$t['status']] ?? ['label' => $t['status'], 'class' => 'secondary', 'icon' => 'bi-circle'];
+            $pr       = HD_PRIORITIES[$t['priority']] ?? ['label' => $t['priority'], 'class' => 'secondary'];
+            $sla      = hd_sla($t);
+            $age      = max(0, time() - strtotime($t['updated_at'] ?? 'now'));
+            $ago      = $age < 3600 ? max(1,(int)($age/60)).'min'
+                      : ($age < 86400 ? (int)($age/3600).'godz' : (int)($age/86400).'dni');
+          ?>
+          <tr data-row-href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$t['id'] ?>"
+              class="<?= $unread ? 'hd-row-unread' : '' ?>">
+            <td style="white-space:nowrap">
+              <?php if ($unread): ?>
+              <span class="hd-unread-dot me-1" title="Nieprzeczytane" aria-label="Nieprzeczytane"></span>
+              <?php endif; ?>
+              <span class="font-monospace fw-bold" style="font-size:.78rem;color:#64748b"><?= h($t['number']) ?></span>
+            </td>
+            <td>
+              <a href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$t['id'] ?>"
+                 class="crm-name-link<?= $unread ? ' fw-bold' : '' ?>">
+                <?= h($t['title']) ?>
+              </a>
+              <?php if (!empty($t['requester_email'])): ?>
+              <div class="crm-name-sub"><i class="bi bi-envelope me-1" aria-hidden="true"></i><?= h($t['requester_email']) ?></div>
+              <?php endif; ?>
+            </td>
+            <td><?= hd_status_badge($t['status']) ?></td>
+            <td class="d-none d-md-table-cell"><?= hd_priority_badge($t['priority']) ?></td>
+            <td class="d-none d-lg-table-cell">
+              <span class="badge bg-light text-dark border" style="font-size:.72rem">
+                <?= h(HD_CATEGORIES[$t['category']] ?? $t['category']) ?>
+              </span>
+            </td>
+            <td class="d-none d-md-table-cell" style="font-size:.82rem"><?= h($t['requester_name']) ?></td>
+            <?php if ($is_op): ?>
+            <td class="d-none d-lg-table-cell" style="font-size:.82rem">
+              <?php if ($t['assigned_name']): ?>
+              <span class="text-success"><i class="bi bi-person-check me-1" aria-hidden="true"></i><?= h($t['assigned_name']) ?></span>
+              <?php else: ?>
+              <span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>Brak</span>
+              <?php endif; ?>
+            </td>
+            <?php endif; ?>
+            <td class="d-none d-xl-table-cell">
+              <span style="font-size:.78rem;color:#94a3b8"><?= $ago ?> temu</span>
+              <?php if ($is_op): ?>
+              <div><?= hd_sla_indicator($t) ?></div>
+              <?php endif; ?>
+            </td>
+            <td class="text-end" style="white-space:nowrap">
+              <a href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$t['id'] ?>"
+                 class="btn btn-crm-ghost btn-sm"
+                 aria-label="Otwórz zgłoszenie <?= h($t['number']) ?>">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+              </a>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+
+    <?php if ($paging['pages'] > 1): ?>
+    <div class="p-3 border-top d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <span class="text-muted small">
+        Pokazuję <?= (($paging['page']-1)*$per_page)+1 ?>–<?= min($paging['page']*$per_page, $total) ?>
+        z <?= $total ?> zgłoszeń
+      </span>
+      <nav aria-label="Strony wyników"><?= pagination_html($paging) ?></nav>
+    </div>
+    <?php endif; ?>
+
+    <?php else: ?>
+    <div class="crm-empty" role="status" aria-live="polite">
+      <span class="crm-empty-icon" aria-hidden="true"><i class="bi bi-headset"></i></span>
+      <h5>Brak zgłoszeń spełniających kryteria</h5>
+      <p class="text-muted">Spróbuj zmienić filtry lub <a href="<?= APP_URL ?>/helpdesk/index.php">wyczyść wszystkie</a>.</p>
+    </div>
+    <?php endif; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+// ── AJAX endpoint ─────────────────────────────────────────────────────────────
 if (isset($_GET['_ajax'])) {
-    // Oznacz jako odczytane jeśli przeładowanie po kliknięciu konkretnego zgłoszenia
-    if ($sel_id && $is_op) hd_mark_read($sel_id, $uid);
-    $unread_ids = $is_op ? hd_unread_ids($uid) : [];
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode([
-        'ok'          => true,
-        'total'       => count($tickets),
-        'list_html'   => hd_console_rows($tickets, $is_op, $sel_id, $unread_ids),
-        'unread_count'=> count($unread_ids),
+        'ok'           => true,
+        'total'        => $total_all,
+        'list_html'    => _hd_table_html($tickets, $total_all, $paging, $per_page, $is_op, $unread_set, $f_view),
+        'unread_count' => $cnt_unread,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-$cnt_unassigned = $is_op ? (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE assigned_to IS NULL AND status NOT IN ('zamknięte')")['c'] ?? 0) : 0;
-$cnt_mine_open  = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')", [$uid])['c'] ?? 0);
-$cnt_unread     = count($unread_ids);
-
+// ── Pełna strona ──────────────────────────────────────────────────────────────
 $PAGE_TITLE = 'Helpdesk IT';
 include dirname(__DIR__) . '/includes/header.php';
 echo hd_ui_css();
+// Doładuj klasy CRM których helpdesk nie ma w hd_ui_css
 ?>
-<a href="#hdMain" class="hd-skip">Przejdź do treści</a>
+<style>
+/* Klasy CRM użyte w helpdesku */
+.crm-list-card{background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden}
+.crm-table{width:100%;border-collapse:collapse;font-size:.86rem}
+.crm-table thead tr{background:#f8fafc;border-bottom:1px solid #e5e7eb}
+.crm-table th{padding:9px 12px;font-weight:600;color:#374151;white-space:nowrap;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+.crm-table td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.crm-table tbody tr:last-child td{border-bottom:none}
+.crm-table tbody tr:hover td{background:#f8fafc}
+.crm-table tbody tr[data-row-href]{cursor:pointer}
+.crm-table tbody tr.hd-row-unread td{background:#eff6ff}
+.crm-table tbody tr.hd-row-unread:hover td{background:#dbeafe}
+.crm-name-link{color:#1e293b;text-decoration:none;font-weight:500}
+.crm-name-link:hover{color:#2563eb;text-decoration:underline}
+.crm-name-link.fw-bold{font-weight:700}
+.crm-name-sub{font-size:.76rem;color:#94a3b8;margin-top:1px}
+.crm-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#94a3b8;padding:4rem 1rem}
+.crm-empty-icon{font-size:3rem;color:#cbd5e1;margin-bottom:.8rem;display:block}
+.btn-crm-ghost{color:#6b7280;border:1px solid transparent;background:transparent;padding:2px 7px;border-radius:6px}
+.btn-crm-ghost:hover{background:#f1f5f9;border-color:#e5e7eb;color:#374151}
+/* Object header */
+.crm-object-header{display:flex;align-items:center;gap:14px;padding:14px 18px;background:#fff;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:1rem}
+.crm-object-icon{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#1e40af,#2563EB);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.25rem;flex-shrink:0}
+.crm-object-title{font-size:1.1rem;font-weight:700;margin:0;color:#1e293b}
+.crm-object-count{font-size:.8rem;color:#6b7280;margin-top:1px}
+.crm-object-actions{margin-left:auto;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+/* Filter bar */
+.crm-filter-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:.6rem .75rem;margin-bottom:1rem}
+.crm-filter-bar .form-control,.crm-filter-bar .form-select{font-size:.85rem;height:34px}
+.crm-search-wrap{position:relative;flex:1;min-width:180px}
+.crm-search-wrap i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9ca3af;pointer-events:none}
+.crm-search-wrap .form-control{padding-left:32px}
+.btn-crm-primary{background:#2563EB;color:#fff;border:none;border-radius:6px}
+.btn-crm-primary:hover{background:#1d4ed8;color:#fff}
+.btn-crm-outline{background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:6px}
+.btn-crm-outline:hover{background:#f8fafc;border-color:#9ca3af}
+/* Stat cards */
+.crm-stat-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px}
+.crm-stat-value{font-size:1.6rem;font-weight:700;color:#1e293b;line-height:1}
+.crm-stat-label{font-size:.75rem;color:#6b7280;margin-top:3px}
+.crm-stat-delta{font-size:.73rem;margin-top:4px}
+.crm-stat-delta.warn{color:#dc2626}
+.crm-stat-delta.ok{color:#16a34a}
+</style>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+<!-- ══ STATYSTYKI ═══════════════════════════════════════════════════════════ -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="crm-stat-card">
+      <div class="crm-stat-value"><?= $cnt_total ?></div>
+      <div class="crm-stat-label"><i class="bi bi-headset me-1" style="color:#2563eb"></i>Wszystkich zgłoszeń</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="crm-stat-card">
+      <div class="crm-stat-value" style="color:#2563eb"><?= $cnt_nowe ?></div>
+      <div class="crm-stat-label"><i class="bi bi-envelope-open me-1"></i>Aktywnych</div>
+      <?php if ($cnt_unread && $is_op): ?>
+      <div class="crm-stat-delta warn"><i class="bi bi-circle-fill me-1" style="font-size:.5rem"></i><?= $cnt_unread ?> nieprzeczytanych</div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="crm-stat-card">
+      <div class="crm-stat-value" style="color:#d97706"><?= $cnt_oczekuje ?></div>
+      <div class="crm-stat-label"><i class="bi bi-hourglass-split me-1"></i>Oczekuje na odpowiedź</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="crm-stat-card">
+      <div class="crm-stat-value" style="color:<?= $cnt_unassigned ? '#dc2626' : '#16a34a' ?>"><?= $cnt_unassigned ?></div>
+      <div class="crm-stat-label"><i class="bi bi-person-x me-1"></i>Nieprzypisanych</div>
+      <?php if ($cnt_unassigned): ?>
+      <div class="crm-stat-delta warn">Wymagają przypisania</div>
+      <?php else: ?>
+      <div class="crm-stat-delta ok">Wszystkie obsłużone</div>
+      <?php endif; ?>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OBJECT HEADER ══════════════════════════════════════════════════════════ -->
+<div class="crm-object-header shadow-sm">
+  <div class="crm-object-icon" aria-hidden="true"><i class="bi bi-headset"></i></div>
   <div>
-    <h4 class="mb-0 fw-bold">
-      <i class="bi bi-headset text-primary me-2"></i>Helpdesk IT
-      <?php if ($cnt_unread): ?>
-      <span class="hd-unread-badge ms-1" id="hdUnreadBadge" title="<?= $cnt_unread ?> nieprzeczytanych zgłoszeń"><?= $cnt_unread ?></span>
+    <h1 class="crm-object-title">
+      Helpdesk IT
+      <?php if ($cnt_unread && $is_op): ?>
+      <span class="hd-unread-badge ms-1" id="hdUnreadBadge" title="<?= $cnt_unread ?> nieprzeczytanych"><?= $cnt_unread ?></span>
       <?php else: ?>
       <span class="hd-unread-badge ms-1 d-none" id="hdUnreadBadge"></span>
       <?php endif; ?>
-    </h4>
-    <div class="text-muted small">Konsola zgłoszeń · <span id="hdCount"><?= count($tickets) ?></span> na liście</div>
+    </h1>
+    <div class="crm-object-count" id="hdTotalCount" aria-live="polite" aria-atomic="true">
+      <?= $total_all ?> <?= $total_all === 1 ? 'zgłoszenie' : ($total_all < 5 ? 'zgłoszenia' : 'zgłoszeń') ?>
+    </div>
   </div>
-  <a href="<?= APP_URL ?>/helpdesk/new.php" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nowe zgłoszenie</a>
+  <div class="crm-object-actions">
+    <?php if ($is_op): ?>
+    <div class="d-flex gap-1 border-end pe-2 me-1">
+      <?php foreach (['all' => ['Wszystkie','bi-list-ul'], 'unassigned' => ['Nieprzypisane','bi-inbox'], 'mine' => ['Moje','bi-person']] as $v => [$lbl, $ico]): ?>
+      <button type="button" class="btn btn-sm <?= $f_view === $v ? 'btn-crm-primary' : 'btn-crm-outline' ?> hd-view-btn"
+              data-view="<?= $v ?>">
+        <i class="bi <?= $ico ?> me-1" aria-hidden="true"></i><?= $lbl ?>
+        <?php if ($v === 'unassigned' && $cnt_unassigned): ?>
+        <span class="badge bg-danger ms-1"><?= $cnt_unassigned ?></span>
+        <?php endif; ?>
+      </button>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <a href="<?= APP_URL ?>/helpdesk/new.php" class="btn btn-crm-primary btn-sm">
+      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowe zgłoszenie
+    </a>
+    <?php if ($is_op || is_admin()): ?>
+    <a href="<?= APP_URL ?>/helpdesk/admin_macros.php" class="btn btn-crm-outline btn-sm">
+      <i class="bi bi-card-text me-1" aria-hidden="true"></i>Gotowe odpowiedzi
+    </a>
+    <?php endif; ?>
+    <?php if (is_admin()): ?>
+    <a href="<?= APP_URL ?>/helpdesk/admin.php" class="btn btn-crm-outline btn-sm">
+      <i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia
+    </a>
+    <?php endif; ?>
+  </div>
 </div>
 
-<!-- Pasek filtrów -->
-<form id="hdFilters" class="row g-2 mb-3" onsubmit="return false">
-  <input type="hidden" name="view" id="hdView" value="<?= h($f_view) ?>">
-  <div class="col-12 col-sm">
-    <div class="input-group input-group-sm">
-      <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-      <input name="q" class="form-control" placeholder="Szukaj numeru, tytułu, zgłaszającego…" value="<?= h($f_q) ?>" autocomplete="off">
-    </div>
+<!-- ══ FILTER BAR ═════════════════════════════════════════════════════════════ -->
+<form id="hdFilterForm" method="get" action="<?= APP_URL ?>/helpdesk/index.php"
+      class="crm-filter-bar" role="search" aria-label="Filtry zgłoszeń">
+  <input type="hidden" name="view" id="hdViewInput" value="<?= h($f_view) ?>">
+
+  <div class="crm-search-wrap">
+    <i class="bi bi-search" aria-hidden="true"></i>
+    <input type="text" name="q" id="hdSearchInput" value="<?= h($f_q) ?>"
+           class="form-control" placeholder="Szukaj numeru, tytułu, zgłaszającego…"
+           autocomplete="off" aria-label="Szukaj zgłoszeń">
   </div>
-  <div class="col-6 col-sm-auto">
-    <select name="status" class="form-select form-select-sm">
-      <option value="">Wszystkie statusy</option>
-      <?php foreach (HD_STATUSES as $k => $s): ?>
-      <option value="<?= h($k) ?>" <?= $f_status === $k ? 'selected' : '' ?>><?= h($s['label']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="col-6 col-sm-auto">
-    <select name="category" class="form-select form-select-sm">
-      <option value="">Wszystkie kategorie</option>
-      <?php foreach (HD_CATEGORIES as $k => $v): ?>
-      <option value="<?= h($k) ?>" <?= $f_category === $k ? 'selected' : '' ?>><?= h($v) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
+
+  <select name="status" class="form-select" style="width:auto;min-width:140px" aria-label="Filtruj po statusie">
+    <option value="">Wszystkie statusy</option>
+    <?php foreach (HD_STATUSES as $k => $s): ?>
+    <option value="<?= h($k) ?>" <?= $f_status === $k ? 'selected' : '' ?>><?= h($s['label']) ?></option>
+    <?php endforeach; ?>
+  </select>
+
+  <select name="category" class="form-select" style="width:auto;min-width:140px" aria-label="Filtruj po kategorii">
+    <option value="">Wszystkie kategorie</option>
+    <?php foreach (HD_CATEGORIES as $k => $v): ?>
+    <option value="<?= h($k) ?>" <?= $f_category === $k ? 'selected' : '' ?>><?= h($v) ?></option>
+    <?php endforeach; ?>
+  </select>
+
+  <select name="priority" class="form-select" style="width:auto;min-width:120px" aria-label="Filtruj po priorytecie">
+    <option value="">Wszystkie priorytety</option>
+    <?php foreach (HD_PRIORITIES as $k => $pr): ?>
+    <option value="<?= h($k) ?>" <?= $f_priority === $k ? 'selected' : '' ?>><?= h($pr['label']) ?></option>
+    <?php endforeach; ?>
+  </select>
+
+  <button type="submit" class="btn btn-crm-primary btn-sm">
+    <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtruj
+  </button>
+
+  <?php $active_filters = (int)($f_q !== '') + (int)($f_status !== '') + (int)($f_category !== '') + (int)($f_priority !== ''); ?>
+  <?php if ($active_filters): ?>
+  <a href="<?= APP_URL ?>/helpdesk/index.php?view=<?= h($f_view) ?>"
+     class="btn btn-outline-danger btn-sm" aria-label="Wyczyść filtry">
+    <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Wyczyść
+    <span class="badge bg-danger ms-1"><?= $active_filters ?></span>
+  </a>
+  <?php endif; ?>
 </form>
 
-<?php if ($is_op): ?>
-<ul class="nav nav-pills nav-sm mb-3 gap-1" id="hdTabs">
-  <li class="nav-item"><button class="nav-link py-1 px-3 <?= $f_view==='all'?'active':'' ?>" data-view="all"><i class="bi bi-list-ul me-1"></i>Wszystkie</button></li>
-  <li class="nav-item"><button class="nav-link py-1 px-3 <?= $f_view==='unassigned'?'active':'' ?>" data-view="unassigned"><i class="bi bi-inbox me-1"></i>Nieprzypisane <?php if ($cnt_unassigned): ?><span class="badge bg-danger ms-1"><?= $cnt_unassigned ?></span><?php endif; ?></button></li>
-  <li class="nav-item"><button class="nav-link py-1 px-3 <?= $f_view==='mine'?'active':'' ?>" data-view="mine"><i class="bi bi-person me-1"></i>Moje</button></li>
-</ul>
-<?php endif; ?>
-
-<!-- ── Konsola split-view ───────────────────────────────────────────────────── -->
-<div class="hd-console" id="hdConsole">
-  <div class="hd-list-col">
-    <div class="hd-list" id="hdListRegion" aria-label="Lista zgłoszeń"><?= hd_console_rows($tickets, $is_op, $sel_id, $unread_ids) ?></div>
-  </div>
-  <main class="hd-pane-col" id="hdMain">
-    <div class="hd-pane" id="hdPane">
-      <div class="hd-pane-empty">
-        <i class="bi bi-arrow-left-circle"></i>
-        <div>Wybierz zgłoszenie z listy, aby zobaczyć szczegóły.</div>
-      </div>
-    </div>
-  </main>
+<!-- ══ LISTA AJAX ═════════════════════════════════════════════════════════════ -->
+<div id="crm-live" role="status" aria-live="polite" aria-atomic="true" class="visually-hidden"></div>
+<div id="hdListRegion" aria-label="Lista zgłoszeń">
+  <?= _hd_table_html($tickets, $total_all, $paging, $per_page, $is_op, $unread_set, $f_view) ?>
 </div>
 
 <div class="hd-toast-wrap" id="hdToasts"></div>
 
-<?php if (is_admin() || hd_is_operator()): ?>
-<div class="mt-3 text-end d-flex justify-content-end gap-2 flex-wrap">
-  <a href="<?= APP_URL ?>/helpdesk/admin_macros.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-card-text me-1"></i>Gotowe odpowiedzi</a>
-  <?php if (is_admin()): ?>
-  <a href="<?= APP_URL ?>/helpdesk/admin.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear me-1"></i>Ustawienia</a>
-  <?php endif; ?>
-</div>
-<?php endif; ?>
-
-<!-- Quill CSS + JS musi być przed głównym skryptem konsoli -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-<script>
-var QUILL_TOOLBAR = [
-  [{ 'header': [false, 2, 3] }],
-  ['bold', 'italic', 'underline', 'strike'],
-  [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-  ['blockquote', 'link'],
-  ['clean']
-];
-function hdInitQuill(root) {
-  if (typeof Quill === 'undefined') return;
-  (root || document).querySelectorAll('.hd-quill-wrap').forEach(function(wrap) {
-    if (wrap._quill) return;
-    var editorDiv = wrap.querySelector('[id]'); if (!editorDiv) return;
-    var form = wrap.closest('form'); if (!form) return;
-    var hiddenInput = form.querySelector('input[name="msg_body"]');
-    var errDiv = wrap.nextElementSibling;
-    if (errDiv && !errDiv.classList.contains('invalid-feedback')) errDiv = null;
-    var q = new Quill(editorDiv, { theme:'snow', modules:{ toolbar: QUILL_TOOLBAR }, placeholder:'Wpisz odpowiedź…' });
-    wrap._quill = q;
-    var qlEditor = wrap.querySelector('.ql-editor');
-    if (qlEditor) { qlEditor.setAttribute('aria-label','Treść odpowiedzi'); qlEditor.setAttribute('aria-multiline','true'); qlEditor.setAttribute('aria-required','true'); }
-    q.on('text-change', function(){ if(q.getText().trim()!==''){wrap.classList.remove('is-invalid');if(errDiv)errDiv.classList.add('d-none');} });
-    var submitBtn = form.querySelector('button[name="_add_msg"]');
-    if (submitBtn) {
-      submitBtn.addEventListener('click', function(e) {
-        if (q.getText().trim()==='') { e.preventDefault(); e.stopImmediatePropagation(); wrap.classList.add('is-invalid'); if(errDiv)errDiv.classList.remove('d-none'); q.focus(); return; }
-        if (hiddenInput) hiddenInput.value = q.root.innerHTML;
-      });
-    }
-  });
-}
-
-function hdBindFullscreen(root) {
-  root = root || document;
-  root.querySelectorAll('.hd-fs-btn').forEach(function(btn) {
-    if (btn._fsBound) return;
-    btn._fsBound = true;
-    btn.addEventListener('click', function() {
-      var wrapId  = btn.dataset.target;
-      var wrap    = document.getElementById(wrapId); if (!wrap) return;
-      var overlay = document.getElementById(wrapId.replace('_wrap', '_fsOverlay')); if (!overlay) return;
-      var fsBody  = document.getElementById(wrapId.replace('_wrap', '_fsBody')); if (!fsBody) return;
-      var q = wrap._quill; if (!q) return;
-      // Przenieś toolbar + container do fsBody
-      var toolbar   = wrap.querySelector('.ql-toolbar');
-      var container = wrap.querySelector('.ql-container');
-      if (toolbar)   fsBody.appendChild(toolbar);
-      if (container) fsBody.appendChild(container);
-      overlay.classList.add('active');
-      overlay._origWrap = wrap;
-      // Focus edytor
-      setTimeout(function(){ q.focus(); }, 80);
-    });
-  });
-  root.querySelectorAll('.hd-fs-close').forEach(function(btn) {
-    if (btn._fsBound) return;
-    btn._fsBound = true;
-    btn.addEventListener('click', function() {
-      var overlay = document.getElementById(btn.dataset.overlay); if (!overlay) return;
-      hdFsClose(overlay);
-    });
-  });
-  // Zamknij na Escape
-  if (!root._hdEscBound) {
-    root._hdEscBound = true;
-    document.addEventListener('keydown', function(e) {
-      if (e.key !== 'Escape') return;
-      var active = document.querySelector('.hd-quill-fs-overlay.active');
-      if (active) { e.preventDefault(); hdFsClose(active); }
-    });
-  }
-}
-
-function hdFsClose(overlay) {
-  var wrap = overlay._origWrap; if (!wrap) { overlay.classList.remove('active'); return; }
-  var fsBody = overlay.querySelector('.hd-quill-fs-body'); if (!fsBody) { overlay.classList.remove('active'); return; }
-  // Zwróć toolbar + container z powrotem do oryginalnego wrapa
-  var toolbar   = fsBody.querySelector('.ql-toolbar');
-  var container = fsBody.querySelector('.ql-container');
-  if (toolbar)   wrap.appendChild(toolbar);
-  if (container) wrap.appendChild(container);
-  overlay.classList.remove('active');
-}
-</script>
-
 <script>
 (function () {
   'use strict';
-  var APP  = <?= json_encode(APP_URL) ?>;
-  var CSRF = <?= json_encode(csrf_token()) ?>;
-  var listEl = document.getElementById('hdListRegion');
-  var paneEl = document.getElementById('hdPane');
-  var consoleEl = document.getElementById('hdConsole');
-  var filters = document.getElementById('hdFilters');
-  var viewInp = document.getElementById('hdView');
-  var countEl = document.getElementById('hdCount');
-  var toastWrap = document.getElementById('hdToasts');
-  var current = <?= $sel_id ?: 'null' ?>;
-  var debTimer = null, abort = null;
+  var APP      = <?= json_encode(APP_URL) ?>;
+  var CSRF     = <?= json_encode(csrf_token()) ?>;
+  var region   = document.getElementById('hdListRegion');
+  var form     = document.getElementById('hdFilterForm');
+  var viewInp  = document.getElementById('hdViewInput');
+  var countEl  = document.getElementById('hdTotalCount');
+  var liveEl   = document.getElementById('crm-live');
+  var toastWrap= document.getElementById('hdToasts');
+  var abort    = null;
+  var debounce = null;
 
-  /* ── Toast ───────────────────────────────────────── */
-  function toast(flash) {
-    if (!flash || !flash.msg) return;
-    var t = document.createElement('div');
-    t.className = 'hd-toast ' + (flash.type === 'success' ? 'ok' : (flash.type === 'danger' || flash.type === 'error' ? 'err' : ''));
-    t.textContent = flash.msg.replace(/<[^>]*>/g, '');
-    toastWrap.appendChild(t);
-    setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 300); }, 4500);
+  /* ── Ładuje fragment listy ─────────────────────── */
+  function load(params, push) {
+    if (abort) { try { abort.abort(); } catch(e){} }
+    abort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+
+    region.setAttribute('aria-busy','true');
+    region.style.opacity = '0.5';
+    region.style.pointerEvents = 'none';
+
+    var url = new URL(window.location.pathname, window.location.origin);
+    params.forEach(function(v,k){ if(v) url.searchParams.set(k,v); });
+    url.searchParams.set('_ajax','1');
+    var opts = abort ? { signal: abort.signal } : {};
+
+    fetch(url.toString(), opts)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) return;
+        region.innerHTML = d.list_html;
+        if (countEl && d.total !== undefined) {
+          var t = d.total;
+          countEl.textContent = t + ' ' + (t===1?'zgłoszenie':t<5?'zgłoszenia':'zgłoszeń');
+        }
+        // Badge unread
+        var badge = document.getElementById('hdUnreadBadge');
+        if (badge && d.unread_count !== undefined) {
+          if (d.unread_count > 0) { badge.textContent = d.unread_count; badge.classList.remove('d-none'); }
+          else badge.classList.add('d-none');
+        }
+        if (push !== false) {
+          var hu = new URL(window.location.href);
+          hu.search = params.toString();
+          history.pushState({ hd: params.toString() }, '', hu.toString());
+        }
+        region.removeAttribute('aria-busy');
+        region.style.opacity = '1';
+        region.style.pointerEvents = '';
+        bindRegion();
+        if (liveEl) {
+          liveEl.textContent = '';
+          setTimeout(function(){ liveEl.textContent = 'Załadowano ' + (d.total||0) + ' zgłoszeń.'; }, 50);
+        }
+      })
+      .catch(function(e){
+        if (e && e.name === 'AbortError') return;
+        region.removeAttribute('aria-busy');
+        region.style.opacity = '1';
+        region.style.pointerEvents = '';
+      });
   }
 
-  function cleanupModals() {
-    document.querySelectorAll('.modal-backdrop').forEach(function (b) { b.remove(); });
-    document.body.classList.remove('modal-open');
-    document.body.style.removeProperty('overflow');
-    document.body.style.removeProperty('padding-right');
-  }
-
-  /* ── Filtry → parametry ──────────────────────────── */
-  function params() {
+  function formParams() {
     var p = new URLSearchParams();
-    var fd = new FormData(filters);
-    fd.forEach(function (v, k) { if (v) p.set(k, v); });
-    p.set('view', viewInp.value);
+    new FormData(form).forEach(function(v,k){ if(v) p.set(k,v); });
     return p;
   }
 
-  /* ── Ładuj listę (AJAX) ──────────────────────────── */
-  function loadList(push) {
-    if (abort) { try { abort.abort(); } catch (e) {} }
-    abort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    listEl.setAttribute('aria-busy', 'true');
-    var p = params();
-    var url = APP + '/helpdesk/index.php?_ajax=1&' + p.toString();
-    fetch(url, abort ? { signal: abort.signal } : {})
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d.ok) return;
-        listEl.innerHTML = d.list_html;
-        listEl.removeAttribute('aria-busy');
-        if (countEl) countEl.textContent = d.total;
-        bindRows();
-        markActive();
-        if (push !== false) {
-          var hu = new URL(window.location.href);
-          hu.search = p.toString() + (current ? '&id=' + current : '');
-          history.replaceState(null, '', hu.toString());
-        }
-      })
-      .catch(function (e) { if (!e || e.name !== 'AbortError') listEl.removeAttribute('aria-busy'); });
-  }
-
-  function markActive() {
-    listEl.querySelectorAll('.hd-row').forEach(function (r) {
-      r.classList.toggle('active', current && +r.dataset.id === +current);
+  function syncForm(params) {
+    form.querySelectorAll('select,input[type="text"]').forEach(function(el){
+      if (el.name) el.value = params.get(el.name) || '';
     });
   }
 
-  /* ── Ładuj panel szczegółów (pane) ───────────────── */
-  function loadPane(id, tpl) {
-    current = id;
-    markActive();
-    consoleEl.classList.add('hd-show-pane');
-    paneEl.style.opacity = '0.5';
-    var url = APP + '/helpdesk/view.php?id=' + id + '&_pane=1' + (tpl ? '&tpl=' + encodeURIComponent(tpl) : '');
-    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then(function (r) { return r.text(); })
-      .then(function (html) {
-        paneEl.innerHTML = html;
-        paneEl.style.opacity = '1';
-        bindPane(paneEl);
-        paneEl.scrollIntoView({ block: 'start' });
-        var hu = new URL(window.location.href);
-        hu.searchParams.set('id', id);
-        history.replaceState(null, '', hu.toString());
-        // Oznacz odczytane i odśwież badge
-        markReadLocally(id);
-      })
-      .catch(function () { paneEl.style.opacity = '1'; });
-  }
-
-  /* Oznacza wiersz jako odczytany (wizualnie) + aktualizuje badge */
-  function markReadLocally(id) {
-    var row = listEl.querySelector('.hd-row[data-id="' + id + '"]');
-    if (row) {
-      row.classList.remove('hd-row-unread');
-      var dot = row.querySelector('.hd-unread-dot');
-      if (dot) dot.remove();
-    }
-    // Wywołaj API mark_read w tle
-    fetch(APP + '/helpdesk/api/mark_read.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-      body: '_csrf=' + encodeURIComponent(CSRF) + '&ticket_id=' + id
-    }).then(function(r){ return r.json(); }).then(function(d){
-      var badge = document.getElementById('hdUnreadBadge');
-      if (badge && d.unread_count !== undefined) {
-        if (d.unread_count > 0) {
-          badge.textContent = d.unread_count;
-          badge.classList.remove('d-none');
-        } else {
-          badge.classList.add('d-none');
-        }
-      }
-    }).catch(function(){});
-  }
-
-  /* ── Wiązanie wierszy listy ──────────────────────── */
-  function bindRows() {
-    listEl.querySelectorAll('.hd-row').forEach(function (a) {
-      a.addEventListener('click', function (e) { e.preventDefault(); loadPane(+a.dataset.id); });
-    });
-  }
-
-  /* ── Wiązanie panelu szczegółów ──────────────────── */
-  function bindPane(root) {
-    // Zwijanie wcześniejszych wiadomości
-    root.querySelectorAll('[data-hd-older]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var w = root.querySelector('[data-hd-olderwrap]'); if (!w) return;
-        var hid = w.classList.toggle('d-none');
-        b.innerHTML = hid ? '<i class="bi bi-chevron-down me-1"></i>Pokaż wcześniejsze wiadomości'
-                          : '<i class="bi bi-chevron-up me-1"></i>Ukryj wcześniejsze wiadomości';
+  /* ── Wiązanie dynamicznego regionu ─────────────── */
+  function bindRegion() {
+    // Kliknięcie wiersza → otwórz zgłoszenie
+    region.querySelectorAll('tr[data-row-href]').forEach(function(tr){
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', function(e){
+        if (e.target.closest('a,button')) return;
+        window.location.href = tr.dataset.rowHref;
       });
     });
-    // Rozwijanie długich treści
-    root.querySelectorAll('[data-hd-more]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var body = b.previousElementSibling; if (!body) return;
-        b.textContent = body.classList.toggle('hd-expanded') ? 'Zwiń' : 'Pokaż całość';
-      });
-    });
-    // Szablony odpowiedzi
-    root.querySelectorAll('.hd-tpl-btn').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var form = b.closest('form');
-        var wrap = form.querySelector('.hd-quill-wrap');
-        if (wrap && wrap._quill) {
-          var q = wrap._quill;
-          if (q.getText().trim() !== '' && !confirm('Zastąpić obecną treść wybranym szablonem?')) return;
-          q.root.innerHTML = b.dataset.body.replace(/\n/g, '<br>');
-          q.focus(); return;
-        }
-        var ta = form.querySelector('.hd-msg-body'); if (!ta) return;
-        if (ta.value.trim() !== '' && !confirm('Zastąpić obecną treść wybranym szablonem?')) return;
-        ta.value = b.dataset.body; ta.focus();
-      });
-    });
-    // Kopiowanie linku
-    root.querySelectorAll('[data-hd-copy]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var inp = b.closest('.input-group').querySelector('[data-hd-copyinput]'); if (!inp) return;
-        if (navigator.clipboard) navigator.clipboard.writeText(inp.value);
-        b.innerHTML = '<i class="bi bi-check2"></i>';
-      });
-    });
-    // Checkbox „udostępnij firmie" w modalu
-    var vs = root.querySelector('#hdShareVendor');
-    if (vs) vs.addEventListener('change', function () {
-      var box = root.querySelector('[data-hd-vendorshare]'); if (box) box.classList.toggle('d-none', !vs.checked);
-    });
-    // Powrót do listy (mobile)
-    root.querySelectorAll('[data-hd-back]').forEach(function (b) {
-      b.addEventListener('click', function () { consoleEl.classList.remove('hd-show-pane'); });
-    });
-    // Inicjalizuj Quill w panelu (tryb pane)
-    hdInitQuill(root);
-    // Fullscreen edytor
-    hdBindFullscreen(root);
-
-    // Formularze akcji → XHR
-    root.querySelectorAll('form[data-hd-form]').forEach(function (f) {
-      f.addEventListener('submit', function (e) {
+    // Paginacja AJAX
+    region.querySelectorAll('a.page-link').forEach(function(a){
+      a.addEventListener('click', function(e){
         e.preventDefault();
-        if (f.dataset.hdConfirm && !confirm(f.dataset.hdConfirm)) return;
-        // Skopiuj treść Quilla do hidden input przed serializacją
-        var wrap = f.querySelector('.hd-quill-wrap');
-        if (wrap && wrap._quill) {
-          var q = wrap._quill;
-          var empty = q.getText().trim() === '';
-          var hiddenBody = f.querySelector('input[name="msg_body"]');
-          var errDiv = wrap.nextElementSibling;
-          if (empty) {
-            wrap.classList.add('is-invalid');
-            if (errDiv && errDiv.classList.contains('invalid-feedback')) errDiv.classList.remove('d-none');
-            q.focus(); return;
-          }
-          wrap.classList.remove('is-invalid');
-          if (errDiv && errDiv.classList.contains('invalid-feedback')) errDiv.classList.add('d-none');
-          if (hiddenBody) hiddenBody.value = q.root.innerHTML;
-        }
-        var fd = new FormData(f);
-        if (e.submitter && e.submitter.name) fd.append(e.submitter.name, e.submitter.value || '1');
-        fetch(f.action, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            cleanupModals();
-            if (!d) return;
-            toast(d.flash);
-            if (!d.ok) { return; }
-            if (d.deleted) { current = null; paneEl.innerHTML = '<div class="hd-pane-empty"><i class="bi bi-check2-circle"></i><div>Zgłoszenie usunięte.</div></div>'; consoleEl.classList.remove('hd-show-pane'); loadList(false); return; }
-            loadPane(d.ticket_id || current, d.tpl);
-            loadList(false);
-          })
-          .catch(function () { cleanupModals(); });
+        var p = new URLSearchParams(new URL(a.getAttribute('href'), window.location.href).search);
+        load(p, true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
   }
 
-  /* ── Zdarzenia filtrów ───────────────────────────── */
-  var search = filters.querySelector('input[name="q"]');
-  if (search) search.addEventListener('input', function () {
-    clearTimeout(debTimer); debTimer = setTimeout(function () { loadList(true); }, 380);
-  });
-  filters.querySelectorAll('select').forEach(function (s) { s.addEventListener('change', function () { loadList(true); }); });
+  /* ── Submit formularza ─────────────────────────── */
+  form.addEventListener('submit', function(e){ e.preventDefault(); load(formParams(), true); });
 
-  var tabs = document.getElementById('hdTabs');
-  if (tabs) tabs.querySelectorAll('[data-view]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      tabs.querySelectorAll('.nav-link').forEach(function (x) { x.classList.remove('active'); });
-      b.classList.add('active');
-      viewInp.value = b.dataset.view;
-      loadList(true);
+  /* ── Select → auto ────────────────────────────── */
+  form.querySelectorAll('select').forEach(function(sel){
+    sel.addEventListener('change', function(){ load(formParams(), true); });
+  });
+
+  /* ── Szukaj — debounce 380 ms ──────────────────── */
+  var searchInp = document.getElementById('hdSearchInput');
+  if (searchInp) {
+    searchInp.addEventListener('input', function(){
+      clearTimeout(debounce);
+      debounce = setTimeout(function(){ load(formParams(), true); }, 380);
+    });
+    searchInp.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debounce); load(formParams(), true); }
+    });
+    // Skrót klawiszowy /
+    document.addEventListener('keydown', function(e){
+      if (e.ctrlKey||e.metaKey||e.altKey) return;
+      var t = document.activeElement && document.activeElement.tagName;
+      if (t==='INPUT'||t==='TEXTAREA'||t==='SELECT') return;
+      if (e.key==='/') { e.preventDefault(); searchInp.focus(); searchInp.select(); }
+    });
+  }
+
+  /* ── Przyciski widoku (all/unassigned/mine) ────── */
+  document.querySelectorAll('.hd-view-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      viewInp.value = btn.dataset.view;
+      document.querySelectorAll('.hd-view-btn').forEach(function(b){
+        b.classList.toggle('btn-crm-primary', b===btn);
+        b.classList.toggle('btn-crm-outline', b!==btn);
+      });
+      load(formParams(), true);
     });
   });
 
-  /* ── Init ────────────────────────────────────────── */
-  bindRows();
-  if (current) loadPane(current);
+  /* ── Przeglądarka: wstecz/dalej ─────────────────── */
+  window.addEventListener('popstate', function(e){
+    var p = (e.state && e.state.hd !== undefined)
+          ? new URLSearchParams(e.state.hd)
+          : new URLSearchParams(window.location.search);
+    syncForm(p);
+    if (viewInp && p.get('view')) viewInp.value = p.get('view');
+    load(p, false);
+  });
+
+  /* ── Toast ─────────────────────────────────────── */
+  function toast(msg, type) {
+    if (!msg) return;
+    var t = document.createElement('div');
+    t.className = 'hd-toast ' + (type==='ok'?'ok':type==='err'?'err':'');
+    t.textContent = msg;
+    toastWrap.appendChild(t);
+    setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },300); }, 4500);
+  }
+
+  bindRegion();
 })();
 </script>
-
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

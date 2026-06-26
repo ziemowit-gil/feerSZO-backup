@@ -603,43 +603,6 @@ function hd_ui_css(): string {
 CSS;
 }
 
-/** Renderuje wiersze listy zgłoszeń do konsoli (lub pusty stan). */
-function hd_console_rows(array $tickets, bool $is_op, int $selId = 0, array $unread_ids = []): string {
-    if (!$tickets) {
-        return '<div class="hd-pane-empty" style="border:none;background:transparent;min-height:200px">'
-             . '<i class="bi bi-inbox"></i><div>Brak zgłoszeń spełniających kryteria.</div></div>';
-    }
-    $unread_set = array_flip($unread_ids);
-    $now = time();
-    $h = '';
-    foreach ($tickets as $t) {
-        $age = max(0, $now - strtotime($t['updated_at'] ?? 'now'));
-        $ago = $age < 3600 ? max(1, (int)($age / 60)) . ' min'
-             : ($age < 86400 ? (int)($age / 3600) . ' godz' : (int)($age / 86400) . ' dni');
-        $active  = ((int)$t['id'] === $selId) ? ' active' : '';
-        $unread  = isset($unread_set[(int)$t['id']]);
-        $h .= '<a class="hd-row' . $active . ($unread ? ' hd-row-unread' : '') . '" data-id="' . (int)$t['id'] . '" href="' . APP_URL . '/helpdesk/view.php?id=' . (int)$t['id'] . '">';
-        $h .= '<div class="hd-row-top">';
-        $h .= '<span class="hd-row-num">' . h($t['number']) . '</span>';
-        if ($unread) $h .= '<span class="hd-unread-dot" title="Nieprzeczytane" aria-label="Nieprzeczytane"></span>';
-        $h .= '<span class="hd-row-time">' . $ago . ' temu</span>';
-        $h .= '</div>';
-        $h .= '<div class="hd-row-title">' . h($t['title']) . '</div>';
-        $h .= '<div class="hd-row-meta">' . hd_status_badge($t['status']) . hd_priority_badge($t['priority']);
-        if ($is_op) $h .= hd_sla_indicator($t);
-        $h .= '</div>';
-        if ($is_op) {
-            $assignee = !empty($t['assigned_name'])
-                ? ' · <i class="bi bi-person-check text-success"></i> ' . h($t['assigned_name'])
-                : ' · <span class="text-danger">nieprzypisane</span>';
-            $h .= '<div class="hd-row-meta mt-1"><span class="text-muted" style="font-size:.72rem">'
-                . '<i class="bi bi-person me-1"></i>' . h($t['requester_name']) . $assignee . '</span></div>';
-        }
-        $h .= '</a>';
-    }
-    return $h;
-}
-
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function hd_notify_status_change(array $ticket, string $old_status, string $new_status, string $note = ''): void {
