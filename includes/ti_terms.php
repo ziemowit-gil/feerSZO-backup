@@ -255,3 +255,43 @@ function _ti_html_to_plain(string $html): string {
     return trim($html);
 }
 
+/**
+ * Renderuje blok akceptacji regulaminu (formularz z treścią do przeczytania).
+ * Używane na zakładce regulaminy, vlab i online w panelu kursanta.
+ */
+function _ti_terms_acceptance_block(?array $term, string $token, string $redirect_tab): string {
+    if (!$term) return '';
+    ob_start(); ?>
+    <div class="card border-warning mb-4 shadow-sm">
+      <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center gap-2">
+        <i class="bi bi-file-earmark-text text-warning fs-5" aria-hidden="true"></i>
+        <strong><?= h($term['title']) ?></strong>
+        <span class="badge text-bg-secondary ms-auto">v<?= (int)$term['version'] ?></span>
+      </div>
+      <div class="card-body">
+        <div class="border rounded p-3 mb-3 small"
+             style="max-height:320px;overflow-y:auto;background:var(--bs-tertiary-bg)"
+             tabindex="0" aria-label="Treść regulaminu <?= h($term['title']) ?>">
+          <?= $term['body_html'] ?>
+        </div>
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h($token) ?>">
+          <input type="hidden" name="_op" value="accept_term">
+          <input type="hidden" name="term_id" value="<?= (int)$term['id'] ?>">
+          <input type="hidden" name="redirect_tab" value="<?= h($redirect_tab) ?>">
+          <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="accept-cb-<?= (int)$term['id'] ?>" required>
+            <label class="form-check-label" for="accept-cb-<?= (int)$term['id'] ?>">
+              Przeczytałem/am i akceptuję powyższy regulamin
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zaakceptuj regulamin
+          </button>
+        </form>
+      </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
