@@ -15,20 +15,6 @@ notif_migrate();
 $_user       = current_user();
 $_page_title = $PAGE_TITLE ?? 'Rejestr Umów';
 
-// ── Regulamin panelu — brama dla zalogowanych użytkowników (nie-admin, nie na stronie akceptacji) ─
-if ($_user && !is_admin()) {
-    $_pt_script = $_SERVER['SCRIPT_FILENAME'] ?? '';
-    $_pt_on_accept = str_ends_with($_pt_script, 'terms_accept.php') || str_ends_with($_pt_script, 'terms_pdf.php') || str_ends_with($_pt_script, 'logout.php');
-    if (!$_pt_on_accept) {
-        require_once __DIR__ . '/panel_terms.php';
-        if (!panel_term_accepted((int)$_user['id'])) {
-            $back = APP_URL . ($_SERVER['REQUEST_URI'] ?? '/panel/index.php');
-            header('Location: ' . APP_URL . '/panel/terms_accept.php?back=' . urlencode($back));
-            exit;
-        }
-    }
-}
-
 // ── Globalny status systemu: PRZESTÓJ — pełna blokada dla zwykłych użytkowników ─
 // Administrator i konto serwisowe SaaS przechodzą dalej (z banerem). Pozostali widzą
 // stronę informacyjną. Logowanie pozostaje dostępne (login.php nie ładuje tego nagłówka).
@@ -1077,13 +1063,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   ════════════════════════════════════════ -->
   <?php if (is_admin()): ?>
   <div class="sb-label">Admin</div>
-  <a class="sb-link<?= str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding') && !str_contains($_uri,'/admin/sharepoint') && !str_contains($_uri,'/admin/m365') && !str_contains($_uri,'/admin/tidycal') && !str_contains($_uri,'/admin/stripe_settings') && !str_contains($_uri,'/admin/payu_settings') && !str_contains($_uri,'/admin/panel_terms') ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
+  <a class="sb-link<?= str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding') && !str_contains($_uri,'/admin/sharepoint') && !str_contains($_uri,'/admin/m365') && !str_contains($_uri,'/admin/tidycal') && !str_contains($_uri,'/admin/stripe_settings') && !str_contains($_uri,'/admin/payu_settings') ? ' nav-active' : '' ?>" href="<?= APP_URL ?>/admin/index.php">
     <i class="bi bi-shield-shaded"></i> Panel admina
     <?php if ($_adm_badge): ?><span class="badge bg-danger ms-auto"><?= $_adm_badge ?></span><?php endif; ?>
-  </a>
-
-  <a class="sb-link<?= _nav_active('/admin/panel_terms') ?>" href="<?= APP_URL ?>/admin/panel_terms.php">
-    <i class="bi bi-file-earmark-text"></i> Regulamin panelu
   </a>
 
   <div class="sb-sep"></div>

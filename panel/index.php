@@ -1424,53 +1424,6 @@ try {
 <style>.res-status-badge{display:inline-block;padding:.18em .5em;border-radius:6px;font-size:.73rem;font-weight:600;}</style>
 <?php endif; ?>
 
-<!-- ── Regulamin panelu — historia akceptacji ─────────────────────────────── -->
-<?php
-try {
-    require_once dirname(__DIR__) . '/includes/panel_terms.php';
-    panel_terms_migrate();
-    $_panel_term_accepts = panel_terms_accepts_for_user((int)$user['id']);
-    $_panel_term_current = panel_term_get();
-    $_panel_terms_ok     = true;
-} catch (\Throwable $e) { $_panel_terms_ok = false; }
-?>
-<?php if (!empty($_panel_terms_ok) && ($_panel_term_accepts || (!empty($_panel_term_current) && $_panel_term_current['is_active']))): ?>
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-body">
-    <div class="d-flex align-items-center mb-2">
-      <h6 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text text-primary me-2"></i>Regulamin panelu</h6>
-    </div>
-    <?php if ($_panel_term_accepts): ?>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0 small">
-        <thead class="table-light">
-          <tr><th>Tytuł</th><th>Data akceptacji</th><th>Wersja</th><th></th></tr>
-        </thead>
-        <tbody>
-          <?php foreach ($_panel_term_accepts as $pta): ?>
-          <tr>
-            <td><?= h($pta['title']) ?></td>
-            <td><?= h(date('d.m.Y H:i', strtotime($pta['accepted_at']))) ?></td>
-            <td>v<?= (int)$pta['version'] ?></td>
-            <td>
-              <a href="<?= APP_URL ?>/panel/terms_pdf.php?id=<?= (int)$pta['id'] ?>"
-                 class="btn btn-sm btn-outline-secondary py-0"
-                 title="Pobierz PDF potwierdzenia akceptacji">
-                <i class="bi bi-filetype-pdf me-1"></i>PDF
-              </a>
-            </td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-    <?php else: ?>
-    <p class="text-body-secondary small mb-0">Brak historii akceptacji.</p>
-    <?php endif; ?>
-  </div>
-</div>
-<?php endif; ?>
-
 <!-- ── Modal wyboru umowy ─────────────────────────────────────────────────── -->
 <?php if (count($contracts) > 1): ?>
 <div class="modal fade" id="contractPickerModal"

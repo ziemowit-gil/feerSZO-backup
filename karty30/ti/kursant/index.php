@@ -66,16 +66,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=' . urlencode($redirect_tab) . '&accepted=1'); exit;
     }
 
-    // Akceptacja regulaminu panelu (ogólnego)
-    if ($op === 'accept_panel_term') {
-        require_once dirname(dirname(dirname(__DIR__))) . '/includes/panel_terms.php';
-        $term_id = (int)($_POST['term_id'] ?? 0);
-        if ($term_id > 0) {
-            panel_term_accept_kursant((int)$student['id'], (int)$student['client_id'], $term_id);
-        }
-        header('Location: index.php'); exit;
-    }
-
     if ($op === 'cancel_lesson' || $op === 'uncancel_lesson') {
         $sid = (int)($_POST['session_id'] ?? 0);
         // Lekcja musi należeć do kursu, do którego kursant jest aktywnie zapisany, i być zaplanowana
@@ -372,12 +362,6 @@ $terms_accepted = ti_terms_accepts_for_client((int)$student['client_id']);
 $vlab_term_ok   = ti_term_accepted((int)$student['client_id'], 'vlab');
 $online_term_ok = ti_term_accepted((int)$student['client_id'], 'szkolenia');
 
-// Regulamin panelu (ogólny)
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/panel_terms.php';
-panel_terms_migrate();
-$panel_term_ok      = panel_term_accepted_kursant((int)$student['id']);
-$panel_term_current = panel_term_get();
-
 // Urlopy / nieobecności prowadzących kursanta (trwające + nadchodzące 30 dni)
 $instructor_leaves = ti_leaves_for_client((int)$student['client_id'], 30);
 
@@ -426,40 +410,6 @@ $KP_TOPBAR = [
 ];
 include __DIR__ . '/_layout_head.php';
 ?>
-
-<?php if (!$panel_term_ok && $panel_term_current && !empty($panel_term_current['is_active'])): ?>
-<div class="d-flex align-items-center justify-content-center" style="min-height:70vh">
-  <div class="card border-warning shadow-lg" style="max-width:640px;width:100%">
-    <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center gap-2">
-      <i class="bi bi-file-earmark-text text-warning fs-5" aria-hidden="true"></i>
-      <strong><?= h($panel_term_current['title']) ?></strong>
-      <span class="badge text-bg-secondary ms-auto">v<?= (int)$panel_term_current['version'] ?></span>
-    </div>
-    <div class="card-body">
-      <p class="text-body-secondary small mb-3">Aby korzystać z panelu kursanta, zapoznaj się z regulaminem i potwierdź akceptację.</p>
-      <div class="border rounded p-3 mb-4 small"
-           style="max-height:320px;overflow-y:auto;background:var(--bs-tertiary-bg)"
-           tabindex="0" aria-label="Treść regulaminu panelu">
-        <?= $panel_term_current['body_html'] ?>
-      </div>
-      <form method="post">
-        <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
-        <input type="hidden" name="_op" value="accept_panel_term">
-        <input type="hidden" name="term_id" value="<?= (int)$panel_term_current['id'] ?>">
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="cb-panel-term" required>
-          <label class="form-check-label" for="cb-panel-term">Przeczytałem/am i akceptuję powyższy regulamin.</label>
-        </div>
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zaakceptuj i przejdź do panelu
-        </button>
-      </form>
-    </div>
-  </div>
-</div>
-<?php include __DIR__ . '/_layout_foot.php'; ?>
-<?php exit; ?>
-<?php endif; ?>
 
 <?php if (!empty($account['must_change_password'])):
   // Wymuszona zmiana hasła (np. po nadaniu/zresetowaniu hasła przez admina) — blokuje panel.
@@ -2557,43 +2507,6 @@ include __DIR__ . '/_layout_head.php';
   </div>
   <?php elseif (empty($terms_pending)): ?>
   <div class="text-body-secondary small"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Brak akceptacji do wyświetlenia.</div>
-  <?php endif; ?>
-
-  <?php
-  $panel_term_accepts_kursant = panel_terms_accepts_for_kursant((int)$student['id']);
-  if ($panel_term_accepts_kursant): ?>
-  <h2 class="h6 fw-semibold mt-4 mb-2"><i class="bi bi-house-lock text-primary me-1" aria-hidden="true"></i>Regulamin panelu</h2>
-  <div class="card shadow-sm">
-    <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Regulamin</th>
-            <th>Data i godzina</th>
-            <th>Adres IP</th>
-            <th>Wersja</th>
-            <th><span class="visually-hidden">Akcje</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($panel_term_accepts_kursant as $pta): ?>
-          <tr>
-            <td><?= h($pta['title']) ?></td>
-            <td class="text-nowrap small"><?= h(date('d.m.Y H:i', strtotime($pta['accepted_at']))) ?></td>
-            <td class="font-monospace small text-body-secondary"><?= h($pta['ip']) ?></td>
-            <td class="small">v<?= (int)$pta['version'] ?></td>
-            <td>
-              <a href="panel_terms_pdf.php?id=<?= (int)$pta['id'] ?>" class="btn btn-sm btn-outline-secondary py-0"
-                 title="Pobierz PDF potwierdzenia">
-                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
-              </a>
-            </td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  </div>
   <?php endif; ?>
 
 <?php endif; ?>
