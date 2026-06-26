@@ -109,26 +109,36 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <i class="bi bi-easel2 me-1"></i>Panel dydaktyka
   </a>
   <?php if ($can_write): ?>
-  <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative <?= !$show_new && !$edit_row ? 'ms-auto' : '' ?>">
+  <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative">
     <i class="bi bi-envelope me-1"></i>Wiadomości<?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?>
   </a>
   <div class="dropdown">
     <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-grid me-1"></i>Zarządzanie
+      <i class="bi bi-mortarboard me-1"></i>Dydaktyka
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
-      <li><h6 class="dropdown-header">Dydaktyka / eLearning</h6></li>
-      <li><a class="dropdown-item" href="materials.php"><i class="bi bi-collection-play me-2"></i>Materiały / eLearning</a></li>
-      <li><a class="dropdown-item" href="homework.php"><i class="bi bi-journal-check me-2"></i>Zadania domowe</a></li>
+      <li><a class="dropdown-item" href="materials.php"><i class="bi bi-collection-play me-2"></i>Materiały</a></li>
+      <li><a class="dropdown-item" href="homework.php"><i class="bi bi-journal-check me-2"></i>Zadania</a></li>
       <li><a class="dropdown-item" href="grades.php"><i class="bi bi-table me-2"></i>Dziennik ocen</a></li>
-      <li><a class="dropdown-item" href="urlopy.php"><i class="bi bi-airplane me-2"></i>Urlopy prowadzących</a></li>
-      <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia miesięczne</a></li>
+      <li><a class="dropdown-item" href="curriculum.php"><i class="bi bi-list-check me-2"></i>Plan nauczania</a></li>
+      <li><a class="dropdown-item" href="tests.php"><i class="bi bi-card-checklist me-2"></i>Testy</a></li>
       <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Dostępy i narzędzia</h6></li>
+      <li><a class="dropdown-item" href="urlopy.php"><i class="bi bi-airplane me-2"></i>Urlopy</a></li>
+      <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia</a></li>
+    </ul>
+  </div>
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-grid me-1"></i>Narzędzia
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
       <li><a class="dropdown-item" href="online_admin.php"><i class="bi bi-camera-video me-2"></i>Nauka online</a></li>
-      <li><a class="dropdown-item" href="moodle_admin.php"><i class="bi bi-mortarboard me-2"></i>Moodle (serwery / kursy)</a></li>
+      <li><a class="dropdown-item" href="moodle_admin.php"><i class="bi bi-mortarboard me-2"></i>Moodle</a></li>
       <li><a class="dropdown-item" href="licencje_admin.php"><i class="bi bi-key me-2"></i>Licencje</a></li>
-      <li><a class="dropdown-item" href="vlab_admin.php"><i class="bi bi-hdd-stack me-2"></i>VLAB / Docker</a></li>
+      <li><a class="dropdown-item" href="vlab_admin.php"><i class="bi bi-hdd-stack me-2"></i>VLab</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="komunikacja.php"><i class="bi bi-megaphone me-2"></i>Komunikacja</a></li>
+      <li><a class="dropdown-item" href="kursant/accounts.php"><i class="bi bi-people me-2"></i>Konta kursantów</a></li>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="terms_admin.php"><i class="bi bi-file-earmark-text me-2"></i>Regulaminy</a></li>
     </ul>
