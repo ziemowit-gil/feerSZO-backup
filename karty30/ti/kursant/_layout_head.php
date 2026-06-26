@@ -199,12 +199,12 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
       <i class="bi bi-circle-half" aria-hidden="true"></i><span>Wysoki kontrast</span>
     </button>
     <div class="mb-2">
-      <div class="form-label small fw-semibold mb-1">Schemat kolorow</div>
-      <div class="d-flex flex-wrap gap-1" role="group" aria-label="Wybierz schemat kolorow">
+      <div class="form-label small fw-semibold mb-1">Schemat kolorów</div>
+      <div class="d-flex flex-wrap gap-1" role="group" aria-label="Wybierz schemat kolorów">
         <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="classic" title="Klasyczny (niebieski)"
                 style="background:#2563eb;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Klasyczny"></button>
-        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="mint" title="Mieta (zielony)"
-                style="background:#16a34a;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Mieta"></button>
+        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="mint" title="Mięta (zielony)"
+                style="background:#16a34a;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Mięta"></button>
         <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="violet" title="Fioletowy"
                 style="background:#7c3aed;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Fioletowy"></button>
         <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="warm" title="Ciepły (brzoskwiniowy)"
