@@ -776,31 +776,209 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <?php endif; ?>
 
       <?php if ($can_write): ?>
-      <form method="post" enctype="multipart/form-data"
-            class="<?= $files ? 'mt-3 pt-3 border-top' : 'mt-2' ?>" id="upload-form">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_action" value="upload_file">
-        <div class="fw-semibold mb-2" style="font-size:.88rem;color:var(--crm-text)">Dodaj plik</div>
-        <div class="row g-2">
-          <div class="col-12">
-            <input type="file" name="case_file" class="form-control form-control-sm" required
-                   accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip">
+      <div id="drop-zone-wrap" class="<?= $files ? 'mt-3 pt-3 border-top' : 'mt-2' ?>">
+        <!-- Strefa drag & drop -->
+        <div id="drop-zone"
+             role="button" tabindex="0" aria-label="Strefa przeciągania plików. Naciśnij Enter lub spację, aby wybrać plik."
+             style="border:2px dashed #c7d2dc;border-radius:10px;padding:1.6rem 1rem;
+                    text-align:center;cursor:pointer;transition:border-color .18s,background .18s;
+                    background:#f8fafc;color:#64748b;font-size:.88rem">
+          <i class="bi bi-cloud-arrow-up" style="font-size:2rem;display:block;margin-bottom:.4rem;color:#94a3b8"></i>
+          <span id="drop-label">Przeciągnij i upuść pliki tutaj lub <u>kliknij, aby wybrać</u></span>
+          <div style="font-size:.72rem;margin-top:.25rem;color:#94a3b8">
+            PDF, DOCX, XLSX, CSV, TXT, JPG, PNG, GIF, ZIP
           </div>
-          <div class="col-sm-6">
-            <input name="file_display_name" class="form-control form-control-sm"
-                   placeholder="Nazwa wyświetlana (opcjonalna)">
-          </div>
-          <div class="col-sm-6">
-            <input name="file_description" class="form-control form-control-sm"
-                   placeholder="Opis / uwagi (opcjonalny)">
-          </div>
-          <div class="col-12">
-            <button type="submit" class="btn btn-outline-primary btn-sm">
-              <i class="bi bi-upload me-1"></i>Dodaj plik
-            </button>
-          </div>
+          <input type="file" id="drop-file-input" multiple
+                 accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip"
+                 style="position:absolute;inset:0;opacity:0;cursor:pointer;pointer-events:none"
+                 tabindex="-1">
         </div>
-      </form>
+
+        <!-- Kolejka uploadu -->
+        <ul id="upload-queue" style="list-style:none;padding:0;margin:.5rem 0 0" aria-live="polite" aria-label="Kolejka plików"></ul>
+
+        <!-- Lista plików (renderowana przez JS przy upload) -->
+        <ul id="files-list" style="list-style:none;padding:0;margin:0"></ul>
+      </div>
+
+      <style>
+        #drop-zone.drag-over{border-color:#2563eb;background:#eff6ff}
+        .upload-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;
+          border:1px solid #e5e7eb;border-radius:8px;margin-top:.4rem;font-size:.84rem;background:#fff}
+        .upload-item .ui-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .upload-item .ui-bar-wrap{flex:1;min-width:0}
+        .upload-item .ui-bar{height:5px;background:#2563eb;border-radius:3px;transition:width .15s;width:0}
+        .upload-item .ui-pct{font-size:.7rem;color:#64748b;min-width:2.5rem;text-align:right}
+        .upload-item .ui-icon{width:28px;height:28px;border-radius:6px;background:#eff6ff;
+          color:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.95rem}
+        .upload-item.done .ui-bar{background:#16a34a}
+        .upload-item.error .ui-bar{background:#dc2626}
+        .file-row-new{animation:fdIn .3s ease}
+        @keyframes fdIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+      </style>
+
+      <script>
+      (function(){
+        var UPLOAD_URL = '<?= APP_URL ?>/crm/cases/upload.php';
+        var CASE_ID    = <?= $id ?>;
+        var CSRF       = '<?= csrf_token() ?>';
+        var CAN_DELETE = <?= is_admin() ? 'true' : 'false' ?>; // uproszczone — plik ma flagę can_delete
+        var EXT_ICONS  = {
+          pdf:'bi-file-earmark-pdf text-danger',
+          docx:'bi-file-earmark-word text-primary',doc:'bi-file-earmark-word text-primary',
+          xlsx:'bi-file-earmark-excel text-success',xls:'bi-file-earmark-excel text-success',
+          jpg:'bi-file-earmark-image text-warning',jpeg:'bi-file-earmark-image text-warning',
+          png:'bi-file-earmark-image text-warning',gif:'bi-file-earmark-image text-warning',
+          zip:'bi-file-earmark-zip text-secondary',
+          txt:'bi-file-earmark-text text-muted',csv:'bi-file-earmark-spreadsheet text-success',
+        };
+
+        var zone  = document.getElementById('drop-zone');
+        var input = document.getElementById('drop-file-input');
+        var queue = document.getElementById('upload-queue');
+        var counter = document.getElementById('files-count-badge');
+
+        // Otwieranie dialogu pliku
+        zone.addEventListener('click', function(){ input.click(); });
+        zone.addEventListener('keydown', function(e){
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+        });
+        input.addEventListener('change', function(){ handleFiles(this.files); this.value=''; });
+
+        // Drag & drop
+        zone.addEventListener('dragover',  function(e){ e.preventDefault(); this.classList.add('drag-over'); });
+        zone.addEventListener('dragleave', function(e){ if (!this.contains(e.relatedTarget)) this.classList.remove('drag-over'); });
+        zone.addEventListener('drop', function(e){
+          e.preventDefault(); this.classList.remove('drag-over');
+          handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+          Array.from(files).forEach(uploadFile);
+        }
+
+        function uploadFile(file) {
+          var li = document.createElement('li');
+          li.className = 'upload-item';
+          var ext = (file.name.split('.').pop() || '').toLowerCase();
+          var icon = EXT_ICONS[ext] || 'bi-file-earmark text-muted';
+          li.innerHTML = '<div class="ui-icon"><i class="bi '+icon+'"></i></div>'
+            + '<div class="ui-name" title="'+esc(file.name)+'">'+esc(file.name)+'</div>'
+            + '<div class="ui-bar-wrap"><div class="ui-bar"></div></div>'
+            + '<div class="ui-pct">0%</div>'
+            + '<div class="ui-status"></div>';
+          queue.appendChild(li);
+
+          var bar    = li.querySelector('.ui-bar');
+          var pct    = li.querySelector('.ui-pct');
+          var status = li.querySelector('.ui-status');
+
+          var fd = new FormData();
+          fd.append('case_id', CASE_ID);
+          fd.append('_csrf',   CSRF);
+          fd.append('file',    file);
+
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', UPLOAD_URL);
+
+          xhr.upload.addEventListener('progress', function(e){
+            if (e.lengthComputable) {
+              var p = Math.round(e.loaded / e.total * 100);
+              bar.style.width = p + '%';
+              pct.textContent = p + '%';
+            }
+          });
+
+          xhr.addEventListener('load', function(){
+            var res;
+            try { res = JSON.parse(xhr.responseText); } catch(e){ res = {error:'Błąd parsowania odpowiedzi'}; }
+            if (xhr.status === 200 && res.ok) {
+              li.classList.add('done');
+              bar.style.width = '100%';
+              pct.textContent = '✓';
+              status.innerHTML = '<i class="bi bi-check-circle-fill text-success ms-1"></i>';
+              setTimeout(function(){ li.remove(); }, 1800);
+              appendFileRow(res.file);
+              updateCount(1);
+            } else {
+              li.classList.add('error');
+              bar.style.width = '100%';
+              bar.style.background = '#dc2626';
+              pct.textContent = '';
+              status.innerHTML = '<span class="text-danger ms-1" title="'+esc(res.error||'Błąd')+'"><i class="bi bi-x-circle-fill"></i></span>';
+            }
+          });
+          xhr.addEventListener('error', function(){
+            li.classList.add('error');
+            status.innerHTML = '<span class="text-danger ms-1"><i class="bi bi-x-circle-fill"></i> Błąd sieci</span>';
+          });
+          xhr.send(fd);
+        }
+
+        function appendFileRow(f) {
+          var ext  = f.ext || '';
+          var icon = EXT_ICONS[ext] || 'bi-file-earmark text-muted';
+          var size = f.file_size ? (Math.round(f.file_size/1024*10)/10 + ' KB') : '';
+          var disp = f.display_name || f.original_name;
+          var list = document.getElementById('files-list');
+          // Wstaw na górze listy plików
+          var existingList = document.querySelector('.file-row:first-of-type');
+          var row = document.createElement('div');
+          row.className = 'file-row file-row-new';
+          row.innerHTML =
+            '<div class="file-icon" aria-hidden="true"><i class="bi '+icon+'"></i></div>'
+            + '<div style="flex:1;min-width:0">'
+              + '<div class="fw-semibold" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(disp)+'</div>'
+              + (f.description ? '<div class="text-muted" style="font-size:.75rem">'+esc(f.description)+'</div>' : '')
+              + '<div style="font-size:.72rem;color:#5E6470">'+esc(f.original_name)+(size?' · '+size:'')
+                + ' · '+esc(f.created_at.slice(0,16).replace('T',' '))+'</div>'
+            + '</div>'
+            + '<div class="d-flex gap-1 flex-shrink-0">'
+              + '<a href="'+f.download_url+'" class="btn btn-sm btn-outline-primary py-0 px-2" aria-label="Pobierz plik: '+esc(disp)+'">'
+                + '<i class="bi bi-download" aria-hidden="true"></i></a>'
+              + (f.can_delete
+                ? '<button type="button" onclick="deleteFile('+f.id+',this)" class="btn btn-sm btn-outline-danger py-0 px-2" aria-label="Usuń plik: '+esc(disp)+'">'
+                  + '<i class="bi bi-trash" aria-hidden="true"></i></button>'
+                : '')
+            + '</div>';
+
+          // Wstaw przed listą plików z PHP (jeśli istnieje) lub po strefie drop
+          var firstFileRow = document.querySelector('#files .file-row');
+          if (firstFileRow) {
+            firstFileRow.parentNode.insertBefore(row, firstFileRow);
+          } else {
+            var wrap = document.getElementById('drop-zone-wrap');
+            wrap.parentNode.insertBefore(row, wrap);
+          }
+        }
+
+        function updateCount(delta) {
+          // Zaktualizuj liczniki zakładki i nagłówka
+          document.querySelectorAll('.cv-count, #files-count-badge').forEach(function(el){
+            var n = (parseInt(el.textContent) || 0) + delta;
+            el.textContent = n;
+          });
+        }
+
+        function esc(s) {
+          return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // Usuwanie pliku przez JS (plik dodany w tej sesji przez appendFileRow)
+        window.deleteFile = function(fid, btn) {
+          if (!confirm('Usunąć plik?')) return;
+          var form = document.createElement('form');
+          form.method = 'post';
+          form.action = 'view.php?id=' + CASE_ID + '#files';
+          form.innerHTML =
+            '<input name="_csrf" value="'+CSRF+'">'
+            + '<input name="_action" value="delete_file">'
+            + '<input name="file_id" value="'+fid+'">';
+          document.body.appendChild(form);
+          form.submit();
+        };
+      })();
+      </script>
       <?php endif; ?>
     </div></div>
   </div>
