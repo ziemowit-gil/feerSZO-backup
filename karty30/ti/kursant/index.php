@@ -791,7 +791,13 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php if ($tab === 'dane'): ?>
 
   <!-- ── Dane kursanta — strona startowa panelu ─────────────────────────────── -->
-  <h1 class="h5 fw-bold mb-3"><i class="bi bi-person-vcard text-primary me-1" aria-hidden="true"></i>Dane kursanta</h1>
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h1 class="h5 fw-bold mb-0"><i class="bi bi-person-vcard text-primary me-1" aria-hidden="true"></i>Dane kursanta</h1>
+    <a href="<?= APP_URL ?>/karty30/clients/card_print.php?kursant=1" target="_blank"
+       class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-printer me-1" aria-hidden="true"></i>Wydrukuj kartę beneficjenta
+    </a>
+  </div>
 
   <!-- ── Duży skrót do eLearning — widoczny po zalogowaniu ────────────────────── -->
   <div class="card border-0 shadow-sm mb-4 text-bg-primary">
