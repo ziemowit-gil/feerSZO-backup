@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($add_to_bank && $imported > 0 && $bank_draw > 0) {
-        db_update('k30_ti_tests', ['bank_draw' => $bank_draw], 'id=?', [$test_id]);
+        db_update('k30_ti_tests', ['bank_draw' => $bank_draw], $test_id);
     }
 
     if ($imported > 0) {

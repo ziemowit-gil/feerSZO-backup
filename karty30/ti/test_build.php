@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'set_bank_draw') {
         $draw = max(0, (int)($_POST['bank_draw'] ?? 0));
-        db_update('k30_ti_tests', ['bank_draw' => $draw], 'id=?', [$test_id]);
+        db_update('k30_ti_tests', ['bank_draw' => $draw], $test_id);
         flash_set('success', 'Ustawienie bazy pytań zapisane.');
         header('Location: test_build.php?test='.$test_id.'#bank'); exit;
     }
