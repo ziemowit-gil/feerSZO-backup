@@ -129,6 +129,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="moodle_admin.php"><i class="bi bi-mortarboard me-2"></i>Moodle (serwery / kursy)</a></li>
       <li><a class="dropdown-item" href="licencje_admin.php"><i class="bi bi-key me-2"></i>Licencje</a></li>
       <li><a class="dropdown-item" href="vlab_admin.php"><i class="bi bi-hdd-stack me-2"></i>VLAB / Docker</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="terms_admin.php"><i class="bi bi-file-earmark-text me-2"></i>Regulaminy</a></li>
     </ul>
   </div>
   <?php endif; ?>

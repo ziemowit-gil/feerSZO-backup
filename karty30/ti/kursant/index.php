@@ -15,6 +15,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/pfron.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -54,6 +55,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op  = $_POST['_op'] ?? '';
     $tok = $_POST['_token'] ?? '';
     if (!hash_equals(student_token(), (string)$tok)) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
+
+    // Akceptacja regulaminu
+    if ($op === 'accept_term') {
+        $term_id = (int)($_POST['term_id'] ?? 0);
+        if ($term_id > 0) {
+            ti_term_accept((int)$student['client_id'], $term_id, (int)$student['id']);
+        }
+        $redirect_tab = (string)($_POST['redirect_tab'] ?? 'regulaminy');
+        header('Location: index.php?tab=' . urlencode($redirect_tab) . '&accepted=1'); exit;
+    }
 
     if ($op === 'cancel_lesson' || $op === 'uncancel_lesson') {
         $sid = (int)($_POST['session_id'] ?? 0);
@@ -345,6 +356,12 @@ $active_enroll_count = (int)(db_one(
 $my_licenses = k30_ti_client_licenses($student['client_id']);
 $active_lesson = k30_ti_active_lesson_link($student['client_id']);
 
+// Regulaminy — oczekujące akceptacje + historia
+$terms_pending  = ti_terms_pending((int)$student['client_id']);
+$terms_accepted = ti_terms_accepts_for_client((int)$student['client_id']);
+$vlab_term_ok   = ti_term_accepted((int)$student['client_id'], 'vlab');
+$online_term_ok = ti_term_accepted((int)$student['client_id'], 'szkolenia');
+
 // Urlopy / nieobecności prowadzących kursanta (trwające + nadchodzące 30 dni)
 $instructor_leaves = ti_leaves_for_client((int)$student['client_id'], 30);
 
@@ -433,7 +450,7 @@ include __DIR__ . '/_layout_head.php';
   // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
   $nauka_tabs     = ['lekcje','zadania','oceny','plan','testy'];
   $dostepy_tabs   = ['online','vlab','licencje','pfron'];
-  $pomoc_tabs     = ['problem','ustawienia'];
+  $pomoc_tabs     = ['problem','ustawienia','regulaminy'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
   $dostepy_active = in_array($tab, $dostepy_tabs, true);
   $pomoc_active   = in_array($tab, $pomoc_tabs, true);
@@ -515,6 +532,11 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-wrench-adjustable me-2" aria-hidden="true"></i>Zgłoś problem techniczny</a></li>
         <li><a class="dropdown-item <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
           <i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item <?= $tab==='regulaminy'?'active':'' ?>" href="?tab=regulaminy" <?= $tab==='regulaminy'?'aria-current="page"':'' ?>>
+          <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Regulaminy
+          <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-2"><?= count($terms_pending) ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?>
+        </a></li>
       </ul>
     </li>
 
@@ -1286,6 +1308,15 @@ include __DIR__ . '/_layout_head.php';
 
 <?php elseif ($tab === 'vlab'): ?>
 
+  <?php if (!$vlab_term_ok):
+    $vlab_term = ti_term_get('vlab'); ?>
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <?= _ti_terms_acceptance_block($vlab_term, $vlab_token, 'vlab') ?>
+    </div>
+  </div>
+  <?php else: ?>
+
   <div id="vlab-root" data-token="<?= h($vlab_token) ?>">
     <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
       <i class="bi bi-hdd-stack text-primary" aria-hidden="true"></i>VLab — Twoje maszyny
@@ -1600,6 +1631,8 @@ include __DIR__ . '/_layout_head.php';
     reload();
   })();
   </script>
+
+  <?php endif; // vlab_term_ok ?>
 
 <?php elseif ($tab === 'plan'): ?>
   <h1 class="h5 fw-bold mb-3"><i class="bi bi-list-check text-primary me-2" aria-hidden="true"></i>Plan nauczania</h1>
@@ -2123,6 +2156,15 @@ include __DIR__ . '/_layout_head.php';
 
 <?php elseif ($tab === 'online'): ?>
 
+  <?php if (!$online_term_ok):
+    $online_term = ti_term_get('szkolenia'); ?>
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <?= _ti_terms_acceptance_block($online_term, $vlab_token, 'online') ?>
+    </div>
+  </div>
+  <?php else: ?>
+
   <?php if ($moodle_courses_student): ?>
   <section class="card mb-4" aria-labelledby="mdl-heading">
     <div class="card-body">
@@ -2309,6 +2351,8 @@ include __DIR__ . '/_layout_head.php';
   })();
   </script>
 
+  <?php endif; // online_term_ok ?>
+
 <?php elseif ($tab === 'problem'): ?>
 <div class="row justify-content-center">
   <div class="col-lg-8">
@@ -2363,8 +2407,111 @@ include __DIR__ . '/_layout_head.php';
   </div>
 </div>
 
+<?php elseif ($tab === 'regulaminy'): ?>
+
+  <h1 class="h5 fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2" aria-hidden="true"></i>Regulaminy</h1>
+  <p class="text-body-secondary small mb-3">Regulaminy, które musisz zaakceptować, aby korzystać z dostępnych narzędzi. Możesz pobrać PDF potwierdzenia każdej akceptacji.</p>
+
+  <?php if (!empty($_GET['accepted'])): ?>
+  <div class="alert alert-success py-2 small" role="alert">
+    <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Regulamin zaakceptowany. Możesz teraz korzystać z wybranego narzędzia.
+  </div>
+  <?php endif; ?>
+
+  <?php if ($terms_pending): ?>
+  <div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Wymagana akceptacja:</strong> poniższe regulaminy nie zostały jeszcze przez Ciebie zaakceptowane.
+      Zaakceptuj je, aby uzyskać dostęp do powiązanych narzędzi.
+    </div>
+  </div>
+  <?php foreach ($terms_pending as $tp): ?>
+  <?= _ti_terms_acceptance_block($tp, $vlab_token, 'regulaminy') ?>
+  <?php endforeach; ?>
+  <?php endif; ?>
+
+  <?php if ($terms_accepted): ?>
+  <h2 class="h6 fw-semibold mt-3 mb-2"><i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i>Historia akceptacji</h2>
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Regulamin</th>
+            <th>Data i godzina</th>
+            <th>Adres IP</th>
+            <th>Wersja</th>
+            <th><span class="visually-hidden">Akcje</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($terms_accepted as $ta): ?>
+          <tr>
+            <td><?= h($ta['title']) ?></td>
+            <td class="text-nowrap small"><?= h(date('d.m.Y H:i', strtotime($ta['accepted_at']))) ?></td>
+            <td class="font-monospace small text-body-secondary"><?= h($ta['ip']) ?></td>
+            <td class="small">v<?= (int)$ta['version'] ?></td>
+            <td>
+              <a href="terms_pdf.php?id=<?= (int)$ta['id'] ?>" class="btn btn-sm btn-outline-secondary py-0"
+                 title="Pobierz PDF potwierdzenia">
+                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
+              </a>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php elseif (empty($terms_pending)): ?>
+  <div class="text-body-secondary small"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Brak akceptacji do wyświetlenia.</div>
+  <?php endif; ?>
+
 <?php endif; ?>
 
 </main>
 
 <?php include __DIR__ . '/_layout_foot.php'; ?>
+
+<?php
+/**
+ * Renderuje blok akceptacji regulaminu (formularz z treścią do przeczytania).
+ * Używane na zakładce regulaminy, vlab i online.
+ */
+function _ti_terms_acceptance_block(?array $term, string $token, string $redirect_tab): string {
+    if (!$term) return '';
+    ob_start();
+    ?>
+    <div class="card border-warning mb-4 shadow-sm">
+      <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center gap-2">
+        <i class="bi bi-file-earmark-text text-warning fs-5" aria-hidden="true"></i>
+        <strong><?= h($term['title']) ?></strong>
+        <span class="badge text-bg-secondary ms-auto">v<?= (int)$term['version'] ?></span>
+      </div>
+      <div class="card-body">
+        <div class="border rounded p-3 mb-3 small"
+             style="max-height:320px;overflow-y:auto;background:var(--bs-tertiary-bg)"
+             tabindex="0" aria-label="Treść regulaminu <?= h($term['title']) ?>">
+          <?= $term['body_html'] ?>
+        </div>
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h($token) ?>">
+          <input type="hidden" name="_op" value="accept_term">
+          <input type="hidden" name="term_id" value="<?= (int)$term['id'] ?>">
+          <input type="hidden" name="redirect_tab" value="<?= h($redirect_tab) ?>">
+          <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="accept-cb-<?= (int)$term['id'] ?>" required>
+            <label class="form-check-label" for="accept-cb-<?= (int)$term['id'] ?>">
+              Przeczytałem/am i akceptuję powyższy regulamin
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zaakceptuj regulamin
+          </button>
+        </form>
+      </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
