@@ -3,8 +3,9 @@
  * includes/panel_terms.php — Regulamin panelu SZO (akceptacja przez użytkowników).
  *
  * Tabele:
- *   panel_terms          — treść regulaminu (jeden aktywny wpis)
- *   panel_terms_accepts  — log akceptacji użytkowników (user_id → users)
+ *   panel_terms                — treść regulaminu (jeden aktywny wpis)
+ *   panel_terms_accepts        — log akceptacji użytkowników (user_id → users)
+ *   panel_terms_kursant_accepts — log akceptacji kursantów (account_id → k30_ti_student_accounts)
  */
 
 function panel_terms_migrate(): void {
@@ -33,7 +34,19 @@ function panel_terms_migrate(): void {
         accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    db()->exec("CREATE TABLE IF NOT EXISTS panel_terms_kursant_accepts (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        term_id     INTEGER NOT NULL REFERENCES panel_terms(id) ON DELETE CASCADE,
+        account_id  INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        client_id   INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        version     INTEGER NOT NULL DEFAULT 1,
+        ip          TEXT    NOT NULL DEFAULT '',
+        ua          TEXT    NOT NULL DEFAULT '',
+        accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     db()->exec("CREATE INDEX IF NOT EXISTS idx_panel_terms_acc ON panel_terms_accepts(user_id, term_id)");
+    db()->exec("CREATE INDEX IF NOT EXISTS idx_panel_terms_kur_acc ON panel_terms_kursant_accepts(account_id, term_id)");
 
     // Utwórz domyślny wpis jeśli nie istnieje
     $ex = db_one("SELECT id FROM panel_terms LIMIT 1");
@@ -192,6 +205,61 @@ function panel_term_pdf(array $accept, array $user): void {
     $fname = 'regulamin_panelu_' . date('Ymd', strtotime($accept['accepted_at'])) . '.pdf';
     $pdf->Output('D', $fname);
     exit;
+}
+
+// ── Funkcje dla kursantów (k30_ti_student_accounts) ─────────────────────────
+
+/** Czy kursant zaakceptował aktualną wersję regulaminu panelu? */
+function panel_term_accepted_kursant(int $account_id): bool {
+    panel_terms_migrate();
+    $term = db_one("SELECT id, version, is_active FROM panel_terms ORDER BY id DESC LIMIT 1");
+    if (!$term || empty($term['is_active'])) return true;
+    $acc = db_one(
+        "SELECT id FROM panel_terms_kursant_accepts WHERE account_id=? AND term_id=? AND version>=?",
+        [$account_id, (int)$term['id'], (int)$term['version']]
+    );
+    return $acc !== null;
+}
+
+/** Zapisz akceptację regulaminu przez kursanta. */
+function panel_term_accept_kursant(int $account_id, int $client_id, int $term_id): void {
+    panel_terms_migrate();
+    $term = db_one("SELECT version FROM panel_terms WHERE id=?", [$term_id]);
+    if (!$term) return;
+    db()->prepare("DELETE FROM panel_terms_kursant_accepts WHERE account_id=? AND term_id=?")->execute([$account_id, $term_id]);
+    db_insert('panel_terms_kursant_accepts', [
+        'term_id'    => $term_id,
+        'account_id' => $account_id,
+        'client_id'  => $client_id,
+        'version'    => (int)$term['version'],
+        'ip'         => substr($_SERVER['REMOTE_ADDR'] ?? '', 0, 45),
+        'ua'         => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 300),
+    ]);
+}
+
+/** Historia akceptacji regulaminu panelu przez kursanta. */
+function panel_terms_accepts_for_kursant(int $account_id): array {
+    panel_terms_migrate();
+    return db_all(
+        "SELECT a.*, t.title, t.body_html
+         FROM panel_terms_kursant_accepts a
+         JOIN panel_terms t ON t.id=a.term_id
+         WHERE a.account_id=?
+         ORDER BY a.accepted_at DESC",
+        [$account_id]
+    );
+}
+
+/** Pobierz konkretny rekord akceptacji kursanta (dla PDF). */
+function panel_term_kursant_accept_get(int $accept_id, int $account_id): ?array {
+    panel_terms_migrate();
+    return db_one(
+        "SELECT a.*, t.title, t.body_html, t.version AS term_version
+         FROM panel_terms_kursant_accepts a
+         JOIN panel_terms t ON t.id=a.term_id
+         WHERE a.id=? AND a.account_id=?",
+        [$accept_id, $account_id]
+    ) ?: null;
 }
 
 function _pt_txt(string $s): string {

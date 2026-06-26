@@ -36,10 +36,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $term    = panel_term_get();
 $accepts = db_all(
-    "SELECT a.*, u.name AS user_name, u.email AS user_email
+    "SELECT a.*, u.name AS user_name, u.email AS user_email, 'staff' AS who_type
      FROM panel_terms_accepts a
      JOIN users u ON u.id=a.user_id
-     ORDER BY a.accepted_at DESC
+     UNION ALL
+     SELECT a.id, a.term_id, NULL, a.version, a.ip, a.ua, a.accepted_at,
+            c.name AS user_name, c.email AS user_email, 'kursant' AS who_type
+     FROM panel_terms_kursant_accepts a
+     JOIN k30_clients c ON c.id=a.client_id
+     ORDER BY accepted_at DESC
      LIMIT 200"
 );
 
@@ -144,13 +149,21 @@ include dirname(__DIR__) . '/includes/header.php';
               <th>IP</th>
               <th>v.</th>
             </tr>
+
           </thead>
           <tbody>
             <?php foreach ($accepts as $a): ?>
             <tr>
               <td>
-                <div><?= h($a['user_name']) ?></div>
-                <div class="text-body-secondary"><?= h($a['user_email']) ?></div>
+                <div class="d-flex align-items-center gap-1">
+                  <?= ($a['who_type'] ?? '') === 'kursant'
+                      ? '<span class="badge text-bg-info">kursant</span>'
+                      : '<span class="badge text-bg-secondary">staff</span>' ?>
+                  <?= h($a['user_name']) ?>
+                </div>
+                <?php if (!empty($a['user_email'])): ?>
+                <div class="text-body-secondary small"><?= h($a['user_email']) ?></div>
+                <?php endif; ?>
               </td>
               <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime($a['accepted_at']))) ?></td>
               <td class="font-monospace text-body-secondary"><?= h($a['ip']) ?></td>
