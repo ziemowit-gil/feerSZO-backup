@@ -2349,31 +2349,12 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php elseif ($tab === 'wiadomosci'):
   ti_msg_mark_read_for_student((int)$student['id']);
   $messages = ti_msg_list_for_student((int)$student['id']);
-
-  // Grupuj wiadomości w wątki po subject
-  $threads = [];
-  foreach ($messages as $m) {
-    $key = trim((string)($m['subject'] ?? ''));
-    if ($key === '') $key = '__ogolny__';
-    if (!isset($threads[$key])) {
-      $threads[$key] = ['subject' => $key === '__ogolny__' ? 'Wiadomości ogólne' : $key, 'msgs' => [], 'last_at' => '', 'unread' => 0];
-    }
-    $threads[$key]['msgs'][] = $m;
-    if ($m['created_at'] > $threads[$key]['last_at']) $threads[$key]['last_at'] = $m['created_at'];
-    if (($m['sender'] ?? '') === 'staff' && !$m['is_read']) $threads[$key]['unread']++;
-  }
-  uasort($threads, fn($a,$b) => strcmp($b['last_at'], $a['last_at']));
-  $active_ts = (string)($_GET['ts'] ?? '');
-  if ($active_ts === '' && !empty($threads)) $active_ts = array_key_first($threads);
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-4">
   <h1 class="h5 fw-bold mb-0">
     <i class="bi bi-envelope text-primary me-2" aria-hidden="true"></i>Wiadomości
   </h1>
-  <a href="?tab=wiadomosci&compose=1" class="btn btn-primary btn-sm ms-auto">
-    <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Nowa wiadomość
-  </a>
 </div>
 
 <?php if (($_GET['sent'] ?? '') === '1'): ?>
@@ -2383,148 +2364,66 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 <?php endif; ?>
 
-<?php if (($_GET['compose'] ?? '') === '1'): ?>
-<section aria-labelledby="composeHeading" class="card mb-4">
+<?php if (empty($messages)): ?>
+<div class="card">
+  <div class="card-body text-center text-body-secondary py-5">
+    <i class="bi bi-envelope fs-1 opacity-25 d-block mb-3" aria-hidden="true"></i>
+    <p class="mb-2">Nie masz jeszcze żadnych wiadomości.</p>
+    <p class="small mt-3 mb-0"><a href="?tab=ustawienia">Ustawienia powiadomień</a></p>
+  </div>
+</div>
+<?php else: ?>
+
+<!-- Lista wiadomości -->
+<ol class="list-unstyled d-flex flex-column gap-3 mb-4" aria-label="Wiadomości">
+  <?php foreach ($messages as $m):
+    $mine = ($m['sender'] ?? '') === 'student';
+    $ts   = $m['created_at'] ? date('d.m.Y, H:i', strtotime($m['created_at'])) : '';
+    $name = $mine ? 'Ty' : ($m['sender_name'] !== '' ? $m['sender_name'] : 'Prowadzący');
+    $role_label = $mine ? 'kursant' : 'prowadzący';
+  ?>
+  <li>
+    <article aria-label="Wiadomość od: <?= h($name) ?>, <?= h($ts) ?>">
+      <header class="d-flex align-items-baseline gap-2 mb-1">
+        <span class="fw-semibold small"><?= h($name) ?></span>
+        <span class="text-body-secondary small">(<?= $role_label ?>)</span>
+        <time class="text-body-secondary small ms-auto" datetime="<?= h($m['created_at'] ?? '') ?>"><?= h($ts) ?></time>
+      </header>
+      <div class="border rounded-2 p-3 <?= $mine ? 'border-primary border-opacity-50 bg-primary bg-opacity-10' : '' ?>">
+        <p class="mb-0" style="white-space:pre-wrap;line-height:1.6"><?= h($m['body']) ?></p>
+      </div>
+    </article>
+  </li>
+  <?php endforeach; ?>
+</ol>
+
+<?php endif; ?>
+
+<!-- Formularz nowej wiadomości -->
+<section aria-labelledby="replyHeading" class="card">
   <div class="card-header">
-    <h2 class="h6 fw-bold mb-0" id="composeHeading">
-      <i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Nowa wiadomość do Prowadzącego
+    <h2 class="h6 fw-bold mb-0" id="replyHeading">
+      <i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Napisz do Prowadzącego
     </h2>
   </div>
   <div class="card-body">
     <form method="post">
       <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
       <input type="hidden" name="_op" value="msg_new">
-      <div class="mb-3">
-        <label class="form-label fw-semibold" for="newMsgSubject">Temat <span class="text-danger" aria-hidden="true">*</span></label>
-        <input type="text" class="form-control" id="newMsgSubject" name="subject"
-               maxlength="200" required autofocus
-               placeholder="np. Pytanie o materiały, Nieobecność…">
-      </div>
+      <input type="hidden" name="subject" value="">
       <div class="mb-3">
         <label class="form-label fw-semibold" for="newMsgBody">Treść <span class="text-danger" aria-hidden="true">*</span></label>
         <textarea class="form-control" id="newMsgBody" name="body"
-                  rows="6" maxlength="4000" required
+                  rows="4" maxlength="4000" required
                   placeholder="Napisz wiadomość do prowadzącego…"></textarea>
-        <div class="form-text">Prowadzący odpowie w tej zakładce. Możesz też skonfigurować <a href="?tab=ustawienia">powiadomienia e-mail / SMS</a>.</div>
+        <div class="form-text">Prowadzący odpowie tutaj. <a href="?tab=ustawienia">Skonfiguruj powiadomienia e-mail / SMS</a>.</div>
       </div>
-      <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij wiadomość
-        </button>
-        <a href="?tab=wiadomosci" class="btn btn-outline-secondary">Anuluj</a>
-      </div>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij wiadomość
+      </button>
     </form>
   </div>
 </section>
-<?php endif; ?>
-
-<?php if (empty($threads) && ($_GET['compose'] ?? '') !== '1'): ?>
-<div class="card">
-  <div class="card-body text-center text-body-secondary py-5">
-    <i class="bi bi-envelope fs-1 opacity-25 d-block mb-3" aria-hidden="true"></i>
-    <p class="mb-2">Nie masz jeszcze żadnych wiadomości.</p>
-    <a href="?tab=wiadomosci&compose=1" class="btn btn-primary btn-sm">
-      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Napisz do Prowadzącego
-    </a>
-    <p class="small mt-3 mb-0"><a href="?tab=ustawienia">Ustawienia powiadomień</a></p>
-  </div>
-</div>
-<?php endif; ?>
-
-<?php if (!empty($threads)): ?>
-<div class="row g-4">
-
-  <!-- ── Lista wątków ──────────────────────────────────────────────── -->
-  <div class="col-12 col-md-4 col-lg-3">
-    <nav aria-label="Wątki wiadomości">
-      <ul class="list-group list-group-flush border rounded-2" role="list">
-        <?php foreach ($threads as $tkey => $thread):
-          $is_active = ($tkey === $active_ts);
-          $last_ts   = $thread['last_at'] ? date('d.m.Y', strtotime($thread['last_at'])) : '';
-        ?>
-        <li class="list-group-item p-0" role="listitem">
-          <a href="?tab=wiadomosci&ts=<?= urlencode($tkey) ?>"
-             class="d-block px-3 py-3 text-decoration-none <?= $is_active ? 'bg-primary text-white' : '' ?>"
-             <?= $is_active ? 'aria-current="true"' : '' ?>>
-            <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
-              <span class="fw-semibold small lh-sm"><?= h($thread['subject']) ?></span>
-              <?php if ($thread['unread'] > 0): ?>
-              <span class="badge bg-danger flex-shrink-0" aria-label="<?= (int)$thread['unread'] ?> nieprzeczytane"><?= (int)$thread['unread'] ?></span>
-              <?php endif; ?>
-            </div>
-            <span class="small <?= $is_active ? 'text-white-50' : 'text-body-secondary' ?>"
-                  style="font-size:.78rem"><?= h($last_ts) ?> · <?= count($thread['msgs']) ?> wiad.</span>
-          </a>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-    </nav>
-  </div>
-
-  <!-- ── Aktywny wątek ─────────────────────────────────────────────── -->
-  <div class="col-12 col-md-8 col-lg-9">
-    <?php if (isset($threads[$active_ts])): $thread = $threads[$active_ts]; ?>
-    <article aria-labelledby="threadHeading">
-
-      <div class="d-flex align-items-center gap-3 mb-3 pb-2 border-bottom">
-        <h2 class="h6 fw-bold mb-0 flex-grow-1" id="threadHeading"><?= h($thread['subject']) ?></h2>
-        <span class="text-body-secondary small"><?= count($thread['msgs']) ?> <?= count($thread['msgs']) === 1 ? 'wiadomość' : 'wiadomości' ?></span>
-      </div>
-
-      <!-- Wiadomości jako lista artykułów -->
-      <ol class="list-unstyled d-flex flex-column gap-3 mb-4" aria-label="Wiadomości w wątku">
-        <?php foreach ($thread['msgs'] as $idx => $m):
-          $mine = ($m['sender'] ?? '') === 'student';
-          $ts   = $m['created_at'] ? date('d.m.Y, H:i', strtotime($m['created_at'])) : '';
-          $name = $mine ? 'Ty' : ($m['sender_name'] !== '' ? $m['sender_name'] : 'Prowadzący');
-          $role_label = $mine ? 'Kursant' : 'Prowadzący';
-        ?>
-        <li>
-          <article aria-label="Wiadomość od: <?= h($name) ?>, <?= h($ts) ?>">
-            <header class="d-flex align-items-baseline gap-2 mb-1">
-              <span class="fw-semibold small"><?= h($name) ?></span>
-              <span class="text-body-secondary small"><?= h($role_label) ?></span>
-              <time class="text-body-secondary small ms-auto" datetime="<?= h(str_replace(', ', 'T', $m['created_at'] ?? '')) ?>"><?= h($ts) ?></time>
-            </header>
-            <div class="border rounded-2 p-3 <?= $mine ? 'border-primary border-opacity-50 bg-primary bg-opacity-10' : '' ?>">
-              <p class="mb-0" style="white-space:pre-wrap;line-height:1.6"><?= h($m['body']) ?></p>
-            </div>
-          </article>
-        </li>
-        <?php endforeach; ?>
-      </ol>
-
-      <!-- Formularz odpowiedzi -->
-      <section aria-labelledby="replyHeading">
-        <h3 class="h6 fw-bold mb-2" id="replyHeading">Odpowiedz</h3>
-        <form method="post">
-          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-          <input type="hidden" name="_op" value="msg_reply">
-          <input type="hidden" name="thread_subject" value="<?= h($active_ts === '__ogolny__' ? '' : $active_ts) ?>">
-          <div class="mb-2">
-            <label class="form-label" for="replyBody">Treść odpowiedzi <span class="text-danger" aria-hidden="true">*</span></label>
-            <textarea class="form-control" id="replyBody" name="body"
-                      rows="4" maxlength="4000" required
-                      placeholder="Napisz odpowiedź…"></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij odpowiedź
-          </button>
-        </form>
-      </section>
-
-    </article>
-    <?php else: ?>
-    <p class="text-body-secondary">Wybierz wątek z listy po lewej.</p>
-    <?php endif; ?>
-  </div>
-
-</div><!-- /row -->
-
-<p class="text-body-secondary small mt-4 mb-0">
-  <a href="?tab=ustawienia"><i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia powiadomień</a>
-</p>
-<?php endif; ?>
 
 <?php elseif ($tab === 'ustawienia'): ?>
 <?php
