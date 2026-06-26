@@ -658,24 +658,24 @@ include __DIR__ . '/_layout_head.php';
 </noscript>
 
 <!-- Wyskakujące okno — position:fixed, prawa dolna część ekranu ──────────── -->
-<div id=”leavePopup”
-     role=”dialog” aria-modal=”true” aria-labelledby=”leavePopupTitle”
-     data-leave-fp=”<?= h($leave_fp) ?>”
-     tabindex=”-1”
-     style=”display:none;position:fixed;z-index:1080;bottom:1.5rem;right:1.5rem;
+<div id="leavePopup"
+     role="dialog" aria-modal="true" aria-labelledby="leavePopupTitle"
+     data-leave-fp="<?= h($leave_fp) ?>"
+     tabindex="-1"
+     style="display:none;position:fixed;z-index:1080;bottom:1.5rem;right:1.5rem;
             width:min(420px,calc(100vw - 2rem));
             background:#1e293b;color:#f1f5f9;
             border:2px solid #f59e0b;border-radius:.6rem;
-            box-shadow:0 8px 32px rgba(0,0,0,.5);”>
+            box-shadow:0 8px 32px rgba(0,0,0,.5);">
   <!-- Pasek tytułu -->
-  <div style=”background:#f59e0b;color:#1c1917;border-radius:.45rem .45rem 0 0;
-              padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;”>
-    <i class=”bi bi-airplane-fill” aria-hidden=”true”></i>
-    <h2 class=”mb-0 fw-bold” id=”leavePopupTitle” style=”font-size:1rem”>Nieobecność prowadzącego</h2>
+  <div style="background:#f59e0b;color:#1c1917;border-radius:.45rem .45rem 0 0;
+              padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;">
+    <i class="bi bi-airplane-fill" aria-hidden="true"></i>
+    <h2 class="mb-0 fw-bold" id="leavePopupTitle" style="font-size:1rem">Nieobecność prowadzącego</h2>
   </div>
   <!-- Treść -->
-  <div style=”padding:.9rem 1rem .5rem”>
-    <ul class=”list-unstyled mb-2 d-flex flex-column gap-2”>
+  <div style="padding:.9rem 1rem .5rem">
+    <ul class="list-unstyled mb-2 d-flex flex-column gap-2">
       <?php foreach ($instructor_leaves as $lv):
         $ongoing   = $lv['date_from'] <= $today_d && $lv['date_to'] >= $today_d;
         $df        = date('d.m.Y', strtotime($lv['date_from']));
@@ -683,33 +683,33 @@ include __DIR__ . '/_layout_head.php';
         $range     = $df === $dt ? $df : ($df . ' – ' . $dt);
         $lvcourses = trim((string)($lv['course_names'] ?? ''));
       ?>
-      <li style=”border:1px solid #334155;border-radius:.4rem;padding:.5rem .75rem;font-size:.875rem”>
+      <li style="border:1px solid #334155;border-radius:.4rem;padding:.5rem .75rem;font-size:.875rem">
         <div>
           <strong><?= h($lv['instructor_name']) ?></strong>
           — <?= h(mb_strtolower(ti_leave_type_label($lv['type']))) ?>,
           <span><?= h($range) ?></span>
           <?php if ($ongoing): ?>
-          <span class=”badge text-bg-warning ms-1”>trwa teraz</span>
+          <span class="badge text-bg-warning ms-1">trwa teraz</span>
           <?php else: ?>
-          <span class=”badge text-bg-secondary ms-1”>wkrótce</span>
+          <span class="badge text-bg-secondary ms-1">wkrótce</span>
           <?php endif; ?>
         </div>
         <?php if ($lvcourses !== ''): ?>
-        <div style=”color:#94a3b8;margin-top:.25rem;font-size:.8rem”>Dotyczy: <?= h(str_replace(',', ', ', $lvcourses)) ?></div>
+        <div style="color:#94a3b8;margin-top:.25rem;font-size:.8rem">Dotyczy: <?= h(str_replace(',', ', ', $lvcourses)) ?></div>
         <?php endif; ?>
       </li>
       <?php endforeach; ?>
     </ul>
-    <p style=”font-size:.8rem;color:#94a3b8;margin:0”>
-      <i class=”bi bi-info-circle me-1” aria-hidden=”true”></i>W tym czasie zajęcia mogą zostać odwołane lub przełożone — sprawdź zakładkę „Moje lekcje”.
+    <p style="font-size:.8rem;color:#94a3b8;margin:0">
+      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>W tym czasie zajęcia mogą zostać odwołane lub przełożone — sprawdź zakładkę „Moje lekcje".
     </p>
   </div>
   <!-- Stopka -->
-  <div style=”padding:.5rem 1rem .8rem;text-align:right”>
-    <button type=”button” id=”leavePopupOk”
-            style=”background:#f59e0b;color:#1c1917;border:none;border-radius:.375rem;
-                   padding:.3rem .9rem;font-weight:600;cursor:pointer;font-size:.875rem”>
-      <i class=”bi bi-check-lg me-1” aria-hidden=”true”></i>Rozumiem
+  <div style="padding:.5rem 1rem .8rem;text-align:right">
+    <button type="button" id="leavePopupOk"
+            style="background:#f59e0b;color:#1c1917;border:none;border-radius:.375rem;
+                   padding:.3rem .9rem;font-weight:600;cursor:pointer;font-size:.875rem">
+      <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Rozumiem
     </button>
   </div>
 </div>
@@ -731,7 +731,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Pułapka Tab — fokus kręci się wewnątrz okna (a11y)
   popup.addEventListener('keydown', function(e) {
     if (e.key !== 'Tab') return;
-    var els = popup.querySelectorAll('button,[tabindex]:not([tabindex=”-1”])');
+    var els = popup.querySelectorAll('button,[tabindex]:not([tabindex="-1"])');
     var focusable = Array.prototype.filter.call(els, function(el){ return !el.disabled; });
     if (!focusable.length) return;
     var first = focusable[0], last = focusable[focusable.length - 1];
