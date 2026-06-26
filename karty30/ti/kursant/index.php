@@ -603,9 +603,9 @@ include __DIR__ . '/_layout_head.php';
   sort($leave_ids);
   $leave_fp = implode(',', $leave_ids);
 ?>
-<!-- ── Zaplanowane nieobecności prowadzących — popup (jednorazowy) ─────────── -->
+<!-- ── Nieobecność prowadzącego — wyskakujące okno (jednorazowe) ─────────────── -->
 
-<!-- Fallback bez JS -->
+<!-- Fallback bez JS: klasyczny alert -->
 <noscript>
 <div class=”alert alert-info d-flex gap-2 mb-3” role=”note”>
   <i class=”bi bi-airplane fs-5 flex-shrink-0 mt-1” aria-hidden=”true”></i>
@@ -632,83 +632,115 @@ include __DIR__ . '/_layout_head.php';
 </div>
 </noscript>
 
-<!-- Modal — Bootstrap 5, fokus przenoszony automatycznie na tytuł -->
-<div class=”modal fade” id=”leaveNoticeModal” tabindex=”-1”
-     role=”dialog” aria-modal=”true” aria-labelledby=”leaveNoticeTitle”
-     data-bs-backdrop=”static” data-bs-keyboard=”false”
-     data-leave-fp=”<?= h($leave_fp) ?>”>
-  <div class=”modal-dialog modal-dialog-centered”>
-    <div class=”modal-content”>
-      <div class=”modal-header border-0 pb-1”>
-        <h2 class=”modal-title h5 fw-bold” id=”leaveNoticeTitle”>
-          <i class=”bi bi-airplane-fill text-primary me-2” aria-hidden=”true”></i>Nieobecność prowadzącego
-        </h2>
-      </div>
-      <div class=”modal-body pt-1”>
-        <ul class=”list-unstyled mb-3 d-flex flex-column gap-2”>
-          <?php foreach ($instructor_leaves as $lv):
-            $ongoing   = $lv['date_from'] <= $today_d && $lv['date_to'] >= $today_d;
-            $df        = date('d.m.Y', strtotime($lv['date_from']));
-            $dt        = date('d.m.Y', strtotime($lv['date_to']));
-            $range     = $df === $dt ? $df : ($df . ' – ' . $dt);
-            $lvcourses = trim((string)($lv['course_names'] ?? ''));
-          ?>
-          <li class=”border rounded p-2”>
-            <div>
-              <strong><?= h($lv['instructor_name']) ?></strong>
-              — <?= h(mb_strtolower(ti_leave_type_label($lv['type']))) ?>,
-              <span class=”text-nowrap”><?= h($range) ?></span>
-              <span class=”badge <?= $ongoing ? 'text-bg-warning' : 'text-bg-secondary' ?> ms-1”>
-                <?= $ongoing ? 'trwa teraz' : 'wkrótce' ?>
-              </span>
-            </div>
-            <?php if ($lvcourses !== ''): ?>
-            <div class=”small text-body-secondary mt-1”>Dotyczy: <?= h(str_replace(',', ', ', $lvcourses)) ?></div>
-            <?php endif; ?>
-          </li>
-          <?php endforeach; ?>
-        </ul>
-        <p class=”small text-body-secondary mb-0”>
-          <i class=”bi bi-info-circle me-1” aria-hidden=”true”></i>W tym czasie zajęcia mogą zostać odwołane lub przełożone — sprawdź harmonogram w zakładce „Moje lekcje”.
-        </p>
-      </div>
-      <div class=”modal-footer border-0 pt-0”>
-        <button type=”button” class=”btn btn-primary” id=”leaveNoticeOk”>
-          <i class=”bi bi-check-lg me-1” aria-hidden=”true”></i>Rozumiem
-        </button>
-      </div>
-    </div>
+<!-- Wyskakujące okno: position:fixed, ramka, animacja wjazdu ─────────────── -->
+<style>
+#leavePopup {
+  display: none;
+  position: fixed;
+  z-index: 1080;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: min(420px, calc(100vw - 2rem));
+  background: var(--bs-body-bg);
+  border: 2px solid #f59e0b;
+  border-radius: .6rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,.28);
+  animation: leavePopupIn .25s ease;
+}
+@keyframes leavePopupIn {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0);    }
+}
+#leavePopup:focus { outline: none; }
+#leavePopup .lp-header {
+  background: #f59e0b;
+  color: #1c1917;
+  border-radius: .45rem .45rem 0 0;
+  padding: .6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+#leavePopup .lp-body  { padding: .9rem 1rem .5rem; }
+#leavePopup .lp-footer { padding: .5rem 1rem .8rem; text-align: right; }
+</style>
+
+<div id=”leavePopup” role=”dialog” aria-modal=”true” aria-labelledby=”leavePopupTitle”
+     data-leave-fp=”<?= h($leave_fp) ?>” tabindex=”-1”>
+  <div class=”lp-header”>
+    <i class=”bi bi-airplane-fill flex-shrink-0” aria-hidden=”true”></i>
+    <h2 class=”h6 mb-0 fw-bold” id=”leavePopupTitle”>Nieobecność prowadzącego</h2>
+  </div>
+  <div class=”lp-body”>
+    <ul class=”list-unstyled mb-2 d-flex flex-column gap-2”>
+      <?php foreach ($instructor_leaves as $lv):
+        $ongoing   = $lv['date_from'] <= $today_d && $lv['date_to'] >= $today_d;
+        $df        = date('d.m.Y', strtotime($lv['date_from']));
+        $dt        = date('d.m.Y', strtotime($lv['date_to']));
+        $range     = $df === $dt ? $df : ($df . ' – ' . $dt);
+        $lvcourses = trim((string)($lv['course_names'] ?? ''));
+      ?>
+      <li class=”border rounded p-2 small”>
+        <div>
+          <strong><?= h($lv['instructor_name']) ?></strong>
+          — <?= h(mb_strtolower(ti_leave_type_label($lv['type']))) ?>,
+          <span class=”text-nowrap”><?= h($range) ?></span>
+          <span class=”badge <?= $ongoing ? 'text-bg-warning' : 'text-bg-secondary' ?> ms-1”>
+            <?= $ongoing ? 'trwa teraz' : 'wkrótce' ?>
+          </span>
+        </div>
+        <?php if ($lvcourses !== ''): ?>
+        <div class=”text-body-secondary mt-1”>Dotyczy: <?= h(str_replace(',', ', ', $lvcourses)) ?></div>
+        <?php endif; ?>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <p class=”small text-body-secondary mb-0”>
+      <i class=”bi bi-info-circle me-1” aria-hidden=”true”></i>W tym czasie zajęcia mogą zostać odwołane lub przełożone — sprawdź zakładkę „Moje lekcje”.
+    </p>
+  </div>
+  <div class=”lp-footer”>
+    <button type=”button” class=”btn btn-warning btn-sm fw-semibold” id=”leavePopupOk”>
+      <i class=”bi bi-check-lg me-1” aria-hidden=”true”></i>Rozumiem
+    </button>
   </div>
 </div>
 <script>
 (function(){
   var STORE_KEY = 'ti_leave_seen';
-  var modal_el  = document.getElementById('leaveNoticeModal');
-  if (!modal_el) return;
-  var fp = modal_el.getAttribute('data-leave-fp');
-  if (localStorage.getItem(STORE_KEY) === fp) return; // już widziany
+  var popup = document.getElementById('leavePopup');
+  if (!popup) return;
+  var fp = popup.getAttribute('data-leave-fp');
+  if (localStorage.getItem(STORE_KEY) === fp) return;
 
-  var modal = new bootstrap.Modal(modal_el, {backdrop:'static', keyboard:false});
+  // Pokaż okno
+  popup.style.display = 'block';
+  // Fokus na tytuł (a11y: czytnik odczyta nagłówek dialogu)
+  var title = document.getElementById('leavePopupTitle');
+  if (title) { title.setAttribute('tabindex', '-1'); title.focus(); }
 
-  // Przenieś fokus na tytuł po otwarciu (a11y: czytnik ekranu odczyta nagłówek)
-  modal_el.addEventListener('shown.bs.modal', function(){
-    var title = document.getElementById('leaveNoticeTitle');
-    if (title) { title.setAttribute('tabindex','-1'); title.focus(); }
+  // Pułapka klawiszowa: Tab/Shift+Tab kręci wewnątrz okna
+  popup.addEventListener('keydown', function(e) {
+    if (e.key !== 'Tab') return;
+    var focusable = Array.from(popup.querySelectorAll('button,[tabindex]:not([tabindex=”-1”])'));
+    if (!focusable.length) return;
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
-  // Zamknięcie przez przycisk „Rozumiem” — zapisz fp i zamknij
-  document.getElementById('leaveNoticeOk').addEventListener('click', function(){
-    localStorage.setItem(STORE_KEY, fp);
-    modal.hide();
-  });
-
-  // Zwróć fokus do elementu, który był aktywny przed otwarciem modalu (a11y)
+  // Zamknięcie
   var prevFocus = document.activeElement;
-  modal_el.addEventListener('hidden.bs.modal', function(){
+  function dismiss() {
+    localStorage.setItem(STORE_KEY, fp);
+    popup.style.animation = 'none';
+    popup.style.opacity = '0';
+    popup.style.transform = 'translateY(20px)';
+    popup.style.transition = 'opacity .2s,transform .2s';
+    setTimeout(function(){ popup.style.display = 'none'; }, 200);
     if (prevFocus && prevFocus.focus) prevFocus.focus();
-  });
-
-  modal.show();
+  }
+  document.getElementById('leavePopupOk').addEventListener('click', dismiss);
 })();
 </script>
 
