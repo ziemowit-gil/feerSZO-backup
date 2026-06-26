@@ -62,6 +62,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $op = $_POST['_op'] ?? '';
 
+    if ($op === 'clear_alias') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        if ($aid) {
+            db()->prepare("UPDATE k30_ti_student_accounts SET login_alias='', updated_at=datetime('now') WHERE id=?")
+               ->execute([$aid]);
+            flash_set('success', 'Alias logowania usunięty.');
+        }
+        header('Location: accounts.php'); exit;
+    }
+
     if ($op === 'create') {
         $cid  = (int)($_POST['client_id'] ?? 0);
         $c    = $cid ? db_one("SELECT * FROM k30_clients WHERE id=?", [$cid]) : null;
@@ -671,7 +681,7 @@ function printBulk(){
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <thead class="table-light">
-            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
+            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Alias</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
             <?php foreach ($accounts as $a): ?>
@@ -688,6 +698,19 @@ function printBulk(){
                 </form>
               </td>
               <td class="font-monospace"><?= h($a['login']) ?></td>
+              <td>
+                <?php if (!empty($a['login_alias'])): ?>
+                <span class="font-monospace small text-info" title="Alias ustawiony przez kursanta"><?= h($a['login_alias']) ?></span>
+                <form method="post" class="d-inline ms-1" onsubmit="return confirm('Usunąć alias logowania tego kursanta?')">
+                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="_op" value="clear_alias">
+                  <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                  <button type="submit" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-1" title="Usuń alias"><i class="bi bi-x"></i></button>
+                </form>
+                <?php else: ?>
+                <span class="text-body-secondary small">—</span>
+                <?php endif; ?>
+              </td>
               <td>
                 <span class="badge <?= $a['is_active'] ? 'bg-success' : 'bg-secondary' ?>">
                   <?= $a['is_active'] ? 'Aktywne' : 'Zablokowane' ?>

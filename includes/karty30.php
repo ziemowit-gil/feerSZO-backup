@@ -677,6 +677,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_user_id    INTEGER",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_username   TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN moodle_created_at DATETIME",
+        // Alias logowania — własny login ustawiony przez kursanta (opcjonalny, unikalny)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN login_alias TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

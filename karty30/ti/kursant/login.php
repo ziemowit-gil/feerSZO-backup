@@ -23,8 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     $account = db_one(
-        "SELECT * FROM k30_ti_student_accounts WHERE login=? AND is_active=1",
-        [$login]
+        "SELECT * FROM k30_ti_student_accounts
+         WHERE (login=? OR (login_alias!='' AND login_alias=?)) AND is_active=1",
+        [$login, $login]
     );
 
     if ($account && password_verify($password, $account['password_hash'])) {
@@ -97,7 +98,7 @@ include __DIR__ . '/_layout_head.php';
                 <span class="input-group-text" aria-hidden="true"><i class="bi bi-person"></i></span>
                 <input type="text" class="form-control form-control-lg" id="login" name="login"
                        value="<?= h($_POST['login'] ?? '') ?>" required
-                       autofocus autocomplete="username" placeholder="Twój login">
+                       autofocus autocomplete="username" placeholder="Login lub własny alias">
               </div>
             </div>
             <div class="mb-4">

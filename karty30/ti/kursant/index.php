@@ -245,6 +245,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=ustawienia&pwok=1'); exit;
     }
 
+    // Ustawienie / zmiana aliasu logowania przez kursanta
+    if ($op === 'set_alias') {
+        $alias = mb_strtolower(trim((string)($_POST['alias'] ?? '')));
+        $err = '';
+        if ($alias === '') {
+            // Usunięcie aliasu
+            db()->prepare("UPDATE k30_ti_student_accounts SET login_alias='', updated_at=datetime('now') WHERE id=?")
+               ->execute([(int)$student['id']]);
+            header('Location: index.php?tab=ustawienia&alias=removed'); exit;
+        }
+        if (!preg_match('/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/', $alias)) {
+            $err = 'Alias może zawierać tylko litery a–z, cyfry, kropki, myślniki i podkreślenia (3–30 znaków, bez spacji).';
+        } elseif (db_one("SELECT id FROM k30_ti_student_accounts WHERE login=? AND id!=?", [$alias, (int)$student['id']])) {
+            $err = 'Ta nazwa jest już zajęta jako login innego kursanta.';
+        } elseif (db_one("SELECT id FROM k30_ti_student_accounts WHERE login_alias=? AND id!=?", [$alias, (int)$student['id']])) {
+            $err = 'Ten alias jest już zajęty przez kogoś innego.';
+        }
+        if ($err !== '') {
+            header('Location: index.php?tab=ustawienia&aliaserr=' . rawurlencode($err)); exit;
+        }
+        db()->prepare("UPDATE k30_ti_student_accounts SET login_alias=?, updated_at=datetime('now') WHERE id=?")
+           ->execute([$alias, (int)$student['id']]);
+        header('Location: index.php?tab=ustawienia&alias=ok'); exit;
+    }
+
     // Zgłoszenie problemu technicznego → ticket helpdesk z prefiksem KUR
     if ($op === 'report_issue') {
         $title = trim((string)($_POST['title'] ?? ''));
@@ -2186,6 +2211,50 @@ document.addEventListener('DOMContentLoaded', function() {
           <p class="text-body-secondary small mb-0 mt-2"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
             <?php endif; ?>
           <?php endif; ?>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Alias logowania ───────────────────────────────────────────────────── -->
+    <div class="col-12 col-lg-6">
+      <section class="card h-100" aria-labelledby="alias-heading">
+        <div class="card-body">
+          <h2 id="alias-heading" class="h6 fw-bold mb-2"><i class="bi bi-person-badge me-2 text-info" aria-hidden="true"></i>Własny alias logowania</h2>
+          <p class="text-body-secondary small mb-3">
+            Możesz ustawić własną, łatwą do zapamiętania nazwę logowania (alias) — zamiast przydzielonego loginu systemowego.
+            Alias musi być unikalny (3–30 znaków: litery a–z, cyfry, kropki, myślniki, podkreślenia).
+          </p>
+          <?php
+            $cur_alias = (string)($account['login_alias'] ?? '');
+            $alias_msg = $_GET['alias'] ?? '';
+            $alias_err = rawurldecode((string)($_GET['aliaserr'] ?? ''));
+          ?>
+          <?php if ($alias_msg === 'ok'): ?>
+          <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1"></i>Alias logowania zapisany.</div>
+          <?php elseif ($alias_msg === 'removed'): ?>
+          <div class="alert alert-secondary py-2 small" role="alert">Alias logowania usunięty — logujesz się ponownie przydzielonym loginem.</div>
+          <?php endif; ?>
+          <?php if ($alias_err !== ''): ?>
+          <div class="alert alert-danger py-2 small" role="alert"><i class="bi bi-exclamation-circle me-1"></i><?= h($alias_err) ?></div>
+          <?php endif; ?>
+          <?php if ($cur_alias !== ''): ?>
+          <p class="small mb-2">
+            Aktywny alias: <code class="text-info fw-bold"><?= h($cur_alias) ?></code>
+          </p>
+          <?php endif; ?>
+          <form method="post" autocomplete="off">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="set_alias">
+            <div class="mb-2">
+              <label class="form-label small" for="alias-input">Alias (pozostaw puste, by usunąć)</label>
+              <input type="text" class="form-control form-control-sm font-monospace" id="alias-input" name="alias"
+                     value="<?= h($cur_alias) ?>" maxlength="30" autocomplete="off"
+                     placeholder="np. jan.kowalski" pattern="[a-z0-9][a-z0-9._\-]{1,28}[a-z0-9]"
+                     aria-describedby="alias-hint">
+              <div class="form-text" id="alias-hint">Twój login systemowy: <code><?= h((string)($account['login'] ?? '')) ?></code> — nadal działa.</div>
+            </div>
+            <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz alias</button>
+          </form>
         </div>
       </section>
     </div>
