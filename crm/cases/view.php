@@ -800,13 +800,29 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           </div>
         </div>
 
-        <!-- Przycisk klawiaturowy jako alternatywa dla strefy -->
-        <div class="mt-2">
+        <!-- Przyciski wyboru pliku -->
+        <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
           <button type="button" id="drop-btn-choose"
                   class="btn btn-outline-secondary btn-sm"
                   aria-describedby="drop-formats">
             <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Wybierz pliki…
           </button>
+          <?php if (m365_setting('sp_enabled') === '1' && MS_CLIENT_ID): ?>
+          <button type="button" id="od-btn"
+                  class="btn btn-outline-primary btn-sm"
+                  aria-label="Dodaj plik z OneDrive Microsoft 365">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="margin-right:.3rem">
+              <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+            </svg>OneDrive
+          </button>
+          <?php endif; ?>
+          <?php if (m365_setting('sp_enabled') === '1' && is_admin()): ?>
+          <button type="button" id="sp-backup-btn"
+                  class="btn btn-outline-dark btn-sm ms-auto"
+                  aria-label="Wykonaj backup bazy danych na SharePoint">
+            <i class="bi bi-cloud-arrow-up me-1" aria-hidden="true"></i>Backup DB → SharePoint
+          </button>
+          <?php endif; ?>
         </div>
 
         <!-- Kolejka uploadu — ogłoszenia dla czytników ekranu -->
@@ -1089,8 +1105,202 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           document.body.appendChild(form);
           form.submit();
         };
+
+        // ── OneDrive File Picker v8 ──────────────────────────────────────────
+        var OD_CLIENT_ID   = '<?= h(MS_CLIENT_ID) ?>';
+        var OD_IMPORT_URL  = '<?= APP_URL ?>/crm/cases/api/od_import.php';
+        var odBtn = document.getElementById('od-btn');
+        if (odBtn && OD_CLIENT_ID) {
+          // Ładuj SDK lazily przy pierwszym kliknięciu
+          var _odSdkLoaded = false;
+          function loadOdSdk(cb) {
+            if (_odSdkLoaded) { cb(); return; }
+            var s = document.createElement('script');
+            s.src = 'https://res-1.cdn.office.net/files/odsp-next-0.2089.0-0/OneDrive.Picker.js';
+            s.onload = function(){ _odSdkLoaded = true; cb(); };
+            s.onerror = function(){ setAnnounce('Nie udało się załadować OneDrive Picker.'); };
+            document.head.appendChild(s);
+          }
+
+          odBtn.addEventListener('click', function() {
+            odBtn.disabled = true;
+            odBtn.setAttribute('aria-busy', 'true');
+            loadOdSdk(function() {
+              odBtn.disabled = false;
+              odBtn.removeAttribute('aria-busy');
+              try {
+                var picker = new OneDrive.OneDrivePicker({
+                  clientId: OD_CLIENT_ID,
+                  action:   'download',
+                  multiSelect: true,
+                  advanced: {
+                    filter: '.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip,.pptx,.ppt,.odt,.ods',
+                    redirectUri: '<?= h(APP_URL) ?>/auth/microsoft.php',
+                  },
+                  success: function(files) {
+                    files.value.forEach(function(f) {
+                      importFromOneDrive({
+                        name:         f.name,
+                        size:         f.size,
+                        download_url: f['@microsoft.graph.downloadUrl'],
+                      });
+                    });
+                  },
+                  cancel: function() {},
+                  error: function(err) {
+                    setAnnounce('Błąd OneDrive: ' + (err.message || err));
+                  },
+                });
+                picker.open();
+              } catch(e) {
+                setAnnounce('Błąd otwierania OneDrive: ' + e.message);
+              }
+            });
+          });
+
+          function importFromOneDrive(f) {
+            var ext  = (f.name.split('.').pop() || '').toLowerCase();
+            var icon = EXT_ICONS[ext] || 'bi-file-earmark text-muted';
+            var nameId = uid();
+
+            var li = document.createElement('li');
+            li.className = 'upload-item';
+            li.setAttribute('aria-label', 'Import z OneDrive: ' + f.name);
+            li.innerHTML =
+              '<div class="ui-row1">'
+                + '<div class="ui-icon" style="background:#e7f0fd;color:#0078d4" aria-hidden="true">'
+                  + '<i class="bi ' + icon + '"></i></div>'
+                + '<div class="ui-name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>'
+                + '<span class="badge bg-primary ms-1" style="font-size:.65rem;white-space:nowrap">OneDrive</span>'
+                + '<button type="button" class="btn btn-outline-secondary btn-sm ui-cancel-btn ms-1 px-2 py-0"'
+                  + ' aria-label="Anuluj import: ' + esc(f.name) + '">'
+                  + '<i class="bi bi-x" aria-hidden="true"></i><span class="visually-hidden">Anuluj</span></button>'
+              + '</div>'
+              + '<div class="ui-form">'
+                + '<label for="' + nameId + '" class="ui-label">Nazwa własna:</label>'
+                + '<input id="' + nameId + '" type="text" class="form-control form-control-sm ui-custom-name"'
+                  + ' style="flex:1;font-size:.82rem" placeholder="opcjonalna">'
+                + '<button type="button" class="btn btn-primary btn-sm ui-send-btn" style="white-space:nowrap">'
+                  + '<i class="bi bi-cloud-download me-1" aria-hidden="true"></i>Importuj</button>'
+              + '</div>'
+              + '<div class="ui-progress" role="group" aria-label="Postęp importu: ' + esc(f.name) + '">'
+                + '<div class="ui-bar-wrap"><div class="ui-bar" role="progressbar"'
+                  + ' aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Pobieranie…"'
+                  + ' style="animation:odPulse 1.2s ease-in-out infinite"></div></div>'
+                + '<div class="ui-pct" aria-hidden="true"></div>'
+                + '<div class="ui-msg"></div>'
+              + '</div>';
+
+            queue.appendChild(li);
+
+            var nameInput   = li.querySelector('.ui-custom-name');
+            var sendBtn     = li.querySelector('.ui-send-btn');
+            var cancelBtn   = li.querySelector('.ui-cancel-btn');
+            var progressRow = li.querySelector('.ui-progress');
+            var bar         = li.querySelector('.ui-bar');
+            var msg         = li.querySelector('.ui-msg');
+
+            nameInput.focus();
+            cancelBtn.addEventListener('click', function(){ li.remove(); setAnnounce('Anulowano import: ' + f.name); });
+
+            function doImport() {
+              sendBtn.disabled   = true;
+              cancelBtn.disabled = true;
+              nameInput.disabled = true;
+              progressRow.style.display = 'flex';
+              bar.setAttribute('aria-valuetext', 'Pobieranie z OneDrive…');
+
+              var payload = {
+                case_id:      CASE_ID,
+                _csrf:        CSRF,
+                name:         f.name,
+                size:         f.size,
+                download_url: f.download_url,
+                display_name: nameInput.value.trim(),
+              };
+
+              fetch(OD_IMPORT_URL, {
+                method:  'POST',
+                headers: {'Content-Type': 'application/json'},
+                body:    JSON.stringify(payload),
+              })
+              .then(function(r){ return r.json(); })
+              .then(function(res) {
+                if (res.ok) {
+                  bar.style.width = '100%';
+                  bar.style.animation = 'none';
+                  bar.setAttribute('aria-valuetext', '100 procent');
+                  li.classList.add('done');
+                  msg.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> <span>Zaimportowano</span></span>';
+                  setAnnounce('Zaimportowano z OneDrive: ' + (res.file.display_name || f.name));
+                  setTimeout(function(){ li.remove(); }, 2000);
+                  appendFileRow(res.file);
+                  updateCount(1);
+                } else {
+                  li.classList.add('error');
+                  bar.style.animation = 'none';
+                  msg.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle-fill" aria-hidden="true"></i> <span>' + esc(res.error || 'Błąd') + '</span></span>';
+                  setAnnounce('Błąd importu ' + f.name + ': ' + (res.error || 'Błąd'));
+                  sendBtn.disabled = cancelBtn.disabled = nameInput.disabled = false;
+                  sendBtn.focus();
+                }
+              })
+              .catch(function(e) {
+                li.classList.add('error');
+                bar.style.animation = 'none';
+                msg.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle-fill" aria-hidden="true"></i> <span>Błąd sieci</span></span>';
+                setAnnounce('Błąd sieci podczas importu: ' + f.name);
+                sendBtn.disabled = cancelBtn.disabled = false;
+              });
+            }
+
+            sendBtn.addEventListener('click', doImport);
+            nameInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); doImport(); } });
+          }
+        }
+
+        // ── Backup DB → SharePoint ───────────────────────────────────────────
+        var spBtn = document.getElementById('sp-backup-btn');
+        if (spBtn) {
+          spBtn.addEventListener('click', function() {
+            if (!confirm('Wykonać teraz backup bazy danych na SharePoint?')) return;
+            spBtn.disabled = true;
+            spBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Backup…';
+            spBtn.setAttribute('aria-busy', 'true');
+            fetch('<?= APP_URL ?>/api/sp_backup.php', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+              body:   '_csrf=' + encodeURIComponent(CSRF),
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+              spBtn.disabled = false;
+              spBtn.removeAttribute('aria-busy');
+              spBtn.innerHTML = '<i class="bi bi-cloud-arrow-up me-1" aria-hidden="true"></i>Backup DB → SharePoint';
+              if (res.ok) {
+                setAnnounce('Backup wykonany: ' + (res.sp_path || '') + ' (' + (res.size_h || '') + ')');
+                spBtn.classList.replace('btn-outline-dark', 'btn-outline-success');
+                setTimeout(function(){ spBtn.classList.replace('btn-outline-success','btn-outline-dark'); }, 4000);
+              } else {
+                setAnnounce('Błąd backupu: ' + (res.error || 'Nieznany błąd'));
+                alert('Błąd backupu: ' + (res.error || 'Nieznany błąd'));
+              }
+            })
+            .catch(function() {
+              spBtn.disabled = false;
+              spBtn.removeAttribute('aria-busy');
+              spBtn.innerHTML = '<i class="bi bi-cloud-arrow-up me-1" aria-hidden="true"></i>Backup DB → SharePoint';
+              alert('Błąd sieci podczas backupu.');
+            });
+          });
+        }
       })();
       </script>
+      <style>
+        @keyframes odPulse {
+          0%,100%{opacity:.4;width:30%} 50%{opacity:1;width:70%}
+        }
+      </style>
       <?php endif; ?>
     </div></div>
   </div>

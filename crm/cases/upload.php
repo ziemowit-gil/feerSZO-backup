@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -59,6 +60,9 @@ $disp      = trim($_POST['file_display_name'] ?? '') ?: $f['name'];
 $file_desc = trim($_POST['file_description'] ?? '');
 
 if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) je('Nie udało się zapisać pliku.', 500);
+
+// Backup na SharePoint (nieblokujące — błędy ignorowane)
+try { sp_sync_upload('crm_cases/' . $stored); } catch (\Throwable $e) { /* ignoruj */ }
 
 $new_id = db_insert('crm_case_files', [
     'case_id'       => $case_id,
