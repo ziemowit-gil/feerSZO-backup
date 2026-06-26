@@ -857,32 +857,156 @@ function vlab_student_ports_data(int $containerId, int $studentId): array {
     return ['ok' => true, 'mappings' => $maps, 'open' => vlab_ports_list($containerId)];
 }
 
-/** Otwiera port maszyny kursanta — tylko port należący do mapowań tej maszyny. */
+/** Składa wniosek o otwarcie portu maszyny kursanta (wymaga zatwierdzenia przez admina). */
 function vlab_port_open_student(int $containerId, int $studentId, int $hostPort, string $proto): array {
     if (vlab_is_disabled())        return ['ok' => false, 'msg' => vlab_disabled_notice()];
     if (!vlab_student_can_ports()) return ['ok' => false, 'msg' => 'Zarządzanie portami zostało wyłączone przez administratora.'];
-    $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND student_id=? AND status!='removed'", [$containerId, $studentId]);
-    if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
-
-    // Kursant może otwierać WYŁĄCZNIE port hosta będący mapowaniem swojego kontenera.
-    $belongs = false;
-    foreach (vlab_docker_ports_all($cont['container_name']) as $m) {
-        if ((int)$m['host'] === $hostPort) { $belongs = true; break; }
-    }
-    if (!$belongs) return ['ok' => false, 'msg' => 'Możesz otwierać tylko porty należące do Twojej maszyny.'];
-
-    return vlab_port_open($containerId, $hostPort, $proto, null, 'kursant');
+    return vlab_port_request_open($containerId, $hostPort, $proto, 'kursant', null, $studentId);
 }
 
-/** Zamyka port maszyny kursanta (po weryfikacji właściciela). */
+/** Składa wniosek o zamknięcie portu maszyny kursanta (wymaga zatwierdzenia przez admina). */
 function vlab_port_close_student(int $portRowId, int $studentId): array {
     if (!vlab_student_can_ports()) return ['ok' => false, 'msg' => 'Zarządzanie portami zostało wyłączone przez administratora.'];
-    $row = db_one(
-        "SELECT p.id FROM k30_ti_vlab_ports p
-         JOIN k30_ti_vlab_containers c ON c.id=p.container_id
-         WHERE p.id=? AND c.student_id=?",
-        [$portRowId, $studentId]
+    return vlab_port_request_close($portRowId, 'kursant', null, $studentId);
+}
+
+// ── Wnioski o otwarcie/zamknięcie portów (wymagają zatwierdzenia przez admina) ─
+
+/**
+ * Złóż wniosek o otwarcie portu (kursant lub k30 staff).
+ * @param int|null $byUserId     ID użytkownika systemowego (staff) lub null
+ * @param int|null $byStudentId  ID konta kursanta lub null
+ */
+function vlab_port_request_open(int $containerId, int $hostPort, string $proto, string $note = '',
+                                 ?int $byUserId = null, ?int $byStudentId = null): array {
+    $proto = vlab_proto($proto);
+    if ($hostPort < 1 || $hostPort > 65535) return ['ok' => false, 'msg' => 'Nieprawidłowy numer portu.'];
+    $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND status!='removed'", [$containerId]);
+    if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
+
+    // Kursant może zgłaszać tylko mapowane porty swojej maszyny
+    if ($byStudentId !== null) {
+        if ((int)$cont['student_id'] !== $byStudentId) return ['ok' => false, 'msg' => 'Brak dostępu.'];
+        if ($cont['status'] !== 'running') return ['ok' => false, 'msg' => 'Maszyna nie jest uruchomiona.'];
+        $belongs = false;
+        foreach (vlab_docker_ports_all($cont['container_name']) as $m) {
+            if ((int)$m['host'] === $hostPort) { $belongs = true; break; }
+        }
+        if (!$belongs) return ['ok' => false, 'msg' => 'Możesz zgłaszać tylko porty przypisane do Twojej maszyny.'];
+    }
+
+    // Nie duplikuj wniosku oczekującego
+    $dup = db_one(
+        "SELECT id FROM k30_vlab_port_requests WHERE container_id=? AND host_port=? AND proto=? AND action='open' AND status='pending'",
+        [$containerId, $hostPort, $proto]
     );
-    if (!$row) return ['ok' => false, 'msg' => 'Wpis nie istnieje.'];
-    return vlab_port_close($portRowId);
+    if ($dup) return ['ok' => false, 'msg' => 'Wniosek o ten port jest już oczekujący.'];
+
+    db_insert('k30_vlab_port_requests', [
+        'container_id'        => $containerId,
+        'action'              => 'open',
+        'host_port'           => $hostPort,
+        'proto'               => $proto,
+        'note'                => mb_substr($note, 0, 200),
+        'requested_by'        => $byUserId,
+        'requested_by_student'=> $byStudentId,
+        'status'              => 'pending',
+    ]);
+    return ['ok' => true, 'msg' => 'Wniosek złożony — oczekuje na zatwierdzenie przez administratora.'];
+}
+
+/**
+ * Złóż wniosek o zamknięcie portu.
+ */
+function vlab_port_request_close(int $portRowId, string $note = '',
+                                  ?int $byUserId = null, ?int $byStudentId = null): array {
+    $row = db_one("SELECT p.*, c.student_id AS c_student FROM k30_ti_vlab_ports p
+                   JOIN k30_ti_vlab_containers c ON c.id=p.container_id
+                   WHERE p.id=?", [$portRowId]);
+    if (!$row) return ['ok' => false, 'msg' => 'Port nie istnieje.'];
+
+    if ($byStudentId !== null && (int)$row['c_student'] !== $byStudentId) {
+        return ['ok' => false, 'msg' => 'Brak dostępu.'];
+    }
+
+    $dup = db_one(
+        "SELECT id FROM k30_vlab_port_requests WHERE port_row_id=? AND action='close' AND status='pending'",
+        [$portRowId]
+    );
+    if ($dup) return ['ok' => false, 'msg' => 'Wniosek o zamknięcie tego portu jest już oczekujący.'];
+
+    db_insert('k30_vlab_port_requests', [
+        'container_id'        => (int)$row['container_id'],
+        'action'              => 'close',
+        'host_port'           => (int)$row['host_port'],
+        'proto'               => $row['proto'],
+        'port_row_id'         => $portRowId,
+        'note'                => mb_substr($note, 0, 200),
+        'requested_by'        => $byUserId,
+        'requested_by_student'=> $byStudentId,
+        'status'              => 'pending',
+    ]);
+    return ['ok' => true, 'msg' => 'Wniosek złożony — oczekuje na zatwierdzenie przez administratora.'];
+}
+
+/** Lista wniosków dla kontenera (opcjonalnie filtr statusu). */
+function vlab_port_requests_for(int $containerId, string $status = ''): array {
+    $params = [$containerId];
+    $where  = 'r.container_id=?';
+    if ($status !== '') { $where .= ' AND r.status=?'; $params[] = $status; }
+    return db_all(
+        "SELECT r.*,
+                COALESCE(u.name, sa.login) AS req_name,
+                au.name AS approver_name
+         FROM k30_vlab_port_requests r
+         LEFT JOIN users u ON u.id=r.requested_by
+         LEFT JOIN k30_ti_student_accounts sa ON sa.id=r.requested_by_student
+         LEFT JOIN users au ON au.id=r.approved_by
+         WHERE $where
+         ORDER BY r.created_at DESC",
+        $params
+    );
+}
+
+/** Lista wszystkich wniosków pending (widok globalny dla admina). */
+function vlab_port_requests_pending_all(): array {
+    return db_all(
+        "SELECT r.*,
+                c.label AS cont_label, c.container_name,
+                cl.name AS client_name,
+                COALESCE(u.name, sa.login) AS req_name
+         FROM k30_vlab_port_requests r
+         JOIN k30_ti_vlab_containers c ON c.id=r.container_id
+         LEFT JOIN k30_clients cl ON cl.id=c.client_id
+         LEFT JOIN users u ON u.id=r.requested_by
+         LEFT JOIN k30_ti_student_accounts sa ON sa.id=r.requested_by_student
+         WHERE r.status='pending'
+         ORDER BY r.created_at ASC"
+    );
+}
+
+/** Admin zatwierdza wniosek — wykonuje faktyczną zmianę portu. */
+function vlab_port_request_approve(int $requestId, int $adminId): array {
+    $req = db_one("SELECT * FROM k30_vlab_port_requests WHERE id=? AND status='pending'", [$requestId]);
+    if (!$req) return ['ok' => false, 'msg' => 'Wniosek nie istnieje lub nie jest oczekujący.'];
+
+    if ($req['action'] === 'open') {
+        $result = vlab_port_open((int)$req['container_id'], (int)$req['host_port'], $req['proto'], $adminId, $req['note']);
+    } else {
+        if (!$req['port_row_id']) return ['ok' => false, 'msg' => 'Brak port_row_id dla zamknięcia.'];
+        $result = vlab_port_close((int)$req['port_row_id']);
+    }
+
+    db()->prepare(
+        "UPDATE k30_vlab_port_requests SET status='approved', approved_by=?, approved_at=datetime('now') WHERE id=?"
+    )->execute([$adminId, $requestId]);
+
+    return $result;
+}
+
+/** Admin odrzuca wniosek. */
+function vlab_port_request_reject(int $requestId, int $adminId, string $reason = ''): void {
+    db()->prepare(
+        "UPDATE k30_vlab_port_requests SET status='rejected', approved_by=?, approved_at=datetime('now'), reject_reason=? WHERE id=? AND status='pending'"
+    )->execute([$adminId, mb_substr($reason, 0, 300), $requestId]);
 }

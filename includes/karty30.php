@@ -632,6 +632,26 @@ function karty30_migrate(): void {
         UNIQUE(container_id, host_port, proto)
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_ports_cont ON k30_ti_vlab_ports(container_id)");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_vlab_port_requests (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        container_id INTEGER NOT NULL REFERENCES k30_ti_vlab_containers(id) ON DELETE CASCADE,
+        action       TEXT    NOT NULL DEFAULT 'open',  -- 'open' | 'close'
+        host_port    INTEGER NOT NULL,
+        proto        TEXT    NOT NULL DEFAULT 'tcp',
+        port_row_id  INTEGER REFERENCES k30_ti_vlab_ports(id) ON DELETE SET NULL, -- tylko dla 'close'
+        note         TEXT    NOT NULL DEFAULT '',
+        status       TEXT    NOT NULL DEFAULT 'pending', -- 'pending'|'approved'|'rejected'
+        requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        requested_by_student INTEGER REFERENCES k30_ti_student_accounts(id) ON DELETE SET NULL,
+        approved_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        approved_at  DATETIME,
+        reject_reason TEXT   NOT NULL DEFAULT '',
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_port_req_cont   ON k30_vlab_port_requests(container_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_port_req_status ON k30_vlab_port_requests(status)");
+
     // Sugerowane porty do wystawienia dla szablonu (np. „80,443") — podpowiedź przy tworzeniu maszyny
     try { $pdo->exec("ALTER TABLE k30_ti_vlab_templates ADD COLUMN default_ports TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
