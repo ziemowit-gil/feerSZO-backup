@@ -6,7 +6,6 @@
  * Dostęp: zalogowany dydaktyk posiadający ten kurs.
  */
 require_once __DIR__ . '/auth.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab_contracts.php'; // _att_txt()
 
 karty30_migrate();
 $me  = dyd_require();
@@ -49,7 +48,7 @@ $att = [];
 foreach ($att_raw as $r) $att[(int)$r['session_id']][(int)$r['client_id']] = $r;
 
 // ── PDF ──────────────────────────────────────────────────────────────────────
-require_once dirname(dirname(dirname(dirname(__DIR__)))) . '/includes/fpdf/fpdf.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
 
 function _att_txt(string $s): string {
     return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
