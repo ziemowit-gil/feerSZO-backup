@@ -185,6 +185,58 @@ function hdInitQuill(root) {
     }
   });
 }
+
+function hdBindFullscreen(root) {
+  root = root || document;
+  root.querySelectorAll('.hd-fs-btn').forEach(function(btn) {
+    if (btn._fsBound) return;
+    btn._fsBound = true;
+    btn.addEventListener('click', function() {
+      var wrapId  = btn.dataset.target;
+      var wrap    = document.getElementById(wrapId); if (!wrap) return;
+      var overlay = document.getElementById(wrapId.replace('_wrap', '_fsOverlay')); if (!overlay) return;
+      var fsBody  = document.getElementById(wrapId.replace('_wrap', '_fsBody')); if (!fsBody) return;
+      var q = wrap._quill; if (!q) return;
+      // Przenieś toolbar + container do fsBody
+      var toolbar   = wrap.querySelector('.ql-toolbar');
+      var container = wrap.querySelector('.ql-container');
+      if (toolbar)   fsBody.appendChild(toolbar);
+      if (container) fsBody.appendChild(container);
+      overlay.classList.add('active');
+      overlay._origWrap = wrap;
+      // Focus edytor
+      setTimeout(function(){ q.focus(); }, 80);
+    });
+  });
+  root.querySelectorAll('.hd-fs-close').forEach(function(btn) {
+    if (btn._fsBound) return;
+    btn._fsBound = true;
+    btn.addEventListener('click', function() {
+      var overlay = document.getElementById(btn.dataset.overlay); if (!overlay) return;
+      hdFsClose(overlay);
+    });
+  });
+  // Zamknij na Escape
+  if (!root._hdEscBound) {
+    root._hdEscBound = true;
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape') return;
+      var active = document.querySelector('.hd-quill-fs-overlay.active');
+      if (active) { e.preventDefault(); hdFsClose(active); }
+    });
+  }
+}
+
+function hdFsClose(overlay) {
+  var wrap = overlay._origWrap; if (!wrap) { overlay.classList.remove('active'); return; }
+  var fsBody = overlay.querySelector('.hd-quill-fs-body'); if (!fsBody) { overlay.classList.remove('active'); return; }
+  // Zwróć toolbar + container z powrotem do oryginalnego wrapa
+  var toolbar   = fsBody.querySelector('.ql-toolbar');
+  var container = fsBody.querySelector('.ql-container');
+  if (toolbar)   wrap.appendChild(toolbar);
+  if (container) wrap.appendChild(container);
+  overlay.classList.remove('active');
+}
 </script>
 
 <script>
@@ -368,6 +420,8 @@ function hdInitQuill(root) {
     });
     // Inicjalizuj Quill w panelu (tryb pane)
     hdInitQuill(root);
+    // Fullscreen edytor
+    hdBindFullscreen(root);
 
     // Formularze akcji → XHR
     root.querySelectorAll('form[data-hd-form]').forEach(function (f) {

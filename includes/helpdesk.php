@@ -577,6 +577,15 @@ function hd_ui_css(): string {
 .hd-quill-wrap .ql-editor{min-height:110px;font-size:.9rem;font-family:inherit}
 .hd-quill-wrap .ql-editor.ql-blank::before{color:#9ca3af;font-style:normal}
 .hd-quill-wrap.is-invalid .ql-toolbar,.hd-quill-wrap.is-invalid .ql-container{border-color:#dc3545}
+/* Fullscreen edytor */
+.hd-quill-fs-overlay{display:none;position:fixed;inset:0;z-index:1070;background:rgba(0,0,0,.55);align-items:center;justify-content:center}
+.hd-quill-fs-overlay.active{display:flex}
+.hd-quill-fs-box{background:#fff;border-radius:12px;width:min(900px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.hd-quill-fs-header{display:flex;align-items:center;justify-content:space-between;padding:.6rem 1rem;border-bottom:1px solid #e5e7eb;flex-shrink:0}
+.hd-quill-fs-body{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.hd-quill-fs-body .ql-toolbar.ql-snow{border-radius:0;border-left:none;border-right:none;border-top:none;flex-shrink:0}
+.hd-quill-fs-body .ql-container.ql-snow{border:none;flex:1;overflow:auto}
+.hd-quill-fs-body .ql-editor{min-height:300px;height:100%;font-size:1rem;font-family:inherit}
 /* Badge weryfikacji */
 .hd-email-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
 .hd-email-badge.verified{background:#dcfce7;color:#166534;border:1px solid #86efac}

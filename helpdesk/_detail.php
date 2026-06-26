@@ -169,6 +169,15 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
         <?php $hd_editor_id = 'hdQuill_' . (int)$ticket['id']; ?>
         <!-- Ukryte pole z HTML z Quilla -->
         <input type="hidden" name="msg_body" id="<?= $hd_editor_id ?>_hidden">
+        <!-- Nagłówek edytora z przyciskiem fullscreen -->
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <span class="small text-muted">Treść odpowiedzi</span>
+          <button type="button" class="btn btn-sm btn-link p-0 text-secondary hd-fs-btn"
+                  data-target="<?= $hd_editor_id ?>_wrap"
+                  title="Otwórz edytor na pełny ekran" aria-label="Pełny ekran edytora">
+            <i class="bi bi-fullscreen" aria-hidden="true"></i>
+          </button>
+        </div>
         <!-- Quill editor -->
         <div class="hd-quill-wrap mb-2" id="<?= $hd_editor_id ?>_wrap">
           <div id="<?= $hd_editor_id ?>" aria-label="Treść odpowiedzi" aria-required="true"
@@ -456,6 +465,20 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
 </div>
 <?php endif; ?>
 
+<!-- Overlay fullscreen edytora (jeden na stronę/pane) -->
+<div class="hd-quill-fs-overlay" id="<?= $hd_editor_id ?>_fsOverlay" role="dialog" aria-modal="true" aria-label="Edytor pełnoekranowy">
+  <div class="hd-quill-fs-box">
+    <div class="hd-quill-fs-header">
+      <span class="fw-semibold" style="font-size:.9rem"><i class="bi bi-pencil-square me-1 text-primary"></i>Edytor odpowiedzi</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary hd-fs-close" data-overlay="<?= $hd_editor_id ?>_fsOverlay"
+              aria-label="Zamknij edytor pełnoekranowy">
+        <i class="bi bi-fullscreen-exit me-1" aria-hidden="true"></i>Zamknij
+      </button>
+    </div>
+    <div class="hd-quill-fs-body" id="<?= $hd_editor_id ?>_fsBody"></div>
+  </div>
+</div>
+
 <?php if (!$hd_pane): ?>
 <!-- Zachowania dla strony samodzielnej (w konsoli wiąże je index.php) -->
 <script>
@@ -494,6 +517,7 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
     root.querySelectorAll('form[data-hd-confirm]').forEach(function(f){ f.addEventListener('submit',function(e){ if(!confirm(f.dataset.hdConfirm)) e.preventDefault(); }); });
   }
   bind(document);
+  if (typeof hdBindFullscreen !== 'undefined') hdBindFullscreen(document);
 })();
 </script>
 <?php endif; ?>
@@ -503,7 +527,7 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
-// hdInitQuill zdefiniowane w index.php; dla view.php samodzielnego definiujemy inline
+// hdInitQuill i hdBindFullscreen zdefiniowane w index.php; dla view.php samodzielnego definiujemy inline
 if (typeof hdInitQuill === 'undefined') {
   window.QUILL_TOOLBAR = [
     [{ 'header': [false, 2, 3] }],
@@ -536,6 +560,48 @@ if (typeof hdInitQuill === 'undefined') {
     });
   };
   hdInitQuill(document);
+
+  if (typeof hdBindFullscreen === 'undefined') {
+    window.hdBindFullscreen = function(root) {
+      root = root || document;
+      root.querySelectorAll('.hd-fs-btn').forEach(function(btn) {
+        if (btn._fsBound) return; btn._fsBound = true;
+        btn.addEventListener('click', function() {
+          var wrap    = document.getElementById(btn.dataset.target); if (!wrap) return;
+          var overlay = document.getElementById(btn.dataset.target.replace('_wrap','_fsOverlay')); if (!overlay) return;
+          var fsBody  = document.getElementById(btn.dataset.target.replace('_wrap','_fsBody')); if (!fsBody) return;
+          var q = wrap._quill; if (!q) return;
+          var toolbar = wrap.querySelector('.ql-toolbar'), container = wrap.querySelector('.ql-container');
+          if (toolbar) fsBody.appendChild(toolbar);
+          if (container) fsBody.appendChild(container);
+          overlay.classList.add('active'); overlay._origWrap = wrap;
+          setTimeout(function(){ q.focus(); }, 80);
+        });
+      });
+      root.querySelectorAll('.hd-fs-close').forEach(function(btn) {
+        if (btn._fsBound) return; btn._fsBound = true;
+        btn.addEventListener('click', function() { hdFsClose(document.getElementById(btn.dataset.overlay)); });
+      });
+      if (!document._hdEscBound) {
+        document._hdEscBound = true;
+        document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Escape') return;
+          var active = document.querySelector('.hd-quill-fs-overlay.active');
+          if (active) { e.preventDefault(); hdFsClose(active); }
+        });
+      }
+    };
+    window.hdFsClose = function(overlay) {
+      if (!overlay) return;
+      var wrap = overlay._origWrap; if (!wrap) { overlay.classList.remove('active'); return; }
+      var fsBody = overlay.querySelector('.hd-quill-fs-body'); if (!fsBody) { overlay.classList.remove('active'); return; }
+      var toolbar = fsBody.querySelector('.ql-toolbar'), container = fsBody.querySelector('.ql-container');
+      if (toolbar) wrap.appendChild(toolbar);
+      if (container) wrap.appendChild(container);
+      overlay.classList.remove('active');
+    };
+  }
+  hdBindFullscreen(document);
 }
 </script>
 <?php endif; ?>
