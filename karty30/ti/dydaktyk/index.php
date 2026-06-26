@@ -860,7 +860,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 </style>
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
+<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','testy'], true); ?>
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
+  <a class="dyd-gb-link <?= $tab_is_course?'active':'' ?>"
+     href="index.php?course=<?= $cur_course ?>&tab=lekcje"
+     <?= $tab_is_course?'aria-current="page"':'' ?>>
+    <i class="bi bi-pc-display" aria-hidden="true"></i>Zajęcia
+    <?php if ($courses): ?>
+    <span class="badge bg-secondary" style="font-size:.65rem"><?= count($courses) ?> gr.</span>
+    <?php endif; ?>
+  </a>
   <a class="dyd-gb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
      <?= $tab==='formalnosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalności
@@ -923,7 +932,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <?php else: ?>
 
   <!-- Wybór kursu — tylko gdy aktywna zakładka dotyczy kursu -->
-  <?php if (count($courses) > 1 && in_array($tab, ['lekcje','zadania','materialy','testy'], true)): ?>
+  <?php if (count($courses) > 1 && $tab_is_course): ?>
   <nav class="dyd-course-pills mb-3" aria-label="Wybór kursu">
     <ul class="nav nav-pills gap-2 flex-wrap">
       <?php foreach ($courses as $c): ?>
@@ -949,7 +958,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   </div></div>
 
   <!-- Zakładki kursu — widoczne tylko gdy aktywna zakładka należy do obszaru kursu -->
-  <?php if (in_array($tab, ['lekcje','zadania','materialy','testy'], true)): ?>
+  <?php if ($tab_is_course): ?>
   <ul class="nav nav-tabs mb-3" role="tablist">
     <?php
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
