@@ -44,15 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: test.php?test='.$test_id.'&done=1'); exit;
 }
 
-$done = isset($_GET['done']);
-$last = $done ? k30_ti_test_best_attempt($test_id, (int)$student['client_id']) : null;
-// dla widoku wyniku bierzemy najświeższe podejście
+$done    = isset($_GET['done']);
+$started = isset($_GET['started']);
+$mode    = in_array($_GET['mode'] ?? '', ['all', 'paged'], true) ? $_GET['mode'] : 'all';
+
+$last = null;
 if ($done) {
     $last = db_one("SELECT * FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status IN ('submitted','graded') ORDER BY id DESC LIMIT 1", [$test_id, (int)$student['client_id']]);
 }
 
-// Kolejność pytań (opcjonalnie losowa)
-if (!empty($test['shuffle']) && !$done) shuffle($questions);
+// Kolejność pytań (opcjonalnie losowa) — tylko po wyborze trybu
+if (!empty($test['shuffle']) && !$done && $started) shuffle($questions);
 
 $tok       = student_token();
 $org       = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
@@ -66,7 +68,43 @@ include __DIR__ . '/_layout_head.php';
   <li class="breadcrumb-item active"><?= h($test['title']) ?></li>
 </ol></nav>
 
-<?php if ($done && $last):
+<?php if (!$done && !$started && $questions): ?>
+
+  <div class="card border-0 shadow-sm" style="max-width:520px;margin:0 auto">
+    <div class="card-body py-4 px-4">
+      <h1 class="h5 fw-bold mb-1"><?= h($test['title']) ?></h1>
+      <p class="text-body-secondary small mb-3">
+        <?= count($questions) ?> pytań<?php if ((int)$test['time_limit_min']>0): ?> · <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
+      </p>
+      <?php if (trim((string)$test['description']) !== ''): ?>
+      <div class="alert alert-info py-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= nl2br(h($test['description'])) ?></div>
+      <?php endif; ?>
+      <p class="fw-semibold mb-3">Jak chcesz widzieć pytania?</p>
+      <div class="d-grid gap-2">
+        <a href="test.php?test=<?= $test_id ?>&started=1&mode=all"
+           class="btn btn-outline-primary text-start d-flex align-items-center gap-3 py-3 px-3">
+          <i class="bi bi-list-ul fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
+          <span>
+            <strong class="d-block">Wszystkie na 1 stronie</strong>
+            <span class="text-body-secondary small">Widzisz wszystkie pytania jednocześnie — możesz swobodnie przewijać.</span>
+          </span>
+        </a>
+        <a href="test.php?test=<?= $test_id ?>&started=1&mode=paged"
+           class="btn btn-outline-primary text-start d-flex align-items-center gap-3 py-3 px-3">
+          <i class="bi bi-file-earmark-text fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
+          <span>
+            <strong class="d-block">Każde pytanie na osobnej</strong>
+            <span class="text-body-secondary small">Jedno pytanie na raz — przechodzisz dalej przyciskiem.</span>
+          </span>
+        </a>
+      </div>
+      <div class="mt-3 text-center">
+        <a href="index.php?tab=testy" class="btn btn-link btn-sm text-secondary">Anuluj</a>
+      </div>
+    </div>
+  </div>
+
+<?php elseif ($done && $last):
   $mx  = (float)$last['max_score'];
   $pct = $mx > 0 ? round(100 * (float)$last['score'] / $mx) : 0;
   $review = (int)$last['needs_review'] === 1;
@@ -106,16 +144,23 @@ include __DIR__ . '/_layout_head.php';
     <?= count($questions) ?> pytań · <?= rtrim(rtrim(number_format($max_score = k30_ti_test_max_score($test_id),2,'.',''),'0'),'.') ?> pkt<?php if ((int)$test['time_limit_min']>0): ?> · sugerowany czas <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
   </p>
 
+  <?php $n_q = count($questions); ?>
   <form method="post" id="test-form">
     <input type="hidden" name="_token" value="<?= h($tok) ?>">
     <input type="hidden" name="test_id" value="<?= $test_id ?>">
     <?php foreach ($questions as $i => $q):
-      $qid = (int)$q['id']; $opts = $q['type'] !== 'open' ? k30_ti_test_options($qid) : [];
+      $qid  = (int)$q['id'];
+      $opts = $q['type'] !== 'open' ? k30_ti_test_options($qid) : [];
+      $hidden = ($mode === 'paged' && $i > 0) ? ' style="display:none"' : '';
     ?>
-    <fieldset class="card border-0 shadow-sm mb-3">
+    <fieldset class="card border-0 shadow-sm mb-3 test-question" data-qi="<?= $i ?>"<?= $hidden ?>>
       <div class="card-body">
+        <?php if ($mode === 'paged'): ?>
+        <div class="text-body-secondary small mb-2">Pytanie <?= $i+1 ?> z <?= $n_q ?></div>
+        <?php endif; ?>
         <legend class="h6 fw-bold mb-3">
-          <span class="text-primary me-1"><?= $i+1 ?>.</span><?= h($q['prompt']) ?>
+          <?php if ($mode === 'all'): ?><span class="text-primary me-1"><?= $i+1 ?>.</span><?php endif; ?>
+          <?= h($q['prompt']) ?>
           <span class="badge text-bg-light text-dark border ms-1"><?= rtrim(rtrim(number_format((float)$q['points'],2,'.',''),'0'),'.') ?> pkt</span>
           <?php if ($q['type']==='multi'): ?><span class="d-block text-body-secondary small fw-normal mt-1">Można zaznaczyć więcej niż jedną odpowiedź.</span><?php endif; ?>
         </legend>
@@ -132,15 +177,50 @@ include __DIR__ . '/_layout_head.php';
             <label class="form-check-label" for="<?= $oid ?>"><?= h($o['label']) ?></label>
           </div>
         <?php endforeach; endif; ?>
+
+        <?php if ($mode === 'paged'): ?>
+        <div class="d-flex gap-2 mt-3">
+          <?php if ($i > 0): ?>
+          <button type="button" class="btn btn-outline-secondary paged-prev"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wstecz</button>
+          <?php endif; ?>
+          <?php if ($i < $n_q - 1): ?>
+          <button type="button" class="btn btn-primary paged-next ms-auto">Dalej<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></button>
+          <?php else: ?>
+          <button type="submit" class="btn btn-success ms-auto"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij odpowiedzi</button>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
       </div>
     </fieldset>
     <?php endforeach; ?>
 
+    <?php if ($mode === 'all'): ?>
     <div class="d-flex gap-2 mb-4">
       <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij odpowiedzi</button>
       <a href="index.php?tab=testy" class="btn btn-outline-secondary btn-lg">Anuluj</a>
     </div>
+    <?php endif; ?>
   </form>
+
+  <?php if ($mode === 'paged'): ?>
+  <script>
+  (function(){
+    var cards = Array.from(document.querySelectorAll('.test-question'));
+    function show(i) {
+      cards.forEach(function(c){ c.style.display = (+c.dataset.qi === i) ? '' : 'none'; });
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+    document.getElementById('test-form').addEventListener('click', function(e){
+      var btn = e.target.closest('.paged-next, .paged-prev');
+      if (!btn) return;
+      var card = btn.closest('.test-question');
+      var cur  = +card.dataset.qi;
+      if (btn.classList.contains('paged-next')) show(cur + 1);
+      else show(cur - 1);
+    });
+  })();
+  </script>
+  <?php endif; ?>
 <?php endif; ?>
 
 <?php include __DIR__ . '/_layout_foot.php'; ?>
