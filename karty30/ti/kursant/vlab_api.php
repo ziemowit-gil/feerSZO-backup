@@ -61,7 +61,7 @@ function vlab_payload(array $student): array {
 }
 
 // Operacje modyfikujące wymagają tokenu i metody POST
-$modifying = in_array($action, ['create', 'start', 'stop', 'restart', 'remove', 'port_open', 'port_close'], true);
+$modifying = in_array($action, ['create', 'start', 'stop', 'restart', 'remove', 'port_open', 'port_close', 'port_request_open', 'port_request_close'], true);
 if ($modifying) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'msg' => 'Metoda niedozwolona.']); exit; }
     student_token_check();
@@ -106,20 +106,22 @@ try {
             break;
         }
 
-        case 'port_open': {
+        case 'port_open':
+        case 'port_request_open': {
             $id    = (int)($_POST['id'] ?? 0);
             $port  = (int)($_POST['host_port'] ?? 0);
             $proto = (string)($_POST['proto'] ?? 'tcp');
-            $res   = vlab_port_open_student($id, $student['id'], $port, $proto);
-            echo json_encode($res + ['data' => vlab_student_ports_data($id, $student['id'])]);
+            $note  = (string)($_POST['note'] ?? '');
+            $res   = vlab_port_request_open($id, $port, $proto, $note, null, $student['id']);
+            echo json_encode($res);
             break;
         }
 
-        case 'port_close': {
-            $id  = (int)($_POST['id'] ?? 0);          // container id (do odświeżenia listy)
+        case 'port_close':
+        case 'port_request_close': {
             $pid = (int)($_POST['port_id'] ?? 0);
-            $res = vlab_port_close_student($pid, $student['id']);
-            echo json_encode($res + ['data' => vlab_student_ports_data($id, $student['id'])]);
+            $res = vlab_port_request_close($pid, 'kursant', null, $student['id']);
+            echo json_encode($res);
             break;
         }
 

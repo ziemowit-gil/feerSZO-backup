@@ -884,15 +884,9 @@ function vlab_port_request_open(int $containerId, int $hostPort, string $proto, 
     $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND status!='removed'", [$containerId]);
     if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
 
-    // Kursant może zgłaszać tylko mapowane porty swojej maszyny
+    // Kursant może zgłaszać tylko wnioski dla swojej maszyny
     if ($byStudentId !== null) {
         if ((int)$cont['student_id'] !== $byStudentId) return ['ok' => false, 'msg' => 'Brak dostępu.'];
-        if ($cont['status'] !== 'running') return ['ok' => false, 'msg' => 'Maszyna nie jest uruchomiona.'];
-        $belongs = false;
-        foreach (vlab_docker_ports_all($cont['container_name']) as $m) {
-            if ((int)$m['host'] === $hostPort) { $belongs = true; break; }
-        }
-        if (!$belongs) return ['ok' => false, 'msg' => 'Możesz zgłaszać tylko porty przypisane do Twojej maszyny.'];
     }
 
     // Nie duplikuj wniosku oczekującego

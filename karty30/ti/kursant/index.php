@@ -1431,14 +1431,27 @@ include __DIR__ . '/_layout_head.php';
     let portsForId = null;
     const portsBody = () => document.getElementById('vlabPortsBody');
     function renderPorts(d){
-      // mapa otwartych portów: "port/proto" → wiersz
       const openMap = {};
       (d.open || []).forEach(p => openMap[p.host_port + '/' + p.proto] = p);
-      let h = '<p class="small text-body-secondary">Otwórz port swojej maszyny, aby był dostępny z internetu. Możesz otwierać tylko porty wystawione przez maszynę.</p>';
-      if (!d.mappings || !d.mappings.length){
-        h += '<div class="alert alert-secondary py-2 small mb-0">Maszyna nie wystawia żadnych portów (lub jest zatrzymana).</div>';
-      } else {
-        h += '<table class="table table-sm align-middle"><thead><tr><th>Usługa (port kontenera)</th><th>Port hosta</th><th>Status</th><th></th></tr></thead><tbody>';
+
+      let h = '<p class="small text-body-secondary mb-3">Złóż wniosek o otwarcie portu — administrator zatwierdza zmiany w zaporze. Podaj numer portu lub wybierz z mapowań kontenera.</p>';
+
+      // Formularz ręcznego wpisania portu
+      h += '<div class="d-flex gap-2 mb-3 align-items-end flex-wrap">'
+        + '<div><label class="form-label small mb-1">Port hosta</label>'
+        + '<input type="number" id="port-manual-nr" class="form-control form-control-sm" min="1" max="65535" placeholder="np. 8080" style="width:110px"></div>'
+        + '<div><label class="form-label small mb-1">Protokół</label>'
+        + '<select id="port-manual-proto" class="form-select form-select-sm" style="width:80px"><option value="tcp">TCP</option><option value="udp">UDP</option></select></div>'
+        + '<div><label class="form-label small mb-1">Opis (opcja)</label>'
+        + '<input type="text" id="port-manual-note" class="form-control form-control-sm" maxlength="100" placeholder="np. serwer WWW" style="width:160px"></div>'
+        + '<button type="button" id="port-manual-submit" class="btn btn-primary btn-sm">'
+        + '<i class="bi bi-send me-1" aria-hidden="true"></i>Zgłoś wniosek</button>'
+        + '</div>';
+
+      // Mapowania kontenera jako szybkie przyciski (gdy maszyna działa)
+      if (d.mappings && d.mappings.length) {
+        h += '<p class="small fw-semibold mb-1">Porty kontenera (szybkie zgłoszenie):</p>';
+        h += '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Kontener</th><th>Host</th><th>Status</th><th></th></tr></thead><tbody>';
         for (const mp of d.mappings){
           const proto = mp.cport.indexOf('udp') >= 0 ? 'udp' : 'tcp';
           const key = mp.host + '/' + proto;
@@ -1446,15 +1459,50 @@ include __DIR__ . '/_layout_head.php';
           h += '<tr><td><code>'+esc(mp.cport)+'</code></td><td><code>'+mp.host+'</code></td>'
             + '<td>'+(isOpen ? '<span class="badge text-bg-success">otwarty</span>' : '<span class="badge text-bg-secondary">zamknięty</span>')+'</td><td class="text-end">';
           if (isOpen){
-            h += '<button type="button" class="btn btn-sm btn-outline-danger py-0" data-port-close="'+openMap[key].id+'"><i class="bi bi-lock me-1" aria-hidden="true"></i>Zamknij</button>';
+            h += '<button type="button" class="btn btn-sm btn-outline-warning py-0" data-port-close="'+openMap[key].id+'" title="Zgłoś zamknięcie"><i class="bi bi-lock me-1" aria-hidden="true"></i>Wniosek o zamknięcie</button>';
           } else {
-            h += '<button type="button" class="btn btn-sm btn-outline-primary py-0" data-port-open="'+mp.host+'" data-proto="'+proto+'"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Otwórz</button>';
+            h += '<button type="button" class="btn btn-sm btn-outline-primary py-0" data-port-open="'+mp.host+'" data-proto="'+proto+'"><i class="bi bi-send me-1" aria-hidden="true"></i>Zgłoś otwarcie</button>';
           }
           h += '</td></tr>';
         }
-        h += '</tbody></table>';
+        h += '</tbody></table></div>';
+      } else {
+        h += '<div class="alert alert-light border small py-2">Maszyna nie zgłasza aktualnie żadnych mapowań portów (może być zatrzymana lub nieposiadać konfiguracji portów). Możesz mimo to złożyć wniosek wpisując numer portu ręcznie.</div>';
       }
+
+      // Otwarte porty (istniejące)
+      if (d.open && d.open.length) {
+        h += '<hr><p class="small fw-semibold mb-1">Aktualnie otwarte porty:</p>'
+          + '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Port</th><th>Proto</th><th>Opis</th><th></th></tr></thead><tbody>';
+        for (const p of d.open){
+          h += '<tr><td class="fw-semibold font-monospace">'+p.host_port+'</td><td class="text-uppercase small">'+esc(p.proto)+'</td><td class="small text-muted">'+esc(p.note||'')+'</td><td class="text-end">'
+            + '<button type="button" class="btn btn-sm btn-outline-warning py-0" data-port-close="'+p.id+'" title="Zgłoś zamknięcie"><i class="bi bi-lock me-1" aria-hidden="true"></i>Wniosek</button></td></tr>';
+        }
+        h += '</tbody></table></div>';
+      }
+
       portsBody().innerHTML = h;
+
+      // Obsługa przycisku ręcznego zgłoszenia
+      document.getElementById('port-manual-submit')?.addEventListener('click', async () => {
+        const nr = parseInt(document.getElementById('port-manual-nr').value, 10);
+        const proto = document.getElementById('port-manual-proto').value;
+        const note  = document.getElementById('port-manual-note').value.trim();
+        if (!nr || nr < 1 || nr > 65535) { alert('Podaj prawidłowy numer portu (1–65535).'); return; }
+        const r = await api('port_request_open', {id: portsForId, host_port: nr, proto, note});
+        if (r.ok) { document.getElementById('port-manual-nr').value = ''; document.getElementById('port-manual-note').value = ''; }
+        showPortMsg(r.ok ? 'success' : 'danger', r.msg || (r.ok ? 'Wniosek złożony.' : 'Błąd.'));
+        if (r.ok) { const fresh = await api('ports', {id: portsForId}); if (fresh.ok) renderPorts(fresh); }
+      });
+    }
+
+    function showPortMsg(type, msg) {
+      const b = portsBody();
+      const div = document.createElement('div');
+      div.className = 'alert alert-'+type+' py-2 small mt-2';
+      div.textContent = msg;
+      b.prepend(div);
+      setTimeout(() => div.remove(), 6000);
     }
     async function loadPorts(id){
       portsForId = id;
@@ -1576,8 +1624,9 @@ include __DIR__ . '/_layout_head.php';
       let r;
       if (openBtn) r = await api('port_open', {id: portsForId, host_port: openBtn.dataset.portOpen, proto: openBtn.dataset.proto});
       else         r = await api('port_close', {id: portsForId, port_id: closeBtn.dataset.portClose});
-      if (!r.ok) alert(r.msg || 'Błąd.');
-      if (r.data) renderPorts(r.data); else { btn.disabled = false; btn.innerHTML = orig; }
+      btn.disabled = false; btn.innerHTML = orig;
+      showPortMsg(r.ok ? 'success' : 'danger', r.msg || (r.ok ? 'Wniosek złożony.' : 'Błąd.'));
+      if (r.ok) { const fresh = await api('ports', {id: portsForId}); if (fresh.ok) renderPorts(fresh); }
     });
 
     // Utworzenie maszyny z okienka (nazwa + porty)
