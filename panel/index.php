@@ -440,17 +440,6 @@ $_vol_dark = (function(string $hex): string {
 }
 .vol-activity-row:last-child { border-bottom: none; }
 .vol-activity-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; flex-shrink: 0; }
-.pv-stats-bar { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.1rem; }
-.pv-stat-pill {
-  display:inline-flex; align-items:center; gap:.35rem;
-  padding:.3rem .7rem; border-radius:2rem;
-  background:#fff; border:1px solid #E5E7EB;
-  font-size:.79rem; font-weight:500; color:#374151;
-  box-shadow:0 1px 3px rgba(0,0,0,.05);
-  text-decoration:none;
-}
-.pv-stat-pill:hover { border-color:var(--vol-color); color:var(--vol-color); }
-.pv-stat-num { font-weight:700; color:var(--vol-color); }
 </style>
 
 <!-- Nagłówek -->
@@ -483,185 +472,39 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
 
 <?= flash_html() ?>
 
-<!-- ── Baner: poczta organizacji ─────────────────────────────────────────── -->
-<style>
-.pvp-mail-baner {
-  display:flex; align-items:center; gap:1rem;
-  background:linear-gradient(135deg,#1e40af 0%,#2563eb 100%);
-  border-radius:12px; padding:.9rem 1.25rem; margin-bottom:1rem;
-  text-decoration:none; color:#fff;
-  box-shadow:0 4px 16px rgba(30,64,175,.3);
-  transition:opacity .15s;
-}
-.pvp-mail-baner:hover, .pvp-mail-baner:focus-visible {
-  opacity:.9; color:#fff; outline-offset:2px;
-}
-.pvp-mail-baner-icon {
-  width:40px; height:40px; border-radius:10px; flex-shrink:0;
-  background:rgba(255,255,255,.16); display:flex; align-items:center;
-  justify-content:center; font-size:1.2rem;
-}
-</style>
-<a href="https://poczta.feer.org.pl" target="_blank" rel="noopener noreferrer"
-   class="pvp-mail-baner"
-   aria-label="Poczta organizacji — poczta.feer.org.pl (otwiera w nowej karcie)">
-  <div class="pvp-mail-baner-icon" aria-hidden="true">
-    <i class="bi bi-envelope-fill"></i>
-  </div>
-  <div style="flex:1;min-width:0">
-    <div style="font-size:.72rem;font-weight:600;opacity:.78;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.1rem">
-      Szukasz poczty?
-    </div>
-    <div style="font-size:1rem;font-weight:800;letter-spacing:-.01em">
-      poczta.feer.org.pl
-    </div>
-  </div>
-  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.4rem;opacity:.7;flex-shrink:0" aria-hidden="true"></i>
-  <span class="visually-hidden">(otwiera w nowej karcie)</span>
-</a>
-
-<!-- ── Baner: aktywacja Canva (domyślnie dla każdego, też bez umowy) ─────────── -->
 <?php
+/* ── Skróty + powiadomienia: dane liczone tutaj, renderowane na dole panelu ── */
 require_once dirname(__DIR__) . '/includes/canva.php';
-$_canva_sso = function_exists('canva_sso_url') ? canva_sso_url() : null;
+$_canva_sso          = function_exists('canva_sso_url') ? canva_sso_url() : null;
 $_canva_activate_url = $_canva_sso ?: 'https://www.canva.com';
 $_canva_activate_sub = $_canva_sso
     ? 'Logowanie jednokrotne — konto utworzy się automatycznie'
-    : 'Zaloguj się przez „Continue with Microsoft" na canva.com';
-$_canva_banner = true;
-?>
-<?php if ($_canva_banner): ?>
-<style>
-.pvp-canva-baner {
-  display:flex; align-items:center; gap:1rem;
-  background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);
-  border-radius:12px; padding:.9rem 1.25rem; margin-bottom:1rem;
-  text-decoration:none; color:#fff;
-  box-shadow:0 4px 16px rgba(124,58,237,.3);
-  transition:opacity .15s;
-}
-.pvp-canva-baner:hover, .pvp-canva-baner:focus-visible {
-  opacity:.9; color:#fff; outline-offset:2px;
-}
-.pvp-canva-baner-icon {
-  width:40px; height:40px; border-radius:10px; flex-shrink:0;
-  background:rgba(255,255,255,.16); display:flex; align-items:center;
-  justify-content:center; font-size:1.3rem;
-}
-</style>
-<a href="<?= h($_canva_activate_url) ?>" target="_blank" rel="noopener noreferrer"
-   class="pvp-canva-baner"
-   aria-label="Aktywuj Canva — <?= h($_canva_activate_sub) ?> (otwiera w nowej karcie)">
-  <div class="pvp-canva-baner-icon" aria-hidden="true">🎨</div>
-  <div style="flex:1;min-width:0">
-    <div style="font-size:.72rem;font-weight:600;opacity:.78;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.1rem">
-      Canva Pro dla organizacji
-    </div>
-    <div style="font-size:1rem;font-weight:800;letter-spacing:-.01em">
-      Aktywuj Canva
-    </div>
-    <div style="font-size:.74rem;opacity:.85;margin-top:.1rem"><?= h($_canva_activate_sub) ?></div>
-  </div>
-  <i class="bi bi-arrow-right-circle-fill" style="font-size:1.4rem;opacity:.7;flex-shrink:0" aria-hidden="true"></i>
-  <span class="visually-hidden">(otwiera w nowej karcie)</span>
-</a>
-<?php endif; ?>
+    : 'Zaloguj przez „Continue with Microsoft" na canva.com';
 
-<?php
-// ── Zachęta do uzupełnienia profilu w katalogu ────────────────────────────────
-// Pokazuje się gdy profil jest niepełny (brak bio lub zdjęcia) — raz na sesję
+// Zachęta do uzupełnienia profilu w katalogu — raz na sesję, gdy profil pusty.
 auth_start();
 $_show_dir_invite = false;
-if (!empty($_SESSION['_panel_dir_invited'])) {
-    $_show_dir_invite = false; // już pokazano w tej sesji
-} else {
-    // Sprawdź czy profil jest wypełniony
+if (empty($_SESSION['_panel_dir_invited'])) {
     $_dir_profile = null;
-    try {
-        $_dir_profile = db_one("SELECT bio, avatar_file FROM user_profiles WHERE user_id=?", [(int)$user['id']]);
-    } catch (\Throwable $e) {}
-    $_profile_empty = empty($_dir_profile['bio']) && empty($_dir_profile['avatar_file']);
-
-    if ($_profile_empty) {
+    try { $_dir_profile = db_one("SELECT bio, avatar_file FROM user_profiles WHERE user_id=?", [(int)$user['id']]); } catch (\Throwable $e) {}
+    if (empty($_dir_profile['bio']) && empty($_dir_profile['avatar_file'])) {
         $_show_dir_invite = true;
         $_SESSION['_panel_dir_invited'] = true;
     }
 }
-?>
 
-<?php if ($_show_dir_invite): ?>
-<div class="dir-invite mb-4" role="complementary" aria-label="Zaproszenie do katalogu współpracowników">
-  <div class="dir-invite-inner">
-    <div class="dir-invite-icon" aria-hidden="true">
-      <i class="bi bi-people-fill"></i>
-    </div>
-    <div class="dir-invite-content">
-      <div class="dir-invite-title">Uzupełnij swój profil w katalogu 👤</div>
-      <div class="dir-invite-sub">
-        Twój profil w katalogu organizacji jest niepełny. Dodaj zdjęcie, krótki opis i umiejętności —
-        inni współpracownicy łatwiej Cię znajdą, a koordynatorzy będą mogli lepiej dopasować zadania.
-      </div>
-    </div>
-    <div class="dir-invite-actions">
-      <a href="<?= APP_URL ?>/directory/profile_edit.php"
-         class="dir-invite-btn"
-         aria-label="Uzupełnij swój profil w katalogu">
-        <i class="bi bi-person-badge me-1" aria-hidden="true"></i>
-        Uzupełnij profil
-      </a>
-      <button type="button"
-              class="dir-invite-dismiss"
-              aria-label="Zamknij zaproszenie"
-              onclick="this.closest('.dir-invite').style.display='none'">
-        <i class="bi bi-x-lg" aria-hidden="true"></i>
-      </button>
-    </div>
-  </div>
-</div>
-
-<style>
-.dir-invite {
-  border-radius:12px;
-  background:linear-gradient(135deg,var(--vol-color) 0%,<?= h($_vol_dark) ?> 100%);
-  overflow:hidden;
-  box-shadow:0 4px 16px rgba(<?= h($_vol_rgb) ?>,.28);
-  animation:pvDirSlide .35s ease;
-}
-@media(prefers-reduced-motion:reduce){.dir-invite{animation:none}}
-@keyframes pvDirSlide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
-.dir-invite-inner  { display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; flex-wrap:wrap; }
-.dir-invite-icon   { width:44px; height:44px; border-radius:10px; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:1.35rem; color:#fff; flex-shrink:0; }
-.dir-invite-content{ flex:1; min-width:180px; }
-.dir-invite-title  { font-weight:800; font-size:.94rem; color:#fff; margin-bottom:.15rem; }
-.dir-invite-sub    { font-size:.8rem; color:rgba(255,255,255,.82); line-height:1.45; }
-.dir-invite-actions{ display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
-.dir-invite-btn    { display:inline-flex; align-items:center; gap:.35rem; padding:.45rem 1rem; border-radius:7px; background:rgba(255,255,255,.95); color:var(--vol-color); font-size:.83rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:background .15s; border:2px solid transparent; }
-.dir-invite-btn:hover,.dir-invite-btn:focus-visible { background:#fff; color:var(--vol-color); outline-offset:2px; }
-.dir-invite-dismiss{ background:rgba(255,255,255,.15); border:1.5px solid rgba(255,255,255,.3); border-radius:7px; color:rgba(255,255,255,.85); padding:.4rem .5rem; cursor:pointer; font-size:.9rem; line-height:1; transition:background .12s; }
-.dir-invite-dismiss:hover,.dir-invite-dismiss:focus-visible{ background:rgba(255,255,255,.28); color:#fff; outline-offset:2px; }
-@media(max-width:500px){ .dir-invite-inner{gap:.75rem} .dir-invite-btn{font-size:.8rem;padding:.4rem .8rem} }
-</style>
-<?php endif; ?>
-
-<?php
-// ── Zachęta do logowania SMS ──────────────────────────────────────────────────
-// Warunki: SMS logowanie włączone + nie odrzucono wcześniej
-// Dwa tryby: ma numer (zachęta do wypróbowania) | brak numeru (zachęta do dodania)
-$_show_sms_nudge    = false;
-$_nudge_has_phone   = false;
+// Zachęta do logowania SMS — gdy włączone i nie odrzucono wcześniej.
+$_show_sms_nudge  = false;
+$_nudge_has_phone = false;
 if ($_sms_login_available) {
     try { db()->exec("ALTER TABLE users ADD COLUMN sms_nudge_dismissed TINYINT NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     $_nudge_dismissed = (int)(db_one("SELECT sms_nudge_dismissed FROM users WHERE id=?", [(int)$user['id']])['sms_nudge_dismissed'] ?? 0);
     if (!$_nudge_dismissed) {
         $_nudge_has_phone = !empty($user['phone_number']) || !empty($_active_row['telefon']);
-        $_show_sms_nudge  = true; // pokaż w obu trybach (z/bez numeru)
+        $_show_sms_nudge  = true;
     }
 }
 ?>
-
-<?php if ($_show_sms_nudge): ?>
-<?php include __DIR__ . '/includes/pv_sms_nudge.php'; ?>
-<?php endif; ?>
 
 <?php if (!$contracts): ?>
 <!-- Brak umów -->
@@ -731,170 +574,10 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
 </div>
 </section>
 
-<!-- Dane podstawowe — lista definicji -->
-<ul class="vol-data-grid mb-3" aria-label="Twoje dane z umowy">
-  <?php if ($_pesel): ?>
-  <li class="vol-data-item">
-    <span class="vol-data-lbl" id="pesel-lbl">PESEL</span>
-    <div class="vol-data-val monospace d-flex align-items-center gap-1">
-      <span id="peselVal"
-            data-masked="<?= h($_pesel_masked) ?>"
-            data-full="<?= h($_pesel) ?>"
-            aria-labelledby="pesel-lbl"><?= h($_pesel_masked) ?></span>
-      <button type="button"
-              id="peselToggle"
-              class="btn btn-link btn-sm p-0 ms-1"
-              style="color:#6B7280;font-size:.85rem;line-height:1;text-decoration:none"
-              aria-pressed="false"
-              aria-label="Pokaż pełny PESEL"
-              onclick="togglePesel()">
-        <i class="bi bi-eye" id="peselIcon" aria-hidden="true"></i>
-      </button>
-    </div>
-  </li>
-  <?php endif; ?>
-
-  <?php if ($_active_row['data_urodzenia'] ?? null): ?>
-  <li class="vol-data-item">
-    <span class="vol-data-lbl">Data urodzenia</span>
-    <div class="vol-data-val"><?= date('d.m.Y', strtotime($_active_row['data_urodzenia'])) ?></div>
-  </li>
-  <?php endif; ?>
-
-  <?php if ($_active_row['telefon'] ?? null): ?>
-  <li class="vol-data-item">
-    <span class="vol-data-lbl">Telefon</span>
-    <div class="vol-data-val">
-      <a href="tel:+<?= h($_active_row['telefon']) ?>" style="color:inherit;text-decoration:underline;text-decoration-color:transparent"
-         onmouseover="this.style.textDecorationColor=''" onmouseout="this.style.textDecorationColor='transparent'">
-        +<?= h($_active_row['telefon']) ?>
-      </a>
-    </div>
-  </li>
-  <?php endif; ?>
-
-  <?php if ($_is_wolontariat && ($_active_row['miejsce_wolontariatu'] ?? null)): ?>
-  <li class="vol-data-item">
-    <span class="vol-data-lbl">Miejsce wolontariatu</span>
-    <div class="vol-data-val"><?= h($_active_row['miejsce_wolontariatu']) ?></div>
-  </li>
-  <?php endif; ?>
-
-  <?php if ($_is_wolontariat && ($_active_row['godzin_tygodniowo'] ?? null)): ?>
-  <li class="vol-data-item">
-    <span class="vol-data-lbl">Godz. / tydzień</span>
-    <div class="vol-data-val"><?= h($_active_row['godzin_tygodniowo']) ?> h</div>
-  </li>
-  <?php endif; ?>
-
-  <?php if ($_is_wolontariat && ($_active_row['opiekun'] ?? null)): ?>
-  <li class="vol-data-item">
-    <span class="vol-data-lbl">Opiekun</span>
-    <div class="vol-data-val"><?= h($_active_row['opiekun']) ?></div>
-  </li>
-  <?php endif; ?>
-
-  <?php if ($_active_row['adres'] ?? null): ?>
-  <li class="vol-data-item" style="grid-column:span 2">
-    <span class="vol-data-lbl">Adres</span>
-    <div class="vol-data-val"><?= h($_active_row['adres']) ?></div>
-  </li>
-  <?php endif; ?>
-</ul>
-
-<!-- Szczegóły wolontariatu: BHP, ubezpieczenia, projekt -->
-<?php if ($_is_wolontariat): ?>
-<div class="row g-3 mb-3">
-  <div class="col-md-6">
-    <div class="vol-detail-card">
-      <div class="vol-detail-header">
-        <i class="bi bi-shield-check" aria-hidden="true"></i> BHP i ubezpieczenia
-      </div>
-      <div class="vol-detail-body">
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Szkolenie BHP</span>
-          <?php if (!empty($_active_row['szkolenie_bhp'])): ?>
-          <span class="vol-badge-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Tak<?= ($_active_row['data_szkolenia_bhp'] ?? '') ? ' · '.date('d.m.Y', strtotime($_active_row['data_szkolenia_bhp'])) : '' ?></span>
-          <?php else: ?><span class="vol-badge-no"><i class="bi bi-dash" aria-hidden="true"></i>Nie</span><?php endif; ?>
-        </div>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Ubezpieczenie NNW</span>
-          <?php if (!empty($_active_row['ubezpieczenie_nnw'])): ?>
-          <span class="vol-badge-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Tak<?= ($_active_row['numer_polisy_nnw'] ?? '') ? ' · '.h($_active_row['numer_polisy_nnw']) : '' ?></span>
-          <?php else: ?><span class="vol-badge-no"><i class="bi bi-dash" aria-hidden="true"></i>Nie</span><?php endif; ?>
-        </div>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Ubezpieczenie OC</span>
-          <?php if (!empty($_active_row['ubezpieczenie_oc'])): ?>
-          <span class="vol-badge-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Tak</span>
-          <?php else: ?><span class="vol-badge-no"><i class="bi bi-dash" aria-hidden="true"></i>Nie</span><?php endif; ?>
-        </div>
-        <?php if (!empty($_active_row['zwrot_kosztow'])): ?>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Zwrot kosztów</span>
-          <span class="vol-badge-yes">
-            <i class="bi bi-receipt-cutoff" aria-hidden="true"></i>Tak
-            <?= ($_active_row['limit_zwrotu_kosztow'] ?? '') ? ' · limit '.number_format((float)$_active_row['limit_zwrotu_kosztow'],2,',',' ').' zł' : '' ?>
-          </span>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-6">
-    <div class="vol-detail-card">
-      <div class="vol-detail-header">
-        <i class="bi bi-info-circle" aria-hidden="true"></i> Szczegóły porozumienia
-      </div>
-      <div class="vol-detail-body">
-        <?php if ($_active_row['projekt_program'] ?? null): ?>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Projekt / program</span>
-          <span class="vol-detail-row-val"><?= h($_active_row['projekt_program']) ?></span>
-        </div>
-        <?php endif; ?>
-        <?php if ($_active_row['forma_podpisania'] ?? null): ?>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Forma podpisania</span>
-          <span class="vol-detail-row-val"><?= h(ucfirst(str_replace('_',' ',$_active_row['forma_podpisania']))) ?></span>
-        </div>
-        <?php endif; ?>
-        <?php if (!empty($_active_row['bezterminowa'])): ?>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Czas trwania</span>
-          <span class="vol-badge-yes"><i class="bi bi-infinity" aria-hidden="true"></i> Bezterminowa</span>
-        </div>
-        <?php endif; ?>
-        <?php if ($_active_row['godzin_przepracowanych'] ?? null): ?>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Godzin przepracowanych</span>
-          <span class="vol-detail-row-val">
-            <?= h(number_format((float)$_active_row['godzin_przepracowanych'], 2, ',', ' ')) ?> h
-            <?php if ((float)($_active_row['godzin_z_zadan'] ?? 0) > 0): ?>
-            <small class="text-muted" title="Z zarejestrowanego czasu zadań">
-              (w tym <?= h(number_format((float)$_active_row['godzin_z_zadan'], 2, ',', ' ')) ?> h z zadań)
-            </small>
-            <?php endif; ?>
-          </span>
-        </div>
-        <?php endif; ?>
-        <?php if ($_active_row['m365_login'] ?? null): ?>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Konto Microsoft 365</span>
-          <span class="vol-badge-yes"><i class="bi bi-microsoft" aria-hidden="true"></i><?= h($_active_row['m365_login']) ?></span>
-        </div>
-        <?php endif; ?>
-        <div class="vol-detail-row">
-          <span class="vol-detail-row-lbl">Nr rejestru</span>
-          <span class="vol-detail-row-val" style="font-family:monospace"><?= h($_active_row['nr_rejestru'] ?? '—') ?></span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<?php endif; // is_wolontariat ?>
 <?php endif; // _active_row ?>
+
+<!-- ═══ MOJE ZADANIA ═════════════════════════════════════════════════════════ -->
+<?php include __DIR__ . '/includes/pv_tasks_section.php'; ?>
 
 <?php
 // ── Centrum akcji — dane dla siatki akcji (panel/includes/pv_action_hub.php) ──
@@ -969,71 +652,92 @@ $_pv_actions[] = [
     'badge' => $_hd_my_open, 'badgeClass' => 'danger',
 ];
 ?>
-<!-- ═══ SZYBKIE AKCJE — duże karty ══════════════════════════════════════════ -->
-<div class="pv-stats-bar" role="list" aria-label="Podsumowanie">
-  <?php if ($msg_unread): ?>
-  <a href="<?= APP_URL ?>/panel/messages.php" class="pv-stat-pill" role="listitem"
-     aria-label="<?= $msg_unread ?> nieprzeczytanych wiadomości">
-    <i class="bi bi-chat-left-text" aria-hidden="true" style="color:var(--vol-color)"></i>
-    <span class="pv-stat-num"><?= $msg_unread ?></span>
-    <span>nowych</span>
-  </a>
-  <?php endif; ?>
-  <?php if (count($my_apps) > 0): ?>
-  <span class="pv-stat-pill" role="listitem">
-    <i class="bi bi-send" aria-hidden="true" style="color:#7C3AED"></i>
-    <span class="pv-stat-num"><?= count($my_apps) ?></span>
-    <span><?= count($my_apps) === 1 ? 'wniosek' : 'wniosków' ?></span>
-  </span>
-  <?php endif; ?>
-  <?php if (count($my_certs) > 0): ?>
-  <span class="pv-stat-pill" role="listitem">
-    <i class="bi bi-award" aria-hidden="true" style="color:#D97706"></i>
-    <span class="pv-stat-num"><?= count($my_certs) ?></span>
-    <span><?= count($my_certs) === 1 ? 'zaświadczenie' : 'zaświadczeń' ?></span>
-  </span>
-  <?php endif; ?>
-</div>
+<!-- ═══ SZYBKIE AKCJE ════════════════════════════════════════════════════════ -->
 <?php include __DIR__ . "/includes/pv_action_hub.php"; ?>
 
-<!-- ── Canva Pro — prośba o dostęp ──────────────────────────────────────────── -->
-<?php
-// Gdy dostęp już przyznany, aktywację obsługuje duży baner na górze ($_canva_banner)
-// — wtedy karta tylko by się dublowała, więc jej nie pokazujemy. Karta zostaje dla
-// stanu prośby/oczekiwania (wolontariusz bez dostępu).
-if (empty($_canva_banner)) {
-    $_canva_contract_id = (int)(($_active_contract['id'] ?? 0));
-    $_canva_row = null;
-    if ($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat') {
-        try {
-            $_canva_row = db_one(
-                "SELECT canva_access, canva_invited_at, canva_access_requested_at FROM umowy_wolontariat WHERE id=?",
-                [$_canva_contract_id]
-            );
-        } catch (\Throwable $e) {}
-    }
-    $_canva_access     = !empty($_canva_row['canva_access']);
-    $_canva_invited    = !empty($_canva_row['canva_invited_at']);
-    $_canva_requested  = !empty($_canva_row['canva_access_requested_at']);
-    $_canva_scope      = 'contract';
-    $_canva_user_id    = (int)($user['id'] ?? 0);
-    // Formularz pokazujemy tylko dla aktywnej umowy wolontariatu.
-    if (!$_canva_invited && !$_canva_requested
-        && !($_canva_contract_id && ($_active_contract['contract_type'] ?? '') === 'wolontariat')) {
-        $_canva_contract_id = 0;
-    }
-    // Brak dostępu z umowy → sprawdź dostęp przyznany na poziomie konta (wolo bez umowy).
-    if (!$_canva_access && !$_canva_invited && !$_canva_requested && !$_canva_contract_id) {
-        require_once dirname(__DIR__) . '/includes/canva.php';
-        $_cua = canva_user_access_get((int)($user['id'] ?? 0));
-        if ($_cua && (int)($_cua['access'] ?? 0) === 1) {
-            $_canva_scope    = 'user';
-            $_canva_invited  = true;   // dostęp włączony przez administratora
-        }
-    }
-    include __DIR__ . '/includes/pv_canva_card.php';
-}
-?>
+<!-- ═══ DANE UMOWY — jedna zwarta karta ══════════════════════════════════════ -->
+<?php if ($_active_row): ?>
+<div class="vol-detail-card mb-3">
+  <div class="vol-detail-header">
+    <i class="bi bi-card-checklist" aria-hidden="true"></i> Dane umowy
+  </div>
+  <div class="vol-detail-body">
+    <ul class="vol-data-grid" style="margin-bottom:0" aria-label="Dane z Twojej umowy">
+      <?php if ($_pesel): ?>
+      <li class="vol-data-item">
+        <span class="vol-data-lbl" id="pesel-lbl">PESEL</span>
+        <div class="vol-data-val monospace d-flex align-items-center gap-1">
+          <span id="peselVal" data-masked="<?= h($_pesel_masked) ?>" data-full="<?= h($_pesel) ?>" aria-labelledby="pesel-lbl"><?= h($_pesel_masked) ?></span>
+          <button type="button" id="peselToggle" class="btn btn-link btn-sm p-0 ms-1"
+                  style="color:#6B7280;font-size:.85rem;line-height:1;text-decoration:none"
+                  aria-pressed="false" aria-label="Pokaż pełny PESEL" onclick="togglePesel()">
+            <i class="bi bi-eye" id="peselIcon" aria-hidden="true"></i>
+          </button>
+        </div>
+      </li>
+      <?php endif; ?>
+      <?php if ($_active_row['data_urodzenia'] ?? null): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Data urodzenia</span>
+        <div class="vol-data-val"><?= date('d.m.Y', strtotime($_active_row['data_urodzenia'])) ?></div></li>
+      <?php endif; ?>
+      <?php if ($_active_row['telefon'] ?? null): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Telefon</span>
+        <div class="vol-data-val"><a href="tel:+<?= h($_active_row['telefon']) ?>" style="color:inherit">+<?= h($_active_row['telefon']) ?></a></div></li>
+      <?php endif; ?>
+      <?php if ($_is_wolontariat && ($_active_row['miejsce_wolontariatu'] ?? null)): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Miejsce wolontariatu</span>
+        <div class="vol-data-val"><?= h($_active_row['miejsce_wolontariatu']) ?></div></li>
+      <?php endif; ?>
+      <?php if ($_is_wolontariat && ($_active_row['godzin_tygodniowo'] ?? null)): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Godz. / tydzień</span>
+        <div class="vol-data-val"><?= h($_active_row['godzin_tygodniowo']) ?> h</div></li>
+      <?php endif; ?>
+      <?php if ($_is_wolontariat && ($_active_row['godzin_przepracowanych'] ?? null)): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Godzin przepracowanych</span>
+        <div class="vol-data-val"><?= h(number_format((float)$_active_row['godzin_przepracowanych'], 2, ',', ' ')) ?> h<?php if ((float)($_active_row['godzin_z_zadan'] ?? 0) > 0): ?> <small class="text-muted fw-normal" title="Z zarejestrowanego czasu zadań">(<?= h(number_format((float)$_active_row['godzin_z_zadan'], 2, ',', ' ')) ?> h z zadań)</small><?php endif; ?></div></li>
+      <?php endif; ?>
+      <?php if ($_is_wolontariat && ($_active_row['opiekun'] ?? null)): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Opiekun</span>
+        <div class="vol-data-val"><?= h($_active_row['opiekun']) ?></div></li>
+      <?php endif; ?>
+      <?php if ($_is_wolontariat && ($_active_row['projekt_program'] ?? null)): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Projekt / program</span>
+        <div class="vol-data-val"><?= h($_active_row['projekt_program']) ?></div></li>
+      <?php endif; ?>
+      <?php if ($_is_wolontariat && ($_active_row['forma_podpisania'] ?? null)): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Forma podpisania</span>
+        <div class="vol-data-val"><?= h(ucfirst(str_replace('_',' ',$_active_row['forma_podpisania']))) ?></div></li>
+      <?php endif; ?>
+      <?php if ($_is_wolontariat): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Szkolenie BHP</span>
+        <div class="vol-data-val"><?php if (!empty($_active_row['szkolenie_bhp'])): ?><span class="vol-badge-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Tak<?= ($_active_row['data_szkolenia_bhp'] ?? '') ? ' · '.date('d.m.Y', strtotime($_active_row['data_szkolenia_bhp'])) : '' ?></span><?php else: ?><span class="vol-badge-no"><i class="bi bi-dash" aria-hidden="true"></i>Nie</span><?php endif; ?></div></li>
+      <li class="vol-data-item"><span class="vol-data-lbl">Ubezpieczenie NNW</span>
+        <div class="vol-data-val"><?php if (!empty($_active_row['ubezpieczenie_nnw'])): ?><span class="vol-badge-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Tak<?= ($_active_row['numer_polisy_nnw'] ?? '') ? ' · '.h($_active_row['numer_polisy_nnw']) : '' ?></span><?php else: ?><span class="vol-badge-no"><i class="bi bi-dash" aria-hidden="true"></i>Nie</span><?php endif; ?></div></li>
+      <li class="vol-data-item"><span class="vol-data-lbl">Ubezpieczenie OC</span>
+        <div class="vol-data-val"><?php if (!empty($_active_row['ubezpieczenie_oc'])): ?><span class="vol-badge-yes"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Tak</span><?php else: ?><span class="vol-badge-no"><i class="bi bi-dash" aria-hidden="true"></i>Nie</span><?php endif; ?></div></li>
+      <?php if (!empty($_active_row['zwrot_kosztow'])): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Zwrot kosztów</span>
+        <div class="vol-data-val"><span class="vol-badge-yes"><i class="bi bi-receipt-cutoff" aria-hidden="true"></i>Tak<?= ($_active_row['limit_zwrotu_kosztow'] ?? '') ? ' · limit '.number_format((float)$_active_row['limit_zwrotu_kosztow'],2,',',' ').' zł' : '' ?></span></div></li>
+      <?php endif; ?>
+      <?php if (!empty($_active_row['bezterminowa'])): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Czas trwania</span>
+        <div class="vol-data-val"><span class="vol-badge-yes"><i class="bi bi-infinity" aria-hidden="true"></i> Bezterminowa</span></div></li>
+      <?php endif; ?>
+      <?php if ($_active_row['m365_login'] ?? null): ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Konto Microsoft 365</span>
+        <div class="vol-data-val"><span class="vol-badge-yes"><i class="bi bi-microsoft" aria-hidden="true"></i><?= h($_active_row['m365_login']) ?></span></div></li>
+      <?php endif; ?>
+      <?php endif; // is_wolontariat ?>
+      <?php if ($_active_row['adres'] ?? null): ?>
+      <li class="vol-data-item" style="grid-column:1/-1"><span class="vol-data-lbl">Adres</span>
+        <div class="vol-data-val fw-normal"><?= h($_active_row['adres']) ?></div></li>
+      <?php endif; ?>
+      <li class="vol-data-item"><span class="vol-data-lbl">Nr rejestru</span>
+        <div class="vol-data-val monospace"><?= h($_active_row['nr_rejestru'] ?? '—') ?></div></li>
+    </ul>
+  </div>
+</div>
+<?php endif; // _active_row — dane umowy ?>
 
 <!-- ═══ PANEL AKTYWNOŚCI ════════════════════════════════════════════════════ -->
 <?php if ($my_apps): ?>
@@ -1058,6 +762,74 @@ include __DIR__ . '/includes/pv_apps_activity.php';
   </a>
 </div>
 <?php endif; ?>
+
+<!-- ═══ SKRÓTY: poczta + Canva (małe) ════════════════════════════════════════ -->
+<style>
+.pv-shortcuts { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.6rem; margin:1.25rem 0; }
+.pv-shortcut { display:flex; align-items:center; gap:.7rem; padding:.6rem .85rem; background:#fff; border:1px solid #E5E7EB; border-radius:10px; text-decoration:none; color:#374151; box-shadow:0 1px 4px rgba(0,0,0,.05); transition:border-color .12s,box-shadow .12s; }
+.pv-shortcut:hover,.pv-shortcut:focus-visible { border-color:var(--vol-color); box-shadow:0 3px 10px rgba(0,0,0,.08); color:#374151; outline-offset:2px; }
+.pv-shortcut-ic { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1rem; flex-shrink:0; }
+.pv-shortcut-tx { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.25; }
+.pv-shortcut-tx strong { font-size:.84rem; font-weight:700; color:#111827; }
+.pv-shortcut-tx small { font-size:.72rem; color:#6B7280; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pv-shortcut > .bi-box-arrow-up-right { color:#9CA3AF; font-size:.9rem; flex-shrink:0; }
+</style>
+<div class="pv-shortcuts" role="list" aria-label="Skróty">
+  <a href="https://poczta.feer.org.pl" target="_blank" rel="noopener noreferrer" class="pv-shortcut" role="listitem"
+     aria-label="Poczta organizacji — poczta.feer.org.pl (otwiera w nowej karcie)">
+    <span class="pv-shortcut-ic" style="background:#1e40af" aria-hidden="true"><i class="bi bi-envelope-fill"></i></span>
+    <span class="pv-shortcut-tx"><strong>Poczta organizacji</strong><small>poczta.feer.org.pl</small></span>
+    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+  </a>
+  <a href="<?= h($_canva_activate_url) ?>" target="_blank" rel="noopener noreferrer" class="pv-shortcut" role="listitem"
+     aria-label="Aktywuj Canva — <?= h($_canva_activate_sub) ?> (otwiera w nowej karcie)">
+    <span class="pv-shortcut-ic" style="background:#7c3aed" aria-hidden="true">🎨</span>
+    <span class="pv-shortcut-tx"><strong>Aktywuj Canva</strong><small><?= h($_canva_activate_sub) ?></small></span>
+    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+  </a>
+</div>
+
+<?php if ($_show_dir_invite): ?>
+<div class="dir-invite mb-3" role="complementary" aria-label="Zaproszenie do katalogu współpracowników">
+  <div class="dir-invite-inner">
+    <div class="dir-invite-icon" aria-hidden="true"><i class="bi bi-people-fill"></i></div>
+    <div class="dir-invite-content">
+      <div class="dir-invite-title">Uzupełnij swój profil w katalogu 👤</div>
+      <div class="dir-invite-sub">
+        Twój profil w katalogu organizacji jest niepełny. Dodaj zdjęcie, krótki opis i umiejętności —
+        inni współpracownicy łatwiej Cię znajdą, a koordynatorzy lepiej dopasują zadania.
+      </div>
+    </div>
+    <div class="dir-invite-actions">
+      <a href="<?= APP_URL ?>/directory/profile_edit.php" class="dir-invite-btn" aria-label="Uzupełnij swój profil w katalogu">
+        <i class="bi bi-person-badge me-1" aria-hidden="true"></i>Uzupełnij profil
+      </a>
+      <button type="button" class="dir-invite-dismiss" aria-label="Zamknij zaproszenie"
+              onclick="this.closest('.dir-invite').style.display='none'">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+</div>
+<style>
+.dir-invite { border-radius:12px; background:linear-gradient(135deg,var(--vol-color) 0%,<?= h($_vol_dark) ?> 100%); overflow:hidden; box-shadow:0 4px 16px rgba(<?= h($_vol_rgb) ?>,.28); animation:pvDirSlide .35s ease; }
+@media(prefers-reduced-motion:reduce){.dir-invite{animation:none}}
+@keyframes pvDirSlide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.dir-invite-inner  { display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; flex-wrap:wrap; }
+.dir-invite-icon   { width:44px; height:44px; border-radius:10px; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:1.35rem; color:#fff; flex-shrink:0; }
+.dir-invite-content{ flex:1; min-width:180px; }
+.dir-invite-title  { font-weight:800; font-size:.94rem; color:#fff; margin-bottom:.15rem; }
+.dir-invite-sub    { font-size:.8rem; color:rgba(255,255,255,.82); line-height:1.45; }
+.dir-invite-actions{ display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
+.dir-invite-btn    { display:inline-flex; align-items:center; gap:.35rem; padding:.45rem 1rem; border-radius:7px; background:rgba(255,255,255,.95); color:var(--vol-color); font-size:.83rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:background .15s; border:2px solid transparent; }
+.dir-invite-btn:hover,.dir-invite-btn:focus-visible { background:#fff; color:var(--vol-color); outline-offset:2px; }
+.dir-invite-dismiss{ background:rgba(255,255,255,.15); border:1.5px solid rgba(255,255,255,.3); border-radius:7px; color:rgba(255,255,255,.85); padding:.4rem .5rem; cursor:pointer; font-size:.9rem; line-height:1; transition:background .12s; }
+.dir-invite-dismiss:hover,.dir-invite-dismiss:focus-visible{ background:rgba(255,255,255,.28); color:#fff; outline-offset:2px; }
+@media(max-width:500px){ .dir-invite-inner{gap:.75rem} .dir-invite-btn{font-size:.8rem;padding:.4rem .8rem} }
+</style>
+<?php endif; ?>
+
+<?php if ($_show_sms_nudge): include __DIR__ . '/includes/pv_sms_nudge.php'; endif; ?>
 
 <?php endif; // $contracts ?>
 
@@ -1197,79 +969,8 @@ $_quip = $_admin_quips[abs(crc32($user['name'])) % count($_admin_quips)];
 <?php endif; // $contracts (stary widok) ?>
 <?php endif; // $_is_volunteer_only — koniec bloku else ?>
 
-<!-- ── Zadania wolontariusza ──────────────────────────────────────────────── -->
-<?php
-$_tasks_panel_enabled = false;
-try {
-    $_tm = db_one("SELECT value FROM settings WHERE key_='tasks_enabled'");
-    $_tasks_panel_enabled = ($_tm['value'] ?? '1') !== '0';
-} catch (\Throwable $e) {}
-
-if ($_tasks_panel_enabled):
-    require_once dirname(__DIR__) . '/includes/tasks.php';
-    require_once dirname(__DIR__) . '/includes/messages.php';
-
-    $uid_panel = (int)$user['id'];
-
-    // Moje zadania — przypisane, nieukończone
-    $_my_tasks = db_all(
-        "SELECT t.id, t.title, t.priority, t.due_date,
-                tl.name AS list_name, tl.color AS list_color,
-                tw.name AS ws_name, tw.color AS ws_color
-         FROM tasks t
-         JOIN task_assignments ta ON ta.task_id = t.id
-         JOIN task_lists tl ON tl.id = t.list_id
-         JOIN task_workspaces tw ON tw.id = t.workspace_id
-         WHERE ta.user_id = ? AND t.completed_at IS NULL AND t.deleted_at IS NULL
-         ORDER BY t.priority DESC, t.due_date ASC NULLS LAST
-         LIMIT 10",
-        [$uid_panel]
-    );
-
-    // Dostępne zadania — BEZ wymogu workspace membership (wolontariusz może wziąć każde dostępne)
-    $_open_tasks_total = (int)(db_one(
-        "SELECT COUNT(*) AS c FROM tasks t
-         JOIN task_lists tl ON tl.id = t.list_id
-         JOIN task_workspaces tw ON tw.id = t.workspace_id AND tw.is_active = 1
-         WHERE t.deleted_at IS NULL AND t.completed_at IS NULL
-           AND tl.is_done_state = 0
-           AND (SELECT COUNT(*) FROM task_assignments ta WHERE ta.task_id = t.id) = 0",
-        []
-    )['c'] ?? 0);
-    $_open_tasks = db_all(
-        "SELECT t.id, t.title, t.priority, t.due_date,
-                tl.name AS list_name, tw.name AS ws_name, tw.color AS ws_color
-         FROM tasks t
-         JOIN task_lists tl ON tl.id = t.list_id
-         JOIN task_workspaces tw ON tw.id = t.workspace_id AND tw.is_active = 1
-         WHERE t.deleted_at IS NULL AND t.completed_at IS NULL
-           AND tl.is_done_state = 0
-           AND (SELECT COUNT(*) FROM task_assignments ta WHERE ta.task_id = t.id) = 0
-         ORDER BY t.priority DESC, t.due_date ASC NULLS LAST
-         LIMIT 5",
-        []
-    );
-
-    // Nieprzeczytane wiadomości zadaniowe
-    $_task_inbox_unread = task_msg_unread($uid_panel);
-
-    $pri_colors = [4=>'#dc2626',3=>'#f59e0b',2=>'#3b82f6',1=>'#94a3b8'];
-    $csrf_panel = csrf_token();
-?>
-<?php
-// ── Dane dla panelu zadań (panel/includes/pv_tasks_panel.php) ────────────────
-$_pv_tasks_mine = array_map(fn($t) => [
-    'id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['priority'],
-    'due_date' => $t['due_date'], 'ws_name' => $t['ws_name'], 'list_name' => $t['list_name'],
-    'ws_color' => $t['ws_color'],
-], $_my_tasks);
-$_pv_tasks_open = array_map(fn($t) => [
-    'id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['priority'],
-    'due_date' => $t['due_date'], 'ws_name' => $t['ws_name'], 'ws_color' => $t['ws_color'],
-], $_open_tasks);
-include __DIR__ . '/includes/pv_tasks_panel.php';
-?>
-<?php endif; /* tasks_panel_enabled */ ?>
+<!-- ── Zadania (gdy nie pokazano wyżej, np. widok edytora/admina) ──────────── -->
+<?php include __DIR__ . '/includes/pv_tasks_section.php'; ?>
 
 <!-- ── Moje wydarzenia ────────────────────────────────────────────────────── -->
 <?php if (module_enabled('events_enabled')):
