@@ -1362,6 +1362,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       $av_by_day = [];
       foreach ($my_avail as $w) { $av_by_day[(int)$w['day_of_week']][] = $w; }
     ?>
+    <?php if (!$my_avail): ?>
+    <div class="alert alert-warning d-flex align-items-start gap-3 mb-3" role="alert">
+      <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <div>
+        <strong>Nie masz jeszcze ustawionej dostępności.</strong><br>
+        Dodaj okna czasowe poniżej, aby koordynatorzy wiedzieli, kiedy możesz prowadzić zajęcia.
+        Bez ustawionej dostępności system nie może automatycznie weryfikować terminów lekcji.
+      </div>
+    </div>
+    <?php endif; ?>
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-transparent">
         <span class="fw-semibold"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Moja dostępność w tygodniu</span>
