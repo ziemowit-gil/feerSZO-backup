@@ -80,6 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: test_build.php?test='.$test_id.'#bank'); exit;
     }
 
+    if ($op === 'set_fixed_draw') {
+        $draw = max(0, (int)($_POST['fixed_draw'] ?? 0));
+        db_update('k30_ti_tests', ['fixed_draw' => $draw], $test_id);
+        flash_set('success', 'Ustawienie losowania pytań stałych zapisane.');
+        header('Location: test_build.php?test='.$test_id.'#fixed'); exit;
+    }
+
     if ($op === 'grade_open') {
         $att_id = (int)($_POST['attempt_id'] ?? 0);
         $pts    = (array)($_POST['points'] ?? []);
@@ -89,9 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $questions = k30_ti_test_questions($test_id);
-$fixed_qs  = k30_ti_test_fixed_questions($test_id);
-$bank_qs   = k30_ti_test_bank_questions($test_id);
-$bank_draw = (int)($test['bank_draw'] ?? 0);
+$fixed_qs   = k30_ti_test_fixed_questions($test_id);
+$bank_qs    = k30_ti_test_bank_questions($test_id);
+$bank_draw  = (int)($test['bank_draw']  ?? 0);
+$fixed_draw = (int)($test['fixed_draw'] ?? 0);
 $max_score = k30_ti_test_max_score($test_id);
 
 // Edycja pytania
@@ -130,8 +138,11 @@ $QT = K30_TI_QUESTION_TYPES;
   <!-- LISTA pytań (master) -->
   <div class="col-lg-7">
     <!-- Pytania stałe -->
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold"><i class="bi bi-list-ol me-2" aria-hidden="true"></i>Pytania stałe</div>
+    <div class="card border-0 shadow-sm" id="fixed">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-list-ol me-1" aria-hidden="true"></i>Pytania stałe
+        <?php if ($fixed_draw > 0): ?><span class="badge bg-primary">losuj <?= $fixed_draw ?> z <?= count($fixed_qs) ?></span><?php endif; ?>
+      </div>
       <ol class="list-group list-group-numbered list-group-flush">
         <?php if (!$fixed_qs): ?><li class="list-group-item text-muted">Brak pytań stałych.</li><?php endif; ?>
         <?php foreach ($fixed_qs as $idx => $q):
@@ -173,6 +184,25 @@ $QT = K30_TI_QUESTION_TYPES;
         </li>
         <?php endforeach; ?>
       </ol>
+      <?php if ($fixed_qs): ?>
+      <div class="card-footer">
+        <form method="post" class="d-flex align-items-center gap-2 flex-wrap">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op" value="set_fixed_draw">
+          <input type="hidden" name="test_id" value="<?= $test_id ?>">
+          <div class="form-check form-switch mb-0 me-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="fixed-draw-toggle" <?= $fixed_draw > 0 ? 'checked' : '' ?> onchange="document.getElementById('fixed-draw-wrap').style.display=this.checked?'':'none'">
+            <label class="form-check-label fw-semibold" for="fixed-draw-toggle">Losuj pytania stałe</label>
+          </div>
+          <span id="fixed-draw-wrap" style="display:<?= $fixed_draw > 0 ? '' : 'none' ?>">
+            <label class="form-label mb-0 text-nowrap" for="fixed-draw-inp">Losuj:</label>
+            <input type="number" class="form-control form-control-sm d-inline-block ms-1" id="fixed-draw-inp" name="fixed_draw" min="1" max="<?= count($fixed_qs) ?>" step="1" value="<?= $fixed_draw ?: '' ?>" style="width:6rem" placeholder="ile?">
+            <span class="text-muted small ms-1">z <?= count($fixed_qs) ?> pytań</span>
+          </span>
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+        </form>
+      </div>
+      <?php endif; ?>
     </div>
 
     <!-- Baza pytań (pula do losowania) -->

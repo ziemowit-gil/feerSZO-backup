@@ -29,12 +29,13 @@ $retake  = isset($_GET['retake']);
 $mode    = in_array($_GET['mode'] ?? '', ['all', 'paged'], true) ? $_GET['mode'] : 'all';
 
 // Szybkie dane o bazie pytań (do ekranu startowego)
-$fixed_count = count(k30_ti_test_fixed_questions($test_id));
-$bank_count  = count(k30_ti_test_bank_questions($test_id));
-$bank_draw_n = (int)($test['bank_draw'] ?? 0);
-$est_q       = $bank_draw_n > 0 && $bank_count > 0
-    ? $fixed_count + min($bank_draw_n, $bank_count)
-    : ($fixed_count + $bank_count); // gdy brak losowania: wszystkie
+$fixed_count  = count(k30_ti_test_fixed_questions($test_id));
+$bank_count   = count(k30_ti_test_bank_questions($test_id));
+$bank_draw_n  = (int)($test['bank_draw']  ?? 0);
+$fixed_draw_n = (int)($test['fixed_draw'] ?? 0);
+$est_fixed    = $fixed_draw_n > 0 ? min($fixed_draw_n, $fixed_count) : $fixed_count;
+$est_bank     = $bank_draw_n  > 0 ? min($bank_draw_n,  $bank_count)  : $bank_count;
+$est_q        = $est_fixed + $est_bank;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
@@ -102,7 +103,7 @@ include __DIR__ . '/_layout_head.php';
       <h1 class="h5 fw-bold mb-1"><?= h($test['title']) ?></h1>
       <?php if ($retake): ?><span class="badge bg-warning text-dark mb-2">poprawa</span><?php endif; ?>
       <p class="text-body-secondary small mb-3">
-        <?= $est_q ?> pytań<?php if ($bank_draw_n > 0 && $bank_count > 0): ?> <span class="text-info">(losowane z bazy)</span><?php endif; ?><?php if ((int)$test['time_limit_min']>0): ?> · <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
+        <?= $est_q ?> pytań<?php if ($bank_draw_n > 0 || $fixed_draw_n > 0): ?> <span class="text-info">(losowane)</span><?php endif; ?><?php if ((int)$test['time_limit_min']>0): ?> · <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
         <?php if ($retake && $retake_pass > 0): ?> · <strong>próg poprawa: <?= $retake_pass ?>%</strong><?php endif; ?>
       </p>
       <?php if (trim((string)$test['description']) !== ''): ?>

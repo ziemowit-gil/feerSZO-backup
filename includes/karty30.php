@@ -820,6 +820,7 @@ function karty30_migrate(): void {
 
     foreach ([
         "ALTER TABLE k30_ti_tests          ADD COLUMN bank_draw        INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_tests          ADD COLUMN fixed_draw       INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_test_questions ADD COLUMN in_bank          INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_test_attempts  ADD COLUMN drawn_ids        TEXT",
         "ALTER TABLE k30_ti_tests          ADD COLUMN retake_pass_pct  INTEGER NOT NULL DEFAULT 0",
@@ -3402,6 +3403,7 @@ function k30_ti_test_save(array $data, ?int $id = null, ?int $created_by = null)
         'is_active'       => !empty($data['is_active'])  ? 1 : 0,
         'sync_grade'      => !empty($data['sync_grade']) ? 1 : 0,
         'bank_draw'       => max(0, (int)($data['bank_draw'] ?? 0)),
+        'fixed_draw'      => max(0, (int)($data['fixed_draw'] ?? 0)),
     ];
     if ($id) { db_update('k30_ti_tests', $f, $id); return $id; }
     $f['course_id']  = (int)$data['course_id'];
@@ -3546,16 +3548,27 @@ function k30_ti_test_start_attempt(int $test_id, int $client_id, string $label =
     $open = db_one("SELECT id FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status='in_progress' ORDER BY id DESC LIMIT 1", [$test_id, $client_id]);
     if ($open) return (int)$open['id'];
 
-    $test   = k30_ti_test_get($test_id);
-    $draw   = (int)($test['bank_draw'] ?? 0);
-    $bank   = k30_ti_test_bank_questions($test_id);
-    $fixed  = k30_ti_test_fixed_questions($test_id);
+    $test        = k30_ti_test_get($test_id);
+    $bank_draw   = (int)($test['bank_draw']  ?? 0);
+    $fixed_draw  = (int)($test['fixed_draw'] ?? 0);
+    $bank        = k30_ti_test_bank_questions($test_id);
+    $fixed       = k30_ti_test_fixed_questions($test_id);
+
+    // Losowanie pytań stałych
+    if ($fixed_draw > 0 && $fixed) {
+        shuffle($fixed);
+        $fixed = array_slice($fixed, 0, min($fixed_draw, count($fixed)));
+    }
+    // Losowanie pytań z bazy
+    if ($bank_draw > 0 && $bank) {
+        shuffle($bank);
+        $bank = array_slice($bank, 0, min($bank_draw, count($bank)));
+    }
 
     $drawn_ids = null;
-    if ($draw > 0 && $bank) {
-        shuffle($bank);
-        $picked    = array_slice($bank, 0, min($draw, count($bank)));
-        $drawn_ids = json_encode(array_map(fn($q) => (int)$q['id'], [...$fixed, ...$picked]));
+    if ($fixed_draw > 0 || $bank_draw > 0) {
+        $all_picked = [...$fixed, ...$bank];
+        $drawn_ids  = json_encode(array_map(fn($q) => (int)$q['id'], $all_picked));
     }
 
     $max = $drawn_ids !== null
