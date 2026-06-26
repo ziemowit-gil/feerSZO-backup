@@ -632,46 +632,24 @@ include __DIR__ . '/_layout_head.php';
 </div>
 </noscript>
 
-<!-- Wyskakujące okno: position:fixed, ramka, animacja wjazdu ─────────────── -->
-<style>
-#leavePopup {
-  display: none;
-  position: fixed;
-  z-index: 1080;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  width: min(420px, calc(100vw - 2rem));
-  background: var(--bs-body-bg);
-  border: 2px solid #f59e0b;
-  border-radius: .6rem;
-  box-shadow: 0 8px 32px rgba(0,0,0,.28);
-  animation: leavePopupIn .25s ease;
-}
-@keyframes leavePopupIn {
-  from { opacity:0; transform:translateY(20px); }
-  to   { opacity:1; transform:translateY(0);    }
-}
-#leavePopup:focus { outline: none; }
-#leavePopup .lp-header {
-  background: #f59e0b;
-  color: #1c1917;
-  border-radius: .45rem .45rem 0 0;
-  padding: .6rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-}
-#leavePopup .lp-body  { padding: .9rem 1rem .5rem; }
-#leavePopup .lp-footer { padding: .5rem 1rem .8rem; text-align: right; }
-</style>
-
-<div id=”leavePopup” role=”dialog” aria-modal=”true” aria-labelledby=”leavePopupTitle”
-     data-leave-fp=”<?= h($leave_fp) ?>” tabindex=”-1”>
-  <div class=”lp-header”>
-    <i class=”bi bi-airplane-fill flex-shrink-0” aria-hidden=”true”></i>
-    <h2 class=”h6 mb-0 fw-bold” id=”leavePopupTitle”>Nieobecność prowadzącego</h2>
+<!-- Wyskakujące okno — position:fixed, prawa dolna część ekranu ──────────── -->
+<div id=”leavePopup”
+     role=”dialog” aria-modal=”true” aria-labelledby=”leavePopupTitle”
+     data-leave-fp=”<?= h($leave_fp) ?>”
+     tabindex=”-1”
+     style=”display:none;position:fixed;z-index:1080;bottom:1.5rem;right:1.5rem;
+            width:min(420px,calc(100vw - 2rem));
+            background:#1e293b;color:#f1f5f9;
+            border:2px solid #f59e0b;border-radius:.6rem;
+            box-shadow:0 8px 32px rgba(0,0,0,.5);”>
+  <!-- Pasek tytułu -->
+  <div style=”background:#f59e0b;color:#1c1917;border-radius:.45rem .45rem 0 0;
+              padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;”>
+    <i class=”bi bi-airplane-fill” aria-hidden=”true”></i>
+    <h2 class=”mb-0 fw-bold” id=”leavePopupTitle” style=”font-size:1rem”>Nieobecność prowadzącego</h2>
   </div>
-  <div class=”lp-body”>
+  <!-- Treść -->
+  <div style=”padding:.9rem 1rem .5rem”>
     <ul class=”list-unstyled mb-2 d-flex flex-column gap-2”>
       <?php foreach ($instructor_leaves as $lv):
         $ongoing   = $lv['date_from'] <= $today_d && $lv['date_to'] >= $today_d;
@@ -680,68 +658,69 @@ include __DIR__ . '/_layout_head.php';
         $range     = $df === $dt ? $df : ($df . ' – ' . $dt);
         $lvcourses = trim((string)($lv['course_names'] ?? ''));
       ?>
-      <li class=”border rounded p-2 small”>
+      <li style=”border:1px solid #334155;border-radius:.4rem;padding:.5rem .75rem;font-size:.875rem”>
         <div>
           <strong><?= h($lv['instructor_name']) ?></strong>
           — <?= h(mb_strtolower(ti_leave_type_label($lv['type']))) ?>,
-          <span class=”text-nowrap”><?= h($range) ?></span>
-          <span class=”badge <?= $ongoing ? 'text-bg-warning' : 'text-bg-secondary' ?> ms-1”>
-            <?= $ongoing ? 'trwa teraz' : 'wkrótce' ?>
-          </span>
+          <span><?= h($range) ?></span>
+          <?php if ($ongoing): ?>
+          <span class=”badge text-bg-warning ms-1”>trwa teraz</span>
+          <?php else: ?>
+          <span class=”badge text-bg-secondary ms-1”>wkrótce</span>
+          <?php endif; ?>
         </div>
         <?php if ($lvcourses !== ''): ?>
-        <div class=”text-body-secondary mt-1”>Dotyczy: <?= h(str_replace(',', ', ', $lvcourses)) ?></div>
+        <div style=”color:#94a3b8;margin-top:.25rem;font-size:.8rem”>Dotyczy: <?= h(str_replace(',', ', ', $lvcourses)) ?></div>
         <?php endif; ?>
       </li>
       <?php endforeach; ?>
     </ul>
-    <p class=”small text-body-secondary mb-0”>
+    <p style=”font-size:.8rem;color:#94a3b8;margin:0”>
       <i class=”bi bi-info-circle me-1” aria-hidden=”true”></i>W tym czasie zajęcia mogą zostać odwołane lub przełożone — sprawdź zakładkę „Moje lekcje”.
     </p>
   </div>
-  <div class=”lp-footer”>
-    <button type=”button” class=”btn btn-warning btn-sm fw-semibold” id=”leavePopupOk”>
+  <!-- Stopka -->
+  <div style=”padding:.5rem 1rem .8rem;text-align:right”>
+    <button type=”button” id=”leavePopupOk”
+            style=”background:#f59e0b;color:#1c1917;border:none;border-radius:.375rem;
+                   padding:.3rem .9rem;font-weight:600;cursor:pointer;font-size:.875rem”>
       <i class=”bi bi-check-lg me-1” aria-hidden=”true”></i>Rozumiem
     </button>
   </div>
 </div>
 <script>
-(function(){
+document.addEventListener('DOMContentLoaded', function() {
   var STORE_KEY = 'ti_leave_seen';
   var popup = document.getElementById('leavePopup');
   if (!popup) return;
   var fp = popup.getAttribute('data-leave-fp');
-  if (localStorage.getItem(STORE_KEY) === fp) return;
+  try { if (localStorage.getItem(STORE_KEY) === fp) return; } catch(e) {}
 
-  // Pokaż okno
+  var prevFocus = document.activeElement;
+
+  // Pokaż
   popup.style.display = 'block';
-  // Fokus na tytuł (a11y: czytnik odczyta nagłówek dialogu)
   var title = document.getElementById('leavePopupTitle');
   if (title) { title.setAttribute('tabindex', '-1'); title.focus(); }
 
-  // Pułapka klawiszowa: Tab/Shift+Tab kręci wewnątrz okna
+  // Pułapka Tab — fokus kręci się wewnątrz okna (a11y)
   popup.addEventListener('keydown', function(e) {
     if (e.key !== 'Tab') return;
-    var focusable = Array.from(popup.querySelectorAll('button,[tabindex]:not([tabindex=”-1”])'));
+    var els = popup.querySelectorAll('button,[tabindex]:not([tabindex=”-1”])');
+    var focusable = Array.prototype.filter.call(els, function(el){ return !el.disabled; });
     if (!focusable.length) return;
     var first = focusable[0], last = focusable[focusable.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
-  // Zamknięcie
-  var prevFocus = document.activeElement;
-  function dismiss() {
-    localStorage.setItem(STORE_KEY, fp);
-    popup.style.animation = 'none';
-    popup.style.opacity = '0';
-    popup.style.transform = 'translateY(20px)';
-    popup.style.transition = 'opacity .2s,transform .2s';
-    setTimeout(function(){ popup.style.display = 'none'; }, 200);
-    if (prevFocus && prevFocus.focus) prevFocus.focus();
-  }
-  document.getElementById('leavePopupOk').addEventListener('click', dismiss);
-})();
+  // Zamknij
+  document.getElementById('leavePopupOk').addEventListener('click', function() {
+    try { localStorage.setItem(STORE_KEY, fp); } catch(e) {}
+    popup.style.display = 'none';
+    if (prevFocus && prevFocus.focus) { prevFocus.focus(); }
+  });
+});
 </script>
 
 <?php endif; ?>
