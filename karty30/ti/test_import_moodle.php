@@ -49,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    $add_to_bank = !empty($_POST['add_to_bank']);
+    $bank_draw   = max(0, (int)($_POST['bank_draw'] ?? 0));
+
     $imported = 0;
     $skipped  = 0;
     $errors   = [];
@@ -100,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'prompt'  => $prompt,
                 'points'  => $points,
                 'options' => $options,
+                'in_bank' => $add_to_bank ? 1 : 0,
             ]);
             $imported++;
 
@@ -126,6 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'prompt'  => $prompt,
                     'points'  => $points,
                     'options' => $options,
+                    'in_bank' => $add_to_bank ? 1 : 0,
                 ]);
             } else {
                 k30_ti_test_question_save([
@@ -134,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'prompt'  => $prompt,
                     'points'  => $points,
                     'options' => [],
+                    'in_bank' => $add_to_bank ? 1 : 0,
                 ]);
             }
             $imported++;
@@ -142,6 +148,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $skipped++;
             $errors[] = 'Pominięto pytanie „' . mb_strimwidth($prompt, 0, 60, '…') . '" — nieobsługiwany typ: ' . h($type) . '.';
         }
+    }
+
+    if ($add_to_bank && $imported > 0 && $bank_draw > 0) {
+        db_update('k30_ti_tests', ['bank_draw' => $bank_draw], 'id=?', [$test_id]);
     }
 
     if ($imported > 0) {
@@ -204,6 +214,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input type="file" class="form-control" id="moodle-xml" name="moodle_xml" accept=".xml,application/xml,text/xml" required>
             <div class="form-text">Tylko pliki .xml wyeksportowane z banku pytań Moodle.</div>
           </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="add-to-bank" name="add_to_bank" value="1">
+              <label class="form-check-label" for="add-to-bank">Dodaj pytania do <strong>bazy pytań</strong> (in_bank)</label>
+            </div>
+            <div class="mt-2" id="bank-draw-wrap" style="display:none">
+              <label class="form-label small mb-1" for="bank-draw">Liczba pytań do losowania (bank_draw)</label>
+              <input type="number" class="form-control form-control-sm" id="bank-draw" name="bank_draw" min="0" max="9999" step="1" value="0" style="width:8rem">
+              <div class="form-text">Ile pytań z bazy ma być losowanych przy każdym podejściu (0 = bez zmian).</div>
+            </div>
+          </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary"><i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Importuj pytania</button>
             <a href="test_build.php?test=<?= $test_id ?>" class="btn btn-outline-secondary">Anuluj</a>
@@ -234,4 +255,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
 </div>
 
+<script>
+(function(){
+  var cb = document.getElementById('add-to-bank');
+  var wrap = document.getElementById('bank-draw-wrap');
+  if (cb && wrap) {
+    cb.addEventListener('change', function(){ wrap.style.display = this.checked ? '' : 'none'; });
+  }
+})();
+</script>
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

@@ -813,6 +813,12 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tans_att ON k30_ti_test_answers(attempt_id)");
 
+    foreach ([
+        "ALTER TABLE k30_ti_tests          ADD COLUMN bank_draw INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_test_questions ADD COLUMN in_bank   INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_test_attempts  ADD COLUMN drawn_ids TEXT",
+    ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
+
     // ── Dostępność prowadzących w tygodniu (okna godzinowe per dzień) ─────────
     // day_of_week zgodne z PHP date('w') i K30_TI_DAYS: 0=Nd, 1=Pn … 6=Sb.
     // Dozwolone wiele okien w jednym dniu (np. 9:00–12:00 i 15:00–18:00).
@@ -3382,6 +3388,7 @@ function k30_ti_test_save(array $data, ?int $id = null, ?int $created_by = null)
         'shuffle'        => !empty($data['shuffle'])    ? 1 : 0,
         'is_active'      => !empty($data['is_active'])  ? 1 : 0,
         'sync_grade'     => !empty($data['sync_grade']) ? 1 : 0,
+        'bank_draw'      => max(0, (int)($data['bank_draw'] ?? 0)),
     ];
     if ($id) { db_update('k30_ti_tests', $f, $id); return $id; }
     $f['course_id']  = (int)$data['course_id'];
@@ -3397,6 +3404,34 @@ function k30_ti_test_questions(int $test_id): array {
     return db_all("SELECT * FROM k30_ti_test_questions WHERE test_id=? ORDER BY position, id", [$test_id]);
 }
 
+/** Pytania zwykłe (zawsze w teście). */
+function k30_ti_test_fixed_questions(int $test_id): array {
+    return db_all("SELECT * FROM k30_ti_test_questions WHERE test_id=? AND in_bank=0 ORDER BY position, id", [$test_id]);
+}
+
+/** Pytania z bazy (pula do losowania). */
+function k30_ti_test_bank_questions(int $test_id): array {
+    return db_all("SELECT * FROM k30_ti_test_questions WHERE test_id=? AND in_bank=1 ORDER BY position, id", [$test_id]);
+}
+
+/**
+ * Pytania testu do wyświetlenia w podejściu.
+ * Jeśli podejście ma drawn_ids, użyj ich. Inaczej zwróć wszystkie (backward compat).
+ */
+function k30_ti_test_questions_for_attempt(array $attempt): array {
+    if (!empty($attempt['drawn_ids'])) {
+        $ids = array_filter(array_map('intval', json_decode($attempt['drawn_ids'], true) ?: []));
+        if (!$ids) return [];
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $qs = db_all("SELECT * FROM k30_ti_test_questions WHERE id IN ($ph)", $ids);
+        // Zachowaj kolejność z drawn_ids
+        $map = [];
+        foreach ($qs as $q) $map[(int)$q['id']] = $q;
+        return array_values(array_filter(array_map(fn($id) => $map[$id] ?? null, $ids)));
+    }
+    return k30_ti_test_questions((int)$attempt['test_id']);
+}
+
 function k30_ti_test_question_get(int $id): ?array {
     return db_one("SELECT * FROM k30_ti_test_questions WHERE id=?", [$id]);
 }
@@ -3405,8 +3440,14 @@ function k30_ti_test_options(int $question_id): array {
     return db_all("SELECT * FROM k30_ti_test_options WHERE question_id=? ORDER BY position, id", [$question_id]);
 }
 
-function k30_ti_test_max_score(int $test_id): float {
-    $r = db_one("SELECT COALESCE(SUM(points),0) AS s FROM k30_ti_test_questions WHERE test_id=?", [$test_id]);
+function k30_ti_test_max_score(int $test_id, ?array $drawn_ids = null): float {
+    if ($drawn_ids !== null) {
+        if (!$drawn_ids) return 0.0;
+        $ph = implode(',', array_fill(0, count($drawn_ids), '?'));
+        $r  = db_one("SELECT COALESCE(SUM(points),0) AS s FROM k30_ti_test_questions WHERE id IN ($ph) AND test_id=?", [...$drawn_ids, $test_id]);
+    } else {
+        $r = db_one("SELECT COALESCE(SUM(points),0) AS s FROM k30_ti_test_questions WHERE test_id=?", [$test_id]);
+    }
     return (float)($r['s'] ?? 0);
 }
 
@@ -3418,13 +3459,14 @@ function k30_ti_test_max_score(int $test_id): float {
 function k30_ti_test_question_save(array $data, ?int $id = null): int {
     $type = in_array($data['type'] ?? '', ['single','multi','open'], true) ? $data['type'] : 'single';
     $f = [
-        'type'   => $type,
-        'prompt' => trim((string)($data['prompt'] ?? '')),
-        'points' => max(0, (float)str_replace(',', '.', (string)($data['points'] ?? 1))) ?: 1,
+        'type'    => $type,
+        'prompt'  => trim((string)($data['prompt'] ?? '')),
+        'points'  => max(0, (float)str_replace(',', '.', (string)($data['points'] ?? 1))) ?: 1,
+        'in_bank' => isset($data['in_bank']) ? ((int)(bool)$data['in_bank']) : 0,
     ];
     if ($id) {
-        db()->prepare("UPDATE k30_ti_test_questions SET type=?, prompt=?, points=? WHERE id=?")
-            ->execute([$f['type'], $f['prompt'], $f['points'], $id]);
+        db()->prepare("UPDATE k30_ti_test_questions SET type=?, prompt=?, points=?, in_bank=? WHERE id=?")
+            ->execute([$f['type'], $f['prompt'], $f['points'], $f['in_bank'], $id]);
     } else {
         $tid = (int)$data['test_id'];
         $pos = (int)(db_one("SELECT COALESCE(MAX(position),0)+1 AS p FROM k30_ti_test_questions WHERE test_id=?", [$tid])['p'] ?? 1);
@@ -3490,9 +3532,27 @@ function k30_ti_test_best_attempt(int $test_id, int $client_id): ?array {
 function k30_ti_test_start_attempt(int $test_id, int $client_id): int {
     $open = db_one("SELECT id FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status='in_progress' ORDER BY id DESC LIMIT 1", [$test_id, $client_id]);
     if ($open) return (int)$open['id'];
+
+    $test   = k30_ti_test_get($test_id);
+    $draw   = (int)($test['bank_draw'] ?? 0);
+    $bank   = k30_ti_test_bank_questions($test_id);
+    $fixed  = k30_ti_test_fixed_questions($test_id);
+
+    $drawn_ids = null;
+    if ($draw > 0 && $bank) {
+        shuffle($bank);
+        $picked    = array_slice($bank, 0, min($draw, count($bank)));
+        $drawn_ids = json_encode(array_map(fn($q) => (int)$q['id'], [...$fixed, ...$picked]));
+    }
+
+    $max = $drawn_ids !== null
+        ? k30_ti_test_max_score($test_id, json_decode($drawn_ids, true))
+        : k30_ti_test_max_score($test_id);
+
     return db_insert('k30_ti_test_attempts', [
-        'test_id' => $test_id, 'client_id' => $client_id,
-        'status' => 'in_progress', 'max_score' => k30_ti_test_max_score($test_id),
+        'test_id'   => $test_id, 'client_id' => $client_id,
+        'status'    => 'in_progress', 'max_score' => $max,
+        'drawn_ids' => $drawn_ids,
     ]);
 }
 
@@ -3503,7 +3563,7 @@ function k30_ti_test_start_attempt(int $test_id, int $client_id): int {
 function k30_ti_test_submit(int $attempt_id, array $answers): void {
     $att = k30_ti_test_attempt_get($attempt_id);
     if (!$att || $att['status'] !== 'in_progress') return;
-    $questions = k30_ti_test_questions((int)$att['test_id']);
+    $questions = k30_ti_test_questions_for_attempt($att);
     $score = 0.0; $max = 0.0; $needs_review = false;
     $pdo = db();
     $pdo->prepare("DELETE FROM k30_ti_test_answers WHERE attempt_id=?")->execute([$attempt_id]);
