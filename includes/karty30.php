@@ -819,9 +819,11 @@ function karty30_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_tans_att ON k30_ti_test_answers(attempt_id)");
 
     foreach ([
-        "ALTER TABLE k30_ti_tests          ADD COLUMN bank_draw INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE k30_ti_test_questions ADD COLUMN in_bank   INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE k30_ti_test_attempts  ADD COLUMN drawn_ids TEXT",
+        "ALTER TABLE k30_ti_tests          ADD COLUMN bank_draw        INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_test_questions ADD COLUMN in_bank          INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_test_attempts  ADD COLUMN drawn_ids        TEXT",
+        "ALTER TABLE k30_ti_tests          ADD COLUMN retake_pass_pct  INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_test_attempts  ADD COLUMN attempt_label    TEXT    NOT NULL DEFAULT ''",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
 
     // ── Dostępność prowadzących w tygodniu (okna godzinowe per dzień) ─────────
@@ -3394,11 +3396,12 @@ function k30_ti_test_save(array $data, ?int $id = null, ?int $created_by = null)
         'title'          => trim((string)($data['title'] ?? '')),
         'description'    => trim((string)($data['description'] ?? '')),
         'time_limit_min' => max(0, (int)($data['time_limit_min'] ?? 0)),
-        'pass_pct'       => max(0, min(100, (int)($data['pass_pct'] ?? 0))),
-        'shuffle'        => !empty($data['shuffle'])    ? 1 : 0,
-        'is_active'      => !empty($data['is_active'])  ? 1 : 0,
-        'sync_grade'     => !empty($data['sync_grade']) ? 1 : 0,
-        'bank_draw'      => max(0, (int)($data['bank_draw'] ?? 0)),
+        'pass_pct'        => max(0, min(100, (int)($data['pass_pct'] ?? 0))),
+        'retake_pass_pct' => max(0, min(100, (int)($data['retake_pass_pct'] ?? 0))),
+        'shuffle'         => !empty($data['shuffle'])    ? 1 : 0,
+        'is_active'       => !empty($data['is_active'])  ? 1 : 0,
+        'sync_grade'      => !empty($data['sync_grade']) ? 1 : 0,
+        'bank_draw'       => max(0, (int)($data['bank_draw'] ?? 0)),
     ];
     if ($id) { db_update('k30_ti_tests', $f, $id); return $id; }
     $f['course_id']  = (int)$data['course_id'];
@@ -3539,7 +3542,7 @@ function k30_ti_test_best_attempt(int $test_id, int $client_id): ?array {
 }
 
 /** Rozpocznij podejście (lub zwróć trwające). Zwraca id podejścia. */
-function k30_ti_test_start_attempt(int $test_id, int $client_id): int {
+function k30_ti_test_start_attempt(int $test_id, int $client_id, string $label = ''): int {
     $open = db_one("SELECT id FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status='in_progress' ORDER BY id DESC LIMIT 1", [$test_id, $client_id]);
     if ($open) return (int)$open['id'];
 
@@ -3560,9 +3563,10 @@ function k30_ti_test_start_attempt(int $test_id, int $client_id): int {
         : k30_ti_test_max_score($test_id);
 
     return db_insert('k30_ti_test_attempts', [
-        'test_id'   => $test_id, 'client_id' => $client_id,
-        'status'    => 'in_progress', 'max_score' => $max,
-        'drawn_ids' => $drawn_ids,
+        'test_id'       => $test_id, 'client_id' => $client_id,
+        'status'        => 'in_progress', 'max_score' => $max,
+        'drawn_ids'     => $drawn_ids,
+        'attempt_label' => $label,
     ]);
 }
 
@@ -3647,7 +3651,8 @@ function k30_ti_test_sync_grade(int $attempt_id): void {
     // Skala szkolna z procentów
     $grade = $pct >= 90 ? '5' : ($pct >= 75 ? '4' : ($pct >= 60 ? '3' : ($pct >= 50 ? '2' : '1')));
     $vnum  = (float)$grade;
-    $desc  = 'Test: ' . ($test['title'] ?? '') . ' (' . round($pct) . '%)';
+    $label = trim((string)($att['attempt_label'] ?? ''));
+    $desc  = 'Test: ' . ($test['title'] ?? '') . ($label !== '' ? " [$label]" : '') . ' (' . round($pct) . '%)';
     // Aktualizuj istniejący wpis dla tego podejścia albo utwórz nowy
     $existing = db_one("SELECT id FROM k30_ti_grades WHERE hw_submission_id IS NULL AND course_id=? AND client_id=? AND description=?", [(int)$test['course_id'], (int)$att['client_id'], $desc]);
     if ($existing) {

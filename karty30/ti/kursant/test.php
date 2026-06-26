@@ -25,6 +25,7 @@ if (!$test || empty($test['is_active']) || !in_array((int)$test['course_id'], $e
 
 $done    = isset($_GET['done']);
 $started = isset($_GET['started']);
+$retake  = isset($_GET['retake']);
 $mode    = in_array($_GET['mode'] ?? '', ['all', 'paged'], true) ? $_GET['mode'] : 'all';
 
 // Szybkie dane o bazie pytań (do ekranu startowego)
@@ -37,7 +38,8 @@ $est_q       = $bank_draw_n > 0 && $bank_count > 0
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
-    $attempt_id  = k30_ti_test_start_attempt($test_id, (int)$student['client_id']);
+    $attempt_label = !empty($_POST['attempt_label']) ? 'poprawa' : '';
+    $attempt_id    = k30_ti_test_start_attempt($test_id, (int)$student['client_id'], $attempt_label);
     $attempt_row = k30_ti_test_attempt_get($attempt_id);
     $questions   = $attempt_row ? k30_ti_test_questions_for_attempt($attempt_row) : [];
     if ($questions) {
@@ -89,20 +91,26 @@ include __DIR__ . '/_layout_head.php';
   <li class="breadcrumb-item active"><?= h($test['title']) ?></li>
 </ol></nav>
 
+<?php
+  $retake_pass = (int)($test['retake_pass_pct'] ?? 0);
+  $retake_suffix = $retake ? '&retake=1' : '';
+?>
 <?php if (!$done && !$started && $questions): ?>
 
   <div class="card border-0 shadow-sm" style="max-width:520px;margin:0 auto">
     <div class="card-body py-4 px-4">
       <h1 class="h5 fw-bold mb-1"><?= h($test['title']) ?></h1>
+      <?php if ($retake): ?><span class="badge bg-warning text-dark mb-2">poprawa</span><?php endif; ?>
       <p class="text-body-secondary small mb-3">
         <?= $est_q ?> pytań<?php if ($bank_draw_n > 0 && $bank_count > 0): ?> <span class="text-info">(losowane z bazy)</span><?php endif; ?><?php if ((int)$test['time_limit_min']>0): ?> · <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
+        <?php if ($retake && $retake_pass > 0): ?> · <strong>próg poprawa: <?= $retake_pass ?>%</strong><?php endif; ?>
       </p>
       <?php if (trim((string)$test['description']) !== ''): ?>
       <div class="alert alert-info py-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= nl2br(h($test['description'])) ?></div>
       <?php endif; ?>
       <p class="fw-semibold mb-3">Jak chcesz widzieć pytania?</p>
       <div class="d-grid gap-2">
-        <a href="test.php?test=<?= $test_id ?>&started=1&mode=all"
+        <a href="test.php?test=<?= $test_id ?>&started=1&mode=all<?= $retake_suffix ?>"
            class="btn btn-outline-primary text-start d-flex align-items-center gap-3 py-3 px-3">
           <i class="bi bi-list-ul fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
           <span>
@@ -110,7 +118,7 @@ include __DIR__ . '/_layout_head.php';
             <span class="text-body-secondary small">Widzisz wszystkie pytania jednocześnie — możesz swobodnie przewijać.</span>
           </span>
         </a>
-        <a href="test.php?test=<?= $test_id ?>&started=1&mode=paged"
+        <a href="test.php?test=<?= $test_id ?>&started=1&mode=paged<?= $retake_suffix ?>"
            class="btn btn-outline-primary text-start d-flex align-items-center gap-3 py-3 px-3">
           <i class="bi bi-file-earmark-text fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
           <span>
@@ -126,30 +134,41 @@ include __DIR__ . '/_layout_head.php';
   </div>
 
 <?php elseif ($done && $last):
-  $mx  = (float)$last['max_score'];
-  $pct = $mx > 0 ? round(100 * (float)$last['score'] / $mx) : 0;
-  $review = (int)$last['needs_review'] === 1;
-  $passed = (int)$test['pass_pct'] === 0 || $pct >= (int)$test['pass_pct'];
+  $mx           = (float)$last['max_score'];
+  $pct          = $mx > 0 ? round(100 * (float)$last['score'] / $mx) : 0;
+  $review       = (int)$last['needs_review'] === 1;
+  $is_retake    = ($last['attempt_label'] ?? '') === 'poprawa';
+  $active_pass  = $is_retake && (int)$test['retake_pass_pct'] > 0
+                    ? (int)$test['retake_pass_pct']
+                    : (int)$test['pass_pct'];
+  $passed       = $active_pass === 0 || $pct >= $active_pass;
+  $can_retake   = !$passed && !$review && (int)$test['retake_pass_pct'] > 0 && !$is_retake;
 ?>
   <div class="card border-0 shadow-sm">
     <div class="card-body text-center py-4">
       <div class="display-6 mb-2">
-        <i class="bi bi-<?= $review ? 'hourglass-split text-info' : ($passed ? 'check-circle-fill text-success' : 'x-circle-fill text-secondary') ?>" aria-hidden="true"></i>
+        <i class="bi bi-<?= $review ? 'hourglass-split text-info' : ($passed ? 'check-circle-fill text-success' : 'x-circle-fill text-danger') ?>" aria-hidden="true"></i>
       </div>
       <h1 class="h4 fw-bold mb-2"><?= h($test['title']) ?></h1>
+      <?php if ($is_retake): ?><span class="badge bg-warning text-dark mb-2">poprawa</span><?php endif; ?>
       <?php if ($review): ?>
         <p class="mb-1">Test wysłany. Część pytań (otwarte) czeka na ocenę prowadzącego.</p>
         <p class="text-body-secondary">Punkty z pytań zamkniętych: <strong><?= rtrim(rtrim(number_format((float)$last['score'],2,'.',''),'0'),'.') ?>/<?= rtrim(rtrim(number_format($mx,2,'.',''),'0'),'.') ?></strong></p>
       <?php else: ?>
         <p class="fs-5 mb-1">Twój wynik: <strong><?= $pct ?>%</strong>
           (<?= rtrim(rtrim(number_format((float)$last['score'],2,'.',''),'0'),'.') ?>/<?= rtrim(rtrim(number_format($mx,2,'.',''),'0'),'.') ?> pkt)</p>
-        <?php if ((int)$test['pass_pct'] > 0): ?>
-          <p class="<?= $passed ? 'text-success' : 'text-secondary' ?> fw-semibold">
-            <?= $passed ? 'Zaliczono' : 'Nie zaliczono' ?> (próg <?= (int)$test['pass_pct'] ?>%)
+        <?php if ($active_pass > 0): ?>
+          <p class="<?= $passed ? 'text-success' : 'text-danger' ?> fw-semibold">
+            <?= $passed ? 'Zaliczono' : 'Nie zaliczono' ?> (próg <?= $active_pass ?>%)
           </p>
         <?php endif; ?>
       <?php endif; ?>
-      <a href="index.php?tab=testy" class="btn btn-outline-secondary mt-2"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do testów</a>
+      <div class="d-flex gap-2 justify-content-center mt-3 flex-wrap">
+        <a href="index.php?tab=testy" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do testów</a>
+        <?php if ($can_retake): ?>
+        <a href="test.php?test=<?= $test_id ?>&retake=1" class="btn btn-warning"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Popraw</a>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 
@@ -166,9 +185,11 @@ include __DIR__ . '/_layout_head.php';
   </p>
 
   <?php $n_q = count($questions); ?>
+  <?php if ($retake): ?><div class="alert alert-warning py-2 mb-3"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Poprawa<?php if ($retake_pass > 0): ?> — próg zaliczenia: <strong><?= $retake_pass ?>%</strong><?php endif; ?></div><?php endif; ?>
   <form method="post" id="test-form">
     <input type="hidden" name="_token" value="<?= h($tok) ?>">
     <input type="hidden" name="test_id" value="<?= $test_id ?>">
+    <?php if ($retake): ?><input type="hidden" name="attempt_label" value="poprawa"><?php endif; ?>
     <?php foreach ($questions as $i => $q):
       $qid  = (int)$q['id'];
       $opts = $q['type'] !== 'open' ? k30_ti_test_options($qid) : [];

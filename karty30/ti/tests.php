@@ -33,8 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             'title'          => $_POST['title'] ?? '',
             'description'    => $_POST['description'] ?? '',
             'time_limit_min' => $_POST['time_limit_min'] ?? 0,
-            'pass_pct'       => $_POST['pass_pct'] ?? 0,
-            'shuffle'        => isset($_POST['shuffle']) ? 1 : 0,
+            'pass_pct'        => $_POST['pass_pct'] ?? 0,
+            'retake_pass_pct' => $_POST['retake_pass_pct'] ?? 0,
+            'shuffle'         => isset($_POST['shuffle']) ? 1 : 0,
             'is_active'      => isset($_POST['is_active']) ? 1 : 0,
             'sync_grade'     => isset($_POST['sync_grade']) ? 1 : 0,
         ], $tid ?: null, current_user()['id'] ?? null);
@@ -67,7 +68,7 @@ $tests   = $course ? k30_ti_tests_list($course_id) : [];
 
 $edit_id  = (int)($_GET['edit'] ?? 0);
 $edit_row = $edit_id ? k30_ti_test_get($edit_id) : null;
-$f = $edit_row ?: ['id'=>0,'title'=>'','description'=>'','time_limit_min'=>0,'pass_pct'=>0,'shuffle'=>0,'is_active'=>0,'sync_grade'=>0];
+$f = $edit_row ?: ['id'=>0,'title'=>'','description'=>'','time_limit_min'=>0,'pass_pct'=>0,'retake_pass_pct'=>0,'shuffle'=>0,'is_active'=>0,'sync_grade'=>0];
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -200,6 +201,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="col-6 mb-2">
               <label class="form-label" for="t-pass">Próg zaliczenia (%)</label>
               <input type="number" class="form-control" id="t-pass" name="pass_pct" min="0" max="100" value="<?= (int)$f['pass_pct'] ?: '' ?>" placeholder="0 = brak">
+            </div>
+            <div class="col-12 mb-2">
+              <label class="form-label" for="t-retake-pass">Próg zaliczenia — poprawa (%) <span class="text-muted small">0 = brak poprawa</span></label>
+              <input type="number" class="form-control" id="t-retake-pass" name="retake_pass_pct" min="0" max="100" value="<?= (int)$f['retake_pass_pct'] ?: '' ?>" placeholder="np. 70 — wyższy próg przy poprawie">
             </div>
           </div>
           <div class="form-check form-switch mb-1">
