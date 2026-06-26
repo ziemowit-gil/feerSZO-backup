@@ -1,10 +1,10 @@
 <?php
 /**
- * panel/includes/pv_cert_history.php — „Historia wniosków o zaświadczenie" jako wyspa React.
+ * panel/includes/pv_cert_history.php — „Historia wniosków o zaświadczenie".
  *
- * Loader: pv_react_boot.php. Dodaje filtr po statusie (chipy `.pv-hub-chip`) do listy,
- * dokładnie jak [[pv_apps_activity.php]]. Progressive enhancement: pełna lista
- * renderowana serwerowo (działa bez JS / przy awarii CDN).
+ * Markup Bootstrap renderowany serwerowo + filtr po statusie (chipy `.pv-hub-chip`)
+ * wzbogacony waniliowym JS ze wspólnego pv_enhance.php. Gdy JS zawiedzie, lista
+ * jest w pełni widoczna (chipy nic nie ukrywają).
  *
  * Wymaga w zasięgu: $_pv_certs (znormalizowana tablica, patrz panel/certificates.php),
  *   APP_URL, h().
@@ -19,15 +19,14 @@ $_cert_st = [
     'wydane'         => ['Wydane',              'success', 'bi-award-fill'],
     'odrzucone'      => ['Odrzucone',           'danger',  'bi-x-circle'],
 ];
-$_cert_st_js = [];
-foreach ($_cert_st as $k => $v) $_cert_st_js[$k] = ['label' => $v[0], 'color' => $v[1], 'icon' => $v[2]];
+
+// Statusy obecne w danych (w ustalonej kolejności) — tylko one dostają chip.
+$_present = [];
+foreach (['oczekuje','esign_oczekuje','gotowe','wydane','odrzucone'] as $s) {
+    foreach ($_pv_certs as $r) { if (($r['status'] ?? '') === $s) { $_present[] = $s; break; } }
+}
 ?>
-<div class="vol-detail-card"
-     id="pvCertHistory"
-     data-base="<?= h(rtrim(APP_URL, '/')) ?>"
-     data-certs='<?= h(json_encode($_pv_certs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>'
-     data-statuses='<?= h(json_encode($_cert_st_js, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>'>
-  <!-- ── Fallback serwerowy ───────────────────────────────────────────────── -->
+<div class="vol-detail-card" id="pvCertHistory"<?= count($_present) > 1 ? ' data-pv-filter' : '' ?>>
   <div class="vol-detail-header">
     <i class="bi bi-list-check me-2" aria-hidden="true"></i>Historia wniosków
     <?php if ($_pv_certs): ?>
@@ -41,10 +40,19 @@ foreach ($_cert_st as $k => $v) $_cert_st_js[$k] = ['label' => $v[0], 'color' =>
     <p class="mt-3 mb-0 small">Nie masz jeszcze żadnych wniosków o zaświadczenie.</p>
   </div>
   <?php else: ?>
+  <?php if (count($_present) > 1): ?>
+  <div class="pv-filter-chips" role="group" aria-label="Filtruj po statusie">
+    <button type="button" class="pv-hub-chip" data-filter-val="all" aria-pressed="true">Wszystkie</button>
+    <?php foreach ($_present as $s): ?>
+    <button type="button" class="pv-hub-chip" data-filter-val="<?= h($s) ?>" aria-pressed="false"><?= h($_cert_st[$s][0]) ?></button>
+    <?php endforeach; ?>
+  </div>
+  <div data-pv-filter-live data-plural="wniosek|wnioski|wniosków" class="visually-hidden" aria-live="polite"></div>
+  <?php endif; ?>
   <?php foreach ($_pv_certs as $r):
     $m = $_cert_st[$r['status']] ?? [$r['status'], 'secondary', 'bi-dot'];
   ?>
-  <div class="vol-activity-row">
+  <div class="vol-activity-row" data-filter-item data-status="<?= h($r['status']) ?>">
     <div class="vol-activity-icon bg-<?= $m[1] ?> bg-opacity-15 text-<?= $m[1] ?>">
       <i class="bi <?= $m[2] ?>" aria-hidden="true"></i>
     </div>
@@ -80,80 +88,4 @@ foreach ($_cert_st as $k => $v) $_cert_st_js[$k] = ['label' => $v[0], 'color' =>
   <?php endif; ?>
 </div>
 
-<?php require_once __DIR__ . '/pv_react_boot.php'; ?>
-<script>
-window.pvReact(function (React, ReactDOM, html) {
-  var mount = document.getElementById('pvCertHistory');
-  if (!mount) return;
-  var certs, ST;
-  try { certs = JSON.parse(mount.getAttribute('data-certs') || '[]'); ST = JSON.parse(mount.getAttribute('data-statuses') || '{}'); }
-  catch (e) { return; }
-  if (!Array.isArray(certs) || !certs.length) return;
-
-  var BASE = mount.getAttribute('data-base') || '';
-  var useState = React.useState, useMemo = React.useMemo;
-  function meta(s){ return ST[s] || {label:s, color:'secondary', icon:'bi-dot'}; }
-  function pluralWniosek(n){ return n===1 ? ' wniosek' : (n>=2 && n<=4 ? ' wnioski' : ' wniosków'); }
-
-  function History(){
-    var fs = useState('all'), filter = fs[0], setFilter = fs[1];
-
-    var present = useMemo(function(){
-      var seen = {}; var order = ['oczekuje','esign_oczekuje','gotowe','wydane','odrzucone'];
-      certs.forEach(function(c){ seen[c.status] = true; });
-      return order.filter(function(s){ return seen[s]; });
-    }, []);
-
-    var shown = useMemo(function(){
-      return filter === 'all' ? certs : certs.filter(function(c){ return c.status === filter; });
-    }, [filter]);
-
-    function Row(p){
-      var r = p.r, m = meta(r.status);
-      return html`
-        <div class="vol-activity-row">
-          <div class=${'vol-activity-icon bg-' + m.color + ' bg-opacity-15 text-' + m.color}>
-            <i class=${'bi ' + m.icon} aria-hidden="true"></i>
-          </div>
-          <div class="flex-grow-1" style=${{minWidth:0}}>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-              <span class="fw-semibold" style=${{fontSize:'.85rem'}}>${r.type_label} · ${r.nr}</span>
-              <span class=${'badge bg-' + m.color}>${m.label}</span>
-            </div>
-            <div class="text-muted" style=${{fontSize:'.78rem'}}>Cel: ${r.cel}</div>
-            ${r.rejection_note ? html`<div class="text-danger" style=${{fontSize:'.78rem'}}><i class="bi bi-chat-left-text me-1" aria-hidden="true"></i>${r.rejection_note}</div>` : null}
-          </div>
-          <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
-            <span class="text-muted" style=${{fontSize:'.77rem'}}>${r.created_pl}</span>
-            ${r.status === 'wydane' ? html`
-              <a href=${BASE + '/certificates/print.php?id=' + r.id} target="_blank"
-                 class="btn btn-sm btn-success py-0 px-2" title="Pobierz / drukuj PDF"
-                 aria-label="Pobierz lub drukuj PDF zaświadczenia"><i class="bi bi-printer" aria-hidden="true"></i></a>
-              <a href=${BASE + '/certificates/download_docx.php?id=' + r.id}
-                 class="btn btn-sm btn-outline-secondary py-0 px-2" title="Pobierz DOCX (Word)"
-                 aria-label="Pobierz zaświadczenie w formacie Word"><i class="bi bi-file-earmark-word" aria-hidden="true"></i></a>` : null}
-          </div>
-        </div>`;
-    }
-
-    return html`
-      <div>
-        <div class="vol-detail-header">
-          <i class="bi bi-list-check me-2" aria-hidden="true"></i>Historia wniosków
-          <span class="badge bg-secondary ms-auto">${certs.length}</span>
-        </div>
-        ${present.length > 1 ? html`
-          <div role="group" aria-label="Filtruj po statusie" style=${{display:'flex',gap:'.35rem',flexWrap:'wrap',padding:'.6rem 1rem 0'}}>
-            <button type="button" class="pv-hub-chip" aria-pressed=${filter==='all'} onClick=${function(){ setFilter('all'); }}>Wszystkie</button>
-            ${present.map(function(s){ var m = meta(s); return html`
-              <button type="button" key=${s} class="pv-hub-chip" aria-pressed=${filter===s} onClick=${function(){ setFilter(s); }}>${m.label}</button>`; })}
-          </div>` : null}
-        <div aria-live="polite" class="visually-hidden">${'Pokazano ' + shown.length + pluralWniosek(shown.length)}</div>
-        <div>${shown.map(function(r, i){ return html`<${Row} key=${i} r=${r} />`; })}</div>
-      </div>`;
-  }
-
-  try { ReactDOM.createRoot(mount).render(html`<${History} />`); }
-  catch (e) { /* fallback serwerowy zostaje */ }
-});
-</script>
+<?php if (count($_present) > 1) require_once __DIR__ . '/pv_enhance.php'; ?>

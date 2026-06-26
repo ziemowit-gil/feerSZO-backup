@@ -211,7 +211,7 @@ if ($_is_volunteer_only) {
 
 <div class="col-xl-7">
 <?php
-// Znormalizuj wnioski dla wyspy React (panel/includes/pv_cert_history.php)
+// Znormalizuj wnioski dla listy z filtrem (panel/includes/pv_cert_history.php)
 $_pv_certs = array_map(function ($r) {
     try {
         $c_row = db_one("SELECT numer_umowy FROM " . table_for_type($r['contract_type']) . " WHERE id=?", [$r['contract_id']]);

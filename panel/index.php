@@ -897,7 +897,7 @@ $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) 
 <?php endif; // _active_row ?>
 
 <?php
-// ── Centrum akcji — dane dla wyspy React (panel/includes/pv_action_hub.php) ──
+// ── Centrum akcji — dane dla siatki akcji (panel/includes/pv_action_hub.php) ──
 // Helpdesk IT — liczba otwartych zgłoszeń użytkownika
 $_hd_my_open = 0;
 try {
@@ -1257,7 +1257,7 @@ if ($_tasks_panel_enabled):
     $csrf_panel = csrf_token();
 ?>
 <?php
-// ── Dane dla wyspy React (panel/includes/pv_tasks_panel.php) ─────────────────
+// ── Dane dla panelu zadań (panel/includes/pv_tasks_panel.php) ────────────────
 $_pv_tasks_mine = array_map(fn($t) => [
     'id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['priority'],
     'due_date' => $t['due_date'], 'ws_name' => $t['ws_name'], 'list_name' => $t['list_name'],
