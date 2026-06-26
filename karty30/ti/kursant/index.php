@@ -249,6 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=0, updated_at=datetime('now') WHERE id=?")
            ->execute([password_hash($new, PASSWORD_BCRYPT), (int)$student['id']]);
+        ti_account_log((int)$student['id'], 'password_changed', $forced ? 'Ustawiono hasło przy pierwszym logowaniu.' : 'Zmieniono hasło.');
         header('Location: index.php?tab=ustawienia&pwok=1'); exit;
     }
 
@@ -274,6 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         db()->prepare("UPDATE k30_ti_student_accounts SET login_alias=?, updated_at=datetime('now') WHERE id=?")
            ->execute([$alias, (int)$student['id']]);
+        ti_account_log((int)$student['id'], 'alias_changed', "Ustawiono alias logowania: {$alias}");
         header('Location: index.php?tab=ustawienia&alias=ok'); exit;
     }
 
@@ -588,6 +590,14 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item">
       <a class="nav-link <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
         <i class="bi bi-life-preserver me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Pomoc</span>
+      </a>
+    </li>
+
+    <!-- Aktywność — dziennik zdarzeń konta -->
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='aktywnosc'?'active':'' ?>" href="?tab=aktywnosc" <?= $tab==='aktywnosc'?'aria-current="page"':'' ?>
+         title="Aktywność konta" aria-label="Aktywność konta">
+        <i class="bi bi-clock-history me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Aktywność</span>
       </a>
     </li>
 
@@ -2435,6 +2445,63 @@ document.addEventListener('DOMContentLoaded', function() {
     </form>
   </div>
 </section>
+<?php endif; ?>
+
+<?php elseif ($tab === 'aktywnosc'):
+  // Filtr zdarzeń widocznych dla kursanta (bez wewnętrznych akcji admina)
+  $kursant_visible_actions = ['login','login_failed','password_changed','msg_sent','msg_blocked_attempt','alias_changed'];
+  $placeholders = implode(',', array_fill(0, count($kursant_visible_actions), '?'));
+  $kursant_log = db_all(
+      "SELECT * FROM k30_ti_account_log WHERE student_id=? AND action IN ({$placeholders})
+       ORDER BY created_at DESC, id DESC LIMIT 200",
+      array_merge([(int)$student['id']], $kursant_visible_actions)
+  );
+  $action_labels_kursant = [
+      'login'               => ['label' => 'Logowanie',            'icon' => 'bi-box-arrow-in-right', 'color' => 'text-success'],
+      'login_failed'        => ['label' => 'Nieudane logowanie',   'icon' => 'bi-exclamation-triangle','color' => 'text-warning'],
+      'password_changed'    => ['label' => 'Zmiana hasła',         'icon' => 'bi-key',                'color' => 'text-primary'],
+      'msg_sent'            => ['label' => 'Wysłano wiadomość',    'icon' => 'bi-envelope-arrow-up',  'color' => 'text-secondary'],
+      'msg_blocked_attempt' => ['label' => 'Próba wysyłki (blok)', 'icon' => 'bi-slash-circle',       'color' => 'text-danger'],
+      'alias_changed'       => ['label' => 'Zmiana aliasu',        'icon' => 'bi-person-badge',       'color' => 'text-secondary'],
+  ];
+?>
+
+<h1 class="h5 fw-bold mb-4">
+  <i class="bi bi-clock-history text-primary me-2" aria-hidden="true"></i>Aktywność konta
+</h1>
+
+<?php if (empty($kursant_log)): ?>
+<div class="card">
+  <div class="card-body text-center text-body-secondary py-5">
+    <i class="bi bi-clock-history fs-1 opacity-25 d-block mb-3" aria-hidden="true"></i>
+    <p class="mb-0">Brak zarejestrowanych zdarzeń na tym koncie.</p>
+  </div>
+</div>
+<?php else: ?>
+<p class="text-body-secondary small mb-3">Historia ostatnich zdarzeń na Twoim koncie. Jeśli zauważysz nieznane logowania, zmień hasło lub skontaktuj się z prowadzącym.</p>
+<ol class="list-unstyled d-flex flex-column gap-2" aria-label="Zdarzenia na koncie">
+  <?php foreach ($kursant_log as $le):
+    $cfg = $action_labels_kursant[$le['action']] ?? ['label' => $le['action'], 'icon' => 'bi-dot', 'color' => 'text-muted'];
+    $ts  = $le['created_at'] ? date('d.m.Y, H:i', strtotime($le['created_at'])) : '';
+  ?>
+  <li>
+    <article class="d-flex gap-3 align-items-start border rounded-2 px-3 py-2">
+      <span class="<?= $cfg['color'] ?> mt-1 flex-shrink-0" aria-hidden="true">
+        <i class="bi <?= $cfg['icon'] ?>"></i>
+      </span>
+      <div class="flex-grow-1">
+        <div class="fw-semibold small"><?= h($cfg['label']) ?></div>
+        <?php if (!empty($le['detail'])): ?>
+        <div class="text-body-secondary small"><?= h($le['detail']) ?></div>
+        <?php endif; ?>
+      </div>
+      <time class="text-body-secondary small flex-shrink-0 text-end" datetime="<?= h($le['created_at'] ?? '') ?>">
+        <?= h($ts) ?>
+      </time>
+    </article>
+  </li>
+  <?php endforeach; ?>
+</ol>
 <?php endif; ?>
 
 <?php elseif ($tab === 'ustawienia'): ?>

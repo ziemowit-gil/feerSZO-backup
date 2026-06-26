@@ -7,6 +7,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -35,9 +36,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             student_login_user($account);
             db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now') WHERE id=?")
                ->execute([$account['id']]);
+            if (function_exists('ti_account_log')) ti_account_log((int)$account['id'], 'login', 'Logowanie do panelu kursanta.');
             header('Location: index.php'); exit;
         }
     } else {
+        if ($account) {
+            if (function_exists('ti_account_log')) ti_account_log((int)$account['id'], 'login_failed', 'Nieudana próba logowania.');
+        }
         $error = 'Nieprawidłowy login lub hasło.';
     }
 }
