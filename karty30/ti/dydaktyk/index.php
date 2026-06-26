@@ -819,7 +819,29 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   .dyd-course-pills .nav-link { border:1px solid var(--bs-border-color); }
   .dyd-course-pills .nav-link.active { background:#2563eb; border-color:#2563eb; }
   .badge-soft { background:rgba(37,99,235,.12); color:#93c5fd; border:1px solid rgba(37,99,235,.35); }
+  .dyd-globalbar { background:var(--bs-body-bg); border-bottom:2px solid var(--bs-border-color); padding:.3rem 1rem; display:flex; align-items:center; gap:.25rem; flex-wrap:wrap; }
+  .dyd-globalbar .dyd-gb-link { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .85rem; border-radius:6px; font-size:.88rem; font-weight:600; color:var(--bs-body-color); text-decoration:none; border:1.5px solid transparent; transition:background .12s,color .12s; min-height:40px; }
+  .dyd-globalbar .dyd-gb-link:hover { background:var(--bs-tertiary-bg); border-color:var(--bs-border-color); }
+  .dyd-globalbar .dyd-gb-link.active { background:#dbeafe; color:#1d4ed8; border-color:#93c5fd; font-weight:700; }
 </style>
+
+<!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
+<nav class="dyd-globalbar" aria-label="Menu dydaktyka">
+  <a class="dyd-gb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
+     <?= $tab==='dostepnosc'?'aria-current="page"':'' ?>>
+    <i class="bi bi-clock-history" aria-hidden="true"></i>Dostępność
+    <?php if (isset($my_avail) && count($my_avail) > 0): ?>
+    <span class="badge bg-secondary" style="font-size:.65rem"><?= count($my_avail) ?></span>
+    <?php endif; ?>
+  </a>
+  <a class="dyd-gb-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci"
+     <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
+    <i class="bi bi-envelope" aria-hidden="true"></i>Wiadomości
+    <?php if (!empty($dyd_msg_unread_total)): ?>
+    <span class="badge bg-danger" style="font-size:.65rem"><?= (int)$dyd_msg_unread_total ?></span>
+    <?php endif; ?>
+  </a>
+</nav>
 
 <main id="main" class="container dyd-wrap py-4">
 
@@ -899,24 +921,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </a>
     </li>
     <?php endforeach; ?>
-  </ul>
-
-  <!-- Globalne zakładki (niezależne od kursu) -->
-  <ul class="nav nav-tabs mb-3" role="tablist">
-    <li class="nav-item" role="presentation">
-      <a class="nav-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc">
-        <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Dostępność
-        <span class="badge bg-secondary ms-1"><?= count($my_avail) ?></span>
-      </a>
-    </li>
-    <li class="nav-item" role="presentation">
-      <a class="nav-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci">
-        <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wiadomości
-        <?php if ($dyd_msg_unread_total > 0): ?>
-        <span class="badge bg-danger ms-1"><?= (int)$dyd_msg_unread_total ?></span>
-        <?php endif; ?>
-      </a>
-    </li>
   </ul>
 
   <div class="dyd-tabpane">
