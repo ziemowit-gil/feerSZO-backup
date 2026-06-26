@@ -125,6 +125,33 @@ function helpdesk_migrate(): void {
         PRIMARY KEY (ticket_id, user_id)
     )");
 
+    // Seed makr domyślnych — tylko jeśli tabela dopiero co powstała (pusta)
+    try {
+        $macro_count = (int)($pdo->query("SELECT COUNT(*) FROM helpdesk_macros")->fetchColumn());
+        if ($macro_count === 0) {
+            $seed = [
+                [1, 'Przyjęto zgłoszenie',
+                 "Dzień dobry,\n\nDziękujemy za zgłoszenie. Przyjęliśmy je do realizacji i zajmiemy się nim najszybciej, jak to możliwe. O postępach będziemy informować w tym wątku.\n\nPozdrawiam,\nHelpdesk IT"],
+                [2, 'Prośba o dodatkowe informacje',
+                 "Dzień dobry,\n\nAby sprawnie zająć się zgłoszeniem, prosimy o dodatkowe informacje:\n- \n- \n\nPo otrzymaniu odpowiedzi wrócimy do sprawy. Możesz odpowiedzieć bezpośrednio w tym wątku.\n\nPozdrawiam,\nHelpdesk IT"],
+                [3, 'Krytyczne — wymaga interwencji',
+                 "Dzień dobry,\n\nZgłoszenie zostało oznaczone jako <strong>krytyczne i wymagające natychmiastowej interwencji</strong>. Nasz zespół zajmie się nim priorytetowo.\n\nJeśli sprawa dotyczy awarii lub uniemożliwia pracę, prosimy o kontakt telefoniczny z helpdeskiem.\n\nPozdrawiam,\nHelpdesk IT"],
+                [4, 'Przekazano do firmy zewnętrznej',
+                 "Dzień dobry,\n\nUprzejmie informujemy, że zgłoszenie zostało przekazane do firmy zewnętrznej, która zajmie się jego dalszą realizacją.\n\nDalsze aktualizacje będą się pojawiać w tym wątku. W razie pytań prosimy o odpowiedź na tę wiadomość.\n\nPozdrawiam,\nHelpdesk IT"],
+                [5, 'Wymaga prac programistycznych',
+                 "Dzień dobry,\n\nDziękujemy za zgłoszenie. Opisana sprawa wymaga prac programistycznych, dlatego nie rozwiążemy jej od razu — zaplanowaliśmy ją do wdrożenia w jednej z najbliższych wersji systemu.\n\nO udostępnieniu zmiany poinformujemy w tym wątku. Dziękujemy za cierpliwość i cenną uwagę.\n\nPozdrawiam,\nHelpdesk IT"],
+                [6, 'Rozwiązano — prośba o potwierdzenie',
+                 "Dzień dobry,\n\nZgłoszenie zostało rozwiązane. Prosimy o sprawdzenie i potwierdzenie, czy wszystko działa prawidłowo. Jeśli w ciągu kilku dni nie otrzymamy odpowiedzi, zgłoszenie zostanie automatycznie zamknięte.\n\nPozdrawiam,\nHelpdesk IT"],
+                [7, 'Zamknięcie zgłoszenia',
+                 "Dzień dobry,\n\nZamykamy zgłoszenie. Dziękujemy za kontakt — jeśli problem powróci lub pojawią się nowe pytania, prosimy o utworzenie nowego zgłoszenia.\n\nPozdrawiam,\nHelpdesk IT"],
+            ];
+            $ins = $pdo->prepare("INSERT INTO helpdesk_macros (sort_order, title, body, is_active) VALUES (?,?,?,1)");
+            foreach ($seed as [$sort, $title, $body]) {
+                $ins->execute([$sort, $title, $body]);
+            }
+        }
+    } catch (\Throwable $e) {}
+
     try {
         $s = db_one("SELECT id FROM settings WHERE key_='helpdesk_enabled'");
         if (!$s) $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['helpdesk_enabled', '1']);
@@ -258,51 +285,6 @@ function hd_unread_ids(int $user_id): array {
         );
         return array_column($rows, 'ticket_id');
     } catch (\Throwable $e) { return []; }
-}
-
-function hd_reply_templates(array $ticket): array {
-    $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $name  = trim((string)($ticket['requester_name'] ?? ''));
-    $first = $name !== '' ? (preg_split('/\s+/', $name)[0] ?? $name) : '';
-    $hello = $first !== '' ? "Dzień dobry {$first}," : 'Dzień dobry,';
-    $num   = (string)($ticket['number'] ?? '');
-    $firma = trim((string)($ticket['ext_vendor'] ?? ''));
-    $firma_txt = $firma !== '' ? $firma : 'firmy zewnętrznej';
-    $ref   = trim((string)($ticket['ext_ref'] ?? ''));
-    $ref_line = $ref !== '' ? " Numer sprawy nadany przez firmę: {$ref}." : '';
-    $op    = trim((string)($ticket['assigned_name'] ?? ''));
-    $sig   = ($op !== '' ? $op . "\n" : '') . $org . ' · Helpdesk IT';
-
-    return [
-        'przyjete' => [
-            'label' => 'Przyjęto zgłoszenie',
-            'body'  => "{$hello}\n\nDziękujemy za zgłoszenie {$num}. Przyjęliśmy je do realizacji i zajmiemy się nim najszybciej, jak to możliwe. O postępach będziemy informować w tym wątku.\n\nPozdrawiam,\n{$sig}",
-        ],
-        'info' => [
-            'label' => 'Prośba o dodatkowe informacje',
-            'body'  => "{$hello}\n\nAby sprawnie zająć się zgłoszeniem {$num}, prosimy o dodatkowe informacje:\n- \n- \n\nPo otrzymaniu odpowiedzi wrócimy do sprawy. Możesz odpowiedzieć bezpośrednio w tym wątku.\n\nPozdrawiam,\n{$sig}",
-        ],
-        'krytyczne' => [
-            'label' => 'Krytyczne — wymaga interwencji',
-            'body'  => "{$hello}\n\nZgłoszenie {$num} zostało oznaczone jako <strong>krytyczne i wymagające natychmiastowej interwencji</strong>. Nasz zespół zajmie się nim priorytetowo.\n\nJeśli sprawa dotyczy awarii lub uniemożliwia pracę, prosimy o kontakt telefoniczny z helpdeskiem.\n\nPozdrawiam,\n{$sig}",
-        ],
-        'przekazane_zewn' => [
-            'label' => 'Przekazano do firmy zewnętrznej',
-            'body'  => "{$hello}\n\nUprzejmie informujemy, że zgłoszenie {$num} zostało przekazane do {$firma_txt}, która zajmie się jego dalszą realizacją.{$ref_line}\n\nDalsze aktualizacje będą się pojawiać w tym wątku. W razie pytań prosimy o odpowiedź na tę wiadomość.\n\nPozdrawiam,\n{$sig}",
-        ],
-        'wymaga_prac' => [
-            'label' => 'Wymaga prac programistycznych',
-            'body'  => "{$hello}\n\nDziękujemy za zgłoszenie {$num}. Opisana sprawa wymaga prac programistycznych, dlatego nie rozwiążemy jej od razu — zaplanowaliśmy ją do wdrożenia w jednej z najbliższych wersji systemu.\n\nO udostępnieniu zmiany poinformujemy w tym wątku. Dziękujemy za cierpliwość i cenną uwagę.\n\nPozdrawiam,\n{$sig}",
-        ],
-        'rozwiazane' => [
-            'label' => 'Rozwiązano — prośba o potwierdzenie',
-            'body'  => "{$hello}\n\nZgłoszenie {$num} zostało rozwiązane. Prosimy o sprawdzenie i potwierdzenie, czy wszystko działa prawidłowo. Jeśli w ciągu kilku dni nie otrzymamy odpowiedzi, zgłoszenie zostanie automatycznie zamknięte.\n\nPozdrawiam,\n{$sig}",
-        ],
-        'zamkniete' => [
-            'label' => 'Zamknięcie zgłoszenia',
-            'body'  => "{$hello}\n\nZamykamy zgłoszenie {$num}. Dziękujemy za kontakt — jeśli problem powróci lub pojawią się nowe pytania, prosimy o utworzenie nowego zgłoszenia.\n\nPozdrawiam,\n{$sig}",
-        ],
-    ];
 }
 
 // ── Łączenie (scalanie) zgłoszeń ──────────────────────────────────────────────

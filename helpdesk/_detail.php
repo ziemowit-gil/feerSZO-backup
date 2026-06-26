@@ -152,34 +152,21 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
     <div class="card-body">
       <form method="post" action="<?= h($view_action) ?>" enctype="multipart/form-data" data-hd-form>
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <?php if ($is_op): $reply_tpls = hd_reply_templates($ticket); $db_macros = hd_macros_active(); ?>
+        <?php if ($is_op): $db_macros = hd_macros_active(); ?>
+        <?php if ($db_macros): ?>
         <div class="dropdown mb-2">
           <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-card-text me-1"></i>Wstaw szablon odpowiedzi
+            <i class="bi bi-card-text me-1"></i>Wstaw gotową odpowiedź
           </button>
           <ul class="dropdown-menu" style="font-size:.85rem;max-height:300px;overflow-y:auto">
-            <?php if ($db_macros): ?>
-            <li><h6 class="dropdown-header">Gotowe odpowiedzi</h6></li>
             <?php foreach ($db_macros as $mac): ?>
             <li><button type="button" class="dropdown-item hd-tpl-btn" data-body="<?= h($mac['body']) ?>"><?= h($mac['title']) ?></button></li>
-            <?php endforeach; ?>
-            <li><hr class="dropdown-divider"></li>
-            <?php endif; ?>
-            <li><h6 class="dropdown-header">Szablony systemowe</h6></li>
-            <?php foreach ($reply_tpls as $tk => $tpl): ?>
-            <li><button type="button" class="dropdown-item hd-tpl-btn" data-body="<?= h($tpl['body']) ?>"><?= h($tpl['label']) ?></button></li>
             <?php endforeach; ?>
           </ul>
         </div>
         <?php endif; ?>
-        <?php
-          $tpl_prefill = '';
-          if ($is_op && isset($_GET['tpl'])) {
-              $rt = $reply_tpls ?? hd_reply_templates($ticket);
-              if (isset($rt[$_GET['tpl']])) $tpl_prefill = $rt[$_GET['tpl']]['body'];
-          }
-          $hd_editor_id = 'hdQuill_' . (int)$ticket['id'];
-        ?>
+        <?php endif; ?>
+        <?php $hd_editor_id = 'hdQuill_' . (int)$ticket['id']; ?>
         <!-- Ukryte pole z HTML z Quilla -->
         <input type="hidden" name="msg_body" id="<?= $hd_editor_id ?>_hidden">
         <!-- Quill editor -->

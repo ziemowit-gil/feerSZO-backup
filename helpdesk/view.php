@@ -27,9 +27,7 @@ function hd_json(array $d): void {
 /** Zakończ akcję POST: JSON dla XHR (konsola), redirect dla zwykłego żądania. */
 function hd_finish(bool $xhr, int $ticket_id, array $extra = []): void {
     if ($xhr) hd_json(array_merge(['ok' => true, 'ticket_id' => $ticket_id, 'flash' => flash_get()], $extra));
-    $q = '?id=' . $ticket_id;
-    if (!empty($extra['tpl'])) $q .= '&tpl=' . $extra['tpl'];
-    header('Location: view.php' . $q); exit;
+    header('Location: view.php?id=' . $ticket_id); exit;
 }
 
 $ticket = $id ? db_one("SELECT t.*, op.name AS assigned_name, op.email AS assigned_email
@@ -50,7 +48,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status']) && $is
     csrf_check();
     $new_status = $_POST['status'] ?? '';
     $note       = trim($_POST['status_note'] ?? '');
-    $redir_tpl  = '';
     if (isset(HD_STATUSES[$new_status]) && $new_status !== $ticket['status']) {
         $old_status = $ticket['status'];
         $extra = [];
@@ -89,12 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status']) && $is
                 $msg .= '. Uwaga: nie udało się wysłać linku (sprawdź adres e-mail).';
             }
         }
-        $tpl_for_status = ['przekazane_zewn' => 'przekazane_zewn', 'wymaga_prac' => 'wymaga_prac'];
-        $redir_tpl = $tpl_for_status[$new_status] ?? '';
-        if ($redir_tpl !== '') $msg .= '. Przygotowano szablon odpowiedzi poniżej — sprawdź i wyślij.';
         flash_set('success', $msg);
     }
-    hd_finish($xhr, $id, $redir_tpl !== '' ? ['tpl' => $redir_tpl] : []);
+    hd_finish($xhr, $id);
 }
 
 // ── Udostępnienie podglądu innej osobie ───────────────────────────────────────
