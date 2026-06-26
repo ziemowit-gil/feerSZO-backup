@@ -11,6 +11,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 
 karty30_migrate();
 $me  = dyd_require();
@@ -40,7 +41,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'dostepnosc', 'testy'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'dostepnosc', 'testy', 'wiadomosci'], true)) $tab = 'lekcje';
 
 /** Adres powrotu zachowujący kurs i zakładkę. */
 function dyd_back(int $course, string $tab): string {
@@ -374,6 +375,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ' . dyd_back($course_id, 'materialy')); exit;
     }
+
+    // ── WIADOMOŚCI ────────────────────────────────────────────────────────────
+    if ($op === 'dyd_msg_send') {
+        $acc_id  = (int)($_POST['account_id'] ?? 0);
+        $subject = trim($_POST['subject'] ?? '');
+        $body    = trim($_POST['body'] ?? '');
+        // Sprawdź, czy kursant jest zapisany do kursu prowadzącego
+        $myAccId = $acc_id ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$acc_id]) : null;
+        if (!$myAccId || $body === '') {
+            flash_set('danger', $body === '' ? 'Treść wiadomości jest wymagana.' : 'Nie możesz pisać do tego kursanta.');
+            header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci'); exit;
+        }
+        $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+        ti_msg_post_to_student($acc_id, $subject, $body, $uid, $senderName, false);
+        flash_set('success', 'Wiadomość wysłana.');
+        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+    }
+
+    if ($op === 'dyd_msg_reply') {
+        $acc_id = (int)($_POST['student_id'] ?? 0);
+        $body   = trim($_POST['body'] ?? '');
+        $myAccId = $acc_id ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$acc_id]) : null;
+        if ($myAccId && $body !== '') {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_msg_post_to_student($acc_id, '', $body, $uid, $senderName, true);
+            flash_set('success', 'Odpowiedź wysłana.');
+        }
+        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+    }
 }
 
 // ── Dane do widoku ──────────────────────────────────────────────────────────
@@ -399,6 +437,42 @@ $pending_cancel_total = $cur_course ? (int)(db_one(
 
 $TYPES = k30_ti_material_types();
 $STATUS = K30_TI_SESSION_STATUSES;
+
+// ── Dane dla zakładki Wiadomości ─────────────────────────────────────────────
+$dyd_msg_student_id = (int)($_GET['student'] ?? 0);
+// Wątki: tylko kursanci z kursów tego prowadzącego
+$dyd_msg_threads = $course_ids ? db_all(
+    "SELECT a.id, COALESCE(cl.name, a.login) AS name, a.login,
+            MAX(m.created_at) AS last_at,
+            SUM(CASE WHEN m.sender='student' AND m.is_read=0 THEN 1 ELSE 0 END) AS unread
+     FROM k30_ti_messages m
+     JOIN k30_ti_student_accounts a ON a.id=m.student_id
+     LEFT JOIN k30_clients cl ON cl.id=a.client_id
+     WHERE a.id IN (
+         SELECT DISTINCT sa.id FROM k30_ti_student_accounts sa
+         JOIN k30_ti_enrollments e ON e.client_id=sa.client_id
+         WHERE e.course_id IN (" . implode(',', array_map('intval', $course_ids)) . ") AND e.status='active'
+     )
+     GROUP BY a.id ORDER BY last_at DESC"
+) : [];
+$dyd_msg_unread_total = array_sum(array_column($dyd_msg_threads, 'unread'));
+// Kursanci tego prowadzącego (do selecta nowej wiadomości)
+$dyd_msg_accounts = $course_ids ? db_all(
+    "SELECT DISTINCT a.id, COALESCE(cl.name, a.login) AS name, a.login, c.name AS course_name
+     FROM k30_ti_student_accounts a
+     JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+     JOIN k30_ti_courses c ON c.id=e.course_id
+     LEFT JOIN k30_clients cl ON cl.id=a.client_id
+     WHERE e.course_id IN (" . implode(',', array_map('intval', $course_ids)) . ") AND e.status='active' AND a.is_active=1
+     ORDER BY name"
+) : [];
+$dyd_msg_student = $dyd_msg_student_id
+    ? db_one("SELECT a.*, COALESCE(cl.name, a.login) AS client_name
+              FROM k30_ti_student_accounts a LEFT JOIN k30_clients cl ON cl.id=a.client_id
+              WHERE a.id=?", [$dyd_msg_student_id])
+    : null;
+if ($dyd_msg_student) ti_msg_mark_read_for_staff((int)$dyd_msg_student['id']);
+$dyd_msg_thread = $dyd_msg_student ? ti_msg_list_for_student((int)$dyd_msg_student['id']) : [];
 
 // Lekcje do wyszukiwarki „Powiązana lekcja" (etykiety unikalne — do mapowania w JS)
 $session_opts = []; $session_label_by_id = []; $_lbl_seen = [];
@@ -781,7 +855,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                'zadania'=>['Zadania','journal-check',count($homeworks)],
                'materialy'=>['Materiały','collection-play',count($materials)],
                'dostepnosc'=>['Dostępność','clock-history',count($my_avail)],
-               'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))]];
+               'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))],
+               'wiadomosci'=>['Wiadomości','envelope',$dyd_msg_unread_total]];
       foreach ($tabs as $k=>$ti): ?>
     <li class="nav-item" role="presentation">
       <a class="nav-link <?= $tab===$k?'active':'' ?>" href="index.php?course=<?= $cur_course ?>&tab=<?= $k ?>">
@@ -1346,6 +1421,142 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endif; ?>
 
     <?php endif; /* testy */ ?>
+
+    <?php if ($tab === 'wiadomosci'): ?>
+    <div class="row g-3">
+      <!-- Lista wątków -->
+      <div class="col-md-4">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="fw-semibold small text-muted">Wątki</span>
+          <button type="button" class="btn btn-sm btn-primary"
+                  data-bs-toggle="modal" data-bs-target="#dydMsgNew"
+                  <?= empty($dyd_msg_accounts) ? 'disabled title="Brak kursantów w Twoich kursach"' : '' ?>>
+            <i class="bi bi-pencil-square me-1"></i>Nowa
+          </button>
+        </div>
+        <div class="list-group list-group-flush border rounded" style="max-height:65vh;overflow-y:auto">
+          <?php if (empty($dyd_msg_threads)): ?>
+          <div class="list-group-item text-muted small py-3 text-center">
+            <i class="bi bi-envelope opacity-50 d-block mb-1" style="font-size:1.5rem"></i>Brak wiadomości
+          </div>
+          <?php else: ?>
+          <?php foreach ($dyd_msg_threads as $th): $isActive = $dyd_msg_student_id === (int)$th['id']; ?>
+          <a href="index.php?course=<?= $cur_course ?>&tab=wiadomosci&student=<?= (int)$th['id'] ?>"
+             class="list-group-item list-group-item-action py-2 px-3 <?= $isActive ? 'active' : '' ?>">
+            <div class="d-flex justify-content-between align-items-start">
+              <span class="fw-semibold small"><?= h($th['name']) ?></span>
+              <?php if ($th['unread'] > 0): ?>
+              <span class="badge bg-danger ms-1"><?= (int)$th['unread'] ?></span>
+              <?php endif; ?>
+            </div>
+            <div class="small <?= $isActive ? 'text-white-50' : 'text-muted' ?>" style="font-size:.75rem">
+              <?= h($th['login']) ?> · <?= $th['last_at'] ? date('d.m H:i', strtotime($th['last_at'])) : '' ?>
+            </div>
+          </a>
+          <?php endforeach; ?>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <!-- Aktywny wątek -->
+      <div class="col-md-8">
+        <?php if ($dyd_msg_student): ?>
+        <div class="card border-0 shadow-sm h-100 d-flex flex-column">
+          <div class="card-header d-flex align-items-center gap-2 py-2">
+            <i class="bi bi-person-circle text-primary"></i>
+            <strong><?= h($dyd_msg_student['client_name']) ?></strong>
+            <span class="text-muted small ms-1">(<?= h($dyd_msg_student['login']) ?>)</span>
+          </div>
+          <div class="card-body p-3 flex-grow-1" style="overflow-y:auto;max-height:52vh">
+            <?php if (empty($dyd_msg_thread)): ?>
+            <p class="text-muted text-center mt-4 small">Brak wiadomości w tym wątku.</p>
+            <?php else: ?>
+            <?php foreach ($dyd_msg_thread as $msg): $fromStaff = ($msg['sender'] !== 'student'); ?>
+            <div class="d-flex mb-3 <?= $fromStaff ? 'justify-content-end' : '' ?>">
+              <div class="p-2 rounded" style="max-width:80%;background:<?= $fromStaff ? '#2563eb' : '#F3F4F6' ?>;color:<?= $fromStaff ? '#fff' : '#111' ?>">
+                <?php if (!empty($msg['subject'])): ?>
+                <div class="fw-semibold small mb-1"><?= h($msg['subject']) ?></div>
+                <?php endif; ?>
+                <div style="white-space:pre-wrap;font-size:.875rem"><?= h($msg['body']) ?></div>
+                <div class="mt-1 text-end opacity-75" style="font-size:.7rem">
+                  <?= $fromStaff ? h($msg['sender_name'] ?? 'Prowadzący') : h($dyd_msg_student['client_name']) ?>
+                  · <?= date('d.m H:i', strtotime($msg['created_at'])) ?>
+                </div>
+              </div>
+            </div>
+            <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <div class="card-footer p-2">
+            <form method="post">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="dyd_msg_reply">
+              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+              <input type="hidden" name="student_id" value="<?= (int)$dyd_msg_student['id'] ?>">
+              <div class="d-flex gap-2">
+                <textarea class="form-control form-control-sm" name="body" rows="2"
+                          placeholder="Napisz odpowiedź…" required style="resize:none"></textarea>
+                <button class="btn btn-primary btn-sm align-self-end" type="submit">
+                  <i class="bi bi-send"></i>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <?php else: ?>
+        <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted" style="min-height:200px">
+          <i class="bi bi-envelope-open" style="font-size:2.5rem;opacity:.3"></i>
+          <p class="mt-2 small">Wybierz wątek z listy lub napisz nową wiadomość.</p>
+          <button type="button" class="btn btn-sm btn-outline-primary mt-1"
+                  data-bs-toggle="modal" data-bs-target="#dydMsgNew"
+                  <?= empty($dyd_msg_accounts) ? 'disabled' : '' ?>>
+            <i class="bi bi-pencil-square me-1"></i>Nowa wiadomość
+          </button>
+        </div>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- Modal nowej wiadomości -->
+    <div class="modal fade" id="dydMsgNew" tabindex="-1" aria-labelledby="dydMsgNewLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="post">
+            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op" value="dyd_msg_send">
+            <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+            <div class="modal-header">
+              <h5 class="modal-title" id="dydMsgNewLabel"><i class="bi bi-pencil-square me-2"></i>Nowa wiadomość</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Kursant <span class="text-danger">*</span></label>
+                <select class="form-select" name="account_id" required>
+                  <option value="">— Wybierz kursanta —</option>
+                  <?php foreach ($dyd_msg_accounts as $a): ?>
+                  <option value="<?= (int)$a['id'] ?>"><?= h($a['name']) ?> — <?= h($a['course_name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Temat</label>
+                <input type="text" class="form-control" name="subject" placeholder="Temat wiadomości (opcjonalny)">
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Treść <span class="text-danger">*</span></label>
+                <textarea class="form-control" name="body" rows="4" required placeholder="Napisz wiadomość…"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+              <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1"></i>Wyślij</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <?php endif; /* wiadomosci */ ?>
 
   </div>
   <?php endif; /* $course */ ?>
