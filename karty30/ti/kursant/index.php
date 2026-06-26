@@ -348,7 +348,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Kursy i lekcje kursanta
-$courses = k30_ti_client_courses($student['client_id']);
+$courses          = k30_ti_client_courses($student['client_id']);
+$active_courses   = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') === 'active'));
+$inactive_courses = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') !== 'active'));
 
 // Następna zaplanowana lekcja (do widgetu na dashboardzie)
 $next_lesson = db_one(
@@ -871,10 +873,6 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endif; ?>
 
-  <?php
-    $active_courses   = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') === 'active'));
-    $inactive_courses = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') !== 'active'));
-  ?>
   <?php if ($active_courses): ?>
   <div class="card mb-4">
     <div class="card-header fw-semibold d-flex align-items-center gap-2">
@@ -959,6 +957,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   })();
   </script>
+
+  <!-- Komunikat gdy brak aktywnych kursów -->
+  <?php if (empty($active_courses)): ?>
+  <div class="alert alert-info d-flex align-items-start gap-3 mb-4" role="status">
+    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Nie jesteś obecnie przypisany/a do żadnej grupy.</strong>
+      <div class="small mt-1">
+        Jeśli właśnie złożyłeś/aś rezygnację lub zmienił się Twój plan zajęć — skontaktuj się z prowadzącym lub administracją,
+        aby zapisać się na kurs.
+      </div>
+      <?php if ($inactive_courses): ?>
+      <div class="small mt-1 text-body-secondary">
+        Twoje poprzednie kursy:
+        <?= implode(', ', array_map(fn($c) => h($c['course_name']), $inactive_courses)) ?>.
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- Następna lekcja -->
   <?php if ($next_lesson):
