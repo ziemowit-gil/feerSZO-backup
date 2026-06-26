@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($name === '') $errors[] = 'Imię i nazwisko jest wymagane.';
     if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Nieprawidłowy adres email.';
-    if (!array_key_exists($status, K30_CLIENT_STATUSES)) $status = 'enrolled';
+    if (!array_key_exists($status, K30_CLIENT_STATUSES) || !empty(K30_CLIENT_STATUSES[$status]['_legacy'])) $status = 'enrolled';
 
     if (!$errors) {
         db_update('k30_clients', [
@@ -134,7 +134,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <div class="col-md-6">
           <label class="form-label">Status</label>
           <select name="status" class="form-select">
-            <?php foreach (K30_CLIENT_STATUSES as $sk => $sv): ?>
+            <?php foreach (K30_CLIENT_STATUSES as $sk => $sv): if (!empty($sv['_legacy'])) continue; ?>
             <option value="<?= $sk ?>" <?= ($client['status'] ?? 'enrolled') === $sk ? 'selected' : '' ?>><?= $sv['label'] ?></option>
             <?php endforeach; ?>
           </select>

@@ -149,6 +149,11 @@ function karty30_migrate(): void {
     // Godziny odpłatne (odrębne od bezpłatnych) na kliencie
     try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN used_paid REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
+    // Migracja statusów beneficjentów: stare wartości → nowe klucze
+    try { $pdo->exec("UPDATE k30_clients SET status='learning'  WHERE status='ready'"); }     catch (\Throwable $e) {}
+    try { $pdo->exec("UPDATE k30_clients SET status='graduated' WHERE status='to_settle'"); } catch (\Throwable $e) {}
+    try { $pdo->exec("UPDATE k30_clients SET status='enrolled'  WHERE status='other'"); }     catch (\Throwable $e) {}
+
     // ── Umowy PFRON ───────────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pfron_contracts (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -856,10 +861,15 @@ const K30_SCHEDULE_STATUSES = [
 ];
 
 const K30_CLIENT_STATUSES = [
-    'enrolled'  => ['label' => 'Zarejestrowany', 'color' => '#0176D3', 'bg' => '#EEF4FF'],
-    'ready'     => ['label' => 'Aktywny',         'color' => '#2E844A', 'bg' => '#EFF7ED'],
-    'to_settle' => ['label' => 'Do rozliczenia',  'color' => '#D97706', 'bg' => '#FEF3E2'],
-    'other'     => ['label' => 'Inny',            'color' => '#9CA3AF', 'bg' => '#F3F4F6'],
+    'enrolled'  => ['label' => 'Zapisany',    'color' => '#0176D3', 'bg' => '#EEF4FF',  'icon' => 'bi-person-plus'],
+    'learning'  => ['label' => 'Nauka',       'color' => '#2E844A', 'bg' => '#EFF7ED',  'icon' => 'bi-mortarboard'],
+    'graduated' => ['label' => 'Zakończył',   'color' => '#6D28D9', 'bg' => '#F5F3FF',  'icon' => 'bi-patch-check'],
+    'resigned'  => ['label' => 'Rezygnacja',  'color' => '#D97706', 'bg' => '#FEF3E2',  'icon' => 'bi-door-open'],
+    'expelled'  => ['label' => 'Skreślony',   'color' => '#DC2626', 'bg' => '#FEF2F2',  'icon' => 'bi-x-circle'],
+    // Stare wartości — wyświetlane poprawnie dla istniejących rekordów, niedostępne w formularzu
+    'ready'     => ['label' => 'Aktywny',        'color' => '#2E844A', 'bg' => '#EFF7ED',  'icon' => 'bi-check-circle', '_legacy' => true],
+    'to_settle' => ['label' => 'Do rozliczenia', 'color' => '#D97706', 'bg' => '#FEF3E2',  'icon' => 'bi-clock',        '_legacy' => true],
+    'other'     => ['label' => 'Inny',           'color' => '#9CA3AF', 'bg' => '#F3F4F6',  'icon' => 'bi-three-dots',   '_legacy' => true],
 ];
 
 const K30_CONSULTATION_STATUSES = [

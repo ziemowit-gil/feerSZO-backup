@@ -18,7 +18,7 @@ $PAGE_TITLE = 'Szybka rezerwacja — Karty 30';
 $errors  = [];
 $success = null;
 
-$clients = db_all("SELECT id, name FROM k30_clients WHERE status IN ('enrolled','ready') ORDER BY name");
+$clients = db_all("SELECT id, name FROM k30_clients WHERE status IN ('enrolled','learning') ORDER BY name");
 $users   = k30_get_consultants();
 
 // Zaproponuj najbliższe sloty (następne 7 dni, co godzinę 9-17)
