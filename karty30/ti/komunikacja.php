@@ -29,6 +29,7 @@ $ch_email  = !empty($_POST['ch_email']);
 $ch_sms    = !empty($_POST['ch_sms']);
 $subject   = trim($_POST['subject'] ?? '');
 $body      = trim($_POST['body'] ?? '');
+$body_html = trim($_POST['body_html'] ?? '');
 $op        = $_POST['_op'] ?? '';
 
 $recipients = [];
@@ -66,8 +67,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($errs as $e) flash_set('danger', $e);
         } else {
             $ok = 0; $fail = 0;
+            $email_inner = $body_html !== ''
+                ? $body_html
+                : '<div>' . nl2br(h($body)) . '</div>';
             $html = '<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.6;color:#0f172a">'
-                  . nl2br(h($body)) . '</div>';
+                  . $email_inner . '</div>';
             foreach ($recipients as $r) {
                 if ($ch_email && trim((string)$r['email']) !== '') {
                     try { mail_queue_add(trim($r['email']), $r['name'] ?? '', $subject, $html, $body, 'ti_komunikacja', null, '', false); $ok++; }
@@ -185,9 +189,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input type="text" class="form-control" id="subject" name="subject" value="<?= h($subject) ?>" maxlength="200" placeholder="np. Zmiana terminu zajęć">
           </div>
           <div class="mb-2">
-            <label class="form-label fw-semibold" for="body">Treść <span class="text-danger" aria-hidden="true">*</span></label>
-            <textarea class="form-control" id="body" name="body" rows="5" required placeholder="Treść wiadomości (dla SMS bez formatowania)"><?= h($body) ?></textarea>
-            <div class="form-text">Ta sama treść trafi do e-maila i SMS. SMS bez formatowania — pisz zwięźle.</div>
+            <label class="form-label fw-semibold" for="comm-quill-editor">Treść <span class="text-danger" aria-hidden="true">*</span></label>
+            <div id="comm-quill-editor" style="min-height:9rem;background:#fff;color:#0f172a;border:1px solid var(--bs-border-color);border-radius:.375rem"></div>
+            <textarea id="body" name="body" class="d-none" aria-hidden="true"><?= h($body) ?></textarea>
+            <input type="hidden" name="body_html" id="body_html" value="<?= h($body_html) ?>">
+            <div class="form-text mt-1" id="comm-sms-note" style="display:none"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>SMS używa wersji tekstowej (bez formatowania).</div>
+            <div class="form-text" id="comm-email-note">Formatowanie zostanie zachowane w e-mailu.</div>
           </div>
           <div class="d-flex gap-2">
             <button type="submit" name="_op" value="preview" class="btn btn-outline-primary"><i class="bi bi-people me-1" aria-hidden="true"></i>Pokaż odbiorców</button>
@@ -266,14 +273,59 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
 </div>
 
+<link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 (function(){
-  function sync(){
+  // Filtr trybu odbiorców
+  function syncMode(){
     var mode = (document.querySelector('.comm-mode:checked')||{}).value || 'grupa';
     document.querySelectorAll('.comm-pane').forEach(function(p){ p.hidden = (p.getAttribute('data-mode') !== mode); });
   }
-  document.querySelectorAll('.comm-mode').forEach(function(r){ r.addEventListener('change', sync); });
-  sync();
+  document.querySelectorAll('.comm-mode').forEach(function(r){ r.addEventListener('change', syncMode); });
+  syncMode();
+
+  // Quill WYSIWYG
+  var quill = new Quill('#comm-quill-editor', {
+    theme: 'snow',
+    placeholder: 'Treść wiadomości…',
+    modules: { toolbar: [
+      ['bold','italic','underline'],
+      [{ list:'ordered' },{ list:'bullet' }],
+      ['link'],
+      ['clean']
+    ]}
+  });
+
+  // Wczytaj zapisaną treść (błąd walidacji lub edycja po podglądzie)
+  var initHtml = document.getElementById('body_html').value;
+  var initText = document.getElementById('body').value;
+  if (initHtml) {
+    quill.root.innerHTML = initHtml;
+  } else if (initText) {
+    quill.setText(initText);
+  }
+
+  // Pokaż informację o SMS gdy zaznaczony
+  function syncSmsNote(){
+    var smsOn = document.getElementById('ch_sms') && document.getElementById('ch_sms').checked;
+    var n = document.getElementById('comm-sms-note');
+    var e = document.getElementById('comm-email-note');
+    if (n) n.style.display = smsOn ? '' : 'none';
+    if (e) e.style.display = smsOn ? 'none' : '';
+  }
+  var smsBox = document.getElementById('ch_sms');
+  if (smsBox) smsBox.addEventListener('change', syncSmsNote);
+  syncSmsNote();
+
+  // Przed wysyłką formularza: wypełnij ukryte pola
+  var form = document.querySelector('form');
+  if (form) {
+    form.addEventListener('submit', function(){
+      document.getElementById('body_html').value = quill.root.innerHTML;
+      document.getElementById('body').value = quill.getText().trim();
+    });
+  }
 })();
 </script>
 
