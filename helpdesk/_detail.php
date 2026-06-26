@@ -36,7 +36,7 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
       <span>Zgłoszono przez <strong><?= h($ticket['requester_name']) ?></strong></span>
       <?php if ($ticket['requester_email']): ?>
       <span class="font-monospace" style="font-size:.78rem"><?= h($ticket['requester_email']) ?></span>
-      <?= hd_email_verify_badge($ticket['requester_email']) ?>
+      <?php try { echo hd_email_verify_badge($ticket['requester_email']); } catch (\Throwable $e) {} ?>
       <?php endif; ?>
       <span>· <?= date_pl(substr($ticket['created_at'], 0, 10)) ?></span>
       <?= $ticket['assigned_name']

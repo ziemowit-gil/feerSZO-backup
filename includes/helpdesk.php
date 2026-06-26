@@ -433,40 +433,42 @@ function hd_sla_indicator(array $ticket): string {
  */
 function hd_email_verify_badge(string $req_email): string {
     if (!$req_email) return '';
-    $req_email = strtolower(trim($req_email));
+    try {
+        $req_email  = strtolower(trim($req_email));
+        $req_domain = strtolower(substr($req_email, (int)strrpos($req_email, '@') + 1));
 
-    $org_domain = '';
-    if (function_exists('m365_setting')) {
-        $org_domain = strtolower(trim(m365_setting('m365_domain') ?: ''));
-    } elseif (defined('MS_TENANT_ID')) {
-        $org_domain = strtolower(trim(db_one("SELECT value FROM settings WHERE key='m365_domain'", [])['value'] ?? ''));
-    }
-    $req_domain = strtolower(substr($req_email, (int)strrpos($req_email, '@') + 1));
+        // Domena org — z ustawień (bezpieczne)
+        $org_domain = '';
+        try {
+            if (function_exists('m365_setting')) {
+                $org_domain = strtolower(trim(m365_setting('m365_domain') ?: ''));
+            } else {
+                $row = db_one("SELECT value FROM settings WHERE key='m365_domain' LIMIT 1", []);
+                $org_domain = strtolower(trim($row['value'] ?? ''));
+            }
+        } catch (\Throwable $e) {}
 
-    // Sprawdź dopasowanie do zalogowanego usera
-    $cur = current_user();
-    $cur_email = strtolower(trim($cur['email'] ?? ''));
-    $user_match = ($cur_email && $cur_email === $req_email);
+        // Czy email należy do użytkownika w systemie
+        try {
+            $db_user = db_one("SELECT id, name FROM users WHERE LOWER(COALESCE(email,''))=? LIMIT 1", [$req_email]);
+        } catch (\Throwable $e) { $db_user = null; }
 
-    // Sprawdź czy email istnieje w tabeli users
-    $db_user = db_one("SELECT id, name FROM users WHERE LOWER(email)=? LIMIT 1", [$req_email]);
-
-    if ($db_user) {
-        $label = 'Zweryfikowany — ' . h($db_user['name']);
-        return '<span class="hd-email-badge verified" title="' . h($label) . '">'
-             . '<i class="bi bi-patch-check-fill" aria-hidden="true"></i> Zweryfikowany'
+        if ($db_user) {
+            return '<span class="hd-email-badge verified" title="Zweryfikowany — ' . h($db_user['name']) . '">'
+                 . '<i class="bi bi-patch-check-fill" aria-hidden="true"></i> Zweryfikowany'
+                 . '</span>';
+        }
+        if ($org_domain && $req_domain === $org_domain) {
+            return '<span class="hd-email-badge org" title="Adres organizacyjny: ' . h($req_email) . '">'
+                 . '<i class="bi bi-building-check" aria-hidden="true"></i> Adres org.'
+                 . '</span>';
+        }
+        return '<span class="hd-email-badge unknown" title="E-mail: ' . h($req_email) . '">'
+             . '<i class="bi bi-question-circle" aria-hidden="true"></i> Nieznany'
              . '</span>';
+    } catch (\Throwable $e) {
+        return '';
     }
-
-    if ($org_domain && $req_domain === $org_domain) {
-        return '<span class="hd-email-badge org" title="Adres organizacyjny: ' . h($req_email) . '">'
-             . '<i class="bi bi-building-check" aria-hidden="true"></i> Adres org.'
-             . '</span>';
-    }
-
-    return '<span class="hd-email-badge unknown" title="E-mail: ' . h($req_email) . '">'
-         . '<i class="bi bi-question-circle" aria-hidden="true"></i> Nieznany'
-         . '</span>';
 }
 
 /**
