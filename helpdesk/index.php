@@ -94,6 +94,12 @@ function _hd_table_html(
       <table class="crm-table" id="hdTicketTable" aria-label="Zgłoszenia helpdesk — <?= $total ?> rekordów">
         <thead>
           <tr>
+            <?php if ($is_op): ?>
+            <th scope="col" style="width:36px">
+              <input type="checkbox" id="hdChkAll" class="form-check-input"
+                     aria-label="Zaznacz wszystkie" onchange="HdBulk.toggleAll(this.checked)">
+            </th>
+            <?php endif; ?>
             <th scope="col">Numer</th>
             <th scope="col">Tytuł</th>
             <th scope="col">Status</th>
@@ -119,6 +125,14 @@ function _hd_table_html(
           ?>
           <tr data-row-href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$t['id'] ?>"
               class="<?= $unread ? 'hd-row-unread' : '' ?>">
+            <?php if ($is_op): ?>
+            <td>
+              <input type="checkbox" class="form-check-input hd-row-chk"
+                     value="<?= (int)$t['id'] ?>"
+                     aria-label="Zaznacz zgłoszenie <?= h($t['number']) ?>"
+                     onchange="HdBulk.update()">
+            </td>
+            <?php endif; ?>
             <td style="white-space:nowrap">
               <?php if ($unread): ?>
               <span class="hd-unread-dot me-1" title="Nieprzeczytane" aria-label="Nieprzeczytane"></span>
@@ -392,6 +406,57 @@ echo hd_ui_css();
 
 <div class="hd-toast-wrap" id="hdToasts"></div>
 
+<?php if ($is_op): ?>
+<!-- ══ BULK BAR ════════════════════════════════════════════════════════════════ -->
+<?php
+$op_list = db_all("SELECT id, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 ORDER BY name", []);
+?>
+<div id="hdBulkBar" class="hd-bulk-bar d-none" role="region" aria-label="Masowe akcje">
+  <div class="hd-bulk-inner">
+    <span class="hd-bulk-count me-3">
+      <span id="hdBulkCount">0</span> zaznaczonych
+    </span>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <!-- Zmień status -->
+      <div class="input-group input-group-sm" style="width:auto">
+        <label class="input-group-text" for="hdBulkStatus" style="font-size:.78rem">Status</label>
+        <select class="form-select form-select-sm" id="hdBulkStatus" style="min-width:120px">
+          <option value="">— wybierz —</option>
+          <?php foreach (HD_STATUSES as $k => $s): ?>
+          <option value="<?= h($k) ?>"><?= h($s['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="HdBulk.doAction('set_status', document.getElementById('hdBulkStatus').value)">
+          Zmień
+        </button>
+      </div>
+      <!-- Przypisz -->
+      <div class="input-group input-group-sm" style="width:auto">
+        <label class="input-group-text" for="hdBulkAssign" style="font-size:.78rem">Przypisz</label>
+        <select class="form-select form-select-sm" id="hdBulkAssign" style="min-width:130px">
+          <option value="">— wybierz —</option>
+          <option value="0">Usuń przypisanie</option>
+          <?php foreach ($op_list as $op): ?>
+          <option value="<?= (int)$op['id'] ?>"><?= h($op['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="HdBulk.doAction('assign', document.getElementById('hdBulkAssign').value)">
+          OK
+        </button>
+      </div>
+      <!-- Zamknij -->
+      <button class="btn btn-sm btn-outline-danger" onclick="HdBulk.doAction('close')">
+        <i class="bi bi-x-circle me-1"></i>Zamknij zaznaczone
+      </button>
+      <!-- Odznacz -->
+      <button class="btn btn-sm btn-link text-secondary" onclick="HdBulk.clear()">
+        <i class="bi bi-x me-1"></i>Odznacz
+      </button>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <script>
 (function () {
   'use strict';
@@ -469,13 +534,66 @@ echo hd_ui_css();
     });
   }
 
+  /* ── Masowe akcje ─────────────────────────────── */
+  window.HdBulk = {
+    bar: document.getElementById('hdBulkBar'),
+    countEl: document.getElementById('hdBulkCount'),
+    getChecked: function() {
+      return Array.from(region.querySelectorAll('.hd-row-chk:checked')).map(function(c){ return parseInt(c.value, 10); });
+    },
+    update: function() {
+      var ids = this.getChecked();
+      var n   = ids.length;
+      if (this.countEl) this.countEl.textContent = n;
+      if (this.bar)     this.bar.classList.toggle('d-none', n === 0);
+      var all = region.querySelectorAll('.hd-row-chk');
+      var chkAll = document.getElementById('hdChkAll');
+      if (chkAll && all.length > 0) {
+        chkAll.indeterminate = (n > 0 && n < all.length);
+        chkAll.checked       = (n === all.length);
+      }
+    },
+    toggleAll: function(checked) {
+      region.querySelectorAll('.hd-row-chk').forEach(function(c){ c.checked = checked; });
+      this.update();
+    },
+    clear: function() {
+      region.querySelectorAll('.hd-row-chk').forEach(function(c){ c.checked = false; });
+      var chkAll = document.getElementById('hdChkAll');
+      if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
+      this.update();
+    },
+    doAction: function(action, value) {
+      var ids = this.getChecked();
+      if (!ids.length) { toast('Zaznacz przynajmniej jedno zgłoszenie.', 'err'); return; }
+      if (action === 'set_status' && !value) { toast('Wybierz status.', 'err'); return; }
+      if (action === 'assign' && value === '') { toast('Wybierz operatora.', 'err'); return; }
+      if (action === 'close' && !confirm('Zamknąć ' + ids.length + ' zaznaczonych zgłoszeń?')) return;
+      var payload = { _csrf: CSRF, action: action, ids: ids };
+      if (value !== undefined) payload.value = String(value);
+      fetch(APP + '/helpdesk/api/bulk.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { toast(d.error || 'Błąd akcji.', 'err'); return; }
+        toast('Wykonano na ' + (d.affected || ids.length) + ' zgłoszeniach.', 'ok');
+        HdBulk.clear();
+        load(formParams(), false);
+      })
+      .catch(function(){ toast('Błąd sieci.', 'err'); });
+    }
+  };
+
   /* ── Wiązanie dynamicznego regionu ─────────────── */
   function bindRegion() {
     // Kliknięcie wiersza → otwórz zgłoszenie
     region.querySelectorAll('tr[data-row-href]').forEach(function(tr){
       tr.style.cursor = 'pointer';
       tr.addEventListener('click', function(e){
-        if (e.target.closest('a,button')) return;
+        if (e.target.closest('a,button,input')) return;
         window.location.href = tr.dataset.rowHref;
       });
     });

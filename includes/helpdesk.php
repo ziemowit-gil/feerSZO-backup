@@ -595,6 +595,14 @@ function hd_ui_css(): string {
 .hd-row-unread .hd-row-title{font-weight:700}
 .hd-unread-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#2563EB;flex-shrink:0;margin-right:2px}
 .hd-unread-badge{display:inline-flex;align-items:center;justify-content:center;background:#2563EB;color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;min-width:18px;height:18px;padding:0 5px;line-height:1}
+.hd-bulk-bar{position:fixed;bottom:0;left:0;right:0;z-index:1060;background:#1e293b;color:#f1f5f9;padding:.6rem 1.2rem;box-shadow:0 -4px 16px rgba(0,0,0,.25);border-top:2px solid #3b82f6}
+.hd-bulk-inner{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;max-width:1400px;margin:0 auto}
+.hd-bulk-count{font-size:.85rem;font-weight:600;white-space:nowrap;color:#93c5fd}
+.hd-bulk-bar .input-group-text{background:#334155;border-color:#475569;color:#e2e8f0}
+.hd-bulk-bar .form-select{background:#334155;border-color:#475569;color:#f1f5f9}
+.hd-bulk-bar .btn-outline-secondary{border-color:#475569;color:#e2e8f0}.hd-bulk-bar .btn-outline-secondary:hover{background:#475569}
+.hd-bulk-bar .btn-outline-danger{border-color:#ef4444;color:#fca5a5}.hd-bulk-bar .btn-outline-danger:hover{background:#ef4444;color:#fff}
+.hd-bulk-bar .btn-link{color:#94a3b8}
 .hd-toast-wrap{position:fixed;bottom:1.2rem;right:1.2rem;z-index:1090;display:flex;flex-direction:column;gap:.5rem}
 .hd-toast{background:#fff;border-left:4px solid #2563EB;box-shadow:0 6px 20px rgba(0,0,0,.15);border-radius:8px;padding:.7rem 1rem;font-size:.85rem;min-width:240px;max-width:360px;animation:hdToastIn .2s ease}
 .hd-toast.ok{border-color:#16A34A}.hd-toast.err{border-color:#DC2626}
@@ -684,17 +692,31 @@ function hd_notify_new_message(array $ticket, array $message): void {
         }
     }
 
-    // Wiadomość od zgłaszającego → powiadom przypisanego operatora (panel wewnętrzny)
-    if ($msg_uid === $req_uid && !empty($ticket['assigned_to'])) {
+    // Wiadomość od zgłaszającego → powiadom operatora(ów) (panel wewnętrzny)
+    // Detekcja: user_id = requester_id LUB brak user_id (track.php bez konta)
+    $is_from_requester = ($msg_uid === $req_uid)
+        || ($msg_uid === 0 && $req_uid === 0)
+        || ($msg_uid === 0 && !empty($message['user_name']));
+
+    if ($is_from_requester) {
         try {
-            $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
-            if ($op && !empty($op['email'])) {
-                require_once dirname(__DIR__) . '/includes/mail_queue.php';
-                mail_queue_add(
-                    $op['email'], $op['name'] ?? '',
-                    "[{$num}] Odpowiedź użytkownika: {$ticket['title']}",
-                    _hd_email_message($ticket, $message, $org, $view_url, true)
+            require_once dirname(__DIR__) . '/includes/mail_queue.php';
+            $subject = "[{$num}] Odpowiedź zgłaszającego: {$ticket['title']}";
+            $body_html = _hd_email_message($ticket, $message, $org, $view_url, true);
+            if (!empty($ticket['assigned_to'])) {
+                // Powiadom przypisanego operatora
+                $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
+                if ($op && !empty($op['email'])) {
+                    mail_queue_add($op['email'], $op['name'] ?? '', $subject, $body_html);
+                }
+            } else {
+                // Brak przypisania — powiadom wszystkich aktywnych operatorów i adminów
+                $ops = db_all(
+                    "SELECT email, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 AND email IS NOT NULL AND email != ''", []
                 );
+                foreach ($ops as $op) {
+                    mail_queue_add($op['email'], $op['name'] ?? '', $subject, $body_html);
+                }
             }
         } catch (\Throwable $e) {}
     }
