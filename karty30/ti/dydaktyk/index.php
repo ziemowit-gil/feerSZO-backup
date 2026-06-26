@@ -807,6 +807,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
         <div class="ms-auto d-flex gap-2">
           <?php if ($all_sessions): ?>
+          <a href="attendance_pdf.php?course_id=<?= $cur_course ?>" class="btn btn-outline-secondary btn-sm" title="Eksportuj listę obecności do PDF">
+            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+          </a>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydCalModal">
             <i class="bi bi-calendar3 me-1"></i>Kalendarz
           </button>
