@@ -109,6 +109,7 @@ $QT = K30_TI_QUESTION_TYPES;
   <h4 class="mb-0 fw-bold"><i class="bi bi-card-checklist text-primary me-2"></i><?= h($test['title']) ?></h4>
   <span class="badge bg-secondary"><?= count($questions) ?> pytań · <?= rtrim(rtrim(number_format($max_score,2,'.',''),'0'),'.') ?: '0' ?> pkt</span>
   <a href="tests.php?course=<?= $course_id ?>" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-arrow-left me-1"></i>Lista testów</a>
+  <a href="test_import_moodle.php?test=<?= $test_id ?>" class="btn btn-outline-secondary btn-sm" title="Importuj pytania z pliku Moodle XML"><i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Import Moodle XML</a>
 </div>
 
 <?= flash_html() ?>
