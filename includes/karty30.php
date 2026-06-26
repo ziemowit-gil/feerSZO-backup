@@ -881,6 +881,7 @@ function karty30_migrate(): void {
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_aclog_student ON k30_ti_account_log(student_id, created_at)");
+    try { $pdo->exec("ALTER TABLE k30_ti_account_log ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     // ── Komunikacja: log masowych wysyłek e-mail/SMS do kursantów ─────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_comm_log (

@@ -195,8 +195,9 @@ function ti_msg_notify_staff_reply(int $studentId, string $studentName, string $
 // ── Dziennik zdarzeń na koncie ────────────────────────────────────────────────
 
 /** Zapisuje zdarzenie do dziennika konta kursanta. */
-function ti_account_log(int $studentId, string $action, string $detail = '', ?int $byUserId = null, string $byName = '', string $ip = ''): void {
+function ti_account_log(int $studentId, string $action, string $detail = '', ?int $byUserId = null, string $byName = '', string $ip = '', string $ua = ''): void {
     if ($ip === '') $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($ua === '') $ua = mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300);
     try {
         db_insert('k30_ti_account_log', [
             'student_id' => $studentId,
@@ -205,9 +206,28 @@ function ti_account_log(int $studentId, string $action, string $detail = '', ?in
             'by_user_id' => $byUserId ?: null,
             'by_name'    => mb_substr($byName, 0, 120),
             'ip'         => mb_substr($ip, 0, 45),
+            'user_agent' => $ua,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
     } catch (\Throwable $e) {}
+}
+
+/** Zwraca krótki czytelny opis urządzenia/przeglądarki z User-Agent string. */
+function ti_log_device_label(string $ua): string {
+    if ($ua === '') return '';
+    $os = '';
+    if (str_contains($ua, 'Windows')) $os = 'Windows';
+    elseif (str_contains($ua, 'Android')) $os = 'Android';
+    elseif (str_contains($ua, 'iPhone') || str_contains($ua, 'iPad')) $os = 'iOS';
+    elseif (str_contains($ua, 'Mac')) $os = 'macOS';
+    elseif (str_contains($ua, 'Linux')) $os = 'Linux';
+    $br = '';
+    if (str_contains($ua, 'Edg/')) $br = 'Edge';
+    elseif (str_contains($ua, 'OPR/') || str_contains($ua, 'Opera')) $br = 'Opera';
+    elseif (str_contains($ua, 'Chrome')) $br = 'Chrome';
+    elseif (str_contains($ua, 'Firefox')) $br = 'Firefox';
+    elseif (str_contains($ua, 'Safari')) $br = 'Safari';
+    return trim(($br ? $br : '?') . ($os ? ' / ' . $os : ''));
 }
 
 /** Zwraca ostatnie $limit wpisów z dziennika konta. */

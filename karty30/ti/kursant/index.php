@@ -31,7 +31,10 @@ if (isset($_GET['stop_impersonation'])) {
 }
 
 // Wylogowanie (przed jakimkolwiek wyjściem)
-if (isset($_GET['logout'])) { student_logout(); header('Location: login.php'); exit; }
+if (isset($_GET['logout'])) {
+    $_s = student_current(); if ($_s) ti_account_log((int)$_s['id'], 'logout', 'Wylogowanie z panelu.');
+    student_logout(); header('Location: login.php'); exit;
+}
 
 $student    = student_require();
 
@@ -2455,7 +2458,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php elseif ($tab === 'aktywnosc'):
   // Filtr zdarzeń widocznych dla kursanta (bez wewnętrznych akcji admina)
-  $kursant_visible_actions = ['login','login_failed','password_changed','msg_sent','msg_blocked_attempt','alias_changed'];
+  $kursant_visible_actions = ['login','login_failed','logout','password_changed','msg_sent','msg_blocked_attempt','alias_changed'];
   $placeholders = implode(',', array_fill(0, count($kursant_visible_actions), '?'));
   $kursant_log = db_all(
       "SELECT * FROM k30_ti_account_log WHERE student_id=? AND action IN ({$placeholders})
@@ -2469,6 +2472,7 @@ document.addEventListener('DOMContentLoaded', function() {
       'msg_sent'            => ['label' => 'Wysłano wiadomość',    'icon' => 'bi-envelope-arrow-up',  'color' => 'text-secondary'],
       'msg_blocked_attempt' => ['label' => 'Próba wysyłki (blok)', 'icon' => 'bi-slash-circle',       'color' => 'text-danger'],
       'alias_changed'       => ['label' => 'Zmiana aliasu',        'icon' => 'bi-person-badge',       'color' => 'text-secondary'],
+      'logout'              => ['label' => 'Wylogowanie',          'icon' => 'bi-box-arrow-right',    'color' => 'text-secondary'],
   ];
 ?>
 
@@ -2489,6 +2493,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php foreach ($kursant_log as $le):
     $cfg = $action_labels_kursant[$le['action']] ?? ['label' => $le['action'], 'icon' => 'bi-dot', 'color' => 'text-muted'];
     $ts  = $le['created_at'] ? date('d.m.Y, H:i', strtotime($le['created_at'])) : '';
+    $device = !empty($le['user_agent']) ? ti_log_device_label($le['user_agent']) : '';
   ?>
   <li>
     <article class="d-flex gap-3 align-items-start border rounded-2 px-3 py-2">
@@ -2499,6 +2504,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="fw-semibold small"><?= h($cfg['label']) ?></div>
         <?php if (!empty($le['detail'])): ?>
         <div class="text-body-secondary small"><?= h($le['detail']) ?></div>
+        <?php endif; ?>
+        <?php if ($device || !empty($le['ip'])): ?>
+        <div class="text-body-secondary" style="font-size:.75rem">
+          <?= $device ? h($device) : '' ?><?= ($device && !empty($le['ip'])) ? ' · ' : '' ?><?= !empty($le['ip']) ? h($le['ip']) : '' ?>
+        </div>
         <?php endif; ?>
       </div>
       <time class="text-body-secondary small flex-shrink-0 text-end" datetime="<?= h($le['created_at'] ?? '') ?>">

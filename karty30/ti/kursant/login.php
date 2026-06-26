@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         [$login, $login]
     );
 
+    $ip_log = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     if ($account && password_verify($password, $account['password_hash'])) {
         if (!empty($account['child_access_blocked'])) {
             $error = 'Dostęp do panelu został wstrzymany przez opiekuna. Skontaktuj się z rodzicem/opiekunem.';
@@ -36,12 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             student_login_user($account);
             db()->prepare("UPDATE k30_ti_student_accounts SET last_login=datetime('now') WHERE id=?")
                ->execute([$account['id']]);
-            if (function_exists('ti_account_log')) ti_account_log((int)$account['id'], 'login', 'Logowanie do panelu kursanta.');
+            if (function_exists('ti_account_log')) ti_account_log((int)$account['id'], 'login', "Zalogowano: {$login} | IP: {$ip_log}");
             header('Location: index.php'); exit;
         }
     } else {
         if ($account) {
-            if (function_exists('ti_account_log')) ti_account_log((int)$account['id'], 'login_failed', 'Nieudana próba logowania.');
+            if (function_exists('ti_account_log')) ti_account_log((int)$account['id'], 'login_failed', "Nieudana próba dla: {$login} | IP: {$ip_log}");
         }
         $error = 'Nieprawidłowy login lub hasło.';
     }

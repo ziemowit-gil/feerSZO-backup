@@ -64,12 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('success', 'Dodano okno dostępności.');
         }
-        header('Location: index.php?course=' . $course_id . '&tab=dostepnosc'); exit;
+        header('Location: index.php?tab=dostepnosc'); exit;
     }
     if ($op === 'avail_delete') {
         ti_avail_delete((int)($_POST['avail_id'] ?? 0), $uid);
         flash_set('success', 'Usunięto okno dostępności.');
-        header('Location: index.php?course=' . $course_id . '&tab=dostepnosc'); exit;
+        header('Location: index.php?tab=dostepnosc'); exit;
     }
 
     // Pozostałe operacje wymagają własności kursu.
@@ -389,12 +389,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              LIMIT 1", [$acc_id]) : null;
         if (!$myAccId || $body === '') {
             flash_set('danger', $body === '' ? 'Treść wiadomości jest wymagana.' : 'Nie możesz pisać do tego kursanta.');
-            header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci'); exit;
+            header('Location: index.php?tab=wiadomosci'); exit;
         }
         $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
         ti_msg_post_to_student($acc_id, $subject, $body, $uid, $senderName, false);
         flash_set('success', 'Wiadomość wysłana.');
-        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
     }
 
     if ($op === 'dyd_msg_reply') {
@@ -411,7 +411,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ti_account_log($acc_id, 'msg_sent_by_staff', mb_substr($body, 0, 100), $uid, $senderName);
             flash_set('success', 'Odpowiedź wysłana.');
         }
-        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
     }
 
     if ($op === 'dyd_msg_block' || $op === 'dyd_msg_unblock') {
@@ -426,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ti_msg_set_blocked($acc_id, $op === 'dyd_msg_block', $uid, $senderName);
             flash_set('success', $op === 'dyd_msg_block' ? 'Wiadomości od kursanta zablokowane.' : 'Blokada zdjęta.');
         }
-        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
     }
 
     if ($op === 'dyd_msg_archive') {
@@ -444,7 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ti_msg_archive((int)$msgRow['id'], $uid, $senderName);
             flash_set('success', 'Wiadomość zarchiwizowana.');
         }
-        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+        header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
     }
 }
 
@@ -890,9 +890,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
                'zadania'=>['Zadania','journal-check',count($homeworks)],
                'materialy'=>['Materiały','collection-play',count($materials)],
-               'dostepnosc'=>['Dostępność','clock-history',count($my_avail)],
-               'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))],
-               'wiadomosci'=>['Wiadomości','envelope',$dyd_msg_unread_total]];
+               'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))]];
       foreach ($tabs as $k=>$ti): ?>
     <li class="nav-item" role="presentation">
       <a class="nav-link <?= $tab===$k?'active':'' ?>" href="index.php?course=<?= $cur_course ?>&tab=<?= $k ?>">
@@ -901,6 +899,24 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </a>
     </li>
     <?php endforeach; ?>
+  </ul>
+
+  <!-- Globalne zakładki (niezależne od kursu) -->
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+      <a class="nav-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc">
+        <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Dostępność
+        <span class="badge bg-secondary ms-1"><?= count($my_avail) ?></span>
+      </a>
+    </li>
+    <li class="nav-item" role="presentation">
+      <a class="nav-link <?= $tab==='wiadomosci'?'active':'' ?>" href="index.php?tab=wiadomosci">
+        <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wiadomości
+        <?php if ($dyd_msg_unread_total > 0): ?>
+        <span class="badge bg-danger ms-1"><?= (int)$dyd_msg_unread_total ?></span>
+        <?php endif; ?>
+      </a>
+    </li>
   </ul>
 
   <div class="dyd-tabpane">
@@ -1290,6 +1306,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endforeach; ?>
     <?php endif; ?>
 
+  </div><!-- /dyd-tabpane kurs -->
+  <?php endif; /* $course */ ?>
+
     <?php /* ═══════════════════════ DOSTĘPNOŚĆ ═══════════════════════ */ ?>
     <?php if ($tab === 'dostepnosc'):
       $av_by_day = [];
@@ -1535,12 +1554,13 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <p class="text-muted mb-0 text-center py-2">Brak wpisów w dzienniku.</p>
             <?php else: ?>
             <table class="table table-sm table-borderless mb-0">
-              <thead><tr class="text-muted"><th>Czas</th><th>Zdarzenie</th><th>Kto</th><th>Szczegóły</th></tr></thead>
+              <thead><tr class="text-muted"><th>Czas</th><th>Zdarzenie</th><th>Kto</th><th>Szczegóły</th><th>Urządzenie / IP</th></tr></thead>
               <tbody>
               <?php
               $action_labels = [
                   'login'               => 'Logowanie',
                   'login_failed'        => 'Nieudane logowanie',
+                  'logout'              => 'Wylogowanie',
                   'password_changed'    => 'Zmiana hasła',
                   'alias_changed'       => 'Zmiana aliasu',
                   'msg_sent'            => 'Wiadomość od kursanta',
@@ -1555,7 +1575,11 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                 <td class="text-nowrap text-muted"><?= $le['created_at'] ? date('d.m H:i', strtotime($le['created_at'])) : '' ?></td>
                 <td><?= h($action_labels[$le['action']] ?? $le['action']) ?></td>
                 <td><?= $le['by_name'] ? h($le['by_name']) : '<span class="text-muted">kursant</span>' ?></td>
-                <td class="text-muted"><?= h(mb_substr($le['detail'], 0, 60)) ?></td>
+                <td class="text-muted"><?= h($le['detail']) ?></td>
+                <td class="text-muted" style="font-size:.75rem">
+                  <?php $dev = !empty($le['user_agent']) ? ti_log_device_label($le['user_agent']) : ''; echo $dev ? h($dev) : ''; ?>
+                  <?php if (!empty($le['ip'])): ?><br><span style="font-size:.7rem"><?= h($le['ip']) ?></span><?php endif; ?>
+                </td>
               </tr>
               <?php endforeach; ?>
               </tbody>
@@ -1676,8 +1700,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     </div>
     <?php endif; /* wiadomosci */ ?>
 
-  </div>
-  <?php endif; /* $course */ ?>
   <?php endif; /* $courses */ ?>
 
   <!-- Wspólna lista lekcji dla wyszukiwarek „Powiązana lekcja" -->
