@@ -1018,6 +1018,22 @@ function vlab_port_request_reject(int $requestId, int $adminId, string $reason =
     if ($req) vlab_port_request_notify($req, 'rejected', $reason);
 }
 
+/**
+ * Sprawdza rate limit wniosków portowych kursanta: max 5 w ciągu ostatniej godziny.
+ * Zwraca ['ok'=>true] lub ['ok'=>false,'msg'=>string].
+ */
+function vlab_port_rate_check(int $studentId, int $maxPerHour = 5): array {
+    $row = db_one(
+        "SELECT COUNT(*) AS cnt FROM k30_vlab_port_requests
+         WHERE requested_by_student=? AND created_at >= datetime('now','-1 hour')",
+        [$studentId]
+    );
+    if ((int)($row['cnt'] ?? 0) >= $maxPerHour) {
+        return ['ok' => false, 'msg' => 'Przekroczono limit wniosków (' . $maxPerHour . ' na godzinę). Spróbuj za chwilę.'];
+    }
+    return ['ok' => true];
+}
+
 /** Powiadomienie e-mail do kursanta o decyzji ws. wniosku portowego. */
 function vlab_port_request_notify(array $req, string $decision, string $reason = ''): void {
     if (!function_exists('mail_queue_add')) { @require_once __DIR__ . '/mail_queue.php'; }

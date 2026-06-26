@@ -108,6 +108,8 @@ try {
 
         case 'port_open':
         case 'port_request_open': {
+            $rl = vlab_port_rate_check($student['id']);
+            if (!$rl['ok']) { echo json_encode($rl); break; }
             $id    = (int)($_POST['id'] ?? 0);
             $port  = (int)($_POST['host_port'] ?? 0);
             $proto = (string)($_POST['proto'] ?? 'tcp');
@@ -119,6 +121,8 @@ try {
 
         case 'port_close':
         case 'port_request_close': {
+            $rl = vlab_port_rate_check($student['id']);
+            if (!$rl['ok']) { echo json_encode($rl); break; }
             $pid = (int)($_POST['port_id'] ?? 0);
             $res = vlab_port_request_close($pid, 'kursant', null, $student['id']);
             echo json_encode($res);
