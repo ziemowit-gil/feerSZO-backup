@@ -394,6 +394,8 @@ $otp_ready = !empty($u_fresh['ika_email_otp'])
 // Poziom ochrony
 $sec_dots = ['admin' => 4, 'editor' => 3];
 $dots = $sec_dots[$role] ?? (in_array($role, ['crm_user'], true) ? 3 : 2);
+$sec_level = $dots >= 4 ? 'Krytyczna' : ($dots >= 3 ? 'Wysoka' : 'Standardowa');
+$sec_color = $dots >= 4 ? '#ef4444' : ($dots >= 3 ? '#f59e0b' : '#3b82f6');
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -405,408 +407,350 @@ $dots = $sec_dots[$role] ?? (in_array($role, ['crm_user'], true) ? 3 : 2);
 <?php branding_css($_b); ?>
 <style>
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background:#0f172a}
+html,body{height:100%;margin:0;padding:0}
 
-/* ── Shell ─────────────────────────────────────────────────────── */
-.gate-shell{min-height:100vh;display:flex;align-items:stretch}
-
-/* ── Lewa — ciemny panel ─────────────────────────────────────── */
-.gate-left{
-  width:340px;flex-shrink:0;
-  background:linear-gradient(160deg,#0f172a 0%,#1e293b 60%,#1e3a5f 100%);
-  display:flex;flex-direction:column;justify-content:space-between;
-  padding:2rem 1.75rem;
-  border-right:1px solid rgba(255,255,255,.06);
-  position:relative;overflow:hidden;
+/* ── Tło ────────────────────────────────────────────────────── */
+body{
+  min-height:100vh;
+  background:#0c1524;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:1.25rem;
+  position:relative;overflow-x:hidden;
 }
-.gate-left::before{
-  content:'';position:absolute;width:380px;height:380px;border-radius:50%;
-  border:65px solid rgba(255,255,255,.025);bottom:-110px;right:-120px;pointer-events:none;
-}
-.gate-left::after{
-  content:'';position:absolute;width:200px;height:200px;border-radius:50%;
-  border:40px solid rgba(37,99,235,.08);top:-50px;left:-60px;pointer-events:none;
+body::before{
+  content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(37,99,235,.18) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 90%, rgba(124,58,237,.12) 0%, transparent 55%);
+  pointer-events:none;z-index:0;
 }
 
-/* ── Logo / tarcza ───────────────────────────────────────────── */
-.gate-logo-row{display:flex;align-items:center;gap:.85rem;margin-bottom:1.75rem}
-.shield-wrap{position:relative;width:44px;height:44px;flex-shrink:0}
-.shield-ring{
-  position:absolute;inset:-8px;border-radius:50%;
-  border:2px solid rgba(37,99,235,.3);
-  animation:_pulse 2.5s ease-in-out infinite;
-}
-@keyframes _pulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.14);opacity:1}}
-.shield-icon{
-  width:44px;height:44px;border-radius:12px;
-  background:linear-gradient(135deg,#1e3a5f,#2563eb);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1.3rem;color:#fff;
-  box-shadow:0 0 20px rgba(37,99,235,.3);
-}
-.gate-org{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.75);line-height:1.3}
-.gate-org small{display:block;font-size:.65rem;font-weight:400;color:rgba(255,255,255,.3);letter-spacing:.05em;text-transform:uppercase}
-
-/* ── Karta użytkownika ───────────────────────────────────────── */
-.user-card{
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
-  border-radius:12px;padding:.75rem .9rem;margin-bottom:1.25rem;
-  display:flex;align-items:center;gap:.7rem;
-}
-.user-avatar{
-  width:38px;height:38px;border-radius:50%;
-  background:var(--c,#2563eb);color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  font-size:.82rem;font-weight:700;flex-shrink:0;
-  border:2px solid rgba(255,255,255,.15);
-}
-.user-card-name{font-size:.86rem;font-weight:700;color:#f1f5f9;line-height:1.25}
-.user-card-role{font-size:.7rem;color:rgba(255,255,255,.4);margin-top:.1rem}
-.user-card-lock{margin-left:auto;color:rgba(255,255,255,.25);font-size:.85rem}
-
-/* ── Karta celu żądania ──────────────────────────────────────── */
-.dest-card{
-  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
-  border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem;
-}
-.dest-card-label{
-  font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-  color:rgba(255,255,255,.3);margin-bottom:.55rem;display:flex;align-items:center;gap:.35rem;
-}
-.dest-icon-wrap{
-  width:34px;height:34px;border-radius:9px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:1rem;
-}
-.dest-module{font-size:.78rem;font-weight:700;color:rgba(255,255,255,.75);line-height:1.3}
-.dest-resource{font-size:.72rem;color:rgba(255,255,255,.45);margin-top:.1rem}
-
-/* ── Poziom ochrony ──────────────────────────────────────────── */
-.sec-bar{
-  display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;
-  padding:.55rem .8rem;background:rgba(255,255,255,.04);border-radius:8px;
-}
-.sec-dots{display:flex;gap:3px}
-.sec-dot{width:6px;height:6px;border-radius:50%}
-
-/* ── Info box IKA ────────────────────────────────────────────── */
-.gate-info{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:.75rem .9rem}
-.gate-info-row{display:flex;align-items:flex-start;gap:.5rem;font-size:.76rem;color:rgba(255,255,255,.45);line-height:1.5;margin-bottom:.3rem}
-.gate-info-row:last-child{margin-bottom:0}
-.gate-info-row i{flex-shrink:0;margin-top:.15rem}
-
-/* ── Footer lewej ────────────────────────────────────────────── */
-.gate-left-footer{color:rgba(255,255,255,.2);font-size:.69rem}
-.gate-left-footer a{color:rgba(255,255,255,.3);text-decoration:none;display:inline-flex;align-items:center;gap:.3rem}
-.gate-left-footer a:hover{color:rgba(255,255,255,.6)}
-
-/* ── Prawa strona ────────────────────────────────────────────── */
-.gate-right{
-  flex:1;background:#F1F5F9;
-  display:flex;align-items:center;justify-content:center;
-  padding:2rem 1.5rem;overflow-y:auto;
-}
-.gate-box{
-  width:100%;max-width:450px;
-  background:#fff;border-radius:18px;
-  border:1px solid rgba(100,116,139,.12);
-  box-shadow:0 12px 48px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.06);
+/* ── Karta główna ───────────────────────────────────────────── */
+.gate-card{
+  position:relative;z-index:1;
+  width:100%;max-width:420px;
+  background:rgba(15,23,42,.85);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:20px;
+  box-shadow:0 32px 80px rgba(0,0,0,.55),0 0 0 1px rgba(37,99,235,.08);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   overflow:hidden;
 }
 
-/* ── Header boksa ────────────────────────────────────────────── */
-.gate-box-head{
-  background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
-  padding:1.1rem 1.4rem;display:flex;align-items:center;gap:.8rem;
-  border-bottom:1px solid rgba(37,99,235,.2);
+/* ── Top bar — org + user ───────────────────────────────────── */
+.gate-top{
+  display:flex;align-items:center;gap:.75rem;
+  padding:.85rem 1.25rem;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.03);
 }
-.gate-box-head.mode-setup{background:linear-gradient(135deg,#78350f 0%,#b45309 100%);border-bottom-color:rgba(245,158,11,.25)}
-.gate-box-head.mode-email{background:linear-gradient(135deg,#064e3b 0%,#065f46 100%);border-bottom-color:rgba(16,185,129,.2)}
-.gate-box-head-icon{
-  width:38px;height:38px;border-radius:9px;
-  background:rgba(37,99,235,.3);
+.gate-logo{
+  width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  background:linear-gradient(135deg,#1e3a5f,#2563eb);
   display:flex;align-items:center;justify-content:center;
-  font-size:1.1rem;color:#93c5fd;flex-shrink:0;
+  font-size:1rem;color:#fff;
+  box-shadow:0 4px 12px rgba(37,99,235,.35);
 }
-.mode-setup .gate-box-head-icon{background:rgba(245,158,11,.25);color:#fcd34d}
-.mode-email .gate-box-head-icon{background:rgba(16,185,129,.25);color:#6ee7b7}
-.gate-box-head-title{font-size:.97rem;font-weight:700;color:#fff;margin:0;line-height:1.3}
-.gate-box-head-sub{font-size:.74rem;color:rgba(255,255,255,.5);margin-top:.12rem}
+.gate-top-org{
+  flex:1;min-width:0;
+  font-size:.78rem;font-weight:700;color:#e2e8f0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.gate-top-org small{
+  display:block;font-size:.62rem;font-weight:400;
+  color:#6b7fa3;letter-spacing:.04em;text-transform:uppercase;
+}
+.gate-user-pill{
+  display:flex;align-items:center;gap:.5rem;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:999px;padding:.28rem .65rem .28rem .3rem;
+}
+.gate-avatar{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--c,#2563eb);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:800;flex-shrink:0;
+}
+.gate-user-name{font-size:.72rem;font-weight:600;color:#cbd5e1;max-width:100px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
-.gate-box-body{padding:1.35rem 1.4rem}
+/* ── Destination strip ──────────────────────────────────────── */
+.gate-dest{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.6rem 1.25rem;
+  background:rgba(37,99,235,.07);
+  border-bottom:1px solid rgba(37,99,235,.14);
+}
+.gate-dest-icon{
+  width:28px;height:28px;border-radius:7px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:.85rem;
+}
+.gate-dest-module{font-size:.75rem;font-weight:700;color:#93c5fd;line-height:1.2}
+.gate-dest-resource{font-size:.68rem;color:#6b7fa3;margin-top:.05rem}
+.gate-sec-badge{
+  margin-left:auto;display:flex;align-items:center;gap:.3rem;
+  font-size:.65rem;font-weight:700;color:#6b7fa3;
+  white-space:nowrap;
+}
+.gate-sec-dots{display:flex;gap:2px;align-items:center}
+.gate-sec-dot{width:5px;height:5px;border-radius:50%}
 
-/* ── Zakładki metod (IKA | E-mail) ───────────────────────────── */
+/* ── Tryb header ────────────────────────────────────────────── */
+.gate-mode-head{
+  padding:1.4rem 1.4rem .6rem;
+  display:flex;align-items:flex-start;gap:.85rem;
+}
+.gate-mode-icon{
+  width:44px;height:44px;border-radius:12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:1.25rem;
+  background:rgba(37,99,235,.15);color:#60a5fa;
+  border:1px solid rgba(37,99,235,.2);
+}
+.gate-mode-icon.setup{background:rgba(217,119,6,.15);color:#fbbf24;border-color:rgba(217,119,6,.2)}
+.gate-mode-icon.email{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.2)}
+.gate-mode-icon.pesel{background:rgba(139,92,246,.12);color:#a78bfa;border-color:rgba(139,92,246,.2)}
+.gate-mode-title{font-size:1rem;font-weight:800;color:#f1f5f9;margin:0;line-height:1.25}
+.gate-mode-sub{font-size:.75rem;color:#6b7fa3;margin-top:.2rem;line-height:1.4}
+
+/* ── Body ───────────────────────────────────────────────────── */
+.gate-body{padding:.5rem 1.4rem 1.4rem}
+
+/* ── Zakładki metod ─────────────────────────────────────────── */
 .method-tabs{
-  display:flex;gap:.4rem;margin-bottom:1.1rem;
-  background:#f1f5f9;border-radius:10px;padding:.3rem;
+  display:flex;gap:.3rem;margin-bottom:1.1rem;
+  background:rgba(255,255,255,.05);border-radius:10px;padding:.28rem;
+  border:1px solid rgba(255,255,255,.07);
 }
 .method-tab{
-  flex:1;padding:.55rem .5rem;border:none;border-radius:8px;
-  background:transparent;font-size:.83rem;font-weight:500;color:#64748b;
-  cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:.4rem;
+  flex:1;padding:.5rem .4rem;border:none;border-radius:7px;
+  background:transparent;font-size:.8rem;font-weight:500;color:#6b7fa3;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:.35rem;
 }
-.method-tab.active{background:#fff;color:#0f172a;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.1)}
-.method-tab:hover:not(.active){color:#0f172a;background:rgba(255,255,255,.6)}
+.method-tab.active{background:rgba(37,99,235,.25);color:#93c5fd;font-weight:700;
+  border:1px solid rgba(37,99,235,.3);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.method-tab:hover:not(.active){color:#cbd5e1;background:rgba(255,255,255,.06)}
 
-/* ── 6 boxów IKA ─────────────────────────────────────────────── */
-.digit-row{display:flex;gap:.42rem;justify-content:center;margin:.85rem 0}
+/* ── 6 boxów cyfr ───────────────────────────────────────────── */
+.digit-row{display:flex;gap:.38rem;justify-content:center;margin:.8rem 0}
 .digit-box{
-  width:50px;height:62px;
-  border:2px solid #CBD5E1;border-radius:.6rem;
-  background:#F8FAFC;
-  font-size:1.85rem;font-weight:700;font-family:monospace;
+  width:48px;height:60px;
+  border:2px solid rgba(255,255,255,.1);border-radius:10px;
+  background:rgba(255,255,255,.05);
+  font-size:1.8rem;font-weight:800;font-family:monospace;
   text-align:center;outline:none;caret-color:transparent;
-  transition:border-color .15s,box-shadow .15s,background .15s;color:#0f172a;
+  transition:border-color .15s,box-shadow .15s,background .15s;color:#f1f5f9;
 }
-.digit-box:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.15));background:#fff}
-.digit-box.filled{background:#f0f7ff;border-color:var(--c,#2563eb)}
-.digit-box.is-error{border-color:#ef4444;background:#fff5f5}
+.digit-box:focus{
+  border-color:var(--c,#2563eb);
+  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.25));
+  background:rgba(37,99,235,.1);
+}
+.digit-box.filled{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.5)}
+.digit-box.is-error{border-color:#ef4444;background:rgba(239,68,68,.1)}
 
-/* ── 3 boxy PESEL ────────────────────────────────────────────── */
-.pesel-row{display:flex;gap:.5rem;justify-content:center;margin:.9rem 0}
+/* ── 3 boxy PESEL ───────────────────────────────────────────── */
+.pesel-row{display:flex;gap:.45rem;justify-content:center;margin:.9rem 0}
 .pesel-box{
-  width:52px;height:64px;border:2px solid #CBD5E1;border-radius:.6rem;
-  background:#F8FAFC;font-size:2rem;font-weight:700;font-family:monospace;
-  text-align:center;outline:none;color:#0f172a;
+  width:52px;height:64px;border:2px solid rgba(255,255,255,.1);border-radius:10px;
+  background:rgba(255,255,255,.05);font-size:2rem;font-weight:800;font-family:monospace;
+  text-align:center;outline:none;color:#f1f5f9;
   transition:border-color .15s,box-shadow .15s;
 }
-.pesel-box:focus{border-color:var(--c,#2563eb);box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.15));background:#fff}
-.pesel-box.is-error{border-color:#ef4444;background:#fff5f5}
-.pesel-pos{font-size:.68rem;color:#586577;text-align:center;margin-top:.2rem;font-weight:600}
+.pesel-box:focus{
+  border-color:var(--c,#2563eb);
+  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.25));
+  background:rgba(37,99,235,.1);
+}
+.pesel-box.is-error{border-color:#ef4444;background:rgba(239,68,68,.1)}
+.pesel-pos{font-size:.66rem;color:#6b7fa3;text-align:center;margin-top:.2rem;font-weight:600}
 
-/* ── Przycisk główny ─────────────────────────────────────────── */
+/* ── Przycisk główny ────────────────────────────────────────── */
 .btn-gate{
   background:linear-gradient(135deg,var(--c,#2563eb) 0%,var(--c-dark,#1d4ed8) 100%);
-  color:#fff;border:none;border-radius:.6rem;padding:.7rem 1.25rem;
-  font-size:.9rem;font-weight:600;width:100%;
+  color:#fff;border:none;border-radius:.6rem;padding:.72rem 1.25rem;
+  font-size:.88rem;font-weight:700;width:100%;
   display:flex;align-items:center;justify-content:center;gap:.5rem;
   transition:all .15s;cursor:pointer;
+  box-shadow:0 4px 16px var(--c-ring,rgba(37,99,235,.3));
+  letter-spacing:.01em;
 }
-.btn-gate:hover:not(:disabled){background:linear-gradient(135deg,var(--c-dark,#1d4ed8) 0%,#1e40af 100%);box-shadow:0 4px 14px var(--c-ring,rgba(37,99,235,.35));transform:translateY(-1px)}
-.btn-gate:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-gate:hover:not(:disabled){
+  filter:brightness(1.1);
+  box-shadow:0 6px 22px var(--c-ring,rgba(37,99,235,.45));
+  transform:translateY(-1px);
+}
+.btn-gate:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-gate.btn-email{--c:#059669;--c-dark:#047857;--c-ring:rgba(5,150,105,.3)}
 .btn-gate.btn-setup{--c:#d97706;--c-dark:#b45309;--c-ring:rgba(217,119,6,.35)}
 
-/* ── Separator ───────────────────────────────────────────────── */
-.or-sep{display:flex;align-items:center;gap:.75rem;margin:.9rem 0;color:#586577;font-size:.73rem}
-.or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:#e2e8f0}
+/* ── Separator ──────────────────────────────────────────────── */
+.or-sep{display:flex;align-items:center;gap:.7rem;margin:.85rem 0;color:#4b5a72;font-size:.71rem}
+.or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.08)}
 
-/* ── Linki odzyskiwania ──────────────────────────────────────── */
-.recovery-links{display:flex;flex-direction:column;gap:.35rem}
+/* ── Linki odzyskiwania ─────────────────────────────────────── */
+.recovery-links{display:flex;flex-direction:column;gap:.3rem}
 .recovery-btn{
-  display:flex;align-items:center;gap:.55rem;
-  padding:.55rem .9rem;border:1.5px solid #e2e8f0;border-radius:.6rem;
-  background:#fff;color:#374151;font-size:.79rem;text-decoration:none;
-  cursor:pointer;transition:all .12s;width:100%;text-align:left;
+  display:flex;align-items:center;gap:.5rem;
+  padding:.52rem .85rem;border:1px solid rgba(255,255,255,.08);border-radius:.6rem;
+  background:rgba(255,255,255,.04);color:#94a3b8;font-size:.78rem;text-decoration:none;
+  cursor:pointer;transition:all .15s;width:100%;text-align:left;
 }
-.recovery-btn:hover{border-color:var(--c,#2563eb);color:var(--c,#2563eb);background:#f0f7ff;transform:translateX(2px)}
-.recovery-btn i{color:#586577;font-size:.88rem;flex-shrink:0;transition:color .12s}
-.recovery-btn:hover i{color:var(--c,#2563eb)}
+.recovery-btn:hover{
+  border-color:rgba(37,99,235,.4);color:#93c5fd;
+  background:rgba(37,99,235,.08);transform:translateX(2px);
+}
+.recovery-btn i{color:#4b5a72;font-size:.85rem;flex-shrink:0;transition:color .15s}
+.recovery-btn:hover i{color:#60a5fa}
 
-/* ── Setup form ──────────────────────────────────────────────── */
-.setup-field{margin-bottom:.9rem}
-.setup-label{font-size:.77rem;font-weight:600;color:#374151;margin-bottom:.3rem;display:block}
-.setup-label span{font-weight:400;color:#586577;font-size:.72rem;margin-left:.3rem}
+/* ── Setup form ─────────────────────────────────────────────── */
+.setup-field{margin-bottom:.85rem}
+.setup-label{font-size:.76rem;font-weight:600;color:#cbd5e1;margin-bottom:.3rem;display:block}
+.setup-label span{font-weight:400;color:#6b7fa3;font-size:.71rem;margin-left:.3rem}
 .setup-input{
-  width:100%;border:1.5px solid #CBD5E1;border-radius:.6rem;
-  padding:.52rem .8rem;font-size:.9rem;color:#0f172a;
-  background:#F8FAFC;outline:none;
+  width:100%;border:1.5px solid rgba(255,255,255,.1);border-radius:.6rem;
+  padding:.52rem .8rem;font-size:.9rem;color:#f1f5f9;
+  background:rgba(255,255,255,.06);outline:none;
   transition:border-color .15s,box-shadow .15s;
 }
-.setup-input:focus{border-color:#d97706;box-shadow:0 0 0 3px rgba(217,119,6,.12);background:#fff}
-.setup-input.is-error{border-color:#ef4444;background:#fff5f5}
-.setup-code-input{font-family:monospace;letter-spacing:.25em;font-size:1.1rem;font-weight:700;text-align:center;text-transform:uppercase}
-
-/* ── Spinner ──────────────────────────────────────────────────── */
-@keyframes _spin{to{transform:rotate(360deg)}}
-.spin-icon{display:none;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:_spin .6s linear infinite}
-
-/* ── Stan: brak kodu / blocked ───────────────────────────────── */
-.state-box{text-align:center;padding:.9rem 0 .4rem}
-.state-icon{font-size:2.2rem;display:block;margin-bottom:.6rem}
-.state-box p{color:#64748b;font-size:.84rem;line-height:1.6;margin:0}
-.state-box p+p{margin-top:.35rem}
-
-/* ── Email 6-cyfr OTP ────────────────────────────────────────── */
-.sms-code-note{font-size:.82rem;color:#475569;margin-bottom:1rem}
-
-/* ── Mobile ───────────────────────────────────────────────────── */
-@media(max-width:680px){
-  .gate-shell{flex-direction:column}
-  .gate-left{width:100%;padding:.9rem 1.1rem;flex-direction:row;align-items:center;gap:.6rem;min-height:auto}
-  .gate-left::before,.gate-left::after{display:none}
-  .gate-left>div:first-child>*:not(.gate-logo-row){display:none}
-  .gate-right{padding:1.1rem .9rem;align-items:flex-start;background:#F1F5F9}
-  .gate-box{box-shadow:none;border-radius:14px}
-  .digit-box{width:44px;height:56px;font-size:1.5rem}
+.setup-input:focus{
+  border-color:#d97706;
+  box-shadow:0 0 0 3px rgba(217,119,6,.15);
+  background:rgba(217,119,6,.05);
 }
+.setup-input.is-error{border-color:#ef4444;background:rgba(239,68,68,.08)}
+.setup-code-input{font-family:monospace;letter-spacing:.25em;font-size:1.05rem;font-weight:700;text-align:center;text-transform:uppercase}
+.setup-input::placeholder{color:#3d4f6a}
+
+/* ── Alert ──────────────────────────────────────────────────── */
+.gate-alert{
+  display:flex;align-items:flex-start;gap:.5rem;
+  padding:.6rem .8rem;border-radius:.55rem;
+  font-size:.8rem;line-height:1.5;margin-bottom:.85rem;
+}
+.gate-alert.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#fca5a5}
+.gate-alert.ok {background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);color:#6ee7b7}
+
+/* ── Spinner ────────────────────────────────────────────────── */
+@keyframes _spin{to{transform:rotate(360deg)}}
+.spin-icon{display:none;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:_spin .6s linear infinite}
+
+/* ── State box ──────────────────────────────────────────────── */
+.state-box{text-align:center;padding:.9rem 0 .4rem}
+.state-icon{font-size:2.2rem;display:block;margin-bottom:.55rem}
+.state-box p{color:#6b7fa3;font-size:.83rem;line-height:1.6;margin:0}
+.state-box p+p{margin-top:.3rem}
+.state-box strong{color:#94a3b8}
+
+/* ── Email note ─────────────────────────────────────────────── */
+.sms-code-note{font-size:.81rem;color:#6b7fa3;margin-bottom:1rem;line-height:1.5}
+.sms-code-note strong{color:#93c5fd}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+.gate-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.7rem 1.25rem;
+  border-top:1px solid rgba(255,255,255,.06);
+  font-size:.67rem;color:#3d4f6a;
+}
+.gate-footer a{color:#4b5a72;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem}
+.gate-footer a:hover{color:#93c5fd}
+
+/* ── Accessibility ──────────────────────────────────────────── */
 @media(prefers-contrast:high){
-  .digit-box,.setup-input{border-width:3px;border-color:#000}
-  .btn-gate{background:#000!important;border-color:#000!important}
+  .digit-box,.setup-input{border-width:3px;border-color:#fff}
+  .btn-gate{background:#1d4ed8!important}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 
-/* ══ WCAG 2.1 AA — korekty kontrastu i widoczności fokusu ════════════════════
-   Tekst pomocniczy na ciemnym panelu miał kontrast ~2–3:1 (alpha .2–.45).
-   Podnosimy do ≥4.5:1 (na najjaśniejszej części tła kart ≈ #2a3f5f). */
-.gate-org small        { color:#bcc8d9 }            /* było rgba .3  */
-.user-card-role        { color:#cbd5e1 }            /* było rgba .4  */
-.dest-card-label       { color:#bcc8d9 }            /* było rgba .3  */
-.dest-resource         { color:#cbd5e1 }            /* było rgba .45 */
-.dest-module           { color:#eef2f8 }
-.gate-info-row         { color:#cbd5e1 }            /* było rgba .45 */
-.gate-box-head-sub     { color:#cbd5e1 }            /* było rgba .5  */
-.gate-left-footer      { color:#bcc8d9 }            /* było rgba .2  */
-.gate-left-footer a    { color:#cbd5e1 }            /* było rgba .3  */
-.gate-left-footer a:hover { color:#fff }
-.sec-bar .sec-label    { color:#cbd5e1 }
-.sec-bar .sec-strong   { color:#fff }
-.method-tab            { color:#586577 }            /* jasna strona, ~4.3→~5:1 */
+a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:focus-visible,.btn-gate:focus-visible{
+  outline:3px solid #60a5fa;outline-offset:2px;border-radius:6px;
+}
+.digit-box:focus-visible,.pesel-box:focus-visible,.setup-input:focus-visible{
+  outline:3px solid var(--c,#2563eb);outline-offset:1px;
+}
 
-/* Widoczny wskaźnik fokusu klawiatury (WCAG 2.4.7 / 2.4.11) */
-a:focus-visible,
-button:focus-visible,
-.method-tab:focus-visible,
-.recovery-btn:focus-visible,
-.btn-gate:focus-visible{
-  outline:3px solid #2563eb;
-  outline-offset:2px;
-  border-radius:6px;
-}
-/* Na ciemnym panelu — jasny pierścień, by był widoczny na granatowym tle */
-.gate-left a:focus-visible{ outline-color:#fff }
-/* Pola kodu — mocny, nieprzezroczysty pierścień zamiast ledwie widocznego cienia */
-.digit-box:focus-visible,
-.pesel-box:focus-visible,
-.setup-input:focus-visible{
-  outline:3px solid var(--c,#1d4ed8);
-  outline-offset:1px;
-}
-/* Element pokazany przez bieżący błąd nie powinien sam usuwać konturu */
 .skip-to-form{
   position:absolute;left:-9999px;top:0;z-index:50;
-  background:#2563eb;color:#fff;padding:.55rem 1rem;border-radius:0 0 8px 0;
-  font-size:.85rem;font-weight:600;text-decoration:none;
+  background:#2563eb;color:#fff;padding:.5rem 1rem;border-radius:0 0 8px 0;
+  font-size:.84rem;font-weight:600;text-decoration:none;
 }
-.skip-to-form:focus{ left:0 }
+.skip-to-form:focus{left:0}
+
+@media(max-width:480px){
+  body{padding:.75rem}
+  .gate-card{border-radius:16px}
+  .digit-box{width:42px;height:54px;font-size:1.55rem}
+  .pesel-box{width:48px;height:60px}
+}
 </style>
 </head>
 <body>
 <a href="#gate-main" class="skip-to-form">Przejdź do formularza weryfikacji</a>
-<div class="gate-shell">
+<div class="gate-card">
 
-<!-- ══ Lewa ═══════════════════════════════════════════════════════════════════ -->
-<aside class="gate-left" aria-label="Kontekst weryfikacji tożsamości">
+<!-- ── Top bar ──────────────────────────────────────────────── -->
+<div class="gate-top">
+  <div class="gate-logo" aria-hidden="true">
+    <?php if ($_b['logo_url']): ?>
+    <img src="<?= h($_b['logo_url']) ?>" alt="" style="max-height:26px;max-width:26px;object-fit:contain;filter:brightness(0) invert(1)">
+    <?php else: ?>
+    <i class="bi bi-shield-lock-fill"></i>
+    <?php endif; ?>
+  </div>
+  <div class="gate-top-org">
+    <?= h($org_name) ?>
+    <small>Weryfikacja tożsamości</small>
+  </div>
+  <div class="gate-user-pill">
+    <div class="gate-avatar" aria-hidden="true"><?= h($initials) ?></div>
+    <span class="gate-user-name"><?= h($display_name) ?></span>
+  </div>
+</div>
+
+<!-- ── Destination strip ─────────────────────────────────────── -->
+<div class="gate-dest">
+  <div class="gate-dest-icon"
+       style="background:<?= h($dest_ctx['color']) ?>1a;color:<?= h($dest_ctx['color']) ?>">
+    <i class="bi <?= h($dest_ctx['icon']) ?>" aria-hidden="true"></i>
+  </div>
   <div>
-
-    <!-- Logo + org -->
-    <div class="gate-logo-row">
-      <div class="shield-wrap">
-        <div class="shield-ring"></div>
-        <?php if ($_b['logo_url']): ?>
-        <div class="shield-icon" style="background:rgba(255,255,255,.1);padding:.25rem">
-          <img src="<?= h($_b['logo_url']) ?>" alt="" style="max-height:36px;max-width:36px;object-fit:contain;filter:brightness(0) invert(1)">
-        </div>
-        <?php else: ?>
-        <div class="shield-icon"><i class="bi bi-shield-lock-fill"></i></div>
-        <?php endif; ?>
-      </div>
-      <div class="gate-org">
-        <?= h($org_name) ?>
-        <small>Punkt weryfikacji tożsamości</small>
-      </div>
-    </div>
-
-    <!-- Karta użytkownika -->
-    <div class="user-card">
-      <div class="user-avatar"><?= h($initials) ?></div>
-      <div style="flex:1;min-width:0">
-        <div class="user-card-name"><?= h($display_name) ?></div>
-        <div class="user-card-role"><?= h($role_label) ?></div>
-      </div>
-      <i class="bi bi-lock-fill user-card-lock"></i>
-    </div>
-
-    <!-- Cel żądania -->
-    <div class="dest-card">
-      <div class="dest-card-label">
-        <i class="bi bi-arrow-right-circle"></i>
-        Żądanie dostępu do
-      </div>
-      <div style="display:flex;align-items:flex-start;gap:.65rem">
-        <div class="dest-icon-wrap"
-             style="background:<?= h($dest_ctx['color']) ?>22;color:<?= h($dest_ctx['color']) ?>">
-          <i class="bi <?= h($dest_ctx['icon']) ?>"></i>
-        </div>
-        <div>
-          <div class="dest-module"><?= h($dest_ctx['module']) ?></div>
-          <div class="dest-resource"><?= h($dest_ctx['resource']) ?></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Poziom ochrony -->
-    <div class="sec-bar">
-      <div class="sec-dots">
-        <?php for ($i = 1; $i <= 4; $i++): ?>
-        <div class="sec-dot" style="background:<?= $i <= $dots ? '#2563eb' : 'rgba(255,255,255,.12)' ?>"></div>
-        <?php endfor; ?>
-      </div>
-      <span class="sec-label" style="font-size:.74rem">
-        Poziom ochrony: <strong class="sec-strong"><?= $dots >= 4 ? 'Krytyczna' : ($dots >= 3 ? 'Wysoka' : 'Standardowa') ?></strong>
-      </span>
-    </div>
-
-    <!-- Info IKA -->
-    <div class="gate-info">
-      <div class="gate-info-row">
-        <i class="bi bi-key-fill" style="color:#93c5fd"></i>
-        <span>IKA to 6-cyfrowy kod przypisany do konta — nie jest hasłem ani SMS-em.</span>
-      </div>
-      <?php if ($email_is_primary): ?>
-      <div class="gate-info-row">
-        <i class="bi bi-envelope-check-fill" style="color:#6ee7b7"></i>
-        <span>Masz włączoną <strong style="color:#6ee7b7">metodę e-mail</strong> — możesz zweryfikować się kodem wysłanym na <?= h($user_email) ?>.</span>
-      </div>
-      <?php endif; ?>
-      <div class="gate-info-row">
-        <i class="bi bi-clock" style="color:#fde68a"></i>
-        <span>Sesja ważna <strong style="color:#fde68a">30 minut</strong> po weryfikacji.</span>
-      </div>
-    </div>
-
+    <div class="gate-dest-module"><?= h($dest_ctx['module']) ?></div>
+    <div class="gate-dest-resource"><?= h($dest_ctx['resource']) ?></div>
   </div>
-
-  <div class="gate-left-footer">
-    <?php $back_url = match($dest_ctx['module']) {'CRM' => APP_URL . '/crm/dashboard.php', 'Dydaktyka' => APP_URL . '/karty30/index.php', default => APP_URL . '/index.php'}; ?>
-    <a href="<?= h($back_url) ?>"><i class="bi bi-arrow-left-circle"></i> Anuluj i wróć</a>
-    <div style="margin-top:.35rem">&copy; <?= date('Y') ?> · <?= h($org_name) ?></div>
+  <div class="gate-sec-badge" title="Poziom ochrony: <?= h($sec_level) ?>">
+    <div class="gate-sec-dots" aria-hidden="true">
+      <?php for ($i = 1; $i <= 4; $i++): ?>
+      <div class="gate-sec-dot" style="background:<?= $i <= $dots ? $sec_color : 'rgba(255,255,255,.1)' ?>"></div>
+      <?php endfor; ?>
+    </div>
+    <?= h($sec_level) ?>
   </div>
-</aside>
+</div>
 
-<!-- ══ Prawa ════════════════════════════════════════════════════════════════════ -->
-<main class="gate-right" id="gate-main">
-<div class="gate-box">
+<!-- ══ Formularz ════════════════════════════════════════════════ -->
+<main id="gate-main">
 
-  <!-- Header boksa -->
+  <!-- Tryb header -->
   <?php
-  $head_mode_class = match(true) {
-    $page_mode === 'setup'        => ' mode-setup',
-    in_array($page_mode, ['email_verify'], true) && !$show_method_tabs => ' mode-email',
+  $head_mode_cls = match(true) {
+    $page_mode === 'setup'        => 'setup',
+    in_array($page_mode, ['email_verify'], true) && !$show_method_tabs => 'email',
+    $page_mode === 'pesel'        => 'pesel',
     default => '',
   };
   $head_icon = match(true) {
-    $page_mode === 'setup'                                       => 'bi-shield-plus',
-    $page_mode === 'pesel'                                       => 'bi-card-text',
-    $page_mode === 'email_verify' && !$show_method_tabs          => 'bi-envelope-check',
-    $dest_ctx['module'] === 'CRM'                                => 'bi-diagram-2-fill',
-    $dest_ctx['module'] === 'Dydaktyka'                          => 'bi-card-checklist',
-    $dest_ctx['module'] === 'Panel administratora'               => 'bi-shield-lock',
-    default                                                      => 'bi-shield-check',
+    $page_mode === 'setup'                                => 'bi-shield-plus',
+    $page_mode === 'pesel'                                => 'bi-card-text',
+    $page_mode === 'email_verify' && !$show_method_tabs   => 'bi-envelope-check',
+    $dest_ctx['module'] === 'CRM'                         => 'bi-diagram-2-fill',
+    $dest_ctx['module'] === 'Dydaktyka'                   => 'bi-card-checklist',
+    $dest_ctx['module'] === 'Panel administratora'        => 'bi-shield-lock',
+    default                                               => 'bi-shield-check',
   };
   $head_title = match(true) {
     $page_mode === 'setup'        => 'Ustaw kody autoryzacyjne',
     $page_mode === 'pesel'        => 'Weryfikacja PESEL',
-    $show_method_tabs             => 'Weryfikacja IKA',
+    $show_method_tabs             => 'Weryfikacja dwuetapowa',
     $page_mode === 'email_verify' => 'Kod e-mail',
     default                       => 'Weryfikacja IKA',
   };
@@ -818,24 +762,26 @@ button:focus-visible,
     default => 'Wejście do: <strong style="color:#93c5fd">' . h($dest_ctx['module']) . ($dest_ctx['resource'] !== 'Strona chroniona' ? ' / ' . h($dest_ctx['resource']) : '') . '</strong>',
   };
   ?>
-  <div class="gate-box-head<?= $head_mode_class ?>">
-    <div class="gate-box-head-icon" aria-hidden="true"><i class="bi <?= $head_icon ?>"></i></div>
+  <div class="gate-mode-head">
+    <div class="gate-mode-icon <?= $head_mode_cls ?>" aria-hidden="true">
+      <i class="bi <?= $head_icon ?>"></i>
+    </div>
     <div>
-      <h1 class="gate-box-head-title"><?= $head_title ?></h1>
-      <div class="gate-box-head-sub"><?= $head_sub ?></div>
+      <h1 class="gate-mode-title"><?= $head_title ?></h1>
+      <div class="gate-mode-sub"><?= $head_sub ?></div>
     </div>
   </div>
 
-  <div class="gate-box-body">
+  <div class="gate-body">
 
-    <?php if ($error): ?>
-    <div class="alert alert-danger d-flex align-items-center gap-2 py-2 mb-3" style="border-radius:.5rem;font-size:.83rem" role="alert">
+      <?php if ($error): ?>
+    <div class="gate-alert err" role="alert">
       <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
       <?= h($error) ?>
     </div>
     <?php endif; ?>
     <?php if ($info): ?>
-    <div class="alert alert-success d-flex align-items-center gap-2 py-2 mb-3" style="border-radius:.5rem;font-size:.83rem" role="status">
+    <div class="gate-alert ok" role="status">
       <i class="bi bi-check-circle-fill flex-shrink-0"></i>
       <?= h($info) ?>
     </div>
@@ -852,12 +798,12 @@ button:focus-visible,
     <?php elseif ($page_mode === 'pesel' && $pesel_challenge): ?>
     <!-- ══ PESEL challenge ═══════════════════════ -->
     <?php $pos = $pesel_challenge['pos']; ?>
-    <p style="font-size:.83rem;color:#475569;margin-bottom:.75rem">
+    <p style="font-size:.82rem;color:#6b7fa3;margin-bottom:.75rem">
       Podaj cyfry numeru PESEL na pozycjach:
     </p>
     <div style="display:flex;justify-content:center;gap:.5rem;margin-bottom:1.1rem">
       <?php foreach ($pos as $p): ?>
-      <div style="background:#f0f7ff;border:2px solid #2563eb;border-radius:8px;padding:.3rem .8rem;font-size:1.1rem;font-weight:800;color:#1e3a5f;min-width:44px;text-align:center"><?= $p ?></div>
+      <div style="background:rgba(37,99,235,.15);border:2px solid rgba(37,99,235,.4);border-radius:8px;padding:.3rem .8rem;font-size:1.05rem;font-weight:800;color:#93c5fd;min-width:44px;text-align:center"><?= $p ?></div>
       <?php endforeach; ?>
     </div>
     <form method="post" id="peselForm" autocomplete="off">
@@ -882,15 +828,15 @@ button:focus-visible,
       </button>
     </form>
     <div style="margin-top:.8rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.77rem;color:#586577;text-decoration:none">
+      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.76rem;color:#6b7fa3;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Inna metoda
       </a>
     </div>
 
     <?php elseif ($page_mode === 'setup'): ?>
     <!-- ══ Setup (AdminCode) ════════════════════ -->
-    <p style="font-size:.81rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:.55rem;padding:.55rem .8rem;margin-bottom:1rem;display:flex;gap:.45rem;align-items:flex-start">
-      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" style="color:#d97706"></i>
+    <p style="font-size:.8rem;color:#fbbf24;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.25);border-radius:.55rem;padding:.55rem .8rem;margin-bottom:1rem;display:flex;gap:.45rem;align-items:flex-start">
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" style="color:#fbbf24"></i>
       Wpisz <strong>AdminCode</strong> od administratora i ustaw swoje kody dostępu.
     </p>
     <form method="post" id="setupForm" autocomplete="off">
@@ -932,7 +878,7 @@ button:focus-visible,
       </button>
     </form>
     <div style="margin-top:.7rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.76rem;color:#586577;text-decoration:none">
+      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.75rem;color:#6b7fa3;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Mam już kod IKA
       </a>
     </div>
@@ -980,10 +926,10 @@ button:focus-visible,
         <?php endif; ?>
       </div>
       <?php if ($has_setup_token): ?>
-      <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fcd34d;background:#fffbeb;color:#92400e;margin-top:.5rem">
-        <i class="bi bi-shield-plus" style="color:#d97706"></i>
+      <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:rgba(217,119,6,.4);background:rgba(217,119,6,.08);color:#fbbf24;margin-top:.5rem">
+        <i class="bi bi-shield-plus" style="color:#fbbf24"></i>
         <span><strong>Mam AdminCode</strong> — ustaw kody samodzielnie</span>
-        <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
+        <i class="bi bi-arrow-right ms-auto" style="color:#fbbf24;font-size:.75rem"></i>
       </a>
       <?php endif; ?>
       <?php else: ?>
@@ -993,7 +939,7 @@ button:focus-visible,
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
         <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
 
-        <p style="font-size:.78rem;color:#586577;text-align:center;margin-bottom:.4rem">Wpisz 6-cyfrowy kod IKA</p>
+        <p style="font-size:.77rem;color:#6b7fa3;text-align:center;margin-bottom:.4rem">Wpisz 6-cyfrowy kod IKA</p>
         <div class="digit-row" id="ikaDigits" role="group" aria-label="Kod IKA — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
           <input type="text" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
@@ -1017,24 +963,24 @@ button:focus-visible,
       <div class="or-sep">nie pamiętasz kodu?</div>
       <div class="recovery-links">
         <?php if ($has_setup_token): ?>
-        <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fcd34d;background:#fffbeb;color:#92400e">
-          <i class="bi bi-shield-plus" style="color:#d97706"></i>
+        <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:rgba(217,119,6,.4);background:rgba(217,119,6,.08);color:#fbbf24">
+          <i class="bi bi-shield-plus" style="color:#fbbf24"></i>
           <strong>Mam AdminCode</strong> — ustaw nowy kod IKA
-          <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
+          <i class="bi bi-arrow-right ms-auto" style="color:#fbbf24;font-size:.75rem"></i>
         </a>
         <?php endif; ?>
         <?php if ($user_email): ?>
         <a href="?to=<?= urlencode($return_to) ?>&mode=email_verify" class="recovery-btn">
           <i class="bi bi-envelope-arrow-down-fill"></i>
           Wyślij jednorazowy kod e-mail
-          <span style="margin-left:auto;font-size:.7rem;color:#586577"><?= h($user_email) ?></span>
+          <span style="margin-left:auto;font-size:.69rem;color:#6b7fa3"><?= h($user_email) ?></span>
         </a>
         <?php endif; ?>
         <?php if ($pesel_available): ?>
         <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
           <i class="bi bi-card-text"></i>
           Zweryfikuj cyframi PESEL
-          <span style="margin-left:auto;font-size:.7rem;color:#586577">z kartoteki</span>
+          <span style="margin-left:auto;font-size:.69rem;color:#6b7fa3">z kartoteki</span>
         </a>
         <?php endif; ?>
       </div>
@@ -1107,7 +1053,7 @@ button:focus-visible,
           <input type="hidden" name="_mode" value="request_email_otp">
           <input type="hidden" name="to"    value="<?= h($return_to) ?>">
           <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
-          <button type="submit" style="background:none;border:none;color:#586577;font-size:.77rem;cursor:pointer;padding:0">
+          <button type="submit" style="background:none;border:none;color:#6b7fa3;font-size:.76rem;cursor:pointer;padding:0">
             <i class="bi bi-arrow-clockwise me-1"></i>Wyślij nowy kod
           </button>
         </form>
@@ -1123,17 +1069,24 @@ button:focus-visible,
       <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
         <i class="bi bi-card-text"></i>
         Zweryfikuj cyframi PESEL
-        <span style="margin-left:auto;font-size:.7rem;color:#586577">z kartoteki umów</span>
+        <span style="margin-left:auto;font-size:.69rem;color:#6b7fa3">z kartoteki umów</span>
       </a>
     </div>
     <?php endif; ?>
 
     <?php endif; /* /$page_mode cases */ ?>
 
-  </div><!-- /gate-box-body -->
-</div><!-- /gate-box -->
-</main><!-- /gate-right -->
-</div><!-- /gate-shell -->
+  </div><!-- /gate-body -->
+</main>
+
+<!-- ── Footer ────────────────────────────────────────────────── -->
+<?php $back_url = match($dest_ctx['module']) {'CRM' => APP_URL . '/crm/dashboard.php', 'Dydaktyka' => APP_URL . '/karty30/index.php', default => APP_URL . '/index.php'}; ?>
+<div class="gate-footer">
+  <a href="<?= h($back_url) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Anuluj i wróć</a>
+  <span>&copy; <?= date('Y') ?> <?= h($org_name) ?></span>
+</div>
+
+</div><!-- /gate-card -->
 
 <script>
 (function(){
