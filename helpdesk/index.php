@@ -47,19 +47,27 @@ $tickets = db_all(
      ORDER BY CASE t.status WHEN 'nowe' THEN 0 WHEN 'otwarte' THEN 1 WHEN 'oczekuje' THEN 2 ELSE 3 END,
               t.updated_at DESC", $params);
 
+// Licznik nieodczytanych (tylko dla operatorów — zgłaszający nie potrzebują)
+$unread_ids = $is_op ? hd_unread_ids($uid) : [];
+
 // ── Endpoint AJAX: fragment listy ─────────────────────────────────────────────
 if (isset($_GET['_ajax'])) {
+    // Oznacz jako odczytane jeśli przeładowanie po kliknięciu konkretnego zgłoszenia
+    if ($sel_id && $is_op) hd_mark_read($sel_id, $uid);
+    $unread_ids = $is_op ? hd_unread_ids($uid) : [];
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode([
-        'ok'        => true,
-        'total'     => count($tickets),
-        'list_html' => hd_console_rows($tickets, $is_op, $sel_id),
+        'ok'          => true,
+        'total'       => count($tickets),
+        'list_html'   => hd_console_rows($tickets, $is_op, $sel_id, $unread_ids),
+        'unread_count'=> count($unread_ids),
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 $cnt_unassigned = $is_op ? (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE assigned_to IS NULL AND status NOT IN ('zamknięte')")['c'] ?? 0) : 0;
 $cnt_mine_open  = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')", [$uid])['c'] ?? 0);
+$cnt_unread     = count($unread_ids);
 
 $PAGE_TITLE = 'Helpdesk IT';
 include dirname(__DIR__) . '/includes/header.php';
@@ -69,7 +77,14 @@ echo hd_ui_css();
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-headset text-primary me-2"></i>Helpdesk IT</h4>
+    <h4 class="mb-0 fw-bold">
+      <i class="bi bi-headset text-primary me-2"></i>Helpdesk IT
+      <?php if ($cnt_unread): ?>
+      <span class="hd-unread-badge ms-1" id="hdUnreadBadge" title="<?= $cnt_unread ?> nieprzeczytanych zgłoszeń"><?= $cnt_unread ?></span>
+      <?php else: ?>
+      <span class="hd-unread-badge ms-1 d-none" id="hdUnreadBadge"></span>
+      <?php endif; ?>
+    </h4>
     <div class="text-muted small">Konsola zgłoszeń · <span id="hdCount"><?= count($tickets) ?></span> na liście</div>
   </div>
   <a href="<?= APP_URL ?>/helpdesk/new.php" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nowe zgłoszenie</a>
@@ -113,7 +128,7 @@ echo hd_ui_css();
 <!-- ── Konsola split-view ───────────────────────────────────────────────────── -->
 <div class="hd-console" id="hdConsole">
   <div class="hd-list-col">
-    <div class="hd-list" id="hdListRegion" aria-label="Lista zgłoszeń"><?= hd_console_rows($tickets, $is_op, $sel_id) ?></div>
+    <div class="hd-list" id="hdListRegion" aria-label="Lista zgłoszeń"><?= hd_console_rows($tickets, $is_op, $sel_id, $unread_ids) ?></div>
   </div>
   <main class="hd-pane-col" id="hdMain">
     <div class="hd-pane" id="hdPane">
@@ -127,9 +142,12 @@ echo hd_ui_css();
 
 <div class="hd-toast-wrap" id="hdToasts"></div>
 
-<?php if (is_admin()): ?>
-<div class="mt-3 text-end">
-  <a href="<?= APP_URL ?>/helpdesk/admin.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear me-1"></i>Ustawienia Helpdesk</a>
+<?php if (is_admin() || hd_is_operator()): ?>
+<div class="mt-3 text-end d-flex justify-content-end gap-2 flex-wrap">
+  <a href="<?= APP_URL ?>/helpdesk/admin_macros.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-card-text me-1"></i>Gotowe odpowiedzi</a>
+  <?php if (is_admin()): ?>
+  <a href="<?= APP_URL ?>/helpdesk/admin.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear me-1"></i>Ustawienia</a>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 
@@ -172,7 +190,8 @@ function hdInitQuill(root) {
 <script>
 (function () {
   'use strict';
-  var APP = <?= json_encode(APP_URL) ?>;
+  var APP  = <?= json_encode(APP_URL) ?>;
+  var CSRF = <?= json_encode(csrf_token()) ?>;
   var listEl = document.getElementById('hdListRegion');
   var paneEl = document.getElementById('hdPane');
   var consoleEl = document.getElementById('hdConsole');
@@ -257,8 +276,36 @@ function hdInitQuill(root) {
         var hu = new URL(window.location.href);
         hu.searchParams.set('id', id);
         history.replaceState(null, '', hu.toString());
+        // Oznacz odczytane i odśwież badge
+        markReadLocally(id);
       })
       .catch(function () { paneEl.style.opacity = '1'; });
+  }
+
+  /* Oznacza wiersz jako odczytany (wizualnie) + aktualizuje badge */
+  function markReadLocally(id) {
+    var row = listEl.querySelector('.hd-row[data-id="' + id + '"]');
+    if (row) {
+      row.classList.remove('hd-row-unread');
+      var dot = row.querySelector('.hd-unread-dot');
+      if (dot) dot.remove();
+    }
+    // Wywołaj API mark_read w tle
+    fetch(APP + '/helpdesk/api/mark_read.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+      body: '_csrf=' + encodeURIComponent(CSRF) + '&ticket_id=' + id
+    }).then(function(r){ return r.json(); }).then(function(d){
+      var badge = document.getElementById('hdUnreadBadge');
+      if (badge && d.unread_count !== undefined) {
+        if (d.unread_count > 0) {
+          badge.textContent = d.unread_count;
+          badge.classList.remove('d-none');
+        } else {
+          badge.classList.add('d-none');
+        }
+      }
+    }).catch(function(){});
   }
 
   /* ── Wiązanie wierszy listy ──────────────────────── */

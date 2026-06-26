@@ -152,12 +152,20 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
     <div class="card-body">
       <form method="post" action="<?= h($view_action) ?>" enctype="multipart/form-data" data-hd-form>
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <?php if ($is_op): $reply_tpls = hd_reply_templates($ticket); ?>
+        <?php if ($is_op): $reply_tpls = hd_reply_templates($ticket); $db_macros = hd_macros_active(); ?>
         <div class="dropdown mb-2">
           <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-card-text me-1"></i>Wstaw szablon odpowiedzi
           </button>
-          <ul class="dropdown-menu" style="font-size:.85rem">
+          <ul class="dropdown-menu" style="font-size:.85rem;max-height:300px;overflow-y:auto">
+            <?php if ($db_macros): ?>
+            <li><h6 class="dropdown-header">Gotowe odpowiedzi</h6></li>
+            <?php foreach ($db_macros as $mac): ?>
+            <li><button type="button" class="dropdown-item hd-tpl-btn" data-body="<?= h($mac['body']) ?>"><?= h($mac['title']) ?></button></li>
+            <?php endforeach; ?>
+            <li><hr class="dropdown-divider"></li>
+            <?php endif; ?>
+            <li><h6 class="dropdown-header">Szablony systemowe</h6></li>
             <?php foreach ($reply_tpls as $tk => $tpl): ?>
             <li><button type="button" class="dropdown-item hd-tpl-btn" data-body="<?= h($tpl['body']) ?>"><?= h($tpl['label']) ?></button></li>
             <?php endforeach; ?>

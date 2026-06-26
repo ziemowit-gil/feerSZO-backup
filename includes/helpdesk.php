@@ -105,6 +105,26 @@ function helpdesk_migrate(): void {
     // SQLite dopuszcza wiele NULL w UNIQUE — token unikalny tylko dla wypełnionych.
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)"); } catch (\Throwable $e) {}
 
+    // Makra / gotowe odpowiedzi (edytowalne przez admina)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS helpdesk_macros (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        title      TEXT    NOT NULL,
+        body       TEXT    NOT NULL DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_active  INTEGER NOT NULL DEFAULT 1,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Licznik nieodczytanych — ostatni odczyt zgłoszenia per operator
+    $pdo->exec("CREATE TABLE IF NOT EXISTS helpdesk_reads (
+        ticket_id INTEGER NOT NULL REFERENCES helpdesk_tickets(id) ON DELETE CASCADE,
+        user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        read_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (ticket_id, user_id)
+    )");
+
     try {
         $s = db_one("SELECT id FROM settings WHERE key_='helpdesk_enabled'");
         if (!$s) $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['helpdesk_enabled', '1']);
@@ -200,6 +220,46 @@ HTML
  * Zwraca listę: ['key' => ['label' => ..., 'body' => ...], ...].
  * Używane w formularzu odpowiedzi (helpdesk/view.php) — klik wstawia treść do pola.
  */
+// ── Makra (gotowe odpowiedzi z bazy) ─────────────────────────────────────────
+
+function hd_macros_active(): array {
+    try {
+        return db_all("SELECT id, title, body FROM helpdesk_macros WHERE is_active=1 ORDER BY sort_order, title", []);
+    } catch (\Throwable $e) { return []; }
+}
+
+// ── Odczyty / licznik nieodczytanych ─────────────────────────────────────────
+
+/** Oznacz zgłoszenie jako odczytane przez danego usera. */
+function hd_mark_read(int $ticket_id, int $user_id): void {
+    try {
+        db()->prepare(
+            "INSERT INTO helpdesk_reads (ticket_id, user_id, read_at) VALUES (?,?,?)
+             ON CONFLICT(ticket_id, user_id) DO UPDATE SET read_at=excluded.read_at"
+        )->execute([$ticket_id, $user_id, date('Y-m-d H:i:s')]);
+    } catch (\Throwable $e) {}
+}
+
+/**
+ * Zwraca set ticket_id które mają nieprzeczytane wiadomości dla danego usera
+ * (wiadomości dodane po ostatnim read_at lub nigdy nie otwarte, status != zamknięte).
+ */
+function hd_unread_ids(int $user_id): array {
+    try {
+        $rows = db_all(
+            "SELECT DISTINCT m.ticket_id FROM helpdesk_messages m
+             JOIN helpdesk_tickets t ON t.id = m.ticket_id
+             LEFT JOIN helpdesk_reads r ON r.ticket_id = m.ticket_id AND r.user_id = ?
+             WHERE m.is_internal = 0
+               AND (r.read_at IS NULL OR m.created_at > r.read_at)
+               AND t.status NOT IN ('zamknięte')
+               AND m.user_id != ?",
+            [$user_id, $user_id]
+        );
+        return array_column($rows, 'ticket_id');
+    } catch (\Throwable $e) { return []; }
+}
+
 function hd_reply_templates(array $ticket): array {
     $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
     $name  = trim((string)($ticket['requester_name'] ?? ''));
@@ -540,6 +600,10 @@ function hd_ui_css(): string {
 .hd-email-badge.verified{background:#dcfce7;color:#166534;border:1px solid #86efac}
 .hd-email-badge.org{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
 .hd-email-badge.unknown{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+/* Licznik nieodczytanych */
+.hd-row-unread .hd-row-title{font-weight:700}
+.hd-unread-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#2563EB;flex-shrink:0;margin-right:2px}
+.hd-unread-badge{display:inline-flex;align-items:center;justify-content:center;background:#2563EB;color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;min-width:18px;height:18px;padding:0 5px;line-height:1}
 .hd-toast-wrap{position:fixed;bottom:1.2rem;right:1.2rem;z-index:1090;display:flex;flex-direction:column;gap:.5rem}
 .hd-toast{background:#fff;border-left:4px solid #2563EB;box-shadow:0 6px 20px rgba(0,0,0,.15);border-radius:8px;padding:.7rem 1rem;font-size:.85rem;min-width:240px;max-width:360px;animation:hdToastIn .2s ease}
 .hd-toast.ok{border-color:#16A34A}.hd-toast.err{border-color:#DC2626}
@@ -549,20 +613,26 @@ CSS;
 }
 
 /** Renderuje wiersze listy zgłoszeń do konsoli (lub pusty stan). */
-function hd_console_rows(array $tickets, bool $is_op, int $selId = 0): string {
+function hd_console_rows(array $tickets, bool $is_op, int $selId = 0, array $unread_ids = []): string {
     if (!$tickets) {
         return '<div class="hd-pane-empty" style="border:none;background:transparent;min-height:200px">'
              . '<i class="bi bi-inbox"></i><div>Brak zgłoszeń spełniających kryteria.</div></div>';
     }
+    $unread_set = array_flip($unread_ids);
     $now = time();
     $h = '';
     foreach ($tickets as $t) {
         $age = max(0, $now - strtotime($t['updated_at'] ?? 'now'));
         $ago = $age < 3600 ? max(1, (int)($age / 60)) . ' min'
              : ($age < 86400 ? (int)($age / 3600) . ' godz' : (int)($age / 86400) . ' dni');
-        $active = ((int)$t['id'] === $selId) ? ' active' : '';
-        $h .= '<a class="hd-row' . $active . '" data-id="' . (int)$t['id'] . '" href="' . APP_URL . '/helpdesk/view.php?id=' . (int)$t['id'] . '">';
-        $h .= '<div class="hd-row-top"><span class="hd-row-num">' . h($t['number']) . '</span><span class="hd-row-time">' . $ago . ' temu</span></div>';
+        $active  = ((int)$t['id'] === $selId) ? ' active' : '';
+        $unread  = isset($unread_set[(int)$t['id']]);
+        $h .= '<a class="hd-row' . $active . ($unread ? ' hd-row-unread' : '') . '" data-id="' . (int)$t['id'] . '" href="' . APP_URL . '/helpdesk/view.php?id=' . (int)$t['id'] . '">';
+        $h .= '<div class="hd-row-top">';
+        $h .= '<span class="hd-row-num">' . h($t['number']) . '</span>';
+        if ($unread) $h .= '<span class="hd-unread-dot" title="Nieprzeczytane" aria-label="Nieprzeczytane"></span>';
+        $h .= '<span class="hd-row-time">' . $ago . ' temu</span>';
+        $h .= '</div>';
         $h .= '<div class="hd-row-title">' . h($t['title']) . '</div>';
         $h .= '<div class="hd-row-meta">' . hd_status_badge($t['status']) . hd_priority_badge($t['priority']);
         if ($is_op) $h .= hd_sla_indicator($t);
