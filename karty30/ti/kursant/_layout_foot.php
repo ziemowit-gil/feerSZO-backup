@@ -1,14 +1,45 @@
 <?php /** Wspólna stopka panelu kursanta/rodzica. */ ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Przełącznik motywu jasny/ciemny (zapamiętywany w localStorage).
-document.addEventListener('click', function(e){
-  var btn = e.target.closest('#kp-theme-toggle');
-  if (!btn) return;
-  var next = document.documentElement.getAttribute('data-bs-theme') === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-bs-theme', next);
-  try { localStorage.setItem('kp-theme', next); } catch (e) {}
-});
+// Picker koloru tla — przycisk w navbarze otwiera ukryty input[type=color].
+(function(){
+  function applyBg(color){
+    document.documentElement.style.setProperty('--kp-custom-bg', color || '');
+    // sync oba pickery
+    var p1 = document.getElementById('kp-bg-color-input');
+    var p2 = document.getElementById('kp-a11y-bg-picker');
+    if (p1 && color) p1.value = color;
+    if (p2 && color) p2.value = color;
+    try { color ? localStorage.setItem('kp-bg-color', color) : localStorage.removeItem('kp-bg-color'); } catch(e){}
+  }
+  // Inicjalizacja — odczyt z localStorage (moze byc null)
+  var saved = null; try { saved = localStorage.getItem('kp-bg-color'); } catch(e){}
+  if (saved) applyBg(saved);
+  else {
+    var p2 = document.getElementById('kp-a11y-bg-picker');
+    if (p2) p2.value = '#ffffff';
+  }
+
+  // Przycisk palette w navbarze/fixed — otwiera ukryty input
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('#kp-bg-pick-btn');
+    if (!btn) return;
+    var inp = document.getElementById('kp-bg-color-input');
+    if (inp) inp.click();
+  });
+  // Ukryty input (navbar/fixed)
+  document.addEventListener('input', function(e){
+    if (e.target.id === 'kp-bg-color-input') applyBg(e.target.value);
+  });
+  // Picker w panelu a11y
+  document.addEventListener('input', function(e){
+    if (e.target.id === 'kp-a11y-bg-picker') applyBg(e.target.value);
+  });
+  // Reset
+  document.addEventListener('click', function(e){
+    if (e.target.closest('#kp-bg-reset-btn')) applyBg(null);
+  });
+})();
 </script>
 <script>
 // Menu dostępności: kontrast, wielkość tekstu, schowaj/pokaż menu (zapamiętywane).

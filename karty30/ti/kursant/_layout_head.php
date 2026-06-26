@@ -17,8 +17,8 @@ $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- Motyw + dostępność: zastosuj zapamiętane ustawienia przed renderem (bez mignięcia) -->
 <script>try{var d=document.documentElement;
-var t=localStorage.getItem('kp-theme');if(t)d.setAttribute('data-bs-theme',t);
 if(localStorage.getItem('kp-contrast')==='1')d.classList.add('kp-contrast');
+var bgc=localStorage.getItem('kp-bg-color');if(bgc)document.documentElement.style.setProperty('--kp-custom-bg',bgc);
 var fs=localStorage.getItem('kp-fontscale');if(fs&&fs!=='0')d.setAttribute('data-kp-font',fs);
 if(localStorage.getItem('kp-hidemenu')==='1')d.classList.add('kp-hidemenu');
 }catch(e){}</script>
@@ -26,7 +26,8 @@ if(localStorage.getItem('kp-hidemenu')==='1')d.classList.add('kp-hidemenu');
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-:root { --bs-primary:#2563eb; --bs-primary-rgb:37,99,235; --bs-link-color-rgb:96,165,250; }
+:root { --bs-primary:#2563eb; --bs-primary-rgb:37,99,235; --bs-link-color-rgb:96,165,250; --kp-custom-bg:; }
+body { background-color:var(--kp-custom-bg, var(--bs-body-bg)) !important; }
 .btn-primary { --bs-btn-bg:#2563eb; --bs-btn-border-color:#2563eb; --bs-btn-hover-bg:#1d4ed8; --bs-btn-hover-border-color:#1d4ed8; }
 body { min-height:100vh; }
 /* WCAG: widoczny, spójny focus dla klawiatury */
@@ -160,6 +161,13 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
     <button type="button" class="btn btn-outline-secondary w-100 mb-2 d-flex align-items-center gap-2" id="kp-contrast-btn" aria-pressed="false">
       <i class="bi bi-circle-half" aria-hidden="true"></i><span>Wysoki kontrast</span>
     </button>
+    <div class="mb-2">
+      <label class="form-label small fw-semibold mb-1" for="kp-a11y-bg-picker">Kolor tla</label>
+      <div class="d-flex gap-2 align-items-center">
+        <input type="color" id="kp-a11y-bg-picker" class="form-control form-control-color" value="#ffffff" style="width:3rem;height:2rem;padding:.15rem .25rem" title="Wybierz kolor tla">
+        <button type="button" class="btn btn-outline-secondary btn-sm flex-grow-1" id="kp-bg-reset-btn">Resetuj (bialy)</button>
+      </div>
+    </div>
     <button type="button" class="btn btn-outline-secondary w-100 d-flex align-items-center gap-2" id="kp-hidemenu-btn" aria-pressed="false">
       <i class="bi bi-list" aria-hidden="true"></i><span id="kp-hidemenu-label">Schowaj menu</span>
     </button>
@@ -186,9 +194,10 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
         <span><?= h($KP_TOPBAR['brand'] ?? $KP_ORG) ?></span>
       </span>
       <div class="d-flex align-items-center gap-3">
-        <button type="button" id="kp-theme-toggle" class="btn btn-outline-secondary btn-sm" aria-label="Przełącz motyw jasny/ciemny" title="Jasny / ciemny">
-          <i class="bi bi-circle-half" aria-hidden="true"></i>
+        <button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm" aria-label="Zmień kolor tła" title="Kolor tła">
+          <i class="bi bi-palette" aria-hidden="true"></i>
         </button>
+        <input type="color" id="kp-bg-color-input" class="visually-hidden" aria-label="Wybierz kolor tła" value="#ffffff">
         <?php if (!empty($KP_TOPBAR['user'])): ?>
         <span class="text-body-secondary small d-flex align-items-center gap-1">
           <i class="bi bi-person-circle" aria-hidden="true"></i><?= h($KP_TOPBAR['user']) ?>
@@ -204,7 +213,8 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
   </nav>
 </header>
 <?php else: ?>
-<button type="button" id="kp-theme-toggle" class="btn btn-outline-secondary btn-sm position-fixed top-0 end-0 m-3" style="z-index:1080" aria-label="Przełącz motyw jasny/ciemny" title="Jasny / ciemny">
-  <i class="bi bi-circle-half" aria-hidden="true"></i>
+<button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm position-fixed top-0 end-0 m-3" style="z-index:1080" aria-label="Zmień kolor tła" title="Kolor tła">
+  <i class="bi bi-palette" aria-hidden="true"></i>
 </button>
+<input type="color" id="kp-bg-color-input" class="visually-hidden" aria-label="Wybierz kolor tła" value="#ffffff">
 <?php endif; ?>
