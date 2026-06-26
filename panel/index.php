@@ -621,12 +621,14 @@ if (module_enabled('letters_enabled') && $my_letters_count) {
         'label' => 'Pisma', 'count' => $my_letters_count, 'sub' => 'korespondencja',
     ];
 }
-if (module_enabled('terminations_enabled') && count($my_terms)) {
+if (module_enabled('terminations_enabled')) {
     $_pv_actions[] = [
         'href' => APP_URL . '/panel/terminations.php', 'icon' => 'bi-file-earmark-x',
         'iconColor' => '#DC2626', 'iconBg' => '#FEF2F2',
-        'label' => 'Zakończ współpracę', 'count' => count($my_terms),
-        'sub' => 'wnioski złożone', 'badge' => $my_terms_pending, 'badgeClass' => 'warning',
+        'label' => 'Zakończ współpracę',
+        'count' => count($my_terms) ?: '',
+        'sub' => count($my_terms) ? 'wnioski złożone' : 'wniosek o rozwiązanie',
+        'badge' => $my_terms_pending, 'badgeClass' => 'warning',
     ];
 }
 $_pv_actions[] = [

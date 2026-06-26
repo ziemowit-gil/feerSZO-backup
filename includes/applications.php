@@ -62,13 +62,7 @@ function _applications_init(): void {
 
     // Seed: domyślne typy wniosków przy pierwszym uruchomieniu
     $count = (int)$pdo->query("SELECT COUNT(*) FROM application_types")->fetchColumn();
-    if ($count > 0) {
-        // Self-heal: instalacje zaseedowane wcześniej (lub zmigrowane ze starego
-        // systemu) mogą nie mieć typu „Wniosek o rozwiązanie umowy". Dokładamy go
-        // JEDNORAZOWO (flaga w settings) — świadome usunięcie przez admina nie wraca.
-        _app_ensure_rozwiazanie($pdo);
-        return;
-    }
+    if ($count > 0) return;
 
     $ins = $pdo->prepare(
         "INSERT INTO application_types (name, label, icon, description, requires_contract, allow_attachment, is_active, sort_order)
@@ -109,44 +103,6 @@ function _applications_init(): void {
 
     $iid = $get_id('pismo_inne');
     $fld->execute([$iid, 'tresc',         'Treść pisma', 'textarea', '[]', 'Opisz swoją sprawę szczegółowo...', 1, 10]);
-}
-
-/**
- * Jednorazowo zapewnia obecność typu „Wniosek o rozwiązanie umowy" na istniejących
- * instalacjach. Dodaje typ + pola, gdy go brak; reaktywuje, jeśli istnieje, ale jest
- * nieaktywny. Po wykonaniu ustawia flagę w settings, więc późniejsze świadome
- * wyłączenie/usunięcie przez administratora już nie jest cofane. Nigdy nie przerywa
- * inicjalizacji (błędy łykane).
- */
-function _app_ensure_rozwiazanie(\PDO $pdo): void {
-    try {
-        $done = $pdo->query("SELECT value FROM settings WHERE key_='app_seed_rozwiazanie_v1'")->fetchColumn();
-        if ($done) return;
-
-        $row = $pdo->query("SELECT id, is_active FROM application_types WHERE name='wniosek_rozwiazanie'")
-                   ->fetch(\PDO::FETCH_ASSOC);
-
-        if (!$row) {
-            $maxsort = (int)$pdo->query("SELECT COALESCE(MAX(sort_order),0) FROM application_types")->fetchColumn();
-            $ins = $pdo->prepare(
-                "INSERT INTO application_types (name, label, icon, description, requires_contract, allow_attachment, is_active, sort_order)
-                 VALUES ('wniosek_rozwiazanie','Wniosek o rozwiązanie umowy','bi-file-earmark-x','Wniosek o rozwiązanie umowy.',1,1,1,?)"
-            );
-            $ins->execute([max(40, $maxsort + 10)]);
-            $rid = (int)$pdo->lastInsertId();
-            $fld = $pdo->prepare(
-                "INSERT INTO application_type_fields (type_id, name, label, field_type, options_json, placeholder, required, sort_order)
-                 VALUES (?,?,?,?,?,?,?,?)"
-            );
-            $fld->execute([$rid, 'data_rozw',    'Proponowana data rozwiązania', 'date',     '[]', '',                            1, 10]);
-            $fld->execute([$rid, 'uzasadnienie', 'Uzasadnienie',                 'textarea', '[]', 'Podaj powód rozwiązania...',  0, 20]);
-        } elseif (!(int)$row['is_active']) {
-            $pdo->prepare("UPDATE application_types SET is_active=1 WHERE id=?")->execute([(int)$row['id']]);
-        }
-
-        $pdo->prepare("INSERT INTO settings (key_, value) VALUES ('app_seed_rozwiazanie_v1','1')
-                       ON CONFLICT(key_) DO UPDATE SET value=excluded.value")->execute();
-    } catch (\Throwable $e) { /* nie blokuj inicjalizacji modułu */ }
 }
 
 // ── Helpery ───────────────────────────────────────────────────────────────────

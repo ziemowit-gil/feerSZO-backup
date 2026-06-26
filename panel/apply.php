@@ -52,6 +52,14 @@ function apply_user_contracts(array $user): array {
 
 $contracts   = apply_user_contracts($user);
 $types       = app_types_with_fields(active_only: true);
+
+// Rozwiązanie umowy ma własny, dedykowany moduł (panel/terminations.php).
+// Gdy jest włączony, nie dublujemy go w generycznym kreatorze wniosków —
+// usuwamy typ z listy (i z puli prawidłowych type_id, więc POST też go odrzuci).
+$_term_module = module_enabled('terminations_enabled');
+if ($_term_module) {
+    $types = array_values(array_filter($types, fn($t) => ($t['name'] ?? '') !== 'wniosek_rozwiazanie'));
+}
 $types_by_id = array_column($types, null, 'id');
 
 // ── Obsługa POST ──────────────────────────────────────────────────────────────
@@ -210,6 +218,15 @@ if ($_is_volunteer_only) {
           </div>
           <?php endforeach; ?>
         </div>
+        <?php if ($_term_module): ?>
+        <div class="d-flex align-items-center gap-2 mt-2 p-2 rounded" style="background:#FEF2F2;border:1px solid #FECACA;font-size:.8rem">
+          <i class="bi bi-info-circle text-danger flex-shrink-0" aria-hidden="true"></i>
+          <span class="flex-grow-1 text-muted">Chcesz rozwiązać umowę? Skorzystaj z dedykowanego modułu.</span>
+          <a href="<?= APP_URL ?>/panel/terminations.php" class="btn btn-sm btn-outline-danger py-0 px-2" style="white-space:nowrap">
+            <i class="bi bi-file-earmark-x me-1" aria-hidden="true"></i>Zakończ współpracę
+          </a>
+        </div>
+        <?php endif; ?>
       </div>
 
       <div class="mb-3" id="contract-row">
