@@ -234,13 +234,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acc = db_one("SELECT password_hash FROM k30_ti_student_accounts WHERE id=?", [(int)$student['id']]);
         $forced = !empty($account['must_change_password']);
         $err = '';
-        if (!$acc || !password_verify($cur, $acc['password_hash'])) {
+        // Przy pierwszym logowaniu (must_change_password) nie weryfikujemy aktualnego hasła
+        if (!$forced && (!$acc || !password_verify($cur, $acc['password_hash']))) {
             $err = 'Aktualne hasło jest nieprawidłowe.';
         } elseif (mb_strlen($new) < 8) {
             $err = 'Nowe hasło musi mieć co najmniej 8 znaków.';
         } elseif ($new !== $cnf) {
             $err = 'Nowe hasła nie są identyczne.';
-        } elseif ($new === $cur) {
+        } elseif (!$forced && $new === $cur) {
             $err = 'Nowe hasło musi różnić się od dotychczasowego.';
         }
         if ($err !== '') {
@@ -486,13 +487,15 @@ include __DIR__ . '/_layout_head.php';
       <form method="post" autocomplete="off">
         <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
         <input type="hidden" name="_op" value="change_password">
+        <?php if (!$forced): ?>
         <div class="mb-3">
           <label class="form-label" for="cp-cur">Aktualne hasło</label>
           <input type="password" class="form-control" id="cp-cur" name="current" required autocomplete="current-password" autofocus>
         </div>
+        <?php endif; ?>
         <div class="mb-3">
           <label class="form-label" for="cp-new">Nowe hasło</label>
-          <input type="password" class="form-control" id="cp-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znaków">
+          <input type="password" class="form-control" id="cp-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znaków" <?= $forced ? 'autofocus' : '' ?>>
         </div>
         <div class="mb-3">
           <label class="form-label" for="cp-cnf">Powtórz nowe hasło</label>
