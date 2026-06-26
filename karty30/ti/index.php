@@ -108,6 +108,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <a href="dydaktyk/index.php" class="btn btn-outline-primary btn-sm ms-auto" title="Uproszczony panel prowadzącego — Twoje kursy">
     <i class="bi bi-easel2 me-1"></i>Panel dydaktyka
   </a>
+  <a href="terms_admin.php" class="btn btn-outline-secondary btn-sm" title="Regulaminy TI">
+    <i class="bi bi-file-earmark-text me-1"></i>Regulaminy
+  </a>
   <?php if ($can_write): ?>
   <a href="messages.php" class="btn btn-outline-secondary btn-sm position-relative">
     <i class="bi bi-envelope me-1"></i>Wiadomości<?php if ($msg_unread_staff > 0): ?><span class="badge bg-danger ms-1"><?= (int)$msg_unread_staff ?></span><?php endif; ?>
