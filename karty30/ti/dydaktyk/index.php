@@ -922,8 +922,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     </div></div>
   <?php else: ?>
 
-  <!-- Wybór kursu -->
-  <?php if (count($courses) > 1): ?>
+  <!-- Wybór kursu — tylko gdy aktywna zakładka dotyczy kursu -->
+  <?php if (count($courses) > 1 && in_array($tab, ['lekcje','zadania','materialy','testy'], true)): ?>
   <nav class="dyd-course-pills mb-3" aria-label="Wybór kursu">
     <ul class="nav nav-pills gap-2 flex-wrap">
       <?php foreach ($courses as $c): ?>
@@ -948,7 +948,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <span class="text-body-secondary small ms-auto"><?= (int)($course['enrolled_count'] ?? 0) ?> aktywnych kursantów</span>
   </div></div>
 
-  <!-- Zakładki -->
+  <!-- Zakładki kursu — widoczne tylko gdy aktywna zakładka należy do obszaru kursu -->
+  <?php if (in_array($tab, ['lekcje','zadania','materialy','testy'], true)): ?>
   <ul class="nav nav-tabs mb-3" role="tablist">
     <?php
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
@@ -964,6 +965,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     </li>
     <?php endforeach; ?>
   </ul>
+  <?php endif; ?>
 
   <div class="dyd-tabpane">
 
