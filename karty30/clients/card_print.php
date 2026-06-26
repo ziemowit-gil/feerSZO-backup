@@ -192,7 +192,7 @@ html,body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:1
     <div>
       <div class="k-org"><?= h($org) ?></div>
       <div class="k-title">Karta Beneficjenta</div>
-      <div class="k-id">Nr ewidencyjny: K30/<?= str_pad($client_id, 5, '0', STR_PAD_LEFT) ?> &nbsp;·&nbsp; Wygenerowano: <?= $generated ?></div>
+      <div class="k-id">Wygenerowano: <?= $generated ?></div>
     </div>
     <div class="k-logo-placeholder" aria-hidden="true">&#128100;</div>
   </div>
@@ -358,7 +358,7 @@ html,body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:1
     </div>
     <div style="display:flex;gap:2rem">
       <div class="k-sign">Podpis beneficjenta</div>
-      <div class="k-sign">Podpis pracownika</div>
+      <div class="k-sign">Podpis operatora</div>
     </div>
   </div>
 

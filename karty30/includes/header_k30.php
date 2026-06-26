@@ -755,17 +755,24 @@ try {
     $r = db_one("SELECT COUNT(*) AS c FROM k30_waiting_list WHERE status IN ('waiting','contacted')");
     $_k30_wait_count = (int)($r['c'] ?? 0);
 } catch (\Throwable $e) {}
-$g_ti   = _k30_active('/karty30/ti/');
-$g_kons = _k30_active('/karty30/clients') || _k30_active('/karty30/waiting')
-       || _k30_active('/karty30/schedules') || _k30_active('/karty30/consultations')
-       || _k30_active('/karty30/reports') || _k30_active('/karty30/blacklist')
-       || _k30_active('/karty30/admin/');
+$g_ti      = _k30_active('/karty30/ti/');
+$g_clients = _k30_active('/karty30/clients');
+$g_kons    = $g_clients || _k30_active('/karty30/waiting')
+          || _k30_active('/karty30/schedules') || _k30_active('/karty30/consultations')
+          || _k30_active('/karty30/reports') || _k30_active('/karty30/blacklist')
+          || _k30_active('/karty30/admin/');
 ?>
 <nav class="k30-menubar" id="k30-nav" aria-label="Nawigacja modułu">
   <ul class="k30-menu">
     <li><a class="k30-menu-link" href="<?= APP_URL ?>/karty30/index.php"
            <?= _k30_active('/karty30/index') ? 'aria-current="page"' : '' ?>
            aria-label="Dashboard Dydaktyka — strona główna modułu"><i class="bi bi-grid-1x2-fill" aria-hidden="true"></i>Dashboard</a></li>
+
+    <!-- ══ Beneficjenci / Klienci ══ -->
+    <li><a class="k30-menu-link <?= $g_clients ? 'k30-active' : '' ?>"
+           href="<?= APP_URL ?>/karty30/clients/index.php"
+           <?= $g_clients ? 'aria-current="page"' : '' ?>
+           aria-label="Beneficjenci / Klienci — lista"><i class="bi bi-people-fill" aria-hidden="true"></i>Beneficjenci</a></li>
 
     <!-- ══ Dydaktyka (TI) ══ -->
     <li class="dropdown">
