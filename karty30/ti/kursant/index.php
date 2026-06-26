@@ -336,6 +336,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (\Throwable $e) {}
         header('Location: index.php?tab=problem&sent=1&num=' . rawurlencode($number)); exit;
     }
+
+    // Wypisanie się z kursu przez kursanta
+    if ($op === 'unenroll_course') {
+        $enroll_id = (int)($_POST['enrollment_id'] ?? 0);
+        $reason    = mb_substr(trim((string)($_POST['reason'] ?? '')), 0, 1000);
+        // Weryfikacja: zapis musi należeć do tego kursanta i być aktywny
+        $enroll = $enroll_id ? db_one(
+            "SELECT e.*, c.name AS course_name, u.name AS instructor_name, u.email AS instructor_email
+             FROM k30_ti_enrollments e
+             JOIN k30_ti_courses c ON c.id=e.course_id
+             LEFT JOIN users u ON u.id=c.instructor_id
+             WHERE e.id=? AND e.client_id=? AND e.status='active'",
+            [$enroll_id, $student['client_id']]
+        ) : null;
+        if ($enroll) {
+            db()->prepare(
+                "UPDATE k30_ti_enrollments SET status='inactive', notes=? WHERE id=?"
+            )->execute([
+                ($enroll['notes'] ?? '') . ($reason !== '' ? "\nWypisanie przez kursanta: " . $reason : "\nWypisanie przez kursanta."),
+                $enroll_id,
+            ]);
+            // E-mail do kursanta
+            try {
+                require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+                $stu_email = trim((string)($client['email'] ?? ''));
+                $stu_name  = trim((string)($client['name'] ?? $account['login']));
+                if ($stu_email !== '') {
+                    mail_queue_add($stu_email, $stu_name,
+                        'Potwierdzenie wypisania z kursu: ' . $enroll['course_name'],
+                        '<p>Drogi/a ' . h($stu_name) . ',</p>'
+                        . '<p>Potwierdzamy, że zostałeś/aś wypisany/a z kursu <strong>' . h($enroll['course_name']) . '</strong>.</p>'
+                        . ($reason !== '' ? '<p><em>Podany powód:</em> ' . nl2br(h($reason)) . '</p>' : '')
+                        . '<p>Jeśli to pomyłka lub chcesz ponownie dołączyć, skontaktuj się z prowadzącym lub administracją.</p>'
+                        . '<p>Pozdrawiamy,<br>' . h(defined('ORG_NAME') ? ORG_NAME : 'FEER') . '</p>'
+                    );
+                }
+                // E-mail do prowadzącego (jeśli jest)
+                $instr_email = trim((string)($enroll['instructor_email'] ?? ''));
+                if ($instr_email !== '') {
+                    mail_queue_add($instr_email, $enroll['instructor_name'] ?? '',
+                        '[TI] Kursant wypisał się z kursu: ' . $enroll['course_name'],
+                        '<p>Kursant <strong>' . h($stu_name) . '</strong> wypisał się z kursu <strong>' . h($enroll['course_name']) . '</strong>.</p>'
+                        . ($reason !== '' ? '<p><em>Podany powód:</em> ' . nl2br(h($reason)) . '</p>' : '')
+                    );
+                }
+            } catch (\Throwable $e) {}
+            header('Location: index.php?tab=dane&unenrolled=1'); exit;
+        }
+        header('Location: index.php?tab=dane'); exit;
+    }
 }
 
 // Kursy i lekcje kursanta
@@ -845,6 +895,95 @@ document.addEventListener('DOMContentLoaded', function() {
       </dl>
     </div>
   </div>
+
+  <!-- ── Moje kursy — z opcją wypisania się ──────────────────────────────────── -->
+  <?php if (isset($_GET['unenrolled'])): ?>
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zostałeś/aś wypisany/a z kursu. Potwierdzenie zostało wysłane na Twój adres e-mail.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php endif; ?>
+
+  <?php
+    $active_courses   = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') === 'active'));
+    $inactive_courses = array_values(array_filter($courses, fn($c) => ($c['status'] ?? 'active') !== 'active'));
+  ?>
+  <?php if ($active_courses): ?>
+  <div class="card mb-4">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-pc-display text-primary" aria-hidden="true"></i>Moje kursy
+    </div>
+    <ul class="list-group list-group-flush" role="list">
+      <?php foreach ($active_courses as $ec): ?>
+      <li class="list-group-item d-flex align-items-center gap-3 py-2">
+        <div class="flex-grow-1 min-width-0">
+          <span class="fw-semibold"><?= h($ec['course_name']) ?></span>
+          <?php if (!empty($ec['instructor_name'])): ?>
+          <span class="text-body-secondary small ms-2">· <?= h($ec['instructor_name']) ?></span>
+          <?php endif; ?>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm flex-shrink-0"
+                data-bs-toggle="modal" data-bs-target="#modalUnenroll"
+                data-enroll-id="<?= (int)$ec['id'] ?>"
+                data-course-name="<?= h($ec['course_name']) ?>"
+                aria-label="Wypisz się z kursu <?= h($ec['course_name']) ?>">
+          <i class="bi bi-box-arrow-left me-1" aria-hidden="true"></i>Wypisz się
+        </button>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+
+  <!-- Modal potwierdzenia wypisania -->
+  <div class="modal fade" id="modalUnenroll" tabindex="-1" aria-labelledby="modalUnenrollLabel" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h2 class="modal-title h5 fw-bold" id="modalUnenrollLabel">
+            <i class="bi bi-exclamation-triangle text-warning me-2" aria-hidden="true"></i>Wypisz się z kursu
+          </h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <form method="post" id="formUnenroll">
+          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+          <input type="hidden" name="_op"    value="unenroll_course">
+          <input type="hidden" name="enrollment_id" id="unenrollEnrollId" value="">
+          <div class="modal-body">
+            <p>Czy na pewno chcesz wypisać się z kursu <strong id="unenrollCourseName"></strong>?</p>
+            <p class="text-body-secondary small mb-3">Ta operacja zmieni Twój status na nieaktywny. Jeśli to pomyłka, skontaktuj się z prowadzącym lub administracją.</p>
+            <div class="mb-3">
+              <label class="form-label" for="unenrollReason">Powód wypisania <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+              <textarea class="form-control" id="unenrollReason" name="reason" rows="3" maxlength="1000"
+                        placeholder="Np. zmiana planów, inne obowiązki…"></textarea>
+            </div>
+            <div class="alert alert-warning py-2 small d-flex gap-2 align-items-start" role="note">
+              <i class="bi bi-envelope me-1 flex-shrink-0 mt-1" aria-hidden="true"></i>
+              Na Twój adres e-mail zostanie wysłane potwierdzenie wypisania.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+            <button type="submit" class="btn btn-danger fw-semibold">
+              <i class="bi bi-box-arrow-left me-1" aria-hidden="true"></i>Wypisz się
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function() {
+    var modal = document.getElementById('modalUnenroll');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function(e) {
+      var btn = e.relatedTarget;
+      document.getElementById('unenrollEnrollId').value   = btn.getAttribute('data-enroll-id') || '';
+      document.getElementById('unenrollCourseName').textContent = btn.getAttribute('data-course-name') || '';
+      document.getElementById('unenrollReason').value = '';
+    });
+  })();
+  </script>
 
   <!-- Następna lekcja -->
   <?php if ($next_lesson):
