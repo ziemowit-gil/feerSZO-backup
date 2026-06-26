@@ -32,12 +32,16 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
       <span class="badge bg-light text-dark border small"><?= h(HD_CATEGORIES[$ticket['category']] ?? $ticket['category']) ?></span>
     </div>
     <h4 class="mb-0 mt-1 fw-bold"><?= h($ticket['title']) ?></h4>
-    <div class="text-muted small mt-1">
-      Zgłoszono przez <strong><?= h($ticket['requester_name']) ?></strong>
-      · <?= date_pl(substr($ticket['created_at'], 0, 10)) ?>
+    <div class="text-muted small mt-1 d-flex flex-wrap align-items-center gap-2">
+      <span>Zgłoszono przez <strong><?= h($ticket['requester_name']) ?></strong></span>
+      <?php if ($ticket['requester_email']): ?>
+      <span class="font-monospace" style="font-size:.78rem"><?= h($ticket['requester_email']) ?></span>
+      <?= hd_email_verify_badge($ticket['requester_email']) ?>
+      <?php endif; ?>
+      <span>· <?= date_pl(substr($ticket['created_at'], 0, 10)) ?></span>
       <?= $ticket['assigned_name']
-        ? ' · <i class="bi bi-person-check text-success me-1"></i>Operator: <strong>' . h($ticket['assigned_name']) . '</strong>'
-        : ' · <span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Nieprzypisane</span>' ?>
+        ? '· <i class="bi bi-person-check text-success me-1"></i>Operator: <strong>' . h($ticket['assigned_name']) . '</strong>'
+        : '· <span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Nieprzypisane</span>' ?>
     </div>
   </div>
 </div>
@@ -90,7 +94,8 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
       $is_req      = (int)$m['user_id'] === (int)$ticket['requester_id'];
       $msg_class   = $m['is_internal'] ? 'hd-msg-intern' : ($is_req ? 'hd-msg-user' : 'hd-msg-op');
       $msg_atts    = array_filter($atts, fn($a) => (int)$a['message_id'] === (int)$m['id']);
-      $long        = mb_strlen($m['body']) > 600 || substr_count($m['body'], "\n") > 10;
+      $body_html   = (strpos($m['body'], '<') !== false) ? $m['body'] : nl2br(h($m['body']));
+      $long        = mb_strlen(strip_tags($m['body'])) > 600 || substr_count($m['body'], "\n") > 10;
       if ($hidden_count && $i === 0)             echo '<div data-hd-olderwrap class="d-none">';
       if ($hidden_count && $i === $hidden_count)  echo '</div>';
     ?>
@@ -104,7 +109,7 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
         </div>
         <small class="text-muted"><?= date('d.m.Y H:i', strtotime($m['created_at'])) ?></small>
       </div>
-      <div class="hd-body<?= $long ? ' hd-clamp' : '' ?>"><?= nl2br(h($m['body'])) ?></div>
+      <div class="hd-body<?= $long ? ' hd-clamp' : '' ?>"><?= $body_html ?></div>
       <?php if ($long): ?>
       <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:.8rem" data-hd-more>Pokaż całość</button>
       <?php endif; ?>
@@ -165,9 +170,18 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
               $rt = $reply_tpls ?? hd_reply_templates($ticket);
               if (isset($rt[$_GET['tpl']])) $tpl_prefill = $rt[$_GET['tpl']]['body'];
           }
+          $hd_editor_id = 'hdQuill_' . (int)$ticket['id'];
         ?>
-        <textarea name="msg_body" class="form-control mb-2 hd-msg-body" rows="4" required
-                  placeholder="Wpisz odpowiedź…" <?= $tpl_prefill !== '' ? 'autofocus' : '' ?>><?= h($tpl_prefill) ?></textarea>
+        <!-- Ukryte pole z HTML z Quilla -->
+        <input type="hidden" name="msg_body" id="<?= $hd_editor_id ?>_hidden">
+        <!-- Quill editor -->
+        <div class="hd-quill-wrap mb-2" id="<?= $hd_editor_id ?>_wrap">
+          <div id="<?= $hd_editor_id ?>" aria-label="Treść odpowiedzi" aria-required="true"
+               style="min-height:110px"></div>
+        </div>
+        <div id="<?= $hd_editor_id ?>_err" class="invalid-feedback d-none mb-2">
+          Treść odpowiedzi nie może być pusta.
+        </div>
         <?php if ($is_op): ?>
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" name="is_internal" id="is_internal_<?= (int)$ticket['id'] ?>" value="1">
@@ -178,10 +192,12 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
         </div>
         <?php endif; ?>
         <div class="mb-2">
-          <input name="msg_attachments[]" type="file" class="form-control form-control-sm" multiple
+          <label for="hd_att_<?= (int)$ticket['id'] ?>" class="visually-hidden">Załączniki</label>
+          <input id="hd_att_<?= (int)$ticket['id'] ?>" name="msg_attachments[]" type="file"
+                 class="form-control form-control-sm" multiple
                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv">
         </div>
-        <button type="submit" name="_add_msg" class="btn btn-primary btn-sm">
+        <button type="submit" name="_add_msg" class="btn btn-primary btn-sm" id="<?= $hd_editor_id ?>_submit">
           <i class="bi bi-send me-1"></i>Wyślij
         </button>
       </form>
@@ -460,7 +476,17 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
       b.textContent = body.classList.toggle('hd-expanded') ? 'Zwiń' : 'Pokaż całość';
     });});
     root.querySelectorAll('.hd-tpl-btn').forEach(function(b){ b.addEventListener('click',function(){
-      var ta=b.closest('form').querySelector('.hd-msg-body'); if(!ta) return;
+      var form = b.closest('form');
+      // Quill (jeśli załadowany)
+      var wrap = form.querySelector('.hd-quill-wrap');
+      if (wrap && wrap._quill) {
+        var q = wrap._quill;
+        if (q.getText().trim() !== '' && !confirm('Zastąpić obecną treść wybranym szablonem?')) return;
+        q.root.innerHTML = b.dataset.body.replace(/\n/g,'<br>');
+        q.focus();
+        return;
+      }
+      var ta=form.querySelector('.hd-msg-body'); if(!ta) return;
       if(ta.value.trim()!=='' && !confirm('Zastąpić obecną treść wybranym szablonem?')) return;
       ta.value=b.dataset.body; ta.focus();
     });});
@@ -473,6 +499,82 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
     root.querySelectorAll('form[data-hd-confirm]').forEach(function(f){ f.addEventListener('submit',function(e){ if(!confirm(f.dataset.hdConfirm)) e.preventDefault(); }); });
   }
   bind(document);
+})();
+</script>
+
+<!-- Quill WYSIWYG dla formularzy odpowiedzi -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script>
+(function(){
+  var TOOLBAR = [
+    [{ 'header': [false, 2, 3] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+    ['blockquote', 'link'],
+    ['clean']
+  ];
+
+  document.querySelectorAll('.hd-quill-wrap').forEach(function(wrap){
+    var editorDiv = wrap.querySelector('[id]');
+    if (!editorDiv || wrap._quill) return;
+
+    var form       = wrap.closest('form');
+    if (!form) return;
+    var hiddenInput= form.querySelector('input[name="msg_body"]');
+    var submitBtn  = form.querySelector('button[name="_add_msg"]');
+    var errDiv     = wrap.nextElementSibling && wrap.nextElementSibling.id.endsWith('_err')
+                     ? wrap.nextElementSibling : null;
+
+    var q = new Quill(editorDiv, {
+      theme:       'snow',
+      modules:     { toolbar: TOOLBAR },
+      placeholder: 'Wpisz odpowiedź…',
+    });
+    wrap._quill = q;
+
+    // Prefill z szablonu URL (atrybut data)
+    var prefill = editorDiv.dataset.prefill || '';
+    if (prefill) {
+      q.root.innerHTML = prefill.replace(/\n/g, '<br>');
+      setTimeout(function(){ q.focus(); }, 50);
+    }
+
+    // Walidacja przed wysyłką
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function(e) {
+        var html  = q.root.innerHTML;
+        var empty = q.getText().trim() === '';
+        if (empty) {
+          e.preventDefault();
+          wrap.classList.add('is-invalid');
+          if (errDiv) errDiv.classList.remove('d-none');
+          q.focus();
+          return;
+        }
+        wrap.classList.remove('is-invalid');
+        if (errDiv) errDiv.classList.add('d-none');
+        if (hiddenInput) hiddenInput.value = html;
+      });
+    }
+
+    // Czyść błąd przy wpisywaniu
+    q.on('text-change', function(){
+      if (q.getText().trim() !== '') {
+        wrap.classList.remove('is-invalid');
+        if (errDiv) errDiv.classList.add('d-none');
+      }
+    });
+
+    // Dostępność: edytor Quill — powiąż aria-label z `.ql-editor`
+    var qlEditor = wrap.querySelector('.ql-editor');
+    if (qlEditor) {
+      qlEditor.setAttribute('aria-label', 'Treść odpowiedzi');
+      qlEditor.setAttribute('aria-multiline', 'true');
+      qlEditor.setAttribute('aria-required', 'true');
+      qlEditor.removeAttribute('aria-placeholder'); // Quill dodaje sam
+    }
+  });
 })();
 </script>
 <?php endif; ?>

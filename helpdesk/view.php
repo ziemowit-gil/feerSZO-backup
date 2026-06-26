@@ -142,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_take']) && $is_op) {
 // ── Dodaj wiadomość ───────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
     csrf_check();
-    $body        = trim($_POST['msg_body'] ?? '');
+    $body        = hd_sanitize_body(trim($_POST['msg_body'] ?? ''));
     $is_internal = $is_op && !empty($_POST['is_internal']) ? 1 : 0;
     if ($body) {
         $msg_id = db_insert('helpdesk_messages', ['ticket_id' => $id, 'user_id' => $uid,

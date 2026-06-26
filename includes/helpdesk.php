@@ -419,6 +419,64 @@ function hd_sla_indicator(array $ticket): string {
 // ── Interfejs konsoli (split-view) ────────────────────────────────────────────
 
 /** Wspólny arkusz stylów konsoli helpdesku (lista + panel + dymki wiadomości). */
+/**
+ * Zwraca badge weryfikacji emaila zgłaszającego.
+ * Sprawdza czy requester_email:
+ *   1. należy do domeny org (m365_domain) → badge „org"
+ *   2. pasuje do email zalogowanego użytkownika z tabeli users → badge „verified"
+ *   3. w przeciwnym razie → badge „unknown"
+ */
+function hd_email_verify_badge(string $req_email): string {
+    if (!$req_email) return '';
+    $req_email = strtolower(trim($req_email));
+
+    $org_domain = strtolower(trim(m365_setting('m365_domain') ?: ''));
+    $req_domain = strtolower(substr($req_email, (int)strrpos($req_email, '@') + 1));
+
+    // Sprawdź dopasowanie do zalogowanego usera
+    $cur = current_user();
+    $cur_email = strtolower(trim($cur['email'] ?? ''));
+    $user_match = ($cur_email && $cur_email === $req_email);
+
+    // Sprawdź czy email istnieje w tabeli users
+    $db_user = db_one("SELECT id, name FROM users WHERE LOWER(email)=? LIMIT 1", [$req_email]);
+
+    if ($db_user) {
+        $label = 'Zweryfikowany — ' . h($db_user['name']);
+        return '<span class="hd-email-badge verified" title="' . h($label) . '">'
+             . '<i class="bi bi-patch-check-fill" aria-hidden="true"></i> Zweryfikowany'
+             . '</span>';
+    }
+
+    if ($org_domain && $req_domain === $org_domain) {
+        return '<span class="hd-email-badge org" title="Adres organizacyjny: ' . h($req_email) . '">'
+             . '<i class="bi bi-building-check" aria-hidden="true"></i> Adres org.'
+             . '</span>';
+    }
+
+    return '<span class="hd-email-badge unknown" title="E-mail: ' . h($req_email) . '">'
+         . '<i class="bi bi-question-circle" aria-hidden="true"></i> Nieznany'
+         . '</span>';
+}
+
+/**
+ * Sanitizuje HTML z edytora WYSIWYG — usuwa niebezpieczne tagi/atrybuty, zachowuje formatowanie.
+ */
+function hd_sanitize_body(string $html): string {
+    if (trim($html) === '' || trim(strip_tags($html)) === '') return '';
+    $allowed = [
+        'p','br','strong','b','em','i','u','s','ul','ol','li',
+        'blockquote','a','span','h1','h2','h3','pre','code',
+    ];
+    // strip_tags zachowuje treść, usuwa tylko niedozwolone tagi
+    $clean = strip_tags($html, $allowed);
+    // Usuń onclick/onerror/href=javascript: z <a>
+    $clean = preg_replace('/\s+on\w+="[^"]*"/i', '', $clean);
+    $clean = preg_replace('/\s+on\w+=\'[^\']*\'/i', '', $clean);
+    $clean = preg_replace('/<a([^>]*)href\s*=\s*["\']?\s*javascript:[^"\'>\s]*/i', '<a$1href="#"', $clean);
+    return trim($clean);
+}
+
 function hd_ui_css(): string {
     return <<<CSS
 <style>
@@ -451,9 +509,25 @@ function hd_ui_css(): string {
 .hd-msg-user{background:#EEF4FF;border-left:3px solid #2563EB}
 .hd-msg-op{background:#F0FDF4;border-left:3px solid #16A34A}
 .hd-msg-intern{background:#FFF7ED;border-left:3px dashed #EA580C}
-.hd-body{white-space:pre-wrap;font-size:.9rem}
+.hd-body{font-size:.9rem;line-height:1.6;word-break:break-word}
 .hd-body.hd-clamp{max-height:11em;overflow:hidden;-webkit-mask-image:linear-gradient(180deg,#000 70%,transparent);mask-image:linear-gradient(180deg,#000 70%,transparent)}
 .hd-body.hd-expanded{max-height:none;-webkit-mask-image:none;mask-image:none}
+.hd-body p{margin:0 0 .4em}.hd-body p:last-child{margin-bottom:0}
+.hd-body ul,.hd-body ol{padding-left:1.4em;margin:.2em 0}
+.hd-body blockquote{border-left:3px solid #cbd5e1;padding-left:.75em;color:#64748b;margin:.3em 0}
+.hd-body a{color:#2563eb}
+.hd-body strong{font-weight:700}.hd-body em{font-style:italic}
+/* Quill w helpdesku */
+.hd-quill-wrap .ql-toolbar.ql-snow{border:1px solid #d1d5db;border-radius:.375rem .375rem 0 0;background:#f8fafc;padding:4px 6px}
+.hd-quill-wrap .ql-container.ql-snow{border:1px solid #d1d5db;border-top:none;border-radius:0 0 .375rem .375rem}
+.hd-quill-wrap .ql-editor{min-height:110px;font-size:.9rem;font-family:inherit}
+.hd-quill-wrap .ql-editor.ql-blank::before{color:#9ca3af;font-style:normal}
+.hd-quill-wrap.is-invalid .ql-toolbar,.hd-quill-wrap.is-invalid .ql-container{border-color:#dc3545}
+/* Badge weryfikacji */
+.hd-email-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
+.hd-email-badge.verified{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.hd-email-badge.org{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+.hd-email-badge.unknown{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
 .hd-toast-wrap{position:fixed;bottom:1.2rem;right:1.2rem;z-index:1090;display:flex;flex-direction:column;gap:.5rem}
 .hd-toast{background:#fff;border-left:4px solid #2563EB;box-shadow:0 6px 20px rgba(0,0,0,.15);border-radius:8px;padding:.7rem 1rem;font-size:.85rem;min-width:240px;max-width:360px;animation:hdToastIn .2s ease}
 .hd-toast.ok{border-color:#16A34A}.hd-toast.err{border-color:#DC2626}

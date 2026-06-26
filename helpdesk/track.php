@@ -30,7 +30,7 @@ if ($token !== '' && preg_match('/^[a-f0-9]{16,64}$/', $token)) {
 // ── Dodanie odpowiedzi (kontynuacja) ──────────────────────────────────────────
 if ($ticket && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_reply'])) {
     csrf_check();
-    $body = trim($_POST['msg_body'] ?? '');
+    $body = hd_sanitize_body(trim($_POST['msg_body'] ?? ''));
     if ($ticket['status'] === 'zamknięte') {
         flash_set('warning', 'Zgłoszenie jest zamknięte — nie można dodać odpowiedzi.');
     } elseif ($body === '') {
