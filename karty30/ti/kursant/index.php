@@ -1686,6 +1686,45 @@ include __DIR__ . '/_layout_head.php';
 
   <?php endif; // vlab_term_ok ?>
 
+  <?php
+  // Umowy VLab kursanta
+  require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab_contracts.php';
+  vlab_contracts_migrate();
+  $my_vlab_contracts = vlab_contracts_for_client((int)$student['client_id']);
+  if ($my_vlab_contracts): ?>
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header d-flex align-items-center gap-2 py-2">
+      <i class="bi bi-file-earmark-lock text-primary" aria-hidden="true"></i>
+      <span class="fw-semibold small">Moje umowy o dostęp do VLab</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 small">
+        <thead class="table-light">
+          <tr><th>Numer</th><th>Data zawarcia</th><th>Ważna do</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($my_vlab_contracts as $mvc):
+            $mst = VLAB_CONTRACT_STATUSES[$mvc['status']] ?? ['label' => $mvc['status'], 'class' => 'secondary'];
+          ?>
+          <tr>
+            <td class="font-monospace"><?= h($mvc['numer_umowy']) ?></td>
+            <td><?= $mvc['data_zawarcia'] ? h(date('d.m.Y', strtotime($mvc['data_zawarcia']))) : '—' ?></td>
+            <td><?= $mvc['data_waznosci'] ? h(date('d.m.Y', strtotime($mvc['data_waznosci']))) : '<span class="text-body-secondary">bezterm.</span>' ?></td>
+            <td><span class="badge text-bg-<?= $mst['class'] ?>"><?= h($mst['label']) ?></span></td>
+            <td>
+              <a href="vlab_contract_pdf.php?id=<?= (int)$mvc['id'] ?>"
+                 class="btn btn-sm btn-outline-secondary py-0" title="Pobierz PDF umowy">
+                <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
+              </a>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php endif; ?>
+
 <?php elseif ($tab === 'plan'): ?>
   <h1 class="h5 fw-bold mb-3"><i class="bi bi-list-check text-primary me-2" aria-hidden="true"></i>Plan nauczania</h1>
   <p class="text-body-secondary small mb-3">Program kursu i postęp realizacji. Punkty oznaczone jako „zrealizowane” mają już odbytą lekcję.</p>
