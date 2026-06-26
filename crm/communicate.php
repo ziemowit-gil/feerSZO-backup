@@ -494,6 +494,7 @@ include __DIR__ . '/includes/header_crm.php';
             <i class="bi bi-info-circle me-1"></i>Email wysyłany jako HTML
           </div>
         </div>
+        <div id="tplVarBadge" style="display:none;margin-top:.45rem"></div>
       </div>
     </div>
 
@@ -960,6 +961,161 @@ include __DIR__ . '/includes/header_crm.php';
   toggleSubject();
   updateCharCount();
 
+  // ── Auto-fill zmiennych szablonu ─────────────────────────────────────────
+  var _currentTplId   = 0;   // id aktualnie załadowanego szablonu
+  var _previewAbort   = null;
+  var PREVIEW_URL     = '<?= APP_URL ?>/crm/api/template_preview.php';
+  var PRESELECT_CID   = <?= $preselect_contact_id ?: 0 ?>;
+
+  // Pomocnik: pobierz ID jedynego wybranego odbiorcy (0 = brak lub więcej niż jeden)
+  function getSingleRecipientId() {
+    // Tryb preselect — jeden kontakt z GET
+    if (PRESELECT_CID) return PRESELECT_CID;
+    // Tryb multi-search — CommRecip.selected (Map)
+    if (typeof CommRecip === 'undefined') return 0;
+    var sel = CommRecip.getSelected ? CommRecip.getSelected() : [];
+    return sel.length === 1 ? sel[0].id : 0;
+  }
+
+  function getSelectedCount() {
+    if (PRESELECT_CID) return 1;
+    if (typeof CommRecip === 'undefined') return 0;
+    var sel = CommRecip.getSelected ? CommRecip.getSelected() : [];
+    return sel.length;
+  }
+
+  // Ustaw treść i temat w edytorze (bez zmiany kanału)
+  function setEditorContent(subject, body, channel) {
+    var subjectIn = document.getElementById('subject');
+    if (subjectIn && subject !== null) subjectIn.value = subject;
+    var isSms = (channel === 'sms');
+    if (isSms) {
+      document.getElementById('bodyPlain').value = body;
+    } else {
+      if (_mode === 'rich' && _quill) {
+        if (/<[a-z][\s\S]*>/i.test(body)) { _quill.root.innerHTML = body; }
+        else { _quill.setText(body); }
+      } else {
+        document.getElementById('bodyPlain').value = body;
+      }
+    }
+    updateCharCount();
+  }
+
+  // Badge statusu zmiennych pod edytorem
+  function setVarBadge(state, contactName) {
+    var el = document.getElementById('tplVarBadge');
+    if (!el) return;
+    if (!state) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    var html = '';
+    if (state === 'filled') {
+      html = '<span class="badge text-bg-success fw-normal" style="font-size:.73rem">'
+           + '<i class="bi bi-person-check-fill me-1"></i>Zmienne uzupełnione dla: '
+           + esc(contactName) + '</span>';
+    } else if (state === 'multi') {
+      html = '<span class="badge text-bg-secondary fw-normal" style="font-size:.73rem">'
+           + '<i class="bi bi-people-fill me-1"></i>Zmienne zostaną uzupełnione przy wysyłce (osobno dla każdego odbiorcy)</span>';
+    } else if (state === 'none') {
+      html = '<span class="badge text-bg-warning fw-normal" style="font-size:.73rem">'
+           + '<i class="bi bi-exclamation-circle me-1"></i>Wybierz odbiorcę, aby uzupełnić zmienne</span>';
+    } else if (state === 'loading') {
+      html = '<span class="badge text-bg-light text-secondary fw-normal border" style="font-size:.73rem">'
+           + '<span class="spinner-border spinner-border-sm me-1" style="width:.65rem;height:.65rem"></span>Uzupełnianie zmiennych…</span>';
+    }
+    el.innerHTML = html;
+    el.style.display = html ? '' : 'none';
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // Główna funkcja: auto-fill szablonu dla bieżącego odbiorcy
+  function tplAutoFill(rawBody, rawSubject, rawChannel) {
+    if (!_currentTplId) { setVarBadge(null); return; }
+
+    // Czy treść zawiera zmienne?
+    var bodyToCheck = rawBody || '';
+    var hasVars = /\{[a-z_]+\}/.test(bodyToCheck) || /\{[a-z_]+\}/.test(rawSubject || '');
+    if (!hasVars) { setVarBadge(null); return; }
+
+    var cid   = getSingleRecipientId();
+    var count = getSelectedCount();
+
+    if (count === 0) { setVarBadge('none'); return; }
+    if (count > 1)   { setVarBadge('multi'); return; }
+
+    // Dokładnie 1 odbiorca — fetch podglądu
+    if (_previewAbort) _previewAbort.abort();
+    _previewAbort = new AbortController();
+    setVarBadge('loading');
+
+    fetch(PREVIEW_URL + '?template_id=' + _currentTplId + '&contact_id=' + cid, { signal: _previewAbort.signal })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function(data) {
+        setEditorContent(data.subject, data.body, data.channel);
+        setVarBadge('filled', data.contact_name);
+      })
+      .catch(function(e) { if (e && e.name !== 'AbortError') setVarBadge(null); });
+  }
+
+  // Podepnij template_select dropdown
+  var tplSelectEl = document.getElementById('template_select');
+  if (tplSelectEl) {
+    tplSelectEl.addEventListener('change', function() {
+      var opt = this.options[this.selectedIndex];
+      if (!this.value) {
+        _currentTplId = 0;
+        setVarBadge(null);
+        return;
+      }
+      _currentTplId = parseInt(this.value, 10);
+      var body    = opt.dataset.body    || '';
+      var subject = opt.dataset.subject || '';
+      var channel = opt.dataset.channel || 'email';
+      var name    = opt.dataset.name    || '';
+      // Ustaw kanał
+      var chanSel = document.getElementById('channel');
+      if (chanSel) chanSel.value = channel;
+      // Ustaw hidden template_name
+      var tplHidden = document.getElementById('template_name_hidden');
+      if (tplHidden) tplHidden.value = name;
+      // Załaduj surową treść, potem próbuj auto-fill
+      setEditorContent(subject, body, channel);
+      toggleSubject();
+      tplAutoFill(body, subject, channel);
+    });
+  }
+
+  // Nadpisz window.loadTemplate — po załadowaniu też próbuj auto-fill
+  var _origLoadTemplate = window.loadTemplate;
+  window.loadTemplate = function(id) {
+    _origLoadTemplate(id);
+    _currentTplId = id;
+    var btn = document.querySelector('[onclick="loadTemplate(' + id + ')"]');
+    if (btn) tplAutoFill(btn.dataset.body || '', btn.dataset.subject || '', btn.dataset.channel || 'email');
+  };
+
+  // Eksportuj hook dla CommRecip — zostanie wywołany po add/remove
+  window._tplAutoFillHook = function() {
+    if (!_currentTplId) return;
+    // Pobierz surową treść z aktualnego edytora (zawiera zmienne, jeśli nie były jeszcze wypełnione)
+    // lub po prostu refetchuj z serwera bazując na _currentTplId
+    var count = getSelectedCount();
+    if (count === 0) { setVarBadge('none'); return; }
+    if (count > 1)   { setVarBadge('multi'); return; }
+    // 1 odbiorca — refetch
+    var cid = getSingleRecipientId();
+    if (_previewAbort) _previewAbort.abort();
+    _previewAbort = new AbortController();
+    setVarBadge('loading');
+    fetch(PREVIEW_URL + '?template_id=' + _currentTplId + '&contact_id=' + cid, { signal: _previewAbort.signal })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function(data) {
+        setEditorContent(data.subject, data.body, data.channel);
+        setVarBadge('filled', data.contact_name);
+      })
+      .catch(function(e) { if (e && e.name !== 'AbortError') setVarBadge(null); });
+  };
+
   // ── Załączniki — init ────────────────────────────────────────────────────
   (function() {
     var attSec    = document.getElementById('attachments-section');
@@ -1256,11 +1412,13 @@ const CommRecip = (function () {
     inp.value = '';
     dropdown.style.display = 'none';
     render();
+    if (typeof window._tplAutoFillHook === 'function') window._tplAutoFillHook();
   }
 
   function remove(id) {
     selected.delete(id);
     render();
+    if (typeof window._tplAutoFillHook === 'function') window._tplAutoFillHook();
   }
 
   function renderChips() {
@@ -1310,7 +1468,8 @@ const CommRecip = (function () {
     });
   }
 
-  return { add, remove, selectAll };
+  function getSelected() { return [...selected.values()]; }
+  return { add, remove, selectAll, getSelected };
 })();
 </script>
 <?php endif; ?>
