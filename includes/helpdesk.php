@@ -7,6 +7,7 @@ const HD_STATUSES = [
     'nowe'            => ['label' => 'Nowe',                            'class' => 'primary',   'icon' => 'bi-inbox-fill',         'text' => 'primary'],
     'otwarte'         => ['label' => 'Otwarte',                         'class' => 'warning',   'icon' => 'bi-folder2-open',       'text' => 'dark'],
     'oczekuje'        => ['label' => 'Oczekuje',                        'class' => 'secondary', 'icon' => 'bi-hourglass-split',    'text' => 'white'],
+    'krytyczne'       => ['label' => 'Krytyczne — wymaga interwencji',  'class' => 'danger',    'icon' => 'bi-exclamation-octagon-fill', 'text' => 'white'],
     'przekazane_zewn' => ['label' => 'Przekazano do firmy zewnętrznej', 'class' => 'dark',      'icon' => 'bi-box-arrow-up-right', 'text' => 'white'],
     'wymaga_prac'     => ['label' => 'Wymaga prac programistycznych',   'class' => 'info',      'icon' => 'bi-code-slash',         'text' => 'dark'],
     'rozwiązane'      => ['label' => 'Rozwiązane',                      'class' => 'info',      'icon' => 'bi-check-circle-fill',  'text' => 'dark'],
@@ -220,6 +221,10 @@ function hd_reply_templates(array $ticket): array {
         'info' => [
             'label' => 'Prośba o dodatkowe informacje',
             'body'  => "{$hello}\n\nAby sprawnie zająć się zgłoszeniem {$num}, prosimy o dodatkowe informacje:\n- \n- \n\nPo otrzymaniu odpowiedzi wrócimy do sprawy. Możesz odpowiedzieć bezpośrednio w tym wątku.\n\nPozdrawiam,\n{$sig}",
+        ],
+        'krytyczne' => [
+            'label' => 'Krytyczne — wymaga interwencji',
+            'body'  => "{$hello}\n\nZgłoszenie {$num} zostało oznaczone jako <strong>krytyczne i wymagające natychmiastowej interwencji</strong>. Nasz zespół zajmie się nim priorytetowo.\n\nJeśli sprawa dotyczy awarii lub uniemożliwia pracę, prosimy o kontakt telefoniczny z helpdeskiem.\n\nPozdrawiam,\n{$sig}",
         ],
         'przekazane_zewn' => [
             'label' => 'Przekazano do firmy zewnętrznej',
