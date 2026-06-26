@@ -92,13 +92,14 @@ function ti_msg_broadcast(array $accountIds, string $subject, string $body, ?int
 }
 
 /** Kursant → prowadzący (odpowiedź w wątku). Powiadamia ostatniego nadawcę-prowadzącego mailem. */
-function ti_msg_student_reply(int $studentId, string $body): int {
+function ti_msg_student_reply(int $studentId, string $body, string $subject = ''): int {
     $acc    = db_one("SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a LEFT JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$studentId]);
     $byName = $acc['client_name'] ?? ($acc['login'] ?? 'Kursant');
     $id = db_insert('k30_ti_messages', [
         'student_id'  => $studentId,
         'sender'      => 'student',
         'sender_name' => mb_substr($byName, 0, 120),
+        'subject'     => mb_substr(trim($subject), 0, 200),
         'body'        => trim($body),
         'is_read'     => 0,
         'created_at'  => date('Y-m-d H:i:s'),

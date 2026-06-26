@@ -203,10 +203,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Odpowiedź kursanta w wątku wiadomości
     if ($op === 'msg_reply') {
-        $body = trim((string)($_POST['body'] ?? ''));
+        $body    = trim((string)($_POST['body']    ?? ''));
+        $subject = mb_substr(trim((string)($_POST['thread_subject'] ?? '')), 0, 200);
         if ($body !== '') {
-            ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000));
-            header('Location: index.php?tab=wiadomosci&sent=1'); exit;
+            ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000), $subject);
+            header('Location: index.php?tab=wiadomosci&sent=1&ts=' . urlencode($subject)); exit;
         }
         header('Location: index.php?tab=wiadomosci'); exit;
     }
@@ -633,11 +634,11 @@ include __DIR__ . '/_layout_head.php';
 
 <!-- Fallback bez JS: klasyczny alert -->
 <noscript>
-<div class=”alert alert-info d-flex gap-2 mb-3” role=”note”>
-  <i class=”bi bi-airplane fs-5 flex-shrink-0 mt-1” aria-hidden=”true”></i>
-  <div class=”flex-grow-1 min-width-0”>
-    <div class=”fw-semibold mb-1”>Zaplanowana nieobecność prowadzącego</div>
-    <ul class=”list-unstyled small mb-0 d-flex flex-column gap-1”>
+<div class="alert alert-info d-flex gap-2 mb-3" role="note">
+  <i class="bi bi-airplane fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div class="flex-grow-1 min-width-0">
+    <div class="fw-semibold mb-1">Zaplanowana nieobecność prowadzącego</div>
+    <ul class="list-unstyled small mb-0 d-flex flex-column gap-1">
       <?php foreach ($instructor_leaves as $lv):
         $ongoing = $lv['date_from'] <= $today_d && $lv['date_to'] >= $today_d;
         $df = date('d.m.Y', strtotime($lv['date_from']));
@@ -648,9 +649,9 @@ include __DIR__ . '/_layout_head.php';
       <li>
         <strong><?= h($lv['instructor_name']) ?></strong>
         — <?= h(mb_strtolower(ti_leave_type_label($lv['type']))) ?>,
-        <span class=”text-nowrap”><?= h($range) ?></span>
-        <span class=”badge <?= $ongoing ? 'text-bg-warning' : 'text-bg-secondary' ?> ms-1”><?= $ongoing ? 'trwa teraz' : 'wkrótce' ?></span>
-        <?php if ($lvcourses !== ''): ?><span class=”d-block text-body-secondary”>Dotyczy zajęć: <?= h(str_replace(',', ', ', $lvcourses)) ?></span><?php endif; ?>
+        <span class="text-nowrap"><?= h($range) ?></span>
+        <span class="badge <?= $ongoing ? 'text-bg-warning' : 'text-bg-secondary' ?> ms-1"><?= $ongoing ? 'trwa teraz' : 'wkrótce' ?></span>
+        <?php if ($lvcourses !== ''): ?><span class="d-block text-body-secondary">Dotyczy zajęć: <?= h(str_replace(',', ', ', $lvcourses)) ?></span><?php endif; ?>
       </li>
       <?php endforeach; ?>
     </ul>
@@ -1324,7 +1325,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php elseif ($tab === 'zadania'): ?>
 
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
-  <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny”.</p>
+  <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".</p>
 
   <?php
     $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']);
@@ -1387,7 +1388,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $graded    = !empty($a['sub_graded']);
       $due       = $a['due_at'] ?? '';
       $overdue   = $due && $due < $now_m && !$submitted && !$graded;
-      // „Dodano”: data otwarcia z Moodle, a w razie braku — pierwsze pojawienie się w systemie
+      // „Dodano": data otwarcia z Moodle, a w razie braku — pierwsze pojawienie się w systemie
       $added     = !empty($a['open_at']) ? $a['open_at'] : ($a['first_seen_at'] ?? '');
       $link      = ti_moodle_assign_url((string)$a['base_url'], (int)$a['cmid']);
     ?>
@@ -1924,7 +1925,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php elseif ($tab === 'plan'): ?>
   <h1 class="h5 fw-bold mb-3"><i class="bi bi-list-check text-primary me-2" aria-hidden="true"></i>Plan nauczania</h1>
-  <p class="text-body-secondary small mb-3">Program kursu i postęp realizacji. Punkty oznaczone jako „zrealizowane” mają już odbytą lekcję.</p>
+  <p class="text-body-secondary small mb-3">Program kursu i postęp realizacji. Punkty oznaczone jako „zrealizowane" mają już odbytą lekcję.</p>
   <?php if (!$courses): ?>
     <div class="alert alert-secondary">Nie jesteś zapisany na żaden kurs.</div>
   <?php else: foreach ($courses as $c):
@@ -2035,62 +2036,217 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php if (!$any_test): ?><div class="alert alert-secondary">Brak udostępnionych testów.</div><?php endif; ?>
 
 <?php elseif ($tab === 'wiadomosci'):
-  // Oznacz wiadomości od prowadzącego jako przeczytane przy wejściu na zakładkę
   ti_msg_mark_read_for_student((int)$student['id']);
   $messages = ti_msg_list_for_student((int)$student['id']);
+
+  // Grupuj wiadomości w wątki po subject
+  $threads = [];
+  foreach ($messages as $m) {
+    $key = trim((string)($m['subject'] ?? ''));
+    if ($key === '') $key = '__ogolny__';
+    if (!isset($threads[$key])) {
+      $threads[$key] = ['subject' => $key === '__ogolny__' ? 'Wiadomości ogólne' : $key, 'msgs' => [], 'last_at' => '', 'unread' => 0];
+    }
+    $threads[$key]['msgs'][] = $m;
+    if ($m['created_at'] > $threads[$key]['last_at']) $threads[$key]['last_at'] = $m['created_at'];
+    if (($m['sender'] ?? '') === 'staff' && !$m['is_read']) $threads[$key]['unread']++;
+  }
+  // Sortuj wątki od najnowszego
+  uasort($threads, fn($a,$b) => strcmp($b['last_at'], $a['last_at']));
+
+  // Aktywny wątek — z GET lub pierwszy
+  $active_ts = (string)($_GET['ts'] ?? ($_GET['sent'] === '1' ? ($_GET['ts'] ?? '') : ''));
+  if ($active_ts === '' && !empty($threads)) {
+    $active_ts = array_key_first($threads);
+  }
 ?>
 
-  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
+  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-envelope text-primary" aria-hidden="true"></i>Wiadomości
   </h1>
-  <p class="text-body-secondary small mb-3">Wiadomości od prowadzącego. Możesz odpowiedzieć — odpowiedź trafi do prowadzącego.</p>
 
   <?php if (($_GET['sent'] ?? '') === '1'): ?>
-  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Wiadomość wysłana.</div>
+  <div class="alert alert-success alert-dismissible py-2 small mb-3" role="alert">
+    <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Wiadomość wysłana.
+    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
   <?php endif; ?>
 
-  <section class="card" aria-labelledby="msg-thread-h">
-    <div class="card-body">
-      <h2 id="msg-thread-h" class="h6 fw-bold mb-3"><i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>Twój wątek</h2>
-      <?php if (!$messages): ?>
-        <div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary">
-          Brak wiadomości. Gdy prowadzący coś napisze, pojawi się tutaj.
+  <?php if (empty($threads)): ?>
+  <div class="card">
+    <div class="card-body text-center text-body-secondary py-5">
+      <i class="bi bi-envelope fs-1 opacity-25 d-block mb-3" aria-hidden="true"></i>
+      <p class="mb-1">Brak wiadomości. Gdy prowadzący coś napisze, pojawi się tutaj.</p>
+      <p class="small mb-0"><a href="?tab=ustawienia">Ustawienia powiadomień</a></p>
+    </div>
+  </div>
+  <?php else: ?>
+
+  <div class="row g-3" id="msgLayout">
+
+    <!-- ── Lista wątków (lewa kolumna) ───────────────────────────────── -->
+    <div class="col-12 col-md-4 col-lg-3" id="msgThreadList">
+      <div class="list-group list-group-flush rounded-3 border overflow-hidden" role="listbox" aria-label="Wątki wiadomości">
+        <?php foreach ($threads as $tkey => $thread):
+          $is_active = ($tkey === $active_ts);
+          $last_msg  = end($thread['msgs']);
+          $preview   = mb_substr(strip_tags((string)($last_msg['body'] ?? '')), 0, 60);
+          $last_ts   = $thread['last_at'] ? date('d.m', strtotime($thread['last_at'])) : '';
+        ?>
+        <button type="button"
+                class="list-group-item list-group-item-action px-3 py-3 msg-thread-btn <?= $is_active ? 'active' : '' ?>"
+                data-thread="<?= htmlspecialchars($tkey, ENT_QUOTES) ?>"
+                role="option" aria-selected="<?= $is_active ? 'true' : 'false' ?>">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+            <span class="fw-semibold small text-truncate lh-sm"><?= h($thread['subject']) ?></span>
+            <span class="text-body-secondary small flex-shrink-0 lh-sm"><?= h($last_ts) ?></span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="small text-body-secondary text-truncate lh-sm" style="font-size:.8rem"><?= h($preview) ?><?= mb_strlen(strip_tags((string)($last_msg['body'] ?? ''))) > 60 ? '…' : '' ?></span>
+            <?php if ($thread['unread'] > 0): ?>
+            <span class="badge text-bg-danger ms-auto flex-shrink-0"><?= $thread['unread'] ?></span>
+            <?php endif; ?>
+          </div>
+        </button>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <!-- ── Widok rozmowy (prawa kolumna) ─────────────────────────────── -->
+    <div class="col-12 col-md-8 col-lg-9" id="msgConvPane">
+      <?php foreach ($threads as $tkey => $thread):
+        $is_active = ($tkey === $active_ts);
+      ?>
+      <div class="msg-conv" data-thread="<?= htmlspecialchars($tkey, ENT_QUOTES) ?>"
+           style="display:<?= $is_active ? 'flex' : 'none' ?>;flex-direction:column;height:100%">
+
+        <!-- Nagłówek wątku -->
+        <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+          <button class="btn btn-sm btn-outline-secondary d-md-none" id="msgBackBtn" type="button" aria-label="Wróć do listy">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i>
+          </button>
+          <h2 class="h6 fw-bold mb-0 flex-grow-1 text-truncate"><?= h($thread['subject']) ?></h2>
+          <span class="text-body-secondary small"><?= count($thread['msgs']) ?> wiad.</span>
         </div>
-      <?php else: ?>
-        <div class="d-flex flex-column gap-2 mb-3" style="max-height:60vh;overflow-y:auto">
-          <?php foreach ($messages as $m):
+
+        <!-- Bąbelki wiadomości -->
+        <div class="d-flex flex-column gap-2 mb-3 overflow-y-auto msg-bubbles" style="max-height:55vh;min-height:120px">
+          <?php foreach ($thread['msgs'] as $m):
             $mine = ($m['sender'] ?? '') === 'student';
             $ts   = $m['created_at'] ? date('d.m.Y H:i', strtotime($m['created_at'])) : '';
+            $name = $mine ? 'Ty' : ($m['sender_name'] !== '' ? $m['sender_name'] : 'Prowadzący');
           ?>
           <div class="d-flex <?= $mine ? 'justify-content-end' : 'justify-content-start' ?>">
-            <div class="p-2 px-3 rounded-3 <?= $mine ? 'bg-primary text-white' : 'bg-body-tertiary border' ?>" style="max-width:85%">
-              <div class="small fw-semibold mb-1 <?= $mine ? 'text-white-50' : 'text-body-secondary' ?>">
-                <?= $mine ? 'Ty' : h($m['sender_name'] !== '' ? $m['sender_name'] : 'Prowadzący') ?>
-                <span class="ms-2 fw-normal"><?= h($ts) ?></span>
-              </div>
-              <?php if (!$mine && trim((string)$m['subject']) !== ''): ?>
-              <div class="fw-bold mb-1"><?= h($m['subject']) ?></div>
-              <?php endif; ?>
-              <div style="white-space:pre-wrap;word-break:break-word"><?= nl2br(h($m['body'])) ?></div>
+            <?php if (!$mine): ?>
+            <div class="rounded-circle bg-primary bg-opacity-25 d-flex align-items-center justify-content-center flex-shrink-0 me-2"
+                 style="width:32px;height:32px;min-width:32px" aria-hidden="true">
+              <i class="bi bi-person-fill text-primary" style="font-size:.85rem"></i>
             </div>
+            <?php endif; ?>
+            <div class="px-3 py-2 rounded-4 <?= $mine ? 'bg-primary text-white' : 'bg-body-tertiary border' ?>"
+                 style="max-width:82%;word-break:break-word">
+              <div class="d-flex align-items-baseline gap-2 mb-1" style="font-size:.75rem">
+                <span class="fw-semibold <?= $mine ? 'text-white' : 'text-body-secondary' ?>"><?= h($name) ?></span>
+                <span class="<?= $mine ? 'text-white' : 'text-body-secondary' ?> opacity-75"><?= h($ts) ?></span>
+              </div>
+              <div style="white-space:pre-wrap;line-height:1.45"><?= nl2br(h($m['body'])) ?></div>
+            </div>
+            <?php if ($mine): ?>
+            <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center flex-shrink-0 ms-2"
+                 style="width:32px;height:32px;min-width:32px" aria-hidden="true">
+              <i class="bi bi-person-fill text-white" style="font-size:.85rem"></i>
+            </div>
+            <?php endif; ?>
           </div>
           <?php endforeach; ?>
         </div>
-      <?php endif; ?>
 
-      <form method="post" class="mt-2">
-        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-        <input type="hidden" name="_op" value="msg_reply">
-        <label class="form-label small fw-semibold" for="msg-body">Napisz wiadomość do prowadzącego</label>
-        <textarea class="form-control mb-2" id="msg-body" name="body" rows="3" maxlength="4000" required placeholder="Treść wiadomości…"></textarea>
-        <button class="btn btn-primary btn-sm"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij</button>
-      </form>
-      <p class="text-body-secondary small mb-0 mt-3">
-        <i class="bi bi-gear me-1" aria-hidden="true"></i>Powiadomienia o nowych wiadomościach ustawisz w zakładce
-        <a href="?tab=ustawienia">Ustawienia</a>.
-      </p>
+        <!-- Formularz odpowiedzi -->
+        <div class="border-top pt-3 mt-auto">
+          <form method="post" class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="msg_reply">
+            <input type="hidden" name="thread_subject" value="<?= htmlspecialchars($tkey === '__ogolny__' ? '' : $tkey, ENT_QUOTES) ?>">
+            <div class="flex-grow-1">
+              <label class="visually-hidden" for="msg-body-<?= htmlspecialchars($tkey, ENT_QUOTES) ?>">Treść wiadomości</label>
+              <textarea class="form-control" id="msg-body-<?= htmlspecialchars($tkey, ENT_QUOTES) ?>"
+                        name="body" rows="2" maxlength="4000" required
+                        placeholder="Napisz odpowiedź…"
+                        style="resize:none"></textarea>
+            </div>
+            <button class="btn btn-primary" type="submit" title="Wyślij">
+              <i class="bi bi-send-fill" aria-hidden="true"></i><span class="visually-hidden">Wyślij</span>
+            </button>
+          </form>
+        </div>
+      </div>
+      <?php endforeach; ?>
     </div>
-  </section>
+
+  </div><!-- /row -->
+
+  <p class="text-body-secondary small mt-3 mb-0">
+    <i class="bi bi-gear me-1" aria-hidden="true"></i>Powiadomienia: <a href="?tab=ustawienia">Ustawienia</a>
+  </p>
+
+  <script>
+  (function(){
+    var threadBtns = document.querySelectorAll('.msg-thread-btn');
+    var convPanes  = document.querySelectorAll('.msg-conv');
+    var threadList = document.getElementById('msgThreadList');
+    var convPane   = document.getElementById('msgConvPane');
+    var backBtn    = document.getElementById('msgBackBtn');
+
+    function showThread(key) {
+      threadBtns.forEach(function(b){
+        var sel = b.dataset.thread === key;
+        b.classList.toggle('active', sel);
+        b.setAttribute('aria-selected', sel ? 'true' : 'false');
+      });
+      convPanes.forEach(function(p){
+        p.style.display = p.dataset.thread === key ? 'flex' : 'none';
+      });
+      // Na mobile: ukryj liste, pokaz rozmowe
+      if (window.innerWidth < 768) {
+        threadList.style.display = 'none';
+        convPane.style.display   = 'block';
+      }
+      // Scroll do dolu bubbles
+      var bubbles = document.querySelector('.msg-conv[data-thread="' + key + '"] .msg-bubbles');
+      if (bubbles) bubbles.scrollTop = bubbles.scrollHeight;
+    }
+
+    threadBtns.forEach(function(b){
+      b.addEventListener('click', function(){ showThread(this.dataset.thread); });
+    });
+
+    if (backBtn) {
+      backBtn.addEventListener('click', function(){
+        convPane.style.display   = 'none';
+        threadList.style.display = 'block';
+      });
+    }
+
+    // Scroll aktywnego watku od razu
+    var active = document.querySelector('.msg-conv[style*="flex"]');
+    if (active) {
+      var bbl = active.querySelector('.msg-bubbles');
+      if (bbl) bbl.scrollTop = bbl.scrollHeight;
+    }
+
+    // Na mobile: jesli nie ma aktywnego watku, ukryj pane rozmowy
+    if (window.innerWidth < 768 && convPane) {
+      var anyActive = document.querySelector('.msg-thread-btn.active');
+      if (!anyActive) {
+        convPane.style.display = 'none';
+      } else {
+        threadList.style.display = 'none';
+      }
+    }
+  })();
+  </script>
+
+  <?php endif; ?>
 
 <?php elseif ($tab === 'ustawienia'): ?>
 <?php
