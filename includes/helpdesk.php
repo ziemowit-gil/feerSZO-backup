@@ -435,7 +435,12 @@ function hd_email_verify_badge(string $req_email): string {
     if (!$req_email) return '';
     $req_email = strtolower(trim($req_email));
 
-    $org_domain = strtolower(trim(m365_setting('m365_domain') ?: ''));
+    $org_domain = '';
+    if (function_exists('m365_setting')) {
+        $org_domain = strtolower(trim(m365_setting('m365_domain') ?: ''));
+    } elseif (defined('MS_TENANT_ID')) {
+        $org_domain = strtolower(trim(db_one("SELECT value FROM settings WHERE key='m365_domain'", [])['value'] ?? ''));
+    }
     $req_domain = strtolower(substr($req_email, (int)strrpos($req_email, '@') + 1));
 
     // Sprawdź dopasowanie do zalogowanego usera
