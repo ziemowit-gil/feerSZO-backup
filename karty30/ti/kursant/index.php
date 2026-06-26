@@ -212,6 +212,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=wiadomosci'); exit;
     }
 
+    // Nowa wiadomość do Prowadzącego (inicjowana przez kursanta)
+    if ($op === 'msg_new') {
+        $body    = trim((string)($_POST['body']    ?? ''));
+        $subject = mb_substr(trim((string)($_POST['subject'] ?? '')), 0, 200);
+        if ($body !== '' && $subject !== '') {
+            ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000), $subject);
+            header('Location: index.php?tab=wiadomosci&sent=1&ts=' . urlencode($subject)); exit;
+        }
+        header('Location: index.php?tab=wiadomosci'); exit;
+    }
+
     // Zapis dodatkowych numerów telefonu do powiadomień SMS
     if ($op === 'notify_phones') {
         db_update('k30_ti_student_accounts', [
@@ -2222,9 +2233,55 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 ?>
 
-  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
-    <i class="bi bi-envelope text-primary" aria-hidden="true"></i>Wiadomości
-  </h1>
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <h1 class="h5 fw-bold mb-0 d-flex align-items-center gap-2">
+      <i class="bi bi-envelope text-primary" aria-hidden="true"></i>Wiadomości
+    </h1>
+    <button type="button" class="btn btn-primary btn-sm ms-auto"
+            data-bs-toggle="modal" data-bs-target="#modalNewMsg">
+      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Wyślij wiadomość do Prowadzącego
+    </button>
+  </div>
+
+  <!-- Modal: nowa wiadomość do Prowadzącego -->
+  <div class="modal fade" id="modalNewMsg" tabindex="-1" aria-labelledby="modalNewMsgLabel" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+          <input type="hidden" name="_op" value="msg_new">
+          <div class="modal-header">
+            <h2 class="modal-title h6 fw-bold" id="modalNewMsgLabel">
+              <i class="bi bi-pencil-square text-primary me-1" aria-hidden="true"></i>Nowa wiadomość do Prowadzącego
+            </h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="newMsgSubject">Temat</label>
+              <input type="text" class="form-control" id="newMsgSubject" name="subject"
+                     maxlength="200" required placeholder="np. Pytanie o materiały, Nieobecność…">
+            </div>
+            <div class="mb-1">
+              <label class="form-label fw-semibold" for="newMsgBody">Treść</label>
+              <textarea class="form-control" id="newMsgBody" name="body"
+                        rows="5" maxlength="4000" required
+                        placeholder="Napisz wiadomość do prowadzącego…"></textarea>
+            </div>
+            <div class="text-body-secondary small mt-1">
+              <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Prowadzący odpowie w tej zakładce.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <?php if (($_GET['sent'] ?? '') === '1'): ?>
   <div class="alert alert-success alert-dismissible py-2 small mb-3" role="alert">
@@ -2237,8 +2294,12 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="card">
     <div class="card-body text-center text-body-secondary py-5">
       <i class="bi bi-envelope fs-1 opacity-25 d-block mb-3" aria-hidden="true"></i>
-      <p class="mb-1">Brak wiadomości. Gdy prowadzący coś napisze, pojawi się tutaj.</p>
-      <p class="small mb-0"><a href="?tab=ustawienia">Ustawienia powiadomień</a></p>
+      <p class="mb-1">Nie masz jeszcze żadnych wiadomości.</p>
+      <button type="button" class="btn btn-primary btn-sm mt-2"
+              data-bs-toggle="modal" data-bs-target="#modalNewMsg">
+        <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Wyślij pierwszą wiadomość do Prowadzącego
+      </button>
+      <p class="small mt-3 mb-0"><a href="?tab=ustawienia">Ustawienia powiadomień</a></p>
     </div>
   </div>
   <?php else: ?>
