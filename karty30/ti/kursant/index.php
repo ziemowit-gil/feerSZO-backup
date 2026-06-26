@@ -303,6 +303,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Kursy i lekcje kursanta
 $courses = k30_ti_client_courses($student['client_id']);
+
+// Następna zaplanowana lekcja (do widgetu na dashboardzie)
+$next_lesson = db_one(
+    "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name
+     FROM k30_ti_sessions s
+     JOIN k30_ti_courses c ON c.id=s.course_id
+     JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
+     WHERE s.lesson_date >= date('now') AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed'))
+     ORDER BY s.lesson_date, s.time_from LIMIT 1",
+    [$student['client_id']]
+);
 $homeworks_student = k30_ti_homework_for_client($student['client_id']);
 $hw_pending = array_values(array_filter($homeworks_student, fn($h) => empty($h['sub_id'])));
 $materials_student = k30_ti_materials_for_client($student['client_id']);
@@ -678,6 +689,37 @@ include __DIR__ . '/_layout_head.php';
       </dl>
     </div>
   </div>
+
+  <!-- Następna lekcja -->
+  <?php if ($next_lesson):
+    $nl_date  = date('d.m.Y', strtotime($next_lesson['lesson_date']));
+    $nl_day   = ['Mon'=>'Pon','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Czw','Fri'=>'Pt','Sat'=>'Sob','Sun'=>'Nd'][date('D', strtotime($next_lesson['lesson_date']))] ?? '';
+    $nl_today = $next_lesson['lesson_date'] === date('Y-m-d');
+    $nl_tom   = $next_lesson['lesson_date'] === date('Y-m-d', strtotime('+1 day'));
+    $nl_when  = $nl_today ? 'Dziś' : ($nl_tom ? 'Jutro' : $nl_day . ', ' . $nl_date);
+    $nl_time  = $next_lesson['time_from'] ? ' o ' . substr($next_lesson['time_from'], 0, 5) : '';
+    if ($nl_today || $nl_tom) $nl_when .= $nl_time;
+  ?>
+  <a href="?tab=lekcje" class="card border-0 shadow-sm mb-4 text-decoration-none <?= $nl_today ? 'border-start border-4 border-warning' : '' ?>"
+     aria-label="Następna lekcja: <?= h($nl_when) ?>">
+    <div class="card-body d-flex align-items-center gap-3 py-3">
+      <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 <?= $nl_today ? 'text-bg-warning' : 'text-bg-primary' ?>"
+           style="width:48px;height:48px;font-size:1.4rem" aria-hidden="true">
+        <i class="bi bi-calendar-event"></i>
+      </div>
+      <div class="flex-grow-1 min-width-0">
+        <div class="small text-body-secondary mb-0">Następna lekcja</div>
+        <div class="fw-bold"><?= h($nl_when) ?><?= $nl_today || $nl_tom ? '' : ($nl_time ? h($nl_time) : '') ?>
+          <span class="text-body-secondary fw-normal ms-1 small"><?= h($next_lesson['course_name']) ?></span>
+        </div>
+        <?php if ($next_lesson['topic']): ?>
+        <div class="small text-body-secondary text-truncate"><?= h($next_lesson['topic']) ?></div>
+        <?php endif; ?>
+      </div>
+      <i class="bi bi-chevron-right text-body-secondary flex-shrink-0" aria-hidden="true"></i>
+    </div>
+  </a>
+  <?php endif; ?>
 
   <!-- Skróty -->
   <div class="row g-3">
