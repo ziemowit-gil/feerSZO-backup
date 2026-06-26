@@ -129,15 +129,17 @@ function ti_msg_notify_student(int $studentId, string $subject, string $body): v
         if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
             if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
             if (function_exists('mail_queue_add')) {
-                $name  = htmlspecialchars((string)($acc['name'] ?? ''), ENT_QUOTES);
-                $url   = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/index.php?tab=wiadomosci';
-                $bsafe = nl2br(htmlspecialchars($preview, ENT_QUOTES));
-                $html  = "<p>Cześć {$name},</p>"
-                       . "<p>Masz nową wiadomość w panelu kursanta:</p>"
-                       . "<p style='border-left:3px solid #2563eb;padding:6px 12px;color:#333'><strong>" . htmlspecialchars($subj, ENT_QUOTES) . "</strong><br>{$bsafe}</p>"
-                       . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Otwórz panel, aby przeczytać i odpowiedzieć</a>.</p>"
-                       . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
-                try { mail_queue_add($email, (string)($acc['name'] ?? ''), "{$org}: {$subj}", $html, '', 'ti_message', $studentId, '', true); } catch (\Throwable $e) {}
+                if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
+                $firstName = (string)(explode(' ', trim((string)($acc['name'] ?? '')))[0] ?: ($acc['name'] ?? ''));
+                $url       = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/index.php?tab=wiadomosci';
+                $r = function_exists('email_tpl_render') ? email_tpl_render('ti_message', [
+                    'org'          => $org,
+                    'name'         => htmlspecialchars($firstName, ENT_QUOTES),
+                    'subject'      => htmlspecialchars($subj, ENT_QUOTES),
+                    'preview_html' => nl2br(htmlspecialchars($preview, ENT_QUOTES)),
+                    'url'          => htmlspecialchars($url, ENT_QUOTES),
+                ]) : ['subject' => "{$org}: {$subj}", 'html' => "<p>{$preview}</p>", 'enabled' => true];
+                try { mail_queue_add($email, (string)($acc['name'] ?? ''), $r['subject'], $r['html'], '', 'ti_message', $studentId, '', true); } catch (\Throwable $e) {}
             }
         }
     }
@@ -172,13 +174,16 @@ function ti_msg_notify_staff_reply(int $studentId, string $studentName, string $
 
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('mail_queue_add')) return;
+    if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
 
     $org     = defined('ORG_NAME') ? ORG_NAME : 'Panel';
     $url     = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/messages.php?student=' . $studentId;
     $preview = nl2br(htmlspecialchars(trim(mb_substr(trim(strip_tags($body)), 0, 400)), ENT_QUOTES));
-    $sn      = htmlspecialchars($studentName, ENT_QUOTES);
-    $html    = "<p>Kursant <strong>{$sn}</strong> odpowiedział w panelu:</p>"
-             . "<p style='border-left:3px solid #16a34a;padding:6px 12px;color:#333'>{$preview}</p>"
-             . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Otwórz wątek</a>.</p>";
-    try { mail_queue_add($email, (string)($u['name'] ?? ''), "{$org}: odpowiedź kursanta — {$studentName}", $html, '', 'ti_message', $studentId, '', true); } catch (\Throwable $e) {}
+    $r = function_exists('email_tpl_render') ? email_tpl_render('ti_message_reply', [
+        'org'          => $org,
+        'student_name' => htmlspecialchars($studentName, ENT_QUOTES),
+        'preview_html' => $preview,
+        'url'          => htmlspecialchars($url, ENT_QUOTES),
+    ]) : ['subject' => "{$org}: odpowiedź kursanta — {$studentName}", 'html' => "<p>{$preview}</p>", 'enabled' => true];
+    try { mail_queue_add($email, (string)($u['name'] ?? ''), $r['subject'], $r['html'], '', 'ti_message', $studentId, '', true); } catch (\Throwable $e) {}
 }

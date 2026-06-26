@@ -239,6 +239,169 @@ HTML;
 </div></body></html>
 HTML;
 
+    // ── TI: powiadomienie dydaktyczne (materiał / zadanie) ————————————
+    $ti_dydaktyka_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#4338ca,#6366f1);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">📚 {{org}} — aktualizacja w panelu kursanta</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć <strong>{{name}}</strong>,</p>
+  <p>{{body_html}}</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{url}}" style="background:#4338ca;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz panel kursanta →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość automatyczna z systemu {{org}}. Powiadomienia możesz wyłączyć w Ustawieniach.
+  </p>
+</div></body></html>
+HTML;
+
+    // ── TI: prośba o odwołanie lekcji (do prowadzącego) ───────────────
+    $ti_cancel_req_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#d97706,#f59e0b);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">⚠️ {{org}} — prośba o odwołanie lekcji</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Dzień dobry,</p>
+  <p><strong>{{client_name}}</strong> prosi o odwołanie udziału w lekcji
+     <strong>{{course_name}}</strong> ({{when}}).</p>
+  {{reason_block}}
+  <p>Prośba czeka na Twoje potwierdzenie w panelu dydaktyka.</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{url}}" style="background:#d97706;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz panel dydaktyka →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość automatyczna z systemu {{org}}.
+  </p>
+</div></body></html>
+HTML;
+
+    // ── TI: decyzja prowadzącego ws. odwołania (do kursanta) ─────────
+    $ti_cancel_decision_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:{{header_color}};padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">{{header_icon}} {{org}} — {{header_title}}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Dzień dobry,</p>
+  <p>{{lead_html}}</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{url}}" style="background:#4338ca;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz panel kursanta →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość automatyczna z systemu {{org}}.
+  </p>
+</div></body></html>
+HTML;
+
+    // ── TI: nowa ocena (do kursanta) ──────────────────────────────────
+    $ti_grade_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#0891b2,#06b6d4);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎓 {{org}} — nowa ocena</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Dzień dobry,</p>
+  <p>W kursie <strong>{{course_name}}</strong> wystawiono ocenę:</p>
+  <div style="text-align:center;margin:20px 0">
+    <span style="display:inline-block;font-size:2rem;font-weight:900;font-family:monospace;
+                 background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:10px 30px;color:#166534">
+      {{value}}
+    </span>
+    {{category_block}}
+  </div>
+  {{description_block}}
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Zobacz oceny w panelu kursanta →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość automatyczna z systemu {{org}}.
+  </p>
+</div></body></html>
+HTML;
+
+    // ── TI: rozliczenie miesięczne (do kursanta) ──────────────────────
+    $ti_billing_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#059669,#10b981);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">💳 Rozliczenie za {{period}} — {{org}}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Dzień dobry{{name_suffix}},</p>
+  <p>Wystawiliśmy rozliczenie za zajęcia ({{org}}) za okres <strong>{{period}}</strong>.</p>
+  <div style="background:#f8f9fa;border-left:3px solid #059669;border-radius:4px;padding:14px 18px;margin:14px 0">
+    {{details_html}}
+  </div>
+  <p style="font-size:.9em;color:#495057">
+    Szczegóły i historia rozliczeń w panelu kursanta:
+    <a href="{{portal}}" style="color:#059669">{{portal}}</a>
+  </p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{portal}}" style="background:#059669;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz panel kursanta →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość wygenerowana automatycznie.
+  </p>
+</div></body></html>
+HTML;
+
+    // ── TI: nowa wiadomość od prowadzącego (do kursanta) ──────────────
+    $ti_message_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">✉️ {{org}} — nowa wiadomość</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć <strong>{{name}}</strong>,</p>
+  <p>Masz nową wiadomość w panelu kursanta:</p>
+  <div style="border-left:3px solid #2563eb;padding:8px 14px;color:#333;margin:12px 0;background:#f8f9fa;border-radius:0 4px 4px 0">
+    <strong>{{subject}}</strong><br>{{preview_html}}
+  </div>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{url}}" style="background:#1d4ed8;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Przeczytaj i odpowiedz →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość automatyczna z systemu {{org}}. Powiadomienia możesz wyłączyć w Ustawieniach.
+  </p>
+</div></body></html>
+HTML;
+
+    // ── TI: odpowiedź kursanta (do prowadzącego) ──────────────────────
+    $ti_message_reply_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#16a34a,#22c55e);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">↩️ {{org}} — odpowiedź kursanta</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Kursant <strong>{{student_name}}</strong> odpowiedział w panelu:</p>
+  <div style="border-left:3px solid #16a34a;padding:8px 14px;color:#333;margin:12px 0;background:#f8f9fa;border-radius:0 4px 4px 0">
+    {{preview_html}}
+  </div>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{url}}" style="background:#16a34a;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz wątek →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość automatyczna z systemu {{org}}.
+  </p>
+</div></body></html>
+HTML;
+
     $reg = [
         'welcome' => [
             'label'       => 'Powitalny — dane logowania',
@@ -311,6 +474,130 @@ HTML;
                 'org'  => ['label' => 'Nazwa organizacji',        'sample' => 'Fundacja FEER'],
                 'name' => ['label' => 'Imię i nazwisko odbiorcy', 'sample' => 'Jan Kowalski'],
                 'code' => ['label' => 'Kod odzyskiwania',         'sample' => '48210736'],
+            ],
+        ],
+
+        // ── TI — Zajęcia ─────────────────────────────────────────────────
+
+        'ti_dydaktyka' => [
+            'label'       => 'TI: powiadomienie dydaktyczne',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-book',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla kursanta o nowym materiale lub zadaniu domowym w panelu.',
+            'subject'     => '{{org}}: {{subject}}',
+            'body'        => $ti_dydaktyka_body,
+            'vars'        => [
+                'org'       => ['label' => 'Nazwa organizacji',     'sample' => 'Dydaktyka TI'],
+                'name'      => ['label' => 'Imię kursanta',         'sample' => 'Anna'],
+                'subject'   => ['label' => 'Temat powiadomienia',   'sample' => 'nowy materiał do kursu'],
+                'body_html' => ['label' => 'Treść powiadomienia (HTML)', 'sample' => 'Dodano nowy materiał: <strong>Wprowadzenie do pracy z klawiaturą</strong>.'],
+                'url'       => ['label' => 'Link do panelu kursanta', 'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php'],
+            ],
+        ],
+
+        'ti_cancel_req' => [
+            'label'       => 'TI: prośba o odwołanie lekcji (do prowadzącego)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-calendar-x',
+            'auto'        => true,
+            'description' => 'E-mail do prowadzącego informujący o prośbie kursanta o odwołanie udziału w lekcji.',
+            'subject'     => '{{org}}: prośba o odwołanie lekcji — {{when}}',
+            'body'        => $ti_cancel_req_body,
+            'vars'        => [
+                'org'          => ['label' => 'Nazwa organizacji',  'sample' => 'Dydaktyka TI'],
+                'client_name'  => ['label' => 'Imię i nazwisko kursanta', 'sample' => 'Jan Kowalski'],
+                'course_name'  => ['label' => 'Nazwa kursu',        'sample' => 'Kurs obsługi komputera'],
+                'when'         => ['label' => 'Data i godzina lekcji', 'sample' => '30.06.2026 o 10:00'],
+                'reason_block' => ['label' => 'Blok z powodem odwołania (HTML lub pusty)', 'sample' => '<p>Powód: problemy zdrowotne</p>'],
+                'url'          => ['label' => 'Link do panelu dydaktyka', 'sample' => 'https://app.feer.org.pl/karty30/ti/dydaktyk/index.php'],
+            ],
+        ],
+
+        'ti_cancel_decision' => [
+            'label'       => 'TI: decyzja o odwołaniu (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-check2-circle',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla kursanta o potwierdzeniu lub odrzuceniu prośby o odwołanie udziału w lekcji.',
+            'subject'     => '{{org}}: {{subject_suffix}}',
+            'body'        => $ti_cancel_decision_body,
+            'vars'        => [
+                'org'           => ['label' => 'Nazwa organizacji',          'sample' => 'Dydaktyka TI'],
+                'subject_suffix'=> ['label' => 'Końcówka tematu',             'sample' => 'potwierdzono odwołanie udziału — 30.06.2026'],
+                'header_color'  => ['label' => 'Kolor nagłówka (hex CSS)',    'sample' => 'linear-gradient(135deg,#16a34a,#22c55e)'],
+                'header_icon'   => ['label' => 'Emoji/ikona nagłówka',        'sample' => '✅'],
+                'header_title'  => ['label' => 'Tytuł nagłówka',              'sample' => 'odwołanie potwierdzone'],
+                'lead_html'     => ['label' => 'Główna treść (HTML)',          'sample' => 'Twoja prośba o odwołanie udziału w lekcji <strong>Kurs obsługi komputera</strong> (30.06.2026 o 10:00) została <strong>potwierdzona</strong>.'],
+                'url'           => ['label' => 'Link do panelu kursanta',      'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php?tab=lekcje'],
+            ],
+        ],
+
+        'ti_grade' => [
+            'label'       => 'TI: nowa ocena (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-award',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla kursanta (i opiekuna małoletniego) o nowej lub zmienionej ocenie w e-dzienniku.',
+            'subject'     => '{{org}}: nowa ocena — {{course_name}}',
+            'body'        => $ti_grade_body,
+            'vars'        => [
+                'org'              => ['label' => 'Nazwa organizacji',  'sample' => 'Dydaktyka TI'],
+                'course_name'      => ['label' => 'Nazwa kursu',        'sample' => 'Kurs obsługi komputera'],
+                'value'            => ['label' => 'Ocena (tekst)',       'sample' => '5+'],
+                'category_block'   => ['label' => 'Blok kategorii oceny (HTML lub pusty)', 'sample' => '<div style="font-size:.85em;color:#555;margin-top:4px">(zadanie domowe)</div>'],
+                'description_block'=> ['label' => 'Blok opisu (HTML lub pusty)', 'sample' => '<p style="color:#555;font-size:.9em">Zadanie domowe: Wprowadzenie do internetu</p>'],
+                'url'              => ['label' => 'Link do panelu kursanta', 'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php?tab=oceny'],
+            ],
+        ],
+
+        'ti_billing' => [
+            'label'       => 'TI: rozliczenie miesięczne (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-receipt',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla kursanta o wystawieniu rozliczenia miesięcznego za zajęcia TI.',
+            'subject'     => 'Rozliczenie za {{period}} — {{org}}',
+            'body'        => $ti_billing_body,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji',         'sample' => 'Dydaktyka TI'],
+                'name_suffix' => ['label' => 'Imię odbiorcy z przecinkiem (np. ", Jan")', 'sample' => ', Jan'],
+                'period'      => ['label' => 'Okres rozliczenia',         'sample' => 'czerwiec 2026'],
+                'details_html'=> ['label' => 'Tabela szczegółów płatności (HTML)', 'sample' => '<table style="border-collapse:collapse;width:100%"><tr><td style="padding:4px 12px 4px 0;color:#555">Kwota do zapłaty:</td><td><strong>120,00 zł</strong></td></tr><tr><td style="padding:4px 12px 4px 0;color:#555">Termin płatności:</td><td><strong>15.07.2026</strong></td></tr><tr><td style="padding:4px 12px 4px 0;color:#555">Nr konta:</td><td>12 3456 7890 1234 5678</td></tr></table>'],
+                'portal'      => ['label' => 'URL panelu kursanta',       'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php'],
+            ],
+        ],
+
+        'ti_message' => [
+            'label'       => 'TI: nowa wiadomość (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-envelope',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla kursanta o nowej wiadomości od prowadzącego w panelu kursanta.',
+            'subject'     => '{{org}}: {{subject}}',
+            'body'        => $ti_message_body,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji',    'sample' => 'Dydaktyka TI'],
+                'name'        => ['label' => 'Imię kursanta',        'sample' => 'Anna'],
+                'subject'     => ['label' => 'Temat wiadomości',     'sample' => 'Nowa wiadomość'],
+                'preview_html'=> ['label' => 'Fragment treści wiadomości (HTML)', 'sample' => 'Proszę o zapoznanie się z materiałami przed następną lekcją.'],
+                'url'         => ['label' => 'Link do panelu kursanta', 'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php?tab=wiadomosci'],
+            ],
+        ],
+
+        'ti_message_reply' => [
+            'label'       => 'TI: odpowiedź kursanta (do prowadzącego)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-reply',
+            'auto'        => true,
+            'description' => 'Powiadomienie do prowadzącego (ostatniego nadawcy w wątku) o odpowiedzi kursanta.',
+            'subject'     => '{{org}}: odpowiedź kursanta — {{student_name}}',
+            'body'        => $ti_message_reply_body,
+            'vars'        => [
+                'org'          => ['label' => 'Nazwa organizacji',  'sample' => 'Dydaktyka TI'],
+                'student_name' => ['label' => 'Imię i nazwisko kursanta', 'sample' => 'Jan Kowalski'],
+                'preview_html' => ['label' => 'Fragment odpowiedzi (HTML)', 'sample' => 'Zapoznałem się z materiałami, mam pytanie odnośnie ćwiczenia 3.'],
+                'url'          => ['label' => 'Link do wątku wiadomości', 'sample' => 'https://app.feer.org.pl/karty30/ti/messages.php?student=42'],
             ],
         ],
     ];

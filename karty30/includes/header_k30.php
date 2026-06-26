@@ -796,6 +796,7 @@ $g_kons = _k30_active('/karty30/clients') || _k30_active('/karty30/waiting')
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/vlab_contracts.php" <?= _k30_active('/karty30/ti/vlab_contracts') ? 'aria-current="page"' : '' ?> aria-label="Umowy o dostęp do VLab"><i class="bi bi-file-earmark-lock" aria-hidden="true"></i>Umowy VLab</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/terms_admin.php" <?= _k30_active('/karty30/ti/terms_admin') ? 'aria-current="page"' : '' ?> aria-label="Regulaminy TI — akceptacje kursantów"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Regulaminy</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/m365.php" <?= _k30_active('/karty30/admin/m365') ? 'aria-current="page"' : '' ?> aria-label="Microsoft 365 dla K30"><i class="bi bi-microsoft" aria-hidden="true"></i>M365 K30</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/ti/email_templates.php" <?= _k30_active('/karty30/ti/email_templates') ? 'aria-current="page"' : '' ?> aria-label="Szablony e-mail — powiadomienia TI"><i class="bi bi-envelope-paper" aria-hidden="true"></i>Szablony e-mail</a></li>
         <?php endif; ?>
       </ul>
     </li>

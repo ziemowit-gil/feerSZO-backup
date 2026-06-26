@@ -2493,11 +2493,16 @@ function k30_ti_notify_dydaktyka(int $course_id, string $subject, string $bodyHt
             if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
                 if (function_exists('mail_queue_add')) {
-                    $name = htmlspecialchars((string)($acc['name'] ?? ''), ENT_QUOTES);
-                    $html = "<p>Cześć {$name},</p><p>{$bodyHtml}</p>"
-                          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Otwórz panel kursanta</a>.</p>"
-                          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}. Powiadomienia możesz wyłączyć w Ustawieniach.</p>";
-                    try { mail_queue_add($email, (string)($acc['name'] ?? ''), "{$org}: " . $subject, $html, '', 'ti_dydaktyka', (int)$acc['id'], '', true); } catch (\Throwable $e) {}
+                    if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
+                    $firstName = (string)(explode(' ', trim((string)($acc['name'] ?? '')))[0] ?: ($acc['name'] ?? ''));
+                    $r = function_exists('email_tpl_render') ? email_tpl_render('ti_dydaktyka', [
+                        'org'      => $org,
+                        'name'     => htmlspecialchars($firstName, ENT_QUOTES),
+                        'subject'  => htmlspecialchars($subject, ENT_QUOTES),
+                        'body_html'=> $bodyHtml,
+                        'url'      => htmlspecialchars($url, ENT_QUOTES),
+                    ]) : ['subject' => "{$org}: {$subject}", 'html' => "<p>{$bodyHtml}</p>", 'enabled' => true];
+                    try { mail_queue_add($email, (string)($acc['name'] ?? ''), $r['subject'], $r['html'], '', 'ti_dydaktyka', (int)$acc['id'], '', true); } catch (\Throwable $e) {}
                 }
             }
         }
@@ -2784,17 +2789,20 @@ function k30_ti_notify_instructor_cancel_request(int $session_id, int $client_id
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('mail_queue_add')) return;
+    if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
     $org  = defined('ORG_NAME') ? ORG_NAME : 'TI';
     $when = date('d.m.Y', strtotime($row['lesson_date'])) . ($row['time_from'] ? ' o ' . substr($row['time_from'], 0, 5) : '');
     $url  = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/dydaktyk/index.php';
-    $html = "<p>Dzień dobry,</p>"
-          . "<p><strong>" . htmlspecialchars((string)$row['client_name'], ENT_QUOTES) . "</strong> prosi o odwołanie udziału w lekcji "
-          . "<strong>" . htmlspecialchars((string)$row['course_name'], ENT_QUOTES) . "</strong> (" . htmlspecialchars($when, ENT_QUOTES) . ").</p>"
-          . ($reason !== '' ? "<p>Powód: " . htmlspecialchars($reason, ENT_QUOTES) . "</p>" : "")
-          . "<p>Prośba czeka na Twoje potwierdzenie. Otwórz panel dydaktyka, aby potwierdzić lub odrzucić odwołanie.</p>"
-          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Panel dydaktyka</a></p>"
-          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
-    try { mail_queue_add($email, (string)($row['instructor_name'] ?? ''), "{$org}: prośba o odwołanie lekcji — {$when}", $html, '', 'ti_cancel_req', $session_id, '', false); }
+    $reason_block = $reason !== '' ? '<p>Powód: ' . htmlspecialchars($reason, ENT_QUOTES) . '</p>' : '';
+    $r = function_exists('email_tpl_render') ? email_tpl_render('ti_cancel_req', [
+        'org'          => $org,
+        'client_name'  => htmlspecialchars((string)$row['client_name'], ENT_QUOTES),
+        'course_name'  => htmlspecialchars((string)$row['course_name'], ENT_QUOTES),
+        'when'         => htmlspecialchars($when, ENT_QUOTES),
+        'reason_block' => $reason_block,
+        'url'          => htmlspecialchars($url, ENT_QUOTES),
+    ]) : ['subject' => "{$org}: prośba o odwołanie lekcji — {$when}", 'html' => "<p>Prośba od {$row['client_name']}.</p>", 'enabled' => true];
+    try { mail_queue_add($email, (string)($row['instructor_name'] ?? ''), $r['subject'], $r['html'], '', 'ti_cancel_req', $session_id, '', false); }
     catch (\Throwable $e) {}
 }
 
@@ -2822,22 +2830,35 @@ function k30_ti_notify_student_cancel_decision(int $session_id, int $client_id, 
     if (!$emails) return;
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('mail_queue_add')) return;
+    if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
     $org  = defined('ORG_NAME') ? ORG_NAME : 'TI';
     $url  = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
     $when = date('d.m.Y', strtotime($row['lesson_date'])) . ($row['time_from'] ? ' o ' . substr($row['time_from'], 0, 5) : '');
     $crs  = htmlspecialchars((string)$row['course_name'], ENT_QUOTES);
     if ($confirmed) {
-        $subject = "potwierdzono odwołanie udziału — {$when}";
-        $lead = "Twoja prośba o odwołanie udziału w lekcji <strong>{$crs}</strong> ({$when}) została <strong>potwierdzona</strong>. Udział nie zostanie policzony do ceny.";
+        $subject_suffix = "potwierdzono odwołanie udziału — {$when}";
+        $header_color   = 'linear-gradient(135deg,#16a34a,#22c55e)';
+        $header_icon    = '✅';
+        $header_title   = 'odwołanie potwierdzone';
+        $lead_html      = "Twoja prośba o odwołanie udziału w lekcji <strong>{$crs}</strong> ({$when}) została <strong>potwierdzona</strong>. Udział nie zostanie policzony do ceny.";
     } else {
-        $subject = "odrzucono prośbę o odwołanie — {$when}";
-        $lead = "Twoja prośba o odwołanie udziału w lekcji <strong>{$crs}</strong> ({$when}) została <strong>odrzucona</strong> — udział pozostaje aktualny.";
+        $subject_suffix = "odrzucono prośbę o odwołanie — {$when}";
+        $header_color   = 'linear-gradient(135deg,#dc2626,#ef4444)';
+        $header_icon    = '❌';
+        $header_title   = 'odwołanie odrzucone';
+        $lead_html      = "Twoja prośba o odwołanie udziału w lekcji <strong>{$crs}</strong> ({$when}) została <strong>odrzucona</strong> — udział pozostaje aktualny.";
     }
-    $html = "<p>Dzień dobry,</p><p>{$lead}</p>"
-          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Otwórz panel kursanta</a></p>"
-          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
+    $r = function_exists('email_tpl_render') ? email_tpl_render('ti_cancel_decision', [
+        'org'            => $org,
+        'subject_suffix' => $subject_suffix,
+        'header_color'   => $header_color,
+        'header_icon'    => $header_icon,
+        'header_title'   => $header_title,
+        'lead_html'      => $lead_html,
+        'url'            => htmlspecialchars($url, ENT_QUOTES),
+    ]) : ['subject' => "{$org}: {$subject_suffix}", 'html' => "<p>{$lead_html}</p>", 'enabled' => true];
     foreach ($emails as $addr => $nm) {
-        try { mail_queue_add($addr, $nm, "{$org}: {$subject}", $html, '', 'ti_cancel_decision', $session_id, '', false); }
+        try { mail_queue_add($addr, $nm, $r['subject'], $r['html'], '', 'ti_cancel_decision', $session_id, '', false); }
         catch (\Throwable $e) {}
     }
 }
@@ -2864,18 +2885,21 @@ function k30_ti_notify_grade(int $course_id, int $client_id, string $valueText, 
     if (!$emails) return;
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('mail_queue_add')) return;
+    if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
     $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
     $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=oceny';
-    $crs = htmlspecialchars((string)$row['course_name'], ENT_QUOTES);
-    $val = htmlspecialchars($valueText, ENT_QUOTES);
-    $catTxt = $categoryLabel !== '' ? ' (' . htmlspecialchars($categoryLabel, ENT_QUOTES) . ')' : '';
-    $html = "<p>Dzień dobry,</p>"
-          . "<p>W kursie <strong>{$crs}</strong> wystawiono ocenę: <strong>{$val}</strong>{$catTxt}.</p>"
-          . ($description !== '' ? "<p>" . htmlspecialchars($description, ENT_QUOTES) . "</p>" : "")
-          . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Zobacz oceny w panelu kursanta</a></p>"
-          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";
+    $category_block   = $categoryLabel !== '' ? '<div style="font-size:.85em;color:#555;margin-top:4px">(' . htmlspecialchars($categoryLabel, ENT_QUOTES) . ')</div>' : '';
+    $description_block = $description !== '' ? '<p style="color:#555;font-size:.9em">' . htmlspecialchars($description, ENT_QUOTES) . '</p>' : '';
+    $r = function_exists('email_tpl_render') ? email_tpl_render('ti_grade', [
+        'org'               => $org,
+        'course_name'       => htmlspecialchars((string)$row['course_name'], ENT_QUOTES),
+        'value'             => htmlspecialchars($valueText, ENT_QUOTES),
+        'category_block'    => $category_block,
+        'description_block' => $description_block,
+        'url'               => htmlspecialchars($url, ENT_QUOTES),
+    ]) : ['subject' => "{$org}: nowa ocena — {$row['course_name']}", 'html' => "<p>Ocena: {$valueText}</p>", 'enabled' => true];
     foreach ($emails as $addr => $nm) {
-        try { mail_queue_add($addr, $nm, "{$org}: nowa ocena — " . (string)$row['course_name'], $html, '', 'ti_grade', $course_id, '', false); }
+        try { mail_queue_add($addr, $nm, $r['subject'], $r['html'], '', 'ti_grade', $course_id, '', false); }
         catch (\Throwable $e) {}
     }
 }
@@ -3036,18 +3060,21 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false): array {
     // ── E-mail ──
     if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         require_once __DIR__ . '/mail_queue.php';
-        $rows = "<tr><td style='padding:4px 12px 4px 0;color:#555'>Okres:</td><td><strong>" . h($period) . "</strong></td></tr>"
-              . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kwota do zapłaty:</td><td><strong>" . h($amount_s) . " zł</strong></td></tr>";
-        if ($due_s !== '')          $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Termin płatności:</td><td><strong>" . h($due_s) . "</strong></td></tr>";
-        if ($pay['account'] !== '') $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Nr konta:</td><td><strong>" . h($pay['account']) . "</strong></td></tr>";
-        if ($pay['title'] !== '')   $rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Tytuł wpłaty:</td><td>" . h($pay['title']) . "</td></tr>";
-        $html = "<p>Dzień dobry" . ($toName ? ', ' . h($toName) : '') . ",</p>"
-              . "<p>Wystawiliśmy rozliczenie za zajęcia (" . h($org) . ") za okres <strong>" . h($period) . "</strong>.</p>"
-              . "<table style='border-collapse:collapse;font-family:Arial,sans-serif'>" . $rows . "</table>"
-              . "<p>Szczegóły i historia rozliczeń w panelu kursanta: <a href='" . h($portal) . "'>" . h($portal) . "</a></p>"
-              . "<p style='color:#888;font-size:12px'>Wiadomość wygenerowana automatycznie.</p>";
+        if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
+        $detail_rows = "<tr><td style='padding:4px 12px 4px 0;color:#555'>Okres:</td><td><strong>" . h($period) . "</strong></td></tr>"
+                     . "<tr><td style='padding:4px 12px 4px 0;color:#555'>Kwota do zapłaty:</td><td><strong>" . h($amount_s) . " zł</strong></td></tr>";
+        if ($due_s !== '')          $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Termin płatności:</td><td><strong>" . h($due_s) . "</strong></td></tr>";
+        if ($pay['account'] !== '') $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Nr konta:</td><td><strong>" . h($pay['account']) . "</strong></td></tr>";
+        if ($pay['title'] !== '')   $detail_rows .= "<tr><td style='padding:4px 12px 4px 0;color:#555'>Tytuł wpłaty:</td><td>" . h($pay['title']) . "</td></tr>";
+        $r = function_exists('email_tpl_render') ? email_tpl_render('ti_billing', [
+            'org'          => $org,
+            'name_suffix'  => $toName ? ', ' . h($toName) : '',
+            'period'       => h($period),
+            'details_html' => "<table style='border-collapse:collapse;width:100%'>{$detail_rows}</table>",
+            'portal'       => h($portal),
+        ]) : ['subject' => "Rozliczenie za {$period} — {$org}", 'html' => "<table>{$detail_rows}</table>", 'enabled' => true];
         try {
-            mail_queue_add($email, $toName, "Rozliczenie za {$period} — {$org}", $html, '', 'ti_billing', $billing_id, '', false);
+            mail_queue_add($email, $toName, $r['subject'], $r['html'], '', 'ti_billing', $billing_id, '', false);
             $mail_sent = true;
         } catch (\Throwable $e) {}
     }
