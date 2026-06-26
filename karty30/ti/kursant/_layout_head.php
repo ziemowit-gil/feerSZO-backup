@@ -78,9 +78,15 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 .kp-brand i { color:var(--kp-primary,#60a5fa); }
 .nav-tabs .nav-link.active { font-weight:600; }
 
-/* ── Ekran logowania (login.php / parent.php) ───────────────────────────── */
-.kp-auth-wrap { width:100%; max-width:920px; }
-.kp-auth-card { overflow:hidden; border-radius:1rem; }
+/* ── Ekran logowania (login.php / parent.php) — odświeżony wygląd ─────────── */
+.kp-auth-wrap { width:100%; max-width:940px; }
+.kp-auth-card {
+  overflow:hidden; border-radius:1.25rem;
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 24px 70px rgba(2,6,23,.45), 0 2px 8px rgba(2,6,23,.18);
+  animation:kpAuthIn .4s cubic-bezier(.16,.84,.44,1) both;
+}
+@keyframes kpAuthIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
 /* Panel marki (lewa kolumna) — dekoracyjny gradient + lista korzyści */
 .kp-auth-hero {
   background:var(--kp-brand-gradient,linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%));
@@ -95,14 +101,28 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 .kp-auth-logo {
   width:64px; height:64px; border-radius:1rem;
   background:rgba(255,255,255,.16); backdrop-filter:blur(4px);
+  border:1px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.18);
 }
 .kp-auth-feat { display:flex; gap:.65rem; align-items:flex-start; }
 .kp-auth-feat i { font-size:1.15rem; opacity:.95; flex-shrink:0; margin-top:.1rem; }
-/* Wzmocnione pole formularza dla większej czytelności (WCAG 1.4.11 — granice) */
-.kp-auth-card .form-control { padding:.6rem .85rem; }
+/* Pola formularza — łagodniejsze zaokrąglenie, czytelne granice (WCAG 1.4.11) */
+.kp-auth-card .form-control { padding:.7rem .95rem; border-radius:.6rem; border-width:1.5px; }
 .kp-auth-card .form-control-lg { font-size:1rem; }
+/* Przycisk główny — gradient marki + miękki cień + hover-lift (spójnie z logowaniem głównym) */
+.kp-auth-card .btn-primary {
+  background:linear-gradient(135deg, var(--kp-primary,#2563eb), var(--kp-primary-hover,#1d4ed8));
+  border:1px solid transparent;
+  box-shadow:0 8px 20px rgba(var(--kp-primary-rgb,37,99,235),.30);
+  transition:filter .15s, box-shadow .15s, transform .12s;
+}
+.kp-auth-card .btn-primary:hover { filter:brightness(1.06); box-shadow:0 10px 26px rgba(var(--kp-primary-rgb,37,99,235),.40); transform:translateY(-1px); }
+.kp-auth-card .btn-primary:active { transform:translateY(0); }
 @media (max-width:767.98px){
   .kp-auth-hero { display:none !important; } /* na telefonie tylko formularz */
+}
+@media (prefers-reduced-motion:reduce){
+  .kp-auth-card { animation:none; }
+  .kp-auth-card .btn-primary { transition:none; }
 }
 /* ── Zwijane oddane zadania (Dydaktyka / eLearning) ──────────────────────── */
 .dyd-hw-summary { cursor:pointer; list-style:none; }
