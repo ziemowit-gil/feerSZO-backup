@@ -1926,6 +1926,266 @@ function k30_ti_client_courses(int $client_id): array {
     );
 }
 
+// ── Wnioski wypisania z kursu (małoletni: wymagana zgoda rodzica + admina) ──
+
+/**
+ * Złóż wniosek o wypisanie z kursu.
+ * Dla małoletnich: status=pending_parent, generuje token dla rodzica, wysyła e-mail.
+ * Dla pełnoletnich: od razu wykonuje wypisanie i wysyła potwierdzenie.
+ * Zwraca 'done' (wykonano) lub 'pending' (czeka na zatwierdzenie).
+ */
+function k30_ti_unenroll_request(int $enrollment_id, int $client_id, string $reason): string {
+    $enroll = db_one(
+        "SELECT e.*, c.name AS course_name, c.id AS course_id,
+                u.name AS instructor_name, u.email AS instructor_email,
+                cl.name AS client_name, cl.email AS client_email,
+                acc.is_minor, acc.guardian_email, acc.guardian_name
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_courses c   ON c.id=e.course_id
+         JOIN k30_clients cl     ON cl.id=e.client_id
+         LEFT JOIN users u       ON u.id=c.instructor_id
+         LEFT JOIN k30_ti_student_accounts acc ON acc.client_id=e.client_id
+         WHERE e.id=? AND e.client_id=? AND e.status='active'",
+        [$enrollment_id, $client_id]
+    );
+    if (!$enroll) return 'error';
+
+    $is_minor    = !empty($enroll['is_minor']);
+    $org         = defined('ORG_NAME') ? ORG_NAME : 'FEER';
+    $app_url     = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
+    $stu_name    = $enroll['client_name'];
+    $course_name = $enroll['course_name'];
+
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+
+    if (!$is_minor) {
+        // Pełnoletni — wypisz od razu
+        k30_ti_unenroll_execute($enrollment_id, $client_id, $reason, null, null);
+        return 'done';
+    }
+
+    // Małoletni — utwórz wniosek z tokenem dla rodzica
+    // Usuń stary wniosek pending jeśli istnieje
+    db()->prepare("DELETE FROM k30_ti_unenroll_requests WHERE enrollment_id=? AND status IN ('pending_parent','pending_admin')")->execute([$enrollment_id]);
+
+    $token = bin2hex(random_bytes(24));
+    db_insert('k30_ti_unenroll_requests', [
+        'enrollment_id' => $enrollment_id,
+        'client_id'     => $client_id,
+        'course_id'     => (int)$enroll['course_id'],
+        'reason'        => $reason,
+        'status'        => 'pending_parent',
+        'parent_token'  => $token,
+    ]);
+
+    // E-mail do opiekuna
+    $guardian_email = trim((string)($enroll['guardian_email'] ?? ''));
+    $guardian_name  = trim((string)($enroll['guardian_name'] ?? '')) ?: 'Opiekunie';
+    $approve_url    = $app_url . '/karty30/ti/kursant/unenroll_parent.php?token=' . urlencode($token);
+
+    if ($guardian_email !== '' && function_exists('mail_queue_add')) {
+        mail_queue_add($guardian_email, $guardian_name,
+            "Wniosek o wypisanie z kursu: {$course_name}",
+            "<p>Drogi/a {$guardian_name},</p>"
+            . "<p>Kursant <strong>" . htmlspecialchars($stu_name, ENT_QUOTES) . "</strong> złożył(a) wniosek o wypisanie z kursu <strong>" . htmlspecialchars($course_name, ENT_QUOTES) . "</strong>.</p>"
+            . ($reason !== '' ? "<p><em>Podany powód:</em> " . nl2br(htmlspecialchars($reason, ENT_QUOTES)) . "</p>" : '')
+            . "<p>Jako opiekun prawny musisz zatwierdzić tę decyzję, klikając poniższy link:</p>"
+            . "<p><a href=\"{$approve_url}\">{$approve_url}</a></p>"
+            . "<p>Jeśli nie wyrażasz zgody, możesz zignorować tę wiadomość — wniosek wygaśnie bez skutku.</p>"
+            . "<p>Pozdrawiamy,<br>" . htmlspecialchars($org, ENT_QUOTES) . "</p>"
+        );
+    }
+
+    return 'pending';
+}
+
+/**
+ * Zatwierdź wniosek przez rodzica (via token z e-maila).
+ * Zmienia status na pending_admin i powiadamia adminów.
+ * Zwraca tablicę ['ok'=>bool, 'msg'=>string] lub null gdy nie znaleziono tokenu.
+ */
+function k30_ti_unenroll_parent_approve(string $token): ?array {
+    $req = db_one(
+        "SELECT r.*, c.name AS course_name, cl.name AS client_name,
+                acc.guardian_name
+         FROM k30_ti_unenroll_requests r
+         JOIN k30_ti_courses c  ON c.id=r.course_id
+         JOIN k30_clients cl    ON cl.id=r.client_id
+         LEFT JOIN k30_ti_student_accounts acc ON acc.client_id=r.client_id
+         WHERE r.parent_token=?",
+        [$token]
+    );
+    if (!$req) return null;
+    if ($req['status'] !== 'pending_parent') {
+        return ['ok' => false, 'msg' => $req['status'] === 'approved' ? 'Wniosek został już zatwierdzony.' : 'Wniosek nie jest już aktywny.'];
+    }
+
+    db()->prepare(
+        "UPDATE k30_ti_unenroll_requests SET status='pending_admin', parent_ok_at=datetime('now'), updated_at=datetime('now') WHERE id=?"
+    )->execute([(int)$req['id']]);
+
+    // Powiadom adminów
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    $org     = defined('ORG_NAME') ? ORG_NAME : 'FEER';
+    $app_url = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
+    $admins  = db_all("SELECT email, name FROM users WHERE role IN ('admin','super') AND is_active=1");
+    $admin_url = $app_url . '/karty30/ti/unenroll_admin.php';
+    foreach ($admins as $adm) {
+        $adm_email = trim((string)($adm['email'] ?? ''));
+        if ($adm_email === '' || !function_exists('mail_queue_add')) continue;
+        mail_queue_add($adm_email, $adm['name'] ?? '',
+            "[TI] Wniosek wypisania czeka na zatwierdzenie: {$req['course_name']}",
+            "<p>Opiekun prawny zatwierdził wniosek wypisania kursanta <strong>"
+            . htmlspecialchars($req['client_name'], ENT_QUOTES) . "</strong> z kursu <strong>"
+            . htmlspecialchars($req['course_name'], ENT_QUOTES) . "</strong>.</p>"
+            . "<p>Przejdź do panelu administracyjnego, aby zatwierdzić lub odrzucić wniosek:<br>"
+            . "<a href=\"{$admin_url}\">{$admin_url}</a></p>"
+            . "<p>Pozdrawiamy,<br>" . htmlspecialchars($org, ENT_QUOTES) . "</p>"
+        );
+    }
+
+    return ['ok' => true, 'msg' => 'Dziękujemy. Wniosek został przekazany do administratora.'];
+}
+
+/**
+ * Admin zatwierdza lub odrzuca wniosek wypisania małoletniego.
+ * $approve=true → wypisuje kursanta; $approve=false → odrzuca wniosek.
+ */
+function k30_ti_unenroll_admin_decide(int $req_id, int $admin_user_id, bool $approve, string $note = ''): bool {
+    $req = db_one(
+        "SELECT r.*, c.name AS course_name, cl.name AS client_name, cl.email AS client_email,
+                acc.guardian_email, acc.guardian_name
+         FROM k30_ti_unenroll_requests r
+         JOIN k30_ti_courses c  ON c.id=r.course_id
+         JOIN k30_clients cl    ON cl.id=r.client_id
+         LEFT JOIN k30_ti_student_accounts acc ON acc.client_id=r.client_id
+         WHERE r.id=? AND r.status IN ('pending_parent','pending_admin')",
+        [$req_id]
+    );
+    if (!$req) return false;
+
+    if ($approve) {
+        k30_ti_unenroll_execute((int)$req['enrollment_id'], (int)$req['client_id'], $req['reason'], $admin_user_id, $note);
+        db()->prepare(
+            "UPDATE k30_ti_unenroll_requests SET status='approved', admin_id=?, admin_ok_at=datetime('now'), admin_note=?, updated_at=datetime('now') WHERE id=?"
+        )->execute([$admin_user_id, $note, $req_id]);
+    } else {
+        db()->prepare(
+            "UPDATE k30_ti_unenroll_requests SET status='rejected', admin_id=?, admin_ok_at=datetime('now'), admin_note=?, updated_at=datetime('now') WHERE id=?"
+        )->execute([$admin_user_id, $note, $req_id]);
+        // Powiadom kursanta o odrzuceniu
+        if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+        $org = defined('ORG_NAME') ? ORG_NAME : 'FEER';
+        $email = trim((string)($req['client_email'] ?? ''));
+        if ($email !== '' && function_exists('mail_queue_add')) {
+            mail_queue_add($email, $req['client_name'],
+                "Wniosek wypisania z kursu odrzucony: {$req['course_name']}",
+                "<p>Drogi/a " . htmlspecialchars($req['client_name'], ENT_QUOTES) . ",</p>"
+                . "<p>Wniosek o wypisanie z kursu <strong>" . htmlspecialchars($req['course_name'], ENT_QUOTES) . "</strong> został odrzucony przez administratora.</p>"
+                . ($note !== '' ? "<p><em>Powód:</em> " . nl2br(htmlspecialchars($note, ENT_QUOTES)) . "</p>" : '')
+                . "<p>Pozostajesz zapisany/a na kurs. W razie pytań skontaktuj się z administracją.</p>"
+                . "<p>Pozdrawiamy,<br>" . htmlspecialchars($org, ENT_QUOTES) . "</p>"
+            );
+        }
+    }
+    return true;
+}
+
+/**
+ * Wykonaj wypisanie kursanta z kursu (finalna operacja wspólna).
+ * $admin_user_id — ID admina gdy admin wymusza; null gdy automatycznie.
+ */
+function k30_ti_unenroll_execute(int $enrollment_id, int $client_id, string $reason, ?int $admin_user_id, ?string $admin_note): void {
+    $enroll = db_one(
+        "SELECT e.*, c.name AS course_name, u.name AS instructor_name, u.email AS instructor_email,
+                cl.name AS client_name, cl.email AS client_email,
+                acc.guardian_email, acc.guardian_name
+         FROM k30_ti_enrollments e
+         JOIN k30_ti_courses c   ON c.id=e.course_id
+         JOIN k30_clients cl     ON cl.id=e.client_id
+         LEFT JOIN users u       ON u.id=c.instructor_id
+         LEFT JOIN k30_ti_student_accounts acc ON acc.client_id=e.client_id
+         WHERE e.id=? AND e.client_id=?",
+        [$enrollment_id, $client_id]
+    );
+    if (!$enroll) return;
+
+    $note_suffix = $reason !== '' ? "\nWypisanie: " . $reason : "\nWypisanie z kursu.";
+    if ($admin_user_id) $note_suffix .= " [admin ID {$admin_user_id}]";
+    db()->prepare(
+        "UPDATE k30_ti_enrollments SET status='inactive', notes=? WHERE id=?"
+    )->execute([(($enroll['notes'] ?? '') . $note_suffix), $enrollment_id]);
+
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return;
+
+    $org         = defined('ORG_NAME') ? ORG_NAME : 'FEER';
+    $stu_email   = trim((string)($enroll['client_email'] ?? ''));
+    $stu_name    = $enroll['client_name'];
+    $course_name = $enroll['course_name'];
+    $reason_html = $reason !== '' ? '<p><em>Podany powód:</em> ' . nl2br(htmlspecialchars($reason, ENT_QUOTES)) . '</p>' : '';
+
+    // E-mail do kursanta
+    if ($stu_email !== '') {
+        mail_queue_add($stu_email, $stu_name,
+            "Potwierdzenie wypisania z kursu: {$course_name}",
+            "<p>Drogi/a " . htmlspecialchars($stu_name, ENT_QUOTES) . ",</p>"
+            . "<p>Potwierdzamy wypisanie z kursu <strong>" . htmlspecialchars($course_name, ENT_QUOTES) . "</strong>.</p>"
+            . $reason_html
+            . ($admin_note ? '<p><em>Uwaga admina:</em> ' . nl2br(htmlspecialchars($admin_note, ENT_QUOTES)) . '</p>' : '')
+            . "<p>Jeśli to pomyłka, skontaktuj się z administracją.</p>"
+            . "<p>Pozdrawiamy,<br>" . htmlspecialchars($org, ENT_QUOTES) . "</p>"
+        );
+    }
+    // E-mail do opiekuna (jeśli podany)
+    $guardian_email = trim((string)($enroll['guardian_email'] ?? ''));
+    $guardian_name  = trim((string)($enroll['guardian_name'] ?? ''));
+    if ($guardian_email !== '' && $guardian_email !== $stu_email) {
+        mail_queue_add($guardian_email, $guardian_name ?: $stu_name,
+            "Potwierdzenie wypisania z kursu: {$course_name}",
+            "<p>Drogi/a " . htmlspecialchars($guardian_name ?: $stu_name, ENT_QUOTES) . ",</p>"
+            . "<p>Kursant <strong>" . htmlspecialchars($stu_name, ENT_QUOTES) . "</strong> został wypisany z kursu <strong>" . htmlspecialchars($course_name, ENT_QUOTES) . "</strong>.</p>"
+            . $reason_html
+            . "<p>Pozdrawiamy,<br>" . htmlspecialchars($org, ENT_QUOTES) . "</p>"
+        );
+    }
+    // E-mail do prowadzącego
+    $instr_email = trim((string)($enroll['instructor_email'] ?? ''));
+    if ($instr_email !== '') {
+        mail_queue_add($instr_email, $enroll['instructor_name'] ?? '',
+            "[TI] Kursant wypisał się z kursu: {$course_name}",
+            "<p>Kursant <strong>" . htmlspecialchars($stu_name, ENT_QUOTES) . "</strong> wypisał się z kursu <strong>" . htmlspecialchars($course_name, ENT_QUOTES) . "</strong>.</p>"
+            . $reason_html
+        );
+    }
+}
+
+/** Lista wniosków wypisania oczekujących na decyzję admina. */
+function k30_ti_unenroll_pending_admin(): array {
+    return db_all(
+        "SELECT r.*, c.name AS course_name, cl.name AS client_name
+         FROM k30_ti_unenroll_requests r
+         JOIN k30_ti_courses c ON c.id=r.course_id
+         JOIN k30_clients cl   ON cl.id=r.client_id
+         WHERE r.status IN ('pending_parent','pending_admin')
+         ORDER BY r.created_at ASC"
+    );
+}
+
+/** Lista wszystkich wniosków wypisania (historia). */
+function k30_ti_unenroll_requests_all(): array {
+    return db_all(
+        "SELECT r.*, c.name AS course_name, cl.name AS client_name,
+                u.name AS admin_name
+         FROM k30_ti_unenroll_requests r
+         JOIN k30_ti_courses c  ON c.id=r.course_id
+         JOIN k30_clients cl    ON cl.id=r.client_id
+         LEFT JOIN users u      ON u.id=r.admin_id
+         ORDER BY r.created_at DESC
+         LIMIT 200"
+    );
+}
+
 /** Wystawione/robocze rozliczenia kursanta (do widoku kursanta i rodzica). */
 function k30_ti_client_billing(int $client_id): array {
     return db_all(

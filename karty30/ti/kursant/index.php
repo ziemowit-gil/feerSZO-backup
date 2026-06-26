@@ -335,48 +335,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'unenroll_course') {
         $enroll_id = (int)($_POST['enrollment_id'] ?? 0);
         $reason    = mb_substr(trim((string)($_POST['reason'] ?? '')), 0, 1000);
-        // Weryfikacja: zapis musi należeć do tego kursanta i być aktywny
-        $enroll = $enroll_id ? db_one(
-            "SELECT e.*, c.name AS course_name, u.name AS instructor_name, u.email AS instructor_email
-             FROM k30_ti_enrollments e
-             JOIN k30_ti_courses c ON c.id=e.course_id
-             LEFT JOIN users u ON u.id=c.instructor_id
-             WHERE e.id=? AND e.client_id=? AND e.status='active'",
-            [$enroll_id, $student['client_id']]
-        ) : null;
-        if ($enroll) {
-            db()->prepare(
-                "UPDATE k30_ti_enrollments SET status='inactive', notes=? WHERE id=?"
-            )->execute([
-                ($enroll['notes'] ?? '') . ($reason !== '' ? "\nWypisanie przez kursanta: " . $reason : "\nWypisanie przez kursanta."),
-                $enroll_id,
-            ]);
-            // E-mail do kursanta
-            try {
-                require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
-                $stu_email = trim((string)($client['email'] ?? ''));
-                $stu_name  = trim((string)($client['name'] ?? $account['login']));
-                if ($stu_email !== '') {
-                    mail_queue_add($stu_email, $stu_name,
-                        'Potwierdzenie wypisania z kursu: ' . $enroll['course_name'],
-                        '<p>Drogi/a ' . h($stu_name) . ',</p>'
-                        . '<p>Potwierdzamy, że zostałeś/aś wypisany/a z kursu <strong>' . h($enroll['course_name']) . '</strong>.</p>'
-                        . ($reason !== '' ? '<p><em>Podany powód:</em> ' . nl2br(h($reason)) . '</p>' : '')
-                        . '<p>Jeśli to pomyłka lub chcesz ponownie dołączyć, skontaktuj się z prowadzącym lub administracją.</p>'
-                        . '<p>Pozdrawiamy,<br>' . h(defined('ORG_NAME') ? ORG_NAME : 'FEER') . '</p>'
-                    );
-                }
-                // E-mail do prowadzącego (jeśli jest)
-                $instr_email = trim((string)($enroll['instructor_email'] ?? ''));
-                if ($instr_email !== '') {
-                    mail_queue_add($instr_email, $enroll['instructor_name'] ?? '',
-                        '[TI] Kursant wypisał się z kursu: ' . $enroll['course_name'],
-                        '<p>Kursant <strong>' . h($stu_name) . '</strong> wypisał się z kursu <strong>' . h($enroll['course_name']) . '</strong>.</p>'
-                        . ($reason !== '' ? '<p><em>Podany powód:</em> ' . nl2br(h($reason)) . '</p>' : '')
-                    );
-                }
-            } catch (\Throwable $e) {}
-            header('Location: index.php?tab=dane&unenrolled=1'); exit;
+        if ($enroll_id) {
+            $result = k30_ti_unenroll_request($enroll_id, (int)$student['client_id'], $reason);
+            if ($result === 'done') {
+                header('Location: index.php?tab=dane&unenrolled=1'); exit;
+            } elseif ($result === 'pending') {
+                header('Location: index.php?tab=dane&unenroll_pending=1'); exit;
+            }
         }
         header('Location: index.php?tab=dane'); exit;
     }
@@ -897,6 +862,13 @@ document.addEventListener('DOMContentLoaded', function() {
     <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zostałeś/aś wypisany/a z kursu. Potwierdzenie zostało wysłane na Twój adres e-mail.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
   </div>
+  <?php elseif (isset($_GET['unenroll_pending'])): ?>
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="bi bi-envelope me-1" aria-hidden="true"></i><strong>Wniosek złożony.</strong>
+    Ponieważ jesteś osobą niepełnoletnią, wypisanie wymaga zgody opiekuna prawnego i administratora.
+    Na adres e-mail opiekuna zostało wysłane zapytanie o potwierdzenie.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
   <?php endif; ?>
 
   <?php
@@ -921,6 +893,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 data-bs-toggle="modal" data-bs-target="#modalUnenroll"
                 data-enroll-id="<?= (int)$ec['id'] ?>"
                 data-course-name="<?= h($ec['course_name']) ?>"
+                data-minor="<?= $is_minor ? '1' : '0' ?>"
                 aria-label="Wypisz się z kursu <?= h($ec['course_name']) ?>">
           <i class="bi bi-box-arrow-left me-1" aria-hidden="true"></i>Wypisz się
         </button>
@@ -952,9 +925,13 @@ document.addEventListener('DOMContentLoaded', function() {
               <textarea class="form-control" id="unenrollReason" name="reason" rows="3" maxlength="1000"
                         placeholder="Np. zmiana planów, inne obowiązki…"></textarea>
             </div>
-            <div class="alert alert-warning py-2 small d-flex gap-2 align-items-start" role="note">
+            <div id="unenrollNoteAdult" class="alert alert-warning py-2 small d-flex gap-2 align-items-start" role="note">
               <i class="bi bi-envelope me-1 flex-shrink-0 mt-1" aria-hidden="true"></i>
               Na Twój adres e-mail zostanie wysłane potwierdzenie wypisania.
+            </div>
+            <div id="unenrollNoteMinor" class="alert alert-info py-2 small d-flex gap-2 align-items-start" role="note" style="display:none!important">
+              <i class="bi bi-shield-lock me-1 flex-shrink-0 mt-1" aria-hidden="true"></i>
+              Ponieważ jesteś osobą niepełnoletnią, wypisanie wymaga potwierdzenia opiekuna prawnego oraz administratora. Wniosek zostanie wysłany e-mailem do opiekuna.
             </div>
           </div>
           <div class="modal-footer">
@@ -973,9 +950,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!modal) return;
     modal.addEventListener('show.bs.modal', function(e) {
       var btn = e.relatedTarget;
+      var isMinor = btn.getAttribute('data-minor') === '1';
       document.getElementById('unenrollEnrollId').value   = btn.getAttribute('data-enroll-id') || '';
       document.getElementById('unenrollCourseName').textContent = btn.getAttribute('data-course-name') || '';
       document.getElementById('unenrollReason').value = '';
+      document.getElementById('unenrollNoteAdult').style.display = isMinor ? 'none' : '';
+      document.getElementById('unenrollNoteMinor').style.setProperty('display', isMinor ? 'flex' : 'none', 'important');
     });
   })();
   </script>

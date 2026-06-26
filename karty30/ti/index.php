@@ -150,6 +150,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="komunikacja.php"><i class="bi bi-megaphone me-2"></i>Komunikacja</a></li>
       <li><a class="dropdown-item" href="kursant/accounts.php"><i class="bi bi-people me-2"></i>Konta kursantów</a></li>
+      <li><a class="dropdown-item" href="unenroll_admin.php"><i class="bi bi-box-arrow-left me-2"></i>Wnioski wypisania
+        <?php $_unr_cnt = count(k30_ti_unenroll_pending_admin()); if ($_unr_cnt): ?>
+        <span class="badge bg-danger ms-1"><?= $_unr_cnt ?></span>
+        <?php endif; ?>
+      </a></li>
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="terms_admin.php"><i class="bi bi-file-earmark-text me-2"></i>Regulaminy</a></li>
     </ul>
