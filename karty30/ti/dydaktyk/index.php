@@ -408,7 +408,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($myAccId && $body !== '') {
             $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
             ti_msg_post_to_student($acc_id, '', $body, $uid, $senderName, true);
+            ti_account_log($acc_id, 'msg_sent_by_staff', mb_substr($body, 0, 100), $uid, $senderName);
             flash_set('success', 'Odpowiedź wysłana.');
+        }
+        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+    }
+
+    if ($op === 'dyd_msg_block' || $op === 'dyd_msg_unblock') {
+        $acc_id  = (int)($_POST['student_id'] ?? 0);
+        $myAccId = $acc_id ? db_one(
+            "SELECT a.id FROM k30_ti_student_accounts a
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE a.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$acc_id]) : null;
+        if ($myAccId) {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_msg_set_blocked($acc_id, $op === 'dyd_msg_block', $uid, $senderName);
+            flash_set('success', $op === 'dyd_msg_block' ? 'Wiadomości od kursanta zablokowane.' : 'Blokada zdjęta.');
+        }
+        header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
+    }
+
+    if ($op === 'dyd_msg_archive') {
+        $msg_id = (int)($_POST['msg_id'] ?? 0);
+        // Weryfikuj że wiadomość należy do kursanta z kursu tego prowadzącego
+        $msgRow = $msg_id ? db_one(
+            "SELECT m.id, m.student_id FROM k30_ti_messages m
+             JOIN k30_ti_student_accounts a ON a.id=m.student_id
+             JOIN k30_ti_enrollments e ON e.client_id=a.client_id
+             WHERE m.id=? AND e.course_id IN (" . implode(',', array_map('intval', $course_ids ?: [0])) . ") AND e.status='active'
+             LIMIT 1", [$msg_id]) : null;
+        $acc_id = (int)($_POST['student_id'] ?? 0);
+        if ($msgRow) {
+            $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
+            ti_msg_archive((int)$msgRow['id'], $uid, $senderName);
+            flash_set('success', 'Wiadomość zarchiwizowana.');
         }
         header('Location: index.php?course=' . $cur_course . '&tab=wiadomosci&student=' . $acc_id); exit;
     }
@@ -472,7 +506,9 @@ $dyd_msg_student = $dyd_msg_student_id
               WHERE a.id=?", [$dyd_msg_student_id])
     : null;
 if ($dyd_msg_student) ti_msg_mark_read_for_staff((int)$dyd_msg_student['id']);
-$dyd_msg_thread = $dyd_msg_student ? ti_msg_list_for_student((int)$dyd_msg_student['id']) : [];
+$dyd_msg_thread      = $dyd_msg_student ? ti_msg_list_for_student((int)$dyd_msg_student['id']) : [];
+$dyd_msg_is_blocked  = $dyd_msg_student ? ti_msg_is_blocked((int)$dyd_msg_student['id']) : false;
+$dyd_msg_log         = $dyd_msg_student ? ti_account_log_list((int)$dyd_msg_student['id'], 50) : [];
 
 // Lekcje do wyszukiwarki „Powiązana lekcja" (etykiety unikalne — do mapowania w JS)
 $session_opts = []; $session_label_by_id = []; $_lbl_seen = [];
@@ -1461,52 +1497,130 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       <!-- Aktywny wątek -->
       <div class="col-md-8">
         <?php if ($dyd_msg_student): ?>
-        <div class="card border-0 shadow-sm h-100 d-flex flex-column">
-          <div class="card-header d-flex align-items-center gap-2 py-2">
-            <i class="bi bi-person-circle text-primary"></i>
-            <strong><?= h($dyd_msg_student['client_name']) ?></strong>
-            <span class="text-muted small ms-1">(<?= h($dyd_msg_student['login']) ?>)</span>
-          </div>
-          <div class="card-body p-3 flex-grow-1" style="overflow-y:auto;max-height:52vh">
-            <?php if (empty($dyd_msg_thread)): ?>
-            <p class="text-muted text-center mt-4 small">Brak wiadomości w tym wątku.</p>
-            <?php else: ?>
-            <?php foreach ($dyd_msg_thread as $msg): $fromStaff = ($msg['sender'] !== 'student'); ?>
-            <div class="d-flex mb-3 <?= $fromStaff ? 'justify-content-end' : '' ?>">
-              <div class="p-2 rounded" style="max-width:80%;background:<?= $fromStaff ? '#2563eb' : '#F3F4F6' ?>;color:<?= $fromStaff ? '#fff' : '#111' ?>">
-                <?php if (!empty($msg['subject'])): ?>
-                <div class="fw-semibold small mb-1"><?= h($msg['subject']) ?></div>
-                <?php endif; ?>
-                <div style="white-space:pre-wrap;font-size:.875rem"><?= h($msg['body']) ?></div>
-                <div class="mt-1 text-end opacity-75" style="font-size:.7rem">
-                  <?= $fromStaff ? h($msg['sender_name'] ?? 'Prowadzący') : h($dyd_msg_student['client_name']) ?>
-                  · <?= date('d.m H:i', strtotime($msg['created_at'])) ?>
-                </div>
-              </div>
-            </div>
-            <?php endforeach; ?>
-            <?php endif; ?>
-          </div>
-          <div class="card-footer p-2">
-            <form method="post">
+
+        <!-- Nagłówek: imię + akcje -->
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+          <span class="fw-semibold">
+            <i class="bi bi-person-circle text-primary me-1"></i>
+            <?= h($dyd_msg_student['client_name']) ?>
+            <span class="text-muted fw-normal small">(<?= h($dyd_msg_student['login']) ?>)</span>
+          </span>
+          <?php if ($dyd_msg_is_blocked): ?>
+          <span class="badge bg-danger ms-1"><i class="bi bi-slash-circle me-1"></i>Zablokowany</span>
+          <?php endif; ?>
+          <div class="ms-auto d-flex gap-1">
+            <!-- Blokada/odblokowanie -->
+            <form method="post" class="d-inline">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op" value="dyd_msg_reply">
+              <input type="hidden" name="_op" value="<?= $dyd_msg_is_blocked ? 'dyd_msg_unblock' : 'dyd_msg_block' ?>">
               <input type="hidden" name="course_id" value="<?= $cur_course ?>">
               <input type="hidden" name="student_id" value="<?= (int)$dyd_msg_student['id'] ?>">
-              <div class="d-flex gap-2">
-                <textarea class="form-control form-control-sm" name="body" rows="2"
-                          placeholder="Napisz odpowiedź…" required style="resize:none"></textarea>
-                <button class="btn btn-primary btn-sm align-self-end" type="submit">
-                  <i class="bi bi-send"></i>
-                </button>
-              </div>
+              <button type="submit" class="btn btn-sm <?= $dyd_msg_is_blocked ? 'btn-outline-success' : 'btn-outline-danger' ?>"
+                      onclick="return confirm('<?= $dyd_msg_is_blocked ? 'Odblokować wiadomości od tego kursanta?' : 'Zablokować wysyłanie wiadomości przez kursanta?' ?>')">
+                <i class="bi bi-<?= $dyd_msg_is_blocked ? 'unlock' : 'slash-circle' ?> me-1"></i><?= $dyd_msg_is_blocked ? 'Odblokuj' : 'Zablokuj' ?>
+              </button>
             </form>
+            <!-- Log -->
+            <button class="btn btn-sm btn-outline-secondary" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#dydMsgLog" aria-expanded="false" aria-controls="dydMsgLog">
+              <i class="bi bi-journal-text me-1"></i>Dziennik
+            </button>
           </div>
         </div>
+
+        <!-- Dziennik zdarzeń (zwinięty) -->
+        <div class="collapse mb-3" id="dydMsgLog">
+          <div class="border rounded-2 p-2" style="max-height:200px;overflow-y:auto;font-size:.78rem">
+            <?php if (empty($dyd_msg_log)): ?>
+            <p class="text-muted mb-0 text-center py-2">Brak wpisów w dzienniku.</p>
+            <?php else: ?>
+            <table class="table table-sm table-borderless mb-0">
+              <thead><tr class="text-muted"><th>Czas</th><th>Zdarzenie</th><th>Kto</th><th>Szczegóły</th></tr></thead>
+              <tbody>
+              <?php
+              $action_labels = [
+                  'msg_sent'            => 'Wysłano',
+                  'msg_sent_by_staff'   => 'Odp. prowadzącego',
+                  'msg_blocked'         => 'Zablokowano',
+                  'msg_unblocked'       => 'Odblokowano',
+                  'msg_blocked_attempt' => 'Próba przy blokadzie',
+                  'msg_archived'        => 'Zarchiwizowano',
+              ];
+              foreach ($dyd_msg_log as $le): ?>
+              <tr>
+                <td class="text-nowrap text-muted"><?= $le['created_at'] ? date('d.m H:i', strtotime($le['created_at'])) : '' ?></td>
+                <td><?= h($action_labels[$le['action']] ?? $le['action']) ?></td>
+                <td><?= $le['by_name'] ? h($le['by_name']) : '<span class="text-muted">kursant</span>' ?></td>
+                <td class="text-muted"><?= h(mb_substr($le['detail'], 0, 60)) ?></td>
+              </tr>
+              <?php endforeach; ?>
+              </tbody>
+            </table>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <!-- Lista wiadomości -->
+        <?php if (empty($dyd_msg_thread)): ?>
+        <p class="text-muted small text-center mt-3">Brak wiadomości.</p>
+        <?php else: ?>
+        <ol class="list-unstyled d-flex flex-column gap-2 mb-3" aria-label="Wiadomości">
+          <?php foreach ($dyd_msg_thread as $msg):
+            $fromStaff = ($msg['sender'] !== 'student');
+            $ts = $msg['created_at'] ? date('d.m.Y H:i', strtotime($msg['created_at'])) : '';
+            $name = $fromStaff ? ($msg['sender_name'] ?? 'Prowadzący') : $dyd_msg_student['client_name'];
+            $isArchived = !empty($msg['is_archived']);
+          ?>
+          <li <?= $isArchived ? 'style="opacity:.45"' : '' ?>>
+            <article>
+              <header class="d-flex align-items-baseline gap-2 mb-1" style="font-size:.78rem">
+                <span class="fw-semibold"><?= h($name) ?></span>
+                <span class="text-muted"><?= $fromStaff ? 'prowadzący' : 'kursant' ?></span>
+                <time class="text-muted ms-auto" datetime="<?= h($msg['created_at'] ?? '') ?>"><?= h($ts) ?></time>
+                <?php if (!$isArchived): ?>
+                <form method="post" class="d-inline ms-1">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="dyd_msg_archive">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="student_id" value="<?= (int)$dyd_msg_student['id'] ?>">
+                  <input type="hidden" name="msg_id" value="<?= (int)$msg['id'] ?>">
+                  <button type="submit" class="btn btn-link btn-sm p-0 text-muted" title="Archiwizuj"
+                          onclick="return confirm('Zarchiwizować tę wiadomość?')">
+                    <i class="bi bi-archive" style="font-size:.8rem"></i>
+                  </button>
+                </form>
+                <?php else: ?>
+                <span class="badge bg-secondary ms-1" style="font-size:.65rem">arch.</span>
+                <?php endif; ?>
+              </header>
+              <div class="border rounded-2 p-2 <?= $fromStaff ? 'border-primary border-opacity-25 bg-primary bg-opacity-10' : '' ?>"
+                   style="font-size:.875rem;white-space:pre-wrap"><?= h($msg['body']) ?></div>
+            </article>
+          </li>
+          <?php endforeach; ?>
+        </ol>
+        <?php endif; ?>
+
+        <!-- Formularz odpowiedzi -->
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="dyd_msg_reply">
+          <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+          <input type="hidden" name="student_id" value="<?= (int)$dyd_msg_student['id'] ?>">
+          <label class="form-label small fw-semibold" for="dydReplyBody">Odpowiedź</label>
+          <div class="d-flex gap-2">
+            <textarea class="form-control form-control-sm" id="dydReplyBody" name="body" rows="3"
+                      placeholder="Napisz odpowiedź…" required style="resize:none"></textarea>
+            <button class="btn btn-primary btn-sm align-self-end" type="submit">
+              <i class="bi bi-send"></i><span class="visually-hidden">Wyślij</span>
+            </button>
+          </div>
+        </form>
+
         <?php else: ?>
         <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted" style="min-height:200px">
           <i class="bi bi-envelope-open" style="font-size:2.5rem;opacity:.3"></i>
-          <p class="mt-2 small">Wybierz wątek z listy lub napisz nową wiadomość.</p>
+          <p class="mt-2 small">Wybierz kursanta z listy lub napisz nową wiadomość.</p>
           <button type="button" class="btn btn-sm btn-outline-primary mt-1"
                   data-bs-toggle="modal" data-bs-target="#dydMsgNew"
                   <?= empty($dyd_msg_accounts) ? 'disabled' : '' ?>>

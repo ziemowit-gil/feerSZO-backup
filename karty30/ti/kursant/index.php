@@ -201,24 +201,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=ustawienia&dyd=1'); exit;
     }
 
-    // Odpowiedź kursanta w wątku wiadomości
-    if ($op === 'msg_reply') {
-        $body    = trim((string)($_POST['body']    ?? ''));
-        $subject = mb_substr(trim((string)($_POST['thread_subject'] ?? '')), 0, 200);
+    // Odpowiedź / nowa wiadomość kursanta → prowadzący
+    if ($op === 'msg_reply' || $op === 'msg_new') {
+        $body    = trim((string)($_POST['body'] ?? ''));
+        $subject = mb_substr(trim((string)($_POST['thread_subject'] ?? $_POST['subject'] ?? '')), 0, 200);
         if ($body !== '') {
-            ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000), $subject);
-            header('Location: index.php?tab=wiadomosci&sent=1&ts=' . urlencode($subject)); exit;
-        }
-        header('Location: index.php?tab=wiadomosci'); exit;
-    }
-
-    // Nowa wiadomość do Prowadzącego (inicjowana przez kursanta)
-    if ($op === 'msg_new') {
-        $body    = trim((string)($_POST['body']    ?? ''));
-        $subject = mb_substr(trim((string)($_POST['subject'] ?? '')), 0, 200);
-        if ($body !== '' && $subject !== '') {
-            ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000), $subject);
-            header('Location: index.php?tab=wiadomosci&sent=1&ts=' . urlencode($subject)); exit;
+            try {
+                ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000), $subject);
+                ti_account_log((int)$student['id'], 'msg_sent', mb_substr($body, 0, 100));
+                header('Location: index.php?tab=wiadomosci&sent=1'); exit;
+            } catch (\RuntimeException $e) {
+                header('Location: index.php?tab=wiadomosci&blocked=1'); exit;
+            }
         }
         header('Location: index.php?tab=wiadomosci'); exit;
     }
@@ -484,6 +478,7 @@ $sms_global_on  = function_exists('sms_is_enabled') && sms_is_enabled();
 $msg_unread     = ti_msg_unread_for_student((int)$student['id']);
 $msg_pref_email = (int)($account['notify_email_messages'] ?? 1);
 $msg_pref_sms   = (int)($account['notify_sms_messages'] ?? 0);
+$msg_blocked    = (bool)($account['msg_blocked'] ?? false);
 $dyd_pref_email = (int)($account['notify_email_dydaktyka'] ?? 1);
 $dyd_pref_sms   = (int)($account['notify_sms_dydaktyka'] ?? 0);
 $msg_email_addr = trim((string)($client['email'] ?? ''));
@@ -2364,6 +2359,12 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 <?php endif; ?>
 
+<?php if (($_GET['blocked'] ?? '') === '1'): ?>
+<div class="alert alert-warning py-2 small mb-3" role="alert">
+  <i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Nie możesz teraz wysyłać wiadomości — prowadzący tymczasowo zablokował tę funkcję.
+</div>
+<?php endif; ?>
+
 <?php if (empty($messages)): ?>
 <div class="card">
   <div class="card-body text-center text-body-secondary py-5">
@@ -2399,6 +2400,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php endif; ?>
 
+<?php if ($msg_blocked): ?>
+<div class="card border-warning">
+  <div class="card-body text-center py-4 text-warning-emphasis">
+    <i class="bi bi-slash-circle fs-3 d-block mb-2" aria-hidden="true"></i>
+    <p class="mb-0 fw-semibold">Wysyłanie wiadomości zostało tymczasowo zablokowane przez prowadzącego.</p>
+    <p class="small text-body-secondary mt-1 mb-0">Skontaktuj się z prowadzącym bezpośrednio lub przez sekretariat.</p>
+  </div>
+</div>
+<?php else: ?>
 <!-- Formularz nowej wiadomości -->
 <section aria-labelledby="replyHeading" class="card">
   <div class="card-header">
@@ -2424,6 +2434,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </form>
   </div>
 </section>
+<?php endif; ?>
 
 <?php elseif ($tab === 'ustawienia'): ?>
 <?php

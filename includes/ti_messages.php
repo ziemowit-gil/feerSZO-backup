@@ -93,6 +93,10 @@ function ti_msg_broadcast(array $accountIds, string $subject, string $body, ?int
 
 /** Kursant → prowadzący (odpowiedź w wątku). Powiadamia ostatniego nadawcę-prowadzącego mailem. */
 function ti_msg_student_reply(int $studentId, string $body, string $subject = ''): int {
+    if (ti_msg_is_blocked($studentId)) {
+        ti_account_log($studentId, 'msg_blocked_attempt', 'Próba wysłania wiadomości przy aktywnej blokadzie.');
+        throw new \RuntimeException('Wysyłanie wiadomości jest zablokowane przez prowadzącego.');
+    }
     $acc    = db_one("SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a LEFT JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$studentId]);
     $byName = $acc['client_name'] ?? ($acc['login'] ?? 'Kursant');
     $id = db_insert('k30_ti_messages', [
@@ -186,4 +190,57 @@ function ti_msg_notify_staff_reply(int $studentId, string $studentName, string $
         'url'          => htmlspecialchars($url, ENT_QUOTES),
     ]) : ['subject' => "{$org}: odpowiedź kursanta — {$studentName}", 'html' => "<p>{$preview}</p>", 'enabled' => true];
     try { mail_queue_add($email, (string)($u['name'] ?? ''), $r['subject'], $r['html'], '', 'ti_message', $studentId, '', true); } catch (\Throwable $e) {}
+}
+
+// ── Dziennik zdarzeń na koncie ────────────────────────────────────────────────
+
+/** Zapisuje zdarzenie do dziennika konta kursanta. */
+function ti_account_log(int $studentId, string $action, string $detail = '', ?int $byUserId = null, string $byName = '', string $ip = ''): void {
+    if ($ip === '') $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    try {
+        db_insert('k30_ti_account_log', [
+            'student_id' => $studentId,
+            'action'     => mb_substr($action, 0, 80),
+            'detail'     => mb_substr($detail, 0, 500),
+            'by_user_id' => $byUserId ?: null,
+            'by_name'    => mb_substr($byName, 0, 120),
+            'ip'         => mb_substr($ip, 0, 45),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    } catch (\Throwable $e) {}
+}
+
+/** Zwraca ostatnie $limit wpisów z dziennika konta. */
+function ti_account_log_list(int $studentId, int $limit = 100): array {
+    return db_all(
+        "SELECT * FROM k30_ti_account_log WHERE student_id=? ORDER BY created_at DESC, id DESC LIMIT ?",
+        [$studentId, $limit]
+    );
+}
+
+// ── Blokada wiadomości ────────────────────────────────────────────────────────
+
+/** Zwraca true, jeśli konto ma aktywną blokadę wiadomości. */
+function ti_msg_is_blocked(int $studentId): bool {
+    $r = db_one("SELECT msg_blocked FROM k30_ti_student_accounts WHERE id=?", [$studentId]);
+    return (bool)($r['msg_blocked'] ?? false);
+}
+
+/** Ustawia lub zdejmuje blokadę wiadomości; zapisuje zdarzenie w dzienniku. */
+function ti_msg_set_blocked(int $studentId, bool $blocked, ?int $byUserId = null, string $byName = ''): void {
+    db()->prepare("UPDATE k30_ti_student_accounts SET msg_blocked=? WHERE id=?")->execute([(int)$blocked, $studentId]);
+    $action = $blocked ? 'msg_blocked' : 'msg_unblocked';
+    $detail = $blocked ? 'Zablokowano wysyłanie wiadomości przez kursanta.' : 'Odblokowano wysyłanie wiadomości.';
+    ti_account_log($studentId, $action, $detail, $byUserId, $byName);
+}
+
+// ── Archiwizacja wiadomości ───────────────────────────────────────────────────
+
+/** Archiwizuje pojedynczą wiadomość (ukrywa z widoku głównego). */
+function ti_msg_archive(int $msgId, ?int $byUserId = null, string $byName = ''): void {
+    $msg = db_one("SELECT student_id, sender, body FROM k30_ti_messages WHERE id=?", [$msgId]);
+    if (!$msg) return;
+    db()->prepare("UPDATE k30_ti_messages SET is_archived=1 WHERE id=?")->execute([$msgId]);
+    $preview = mb_substr(trim(strip_tags((string)($msg['body'] ?? ''))), 0, 80);
+    ti_account_log((int)$msg['student_id'], 'msg_archived', "Zarchiwizowano wiad. #{$msgId}: {$preview}", $byUserId, $byName);
 }

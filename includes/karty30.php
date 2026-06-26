@@ -702,6 +702,25 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_parent_tokens_student ON k30_ti_parent_tokens(student_id)");
 
+    // Wnioski o wypisanie z kursu (wymagane zatwierdzenie rodzica+admina dla małoletnich)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_unenroll_requests (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        enrollment_id INTEGER NOT NULL REFERENCES k30_ti_enrollments(id) ON DELETE CASCADE,
+        client_id     INTEGER NOT NULL REFERENCES k30_clients(id)        ON DELETE CASCADE,
+        course_id     INTEGER NOT NULL REFERENCES k30_ti_courses(id)     ON DELETE CASCADE,
+        reason        TEXT    NOT NULL DEFAULT '',
+        status        TEXT    NOT NULL DEFAULT 'pending_parent',
+        parent_token  TEXT    UNIQUE,
+        parent_ok_at  DATETIME,
+        admin_id      INTEGER REFERENCES users(id),
+        admin_ok_at   DATETIME,
+        admin_note    TEXT    NOT NULL DEFAULT '',
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_unenroll_req_enroll ON k30_ti_unenroll_requests(enrollment_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_unenroll_req_client ON k30_ti_unenroll_requests(client_id)");
+
     // Audyt operacji VLAB
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_log (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -845,6 +864,23 @@ function karty30_migrate(): void {
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_avail_instr ON k30_ti_instructor_availability(instructor_id, day_of_week)");
+
+    // ── Blokada wiadomości + archiwizacja ────────────────────────────────────
+    try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN msg_blocked INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_ti_messages ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
+    // ── Dziennik zdarzeń na koncie kursanta ───────────────────────────────────
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_account_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id  INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        action      TEXT    NOT NULL DEFAULT '',
+        detail      TEXT    NOT NULL DEFAULT '',
+        by_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        by_name     TEXT    NOT NULL DEFAULT '',
+        ip          TEXT    NOT NULL DEFAULT '',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_aclog_student ON k30_ti_account_log(student_id, created_at)");
 
     // ── Komunikacja: log masowych wysyłek e-mail/SMS do kursantów ─────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_comm_log (
