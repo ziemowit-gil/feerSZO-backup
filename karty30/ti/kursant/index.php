@@ -1431,17 +1431,80 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endif; ?>
 
-<?php elseif ($tab === 'oceny'): ?>
+<?php elseif ($tab === 'oceny'):
+  // Dane do wykresu — sortuj wg daty, pomiń oceny bez wartości liczbowej
+  $chart_datasets = [];
+  $chart_colors   = ['#2563eb','#16a34a','#7c3aed','#d97706','#dc2626','#0891b2'];
+  $ci = 0;
+  foreach ($grades_by_course as $cname => $cgr) {
+    $pts = [];
+    foreach ($cgr as $g) {
+      if ($g['value_num'] === null || $g['value_num'] === '') continue;
+      $pts[] = ['x' => substr((string)$g['graded_at'],0,10), 'y' => (float)$g['value_num'], 'label' => $g['description'] ?: $cname];
+    }
+    usort($pts, fn($a,$b) => strcmp($a['x'],$b['x']));
+    if ($pts) {
+      $col = $chart_colors[$ci % count($chart_colors)];
+      $chart_datasets[] = ['label' => $cname, 'data' => $pts, 'color' => $col];
+      $ci++;
+    }
+  }
+  $chart_json = json_encode($chart_datasets, JSON_UNESCAPED_UNICODE);
+?>
 
-  <h1 class="h5 fw-bold mb-1 d-flex align-items-center gap-2">
-    <i class="bi bi-table text-primary" aria-hidden="true"></i>Oceny
-    <?php if ($grades_student): ?><a href="?grades_pdf=1" class="btn btn-sm btn-outline-danger ms-auto"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF</a><?php endif; ?>
-  </h1>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+    <h1 class="h5 fw-bold mb-0 d-flex align-items-center gap-2">
+      <i class="bi bi-table text-primary" aria-hidden="true"></i>Oceny
+    </h1>
+    <?php if ($grades_student): ?>
+    <div class="ms-auto d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="kp-grades-view-chart" aria-pressed="true">
+        <i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Wykres
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="kp-grades-view-table" aria-pressed="false">
+        <i class="bi bi-table me-1" aria-hidden="true"></i>Tabela
+      </button>
+      <a href="?grades_pdf=1" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+    </div>
+    <?php endif; ?>
+  </div>
   <p class="text-body-secondary small mb-3">Oceny wystawione przez prowadzących, ze średnią ważoną dla każdego kursu.</p>
 
   <?php if (!$grades_student): ?>
   <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak ocen. Pojawią się tutaj, gdy prowadzący je wystawi.</div>
   <?php else: ?>
+
+  <!-- Widok: wykres -->
+  <div id="kp-grades-chart-view">
+    <?php if (!empty($chart_datasets)): ?>
+    <div class="card mb-3">
+      <div class="card-body py-3">
+        <canvas id="kp-grades-canvas" style="max-height:320px" aria-label="Wykres ocen" role="img"></canvas>
+      </div>
+    </div>
+    <?php else: ?>
+    <div class="alert alert-info small">Brak ocen liczbowych do wykresu.</div>
+    <?php endif; ?>
+    <!-- Karty kursów ze średnią (skrócony widok) -->
+    <?php foreach ($grades_by_course as $cname => $cgr):
+      $avg = k30_ti_grades_average($cgr);
+      [$abg,$afg] = k30_ti_grade_color($avg);
+    ?>
+    <div class="card mb-2">
+      <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+        <span class="fw-semibold small"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
+        <span class="text-body-secondary small"><?= count($cgr) ?> ocen</span>
+        <?php if ($avg !== null): ?>
+        <span class="ms-auto small text-body-secondary">Śr. ważona:</span>
+        <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+
+  <!-- Widok: tabela (domyślnie ukryta) -->
+  <div id="kp-grades-table-view" style="display:none">
     <?php foreach ($grades_by_course as $cname => $cgr):
       $avg = k30_ti_grades_average($cgr);
       [$abg,$afg] = k30_ti_grade_color($avg);
@@ -1451,14 +1514,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
         <span class="badge text-bg-secondary"><?= count($cgr) ?> ocen</span>
         <?php if ($avg !== null): ?>
-        <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
+        <span class="ms-auto small text-body-secondary">Srednia wazona:</span>
         <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
         <?php endif; ?>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <thead class="table-light">
-            <tr><th>Data</th><th>Ocena</th><th>Waga</th><th>Kategoria</th><th>Za co</th><th>Wystawił(a)</th></tr>
+            <tr><th>Data</th><th>Ocena</th><th>Waga</th><th>Kategoria</th><th>Za co</th><th>Wystawil(a)</th></tr>
           </thead>
           <tbody>
             <?php foreach ($cgr as $g): ?>
@@ -1476,6 +1539,93 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
     </div>
     <?php endforeach; ?>
+  </div>
+
+  <script>
+  (function(){
+    var chartView = document.getElementById('kp-grades-chart-view');
+    var tableView = document.getElementById('kp-grades-table-view');
+    var btnChart  = document.getElementById('kp-grades-view-chart');
+    var btnTable  = document.getElementById('kp-grades-view-table');
+    if (!btnChart || !btnTable) return;
+
+    function show(mode) {
+      var isChart = mode === 'chart';
+      chartView.style.display = isChart ? '' : 'none';
+      tableView.style.display = isChart ? 'none' : '';
+      btnChart.setAttribute('aria-pressed', isChart ? 'true' : 'false');
+      btnChart.classList.toggle('active', isChart);
+      btnTable.setAttribute('aria-pressed', isChart ? 'false' : 'true');
+      btnTable.classList.toggle('active', !isChart);
+      try { localStorage.setItem('kp-grades-view', mode); } catch(e) {}
+    }
+
+    btnChart.addEventListener('click', function(){ show('chart'); });
+    btnTable.addEventListener('click', function(){ show('table'); });
+
+    // Przywroc ostatni widok
+    var saved = null; try { saved = localStorage.getItem('kp-grades-view'); } catch(e){}
+    show(saved === 'table' ? 'table' : 'chart');
+
+    // Wykres Chart.js
+    var canvas = document.getElementById('kp-grades-canvas');
+    if (!canvas) return;
+    var datasets = <?= $chart_json ?>;
+    if (!datasets.length) return;
+
+    function buildChart() {
+      var chartDatasets = datasets.map(function(ds) {
+        return {
+          label: ds.label,
+          data: ds.data.map(function(p){ return {x: p.x, y: p.y}; }),
+          borderColor: ds.color,
+          backgroundColor: ds.color + '33',
+          pointBackgroundColor: ds.color,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          tension: 0.35,
+          fill: false
+        };
+      });
+      new Chart(canvas, {
+        type: 'line',
+        data: { datasets: chartDatasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            x: { type: 'time', time: { unit: 'day', displayFormats: { day: 'dd.MM' } },
+                 adapters: { date: {} }, title: { display: false },
+                 ticks: { maxRotation: 45 } },
+            y: { min: 1, max: 6, ticks: { stepSize: 1,
+                 callback: function(v){ return ['','1','2','3','4','5','6'][Math.round(v)] || v; } },
+                 title: { display: true, text: 'Ocena' } }
+          },
+          plugins: {
+            legend: { display: datasets.length > 1 },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  var raw = datasets[ctx.datasetIndex].data[ctx.dataIndex];
+                  return ' ' + ctx.dataset.label + ': ' + ctx.parsed.y + (raw.label ? ' — ' + raw.label : '');
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Zaladuj Chart.js + adapter date-fns z CDN, potem zbuduj wykres
+    function loadScript(src, cb) {
+      var s = document.createElement('script'); s.src = src; s.onload = cb; document.head.appendChild(s);
+    }
+    loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js', function(){
+      loadScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js', buildChart);
+    });
+  })();
+  </script>
+
   <?php endif; ?>
 
 <?php elseif ($tab === 'rozliczenia' && !$is_minor):

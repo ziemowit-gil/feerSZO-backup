@@ -18,7 +18,7 @@ $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 <!-- Motyw + dostępność: zastosuj zapamiętane ustawienia przed renderem (bez mignięcia) -->
 <script>try{var d=document.documentElement;
 if(localStorage.getItem('kp-contrast')==='1')d.classList.add('kp-contrast');
-var bgc=localStorage.getItem('kp-bg-color');if(bgc)document.documentElement.style.setProperty('--kp-custom-bg',bgc);
+var sc=localStorage.getItem('kp-scheme');if(sc)document.documentElement.setAttribute('data-kp-scheme',sc);
 var fs=localStorage.getItem('kp-fontscale');if(fs&&fs!=='0')d.setAttribute('data-kp-font',fs);
 if(localStorage.getItem('kp-hidemenu')==='1')d.classList.add('kp-hidemenu');
 }catch(e){}</script>
@@ -26,19 +26,56 @@ if(localStorage.getItem('kp-hidemenu')==='1')d.classList.add('kp-hidemenu');
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-:root { --bs-primary:#2563eb; --bs-primary-rgb:37,99,235; --bs-link-color-rgb:96,165,250; --kp-custom-bg:; }
-body { background-color:var(--kp-custom-bg, var(--bs-body-bg)) !important; }
-.btn-primary { --bs-btn-bg:#2563eb; --bs-btn-border-color:#2563eb; --bs-btn-hover-bg:#1d4ed8; --bs-btn-hover-border-color:#1d4ed8; }
+:root {
+  --bs-primary:#2563eb; --bs-primary-rgb:37,99,235; --bs-link-color-rgb:96,165,250;
+  --kp-body-bg:#ffffff; --kp-primary:#2563eb; --kp-primary-rgb:37,99,235;
+  --kp-primary-hover:#1d4ed8; --kp-focus:#60a5fa; --kp-brand-gradient:linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%);
+}
+/* Schemat: Klasyczny (default — niebieski) */
+[data-kp-scheme="classic"], :root {
+  --kp-body-bg:#ffffff; --kp-primary:#2563eb; --kp-primary-rgb:37,99,235;
+  --kp-primary-hover:#1d4ed8; --kp-focus:#60a5fa; --kp-brand-gradient:linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%);
+}
+/* Schemat: Mieta (zielony) */
+[data-kp-scheme="mint"] {
+  --kp-body-bg:#f0fdf4; --kp-primary:#16a34a; --kp-primary-rgb:22,163,74;
+  --kp-primary-hover:#15803d; --kp-focus:#4ade80; --kp-brand-gradient:linear-gradient(150deg,#14532d 0%,#16a34a 50%,#0d9488 100%);
+}
+/* Schemat: Fioletowy */
+[data-kp-scheme="violet"] {
+  --kp-body-bg:#faf5ff; --kp-primary:#7c3aed; --kp-primary-rgb:124,58,237;
+  --kp-primary-hover:#6d28d9; --kp-focus:#c084fc; --kp-brand-gradient:linear-gradient(150deg,#3b0764 0%,#7c3aed 50%,#db2777 100%);
+}
+/* Schemat: Ciepły (brzoskwiniowy) */
+[data-kp-scheme="warm"] {
+  --kp-body-bg:#fffbeb; --kp-primary:#d97706; --kp-primary-rgb:217,119,6;
+  --kp-primary-hover:#b45309; --kp-focus:#fbbf24; --kp-brand-gradient:linear-gradient(150deg,#78350f 0%,#d97706 50%,#dc2626 100%);
+}
+/* Schemat: Grafitowy */
+[data-kp-scheme="slate"] {
+  --kp-body-bg:#f1f5f9; --kp-primary:#475569; --kp-primary-rgb:71,85,105;
+  --kp-primary-hover:#334155; --kp-focus:#94a3b8; --kp-brand-gradient:linear-gradient(150deg,#0f172a 0%,#475569 50%,#64748b 100%);
+}
+/* Aplikacja schematow do BS tokens */
+body { background-color:var(--kp-body-bg) !important; }
+:root, [data-kp-scheme] {
+  --bs-primary:var(--kp-primary); --bs-primary-rgb:var(--kp-primary-rgb);
+  --bs-link-color-rgb:var(--kp-primary-rgb);
+}
+.btn-primary {
+  --bs-btn-bg:var(--kp-primary); --bs-btn-border-color:var(--kp-primary);
+  --bs-btn-hover-bg:var(--kp-primary-hover); --bs-btn-hover-border-color:var(--kp-primary-hover);
+}
 body { min-height:100vh; }
 /* WCAG: widoczny, spójny focus dla klawiatury */
 a:focus-visible, button:focus-visible, .btn:focus-visible,
 .form-control:focus-visible, .nav-link:focus-visible, [tabindex]:focus-visible {
-  outline:3px solid #60a5fa; outline-offset:2px; box-shadow:none;
+  outline:3px solid var(--kp-focus,#60a5fa); outline-offset:2px; box-shadow:none;
 }
 /* WCAG 2.4.1: link „przejdź do treści" */
 .skip-link { position:absolute; left:.5rem; top:.5rem; z-index:1080; transform:translateY(-200%); transition:transform .15s ease; }
 .skip-link:focus { transform:translateY(0); }
-.kp-brand i { color:#60a5fa; }
+.kp-brand i { color:var(--kp-primary,#60a5fa); }
 .nav-tabs .nav-link.active { font-weight:600; }
 
 /* ── Ekran logowania (login.php / parent.php) ───────────────────────────── */
@@ -46,7 +83,7 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 .kp-auth-card { overflow:hidden; border-radius:1rem; }
 /* Panel marki (lewa kolumna) — dekoracyjny gradient + lista korzyści */
 .kp-auth-hero {
-  background:linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%);
+  background:var(--kp-brand-gradient,linear-gradient(150deg,#1e3a8a 0%,#2563eb 45%,#7c3aed 100%));
   color:#fff; position:relative;
 }
 .kp-auth-hero::after {
@@ -162,10 +199,18 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
       <i class="bi bi-circle-half" aria-hidden="true"></i><span>Wysoki kontrast</span>
     </button>
     <div class="mb-2">
-      <label class="form-label small fw-semibold mb-1" for="kp-a11y-bg-picker">Kolor tla</label>
-      <div class="d-flex gap-2 align-items-center">
-        <input type="color" id="kp-a11y-bg-picker" class="form-control form-control-color" value="#ffffff" style="width:3rem;height:2rem;padding:.15rem .25rem" title="Wybierz kolor tla">
-        <button type="button" class="btn btn-outline-secondary btn-sm flex-grow-1" id="kp-bg-reset-btn">Resetuj (bialy)</button>
+      <div class="form-label small fw-semibold mb-1">Schemat kolorow</div>
+      <div class="d-flex flex-wrap gap-1" role="group" aria-label="Wybierz schemat kolorow">
+        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="classic" title="Klasyczny (niebieski)"
+                style="background:#2563eb;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Klasyczny"></button>
+        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="mint" title="Mieta (zielony)"
+                style="background:#16a34a;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Mieta"></button>
+        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="violet" title="Fioletowy"
+                style="background:#7c3aed;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Fioletowy"></button>
+        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="warm" title="Ciepły (brzoskwiniowy)"
+                style="background:#d97706;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Ciepły"></button>
+        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="slate" title="Grafitowy"
+                style="background:#475569;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Grafitowy"></button>
       </div>
     </div>
     <button type="button" class="btn btn-outline-secondary w-100 d-flex align-items-center gap-2" id="kp-hidemenu-btn" aria-pressed="false">
@@ -194,10 +239,9 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
         <span><?= h($KP_TOPBAR['brand'] ?? $KP_ORG) ?></span>
       </span>
       <div class="d-flex align-items-center gap-3">
-        <button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm" aria-label="Zmień kolor tła" title="Kolor tła">
+        <button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm" aria-label="Zmien schemat kolorow" title="Schemat kolorow">
           <i class="bi bi-palette" aria-hidden="true"></i>
         </button>
-        <input type="color" id="kp-bg-color-input" class="visually-hidden" aria-label="Wybierz kolor tła" value="#ffffff">
         <?php if (!empty($KP_TOPBAR['user'])): ?>
         <span class="text-body-secondary small d-flex align-items-center gap-1">
           <i class="bi bi-person-circle" aria-hidden="true"></i><?= h($KP_TOPBAR['user']) ?>
@@ -213,8 +257,7 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
   </nav>
 </header>
 <?php else: ?>
-<button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm position-fixed top-0 end-0 m-3" style="z-index:1080" aria-label="Zmień kolor tła" title="Kolor tła">
+<button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm position-fixed top-0 end-0 m-3" style="z-index:1080" aria-label="Zmien schemat kolorow" title="Schemat kolorow">
   <i class="bi bi-palette" aria-hidden="true"></i>
 </button>
-<input type="color" id="kp-bg-color-input" class="visually-hidden" aria-label="Wybierz kolor tła" value="#ffffff">
 <?php endif; ?>

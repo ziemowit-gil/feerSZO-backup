@@ -1,43 +1,44 @@
 <?php /** Wspólna stopka panelu kursanta/rodzica. */ ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Picker koloru tla — przycisk w navbarze otwiera ukryty input[type=color].
+// Schematy kolorow — przyciski swatch w panelu dostepnosci + przycisk palety w navbarze.
 (function(){
-  function applyBg(color){
-    document.documentElement.style.setProperty('--kp-custom-bg', color || '');
-    // sync oba pickery
-    var p1 = document.getElementById('kp-bg-color-input');
-    var p2 = document.getElementById('kp-a11y-bg-picker');
-    if (p1 && color) p1.value = color;
-    if (p2 && color) p2.value = color;
-    try { color ? localStorage.setItem('kp-bg-color', color) : localStorage.removeItem('kp-bg-color'); } catch(e){}
-  }
-  // Inicjalizacja — odczyt z localStorage (moze byc null)
-  var saved = null; try { saved = localStorage.getItem('kp-bg-color'); } catch(e){}
-  if (saved) applyBg(saved);
-  else {
-    var p2 = document.getElementById('kp-a11y-bg-picker');
-    if (p2) p2.value = '#ffffff';
+  var SCHEMES = ['classic','mint','violet','warm','slate'];
+
+  function applyScheme(s){
+    if (!s || !SCHEMES.includes(s)) s = 'classic';
+    document.documentElement.setAttribute('data-kp-scheme', s);
+    try { localStorage.setItem('kp-scheme', s); } catch(e){}
+    // Zaktualizuj obramowanie aktywnego swatch
+    document.querySelectorAll('.kp-scheme-btn').forEach(function(b){
+      b.style.outline = b.dataset.scheme === s ? '3px solid #000' : 'none';
+      b.style.outlineOffset = '2px';
+      b.setAttribute('aria-pressed', b.dataset.scheme === s ? 'true' : 'false');
+    });
   }
 
-  // Przycisk palette w navbarze/fixed — otwiera ukryty input
+  // Inicjalizacja
+  var saved = null; try { saved = localStorage.getItem('kp-scheme'); } catch(e){}
+  applyScheme(saved || 'classic');
+
+  // Klik swatch w panelu a11y
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('.kp-scheme-btn');
+    if (btn) applyScheme(btn.dataset.scheme);
+  });
+
+  // Klik przycisku palety w navbarze/fixed — otwiera panel a11y
   document.addEventListener('click', function(e){
     var btn = e.target.closest('#kp-bg-pick-btn');
     if (!btn) return;
-    var inp = document.getElementById('kp-bg-color-input');
-    if (inp) inp.click();
-  });
-  // Ukryty input (navbar/fixed)
-  document.addEventListener('input', function(e){
-    if (e.target.id === 'kp-bg-color-input') applyBg(e.target.value);
-  });
-  // Picker w panelu a11y
-  document.addEventListener('input', function(e){
-    if (e.target.id === 'kp-a11y-bg-picker') applyBg(e.target.value);
-  });
-  // Reset
-  document.addEventListener('click', function(e){
-    if (e.target.closest('#kp-bg-reset-btn')) applyBg(null);
+    var panel = document.getElementById('kp-a11y-panel');
+    var toggle = document.getElementById('kp-a11y-toggle');
+    if (panel && panel.hidden) {
+      panel.hidden = false;
+      if (toggle) toggle.setAttribute('aria-expanded','true');
+      var first = panel.querySelector('.kp-scheme-btn');
+      if (first) first.focus();
+    }
   });
 })();
 </script>
