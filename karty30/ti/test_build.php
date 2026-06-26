@@ -46,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         k30_ti_test_question_save([
             'test_id' => $test_id, 'type' => $type, 'prompt' => $prompt,
             'points'  => $_POST['points'] ?? 1, 'options' => $options,
+            'in_bank' => !empty($_POST['in_bank']) ? 1 : 0,
         ], $qid ?: null);
         flash_set('success', $qid ? 'Pytanie zaktualizowane.' : 'Pytanie dodane.');
         header('Location: test_build.php?test='.$test_id); exit;
@@ -72,6 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: test_build.php?test='.$test_id.'#q-'.$qid); exit;
     }
 
+    if ($op === 'set_bank_draw') {
+        $draw = max(0, (int)($_POST['bank_draw'] ?? 0));
+        db_update('k30_ti_tests', ['bank_draw' => $draw], 'id=?', [$test_id]);
+        flash_set('success', 'Ustawienie bazy pytań zapisane.');
+        header('Location: test_build.php?test='.$test_id.'#bank'); exit;
+    }
+
     if ($op === 'grade_open') {
         $att_id = (int)($_POST['attempt_id'] ?? 0);
         $pts    = (array)($_POST['points'] ?? []);
@@ -81,6 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $questions = k30_ti_test_questions($test_id);
+$fixed_qs  = k30_ti_test_fixed_questions($test_id);
+$bank_qs   = k30_ti_test_bank_questions($test_id);
+$bank_draw = (int)($test['bank_draw'] ?? 0);
 $max_score = k30_ti_test_max_score($test_id);
 
 // Edycja pytania
@@ -88,7 +99,7 @@ $q_id  = (int)($_GET['q'] ?? 0);
 $q_row = $q_id ? k30_ti_test_question_get($q_id) : null;
 if ($q_row && (int)$q_row['test_id'] !== $test_id) $q_row = null;
 $q_opts = $q_row ? k30_ti_test_options($q_id) : [];
-$qf = $q_row ?: ['id'=>0,'type'=>'single','prompt'=>'','points'=>1];
+$qf = $q_row ?: ['id'=>0,'type'=>'single','prompt'=>'','points'=>1,'in_bank'=>0];
 
 // Podejścia czekające na ocenę pytań otwartych
 $attempts = k30_ti_test_attempts_for_test($test_id);
@@ -107,7 +118,7 @@ $QT = K30_TI_QUESTION_TYPES;
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h4 class="mb-0 fw-bold"><i class="bi bi-card-checklist text-primary me-2"></i><?= h($test['title']) ?></h4>
-  <span class="badge bg-secondary"><?= count($questions) ?> pytań · <?= rtrim(rtrim(number_format($max_score,2,'.',''),'0'),'.') ?: '0' ?> pkt</span>
+  <span class="badge bg-secondary"><?= count($fixed_qs) ?> stałych + <?= count($bank_qs) ?> w bazie · <?= rtrim(rtrim(number_format($max_score,2,'.',''),'0'),'.') ?: '0' ?> pkt</span>
   <a href="tests.php?course=<?= $course_id ?>" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-arrow-left me-1"></i>Lista testów</a>
   <a href="test_import_moodle.php?test=<?= $test_id ?>" class="btn btn-outline-secondary btn-sm" title="Importuj pytania z pliku Moodle XML"><i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Import Moodle XML</a>
 </div>
@@ -118,13 +129,13 @@ $QT = K30_TI_QUESTION_TYPES;
 <div class="row g-4">
   <!-- LISTA pytań (master) -->
   <div class="col-lg-7">
+    <!-- Pytania stałe -->
     <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold"><i class="bi bi-list-ol me-2" aria-hidden="true"></i>Pytania</div>
+      <div class="card-header fw-semibold"><i class="bi bi-list-ol me-2" aria-hidden="true"></i>Pytania stałe</div>
       <ol class="list-group list-group-numbered list-group-flush">
-        <?php if (!$questions): ?><li class="list-group-item text-muted">Brak pytań. Dodaj pierwsze po prawej.</li><?php endif; ?>
-        <?php foreach ($questions as $idx => $q):
+        <?php if (!$fixed_qs): ?><li class="list-group-item text-muted">Brak pytań stałych.</li><?php endif; ?>
+        <?php foreach ($fixed_qs as $idx => $q):
           $opts = $q['type'] !== 'open' ? k30_ti_test_options((int)$q['id']) : [];
-          $n_ok = count(array_filter($opts, fn($o)=>(int)$o['is_correct']));
         ?>
         <li class="list-group-item" id="q-<?= (int)$q['id'] ?>">
           <div class="d-flex justify-content-between align-items-start gap-2">
@@ -147,7 +158,7 @@ $QT = K30_TI_QUESTION_TYPES;
                 <input type="hidden" name="test_id" value="<?= $test_id ?>">
                 <input type="hidden" name="question_id" value="<?= (int)$q['id'] ?>">
                 <button name="dir" value="up" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Wyżej" aria-label="Przesuń pytanie wyżej" <?= $idx===0?'disabled':'' ?>><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
-                <button name="dir" value="down" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Niżej" aria-label="Przesuń pytanie niżej" <?= $idx===count($questions)-1?'disabled':'' ?>><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                <button name="dir" value="down" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Niżej" aria-label="Przesuń pytanie niżej" <?= $idx===count($fixed_qs)-1?'disabled':'' ?>><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
               </form>
               <a href="?test=<?= $test_id ?>&q=<?= (int)$q['id'] ?>#q-form" class="btn btn-sm btn-outline-primary py-0 px-2" title="Edytuj" aria-label="Edytuj pytanie"><i class="bi bi-pencil" aria-hidden="true"></i></a>
               <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pytanie?')">
@@ -162,6 +173,60 @@ $QT = K30_TI_QUESTION_TYPES;
         </li>
         <?php endforeach; ?>
       </ol>
+    </div>
+
+    <!-- Baza pytań (pula do losowania) -->
+    <div class="card border-0 shadow-sm mt-4" id="bank">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-collection me-1" aria-hidden="true"></i>Baza pytań (pula do losowania)
+        <?php if ($bank_qs): ?><span class="badge bg-info text-dark"><?= count($bank_qs) ?> w puli</span><?php endif; ?>
+        <?php if ($bank_draw > 0): ?><span class="badge bg-primary">losuj <?= $bank_draw ?></span><?php endif; ?>
+      </div>
+      <ol class="list-group list-group-numbered list-group-flush">
+        <?php if (!$bank_qs): ?><li class="list-group-item text-muted">Brak pytań w bazie. Dodaj po prawej zaznaczając „Baza pytań".</li><?php endif; ?>
+        <?php foreach ($bank_qs as $idx => $q):
+          $opts = $q['type'] !== 'open' ? k30_ti_test_options((int)$q['id']) : [];
+        ?>
+        <li class="list-group-item" id="q-<?= (int)$q['id'] ?>">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div>
+              <span class="badge bg-info text-dark border me-1" title="Pytanie z bazy"><i class="bi bi-collection" aria-hidden="true"></i></span>
+              <span class="badge bg-light text-dark border me-1"><?= h($QT[$q['type']] ?? $q['type']) ?></span>
+              <span class="badge bg-light text-dark border me-1"><?= rtrim(rtrim(number_format((float)$q['points'],2,'.',''),'0'),'.') ?> pkt</span>
+              <span class="fw-semibold"><?= h($q['prompt']) ?></span>
+              <?php if ($q['type'] !== 'open'): ?>
+              <ul class="small text-muted mb-0 mt-1">
+                <?php foreach ($opts as $o): ?>
+                <li><?= !empty($o['is_correct']) ? '<i class="bi bi-check-circle-fill text-success" aria-label="poprawna"></i> ' : '' ?><?= h($o['label']) ?></li>
+                <?php endforeach; ?>
+              </ul>
+              <?php else: ?><div class="small text-muted mt-1"><i class="bi bi-pencil" aria-hidden="true"></i> ocena ręczna</div><?php endif; ?>
+            </div>
+            <div class="text-nowrap flex-shrink-0">
+              <a href="?test=<?= $test_id ?>&q=<?= (int)$q['id'] ?>#q-form" class="btn btn-sm btn-outline-primary py-0 px-2" title="Edytuj" aria-label="Edytuj pytanie"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pytanie z bazy?')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="delete_question">
+                <input type="hidden" name="test_id" value="<?= $test_id ?>">
+                <input type="hidden" name="question_id" value="<?= (int)$q['id'] ?>">
+                <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń" aria-label="Usuń pytanie z bazy"><i class="bi bi-trash" aria-hidden="true"></i></button>
+              </form>
+            </div>
+          </div>
+        </li>
+        <?php endforeach; ?>
+      </ol>
+      <div class="card-footer">
+        <form method="post" class="d-flex align-items-center gap-2 flex-wrap">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op" value="set_bank_draw">
+          <input type="hidden" name="test_id" value="<?= $test_id ?>">
+          <label class="form-label mb-0 fw-semibold" for="bank-draw-inp">Losuj pytań z bazy:</label>
+          <input type="number" class="form-control form-control-sm" id="bank-draw-inp" name="bank_draw" min="0" max="9999" step="1" value="<?= $bank_draw ?>" style="width:7rem">
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+          <span class="text-muted small">(0 = losowanie wyłączone, pytania stałe zawsze widoczne)</span>
+        </form>
+      </div>
     </div>
 
     <!-- Przegląd / ocena odpowiedzi otwartych -->
@@ -226,6 +291,12 @@ $QT = K30_TI_QUESTION_TYPES;
           <div class="mb-2">
             <label class="form-label" for="q-points">Punkty</label>
             <input type="number" class="form-control" id="q-points" name="points" min="0" max="100" step="0.5" value="<?= rtrim(rtrim(number_format((float)$qf['points'],2,'.',''),'0'),'.') ?: '1' ?>" style="width:7rem">
+          </div>
+          <div class="mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="q-in-bank" name="in_bank" value="1" <?= !empty($qf['in_bank']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="q-in-bank">Baza pytań <span class="text-muted small">(losowane przy podejściu)</span></label>
+            </div>
           </div>
           <div id="opts-wrap" class="mb-2">
             <label class="form-label fw-semibold">Warianty odpowiedzi <span class="form-text">(zaznacz poprawne)</span></label>

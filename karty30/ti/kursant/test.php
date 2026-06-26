@@ -23,12 +23,24 @@ if (!$test || empty($test['is_active']) || !in_array((int)$test['course_id'], $e
     header('Location: index.php?tab=testy&err=unavailable'); exit;
 }
 
-$questions = k30_ti_test_questions($test_id);
+$done    = isset($_GET['done']);
+$started = isset($_GET['started']);
+$mode    = in_array($_GET['mode'] ?? '', ['all', 'paged'], true) ? $_GET['mode'] : 'all';
+
+// Szybkie dane o bazie pytań (do ekranu startowego)
+$fixed_count = count(k30_ti_test_fixed_questions($test_id));
+$bank_count  = count(k30_ti_test_bank_questions($test_id));
+$bank_draw_n = (int)($test['bank_draw'] ?? 0);
+$est_q       = $bank_draw_n > 0 && $bank_count > 0
+    ? $fixed_count + min($bank_draw_n, $bank_count)
+    : ($fixed_count + $bank_count); // gdy brak losowania: wszystkie
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
+    $attempt_id  = k30_ti_test_start_attempt($test_id, (int)$student['client_id']);
+    $attempt_row = k30_ti_test_attempt_get($attempt_id);
+    $questions   = $attempt_row ? k30_ti_test_questions_for_attempt($attempt_row) : [];
     if ($questions) {
-        $attempt = k30_ti_test_start_attempt($test_id, (int)$student['client_id']);
         $answers = [];
         foreach ($questions as $q) {
             $qid = (int)$q['id'];
@@ -39,22 +51,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $answers[$qid] = ['option_ids' => is_array($v) ? $v : [$v]];
             }
         }
-        k30_ti_test_submit($attempt, $answers);
+        k30_ti_test_submit($attempt_id, $answers);
     }
     header('Location: test.php?test='.$test_id.'&done=1'); exit;
 }
-
-$done    = isset($_GET['done']);
-$started = isset($_GET['started']);
-$mode    = in_array($_GET['mode'] ?? '', ['all', 'paged'], true) ? $_GET['mode'] : 'all';
 
 $last = null;
 if ($done) {
     $last = db_one("SELECT * FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status IN ('submitted','graded') ORDER BY id DESC LIMIT 1", [$test_id, (int)$student['client_id']]);
 }
 
-// Kolejność pytań (opcjonalnie losowa) — tylko po wyborze trybu
-if (!empty($test['shuffle']) && !$done && $started) shuffle($questions);
+// Pobierz pytania dla wyświetlenia testu
+if ($started && !$done) {
+    // Jeśli jest trwające podejście — użyj jego drawn_ids
+    $open_att = db_one("SELECT * FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status='in_progress' ORDER BY id DESC LIMIT 1", [$test_id, (int)$student['client_id']]);
+    if ($open_att) {
+        $questions = k30_ti_test_questions_for_attempt($open_att);
+    } else {
+        // Nowe podejście zostanie otwarte przy submicie; pokaż pytania domyślnie
+        $questions = k30_ti_test_questions($test_id);
+    }
+    // Kolejność pytań (opcjonalnie losowa) — tylko gdy brak drawn_ids
+    if (!empty($test['shuffle']) && (!$open_att || empty($open_att['drawn_ids']))) shuffle($questions);
+} else {
+    $questions = k30_ti_test_questions($test_id);
+}
 
 $tok       = student_token();
 $org       = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
@@ -74,7 +95,7 @@ include __DIR__ . '/_layout_head.php';
     <div class="card-body py-4 px-4">
       <h1 class="h5 fw-bold mb-1"><?= h($test['title']) ?></h1>
       <p class="text-body-secondary small mb-3">
-        <?= count($questions) ?> pytań<?php if ((int)$test['time_limit_min']>0): ?> · <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
+        <?= $est_q ?> pytań<?php if ($bank_draw_n > 0 && $bank_count > 0): ?> <span class="text-info">(losowane z bazy)</span><?php endif; ?><?php if ((int)$test['time_limit_min']>0): ?> · <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
       </p>
       <?php if (trim((string)$test['description']) !== ''): ?>
       <div class="alert alert-info py-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= nl2br(h($test['description'])) ?></div>
