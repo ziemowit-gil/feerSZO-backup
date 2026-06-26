@@ -11,7 +11,7 @@ $KP_TITLE      = $KP_TITLE      ?? 'Panel kursanta';
 $KP_TOPBAR     = $KP_TOPBAR     ?? null;
 $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 ?><!DOCTYPE html>
-<html lang="pl" data-bs-theme="dark">
+<html lang="pl" data-bs-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
