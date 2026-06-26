@@ -557,18 +557,19 @@ include __DIR__ . '/_layout_head.php';
       </ul>
     </li>
 
-    <!-- Pomoc -->
-    <li class="nav-item dropdown">
-      <a class="nav-link dropdown-toggle <?= $pomoc_active?'active':'' ?>" href="#" role="button"
-         data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-life-preserver me-1" aria-hidden="true"></i>Pomoc
+    <!-- Pomoc / zgłoszenie problemu -->
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
+        <i class="bi bi-life-preserver me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Pomoc</span>
       </a>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
-          <i class="bi bi-wrench-adjustable me-2" aria-hidden="true"></i>Zgłoś problem techniczny</a></li>
-        <li><a class="dropdown-item <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
-          <i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia</a></li>
-      </ul>
+    </li>
+
+    <!-- Ustawienia — bezpośrednio w nawigacji -->
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>
+         title="Ustawienia" aria-label="Ustawienia">
+        <i class="bi bi-gear<?= $tab==='ustawienia'?'-fill':'' ?> me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Ustawienia</span>
+      </a>
     </li>
 
     <li class="nav-item">
@@ -2091,280 +2092,315 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </section>
 
+<?php
+  // Ustawienia — zmienne pomocnicze
+  $cur_alias  = (string)($account['login_alias'] ?? '');
+  $alias_msg  = (string)($_GET['alias']    ?? '');
+  $alias_err  = rawurldecode((string)($_GET['aliaserr'] ?? ''));
+  $ust_flash  = '';
+  if (($_GET['sms']    ?? '') === 'on')    $ust_flash = 'Wlaczono powiadomienia SMS o zajeciach.';
+  if (($_GET['sms']    ?? '') === 'off')   $ust_flash = 'Wylaczono powiadomienia SMS o zajeciach.';
+  if (($_GET['prefs']  ?? '') === '1')     $ust_flash = 'Ustawienia powiadomien zapisane.';
+  if (($_GET['dyd']    ?? '') === '1')     $ust_flash = 'Ustawienia powiadomien o dydaktyce zapisane.';
+  if (($_GET['cal']    ?? '') === 'reset') $ust_flash = 'Adres kalendarza zmieniony — zaktualizuj subskrypcje.';
+  if (($_GET['pwok']   ?? '') === '1')     $ust_flash = 'Haslo zostalo zmienione.';
+  if (($_GET['phones'] ?? '') === '1')     $ust_flash = 'Numery do powiadomien SMS zapisane.';
+  if ($alias_msg === 'ok')                 $ust_flash = 'Alias logowania zapisany.';
+  if ($alias_msg === 'removed')            $ust_flash = 'Alias logowania usuniety.';
+  $pwerr = rawurldecode((string)($_GET['pwerr'] ?? ''));
+?>
 <?php elseif ($tab === 'ustawienia'): ?>
 
-  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
-    <i class="bi bi-gear text-primary" aria-hidden="true"></i>Ustawienia i preferencje
-  </h1>
-  <p class="text-body-secondary small mb-3">Powiadomienia oraz synchronizacja lekcji z Twoim kalendarzem.</p>
+<?php if ($ust_flash !== ''): ?>
+<div class="alert alert-success alert-dismissible d-flex gap-2 align-items-center py-2 mb-3" role="alert">
+  <i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i>
+  <span><?= h($ust_flash) ?></span>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+</div>
+<?php endif; ?>
+<?php if ($pwerr !== ''): ?>
+<div class="alert alert-danger alert-dismissible d-flex gap-2 align-items-center py-2 mb-3" role="alert">
+  <i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i>
+  <span><?= h($pwerr) ?></span>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+</div>
+<?php endif; ?>
 
-  <?php if (($_GET['sms'] ?? '') === 'on'): ?>
-  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Włączono powiadomienia SMS o zajęciach.</div>
-  <?php elseif (($_GET['sms'] ?? '') === 'off'): ?>
-  <div class="alert alert-secondary py-2 small" role="alert">Wyłączono powiadomienia SMS o zajęciach.</div>
-  <?php elseif (($_GET['prefs'] ?? '') === '1'): ?>
-  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Ustawienia powiadomień zapisane.</div>
-  <?php elseif (($_GET['cal'] ?? '') === 'reset'): ?>
-  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Adres kalendarza został zmieniony. Poprzedni link przestał działać — zaktualizuj subskrypcję w swoim kalendarzu.</div>
-  <?php elseif (($_GET['pwok'] ?? '') === '1'): ?>
-  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Hasło zostało zmienione.</div>
-  <?php elseif (($_GET['phones'] ?? '') === '1'): ?>
-  <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Numery do powiadomień SMS zapisane.</div>
-  <?php endif; ?>
-  <?php if (($_GET['pwerr'] ?? '') !== ''): ?>
-  <div class="alert alert-danger py-2 small" role="alert"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i><?= h((string)$_GET['pwerr']) ?></div>
-  <?php endif; ?>
+<div class="row g-0 ust-layout">
 
-  <div class="row g-4">
-    <!-- ── Powiadomienia o wiadomościach (e-mail / SMS) ──────────────────────── -->
-    <div class="col-12 col-lg-6">
-      <section class="card h-100" aria-labelledby="msg-prefs-h">
-        <div class="card-body">
-          <h2 id="msg-prefs-h" class="h6 fw-bold mb-2"><i class="bi bi-bell me-2 text-info" aria-hidden="true"></i>Powiadomienia o wiadomościach</h2>
-          <p class="text-body-secondary small mb-3">Wybierz, jak chcesz być informowany o nowych wiadomościach od prowadzącego.</p>
-          <form method="post" id="msgPrefsForm">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op" value="msg_prefs">
-            <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" role="switch" id="prefEmail" name="email" value="1"
-                     <?= $msg_pref_email ? 'checked' : '' ?> onchange="document.getElementById('msgPrefsForm').submit()">
-              <label class="form-check-label" for="prefEmail"><i class="bi bi-envelope me-1" aria-hidden="true"></i>E-mail</label>
-            </div>
-            <?php if ($msg_pref_email && $msg_email_addr === ''): ?>
-            <p class="text-warning small ms-4 mb-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak adresu e-mail w Twoich danych.</p>
-            <?php elseif ($msg_email_addr !== ''): ?>
-            <p class="text-body-secondary small ms-4 mb-2" style="margin-top:-4px"><?= h($msg_email_addr) ?></p>
+  <!-- lewa: nawigacja sekcji -->
+  <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
+    <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawien">
+      <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczenstwo</a>
+      <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
+      <a href="#ust-cal"    class="ust-navlink btn btn-sm text-start"><i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>Kalendarz</a>
+    </nav>
+  </div>
+
+  <!-- prawa: tresc -->
+  <div class="col-12 col-md-9 col-xl-10 d-flex flex-column gap-4">
+
+    <!-- 1. Bezpieczenstwo -->
+    <section id="ust-bezp" class="card" aria-labelledby="ust-bezp-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-shield-lock text-primary" aria-hidden="true"></i>
+        <h2 id="ust-bezp-h" class="h6 fw-bold mb-0">Bezpieczenstwo</h2>
+      </div>
+      <div class="card-body">
+        <div class="row g-4">
+          <!-- Alias -->
+          <div class="col-12 col-lg-6">
+            <h3 class="h6 fw-semibold mb-1"><i class="bi bi-person-badge me-2 text-secondary" aria-hidden="true"></i>Alias logowania</h3>
+            <p class="text-body-secondary small mb-2">Wlasna nazwa zamiast przydzielonego loginu. Unikalny, 3-30 znakow: a-z, cyfry, <code>.</code> <code>-</code> <code>_</code>.</p>
+            <?php if ($alias_err !== ''): ?>
+            <div class="alert alert-danger py-1 small mb-2"><i class="bi bi-exclamation-circle me-1"></i><?= h($alias_err) ?></div>
             <?php endif; ?>
-            <div class="form-check form-switch mb-1">
-              <input class="form-check-input" type="checkbox" role="switch" id="prefSms" name="sms" value="1"
-                     <?= $msg_pref_sms ? 'checked' : '' ?> <?= $sms_global_on ? '' : 'disabled' ?>
-                     onchange="document.getElementById('msgPrefsForm').submit()">
-              <label class="form-check-label" for="prefSms"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>SMS</label>
-            </div>
-            <?php if (!$sms_global_on): ?>
-            <p class="text-body-secondary small ms-4 mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.</p>
-            <?php elseif ($sms_phone === ''): ?>
-            <p class="text-warning small ms-4 mb-0"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak numeru telefonu w Twoich danych.</p>
-            <?php else: ?>
-            <p class="text-body-secondary small ms-4 mb-0" style="margin-top:-2px"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
-            <?php endif; ?>
-          </form>
-        </div>
-      </section>
-    </div>
-
-    <!-- ── Powiadomienia o zmianach w dydaktyce / eLearningu ─────────────────── -->
-    <div class="col-12 col-lg-6">
-      <section class="card h-100" aria-labelledby="dyd-prefs-h">
-        <div class="card-body">
-          <h2 id="dyd-prefs-h" class="h6 fw-bold mb-2"><i class="bi bi-mortarboard me-2 text-info" aria-hidden="true"></i>Powiadomienia o materiałach i zadaniach</h2>
-          <p class="text-body-secondary small mb-3">Daj znać, jak chcesz być informowany o nowych lub zmienionych materiałach i zadaniach domowych.</p>
-          <form method="post" id="dydPrefsForm">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op" value="dyd_prefs">
-            <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" role="switch" id="dydEmail" name="email" value="1"
-                     <?= $dyd_pref_email ? 'checked' : '' ?> onchange="document.getElementById('dydPrefsForm').submit()">
-              <label class="form-check-label" for="dydEmail"><i class="bi bi-envelope me-1" aria-hidden="true"></i>E-mail</label>
-            </div>
-            <?php if ($dyd_pref_email && $msg_email_addr === ''): ?>
-            <p class="text-warning small ms-4 mb-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak adresu e-mail w Twoich danych.</p>
-            <?php elseif ($msg_email_addr !== ''): ?>
-            <p class="text-body-secondary small ms-4 mb-2" style="margin-top:-4px"><?= h($msg_email_addr) ?></p>
-            <?php endif; ?>
-            <div class="form-check form-switch mb-1">
-              <input class="form-check-input" type="checkbox" role="switch" id="dydSms" name="sms" value="1"
-                     <?= $dyd_pref_sms ? 'checked' : '' ?> <?= $sms_global_on ? '' : 'disabled' ?>
-                     onchange="document.getElementById('dydPrefsForm').submit()">
-              <label class="form-check-label" for="dydSms"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>SMS</label>
-            </div>
-            <?php if (!$sms_global_on): ?>
-            <p class="text-body-secondary small ms-4 mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.</p>
-            <?php endif; ?>
-          </form>
-        </div>
-      </section>
-    </div>
-
-    <!-- ── Powiadomienia SMS o zajęciach ─────────────────────────────────────── -->
-    <div class="col-12 col-lg-6">
-      <section class="card h-100" aria-labelledby="sms-heading">
-        <div class="card-body">
-          <h2 id="sms-heading" class="h6 fw-bold mb-2"><i class="bi bi-chat-dots text-info me-2" aria-hidden="true"></i>Powiadomienia SMS o zajęciach</h2>
-          <?php if (!$sms_global_on): ?>
-          <p class="text-body-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Powiadomienia SMS są obecnie niedostępne.</p>
-          <?php else: ?>
-          <p class="text-body-secondary small mb-2">Otrzymasz krótki SMS, gdy prowadzący doda Ci nowe zajęcia.</p>
-          <form method="post" id="smsPrefForm">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op"     value="toggle_sms_lessons">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="smsToggle" name="enabled" value="1"
-                     <?= $sms_pref ? 'checked' : '' ?>
-                     onchange="document.getElementById('smsPrefForm').submit()">
-              <label class="form-check-label" for="smsToggle">Chcę dostawać SMS o nowych zajęciach</label>
-            </div>
-          </form>
-            <?php if ($sms_phone === ''): ?>
-          <p class="text-warning small mb-0 mt-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Brak numeru telefonu w Twoich danych — SMS nie dotrą, dopóki administrator go nie uzupełni.</p>
-            <?php else: ?>
-          <p class="text-body-secondary small mb-0 mt-2"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
-            <?php endif; ?>
-          <?php endif; ?>
-        </div>
-      </section>
-    </div>
-
-    <!-- ── Alias logowania ───────────────────────────────────────────────────── -->
-    <div class="col-12 col-lg-6">
-      <section class="card h-100" aria-labelledby="alias-heading">
-        <div class="card-body">
-          <h2 id="alias-heading" class="h6 fw-bold mb-2"><i class="bi bi-person-badge me-2 text-info" aria-hidden="true"></i>Własny alias logowania</h2>
-          <p class="text-body-secondary small mb-3">
-            Możesz ustawić własną, łatwą do zapamiętania nazwę logowania (alias) — zamiast przydzielonego loginu systemowego.
-            Alias musi być unikalny (3–30 znaków: litery a–z, cyfry, kropki, myślniki, podkreślenia).
-          </p>
-          <?php
-            $cur_alias = (string)($account['login_alias'] ?? '');
-            $alias_msg = $_GET['alias'] ?? '';
-            $alias_err = rawurldecode((string)($_GET['aliaserr'] ?? ''));
-          ?>
-          <?php if ($alias_msg === 'ok'): ?>
-          <div class="alert alert-success py-2 small" role="alert"><i class="bi bi-check-circle me-1"></i>Alias logowania zapisany.</div>
-          <?php elseif ($alias_msg === 'removed'): ?>
-          <div class="alert alert-secondary py-2 small" role="alert">Alias logowania usunięty — logujesz się ponownie przydzielonym loginem.</div>
-          <?php endif; ?>
-          <?php if ($alias_err !== ''): ?>
-          <div class="alert alert-danger py-2 small" role="alert"><i class="bi bi-exclamation-circle me-1"></i><?= h($alias_err) ?></div>
-          <?php endif; ?>
-          <?php if ($cur_alias !== ''): ?>
-          <p class="small mb-2">
-            Aktywny alias: <code class="text-info fw-bold"><?= h($cur_alias) ?></code>
-          </p>
-          <?php endif; ?>
-          <form method="post" autocomplete="off">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op" value="set_alias">
-            <div class="mb-2">
-              <label class="form-label small" for="alias-input">Alias (pozostaw puste, by usunąć)</label>
-              <input type="text" class="form-control form-control-sm font-monospace" id="alias-input" name="alias"
-                     value="<?= h($cur_alias) ?>" maxlength="30" autocomplete="off"
-                     placeholder="np. jan.kowalski" pattern="[a-z0-9][a-z0-9._\-]{1,28}[a-z0-9]"
-                     aria-describedby="alias-hint">
-              <div class="form-text" id="alias-hint">Twój login systemowy: <code><?= h((string)($account['login'] ?? '')) ?></code> — nadal działa.</div>
-            </div>
-            <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz alias</button>
-          </form>
-        </div>
-      </section>
-    </div>
-
-    <!-- ── Zmiana hasła ──────────────────────────────────────────────────────── -->
-    <div class="col-12 col-lg-6">
-      <section class="card h-100" aria-labelledby="pw-heading">
-        <div class="card-body">
-          <h2 id="pw-heading" class="h6 fw-bold mb-2"><i class="bi bi-shield-lock me-2 text-info" aria-hidden="true"></i>Zmień hasło</h2>
-          <p class="text-body-secondary small mb-3">Ustaw własne hasło do panelu kursanta.</p>
-          <form method="post" autocomplete="off">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op" value="change_password">
-            <div class="mb-2">
-              <label class="form-label small" for="cps-cur">Aktualne hasło</label>
-              <input type="password" class="form-control form-control-sm" id="cps-cur" name="current" required autocomplete="current-password">
-            </div>
-            <div class="mb-2">
-              <label class="form-label small" for="cps-new">Nowe hasło</label>
-              <input type="password" class="form-control form-control-sm" id="cps-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znaków">
-            </div>
-            <div class="mb-2">
-              <label class="form-label small" for="cps-cnf">Powtórz nowe hasło</label>
-              <input type="password" class="form-control form-control-sm" id="cps-cnf" name="confirm" required minlength="8" autocomplete="new-password">
-            </div>
-            <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz hasło</button>
-          </form>
-        </div>
-      </section>
-    </div>
-
-    <!-- ── Dodatkowe numery do powiadomień SMS ───────────────────────────────── -->
-    <div class="col-12 col-lg-6">
-      <section class="card h-100" aria-labelledby="ph-heading">
-        <div class="card-body">
-          <h2 id="ph-heading" class="h6 fw-bold mb-2"><i class="bi bi-telephone-plus me-2 text-info" aria-hidden="true"></i>Dodatkowe numery do SMS</h2>
-          <p class="text-body-secondary small mb-3">Powiadomienia SMS (o zajęciach i wiadomościach) wyślemy też na te numery — np. do rodzica lub opiekuna.</p>
-          <?php if ($sms_phone !== ''): ?>
-          <p class="text-body-secondary small mb-2"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Numer główny: <?= h(preg_replace('/.(?=.{2})/u', '•', $sms_phone)) ?></p>
-          <?php endif; ?>
-          <form method="post">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op" value="notify_phones">
-            <div class="mb-2">
-              <label class="form-label small" for="ph2">Drugi numer</label>
-              <input type="tel" class="form-control form-control-sm" id="ph2" name="phone2" maxlength="30" value="<?= h((string)($account['notify_phone2'] ?? '')) ?>" placeholder="np. 600 700 800">
-            </div>
-            <div class="mb-2">
-              <label class="form-label small" for="ph3">Trzeci numer</label>
-              <input type="tel" class="form-control form-control-sm" id="ph3" name="phone3" maxlength="30" value="<?= h((string)($account['notify_phone3'] ?? '')) ?>" placeholder="np. 600 700 900">
-            </div>
-            <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz numery</button>
-            <?php if (!$sms_global_on): ?>
-            <p class="text-body-secondary small mb-0 mt-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Bramka SMS jest obecnie niedostępna.</p>
-            <?php endif; ?>
-          </form>
-        </div>
-      </section>
-    </div>
-
-    <!-- ── Synchronizacja z kalendarzem (Google / Apple / Outlook) ──────────── -->
-    <div class="col-12">
-      <section class="card" aria-labelledby="cal-heading">
-        <div class="card-body">
-          <h2 id="cal-heading" class="h6 fw-bold mb-2"><i class="bi bi-calendar-plus text-info me-2" aria-hidden="true"></i>Synchronizacja z kalendarzem</h2>
-          <p class="text-body-secondary small mb-3">Dodaj swoje lekcje do Kalendarza Google, Apple lub Outlook. Kalendarz odświeża się automatycznie, gdy prowadzący doda lub zmieni terminy.</p>
-
-          <div class="d-flex flex-wrap gap-2 mb-3">
-            <a href="<?= h($cal_gcal) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary"><i class="bi bi-google me-1" aria-hidden="true"></i>Dodaj do Google Calendar</a>
-            <a href="<?= h($cal_webcal) ?>" class="btn btn-sm btn-info"><i class="bi bi-apple me-1" aria-hidden="true"></i>Subskrybuj (Apple / Outlook)</a>
-            <a href="<?= h($cal_https) ?>" class="btn btn-sm btn-outline-secondary" download="lekcje.ics"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz plik .ics</a>
-          </div>
-
-          <label class="form-label small fw-semibold" for="cal-url">Adres kanału (do ręcznego dodania „z adresu URL")</label>
-          <div class="input-group input-group-sm mb-2">
-            <input type="text" class="form-control" id="cal-url" value="<?= h($cal_https) ?>" readonly aria-label="Adres kanału iCal" onclick="this.select()">
-            <button type="button" class="btn btn-outline-secondary" id="cal-copy"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
-          </div>
-
-          <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
-            <p class="text-body-secondary mb-0" style="font-size:.78rem"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Adres jest prywatny — nie udostępniaj go innym. Jeśli wyciekł, zresetuj go.</p>
-            <form method="post" class="m-0" onsubmit="return confirm('Zresetować adres kalendarza? Dotychczasowa subskrypcja przestanie działać i trzeba ją dodać ponownie.')">
+            <form method="post" autocomplete="off" class="d-flex flex-column gap-2">
               <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-              <input type="hidden" name="_op"     value="reset_calendar_token">
-              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Resetuj adres</button>
+              <input type="hidden" name="_op" value="set_alias">
+              <div>
+                <label class="form-label small mb-1" for="alias-input">Alias<?php if ($cur_alias !== ''): ?> — aktywny: <code class="text-info fw-bold"><?= h($cur_alias) ?></code><?php endif; ?></label>
+                <input type="text" class="form-control form-control-sm font-monospace" id="alias-input" name="alias"
+                       value="<?= h($cur_alias) ?>" maxlength="30" autocomplete="off"
+                       placeholder="np. jan.kowalski" pattern="[a-z0-9][a-z0-9._\-]{1,28}[a-z0-9]"
+                       aria-describedby="alias-hint">
+                <div class="form-text" id="alias-hint">Login systemowy <code><?= h((string)($account['login'] ?? '')) ?></code> zawsze dziala.</div>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz alias</button>
+                <?php if ($cur_alias !== ''): ?>
+                <button type="submit" form="alias-remove-form" class="btn btn-outline-secondary btn-sm">Usun alias</button>
+                <?php endif; ?>
+              </div>
+            </form>
+            <?php if ($cur_alias !== ''): ?>
+            <form method="post" id="alias-remove-form" class="d-none">
+              <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+              <input type="hidden" name="_op" value="set_alias">
+              <input type="hidden" name="alias" value="">
+            </form>
+            <?php endif; ?>
+          </div>
+          <!-- Haslo -->
+          <div class="col-12 col-lg-6">
+            <h3 class="h6 fw-semibold mb-1"><i class="bi bi-key me-2 text-secondary" aria-hidden="true"></i>Zmien haslo</h3>
+            <p class="text-body-secondary small mb-2">Ustaw wlasne haslo do panelu kursanta (min. 8 znakow).</p>
+            <form method="post" autocomplete="off" class="d-flex flex-column gap-2">
+              <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+              <input type="hidden" name="_op" value="change_password">
+              <div>
+                <label class="form-label small mb-1" for="cps-cur">Aktualne haslo</label>
+                <input type="password" class="form-control form-control-sm" id="cps-cur" name="current" required autocomplete="current-password">
+              </div>
+              <div>
+                <label class="form-label small mb-1" for="cps-new">Nowe haslo</label>
+                <input type="password" class="form-control form-control-sm" id="cps-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znakow">
+              </div>
+              <div>
+                <label class="form-label small mb-1" for="cps-cnf">Powtorz nowe haslo</label>
+                <input type="password" class="form-control form-control-sm" id="cps-cnf" name="confirm" required minlength="8" autocomplete="new-password">
+              </div>
+              <div>
+                <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz haslo</button>
+              </div>
             </form>
           </div>
         </div>
-      </section>
-    </div>
-  </div>
+      </div>
+    </section>
 
-  <script>
-  (function(){
-    var btn = document.getElementById('cal-copy');
-    var inp = document.getElementById('cal-url');
-    if (!btn || !inp) return;
+    <!-- 2. Powiadomienia -->
+    <section id="ust-notify" class="card" aria-labelledby="ust-notify-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-bell text-primary" aria-hidden="true"></i>
+        <h2 id="ust-notify-h" class="h6 fw-bold mb-0">Powiadomienia</h2>
+        <?php if (!$sms_global_on): ?><span class="badge text-bg-secondary ms-auto">SMS niedostepny</span><?php endif; ?>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive mb-3">
+          <table class="table table-sm align-middle mb-0" style="font-size:.875rem">
+            <thead>
+              <tr>
+                <th class="ps-0 fw-semibold border-bottom" style="width:55%">Zdarzenie</th>
+                <th class="text-center border-bottom"><i class="bi bi-envelope" aria-hidden="true"></i><span class="visually-hidden">E-mail</span><div class="small text-body-secondary fw-normal">E-mail</div></th>
+                <th class="text-center border-bottom"><i class="bi bi-chat-dots" aria-hidden="true"></i><span class="visually-hidden">SMS</span><div class="small text-body-secondary fw-normal">SMS</div></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="ps-0">
+                  Nowa wiadomosc od prowadzacego
+                  <?php if ($msg_email_addr !== ''): ?><div class="text-body-secondary" style="font-size:.78rem"><?= h($msg_email_addr) ?></div><?php endif; ?>
+                </td>
+                <td class="text-center">
+                  <form method="post" id="msgPrefsEmailForm" class="d-inline">
+                    <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                    <input type="hidden" name="_op" value="msg_prefs">
+                    <input type="hidden" name="sms" value="<?= $msg_pref_sms ? '1' : '0' ?>">
+                    <div class="form-check form-switch d-inline-flex m-0 justify-content-center">
+                      <input class="form-check-input" type="checkbox" role="switch" id="prefEmail" name="email" value="1"
+                             <?= $msg_pref_email ? 'checked' : '' ?> onchange="this.form.submit()"
+                             <?= ($msg_email_addr === '') ? 'disabled' : '' ?>>
+                      <label class="visually-hidden" for="prefEmail">E-mail: wiadomosci</label>
+                    </div>
+                  </form>
+                </td>
+                <td class="text-center">
+                  <form method="post" id="msgPrefsSmsForm" class="d-inline">
+                    <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                    <input type="hidden" name="_op" value="msg_prefs">
+                    <input type="hidden" name="email" value="<?= $msg_pref_email ? '1' : '0' ?>">
+                    <div class="form-check form-switch d-inline-flex m-0 justify-content-center">
+                      <input class="form-check-input" type="checkbox" role="switch" id="prefSms" name="sms" value="1"
+                             <?= $msg_pref_sms ? 'checked' : '' ?> <?= $sms_global_on ? '' : 'disabled' ?> onchange="this.form.submit()">
+                      <label class="visually-hidden" for="prefSms">SMS: wiadomosci</label>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+              <tr>
+                <td class="ps-0">Nowe zajecia dodane przez prowadzacego</td>
+                <td class="text-center text-body-secondary"><i class="bi bi-dash" aria-hidden="true"></i></td>
+                <td class="text-center">
+                  <form method="post" id="smsPrefForm" class="d-inline">
+                    <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                    <input type="hidden" name="_op" value="toggle_sms_lessons">
+                    <div class="form-check form-switch d-inline-flex m-0 justify-content-center">
+                      <input class="form-check-input" type="checkbox" role="switch" id="smsToggle" name="enabled" value="1"
+                             <?= $sms_pref ? 'checked' : '' ?> <?= $sms_global_on ? '' : 'disabled' ?> onchange="this.form.submit()">
+                      <label class="visually-hidden" for="smsToggle">SMS: nowe zajecia</label>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+              <tr>
+                <td class="ps-0">Nowe materialy lub zadania (dydaktyka)</td>
+                <td class="text-center">
+                  <form method="post" id="dydPrefsEmailForm" class="d-inline">
+                    <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                    <input type="hidden" name="_op" value="dyd_prefs">
+                    <input type="hidden" name="sms" value="<?= $dyd_pref_sms ? '1' : '0' ?>">
+                    <div class="form-check form-switch d-inline-flex m-0 justify-content-center">
+                      <input class="form-check-input" type="checkbox" role="switch" id="dydEmail" name="email" value="1"
+                             <?= $dyd_pref_email ? 'checked' : '' ?> onchange="this.form.submit()"
+                             <?= ($msg_email_addr === '') ? 'disabled' : '' ?>>
+                      <label class="visually-hidden" for="dydEmail">E-mail: dydaktyka</label>
+                    </div>
+                  </form>
+                </td>
+                <td class="text-center">
+                  <form method="post" id="dydPrefsSmsForm" class="d-inline">
+                    <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                    <input type="hidden" name="_op" value="dyd_prefs">
+                    <input type="hidden" name="email" value="<?= $dyd_pref_email ? '1' : '0' ?>">
+                    <div class="form-check form-switch d-inline-flex m-0 justify-content-center">
+                      <input class="form-check-input" type="checkbox" role="switch" id="dydSms" name="sms" value="1"
+                             <?= $dyd_pref_sms ? 'checked' : '' ?> <?= $sms_global_on ? '' : 'disabled' ?> onchange="this.form.submit()">
+                      <label class="visually-hidden" for="dydSms">SMS: dydaktyka</label>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <?php if ($sms_global_on): ?>
+        <div class="border-top pt-3">
+          <h3 class="h6 fw-semibold mb-1"><i class="bi bi-telephone-plus me-2 text-secondary" aria-hidden="true"></i>Dodatkowe numery do SMS</h3>
+          <?php if ($sms_phone !== ''): ?>
+          <p class="text-body-secondary small mb-2">Numer glowny: <span class="font-monospace"><?= h(preg_replace('/.(?=.{2})/u', 'x', $sms_phone)) ?></span></p>
+          <?php endif; ?>
+          <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="notify_phones">
+            <div class="col-sm-5">
+              <label class="form-label small mb-1" for="ph2">Drugi numer</label>
+              <input type="tel" class="form-control form-control-sm" id="ph2" name="phone2" maxlength="30" value="<?= h((string)($account['notify_phone2'] ?? '')) ?>" placeholder="np. 600 700 800">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label small mb-1" for="ph3">Trzeci numer</label>
+              <input type="tel" class="form-control form-control-sm" id="ph3" name="phone3" maxlength="30" value="<?= h((string)($account['notify_phone3'] ?? '')) ?>" placeholder="np. 600 700 900">
+            </div>
+            <div class="col-sm-2">
+              <button class="btn btn-primary btn-sm w-100"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+            </div>
+          </form>
+        </div>
+        <?php endif; ?>
+      </div>
+    </section>
+
+    <!-- 3. Kalendarz -->
+    <section id="ust-cal" class="card" aria-labelledby="ust-cal-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-calendar-plus text-primary" aria-hidden="true"></i>
+        <h2 id="ust-cal-h" class="h6 fw-bold mb-0">Synchronizacja z kalendarzem</h2>
+      </div>
+      <div class="card-body">
+        <p class="text-body-secondary small mb-3">Dodaj lekcje do Kalendarza Google, Apple lub Outlook. Odswiezasie automatycznie po kazdej zmianie.</p>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <a href="<?= h($cal_gcal) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary"><i class="bi bi-google me-1" aria-hidden="true"></i>Google Calendar</a>
+          <a href="<?= h($cal_webcal) ?>" class="btn btn-sm btn-info"><i class="bi bi-apple me-1" aria-hidden="true"></i>Apple / Outlook</a>
+          <a href="<?= h($cal_https) ?>" class="btn btn-sm btn-outline-secondary" download="lekcje.ics"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz .ics</a>
+        </div>
+        <label class="form-label small fw-semibold mb-1" for="cal-url">Adres kanalu</label>
+        <div class="input-group input-group-sm mb-3">
+          <input type="text" class="form-control font-monospace" id="cal-url" value="<?= h($cal_https) ?>"
+                 readonly aria-label="Adres kanalu iCal" onclick="this.select()" style="font-size:.8rem">
+          <button type="button" class="btn btn-outline-secondary" id="cal-copy"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <p class="text-body-secondary mb-0 small flex-grow-1"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Adres jest prywatny. Jesli wyciekl, zresetuj go.</p>
+          <form method="post" class="m-0 flex-shrink-0" onsubmit="return confirm('Zresetowac adres kalendarza?')">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="reset_calendar_token">
+            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Resetuj adres</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<style>
+.ust-sidenav { flex-wrap:wrap; }
+.ust-navlink { color:var(--bs-body-color); border:0; border-radius:.375rem; padding:.35rem .65rem; text-decoration:none; transition:background .12s; }
+.ust-navlink:hover { background:var(--bs-tertiary-bg); color:var(--bs-body-color); }
+.ust-navlink.active { background:var(--bs-secondary-bg); font-weight:600; }
+@media (min-width:768px) {
+  .ust-sidenav { position:sticky; top:1rem; }
+  .ust-navlink { width:100%; }
+}
+</style>
+<script>
+(function(){
+  var btn = document.getElementById('cal-copy');
+  var inp = document.getElementById('cal-url');
+  if (btn && inp) {
     btn.addEventListener('click', function(){
       inp.select();
+      var orig = btn.innerHTML;
       var done = function(){
-        var html = btn.innerHTML;
         btn.innerHTML = '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Skopiowano';
-        setTimeout(function(){ btn.innerHTML = html; }, 1500);
+        setTimeout(function(){ btn.innerHTML = orig; }, 1500);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(inp.value).then(done, function(){ try { document.execCommand('copy'); done(); } catch(e){} });
       } else { try { document.execCommand('copy'); done(); } catch(e){} }
     });
-  })();
-  </script>
+  }
+  var links = document.querySelectorAll('.ust-navlink');
+  var targets = Array.prototype.map.call(links, function(l){ return document.querySelector(l.getAttribute('href')); });
+  function setActive(){
+    var cur = 0;
+    targets.forEach(function(t,i){ if (t && t.getBoundingClientRect().top <= 120) cur = i; });
+    links.forEach(function(l,i){ l.classList.toggle('active', i === cur); });
+  }
+  setActive();
+  window.addEventListener('scroll', setActive, { passive:true });
+})();
+</script>
 
 <?php elseif ($tab === 'licencje'): ?>
 
