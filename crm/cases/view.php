@@ -777,44 +777,80 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
       <?php if ($can_write): ?>
       <div id="drop-zone-wrap" class="<?= $files ? 'mt-3 pt-3 border-top' : 'mt-2' ?>">
-        <!-- Strefa drag & drop -->
+
+        <!-- Ukryty prawdziwy input file — dostępny klawiaturowo przez label -->
+        <label for="drop-file-input" class="visually-hidden">Wybierz pliki do przesłania</label>
+        <input type="file" id="drop-file-input" multiple
+               accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip"
+               style="clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;overflow:hidden;
+                      position:absolute;white-space:nowrap;width:1px">
+
+        <!-- Strefa drag & drop — dekoracyjna, aktywuje input -->
         <div id="drop-zone"
-             role="button" tabindex="0" aria-label="Strefa przeciągania plików. Naciśnij Enter lub spację, aby wybrać plik."
-             style="border:2px dashed #c7d2dc;border-radius:10px;padding:1.6rem 1rem;
+             role="presentation"
+             aria-hidden="true"
+             style="border:2px dashed #6b7280;border-radius:10px;padding:1.6rem 1rem;
                     text-align:center;cursor:pointer;transition:border-color .18s,background .18s;
-                    background:#f8fafc;color:#64748b;font-size:.88rem">
-          <i class="bi bi-cloud-arrow-up" style="font-size:2rem;display:block;margin-bottom:.4rem;color:#94a3b8"></i>
-          <span id="drop-label">Przeciągnij i upuść pliki tutaj lub <u>kliknij, aby wybrać</u></span>
-          <div style="font-size:.72rem;margin-top:.25rem;color:#94a3b8">
+                    background:#f8fafc;color:#374151;font-size:.88rem">
+          <i class="bi bi-cloud-arrow-up" style="font-size:2rem;display:block;margin-bottom:.4rem;color:#4b5563" aria-hidden="true"></i>
+          <span>Przeciągnij i upuść pliki tutaj lub</span>
+          <span style="text-decoration:underline;text-underline-offset:2px;font-weight:600"> kliknij, aby wybrać</span>
+          <div id="drop-formats" style="font-size:.78rem;margin-top:.3rem;color:#4b5563">
             PDF, DOCX, XLSX, CSV, TXT, JPG, PNG, GIF, ZIP
           </div>
-          <input type="file" id="drop-file-input" multiple
-                 accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip"
-                 style="position:absolute;inset:0;opacity:0;cursor:pointer;pointer-events:none"
-                 tabindex="-1">
         </div>
 
-        <!-- Kolejka uploadu -->
-        <ul id="upload-queue" style="list-style:none;padding:0;margin:.5rem 0 0" aria-live="polite" aria-label="Kolejka plików"></ul>
+        <!-- Przycisk klawiaturowy jako alternatywa dla strefy -->
+        <div class="mt-2">
+          <button type="button" id="drop-btn-choose"
+                  class="btn btn-outline-secondary btn-sm"
+                  aria-describedby="drop-formats">
+            <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Wybierz pliki…
+          </button>
+        </div>
 
-        <!-- Lista plików (renderowana przez JS przy upload) -->
-        <ul id="files-list" style="list-style:none;padding:0;margin:0"></ul>
+        <!-- Kolejka uploadu — ogłoszenia dla czytników ekranu -->
+        <ul id="upload-queue"
+            style="list-style:none;padding:0;margin:.5rem 0 0"
+            aria-live="polite"
+            aria-relevant="additions removals"
+            aria-label="Kolejka przesyłanych plików"></ul>
+
+        <!-- Status ogłoszenia (tylko czytniki) -->
+        <div id="upload-announce" class="visually-hidden" aria-live="assertive" aria-atomic="true"></div>
+
       </div>
 
       <style>
-        #drop-zone.drag-over{border-color:#2563eb;background:#eff6ff}
-        .upload-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;
-          border:1px solid #e5e7eb;border-radius:8px;margin-top:.4rem;font-size:.84rem;background:#fff}
-        .upload-item .ui-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .upload-item .ui-bar-wrap{flex:1;min-width:0}
-        .upload-item .ui-bar{height:5px;background:#2563eb;border-radius:3px;transition:width .15s;width:0}
-        .upload-item .ui-pct{font-size:.7rem;color:#64748b;min-width:2.5rem;text-align:right}
-        .upload-item .ui-icon{width:28px;height:28px;border-radius:6px;background:#eff6ff;
-          color:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.95rem}
-        .upload-item.done .ui-bar{background:#16a34a}
-        .upload-item.error .ui-bar{background:#dc2626}
-        .file-row-new{animation:fdIn .3s ease}
-        @keyframes fdIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+        #drop-zone:focus-within,
+        #drop-zone.drag-over   { border-color:#1d4ed8; background:#eff6ff; outline:none }
+        #drop-zone:focus-within { outline:3px solid #1d4ed8; outline-offset:2px }
+
+        .upload-item { display:flex;align-items:flex-start;flex-wrap:wrap;gap:.4rem;
+          padding:.6rem .7rem;border:1px solid #d1d5db;border-radius:8px;margin-top:.5rem;
+          font-size:.84rem;background:#fff }
+        .upload-item .ui-row1 { display:flex;align-items:center;gap:.5rem;width:100% }
+        .upload-item .ui-name { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600 }
+        .upload-item .ui-icon { width:30px;height:30px;border-radius:6px;background:#eff6ff;
+          color:#1d4ed8;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem }
+        .upload-item .ui-form  { display:flex;gap:.4rem;align-items:center;width:100%;padding-left:38px }
+        .upload-item .ui-label { font-size:.78rem;font-weight:600;white-space:nowrap;color:#374151 }
+        .upload-item .ui-progress { display:none;align-items:center;gap:.4rem;width:100%;padding-left:38px }
+        .upload-item .ui-bar-wrap { flex:1 }
+        .upload-item .ui-bar  { height:6px;background:#1d4ed8;border-radius:3px;transition:width .15s;width:0 }
+        .upload-item .ui-pct  { font-size:.72rem;color:#374151;min-width:2.8rem;text-align:right;font-variant-numeric:tabular-nums }
+        .upload-item .ui-msg  { font-size:.78rem }
+        .upload-item.done .ui-bar { background:#15803d }
+        .upload-item.error    { border-color:#fca5a5;background:#fff5f5 }
+        .upload-item.error .ui-bar { background:#b91c1c }
+
+        .file-row-new { animation:fdIn .3s ease }
+        @keyframes fdIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+
+        @media (prefers-reduced-motion:reduce) {
+          .file-row-new { animation:none }
+          .upload-item .ui-bar { transition:none }
+        }
       </style>
 
       <script>
@@ -822,34 +858,46 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         var UPLOAD_URL = '<?= APP_URL ?>/crm/cases/upload.php';
         var CASE_ID    = <?= $id ?>;
         var CSRF       = '<?= csrf_token() ?>';
-        var CAN_DELETE = <?= is_admin() ? 'true' : 'false' ?>; // uproszczone — plik ma flagę can_delete
         var EXT_ICONS  = {
           pdf:'bi-file-earmark-pdf text-danger',
-          docx:'bi-file-earmark-word text-primary',doc:'bi-file-earmark-word text-primary',
-          xlsx:'bi-file-earmark-excel text-success',xls:'bi-file-earmark-excel text-success',
-          jpg:'bi-file-earmark-image text-warning',jpeg:'bi-file-earmark-image text-warning',
-          png:'bi-file-earmark-image text-warning',gif:'bi-file-earmark-image text-warning',
+          docx:'bi-file-earmark-word text-primary', doc:'bi-file-earmark-word text-primary',
+          xlsx:'bi-file-earmark-excel text-success', xls:'bi-file-earmark-excel text-success',
+          jpg:'bi-file-earmark-image text-warning',  jpeg:'bi-file-earmark-image text-warning',
+          png:'bi-file-earmark-image text-warning',  gif:'bi-file-earmark-image text-warning',
           zip:'bi-file-earmark-zip text-secondary',
-          txt:'bi-file-earmark-text text-muted',csv:'bi-file-earmark-spreadsheet text-success',
+          txt:'bi-file-earmark-text text-muted',     csv:'bi-file-earmark-spreadsheet text-success',
         };
+        var _uid = 0;
+        function uid() { return 'upl-' + (++_uid); }
 
-        var zone  = document.getElementById('drop-zone');
-        var input = document.getElementById('drop-file-input');
-        var queue = document.getElementById('upload-queue');
-        var counter = document.getElementById('files-count-badge');
+        var zone     = document.getElementById('drop-zone');
+        var input    = document.getElementById('drop-file-input');
+        var btnChoose= document.getElementById('drop-btn-choose');
+        var queue    = document.getElementById('upload-queue');
+        var announce = document.getElementById('upload-announce');
 
-        // Otwieranie dialogu pliku
+        // Przycisk klawiaturowy otwiera dialog
+        btnChoose.addEventListener('click', function(){ input.click(); });
+        // Strefa klikalna (myszka / dotyk)
         zone.addEventListener('click', function(){ input.click(); });
-        zone.addEventListener('keydown', function(e){
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
-        });
-        input.addEventListener('change', function(){ handleFiles(this.files); this.value=''; });
+        input.addEventListener('change', function(){ handleFiles(this.files); this.value = ''; });
 
-        // Drag & drop
-        zone.addEventListener('dragover',  function(e){ e.preventDefault(); this.classList.add('drag-over'); });
-        zone.addEventListener('dragleave', function(e){ if (!this.contains(e.relatedTarget)) this.classList.remove('drag-over'); });
+        // Drag & drop na strefie
+        zone.addEventListener('dragover', function(e){
+          e.preventDefault();
+          this.classList.add('drag-over');
+          this.setAttribute('aria-label', 'Upuść pliki');
+        });
+        zone.addEventListener('dragleave', function(e){
+          if (!this.contains(e.relatedTarget)) {
+            this.classList.remove('drag-over');
+            this.removeAttribute('aria-label');
+          }
+        });
         zone.addEventListener('drop', function(e){
-          e.preventDefault(); this.classList.remove('drag-over');
+          e.preventDefault();
+          this.classList.remove('drag-over');
+          this.removeAttribute('aria-label');
           handleFiles(e.dataTransfer.files);
         });
 
@@ -860,48 +908,68 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         function uploadFile(file) {
           var ext  = (file.name.split('.').pop() || '').toLowerCase();
           var icon = EXT_ICONS[ext] || 'bi-file-earmark text-muted';
+          var nameId = uid();
+          var pbId   = uid();
 
-          // Wiersz z polem nazwy własnej — upload startuje po kliknięciu „Wyślij"
           var li = document.createElement('li');
           li.className = 'upload-item';
-          li.style.flexWrap = 'wrap';
-          li.style.gap = '.4rem';
+          li.setAttribute('aria-label', 'Plik do wysłania: ' + file.name);
           li.innerHTML =
-            '<div class="ui-icon"><i class="bi '+icon+'"></i></div>'
-            + '<div class="ui-name" title="'+esc(file.name)+'">'+esc(file.name)+'</div>'
-            + '<div style="flex:1 1 100%;display:flex;gap:.4rem;align-items:center;padding-left:36px">'
-              + '<input type="text" class="form-control form-control-sm ui-custom-name" '
-                + 'placeholder="Nazwa własna pliku (opcjonalna)" style="flex:1;font-size:.82rem">'
-              + '<button type="button" class="btn btn-primary btn-sm ui-send-btn" style="white-space:nowrap">'
-                + '<i class="bi bi-upload me-1"></i>Wyślij</button>'
-              + '<button type="button" class="btn btn-outline-secondary btn-sm ui-cancel-btn" aria-label="Anuluj">✕</button>'
+            '<div class="ui-row1">'
+              + '<div class="ui-icon" aria-hidden="true"><i class="bi ' + icon + '"></i></div>'
+              + '<div class="ui-name" title="' + esc(file.name) + '">' + esc(file.name) + '</div>'
+              + '<button type="button" class="btn btn-outline-secondary btn-sm ui-cancel-btn ms-auto px-2 py-0"'
+                + ' aria-label="Anuluj przesyłanie pliku: ' + esc(file.name) + '">'
+                + '<i class="bi bi-x" aria-hidden="true"></i><span class="visually-hidden">Anuluj</span>'
+              + '</button>'
             + '</div>'
-            + '<div style="flex:1 1 100%;padding-left:36px;display:none" class="ui-progress-row">'
-              + '<div class="ui-bar-wrap" style="flex:1"><div class="ui-bar"></div></div>'
-              + '<div class="ui-pct" style="font-size:.7rem;color:#64748b;min-width:2.5rem;text-align:right">0%</div>'
-              + '<div class="ui-status"></div>'
+            + '<div class="ui-form">'
+              + '<label for="' + nameId + '" class="ui-label">Nazwa własna:</label>'
+              + '<input id="' + nameId + '" type="text" class="form-control form-control-sm ui-custom-name" style="flex:1;font-size:.82rem"'
+                + ' aria-describedby="' + nameId + '-hint" placeholder="opcjonalna">'
+              + '<div id="' + nameId + '-hint" class="visually-hidden">Jeśli puste, użyta zostanie oryginalna nazwa pliku.</div>'
+              + '<button type="button" class="btn btn-primary btn-sm ui-send-btn" style="white-space:nowrap">'
+                + '<i class="bi bi-upload me-1" aria-hidden="true"></i>Wyślij'
+              + '</button>'
+            + '</div>'
+            + '<div class="ui-progress" role="group" aria-label="Postęp wysyłania: ' + esc(file.name) + '">'
+              + '<div class="ui-bar-wrap">'
+                + '<div class="ui-bar" role="progressbar" id="' + pbId + '"'
+                  + ' aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="0 procent"></div>'
+              + '</div>'
+              + '<div class="ui-pct" aria-hidden="true">0%</div>'
+              + '<div class="ui-msg"></div>'
             + '</div>';
+
           queue.appendChild(li);
 
-          var nameInput  = li.querySelector('.ui-custom-name');
-          var sendBtn    = li.querySelector('.ui-send-btn');
-          var cancelBtn  = li.querySelector('.ui-cancel-btn');
-          var progressRow= li.querySelector('.ui-progress-row');
-          var bar        = li.querySelector('.ui-bar');
-          var pct        = li.querySelector('.ui-pct');
-          var status     = li.querySelector('.ui-status');
+          var nameInput   = li.querySelector('.ui-custom-name');
+          var sendBtn     = li.querySelector('.ui-send-btn');
+          var cancelBtn   = li.querySelector('.ui-cancel-btn');
+          var progressRow = li.querySelector('.ui-progress');
+          var bar         = li.querySelector('.ui-bar');
+          var pct         = li.querySelector('.ui-pct');
+          var msg         = li.querySelector('.ui-msg');
 
           nameInput.focus();
 
-          cancelBtn.addEventListener('click', function(){ li.remove(); });
+          cancelBtn.addEventListener('click', function(){
+            li.remove();
+            setAnnounce('Anulowano: ' + file.name);
+          });
+
+          function setProgress(p) {
+            bar.style.width = p + '%';
+            bar.setAttribute('aria-valuenow', p);
+            bar.setAttribute('aria-valuetext', p + ' procent');
+            pct.textContent = p + '%';
+          }
 
           function doUpload() {
-            sendBtn.disabled = true;
-            cancelBtn.disabled = true;
-            nameInput.disabled = true;
+            sendBtn.disabled  = true;
+            cancelBtn.disabled= true;
+            nameInput.disabled= true;
             progressRow.style.display = 'flex';
-            progressRow.style.gap = '.4rem';
-            progressRow.style.alignItems = 'center';
 
             var fd = new FormData();
             fd.append('case_id', CASE_ID);
@@ -914,77 +982,85 @@ include dirname(__DIR__) . '/includes/header_crm.php';
             xhr.open('POST', UPLOAD_URL);
 
             xhr.upload.addEventListener('progress', function(e){
-              if (e.lengthComputable) {
-                var p = Math.round(e.loaded / e.total * 100);
-                bar.style.width = p + '%';
-                pct.textContent = p + '%';
-              }
+              if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100));
             });
 
             xhr.addEventListener('load', function(){
               var res;
-              try { res = JSON.parse(xhr.responseText); } catch(e){ res = {error:'Błąd parsowania odpowiedzi'}; }
+              try { res = JSON.parse(xhr.responseText); } catch(e){ res = {error:'Błąd odpowiedzi serwera'}; }
               if (xhr.status === 200 && res.ok) {
+                setProgress(100);
                 li.classList.add('done');
-                bar.style.width = '100%';
-                pct.textContent = '✓';
-                status.innerHTML = '<i class="bi bi-check-circle-fill text-success ms-1"></i>';
-                setTimeout(function(){ li.remove(); }, 1800);
+                msg.innerHTML = '<span class="text-success ui-msg"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>'
+                  + ' <span>Przesłano</span></span>';
+                setAnnounce('Plik przesłany: ' + (res.file.display_name || file.name));
+                setTimeout(function(){ li.remove(); }, 2000);
                 appendFileRow(res.file);
                 updateCount(1);
               } else {
                 li.classList.add('error');
-                bar.style.background = '#dc2626';
-                bar.style.width = '100%';
-                pct.textContent = '';
-                status.innerHTML = '<span class="text-danger ms-1" title="'+esc(res.error||'Błąd')+'"><i class="bi bi-x-circle-fill"></i> '+esc(res.error||'Błąd')+'</span>';
-                sendBtn.disabled = false;
-                cancelBtn.disabled = false;
+                var errTxt = res.error || 'Nieznany błąd';
+                msg.innerHTML = '<span class="text-danger ui-msg"><i class="bi bi-x-circle-fill" aria-hidden="true"></i>'
+                  + ' <span>' + esc(errTxt) + '</span></span>';
+                setAnnounce('Błąd przesyłania pliku ' + file.name + ': ' + errTxt);
+                sendBtn.disabled  = false;
+                cancelBtn.disabled= false;
+                nameInput.disabled= false;
+                sendBtn.focus();
               }
             });
             xhr.addEventListener('error', function(){
               li.classList.add('error');
-              status.innerHTML = '<span class="text-danger ms-1"><i class="bi bi-x-circle-fill"></i> Błąd sieci</span>';
-              sendBtn.disabled = false;
+              msg.innerHTML = '<span class="text-danger ui-msg"><i class="bi bi-x-circle-fill" aria-hidden="true"></i>'
+                + ' <span>Błąd sieci</span></span>';
+              setAnnounce('Błąd sieci podczas przesyłania pliku: ' + file.name);
+              sendBtn.disabled  = false;
+              cancelBtn.disabled= false;
             });
             xhr.send(fd);
           }
 
           sendBtn.addEventListener('click', doUpload);
-          nameInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') doUpload(); });
+          nameInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); doUpload(); } });
+        }
+
+        function setAnnounce(text) {
+          announce.textContent = '';
+          // Mikropauza wymusza ponowne ogłoszenie tego samego tekstu przy kolejnym pliku
+          setTimeout(function(){ announce.textContent = text; }, 50);
         }
 
         function appendFileRow(f) {
           var ext  = f.ext || '';
           var icon = EXT_ICONS[ext] || 'bi-file-earmark text-muted';
-          var size = f.file_size ? (Math.round(f.file_size/1024*10)/10 + ' KB') : '';
+          var size = f.file_size ? (Math.round(f.file_size / 1024 * 10) / 10 + ' KB') : '';
           var disp = f.display_name || f.original_name;
-          var list = document.getElementById('files-list');
-          // Wstaw na górze listy plików
-          var existingList = document.querySelector('.file-row:first-of-type');
+
           var row = document.createElement('div');
           row.className = 'file-row file-row-new';
           row.innerHTML =
-            '<div class="file-icon" aria-hidden="true"><i class="bi '+icon+'"></i></div>'
+            '<div class="file-icon" aria-hidden="true"><i class="bi ' + icon + '"></i></div>'
             + '<div style="flex:1;min-width:0">'
-              + '<div class="fw-semibold" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(disp)+'</div>'
-              + (f.description ? '<div class="text-muted" style="font-size:.75rem">'+esc(f.description)+'</div>' : '')
-              + '<div style="font-size:.72rem;color:#5E6470">'+esc(f.original_name)+(size?' · '+size:'')
-                + ' · '+esc(f.created_at.slice(0,16).replace('T',' '))+'</div>'
+              + '<div class="fw-semibold" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(disp) + '</div>'
+              + (f.description ? '<div class="text-muted" style="font-size:.75rem">' + esc(f.description) + '</div>' : '')
+              + '<div style="font-size:.72rem;color:#374151">' + esc(f.original_name) + (size ? ' · ' + size : '')
+                + ' · ' + esc(f.created_at.slice(0, 16).replace('T', ' ')) + '</div>'
             + '</div>'
             + '<div class="d-flex gap-1 flex-shrink-0">'
-              + '<a href="'+f.download_url+'" class="btn btn-sm btn-outline-primary py-0 px-2" aria-label="Pobierz plik: '+esc(disp)+'">'
+              + '<a href="' + f.download_url + '" class="btn btn-sm btn-outline-primary py-0 px-2"'
+                + ' aria-label="Pobierz plik: ' + esc(disp) + '">'
                 + '<i class="bi bi-download" aria-hidden="true"></i></a>'
               + (f.can_delete
-                ? '<button type="button" onclick="deleteFile('+f.id+',this)" class="btn btn-sm btn-outline-danger py-0 px-2" aria-label="Usuń plik: '+esc(disp)+'">'
+                ? '<button type="button" onclick="deleteFile(' + f.id + ',this)"'
+                  + ' class="btn btn-sm btn-outline-danger py-0 px-2"'
+                  + ' aria-label="Usuń plik: ' + esc(disp) + '">'
                   + '<i class="bi bi-trash" aria-hidden="true"></i></button>'
                 : '')
             + '</div>';
 
-          // Wstaw przed listą plików z PHP (jeśli istnieje) lub po strefie drop
-          var firstFileRow = document.querySelector('#files .file-row');
-          if (firstFileRow) {
-            firstFileRow.parentNode.insertBefore(row, firstFileRow);
+          var firstRow = document.querySelector('#files .file-row');
+          if (firstRow) {
+            firstRow.parentNode.insertBefore(row, firstRow);
           } else {
             var wrap = document.getElementById('drop-zone-wrap');
             wrap.parentNode.insertBefore(row, wrap);
@@ -992,27 +1068,24 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         }
 
         function updateCount(delta) {
-          // Zaktualizuj liczniki zakładki i nagłówka
-          document.querySelectorAll('.cv-count, #files-count-badge').forEach(function(el){
-            var n = (parseInt(el.textContent) || 0) + delta;
-            el.textContent = n;
+          document.querySelectorAll('.cv-count').forEach(function(el){
+            el.textContent = (parseInt(el.textContent) || 0) + delta;
           });
         }
 
         function esc(s) {
-          return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+          return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
-        // Usuwanie pliku przez JS (plik dodany w tej sesji przez appendFileRow)
-        window.deleteFile = function(fid, btn) {
+        window.deleteFile = function(fid) {
           if (!confirm('Usunąć plik?')) return;
           var form = document.createElement('form');
           form.method = 'post';
-          form.action = 'view.php?id=' + CASE_ID + '#files';
+          form.action  = 'view.php?id=' + CASE_ID + '#files';
           form.innerHTML =
-            '<input name="_csrf" value="'+CSRF+'">'
+            '<input name="_csrf" value="' + CSRF + '">'
             + '<input name="_action" value="delete_file">'
-            + '<input name="file_id" value="'+fid+'">';
+            + '<input name="file_id" value="' + fid + '">';
           document.body.appendChild(form);
           form.submit();
         };
