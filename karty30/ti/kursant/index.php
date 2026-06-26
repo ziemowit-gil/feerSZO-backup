@@ -655,6 +655,12 @@ include __DIR__ . '/_layout_head.php';
     if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
     if (!empty($account['ms_upn']))         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
     if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];
+
+    $contact_phones = [];
+    if (!empty($client['phone']))              $contact_phones[] = ['Główny', $client['phone']];
+    if (!empty($account['notify_phone2']))     $contact_phones[] = ['Dodatkowy', $account['notify_phone2']];
+    if (!empty($account['notify_phone3']))     $contact_phones[] = ['Dodatkowy 2', $account['notify_phone3']];
+    if (!empty($account['guardian_phone']))    $contact_phones[] = ['Opiekun', $account['guardian_phone']];
   ?>
   <div class="card mb-4">
     <div class="card-body">
@@ -683,7 +689,13 @@ include __DIR__ . '/_layout_head.php';
         <dt class="col-sm-3 text-body-secondary fw-normal">E-maile kontaktowe</dt>
         <dd class="col-sm-9">
           <?php if ($contact_emails): foreach ($contact_emails as $em): ?>
-          <div><span class="text-body-secondary"><?= h($em[0]) ?>:</span> <a href="mailto:<?= h($em[1]) ?>" class="font-monospace"><?= h($em[1]) ?></a></div>
+          <div><span class="text-body-secondary small"><?= h($em[0]) ?>:</span> <a href="mailto:<?= h($em[1]) ?>" class="font-monospace"><?= h($em[1]) ?></a></div>
+          <?php endforeach; else: ?><span class="text-body-secondary">— brak —</span><?php endif; ?>
+        </dd>
+        <dt class="col-sm-3 text-body-secondary fw-normal">Numery telefonu</dt>
+        <dd class="col-sm-9">
+          <?php if ($contact_phones): foreach ($contact_phones as $ph): ?>
+          <div><span class="text-body-secondary small"><?= h($ph[0]) ?>:</span> <a href="tel:<?= h(preg_replace('/\s+/', '', $ph[1])) ?>" class="font-monospace"><?= h($ph[1]) ?></a></div>
           <?php endforeach; else: ?><span class="text-body-secondary">— brak —</span><?php endif; ?>
         </dd>
       </dl>
