@@ -65,6 +65,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     header('Location: parent.php?ptab=dostep'); exit;
 }
 
+// Wiadomosc od rodzica do prowadzacego
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_msg_send') {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        $body = mb_substr(trim((string)($_POST['body'] ?? '')), 0, 4000);
+        $subj = mb_substr(trim((string)($_POST['subject'] ?? '')), 0, 200);
+        if ($body !== '') {
+            if (!function_exists('ti_msg_parent_send')) require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
+            ti_msg_parent_send((int)$p['student_id'], $subj, $body, $p['name'] ?? 'Opiekun');
+            $_SESSION['k30_parent_msg_sent'] = 1;
+        }
+    }
+    header('Location: parent.php?ptab=wiadomosci'); exit;
+}
+
+// Ustawienia powiadomien rodzica
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_notify_prefs') {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        $sid = (int)$p['student_id'];
+        db()->prepare("UPDATE k30_ti_student_accounts SET parent_notify_absence=?, parent_notify_grade=?, parent_notify_messages=? WHERE id=?")
+           ->execute([
+               isset($_POST['pn_absence'])  ? 1 : 0,
+               isset($_POST['pn_grade'])    ? 1 : 0,
+               isset($_POST['pn_messages']) ? 1 : 0,
+               $sid,
+           ]);
+        $_SESSION['k30_parent_msg'] = ['ok', 'Ustawienia powiadomien zapisane.'];
+    }
+    header('Location: parent.php?ptab=dostep'); exit;
+}
+
 // Link magiczny
 if (isset($_GET['t'])) {
     $sid = parent_token_student(trim($_GET['t']));
@@ -122,7 +154,7 @@ if ($parent && isset($_GET['grades_pdf'])) {
 }
 
 $ptab   = $_GET['ptab'] ?? 'rozliczenia';
-if (!in_array($ptab, ['rozliczenia','frekwencja','oceny','licencje','dostep'], true)) $ptab = 'rozliczenia';
+if (!in_array($ptab, ['rozliczenia','frekwencja','oceny','licencje','dostep','harmonogram','wiadomosci'], true)) $ptab = 'rozliczenia';
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
 $KP_TITLE  = 'Panel rodzica';
 $KP_TOPBAR = [
@@ -298,9 +330,19 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link <?= $ptab==='harmonogram'?'active':'' ?>" href="?ptab=harmonogram" <?= $ptab==='harmonogram'?'aria-current="page"':'' ?>>
+          <i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Harmonogram
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <?= $ptab==='wiadomosci'?'active':'' ?>" href="?ptab=wiadomosci" <?= $ptab==='wiadomosci'?'aria-current="page"':'' ?>>
+          <i class="bi bi-chat-text me-1" aria-hidden="true"></i>Wiadomosci
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link <?= $ptab==='dostep'?'active':'' ?>" href="?ptab=dostep" <?= $ptab==='dostep'?'aria-current="page"':'' ?>>
-          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Dostęp dziecka
-          <?php if ($blocked): ?><span class="badge text-bg-danger ms-1" title="Dostęp wstrzymany"><i class="bi bi-lock-fill" aria-hidden="true"></i></span><?php endif; ?>
+          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Dostep dziecka
+          <?php if ($blocked): ?><span class="badge text-bg-danger ms-1" title="Dostep wstrzymany"><i class="bi bi-lock-fill" aria-hidden="true"></i></span><?php endif; ?>
         </a>
       </li>
     </ul>
@@ -373,6 +415,166 @@ include __DIR__ . '/_layout_head.php';
   <p class="text-body-secondary small mb-3">Licencje na oprogramowanie (inne niż Microsoft&nbsp;365) przypisane dziecku. Klucze i hasła trzymaj w tajemnicy.</p>
   <?php $rv_client_id = $parent['client_id']; include __DIR__ . '/_licencje_view.php'; ?>
 
+<?php elseif ($ptab === 'harmonogram'):
+  $p_lessons = db_all(
+    "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic, s.status,
+            c.name AS course_name, c.location,
+            a.attended, a.cancelled AS att_cancelled
+     FROM k30_ti_sessions s
+     JOIN k30_ti_courses c ON c.id=s.course_id
+     LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
+     WHERE s.course_id IN (
+         SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active'
+     )
+     AND s.lesson_date >= date('now','-7 days')
+     AND (s.status IS NULL OR s.status != 'removed')
+     ORDER BY s.lesson_date ASC, s.time_from ASC
+     LIMIT 120",
+    [$parent['client_id'], $parent['client_id']]
+  );
+  $months_pl_har = ['','sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','lis','gru'];
+  $days_pl_har   = ['Nd','Pn','Wt','Sr','Czw','Pt','Sb'];
+  $today_har     = date('Y-m-d');
+?>
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-calendar-week text-primary" aria-hidden="true"></i>Harmonogram zajec
+  </h2>
+  <?php if (!$p_lessons): ?>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>Brak nadchodzacych lekcji.</div>
+  <?php else: ?>
+  <div class="d-flex flex-column gap-2">
+    <?php foreach ($p_lessons as $l):
+      $ld   = (string)($l['lesson_date'] ?? '');
+      $dt   = $ld ? new DateTime($ld) : null;
+      $dow  = $dt ? $days_pl_har[(int)$dt->format('w')] : '';
+      $is_today   = $ld === $today_har;
+      $is_past    = $ld && $ld < $today_har;
+      $is_canc    = ($l['status'] ?? '') === 'cancelled' || !empty($l['att_cancelled']);
+      $attended   = (int)($l['attended'] ?? 0);
+    ?>
+    <div class="card <?= $is_canc ? 'opacity-50' : ($is_today ? 'border-primary' : '') ?>">
+      <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-3">
+        <div class="text-center" style="min-width:3rem">
+          <div class="fw-bold <?= $is_today ? 'text-primary' : 'text-body-secondary' ?>" style="font-size:.75rem"><?= $dow ?></div>
+          <div class="fw-bold fs-5 lh-1"><?= $dt ? $dt->format('d') : '' ?></div>
+          <div class="text-body-secondary" style="font-size:.72rem"><?= $dt ? ($months_pl_har[(int)$dt->format('n')] . ' ' . $dt->format('y')) : '' ?></div>
+        </div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold small"><?= h($l['course_name']) ?></div>
+          <?php if (trim((string)($l['topic'] ?? '')) !== ''): ?>
+          <div class="text-body-secondary small"><?= h($l['topic']) ?></div>
+          <?php endif; ?>
+          <?php if (trim((string)($l['location'] ?? '')) !== ''): ?>
+          <div class="text-body-secondary small"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($l['location']) ?></div>
+          <?php endif; ?>
+        </div>
+        <div class="text-end small">
+          <?php if ($l['time_from']): ?>
+          <div class="fw-semibold"><?= h(substr((string)$l['time_from'],0,5)) ?>-<?= h(substr((string)$l['time_to'],0,5)) ?></div>
+          <?php elseif ((int)$l['duration_min']): ?>
+          <div class="text-body-secondary"><?= (int)$l['duration_min'] ?> min</div>
+          <?php endif; ?>
+          <?php if ($is_canc): ?>
+          <span class="badge text-bg-secondary">odwolana</span>
+          <?php elseif ($is_past && $attended): ?>
+          <span class="badge text-bg-success">obecny</span>
+          <?php elseif ($is_past && !$attended): ?>
+          <span class="badge text-bg-danger">nieobecny</span>
+          <?php elseif ($is_today): ?>
+          <span class="badge text-bg-primary">dzis</span>
+          <?php else: ?>
+          <span class="badge text-bg-light text-dark border">zaplanowana</span>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <p class="text-body-secondary small mt-3"><i class="bi bi-info-circle me-1"></i>Pokazuje lekcje od 7 dni wstecz.</p>
+  <?php endif; ?>
+
+<?php elseif ($ptab === 'wiadomosci'):
+  if (!function_exists('ti_msg_list_for_parent')) require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
+  $p_msgs   = ti_msg_list_for_parent((int)$parent['student_id']);
+  $msg_sent = !empty($_SESSION['k30_parent_msg_sent']); unset($_SESSION['k30_parent_msg_sent']);
+  $ptok     = student_token();
+  $p_threads = [];
+  foreach ($p_msgs as $m) {
+    $key = trim((string)($m['subject'] ?? ''));
+    if ($key === '') $key = '__ogolny__';
+    if (!isset($p_threads[$key])) $p_threads[$key] = ['subject' => $key === '__ogolny__' ? 'Wiadomosci ogolne' : $key, 'msgs' => [], 'last_at' => ''];
+    $p_threads[$key]['msgs'][] = $m;
+    if ($m['created_at'] > $p_threads[$key]['last_at']) $p_threads[$key]['last_at'] = $m['created_at'];
+  }
+  uasort($p_threads, fn($a,$b) => strcmp($b['last_at'], $a['last_at']));
+  $active_ts = (string)($_GET['ts'] ?? ($msg_sent ? ($_GET['ts'] ?? '') : ''));
+  if ($active_ts === '' && !empty($p_threads)) $active_ts = array_key_first($p_threads);
+?>
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-chat-text text-primary" aria-hidden="true"></i>Wiadomosci z prowadzacym
+  </h2>
+  <?php if ($msg_sent): ?>
+  <div class="alert alert-success alert-dismissible py-2 small mb-3">
+    <i class="bi bi-check-circle me-1"></i>Wiadomosc wyslana.
+    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
+  </div>
+  <?php endif; ?>
+  <!-- Nowa wiadomosc / temat -->
+  <div class="card mb-3">
+    <div class="card-header small fw-semibold py-2"><i class="bi bi-pencil-square me-1"></i>Napisz do prowadzacego</div>
+    <div class="card-body py-3">
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h($ptok) ?>">
+        <input type="hidden" name="_op" value="parent_msg_send">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1" for="pmsg-subj">Temat (opcjonalnie)</label>
+          <input type="text" class="form-control form-control-sm" id="pmsg-subj" name="subject" maxlength="200" placeholder="np. Pytanie o nieobecnosc">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1" for="pmsg-body">Tresc</label>
+          <textarea class="form-control form-control-sm" id="pmsg-body" name="body" rows="3" maxlength="4000" required placeholder="Twoja wiadomosc..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm"><i class="bi bi-send me-1"></i>Wyslij</button>
+      </form>
+    </div>
+  </div>
+  <?php if (empty($p_threads)): ?>
+  <div class="text-body-secondary small text-center py-4">
+    <i class="bi bi-chat-text fs-1 opacity-25 d-block mb-2"></i>Brak wiadomosci. Napisz pierwsza wiadomosc powyzej.
+  </div>
+  <?php else: ?>
+  <?php foreach ($p_threads as $tkey => $thread):
+    $is_active = ($tkey === $active_ts);
+  ?>
+  <div class="card mb-2 <?= $is_active ? 'border-primary' : '' ?>">
+    <div class="card-header d-flex align-items-center gap-2 py-2 small">
+      <span class="fw-semibold"><?= h($thread['subject']) ?></span>
+      <span class="text-body-secondary ms-auto"><?= count($thread['msgs']) ?> wiad.</span>
+    </div>
+    <div class="card-body py-2 px-3">
+      <div class="d-flex flex-column gap-2" style="max-height:40vh;overflow-y:auto">
+        <?php foreach ($thread['msgs'] as $m):
+          $mine = ($m['sender'] ?? '') === 'parent';
+          $is_staff = ($m['sender'] ?? '') === 'staff';
+          $ts   = $m['created_at'] ? date('d.m.Y H:i', strtotime($m['created_at'])) : '';
+          $name = $mine ? 'Ty (opiekun)' : ($is_staff ? ($m['sender_name'] ?: 'Prowadzacy') : h($m['sender_name'] ?: 'Kursant'));
+        ?>
+        <div class="d-flex <?= $mine ? 'justify-content-end' : 'justify-content-start' ?>">
+          <div class="px-3 py-2 rounded-4 <?= $mine ? 'bg-primary text-white' : 'bg-body-tertiary border' ?>" style="max-width:85%;word-break:break-word">
+            <div class="d-flex gap-2 mb-1" style="font-size:.72rem">
+              <span class="fw-semibold"><?= is_string($name) ? $name : h((string)$name) ?></span>
+              <span class="opacity-75"><?= h($ts) ?></span>
+            </div>
+            <div style="white-space:pre-wrap;line-height:1.45"><?= nl2br(h($m['body'])) ?></div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+  <?php endif; ?>
+
 <?php elseif ($ptab === 'dostep'):
     $pmsg      = $_SESSION['k30_parent_msg'] ?? null;      unset($_SESSION['k30_parent_msg']);
     $pnewpass  = $_SESSION['k30_parent_newpass'] ?? null;  unset($_SESSION['k30_parent_newpass']);
@@ -430,6 +632,42 @@ include __DIR__ . '/_layout_head.php';
       <p class="text-body-secondary small mb-0 mt-2">
         <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Tu zarządzasz logowaniem dziecka do panelu kursanta (hasło i wstrzymanie dostępu). Twój dostęp opiekuna pozostaje aktywny niezależnie.
       </p>
+    </div>
+  </div>
+
+  <!-- Ustawienia powiadomien e-mail dla rodzica -->
+  <?php
+    $pn_acc = db_one("SELECT parent_notify_absence, parent_notify_grade, parent_notify_messages, guardian_email FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
+    $gemail = trim((string)($pn_acc['guardian_email'] ?? ''));
+    $ptok_n = student_token();
+  ?>
+  <div class="card border-0 shadow-sm mt-3">
+    <div class="card-header fw-semibold"><i class="bi bi-bell me-2 text-primary" aria-hidden="true"></i>Powiadomienia e-mail</div>
+    <div class="card-body">
+      <?php if ($gemail === ''): ?>
+      <div class="alert alert-warning py-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Brak adresu e-mail opiekuna w systemie. Skontaktuj sie z prowadzacym, aby dodac adres.</div>
+      <?php else: ?>
+      <p class="small text-body-secondary mb-3">Powiadomienia beda wysylane na: <strong><?= h($gemail) ?></strong></p>
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h($ptok_n) ?>">
+        <input type="hidden" name="_op" value="parent_notify_prefs">
+        <div class="d-flex flex-column gap-2">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="pn_absence" name="pn_absence" <?= !empty($pn_acc['parent_notify_absence']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="pn_absence">Nieobecnosc dziecka na zajeciach</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="pn_grade" name="pn_grade" <?= !empty($pn_acc['parent_notify_grade']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="pn_grade">Nowa ocena dziecka</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="pn_messages" name="pn_messages" <?= !empty($pn_acc['parent_notify_messages']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="pn_messages">Nowa wiadomosc od prowadzacego</label>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-primary mt-3"><i class="bi bi-check2 me-1"></i>Zapisz</button>
+      </form>
+      <?php endif; ?>
     </div>
   </div>
 

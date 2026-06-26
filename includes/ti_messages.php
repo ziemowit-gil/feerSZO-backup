@@ -73,7 +73,10 @@ function ti_msg_post_to_student(int $studentId, string $subject, string $body, ?
         'is_read'        => 0,
         'created_at'     => date('Y-m-d H:i:s'),
     ]);
-    if ($notify) ti_msg_notify_student($studentId, $subject, $body);
+    if ($notify) {
+        ti_msg_notify_student($studentId, $subject, $body);
+        ti_msg_notify_parent($studentId, $subject, $body);
+    }
     return $id;
 }
 
@@ -263,4 +266,55 @@ function ti_msg_archive(int $msgId, ?int $byUserId = null, string $byName = ''):
     db()->prepare("UPDATE k30_ti_messages SET is_archived=1 WHERE id=?")->execute([$msgId]);
     $preview = mb_substr(trim(strip_tags((string)($msg['body'] ?? ''))), 0, 80);
     ti_account_log((int)$msg['student_id'], 'msg_archived', "Zarchiwizowano wiad. #{$msgId}: {$preview}", $byUserId, $byName);
+}
+
+// ── Wiadomości od rodzica/opiekuna ───────────────────────────────────────────
+
+/** Wstawia wiadomość wysłaną przez rodzica/opiekuna do prowadzącego. */
+function ti_msg_parent_send(int $studentId, string $subject, string $body, string $parentName): int {
+    $id = db_insert('k30_ti_messages', [
+        'student_id'  => $studentId,
+        'sender'      => 'parent',
+        'sender_name' => mb_substr(trim($parentName ?: 'Opiekun'), 0, 120),
+        'subject'     => mb_substr(trim($subject), 0, 200),
+        'body'        => trim($body),
+        'is_read'     => 0,
+        'created_at'  => date('Y-m-d H:i:s'),
+    ]);
+    ti_msg_notify_staff_reply($studentId, $parentName ?: 'Opiekun', '[od rodzica] ' . trim($body));
+    return $id;
+}
+
+/** Lista wiadomości dla rodzica (widzi wiadomości staff + parent dla swojego dziecka). */
+function ti_msg_list_for_parent(int $studentId): array {
+    return db_all(
+        "SELECT * FROM k30_ti_messages
+         WHERE student_id=? AND sender IN ('staff','parent') AND is_archived=0
+         ORDER BY created_at ASC",
+        [$studentId]
+    );
+}
+
+/** Powiadomienie e-mail do rodzica o nowej wiadomości od prowadzącego. */
+function ti_msg_notify_parent(int $studentId, string $subject, string $body): void {
+    $acc = db_one(
+        "SELECT a.parent_notify_messages, a.guardian_email, a.guardian_name, cl.name AS child_name
+         FROM k30_ti_student_accounts a LEFT JOIN k30_clients cl ON cl.id=a.client_id
+         WHERE a.id=?", [$studentId]
+    );
+    if (!$acc || empty($acc['parent_notify_messages'])) return;
+    $gemail = trim((string)($acc['guardian_email'] ?? ''));
+    if ($gemail === '' || !filter_var($gemail, FILTER_VALIDATE_EMAIL)) return;
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return;
+    $org     = defined('ORG_NAME') ? ORG_NAME : 'Panel kursanta';
+    $subj    = trim($subject) !== '' ? trim($subject) : 'Nowa wiadomosc';
+    $preview = mb_substr(trim(strip_tags($body)), 0, 280);
+    $url     = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/parent.php?ptab=wiadomosci';
+    $html    = '<p>Drogi/a ' . htmlspecialchars((string)($acc['guardian_name'] ?: 'Opiekunie'), ENT_QUOTES) . ',</p>'
+             . '<p>Prowadzacy wyslal nowa wiadomosc do kursanta <strong>' . htmlspecialchars((string)($acc['child_name'] ?? ''), ENT_QUOTES) . '</strong>:</p>'
+             . '<blockquote style="border-left:3px solid #2563eb;padding-left:1em;color:#444">' . nl2br(htmlspecialchars($preview, ENT_QUOTES)) . '</blockquote>'
+             . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Odpowiedz w panelu rodzica &rarr;</a></p>'
+             . '<p>Pozdrawiamy,<br>' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
+    try { mail_queue_add($gemail, (string)($acc['guardian_name'] ?: ''), "{$org}: {$subj}", $html); } catch (\Throwable $e) {}
 }

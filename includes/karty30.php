@@ -868,6 +868,10 @@ function karty30_migrate(): void {
     // ── Blokada wiadomości + archiwizacja ────────────────────────────────────
     try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN msg_blocked INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_ti_messages ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // Powiadomienia e-mail dla rodzica/opiekuna
+    try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_notify_absence  INTEGER NOT NULL DEFAULT 1"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_notify_grade    INTEGER NOT NULL DEFAULT 1"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN parent_notify_messages INTEGER NOT NULL DEFAULT 1"); } catch (\Throwable $e) {}
 
     // ── Dziennik zdarzeń na koncie kursanta ───────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_account_log (
