@@ -126,7 +126,7 @@ try {
 } catch (\Throwable $e) {}
 
 $hour = (int)date('H');
-$greeting = $hour < 12 ? 'Dzień dobry' : ($hour < 18 ? 'Dzień dobry' : 'Dobry wieczór');
+$greeting = $hour < 12 ? 'Dzień dobry' : ($hour < 18 ? 'Witaj' : 'Dobry wieczór');
 $first_name = explode(' ', trim($_user['name'] ?? $_user['email'] ?? ''))[0];
 
 include __DIR__ . '/includes/header.php';

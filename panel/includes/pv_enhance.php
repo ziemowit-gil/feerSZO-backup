@@ -7,7 +7,6 @@
  * progresywne wzbogacenia w waniliowym JS — bez kroku budowania i bez CDN:
  *
  *   • filtr po statusie (chipy)         → [data-pv-filter]
- *   • żywe odliczanie do końca umowy     → [data-pv-countdown]
  *   • wyszukiwarka „Centrum akcji"       → [data-pv-hub]
  *   • optymistyczne „Weź"/„Ukończ"       → [data-pv-tasks]
  *
@@ -35,21 +34,8 @@ $GLOBALS['__pv_enhance_booted'] = true;
 .pv-hub-bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.85rem}
 .pv-hub-title{font-size:.95rem;font-weight:800;color:#111827;margin:0;line-height:1.2;display:flex;align-items:center;gap:.4rem}
 .pv-hub-title i{color:var(--vol-color)}
-.pv-hub-search{position:relative;flex:1;min-width:180px;max-width:340px}
-.pv-hub-search i{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:#9CA3AF;font-size:.9rem;pointer-events:none}
-.pv-hub-search input{width:100%;border:1.5px solid #E5E7EB;border-radius:9px;padding:.45rem .7rem .45rem 2rem;font-size:.85rem;background:#fff;color:#111827;transition:border-color .12s,box-shadow .12s}
-.pv-hub-search input:focus{outline:none;border-color:var(--vol-color);box-shadow:0 0 0 3px rgba(var(--vol-rgb,29,78,216),.15)}
-.pv-hub-chips{display:inline-flex;gap:.35rem}
-.pv-hub-empty{background:#fff;border:2px dashed #E5E7EB;border-radius:12px;text-align:center;padding:1.75rem 1rem;color:#6B7280}
-.pv-hub-empty i{font-size:1.6rem;color:#D1D5DB;display:block;margin-bottom:.4rem}
-.pv-hub-clear{background:none;border:none;color:var(--vol-color);font-size:.82rem;font-weight:600;cursor:pointer;text-decoration:underline;padding:.2rem .4rem}
-.pv-hub-clear:focus-visible{outline:2px solid var(--vol-color);outline-offset:2px;border-radius:4px}
-@media(max-width:560px){.pv-hub-search{max-width:none;width:100%;order:3}}
+.pv-hub-chips{display:inline-flex;gap:.35rem;flex-wrap:wrap}
 /* ── Odliczanie do końca umowy (na tle hero) ─────────────────────────────── */
-.pv-cd{display:flex;gap:.4rem;margin-top:.85rem;flex-wrap:wrap}
-.pv-cd-unit{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);border-radius:9px;padding:.35rem .55rem;min-width:48px;text-align:center;line-height:1.05}
-.pv-cd-num{display:block;font-size:1.05rem;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:.02em}
-.pv-cd-lbl{display:block;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;opacity:.82;margin-top:.1rem}
 </style>
 <script>
 (function () {
@@ -90,94 +76,26 @@ $GLOBALS['__pv_enhance_booted'] = true;
     });
   }
 
-  // ── Wyszukiwarka „Centrum akcji" + filtr „Wymaga uwagi" ───────────────────
+  // ── Centrum akcji — filtr „Wymaga uwagi" ──────────────────────────────────
   function initHub(root){
-    var input = root.querySelector('[data-pv-hub-search]');
     var items = $all('[data-pv-hub-item]', root);
     var chips = $all('.pv-hub-chip[data-hub-filter]', root);
     var live  = root.querySelector('[data-pv-hub-live]');
-    var empty = root.querySelector('[data-pv-hub-empty]');
-    var emptyQ = empty ? empty.querySelector('[data-pv-hub-empty-q]') : null;
-    var clear = root.querySelector('[data-pv-hub-clear]');
-    var grid  = root.querySelector('[data-pv-hub-grid]');
-    if (!items.length) return;
+    if (!items.length || !chips.length) return;
 
-    var state = { q: '', filter: 'all' };
-    function norm(s){ return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
-
-    function apply(){
-      var nq = norm(state.q.trim()), shown = 0;
+    function apply(filter){
+      var shown = 0;
       items.forEach(function (it){
-        var ok = true;
-        if (state.filter === 'attention' && it.getAttribute('data-attention') !== '1') ok = false;
-        if (ok && nq){
-          var hay = norm(it.getAttribute('data-search') || '');
-          if (hay.indexOf(nq) === -1) ok = false;
-        }
+        var ok = filter !== 'attention' || it.getAttribute('data-attention') === '1';
         it.style.display = ok ? '' : 'none';
         if (ok) shown++;
       });
-      chips.forEach(function (c){ c.setAttribute('aria-pressed', String(c.getAttribute('data-hub-filter') === state.filter)); });
-      if (grid)  grid.style.display  = shown ? '' : 'none';
-      if (empty){
-        empty.style.display = shown ? 'none' : '';
-        if (!shown && emptyQ) emptyQ.textContent = state.q;
-      }
+      chips.forEach(function (c){ c.setAttribute('aria-pressed', String(c.getAttribute('data-hub-filter') === filter)); });
       if (live) live.textContent = 'Pokazano ' + shown + ' ' + plural(shown, ['akcję', 'akcje', 'akcji']);
     }
-
-    if (input) input.addEventListener('input', function (){ state.q = input.value; apply(); });
     chips.forEach(function (c){
-      c.addEventListener('click', function (){ state.filter = c.getAttribute('data-hub-filter'); apply(); });
+      c.addEventListener('click', function (){ apply(c.getAttribute('data-hub-filter')); });
     });
-    if (clear) clear.addEventListener('click', function (){
-      state.q = ''; state.filter = 'all'; if (input) input.value = ''; apply(); if (input) input.focus();
-    });
-  }
-
-  // ── Żywe odliczanie do końca umowy ────────────────────────────────────────
-  function initCountdown(root){
-    var start = parseInt(root.getAttribute('data-start'), 10);
-    var end   = parseInt(root.getAttribute('data-end'), 10);
-    if (!start || !end) return;
-
-    var units = root.querySelector('[data-cd-units]');
-    var elD = root.querySelector('[data-cd="days"]'),  elH = root.querySelector('[data-cd="hours"]');
-    var elM = root.querySelector('[data-cd="mins"]'),  elS = root.querySelector('[data-cd="secs"]');
-    var bar = root.querySelector('[data-cd-bar]'),     fill = root.querySelector('[data-cd-fill]');
-    var lbl = root.querySelector('[data-cd-label]'),   pctEl = root.querySelector('[data-cd-pct]');
-    function pad(n){ return (n < 10 ? '0' : '') + n; }
-    function plDni(n){ return n === 1 ? 'dzień' : 'dni'; }
-
-    function tick(){
-      var now = Date.now();
-      var remain = Math.max(0, end - now);
-      var ended  = remain <= 0;
-      var pct = end > start ? Math.min(100, Math.max(0, Math.round((now - start) / (end - start) * 100))) : 100;
-      var totalSec = Math.floor(remain / 1000);
-      var days = Math.floor(totalSec / 86400);
-      var hours = Math.floor((totalSec % 86400) / 3600);
-      var mins = Math.floor((totalSec % 3600) / 60);
-      var secs = totalSec % 60;
-
-      if (units) units.style.display = ended ? 'none' : '';
-      if (!ended){
-        if (elD) elD.textContent = days;
-        if (elH) elH.textContent = pad(hours);
-        if (elM) elM.textContent = pad(mins);
-        if (elS) elS.textContent = pad(secs);
-      }
-      if (fill) fill.style.width = pct + '%';
-      if (pctEl) pctEl.textContent = pct + '%';
-      if (lbl) lbl.innerHTML = ended ? '<strong>Umowa zakończona</strong>' : ('Pozostało <strong>' + days + '</strong> dni');
-      if (bar){
-        bar.setAttribute('aria-valuenow', ended ? 100 : pct);
-        bar.setAttribute('aria-valuetext', ended ? 'Umowa zakończona — 100%' : ('Postęp ' + pct + '%, pozostało ' + days + ' ' + plDni(days)));
-      }
-      if (ended && timer){ clearInterval(timer); timer = null; }
-    }
-    var timer = setInterval(tick, 1000);
-    tick();
   }
 
   // ── Optymistyczne „Weź"/„Ukończ" zadanie + podgląd w offcanvas ────────────
@@ -253,7 +171,6 @@ $GLOBALS['__pv_enhance_booted'] = true;
   function initAll(){
     $all('[data-pv-filter]').forEach(initFilter);
     $all('[data-pv-hub]').forEach(initHub);
-    $all('[data-pv-countdown]').forEach(initCountdown);
     $all('[data-pv-tasks]').forEach(initTasks);
   }
   if (document.readyState !== 'loading') initAll();

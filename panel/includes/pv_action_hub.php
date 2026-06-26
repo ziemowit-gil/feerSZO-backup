@@ -24,13 +24,7 @@ $_pv_attention = count(array_filter($_pv_actions, fn($a) => (int)($a['badge'] ??
     <p class="pv-hub-title" id="pv-hub-vis-title">
       <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>Szybkie akcje
     </p>
-    <div class="pv-hub-search">
-      <i class="bi bi-search" aria-hidden="true"></i>
-      <label class="visually-hidden" for="pvHubSearch">Szukaj akcji</label>
-      <input id="pvHubSearch" type="search" autocomplete="off" placeholder="Szukaj akcji…"
-             aria-controls="pvHubGrid" data-pv-hub-search>
-    </div>
-    <div class="pv-hub-chips" role="group" aria-label="Filtruj akcje">
+    <div class="pv-hub-chips ms-auto" role="group" aria-label="Filtruj akcje">
       <button type="button" class="pv-hub-chip" data-hub-filter="all" aria-pressed="true">Wszystkie</button>
       <button type="button" class="pv-hub-chip" data-hub-filter="attention" aria-pressed="false"<?= $_pv_attention === 0 ? ' disabled' : '' ?>>
         Wymaga uwagi
@@ -47,9 +41,8 @@ $_pv_attention = count(array_filter($_pv_actions, fn($a) => (int)($a['badge'] ??
         $_badge = (int)($a['badge'] ?? 0);
         $_bcls  = $a['badgeClass'] ?? 'danger';
         $_aria  = $a['label'] . ($_badge ? " — {$_badge} wymaga uwagi" : '');
-        $_search = trim(($a['label'] ?? '') . ' ' . ($a['sub'] ?? ''));
       ?>
-      <li data-pv-hub-item data-attention="<?= $_badge > 0 ? '1' : '0' ?>" data-search="<?= h($_search) ?>">
+      <li data-pv-hub-item data-attention="<?= $_badge > 0 ? '1' : '0' ?>">
         <a href="<?= h($a['href']) ?>" class="vol-action-btn" aria-label="<?= h($_aria) ?>">
           <?php if ($_badge): ?>
           <span class="vol-action-badge badge rounded-pill bg-<?= h($_bcls) ?><?= $_bcls === 'warning' ? ' text-dark' : '' ?>" aria-hidden="true"><?= $_badge ?></span>
@@ -71,12 +64,6 @@ $_pv_attention = count(array_filter($_pv_actions, fn($a) => (int)($a['badge'] ??
       <?php endforeach; ?>
     </ul>
   </nav>
-
-  <div class="pv-hub-empty" role="status" data-pv-hub-empty style="display:none">
-    <i class="bi bi-search" aria-hidden="true"></i>
-    <div>Brak akcji pasujących do „<span data-pv-hub-empty-q></span>".</div>
-    <button type="button" class="pv-hub-clear" data-pv-hub-clear>Wyczyść filtry</button>
-  </div>
 </section>
 
 <?php require_once __DIR__ . '/pv_enhance.php'; ?>
