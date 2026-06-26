@@ -450,7 +450,7 @@ include __DIR__ . '/_layout_head.php';
   // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
   $nauka_tabs     = ['lekcje','zadania','oceny','plan','testy'];
   $dostepy_tabs   = ['online','vlab','licencje','pfron'];
-  $pomoc_tabs     = ['problem','ustawienia','regulaminy'];
+  $pomoc_tabs     = ['problem','ustawienia'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
   $dostepy_active = in_array($tab, $dostepy_tabs, true);
   $pomoc_active   = in_array($tab, $pomoc_tabs, true);
@@ -532,12 +532,14 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-wrench-adjustable me-2" aria-hidden="true"></i>Zgłoś problem techniczny</a></li>
         <li><a class="dropdown-item <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>>
           <i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item <?= $tab==='regulaminy'?'active':'' ?>" href="?tab=regulaminy" <?= $tab==='regulaminy'?'aria-current="page"':'' ?>>
-          <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Regulaminy
-          <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-2"><?= count($terms_pending) ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?>
-        </a></li>
       </ul>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='regulaminy'?'active':'' ?>" href="?tab=regulaminy" <?= $tab==='regulaminy'?'aria-current="page"':'' ?>>
+        <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Regulaminy
+        <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-1"><?= count($terms_pending) ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?>
+      </a>
     </li>
 
   </ul>
