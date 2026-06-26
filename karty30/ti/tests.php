@@ -202,10 +202,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <label class="form-label" for="t-pass">Próg zaliczenia (%)</label>
               <input type="number" class="form-control" id="t-pass" name="pass_pct" min="0" max="100" value="<?= (int)$f['pass_pct'] ?: '' ?>" placeholder="0 = brak">
             </div>
-            <div class="col-12 mb-2">
-              <label class="form-label" for="t-retake-pass">Próg zaliczenia — poprawa (%) <span class="text-muted small">0 = brak poprawa</span></label>
-              <input type="number" class="form-control" id="t-retake-pass" name="retake_pass_pct" min="0" max="100" value="<?= (int)$f['retake_pass_pct'] ?: '' ?>" placeholder="np. 70 — wyższy próg przy poprawie">
-            </div>
           </div>
           <div class="form-check form-switch mb-1">
             <input class="form-check-input" type="checkbox" role="switch" name="shuffle" id="t-shuffle" value="1" <?= !empty($f['shuffle'])?'checked':'' ?>>

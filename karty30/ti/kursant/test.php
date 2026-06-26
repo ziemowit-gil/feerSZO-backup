@@ -92,7 +92,7 @@ include __DIR__ . '/_layout_head.php';
 </ol></nav>
 
 <?php
-  $retake_pass = (int)($test['retake_pass_pct'] ?? 0);
+  $retake_pass = $retake && (int)$test['pass_pct'] > 0 ? min(100, (int)$test['pass_pct'] + 20) : 0;
   $retake_suffix = $retake ? '&retake=1' : '';
 ?>
 <?php if (!$done && !$started && $questions): ?>
@@ -134,15 +134,26 @@ include __DIR__ . '/_layout_head.php';
   </div>
 
 <?php elseif ($done && $last):
-  $mx           = (float)$last['max_score'];
-  $pct          = $mx > 0 ? round(100 * (float)$last['score'] / $mx) : 0;
-  $review       = (int)$last['needs_review'] === 1;
-  $is_retake    = ($last['attempt_label'] ?? '') === 'poprawa';
-  $active_pass  = $is_retake && (int)$test['retake_pass_pct'] > 0
-                    ? (int)$test['retake_pass_pct']
-                    : (int)$test['pass_pct'];
-  $passed       = $active_pass === 0 || $pct >= $active_pass;
-  $can_retake   = !$passed && !$review && (int)$test['retake_pass_pct'] > 0 && !$is_retake;
+  $mx          = (float)$last['max_score'];
+  $pct         = $mx > 0 ? round(100 * (float)$last['score'] / $mx) : 0;
+  $review      = (int)$last['needs_review'] === 1;
+  $is_retake   = ($last['attempt_label'] ?? '') === 'poprawa';
+  $base_pass   = (int)$test['pass_pct'];
+  $active_pass = $is_retake ? min(100, $base_pass + 20) : $base_pass;
+  $passed      = $active_pass === 0 || $pct >= $active_pass;
+  $can_retake  = !$passed && !$review && $base_pass > 0 && !$is_retake;
+
+  $fail_msgs = [
+    'Nie udało się… ale hej, przynajmniej wiesz, które pytania Cię nie lubią.',
+    'Nie udało się… komputer sprawdzał dwa razy i też był zaskoczony.',
+    'Nie udało się… wiedza nie uciekła, tylko się gdzieś schowała. Wróci.',
+    'Nie udało się… to się przydarza najlepszym. I też Tobie — przypadkiem.',
+    'Nie udało się… statystycznie to oznacza, że przy poprawie będzie lepiej.',
+    'Nie udało się… system odnotował heroiczną próbę.',
+    'Nie udało się… ale za to masz teraz legitymację do ponarzekania na test.',
+    'Nie udało się… Sokrates też nie zdał egzaminu. Tzn. Sokrates nie żyje, ale to bez związku.',
+  ];
+  $fail_msg = $fail_msgs[crc32((string)$last['id']) % count($fail_msgs)];
 ?>
   <div class="card border-0 shadow-sm">
     <div class="card-body text-center py-4">
@@ -155,12 +166,16 @@ include __DIR__ . '/_layout_head.php';
         <p class="mb-1">Test wysłany. Część pytań (otwarte) czeka na ocenę prowadzącego.</p>
         <p class="text-body-secondary">Punkty z pytań zamkniętych: <strong><?= rtrim(rtrim(number_format((float)$last['score'],2,'.',''),'0'),'.') ?>/<?= rtrim(rtrim(number_format($mx,2,'.',''),'0'),'.') ?></strong></p>
       <?php else: ?>
+        <?php if (!$passed): ?><p class="text-muted fst-italic mb-2 small"><?= h($fail_msg) ?></p><?php endif; ?>
         <p class="fs-5 mb-1">Twój wynik: <strong><?= $pct ?>%</strong>
           (<?= rtrim(rtrim(number_format((float)$last['score'],2,'.',''),'0'),'.') ?>/<?= rtrim(rtrim(number_format($mx,2,'.',''),'0'),'.') ?> pkt)</p>
         <?php if ($active_pass > 0): ?>
           <p class="<?= $passed ? 'text-success' : 'text-danger' ?> fw-semibold">
             <?= $passed ? 'Zaliczono' : 'Nie zaliczono' ?> (próg <?= $active_pass ?>%)
           </p>
+        <?php endif; ?>
+        <?php if ($can_retake): ?>
+          <p class="text-muted small">Poprawka wymaga <strong><?= min(100, $base_pass + 20) ?>%</strong> (o 20 pp więcej).</p>
         <?php endif; ?>
       <?php endif; ?>
       <div class="d-flex gap-2 justify-content-center mt-3 flex-wrap">
