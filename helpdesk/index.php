@@ -133,6 +133,42 @@ echo hd_ui_css();
 </div>
 <?php endif; ?>
 
+<!-- Quill CSS + JS musi być przed głównym skryptem konsoli -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script>
+var QUILL_TOOLBAR = [
+  [{ 'header': [false, 2, 3] }],
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+  ['blockquote', 'link'],
+  ['clean']
+];
+function hdInitQuill(root) {
+  if (typeof Quill === 'undefined') return;
+  (root || document).querySelectorAll('.hd-quill-wrap').forEach(function(wrap) {
+    if (wrap._quill) return;
+    var editorDiv = wrap.querySelector('[id]'); if (!editorDiv) return;
+    var form = wrap.closest('form'); if (!form) return;
+    var hiddenInput = form.querySelector('input[name="msg_body"]');
+    var errDiv = wrap.nextElementSibling;
+    if (errDiv && !errDiv.classList.contains('invalid-feedback')) errDiv = null;
+    var q = new Quill(editorDiv, { theme:'snow', modules:{ toolbar: QUILL_TOOLBAR }, placeholder:'Wpisz odpowiedź…' });
+    wrap._quill = q;
+    var qlEditor = wrap.querySelector('.ql-editor');
+    if (qlEditor) { qlEditor.setAttribute('aria-label','Treść odpowiedzi'); qlEditor.setAttribute('aria-multiline','true'); qlEditor.setAttribute('aria-required','true'); }
+    q.on('text-change', function(){ if(q.getText().trim()!==''){wrap.classList.remove('is-invalid');if(errDiv)errDiv.classList.add('d-none');} });
+    var submitBtn = form.querySelector('button[name="_add_msg"]');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function(e) {
+        if (q.getText().trim()==='') { e.preventDefault(); e.stopImmediatePropagation(); wrap.classList.add('is-invalid'); if(errDiv)errDiv.classList.remove('d-none'); q.focus(); return; }
+        if (hiddenInput) hiddenInput.value = q.root.innerHTML;
+      });
+    }
+  });
+}
+</script>
+
 <script>
 (function () {
   'use strict';
@@ -253,7 +289,15 @@ echo hd_ui_css();
     // Szablony odpowiedzi
     root.querySelectorAll('.hd-tpl-btn').forEach(function (b) {
       b.addEventListener('click', function () {
-        var ta = b.closest('form').querySelector('.hd-msg-body'); if (!ta) return;
+        var form = b.closest('form');
+        var wrap = form.querySelector('.hd-quill-wrap');
+        if (wrap && wrap._quill) {
+          var q = wrap._quill;
+          if (q.getText().trim() !== '' && !confirm('Zastąpić obecną treść wybranym szablonem?')) return;
+          q.root.innerHTML = b.dataset.body.replace(/\n/g, '<br>');
+          q.focus(); return;
+        }
+        var ta = form.querySelector('.hd-msg-body'); if (!ta) return;
         if (ta.value.trim() !== '' && !confirm('Zastąpić obecną treść wybranym szablonem?')) return;
         ta.value = b.dataset.body; ta.focus();
       });
@@ -275,11 +319,30 @@ echo hd_ui_css();
     root.querySelectorAll('[data-hd-back]').forEach(function (b) {
       b.addEventListener('click', function () { consoleEl.classList.remove('hd-show-pane'); });
     });
+    // Inicjalizuj Quill w panelu (tryb pane)
+    hdInitQuill(root);
+
     // Formularze akcji → XHR
     root.querySelectorAll('form[data-hd-form]').forEach(function (f) {
       f.addEventListener('submit', function (e) {
         e.preventDefault();
         if (f.dataset.hdConfirm && !confirm(f.dataset.hdConfirm)) return;
+        // Skopiuj treść Quilla do hidden input przed serializacją
+        var wrap = f.querySelector('.hd-quill-wrap');
+        if (wrap && wrap._quill) {
+          var q = wrap._quill;
+          var empty = q.getText().trim() === '';
+          var hiddenBody = f.querySelector('input[name="msg_body"]');
+          var errDiv = wrap.nextElementSibling;
+          if (empty) {
+            wrap.classList.add('is-invalid');
+            if (errDiv && errDiv.classList.contains('invalid-feedback')) errDiv.classList.remove('d-none');
+            q.focus(); return;
+          }
+          wrap.classList.remove('is-invalid');
+          if (errDiv && errDiv.classList.contains('invalid-feedback')) errDiv.classList.add('d-none');
+          if (hiddenBody) hiddenBody.value = q.root.innerHTML;
+        }
         var fd = new FormData(f);
         if (e.submitter && e.submitter.name) fd.append(e.submitter.name, e.submitter.value || '1');
         fetch(f.action, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
@@ -320,5 +383,6 @@ echo hd_ui_css();
   if (current) loadPane(current);
 })();
 </script>
+
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

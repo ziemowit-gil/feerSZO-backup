@@ -501,80 +501,46 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
   bind(document);
 })();
 </script>
+<?php endif; ?>
 
-<!-- Quill WYSIWYG dla formularzy odpowiedzi -->
+<!-- Quill CSS (dla view.php samodzielnego — index.php ładuje swój egzemplarz) -->
+<?php if (!$hd_pane): ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
-(function(){
-  var TOOLBAR = [
+// hdInitQuill zdefiniowane w index.php; dla view.php samodzielnego definiujemy inline
+if (typeof hdInitQuill === 'undefined') {
+  window.QUILL_TOOLBAR = [
     [{ 'header': [false, 2, 3] }],
     ['bold', 'italic', 'underline', 'strike'],
     [{ 'list': 'ordered' }, { 'list': 'bullet' }],
     ['blockquote', 'link'],
     ['clean']
   ];
-
-  document.querySelectorAll('.hd-quill-wrap').forEach(function(wrap){
-    var editorDiv = wrap.querySelector('[id]');
-    if (!editorDiv || wrap._quill) return;
-
-    var form       = wrap.closest('form');
-    if (!form) return;
-    var hiddenInput= form.querySelector('input[name="msg_body"]');
-    var submitBtn  = form.querySelector('button[name="_add_msg"]');
-    var errDiv     = wrap.nextElementSibling && wrap.nextElementSibling.id.endsWith('_err')
-                     ? wrap.nextElementSibling : null;
-
-    var q = new Quill(editorDiv, {
-      theme:       'snow',
-      modules:     { toolbar: TOOLBAR },
-      placeholder: 'Wpisz odpowiedź…',
-    });
-    wrap._quill = q;
-
-    // Prefill z szablonu URL (atrybut data)
-    var prefill = editorDiv.dataset.prefill || '';
-    if (prefill) {
-      q.root.innerHTML = prefill.replace(/\n/g, '<br>');
-      setTimeout(function(){ q.focus(); }, 50);
-    }
-
-    // Walidacja przed wysyłką
-    if (submitBtn) {
-      submitBtn.addEventListener('click', function(e) {
-        var html  = q.root.innerHTML;
-        var empty = q.getText().trim() === '';
-        if (empty) {
-          e.preventDefault();
-          wrap.classList.add('is-invalid');
-          if (errDiv) errDiv.classList.remove('d-none');
-          q.focus();
-          return;
-        }
-        wrap.classList.remove('is-invalid');
-        if (errDiv) errDiv.classList.add('d-none');
-        if (hiddenInput) hiddenInput.value = html;
-      });
-    }
-
-    // Czyść błąd przy wpisywaniu
-    q.on('text-change', function(){
-      if (q.getText().trim() !== '') {
-        wrap.classList.remove('is-invalid');
-        if (errDiv) errDiv.classList.add('d-none');
+  window.hdInitQuill = function(root) {
+    if (typeof Quill === 'undefined') return;
+    (root || document).querySelectorAll('.hd-quill-wrap').forEach(function(wrap) {
+      if (wrap._quill) return;
+      var editorDiv = wrap.querySelector('[id]'); if (!editorDiv) return;
+      var form = wrap.closest('form'); if (!form) return;
+      var hiddenInput = form.querySelector('input[name="msg_body"]');
+      var errDiv = wrap.nextElementSibling;
+      if (errDiv && !errDiv.classList.contains('invalid-feedback')) errDiv = null;
+      var q = new Quill(editorDiv, { theme:'snow', modules:{ toolbar: QUILL_TOOLBAR }, placeholder:'Wpisz odpowiedź…' });
+      wrap._quill = q;
+      var qlEditor = wrap.querySelector('.ql-editor');
+      if (qlEditor) { qlEditor.setAttribute('aria-label','Treść odpowiedzi'); qlEditor.setAttribute('aria-multiline','true'); qlEditor.setAttribute('aria-required','true'); }
+      q.on('text-change', function(){ if(q.getText().trim()!==''){wrap.classList.remove('is-invalid');if(errDiv)errDiv.classList.add('d-none');} });
+      var submitBtn = form.querySelector('button[name="_add_msg"]');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', function(e) {
+          if (q.getText().trim()==='') { e.preventDefault(); wrap.classList.add('is-invalid'); if(errDiv)errDiv.classList.remove('d-none'); q.focus(); return; }
+          if (hiddenInput) hiddenInput.value = q.root.innerHTML;
+        });
       }
     });
-
-    // Dostępność: edytor Quill — powiąż aria-label z `.ql-editor`
-    var qlEditor = wrap.querySelector('.ql-editor');
-    if (qlEditor) {
-      qlEditor.setAttribute('aria-label', 'Treść odpowiedzi');
-      qlEditor.setAttribute('aria-multiline', 'true');
-      qlEditor.setAttribute('aria-required', 'true');
-      qlEditor.removeAttribute('aria-placeholder'); // Quill dodaje sam
-    }
-  });
-})();
+  };
+  hdInitQuill(document);
+}
 </script>
 <?php endif; ?>
