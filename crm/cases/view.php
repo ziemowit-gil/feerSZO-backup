@@ -858,61 +858,100 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         }
 
         function uploadFile(file) {
+          var ext  = (file.name.split('.').pop() || '').toLowerCase();
+          var icon = EXT_ICONS[ext] || 'bi-file-earmark text-muted';
+
+          // Wiersz z polem nazwy własnej — upload startuje po kliknięciu „Wyślij"
           var li = document.createElement('li');
           li.className = 'upload-item';
-          var ext = (file.name.split('.').pop() || '').toLowerCase();
-          var icon = EXT_ICONS[ext] || 'bi-file-earmark text-muted';
-          li.innerHTML = '<div class="ui-icon"><i class="bi '+icon+'"></i></div>'
+          li.style.flexWrap = 'wrap';
+          li.style.gap = '.4rem';
+          li.innerHTML =
+            '<div class="ui-icon"><i class="bi '+icon+'"></i></div>'
             + '<div class="ui-name" title="'+esc(file.name)+'">'+esc(file.name)+'</div>'
-            + '<div class="ui-bar-wrap"><div class="ui-bar"></div></div>'
-            + '<div class="ui-pct">0%</div>'
-            + '<div class="ui-status"></div>';
+            + '<div style="flex:1 1 100%;display:flex;gap:.4rem;align-items:center;padding-left:36px">'
+              + '<input type="text" class="form-control form-control-sm ui-custom-name" '
+                + 'placeholder="Nazwa własna pliku (opcjonalna)" style="flex:1;font-size:.82rem">'
+              + '<button type="button" class="btn btn-primary btn-sm ui-send-btn" style="white-space:nowrap">'
+                + '<i class="bi bi-upload me-1"></i>Wyślij</button>'
+              + '<button type="button" class="btn btn-outline-secondary btn-sm ui-cancel-btn" aria-label="Anuluj">✕</button>'
+            + '</div>'
+            + '<div style="flex:1 1 100%;padding-left:36px;display:none" class="ui-progress-row">'
+              + '<div class="ui-bar-wrap" style="flex:1"><div class="ui-bar"></div></div>'
+              + '<div class="ui-pct" style="font-size:.7rem;color:#64748b;min-width:2.5rem;text-align:right">0%</div>'
+              + '<div class="ui-status"></div>'
+            + '</div>';
           queue.appendChild(li);
 
-          var bar    = li.querySelector('.ui-bar');
-          var pct    = li.querySelector('.ui-pct');
-          var status = li.querySelector('.ui-status');
+          var nameInput  = li.querySelector('.ui-custom-name');
+          var sendBtn    = li.querySelector('.ui-send-btn');
+          var cancelBtn  = li.querySelector('.ui-cancel-btn');
+          var progressRow= li.querySelector('.ui-progress-row');
+          var bar        = li.querySelector('.ui-bar');
+          var pct        = li.querySelector('.ui-pct');
+          var status     = li.querySelector('.ui-status');
 
-          var fd = new FormData();
-          fd.append('case_id', CASE_ID);
-          fd.append('_csrf',   CSRF);
-          fd.append('file',    file);
+          nameInput.focus();
 
-          var xhr = new XMLHttpRequest();
-          xhr.open('POST', UPLOAD_URL);
+          cancelBtn.addEventListener('click', function(){ li.remove(); });
 
-          xhr.upload.addEventListener('progress', function(e){
-            if (e.lengthComputable) {
-              var p = Math.round(e.loaded / e.total * 100);
-              bar.style.width = p + '%';
-              pct.textContent = p + '%';
-            }
-          });
+          function doUpload() {
+            sendBtn.disabled = true;
+            cancelBtn.disabled = true;
+            nameInput.disabled = true;
+            progressRow.style.display = 'flex';
+            progressRow.style.gap = '.4rem';
+            progressRow.style.alignItems = 'center';
 
-          xhr.addEventListener('load', function(){
-            var res;
-            try { res = JSON.parse(xhr.responseText); } catch(e){ res = {error:'Błąd parsowania odpowiedzi'}; }
-            if (xhr.status === 200 && res.ok) {
-              li.classList.add('done');
-              bar.style.width = '100%';
-              pct.textContent = '✓';
-              status.innerHTML = '<i class="bi bi-check-circle-fill text-success ms-1"></i>';
-              setTimeout(function(){ li.remove(); }, 1800);
-              appendFileRow(res.file);
-              updateCount(1);
-            } else {
+            var fd = new FormData();
+            fd.append('case_id', CASE_ID);
+            fd.append('_csrf',   CSRF);
+            fd.append('file',    file);
+            var customName = nameInput.value.trim();
+            if (customName) fd.append('file_display_name', customName);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', UPLOAD_URL);
+
+            xhr.upload.addEventListener('progress', function(e){
+              if (e.lengthComputable) {
+                var p = Math.round(e.loaded / e.total * 100);
+                bar.style.width = p + '%';
+                pct.textContent = p + '%';
+              }
+            });
+
+            xhr.addEventListener('load', function(){
+              var res;
+              try { res = JSON.parse(xhr.responseText); } catch(e){ res = {error:'Błąd parsowania odpowiedzi'}; }
+              if (xhr.status === 200 && res.ok) {
+                li.classList.add('done');
+                bar.style.width = '100%';
+                pct.textContent = '✓';
+                status.innerHTML = '<i class="bi bi-check-circle-fill text-success ms-1"></i>';
+                setTimeout(function(){ li.remove(); }, 1800);
+                appendFileRow(res.file);
+                updateCount(1);
+              } else {
+                li.classList.add('error');
+                bar.style.background = '#dc2626';
+                bar.style.width = '100%';
+                pct.textContent = '';
+                status.innerHTML = '<span class="text-danger ms-1" title="'+esc(res.error||'Błąd')+'"><i class="bi bi-x-circle-fill"></i> '+esc(res.error||'Błąd')+'</span>';
+                sendBtn.disabled = false;
+                cancelBtn.disabled = false;
+              }
+            });
+            xhr.addEventListener('error', function(){
               li.classList.add('error');
-              bar.style.width = '100%';
-              bar.style.background = '#dc2626';
-              pct.textContent = '';
-              status.innerHTML = '<span class="text-danger ms-1" title="'+esc(res.error||'Błąd')+'"><i class="bi bi-x-circle-fill"></i></span>';
-            }
-          });
-          xhr.addEventListener('error', function(){
-            li.classList.add('error');
-            status.innerHTML = '<span class="text-danger ms-1"><i class="bi bi-x-circle-fill"></i> Błąd sieci</span>';
-          });
-          xhr.send(fd);
+              status.innerHTML = '<span class="text-danger ms-1"><i class="bi bi-x-circle-fill"></i> Błąd sieci</span>';
+              sendBtn.disabled = false;
+            });
+            xhr.send(fd);
+          }
+
+          sendBtn.addEventListener('click', doUpload);
+          nameInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') doUpload(); });
         }
 
         function appendFileRow(f) {
