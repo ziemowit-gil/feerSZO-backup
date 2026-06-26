@@ -54,17 +54,21 @@ function twofa_fail(string $msg): void
 }
 
 // ── For SMS: auto-send on first load (no POST yet) ────────────────────────
+$_2fa_user_email = db_one("SELECT email FROM users WHERE id=?", [$uid])['email'] ?? '';
+
 if ($method === 'sms' && $sms_available && !empty($phone)
     && $_SERVER['REQUEST_METHOD'] !== 'POST'
     && empty($_SESSION['2fa_sms_sent'])
 ) {
     try {
         $otp = sms_generate_otp($phone, $uid);
-        sms_send($phone, "Kod 2FA: {$otp} (ważny 5 min)");
+        $via = sms_send_with_fallback($phone, "Kod 2FA: {$otp} (ważny 5 min)", $_2fa_user_email);
         $_SESSION['2fa_sms_sent'] = true;
-        $info = 'Kod jednorazowy wysłany na Twój numer telefonu.';
+        $info = $via === 'email'
+            ? 'Kod wysłany e-mailem (SMS niedostępny) — sprawdź skrzynkę.'
+            : 'Kod jednorazowy wysłany na Twój numer telefonu.';
     } catch (\Throwable $e) {
-        $error = 'Nie można wysłać SMS: ' . $e->getMessage();
+        $error = 'Nie można wysłać kodu: ' . $e->getMessage();
     }
 }
 
@@ -77,11 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'sms_resend' && $method === 'sms' && $sms_available && $phone) {
         try {
             $otp = sms_generate_otp($phone, $uid);
-            sms_send($phone, "Kod 2FA: {$otp} (ważny 5 min)");
+            $via = sms_send_with_fallback($phone, "Kod 2FA: {$otp} (ważny 5 min)", $_2fa_user_email);
             $_SESSION['2fa_sms_sent'] = true;
-            $info = 'Nowy kod SMS został wysłany.';
+            $info = $via === 'email' ? 'Nowy kod wysłany e-mailem (SMS niedostępny).' : 'Nowy kod SMS został wysłany.';
         } catch (\Throwable $e) {
-            $error = 'Błąd wysyłki SMS: ' . $e->getMessage();
+            $error = 'Błąd wysyłki kodu: ' . $e->getMessage();
         }
     }
 

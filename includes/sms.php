@@ -60,6 +60,39 @@ function sms_send(string $phone, string $message): void {
 }
 
 /**
+ * Wysyła SMS; jeśli dostawca zgłosi błąd, wysyła kod e-mailem jako fallback.
+ * Zwraca 'sms' gdy SMS dotarł, 'email' gdy użyto fallbacku.
+ * Rzuca wyjątek tylko gdy obie metody zawiodą (brak adresu e-mail).
+ *
+ * @param string $email  Adres e-mail do fallbacku ('' = brak fallbacku, rzuci wyjątek jak sms_send).
+ */
+function sms_send_with_fallback(string $phone, string $message, string $email = ''): string {
+    try {
+        sms_send($phone, $message);
+        return 'sms';
+    } catch (\Throwable $sms_err) {
+        if ($email === '') throw $sms_err;
+
+        // Wytnij kod z wiadomości SMS — zakładamy, że jest 6-cyfrowy ciąg
+        preg_match('/\b(\d{6})\b/', $message, $m);
+        $code_display = $m[1] ?? '(patrz wyżej)';
+        $org  = defined('ORG_NAME') ? ORG_NAME : 'System';
+        $subj = "[{$org}] Kod weryfikacyjny (fallback e-mail)";
+        $body = '<p>Próba wysłania kodu SMS nie powiodła się (<em>' . htmlspecialchars($sms_err->getMessage(), ENT_QUOTES) . '</em>).</p>'
+              . '<p>Twój kod jednorazowy: <strong style="font-size:1.5em;letter-spacing:.15em">' . htmlspecialchars($code_display, ENT_QUOTES) . '</strong></p>'
+              . '<p>Kod jest ważny 5 minut. Nie udostępniaj go nikomu.</p>'
+              . '<hr><p style="font-size:.85em;color:#666">Wiadomość wygenerowana automatycznie — ' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
+
+        if (function_exists('mail_queue_add')) {
+            mail_queue_add($email, '', $subj, $body);
+        } else {
+            mail($email, $subj, strip_tags($body));
+        }
+        return 'email';
+    }
+}
+
+/**
  * Generuje i zapisuje 6-cyfrowy OTP (ważny 5 min).
  * Zwraca kod do wklejenia w wiadomość.
  */

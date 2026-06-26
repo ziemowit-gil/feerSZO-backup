@@ -90,11 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             try {
                 $otp = sms_generate_otp($phone_norm, $user['id']);
-                sms_send($phone_norm, "Kod weryfikacyjny 2FA: {$otp} (ważny 5 min)");
+                $via = sms_send_with_fallback($phone_norm, "Kod weryfikacyjny 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '');
                 $_SESSION['2fa_sms_setup_sent'] = true;
-                $success = 'sms_sent';
+                $success = $via === 'email' ? 'sms_fallback_email' : 'sms_sent';
             } catch (\Throwable $e) {
-                $errors[] = 'Błąd wysyłki SMS: ' . $e->getMessage();
+                $errors[] = 'Błąd wysyłki kodu: ' . $e->getMessage();
             }
         }
     }
@@ -379,17 +379,24 @@ if ($_is_volunteer_only) {
       </button>
     </form>
 
-    <?php elseif ($success === 'sms_sent'): ?>
-    <!-- Step 2: verify SMS OTP -->
+    <?php elseif ($success === 'sms_sent' || $success === 'sms_fallback_email'): ?>
+    <!-- Step 2: verify SMS OTP (or email fallback) -->
+    <?php if ($success === 'sms_fallback_email'): ?>
+    <div class="alert alert-warning py-2 small mb-3" role="alert">
+      <i class="bi bi-envelope-exclamation me-1" aria-hidden="true"></i>
+      Wysyłka SMS nie powiodła się — kod wysłany na adres e-mail Twojego konta. Sprawdź skrzynkę.
+    </div>
+    <?php else: ?>
     <p class="small text-muted mb-3">
       Kod SMS wysłany na numer <strong><?= h($db_user['twofa_phone'] ?? '') ?></strong>.
       Ważny przez 5 minut.
     </p>
+    <?php endif; ?>
     <form method="post">
       <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
       <input type="hidden" name="_action" value="sms_confirm">
       <div class="mb-3">
-        <label class="form-label fw-semibold">6-cyfrowy kod SMS</label>
+        <label class="form-label fw-semibold">6-cyfrowy kod</label>
         <input type="text" name="code" class="form-control"
                inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
                placeholder="______" autofocus required

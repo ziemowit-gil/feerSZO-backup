@@ -170,15 +170,23 @@ function parent_otp_send(string $phone): int {
 
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     student_start();
+    // Zbierz e-mail opiekuna z pierwszego dopasowanego konta kursanta
+    $guardian_email = '';
+    foreach ($matched as $kid) {
+        $ge = db_one("SELECT guardian_email FROM k30_ti_student_accounts WHERE id=?", [(int)$kid['id']]);
+        if (!empty($ge['guardian_email'])) { $guardian_email = $ge['guardian_email']; break; }
+    }
     $_SESSION['k30_parent_otp'] = [
-        'hash'    => password_hash($code, PASSWORD_BCRYPT),
-        'phone'   => $norm,
-        'kids'    => array_map(fn($k) => ['id' => (int)$k['id'], 'name' => $k['name']], $matched),
-        'expires' => time() + 300,
-        'tries'   => 0,
+        'hash'         => password_hash($code, PASSWORD_BCRYPT),
+        'phone'        => $norm,
+        'kids'         => array_map(fn($k) => ['id' => (int)$k['id'], 'name' => $k['name']], $matched),
+        'expires'      => time() + 300,
+        'tries'        => 0,
+        'fallback_via' => 'sms',
     ];
     $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
-    sms_send($norm, "{$org}: kod dostepu rodzica do rozliczen: {$code}");
+    $via = sms_send_with_fallback($norm, "{$org}: kod dostepu rodzica do rozliczen: {$code}", $guardian_email);
+    $_SESSION['k30_parent_otp']['fallback_via'] = $via;
     return count($matched);
 }
 

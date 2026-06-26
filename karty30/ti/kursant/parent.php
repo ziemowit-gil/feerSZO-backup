@@ -78,8 +78,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone = trim($_POST['phone'] ?? '');
         try {
             $n = parent_otp_send($phone);
-            if ($n > 0) { $info = 'Kod wysłano SMS-em na podany numer.'; $stage = 'code'; }
-            else        { $err = 'Nie znaleziono małoletniego kursanta przypisanego do tego numeru.'; }
+            if ($n > 0) {
+                $via = $_SESSION['k30_parent_otp']['fallback_via'] ?? 'sms';
+                $info = $via === 'email'
+                    ? 'Wysyłka SMS nie powiodła się — kod wysłany na adres e-mail opiekuna.'
+                    : 'Kod wysłano SMS-em na podany numer.';
+                $stage = 'code';
+            } else {
+                $err = 'Nie znaleziono małoletniego kursanta przypisanego do tego numeru.';
+            }
         } catch (\Throwable $e) {
             $err = 'Nie udało się wysłać SMS: ' . $e->getMessage();
         }
