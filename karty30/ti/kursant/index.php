@@ -2092,24 +2092,23 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </section>
 
+<?php elseif ($tab === 'ustawienia'): ?>
 <?php
-  // Ustawienia — zmienne pomocnicze
   $cur_alias  = (string)($account['login_alias'] ?? '');
   $alias_msg  = (string)($_GET['alias']    ?? '');
   $alias_err  = rawurldecode((string)($_GET['aliaserr'] ?? ''));
   $ust_flash  = '';
-  if (($_GET['sms']    ?? '') === 'on')    $ust_flash = 'Wlaczono powiadomienia SMS o zajeciach.';
-  if (($_GET['sms']    ?? '') === 'off')   $ust_flash = 'Wylaczono powiadomienia SMS o zajeciach.';
-  if (($_GET['prefs']  ?? '') === '1')     $ust_flash = 'Ustawienia powiadomien zapisane.';
-  if (($_GET['dyd']    ?? '') === '1')     $ust_flash = 'Ustawienia powiadomien o dydaktyce zapisane.';
-  if (($_GET['cal']    ?? '') === 'reset') $ust_flash = 'Adres kalendarza zmieniony — zaktualizuj subskrypcje.';
-  if (($_GET['pwok']   ?? '') === '1')     $ust_flash = 'Haslo zostalo zmienione.';
-  if (($_GET['phones'] ?? '') === '1')     $ust_flash = 'Numery do powiadomien SMS zapisane.';
+  if (($_GET['sms']    ?? '') === 'on')    $ust_flash = 'Włączono powiadomienia SMS o zajęciach.';
+  if (($_GET['sms']    ?? '') === 'off')   $ust_flash = 'Wyłączono powiadomienia SMS o zajęciach.';
+  if (($_GET['prefs']  ?? '') === '1')     $ust_flash = 'Ustawienia powiadomień zapisane.';
+  if (($_GET['dyd']    ?? '') === '1')     $ust_flash = 'Ustawienia powiadomień o dydaktyce zapisane.';
+  if (($_GET['cal']    ?? '') === 'reset') $ust_flash = 'Adres kalendarza zmieniony — zaktualizuj subskrypcję.';
+  if (($_GET['pwok']   ?? '') === '1')     $ust_flash = 'Hasło zostało zmienione.';
+  if (($_GET['phones'] ?? '') === '1')     $ust_flash = 'Numery do powiadomień SMS zapisane.';
   if ($alias_msg === 'ok')                 $ust_flash = 'Alias logowania zapisany.';
-  if ($alias_msg === 'removed')            $ust_flash = 'Alias logowania usuniety.';
+  if ($alias_msg === 'removed')            $ust_flash = 'Alias logowania usunięty.';
   $pwerr = rawurldecode((string)($_GET['pwerr'] ?? ''));
 ?>
-<?php elseif ($tab === 'ustawienia'): ?>
 
 <?php if ($ust_flash !== ''): ?>
 <div class="alert alert-success alert-dismissible d-flex gap-2 align-items-center py-2 mb-3" role="alert">
