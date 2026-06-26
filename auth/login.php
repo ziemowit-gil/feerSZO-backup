@@ -282,8 +282,9 @@ html,body{height:100%;margin:0;padding:0}
 body{
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   background:
-    radial-gradient(1100px 520px at 50% -8%, rgba(255,255,255,.07), transparent 60%),
-    linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#1e3a5f 100%);
+    radial-gradient(900px 480px at 15% -10%, rgba(96,165,250,.18), transparent 60%),
+    radial-gradient(1000px 560px at 100% 110%, rgba(99,102,241,.16), transparent 55%),
+    linear-gradient(155deg,#0b1220 0%,#111c30 55%,#0f1e34 100%);
   background-attachment:fixed;
 }
 
@@ -306,18 +307,26 @@ body{
 
 /* ── Karta ───────────────────────────────────────────────── */
 .login-card{
-  background:#fff;border-radius:18px;
-  box-shadow:0 18px 60px rgba(0,0,0,.30),0 4px 14px rgba(0,0,0,.14);
-  padding:2.25rem 2.25rem 1.9rem;
+  position:relative;overflow:hidden;
+  background:#fff;border-radius:20px;border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 24px 70px rgba(2,6,23,.45),0 2px 8px rgba(2,6,23,.18);
+  padding:2.4rem 2.25rem 2rem;
+  animation:loginIn .4s cubic-bezier(.16,.84,.44,1) both;
 }
+.login-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));
+}
+@keyframes loginIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
 /* ── Branding (góra karty) ───────────────────────────────── */
 .brand{text-align:center;margin-bottom:1.6rem}
 .brand-logo{max-height:48px;max-width:210px;object-fit:contain;display:inline-block;margin-bottom:.7rem}
 .brand-icon{
-  width:56px;height:56px;border-radius:16px;margin:0 auto .7rem;
-  background:var(--c,#2563eb);color:var(--c-text,#fff);
-  display:flex;align-items:center;justify-content:center;font-size:1.7rem;
+  width:58px;height:58px;border-radius:17px;margin:0 auto .8rem;
+  background:linear-gradient(135deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));color:var(--c-text,#fff);
+  box-shadow:0 8px 20px rgba(37,99,235,.28);
+  display:flex;align-items:center;justify-content:center;font-size:1.75rem;
 }
 .brand-org{font-size:1.15rem;font-weight:800;color:#0f172a;margin:0;line-height:1.3;letter-spacing:-.01em}
 .brand-tagline{font-size:.82rem;color:#64748b;margin:.3rem 0 0;line-height:1.5}
@@ -340,12 +349,13 @@ body{
 .chooser{display:flex;flex-direction:column;gap:.7rem}
 .choice{
   display:flex;align-items:center;gap:1rem;
-  padding:1.05rem 1.1rem;border:2px solid #e2e8f0;border-radius:14px;
+  padding:1.05rem 1.1rem;border:1.5px solid #e2e8f0;border-radius:14px;
   text-decoration:none;background:#fff;cursor:pointer;width:100%;text-align:left;
-  transition:border-color .14s,box-shadow .14s,transform .06s,background .14s;
+  box-shadow:0 1px 2px rgba(2,6,23,.04);
+  transition:border-color .14s,box-shadow .14s,transform .12s,background .14s;
 }
-.choice:hover{border-color:var(--c,#2563eb);background:#f8fafc;box-shadow:0 0 0 4px rgba(37,99,235,.08)}
-.choice:active{transform:translateY(1px)}
+.choice:hover{border-color:var(--c,#2563eb);background:#f8fafc;box-shadow:0 8px 22px rgba(37,99,235,.14);transform:translateY(-2px)}
+.choice:active{transform:translateY(0)}
 .choice-icon{
   width:50px;height:50px;border-radius:13px;flex-shrink:0;
   background:var(--c-bg,#eff6ff);color:var(--c,#2563eb);
@@ -404,8 +414,8 @@ body{
 /* ── Pola formularza ─────────────────────────────────────── */
 .form-label{font-size:.9rem;font-weight:600;color:#1e293b;margin-bottom:.38rem;display:block}
 .form-control{
-  border:2px solid #94a3b8;border-radius:8px;
-  font-size:1rem;padding:.65rem .9rem;min-height:48px;
+  border:1.5px solid #94a3b8;border-radius:10px;
+  font-size:1rem;padding:.7rem .95rem;min-height:48px;
   color:#0f172a;width:100%;background:#fff;
   transition:border-color .15s,box-shadow .15s;
 }
@@ -429,14 +439,16 @@ body{
 /* ── Przycisk główny ─────────────────────────────────────── */
 .btn-login{
   display:flex;align-items:center;justify-content:center;gap:.55rem;
-  background:var(--c,#2563eb);color:var(--c-text,#fff);
-  border:2px solid var(--c,#2563eb);border-radius:8px;
-  padding:.8rem 1.25rem;font-size:1rem;font-weight:700;
+  background:linear-gradient(135deg,var(--c,#2563eb),var(--c-dark,#1d4ed8));color:var(--c-text,#fff);
+  border:2px solid transparent;border-radius:10px;
+  padding:.85rem 1.25rem;font-size:1rem;font-weight:700;
   width:100%;min-height:52px;cursor:pointer;
-  transition:background .15s,border-color .15s;
+  box-shadow:0 8px 20px rgba(37,99,235,.28);
+  transition:filter .15s,box-shadow .15s,transform .12s;
   text-decoration:none;
 }
-.btn-login:hover{background:var(--c-dark,#1d4ed8);border-color:var(--c-dark,#1d4ed8);color:var(--c-text,#fff)}
+.btn-login:hover{filter:brightness(1.06);box-shadow:0 10px 26px rgba(37,99,235,.36);transform:translateY(-1px);color:var(--c-text,#fff)}
+.btn-login:active{transform:translateY(0)}
 
 /* ── Microsoft 365 ───────────────────────────────────────── */
 .btn-ms365{
@@ -533,7 +545,7 @@ body{
   .method-trigger-btn{border-width:3px}
 }
 /* ── Reduced motion ──────────────────────────────────────── */
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 
 /* ── Mobile ──────────────────────────────────────────────── */
 @media(max-width:520px){
