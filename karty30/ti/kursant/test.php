@@ -184,6 +184,9 @@ include __DIR__ . '/_layout_head.php';
         <?php if ($can_retake): ?>
         <a href="test.php?test=<?= $test_id ?>&retake=1" class="btn btn-warning"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Popraw</a>
         <?php endif; ?>
+        <?php if (!$review): ?>
+        <a href="test_print.php?attempt=<?= (int)$last['id'] ?>" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj</a>
+        <?php endif; ?>
       </div>
     </div>
   </div>
