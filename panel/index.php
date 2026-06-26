@@ -353,27 +353,6 @@ $_vol_dark = (function(string $hex): string {
 .pv-page-sub    { font-size:.84rem; color:#4B5563; margin:0; }
 .pv-page-warmup { font-size:.87rem; font-weight:500; margin-top:.3rem; color:var(--vol-color); }
 
-/* Karta umowy — hero (bez color-mix) */
-.vol-contract-hero {
-  background: linear-gradient(135deg, var(--vol-color) 0%, <?= h($_vol_dark) ?> 100%);
-  border-radius: 14px; color: #fff; padding: 1.5rem;
-  margin-bottom: 1rem; position: relative; overflow: hidden;
-  box-shadow: 0 6px 20px rgba(<?= h($_vol_rgb) ?>,.30);
-}
-.vol-contract-hero::before {
-  content:''; position:absolute; width:240px; height:240px; border-radius:50%;
-  background:rgba(255,255,255,.06); bottom:-90px; right:-60px; pointer-events:none;
-}
-.vol-contract-hero-num    { font-size:.8rem; opacity:.85; font-weight:500; margin-bottom:.2rem; }
-.vol-contract-hero-type   { font-size:1.1rem; font-weight:800; margin-bottom:.45rem; line-height:1.3; }
-.vol-contract-hero-status { display:inline-flex; align-items:center; gap:.3rem; padding:.28rem .75rem; border-radius:2rem; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35); font-size:.8rem; font-weight:600; }
-.vol-contract-hero-dates  { font-size:.8rem; opacity:.85; margin-top:.65rem; }
-
-/* Progress bar */
-.vol-progress-wrap { background:rgba(255,255,255,.22); border-radius:4px; height:6px; margin-top:.85rem; overflow:hidden; }
-.vol-progress-fill { background:#fff; height:6px; border-radius:4px; }
-.vol-progress-label { display:flex; justify-content:space-between; font-size:.76rem; opacity:.85; margin-top:.3rem; }
-
 /* Dane umowy — definition grid */
 .vol-data-grid {
   display:grid; grid-template-columns:repeat(auto-fill,minmax(135px,1fr)); gap:.65rem;
@@ -526,50 +505,56 @@ $_is_wolontariat = $_ct_type === 'wolontariat';
 $_pesel = $_active_row['pesel'] ?? '';
 $_pesel_masked = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) : '';
 ?>
+<?php
+$_status_labels_human = ['projekt'=>'W przygotowaniu','podpisana'=>'Aktywne','w realizacji'=>'Aktywne','zakończona'=>'Zakończone','rozwiązana'=>'Zakończone','anulowana'=>'Anulowane'];
+$_status_icons  = ['podpisana'=>'bi-check-circle','w realizacji'=>'bi-play-circle','zakończona'=>'bi-flag','rozwiązana'=>'bi-x-circle','anulowana'=>'bi-slash-circle','projekt'=>'bi-clock'];
+$_st    = $_active_contract['status'] ?? '';
+$_ended = !empty($contract_progress['ended']);
+?>
+<style>
+.pv-status{background:#fff;border:1px solid #E5E7EB;border-left:4px solid var(--vol-color);border-radius:12px;padding:.85rem 1.1rem;box-shadow:0 1px 6px rgba(0,0,0,.06);margin-bottom:1rem}
+.pv-status-row{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.pv-status-ic{width:36px;height:36px;border-radius:9px;background:rgba(<?= h($_vol_rgb) ?>,.1);color:var(--vol-color);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.pv-status-txt{flex:1;min-width:0}
+.pv-status-name{font-size:.9rem;font-weight:700;color:#111827;line-height:1.25}
+.pv-status-meta{font-size:.78rem;color:#6B7280;margin-top:.1rem}
+.pv-status-badge{font-size:.76rem;font-weight:700;padding:.25rem .7rem;border-radius:2rem;white-space:nowrap}
+.pv-status-badge.is-active{background:#ECFDF5;color:#047857}
+.pv-status-badge.is-ended{background:#F3F4F6;color:#6B7280}
+.pv-status-prog{margin-top:.7rem}
+.pv-status-prog-lbl{display:flex;justify-content:space-between;font-size:.76rem;color:#6B7280;margin-bottom:.25rem}
+.pv-status-prog-bar{height:6px;background:#F1F5F9;border-radius:4px;overflow:hidden}
+.pv-status-prog-fill{height:6px;background:var(--vol-color);border-radius:4px}
+</style>
 <section aria-labelledby="pvp-contract-heading">
 <h2 id="pvp-contract-heading" class="visually-hidden">Twoja umowa</h2>
-<div class="vol-contract-hero">
-  <div class="vol-contract-hero-num">
-    Twoje porozumienie wolontariackie
-    <?php if ($_is_guardian): ?>
-    <span style="margin-left:.5rem;background:rgba(251,191,36,.3);border:1px solid rgba(251,191,36,.5);border-radius:2rem;padding:.1rem .5rem;font-size:.75rem">
-      <i class="bi bi-person-hearts" aria-hidden="true"></i> Opiekun
-    </span>
-    <?php endif; ?>
+<div class="pv-status">
+  <div class="pv-status-row">
+    <span class="pv-status-ic" aria-hidden="true"><i class="bi <?= $_status_icons[$_st] ?? 'bi-circle' ?>"></i></span>
+    <div class="pv-status-txt">
+      <div class="pv-status-name">
+        Porozumienie wolontariackie<?php if ($_active_row['imie_nazwisko'] ?? null): ?> · <?= h($_active_row['imie_nazwisko']) ?><?php endif; ?>
+        <?php if ($_is_guardian): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.65rem"><i class="bi bi-person-hearts me-1" aria-hidden="true"></i>Opiekun</span><?php endif; ?>
+      </div>
+      <?php if (($_active_row['data_zawarcia'] ?? null) || ($_active_contract['data_zakonczenia'] ?? null) || !empty($_active_row['bezterminowa'])): ?>
+      <div class="pv-status-meta">
+        <?php if ($_active_row['data_zawarcia'] ?? null): ?><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Od <?= date('d.m.Y', strtotime($_active_row['data_zawarcia'])) ?><?php endif; ?>
+        <?php if ($_active_contract['data_zakonczenia'] ?? null): ?> → <?= date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) ?><?php elseif (!empty($_active_row['bezterminowa'])): ?> → <i class="bi bi-infinity" aria-hidden="true"></i> bezterminowo<?php endif; ?>
+      </div>
+      <?php endif; ?>
+    </div>
+    <span class="pv-status-badge <?= $_ended ? 'is-ended' : 'is-active' ?>"><?= h($_status_labels_human[$_st] ?? ucfirst($_st)) ?></span>
   </div>
-
-  <?php if ($_active_row['imie_nazwisko'] ?? null): ?>
-  <div class="vol-contract-hero-type"><?= h($_active_row['imie_nazwisko']) ?></div>
-  <?php endif; ?>
-
-  <?php
-  $_status_labels_human = ['projekt'=>'W przygotowaniu','podpisana'=>'Aktywne 🌱','w realizacji'=>'Aktywne 🌱','zakończona'=>'Zakończone','rozwiązana'=>'Zakończone','anulowana'=>'Anulowane'];
-  $_status_icons  = ['podpisana'=>'bi-check-circle','w realizacji'=>'bi-play-circle','zakończona'=>'bi-flag','rozwiązana'=>'bi-x-circle','anulowana'=>'bi-slash-circle','projekt'=>'bi-clock'];
-  $_st = $_active_contract['status'] ?? '';
-  ?>
-  <div>
-    <span class="vol-contract-hero-status">
-      <i class="bi <?= $_status_icons[$_st] ?? 'bi-circle' ?>" aria-hidden="true"></i>
-      <?= h($_status_labels_human[$_st] ?? ucfirst($_st)) ?>
-    </span>
+  <?php if ($contract_progress && !$_ended): ?>
+  <div class="pv-status-prog">
+    <div class="pv-status-prog-lbl">
+      <span>Pozostało <strong><?= (int)$contract_progress['days_left'] ?></strong> dni</span>
+      <span><?= (int)$contract_progress['pct'] ?>%</span>
+    </div>
+    <div class="pv-status-prog-bar" role="progressbar" aria-valuenow="<?= (int)$contract_progress['pct'] ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Postęp umowy">
+      <div class="pv-status-prog-fill" style="width:<?= (int)$contract_progress['pct'] ?>%"></div>
+    </div>
   </div>
-
-  <?php if (($_active_row['data_zawarcia'] ?? null) || ($_active_contract['data_zakonczenia'] ?? null)): ?>
-  <div class="vol-contract-hero-dates">
-    <?php if ($_active_row['data_zawarcia'] ?? null): ?>
-    <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>
-    Od <?= date('d.m.Y', strtotime($_active_row['data_zawarcia'])) ?>
-    <?php endif; ?>
-    <?php if ($_active_contract['data_zakonczenia'] ?? null): ?>
-    &nbsp;→&nbsp; <?= date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) ?>
-    <?php elseif (!empty($_active_row['bezterminowa'])): ?>
-    &nbsp;→&nbsp; <i class="bi bi-infinity" aria-hidden="true"></i> bezterminowo
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
-
-  <?php if ($contract_progress): ?>
-  <?php include __DIR__ . '/includes/pv_contract_countdown.php'; ?>
   <?php endif; ?>
 </div>
 </section>
@@ -655,12 +640,20 @@ $_pv_actions[] = [
 <!-- ═══ SZYBKIE AKCJE ════════════════════════════════════════════════════════ -->
 <?php include __DIR__ . "/includes/pv_action_hub.php"; ?>
 
-<!-- ═══ DANE UMOWY — jedna zwarta karta ══════════════════════════════════════ -->
+<!-- ═══ DANE UMOWY — zwijane (domyślnie schowane) ════════════════════════════ -->
 <?php if ($_active_row): ?>
-<div class="vol-detail-card mb-3">
-  <div class="vol-detail-header">
+<style>
+.vol-details summary{cursor:pointer;list-style:none;user-select:none}
+.vol-details summary::-webkit-details-marker{display:none}
+.vol-details summary:focus-visible{outline:2px solid var(--vol-color);outline-offset:2px}
+.vol-details .vol-details-chev{transition:transform .15s;color:#9CA3AF}
+.vol-details[open] .vol-details-chev{transform:rotate(180deg)}
+</style>
+<details class="vol-detail-card mb-3 vol-details">
+  <summary class="vol-detail-header">
     <i class="bi bi-card-checklist" aria-hidden="true"></i> Dane umowy
-  </div>
+    <i class="bi bi-chevron-down vol-details-chev ms-auto" aria-hidden="true"></i>
+  </summary>
   <div class="vol-detail-body">
     <ul class="vol-data-grid" style="margin-bottom:0" aria-label="Dane z Twojej umowy">
       <?php if ($_pesel): ?>
@@ -736,7 +729,7 @@ $_pv_actions[] = [
         <div class="vol-data-val monospace"><?= h($_active_row['nr_rejestru'] ?? '—') ?></div></li>
     </ul>
   </div>
-</div>
+</details>
 <?php endif; // _active_row — dane umowy ?>
 
 <!-- ═══ PANEL AKTYWNOŚCI ════════════════════════════════════════════════════ -->
