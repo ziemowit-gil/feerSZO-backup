@@ -394,8 +394,6 @@ $otp_ready = !empty($u_fresh['ika_email_otp'])
 // Poziom ochrony
 $sec_dots = ['admin' => 4, 'editor' => 3];
 $dots = $sec_dots[$role] ?? (in_array($role, ['crm_user'], true) ? 3 : 2);
-$sec_level = $dots >= 4 ? 'Krytyczna' : ($dots >= 3 ? 'Wysoka' : 'Standardowa');
-$sec_color = $dots >= 4 ? '#ef4444' : ($dots >= 3 ? '#f59e0b' : '#3b82f6');
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -412,28 +410,18 @@ html,body{height:100%;margin:0;padding:0}
 /* ── Tło ────────────────────────────────────────────────────── */
 body{
   min-height:100vh;
-  background:#0c1524;
+  background:#f0f4f8;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:1.25rem;
-  position:relative;overflow-x:hidden;
-}
-body::before{
-  content:'';position:fixed;inset:0;
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(37,99,235,.18) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 90%, rgba(124,58,237,.12) 0%, transparent 55%);
-  pointer-events:none;z-index:0;
 }
 
 /* ── Karta główna ───────────────────────────────────────────── */
 .gate-card{
-  position:relative;z-index:1;
   width:100%;max-width:420px;
-  background:rgba(15,23,42,.85);
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:20px;
-  box-shadow:0 32px 80px rgba(0,0,0,.55),0 0 0 1px rgba(37,99,235,.08);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:18px;
+  box-shadow:0 4px 24px rgba(15,23,42,.09),0 1px 4px rgba(15,23,42,.06);
   overflow:hidden;
 }
 
@@ -441,29 +429,30 @@ body::before{
 .gate-top{
   display:flex;align-items:center;gap:.75rem;
   padding:.85rem 1.25rem;
-  border-bottom:1px solid rgba(255,255,255,.07);
-  background:rgba(255,255,255,.03);
+  border-bottom:1px solid #f1f5f9;
+  background:#f8fafc;
 }
 .gate-logo{
   width:34px;height:34px;border-radius:9px;flex-shrink:0;
   background:linear-gradient(135deg,#1e3a5f,#2563eb);
   display:flex;align-items:center;justify-content:center;
   font-size:1rem;color:#fff;
-  box-shadow:0 4px 12px rgba(37,99,235,.35);
+  box-shadow:0 2px 8px rgba(37,99,235,.25);
 }
 .gate-top-org{
   flex:1;min-width:0;
-  font-size:.78rem;font-weight:700;color:#e2e8f0;
+  font-size:.78rem;font-weight:700;color:#0f172a;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .gate-top-org small{
   display:block;font-size:.62rem;font-weight:400;
-  color:#6b7fa3;letter-spacing:.04em;text-transform:uppercase;
+  color:#94a3b8;letter-spacing:.04em;text-transform:uppercase;
 }
 .gate-user-pill{
   display:flex;align-items:center;gap:.5rem;
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  background:#fff;border:1px solid #e2e8f0;
   border-radius:999px;padding:.28rem .65rem .28rem .3rem;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
 }
 .gate-avatar{
   width:24px;height:24px;border-radius:50%;
@@ -471,29 +460,22 @@ body::before{
   display:flex;align-items:center;justify-content:center;
   font-size:.6rem;font-weight:800;flex-shrink:0;
 }
-.gate-user-name{font-size:.72rem;font-weight:600;color:#cbd5e1;max-width:100px;
+.gate-user-name{font-size:.72rem;font-weight:600;color:#374151;max-width:100px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* ── Destination strip ──────────────────────────────────────── */
 .gate-dest{
   display:flex;align-items:center;gap:.6rem;
-  padding:.6rem 1.25rem;
-  background:rgba(37,99,235,.07);
-  border-bottom:1px solid rgba(37,99,235,.14);
+  padding:.55rem 1.25rem;
+  background:#f8fafc;
+  border-bottom:1px solid #e2e8f0;
 }
 .gate-dest-icon{
   width:28px;height:28px;border-radius:7px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;font-size:.85rem;
 }
-.gate-dest-module{font-size:.75rem;font-weight:700;color:#93c5fd;line-height:1.2}
-.gate-dest-resource{font-size:.68rem;color:#6b7fa3;margin-top:.05rem}
-.gate-sec-badge{
-  margin-left:auto;display:flex;align-items:center;gap:.3rem;
-  font-size:.65rem;font-weight:700;color:#6b7fa3;
-  white-space:nowrap;
-}
-.gate-sec-dots{display:flex;gap:2px;align-items:center}
-.gate-sec-dot{width:5px;height:5px;border-radius:50%}
+.gate-dest-module{font-size:.75rem;font-weight:700;color:#1e40af;line-height:1.2}
+.gate-dest-resource{font-size:.68rem;color:#94a3b8;margin-top:.05rem}
 
 /* ── Tryb header ────────────────────────────────────────────── */
 .gate-mode-head{
@@ -503,14 +485,14 @@ body::before{
 .gate-mode-icon{
   width:44px;height:44px;border-radius:12px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;font-size:1.25rem;
-  background:rgba(37,99,235,.15);color:#60a5fa;
-  border:1px solid rgba(37,99,235,.2);
+  background:#eff6ff;color:#2563eb;
+  border:1px solid #bfdbfe;
 }
-.gate-mode-icon.setup{background:rgba(217,119,6,.15);color:#fbbf24;border-color:rgba(217,119,6,.2)}
-.gate-mode-icon.email{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.2)}
-.gate-mode-icon.pesel{background:rgba(139,92,246,.12);color:#a78bfa;border-color:rgba(139,92,246,.2)}
-.gate-mode-title{font-size:1rem;font-weight:800;color:#f1f5f9;margin:0;line-height:1.25}
-.gate-mode-sub{font-size:.75rem;color:#6b7fa3;margin-top:.2rem;line-height:1.4}
+.gate-mode-icon.setup{background:#fffbeb;color:#d97706;border-color:#fde68a}
+.gate-mode-icon.email{background:#ecfdf5;color:#059669;border-color:#a7f3d0}
+.gate-mode-icon.pesel{background:#f5f3ff;color:#7c3aed;border-color:#ddd6fe}
+.gate-mode-title{font-size:1rem;font-weight:800;color:#0f172a;margin:0;line-height:1.25}
+.gate-mode-sub{font-size:.75rem;color:#64748b;margin-top:.2rem;line-height:1.4}
 
 /* ── Body ───────────────────────────────────────────────────── */
 .gate-body{padding:.5rem 1.4rem 1.4rem}
@@ -518,51 +500,51 @@ body::before{
 /* ── Zakładki metod ─────────────────────────────────────────── */
 .method-tabs{
   display:flex;gap:.3rem;margin-bottom:1.1rem;
-  background:rgba(255,255,255,.05);border-radius:10px;padding:.28rem;
-  border:1px solid rgba(255,255,255,.07);
+  background:#f1f5f9;border-radius:10px;padding:.28rem;
+  border:1px solid #e2e8f0;
 }
 .method-tab{
   flex:1;padding:.5rem .4rem;border:none;border-radius:7px;
-  background:transparent;font-size:.8rem;font-weight:500;color:#6b7fa3;
+  background:transparent;font-size:.8rem;font-weight:500;color:#64748b;
   cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:.35rem;
 }
-.method-tab.active{background:rgba(37,99,235,.25);color:#93c5fd;font-weight:700;
-  border:1px solid rgba(37,99,235,.3);box-shadow:0 1px 4px rgba(0,0,0,.2)}
-.method-tab:hover:not(.active){color:#cbd5e1;background:rgba(255,255,255,.06)}
+.method-tab.active{background:#fff;color:#1e40af;font-weight:700;
+  border:1px solid #bfdbfe;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.method-tab:hover:not(.active){color:#0f172a;background:rgba(255,255,255,.7)}
 
 /* ── 6 boxów cyfr ───────────────────────────────────────────── */
 .digit-row{display:flex;gap:.38rem;justify-content:center;margin:.8rem 0}
 .digit-box{
   width:48px;height:60px;
-  border:2px solid rgba(255,255,255,.1);border-radius:10px;
-  background:rgba(255,255,255,.05);
+  border:2px solid #cbd5e1;border-radius:10px;
+  background:#f8fafc;
   font-size:1.8rem;font-weight:800;font-family:monospace;
   text-align:center;outline:none;caret-color:transparent;
-  transition:border-color .15s,box-shadow .15s,background .15s;color:#f1f5f9;
+  transition:border-color .15s,box-shadow .15s,background .15s;color:#0f172a;
 }
 .digit-box:focus{
   border-color:var(--c,#2563eb);
-  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.25));
-  background:rgba(37,99,235,.1);
+  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.18));
+  background:#fff;
 }
-.digit-box.filled{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.5)}
-.digit-box.is-error{border-color:#ef4444;background:rgba(239,68,68,.1)}
+.digit-box.filled{background:#eff6ff;border-color:#2563eb}
+.digit-box.is-error{border-color:#ef4444;background:#fef2f2}
 
 /* ── 3 boxy PESEL ───────────────────────────────────────────── */
 .pesel-row{display:flex;gap:.45rem;justify-content:center;margin:.9rem 0}
 .pesel-box{
-  width:52px;height:64px;border:2px solid rgba(255,255,255,.1);border-radius:10px;
-  background:rgba(255,255,255,.05);font-size:2rem;font-weight:800;font-family:monospace;
-  text-align:center;outline:none;color:#f1f5f9;
+  width:52px;height:64px;border:2px solid #cbd5e1;border-radius:10px;
+  background:#f8fafc;font-size:2rem;font-weight:800;font-family:monospace;
+  text-align:center;outline:none;color:#0f172a;
   transition:border-color .15s,box-shadow .15s;
 }
 .pesel-box:focus{
   border-color:var(--c,#2563eb);
-  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.25));
-  background:rgba(37,99,235,.1);
+  box-shadow:0 0 0 3px var(--c-ring,rgba(37,99,235,.18));
+  background:#fff;
 }
-.pesel-box.is-error{border-color:#ef4444;background:rgba(239,68,68,.1)}
-.pesel-pos{font-size:.66rem;color:#6b7fa3;text-align:center;margin-top:.2rem;font-weight:600}
+.pesel-box.is-error{border-color:#ef4444;background:#fef2f2}
+.pesel-pos{font-size:.66rem;color:#64748b;text-align:center;margin-top:.2rem;font-weight:600}
 
 /* ── Przycisk główny ────────────────────────────────────────── */
 .btn-gate{
@@ -571,55 +553,55 @@ body::before{
   font-size:.88rem;font-weight:700;width:100%;
   display:flex;align-items:center;justify-content:center;gap:.5rem;
   transition:all .15s;cursor:pointer;
-  box-shadow:0 4px 16px var(--c-ring,rgba(37,99,235,.3));
+  box-shadow:0 4px 14px var(--c-ring,rgba(37,99,235,.28));
   letter-spacing:.01em;
 }
 .btn-gate:hover:not(:disabled){
-  filter:brightness(1.1);
-  box-shadow:0 6px 22px var(--c-ring,rgba(37,99,235,.45));
+  filter:brightness(1.07);
+  box-shadow:0 6px 20px var(--c-ring,rgba(37,99,235,.38));
   transform:translateY(-1px);
 }
-.btn-gate:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
-.btn-gate.btn-email{--c:#059669;--c-dark:#047857;--c-ring:rgba(5,150,105,.3)}
-.btn-gate.btn-setup{--c:#d97706;--c-dark:#b45309;--c-ring:rgba(217,119,6,.35)}
+.btn-gate:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-gate.btn-email{--c:#059669;--c-dark:#047857;--c-ring:rgba(5,150,105,.28)}
+.btn-gate.btn-setup{--c:#d97706;--c-dark:#b45309;--c-ring:rgba(217,119,6,.3)}
 
 /* ── Separator ──────────────────────────────────────────────── */
-.or-sep{display:flex;align-items:center;gap:.7rem;margin:.85rem 0;color:#4b5a72;font-size:.71rem}
-.or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.08)}
+.or-sep{display:flex;align-items:center;gap:.7rem;margin:.85rem 0;color:#94a3b8;font-size:.71rem}
+.or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:#e2e8f0}
 
 /* ── Linki odzyskiwania ─────────────────────────────────────── */
 .recovery-links{display:flex;flex-direction:column;gap:.3rem}
 .recovery-btn{
   display:flex;align-items:center;gap:.5rem;
-  padding:.52rem .85rem;border:1px solid rgba(255,255,255,.08);border-radius:.6rem;
-  background:rgba(255,255,255,.04);color:#94a3b8;font-size:.78rem;text-decoration:none;
-  cursor:pointer;transition:all .15s;width:100%;text-align:left;
+  padding:.52rem .85rem;border:1.5px solid #e2e8f0;border-radius:.6rem;
+  background:#fff;color:#374151;font-size:.78rem;text-decoration:none;
+  cursor:pointer;transition:all .12s;width:100%;text-align:left;
 }
 .recovery-btn:hover{
-  border-color:rgba(37,99,235,.4);color:#93c5fd;
-  background:rgba(37,99,235,.08);transform:translateX(2px);
+  border-color:#93c5fd;color:#1e40af;
+  background:#eff6ff;transform:translateX(2px);
 }
-.recovery-btn i{color:#4b5a72;font-size:.85rem;flex-shrink:0;transition:color .15s}
-.recovery-btn:hover i{color:#60a5fa}
+.recovery-btn i{color:#94a3b8;font-size:.85rem;flex-shrink:0;transition:color .12s}
+.recovery-btn:hover i{color:#2563eb}
 
 /* ── Setup form ─────────────────────────────────────────────── */
 .setup-field{margin-bottom:.85rem}
-.setup-label{font-size:.76rem;font-weight:600;color:#cbd5e1;margin-bottom:.3rem;display:block}
-.setup-label span{font-weight:400;color:#6b7fa3;font-size:.71rem;margin-left:.3rem}
+.setup-label{font-size:.76rem;font-weight:600;color:#374151;margin-bottom:.3rem;display:block}
+.setup-label span{font-weight:400;color:#64748b;font-size:.71rem;margin-left:.3rem}
 .setup-input{
-  width:100%;border:1.5px solid rgba(255,255,255,.1);border-radius:.6rem;
-  padding:.52rem .8rem;font-size:.9rem;color:#f1f5f9;
-  background:rgba(255,255,255,.06);outline:none;
+  width:100%;border:1.5px solid #cbd5e1;border-radius:.6rem;
+  padding:.52rem .8rem;font-size:.9rem;color:#0f172a;
+  background:#f8fafc;outline:none;
   transition:border-color .15s,box-shadow .15s;
 }
 .setup-input:focus{
   border-color:#d97706;
-  box-shadow:0 0 0 3px rgba(217,119,6,.15);
-  background:rgba(217,119,6,.05);
+  box-shadow:0 0 0 3px rgba(217,119,6,.14);
+  background:#fff;
 }
-.setup-input.is-error{border-color:#ef4444;background:rgba(239,68,68,.08)}
+.setup-input.is-error{border-color:#ef4444;background:#fef2f2}
 .setup-code-input{font-family:monospace;letter-spacing:.25em;font-size:1.05rem;font-weight:700;text-align:center;text-transform:uppercase}
-.setup-input::placeholder{color:#3d4f6a}
+.setup-input::placeholder{color:#94a3b8}
 
 /* ── Alert ──────────────────────────────────────────────────── */
 .gate-alert{
@@ -627,43 +609,44 @@ body::before{
   padding:.6rem .8rem;border-radius:.55rem;
   font-size:.8rem;line-height:1.5;margin-bottom:.85rem;
 }
-.gate-alert.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#fca5a5}
-.gate-alert.ok {background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);color:#6ee7b7}
+.gate-alert.err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}
+.gate-alert.ok {background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d}
 
 /* ── Spinner ────────────────────────────────────────────────── */
 @keyframes _spin{to{transform:rotate(360deg)}}
-.spin-icon{display:none;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:_spin .6s linear infinite}
+.spin-icon{display:none;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:_spin .6s linear infinite}
 
 /* ── State box ──────────────────────────────────────────────── */
 .state-box{text-align:center;padding:.9rem 0 .4rem}
 .state-icon{font-size:2.2rem;display:block;margin-bottom:.55rem}
-.state-box p{color:#6b7fa3;font-size:.83rem;line-height:1.6;margin:0}
+.state-box p{color:#64748b;font-size:.83rem;line-height:1.6;margin:0}
 .state-box p+p{margin-top:.3rem}
-.state-box strong{color:#94a3b8}
+.state-box strong{color:#374151}
 
 /* ── Email note ─────────────────────────────────────────────── */
-.sms-code-note{font-size:.81rem;color:#6b7fa3;margin-bottom:1rem;line-height:1.5}
-.sms-code-note strong{color:#93c5fd}
+.sms-code-note{font-size:.81rem;color:#475569;margin-bottom:1rem;line-height:1.5}
+.sms-code-note strong{color:#1e40af}
 
 /* ── Footer ─────────────────────────────────────────────────── */
 .gate-footer{
   display:flex;align-items:center;justify-content:space-between;
   padding:.7rem 1.25rem;
-  border-top:1px solid rgba(255,255,255,.06);
-  font-size:.67rem;color:#3d4f6a;
+  border-top:1px solid #f1f5f9;
+  background:#f8fafc;
+  font-size:.67rem;color:#94a3b8;
 }
-.gate-footer a{color:#4b5a72;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem}
-.gate-footer a:hover{color:#93c5fd}
+.gate-footer a{color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem}
+.gate-footer a:hover{color:#2563eb}
 
 /* ── Accessibility ──────────────────────────────────────────── */
 @media(prefers-contrast:high){
-  .digit-box,.setup-input{border-width:3px;border-color:#fff}
+  .digit-box,.setup-input{border-width:3px;border-color:#000}
   .btn-gate{background:#1d4ed8!important}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 
 a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:focus-visible,.btn-gate:focus-visible{
-  outline:3px solid #60a5fa;outline-offset:2px;border-radius:6px;
+  outline:3px solid #2563eb;outline-offset:2px;border-radius:6px;
 }
 .digit-box:focus-visible,.pesel-box:focus-visible,.setup-input:focus-visible{
   outline:3px solid var(--c,#2563eb);outline-offset:1px;
@@ -678,7 +661,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
 
 @media(max-width:480px){
   body{padding:.75rem}
-  .gate-card{border-radius:16px}
+  .gate-card{border-radius:14px}
   .digit-box{width:42px;height:54px;font-size:1.55rem}
   .pesel-box{width:48px;height:60px}
 }
@@ -717,14 +700,6 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
     <div class="gate-dest-module"><?= h($dest_ctx['module']) ?></div>
     <div class="gate-dest-resource"><?= h($dest_ctx['resource']) ?></div>
   </div>
-  <div class="gate-sec-badge" title="Poziom ochrony: <?= h($sec_level) ?>">
-    <div class="gate-sec-dots" aria-hidden="true">
-      <?php for ($i = 1; $i <= 4; $i++): ?>
-      <div class="gate-sec-dot" style="background:<?= $i <= $dots ? $sec_color : 'rgba(255,255,255,.1)' ?>"></div>
-      <?php endfor; ?>
-    </div>
-    <?= h($sec_level) ?>
-  </div>
 </div>
 
 <!-- ══ Formularz ════════════════════════════════════════════════ -->
@@ -759,7 +734,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
     $page_mode === 'pesel'        => 'Podaj cyfry z numeru PESEL z kartoteki',
     $show_method_tabs             => 'Wybierz metodę weryfikacji',
     $page_mode === 'email_verify' => 'Jednorazowy kod wysłany na e-mail',
-    default => 'Wejście do: <strong style="color:#93c5fd">' . h($dest_ctx['module']) . ($dest_ctx['resource'] !== 'Strona chroniona' ? ' / ' . h($dest_ctx['resource']) : '') . '</strong>',
+    default => 'Wejście do: <strong style="color:#1e40af">' . h($dest_ctx['module']) . ($dest_ctx['resource'] !== 'Strona chroniona' ? ' / ' . h($dest_ctx['resource']) : '') . '</strong>',
   };
   ?>
   <div class="gate-mode-head">
@@ -798,12 +773,12 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
     <?php elseif ($page_mode === 'pesel' && $pesel_challenge): ?>
     <!-- ══ PESEL challenge ═══════════════════════ -->
     <?php $pos = $pesel_challenge['pos']; ?>
-    <p style="font-size:.82rem;color:#6b7fa3;margin-bottom:.75rem">
+    <p style="font-size:.82rem;color:#475569;margin-bottom:.75rem">
       Podaj cyfry numeru PESEL na pozycjach:
     </p>
     <div style="display:flex;justify-content:center;gap:.5rem;margin-bottom:1.1rem">
       <?php foreach ($pos as $p): ?>
-      <div style="background:rgba(37,99,235,.15);border:2px solid rgba(37,99,235,.4);border-radius:8px;padding:.3rem .8rem;font-size:1.05rem;font-weight:800;color:#93c5fd;min-width:44px;text-align:center"><?= $p ?></div>
+      <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:8px;padding:.3rem .8rem;font-size:1.05rem;font-weight:800;color:#1e40af;min-width:44px;text-align:center"><?= $p ?></div>
       <?php endforeach; ?>
     </div>
     <form method="post" id="peselForm" autocomplete="off">
@@ -828,15 +803,15 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
       </button>
     </form>
     <div style="margin-top:.8rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.76rem;color:#6b7fa3;text-decoration:none">
+      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.76rem;color:#64748b;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Inna metoda
       </a>
     </div>
 
     <?php elseif ($page_mode === 'setup'): ?>
     <!-- ══ Setup (AdminCode) ════════════════════ -->
-    <p style="font-size:.8rem;color:#fbbf24;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.25);border-radius:.55rem;padding:.55rem .8rem;margin-bottom:1rem;display:flex;gap:.45rem;align-items:flex-start">
-      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" style="color:#fbbf24"></i>
+    <p style="font-size:.8rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:.55rem;padding:.55rem .8rem;margin-bottom:1rem;display:flex;gap:.45rem;align-items:flex-start">
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" style="color:#d97706"></i>
       Wpisz <strong>AdminCode</strong> od administratora i ustaw swoje kody dostępu.
     </p>
     <form method="post" id="setupForm" autocomplete="off">
@@ -878,7 +853,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
       </button>
     </form>
     <div style="margin-top:.7rem;text-align:center">
-      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.75rem;color:#6b7fa3;text-decoration:none">
+      <a href="?to=<?= urlencode($return_to) ?>" style="font-size:.75rem;color:#64748b;text-decoration:none">
         <i class="bi bi-arrow-left me-1"></i>Mam już kod IKA
       </a>
     </div>
@@ -926,10 +901,10 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
         <?php endif; ?>
       </div>
       <?php if ($has_setup_token): ?>
-      <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:rgba(217,119,6,.4);background:rgba(217,119,6,.08);color:#fbbf24;margin-top:.5rem">
-        <i class="bi bi-shield-plus" style="color:#fbbf24"></i>
+      <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fde68a;background:#fffbeb;color:#92400e;margin-top:.5rem">
+        <i class="bi bi-shield-plus" style="color:#d97706"></i>
         <span><strong>Mam AdminCode</strong> — ustaw kody samodzielnie</span>
-        <i class="bi bi-arrow-right ms-auto" style="color:#fbbf24;font-size:.75rem"></i>
+        <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
       </a>
       <?php endif; ?>
       <?php else: ?>
@@ -939,7 +914,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
         <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
 
-        <p style="font-size:.77rem;color:#6b7fa3;text-align:center;margin-bottom:.4rem">Wpisz 6-cyfrowy kod IKA</p>
+        <p style="font-size:.77rem;color:#64748b;text-align:center;margin-bottom:.4rem">Wpisz 6-cyfrowy kod IKA</p>
         <div class="digit-row" id="ikaDigits" role="group" aria-label="Kod IKA — 6 cyfr">
           <?php for ($i = 1; $i <= 6; $i++): ?>
           <input type="text" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
@@ -963,24 +938,24 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
       <div class="or-sep">nie pamiętasz kodu?</div>
       <div class="recovery-links">
         <?php if ($has_setup_token): ?>
-        <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:rgba(217,119,6,.4);background:rgba(217,119,6,.08);color:#fbbf24">
-          <i class="bi bi-shield-plus" style="color:#fbbf24"></i>
+        <a href="?to=<?= urlencode($return_to) ?>&mode=setup" class="recovery-btn" style="border-color:#fde68a;background:#fffbeb;color:#92400e">
+          <i class="bi bi-shield-plus" style="color:#d97706"></i>
           <strong>Mam AdminCode</strong> — ustaw nowy kod IKA
-          <i class="bi bi-arrow-right ms-auto" style="color:#fbbf24;font-size:.75rem"></i>
+          <i class="bi bi-arrow-right ms-auto" style="color:#d97706;font-size:.75rem"></i>
         </a>
         <?php endif; ?>
         <?php if ($user_email): ?>
         <a href="?to=<?= urlencode($return_to) ?>&mode=email_verify" class="recovery-btn">
           <i class="bi bi-envelope-arrow-down-fill"></i>
           Wyślij jednorazowy kod e-mail
-          <span style="margin-left:auto;font-size:.69rem;color:#6b7fa3"><?= h($user_email) ?></span>
+          <span style="margin-left:auto;font-size:.69rem;color:#64748b"><?= h($user_email) ?></span>
         </a>
         <?php endif; ?>
         <?php if ($pesel_available): ?>
         <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
           <i class="bi bi-card-text"></i>
           Zweryfikuj cyframi PESEL
-          <span style="margin-left:auto;font-size:.69rem;color:#6b7fa3">z kartoteki</span>
+          <span style="margin-left:auto;font-size:.69rem;color:#64748b">z kartoteki</span>
         </a>
         <?php endif; ?>
       </div>
@@ -1053,7 +1028,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
           <input type="hidden" name="_mode" value="request_email_otp">
           <input type="hidden" name="to"    value="<?= h($return_to) ?>">
           <input type="text"   name="_hp"   style="display:none" tabindex="-1" autocomplete="off">
-          <button type="submit" style="background:none;border:none;color:#6b7fa3;font-size:.76rem;cursor:pointer;padding:0">
+          <button type="submit" style="background:none;border:none;color:#64748b;font-size:.76rem;cursor:pointer;padding:0">
             <i class="bi bi-arrow-clockwise me-1"></i>Wyślij nowy kod
           </button>
         </form>
@@ -1069,7 +1044,7 @@ a:focus-visible,button:focus-visible,.method-tab:focus-visible,.recovery-btn:foc
       <a href="?to=<?= urlencode($return_to) ?>&mode=pesel" class="recovery-btn">
         <i class="bi bi-card-text"></i>
         Zweryfikuj cyframi PESEL
-        <span style="margin-left:auto;font-size:.69rem;color:#6b7fa3">z kartoteki umów</span>
+        <span style="margin-left:auto;font-size:.69rem;color:#64748b">z kartoteki umów</span>
       </a>
     </div>
     <?php endif; ?>
