@@ -818,11 +818,18 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
           </button>
         </div>
+        <?php if ($sessions): ?>
+        <div class="w-100">
+          <input type="search" class="form-control form-control-sm" placeholder="Szukaj lekcji (data, temat, status…)"
+                 aria-label="Filtruj lekcje" data-dyd-filterbox="dyd-list-lekcje">
+        </div>
+        <?php endif; ?>
       </div>
-      <div class="list-group list-group-flush">
+      <div class="list-group list-group-flush" id="dyd-list-lekcje">
         <?php if (!$sessions): ?><div class="list-group-item text-body-secondary py-3">Brak lekcji. Kliknij „Dodaj lekcję", aby utworzyć pierwszą.</div><?php endif; ?>
+        <div class="list-group-item dyd-filter-empty text-body-secondary py-3" style="display:none">Brak lekcji pasujących do wyszukiwania.</div>
         <?php foreach ($sessions as $s): $st = $STATUS[$s['status']] ?? $STATUS['planned']; ?>
-        <div class="list-group-item">
+        <div class="list-group-item" data-filter-item="1">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <span class="fw-semibold"><i class="bi bi-calendar-event me-1 text-primary"></i><?= date('d.m.Y', strtotime($s['lesson_date'])) ?></span>
             <?php if ($s['time_from']): ?><span class="text-body-secondary small"><i class="bi bi-clock me-1"></i><?= h($s['time_from']) ?><?= $s['time_to'] ? '–'.h($s['time_to']) : '' ?></span><?php endif; ?>
@@ -1056,16 +1063,23 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php /* ═══════════════════════ ZADANIA ═══════════════════════ */ ?>
     <?php if ($tab === 'zadania'): ?>
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-transparent d-flex align-items-center">
+      <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
         <span class="fw-semibold"><i class="bi bi-journal-check me-2"></i>Zadania domowe</span>
         <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addH">
           <i class="bi bi-plus-lg me-1"></i>Dodaj zadanie
         </button>
+        <?php if ($homeworks): ?>
+        <div class="w-100">
+          <input type="search" class="form-control form-control-sm" placeholder="Szukaj zadań (tytuł, opis, termin…)"
+                 aria-label="Filtruj zadania" data-dyd-filterbox="dyd-list-zadania">
+        </div>
+        <?php endif; ?>
       </div>
-      <div class="list-group list-group-flush">
+      <div class="list-group list-group-flush" id="dyd-list-zadania">
         <?php if (!$homeworks): ?><div class="list-group-item text-body-secondary py-3">Brak zadań. Kliknij „Dodaj zadanie", aby utworzyć pierwsze.</div><?php endif; ?>
+        <div class="list-group-item dyd-filter-empty text-body-secondary py-3" style="display:none">Brak zadań pasujących do wyszukiwania.</div>
         <?php foreach ($homeworks as $hw): $av = k30_ti_avail_status($hw['open_at']??null, $hw['close_at']??null); ?>
-        <div class="list-group-item <?= $hw['is_active']?'':'opacity-50' ?>">
+        <div class="list-group-item <?= $hw['is_active']?'':'opacity-50' ?>" data-filter-item="1">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <span class="fw-semibold"><?= h($hw['title']) ?></span>
             <?php if (!$hw['is_active']): ?><span class="badge bg-secondary">ukryte</span><?php endif; ?>
@@ -1107,16 +1121,23 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php /* ═══════════════════════ MATERIAŁY ═══════════════════════ */ ?>
     <?php if ($tab === 'materialy'): ?>
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-transparent d-flex align-items-center">
+      <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
         <span class="fw-semibold"><i class="bi bi-collection-play me-2"></i>Materiały / eLearning</span>
         <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addM">
           <i class="bi bi-plus-lg me-1"></i>Dodaj materiał
         </button>
+        <?php if ($materials): ?>
+        <div class="w-100">
+          <input type="search" class="form-control form-control-sm" placeholder="Szukaj materiałów (tytuł, typ, opis…)"
+                 aria-label="Filtruj materiały" data-dyd-filterbox="dyd-list-materialy">
+        </div>
+        <?php endif; ?>
       </div>
-      <div class="list-group list-group-flush">
+      <div class="list-group list-group-flush" id="dyd-list-materialy">
         <?php if (!$materials): ?><div class="list-group-item text-body-secondary py-3">Brak materiałów. Kliknij „Dodaj materiał", aby utworzyć pierwszy.</div><?php endif; ?>
+        <div class="list-group-item dyd-filter-empty text-body-secondary py-3" style="display:none">Brak materiałów pasujących do wyszukiwania.</div>
         <?php foreach ($materials as $m): $av = k30_ti_avail_status($m['open_at']??null, $m['close_at']??null); ?>
-        <div class="list-group-item <?= $m['is_active']?'':'opacity-50' ?>">
+        <div class="list-group-item <?= $m['is_active']?'':'opacity-50' ?>" data-filter-item="1">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <span class="badge badge-soft"><i class="bi bi-<?= h(k30_ti_material_type_icon($m['type'])) ?> me-1"></i><?= h(k30_ti_material_type_label($m['type'])) ?></span>
             <span class="fw-semibold"><?= h($m['title']) ?></span>
@@ -1272,5 +1293,23 @@ function dydOpenCancelSession(sid, label) {
     hid.value = map[inp.value] || '';   // dopasowano z listy → id; w innym wypadku brak powiązania
   });
 })();
+
+// Filtrowanie list (lekcje / zadania / materiały) po tekście.
+document.addEventListener('input', function(e){
+  var box = e.target.closest('[data-dyd-filterbox]'); if (!box) return;
+  var list = document.getElementById(box.getAttribute('data-dyd-filterbox')); if (!list) return;
+  var q = box.value.toLowerCase().trim();
+  var items = list.querySelectorAll('.list-group-item');
+  var shown = 0;
+  items.forEach(function(item){
+    if (!item.dataset.filterItem) return; // stały element (komunikat „brak")
+    var match = !q || item.textContent.toLowerCase().indexOf(q) !== -1;
+    item.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  // Pokaż / ukryj komunikat „brak wyników"
+  var msg = list.querySelector('.dyd-filter-empty');
+  if (msg) msg.style.display = (q && shown === 0) ? '' : 'none';
+});
 </script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
