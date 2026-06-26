@@ -1290,12 +1290,60 @@ document.addEventListener('DOMContentLoaded', function() {
   </div></div>
   <?php else: ?>
 
-  <!-- Pasek narzędzi: widok kalendarza -->
-  <div class="d-flex justify-content-end mb-2">
+  <!-- Pasek narzedzi: widok kalendarza + iCal -->
+  <div class="d-flex flex-wrap justify-content-end gap-2 mb-2">
     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#lessonsCalModal">
       <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Widok kalendarza
     </button>
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Subskrybuj
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end" style="min-width:22rem">
+        <li><h6 class="dropdown-header">Subskrypcja kalendarza lekcji</h6></li>
+        <li>
+          <a class="dropdown-item" href="<?= h($cal_gcal) ?>" target="_blank" rel="noopener">
+            <i class="bi bi-google me-2" aria-hidden="true"></i>Dodaj do Google Calendar
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item" href="<?= h($cal_webcal) ?>">
+            <i class="bi bi-apple me-2" aria-hidden="true"></i>Apple Calendar / Outlook (webcal://)
+          </a>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li class="px-3 py-1">
+          <label class="form-label small mb-1 text-body-secondary">Adres URL (skopiuj recznie)</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control form-control-sm" id="kp-ical-url" value="<?= h($cal_https) ?>" readonly style="font-size:.72rem">
+            <button class="btn btn-outline-secondary" type="button" id="kp-ical-copy" title="Kopiuj">
+              <i class="bi bi-clipboard" aria-hidden="true"></i>
+            </button>
+          </div>
+        </li>
+        <li class="px-3 py-1">
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="reset_calendar_token">
+            <button type="submit" class="btn btn-link btn-sm p-0 text-danger" style="font-size:.78rem"
+                    onclick="return confirm('Zresetowac token? Stary link przestanie dzialac.')">
+              <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Zresetuj token (uniewa??nij stary link)
+            </button>
+          </form>
+        </li>
+      </ul>
+    </div>
   </div>
+  <script>
+  document.getElementById('kp-ical-copy')?.addEventListener('click',function(){
+    var inp = document.getElementById('kp-ical-url');
+    if (!inp) return;
+    navigator.clipboard?.writeText(inp.value).then(function(){
+      var btn = document.getElementById('kp-ical-copy');
+      if (btn) { btn.innerHTML='<i class="bi bi-check"></i>'; setTimeout(function(){ btn.innerHTML='<i class="bi bi-clipboard"></i>'; },1500); }
+    }).catch(function(){ inp.select(); document.execCommand('copy'); });
+  });
+  </script>
 
   <!-- Najbliższe (±7 dni) — zawsze widoczne -->
   <div class="card mb-3">

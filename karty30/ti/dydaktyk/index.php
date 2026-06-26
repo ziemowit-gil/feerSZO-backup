@@ -992,9 +992,30 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
         <div class="ms-auto d-flex gap-2">
           <?php if ($all_sessions): ?>
-          <a href="attendance_pdf.php?course_id=<?= $cur_course ?>" class="btn btn-outline-secondary btn-sm" title="Eksportuj listę obecności do PDF">
-            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
-          </a>
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="attendance_pdf.php?course_id=<?= $cur_course ?>">
+                <i class="bi bi-table me-2"></i>Lista obecnosci (caly kurs)
+              </a></li>
+              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= date('Y-m') ?>">
+                <i class="bi bi-calendar-month me-2"></i>Raport miesiecny (biezacy)
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <?php
+                $prev = date('Y-m', strtotime('-1 month'));
+                $prev2 = date('Y-m', strtotime('-2 months'));
+              ?>
+              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= $prev ?>">
+                <i class="bi bi-calendar-month me-2"></i>Raport: <?= $prev ?>
+              </a></li>
+              <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= $prev2 ?>">
+                <i class="bi bi-calendar-month me-2"></i>Raport: <?= $prev2 ?>
+              </a></li>
+            </ul>
+          </div>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydCalModal">
             <i class="bi bi-calendar3 me-1"></i>Kalendarz
           </button>
