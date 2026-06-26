@@ -255,7 +255,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td class="small"><?= h(k30_ti_grade_category_label($g['category'])) ?></td>
               <td class="small"><?= h(rtrim(rtrim(number_format((float)$g['weight'],2,'.',''),'0'),'.') ?: '1') ?></td>
               <td class="small"><?= $g['description'] ? h($g['description']) : '<span class="text-muted">—</span>' ?></td>
-              <td class="small text-nowrap"><?= !empty($g['graded_by_name']) ? h($g['graded_by_name']) : '<span class="text-muted">—</span>' ?></td>
+              <td class="small text-nowrap"><?= !empty($g['graded_by_text']) ? h($g['graded_by_text']) : (!empty($g['graded_by_name']) ? h($g['graded_by_name']) : '<span class="text-muted">—</span>') ?></td>
               <?php if ($can_write): ?>
               <td class="text-end text-nowrap">
                 <a href="?course=<?= $course_id ?>&edit=<?= (int)$g['id'] ?>" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2" title="Edytuj"><i class="bi bi-pencil"></i></a>

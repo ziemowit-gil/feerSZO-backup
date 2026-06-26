@@ -358,7 +358,7 @@ include __DIR__ . '/_layout_head.php';
             <td class="small"><?= h(rtrim(rtrim(number_format((float)$g['weight'],2,'.',''),'0'),'.') ?: '1') ?></td>
             <td class="small"><?= h(k30_ti_grade_category_label($g['category'])) ?></td>
             <td class="small"><?= $g['description'] ? h($g['description']) : '<span class="text-body-secondary">—</span>' ?></td>
-            <td class="small text-nowrap"><?= !empty($g['graded_by_name']) ? h($g['graded_by_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+            <td class="small text-nowrap"><?= !empty($g['graded_by_text']) ? h($g['graded_by_text']) : (!empty($g['graded_by_name']) ? h($g['graded_by_name']) : '<span class="text-body-secondary">—</span>') ?></td>
           </tr>
           <?php endforeach; ?>
         </tbody>

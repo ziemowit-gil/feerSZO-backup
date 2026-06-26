@@ -157,7 +157,7 @@ function ti_grades_pdf_student(int $client_id, string $student_name = ''): void 
             $pdf->Cell(12, 6, ti_pdf_txt(rtrim(rtrim(number_format((float)$g['weight'],2,'.',''),'0'),'.') ?: '1'), 1, 0, 'C');
             $pdf->Cell(30, 6, ti_pdf_txt(k30_ti_grade_category_label((string)$g['category'])), 1, 0, 'L');
             $pdf->Cell($wDesc, 6, ti_pdf_txt(mb_substr((string)$g['description'],0,45)), 1, 0, 'L');
-            $pdf->Cell(38, 6, ti_pdf_txt(mb_substr((string)($g['graded_by_name'] ?? ''),0,22)), 1, 1, 'L');
+            $pdf->Cell(38, 6, ti_pdf_txt(mb_substr((string)(!empty($g['graded_by_text']) ? $g['graded_by_text'] : ($g['graded_by_name'] ?? '')),0,22)), 1, 1, 'L');
         }
         $pdf->Ln(3);
     }

@@ -490,10 +490,15 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_homework  ADD COLUMN hint     TEXT NOT NULL DEFAULT ''",
         // Ocena w dzienniku wygenerowana z oceny zadania domowego (auto-sync) — by aktualizować, nie duplikować
         "ALTER TABLE k30_ti_grades    ADD COLUMN hw_submission_id INTEGER",
+        // Ocena wygenerowana przez system z podejścia do testu — klucz do deduplicacji
+        "ALTER TABLE k30_ti_grades    ADD COLUMN attempt_id       INTEGER",
+        // Nazwa wystawcy jako tekst (gdy brak konta użytkownika, np. „System")
+        "ALTER TABLE k30_ti_grades    ADD COLUMN graded_by_text   TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
-    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_hwsub ON k30_ti_grades(hw_submission_id)"); } catch (\Throwable $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_hwsub   ON k30_ti_grades(hw_submission_id)"); } catch (\Throwable $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_grade_attempt  ON k30_ti_grades(attempt_id)");      } catch (\Throwable $e) {}
 
     // ── Konta dydaktyków (prowadzących) — osobny panel, bez dostępu do modułu głównego ──
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_accounts (
@@ -3666,16 +3671,22 @@ function k30_ti_test_sync_grade(int $attempt_id): void {
     $vnum  = (float)$grade;
     $label = trim((string)($att['attempt_label'] ?? ''));
     $desc  = 'Test: ' . ($test['title'] ?? '') . ($label !== '' ? " [$label]" : '') . ' (' . round($pct) . '%)';
-    // Aktualizuj istniejący wpis dla tego podejścia albo utwórz nowy
-    $existing = db_one("SELECT id FROM k30_ti_grades WHERE hw_submission_id IS NULL AND course_id=? AND client_id=? AND description=?", [(int)$test['course_id'], (int)$att['client_id'], $desc]);
+    // Deduplikacja po attempt_id — odporna na zmianę opisu po dograniu pytań otwartych
+    $existing = db_one("SELECT id FROM k30_ti_grades WHERE attempt_id=?", [$attempt_id]);
     if ($existing) {
-        db()->prepare("UPDATE k30_ti_grades SET value_text=?, value_num=?, graded_at=datetime('now') WHERE id=?")
-            ->execute([$grade, $vnum, (int)$existing['id']]);
+        db()->prepare("UPDATE k30_ti_grades SET value_text=?, value_num=?, description=?, graded_at=datetime('now') WHERE id=?")
+            ->execute([$grade, $vnum, $desc, (int)$existing['id']]);
     } else {
         db_insert('k30_ti_grades', [
-            'course_id'=>(int)$test['course_id'], 'client_id'=>(int)$att['client_id'],
-            'category'=>'sprawdzian', 'value_text'=>$grade, 'value_num'=>$vnum,
-            'weight'=>3, 'description'=>$desc,
+            'course_id'      => (int)$test['course_id'],
+            'client_id'      => (int)$att['client_id'],
+            'attempt_id'     => $attempt_id,
+            'category'       => 'sprawdzian',
+            'value_text'     => $grade,
+            'value_num'      => $vnum,
+            'weight'         => 3,
+            'description'    => $desc,
+            'graded_by_text' => 'System',
         ]);
     }
 }
