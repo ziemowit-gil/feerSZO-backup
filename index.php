@@ -23,7 +23,6 @@ $end_col_map = [
     'praca' => 'data_zakonczenia', 'inne' => 'data_zakonczenia',
 ];
 
-$stats_per_type = [];
 foreach (CONTRACT_TYPES as $slug => $label) {
     $table = table_for_type($slug);
     $col   = $end_col_map[$slug] ?? 'data_zakonczenia';
@@ -33,15 +32,12 @@ foreach (CONTRACT_TYPES as $slug => $label) {
         $new_m  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE DATE(created_at) >= ?", [$month_start])['c'] ?? 0);
         $exp7   = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+7 days') AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $today])['c'] ?? 0);
         $exp30  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+30 days') AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $today])['c'] ?? 0);
-        $stats_per_type[$slug] = compact('label', 'total', 'active', 'new_m');
         $kpi['total']       += $total;
         $kpi['active']      += $active;
         $kpi['new_month']   += $new_m;
         $kpi['expiring_7']  += $exp7;
         $kpi['expiring_30'] += $exp30;
-    } catch (\Throwable $e) {
-        $stats_per_type[$slug] = ['label' => $label, 'total' => 0, 'active' => 0, 'new_m' => 0];
-    }
+    } catch (\Throwable $e) {}
 }
 
 try { $kpi['pending_approval'] = (int)(db_one("SELECT COUNT(*) AS c FROM approval_requests WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
@@ -49,18 +45,6 @@ try {
     $kpi['tasks_open'] = (int)(db_one("SELECT COUNT(*) AS c FROM tasks WHERE deleted_at IS NULL AND status NOT IN ('done','archived')")['c'] ?? 0);
     $kpi['tasks_mine'] = (int)(db_one("SELECT COUNT(*) AS c FROM task_assignments ta JOIN tasks t ON t.id=ta.task_id WHERE ta.user_id=? AND t.deleted_at IS NULL AND t.status NOT IN ('done','archived')", [(int)$_user['id']])['c'] ?? 0);
 } catch (\Throwable $e) {}
-
-// ── Ostatnie umowy ────────────────────────────────────────────────────────────
-$recent = [];
-foreach (CONTRACT_TYPES as $slug => $label) {
-    $table = table_for_type($slug);
-    try {
-        $rows = db_all("SELECT id, numer_umowy, imie_nazwisko, status, created_at, '{$slug}' AS type, '{$label}' AS type_label FROM {$table} ORDER BY created_at DESC LIMIT 4");
-        $recent = array_merge($recent, $rows);
-    } catch (\Throwable $e) {}
-}
-usort($recent, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
-$recent = array_slice($recent, 0, 8);
 
 // ── Wygasające ────────────────────────────────────────────────────────────────
 $expiring = [];
@@ -204,35 +188,6 @@ include __DIR__ . '/includes/header.php';
 }
 .dash-section-head a { font-size: .78rem; }
 
-/* ── Tabela umów ──────────────────────────────────────────────────────────── */
-.dash-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
-.dash-table td { padding: .6rem .9rem; border-bottom: 1px solid #F8FAFC; vertical-align: middle; }
-.dash-table tr:last-child td { border-bottom: none; }
-.dash-table tr:hover td { background: #F8FAFC; }
-.dash-table .contract-num { font-weight: 700; color: #0F172A; font-family: monospace; font-size: .82rem; }
-.dash-table .contract-person { font-size: .78rem; color: #64748B; }
-
-/* ── Typy umów — mini karty ───────────────────────────────────────────────── */
-.type-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: .5rem;
-  padding: .85rem;
-}
-.type-card {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: .7rem .85rem;
-  text-decoration: none;
-  color: inherit;
-  transition: background .12s, border-color .12s;
-}
-.type-card:hover { background: #EFF6FF; border-color: #BFDBFE; color: inherit; }
-.type-card-num { font-size: 1.3rem; font-weight: 800; color: #0F172A; }
-.type-card-lbl { font-size: .7rem; color: #64748B; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.type-card-active { font-size: .72rem; color: #16A34A; }
-
 /* ── Zadania ──────────────────────────────────────────────────────────────── */
 .task-item { display: flex; align-items: flex-start; gap: .65rem; padding: .6rem .9rem; border-bottom: 1px solid #F8FAFC; }
 .task-item:last-child { border-bottom: none; }
@@ -262,7 +217,6 @@ include __DIR__ . '/includes/header.php';
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 575px) {
   .dash-kpi { grid-template-columns: repeat(2, 1fr); }
-  .type-grid { grid-template-columns: repeat(2, 1fr); }
   .kpi-val { font-size: 1.4rem; }
 }
 </style>
@@ -343,95 +297,81 @@ include __DIR__ . '/includes/header.php';
   </a>
   <?php endif; ?>
 
-  <div class="kpi-card" style="--kpi-accent:#94A3B8">
-    <div class="kpi-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-plus-circle-fill"></i></div>
-    <div class="kpi-val" style="font-size:1.2rem;padding-top:.3rem">
-      <a href="<?= APP_URL ?>/contracts/wolontariat/add.php" class="text-decoration-none" style="color:#1E6DFF">Wolontariat</a><br>
-      <a href="<?= APP_URL ?>/contracts/zlecenie/add.php" class="text-decoration-none" style="color:#1E6DFF;font-size:.95rem">Zlecenie</a>
-    </div>
-    <div class="kpi-lbl">Nowa umowa</div>
-  </div>
 
 </div>
 
-<!-- ── Główna siatka ─────────────────────────────────────────────────────────── -->
+<!-- ── Główna siatka 2×2 ─────────────────────────────────────────────────────── -->
 <div class="row g-3">
 
-  <!-- LEWA ─────────────────────────────────────────────────────────────────── -->
-  <div class="col-xl-8">
-
-    <!-- Ostatnie umowy -->
-    <div class="dash-section mb-3">
+  <!-- Wygasają wkrótce -->
+  <div class="col-xl-6">
+    <div class="dash-section h-100">
       <div class="dash-section-head">
-        <div class="dash-section-title"><i class="bi bi-clock-history" style="color:#1E6DFF"></i> Ostatnio dodane</div>
-        <a href="<?= APP_URL ?>/contracts/wolontariat/list.php" class="btn btn-sm btn-outline-secondary btn-xs">
-          <i class="bi bi-list-ul me-1"></i>Wszystkie
-        </a>
+        <div class="dash-section-title"><i class="bi bi-calendar-x" style="color:#F59E0B"></i> Wygasają wkrótce</div>
+        <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="btn btn-sm btn-outline-secondary btn-xs">Wszystkie</a>
       </div>
-      <?php if ($recent): ?>
-      <table class="dash-table">
-        <?php foreach ($recent as $r):
-          $st = STATUS_LABELS[$r['status']] ?? ['label' => $r['status'], 'class' => 'secondary'];
-        ?>
-        <tr>
-          <td style="width:34px">
-            <span class="badge rounded-pill" style="background:#EEF4FF;color:#1E6DFF;font-size:.65rem;padding:.25rem .5rem">
-              <?= h(strtoupper(substr($r['type'], 0, 3))) ?>
-            </span>
-          </td>
-          <td>
-            <div class="contract-num"><?= h($r['numer_umowy'] ?: '—') ?></div>
-            <div class="contract-person"><?= h($r['imie_nazwisko'] ?? '') ?></div>
-          </td>
-          <td>
-            <span class="badge bg-<?= h($st['class']) ?>" style="font-size:.7rem"><?= h($st['label']) ?></span>
-          </td>
-          <td class="text-muted" style="font-size:.76rem;white-space:nowrap"><?= date_pl($r['created_at']) ?></td>
-          <td style="width:70px;text-align:right">
-            <a href="<?= contract_url($r['type'], $r['id']) ?>" class="btn btn-sm btn-outline-primary" style="font-size:.74rem;padding:.2rem .6rem">Otwórz</a>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </table>
+      <?php if ($expiring): ?>
+      <?php foreach ($expiring as $r):
+        $days = (int)round((strtotime($r['end_date']) - strtotime($today)) / 86400);
+        $days_color = $days <= 7 ? '#EF4444' : ($days <= 14 ? '#F59E0B' : '#0EA5E9');
+        $days_bg    = $days <= 7 ? '#FEF2F2' : ($days <= 14 ? '#FFFBEB' : '#F0F9FF');
+      ?>
+      <a href="<?= contract_url($r['type'], $r['id']) ?>" class="exp-item">
+        <span class="exp-days" style="background:<?= $days_bg ?>;color:<?= $days_color ?>"><?= $days ?>d</span>
+        <div style="flex:1;overflow:hidden">
+          <div style="font-size:.81rem;font-weight:600;color:#0F172A"><?= h($r['numer_umowy'] ?: '—') ?></div>
+          <div style="font-size:.73rem;color:#94A3B8"><?= h($r['imie_nazwisko'] ?? '') ?></div>
+        </div>
+        <div style="font-size:.72rem;color:#64748B;white-space:nowrap"><?= date_pl($r['end_date']) ?></div>
+      </a>
+      <?php endforeach; ?>
       <?php else: ?>
-      <div class="text-muted text-center py-4 small"><i class="bi bi-inbox me-1"></i>Brak umów w systemie</div>
+      <div class="text-muted text-center py-4 small">
+        <i class="bi bi-check-circle text-success me-1"></i>Brak wygasających w ciągu 30 dni
+      </div>
       <?php endif; ?>
     </div>
+  </div>
 
-    <!-- Typy umów -->
-    <div class="dash-section mb-3">
+  <!-- Do akceptacji -->
+  <div class="col-xl-6">
+    <div class="dash-section h-100">
       <div class="dash-section-head">
-        <div class="dash-section-title"><i class="bi bi-pie-chart-fill" style="color:#7C3AED"></i> Typy umów</div>
+        <div class="dash-section-title"><i class="bi bi-hourglass-split" style="color:#7C3AED"></i> Do akceptacji</div>
+        <?php if ($pending_approvals): ?>
+        <a href="<?= APP_URL ?>/admin/approvals.php" class="btn btn-sm btn-outline-secondary btn-xs">Rozpatrz</a>
+        <?php endif; ?>
       </div>
-      <div class="type-grid">
-        <?php
-        $type_icons = ['zlecenie'=>'person-lines-fill','uslugi'=>'building','wolontariat'=>'heart-fill','dzielo'=>'palette2','praca'=>'briefcase-fill','inne'=>'file-earmark'];
-        $type_colors = ['zlecenie'=>'#1E6DFF','uslugi'=>'#0EA5E9','wolontariat'=>'#EF4444','dzielo'=>'#F59E0B','praca'=>'#16A34A','inne'=>'#94A3B8'];
-        foreach ($stats_per_type as $slug => $s):
-          $col = $type_colors[$slug] ?? '#94A3B8';
-          $ico = $type_icons[$slug] ?? 'file-earmark';
-        ?>
-        <a href="<?= APP_URL ?>/contracts/<?= $slug ?>/list.php" class="type-card">
-          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem">
-            <i class="bi bi-<?= $ico ?>" style="color:<?= $col ?>;font-size:.9rem"></i>
-            <span style="font-size:.7rem;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.04em"><?= h($s['label']) ?></span>
-          </div>
-          <div class="type-card-num"><?= $s['total'] ?></div>
-          <div class="type-card-active"><i class="bi bi-circle-fill me-1" style="font-size:.45rem"></i><?= $s['active'] ?> aktywnych <?php if ($s['new_m']): ?><span class="text-primary ms-1">+<?= $s['new_m'] ?></span><?php endif; ?></div>
-        </a>
-        <?php endforeach; ?>
+      <?php if ($pending_approvals): ?>
+      <?php foreach ($pending_approvals as $a): ?>
+      <div class="appr-item">
+        <div style="width:6px;height:6px;border-radius:50%;background:#7C3AED;flex-shrink:0;margin-top:3px"></div>
+        <div style="flex:1;overflow:hidden">
+          <div style="font-size:.81rem;font-weight:600;color:#0F172A"><?= h($a['numer_umowy'] ?? '—') ?></div>
+          <div style="font-size:.72rem;color:#94A3B8"><?= h($a['requester_name'] ?? '') ?> · <?= date_pl($a['created_at']) ?></div>
+        </div>
+        <a href="<?= APP_URL ?>/admin/approvals.php" class="btn btn-sm" style="font-size:.72rem;padding:.2rem .55rem;background:#F5F3FF;color:#7C3AED;border:1px solid #DDD6FE">Rozpatrz</a>
       </div>
+      <?php endforeach; ?>
+      <?php else: ?>
+      <div class="text-muted text-center py-4 small">
+        <i class="bi bi-check-circle text-success me-1"></i>Brak wniosków do akceptacji
+      </div>
+      <?php endif; ?>
     </div>
+  </div>
 
-    <!-- Moje zadania -->
-    <?php if (module_enabled('tasks_enabled') && $my_tasks): ?>
-    <div class="dash-section">
+  <!-- Moje zadania -->
+  <?php if (module_enabled('tasks_enabled')): ?>
+  <div class="col-xl-6">
+    <div class="dash-section h-100">
       <div class="dash-section-head">
         <div class="dash-section-title"><i class="bi bi-kanban" style="color:#0EA5E9"></i> Moje zadania</div>
         <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-sm btn-outline-secondary btn-xs">
           <i class="bi bi-grid-3x3-gap me-1"></i>Tablica
         </a>
       </div>
+      <?php if ($my_tasks): ?>
       <?php
       $prio_colors = ['high'=>'#EF4444','medium'=>'#F59E0B','low'=>'#94A3B8','critical'=>'#7C3AED'];
       foreach ($my_tasks as $t):
@@ -454,80 +394,27 @@ include __DIR__ . '/includes/header.php';
         </div>
       </div>
       <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-
-  </div>
-
-  <!-- PRAWA ────────────────────────────────────────────────────────────────── -->
-  <div class="col-xl-4">
-
-    <!-- Wygasające umowy -->
-    <div class="dash-section mb-3">
-      <div class="dash-section-head">
-        <div class="dash-section-title"><i class="bi bi-calendar-x" style="color:#F59E0B"></i> Wygasają wkrótce</div>
-        <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="btn btn-sm btn-outline-secondary btn-xs">Wszystkie</a>
-      </div>
-      <?php if ($expiring): ?>
-      <?php foreach ($expiring as $r):
-        $days = (int)round((strtotime($r['end_date']) - strtotime($today)) / 86400);
-        $days_color = $days <= 7 ? '#EF4444' : ($days <= 14 ? '#F59E0B' : '#0EA5E9');
-        $days_bg    = $days <= 7 ? '#FEF2F2' : ($days <= 14 ? '#FFFBEB' : '#F0F9FF');
-      ?>
-      <a href="<?= contract_url($r['type'], $r['id']) ?>" class="exp-item">
-        <span class="exp-days" style="background:<?= $days_bg ?>;color:<?= $days_color ?>">
-          <?= $days ?>d
-        </span>
-        <div style="flex:1;overflow:hidden">
-          <div style="font-size:.81rem;font-weight:600;color:#0F172A"><?= h($r['numer_umowy'] ?: '—') ?></div>
-          <div style="font-size:.73rem;color:#94A3B8"><?= h($r['imie_nazwisko'] ?? '') ?></div>
-        </div>
-        <div style="font-size:.72rem;color:#64748B;white-space:nowrap"><?= date_pl($r['end_date']) ?></div>
-      </a>
-      <?php endforeach; ?>
       <?php else: ?>
-      <div class="text-muted text-center py-4 small">
-        <i class="bi bi-check-circle text-success me-1"></i>Brak wygasających w ciągu 30 dni
-      </div>
+      <div class="text-muted text-center py-4 small"><i class="bi bi-check2-circle text-success me-1"></i>Brak przypisanych zadań</div>
       <?php endif; ?>
     </div>
+  </div>
+  <?php endif; ?>
 
-    <!-- Oczekujące akceptacje -->
-    <?php if ($pending_approvals): ?>
-    <div class="dash-section mb-3">
-      <div class="dash-section-head">
-        <div class="dash-section-title"><i class="bi bi-hourglass-split" style="color:#7C3AED"></i> Do akceptacji</div>
-        <a href="<?= APP_URL ?>/admin/approvals.php" class="btn btn-sm btn-outline-secondary btn-xs">Rozpatrz</a>
-      </div>
-      <?php foreach ($pending_approvals as $a): ?>
-      <div class="appr-item">
-        <div style="width:6px;height:6px;border-radius:50%;background:#7C3AED;flex-shrink:0;margin-top:3px"></div>
-        <div style="flex:1;overflow:hidden">
-          <div style="font-size:.81rem;font-weight:600;color:#0F172A"><?= h($a['numer_umowy'] ?? '—') ?></div>
-          <div style="font-size:.72rem;color:#94A3B8"><?= h($a['requester_name'] ?? '') ?> · <?= date_pl($a['created_at']) ?></div>
-        </div>
-        <a href="<?= APP_URL ?>/admin/approvals.php" class="btn btn-sm" style="font-size:.72rem;padding:.2rem .55rem;background:#F5F3FF;color:#7C3AED;border:1px solid #DDD6FE">
-          Rozpatrz
-        </a>
-      </div>
-      <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-
-    <!-- Wiadomości -->
-    <?php if ($dash_threads): ?>
-    <div class="dash-section">
+  <!-- Wiadomości -->
+  <?php if (can_edit()): ?>
+  <div class="col-xl-6">
+    <div class="dash-section h-100">
       <div class="dash-section-head">
         <div class="dash-section-title">
           <i class="bi bi-chat-dots" style="color:#1E6DFF"></i> Wiadomości
-          <?php
-          $total_unread = array_sum(array_column($dash_threads, 'unread'));
-          if ($total_unread): ?>
+          <?php $total_unread = array_sum(array_column($dash_threads, 'unread')); if ($total_unread): ?>
           <span class="badge bg-danger ms-1" style="font-size:.65rem"><?= $total_unread ?></span>
           <?php endif; ?>
         </div>
         <a href="<?= APP_URL ?>/admin/messages.php" class="btn btn-sm btn-outline-secondary btn-xs">Wszystkie</a>
       </div>
+      <?php if ($dash_threads): ?>
       <?php foreach ($dash_threads as $_dt):
         $unread  = (int)$_dt['unread'];
         $initials = strtoupper(mb_substr($_dt['_label'] ?? '?', 0, 2));
@@ -552,10 +439,13 @@ include __DIR__ . '/includes/header.php';
         </div>
       </button>
       <?php endforeach; ?>
+      <?php else: ?>
+      <div class="text-muted text-center py-4 small"><i class="bi bi-chat me-1"></i>Brak wiadomości</div>
+      <?php endif; ?>
     </div>
-    <?php endif; ?>
-
   </div>
+  <?php endif; ?>
+
 </div>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>
