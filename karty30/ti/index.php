@@ -103,9 +103,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <li class="breadcrumb-item active">Zajęcia TI</li>
 </ol></nav>
 
-<div class="d-flex align-items-center mb-3 gap-2">
+<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h4 class="mb-0 fw-bold"><i class="bi bi-pc-display text-primary me-2"></i>Zajęcia informatyki / TI</h4>
-  <a href="dydaktyk/index.php" class="btn btn-outline-primary btn-sm ms-auto" title="Uproszczony panel prowadzącego — Twoje kursy">
+
+  <!-- Live search -->
+  <div class="position-relative ms-auto ti-search-wrap" style="width:260px">
+    <input type="search" id="ti-search-q" class="form-control form-control-sm" placeholder="Szukaj w TI…"
+           autocomplete="off" aria-label="Szukaj w TI" aria-controls="ti-search-results" aria-expanded="false">
+    <ul id="ti-search-results" class="dropdown-menu w-100 p-1" style="display:none;max-height:340px;overflow-y:auto" role="listbox"></ul>
+  </div>
+
+  <a href="dydaktyk/index.php" class="btn btn-outline-primary btn-sm" title="Uproszczony panel prowadzącego — Twoje kursy">
     <i class="bi bi-easel2 me-1"></i>Panel dydaktyka
   </a>
   <a href="terms_admin.php" class="btn btn-outline-secondary btn-sm" title="Regulaminy TI">
@@ -365,10 +373,70 @@ function bmToggle() {
   var v = parseInt(sel.value, 10);
   var wrap = document.getElementById('bm_amount_wrap');
   var help = document.getElementById('bm_amount_help');
-  if (wrap) wrap.style.display = (v === 2) ? 'none' : '';      // godzinowy = stawka per uczestnik
+  if (wrap) wrap.style.display = (v === 2) ? 'none' : '';
   if (help) help.textContent = (v === 1) ? 'stała kwota za miesiąc' : (v === 3 ? 'jednorazowa stała kwota' : '');
 }
 bmToggle();
+
+// Live search TI
+(function(){
+  var inp = document.getElementById('ti-search-q');
+  var box = document.getElementById('ti-search-results');
+  if (!inp || !box) return;
+  var timer, lastQ = '';
+  var typeIcon = {kurs:'pc-display',kursant:'person',lekcja:'calendar-event',zadanie:'journal-check','materiał':'collection-play'};
+  var typeCls  = {kurs:'text-bg-primary',kursant:'text-bg-success',lekcja:'text-bg-info',zadanie:'text-bg-warning','materiał':'text-bg-secondary'};
+
+  function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+  function show(results) {
+    if (!results.length) {
+      box.innerHTML = '<li class="dropdown-item text-muted small py-1">Brak wyników.</li>';
+    } else {
+      box.innerHTML = results.map(function(r){
+        var icon = typeIcon[r.type] || 'search';
+        var badge = typeCls[r.type] || 'text-bg-secondary';
+        return '<li><a class="dropdown-item d-flex align-items-center gap-2 py-1" href="'+esc(r.url)+'">'
+          + '<i class="bi bi-'+esc(icon)+' text-primary flex-shrink-0" aria-hidden="true"></i>'
+          + '<span class="flex-grow-1 overflow-hidden"><span class="d-block text-truncate fw-semibold">'+esc(r.label)+'</span>'
+          + (r.sub ? '<span class="d-block text-truncate small text-muted">'+esc(r.sub)+'</span>' : '')
+          + '</span><span class="badge '+esc(badge)+' flex-shrink-0 ms-1">'+esc(r.type)+'</span></a></li>';
+      }).join('')
+        + '<li><hr class="dropdown-divider my-1"></li>'
+        + '<li><a class="dropdown-item small text-muted py-1" href="search.php?q='+encodeURIComponent(inp.value)+'"><i class="bi bi-search me-1"></i>Wszystkie wyniki…</a></li>';
+    }
+    box.style.display = '';
+    inp.setAttribute('aria-expanded', 'true');
+  }
+
+  inp.addEventListener('input', function(){
+    var q = inp.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { box.style.display = 'none'; inp.setAttribute('aria-expanded','false'); return; }
+    if (q === lastQ) return;
+    timer = setTimeout(function(){
+      lastQ = q;
+      fetch('search.php?_ajax=1&q='+encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(d){ show(d.results || []); })
+        .catch(function(){ box.style.display='none'; });
+    }, 220);
+  });
+
+  inp.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') { box.style.display='none'; inp.setAttribute('aria-expanded','false'); }
+    if (e.key === 'Enter' && inp.value.trim().length >= 2) {
+      e.preventDefault();
+      window.location.href = 'search.php?q='+encodeURIComponent(inp.value.trim());
+    }
+  });
+
+  document.addEventListener('click', function(e){
+    if (!inp.contains(e.target) && !box.contains(e.target)) {
+      box.style.display = 'none'; inp.setAttribute('aria-expanded','false');
+    }
+  });
+})();
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

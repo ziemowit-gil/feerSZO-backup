@@ -1481,6 +1481,29 @@ include __DIR__ . '/_layout_head.php';
         h += '</tbody></table></div>';
       }
 
+      // Historia wniosków kursanta
+      if (d.requests && d.requests.length) {
+        const statusLabel = {pending:'Oczekuje',approved:'Zatwierdzone',rejected:'Odrzucone'};
+        const statusBadge = {pending:'bg-warning text-dark',approved:'bg-success',rejected:'bg-danger'};
+        const actionLabel = {open:'otwarcie','close':'zamknięcie'};
+        h += '<hr><p class="small fw-semibold mb-1">Moje wnioski:</p>'
+          + '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light">'
+          + '<tr><th>Port</th><th>Akcja</th><th>Status</th><th>Data</th></tr></thead><tbody>';
+        for (const r of d.requests) {
+          const badge = '<span class="badge '+(statusBadge[r.status]||'bg-secondary')+'">'+esc(statusLabel[r.status]||r.status)+'</span>';
+          const reason = r.status === 'rejected' && r.reject_reason
+            ? ' <span class="text-muted small">— '+esc(r.reject_reason)+'</span>' : '';
+          const dt = r.created_at ? r.created_at.slice(0,16) : '';
+          h += '<tr>'
+            + '<td class="fw-semibold font-monospace">'+esc(String(r.host_port))+'/'+esc(r.proto)+'</td>'
+            + '<td class="small">'+esc(actionLabel[r.action]||r.action)+'</td>'
+            + '<td>'+badge+reason+'</td>'
+            + '<td class="small text-muted text-nowrap">'+esc(dt)+'</td>'
+            + '</tr>';
+        }
+        h += '</tbody></table></div>';
+      }
+
       portsBody().innerHTML = h;
 
       // Obsługa przycisku ręcznego zgłoszenia

@@ -854,7 +854,17 @@ function vlab_student_ports_data(int $containerId, int $studentId): array {
     $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND student_id=? AND status!='removed'", [$containerId, $studentId]);
     if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
     $maps = $cont['status'] === 'running' ? vlab_docker_ports_all($cont['container_name']) : [];
-    return ['ok' => true, 'mappings' => $maps, 'open' => vlab_ports_list($containerId)];
+
+    // Wnioski kursanta: oczekujące + ostatnie 5 zamkniętych/odrzuconych
+    $requests = db_all(
+        "SELECT id, action, host_port, proto, note, status, reject_reason, created_at, approved_at
+         FROM k30_vlab_port_requests
+         WHERE container_id=? AND requested_by_student=?
+         ORDER BY created_at DESC LIMIT 20",
+        [$containerId, $studentId]
+    );
+
+    return ['ok' => true, 'mappings' => $maps, 'open' => vlab_ports_list($containerId), 'requests' => $requests];
 }
 
 /** Składa wniosek o otwarcie portu maszyny kursanta (wymaga zatwierdzenia przez admina). */
@@ -995,6 +1005,7 @@ function vlab_port_request_approve(int $requestId, int $adminId): array {
         "UPDATE k30_vlab_port_requests SET status='approved', approved_by=?, approved_at=datetime('now') WHERE id=?"
     )->execute([$adminId, $requestId]);
 
+    vlab_port_request_notify($req, 'approved');
     return $result;
 }
 
@@ -1003,4 +1014,48 @@ function vlab_port_request_reject(int $requestId, int $adminId, string $reason =
     db()->prepare(
         "UPDATE k30_vlab_port_requests SET status='rejected', approved_by=?, approved_at=datetime('now'), reject_reason=? WHERE id=? AND status='pending'"
     )->execute([$adminId, mb_substr($reason, 0, 300), $requestId]);
+    $req = db_one("SELECT * FROM k30_vlab_port_requests WHERE id=?", [$requestId]);
+    if ($req) vlab_port_request_notify($req, 'rejected', $reason);
+}
+
+/** Powiadomienie e-mail do kursanta o decyzji ws. wniosku portowego. */
+function vlab_port_request_notify(array $req, string $decision, string $reason = ''): void {
+    if (!function_exists('mail_queue_add')) { @require_once __DIR__ . '/mail_queue.php'; }
+    if (!function_exists('mail_queue_add')) return;
+
+    $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=?", [(int)$req['container_id']]);
+    if (!$cont) return;
+    $client = $cont['client_id']
+        ? db_one("SELECT name, email FROM k30_clients WHERE id=?", [(int)$cont['client_id']])
+        : null;
+    $email = trim((string)($client['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+
+    $org      = defined('ORG_NAME') ? ORG_NAME : 'VLab';
+    $name     = htmlspecialchars($client['name'] ?? '', ENT_QUOTES);
+    $contLbl  = htmlspecialchars($cont['label'] ?? $cont['container_name'] ?? '', ENT_QUOTES);
+    $portDesc = htmlspecialchars($req['host_port'] . '/' . $req['proto'], ENT_QUOTES);
+    $action   = $req['action'] === 'open' ? 'otwarcie portu' : 'zamknięcie portu';
+    $panelUrl = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/index.php?tab=vlab';
+
+    if ($decision === 'approved') {
+        $subject = "{$org}: wniosek o {$action} {$portDesc} — zatwierdzony";
+        $decHtml = "<p style='color:#166534;background:#dcfce7;padding:10px 14px;border-radius:6px'>"
+                 . "✅ Twój wniosek o <strong>{$action} {$portDesc}</strong> dla maszyny <strong>{$contLbl}</strong> został <strong>zatwierdzony</strong>.</p>";
+    } else {
+        $subject = "{$org}: wniosek o {$action} {$portDesc} — odrzucony";
+        $reasonHtml = $reason !== '' ? "<p><strong>Powód:</strong> " . htmlspecialchars($reason, ENT_QUOTES) . "</p>" : '';
+        $decHtml = "<p style='color:#991b1b;background:#fee2e2;padding:10px 14px;border-radius:6px'>"
+                 . "❌ Twój wniosek o <strong>{$action} {$portDesc}</strong> dla maszyny <strong>{$contLbl}</strong> został <strong>odrzucony</strong>.</p>"
+                 . $reasonHtml;
+    }
+
+    $html = "<p>Cześć {$name},</p>"
+          . $decHtml
+          . "<p><a href='{$panelUrl}'>Przejdź do panelu VLab</a></p>"
+          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna — {$org}.</p>";
+
+    try {
+        mail_queue_add($email, $client['name'] ?? '', $subject, $html, '', 'vlab_port', (int)$cont['id'], '', false);
+    } catch (\Throwable $e) {}
 }
