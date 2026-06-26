@@ -802,6 +802,17 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
       <dl class="row mb-0">
+        <?php
+          $cl_status_key = (string)($client['status'] ?? 'enrolled');
+          $cl_status_cfg = K30_CLIENT_STATUSES[$cl_status_key] ?? K30_CLIENT_STATUSES['enrolled'];
+        ?>
+        <dt class="col-sm-3 text-body-secondary fw-normal">Status</dt>
+        <dd class="col-sm-9">
+          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .65rem;border-radius:2rem;font-size:.78rem;font-weight:600;background:<?= h($cl_status_cfg['bg']) ?>;color:<?= h($cl_status_cfg['color']) ?>">
+            <?php if (!empty($cl_status_cfg['icon'])): ?><i class="bi <?= h($cl_status_cfg['icon']) ?>" aria-hidden="true"></i><?php endif; ?>
+            <?= h($cl_status_cfg['label']) ?>
+          </span>
+        </dd>
         <dt class="col-sm-3 text-body-secondary fw-normal">Grupy</dt>
         <dd class="col-sm-9">
           <?php if ($courses): foreach ($courses as $c): ?>
