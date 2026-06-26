@@ -1469,11 +1469,11 @@ document.addEventListener('DOMContentLoaded', function() {
     </h1>
     <?php if ($grades_student): ?>
     <div class="ms-auto d-flex gap-2">
-      <button type="button" class="btn btn-sm btn-outline-secondary" id="kp-grades-view-chart" aria-pressed="true">
-        <i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Wykres
-      </button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" id="kp-grades-view-table" aria-pressed="false">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="kp-grades-view-table" aria-pressed="true">
         <i class="bi bi-table me-1" aria-hidden="true"></i>Tabela
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="kp-grades-view-chart" aria-pressed="false">
+        <i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Wykres
       </button>
       <a href="?grades_pdf=1" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
     </div>
@@ -1486,7 +1486,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php else: ?>
 
   <!-- Widok: wykres -->
-  <div id="kp-grades-chart-view">
+  <div id="kp-grades-chart-view" style="display:none">
     <?php if (!empty($chart_datasets)): ?>
     <div class="card mb-3">
       <div class="card-body py-3">
@@ -1514,8 +1514,8 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php endforeach; ?>
   </div>
 
-  <!-- Widok: tabela (domyślnie ukryta) -->
-  <div id="kp-grades-table-view" style="display:none">
+  <!-- Widok: tabela -->
+  <div id="kp-grades-table-view">
     <?php foreach ($grades_by_course as $cname => $cgr):
       $avg = k30_ti_grades_average($cgr);
       [$abg,$afg] = k30_ti_grade_color($avg);
@@ -1525,14 +1525,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <span class="fw-semibold"><i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($cname) ?></span>
         <span class="badge text-bg-secondary"><?= count($cgr) ?> ocen</span>
         <?php if ($avg !== null): ?>
-        <span class="ms-auto small text-body-secondary">Srednia wazona:</span>
+        <span class="ms-auto small text-body-secondary">Średnia ważona:</span>
         <span class="badge" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:.9rem"><?= number_format($avg, 2, ',', '') ?></span>
         <?php endif; ?>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <thead class="table-light">
-            <tr><th>Data</th><th>Ocena</th><th>Waga</th><th>Kategoria</th><th>Za co</th><th>Wystawil(a)</th></tr>
+            <tr><th>Data</th><th>Ocena</th><th>Waga</th><th>Kategoria</th><th>Za co</th><th>Wystawił(a)</th></tr>
           </thead>
           <tbody>
             <?php foreach ($cgr as $g): ?>
@@ -1576,7 +1576,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Przywroc ostatni widok
     var saved = null; try { saved = localStorage.getItem('kp-grades-view'); } catch(e){}
-    show(saved === 'table' ? 'table' : 'chart');
+    show(saved === 'chart' ? 'chart' : 'table');
 
     // Wykres Chart.js
     var canvas = document.getElementById('kp-grades-canvas');
