@@ -402,6 +402,8 @@ HTML;
 </div></body></html>
 HTML;
 
+    $base = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
+
     $reg = [
         'welcome' => [
             'label'       => 'Powitalny — dane logowania',
@@ -417,7 +419,7 @@ HTML;
                 'intro'       => ['label' => 'Tekst wprowadzający',      'sample' => 'Poniżej znajdziesz dane logowania do portalu wolontariusza.'],
                 'accent'      => ['label' => 'Kolor akcentu (hex)',      'sample' => '#1d6ef9'],
                 'login_block' => ['label' => 'Blok z e-mailem i hasłem (HTML)', 'sample' => '<table style="background:#f8f9fa;border-radius:8px;padding:16px;width:100%;margin:16px 0;border-collapse:collapse"><tr><td style="padding:5px 14px;color:#6c757d;width:130px;font-size:.9em">Adres e-mail</td><td style="padding:5px 14px"><strong>jan@example.org</strong></td></tr><tr><td style="padding:5px 14px;color:#6c757d;font-size:.9em">Hasło</td><td style="padding:5px 14px"><strong style="font-family:monospace;font-size:1.15em;letter-spacing:.05em">Ab3xK9mP2qLt</strong></td></tr></table>'],
-                'login_url'   => ['label' => 'Adres strony logowania',   'sample' => 'https://app.feer.org.pl/auth/login.php'],
+                'login_url'   => ['label' => 'Adres strony logowania',   'sample' => $base . '/auth/login.php'],
             ],
         ],
 
@@ -458,7 +460,7 @@ HTML;
                 'osoba'    => ['label' => 'Zleceniobiorca',   'sample' => 'Jan Kowalski'],
                 'deadline' => ['label' => 'Termin (data)',    'sample' => '20.06.2026'],
                 'pilnosc'  => ['label' => 'Tekst pilności',   'sample' => 'Pozostały <strong>3 dni</strong>.'],
-                'url'      => ['label' => 'Link do umowy',    'sample' => 'https://app.feer.org.pl/contracts/zlecenie/view.php?id=14'],
+                'url'      => ['label' => 'Link do umowy',    'sample' => $base . '/contracts/zlecenie/view.php?id=14'],
             ],
         ],
 
@@ -492,7 +494,7 @@ HTML;
                 'name'      => ['label' => 'Imię kursanta',         'sample' => 'Anna'],
                 'subject'   => ['label' => 'Temat powiadomienia',   'sample' => 'nowy materiał do kursu'],
                 'body_html' => ['label' => 'Treść powiadomienia (HTML)', 'sample' => 'Dodano nowy materiał: <strong>Wprowadzenie do pracy z klawiaturą</strong>.'],
-                'url'       => ['label' => 'Link do panelu kursanta', 'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php'],
+                'url'       => ['label' => 'Link do panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php'],
             ],
         ],
 
@@ -510,7 +512,7 @@ HTML;
                 'course_name'  => ['label' => 'Nazwa kursu',        'sample' => 'Kurs obsługi komputera'],
                 'when'         => ['label' => 'Data i godzina lekcji', 'sample' => '30.06.2026 o 10:00'],
                 'reason_block' => ['label' => 'Blok z powodem odwołania (HTML lub pusty)', 'sample' => '<p>Powód: problemy zdrowotne</p>'],
-                'url'          => ['label' => 'Link do panelu dydaktyka', 'sample' => 'https://app.feer.org.pl/karty30/ti/dydaktyk/index.php'],
+                'url'          => ['label' => 'Link do panelu dydaktyka', 'sample' => $base . '/karty30/ti/dydaktyk/index.php'],
             ],
         ],
 
@@ -529,7 +531,7 @@ HTML;
                 'header_icon'   => ['label' => 'Emoji/ikona nagłówka',        'sample' => '✅'],
                 'header_title'  => ['label' => 'Tytuł nagłówka',              'sample' => 'odwołanie potwierdzone'],
                 'lead_html'     => ['label' => 'Główna treść (HTML)',          'sample' => 'Twoja prośba o odwołanie udziału w lekcji <strong>Kurs obsługi komputera</strong> (30.06.2026 o 10:00) została <strong>potwierdzona</strong>.'],
-                'url'           => ['label' => 'Link do panelu kursanta',      'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php?tab=lekcje'],
+                'url'           => ['label' => 'Link do panelu kursanta',      'sample' => $base . '/karty30/ti/kursant/index.php?tab=lekcje'],
             ],
         ],
 
@@ -547,7 +549,7 @@ HTML;
                 'value'            => ['label' => 'Ocena (tekst)',       'sample' => '5+'],
                 'category_block'   => ['label' => 'Blok kategorii oceny (HTML lub pusty)', 'sample' => '<div style="font-size:.85em;color:#555;margin-top:4px">(zadanie domowe)</div>'],
                 'description_block'=> ['label' => 'Blok opisu (HTML lub pusty)', 'sample' => '<p style="color:#555;font-size:.9em">Zadanie domowe: Wprowadzenie do internetu</p>'],
-                'url'              => ['label' => 'Link do panelu kursanta', 'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php?tab=oceny'],
+                'url'              => ['label' => 'Link do panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=oceny'],
             ],
         ],
 
@@ -564,7 +566,7 @@ HTML;
                 'name_suffix' => ['label' => 'Imię odbiorcy z przecinkiem (np. ", Jan")', 'sample' => ', Jan'],
                 'period'      => ['label' => 'Okres rozliczenia',         'sample' => 'czerwiec 2026'],
                 'details_html'=> ['label' => 'Tabela szczegółów płatności (HTML)', 'sample' => '<table style="border-collapse:collapse;width:100%"><tr><td style="padding:4px 12px 4px 0;color:#555">Kwota do zapłaty:</td><td><strong>120,00 zł</strong></td></tr><tr><td style="padding:4px 12px 4px 0;color:#555">Termin płatności:</td><td><strong>15.07.2026</strong></td></tr><tr><td style="padding:4px 12px 4px 0;color:#555">Nr konta:</td><td>12 3456 7890 1234 5678</td></tr></table>'],
-                'portal'      => ['label' => 'URL panelu kursanta',       'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php'],
+                'portal'      => ['label' => 'URL panelu kursanta',       'sample' => $base . '/karty30/ti/kursant/index.php'],
             ],
         ],
 
@@ -581,7 +583,7 @@ HTML;
                 'name'        => ['label' => 'Imię kursanta',        'sample' => 'Anna'],
                 'subject'     => ['label' => 'Temat wiadomości',     'sample' => 'Nowa wiadomość'],
                 'preview_html'=> ['label' => 'Fragment treści wiadomości (HTML)', 'sample' => 'Proszę o zapoznanie się z materiałami przed następną lekcją.'],
-                'url'         => ['label' => 'Link do panelu kursanta', 'sample' => 'https://app.feer.org.pl/karty30/ti/kursant/index.php?tab=wiadomosci'],
+                'url'         => ['label' => 'Link do panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=wiadomosci'],
             ],
         ],
 
@@ -597,7 +599,7 @@ HTML;
                 'org'          => ['label' => 'Nazwa organizacji',  'sample' => 'Dydaktyka TI'],
                 'student_name' => ['label' => 'Imię i nazwisko kursanta', 'sample' => 'Jan Kowalski'],
                 'preview_html' => ['label' => 'Fragment odpowiedzi (HTML)', 'sample' => 'Zapoznałem się z materiałami, mam pytanie odnośnie ćwiczenia 3.'],
-                'url'          => ['label' => 'Link do wątku wiadomości', 'sample' => 'https://app.feer.org.pl/karty30/ti/messages.php?student=42'],
+                'url'          => ['label' => 'Link do wątku wiadomości', 'sample' => $base . '/karty30/ti/messages.php?student=42'],
             ],
         ],
     ];
