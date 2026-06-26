@@ -41,7 +41,41 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'dostepnosc', 'testy', 'wiadomosci'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci'], true)) $tab = 'lekcje';
+
+// ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
+$dyd_contracts = [];
+$dyd_user_row  = db_one("SELECT email, microsoft_id FROM users WHERE id=?", [$uid]);
+$dyd_email     = trim((string)($dyd_user_row['email'] ?? ''));
+$dyd_ms_id     = trim((string)($dyd_user_row['microsoft_id'] ?? ''));
+foreach ([
+    ['zlecenie',    'data_zakonczenia'],
+    ['wolontariat', 'data_zakonczenia'],
+    ['dzielo',      'termin_oddania'],
+    ['praca',       'data_zakonczenia'],
+] as [$ctype, $end_col]) {
+    $table = "umowy_{$ctype}";
+    try {
+        $conds  = [];
+        $params = [];
+        if ($dyd_email) { $conds[] = 'email=?'; $params[] = $dyd_email; }
+        if ($dyd_ms_id) { $conds[] = 'm365_user_id=?'; $params[] = $dyd_ms_id; }
+        if (!$conds) continue;
+        $rows = db_all(
+            "SELECT id, '{$ctype}' AS contract_type, numer_umowy, status, data_zawarcia,
+                    {$end_col} AS data_zakonczenia, imie_nazwisko,
+                    stanowisko, wynagrodzenie_brutto, miejsce_wolontariatu, przedmiot_porozumienia
+             FROM {$table} WHERE (" . implode(' OR ', $conds) . ") ORDER BY data_zawarcia DESC",
+            $params
+        );
+        foreach ($rows as $r) $dyd_contracts[] = $r;
+    } catch (\Throwable $e) {}
+}
+// sortuj: aktywne na górze
+usort($dyd_contracts, function($a, $b) {
+    $active = fn($s) => in_array($s, ['podpisana','w realizacji'], true) ? 0 : 1;
+    return $active($a['status']) <=> $active($b['status']) ?: strcmp((string)($b['data_zawarcia'] ?? ''), (string)($a['data_zawarcia'] ?? ''));
+});
 
 /** Adres powrotu zachowujący kurs i zakładkę. */
 function dyd_back(int $course, string $tab): string {
@@ -827,6 +861,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
+  <?php if ($dyd_contracts): ?>
+  <a class="dyd-gb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
+     <?= $tab==='formalnosci'?'aria-current="page"':'' ?>>
+    <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalności
+    <?php $active_cnt = count(array_filter($dyd_contracts, fn($c) => in_array($c['status'],['podpisana','w realizacji'],true))); ?>
+    <?php if ($active_cnt): ?>
+    <span class="badge bg-success" style="font-size:.65rem"><?= $active_cnt ?></span>
+    <?php endif; ?>
+  </a>
+  <?php endif; ?>
   <a class="dyd-gb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
      <?= $tab==='dostepnosc'?'aria-current="page"':'' ?>>
     <i class="bi bi-clock-history" aria-hidden="true"></i>Dostępność
@@ -1703,6 +1747,63 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </div>
     </div>
     <?php endif; /* wiadomosci */ ?>
+
+  <?php /* ═══════════════════ FORMALNOŚCI ═══════════════════ */ ?>
+  <?php if ($tab === 'formalnosci' && $dyd_contracts): ?>
+  <?php
+    $ct_labels = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowa zlecenie','dzielo'=>'Umowa o dzieło','praca'=>'Umowa o pracę'];
+    $st_labels = ['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'];
+    $st_colors = ['podpisana'=>'success','w realizacji'=>'primary','projekt'=>'secondary','zakończona'=>'dark','rozwiązana'=>'warning','anulowana'=>'danger'];
+  ?>
+  <div class="mt-3">
+    <h2 class="h5 fw-bold mb-3"><i class="bi bi-file-earmark-text text-primary me-2" aria-hidden="true"></i>Twoje formalności</h2>
+    <?php foreach ($dyd_contracts as $dc):
+      $st    = $dc['status'] ?? '';
+      $stc   = $st_colors[$st] ?? 'secondary';
+      $is_active = in_array($st, ['podpisana','w realizacji'], true);
+    ?>
+    <div class="card border-0 shadow-sm mb-3 <?= $is_active ? '' : 'opacity-75' ?>">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-start gap-2 mb-3">
+          <div>
+            <div class="fw-bold fs-6"><?= h($dc['numer_umowy'] ?: '(brak numeru)') ?></div>
+            <div class="text-body-secondary small"><?= h($ct_labels[$dc['contract_type']] ?? $dc['contract_type']) ?></div>
+          </div>
+          <span class="badge bg-<?= $stc ?> ms-auto align-self-start" style="font-size:.78rem"><?= h($st_labels[$st] ?? $st) ?></span>
+        </div>
+        <dl class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2 mb-0" style="font-size:.88rem">
+          <?php if (!empty($dc['imie_nazwisko'])): ?>
+          <div class="col"><dt class="text-body-secondary fw-normal small">Imię i nazwisko</dt><dd class="mb-0 fw-semibold"><?= h($dc['imie_nazwisko']) ?></dd></div>
+          <?php endif; ?>
+          <?php if (!empty($dc['data_zawarcia'])): ?>
+          <div class="col"><dt class="text-body-secondary fw-normal small">Data zawarcia</dt><dd class="mb-0"><?= date('d.m.Y', strtotime($dc['data_zawarcia'])) ?></dd></div>
+          <?php endif; ?>
+          <?php if (!empty($dc['data_zakonczenia'])): ?>
+          <div class="col"><dt class="text-body-secondary fw-normal small">Ważna do</dt>
+            <dd class="mb-0 <?= ($dc['data_zakonczenia'] < date('Y-m-d') && $is_active) ? 'text-danger fw-semibold' : '' ?>"><?= date('d.m.Y', strtotime($dc['data_zakonczenia'])) ?></dd></div>
+          <?php endif; ?>
+          <?php if (!empty($dc['stanowisko'])): ?>
+          <div class="col"><dt class="text-body-secondary fw-normal small">Stanowisko / rola</dt><dd class="mb-0"><?= h($dc['stanowisko']) ?></dd></div>
+          <?php endif; ?>
+          <?php if (!empty($dc['wynagrodzenie_brutto'])): ?>
+          <div class="col"><dt class="text-body-secondary fw-normal small">Wynagrodzenie brutto</dt><dd class="mb-0"><?= number_format((float)$dc['wynagrodzenie_brutto'], 2, ',', ' ') ?> zł</dd></div>
+          <?php endif; ?>
+          <?php if (!empty($dc['miejsce_wolontariatu'])): ?>
+          <div class="col"><dt class="text-body-secondary fw-normal small">Miejsce</dt><dd class="mb-0"><?= h($dc['miejsce_wolontariatu']) ?></dd></div>
+          <?php endif; ?>
+          <?php if (!empty($dc['przedmiot_porozumienia'])): ?>
+          <div class="col col-12"><dt class="text-body-secondary fw-normal small">Zakres działania</dt><dd class="mb-0" style="white-space:pre-wrap"><?= h(mb_substr($dc['przedmiot_porozumienia'], 0, 400)) ?></dd></div>
+          <?php endif; ?>
+        </dl>
+      </div>
+    </div>
+    <?php endforeach; ?>
+    <p class="text-body-secondary small mt-2 mb-0">
+      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+      W razie pytań dotyczących umów skontaktuj się z koordynatorem.
+    </p>
+  </div>
+  <?php endif; /* formalnosci */ ?>
 
   <?php endif; /* $courses */ ?>
 
