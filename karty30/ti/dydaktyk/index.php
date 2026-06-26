@@ -1539,12 +1539,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <tbody>
               <?php
               $action_labels = [
-                  'msg_sent'            => 'Wysłano',
-                  'msg_sent_by_staff'   => 'Odp. prowadzącego',
-                  'msg_blocked'         => 'Zablokowano',
-                  'msg_unblocked'       => 'Odblokowano',
-                  'msg_blocked_attempt' => 'Próba przy blokadzie',
-                  'msg_archived'        => 'Zarchiwizowano',
+                  'login'               => 'Logowanie',
+                  'login_failed'        => 'Nieudane logowanie',
+                  'password_changed'    => 'Zmiana hasła',
+                  'alias_changed'       => 'Zmiana aliasu',
+                  'msg_sent'            => 'Wiadomość od kursanta',
+                  'msg_sent_by_staff'   => 'Odpowiedź prowadzącego',
+                  'msg_blocked'         => 'Zablokowano wiadomości',
+                  'msg_unblocked'       => 'Odblokowano wiadomości',
+                  'msg_blocked_attempt' => 'Próba wysyłki przy blokadzie',
+                  'msg_archived'        => 'Zarchiwizowano wiadomość',
               ];
               foreach ($dyd_msg_log as $le): ?>
               <tr>
