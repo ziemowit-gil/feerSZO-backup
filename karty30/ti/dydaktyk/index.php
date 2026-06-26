@@ -861,7 +861,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
-  <?php if ($dyd_contracts): ?>
   <a class="dyd-gb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
      <?= $tab==='formalnosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalności
@@ -870,7 +869,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <span class="badge bg-success" style="font-size:.65rem"><?= $active_cnt ?></span>
     <?php endif; ?>
   </a>
-  <?php endif; ?>
   <a class="dyd-gb-link <?= $tab==='dostepnosc'?'active':'' ?>" href="index.php?tab=dostepnosc"
      <?= $tab==='dostepnosc'?'aria-current="page"':'' ?>>
     <i class="bi bi-clock-history" aria-hidden="true"></i>Dostępność
@@ -1749,7 +1747,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endif; /* wiadomosci */ ?>
 
   <?php /* ═══════════════════ FORMALNOŚCI ═══════════════════ */ ?>
-  <?php if ($tab === 'formalnosci' && $dyd_contracts): ?>
+  <?php if ($tab === 'formalnosci'): ?>
   <?php
     $ct_labels = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowa zlecenie','dzielo'=>'Umowa o dzieło','praca'=>'Umowa o pracę'];
     $st_labels = ['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'];
@@ -1757,6 +1755,12 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   ?>
   <div class="mt-3">
     <h2 class="h5 fw-bold mb-3"><i class="bi bi-file-earmark-text text-primary me-2" aria-hidden="true"></i>Twoje formalności</h2>
+    <?php if (!$dyd_contracts): ?>
+    <div class="card border-0 shadow-sm"><div class="card-body text-body-secondary py-4 text-center">
+      <i class="bi bi-file-earmark-x fs-2 d-block mb-2" aria-hidden="true"></i>
+      Brak informacji z rejestru umów.
+    </div></div>
+    <?php endif; ?>
     <?php foreach ($dyd_contracts as $dc):
       $st    = $dc['status'] ?? '';
       $stc   = $st_colors[$st] ?? 'secondary';
