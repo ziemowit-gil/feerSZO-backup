@@ -24,7 +24,8 @@ if (!current_user()) je('Brak sesji', 401);
 if (!can_write('crm') && !is_admin()) je('Brak uprawnień', 403);
 
 // CSRF
-if (!csrf_verify($_POST['_csrf'] ?? '')) je('Błąd CSRF', 403);
+auth_start();
+if (($_POST['_csrf'] ?? '') !== ($_SESSION['csrf'] ?? '')) je('Błąd CSRF — odśwież stronę', 403);
 
 $case_id = (int)($_POST['case_id'] ?? 0);
 if (!$case_id) je('Brak case_id');
