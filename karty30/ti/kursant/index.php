@@ -1061,7 +1061,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php elseif ($tab === 'lekcje'): ?>
 
-  <h1 class="h5 fw-bold mb-3">Moje lekcje</h1>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <h1 class="h5 fw-bold mb-0">Moje lekcje</h1>
+    <div class="ms-auto d-flex gap-2">
+      <a href="lessons_pdf.php" class="btn btn-sm btn-outline-secondary" target="_blank">
+        <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj
+      </a>
+      <a href="lessons_pdf.php?all=1" class="btn btn-sm btn-outline-secondary" target="_blank">
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Wszystkie (PDF)
+      </a>
+    </div>
+  </div>
 
   <?php if (isset($_GET['rated'])): ?>
   <div class="alert alert-success alert-dismissible fade show" role="alert">
