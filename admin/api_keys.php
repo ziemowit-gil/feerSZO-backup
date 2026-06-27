@@ -53,10 +53,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user     = current_user();
             $created  = date('Y-m-d H:i:s');
 
+            $rate = (int)($_POST['rate_limit'] ?? 0);
+            if ($rate < 0) $rate = 0;
+
             db_insert('api_keys', [
                 'key_hash'    => $hash,
                 'name'        => $name,
                 'permissions' => json_encode($perms, JSON_UNESCAPED_UNICODE),
+                'rate_limit'  => $rate ?: null,
                 'created_at'  => $created,
                 'is_active'   => 1,
                 'created_by'  => $user['id'] ?? null,
@@ -82,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Load all keys ──────────────────────────────────────────────────────────
 $keys = db_all(
-    "SELECT id, name, permissions, last_used_at, created_at, is_active, created_by
+    "SELECT id, name, permissions, rate_limit, last_used_at, created_at, is_active, created_by
        FROM api_keys
       ORDER BY created_at DESC"
 );
@@ -129,6 +133,7 @@ if ($keys):
         <tr>
           <th>Nazwa</th>
           <th>Uprawnienia</th>
+          <th>Limit/min</th>
           <th>Ostatnie użycie</th>
           <th>Utworzony</th>
           <th>Status</th>
@@ -152,6 +157,7 @@ if ($keys):
                 <span class="text-muted">brak</span>
               <?php endif; ?>
             </td>
+            <td><?= !empty($k['rate_limit']) ? (int)$k['rate_limit'] : '<span class="text-muted">domyślny</span>' ?></td>
             <td><?= $k['last_used_at'] ? h(date_pl($k['last_used_at'])) : '<span class="text-muted">nigdy</span>' ?></td>
             <td><?= h(date_pl($k['created_at'])) ?></td>
             <td>
@@ -333,6 +339,14 @@ curl -X PATCH -H "Authorization: Bearer $KEY" -H "Content-Type: application/json
                placeholder="np. Integracja z aplikacją mobilną"
                value="<?= h($_POST['key_name'] ?? '') ?>" required maxlength="200">
         <div class="form-text">Opis pomocny przy zarządzaniu kluczami.</div>
+      </div>
+
+      <div class="col-md-3">
+        <label for="rate_limit" class="form-label">Limit zapytań / min</label>
+        <input type="number" id="rate_limit" name="rate_limit" class="form-control"
+               min="0" step="1" placeholder="domyślny (120)"
+               value="<?= h($_POST['rate_limit'] ?? '') ?>">
+        <div class="form-text">0 lub puste = limit domyślny. Po przekroczeniu API zwraca 429.</div>
       </div>
 
       <div class="col-12">

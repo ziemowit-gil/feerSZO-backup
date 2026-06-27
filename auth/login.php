@@ -204,6 +204,17 @@ if ($ms_available)    $valid_tabs[] = 'ms365';
 if ($x509_available)  $valid_tabs[] = 'x509';
 if (!in_array($active_tab, $valid_tabs, true)) $active_tab = $default_tab;
 
+// ── Powrót na brandowany ekran modułu po nieudanym logowaniu ─────────────
+// Gdy logowanie zostało zainicjowane z dedykowanego ekranu (np. karty30/login.php),
+// w polu „from" jest jego adres — wracamy tam z komunikatem zamiast pokazywać
+// widok logowania systemu głównego.
+$login_from = $_POST['from'] ?? '';
+if ($error !== '' && $login_from !== '' && str_starts_with($login_from, APP_URL . '/')) {
+    $sep = str_contains($login_from, '?') ? '&' : '?';
+    header('Location: ' . $login_from . $sep . 'err=' . urlencode($error));
+    exit;
+}
+
 // ── Publiczne komunikaty administratora ──────────────────────────────────
 $_login_notices = [];
 try {

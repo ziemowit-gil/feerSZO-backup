@@ -81,6 +81,7 @@ body { min-height:100vh; display:flex; align-items:center; background:linear-gra
         <form method="post" action="<?= h_($action) ?>" novalidate>
           <input type="hidden" name="_csrf" value="<?= h_($token) ?>">
           <input type="hidden" name="_method" value="local">
+          <input type="hidden" name="from" value="<?= h_($APP . '/karty30/login.php?redirect=' . urlencode($redirect)) ?>">
 
           <div class="mb-3">
             <label for="email" class="form-label fw-semibold">Adres e-mail</label>

@@ -26,6 +26,58 @@ function api_auth_migrate(): void {
             created_by    INTEGER
         )
     ");
+
+    // Per-key limit zapytań/min (0/NULL = limit domyślny API_RATE_PER_MIN)
+    try {
+        $cols = array_column(db_all("PRAGMA table_info(api_keys)"), 'name');
+        if (!in_array('rate_limit', $cols, true)) {
+            db()->exec("ALTER TABLE api_keys ADD COLUMN rate_limit INTEGER");
+        }
+    } catch (\Throwable $e) {}
+
+    // Licznik zapytań w oknie 1-minutowym (fixed window) per klucz
+    db()->exec("
+        CREATE TABLE IF NOT EXISTS api_rate_limit (
+            key_id       INTEGER NOT NULL,
+            window_start INTEGER NOT NULL,
+            count        INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (key_id, window_start)
+        )
+    ");
+}
+
+/**
+ * Egzekwuje limit zapytań na minutę dla klucza API.
+ * Na przekroczeniu: 429 + Retry-After. Ustawia nagłówki X-RateLimit-*.
+ */
+function api_rate_limit(array $key): void {
+    $per_min = (int)($key['rate_limit'] ?? 0);
+    if ($per_min <= 0) $per_min = defined('API_RATE_PER_MIN') ? (int)API_RATE_PER_MIN : 120;
+    if ($per_min <= 0) return; // wyłączone
+
+    $window = intdiv(time(), 60);
+    try {
+        db()->prepare(
+            "INSERT INTO api_rate_limit (key_id, window_start, count) VALUES (?, ?, 1)
+             ON CONFLICT(key_id, window_start) DO UPDATE SET count = count + 1"
+        )->execute([(int)$key['id'], $window]);
+        $used = (int)(db_one(
+            "SELECT count FROM api_rate_limit WHERE key_id=? AND window_start=?",
+            [(int)$key['id'], $window]
+        )['count'] ?? 0);
+        // Sprzątanie starych okien (utrzymuje tabelę małą)
+        db()->prepare("DELETE FROM api_rate_limit WHERE window_start < ?")->execute([$window]);
+    } catch (\Throwable $e) {
+        return; // gdy licznik zawiedzie — nie blokuj ruchu
+    }
+
+    header('X-RateLimit-Limit: ' . $per_min);
+    header('X-RateLimit-Remaining: ' . max(0, $per_min - $used));
+    if ($used > $per_min) {
+        $retry = 60 - (time() % 60);
+        header('Retry-After: ' . $retry);
+        api_error("Przekroczono limit zapytań ({$per_min}/min). Spróbuj ponownie za {$retry} s.", 429);
+    }
 }
 
 /**
@@ -81,6 +133,9 @@ function api_require(string ...$permissions): void {
     // Update last_used_at
     db()->prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?")
         ->execute([$row['id']]);
+
+    // Limit zapytań na minutę (per klucz) — może zakończyć żądanie 429
+    api_rate_limit($row);
 
     $api_current_key = $row;
 }
