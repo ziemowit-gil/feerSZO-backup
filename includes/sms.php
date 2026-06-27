@@ -1,10 +1,12 @@
 <?php
 /**
- * SMS integration — obsługuje smsapi.pl (SDK OAuth) i Twilio.
- * Dostawca wybierany przez ustawienie `sms_provider` ('smsapi' lub 'twilio').
+ * SMS integration — obsługuje smsapi.pl (SDK OAuth), Twilio i HTTP Request.
+ * Dostawca główny: ustawienie `sms_provider` ('smsapi' | 'twilio' | 'httprequest').
+ * Dostawca zapasowy: `sms_fallback_provider` — gdy główny zawiedzie, system
+ *   automatycznie ponawia wysyłkę przez niego (np. główny smsapi.pl → zapasowy Twilio).
+ * Łańcuch przy wysyłce kodów: główny SMS → zapasowy SMS → e-mail (sms_send_with_fallback).
  *
- * SMSAPI.pl: preferowany token OAuth (sms_api_token).
- * Fallback:  login + hasło MD5 (sms_api_login + sms_api_password).
+ * SMSAPI.pl: preferowany token OAuth (sms_api_token); fallback login+hasło MD5.
  */
 
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -31,6 +33,26 @@ function sms_provider(): string {
 }
 
 /**
+ * Zapasowy dostawca SMS używany, gdy główny zawiedzie. '' = brak (wyłączony).
+ * W naszym wdrożeniu: główny smsapi.pl, zapasowy Twilio.
+ */
+function sms_provider_fallback(): string {
+    $p = sms_setting('sms_fallback_provider');
+    return in_array($p, ['smsapi', 'twilio', 'httprequest'], true) ? $p : '';
+}
+
+/** Router: wyślij wiadomość przez wskazanego dostawcę. Rzuca wyjątek przy błędzie. */
+function _sms_dispatch(string $provider, string $phone, string $message): void {
+    if ($provider === 'twilio') {
+        _sms_send_twilio($phone, $message);
+    } elseif ($provider === 'httprequest') {
+        _sms_send_httprequest($phone, $message);
+    } else {
+        _sms_send_smsapi($phone, $message);
+    }
+}
+
+/**
  * Normalizuje numer do formatu 48XXXXXXXXX (cyfry, bez +).
  */
 function sms_normalize_phone(string $phone): string {
@@ -45,17 +67,34 @@ function sms_normalize_phone(string $phone): string {
 
 /**
  * Wyślij SMS przez aktywnego dostawcę.
- * Rzuca RuntimeException przy błędzie.
+ * Gdy główny dostawca zawiedzie, a skonfigurowano dostawcę zapasowego
+ * (sms_fallback_provider, np. Twilio) — automatycznie ponawia wysyłkę przez niego.
+ * Rzuca RuntimeException dopiero gdy obaj zawiodą (lub brak zapasowego).
  */
 function sms_send(string $phone, string $message): void {
-    $phone = sms_normalize_phone($phone);
-    $prov  = sms_provider();
-    if ($prov === 'twilio') {
-        _sms_send_twilio($phone, $message);
-    } elseif ($prov === 'httprequest') {
-        _sms_send_httprequest($phone, $message);
-    } else {
-        _sms_send_smsapi($phone, $message);
+    $phone   = sms_normalize_phone($phone);
+    $primary = sms_provider();
+
+    try {
+        _sms_dispatch($primary, $phone, $message);
+        return;
+    } catch (\Throwable $e1) {
+        $fallback = sms_provider_fallback();
+        if ($fallback === '' || $fallback === $primary) {
+            throw $e1; // brak zapasowego (lub taki sam) → przekaż oryginalny błąd
+        }
+        try {
+            _sms_dispatch($fallback, $phone, $message);
+            error_log("[SMS] Główny dostawca '{$primary}' zawiódł ({$e1->getMessage()}); "
+                    . "wysłano przez zapasowy '{$fallback}'.");
+            return;
+        } catch (\Throwable $e2) {
+            throw new RuntimeException(
+                "Wysyłka SMS nieudana u obu dostawców. "
+                . "Główny ({$primary}): {$e1->getMessage()} | "
+                . "Zapasowy ({$fallback}): {$e2->getMessage()}"
+            );
+        }
     }
 }
 

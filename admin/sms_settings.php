@@ -13,6 +13,7 @@ $PAGE_TITLE = 'Ustawienia SMS';
 $cfg = [
     'sms_enabled'      => sms_setting('sms_enabled'),
     'sms_provider'     => sms_provider(),           // 'smsapi', 'twilio' lub 'httprequest'
+    'sms_fallback_provider' => sms_provider_fallback(), // '' = brak, lub jw.
     // smsapi.pl
     'sms_api_login'    => sms_setting('sms_api_login'),
     'sms_api_password' => sms_setting('sms_api_password'),
@@ -37,9 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $provider = in_array($_POST['sms_provider'] ?? '', ['smsapi','twilio','httprequest'], true)
                     ? $_POST['sms_provider'] : 'smsapi';
 
+        // Dostawca zapasowy (fallback) — '' = brak; nie może być taki sam jak główny
+        $fallback = in_array($_POST['sms_fallback_provider'] ?? '', ['smsapi','twilio','httprequest'], true)
+                    ? $_POST['sms_fallback_provider'] : '';
+        if ($fallback === $provider) $fallback = '';
+
         $save = [
-            'sms_enabled'  => !empty($_POST['sms_enabled']) ? '1' : '0',
-            'sms_provider' => $provider,
+            'sms_enabled'           => !empty($_POST['sms_enabled']) ? '1' : '0',
+            'sms_provider'          => $provider,
+            'sms_fallback_provider' => $fallback,
         ];
 
         // smsapi fields (keep existing if left blank)
@@ -245,6 +252,30 @@ $provider_label = match($cfg['sms_provider']) {
       </div>
     </div>
 
+  </div>
+</div>
+</div>
+
+<!-- ── Dostawca zapasowy (fallback) ───────────────────────────────────────── -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-arrow-repeat"></i> Dostawca zapasowy (fallback)</div>
+<div class="card-body">
+  <p class="small text-muted mb-2">
+    Gdy <strong>główny</strong> dostawca zwróci błąd, system automatycznie ponowi wysyłkę
+    przez dostawcę zapasowego. Dla kodów logowania łańcuch to:
+    <strong>główny SMS → zapasowy SMS → e-mail</strong>.
+    Zalecane u nas: główny <strong>smsapi.pl</strong>, zapasowy <strong>Twilio</strong>.
+  </p>
+  <label class="form-label fw-semibold small" for="sms_fallback_provider">Użyj jako zapasowego</label>
+  <select name="sms_fallback_provider" id="sms_fallback_provider" class="form-select form-select-sm" style="max-width:280px">
+    <option value="">— brak (bez fallbacku) —</option>
+    <option value="smsapi"      <?= $cfg['sms_fallback_provider']==='smsapi'      ? 'selected':'' ?>>smsapi.pl</option>
+    <option value="twilio"      <?= $cfg['sms_fallback_provider']==='twilio'      ? 'selected':'' ?>>Twilio</option>
+    <option value="httprequest" <?= $cfg['sms_fallback_provider']==='httprequest' ? 'selected':'' ?>>HTTP Request</option>
+  </select>
+  <div class="form-text">
+    Musi być <strong>inny</strong> niż dostawca główny i mieć uzupełnioną własną konfigurację poniżej.
+    Wybór taki sam jak główny zostanie zignorowany.
   </div>
 </div>
 </div>
@@ -469,6 +500,18 @@ $provider_label = match($cfg['sms_provider']) {
     <span class="fw-semibold"><?= $provider_label ?></span>
   </div>
 
+  <?php
+  $fb_label = match($cfg['sms_fallback_provider']) {
+      'twilio' => 'Twilio', 'httprequest' => 'HTTP Request', 'smsapi' => 'smsapi.pl', default => '—',
+  };
+  ?>
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <span class="text-muted">Dostawca zapasowy</span>
+    <span class="badge <?= $cfg['sms_fallback_provider'] ? 'bg-info-subtle text-info-emphasis border border-info-subtle' : 'bg-secondary' ?>">
+      <?= $cfg['sms_fallback_provider'] ? h($fb_label) : 'brak' ?>
+    </span>
+  </div>
+
   <hr class="my-2">
 
   <!-- smsapi status -->
@@ -565,6 +608,41 @@ $provider_label = match($cfg['sms_provider']) {
         <td class="text-center">URL szablonu</td></tr>
   </tbody>
 </table>
+</div>
+</div>
+
+<!-- Konfiguracja pod Karty 30 / Dydaktyka -->
+<div class="card shadow-sm mt-3">
+<div class="card-header fw-semibold"><i class="bi bi-card-checklist text-primary"></i> Konfiguracja SMS dla modułu „Dydaktyka" (Karty 30)</div>
+<div class="card-body small">
+  <p class="mb-2">
+    Ustawienia SMS są <strong>wspólne dla całego Systemu Obsługi Organizacji</strong> — moduł
+    Karty 30 korzysta z tej samej konfiguracji. Fallback (np. Twilio) działa automatycznie
+    we wszystkich miejscach poniżej.
+  </p>
+
+  <p class="fw-semibold mb-1">Zalecana konfiguracja (główny + zapasowy):</p>
+  <ol class="ps-3 mb-2">
+    <li>Włącz przełącznik <em>Logowanie SMS aktywne</em>.</li>
+    <li><strong>Dostawca SMS = smsapi.pl</strong> → wpisz <em>Token OAuth</em> i <em>Nazwę nadawcy</em>.</li>
+    <li>Uzupełnij <strong>Twilio</strong>: Account SID, Auth Token, numer From (E.164, <code>+48…</code>) — kliknij kafelek Twilio, by odsłonić pola, lub uzupełnij i zapisz.</li>
+    <li><strong>Dostawca zapasowy = Twilio</strong> (sekcja „Dostawca zapasowy (fallback)").</li>
+    <li>Zapisz i wyślij <em>testowy SMS</em>. Aby przetestować fallback, możesz tymczasowo „popsuć" głównego (np. błędny token) — SMS i tak dojdzie przez Twilio.</li>
+  </ol>
+
+  <p class="fw-semibold mb-1">Gdzie Karty 30 wysyła SMS:</p>
+  <ul class="ps-3 mb-2">
+    <li>Powiadomienia kursantów: lekcje, oceny, wiadomości (TI → Komunikacja).</li>
+    <li>Powiadomienia o rozliczeniach (TI → Rozliczenia).</li>
+    <li>Logowanie kursanta / portal PFRON (kody jednorazowe).</li>
+    <li>Lista oczekujących — SMS do beneficjenta.</li>
+  </ul>
+
+  <div class="alert alert-light border mb-0 py-2">
+    <i class="bi bi-info-circle text-primary"></i>
+    Dla <strong>kodów jednorazowych</strong> łańcuch awaryjny to:
+    <strong>główny SMS → zapasowy SMS → e-mail</strong> (gdy konto ma adres e-mail).
+  </div>
 </div>
 </div>
 

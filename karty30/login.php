@@ -64,7 +64,7 @@ body { min-height:100vh; display:flex; align-items:center; background:linear-gra
     <div class="text-center text-white mb-4">
       <div class="k30-login-logo mx-auto mb-3"><i class="bi bi-card-checklist fs-2" aria-hidden="true"></i></div>
       <h1 class="h4 fw-bold mb-1">Dydaktyka — Karty 30</h1>
-      <?php if ($org): ?><p class="mb-0 opacity-75 small"><?= h_($org) ?></p><?php endif; ?>
+      <p class="mb-0 opacity-75 small">Moduł „Dydaktyka" jest częścią Systemu Obsługi Organizacji<?= $org ? ' — ' . h_($org) : '' ?>.</p>
     </div>
 
     <div class="card k30-login-card">
