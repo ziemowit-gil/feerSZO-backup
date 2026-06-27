@@ -108,10 +108,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </ol>
 </nav>
 
-<div class="k30-page-header">
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
   <div>
-    <h1 class="k30-page-title">Doradcy konsultacji</h1>
-    <p class="k30-page-subtitle">
+    <h1 class="h3 fw-bold mb-1">Doradcy konsultacji</h1>
+    <p class="text-body-secondary mb-0">
       Zarządzaj uprawnieniem „Prowadzenie konsultacji Tyflo".
       Doradcą może być dowolny aktywny użytkownik — w tym wolontariusz.
     </p>
@@ -119,7 +119,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <!-- Objaśnienie uprawnienia -->
-<div class="k30-alert k30-alert-info mb-4" role="note">
+<div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="note">
   <i class="bi bi-info-circle-fill" aria-hidden="true" style="font-size:1.2rem;flex-shrink:0;margin-top:.1rem"></i>
   <div>
     <strong>Co daje uprawnienie doradcy?</strong>
@@ -141,7 +141,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
   <?php if ($consultants): ?>
   <div class="card shadow-sm">
-    <table class="k30-table" aria-label="Lista doradców konsultacji">
+    <table class="table table-hover align-middle" aria-label="Lista doradców konsultacji">
       <thead>
         <tr>
           <th scope="col">Imię i nazwisko</th>
@@ -248,13 +248,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             }
             ?>
           </select>
-          <div id="grant-user-hint" class="form-hint">
+          <div id="grant-user-hint" class="form-text">
             Lista zawiera tylko aktywnych użytkowników bez uprawnienia doradcy.
             Pogrupowana według roli systemowej.
           </div>
         </div>
 
-        <button type="submit" class="btn btn-k30">
+        <button type="submit" class="btn btn-primary">
           <i class="bi bi-person-check me-2" aria-hidden="true"></i>Przyznaj uprawnienie doradcy
         </button>
       </form>
@@ -262,7 +262,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </div>
 </section>
 <?php else: ?>
-<div class="k30-alert k30-alert-info" role="note">
+<div class="alert alert-info d-flex align-items-start gap-2" role="note">
   <i class="bi bi-check-circle-fill" aria-hidden="true" style="font-size:1.2rem;flex-shrink:0"></i>
   <span>Wszyscy aktywni użytkownicy systemu mają już uprawnienie doradcy.</span>
 </div>

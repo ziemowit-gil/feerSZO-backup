@@ -81,15 +81,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </ol>
 </nav>
 
-<div class="k30-page-header">
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
   <div>
-    <h1 class="k30-page-title">Nowy beneficjent</h1>
-    <p class="k30-page-subtitle">Wypełnij dane osobowe beneficjenta. Pola oznaczone gwiazdką są wymagane.</p>
+    <h1 class="h3 fw-bold mb-1">Nowy beneficjent</h1>
+    <p class="text-body-secondary mb-0">Wypełnij dane osobowe beneficjenta. Pola oznaczone gwiazdką są wymagane.</p>
   </div>
 </div>
 
 <?php if ($errors): ?>
-<div class="k30-alert k30-alert-danger" role="alert" aria-label="Błędy formularza">
+<div class="alert alert-danger d-flex align-items-start gap-2" role="alert" aria-label="Błędy formularza">
   <i class="bi bi-exclamation-triangle-fill" aria-hidden="true" style="font-size:1.2rem;flex-shrink:0"></i>
   <div>
     <strong>Popraw następujące błędy:</strong>
@@ -111,7 +111,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
     <div class="mb-3">
       <label class="form-label" for="f_name">
-        Imię i nazwisko <span class="req" aria-hidden="true">*</span>
+        Imię i nazwisko <span class="text-danger" aria-hidden="true">*</span>
       </label>
       <input type="text" name="name" id="f_name"
              class="form-control"
@@ -122,7 +122,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
              autocomplete="name"
              autofocus>
       <?php if (in_array('Imię i nazwisko jest wymagane.', $errors)): ?>
-      <div id="err_name" class="form-error" role="alert">
+      <div id="err_name" class="text-danger small fw-semibold" role="alert">
         <i class="bi bi-exclamation-circle" aria-hidden="true"></i>Imię i nazwisko jest wymagane.
       </div>
       <?php endif; ?>
@@ -136,7 +136,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                value="<?= h($_POST['email'] ?? '') ?>"
                autocomplete="email"
                aria-describedby="hint_email">
-        <div id="hint_email" class="form-hint">Używany do kontaktu i logowania do portalu.</div>
+        <div id="hint_email" class="form-text">Używany do kontaktu i logowania do portalu.</div>
       </div>
       <div class="col-md-6">
         <label class="form-label" for="f_phone">Numer telefonu</label>
@@ -145,7 +145,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                value="<?= h($_POST['phone'] ?? '') ?>"
                autocomplete="tel"
                aria-describedby="hint_phone">
-        <div id="hint_phone" class="form-hint">Format: +48 123 456 789</div>
+        <div id="hint_phone" class="form-text">Format: +48 123 456 789</div>
       </div>
     </div>
 
@@ -201,7 +201,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                value="<?= h($_POST['available_hours'] ?? '0') ?>"
                step="0.5" min="0"
                aria-describedby="hint_hours">
-        <div id="hint_hours" class="form-hint">Łączna liczba godzin konsultacji przyznanych beneficjentowi.</div>
+        <div id="hint_hours" class="form-text">Łączna liczba godzin konsultacji przyznanych beneficjentowi.</div>
       </div>
     </div>
 
@@ -220,7 +220,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 class="form-control" rows="3"
                 aria-describedby="hint_problem"
                 placeholder="Opisz główny obszar wsparcia potrzebny beneficjentowi…"><?= h($_POST['problem'] ?? '') ?></textarea>
-      <div id="hint_problem" class="form-hint">Informacja widoczna tylko dla pracowników. Nie jest udostępniana beneficjentowi.</div>
+      <div id="hint_problem" class="form-text">Informacja widoczna tylko dla pracowników. Nie jest udostępniana beneficjentowi.</div>
     </div>
 
     <div class="mb-3">
@@ -230,7 +230,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
              value="<?= h($_POST['equipment'] ?? '') ?>"
              placeholder="np. czytnik ekranu NVDA, lupa, brajlowska…"
              aria-describedby="hint_equipment">
-      <div id="hint_equipment" class="form-hint">Sprzęt pomocniczy z którego korzysta beneficjent.</div>
+      <div id="hint_equipment" class="form-text">Sprzęt pomocniczy z którego korzysta beneficjent.</div>
     </div>
 
     <div class="mb-4">
@@ -252,13 +252,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <label class="form-check-label" for="f_consent">
         Beneficjent wyraził zgodę na przetwarzanie danych osobowych zgodnie z RODO
       </label>
-      <div id="hint_consent" class="form-hint">Zaznacz jeśli beneficjent podpisał formularz zgody.</div>
+      <div id="hint_consent" class="form-text">Zaznacz jeśli beneficjent podpisał formularz zgody.</div>
     </div>
   </fieldset>
 
   <!-- Przyciski -->
   <div class="d-flex gap-3 flex-wrap">
-    <button type="submit" class="btn btn-k30">
+    <button type="submit" class="btn btn-primary">
       <i class="bi bi-check-lg me-2" aria-hidden="true"></i>Zapisz beneficjenta
     </button>
     <a href="index.php" class="btn btn-outline-secondary">

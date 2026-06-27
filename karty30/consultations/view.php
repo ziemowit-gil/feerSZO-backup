@@ -321,7 +321,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php endif; ?>
 
     <?php if ($cons['status'] === 'completed' && $cons['sha1sum']): ?>
-    <div class="k30-alert k30-alert-success mt-3" role="status" aria-label="Konsultacja zatwierdzona">
+    <div class="alert alert-success d-flex align-items-start gap-2 mt-3" role="status" aria-label="Konsultacja zatwierdzona">
       <i class="bi bi-shield-check-fill" aria-hidden="true" style="font-size:1.3rem;flex-shrink:0"></i>
       <div>
         <strong>Konsultacja zatwierdzona</strong>
@@ -348,7 +348,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php endif; ?>
 
     <?php if ($cons['status'] === 'draft' && $approve_blocked): ?>
-    <div class="k30-alert k30-alert-warning mt-3" role="note" aria-label="Wymagania do zatwierdzenia">
+    <div class="alert alert-warning d-flex align-items-start gap-2 mt-3" role="note" aria-label="Wymagania do zatwierdzenia">
       <i class="bi bi-exclamation-triangle-fill" aria-hidden="true" style="font-size:1.2rem;flex-shrink:0"></i>
       <div>
         <strong>Aby zatwierdzić konsultację, potrzebujesz:</strong>
@@ -443,12 +443,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                    autocomplete="one-time-code"
                    style="font-size:1.5rem;font-family:monospace;letter-spacing:.4em;text-align:center"
                    placeholder="000000">
-            <div id="ika-hint" class="form-hint">
+            <div id="ika-hint" class="form-text">
               Wpisz swój 6-cyfrowy kod IKA. Kod weryfikowany w czasie rzeczywistym — 3 błędne próby blokują dostęp na 15 minut.
             </div>
           </div>
 
-          <div class="k30-alert k30-alert-warning" role="note" style="padding:.65rem .85rem">
+          <div class="alert alert-warning d-flex align-items-start gap-2" role="note" style="padding:.65rem .85rem">
             <i class="bi bi-info-circle-fill" aria-hidden="true" style="flex-shrink:0"></i>
             <span style="font-size:.82rem">
               Zatwierdzenie jest <strong>nieodwracalne</strong>. Fingerprint Twojego certyfikatu x509 oraz czas weryfikacji IKA zostaną zapisane w podpisanych danych konsultacji.
@@ -496,7 +496,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zamknij</button>
         <?php if (is_admin()): ?>
-        <a href="<?= APP_URL ?>/karty30/admin/cert_upload.php" class="btn btn-k30">
+        <a href="<?= APP_URL ?>/karty30/admin/cert_upload.php" class="btn btn-primary">
           Wgraj certyfikat x509
         </a>
         <?php endif; ?>

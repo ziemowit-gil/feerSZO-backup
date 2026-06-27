@@ -139,9 +139,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <td class="text-nowrap"><?= (int)$t['n_attempts'] ?></td>
               <td>
                 <?php if (!empty($t['is_active'])): ?>
-                  <span class="k30-status" style="background:#F0FDF4;border-color:#16A34A;color:#14532D"><i class="bi bi-eye-fill" aria-hidden="true"></i>Udostępniony</span>
+                  <span class="badge text-bg-success d-inline-flex align-items-center gap-1"><i class="bi bi-eye-fill" aria-hidden="true"></i>Udostępniony</span>
                 <?php else: ?>
-                  <span class="k30-status" style="background:#F3F4F6;border-color:#9CA3AF;color:#374151"><i class="bi bi-eye-slash" aria-hidden="true"></i>Ukryty</span>
+                  <span class="badge text-bg-secondary d-inline-flex align-items-center gap-1"><i class="bi bi-eye-slash" aria-hidden="true"></i>Ukryty</span>
                 <?php endif; ?>
               </td>
               <?php if ($can_write): ?>

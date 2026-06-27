@@ -97,7 +97,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <?php if (!$wins): ?><div class="text-muted small mb-2">— niedostępny —</div><?php endif; ?>
           <?php foreach ($wins as $w): ?>
           <div class="d-flex align-items-center gap-2 mb-1">
-            <span class="k30-status" style="background:#EEF4FF;border-color:#2563eb;color:#1e3a8a"><?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?></span>
+            <span class="badge text-bg-primary"><?= h(substr($w['time_from'],0,5)) ?>–<?= h(substr($w['time_to'],0,5)) ?></span>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć to okno dostępności?')">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op" value="avail_delete">
@@ -134,7 +134,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <select class="form-select" id="av_to" name="time_to"><?= ti_time_options('13:00') ?></select>
       </div>
       <div class="col-sm-2">
-        <button type="submit" class="btn btn-k30 w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj</button>
+        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj</button>
       </div>
     </form>
   </div>

@@ -155,10 +155,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </ol>
 </nav>
 
-<div class="k30-page-header">
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
   <div>
-    <h1 class="k30-page-title">Certyfikaty x509 doradców</h1>
-    <p class="k30-page-subtitle">
+    <h1 class="h3 fw-bold mb-1">Certyfikaty x509 doradców</h1>
+    <p class="text-body-secondary mb-0">
       Każdy doradca musi mieć wgrany ważny certyfikat x509 (format PEM),
       aby móc zatwierdzać karty konsultacji. Certyfikat jest weryfikowany
       razem z kodem IKA przy każdym zatwierdzeniu.
@@ -167,7 +167,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <!-- Wyjaśnienie procesu weryfikacji -->
-<div class="k30-alert k30-alert-info mb-4" role="note" aria-label="Informacja o procesie zatwierdzania">
+<div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="note" aria-label="Informacja o procesie zatwierdzania">
   <i class="bi bi-shield-lock-fill" aria-hidden="true" style="font-size:1.3rem;flex-shrink:0;margin-top:.1rem;color:#1D4ED8"></i>
   <div>
     <strong>Proces zatwierdzania konsultacji wymaga dwóch czynników:</strong>
@@ -181,7 +181,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <!-- Błędy -->
 <?php if ($errors): ?>
-<div class="k30-alert k30-alert-danger mb-4" role="alert" aria-label="Błędy formularza">
+<div class="alert alert-danger d-flex align-items-start gap-2 mb-4" role="alert" aria-label="Błędy formularza">
   <i class="bi bi-exclamation-triangle-fill" aria-hidden="true" style="font-size:1.2rem;flex-shrink:0"></i>
   <div>
     <strong>Nie można wgrać certyfikatu:</strong>
@@ -199,7 +199,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
   <?php if ($consultants): ?>
   <div class="card shadow-sm">
-    <table class="k30-table" aria-label="Certyfikaty x509 doradców">
+    <table class="table table-hover align-middle" aria-label="Certyfikaty x509 doradców">
       <thead>
         <tr>
           <th scope="col">Doradca</th>
@@ -224,27 +224,27 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </td>
           <td>
             <?php if (!$has_cert): ?>
-              <span class="k30-status" style="color:#DC2626;border-color:#DC2626;background:#FEF2F2">
+              <span class="badge text-bg-danger d-inline-flex align-items-center gap-1">
                 <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
                 Brak certyfikatu
               </span>
             <?php elseif ($is_expired): ?>
-              <span class="k30-status" style="color:#92400E;border-color:#D97706;background:#FFFBEB">
+              <span class="badge text-bg-warning d-inline-flex align-items-center gap-1">
                 <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
                 Wygasł
               </span>
             <?php elseif (!$is_active): ?>
-              <span class="k30-status" style="color:#6B7280;border-color:#9CA3AF;background:#F3F4F6">
+              <span class="badge text-bg-secondary d-inline-flex align-items-center gap-1">
                 <i class="bi bi-pause-circle-fill" aria-hidden="true"></i>
                 Dezaktywowany
               </span>
             <?php elseif ($days_left < 30): ?>
-              <span class="k30-status" style="color:#D97706;border-color:#D97706;background:#FFFBEB">
+              <span class="badge text-bg-warning d-inline-flex align-items-center gap-1">
                 <i class="bi bi-clock-fill" aria-hidden="true"></i>
                 Wygasa za <?= $days_left ?> dni
               </span>
             <?php else: ?>
-              <span class="k30-status" style="color:#065F46;border-color:#059669;background:#ECFDF5">
+              <span class="badge text-bg-success d-inline-flex align-items-center gap-1">
                 <i class="bi bi-shield-check" aria-hidden="true"></i>
                 Ważny (<?= $days_left ?> dni)
               </span>
@@ -294,7 +294,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <?php endif; ?>
               <!-- Wgraj nowy (link do sekcji uploadu z prefill) -->
               <a href="#upload-section"
-                 class="btn btn-sm btn-k30-outline"
+                 class="btn btn-sm btn-outline-primary"
                  aria-label="Wgraj lub zastąp certyfikat doradcy <?= h($c['display_name']) ?>"
                  onclick="document.getElementById('upload_user_id').value='<?= (int)$c['id'] ?>';document.getElementById('upload_user_id').dispatchEvent(new Event('change'))">
                 <?= $has_cert ? 'Zastąp' : 'Wgraj' ?>
@@ -329,7 +329,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <div class="card shadow-sm">
     <div class="card-body" style="max-width:620px">
 
-      <div class="k30-alert k30-alert-warning mb-4" role="note">
+      <div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="note">
         <i class="bi bi-exclamation-triangle-fill" aria-hidden="true" style="font-size:1.1rem;flex-shrink:0"></i>
         <div style="font-size:.88rem">
           <strong>Wymagany format:</strong> PEM (<code>-----BEGIN CERTIFICATE-----</code>).<br>
@@ -366,7 +366,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </option>
             <?php endforeach; ?>
           </select>
-          <div id="hint_user" class="form-hint">
+          <div id="hint_user" class="form-text">
             Wybierz doradcę, dla którego wgrywasz certyfikat. Jeśli ma już certyfikat, zostanie zastąpiony.
           </div>
         </div>
@@ -386,7 +386,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                    class="form-control"
                    accept=".pem,.crt,.cer,.der"
                    aria-describedby="hint_file">
-            <div id="hint_file" class="form-hint">
+            <div id="hint_file" class="form-text">
               Format PEM (text) lub DER (binary). Rozmiar maks. 64 KB.
             </div>
           </div>
@@ -407,7 +407,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                       aria-describedby="hint_pem"
                       spellcheck="false"
                       autocomplete="off"></textarea>
-            <div id="hint_pem" class="form-hint">
+            <div id="hint_pem" class="form-text">
               Wklej pełną treść certyfikatu w formacie PEM, wraz z nagłówkami BEGIN/END CERTIFICATE.
             </div>
           </div>
@@ -415,7 +415,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
         <!-- Przyciski -->
         <div class="d-flex gap-3 flex-wrap">
-          <button type="submit" class="btn btn-k30">
+          <button type="submit" class="btn btn-primary">
             <i class="bi bi-upload me-2" aria-hidden="true"></i>Wgraj i zapisz certyfikat
           </button>
           <a href="consultants.php" class="btn btn-outline-secondary">

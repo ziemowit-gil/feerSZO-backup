@@ -119,8 +119,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </ol>
 </nav>
 
-<h1 class="k30-page-title mb-1">Edycja terminu</h1>
-<p class="k30-page-subtitle mb-4">
+<h1 class="h3 fw-bold mb-1">Edycja terminu</h1>
+<p class="text-body-secondary mb-4">
   Beneficjent: <strong><?= h($schedule['client_name']) ?></strong> ·
   <?= $dt->format('d.m.Y') ?>, godzina <?= $dt->format('H:i') ?>
 </p>
@@ -174,7 +174,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </section>
 
 <?php if ($errors): ?>
-<div class="k30-alert k30-alert-danger" role="alert" aria-label="Błędy formularza">
+<div class="alert alert-danger d-flex align-items-start gap-2" role="alert" aria-label="Błędy formularza">
   <i class="bi bi-exclamation-triangle-fill" aria-hidden="true" style="font-size:1.2rem;flex-shrink:0"></i>
   <ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
 </div>
