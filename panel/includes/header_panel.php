@@ -70,34 +70,35 @@ function _pv_nav_active(string $path): string {
   --vol-color: <?= h($_vol_color) ?>;
   --vol-bg:    <?= h($_vol_bg) ?>;
   --vol-on:    #ffffff;
-  --vol-sidebar-w: 220px;
-  --vol-topbar-h:  52px;
 }
+/* Akcenty Bootstrap idą kolorem panelu (przyciski .btn-primary, linki) */
+:root{--bs-primary:var(--vol-color);--bs-link-color:var(--vol-color);--bs-link-hover-color:var(--vol-color)}
+.btn-primary{--bs-btn-bg:var(--vol-color);--bs-btn-border-color:var(--vol-color);--bs-btn-hover-bg:var(--vol-color);--bs-btn-hover-border-color:var(--vol-color);--bs-btn-active-bg:var(--vol-color);--bs-btn-active-border-color:var(--vol-color)}
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0}
-body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh}
+html,body{margin:0}
+body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
 
 /* Skip link */
 .pv-skip{position:absolute;top:-100%;left:1rem;z-index:9999;background:var(--vol-color);color:var(--vol-on);padding:.75rem 1.5rem;border-radius:0 0 8px 8px;font-size:1rem;font-weight:700;text-decoration:none;border:3px solid #FBBF24}
 .pv-skip:focus{top:0}
 *:focus-visible{outline:3px solid #FBBF24 !important;outline-offset:3px !important;border-radius:3px}
 
-/* Topbar */
-.pv-topbar{height:var(--vol-topbar-h);background:var(--vol-color);color:var(--vol-on);display:flex;align-items:center;padding:0 1.25rem 0 0;position:fixed;top:0;left:0;right:0;z-index:1040;box-shadow:0 2px 8px rgba(0,0,0,.18)}
-.pv-brand{width:var(--vol-sidebar-w);display:flex;align-items:center;gap:.6rem;padding:0 1.1rem;flex-shrink:0;text-decoration:none;color:var(--vol-on);font-weight:800;font-size:.95rem;height:100%;border-right:1px solid rgba(255,255,255,.2)}
-.pv-brand:hover{background:rgba(255,255,255,.08);color:var(--vol-on)}
-.pv-brand-icon{width:30px;height:30px;background:rgba(255,255,255,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
-.pv-brand-sub{font-size:.62rem;opacity:.7;font-weight:400;line-height:1}
-.pv-topbar-bc{flex:1;padding:0 1.25rem;font-size:.85rem;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pv-topbar-user{display:flex;align-items:center;gap:.75rem;padding-left:1rem;flex-shrink:0}
-.pv-avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.25);color:var(--vol-on);display:flex;align-items:center;justify-content:center;font-size:.73rem;font-weight:700;cursor:pointer;border:2px solid rgba(255,255,255,.35);line-height:1}
+/* Górny pasek (navbar) — jasny, w stylu panelu kursanta */
+.pv-navbar{background:#fff;border-bottom:1px solid #E5E7EB;box-shadow:0 1px 3px rgba(0,0,0,.04);position:sticky;top:0;z-index:1040}
+.pv-menu-btn{border:1px solid #E5E7EB;background:#fff;border-radius:9px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:#374151;cursor:pointer;flex-shrink:0;transition:border-color .12s,color .12s}
+.pv-menu-btn:hover{border-color:var(--vol-color);color:var(--vol-color)}
+.pv-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:#111827;font-weight:800;font-size:.98rem;min-width:0}
+.pv-brand:hover{color:#111827}
+.pv-brand-icon{width:34px;height:34px;background:var(--vol-color);color:var(--vol-on);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.pv-brand-sub{font-size:.66rem;opacity:.6;font-weight:500;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.pv-avatar{width:36px;height:36px;border-radius:50%;background:var(--vol-color);color:var(--vol-on);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;cursor:pointer;border:none;line-height:1}
 
-/* Sidebar */
-.pv-sidebar{position:fixed;top:var(--vol-topbar-h);left:0;bottom:0;width:var(--vol-sidebar-w);background:#fff;border-right:1px solid #E5E7EB;display:flex;flex-direction:column;overflow-y:auto;z-index:1030;transition:transform .25s}
-.pv-sidebar::-webkit-scrollbar{width:4px}
-.pv-sidebar::-webkit-scrollbar-thumb{background:#E5E7EB;border-radius:2px}
+/* Menu sekcji w offcanvas */
+.pv-offcanvas{max-width:285px}
+.pv-offcanvas .offcanvas-header{background:var(--vol-color);color:var(--vol-on)}
+.pv-offcanvas .offcanvas-body{display:flex;flex-direction:column;padding:.35rem 0}
 .pv-nav-label{font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;padding:.85rem 1rem .3rem;user-select:none}
-.pv-nav-link{display:flex;align-items:center;gap:.6rem;padding:.48rem .75rem;border-radius:7px;font-size:.84rem;font-weight:500;color:#374151;text-decoration:none;transition:background .1s,color .1s,border-color .1s;margin:.05rem .5rem;border-left:3px solid transparent}
+.pv-nav-link{display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;border-radius:8px;font-size:.88rem;font-weight:500;color:#374151;text-decoration:none;transition:background .1s,color .1s,border-color .1s;margin:.05rem .5rem;border-left:3px solid transparent}
 .pv-nav-link i{font-size:1rem;width:20px;text-align:center;flex-shrink:0;color:#9CA3AF;transition:color .1s}
 .pv-nav-link:hover{background:var(--vol-bg);color:var(--vol-color);border-left-color:var(--vol-color)}
 .pv-nav-link:hover i{color:var(--vol-color)}
@@ -107,23 +108,14 @@ body{background:#F0F2F5;font-family:system-ui,-apple-system,sans-serif;display:f
 .pv-nav-divider{height:1px;background:#F3F4F6;margin:.4rem .75rem}
 .pv-sidebar-bottom{margin-top:auto;border-top:1px solid #F3F4F6;padding:.5rem}
 
-/* Shell */
-.pv-shell{margin-left:var(--vol-sidebar-w);margin-top:var(--vol-topbar-h);min-height:calc(100vh - var(--vol-topbar-h));display:flex;flex-direction:column}
-.pv-content{flex:1;padding:1.5rem}
-.pv-footer{border-top:1px solid #E5E7EB;padding:.5rem 1.5rem;font-size:.75rem;color:#9CA3AF;background:#fff;display:flex;justify-content:space-between}
+/* Treść — wyśrodkowany kontener */
+#pv-main{flex:1 0 auto;width:100%}
+.pv-footer{border-top:1px solid #E5E7EB;padding:.6rem 1.5rem;font-size:.75rem;color:#9CA3AF;background:#fff;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
 
 /* Live region */
 .pv-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
-/* Responsive */
-@media(max-width:768px){
-  :root{--vol-sidebar-w:0px}
-  .pv-sidebar{transform:translateX(-220px)}
-  .pv-sidebar.open{transform:none;width:220px}
-  .pv-shell{margin-left:0}
-  .pv-content{padding:1rem .75rem}
-  .pv-brand{width:auto;border-right:none}
-}
+@media(max-width:768px){ #pv-main{padding-left:.75rem;padding-right:.75rem} }
 @media(prefers-contrast:high){.pv-nav-link{border-left-width:5px}.pv-nav-link.pv-active{border-left-width:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -140,52 +132,60 @@ if ('serviceWorker' in navigator) {
 <a href="#pv-main" class="pv-skip">Przejdź do treści</a>
 <div role="status" aria-live="polite" class="pv-live" id="pv-live"></div>
 
-<!-- Topbar -->
-<header class="pv-topbar" role="banner">
-  <a href="<?= APP_URL ?>/panel/index.php" class="pv-brand" aria-label="Panel wolontariusza — strona główna">
-    <div class="pv-brand-icon" aria-hidden="true"><i class="bi bi-person-circle"></i></div>
-    <div>
-      <div>Panel</div>
-      <?php if ($_pv_org): ?><div class="pv-brand-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px" title="<?= h($_pv_org) ?>"><?= h($_pv_org) ?></div><?php endif; ?>
-    </div>
-  </a>
-  <div class="pv-topbar-bc" aria-hidden="true"><strong><?= h($_pv_title) ?></strong></div>
-  <nav class="pv-topbar-user" aria-label="Akcje użytkownika">
-    <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
-    <button type="button"
-            data-bs-toggle="modal" data-bs-target="#bugReportModal"
-            title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd"
-            style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.4);
-                   border-radius:6px;padding:.18rem .5rem;font-size:.78rem;
-                   color:rgba(255,255,255,.9);cursor:pointer;line-height:1.5;
-                   transition:all .12s;white-space:nowrap;flex-shrink:0;
-                   display:inline-flex;align-items:center;gap:.3rem">
-      <i class="bi bi-bug-fill" style="font-size:.85rem"></i>
-      <span class="d-none d-sm-inline">Zgłoś błąd</span>
+<!-- Navbar -->
+<header class="pv-navbar" role="banner">
+  <div class="container d-flex align-items-center gap-2 py-2">
+    <button class="pv-menu-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#pvNav"
+            aria-controls="pvNav" aria-label="Otwórz menu nawigacji">
+      <i class="bi bi-list" aria-hidden="true"></i>
     </button>
-    <?php endif; ?>
-    <?php if ($_pu): ?>
-    <div class="dropdown">
-      <button type="button" class="pv-avatar" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Menu użytkownika <?= h($_pu_name) ?>">
-        <?= h($_pu_ini) ?>
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-brand" aria-label="Panel wolontariusza — strona główna">
+      <span class="pv-brand-icon" aria-hidden="true"><i class="bi bi-person-circle"></i></span>
+      <span class="d-flex flex-column">
+        <span>Panel</span>
+        <?php if ($_pv_org): ?><span class="pv-brand-sub" title="<?= h($_pv_org) ?>"><?= h($_pv_org) ?></span><?php endif; ?>
+      </span>
+    </a>
+    <nav class="ms-auto d-flex align-items-center gap-2" aria-label="Akcje użytkownika">
+      <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
+      <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+              data-bs-toggle="modal" data-bs-target="#bugReportModal"
+              title="Zgłoś błąd na tej stronie" aria-label="Zgłoś błąd">
+        <i class="bi bi-bug-fill" aria-hidden="true"></i>
+        <span class="d-none d-sm-inline">Zgłoś błąd</span>
       </button>
-      <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.88rem;min-width:200px">
-        <li class="px-3 py-2 border-bottom">
-          <div class="fw-bold"><?= h($_pu_name) ?></div>
-          <div class="text-muted small"><?= h($_pu['email']??'') ?></div>
-        </li>
-        <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia konta</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item py-2 text-danger" href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Wyloguj się</a></li>
-      </ul>
-    </div>
-    <?php endif; ?>
-  </nav>
+      <?php endif; ?>
+      <?php if ($_pu): ?>
+      <div class="dropdown">
+        <button type="button" class="pv-avatar" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Menu użytkownika <?= h($_pu_name) ?>">
+          <?= h($_pu_ini) ?>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.88rem;min-width:200px">
+          <li class="px-3 py-2 border-bottom">
+            <div class="fw-bold"><?= h($_pu_name) ?></div>
+            <div class="text-muted small"><?= h($_pu['email']??'') ?></div>
+          </li>
+          <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-gear me-2" aria-hidden="true"></i>Ustawienia konta</a></li>
+          <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/panel_color.php"><i class="bi bi-palette2 me-2" aria-hidden="true"></i>Kolor panelu</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item py-2 text-danger" href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Wyloguj się</a></li>
+        </ul>
+      </div>
+      <?php endif; ?>
+    </nav>
+  </div>
 </header>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
 
-<!-- Sidebar -->
-<nav class="pv-sidebar" id="pv-sidebar" aria-label="Nawigacja panelu wolontariusza">
+<!-- Menu sekcji (offcanvas) -->
+<div class="offcanvas offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
+  <div class="offcanvas-header">
+    <span class="offcanvas-title fw-bold d-flex align-items-center gap-2">
+      <i class="bi bi-person-circle" aria-hidden="true"></i>Panel wolontariusza
+    </span>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Zamknij menu"></button>
+  </div>
+  <nav class="offcanvas-body" aria-label="Sekcje panelu">
   <div class="pv-nav-label" aria-hidden="true">Moje umowy</div>
   <a href="<?= APP_URL ?>/panel/index.php" class="pv-nav-link<?= _pv_nav_active('/panel/index') ?>" aria-label="Moja umowa — przegląd">
     <i class="bi bi-person-circle" aria-hidden="true"></i>Moja umowa
@@ -323,11 +323,10 @@ if ('serviceWorker' in navigator) {
       <i class="bi bi-box-arrow-right" aria-hidden="true"></i>Wyloguj się
     </a>
   </div>
-</nav>
+  </nav>
+</div><!-- /offcanvas -->
 
-<!-- Shell -->
-<div class="pv-shell">
-<main class="pv-content" id="pv-main" role="main" tabindex="-1">
+<main class="container py-4" id="pv-main" role="main" tabindex="-1">
 
 <?php if (!empty($_SESSION['_admin_original'])): ?>
 <?php $_imp_name = $_SESSION['user']['name'] ?? 'użytkownik'; ?>
