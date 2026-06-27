@@ -24,6 +24,10 @@ const AM_API_PERMISSIONS = [
     'contracts:read'   => 'Umowy — odczyt',
     'tasks:read'       => 'Zadania — odczyt',
     'users:read'       => 'Użytkownicy — odczyt',
+    'crm:read'         => 'CRM — odczyt kontaktów',
+    'crm:write'        => 'CRM — zapis kontaktów (twórz / edytuj / usuń)',
+    'karty30:read'     => 'Karty 30 — odczyt (beneficjenci, wizyty, konsultacje, TI)',
+    'karty30:write'    => 'Karty 30 — zapis (twórz / edytuj / usuń)',
 ];
 
 // ── Zdarzenia Webhook ──────────────────────────────────────────────────────────
@@ -60,10 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_section'] ?? '') === 'api
             $plain = bin2hex(random_bytes(32));
             $hash  = hash('sha256', $plain);
             $user  = current_user();
+            $rate  = max(0, (int)($_POST['rate_limit'] ?? 0));
             db_insert('api_keys', [
                 'key_hash'    => $hash,
                 'name'        => $name,
                 'permissions' => json_encode($perms, JSON_UNESCAPED_UNICODE),
+                'rate_limit'  => $rate ?: null,
                 'created_at'  => date('Y-m-d H:i:s'),
                 'is_active'   => 1,
                 'created_by'  => $user['id'] ?? null,
@@ -167,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_section'] ?? '') === 'web
 }
 
 // ── Dane ──────────────────────────────────────────────────────────────────────
-$api_keys  = db_all("SELECT id, name, permissions, last_used_at, created_at, is_active, created_by FROM api_keys ORDER BY created_at DESC");
+$api_keys  = db_all("SELECT id, name, permissions, rate_limit, last_used_at, created_at, is_active, created_by FROM api_keys ORDER BY created_at DESC");
 $endpoints = db_all("SELECT * FROM webhook_endpoints ORDER BY id DESC");
 
 // ── Integracje — status ────────────────────────────────────────────────────────
@@ -276,7 +282,7 @@ function switchTab(name) {
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0" style="font-size:.875rem">
         <thead class="table-light small">
-          <tr><th>Nazwa</th><th>Uprawnienia</th><th>Ostatnie użycie</th><th>Utworzony</th><th>Status</th><th class="text-end">Akcje</th></tr>
+          <tr><th>Nazwa</th><th>Uprawnienia</th><th>Limit/min</th><th>Ostatnie użycie</th><th>Utworzony</th><th>Status</th><th class="text-end">Akcje</th></tr>
         </thead>
         <tbody>
           <?php foreach ($api_keys as $k):
@@ -289,6 +295,7 @@ function switchTab(name) {
               <span class="badge bg-secondary-subtle text-secondary border me-1" style="font-size:.7rem"><?= h($p) ?></span>
               <?php endforeach; ?>
             </td>
+            <td class="small"><?= !empty($k['rate_limit']) ? (int)$k['rate_limit'] : '<span class="text-muted">domyślny</span>' ?></td>
             <td class="text-muted small"><?= $k['last_used_at'] ? h(date_pl($k['last_used_at'])) : '—' ?></td>
             <td class="text-muted small"><?= h(date_pl($k['created_at'])) ?></td>
             <td>
@@ -351,6 +358,13 @@ function switchTab(name) {
                  value="<?= h($_POST['key_name'] ?? '') ?>" required maxlength="200">
         </div>
 
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Limit zapytań / min</label>
+          <input type="number" name="rate_limit" class="form-control" min="0" step="1"
+                 placeholder="domyślny (120)" value="<?= h($_POST['rate_limit'] ?? '') ?>">
+          <div class="form-text">0 / puste = domyślny. Po przekroczeniu API zwraca 429.</div>
+        </div>
+
         <div class="col-12">
           <label class="form-label fw-semibold">Uprawnienia <span class="text-danger">*</span></label>
           <div class="row g-2">
@@ -380,6 +394,54 @@ function switchTab(name) {
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <?php $api_base = rtrim(APP_URL, '/') . '/api/v1'; ?>
+
+  <!-- Narzędzia API -->
+  <div class="d-flex flex-wrap gap-2 mt-4 mb-3">
+    <a href="<?= APP_URL ?>/admin/api_audit.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-journal-text me-1"></i>Audyt API (zapisy RODO)
+    </a>
+    <a href="<?= h($api_base) ?>/openapi.php" target="_blank" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-filetype-json me-1"></i>Specyfikacja OpenAPI
+    </a>
+  </div>
+
+  <!-- Dokumentacja endpointów -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.875rem">
+      <i class="bi bi-book me-1 text-primary"></i>Dokumentacja API
+    </div>
+    <div class="card-body small">
+      <p class="text-muted mb-3">
+        Uwierzytelnianie: nagłówek <code>Authorization: Bearer &lt;klucz&gt;</code> (lub <code>?api_key=</code>).
+        Body POST/PATCH w <code>application/json</code>. Klienci bez PATCH/DELETE: <code>?_method=</code> lub
+        <code>X-HTTP-Method-Override</code>. Limit zapytań per klucz (po przekroczeniu <code>429</code> + <code>Retry-After</code>).
+        Operacje zapisu są audytowane (RODO).
+      </p>
+
+      <h6 class="fw-semibold"><i class="bi bi-card-checklist text-primary me-1"></i>Karty 30 — <code><?= h($api_base) ?>/karty30.php</code></h6>
+      <p class="mb-1">Routing <code>?resource=&lt;R&gt;&amp;id=N</code>; metody GET/POST/PATCH/DELETE. Scope: <code>karty30:read</code> / <code>karty30:write</code>.</p>
+      <ul class="mb-2">
+        <li><strong>Zasoby:</strong> <code>clients</code>, <code>schedules</code>, <code>consultations</code>, <code>waiting</code>, <code>courses</code>, <code>enrollments</code>, <code>lessons</code>, <code>homework</code>, <code>materials</code>, <code>grades</code>, <code>tests</code></li>
+        <li>Filtry per zasób (np. <code>client_id</code>, <code>course_id</code>, <code>status</code>), wyszukiwanie <code>q</code>, paginacja <code>page</code>/<code>per_page</code>.</li>
+      </ul>
+      <pre class="bg-dark text-light p-2 rounded mb-3" style="white-space:pre-wrap;font-size:.8rem"># Lista beneficjentów
+curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/karty30.php?resource=clients&per_page=20"
+
+# Wystawienie oceny (value_num policzy się z value_text)
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"course_id":5,"client_id":12,"category":"sprawdzian","value_text":"4+","weight":2}' \
+  "<?= h($api_base) ?>/karty30.php?resource=grades"</pre>
+
+      <h6 class="fw-semibold"><i class="bi bi-diagram-2-fill text-success me-1"></i>CRM — <code><?= h($api_base) ?>/crm.php</code></h6>
+      <p class="mb-2">CRUD kontaktów + notatki/tagi. Scope: <code>crm:read</code> / <code>crm:write</code>.
+        Filtry: <code>q, status, type, source, branza, tag, wojewodztwo, has_email, has_phone, created_from, created_to</code>.</p>
+      <pre class="bg-dark text-light p-2 rounded mb-0" style="white-space:pre-wrap;font-size:.8rem">curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"imie_nazwisko":"Anna Kowalska","email":"anna@example.pl"}' \
+  "<?= h($api_base) ?>/crm.php"</pre>
     </div>
   </div>
 </div><!-- /pane-api -->

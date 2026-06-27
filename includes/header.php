@@ -1089,6 +1089,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <a class="sb-link<?= _nav_active('/admin/payu_settings') ?>" href="<?= APP_URL ?>/admin/payu_settings.php">
     <i class="bi bi-wallet2"></i> Płatności / PayU
   </a>
+  <a class="sb-link<?= _nav_active('/admin/api_manage') . _nav_active('/admin/api_keys') . _nav_active('/admin/api_audit') ?>" href="<?= APP_URL ?>/admin/api_manage.php">
+    <i class="bi bi-key"></i> API i webhooki
+  </a>
   <?php endif; ?>
 
   <?php endif; /* can_edit */ ?>

@@ -46,7 +46,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h4 class="mb-0"><i class="bi bi-journal-text me-2"></i><?= h($PAGE_TITLE) ?></h4>
   <span class="badge bg-secondary"><?= $total ?> wpisów</span>
-  <a href="<?= APP_URL ?>/admin/api_keys.php" class="btn btn-outline-secondary btn-sm ms-auto">
+  <a href="<?= APP_URL ?>/admin/api_manage.php?tab=api" class="btn btn-outline-secondary btn-sm ms-auto">
     <i class="bi bi-key me-1"></i>Klucze API
   </a>
 </div>

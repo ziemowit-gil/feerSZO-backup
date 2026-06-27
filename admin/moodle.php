@@ -689,7 +689,7 @@ $plugin_dir = 'local/feer_sync';
       <div class="card-body">
         <p style="font-size:.9rem;margin-bottom:.75rem">
           Przejdź do
-          <a href="<?= APP_URL ?>/admin/api_keys.php" class="fw-semibold">
+          <a href="<?= APP_URL ?>/admin/api_manage.php?tab=api" class="fw-semibold">
             Admin → Klucze API
           </a>
           i utwórz nowy klucz z uprawnieniem <code class="bg-light px-1 rounded">volunteers:read</code>.
@@ -698,7 +698,7 @@ $plugin_dir = 'local/feer_sync';
           <i class="bi bi-info-circle text-primary"></i>
           Klucz jest widoczny <strong>tylko raz</strong> po utworzeniu — skopiuj go od razu.
         </div>
-        <a href="<?= APP_URL ?>/admin/api_keys.php" class="btn btn-sm btn-outline-primary">
+        <a href="<?= APP_URL ?>/admin/api_manage.php?tab=api" class="btn btn-sm btn-outline-primary">
           <i class="bi bi-key me-1"></i>Otwórz zarządzanie kluczami API
         </a>
       </div>
@@ -827,7 +827,7 @@ $plugin_dir = 'local/feer_sync';
     <div class="card shadow-sm mb-3">
       <div class="card-header fw-semibold bg-white"><i class="bi bi-lightning-fill text-warning me-1"></i>Szybki start</div>
       <div class="card-body d-flex flex-column gap-2">
-        <a href="<?= APP_URL ?>/admin/api_keys.php" class="btn btn-outline-primary btn-sm">
+        <a href="<?= APP_URL ?>/admin/api_manage.php?tab=api" class="btn btn-outline-primary btn-sm">
           <i class="bi bi-key me-1"></i>1. Wygeneruj klucz API
         </a>
         <a href="?tab=settings" class="btn btn-outline-secondary btn-sm">
