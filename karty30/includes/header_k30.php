@@ -111,10 +111,15 @@ function _k30_active(string $path): bool {
 .navbar .nav-link.active,
 .navbar .dropdown-item.active { font-weight:700; }
 
-/* Szerokie, wielokolumnowe rozwijane menu — krótsze pionowo (nie przewija ekranu) */
-.k30-mega { min-width: min(560px, 92vw); }
-.k30-mega .dropdown-header { padding-left:.5rem; padding-right:.5rem; }
-@media (max-width: 991.98px){ .k30-mega { min-width: 0; } }  /* w zwiniętym menu pełna szerokość */
+/* Szerokie, wielokolumnowe rozwijane menu — mieści się na niskich ekranach (np. 13") */
+.k30-mega {
+  min-width: min(560px, 92vw);
+  max-height: calc(100vh - 110px);  /* pod paskami nagłówka — nigdy poza okno */
+  overflow-y: auto;                                       /* gdy i tak za wysokie → przewijanie */
+}
+.k30-mega .dropdown-header { padding:.25rem .5rem; }
+.k30-mega .dropdown-item   { padding-top:.3rem; padding-bottom:.3rem; }  /* gęściej = niżej */
+@media (max-width: 991.98px){ .k30-mega { min-width: 0; max-height: none; } }  /* w zwiniętym menu pełna lista */
 @media (min-width: 768px){ .border-start-md { border-left: 1px solid var(--bs-border-color); } }
 
 @media (prefers-reduced-motion: reduce) {
