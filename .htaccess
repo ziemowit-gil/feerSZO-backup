@@ -41,6 +41,14 @@ RewriteCond %{REQUEST_URI} !^/directory/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /directory/$1 [L]
 
+# ── Subdomena szo-logowanie365. → bezpośrednie logowanie Microsoft 365 ──────
+# Host szo-logowanie365.feer.org.pl kieruje od razu do logowania MS365.
+# Tylko korzeń („/") uruchamia przekierowanie — callback OAuth
+# (/auth/microsoft.php), endpoint /auth/ms365.php i strony po zalogowaniu
+# (np. /portal.php) działają normalnie, bez zapętlenia.
+RewriteCond %{HTTP_HOST} ^szo-logowanie365\. [NC]
+RewriteRule ^$ /auth/ms365.php [L]
+
 # ── Short / friendly URLs ───────────────────────────────────────────────────
 # Aliasy krótkich linków do modułów systemu.
 # Format: /alias → /moduł/  (wewnętrzny rewrite — URL zostaje w przeglądarce)
