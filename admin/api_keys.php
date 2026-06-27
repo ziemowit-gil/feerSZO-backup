@@ -96,6 +96,14 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0"><i class="bi bi-key me-2"></i><?= h($PAGE_TITLE) ?></h4>
+  <div class="d-flex gap-2">
+    <a href="<?= APP_URL ?>/api/v1/openapi.php" target="_blank" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-filetype-json me-1"></i>OpenAPI
+    </a>
+    <a href="<?= APP_URL ?>/admin/api_audit.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-journal-text me-1"></i>Audyt API (zapisy)
+    </a>
+  </div>
 </div>
 
 <?= flash_html() ?>

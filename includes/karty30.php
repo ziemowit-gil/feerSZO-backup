@@ -1031,6 +1031,56 @@ function k30_is_consultant(): bool {
     } catch (\Throwable $e) { return false; }
 }
 
+// ── Rejestr dostępu do danych wrażliwych (RODO / PFRON) ──────────────────────
+// Loguje wgląd/edycję/wydruk kart beneficjentów, konsultacji i wizyt.
+// Przechowuje KTO, CO i KIEDY — bez kopiowania samych danych wrażliwych.
+function k30_access_log_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS k30_access_log (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER,
+            user_name    TEXT,
+            entity_type  TEXT,
+            entity_id    INTEGER,
+            entity_label TEXT,
+            action       TEXT,
+            ip           TEXT,
+            created_at   TEXT DEFAULT (datetime('now','localtime'))
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_k30_access_entity  ON k30_access_log(entity_type, entity_id)");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_k30_access_created ON k30_access_log(created_at)");
+    } catch (\Throwable $e) {}
+}
+
+/**
+ * Zapisz dostęp do danych wrażliwych.
+ * @param string $entity_type  client | consultation | schedule
+ * @param int    $entity_id
+ * @param string $action       view | edit | print | export
+ * @param string $label        czytelna etykieta (np. imię i nazwisko) — skracana
+ */
+function k30_log_access(string $entity_type, int $entity_id, string $action = 'view', string $label = ''): void {
+    k30_access_log_migrate();
+    try {
+        $u = function_exists('current_user') ? current_user() : null;
+        db()->prepare(
+            "INSERT INTO k30_access_log (user_id, user_name, entity_type, entity_id, entity_label, action, ip)
+             VALUES (?,?,?,?,?,?,?)"
+        )->execute([
+            (int)($u['id'] ?? 0) ?: null,
+            $u['name'] ?? null,
+            $entity_type,
+            $entity_id ?: null,
+            $label !== '' ? mb_substr($label, 0, 120, 'UTF-8') : null,
+            $action,
+            $_SERVER['REMOTE_ADDR'] ?? '',
+        ]);
+    } catch (\Throwable $e) {}
+}
+
 // ── Certyfikaty x509 doradców ─────────────────────────────────────────────────
 
 /**

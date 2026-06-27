@@ -285,6 +285,7 @@ function _k30_active(string $path): bool {
               <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/consultants.php" <?= _k30_active('/karty30/admin/consultants') ? 'aria-current="page"' : '' ?>><i class="bi bi-people-fill me-2" aria-hidden="true"></i>Doradcy</a></li>
               <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/cert_upload.php" <?= _k30_active('/karty30/admin/cert_upload') ? 'aria-current="page"' : '' ?>><i class="bi bi-patch-check-fill me-2" aria-hidden="true"></i>Certyfikaty x509</a></li>
               <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/pricing.php" <?= _k30_active('/karty30/admin/pricing') ? 'aria-current="page"' : '' ?>><i class="bi bi-currency-exchange me-2" aria-hidden="true"></i>Cennik</a></li>
+              <li><a class="dropdown-item" href="<?= APP_URL ?>/karty30/admin/access_log.php" <?= _k30_active('/karty30/admin/access_log') ? 'aria-current="page"' : '' ?>><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rejestr dostępu (RODO)</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item text-danger" href="<?= APP_URL ?>/karty30/admin/clean_k30.php" <?= _k30_active('/karty30/admin/clean_k30') ? 'aria-current="page"' : '' ?>><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Wyczyść dane K30</a></li>
               <?php endif; ?>

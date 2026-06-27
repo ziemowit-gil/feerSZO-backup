@@ -19,6 +19,9 @@ if (!$client) {
 $PAGE_TITLE = h($client['name']) . ' — Karty 30';
 $can_write  = can_write('karty30') || is_admin();
 
+// RODO: rejestr dostępu do danych wrażliwych beneficjenta
+if ($_SERVER['REQUEST_METHOD'] === 'GET') k30_log_access('client', $id, 'view', $client['name'] ?? '');
+
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();

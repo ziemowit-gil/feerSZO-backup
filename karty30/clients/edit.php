@@ -25,6 +25,9 @@ if (!$client) {
 $PAGE_TITLE = 'Edycja beneficjenta — Karty 30';
 $errors = [];
 
+// RODO: rejestr dostępu do edycji danych wrażliwych beneficjenta
+k30_log_access('client', $id, 'edit', $client['name'] ?? '');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 

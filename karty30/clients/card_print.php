@@ -33,6 +33,9 @@ if (!$client) {
     header('Location: index.php'); exit;
 }
 
+// RODO: rejestr wydruku karty beneficjenta (tylko dostęp personelu)
+if (!$is_kursant_mode) k30_log_access('client', $client_id, 'print', $client['name'] ?? '');
+
 // Dane TI
 $courses       = k30_ti_client_courses($client_id);
 $active_courses = array_filter($courses, fn($c) => ($c['status'] ?? '') === 'active');

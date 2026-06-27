@@ -31,6 +31,9 @@ if (!$schedule) {
 $PAGE_TITLE = 'Termin — Karty 30';
 $can_write  = can_write('karty30') || is_admin();
 
+// RODO: rejestr dostępu do danych wrażliwych wizyty
+if ($_SERVER['REQUEST_METHOD'] === 'GET') k30_log_access('schedule', $id, 'view', $schedule['client_name'] ?? '');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['_action'] ?? '';

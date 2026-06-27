@@ -44,6 +44,64 @@ function api_auth_migrate(): void {
             PRIMARY KEY (key_id, window_start)
         )
     ");
+
+    // Audyt zapisów (RODO): kto/co/kiedy utworzył/zmienił/usunął przez API.
+    // Zapisujemy NAZWY pól (nie wartości), by nie duplikować danych wrażliwych.
+    db()->exec("
+        CREATE TABLE IF NOT EXISTS api_audit_log (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            key_id     INTEGER,
+            key_name   TEXT,
+            method     TEXT,
+            endpoint   TEXT,
+            resource   TEXT,
+            record_id  INTEGER,
+            action     TEXT,
+            fields     TEXT,
+            status     INTEGER,
+            ip         TEXT,
+            user_agent TEXT,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    ");
+    db()->exec("CREATE INDEX IF NOT EXISTS idx_api_audit_created ON api_audit_log(created_at)");
+    db()->exec("CREATE INDEX IF NOT EXISTS idx_api_audit_key     ON api_audit_log(key_id)");
+}
+
+/**
+ * Zapisuje operację zapisu wykonaną przez API (RODO – rozliczalność).
+ * Loguje nazwy zmienionych pól, NIE ich wartości.
+ *
+ * @param string   $action     create | update | delete
+ * @param string   $resource   nazwa zasobu (np. clients, grades)
+ * @param int|null $record_id  id rekordu (gdy znane)
+ * @param array    $fields     lista nazw pól (klucze payloadu)
+ * @param int      $status     kod HTTP wyniku
+ */
+function api_audit(string $action, string $resource, ?int $record_id = null, array $fields = [], int $status = 200): void {
+    global $api_current_key;
+    try {
+        $endpoint = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+        db()->prepare(
+            "INSERT INTO api_audit_log
+                (key_id, key_name, method, endpoint, resource, record_id, action, fields, status, ip, user_agent)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        )->execute([
+            (int)($api_current_key['id'] ?? 0) ?: null,
+            $api_current_key['name'] ?? null,
+            strtoupper($_SERVER['REQUEST_METHOD'] ?? ''),
+            $endpoint,
+            $resource,
+            $record_id,
+            $action,
+            $fields ? implode(',', $fields) : null,
+            $status,
+            $_SERVER['REMOTE_ADDR'] ?? '',
+            $_SERVER['HTTP_USER_AGENT'] ?? '',
+        ]);
+    } catch (\Throwable $e) {
+        // audyt nie może blokować operacji
+    }
 }
 
 /**
