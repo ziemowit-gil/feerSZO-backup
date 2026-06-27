@@ -992,6 +992,20 @@ function k30_get_consultants(): array {
 }
 
 function k30_require_access(): void {
+    // Samodzielne wejście do modułu: niezalogowany → własny ekran logowania
+    // (gdy plik istnieje). W przeciwnym razie standardowe logowanie systemu.
+    if (!current_user()) {
+        $loginFile = dirname(__DIR__) . '/karty30/login.php';
+        if (is_file($loginFile)) {
+            $uri  = $_SERVER['REQUEST_URI'] ?? '';
+            $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+            if ($base !== '' && $base !== '/' && str_starts_with($uri, $base)) {
+                $uri = substr($uri, strlen($base));
+            }
+            header('Location: ' . APP_URL . '/karty30/login.php?redirect=' . urlencode(APP_URL . $uri));
+            exit;
+        }
+    }
     require_login();
     if (can_read('karty30') || is_admin()) return;
 

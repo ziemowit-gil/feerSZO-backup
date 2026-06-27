@@ -27,14 +27,16 @@ k30_require_access();
 // ── IKA — wymagane przy każdym dostępie do Karty30 ───────────────────────────
 // Moduł przetwarza dane osobowe beneficjentów (imię, adres, opis problemu).
 // Sesja IKA ważna 30 min — wspólna z CRM i systemem głównym.
-(function () {
-    $uri  = $_SERVER['REQUEST_URI'] ?? '/';
-    $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
-    if ($base !== '' && $base !== '/' && str_starts_with($uri, $base)) {
-        $uri = substr($uri, strlen($base));
-    }
-    ika_require(APP_URL . $uri);
-})();
+if (function_exists('ika_require')) {
+    (function () {
+        $uri  = $_SERVER['REQUEST_URI'] ?? '/';
+        $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+        if ($base !== '' && $base !== '/' && str_starts_with($uri, $base)) {
+            $uri = substr($uri, strlen($base));
+        }
+        ika_require(APP_URL . $uri);
+    })();
+}
 
 $_ku        = current_user();
 $_k30_title = $PAGE_TITLE ?? 'Dydaktyka';
@@ -149,7 +151,7 @@ function _k30_active(string $path): bool {
         </button>
         <?php endif; ?>
 
-        <?php $msw_active='k30'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
+        <?php $msw_active='k30'; $msw_dark=true; $_msw=dirname(dirname(__DIR__)).'/includes/module_switcher.php'; if (is_file($_msw)) require_once $_msw; ?>
 
         <?php if ($_ku): ?>
         <div class="dropdown">
@@ -303,7 +305,7 @@ function _k30_active(string $path): bool {
   </nav>
 </header>
 
-<?php require_once dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; ?>
+<?php $_brw = dirname(dirname(__DIR__)) . '/includes/bug_report_widget.php'; if (is_file($_brw)) require_once $_brw; ?>
 
 <!-- Notka o zmianie nazwy modułu -->
 <div class="alert alert-info border-0 border-bottom rounded-0 mb-0 py-2 small d-flex align-items-center gap-2" role="note">

@@ -18,6 +18,8 @@ const API_PERMISSIONS = [
     'users:read'      => 'Użytkownicy — odczyt',
     'crm:read'        => 'CRM — odczyt kontaktów',
     'crm:write'       => 'CRM — zapis kontaktów (twórz / edytuj / usuń)',
+    'karty30:read'    => 'Karty 30 — odczyt (beneficjenci, wizyty, konsultacje, TI)',
+    'karty30:write'   => 'Karty 30 — zapis (twórz / edytuj / usuń)',
 ];
 
 $errors    = [];
@@ -243,6 +245,75 @@ curl -X PATCH -H "Authorization: Bearer $KEY" -H "Content-Type: application/json
 curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"note":"Pierwszy kontakt telefoniczny."}' \
   "<?= h($api_base) ?>/crm.php?id=123&resource=notes"</pre>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header bg-white fw-semibold d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-book me-2"></i>Dokumentacja — Karty 30 API</span>
+    <code class="small text-muted"><?= h($api_base) ?>/karty30.php</code>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Uwierzytelnianie jak wyżej (<code>Authorization: Bearer &lt;klucz&gt;</code> lub <code>?api_key=</code>).
+      Odczyt wymaga <code>karty30:read</code>, zapis — <code>karty30:write</code>.
+      Routing przez parametr <code>?resource=&lt;nazwa&gt;</code> + <code>&amp;id=N</code> dla pojedynczego rekordu.
+      Body POST/PATCH w formacie <code>application/json</code>. Filtry list: per zasób (np. <code>client_id</code>,
+      <code>course_id</code>, <code>status</code>), wyszukiwanie <code>q</code>, paginacja <code>page</code>, <code>per_page</code> (maks. 100).
+    </p>
+
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Metoda</th><th>Ścieżka</th><th>Uprawnienie</th><th>Opis</th></tr>
+        </thead>
+        <tbody class="small">
+          <tr><td><span class="badge bg-success">GET</span></td><td><code>/karty30.php?resource=R</code></td><td><code>karty30:read</code></td>
+              <td>Lista rekordów zasobu (filtry + paginacja).</td></tr>
+          <tr><td><span class="badge bg-success">GET</span></td><td><code>/karty30.php?resource=R&amp;id=N</code></td><td><code>karty30:read</code></td>
+              <td>Pojedynczy rekord.</td></tr>
+          <tr><td><span class="badge bg-primary">POST</span></td><td><code>/karty30.php?resource=R</code></td><td><code>karty30:write</code></td>
+              <td>Utwórz rekord (JSON body).</td></tr>
+          <tr><td><span class="badge bg-warning text-dark">PATCH</span></td><td><code>/karty30.php?resource=R&amp;id=N</code></td><td><code>karty30:write</code></td>
+              <td>Aktualizuj wybrane pola.</td></tr>
+          <tr><td><span class="badge bg-danger">DELETE</span></td><td><code>/karty30.php?resource=R&amp;id=N</code></td><td><code>karty30:write</code></td>
+              <td>Usuń rekord (kursy: soft-delete <code>status=cancelled</code>).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="small mb-1"><strong>Zasoby (<code>resource</code>):</strong></p>
+    <ul class="small mb-3">
+      <li><strong>Konsultacje/wizyty:</strong> <code>clients</code>, <code>schedules</code>, <code>consultations</code>, <code>waiting</code></li>
+      <li><strong>Dydaktyka TI:</strong> <code>courses</code>, <code>enrollments</code>, <code>lessons</code>, <code>homework</code>, <code>materials</code>, <code>grades</code>, <code>tests</code></li>
+    </ul>
+
+    <p class="small fw-semibold mb-1">Przykłady (curl):</p>
+    <pre class="bg-dark text-light p-3 rounded small mb-0" style="white-space:pre-wrap"># Lista zasobów
+curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/karty30.php"
+
+# Lista beneficjentów (wyszukiwanie + paginacja)
+curl -H "Authorization: Bearer $KEY" \
+  "<?= h($api_base) ?>/karty30.php?resource=clients&q=kowalski&per_page=20"
+
+# Lekcje danego kursu
+curl -H "Authorization: Bearer $KEY" \
+  "<?= h($api_base) ?>/karty30.php?resource=lessons&course_id=5"
+
+# Utworzenie beneficjenta
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Jan Kowalski","email":"jan@example.pl","phone":"+48600100200"}' \
+  "<?= h($api_base) ?>/karty30.php?resource=clients"
+
+# Wystawienie oceny (e-dziennik) — value_num policzy się z value_text
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"course_id":5,"client_id":12,"category":"sprawdzian","value_text":"4+","weight":2}' \
+  "<?= h($api_base) ?>/karty30.php?resource=grades"
+
+# Aktualizacja statusu wizyty
+curl -X PATCH -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"status":"confirmed"}' \
+  "<?= h($api_base) ?>/karty30.php?resource=schedules&id=42"</pre>
   </div>
 </div>
 
