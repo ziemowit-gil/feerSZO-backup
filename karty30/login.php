@@ -36,7 +36,12 @@ $org   = function_exists('org_setting') ? (org_setting('org_name') ?: (defined('
 $token = function_exists('csrf_token') ? csrf_token() : '';
 $err   = trim((string)($_GET['err'] ?? ''));
 // Akcja formularza: pełne zabezpieczenia obsługuje /auth/login.php
-$action = $APP . '/auth/login.php?redirect=' . urlencode($redirect);
+$action    = $APP . '/auth/login.php?redirect=' . urlencode($redirect);
+$dyd_url   = $APP . '/karty30/ti/dydaktyk/login.php';            // panel prowadzącego (osobna sesja)
+$admin_url = $APP . '/auth/login.php?redirect=' . urlencode($redirect); // pełne logowanie (admin: 2FA/WebAuthn/x509/MS365)
+// Microsoft 365 SSO — dostępne, gdy skonfigurowano tenant + client_id
+$ms_ok  = function_exists('ms_login_available') && ms_login_available();
+$ms_url = $ms_ok && function_exists('ms_auth_url') ? ms_auth_url($redirect) : '';
 function h_($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?><!DOCTYPE html>
 <html lang="pl" data-bs-theme="light">
@@ -64,7 +69,7 @@ body { min-height:100vh; display:flex; align-items:center; background:linear-gra
     <div class="text-center text-white mb-4">
       <div class="k30-login-logo mx-auto mb-3"><i class="bi bi-card-checklist fs-2" aria-hidden="true"></i></div>
       <h1 class="h4 fw-bold mb-1">Dydaktyka — Karty 30</h1>
-      <p class="mb-0 opacity-75 small">Moduł „Dydaktyka" jest częścią Systemu Obsługi Organizacji<?= $org ? ' — ' . h_($org) : '' ?>.</p>
+      <p class="mb-0 opacity-75 small">Moduł „Dydaktyka" jest częścią Systemu Obsługi Organizacji — Fundacja Edukacji Empatii Rozwoju FEER.</p>
     </div>
 
     <div class="card k30-login-card">
@@ -75,6 +80,15 @@ body { min-height:100vh; display:flex; align-items:center; background:linear-gra
         <div class="alert alert-danger d-flex align-items-start gap-2 py-2" role="alert">
           <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
           <span><?= h_($err) ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($ms_ok): ?>
+        <a href="<?= h_($ms_url) ?>" class="btn btn-outline-primary btn-lg w-100 mb-3 d-flex align-items-center justify-content-center gap-2">
+          <i class="bi bi-microsoft" aria-hidden="true"></i>Zaloguj przez Microsoft 365
+        </a>
+        <div class="d-flex align-items-center gap-2 text-muted small mb-3">
+          <span class="flex-grow-1 border-top"></span>lub e-mailem i hasłem<span class="flex-grow-1 border-top"></span>
         </div>
         <?php endif; ?>
 
@@ -110,11 +124,19 @@ body { min-height:100vh; display:flex; align-items:center; background:linear-gra
         </form>
 
         <hr class="my-4">
-        <div class="d-flex flex-wrap justify-content-between gap-2 small">
-          <a href="<?= h_($APP) ?>/auth/login.php?redirect=<?= h_(urlencode($redirect)) ?>" class="link-secondary text-decoration-none">
-            <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Inne metody logowania
+        <p class="small fw-semibold text-muted mb-2">Logujesz się w innej roli?</p>
+        <div class="d-grid gap-2">
+          <a href="<?= h_($dyd_url) ?>" class="btn btn-outline-secondary btn-sm text-start d-flex align-items-center gap-2">
+            <i class="bi bi-easel2 flex-shrink-0" aria-hidden="true"></i>
+            <span>Jesteś <strong>dydaktykiem (prowadzącym)</strong>? Zaloguj się tutaj</span>
           </a>
-          <a href="<?= h_($APP) ?>/index.php" class="link-secondary text-decoration-none">
+          <a href="<?= h_($admin_url) ?>" class="btn btn-outline-secondary btn-sm text-start d-flex align-items-center gap-2">
+            <i class="bi bi-shield-lock flex-shrink-0" aria-hidden="true"></i>
+            <span>Jesteś <strong>administratorem</strong>? Zaloguj się tutaj<?= $ms_ok ? ' — także przez Microsoft 365' : '' ?></span>
+          </a>
+        </div>
+        <div class="text-center mt-3">
+          <a href="<?= h_($APP) ?>/index.php" class="link-secondary text-decoration-none small">
             <i class="bi bi-house me-1" aria-hidden="true"></i>System główny
           </a>
         </div>
