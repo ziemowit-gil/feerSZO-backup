@@ -48,6 +48,9 @@ if ($out === 'pdf') {
     $org_name = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
     $font_dir = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
 
+    // Konwersja UTF-8 → ISO-8859-2 (wymagana przez font DejaVu enc:iso-8859-2)
+    $pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(15, 15, 15);
@@ -55,16 +58,16 @@ if ($out === 'pdf') {
     $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
 
     // Strona-notatka dla plików, których nie da się wyrenderować
-    $notePage = function (array $z, string $msg) use ($pdf, $zal_src) {
+    $notePage = function (array $z, string $msg) use ($pdf, $zal_src, $pl) {
         $pdf->AddPage('P', 'A4');
         $pdf->SetFont('DejaVu', 'B', 12);
-        $pdf->MultiCell(0, 7, $z['original_name'], 0, 'L');
+        $pdf->MultiCell(0, 7, $pl($z['original_name']), 0, 'L');
         $pdf->Ln(2);
         $pdf->SetFont('DejaVu', '', 9);
         $pdf->SetTextColor(90, 90, 90);
-        $pdf->Cell(0, 6, $zal_src($z) . ' · ' . ezd_filesize($z['file_size']), 0, 1);
+        $pdf->Cell(0, 6, $pl($zal_src($z) . ' · ' . ezd_filesize($z['file_size'])), 0, 1);
         $pdf->Ln(2);
-        $pdf->MultiCell(0, 6, $msg, 0, 'L');
+        $pdf->MultiCell(0, 6, $pl($msg), 0, 'L');
         $pdf->SetTextColor(0, 0, 0);
     };
 
@@ -77,25 +80,25 @@ if ($out === 'pdf') {
         $pdf->SetTextColor(255, 255, 255);
         $pdf->SetFont('DejaVu', 'B', 13);
         $pdf->SetXY(15, 15);
-        $pdf->Cell($W, 11, 'KARTA SPRAWY', 0, 1, 'C');
+        $pdf->Cell($W, 11, $pl('KARTA SPRAWY'), 0, 1, 'C');
         $pdf->SetTextColor(0, 0, 0);
         $pdf->Ln(6);
 
-        if ($org_name) { $pdf->SetFont('DejaVu', 'B', 11); $pdf->Cell(0, 6, $org_name, 0, 1); }
+        if ($org_name) { $pdf->SetFont('DejaVu', 'B', 11); $pdf->Cell(0, 6, $pl($org_name), 0, 1); }
         $pdf->SetFont('DejaVu', '', 9);
         $pdf->SetTextColor(110, 110, 110);
-        $pdf->Cell(0, 5, 'Wygenerowano: ' . date('d.m.Y H:i'), 0, 1);
+        $pdf->Cell(0, 5, $pl('Wygenerowano: ' . date('d.m.Y H:i')), 0, 1);
         $pdf->SetTextColor(0, 0, 0);
         $pdf->Ln(3);
 
         $pdf->SetFont('DejaVu', 'B', 14);
-        $pdf->MultiCell(0, 7, $sprawa['title'], 0, 'L');
+        $pdf->MultiCell(0, 7, $pl($sprawa['title']), 0, 'L');
         $pdf->Ln(1);
 
-        $row = function (string $k, string $v) use ($pdf) {
-            $pdf->SetFont('DejaVu', '', 9);  $pdf->SetTextColor(110, 110, 110); $pdf->Cell(40, 6, $k, 0, 0);
+        $row = function (string $k, string $v) use ($pdf, $pl) {
+            $pdf->SetFont('DejaVu', '', 9);  $pdf->SetTextColor(110, 110, 110); $pdf->Cell(40, 6, $pl($k), 0, 0);
             $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetTextColor(0, 0, 0);
-            $pdf->MultiCell(0, 6, $v !== '' ? $v : '—', 0, 'L');
+            $pdf->MultiCell(0, 6, $pl($v !== '' ? $v : '—'), 0, 'L');
         };
         $stat = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
         $row('Znak sprawy:',  (string)$sprawa['znak_sprawy']);
@@ -110,18 +113,18 @@ if ($out === 'pdf') {
 
         $pdf->Ln(4);
         $pdf->SetFont('DejaVu', 'B', 10);
-        $pdf->Cell(0, 7, 'Załączone dokumenty (' . count($files) . ')', 0, 1);
+        $pdf->Cell(0, 7, $pl('Załączone dokumenty (' . count($files) . ')'), 0, 1);
         $pdf->SetFont('DejaVu', '', 9);
         if ($files) {
             $i = 0;
             foreach ($files as $z) {
                 $i++;
                 $line = $i . '. ' . $z['original_name'] . '  [' . $zal_src($z) . ', ' . ezd_filesize($z['file_size']) . ']';
-                $pdf->MultiCell(0, 5.5, $line, 0, 'L');
+                $pdf->MultiCell(0, 5.5, $pl($line), 0, 'L');
             }
         } else {
             $pdf->SetTextColor(110, 110, 110);
-            $pdf->Cell(0, 6, 'Brak plików w sprawie — karta zawiera wyłącznie metadane.', 0, 1);
+            $pdf->Cell(0, 6, $pl('Brak plików w sprawie — karta zawiera wyłącznie metadane.'), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
         }
     }
@@ -149,7 +152,7 @@ if ($out === 'pdf') {
             $pdf->AddPage('P', 'A4');
             $pdf->SetFont('DejaVu', '', 8);
             $pdf->SetTextColor(110, 110, 110);
-            $pdf->Cell(0, 5, $z['original_name'] . ' · ' . $zal_src($z), 0, 1);
+            $pdf->Cell(0, 5, $pl($z['original_name'] . ' · ' . $zal_src($z)), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
             $sz = @getimagesize($path) ?: [0, 0];
             $maxW = 180; $maxH = 250;
