@@ -120,19 +120,24 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <li class="breadcrumb-item active">Materiały / eLearning</li>
 </ol></nav>
 
-<div class="d-flex align-items-center mb-3 gap-2">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h4 class="mb-0 fw-bold"><i class="bi bi-collection-play text-primary me-2"></i>Materiały dydaktyczne / eLearning</h4>
-  <a href="homework.php" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-journal-check me-1"></i>Zadania domowe</a>
-  <a href="grades.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-table me-1"></i>Dziennik ocen</a>
+  <div class="ms-auto d-flex flex-wrap gap-2">
+    <a href="homework.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-journal-check me-1"></i>Zadania domowe</a>
+    <a href="grades.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-table me-1"></i>Dziennik ocen</a>
+    <?php if ($can_write): ?>
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#matForm" aria-expanded="<?= $edit_row ? 'true' : 'false' ?>" aria-controls="matForm">
+      <i class="bi bi-plus-lg me-1"></i>Nowy materiał
+    </button>
+    <?php endif; ?>
+  </div>
 </div>
 
 <?= flash_html() ?>
 
-<div class="row g-4">
-  <!-- Lista materiałów -->
-  <div class="col-lg-7">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold"><i class="bi bi-collection me-2"></i>Materiały <span class="badge bg-secondary ms-1"><?= count($materials) ?></span></div>
+<!-- Lista materiałów (pełna szerokość) -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header fw-semibold"><i class="bi bi-collection me-2"></i>Materiały <span class="badge bg-secondary ms-1"><?= count($materials) ?></span></div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <thead class="table-light"><tr><th>Typ</th><th>Tytuł</th><th>Kurs / lekcja</th><th>Zasób</th><?php if ($can_write): ?><th class="text-end">Akcje</th><?php endif; ?></tr></thead>
@@ -177,13 +182,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </table>
       </div>
     </div>
-  </div>
+</div><!-- /lista -->
 
-  <!-- Formularz materiału -->
-  <?php if ($can_write): ?>
-  <div class="col-lg-5">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold"><i class="bi bi-<?= $edit_row ? 'pencil' : 'plus-lg' ?> me-2"></i><?= $edit_row ? 'Edytuj materiał' : 'Nowy materiał' ?></div>
+<!-- Formularz materiału (zwijany — pokazywany przy dodawaniu/edycji) -->
+<?php if ($can_write): ?>
+<div class="collapse <?= $edit_row ? 'show' : '' ?>" id="matForm">
+  <div class="card border-0 shadow-sm mt-4" style="max-width:820px">
+    <div class="card-header d-flex align-items-center fw-semibold">
+      <span><i class="bi bi-<?= $edit_row ? 'pencil' : 'plus-lg' ?> me-2"></i><?= $edit_row ? 'Edytuj materiał' : 'Nowy materiał' ?></span>
+      <a href="materials.php" class="btn-close ms-auto" aria-label="Zamknij formularz"></a>
+    </div>
       <div class="card-body">
         <form method="post" enctype="multipart/form-data">
           <input type="hidden" name="_csrf"        value="<?= h(csrf_token()) ?>">
@@ -262,9 +270,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </form>
       </div>
     </div>
-  </div>
-  <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <script>
 // Filtrowanie listy lekcji wg wybranego kursu.
@@ -286,6 +293,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   course.addEventListener('change', function(){ refresh(false); });
   refresh(true);
 })();
+<?php if ($edit_row): ?>
+document.getElementById('matForm')?.scrollIntoView({behavior:'smooth',block:'start'});
+<?php endif; ?>
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
