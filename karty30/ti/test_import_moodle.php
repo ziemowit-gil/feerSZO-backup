@@ -123,17 +123,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_step'] ?? '') === 'import
     $add_to_bank = (int)($sess['add_to_bank'] ?? 0);
     $bank_draw   = (int)($sess['bank_draw'] ?? 0);
     $selected    = array_map('intval', (array)($_POST['q_idx'] ?? []));
+    $pts_map     = $_POST['q_pts'] ?? [];
 
     $imported = 0; $errors = [];
 
     foreach ($selected as $idx) {
         if (!isset($questions[$idx]) || !empty($questions[$idx]['_skip'])) continue;
-        $q = $questions[$idx];
+        $q      = $questions[$idx];
+        $points = isset($pts_map[$idx]) ? max(0, (float)$pts_map[$idx]) : 1;
+        if ($points <= 0) $points = 1;
         k30_ti_test_question_save([
             'test_id' => $test_id,
             'type'    => $q['type'],
             'prompt'  => $q['prompt'],
-            'points'  => $q['points'],
+            'points'  => $points,
             'options' => $q['options'],
             'in_bank' => $add_to_bank,
         ]);
@@ -234,7 +237,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </th>
             <th style="width:70px">Typ</th>
             <th>Treść pytania</th>
-            <th style="width:60px" class="text-end">Pkt</th>
+            <th style="width:72px" class="text-end">Punkty</th>
             <th style="width:90px">Warianty</th>
           </tr>
         </thead>
@@ -280,7 +283,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <div class="text-muted" style="font-size:.78rem"><i class="bi bi-exclamation-triangle me-1"></i><?= h($q['_reason'] ?? '') ?></div>
               <?php endif; ?>
             </td>
-            <td class="text-end text-muted" style="font-size:.85rem"><?= $skip ? '—' : number_format($q['points'], 1) ?></td>
+            <td class="text-end">
+              <?php if (!$skip): ?>
+              <input type="number" name="q_pts[<?= $idx ?>]" value="1"
+                     min="0" max="999" step="0.5"
+                     class="form-control form-control-sm text-end p-1"
+                     style="width:60px;font-size:.82rem"
+                     aria-label="Punkty za pytanie <?= $idx + 1 ?>"
+                     onclick="event.stopPropagation()">
+              <?php else: ?>
+              <span class="text-muted">—</span>
+              <?php endif; ?>
+            </td>
             <td class="text-muted" style="font-size:.82rem"><?= $skip ? '—' : (empty($q['options']) ? 'brak' : count($q['options'])) ?></td>
           </tr>
           <?php endforeach; ?>
@@ -327,7 +341,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   // Klik wiersza toggleuje checkbox
   document.querySelectorAll('#previewTable tbody tr').forEach(function(tr){
     tr.addEventListener('click', function(e){
-      if (e.target.type === 'checkbox') return;
+      if (e.target.type === 'checkbox' || e.target.type === 'number') return;
       var chk = tr.querySelector('.q-chk');
       if (!chk) return;
       chk.checked = !chk.checked;
