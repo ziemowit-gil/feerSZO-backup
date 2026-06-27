@@ -21,7 +21,7 @@ $_msw_mods = [
     ['key'=>'directory', 'label'=>'Katalog',        'icon'=>'bi-person-lines-fill', 'mc'=>'#4338ca','mb'=>'#eef2ff','url'=>APP_URL.'/directory/',                         'check'=>null],
     ['key'=>'strategy',  'label'=>'Strategia',      'icon'=>'bi-bullseye',          'mc'=>'#6d28d9','mb'=>'#f5f3ff','url'=>APP_URL.'/strategy/index.php',                 'check'=>null],
     ['key'=>'reports',   'label'=>'Raporty',        'icon'=>'bi-bar-chart-line',    'mc'=>'#0284c7','mb'=>'#f0f9ff','url'=>APP_URL.'/reports/index.php',                  'check'=>null],
-    ['key'=>'k30',       'label'=>'Karty 30',       'icon'=>'bi-card-checklist',    'mc'=>'#c2410c','mb'=>'#fff7ed','url'=>APP_URL.'/karty30/index.php',                  'check'=>fn()=>can_read('karty30')],
+    ['key'=>'k30',       'label'=>'Dydaktyka',      'icon'=>'bi-card-checklist',    'mc'=>'#c2410c','mb'=>'#fff7ed','url'=>APP_URL.'/karty30/index.php',                  'check'=>fn()=>can_read('karty30')],
     ['key'=>'helpdesk',  'label'=>'Helpdesk',       'icon'=>'bi-ticket-perforated', 'mc'=>'#b45309','mb'=>'#fffbeb','url'=>APP_URL.'/helpdesk/index.php',                 'check'=>fn()=>module_enabled('helpdesk_enabled')],
     ['key'=>'szkolenia', 'label'=>'Szkolenia',      'icon'=>'bi-calendar2-check',   'mc'=>'#7c3aed','mb'=>'#f5f3ff','url'=>APP_URL.'/szkolenia/index.php',                'check'=>fn()=>function_exists('tidycal_enabled') && tidycal_enabled() && (can_read('szkolenia')||is_admin())],
     ['key'=>'rodo',      'label'=>'RODO',           'icon'=>'bi-shield-lock',       'mc'=>'#475569','mb'=>'#f8fafc','url'=>APP_URL.'/rodo/index.php',                     'check'=>null],
