@@ -283,6 +283,23 @@
             try { $ins->execute([$sym, $tit, $kat, $desc, $ord]); } catch (\Throwable $e) {}
         }
     }
+
+    // Klasa przejściowa „papierowa" — dokładana idempotentnie, także w istniejących
+    // wdrożeniach (seed wyżej działa tylko na pustej tabeli). Symbol celowo nietypowy
+    // („0-PAP"), aby odróżniał się od zwykłych haseł i wyróżniał się w wykazie.
+    try {
+        $hasPap = $pdo->query("SELECT 1 FROM ezd_jrwa WHERE symbol='0-PAP'")->fetchColumn();
+        if (!$hasPap) {
+            $pdo->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)")
+                ->execute([
+                    '0-PAP',
+                    'Sprawy i projekty wszczęte w trybie papierowym (przed wdrożeniem EZD)',
+                    'BE10',
+                    'Klasa przejściowa. Akta spraw/projektów rozpoczętych w systemie tradycyjnym (papierowym) i kontynuowanych po wdrożeniu EZD — prowadzone dwutorowo: oryginał papierowy pozostaje w teczce aktowej, a w systemie rejestruje się metrykę i odsyłacz. Podlega ekspertyzie archiwum państwowego.',
+                    999,
+                ]);
+        }
+    } catch (\Throwable $e) {}
 })();
 
 // ── Stałe ────────────────────────────────────────────────────────────────────
