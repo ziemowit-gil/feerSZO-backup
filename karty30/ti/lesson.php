@@ -186,8 +186,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 .att-cb           { width: 1.4em; height: 1.4em; flex-shrink: 0; cursor: pointer; }
 .section-head     { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 12px; }
 /* Karta główna — obecność na pierwszym planie */
-.lesson-primary   { border: 2px solid #4338ca !important; }
-.lesson-primary > .card-header { background: #eef2ff; }
+.lesson-primary   { border: 2px solid #c2410c !important; }
+.lesson-primary > .card-header { background: #fff7ed; }
 /* Pasek statystyk podsumowania */
 .lesson-stats     { display:flex; flex-wrap:wrap; gap:.5rem; }
 .lesson-stat      { flex:1 1 8rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:.6rem .9rem; }

@@ -3,7 +3,7 @@
  * karty30/includes/header_k30.php — Layout modułu Dydaktyka (d. TyfloKonsultacje).
  *
  * Czysty Bootstrap 5.3 (komponenty: navbar, dropdown, alert, container).
- * Kolor marki (indygo) przez nadpisanie --bs-primary — bez własnej warstwy klas k30-*.
+ * Kolor marki (pomarańcz) przez nadpisanie --bs-primary — bez własnej warstwy klas k30-*.
  *
  * Dostępność WCAG 2.1 AA:
  *  - Skip link jako pierwszy element focusowalny
@@ -70,27 +70,27 @@ function _k30_active(string $path): bool {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <style>
-/* ── Kolor marki: indygo nałożone na standardowe tokeny Bootstrap ────────── */
+/* ── Kolor marki: pomarańcz nałożony na standardowe tokeny Bootstrap ──────── */
 :root {
-  --bs-primary:#4338ca;            /* indigo-700 — kontrast 5.9:1 na białym (AA) */
-  --bs-primary-rgb:67,56,202;
-  --bs-link-color-rgb:67,56,202;
-  --bs-link-hover-color-rgb:49,46,129;
+  --bs-primary:#c2410c;            /* orange-700 — biały tekst kontrast ~5:1 (AA) */
+  --bs-primary-rgb:194,65,12;
+  --bs-link-color-rgb:194,65,12;
+  --bs-link-hover-color-rgb:154,52,18;
 }
 .btn-primary {
-  --bs-btn-bg:#4338ca; --bs-btn-border-color:#4338ca;
-  --bs-btn-hover-bg:#3730a3; --bs-btn-hover-border-color:#3730a3;
-  --bs-btn-active-bg:#312e81; --bs-btn-active-border-color:#312e81;
-  --bs-btn-disabled-bg:#4338ca; --bs-btn-disabled-border-color:#4338ca;
+  --bs-btn-bg:#c2410c; --bs-btn-border-color:#c2410c;
+  --bs-btn-hover-bg:#9a3412; --bs-btn-hover-border-color:#9a3412;
+  --bs-btn-active-bg:#7c2d12; --bs-btn-active-border-color:#7c2d12;
+  --bs-btn-disabled-bg:#c2410c; --bs-btn-disabled-border-color:#c2410c;
 }
 .btn-outline-primary {
-  --bs-btn-color:#4338ca; --bs-btn-border-color:#4338ca;
-  --bs-btn-hover-bg:#4338ca; --bs-btn-hover-border-color:#4338ca;
-  --bs-btn-active-bg:#3730a3; --bs-btn-active-border-color:#3730a3;
+  --bs-btn-color:#c2410c; --bs-btn-border-color:#c2410c;
+  --bs-btn-hover-bg:#c2410c; --bs-btn-hover-border-color:#c2410c;
+  --bs-btn-active-bg:#9a3412; --bs-btn-active-border-color:#9a3412;
 }
-.bg-primary { background-color:#4338ca !important; }
-.text-primary { color:#4338ca !important; }
-.link-primary { color:#4338ca !important; }
+.bg-primary { background-color:#c2410c !important; }
+.text-primary { color:#c2410c !important; }
+.link-primary { color:#c2410c !important; }
 
 /* ── WCAG: widoczny, spójny focus dla klawiatury ─────────────────────────── */
 *:focus-visible {

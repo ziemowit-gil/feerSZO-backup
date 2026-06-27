@@ -182,7 +182,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 /* Lista skrótów modułu */
 .mod-links { display:flex; flex-wrap:wrap; gap:.4rem; padding:.85rem 1rem; margin-top:auto; border-top:1px solid #f1f5f9; }
 .mod-link { display:inline-flex; align-items:center; gap:.35rem; font-size:.78rem; font-weight:600; text-decoration:none; color:#374151; border:1.5px solid #e2e8f0; border-radius:7px; padding:.3rem .6rem; transition:background .12s,border-color .12s,color .12s; }
-.mod-link:hover { background:#eef2ff; border-color:#6366f1; color:#4338ca; }
+.mod-link:hover { background:#fff7ed; border-color:#fb923c; color:#c2410c; }
 .mod-mini { display:flex; align-items:center; gap:.6rem; padding:.5rem 1rem; border-bottom:1px solid #f8fafc; font-size:.82rem; text-decoration:none; color:#1e293b; }
 .mod-mini:last-of-type { border-bottom:0; }
 .mod-mini:hover { background:#f8fafc; }
@@ -192,7 +192,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 <!-- Nagłówek strony -->
 <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
   <div role="img" aria-label="Dydaktyka"
-       style="width:46px;height:46px;border-radius:11px;background:#4338ca;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+       style="width:46px;height:46px;border-radius:11px;background:#c2410c;display:flex;align-items:center;justify-content:center;flex-shrink:0">
     <i class="bi bi-card-checklist text-white" style="font-size:1.3rem" aria-hidden="true"></i>
   </div>
   <div>
@@ -254,7 +254,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
           $tstr = $s['time_from'] ?: $dt->format('H:i'); ?>
         <a class="mod-mini" role="listitem" href="<?= APP_URL ?>/karty30/schedules/view.php?id=<?= (int)$s['id'] ?>"
            aria-label="<?= h($s['client_name']) ?>, <?= $isToday?'dziś':$dt->format('d.m') ?> <?= h($tstr) ?>">
-          <div class="mod-mini-date" aria-hidden="true"><div style="font-size:1.05rem;font-weight:800;line-height:1;color:<?= $isToday?"#4338ca":"#1e293b" ?>"><?= $dt->format('d') ?></div><div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase"><?= $dt->format('m') ?></div></div>
+          <div class="mod-mini-date" aria-hidden="true"><div style="font-size:1.05rem;font-weight:800;line-height:1;color:<?= $isToday?"#c2410c":"#1e293b" ?>"><?= $dt->format('d') ?></div><div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase"><?= $dt->format('m') ?></div></div>
           <div style="flex:1;min-width:0" aria-hidden="true"><div class="fw-semibold text-truncate"><?= h($s['client_name']) ?></div><div style="font-size:.73rem;color:#64748b" class="text-truncate"><?= h($tstr) ?><?= $isToday?' · dziś':'' ?><?= $s['consultant_name']?' · '.h($s['consultant_name']):'' ?></div></div>
           <span aria-hidden="true"><?= k30_status_badge($s['status']) ?></span>
         </a>
@@ -274,7 +274,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
 
   <!-- Moduł 2: Dydaktyka (TI) -->
   <div class="col-lg-6">
-    <div class="panel mod-panel" style="--mod:#4338ca">
+    <div class="panel mod-panel" style="--mod:#c2410c">
       <div class="mod-head">
         <div class="mod-ic" aria-hidden="true"><i class="bi bi-pc-display"></i></div>
         <div>
@@ -296,7 +296,7 @@ a.panel-row:focus-visible { outline:3px solid #facc15; outline-offset:-3px; }
           $ld = new DateTime($l['lesson_date']); $isT = $ld->format('Y-m-d') === date('Y-m-d'); ?>
         <a class="mod-mini" role="listitem" href="<?= APP_URL ?>/karty30/ti/lesson.php?id=<?= (int)$l['id'] ?>"
            aria-label="<?= h($l['course_name']) ?>, <?= $isT?'dziś':$ld->format('d.m') ?><?= $l['time_from']?' '.h($l['time_from']):'' ?>">
-          <div class="mod-mini-date" aria-hidden="true"><div style="font-size:1.05rem;font-weight:800;line-height:1;color:<?= $isT?"#4338ca":"#1e293b" ?>"><?= $ld->format('d') ?></div><div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase"><?= $ld->format('m') ?></div></div>
+          <div class="mod-mini-date" aria-hidden="true"><div style="font-size:1.05rem;font-weight:800;line-height:1;color:<?= $isT?"#c2410c":"#1e293b" ?>"><?= $ld->format('d') ?></div><div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase"><?= $ld->format('m') ?></div></div>
           <div style="flex:1;min-width:0" aria-hidden="true"><div class="fw-semibold text-truncate"><?= h($l['course_name']) ?></div><div style="font-size:.73rem;color:#64748b"><?= $l['time_from']?h($l['time_from']):'—' ?><?= $l['time_to']?'–'.h($l['time_to']):'' ?><?= $isT?' · dziś':'' ?></div></div>
           <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
         </a>
