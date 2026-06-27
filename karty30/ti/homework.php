@@ -148,7 +148,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <a href="materials.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-collection-play me-1"></i>Materiały / eLearning</a>
     <a href="grades.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-table me-1"></i>Dziennik ocen</a>
     <?php if ($can_write): ?>
-    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#hwForm" aria-expanded="<?= $edit_row ? 'true' : 'false' ?>" aria-controls="hwForm">
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#hwModal">
       <i class="bi bi-plus-lg me-1"></i>Nowe zadanie
     </button>
     <?php endif; ?>
@@ -257,15 +257,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </div>
 </div><!-- /lista -->
 
-<!-- Formularz zadania (zwijany — pokazywany przy dodawaniu/edycji) -->
+<!-- Formularz zadania (wyskakujące okno — przy dodawaniu/edycji) -->
 <?php if ($can_write): ?>
-<div class="collapse <?= $edit_row ? 'show' : '' ?>" id="hwForm">
-  <div class="card border-0 shadow-sm mt-4" style="max-width:820px">
-    <div class="card-header d-flex align-items-center fw-semibold">
-      <span><i class="bi bi-<?= $edit_row ? 'pencil' : 'plus-lg' ?> me-2"></i><?= $edit_row ? 'Edytuj zadanie' : 'Nowe zadanie' ?></span>
-      <a href="homework.php" class="btn-close ms-auto" aria-label="Zamknij formularz"></a>
-    </div>
-      <div class="card-body">
+<div class="modal fade" id="hwModal" tabindex="-1" aria-labelledby="hwModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="hwModalLabel"><i class="bi bi-<?= $edit_row ? 'pencil' : 'plus-lg' ?> me-2"></i><?= $edit_row ? 'Edytuj zadanie' : 'Nowe zadanie' ?></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
         <form method="post" enctype="multipart/form-data">
           <input type="hidden" name="_csrf"        value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op"           value="save_homework">
@@ -337,9 +338,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <?php if ($edit_row): ?><a href="homework.php" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>
           </div>
         </form>
-      </div>
-    </div>
-</div>
+      </div><!-- /modal-body -->
+    </div><!-- /modal-content -->
+  </div><!-- /modal-dialog -->
+</div><!-- /modal -->
 <?php endif; ?>
 
 <script>
@@ -361,7 +363,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   refresh(true);
 })();
 <?php if ($edit_row): ?>
-document.getElementById('hwForm')?.scrollIntoView({behavior:'smooth',block:'start'});
+(function(){
+  var el = document.getElementById('hwModal');
+  if (!el) return;
+  bootstrap.Modal.getOrCreateInstance(el).show();
+  // Zamknięcie okna edycji czyści stan edycji (wraca do czystej listy)
+  el.addEventListener('hidden.bs.modal', function(){ window.location = 'homework.php'; });
+})();
 <?php endif; ?>
 </script>
 
