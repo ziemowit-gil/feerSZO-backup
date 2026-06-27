@@ -64,43 +64,48 @@ $h = (int)date('G');
 $greeting = $h < 5 ? 'Dobranoc' : ($h < 12 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczór'));
 $first_name = trim($u_db['first_name'] ?? '') ?: explode(' ', $display_name)[0];
 
-include dirname(__DIR__) . '/includes/header.php';
+include __DIR__ . '/includes/header_panel.php';
 ?>
 
 <style>
-/* ── Standalone panel ─────────────────────────────────────────── */
-.sv-panel       { max-width: 860px; }
-.sv-welcome     { margin-bottom: 1.75rem; }
-.sv-greeting    { font-size: 1.35rem; font-weight: 700; color: #0f172a; }
+/* ── Panel wolontariusza bez umowy — kolor wg --vol-color ─────── */
+.sv-panel       { max-width: 880px; }
+.sv-welcome     { margin-bottom: 1.5rem; }
+.sv-greeting    { font-size: 1.3rem; font-weight: 800; color: #0f172a; letter-spacing: -.01em; }
 .sv-sub         { font-size: .85rem; color: #64748b; margin-top: .2rem; }
 
 /* Karty platform */
 .sv-platforms   { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-.sv-card        { border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.sv-card        { border: 1px solid #e5e7eb; border-radius: 14px; padding: 1.25rem; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
 .sv-card-head   { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
-.sv-card-icon   { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+.sv-card-icon   { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
 .sv-card-title  { font-weight: 700; font-size: .95rem; color: #0f172a; }
 .sv-card-sub    { font-size: .76rem; color: #94a3b8; }
 .sv-field       { margin-bottom: .65rem; }
 .sv-field-lbl   { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; margin-bottom: .2rem; }
 .sv-field-val   { font-size: .88rem; font-weight: 600; color: #1e293b; font-family: 'Courier New', monospace; word-break: break-all; }
-.sv-field-val a { color: #2563eb; text-decoration: none; font-family: system-ui, sans-serif; font-size: .85rem; font-weight: 500; }
+.sv-field-val a { color: var(--vol-color); text-decoration: none; font-family: system-ui, sans-serif; font-size: .85rem; font-weight: 500; }
 .sv-field-val a:hover { text-decoration: underline; }
 .sv-copy-btn    { background: none; border: none; padding: 0 0 0 .4rem; cursor: pointer; color: #94a3b8; font-size: .8rem; vertical-align: middle; }
-.sv-copy-btn:hover { color: #2563eb; }
+.sv-copy-btn:hover { color: var(--vol-color); }
 .sv-badge-ok    { display: inline-flex; align-items: center; gap: .3rem; background: #dcfce7; color: #166534; border-radius: 20px; padding: .15rem .6rem; font-size: .75rem; font-weight: 600; }
 .sv-badge-none  { display: inline-flex; align-items: center; gap: .3rem; background: #f1f5f9; color: #64748b; border-radius: 20px; padding: .15rem .6rem; font-size: .75rem; }
 .sv-card-footer { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid #f1f5f9; }
-.sv-card-footer a { font-size: .8rem; color: #2563eb; text-decoration: none; display: inline-flex; align-items: center; gap: .3rem; }
+.sv-card-footer a { font-size: .8rem; color: var(--vol-color); text-decoration: none; display: inline-flex; align-items: center; gap: .3rem; }
 .sv-card-footer a:hover { text-decoration: underline; }
 
 /* Sekcja zadań */
-.sv-tasks-bar   { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
-.sv-tasks-num   { font-size: 2rem; font-weight: 800; color: #2563eb; line-height: 1; }
+.sv-tasks-bar   { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--vol-bg); border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+.sv-tasks-num   { font-size: 2rem; font-weight: 800; color: var(--vol-color); line-height: 1; }
 .sv-tasks-lbl   { font-size: .82rem; color: #64748b; }
+
+/* Szybkie linki */
+.sv-quick       { display: flex; align-items: center; gap: .6rem; padding: .85rem; border: 1px solid #e5e7eb; border-radius: 12px; text-decoration: none; color: #1e293b; background: #fff; font-size: .84rem; height: 100%; transition: border-color .12s, box-shadow .12s; }
+.sv-quick:hover { border-color: var(--vol-color); box-shadow: 0 4px 14px rgba(0,0,0,.06); color: #1e293b; }
+.sv-quick i     { font-size: 1.25rem; }
 </style>
 
-<div class="container-fluid py-4 sv-panel">
+<div class="sv-panel mx-auto">
 
   <!-- Powitanie -->
   <div class="sv-welcome">
@@ -119,7 +124,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <!-- 1. Portal feerSZO -->
     <div class="sv-card">
       <div class="sv-card-head">
-        <div class="sv-card-icon" style="background:#eff6ff;color:#2563eb">
+        <div class="sv-card-icon" style="background:var(--vol-bg);color:var(--vol-color)">
           <i class="bi bi-house-fill"></i>
         </div>
         <div>
@@ -285,36 +290,27 @@ include dirname(__DIR__) . '/includes/header.php';
   <!-- ── Szybkie linki ───────────────────────────────────────── -->
   <div class="row g-2">
     <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/tasks/index.php" class="d-flex align-items-center gap-2 p-3 border rounded text-decoration-none text-dark"
-         style="background:#f8fafc;font-size:.84rem;transition:all .1s"
-         onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor=''">
-        <i class="bi bi-check2-square text-primary fs-5"></i>
+      <a href="<?= APP_URL ?>/tasks/index.php" class="sv-quick">
+        <i class="bi bi-check2-square" style="color:var(--vol-color)"></i>
         <div><div class="fw-semibold">Zadania</div><div class="text-muted small">Przypisane projekty</div></div>
       </a>
     </div>
     <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/komunikaty/index.php" class="d-flex align-items-center gap-2 p-3 border rounded text-decoration-none text-dark"
-         style="background:#f8fafc;font-size:.84rem;transition:all .1s"
-         onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor=''">
-        <i class="bi bi-megaphone-fill text-warning fs-5"></i>
+      <a href="<?= APP_URL ?>/komunikaty/index.php" class="sv-quick">
+        <i class="bi bi-megaphone-fill text-warning"></i>
         <div><div class="fw-semibold">Ogłoszenia</div><div class="text-muted small">Komunikaty organizacji</div></div>
       </a>
     </div>
     <div class="col-6 col-md-3">
-      <a href="<?= APP_URL ?>/panel/password.php" class="d-flex align-items-center gap-2 p-3 border rounded text-decoration-none text-dark"
-         style="background:#f8fafc;font-size:.84rem;transition:all .1s"
-         onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor=''">
-        <i class="bi bi-key-fill text-secondary fs-5"></i>
+      <a href="<?= APP_URL ?>/panel/password.php" class="sv-quick">
+        <i class="bi bi-key-fill text-secondary"></i>
         <div><div class="fw-semibold">Hasło</div><div class="text-muted small">Zmień hasło</div></div>
       </a>
     </div>
     <?php if ($moodle_url): ?>
     <div class="col-6 col-md-3">
-      <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener"
-         class="d-flex align-items-center gap-2 p-3 border rounded text-decoration-none text-dark"
-         style="background:#f8fafc;font-size:.84rem;transition:all .1s"
-         onmouseover="this.style.borderColor='#f57c00'" onmouseout="this.style.borderColor=''">
-        <i class="bi bi-mortarboard-fill" style="color:#f57c00;font-size:1.25rem"></i>
+      <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener" class="sv-quick">
+        <i class="bi bi-mortarboard-fill" style="color:#f57c00"></i>
         <div><div class="fw-semibold">Kursy</div><div class="text-muted small">Platforma Moodle</div></div>
       </a>
     </div>
@@ -337,4 +333,4 @@ function copyText(text, btn) {
 }
 </script>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php include __DIR__ . '/includes/footer_panel.php'; ?>
