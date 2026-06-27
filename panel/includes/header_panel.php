@@ -285,6 +285,12 @@ if ('serviceWorker' in navigator) {
     <span class="pv-badge" aria-label="<?= $_hd_open ?> otwartych zgłoszeń"><?= $_hd_open ?></span>
     <?php endif; ?>
   </a>
+  <?php if (module_enabled('procedures_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/procedures.php" class="pv-nav-link<?= _pv_nav_active('/panel/procedures') ?>"
+     aria-label="Procedury i instrukcje organizacji">
+    <i class="bi bi-journal-text" aria-hidden="true"></i>Procedury
+  </a>
+  <?php endif; ?>
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Konto</div>

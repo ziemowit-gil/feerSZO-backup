@@ -631,6 +631,13 @@ if (module_enabled('terminations_enabled')) {
         'badge' => $my_terms_pending, 'badgeClass' => 'warning',
     ];
 }
+if (module_enabled('procedures_enabled')) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/procedures.php', 'icon' => 'bi-journal-text',
+        'iconColor' => '#0EA5E9', 'iconBg' => '#F0F9FF',
+        'label' => 'Procedury', 'sub' => 'dokumenty i instrukcje',
+    ];
+}
 $_pv_actions[] = [
     'href' => APP_URL . '/panel/helpdesk.php', 'icon' => 'bi-headset',
     'iconColor' => 'var(--vol-color)', 'iconBg' => '#F0F4FF',
