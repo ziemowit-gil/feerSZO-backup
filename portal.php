@@ -128,10 +128,10 @@ $modules = [
         'badge'  => null,
     ],
     [
-        'title'  => 'Karty 30',
-        'desc'   => 'Beneficjenci, harmonogram wizyt',
+        'title'  => 'Dydaktyka',
+        'desc'   => 'Zajęcia TI, beneficjenci, wizyty (Karty 30)',
         'icon'   => 'bi-card-checklist',
-        'grad'   => 'linear-gradient(135deg,#581C87,#7C3AED)',
+        'grad'   => 'linear-gradient(135deg,#7c2d12,#c2410c)',
         'url'    => APP_URL . '/karty30/index.php',
         'access' => $k30_enabled,
         'stat'   => $k30_today . ' wizyt dziś',
