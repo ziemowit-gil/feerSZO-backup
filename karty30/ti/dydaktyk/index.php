@@ -106,6 +106,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=dostepnosc'); exit;
     }
 
+    // ── Reset prywatnego adresu kanału iCal (subskrypcja kalendarza lekcji) ─────
+    if ($op === 'cal_token_reset') {
+        k30_ti_instructor_cal_token_reset($uid);
+        flash_set('success', 'Wygenerowano nowy adres kalendarza. Poprzedni link przestał działać.');
+        header('Location: ' . dyd_back((int)($_POST['course_id'] ?? 0), 'lekcje')); exit;
+    }
+
     // Pozostałe operacje wymagają własności kursu.
     if (!dyd_owns_course($uid, $course_id)) { http_response_code(403); exit('Brak uprawnień do tego kursu.'); }
 
@@ -1020,6 +1027,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <i class="bi bi-calendar3 me-1"></i>Kalendarz
           </button>
           <?php endif; ?>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydCalSubModal">
+            <i class="bi bi-calendar-check me-1"></i>Subskrybuj / pobierz
+          </button>
           <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSeries">
             <i class="bi bi-calendar-plus me-1"></i>Seria
           </button>
@@ -1261,6 +1271,62 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </div></div>
     </div>
     <?php endif; ?>
+
+    <?php
+      // ── Subskrypcja / pobranie kalendarza lekcji prowadzącego (iCal) ──────────
+      $cal_tok  = k30_ti_instructor_cal_token($uid);
+      $cal_base = rtrim(defined('APP_URL') ? APP_URL : '', '/')
+                  . '/karty30/ti/dydaktyk/ical.php?uid=' . $uid . '&t=' . $cal_tok;
+      $cal_webcal = preg_replace('#^https?://#i', 'webcal://', $cal_base);
+    ?>
+    <div class="modal fade" id="dydCalSubModal" tabindex="-1" aria-labelledby="dydCalSubTitle" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dydCalSubTitle"><i class="bi bi-calendar-check me-2"></i>Kalendarz lekcji — subskrypcja i pobranie</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-body-secondary small">
+            Kalendarz obejmuje wszystkie Twoje lekcje (ze wszystkich prowadzonych kursów).
+            Każde zdarzenie ma tytuł w formie <strong>„Lekcja — kursant"</strong>.
+          </p>
+
+          <label class="form-label fw-semibold" for="dydCalUrl">Adres kanału (URL do subskrypcji)</label>
+          <div class="input-group mb-1">
+            <input type="text" class="form-control" id="dydCalUrl" value="<?= h($cal_base) ?>" readonly
+                   onfocus="this.select()" aria-describedby="dydCalUrlHelp">
+            <button type="button" class="btn btn-outline-secondary" id="dydCalCopy"
+                    data-copy-target="dydCalUrl"><i class="bi bi-clipboard me-1"></i>Kopiuj</button>
+          </div>
+          <p id="dydCalUrlHelp" class="form-text">
+            Wklej ten adres w Kalendarzu Google („Inne kalendarze → Dodaj z adresu URL"),
+            Apple Calendar lub Outlook, aby kalendarz aktualizował się automatycznie.
+          </p>
+
+          <div class="d-flex flex-wrap gap-2 my-3">
+            <a class="btn btn-primary btn-sm" href="<?= h($cal_base) ?>">
+              <i class="bi bi-download me-1"></i>Pobierz plik .ics
+            </a>
+            <a class="btn btn-outline-primary btn-sm" href="<?= h($cal_webcal) ?>">
+              <i class="bi bi-calendar-plus me-1"></i>Subskrybuj (webcal)
+            </a>
+          </div>
+
+          <hr>
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <span class="small text-body-secondary"><i class="bi bi-shield-lock me-1"></i>Adres jest prywatny — nie udostępniaj go osobom postronnym.</span>
+            <form method="post" class="ms-auto" onsubmit="return confirm('Wygenerować nowy adres? Dotychczasowy link przestanie działać.')">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="cal_token_reset">
+              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+              <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-arrow-repeat me-1"></i>Wygeneruj nowy adres
+              </button>
+            </form>
+          </div>
+        </div>
+      </div></div>
+    </div>
 
     <!-- Ukryty formularz akcji obecności (odwołaj/przywróć udział) -->
     <form method="post" id="dydAttAction" class="d-none">
@@ -1891,6 +1957,21 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 </main>
 <script>
+// Kopiowanie adresu kanału iCal do schowka.
+document.addEventListener('click', function(e){
+  var b = e.target.closest('[data-copy-target]'); if (!b) return;
+  var inp = document.getElementById(b.getAttribute('data-copy-target')); if (!inp) return;
+  var done = function(){
+    var orig = b.innerHTML;
+    b.innerHTML = '<i class="bi bi-check2 me-1"></i>Skopiowano';
+    setTimeout(function(){ b.innerHTML = orig; }, 1500);
+  };
+  inp.focus(); inp.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(inp.value).then(done, function(){ try { document.execCommand('copy'); done(); } catch(_){} });
+  } else { try { document.execCommand('copy'); done(); } catch(_){} }
+});
+
 // „Zaznacz / odznacz wszystkich" w oknie sprawdzania obecności.
 document.addEventListener('click', function(e){
   var b = e.target.closest('.att-toggle-all'); if (!b) return;

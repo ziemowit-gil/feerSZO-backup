@@ -517,6 +517,14 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_instr_user ON k30_ti_instructor_accounts(user_id)");
 
+    // Prywatny token kanału iCal prowadzącego (subskrypcja kalendarza lekcji).
+    // Tożsamość dydaktyka = users.id (logowanie danymi SZO), więc token trzymamy
+    // per użytkownik — niezależnie od istnienia konta panelu dydaktyka.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_cal_tokens (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        token   TEXT NOT NULL DEFAULT ''
+    )");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2575,6 +2583,138 @@ function k30_ti_calendar_ics(int $client_id, string $cal_name = 'Lekcje TI'): st
 
         $lines[] = 'BEGIN:VEVENT';
         $lines[] = 'UID:k30ti-' . (int)$l['id'] . '@' . $host;
+        $lines[] = 'DTSTAMP:' . $now;
+        $lines[] = $dtStart;
+        $lines[] = $dtEnd;
+        $lines[] = $fold('SUMMARY:' . $esc($summary));
+        if ($desc !== '') $lines[] = $fold('DESCRIPTION:' . $desc);
+        $lines[] = 'STATUS:' . ($cancelled ? 'CANCELLED' : 'CONFIRMED');
+        if ($cancelled) $lines[] = 'TRANSP:TRANSPARENT';
+        $lines[] = 'END:VEVENT';
+    }
+
+    $lines[] = 'END:VCALENDAR';
+    return implode("\r\n", $lines) . "\r\n";
+}
+
+/** Token kanału iCal prowadzącego — tworzy przy pierwszym użyciu. */
+function k30_ti_instructor_cal_token(int $user_id): string {
+    $row = db_one("SELECT token FROM k30_ti_instructor_cal_tokens WHERE user_id=?", [$user_id]);
+    $tok = (string)($row['token'] ?? '');
+    if ($tok === '') {
+        $tok = bin2hex(random_bytes(20));
+        db()->prepare("INSERT INTO k30_ti_instructor_cal_tokens(user_id, token) VALUES(?,?)
+                       ON CONFLICT(user_id) DO UPDATE SET token=excluded.token")
+            ->execute([$user_id, $tok]);
+    }
+    return $tok;
+}
+
+/** Nowy token kanału iCal prowadzącego — unieważnia poprzedni adres subskrypcji. */
+function k30_ti_instructor_cal_token_reset(int $user_id): string {
+    $tok = bin2hex(random_bytes(20));
+    db()->prepare("INSERT INTO k30_ti_instructor_cal_tokens(user_id, token) VALUES(?,?)
+                   ON CONFLICT(user_id) DO UPDATE SET token=excluded.token")
+        ->execute([$user_id, $tok]);
+    return $tok;
+}
+
+/**
+ * Buduje treść pliku iCal (VCALENDAR) z lekcjami prowadzącego.
+ * Każde zdarzenie ma tytuł w formie „Lekcja — kursant" (temat/kurs + nazwiska
+ * zapisanych kursantów). Obejmuje wszystkie kursy, w których jest prowadzącym.
+ */
+function k30_ti_instructor_calendar_ics(int $user_id, string $cal_name = 'Lekcje TI'): string {
+    $lessons = db_all(
+        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min,
+                s.topic, s.status, s.has_homework, s.self_prep_remote,
+                c.name AS course_name,
+                (SELECT group_concat(cl.name, ', ')
+                   FROM k30_ti_attendance a
+                   JOIN k30_clients cl ON cl.id=a.client_id
+                  WHERE a.session_id=s.id AND a.cancelled=0) AS student_names
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE c.instructor_id=?
+         ORDER BY s.lesson_date DESC, s.time_from
+         LIMIT 500",
+        [$user_id]
+    );
+    $host = parse_url(defined('APP_URL') ? APP_URL : '', PHP_URL_HOST) ?: 'szo';
+
+    $esc = static fn(string $s): string =>
+        str_replace(["\\", "\n", "\r", ",", ";"], ["\\\\", "\\n", "", "\\,", "\\;"], $s);
+
+    $fold = static function (string $line): string {
+        if (strlen($line) <= 75) return $line;
+        $out = ''; $cur = ''; $len = 0;
+        foreach (mb_str_split($line) as $ch) {
+            $cl = strlen($ch);
+            if ($len + $cl > 73) { $out .= ($out === '' ? '' : "\r\n") . $cur; $cur = ' ' . $ch; $len = 1 + $cl; }
+            else { $cur .= $ch; $len += $cl; }
+        }
+        $out .= ($out === '' ? '' : "\r\n") . $cur;
+        return $out;
+    };
+
+    $lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//SZO//Karty30 TI//PL',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'X-WR-CALNAME:' . $esc($cal_name),
+        'X-WR-TIMEZONE:Europe/Warsaw',
+    ];
+
+    $now = gmdate('Ymd\THis\Z');
+
+    foreach ($lessons as $l) {
+        $date = (string)($l['lesson_date'] ?? '');
+        if ($date === '') continue;
+
+        $tf = trim((string)($l['time_from'] ?? ''));
+        $tt = trim((string)($l['time_to'] ?? ''));
+        $allDay = ($tf === '');
+
+        try {
+            if ($allDay) {
+                $start = new DateTime($date);
+                $end   = (clone $start)->modify('+1 day');
+                $dtStart = 'DTSTART;VALUE=DATE:' . $start->format('Ymd');
+                $dtEnd   = 'DTEND;VALUE=DATE:'   . $end->format('Ymd');
+            } else {
+                $start = new DateTime($date . ' ' . $tf);
+                if ($tt !== '') {
+                    $end = new DateTime($date . ' ' . $tt);
+                    if ($end <= $start) $end = (clone $start)->modify('+' . max(15, (int)($l['duration_min'] ?? 60)) . ' minutes');
+                } else {
+                    $end = (clone $start)->modify('+' . max(15, (int)($l['duration_min'] ?? 60)) . ' minutes');
+                }
+                $dtStart = 'DTSTART:' . $start->format('Ymd\THis');
+                $dtEnd   = 'DTEND:'   . $end->format('Ymd\THis');
+            }
+        } catch (\Throwable $e) { continue; }
+
+        $topic    = trim((string)($l['topic'] ?? ''));
+        $course   = trim((string)($l['course_name'] ?? ''));
+        $students = trim((string)($l['student_names'] ?? ''));
+
+        // Tytuł: „Lekcja — kursant" (temat lekcji lub nazwa kursu + kursanci).
+        $lesson  = $topic !== '' ? $topic : ($course !== '' ? $course : 'Lekcja TI');
+        if (!empty($l['self_prep_remote'])) $lesson .= ' (praca własna)';
+        $summary = $students !== '' ? ($lesson . ' — ' . $students) : $lesson;
+
+        $descParts = [];
+        if ($course !== '')              $descParts[] = 'Kurs: ' . $course;
+        if ($students !== '')            $descParts[] = 'Kursant: ' . $students;
+        if (!empty($l['has_homework']))  $descParts[] = 'Zadanie domowe: tak';
+        $desc = implode('\\n', array_map($esc, $descParts));
+
+        $cancelled = ((string)($l['status'] ?? '') === 'cancelled');
+
+        $lines[] = 'BEGIN:VEVENT';
+        $lines[] = 'UID:k30ti-dyd-' . (int)$l['id'] . '@' . $host;
         $lines[] = 'DTSTAMP:' . $now;
         $lines[] = $dtStart;
         $lines[] = $dtEnd;
