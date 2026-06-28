@@ -52,6 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'crea
     header('Location: ' . APP_URL . '/admin/index.php#setup'); exit;
 }
 
+// ── Setup: ręczne zakończenie konfiguracji wstępnej ──────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'finish_setup') {
+    csrf_check();
+    org_setting_set('setup_complete', '1');
+    org_setting_set('setup_completed_at', date('Y-m-d H:i:s'));
+    org_setting_set('setup_completed_by', (string)(current_user()['id'] ?? ''));
+    flash_set('success', 'Konfiguracja wstępna została oznaczona jako zakończona.');
+    header('Location: ' . APP_URL . '/admin/index.php'); exit;
+}
+
 // ── Liczniki ──────────────────────────────────────────────────────────────────
 $cnt = [];
 
@@ -512,7 +522,7 @@ include dirname(__DIR__) . '/includes/header.php';
   $done  = count(array_filter($setup_items, fn($i) => $i['ok']));
   $total = count($setup_items);
 
-  if ($done < $total):
+  if ($done < $total && !org_setting('setup_complete')):
   ?>
   <div class="card shadow-sm mb-4" style="border-left:4px solid #f59e0b">
     <div class="card-body py-3">
@@ -568,6 +578,24 @@ include dirname(__DIR__) . '/includes/header.php';
         </form>
       </div>
       <?php endif; ?>
+
+      <div class="d-flex align-items-center gap-2 mt-3 pt-2 border-top">
+        <span class="text-muted" style="font-size:.78rem">
+          <?php if ($done < $total): ?>
+            Możesz pominąć pozostałe punkty i ręcznie zakończyć konfigurację wstępną.
+          <?php else: ?>
+            Wszystkie punkty ukończone — możesz zamknąć konfigurację wstępną.
+          <?php endif; ?>
+        </span>
+        <form method="post" class="ms-auto"
+              onsubmit="return confirm('Czy na pewno zakończyć konfigurację wstępną? Lista kontrolna zniknie z panelu.');">
+          <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="finish_setup">
+          <button class="btn btn-success btn-sm">
+            <i class="bi bi-check2-circle me-1"></i>Konfiguracja wstępna — zakończ
+          </button>
+        </form>
+      </div>
     </div>
   </div>
   <?php endif; ?>
