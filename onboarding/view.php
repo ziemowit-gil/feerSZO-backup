@@ -220,6 +220,13 @@ include __DIR__ . '/../includes/header.php';
           </li>
         </ul>
 
+        <?php if (!empty($vol['oswiadczenie_file'])): ?>
+        <div class="mb-2">
+          <small class="text-muted d-block">Oświadczenie pod./ZUS</small>
+          <a href="<?= APP_URL . '/' . h($vol['oswiadczenie_file']) ?>" target="_blank" rel="noopener">Pobierz skan</a>
+        </div>
+        <?php endif; ?>
+
         <div class="mb-3">
           <div class="mb-1">
             <?php if ($vol['phone_verified']): ?>
@@ -375,6 +382,19 @@ include __DIR__ . '/../includes/header.php';
     <table class="table table-striped table-sm mb-0">
       <tbody>
         <tr><th style="width:200px">Imię i nazwisko</th><td><?= h($vol['imie_nazwisko'] ?: '—') ?></td></tr>
+        <?php if (!empty($vol['miejsce_wolontariatu'])): ?>
+        <tr><th>Miejsce wolontariatu</th><td><?= h($vol['miejsce_wolontariatu']) ?></td></tr>
+        <?php endif; ?>
+        <?php if (!empty($vol['przedmiot_porozumienia'])): ?>
+        <tr><th>Zakres działań</th><td><?= nl2br(h($vol['przedmiot_porozumienia'])) ?></td></tr>
+        <?php endif; ?>
+        <?php if (!empty($vol['data_rozpoczecia']) || !empty($vol['data_zakonczenia'])): ?>
+        <tr><th>Planowany okres</th><td>
+          <?= h($vol['data_rozpoczecia'] ? date_pl($vol['data_rozpoczecia']) : '—') ?>
+          &ndash;
+          <?= h($vol['data_zakonczenia'] ? date_pl($vol['data_zakonczenia']) : '—') ?>
+        </td></tr>
+        <?php endif; ?>
         <tr>
           <th>PESEL</th>
           <td>
@@ -401,6 +421,29 @@ include __DIR__ . '/../includes/header.php';
         <tr><th>IP</th><td><span class="text-muted"><?= h($vol['ip_address'] ?: '—') ?></span></td></tr>
         <tr><th>Data zgłoszenia</th><td><?= h(date_pl($vol['created_at'])) ?></td></tr>
         <tr><th>Ostatnia aktualizacja</th><td><?= h(date_pl($vol['updated_at'])) ?></td></tr>
+        <tr>
+          <th>Oświadczenie pod./ZUS</th>
+          <td>
+            <?php if (!empty($vol['oswiadczenie_file'])): ?>
+              <a href="<?= APP_URL . '/' . h($vol['oswiadczenie_file']) ?>" target="_blank" rel="noopener">
+                Pobierz skan
+              </a>
+            <?php else: ?>
+              <span class="text-muted">brak</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php if (!empty($vol['user_id'])): ?>
+        <tr>
+          <th>Konto portalu</th>
+          <td>
+            <a href="<?= APP_URL ?>/admin/users.php?highlight=<?= (int)$vol['user_id'] ?>">
+              #<?= (int)$vol['user_id'] ?>
+            </a>
+            <small class="text-muted ms-1">(konto utworzone automatycznie)</small>
+          </td>
+        </tr>
+        <?php endif; ?>
       </tbody>
     </table>
   </div>

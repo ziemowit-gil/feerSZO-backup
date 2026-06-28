@@ -28,7 +28,6 @@ $ob_logo         = get_setting('onboarding_logo');
 $ob_accent       = get_setting('onboarding_accent_color') ?: '#0d6efd';
 $ob_bg           = get_setting('onboarding_bg_color')     ?: '#f0f4f8';
 $ob_custom_css   = get_setting('onboarding_custom_css');
-// sanitise colour values — must be a valid CSS colour starting with # or rgb
 if (!preg_match('/^#[0-9a-fA-F]{3,8}$/', $ob_accent)) $ob_accent = '#0d6efd';
 if (!preg_match('/^#[0-9a-fA-F]{3,8}$/', $ob_bg))     $ob_bg     = '#f0f4f8';
 
@@ -37,16 +36,16 @@ $disabled_page = ($enabled === '0');
 // ─── session / step routing ─────────────────────────────────────────────────
 
 $step = isset($_GET['step']) ? (int)$_GET['step'] : 1;
-if ($step < 1 || $step > 5) $step = 1;
+if ($step < 1 || $step > 6) $step = 1;
 
 $ob_id = $_SESSION['ob_id'] ?? null;
 
-if ($step > 1 && $step < 5 && !$ob_id) {
+if ($step > 1 && $step < 6 && !$ob_id) {
     ob_redirect(1);
 }
 
-$errors   = [];
-$success  = '';
+$errors  = [];
+$success = '';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POST HANDLING
@@ -57,18 +56,22 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Step 1 POST ──────────────────────────────────────────────────────
     if ($step === 1) {
-        $imie_nazwisko = trim($_POST['imie_nazwisko'] ?? '');
-        $pesel         = trim($_POST['pesel'] ?? '');
+        $imie_nazwisko  = trim($_POST['imie_nazwisko'] ?? '');
+        $pesel          = trim($_POST['pesel'] ?? '');
         $data_urodzenia = trim($_POST['data_urodzenia'] ?? '');
-        $adres         = trim($_POST['adres'] ?? '');
-        $telefon_raw   = preg_replace('/\D/', '', trim($_POST['telefon'] ?? ''));
-        $email         = trim($_POST['email'] ?? '');
+        $adres          = trim($_POST['adres'] ?? '');
+        $telefon_raw    = preg_replace('/\D/', '', trim($_POST['telefon'] ?? ''));
+        $email          = trim($_POST['email'] ?? '');
+
+        $miejsce        = trim($_POST['miejsce_wolontariatu'] ?? '');
+        $przedmiot      = trim($_POST['przedmiot_porozumienia'] ?? '');
+        $data_rozp      = trim($_POST['data_rozpoczecia'] ?? '');
+        $data_zak       = trim($_POST['data_zakonczenia'] ?? '');
 
         if ($imie_nazwisko === '') $errors[] = 'Imię i nazwisko jest wymagane.';
-        if ($adres === '') $errors[] = 'Adres jest wymagany.';
+        if ($adres === '')         $errors[] = 'Adres jest wymagany.';
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Podaj prawidłowy adres e-mail.';
 
-        // Normalize phone
         $telefon_norm = $telefon_raw;
         if (strlen($telefon_raw) === 9) {
             $telefon_norm = '48' . $telefon_raw;
@@ -77,13 +80,11 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($telefon_raw === '') {
             $errors[] = 'Numer telefonu jest wymagany.';
         } else {
-            // Accept as-is if 9 digits already prefixed differently — still require non-empty
             if (strlen($telefon_raw) < 9) {
                 $errors[] = 'Podaj prawidłowy numer telefonu (9 cyfr).';
             }
         }
 
-        // Auto-fill data_urodzenia from PESEL
         if ($pesel !== '' && $data_urodzenia === '') {
             $bd = pesel_to_birthdate($pesel);
             if ($bd) $data_urodzenia = $bd;
@@ -92,21 +93,25 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             $token = bin2hex(random_bytes(16));
             $new_id = db_insert('onboarding_volunteers', [
-                'session_token'   => $token,
-                'status'          => 'new',
-                'imie_nazwisko'   => $imie_nazwisko,
-                'pesel'           => $pesel,
-                'data_urodzenia'  => $data_urodzenia,
-                'adres'           => $adres,
-                'telefon'         => $telefon_norm,
-                'email'           => $email,
-                'phone_verified'  => 0,
-                'email_verified'  => 0,
-                'klauzula_accepted' => 0,
-                'ip_address'      => $_SERVER['REMOTE_ADDR'] ?? '',
-                'user_agent'      => $_SERVER['HTTP_USER_AGENT'] ?? '',
-                'created_at'      => date('Y-m-d H:i:s'),
-                'updated_at'      => date('Y-m-d H:i:s'),
+                'session_token'          => $token,
+                'status'                 => 'new',
+                'imie_nazwisko'          => $imie_nazwisko,
+                'pesel'                  => $pesel,
+                'data_urodzenia'         => $data_urodzenia,
+                'adres'                  => $adres,
+                'telefon'                => $telefon_norm,
+                'email'                  => $email,
+                'miejsce_wolontariatu'   => $miejsce,
+                'przedmiot_porozumienia' => $przedmiot,
+                'data_rozpoczecia'       => $data_rozp,
+                'data_zakonczenia'       => $data_zak,
+                'phone_verified'         => 0,
+                'email_verified'         => 0,
+                'klauzula_accepted'      => 0,
+                'ip_address'             => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent'             => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'created_at'             => date('Y-m-d H:i:s'),
+                'updated_at'             => date('Y-m-d H:i:s'),
             ]);
             $_SESSION['ob_id']   = $new_id;
             $_SESSION['ob_step'] = 2;
@@ -142,9 +147,9 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Kod wygasł. Wyślij nowy kod.';
             } else {
                 db_update('onboarding_volunteers', [
-                    'phone_verified'  => 1,
-                    'phone_code'      => null,
-                    'updated_at'      => date('Y-m-d H:i:s'),
+                    'phone_verified' => 1,
+                    'phone_code'     => null,
+                    'updated_at'     => date('Y-m-d H:i:s'),
                 ], $ob_id);
                 $_SESSION['ob_step'] = 3;
                 ob_redirect(3);
@@ -181,7 +186,7 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // ── Step 4 POST ──────────────────────────────────────────────────────
+    // ── Step 4 POST — klauzula RODO ──────────────────────────────────────
     if ($step === 4) {
         $klauzula_text = get_setting('onboarding_klauzula');
         if ($klauzula_text === '') {
@@ -191,26 +196,109 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$accepted) {
             $errors[] = 'Musisz zaakceptować klauzulę informacyjną, aby kontynuować.';
         } else {
-            $vol = db_one("SELECT * FROM onboarding_volunteers WHERE id=?", [$ob_id]);
             db_update('onboarding_volunteers', [
                 'klauzula_accepted' => 1,
                 'klauzula_version'  => md5($klauzula_text),
-                'status'            => 'pending',
                 'updated_at'        => date('Y-m-d H:i:s'),
             ], $ob_id);
+            $_SESSION['ob_step'] = 5;
+            ob_redirect(5);
+        }
+    }
 
-            // Notification email
+    // ── Step 5 POST — oświadczenie + zakończenie ──────────────────────────
+    if ($step === 5) {
+        $vol      = db_one("SELECT * FROM onboarding_volunteers WHERE id=?", [$ob_id]);
+        $file_ok  = false;
+        $file_path = $vol['oswiadczenie_file'] ?? '';
+
+        if (!empty($_FILES['oswiadczenie']['tmp_name'])) {
+            $file    = $_FILES['oswiadczenie'];
+            $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowed_ext = ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'tif'];
+            if (!in_array($ext, $allowed_ext, true)) {
+                $errors[] = 'Dozwolone formaty pliku: PDF, JPG, PNG, TIFF.';
+            } elseif ($file['size'] > 10 * 1024 * 1024) {
+                $errors[] = 'Plik nie może być większy niż 10 MB.';
+            } elseif ($file['error'] !== UPLOAD_ERR_OK) {
+                $errors[] = 'Błąd przesyłania pliku. Spróbuj ponownie.';
+            } else {
+                $dest_dir = rtrim(UPLOAD_DIR, '/') . '/onboarding/oswiadczenia/';
+                if (!is_dir($dest_dir)) mkdir($dest_dir, 0755, true);
+                $new_name = 'oswiad_' . $ob_id . '_' . time() . '.' . $ext;
+                if (move_uploaded_file($file['tmp_name'], $dest_dir . $new_name)) {
+                    $file_path = 'uploads/onboarding/oswiadczenia/' . $new_name;
+                    db_update('onboarding_volunteers', [
+                        'oswiadczenie_file' => $file_path,
+                        'updated_at'        => date('Y-m-d H:i:s'),
+                    ], $ob_id);
+                    $file_ok = true;
+                } else {
+                    $errors[] = 'Nie udało się zapisać pliku. Sprawdź uprawnienia i spróbuj ponownie.';
+                }
+            }
+        } elseif ($file_path !== '') {
+            // Plik już wcześniej przesłany
+            $file_ok = true;
+        } else {
+            $errors[] = 'Oświadczenie jest wymagane. Prześlij skan lub zdjęcie dokumentu.';
+        }
+
+        if ($file_ok && empty($errors)) {
+            // Utwórz konto portalu, jeśli jeszcze nie istnieje
+            $user_id = $vol['user_id'] ? (int)$vol['user_id'] : null;
+            if (!$user_id && filter_var($vol['email'], FILTER_VALIDATE_EMAIL)) {
+                $existing = db_one("SELECT id FROM users WHERE email=?", [$vol['email']]);
+                if ($existing) {
+                    $user_id = (int)$existing['id'];
+                } else {
+                    $hash = password_hash(bin2hex(random_bytes(24)), PASSWORD_BCRYPT);
+                    db_insert('users', [
+                        'name'       => $vol['imie_nazwisko'] ?: $vol['email'],
+                        'email'      => $vol['email'],
+                        'password'   => $hash,
+                        'role'       => 'viewer',
+                        'is_active'  => 1,
+                        'created_at' => date('Y-m-d H:i:s'),
+                    ]);
+                    $user_id   = (int)db()->lastInsertId();
+                    $setup_tok = auth_generate_setup_token($user_id);
+                    $setup_url = APP_URL . '/auth/set_password.php?token=' . $setup_tok;
+                    $org       = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+                    $html_act  = '<p>Witaj ' . h($vol['imie_nazwisko']) . ',</p>'
+                               . '<p>Twoje zgłoszenie wolontariackie zostało przyjęte i oczekuje na weryfikację. '
+                               . 'Możesz już ustawić hasło do swojego konta — kliknij poniższy link:</p>'
+                               . '<p><a href="' . $setup_url . '">' . $setup_url . '</a></p>'
+                               . '<p>Link jest jednorazowy i wygasa po 24 godzinach. '
+                               . 'Skontaktujemy się z Tobą po zweryfikowaniu danych przez koordynatora.</p>';
+                    approval_send_email($vol['email'], 'Aktywuj konto — ' . $org, $html_act);
+                }
+                db_update('onboarding_volunteers', [
+                    'user_id'    => $user_id,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], $ob_id);
+            }
+
+            db_update('onboarding_volunteers', [
+                'status'     => 'pending',
+                'updated_at' => date('Y-m-d H:i:s'),
+            ], $ob_id);
+
+            // Powiadomienie koordynatora
             $notify_email = get_setting('onboarding_notify_email');
             if ($notify_email !== '') {
                 $link = APP_URL . '/onboarding/view.php?id=' . $ob_id;
                 $html = '<p>Nowe zgłoszenie wolontariusza: <strong>' . h($vol['imie_nazwisko']) . '</strong>'
-                      . ' (' . h($vol['email']) . ')</p>'
+                      . ' (' . h($vol['email']) . ').</p>'
+                      . '<p>Oświadczenie podatkowe/ZUS zostało dołączone do zgłoszenia.</p>'
                       . '<p><a href="' . $link . '">Przejdź do zgłoszenia</a></p>';
-                approval_send_email($notify_email, 'Nowe zgłoszenie wolontariusza: ' . $vol['imie_nazwisko'] . ' (' . $vol['email'] . ')', $html);
+                approval_send_email($notify_email,
+                    'Nowe zgłoszenie wolontariusza: ' . $vol['imie_nazwisko'] . ' (' . $vol['email'] . ')',
+                    $html);
             }
 
-            $_SESSION['ob_step'] = 5;
-            ob_redirect(5);
+            $_SESSION['ob_step'] = 6;
+            ob_redirect(6);
         }
     }
 }
@@ -227,7 +315,6 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'GET') {
         $sms_ok      = sms_is_enabled();
 
         if ($require_sms !== '1' || !$sms_ok) {
-            // Skip: mark verified
             db_update('onboarding_volunteers', [
                 'phone_verified' => 1,
                 'updated_at'     => date('Y-m-d H:i:s'),
@@ -236,7 +323,6 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'GET') {
             ob_redirect(3);
         }
 
-        // Auto-send on first visit (no code yet)
         $vol = db_one("SELECT * FROM onboarding_volunteers WHERE id=?", [$ob_id]);
         if ($vol['phone_code'] === null) {
             $code    = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
@@ -269,13 +355,11 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'GET') {
 
         $vol = db_one("SELECT * FROM onboarding_volunteers WHERE id=?", [$ob_id]);
 
-        // Already verified
         if ((int)$vol['email_verified'] === 1) {
             $_SESSION['ob_step'] = 4;
             ob_redirect(4);
         }
 
-        // Send token on first visit
         if ($vol['email_token'] === null) {
             $token   = bin2hex(random_bytes(32));
             $expires = date('Y-m-d H:i:s', time() + 86400);
@@ -292,8 +376,8 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 
-    // ── Step 5 GET — clear session ───────────────────────────────────────
-    if ($step === 5) {
+    // ── Step 6 GET — clear session ───────────────────────────────────────
+    if ($step === 6) {
         unset($_SESSION['ob_id'], $_SESSION['ob_step']);
     }
 }
@@ -301,7 +385,7 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // ─── reload vol record for display ──────────────────────────────────────────
 
 $vol = null;
-if ($ob_id && $step > 1 && $step <= 4) {
+if ($ob_id && $step > 1 && $step <= 5) {
     $vol = db_one("SELECT * FROM onboarding_volunteers WHERE id=?", [$ob_id]);
 }
 
@@ -311,7 +395,7 @@ if ($ob_id && $step > 1 && $step <= 4) {
 
 $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
 
-$step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
+$step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula', 'Oświadczenie'];
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -320,12 +404,10 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= $page_title ?></title>
   <link rel="stylesheet" href="<?= APP_URL ?>/assets/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
       --ob-accent: <?= h($ob_accent) ?>;
       --ob-bg:     <?= h($ob_bg) ?>;
-      --ob-accent-dark: <?= h($ob_accent) ?>;
     }
     *, *::before, *::after { box-sizing: border-box; }
     body {
@@ -386,8 +468,8 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
       content: '';
       position: absolute;
       top: 13px;
-      left: calc(100% / 8);
-      right: calc(100% / 8);
+      left: calc(100% / 10);
+      right: calc(100% / 10);
       height: 2px;
       background: #dee2e6;
       z-index: 0;
@@ -398,7 +480,7 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
       align-items: center;
       flex: 1;
       position: relative;
-      font-size: .78rem;
+      font-size: .75rem;
       z-index: 1;
     }
     .step-item:not(:last-child)::after {
@@ -464,6 +546,28 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
       color: #374151;
     }
 
+    /* ── Upload area ───────────────────────────────────────── */
+    .upload-area {
+      border: 2px dashed #ced4da;
+      border-radius: .5rem;
+      padding: 2rem;
+      text-align: center;
+      background: #fafafa;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .upload-area:hover,
+    .upload-area.dragover {
+      border-color: var(--ob-accent);
+      background: color-mix(in srgb, var(--ob-accent) 5%, #fff);
+    }
+    .upload-area input[type=file] {
+      position: absolute;
+      width: 0;
+      height: 0;
+      opacity: 0;
+    }
+
     /* ── Success state ─────────────────────────────────────── */
     .ob-success-icon { font-size: 3.5rem; color: var(--ob-accent); }
 
@@ -491,14 +595,12 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
 <?php if ($disabled_page): ?>
   <div class="ob-card">
     <div class="ob-card-body text-center py-5">
-      <i class="bi bi-x-circle text-danger" style="font-size:3rem"></i>
-      <h5 class="mt-3">Formularz niedostępny</h5>
-      <p class="text-muted">Formularz rejestracyjny jest chwilowo niedostępny. Spróbuj ponownie później.</p>
+      <p class="text-muted mb-0">Formularz rejestracyjny jest chwilowo niedostępny. Spróbuj ponownie później.</p>
     </div>
   </div>
 <?php else: ?>
 
-  <?php if ($step >= 1 && $step <= 4): ?>
+  <?php if ($step >= 1 && $step <= 5): ?>
   <!-- Step indicator -->
   <div class="step-indicator mb-4">
     <?php foreach ($step_labels as $i => $label):
@@ -510,7 +612,7 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
     <div class="step-item <?= $cls ?>">
       <div class="step-circle">
         <?php if ($num < $step): ?>
-          <i class="bi bi-check"></i>
+          &#10003;
         <?php else: ?>
           <?= $num ?>
         <?php endif; ?>
@@ -540,7 +642,7 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
 
     <?php
     // ═══════════════════════════════════════════════════════════
-    // STEP 1
+    // STEP 1 — dane podstawowe i dane do umowy
     // ═══════════════════════════════════════════════════════════
     if ($step === 1):
       if ($ob_intro): ?>
@@ -548,6 +650,8 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
       <?php endif; ?>
       <form method="post" action="?step=1" id="step1form">
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+
+        <h6 class="mb-3 fw-semibold text-secondary border-bottom pb-2">Dane osobowe</h6>
 
         <div class="mb-3">
           <label class="form-label fw-semibold">Imię i nazwisko <span class="text-danger">*</span></label>
@@ -561,7 +665,6 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
                  maxlength="11" pattern="\d{11}"
                  value="<?= h($_POST['pesel'] ?? '') ?>"
                  placeholder="Wypełnij, aby auto-uzupełnić datę urodzenia">
-          <div class="form-text">Wprowadź PESEL, by automatycznie uzupełnić datę urodzenia.</div>
         </div>
 
         <div class="mb-3">
@@ -581,7 +684,7 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
           <label class="form-label fw-semibold">Numer telefonu <span class="text-danger">*</span></label>
           <div class="input-group">
             <span class="input-group-text">+48</span>
-            <input type="tel" name="telefon" class="form-control phone-48"
+            <input type="tel" name="telefon" class="form-control"
                    id="telefon_input"
                    value="<?= h($_POST['telefon'] ?? '') ?>"
                    placeholder="123456789" maxlength="9" required>
@@ -589,42 +692,68 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
           <div class="form-text">Podaj 9-cyfrowy numer komórkowy.</div>
         </div>
 
-        <div class="mb-3">
+        <div class="mb-4">
           <label class="form-label fw-semibold">Adres e-mail <span class="text-danger">*</span></label>
           <input type="email" name="email" class="form-control"
                  value="<?= h($_POST['email'] ?? '') ?>" required>
+          <div class="form-text">Na ten adres wyślemy link do aktywacji konta.</div>
+        </div>
+
+        <h6 class="mb-3 fw-semibold text-secondary border-bottom pb-2">Dane do porozumienia wolontariackiego</h6>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Miejsce wolontariatu</label>
+          <input type="text" name="miejsce_wolontariatu" class="form-control"
+                 value="<?= h($_POST['miejsce_wolontariatu'] ?? '') ?>"
+                 placeholder="np. Biuro główne, ul. Przykładowa 1">
+          <div class="form-text">Gdzie będziesz wykonywać wolontariat?</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Zakres działań / przedmiot porozumienia</label>
+          <textarea name="przedmiot_porozumienia" class="form-control" rows="3"
+                    placeholder="Krótko opisz, w czym chcesz pomagać..."><?= h($_POST['przedmiot_porozumienia'] ?? '') ?></textarea>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Planowana data rozpoczecia</label>
+            <input type="date" name="data_rozpoczecia" class="form-control"
+                   value="<?= h($_POST['data_rozpoczecia'] ?? '') ?>">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Planowana data zakończenia</label>
+            <input type="date" name="data_zakonczenia" class="form-control"
+                   value="<?= h($_POST['data_zakonczenia'] ?? '') ?>">
+          </div>
         </div>
 
         <div class="d-grid">
           <button type="submit" class="btn btn-ob-primary">
-            Dalej <i class="bi bi-arrow-right"></i>
+            Dalej &rarr;
           </button>
         </div>
       </form>
 
       <script>
-      // PESEL → data urodzenia
       function peselToBirthdate(pesel) {
         if (!/^\d{11}$/.test(pesel)) return null;
         var y = parseInt(pesel.substring(0,2), 10);
         var m = parseInt(pesel.substring(2,4), 10);
         var d = parseInt(pesel.substring(4,6), 10);
         var year;
-        if (m >= 81 && m <= 92)      { year = 1800 + y; m -= 80; }
-        else if (m >= 1  && m <= 12)  { year = 1900 + y; }
-        else if (m >= 21 && m <= 32)  { year = 2000 + y; m -= 20; }
-        else if (m >= 41 && m <= 52)  { year = 2100 + y; m -= 40; }
-        else if (m >= 61 && m <= 72)  { year = 2200 + y; m -= 60; }
+        if (m >= 81 && m <= 92)     { year = 1800 + y; m -= 80; }
+        else if (m >= 1  && m <= 12) { year = 1900 + y; }
+        else if (m >= 21 && m <= 32) { year = 2000 + y; m -= 20; }
+        else if (m >= 41 && m <= 52) { year = 2100 + y; m -= 40; }
+        else if (m >= 61 && m <= 72) { year = 2200 + y; m -= 60; }
         else return null;
-        var mm = String(m).padStart(2,'0');
-        var dd = String(d).padStart(2,'0');
-        return year + '-' + mm + '-' + dd;
+        return year + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
       }
       document.getElementById('pesel_input').addEventListener('input', function() {
         var bd = peselToBirthdate(this.value);
         if (bd) document.getElementById('data_urodzenia_input').value = bd;
       });
-      // Phone: strip leading 48 for display, submit as 9 digits (server prepends 48)
       document.getElementById('step1form').addEventListener('submit', function() {
         var inp = document.getElementById('telefon_input');
         var val = inp.value.replace(/\D/g,'');
@@ -635,12 +764,12 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
 
     <?php
     // ═══════════════════════════════════════════════════════════
-    // STEP 2
+    // STEP 2 — weryfikacja SMS
     // ═══════════════════════════════════════════════════════════
     elseif ($step === 2):
       $display_phone = $vol ? ('+' . $vol['telefon']) : '';
     ?>
-      <h5 class="mb-3"><i class="bi bi-phone"></i> Weryfikacja numeru telefonu</h5>
+      <h5 class="mb-3">Weryfikacja numeru telefonu</h5>
       <p class="text-muted mb-3">
         Wysłaliśmy kod SMS na numer <strong><?= h($display_phone) ?></strong>.<br>
         Wpisz go poniżej, aby potwierdzić swój numer telefonu.
@@ -656,9 +785,7 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
                  autocomplete="one-time-code" autofocus>
         </div>
         <div class="d-grid mb-3">
-          <button type="submit" class="btn btn-ob-primary">
-            <i class="bi bi-check-lg"></i> Zweryfikuj kod
-          </button>
+          <button type="submit" class="btn btn-ob-primary">Zweryfikuj kod</button>
         </div>
       </form>
 
@@ -666,18 +793,18 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="action" value="resend">
         <button type="submit" class="btn btn-link btn-sm text-muted">
-          <i class="bi bi-arrow-clockwise"></i> Wyślij kod ponownie
+          Wyslij kod ponownie
         </button>
       </form>
 
     <?php
     // ═══════════════════════════════════════════════════════════
-    // STEP 3
+    // STEP 3 — weryfikacja e-mail
     // ═══════════════════════════════════════════════════════════
     elseif ($step === 3):
       $display_email = $vol ? $vol['email'] : '';
     ?>
-      <h5 class="mb-3"><i class="bi bi-envelope"></i> Weryfikacja adresu e-mail</h5>
+      <h5 class="mb-3">Weryfikacja adresu e-mail</h5>
       <p class="text-muted mb-3">
         Wysłaliśmy link weryfikacyjny na adres <strong><?= h($display_email) ?></strong>.<br>
         Kliknij w link w wiadomości, a następnie wróć tutaj i naciśnij przycisk poniżej.
@@ -687,9 +814,7 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="action" value="check">
         <div class="d-grid mb-3">
-          <button type="submit" class="btn btn-ob-primary">
-            <i class="bi bi-arrow-clockwise"></i> Sprawdź weryfikację
-          </button>
+          <button type="submit" class="btn btn-ob-primary">Sprawdz weryfikację</button>
         </div>
       </form>
 
@@ -697,13 +822,13 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="action" value="resend_email">
         <button type="submit" class="btn btn-link btn-sm text-muted">
-          <i class="bi bi-send"></i> Wyślij link ponownie
+          Wyslij link ponownie
         </button>
       </form>
 
     <?php
     // ═══════════════════════════════════════════════════════════
-    // STEP 4
+    // STEP 4 — klauzula RODO
     // ═══════════════════════════════════════════════════════════
     elseif ($step === 4):
       $klauzula_text = get_setting('onboarding_klauzula');
@@ -711,7 +836,7 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
           $klauzula_text = "Administratorem danych osobowych jest organizacja. Dane przetwarzane są w celu realizacji wolontariatu na podstawie zgody (art. 6 ust. 1 lit. a RODO). Przysługuje Pani/Panu prawo dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania oraz wniesienia skargi do organu nadzorczego.";
       }
     ?>
-      <h5 class="mb-3"><i class="bi bi-shield-check"></i> Klauzula informacyjna RODO</h5>
+      <h5 class="mb-3">Klauzula informacyjna RODO</h5>
       <div class="klauzula-box mb-3"><?= h($klauzula_text) ?></div>
 
       <form method="post" action="?step=4">
@@ -723,24 +848,99 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula'];
           </label>
         </div>
         <div class="d-grid">
-          <button type="submit" class="btn btn-success">
-            <i class="bi bi-check-lg"></i> Akceptuję i wysyłam zgłoszenie
+          <button type="submit" class="btn btn-ob-primary">
+            Akceptuję i przechodzę dalej &rarr;
           </button>
         </div>
       </form>
 
     <?php
     // ═══════════════════════════════════════════════════════════
-    // STEP 5
+    // STEP 5 — oświadczenie do celów podatkowych i ZUS
     // ═══════════════════════════════════════════════════════════
     elseif ($step === 5):
+      $existing_file = $vol['oswiadczenie_file'] ?? '';
+    ?>
+      <h5 class="mb-2">Oświadczenie do celów podatkowych i ZUS</h5>
+      <p class="text-muted mb-4" style="font-size:.93rem">
+        Wypełnij i podpisz oświadczenie, a następnie prześlij jego skan lub zdjęcie.
+        Dokument jest niezbędny do zawarcia porozumienia wolontariackiego.
+        Dozwolone formaty: <strong>PDF, JPG, PNG, TIFF</strong> — maks. 10 MB.
+      </p>
+
+      <?php if ($existing_file): ?>
+      <div class="alert alert-success py-2 mb-3">
+        Plik juz przesłany. Możesz zastąpić go nowym lub kliknąć "Wyslij zgłoszenie", aby kontynuować.
+      </div>
+      <?php endif; ?>
+
+      <form method="post" action="?step=5" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+
+        <div class="mb-4">
+          <label class="form-label fw-semibold" for="oswiadczenie">
+            Skan oświadczenia <?= $existing_file ? '' : '<span class="text-danger">*</span>' ?>
+          </label>
+          <div class="upload-area" id="upload-area" onclick="document.getElementById('oswiadczenie').click()">
+            <input type="file" name="oswiadczenie" id="oswiadczenie"
+                   accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif"
+                   <?= $existing_file ? '' : 'required' ?>>
+            <p class="mb-1 fw-semibold" id="upload-label">Kliknij, aby wybrać plik</p>
+            <p class="text-muted mb-0" style="font-size:.85rem">lub przeciągnij plik tutaj</p>
+          </div>
+        </div>
+
+        <div class="d-grid">
+          <button type="submit" class="btn btn-ob-primary">
+            Wyslij zgłoszenie
+          </button>
+        </div>
+      </form>
+
+      <script>
+      var uploadInput = document.getElementById('oswiadczenie');
+      var uploadLabel = document.getElementById('upload-label');
+      var uploadArea  = document.getElementById('upload-area');
+
+      uploadInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+          uploadLabel.textContent = this.files[0].name;
+          uploadArea.style.borderColor = 'var(--ob-accent)';
+        }
+      });
+      uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+      });
+      uploadArea.addEventListener('dragleave', function() {
+        this.classList.remove('dragover');
+      });
+      uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+          uploadInput.files = e.dataTransfer.files;
+          uploadLabel.textContent = e.dataTransfer.files[0].name;
+          this.style.borderColor = 'var(--ob-accent)';
+        }
+      });
+      </script>
+
+    <?php
+    // ═══════════════════════════════════════════════════════════
+    // STEP 6 — dziękujemy
+    // ═══════════════════════════════════════════════════════════
+    elseif ($step === 6):
     ?>
       <div class="text-center py-4">
-        <i class="bi bi-check-circle-fill text-success" style="font-size:4rem"></i>
-        <h4 class="mt-3 fw-bold">Dziękujemy!</h4>
+        <div class="ob-success-icon mb-3">&#10003;</div>
+        <h4 class="fw-bold">Dziękujemy za zgłoszenie!</h4>
         <p class="text-muted">
-          Twoje zgłoszenie zostało przyjęte.<br>
-          Skontaktujemy się z Tobą po weryfikacji danych.
+          Twoje zgłoszenie zostało przyjęte i oczekuje na weryfikację koordynatora.<br>
+          Na podany adres e-mail wysłaliśmy link do aktywacji konta — sprawdź skrzynkę pocztową.
+        </p>
+        <p class="text-muted" style="font-size:.9rem">
+          Po zatwierdzeniu przez koordynatora zostaniesz poinformowany/a o dalszych krokach.
         </p>
       </div>
     <?php endif; ?>
