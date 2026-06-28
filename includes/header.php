@@ -484,6 +484,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 </style>
 </head>
 <body>
+<?= function_exists('ctx_banner_html') ? ctx_banner_html() : '' ?>
 
 <!-- ── SIDEBAR ─────────────────────────────────────────────────── -->
 <nav id="sidebar">

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/permissions.php';
+require_once __DIR__ . '/context.php';
 
 function auth_start(): void {
     if (session_status() === PHP_SESSION_NONE) {
@@ -40,7 +41,15 @@ function auth_start(): void {
 
 function current_user(): ?array {
     auth_start();
-    return $_SESSION['user'] ?? null;
+    $u = $_SESSION['user'] ?? null;
+    if (!$u) return null;
+    // Nakładka kontekstu: admin „wcielony" w innego użytkownika / podgląd roli.
+    // Prawdziwy admin zawsze pozostaje w $_SESSION['user'] (zob. includes/context.php).
+    if (($u['role'] ?? '') === 'admin' && !empty($_SESSION['ctx']) && function_exists('ctx_overlay')) {
+        $ov = ctx_overlay($u);
+        if ($ov) return $ov;
+    }
+    return $u;
 }
 
 function is_crm_only(): bool {

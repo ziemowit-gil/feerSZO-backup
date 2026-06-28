@@ -129,6 +129,7 @@ if ('serviceWorker' in navigator) {
 </script>
 </head>
 <body>
+<?= function_exists('ctx_banner_html') ? ctx_banner_html() : '' ?>
 <a href="#pv-main" class="pv-skip">Przejdź do treści</a>
 <div role="status" aria-live="polite" class="pv-live" id="pv-live"></div>
 

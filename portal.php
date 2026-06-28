@@ -9,6 +9,11 @@ require_once __DIR__ . '/includes/functions.php';
 
 require_login();
 
+// Administrator wybiera kontekst pracy po zalogowaniu (raz na sesję).
+if (ctx_can_switch() && empty($_SESSION['ctx']) && empty($_SESSION['ctx_decided'])) {
+    header('Location: ' . APP_URL . '/auth/choose_context.php'); exit;
+}
+
 if (defined('CRM_STANDALONE') && CRM_STANDALONE) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 if (($_SESSION['user']['portal_scope'] ?? '') === 'tasks_only') { header('Location: ' . APP_URL . '/tasks/inbox.php'); exit; }
 
@@ -267,6 +272,7 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
 </style>
 </head>
 <body>
+<?= ctx_banner_html() ?>
 <a href="#pw" style="position:absolute;top:-100%;left:.5rem;z-index:9999;background:var(--c,#2563eb);color:#fff;padding:.4rem 1rem;border-radius:0 0 8px 8px;font-weight:700;text-decoration:none" onfocus="this.style.top='0'" onblur="this.style.top='-100%'">Przejdź do treści</a>
 
 <!-- Topbar -->
@@ -288,6 +294,11 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
       <div class="pt-avatar"><?= h($_ini) ?></div>
       <span class="d-none d-sm-inline"><?= h(explode(' ',$_name)[0]) ?></span>
     </a>
+    <?php if (ctx_can_switch()): ?>
+    <a href="<?= APP_URL ?>/auth/choose_context.php" class="pt-btn" title="Zmień kontekst pracy">
+      <i class="bi bi-incognito"></i>
+    </a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/auth/logout.php" class="pt-btn" onclick="return confirm('Wylogować się?')">
       <i class="bi bi-box-arrow-right"></i>
     </a>
