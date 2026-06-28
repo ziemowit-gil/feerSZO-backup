@@ -133,6 +133,18 @@ if ('serviceWorker' in navigator) {
 <a href="#pv-main" class="pv-skip">Przejdź do treści</a>
 <div role="status" aria-live="polite" class="pv-live" id="pv-live"></div>
 
+<?php
+// Komunikaty — liczba nieprzeczytanych (odznaka w pasku). Idempotentny require.
+$_pv_unread = 0;
+try {
+    require_once dirname(dirname(__DIR__)) . '/includes/notifications.php';
+    if (function_exists('notif_unread_count')) $_pv_unread += notif_unread_count((int)($_pu['id'] ?? 0));
+    if (function_exists('ann_list_for_user')) {
+        $_ann = ann_list_for_user((int)($_pu['id'] ?? 0), $_pu['role'] ?? '');
+        $_pv_unread += count(array_filter($_ann, fn($a) => empty($a['is_read_by_me'])));
+    }
+} catch (\Throwable $e) {}
+?>
 <!-- Navbar -->
 <header class="pv-navbar" role="banner">
   <div class="container d-flex align-items-center gap-2 py-2">
@@ -148,6 +160,17 @@ if ('serviceWorker' in navigator) {
       </span>
     </a>
     <nav class="ms-auto d-flex align-items-center gap-2" aria-label="Akcje użytkownika">
+      <a href="<?= APP_URL ?>/komunikaty/index.php"
+         class="btn btn-sm position-relative d-inline-flex align-items-center gap-1"
+         style="background:var(--vol-color);color:#fff;font-weight:600"
+         title="Komunikaty organizacji"
+         aria-label="Komunikaty<?= $_pv_unread ? " — {$_pv_unread} nieprzeczytanych" : '' ?>">
+        <i class="bi bi-megaphone<?= $_pv_unread ? '-fill' : '' ?>" aria-hidden="true"></i>
+        <span class="d-none d-sm-inline">Komunikaty</span>
+        <?php if ($_pv_unread): ?>
+        <span class="badge rounded-pill bg-light text-dark" style="font-size:.62rem"><?= min($_pv_unread, 99) ?></span>
+        <?php endif; ?>
+      </a>
       <?php if (current_user() && org_setting('bug_report_enabled') !== '0'): ?>
       <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
               data-bs-toggle="modal" data-bs-target="#bugReportModal"
@@ -283,7 +306,7 @@ if ('serviceWorker' in navigator) {
   <?php endif; ?>
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="pv-nav-label" aria-hidden="true">Organizacja i konto</div>
+  <div class="pv-nav-label" aria-hidden="true">Organizacja</div>
 
   <?php if (module_enabled('procedures_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/procedures.php" class="pv-nav-link<?= _pv_nav_active('/panel/procedures') ?>"
@@ -310,6 +333,10 @@ if ('serviceWorker' in navigator) {
      aria-label="Przewodnik po panelu — jak korzystać z systemu">
     <i class="bi bi-book" aria-hidden="true"></i>Przewodnik po panelu
   </a>
+
+  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
+  <div class="pv-nav-label" aria-hidden="true">Konto</div>
+
   <a href="<?= APP_URL ?>/panel/m365.php" class="pv-nav-link<?= _pv_nav_active('/panel/m365') ?>">
     <i class="bi bi-microsoft" aria-hidden="true"></i>Microsoft 365
   </a>

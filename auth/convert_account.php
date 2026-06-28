@@ -70,9 +70,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $me && !$no_ms) {
     }
 }
 
-$org      = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
-$login_url = APP_URL . '/auth/login.php';
-$tok      = csrf_token();
+$org          = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
+$login_url    = APP_URL . '/auth/login.php';
+$emergency_url = APP_URL . '/auth/awaryjne.php';
+$tok          = csrf_token();
 ?>
 <!doctype html>
 <html lang="pl">
@@ -171,7 +172,7 @@ $tok      = csrf_token();
     <h2>✅ Hasło zostało utworzone</h2>
     <p class="desc">Zapisz te dane w bezpiecznym miejscu — <strong>hasło pokażemy tylko teraz</strong>.</p>
     <div class="cred">
-      <div class="row"><span class="k">Adres logowania</span><span class="v"><a class="link" href="<?= h($login_url) ?>"><?= h($login_url) ?></a></span></div>
+      <div class="row"><span class="k">Adres logowania awaryjnego</span><span class="v"><a class="link" href="<?= h($emergency_url) ?>"><?= h($emergency_url) ?></a></span></div>
       <div class="row"><span class="k">Login (e-mail)</span><span class="v" id="c-login"><?= h($me['email']) ?></span></div>
       <div class="row"><span class="k">Hasło tymczasowe</span><span class="v" id="c-pass"><?= h($generated) ?> <button type="button" class="copybtn" onclick="navigator.clipboard&&navigator.clipboard.writeText('<?= h($generated) ?>')">kopiuj</button></span></div>
     </div>

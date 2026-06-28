@@ -22,6 +22,14 @@ if ($is_feer) {
 }
 ?>
 
+<?php if (!empty($_GET['awaryjne'])): ?>
+<div style="background:#7c2d12;color:#fff;border-radius:10px;padding:.7rem .9rem;margin-bottom:1rem;font-size:.85rem;line-height:1.45">
+  <strong><i class="bi bi-shield-lock-fill me-1" aria-hidden="true"></i>Logowanie awaryjne</strong><br>
+  Zaloguj się <strong>adresem e-mail</strong> i <strong>hasłem awaryjnym</strong> (utworzonym wcześniej przez Microsoft 365).
+  Jeśli go nie masz, użyj standardowego logowania przez Office.
+</div>
+<?php endif; ?>
+
 <?php if ($is_feer && $ms_available): ?>
 <!-- ── Microsoft 365 (tylko konto @feer.org.pl) ─────────────────────────── -->
 <a href="<?= h(ms_auth_url($redirect)) ?>"

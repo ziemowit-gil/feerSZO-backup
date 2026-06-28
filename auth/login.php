@@ -222,6 +222,11 @@ if ($ms_available)    $valid_tabs[] = 'ms365';
 if ($x509_available)  $valid_tabs[] = 'x509';
 if (!in_array($active_tab, $valid_tabs, true)) $active_tab = $default_tab;
 
+// Tryb logowania awaryjnego — osobny adres /auth/awaryjne.php kieruje tu z
+// ?awaryjne=1. Wymuszamy formularz lokalny (e-mail + hasło awaryjne).
+$emergency = !empty($_GET['awaryjne']);
+if ($emergency) $active_tab = 'local';
+
 // ── Powrót na brandowany ekran modułu po nieudanym logowaniu ─────────────
 // Gdy logowanie zostało zainicjowane z dedykowanego ekranu (np. karty30/login.php),
 // w polu „from" jest jego adres — wracamy tam z komunikatem zamiast pokazywać
