@@ -34,6 +34,14 @@ if (isset($_GET['dl'])) {
         $m = k30_ti_material_get((int)($_GET['id'] ?? 0));
         if ($m && dyd_owns_course($uid, (int)$m['course_id']) && $m['attach_path'] !== '')
             k30_ti_homework_send_file($m['attach_path'], $m['attach_name']);
+    } elseif ($kind === 'sub') {
+        // Plik oddany przez kursanta — tylko dla prowadzącego kursu
+        $sub = db_one(
+            "SELECT s.file_path, s.file_name, h.course_id
+             FROM k30_ti_homework_submissions s JOIN k30_ti_homework h ON h.id=s.homework_id
+             WHERE s.id=?", [(int)($_GET['id'] ?? 0)]);
+        if ($sub && dyd_owns_course($uid, (int)$sub['course_id']) && $sub['file_path'] !== '')
+            k30_ti_homework_send_file($sub['file_path'], $sub['file_name']);
     }
     http_response_code(404); exit('Plik nie istnieje.');
 }
@@ -43,7 +51,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci'], true)) $tab = 'lekcje';
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
@@ -388,6 +396,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($res['errors'])) $msg .= ' Błędów: ' . count($res['errors']) . '.';
         flash_set(!empty($res['errors']) ? 'warning' : 'success', $msg);
         header('Location: ' . dyd_back($course_id, 'program')); exit;
+    }
+
+    // ── OCENY (e-dziennik) ──────────────────────────────────────────────────────
+    if ($op === 'grade_save') {
+        $gid        = (int)($_POST['grade_id'] ?? 0);
+        $client_id  = (int)($_POST['client_id'] ?? 0);
+        $session_id = (int)($_POST['session_id'] ?? 0) ?: null;
+        $CATS = k30_ti_grade_categories();
+        $cat  = trim($_POST['category'] ?? 'inne'); if (!isset($CATS[$cat])) $cat = 'inne';
+        $vtext  = trim($_POST['value_text'] ?? '');
+        $weight = (float)str_replace(',', '.', $_POST['weight'] ?? '1'); if ($weight <= 0) $weight = 1;
+        $desc   = trim($_POST['description'] ?? '');
+        $ok = $client_id && db_one("SELECT 1 FROM k30_ti_enrollments WHERE course_id=? AND client_id=?", [$course_id, $client_id]);
+        if (!$ok || $vtext === '') { flash_set('danger', 'Wybierz kursanta i wpisz ocenę.'); header('Location: ' . dyd_back($course_id, 'oceny')); exit; }
+        if (!k30_ti_grades_allowed($course_id, $client_id)) { flash_set('danger', 'Oceny są wyłączone dla tego kursu lub tej osoby.'); header('Location: ' . dyd_back($course_id, 'oceny')); exit; }
+        if ($session_id && !db_one("SELECT 1 FROM k30_ti_sessions WHERE id=? AND course_id=?", [$session_id, $course_id])) $session_id = null;
+        $vnum = k30_ti_grade_parse_num($vtext);
+        $g = $gid ? k30_ti_grade_get($gid) : null;
+        if ($g && (int)$g['course_id'] === $course_id) {
+            db()->prepare("UPDATE k30_ti_grades SET client_id=?, session_id=?, category=?, value_text=?, value_num=?, weight=?, description=? WHERE id=?")
+               ->execute([$client_id, $session_id, $cat, $vtext, $vnum, $weight, $desc, $gid]);
+            flash_set('success', 'Ocena zaktualizowana.');
+        } else {
+            db_insert('k30_ti_grades', [
+                'course_id'=>$course_id, 'client_id'=>$client_id, 'session_id'=>$session_id,
+                'category'=>$cat, 'value_text'=>$vtext, 'value_num'=>$vnum, 'weight'=>$weight,
+                'description'=>$desc, 'graded_by'=>$uid,
+            ]);
+            flash_set('success', 'Ocena wystawiona.');
+        }
+        if (isset($_POST['notify'])) k30_ti_notify_grade($course_id, $client_id, $vtext, $CATS[$cat]['label'] ?? $cat, $desc);
+        header('Location: ' . dyd_back($course_id, 'oceny')); exit;
+    }
+    if ($op === 'grade_delete') {
+        $gid = (int)($_POST['grade_id'] ?? 0);
+        $g   = $gid ? k30_ti_grade_get($gid) : null;
+        if ($g && (int)$g['course_id'] === $course_id) {
+            db()->prepare("DELETE FROM k30_ti_grades WHERE id=?")->execute([$gid]);
+            flash_set('success', 'Ocena usunięta.');
+        }
+        header('Location: ' . dyd_back($course_id, 'oceny')); exit;
+    }
+    if ($op === 'grade_toggle_course') {
+        $c = k30_ti_course_get($course_id);
+        if ($c) {
+            $new = empty($c['grades_enabled']) ? 1 : 0;
+            db()->prepare("UPDATE k30_ti_courses SET grades_enabled=? WHERE id=?")->execute([$new, $course_id]);
+            flash_set('success', $new ? 'Oceny w tym kursie włączone.' : 'Oceny w tym kursie wyłączone.');
+        }
+        header('Location: ' . dyd_back($course_id, 'oceny')); exit;
+    }
+
+    // ── ZADANIA: ocena oddanej pracy domowej ────────────────────────────────────
+    if ($op === 'hw_grade') {
+        $sid  = (int)($_POST['submission_id'] ?? 0);
+        $hwid = (int)($_POST['homework_id'] ?? 0);
+        $sub  = $sid ? db_one(
+            "SELECT s.id, h.course_id FROM k30_ti_homework_submissions s
+             JOIN k30_ti_homework h ON h.id=s.homework_id WHERE s.id=?", [$sid]) : null;
+        if ($sub && dyd_owns_course($uid, (int)$sub['course_id'])) {
+            $grade = trim($_POST['grade'] ?? '');
+            $fb    = trim($_POST['feedback'] ?? '');
+            db()->prepare(
+                "UPDATE k30_ti_homework_submissions
+                 SET grade=?, feedback=?, status=?, graded_by=?, graded_at=datetime('now'), updated_at=datetime('now')
+                 WHERE id=?"
+            )->execute([$grade, $fb, ($grade !== '' || $fb !== '') ? 'graded' : 'submitted', $uid, $sid]);
+            k30_ti_grade_sync_from_homework($sid, $uid);
+            flash_set('success', 'Ocena zapisana' . ($grade !== '' ? ' i dodana do dziennika ocen.' : '.'));
+        }
+        header('Location: ' . dyd_back($course_id, 'zadania') . '&hw=' . $hwid); exit;
     }
 
     // ── ZADANIA DOMOWE ──────────────────────────────────────────────────────────
@@ -976,7 +1055,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 </style>
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
-<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','testy'], true); ?>
+<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','oceny','testy'], true); ?>
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
   <a class="dyd-gb-link <?= $tab_is_course?'active':'' ?>"
      href="index.php?course=<?= $cur_course ?>&tab=lekcje"
@@ -1086,6 +1165,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                'zadania'=>['Zadania','journal-check',count($homeworks)],
                'materialy'=>['Materiały','collection-play',count($materials)],
                'nieobecnosci'=>['Nieobecności','person-x',$absent_count],
+               'oceny'=>['Oceny','journal-bookmark',(int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_grades WHERE course_id=?", [$cur_course])['n'] ?? 0)],
                'program'=>['Program zajęć','list-check',count(k30_ti_curriculum_list($cur_course))],
                'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))]];
       foreach ($tabs as $k=>$ti): ?>
@@ -1566,7 +1646,62 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endif; ?>
 
     <?php /* ═══════════════════════ ZADANIA ═══════════════════════ */ ?>
-    <?php if ($tab === 'zadania'): ?>
+    <?php if ($tab === 'zadania'):
+      $hw_view = (int)($_GET['hw'] ?? 0);
+      $hw_obj  = $hw_view ? k30_ti_homework_get($hw_view) : null;
+      if ($hw_obj && (int)$hw_obj['course_id'] !== $cur_course) $hw_obj = null;
+    ?>
+    <?php if ($hw_obj):
+      $hw_subs = k30_ti_homework_submissions($hw_view);
+    ?>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
+        <a href="index.php?course=<?= $cur_course ?>&tab=zadania" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-arrow-left me-1"></i>Wróć do zadań</a>
+        <span class="fw-semibold"><i class="bi bi-check2-square me-2"></i>Oddania: <?= h($hw_obj['title']) ?></span>
+        <span class="badge bg-secondary ms-auto"><?= count($hw_subs) ?> oddań</span>
+      </div>
+      <div class="list-group list-group-flush">
+        <?php if (!$hw_subs): ?>
+        <div class="list-group-item text-body-secondary py-3">Brak oddanych prac dla tego zadania.</div>
+        <?php endif; ?>
+        <?php foreach ($hw_subs as $s): $graded = ($s['status'] ?? '') === 'graded'; ?>
+        <div class="list-group-item">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold"><?= h($s['client_name']) ?></span>
+            <?php if ($graded): ?><span class="badge bg-success"><?= h($s['grade'] ?: 'ocenione') ?></span>
+            <?php else: ?><span class="badge bg-warning text-dark">do oceny</span><?php endif; ?>
+            <span class="text-body-secondary small ms-auto"><i class="bi bi-clock me-1"></i><?= $s['submitted_at'] ? h(date('d.m.Y H:i', strtotime($s['submitted_at']))) : '—' ?></span>
+          </div>
+          <?php if (trim((string)($s['body'] ?? '')) !== ''): ?>
+          <div class="small mt-2 p-2 rounded bg-body-tertiary border" style="white-space:pre-wrap"><?= nl2br(h($s['body'])) ?></div>
+          <?php endif; ?>
+          <?php if (trim((string)($s['file_path'] ?? '')) !== ''): ?>
+          <div class="mt-2"><a href="?dl=sub&id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-download me-1"></i><?= h(mb_substr((string)$s['file_name'], 0, 40)) ?: 'Pobierz plik' ?></a></div>
+          <?php endif; ?>
+          <form method="post" class="row g-2 mt-1 align-items-end">
+            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op" value="hw_grade">
+            <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+            <input type="hidden" name="homework_id" value="<?= $hw_view ?>">
+            <input type="hidden" name="submission_id" value="<?= (int)$s['id'] ?>">
+            <div class="col-12 col-sm-3">
+              <label class="form-label small mb-1" for="grd<?= (int)$s['id'] ?>">Ocena</label>
+              <input type="text" class="form-control form-control-sm" id="grd<?= (int)$s['id'] ?>" name="grade" value="<?= h($s['grade'] ?? '') ?>" placeholder="np. 4 / 85%">
+            </div>
+            <div class="col-12 col-sm-7">
+              <label class="form-label small mb-1" for="fb<?= (int)$s['id'] ?>">Informacja zwrotna</label>
+              <input type="text" class="form-control form-control-sm" id="fb<?= (int)$s['id'] ?>" name="feedback" value="<?= h($s['feedback'] ?? '') ?>" placeholder="komentarz dla kursanta">
+            </div>
+            <div class="col-12 col-sm-2 d-grid">
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
+            </div>
+          </form>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <div class="card-footer small text-body-secondary"><i class="bi bi-info-circle me-1"></i>Ocena liczbowa trafia automatycznie do dziennika ocen (kategoria „Zadanie domowe").</div>
+    </div>
+    <?php else: ?>
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
         <span class="fw-semibold"><i class="bi bi-journal-check me-2"></i>Zadania domowe</span>
@@ -1598,7 +1733,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <div class="mt-2 d-flex gap-2 flex-wrap">
             <?php if ($hw['attach_path']): ?><a href="?dl=hw&id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-paperclip me-1"></i>załącznik</a><?php endif; ?>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edH<?= (int)$hw['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
-            <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/homework.php?id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-check2-square me-1"></i>Oddania / oceny</a>
+            <a href="index.php?course=<?= $cur_course ?>&tab=zadania&hw=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-check2-square me-1"></i>Oddania / oceny<?php if ((int)$hw['sub_count'] > (int)$hw['graded_count']): ?> <span class="badge text-bg-warning"><?= (int)$hw['sub_count'] - (int)$hw['graded_count'] ?></span><?php endif; ?></a>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć zadanie wraz z oddaniami?')">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="delete_homework">
@@ -1621,7 +1756,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $hwFormHtml($hw, 'edH'.(int)$hw['id']); ?></div></div>
     </div>
     <?php endforeach; ?>
-    <?php endif; ?>
+    <?php endif; /* $hw_obj */ ?>
+    <?php endif; /* tab zadania */ ?>
 
     <?php /* ═══════════════════════ MATERIAŁY ═══════════════════════ */ ?>
     <?php if ($tab === 'materialy'): ?>
@@ -1894,6 +2030,134 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i>Importuj</button>
         </div>
       </form></div></div>
+    </div>
+    <?php endif; ?>
+
+    <?php /* ═══════════════════════ OCENY (e-dziennik) ═══════════════════════ */ ?>
+    <?php if ($tab === 'oceny'):
+      $course_row = k30_ti_course_get($cur_course);
+      $grades_on  = !empty($course_row['grades_enabled']);
+      $CATS = k30_ti_grade_categories();
+      $g_enrollees = db_all("SELECT cl.id, cl.name FROM k30_ti_enrollments e JOIN k30_clients cl ON cl.id=e.client_id WHERE e.course_id=? AND e.status='active' ORDER BY cl.name COLLATE NOCASE", [$cur_course]);
+      $g_rows = db_all("SELECT g.*, cl.name AS client_name FROM k30_ti_grades g JOIN k30_clients cl ON cl.id=g.client_id WHERE g.course_id=? ORDER BY cl.name COLLATE NOCASE, g.graded_at DESC", [$cur_course]);
+      $g_by_client = []; foreach ($g_rows as $g) $g_by_client[(int)$g['client_id']][] = $g;
+      $g_edit_id = (int)($_GET['edit'] ?? 0);
+      $g_edit = $g_edit_id ? k30_ti_grade_get($g_edit_id) : null;
+      if ($g_edit && (int)$g_edit['course_id'] !== $cur_course) $g_edit = null;
+    ?>
+    <div class="row g-3">
+      <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header fw-semibold"><i class="bi bi-journal-bookmark me-2 text-primary"></i><?= $g_edit ? 'Edytuj ocenę' : 'Wystaw ocenę' ?></div>
+          <div class="card-body">
+            <?php if (!$grades_on): ?>
+            <div class="alert alert-warning py-2 small d-flex align-items-center gap-2">
+              <i class="bi bi-exclamation-triangle"></i>
+              <span>Oceny w tym kursie są wyłączone.</span>
+              <form method="post" class="ms-auto">
+                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                <input type="hidden" name="_op" value="grade_toggle_course">
+                <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                <button class="btn btn-sm btn-warning py-0 px-2">Włącz oceny</button>
+              </form>
+            </div>
+            <?php endif; ?>
+            <?php if (!$g_enrollees): ?>
+            <p class="text-body-secondary small mb-0">Brak aktywnych kursantów w tym kursie.</p>
+            <?php else: ?>
+            <form method="post">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="grade_save">
+              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+              <?php if ($g_edit): ?><input type="hidden" name="grade_id" value="<?= (int)$g_edit['id'] ?>"><?php endif; ?>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold" for="g_client">Kursant <span class="text-danger">*</span></label>
+                <select class="form-select form-select-sm" id="g_client" name="client_id" required <?= $grades_on?'':'disabled' ?>>
+                  <option value="">— wybierz —</option>
+                  <?php foreach ($g_enrollees as $en): ?>
+                  <option value="<?= (int)$en['id'] ?>" <?= ($g_edit && (int)$g_edit['client_id']===(int)$en['id'])?'selected':'' ?>><?= h($en['name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="row g-2">
+                <div class="col-6 mb-2">
+                  <label class="form-label small fw-semibold" for="g_value">Ocena <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control form-control-sm" id="g_value" name="value_text" required value="<?= h($g_edit['value_text'] ?? '') ?>" placeholder="np. 5, 4+, 85%" <?= $grades_on?'':'disabled' ?>>
+                </div>
+                <div class="col-6 mb-2">
+                  <label class="form-label small fw-semibold" for="g_weight">Waga</label>
+                  <input type="number" class="form-control form-control-sm" id="g_weight" name="weight" min="0.5" step="0.5" value="<?= h(rtrim(rtrim(number_format((float)($g_edit['weight'] ?? 1),2,'.',''),'0'),'.') ?: '1') ?>" <?= $grades_on?'':'disabled' ?>>
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col-6 mb-2">
+                  <label class="form-label small fw-semibold" for="g_cat">Kategoria</label>
+                  <select class="form-select form-select-sm" id="g_cat" name="category" <?= $grades_on?'':'disabled' ?>>
+                    <?php foreach ($CATS as $ck=>$cv): ?>
+                    <option value="<?= h($ck) ?>" <?= (($g_edit['category'] ?? 'inne')===$ck)?'selected':'' ?>><?= h($cv['label']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="col-6 mb-2">
+                  <label class="form-label small fw-semibold" for="g_sess">Lekcja <span class="text-body-secondary">(opc.)</span></label>
+                  <select class="form-select form-select-sm" id="g_sess" name="session_id" <?= $grades_on?'':'disabled' ?>>
+                    <option value="">—</option>
+                    <?php foreach ($all_sessions as $ss): ?>
+                    <option value="<?= (int)$ss['id'] ?>" <?= ($g_edit && (int)($g_edit['session_id']??0)===(int)$ss['id'])?'selected':'' ?>><?= h(date('d.m.Y', strtotime($ss['lesson_date']))) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold" for="g_desc">Za co / opis <span class="text-body-secondary">(opc.)</span></label>
+                <input type="text" class="form-control form-control-sm" id="g_desc" name="description" maxlength="300" value="<?= h($g_edit['description'] ?? '') ?>" <?= $grades_on?'':'disabled' ?>>
+              </div>
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="g_notify" name="notify" value="1" <?= $grades_on?'':'disabled' ?>>
+                <label class="form-check-label small" for="g_notify">Powiadom kursanta (i opiekuna) e-mailem</label>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-primary" <?= $grades_on?'':'disabled' ?>><i class="bi bi-save me-1"></i><?= $g_edit ? 'Zapisz zmiany' : 'Wystaw ocenę' ?></button>
+                <?php if ($g_edit): ?><a href="index.php?course=<?= $cur_course ?>&tab=oceny" class="btn btn-sm btn-outline-secondary">Anuluj</a><?php endif; ?>
+              </div>
+            </form>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header fw-semibold d-flex align-items-center"><i class="bi bi-table me-2 text-primary"></i>Dziennik ocen
+            <span class="badge bg-secondary ms-2"><?= count($g_rows) ?></span></div>
+          <div class="card-body">
+            <?php if (!$g_by_client): ?>
+            <p class="text-body-secondary small mb-0">Brak wystawionych ocen.</p>
+            <?php else: foreach ($g_by_client as $cid => $cgr):
+              $avg = k30_ti_grades_average($cgr); [$abg,$afg] = k30_ti_grade_color($avg); ?>
+            <div class="mb-3">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="fw-semibold"><?= h($cgr[0]['client_name']) ?></span>
+                <?php if ($avg !== null): ?><span class="badge ms-auto" style="background:<?= $abg ?>;color:<?= $afg ?>">śr. <?= number_format($avg,2,',','') ?></span><?php endif; ?>
+              </div>
+              <div class="d-flex flex-wrap gap-1">
+                <?php foreach ($cgr as $g): ?>
+                <span class="d-inline-flex align-items-center gap-1 border rounded px-1" title="<?= h(k30_ti_grade_category_label($g['category'])) . ($g['description'] ? ' — ' . h($g['description']) : '') ?>">
+                  <a href="index.php?course=<?= $cur_course ?>&tab=oceny&edit=<?= (int)$g['id'] ?>" class="text-decoration-none"><?= k30_ti_grade_badge($g) ?></a>
+                  <form method="post" class="d-inline" onsubmit="return confirm('Usunąć tę ocenę?')">
+                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                    <input type="hidden" name="_op" value="grade_delete">
+                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                    <input type="hidden" name="grade_id" value="<?= (int)$g['id'] ?>">
+                    <button class="btn btn-sm btn-link text-danger p-0" style="line-height:1" title="Usuń ocenę"><i class="bi bi-x"></i></button>
+                  </form>
+                </span>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <?php endforeach; endif; ?>
+          </div>
+        </div>
+      </div>
     </div>
     <?php endif; ?>
 
