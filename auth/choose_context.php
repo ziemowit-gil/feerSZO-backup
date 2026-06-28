@@ -44,10 +44,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($choice === 'user') {
-        if (ctx_enter_user((int)($_POST['uid'] ?? 0))) {
+        $reason = trim($_POST['reason'] ?? '');
+        if ($reason === '') {
+            $err = 'Podaj powód wcielenia — jest wymagany i zapisywany w dzienniku.';
+        } elseif (ctx_enter_user((int)($_POST['uid'] ?? 0), $reason)) {
             header('Location: ' . APP_URL . '/panel/index.php'); exit;
+        } else {
+            $err = 'Nie udało się wcielić w wybranego użytkownika.';
         }
-        $err = 'Nie udało się wcielić w wybranego użytkownika.';
     }
 }
 
@@ -98,6 +102,16 @@ $tok   = csrf_token();
         padding:.55rem .8rem; margin-bottom:1rem; font-size:.88rem; }
   .badge{ font-size:.72rem; background:#e2e8f0; color:#475569; padding:.05rem .4rem; border-radius:6px; }
   .muted{ color:#94a3b8; font-size:.8rem; text-align:center; margin-top:.5rem; }
+  textarea{ width:100%; padding:.5rem .6rem; border:1px solid #cbd5e1; border-radius:9px;
+            font-size:.9rem; font-family:inherit; resize:vertical; margin-bottom:.55rem; }
+  .lbl{ display:block; font-size:.8rem; font-weight:600; color:#475569; margin:.2rem 0 .3rem; }
+  dialog.dlg{ border:0; border-radius:14px; padding:1.1rem 1.2rem; width:min(92vw,520px);
+              box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  dialog.dlg::backdrop{ background:rgba(15,23,42,.45); }
+  .dlg-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.7rem; }
+  .dlg-head strong{ font-size:1.05rem; }
+  .dlg-x{ border:0; background:transparent; font-size:1.1rem; cursor:pointer; color:#64748b; line-height:1; }
+  .dlg-foot{ display:flex; gap:.5rem; justify-content:flex-end; margin-top:.4rem; }
 </style>
 </head>
 <body>
@@ -134,13 +148,31 @@ $tok   = csrf_token();
   <!-- Wcielenie w użytkownika -->
   <div class="card">
     <h2>🕵️ Wciel się w użytkownika</h2>
-    <p class="desc">Zobacz system oczami konkretnej osoby — jej panel i dane. Wejście i wyjście są audytowane.</p>
+    <p class="desc">Zobacz system oczami konkretnej osoby — jej panel i dane. Wymagany powód; wejście i wyjście są audytowane.</p>
     <?php if ($users): ?>
+    <button class="btn btn-soft" type="button" onclick="document.getElementById('imp-dlg').showModal()">
+      Wybierz użytkownika…
+    </button>
+    <?php else: ?>
+    <p class="muted">Brak innych aktywnych użytkowników do wcielenia.</p>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($users): ?>
+  <dialog id="imp-dlg" class="dlg">
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= h($tok) ?>">
       <input type="hidden" name="choice" value="user">
+      <div class="dlg-head">
+        <strong>Wciel się w użytkownika</strong>
+        <button type="button" class="dlg-x" onclick="document.getElementById('imp-dlg').close()" aria-label="Zamknij">✕</button>
+      </div>
+      <?php if ($err && ($_POST['choice'] ?? '') === 'user'): ?>
+      <div class="err"><?= h($err) ?></div>
+      <?php endif; ?>
+      <label class="lbl">Użytkownik</label>
       <input type="search" id="userFilter" placeholder="Szukaj po nazwisku lub e-mailu…" autocomplete="off">
-      <select name="uid" id="userSelect" size="6" required>
+      <select name="uid" id="userSelect" size="7" required>
         <?php foreach ($users as $u): ?>
         <option value="<?= (int)$u['id'] ?>"
           data-s="<?= h(mb_strtolower(($u['name'] ?? '').' '.($u['email'] ?? ''),'UTF-8')) ?>">
@@ -148,12 +180,16 @@ $tok   = csrf_token();
         </option>
         <?php endforeach; ?>
       </select>
-      <button class="btn btn-soft" type="submit">Wciel się</button>
+      <label class="lbl">Powód wcielenia <span style="color:#dc2626">*</span></label>
+      <textarea name="reason" rows="2" required maxlength="500"
+                placeholder="np. diagnoza zgłoszenia #1234, weryfikacja widoku umów…"><?= h($_POST['reason'] ?? '') ?></textarea>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-soft" onclick="document.getElementById('imp-dlg').close()">Anuluj</button>
+        <button type="submit" class="btn btn-primary" style="width:auto;padding:.55rem 1.1rem">Wciel się</button>
+      </div>
     </form>
-    <?php else: ?>
-    <p class="muted">Brak innych aktywnych użytkowników do wcielenia.</p>
-    <?php endif; ?>
-  </div>
+  </dialog>
+  <?php endif; ?>
 
   <!-- Podgląd roli -->
   <div class="card">
@@ -184,6 +220,9 @@ $tok   = csrf_token();
       });
     });
   })();
+  <?php if ($err && ($_POST['choice'] ?? '') === 'user'): ?>
+  (function(){ var d = document.getElementById('imp-dlg'); if (d && !d.open) d.showModal(); })();
+  <?php endif; ?>
 </script>
 </body>
 </html>

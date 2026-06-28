@@ -117,20 +117,28 @@ function ctx_ensure_log_table(): void {
             target_user_id INTEGER,
             target_role    TEXT,
             target_label   TEXT,
+            reason         TEXT,
             ip             TEXT,
             entered_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
             exited_at      DATETIME
         )");
     } catch (\Throwable $e) {}
+    // Dołożenie kolumny w istniejących instalacjach.
+    try { db()->exec("ALTER TABLE user_context_log ADD COLUMN reason TEXT"); } catch (\Throwable $e) {}
 }
 
 function _ctx_ip(): string {
     return (string)($_SERVER['REMOTE_ADDR'] ?? '');
 }
 
-/** Wejście w kontekst konkretnego użytkownika. Zwraca true/false. */
-function ctx_enter_user(int $uid): bool {
+/**
+ * Wejście w kontekst konkretnego użytkownika. Wymaga podania powodu (audyt).
+ * Zwraca true/false.
+ */
+function ctx_enter_user(int $uid, string $reason = ''): bool {
     if (!ctx_can_switch()) return false;
+    $reason = trim($reason);
+    if ($reason === '') return false; // powód wymagany
     $real = ctx_real_user();
     if ($uid <= 0 || $uid === (int)$real['id']) return false;
     $target = null;
@@ -138,20 +146,21 @@ function ctx_enter_user(int $uid): bool {
     catch (\Throwable $e) {}
     if (!$target) return false;
 
+    $reason = mb_substr($reason, 0, 500);
     $label = trim(($target['name'] ?? '') . ' · ' . ($target['email'] ?? ''));
     ctx_ensure_log_table();
     $log_id = 0;
     try {
         db()->prepare(
-            "INSERT INTO user_context_log (real_user_id, real_email, mode, target_user_id, target_role, target_label, ip)
-             VALUES (?,?,?,?,?,?,?)"
-        )->execute([(int)$real['id'], $real['email'] ?? '', 'user', $uid, $target['role'] ?? '', $label, _ctx_ip()]);
+            "INSERT INTO user_context_log (real_user_id, real_email, mode, target_user_id, target_role, target_label, reason, ip)
+             VALUES (?,?,?,?,?,?,?,?)"
+        )->execute([(int)$real['id'], $real['email'] ?? '', 'user', $uid, $target['role'] ?? '', $label, $reason, _ctx_ip()]);
         $log_id = (int)db()->lastInsertId();
     } catch (\Throwable $e) {}
 
     $_SESSION['ctx'] = ['mode'=>'user', 'uid'=>$uid, 'since'=>time(), 'log_id'=>$log_id];
     $_SESSION['ctx_decided'] = 1;
-    _ctx_authlog($real, "Wejście w kontekst użytkownika: {$label}");
+    _ctx_authlog($real, "Wejście w kontekst użytkownika: {$label} — powód: {$reason}");
     return true;
 }
 
