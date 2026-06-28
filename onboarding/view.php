@@ -382,6 +382,22 @@ include __DIR__ . '/../includes/header.php';
     <table class="table table-striped table-sm mb-0">
       <tbody>
         <tr><th style="width:200px">Imię i nazwisko</th><td><?= h($vol['imie_nazwisko'] ?: '—') ?></td></tr>
+        <tr><th>Typ</th><td>
+          <?php if (($vol['typ'] ?? '') === 'zleceniobiorca'): ?>
+            <span class="badge bg-info text-dark">Zleceniobiorca</span>
+          <?php else: ?>
+            <span class="badge bg-success">Wolontariusz</span>
+          <?php endif; ?>
+        </td></tr>
+        <?php if (!empty($vol['seria_nr_dowodu'])): ?>
+        <tr><th>Seria/nr dowodu</th><td><?= h($vol['seria_nr_dowodu']) ?></td></tr>
+        <?php endif; ?>
+        <?php if (!empty($vol['urzad_skarbowy'])): ?>
+        <tr><th>Urząd skarbowy</th><td><?= h($vol['urzad_skarbowy']) ?></td></tr>
+        <?php endif; ?>
+        <?php if (!empty($vol['rachunek_bankowy'])): ?>
+        <tr><th>Rachunek bankowy</th><td><code><?= h(wordwrap($vol['rachunek_bankowy'], 4, ' ', true)) ?></code></td></tr>
+        <?php endif; ?>
         <?php if (!empty($vol['miejsce_wolontariatu'])): ?>
         <tr><th>Miejsce wolontariatu</th><td><?= h($vol['miejsce_wolontariatu']) ?></td></tr>
         <?php endif; ?>
