@@ -31,29 +31,40 @@ function ctx_can_switch(): bool {
     return $u !== null && ($u['role'] ?? '') === 'admin';
 }
 
-/** Aktywny kontekst (lub null). Tylko dla prawdziwego admina — zabezpieczenie. */
+/**
+ * Aktywny kontekst (lub null). Zwraca surowy deskryptor z sesji — uprawnienia
+ * egzekwują ctx_overlay()/ctx_enter_*. Kontekst ustawiają wyłącznie zwalidowane
+ * funkcje wejścia (admin lub opiekun swojego dziecka), więc obecność = poprawny.
+ */
 function ctx_active(): ?array {
-    if (!ctx_can_switch()) return null;
     $c = $_SESSION['ctx'] ?? null;
     return is_array($c) ? $c : null;
 }
 
-/** Czy admin pracuje w cudzym/innym kontekście. */
+/** Czy użytkownik pracuje w cudzym/innym kontekście (admin albo rodzic→dziecko). */
 function ctx_is_impersonating(): bool {
     return ctx_active() !== null;
 }
 
 /**
- * Nakładka kontekstu na current_user(). $real to $_SESSION['user'] (admin).
- * Zwraca tablicę użytkownika „widzianą" przez resztę systemu albo null
- * (gdy kontekst nieaktywny lub cel zniknął → fallback do admina).
+ * Nakładka kontekstu na current_user(). $real to $_SESSION['user'] (prawdziwy
+ * zalogowany — admin lub rodzic). Zwraca tablicę użytkownika „widzianą" przez
+ * resztę systemu albo null (kontekst nieaktywny / brak uprawnień / cel zniknął).
+ *
+ * Uprawnienia:
+ *  - mode 'role'  → tylko admin (podgląd roli).
+ *  - mode 'user'  → admin (dowolny cel) LUB opiekun (via='guardian') wyłącznie dla
+ *    własnego dziecka (users.guardian_user_id = id rodzica). Re-walidacja przy
+ *    każdym żądaniu — gdy powiązanie zniknie, nakładka przestaje działać.
  */
 function ctx_overlay(array $real): ?array {
     static $cache = null;
     $c = $_SESSION['ctx'] ?? null;
-    if (!is_array($c) || ($real['role'] ?? '') !== 'admin') return null;
+    if (!is_array($c)) return null;
+    $is_admin = ($real['role'] ?? '') === 'admin';
 
     if (($c['mode'] ?? '') === 'role') {
+        if (!$is_admin) return null;
         $u = $real;
         $u['role']             = $c['role'];
         $u['_impersonating']   = true;
@@ -69,13 +80,25 @@ function ctx_overlay(array $real): ?array {
         if ($cache === null || ($cache['id'] ?? null) !== $uid) {
             try {
                 $row = db_one(
-                    "SELECT id, name, email, role, microsoft_id, portal_scope
+                    "SELECT id, name, email, role, microsoft_id, portal_scope, guardian_user_id
                        FROM users WHERE id=? AND is_active=1", [$uid]
                 );
-            } catch (\Throwable $e) { $row = null; }
+            } catch (\Throwable $e) {
+                // Kolumna guardian_user_id może jeszcze nie istnieć — nie psuj wcielania admina.
+                try {
+                    $row = db_one(
+                        "SELECT id, name, email, role, microsoft_id, portal_scope
+                           FROM users WHERE id=? AND is_active=1", [$uid]
+                    );
+                } catch (\Throwable $e2) { $row = null; }
+            }
             $cache = $row ?: false;
         }
-        if (!$cache) return null; // cel nieaktywny/usunięty → wróć do admina
+        if (!$cache) return null; // cel nieaktywny/usunięty → wróć do siebie
+        $via_guardian = (($c['via'] ?? '') === 'guardian');
+        $allowed = $is_admin
+            || ($via_guardian && (int)($cache['guardian_user_id'] ?? 0) === (int)$real['id']);
+        if (!$allowed) return null; // brak uprawnień → bez nakładki
         return [
             'id'             => (int)$cache['id'],
             'name'           => $cache['name'],
@@ -85,11 +108,30 @@ function ctx_overlay(array $real): ?array {
             'portal_scope'   => $cache['portal_scope'] ?? null,
             '_impersonating' => true,
             '_ctx_mode'      => 'user',
+            '_ctx_via'       => $via_guardian ? 'guardian' : 'admin',
             '_ctx_label'     => trim(($cache['name'] ?? '') . ' · ' . ($cache['email'] ?? '')),
             '_real_user'     => ['id'=>$real['id'],'name'=>$real['name'],'email'=>$real['email']],
         ];
     }
     return null;
+}
+
+/** Dzieci (konta) powiązane z danym opiekunem (users.guardian_user_id). */
+function ctx_guardian_children(int $parent_id): array {
+    if ($parent_id <= 0) return [];
+    try {
+        return db_all(
+            "SELECT id, name, email FROM users
+              WHERE guardian_user_id=? AND is_active=1 ORDER BY name COLLATE NOCASE",
+            [$parent_id]
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Czy prawdziwy użytkownik jest opiekunem (ma co najmniej jedno powiązane dziecko). */
+function ctx_is_guardian(): bool {
+    $u = ctx_real_user();
+    return $u !== null && count(ctx_guardian_children((int)$u['id'])) > 0;
 }
 
 function ctx_role_label(string $role): string {
@@ -158,9 +200,42 @@ function ctx_enter_user(int $uid, string $reason = ''): bool {
         $log_id = (int)db()->lastInsertId();
     } catch (\Throwable $e) {}
 
-    $_SESSION['ctx'] = ['mode'=>'user', 'uid'=>$uid, 'since'=>time(), 'log_id'=>$log_id];
+    $_SESSION['ctx'] = ['mode'=>'user', 'uid'=>$uid, 'via'=>'admin', 'since'=>time(), 'log_id'=>$log_id];
     $_SESSION['ctx_decided'] = 1;
     _ctx_authlog($real, "Wejście w kontekst użytkownika: {$label} — powód: {$reason}");
+    return true;
+}
+
+/**
+ * Wejście opiekuna w kontekst SWOJEGO dziecka (users.guardian_user_id = id rodzica).
+ * Dostępne dla każdej roli — weryfikuje wyłącznie powiązanie rodzic↔dziecko.
+ */
+function ctx_enter_child(int $child_id): bool {
+    $real = ctx_real_user();
+    if (!$real || $child_id <= 0 || $child_id === (int)$real['id']) return false;
+    $child = null;
+    try {
+        $child = db_one(
+            "SELECT id, name, email, role FROM users
+              WHERE id=? AND is_active=1 AND guardian_user_id=?",
+            [$child_id, (int)$real['id']]
+        );
+    } catch (\Throwable $e) {}
+    if (!$child) return false; // nie jest dzieckiem tego opiekuna
+
+    $label = trim(($child['name'] ?? '') . ' · ' . ($child['email'] ?? ''));
+    ctx_ensure_log_table();
+    $log_id = 0;
+    try {
+        db()->prepare(
+            "INSERT INTO user_context_log (real_user_id, real_email, mode, target_user_id, target_role, target_label, reason, ip)
+             VALUES (?,?,?,?,?,?,?,?)"
+        )->execute([(int)$real['id'], $real['email'] ?? '', 'user', $child_id, $child['role'] ?? '', $label, 'Opiekun → konto dziecka', _ctx_ip()]);
+        $log_id = (int)db()->lastInsertId();
+    } catch (\Throwable $e) {}
+
+    $_SESSION['ctx'] = ['mode'=>'user', 'uid'=>$child_id, 'via'=>'guardian', 'since'=>time(), 'log_id'=>$log_id];
+    _ctx_authlog($real, "Opiekun wszedł na konto dziecka: {$label}");
     return true;
 }
 
@@ -221,7 +296,9 @@ function ctx_banner_html(): string {
     $rname = $real['name'] ?? 'administrator';
     $app   = defined('APP_URL') ? APP_URL : '';
     $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-    $mode_txt = ($c['mode'] ?? '') === 'role' ? 'Podgląd roli' : 'Jako';
+    $via_guardian = (($c['via'] ?? '') === 'guardian') || (($cu['_ctx_via'] ?? '') === 'guardian');
+    $mode_txt   = ($c['mode'] ?? '') === 'role' ? 'Podgląd roli' : ($via_guardian ? 'Konto dziecka' : 'Jako');
+    $back_txt   = $via_guardian ? 'Wróć do swojego konta' : 'Wróć do administratora';
     return '<div style="position:sticky;top:0;z-index:10800;display:flex;align-items:center;gap:.45rem;'
         . 'flex-wrap:wrap;background:#7c2d12;color:#fff;padding:.15rem .7rem;font-size:.72rem;line-height:1.4;'
         . 'box-shadow:0 1px 3px rgba(0,0,0,.2)" role="alert">'
@@ -230,7 +307,7 @@ function ctx_banner_html(): string {
         . '<a href="' . $h($app) . '/auth/exit_context.php" '
         . 'style="margin-left:auto;background:#fff;color:#7c2d12;font-weight:700;text-decoration:none;'
         . 'padding:.05rem .55rem;border-radius:5px;white-space:nowrap;font-size:.72rem">'
-        . '<i class="bi bi-box-arrow-left"></i> Wróć do administratora</a>'
+        . '<i class="bi bi-box-arrow-left"></i> ' . $h($back_txt) . '</a>'
         . '</div>';
 }
 

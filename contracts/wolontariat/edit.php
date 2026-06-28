@@ -660,6 +660,12 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
           </div>
         </div>
       </div>
+      <div class="mt-2">
+        <a href="assign_guardian.php?id=<?= (int)$id ?>" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Wyznacz / powiąż konto opiekuna
+        </a>
+        <div class="form-text">Utworzy (jeśli brak) i powiąże konto rodzica z kontem dziecka — opiekun będzie mógł wejść na konto dziecka ze swojego panelu.</div>
+      </div>
     </div>
   </div>
 

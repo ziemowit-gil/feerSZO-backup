@@ -506,6 +506,38 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
 
 <?= flash_html() ?>
 
+<?php
+// ── Konta dzieci (opiekun) — wejście w kontekst dziecka ──────────────────────
+$_my_children = (function_exists('ctx_is_impersonating') && !ctx_is_impersonating() && function_exists('ctx_guardian_children'))
+    ? ctx_guardian_children((int)(ctx_real_user()['id'] ?? 0)) : [];
+?>
+<?php if ($_my_children): ?>
+<div class="sv-card" style="border-left:4px solid var(--vol-color);margin-bottom:1rem">
+  <div class="sv-card-head">
+    <div class="sv-card-icon" style="background:var(--vol-bg);color:var(--vol-color)"><i class="bi bi-people-fill"></i></div>
+    <div>
+      <div class="sv-card-title">Konta dzieci</div>
+      <div class="sv-card-sub">Wejdź na konto swojego dziecka, aby zobaczyć jego panel</div>
+    </div>
+  </div>
+  <?php foreach ($_my_children as $_ch): ?>
+  <form method="post" action="<?= APP_URL ?>/auth/enter_child.php"
+        class="d-flex align-items-center justify-content-between gap-2"
+        style="padding:.5rem 0;border-top:1px solid #f1f5f9">
+    <span style="font-size:.88rem;min-width:0">
+      <strong><?= h($_ch['name']) ?></strong><br>
+      <span class="text-muted" style="font-size:.76rem"><?= h($_ch['email']) ?></span>
+    </span>
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="child" value="<?= (int)$_ch['id'] ?>">
+    <button class="btn btn-sm" style="background:var(--vol-color);color:#fff;white-space:nowrap">
+      <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Wejdź na konto
+    </button>
+  </form>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <!-- ═══ KARTY PLATFORM (styl standalone) ═════════════════════════════════════ -->
 <div class="sv-platforms">
 

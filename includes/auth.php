@@ -43,9 +43,11 @@ function current_user(): ?array {
     auth_start();
     $u = $_SESSION['user'] ?? null;
     if (!$u) return null;
-    // Nakładka kontekstu: admin „wcielony" w innego użytkownika / podgląd roli.
-    // Prawdziwy admin zawsze pozostaje w $_SESSION['user'] (zob. includes/context.php).
-    if (($u['role'] ?? '') === 'admin' && !empty($_SESSION['ctx']) && function_exists('ctx_overlay')) {
+    // Nakładka kontekstu: admin „wcielony" w użytkownika / podgląd roli, albo
+    // opiekun wchodzący na konto swojego dziecka. Prawdziwy użytkownik zawsze
+    // pozostaje w $_SESSION['user']; uprawnienia egzekwuje ctx_overlay()
+    // (zob. includes/context.php).
+    if (!empty($_SESSION['ctx']) && function_exists('ctx_overlay')) {
         $ov = ctx_overlay($u);
         if ($ov) return $ov;
     }

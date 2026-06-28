@@ -725,6 +725,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($rodzic_result !== null) {
                 log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Utworzono konto rodzica/opiekuna i wysłano link aktywacyjny: ' . $data['rodzic_email']);
             }
+            // Twarde powiązanie konta dziecka z kontem opiekuna (rodzic→dziecko).
+            try {
+                require_once dirname(dirname(__DIR__)) . '/includes/guardian.php';
+                if (guardian_link_by_email($data['email'] ?? '', $data['rodzic_email'], $m365_login_created)) {
+                    log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Powiązano konto dziecka z kontem opiekuna (kontekst rodzic→dziecko).');
+                }
+            } catch (\Throwable $e) {}
         }
 
         // Auto-uzupełnienie daty urodzenia z PESEL

@@ -63,6 +63,12 @@ function _auth_security_init(): void {
     // mimo polityki „tylko Office".
     try { $pdo->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); }
     catch (\Throwable $e) {}
+
+    // Kolumna guardian_user_id w users — twarde powiązanie konta niepełnoletniego
+    // wolontariusza (dziecko) z kontem opiekuna (rodzic). Pozwala rodzicowi wejść
+    // w kontekst dziecka (zob. includes/context.php → ctx_enter_child).
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN guardian_user_id INTEGER NULL"); }
+    catch (\Throwable $e) {}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
