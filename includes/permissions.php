@@ -284,6 +284,130 @@ function scoped_launcher_module_keys(int $user_id): array {
 }
 
 /**
+ * Wpis launchera zbudowany z MODULE_REGISTRY (top-level moduł aplikacji).
+ * $primary — czy to moduł podstawowy konta (np. bazowy modul konta zawężonego).
+ */
+function module_entry(string $key, bool $primary = false): ?array {
+    if (!isset(MODULE_REGISTRY[$key])) return null;
+    $m = MODULE_REGISTRY[$key];
+    return [
+        'key'     => $key,
+        'label'   => $m['label'],
+        'desc'    => $primary ? 'Moduł podstawowy Twojego konta' : 'Dostęp przyznany dodatkowo',
+        'icon'    => $m['icon'],
+        'grad'    => $m['grad'],
+        'url'     => APP_URL . $m['url'],
+        'primary' => $primary,
+    ];
+}
+
+/**
+ * Wpis launchera dla panelu wolontariusza (traktowany jak osobny moduł).
+ * Kieruje do panelu standalone, jeśli to wolontariusz bez umowy.
+ */
+function module_entry_volunteer_panel(): array {
+    $u   = current_user();
+    $url = APP_URL . '/panel/index.php';
+    try {
+        $sv = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)($u['id'] ?? 0)]);
+        if (!empty($sv['is_standalone_volunteer'])) $url = APP_URL . '/panel/standalone.php';
+    } catch (\Throwable $e) {}
+    return [
+        'key'     => 'panel',
+        'label'   => 'Panel wolontariusza',
+        'desc'    => 'Twoje umowy, zadania, dokumenty i dane',
+        'icon'    => 'bi-person-heart',
+        'grad'    => 'linear-gradient(135deg,#9D174D,#EC4899)',
+        'url'     => $url,
+        'primary' => true,
+    ];
+}
+
+/** Liczba umów powiązanych z kontem (po e-mailu / Microsoft ID). */
+function user_volunteer_contract_count(?array $u = null): int {
+    $u = $u ?: current_user();
+    if (!$u) return 0;
+    $email = $u['email'] ?? '';
+    $ms_id = $u['microsoft_id'] ?? '';
+    if (!$email && !$ms_id) return 0;
+    $defs = [
+        'zlecenie'    => ['m365_user_id', 'm365_login'],
+        'wolontariat' => ['m365_user_id', 'm365_login', 'email', 'rodzic_email'],
+        'dzielo'      => ['m365_user_id', 'm365_login'],
+        'praca'       => ['email_login'],
+    ];
+    $n = 0;
+    foreach ($defs as $type => $fields) {
+        $conds = []; $params = [];
+        foreach ($fields as $f) {
+            if ($f === 'm365_user_id') { if (!$ms_id) continue; $conds[] = "$f = ?"; $params[] = $ms_id; }
+            else                       { if (!$email) continue; $conds[] = "$f = ?"; $params[] = $email; }
+        }
+        if (!$conds) continue;
+        try {
+            $r = db_one("SELECT COUNT(*) AS c FROM umowy_{$type} WHERE " . implode(' OR ', $conds), $params);
+            $n += (int)($r['c'] ?? 0);
+        } catch (\Throwable $e) {}
+    }
+    return $n;
+}
+
+/**
+ * Czy bieżący użytkownik ma „panel wolontariusza" jako dostępny moduł?
+ * Dotyczy widzów (viewer), wolontariuszy bez umowy (standalone) oraz każdego,
+ * kto ma powiązaną umowę (np. koordynator będący jednocześnie wolontariuszem).
+ */
+function user_has_volunteer_panel(): bool {
+    $u = current_user();
+    if (!$u) return false;
+    if (($u['role'] ?? '') === 'viewer') return true;
+    try {
+        $sv = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)$u['id']]);
+        if (!empty($sv['is_standalone_volunteer'])) return true;
+    } catch (\Throwable $e) {}
+    return user_volunteer_contract_count($u) > 0;
+}
+
+/**
+ * Punkty wejścia (top-level moduły) dostępne dla kont WOLONTARIUSZA i ZAWĘŻONYCH.
+ * Panel wolontariusza liczy się jako osobny moduł. Zwraca [] dla kont zarządczych
+ * (admin/editor/itp.) — te trafiają do pełnego portalu (który sam jest „wyborem").
+ * Pierwszy element to moduł podstawowy (domyślny cel przy ≤2 modułach).
+ */
+function portal_entry_points(): array {
+    $u = current_user();
+    if (!$u) return [];
+    $uid = (int)$u['id'];
+
+    // Konta zawężone: bazowy moduł + indywidualnie przyznane. Panelu wolontariusza
+    // NIE dodajemy — require_login tych kont blokuje ścieżkę /panel/.
+    $base = scoped_base_module();
+    if ($base !== null) {
+        $eps = array_filter([module_entry($base, true)]);
+        foreach (scoped_launcher_module_keys($uid) as $k) {
+            if ($e = module_entry($k)) $eps[] = $e;
+        }
+        return array_values($eps);
+    }
+
+    // Widz / wolontariusz (rola viewer = panel wolontariusza i konta standalone):
+    // panel wolontariusza (podstawowy) + indywidualnie przyznane moduły.
+    // Uwaga: dla roli viewer NIE liczymy uprawnień roli (viewer ma odczyt wszędzie) —
+    // tylko moduły przyznane konkretnemu użytkownikowi ponad rolę. Konta zarządcze
+    // (admin/editor), które są też wolontariuszami, obsługuje pełny portal (kafel niżej).
+    if (($u['role'] ?? '') === 'viewer') {
+        $eps = [module_entry_volunteer_panel()];
+        foreach (user_permissions($uid) as $mod => $row) {
+            if (!empty($row['can_read']) && ($e = module_entry($mod))) $eps[] = $e;
+        }
+        return array_values($eps);
+    }
+
+    // Konta zarządcze — obsługiwane przez pełny portal.
+    return [];
+}
+
+/**
  * Prefiksy ścieżek modułów przyznanych użytkownikowi indywidualnie — do
  * rozszerzenia allow-listy require_login dla kont zawężonych.
  */

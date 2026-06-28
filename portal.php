@@ -11,30 +11,21 @@ require_login();
 
 if (defined('CRM_STANDALONE') && CRM_STANDALONE) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
 if (($_SESSION['user']['portal_scope'] ?? '') === 'tasks_only') { header('Location: ' . APP_URL . '/tasks/inbox.php'); exit; }
-if (is_viewer()) {
-    // Standalone volunteer (bez umowy) → tablica zadań, nie panel umów
-    try {
-        $__sv = db_one("SELECT is_standalone_volunteer FROM users WHERE id=?", [(int)current_user()['id']]);
-        if (!empty($__sv['is_standalone_volunteer'])) {
-            header('Location: ' . APP_URL . '/panel/standalone.php'); exit;
-        }
-    } catch (\Throwable $e) {}
-    header('Location: ' . APP_URL . '/panel/index.php'); exit;
-}
-// Konta zawężone (crm_only / ezd_only): jeśli przyznano dodatkowe moduły ponad
-// rolę — pokaż launcher z modułem bazowym + dodatkowymi; w przeciwnym razie
-// przekieruj do modułu bazowego (zachowanie jak dotychczas).
+
 require_once __DIR__ . '/includes/permissions.php';
-$__base = scoped_base_module();
-if ($__base !== null) {
-    $__uid = (int)current_user()['id'];
-    $__extra = scoped_launcher_module_keys($__uid);
-    if (!$__extra) {
-        header('Location: ' . APP_URL . ($__base === 'crm' ? '/crm/dashboard.php' : '/ezd/index.php'));
+
+// ── Routing kont wolontariusza i zawężonych (crm_only / ezd_only) ─────────────
+// Reguła: dostęp do WIĘCEJ NIŻ 2 modułów → ekran wyboru modułu; w przeciwnym
+// razie wejście wprost do modułu podstawowego. Panel wolontariusza liczy się
+// jako osobny moduł. Konta zarządcze (admin/editor) dostają pełny portal poniżej
+// — to on pełni rolę „wyboru" (zawiera siatkę wszystkich modułów).
+$__choices = portal_entry_points();
+if ($__choices) {
+    if (count($__choices) > 2) {
+        include __DIR__ . '/includes/module_chooser.php';
         exit;
     }
-    $__launch_keys = array_merge([$__base], $__extra);
-    include __DIR__ . '/includes/scoped_launcher.php';
+    header('Location: ' . $__choices[0]['url']); // ≤2 modułów → moduł podstawowy
     exit;
 }
 
@@ -164,6 +155,16 @@ $modules = [
         'grad'   => 'linear-gradient(135deg,#4338CA,#6366F1)',
         'url'    => APP_URL . '/directory/',
         'access' => true,
+        'stat'   => null,
+        'badge'  => null,
+    ],
+    [
+        'title'  => 'Panel wolontariusza',
+        'desc'   => 'Twoje umowy, zadania, dokumenty i dane',
+        'icon'   => 'bi-person-heart',
+        'grad'   => 'linear-gradient(135deg,#9D174D,#EC4899)',
+        'url'    => module_entry_volunteer_panel()['url'],
+        'access' => user_has_volunteer_panel(),
         'stat'   => null,
         'badge'  => null,
     ],
