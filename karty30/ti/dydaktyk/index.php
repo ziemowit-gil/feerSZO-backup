@@ -43,7 +43,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci'], true)) $tab = 'lekcje';
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
@@ -320,6 +320,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : 'Propozycja odrzucona — kursant powiadomiony.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
+    // ── NIEOBECNOŚCI: usprawiedliwianie (= odwołanie udziału, nie liczone do ceny) ─
+    if ($op === 'excuse_absence' || $op === 'unexcuse_absence') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        $cid = (int)($_POST['client_id'] ?? 0);
+        if ($sid && $cid && dyd_owns_session($uid, $sid)) {
+            if ($op === 'excuse_absence') {
+                $reason = trim($_POST['reason'] ?? '');
+                $role   = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
+                k30_ti_cancel_attendance($sid, $cid, $reason !== '' ? $reason : 'Nieobecność usprawiedliwiona', $role, (string)($me['name'] ?? ''));
+                flash_set('success', 'Nieobecność usprawiedliwiona — nie będzie liczona do ceny.');
+            } else {
+                k30_ti_uncancel_attendance($sid, $cid);
+                flash_set('success', 'Cofnięto usprawiedliwienie — nieobecność nieusprawiedliwiona.');
+            }
+        }
+        header('Location: ' . dyd_back($course_id, 'nieobecnosci')); exit;
+    }
+
+    // ── PROGRAM ZAJĘĆ (plan nauczania / sylabus kursu) ──────────────────────────
+    if ($op === 'curr_save') {
+        $iid   = (int)($_POST['item_id'] ?? 0);
+        $title = trim($_POST['title'] ?? '');
+        if ($title === '') { flash_set('danger', 'Podaj temat pozycji planu.'); header('Location: ' . dyd_back($course_id, 'program')); exit; }
+        k30_ti_curriculum_save([
+            'course_id'   => $course_id,
+            'section'     => $_POST['section'] ?? '',
+            'title'       => $title,
+            'description' => $_POST['description'] ?? '',
+            'est_minutes' => $_POST['est_minutes'] ?? 0,
+            'is_active'   => isset($_POST['is_active']) ? 1 : 0,
+        ], $iid ?: null, $uid);
+        flash_set('success', $iid ? 'Pozycja planu zaktualizowana.' : 'Dodano pozycję planu.');
+        header('Location: ' . dyd_back($course_id, 'program')); exit;
+    }
+    if ($op === 'curr_delete') {
+        $iid = (int)($_POST['item_id'] ?? 0);
+        $it  = $iid ? k30_ti_curriculum_get($iid) : null;
+        if ($it && (int)$it['course_id'] === $course_id) {
+            k30_ti_curriculum_delete($iid);
+            flash_set('success', 'Pozycja planu usunięta.');
+        }
+        header('Location: ' . dyd_back($course_id, 'program')); exit;
+    }
+    if ($op === 'curr_move') {
+        $iid = (int)($_POST['item_id'] ?? 0);
+        $dir = ($_POST['dir'] ?? '') === 'up' ? 'up' : 'down';
+        $items = k30_ti_curriculum_list($course_id);
+        $ids   = array_map(fn($r) => (int)$r['id'], $items);
+        $pos   = array_search($iid, $ids, true);
+        if ($pos !== false) {
+            $swap = $dir === 'up' ? $pos - 1 : $pos + 1;
+            if ($swap >= 0 && $swap < count($ids)) {
+                [$ids[$pos], $ids[$swap]] = [$ids[$swap], $ids[$pos]];
+                k30_ti_curriculum_reorder($course_id, $ids);
+            }
+        }
+        header('Location: ' . dyd_back($course_id, 'program')); exit;
+    }
+    if ($op === 'curr_import') {
+        $raw = (string)($_POST['csv'] ?? '');
+        if (trim($raw) === '') { flash_set('danger', 'Wklej dane CSV do zaimportowania.'); header('Location: ' . dyd_back($course_id, 'program')); exit; }
+        $res = k30_ti_curriculum_import_csv($course_id, $raw, $uid);
+        $msg = 'Zaimportowano pozycji: ' . (int)($res['added'] ?? 0) . '.';
+        if (!empty($res['errors'])) $msg .= ' Błędów: ' . count($res['errors']) . '.';
+        flash_set(!empty($res['errors']) ? 'warning' : 'success', $msg);
+        header('Location: ' . dyd_back($course_id, 'program')); exit;
     }
 
     // ── ZADANIA DOMOWE ──────────────────────────────────────────────────────────
@@ -908,7 +976,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 </style>
 
 <!-- ── Globalny pasek nawigacyjny dydaktyka ── -->
-<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','testy'], true); ?>
+<?php $tab_is_course = in_array($tab, ['lekcje','zadania','materialy','nieobecnosci','program','testy'], true); ?>
 <nav class="dyd-globalbar" aria-label="Menu dydaktyka">
   <a class="dyd-gb-link <?= $tab_is_course?'active':'' ?>"
      href="index.php?course=<?= $cur_course ?>&tab=lekcje"
@@ -1009,9 +1077,16 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <?php if ($tab_is_course): ?>
   <ul class="nav nav-tabs mb-3" role="tablist">
     <?php
+      $absent_count = $cur_course ? (int)(db_one(
+          "SELECT COUNT(*) AS n FROM k30_ti_attendance a
+           JOIN k30_ti_sessions s ON s.id=a.session_id
+           WHERE s.course_id=? AND s.status='held' AND COALESCE(a.attended,0)=0
+             AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.cancel_pending,0)=0", [$cur_course])['n'] ?? 0) : 0;
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
                'zadania'=>['Zadania','journal-check',count($homeworks)],
                'materialy'=>['Materiały','collection-play',count($materials)],
+               'nieobecnosci'=>['Nieobecności','person-x',$absent_count],
+               'program'=>['Program zajęć','list-check',count(k30_ti_curriculum_list($cur_course))],
                'testy'=>['Testy','card-checklist', count(k30_ti_tests_list($cur_course))]];
       foreach ($tabs as $k=>$ti): ?>
     <li class="nav-item" role="presentation">
@@ -1605,6 +1680,223 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php endforeach; ?>
     <?php endif; ?>
 
+    <?php /* ═══════════════════════ NIEOBECNOŚCI ═══════════════════════ */ ?>
+    <?php if ($tab === 'nieobecnosci'):
+      $absences = db_all(
+        "SELECT a.session_id, a.client_id, a.cancelled, a.cancel_reason, a.cancelled_by, a.cancelled_at,
+                s.lesson_date, s.time_from, s.topic, cl.name AS client_name
+         FROM k30_ti_attendance a
+         JOIN k30_ti_sessions s ON s.id=a.session_id
+         JOIN k30_clients cl ON cl.id=a.client_id
+         WHERE s.course_id=? AND s.status='held'
+           AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancel_pending,0)=0
+         ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
+        [$cur_course]);
+      $abs_unexcused = array_filter($absences, fn($r) => (int)($r['cancelled'] ?? 0) === 0);
+    ?>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-semibold"><i class="bi bi-person-x me-2"></i>Nieobecności</span>
+        <span class="badge bg-secondary"><?= count($abs_unexcused) ?> nieusprawiedliwionych</span>
+        <span class="text-body-secondary small ms-auto">Usprawiedliwiona nieobecność nie jest liczona do ceny.</span>
+      </div>
+      <?php if (!$absences): ?>
+      <div class="card-body text-body-secondary py-3"><i class="bi bi-check-circle me-1 text-success"></i>Brak nieobecności na odbytych lekcjach.</div>
+      <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <caption class="visually-hidden">Lista nieobecności kursantów</caption>
+          <thead class="table-light">
+            <tr><th>Data</th><th>Kursant</th><th>Temat</th><th>Status</th><th>Powód / kto</th><th class="text-end">Akcja</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach ($absences as $ab):
+              $excused = (int)($ab['cancelled'] ?? 0) === 1;
+              $lbl = h($ab['client_name']) . ' — ' . date('d.m.Y', strtotime($ab['lesson_date'])); ?>
+            <tr>
+              <td class="text-nowrap small">
+                <?= h(date('d.m.Y', strtotime($ab['lesson_date']))) ?>
+                <?php if ($ab['time_from']): ?><span class="text-body-secondary"><?= h(substr((string)$ab['time_from'],0,5)) ?></span><?php endif; ?>
+              </td>
+              <td class="fw-semibold"><?= h($ab['client_name']) ?></td>
+              <td class="small text-body-secondary" style="max-width:220px"><?= $ab['topic'] ? h($ab['topic']) : '—' ?></td>
+              <td>
+                <?php if ($excused): ?>
+                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-check2-circle me-1"></i>usprawiedliwiona</span>
+                <?php else: ?>
+                <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-x-circle me-1"></i>nieusprawiedliwiona</span>
+                <?php endif; ?>
+              </td>
+              <td class="small text-body-secondary" style="max-width:220px">
+                <?php if ($excused): ?>
+                <?= $ab['cancel_reason'] ? h($ab['cancel_reason']) : '—' ?>
+                <?php if ($ab['cancelled_by']): ?><div class="text-body-tertiary"><?= h($ab['cancelled_by']) ?></div><?php endif; ?>
+                <?php else: ?>—<?php endif; ?>
+              </td>
+              <td class="text-end">
+                <?php if ($excused): ?>
+                <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć usprawiedliwienie? Nieobecność znów będzie nieusprawiedliwiona.')">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="unexcuse_absence">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="session_id" value="<?= (int)$ab['session_id'] ?>">
+                  <input type="hidden" name="client_id" value="<?= (int)$ab['client_id'] ?>">
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-arrow-counterclockwise me-1"></i>Cofnij</button>
+                </form>
+                <?php else: ?>
+                <button type="button" class="btn btn-sm btn-outline-success py-0 px-2"
+                        onclick="dydOpenExcuse(<?= (int)$ab['session_id'] ?>, <?= (int)$ab['client_id'] ?>, <?= htmlspecialchars(json_encode($lbl), ENT_QUOTES) ?>)">
+                  <i class="bi bi-check2-circle me-1"></i>Usprawiedliw
+                </button>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <!-- Modal: usprawiedliwienie nieobecności -->
+    <div class="modal fade" id="excuseAbsenceModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog"><form method="post" class="modal-content">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="excuse_absence">
+        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+        <input type="hidden" name="session_id" id="ex_sid" value="">
+        <input type="hidden" name="client_id"  id="ex_cid" value="">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-check2-circle text-success me-2"></i>Usprawiedliw nieobecność</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Nieobecność: <strong id="ex_label"></strong></p>
+          <p class="text-body-secondary small mb-2">Usprawiedliwiona nieobecność nie zostanie policzona do ceny. Powód jest opcjonalny.</p>
+          <label class="form-label fw-semibold" for="ex_reason">Powód <span class="text-body-secondary fw-normal">(opc.)</span></label>
+          <textarea class="form-control" id="ex_reason" name="reason" rows="2" placeholder="np. choroba (zwolnienie lekarskie)…"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Usprawiedliw</button>
+        </div>
+      </form></div>
+    </div>
+    <?php endif; ?>
+
+    <?php /* ═══════════════════════ PROGRAM ZAJĘĆ ═══════════════════════ */ ?>
+    <?php if ($tab === 'program'):
+      $curr_items = k30_ti_curriculum_list($cur_course);
+      $curr_total_min = array_sum(array_map(fn($r) => (int)$r['est_minutes'], $curr_items));
+      // Formularz dodawania / edycji pozycji planu
+      $currFormHtml = function(?array $r, string $pfx) use ($cur_course) {
+        $isEdit = $r !== null; ?>
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="curr_save">
+          <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+          <?php if ($isEdit): ?><input type="hidden" name="item_id" value="<?= (int)$r['id'] ?>"><?php endif; ?>
+          <div class="modal-header">
+            <h5 class="modal-title" id="<?= $pfx ?>_t"><i class="bi bi-<?= $isEdit?'pencil':'plus-lg' ?> me-2"></i><?= $isEdit?'Edytuj pozycję planu':'Nowa pozycja planu' ?></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label class="form-label fw-semibold" for="<?= $pfx ?>_title">Temat <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="<?= $pfx ?>_title" name="title" required maxlength="300" value="<?= h($r['title'] ?? '') ?>">
+            </div>
+            <div class="row g-2">
+              <div class="col-8 mb-2">
+                <label class="form-label" for="<?= $pfx ?>_section">Dział / moduł <span class="text-body-secondary small">(opc.)</span></label>
+                <input type="text" class="form-control" id="<?= $pfx ?>_section" name="section" maxlength="200" value="<?= h($r['section'] ?? '') ?>" placeholder="np. Podstawy obsługi komputera">
+              </div>
+              <div class="col-4 mb-2">
+                <label class="form-label" for="<?= $pfx ?>_min">Czas (min)</label>
+                <input type="number" class="form-control" id="<?= $pfx ?>_min" name="est_minutes" min="0" step="5" value="<?= (int)($r['est_minutes'] ?? 0) ?>">
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="<?= $pfx ?>_desc">Opis <span class="text-body-secondary small">(opc.)</span></label>
+              <textarea class="form-control" id="<?= $pfx ?>_desc" name="description" rows="3"><?= h($r['description'] ?? '') ?></textarea>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="<?= $pfx ?>_act" name="is_active" value="1" <?= ($isEdit && (int)($r['is_active'] ?? 0) === 0) ? '' : 'checked' ?>>
+              <label class="form-check-label" for="<?= $pfx ?>_act">Pozycja aktywna (widoczna w planie kursanta)</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
+          </div>
+        </form>
+      <?php };
+    ?>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-semibold"><i class="bi bi-list-check me-2"></i>Program zajęć (plan nauczania)</span>
+        <span class="badge bg-secondary"><?= count($curr_items) ?> pozycji</span>
+        <?php if ($curr_total_min > 0): ?><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= round($curr_total_min/60,1) ?> h łącznie</span><?php endif; ?>
+        <div class="ms-auto d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#currImport"><i class="bi bi-upload me-1"></i>Import CSV</button>
+          <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#currAdd"><i class="bi bi-plus-lg me-1"></i>Dodaj pozycję</button>
+        </div>
+      </div>
+      <div class="list-group list-group-flush">
+        <?php if (!$curr_items): ?>
+        <div class="list-group-item text-body-secondary py-3">Brak pozycji planu. Dodaj pierwszą lub zaimportuj z CSV.</div>
+        <?php endif; ?>
+        <?php $curr_n = count($curr_items); foreach ($curr_items as $i => $it): ?>
+        <div class="list-group-item <?= (int)$it['is_active']?'':'opacity-50' ?>">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="badge bg-light text-dark border"><?= $i+1 ?></span>
+            <?php if (trim((string)$it['section']) !== ''): ?><span class="badge badge-soft"><?= h($it['section']) ?></span><?php endif; ?>
+            <span class="fw-semibold"><?= h($it['title']) ?></span>
+            <?php if (!(int)$it['is_active']): ?><span class="badge bg-secondary">ukryte</span><?php endif; ?>
+            <?php if ((int)$it['est_minutes'] > 0): ?><span class="text-body-secondary small"><i class="bi bi-clock me-1"></i><?= (int)$it['est_minutes'] ?> min</span><?php endif; ?>
+            <div class="ms-auto d-flex gap-1">
+              <form method="post" class="d-inline"><input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="curr_move"><input type="hidden" name="course_id" value="<?= $cur_course ?>"><input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>"><input type="hidden" name="dir" value="up">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="W górę" <?= $i===0?'disabled':'' ?>><i class="bi bi-arrow-up"></i></button></form>
+              <form method="post" class="d-inline"><input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="curr_move"><input type="hidden" name="course_id" value="<?= $cur_course ?>"><input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>"><input type="hidden" name="dir" value="down">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="W dół" <?= $i===$curr_n-1?'disabled':'' ?>><i class="bi bi-arrow-down"></i></button></form>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#currEd<?= (int)$it['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pozycję planu? Powiązania z lekcjami zostaną usunięte.')"><input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="curr_delete"><input type="hidden" name="course_id" value="<?= $cur_course ?>"><input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>">
+                <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń"><i class="bi bi-trash"></i></button></form>
+            </div>
+          </div>
+          <?php if (trim((string)$it['description']) !== ''): ?><div class="small text-body-secondary mt-1"><?= nl2br(h($it['description'])) ?></div><?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <div class="modal fade" id="currAdd" tabindex="-1" aria-labelledby="currAdd_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><?php $currFormHtml(null, 'currAdd'); ?></div></div>
+    </div>
+    <?php foreach ($curr_items as $it): ?>
+    <div class="modal fade" id="currEd<?= (int)$it['id'] ?>" tabindex="-1" aria-labelledby="currEd<?= (int)$it['id'] ?>_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><?php $currFormHtml($it, 'currEd'.(int)$it['id']); ?></div></div>
+    </div>
+    <?php endforeach; ?>
+    <div class="modal fade" id="currImport" tabindex="-1" aria-labelledby="currImport_t" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="curr_import">
+        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+        <div class="modal-header">
+          <h5 class="modal-title" id="currImport_t"><i class="bi bi-upload me-2"></i>Import planu z CSV</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-body-secondary small">Kolumny (separator <code>;</code> lub <code>,</code>): <strong>dział; temat; opis; czas_min</strong>. Pierwszy wiersz może być nagłówkiem. Wymagany jest tylko temat.</p>
+          <textarea class="form-control font-monospace" name="csv" rows="8" required placeholder="Podstawy;Uruchamianie komputera;Włączanie i logowanie;45&#10;Podstawy;Pulpit i okna;;30"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i>Importuj</button>
+        </div>
+      </form></div></div>
+    </div>
+    <?php endif; ?>
+
   </div><!-- /dyd-tabpane kurs -->
   <?php endif; /* $course */ ?>
 
@@ -2137,6 +2429,14 @@ function dydOpenReschedule(sid, label, date, from, to) {
   var f = document.getElementById('rs_from'); if (f) f.value = from || '';
   var t = document.getElementById('rs_to');   if (t) t.value = to || '';
   new bootstrap.Modal(document.getElementById('reschedSessionModal')).show();
+}
+// Usprawiedliwienie nieobecności — otwiera modal z opcjonalnym powodem.
+function dydOpenExcuse(sid, cid, label) {
+  document.getElementById('ex_sid').value = sid;
+  document.getElementById('ex_cid').value = cid;
+  document.getElementById('ex_label').textContent = label || '';
+  var r = document.getElementById('ex_reason'); if (r) r.value = '';
+  new bootstrap.Modal(document.getElementById('excuseAbsenceModal')).show();
 }
 
 // Wyszukiwarka „Powiązana lekcja": tekst → ukryte session_id (mapa etykieta→id).
