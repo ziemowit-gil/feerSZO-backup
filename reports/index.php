@@ -3,9 +3,12 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/permissions.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
+$k30_reports = can_read('karty30') || is_admin();
+$k30_payouts = can_write('karty30') || is_admin();
 require_module_enabled('reports_enabled', 'Moduł zestawień');
 $PAGE_TITLE = 'Raporty umów';
 
@@ -141,5 +144,63 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 </div>
+
+<?php if ($k30_reports): ?>
+<!-- ── Karty 30 — Dydaktyka / TI ──────────────────────────────────────────── -->
+<div class="d-flex align-items-center mb-3 mt-4 gap-2 flex-wrap">
+  <h4 class="mb-0"><i class="bi bi-card-checklist" style="color:#7c3aed"></i> Raporty — Karty 30 (Dydaktyka)</h4>
+  <div class="ms-auto d-flex align-items-center gap-1">
+    <label for="k30repM" class="form-label small mb-0 text-muted">Miesiąc:</label>
+    <input type="month" id="k30repM" value="<?= date('Y-m') ?>" class="form-control form-control-sm" style="width:auto">
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-md-6 col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">Kursy TI</div>
+      <div class="card-body d-flex flex-column gap-2">
+        <span class="text-muted small">Lista kursów: prowadzący, uczestnicy, model rozliczania, stawka za lekcję.</span>
+        <a href="karty30_export.php?report=courses&format=print" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer"></i> Do druku (PDF)</a>
+        <a href="karty30_export.php?report=courses&format=csv" class="btn btn-outline-success"><i class="bi bi-file-earmark-spreadsheet"></i> CSV (Excel)</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">Lekcje i frekwencja <span class="text-muted small">(miesiąc)</span></div>
+      <div class="card-body d-flex flex-column gap-2">
+        <span class="text-muted small">Wykaz lekcji w wybranym miesiącu ze statusem i obecnością.</span>
+        <a data-k30base="karty30_export.php?report=lessons&format=print" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer"></i> Do druku (PDF)</a>
+        <a data-k30base="karty30_export.php?report=lessons&format=csv" class="btn btn-outline-success"><i class="bi bi-file-earmark-spreadsheet"></i> CSV (Excel)</a>
+      </div>
+    </div>
+  </div>
+  <?php if ($k30_payouts): ?>
+  <div class="col-md-6 col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">Wypłaty prowadzących <span class="text-muted small">(miesiąc)</span></div>
+      <div class="card-body d-flex flex-column gap-2">
+        <span class="text-muted small">Sumy wynagrodzeń per prowadzący: brutto-brutto, składki, podatek, na rękę.</span>
+        <a data-k30base="karty30_export.php?report=payouts&format=print" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer"></i> Do druku (PDF)</a>
+        <a data-k30base="karty30_export.php?report=payouts&format=csv" class="btn btn-outline-success"><i class="bi bi-file-earmark-spreadsheet"></i> CSV (Excel)</a>
+        <a href="<?= APP_URL ?>/karty30/ti/payouts.php" class="btn btn-link btn-sm p-0 text-decoration-none"><i class="bi bi-box-arrow-up-right"></i> Otwórz interaktywny raport</a>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+</div>
+<script>
+(function(){
+  var inp = document.getElementById('k30repM');
+  function sync(){
+    var m = inp.value || '';
+    document.querySelectorAll('[data-k30base]').forEach(function(a){
+      a.href = a.getAttribute('data-k30base') + (m ? '&m=' + encodeURIComponent(m) : '');
+    });
+  }
+  if (inp){ inp.addEventListener('change', sync); sync(); }
+})();
+</script>
+<?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
