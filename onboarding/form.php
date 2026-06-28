@@ -28,6 +28,16 @@ $org_name      = defined('ORG_NAME') ? ORG_NAME : '';
 $ob_logo       = get_setting('onboarding_logo');
 $ob_accent     = get_setting('onboarding_accent_color') ?: '#0d6efd';
 $ob_bg         = get_setting('onboarding_bg_color')     ?: '#f0f4f8';
+
+// Pre-compute RGB components for CSS custom property (needed for rgba() alpha usage)
+(function () use ($ob_accent, &$ob_accent_rgb) {
+    $hex = ltrim($ob_accent, '#');
+    if (strlen($hex) === 3) {
+        $ob_accent_rgb = hexdec($hex[0].$hex[0]) . ',' . hexdec($hex[1].$hex[1]) . ',' . hexdec($hex[2].$hex[2]);
+    } else {
+        $ob_accent_rgb = hexdec(substr($hex,0,2)) . ',' . hexdec(substr($hex,2,2)) . ',' . hexdec(substr($hex,4,2));
+    }
+})();
 $ob_custom_css = get_setting('onboarding_custom_css');
 if (!preg_match('/^#[0-9a-fA-F]{3,8}$/', $ob_accent)) $ob_accent = '#0d6efd';
 if (!preg_match('/^#[0-9a-fA-F]{3,8}$/', $ob_bg))     $ob_bg     = '#f0f4f8';
@@ -411,12 +421,38 @@ if ($ob_id && $step > 1 && $step <= 5) {
     $vol = db_one("SELECT * FROM onboarding_volunteers WHERE id=?", [$ob_id]);
 }
 
+// ─── compute dynamic step list (skip hidden verification steps) ──────────────
+// Steps: 1=Dane, 2=SMS(opt), 3=Email(opt), 4=Klauzula, 5=Oświadczenie
+// We map URL step numbers to a visible progress position.
+$_require_sms   = get_setting('onboarding_require_sms')   === '1' && sms_is_enabled();
+$_require_email = get_setting('onboarding_require_email') === '1';
+
+// Build ordered list of active URL steps (those that won't be instantly skipped)
+$_active_steps = [1];
+if ($_require_sms)   $_active_steps[] = 2;
+if ($_require_email) $_active_steps[] = 3;
+$_active_steps[] = 4;
+$_active_steps[] = 5;
+
+// Label for each URL step
+$_step_names = [
+    1 => 'Dane',
+    2 => 'Telefon',
+    3 => 'E-mail',
+    4 => 'Zgoda RODO',
+    5 => 'Oświadczenie',
+];
+
+// Position of current step in the visible list (1-based)
+$_step_pos   = array_search($step, $_active_steps, true);
+$_step_pos   = $_step_pos !== false ? $_step_pos + 1 : null; // null on step 6
+$_step_total = count($_active_steps);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════════════════════
 
-$page_title  = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
-$step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula', 'Oświadczenie'];
+$page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -426,130 +462,321 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula', 'Oświadczenie'];
   <title><?= $page_title ?></title>
   <link rel="stylesheet" href="<?= APP_URL ?>/assets/bootstrap.min.css">
   <style>
-    :root { --ob-accent: <?= h($ob_accent) ?>; --ob-bg: <?= h($ob_bg) ?>; }
+    :root {
+      --ob-accent:     <?= h($ob_accent) ?>;
+      --ob-accent-rgb: <?= h($ob_accent_rgb) ?>;
+      --ob-bg:         <?= h($ob_bg) ?>;
+    }
     *, *::before, *::after { box-sizing: border-box; }
-    body { background: var(--ob-bg); min-height: 100vh; }
 
-    .ob-card {
-      border-radius: .75rem;
-      border: 1px solid #e8ecf0;
-      box-shadow: 0 2px 12px rgba(0,0,0,.07);
-      background: #fff;
+    body {
+      background: var(--ob-bg);
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
-    .ob-card-body { padding: 2rem; }
-    @media (max-width: 575px) { .ob-card-body { padding: 1.25rem; } }
 
-    .form-control:focus, .form-select:focus {
-      border-color: var(--ob-accent);
-      box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--ob-accent) 25%, transparent);
+    /* ── Layout ──────────────────────────────────────────────── */
+    .ob-wrap {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 2.5rem 1rem 4rem;
     }
-    .input-group-text {
-      background: #f8f9fa; border-color: #ced4da; color: #6c757d; font-weight: 600;
-    }
-    .form-control-lg { font-size: 1.1rem; letter-spacing: .15em; }
+    @media (max-width: 480px) { .ob-wrap { padding-top: 1.5rem; } }
 
-    .btn-ob-primary {
-      background-color: var(--ob-accent);
-      border-color: var(--ob-accent);
-      color: #fff;
-      font-weight: 600;
-      padding: .65rem 1.5rem;
-      border-radius: .5rem;
-      transition: filter .15s, transform .1s;
-    }
-    .btn-ob-primary:hover, .btn-ob-primary:focus { filter: brightness(.88); color: #fff; }
-    .btn-ob-primary:active { transform: scale(.98); }
+    /* ── Header ──────────────────────────────────────────────── */
+    .ob-header { text-align: center; margin-bottom: 2rem; }
+    .ob-header img { max-height: 72px; max-width: 220px; object-fit: contain; }
+    .ob-org-name { font-size: .8rem; font-weight: 600; color: #9ca3af; letter-spacing: .04em; text-transform: uppercase; margin-bottom: .4rem; }
+    .ob-title { font-size: 1.45rem; font-weight: 700; color: #111827; margin: 0; }
 
-    /* ── Typ selector ──────────────────────────────────────────── */
-    .typ-btn {
+    /* ── Progress bar ────────────────────────────────────────── */
+    .ob-progress { margin-bottom: 2rem; }
+    .ob-progress-track {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .ob-prog-step {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: .4rem;
-      padding: 1.1rem .75rem;
-      border: 2px solid #dee2e6;
-      border-radius: .6rem;
-      background: #fff;
-      cursor: pointer;
-      transition: border-color .15s, background .15s;
-      text-align: center;
       flex: 1;
-      min-width: 0;
+      position: relative;
     }
-    .typ-btn:hover { border-color: var(--ob-accent); background: color-mix(in srgb, var(--ob-accent) 5%, #fff); }
-    .typ-btn input[type=radio] { position: absolute; opacity: 0; width: 0; height: 0; }
-    .typ-btn.selected {
-      border-color: var(--ob-accent);
-      background: color-mix(in srgb, var(--ob-accent) 8%, #fff);
-    }
-    .typ-btn .typ-icon { font-size: 2rem; line-height: 1; }
-    .typ-btn .typ-name { font-weight: 700; font-size: .95rem; }
-    .typ-btn .typ-desc { font-size: .78rem; color: #6c757d; }
-
-    /* ── Step indicator ────────────────────────────────────────── */
-    .step-indicator { display: flex; align-items: flex-start; position: relative; margin-bottom: 2rem; }
-    .step-indicator::before {
+    .ob-prog-step:not(:last-child)::after {
       content: '';
       position: absolute;
-      top: 13px;
-      left: calc(100% / 10);
-      right: calc(100% / 10);
+      top: 16px;
+      left: calc(50% + 16px);
+      right: calc(-50% + 16px);
       height: 2px;
-      background: #dee2e6;
+      background: #e5e7eb;
       z-index: 0;
     }
-    .step-item {
-      display: flex; flex-direction: column; align-items: center;
-      flex: 1; position: relative; font-size: .75rem; z-index: 1;
-    }
-    .step-item:not(:last-child)::after {
-      content: '';
-      position: absolute;
-      top: 13px; left: 50%; width: 100%; height: 2px;
-      background: #dee2e6; z-index: 0;
-    }
-    .step-item.done::after, .step-item.active::after { background: var(--ob-accent); }
-    .step-circle {
-      width: 28px; height: 28px; border-radius: 50%;
+    .ob-prog-step.done:not(:last-child)::after { background: var(--ob-accent); }
+    .ob-prog-dot {
+      width: 32px; height: 32px;
+      border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: .8rem;
-      border: 2px solid #dee2e6; background: #fff;
-      z-index: 1; position: relative;
-      transition: background .2s, border-color .2s;
+      font-size: .8rem; font-weight: 700;
+      border: 2px solid #e5e7eb;
+      background: #fff;
+      color: #9ca3af;
+      position: relative; z-index: 1;
+      transition: all .2s;
     }
-    .step-item.active .step-circle {
+    .ob-prog-step.done .ob-prog-dot {
       background: var(--ob-accent); border-color: var(--ob-accent); color: #fff;
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ob-accent) 20%, transparent);
     }
-    .step-item.done .step-circle { background: var(--ob-accent); border-color: var(--ob-accent); color: #fff; }
-    .step-label { margin-top: 6px; color: #9ca3af; font-weight: 500; white-space: nowrap; }
-    .step-item.active .step-label { color: var(--ob-accent); font-weight: 700; }
-    .step-item.done .step-label   { color: var(--ob-accent); }
+    .ob-prog-step.active .ob-prog-dot {
+      background: #fff; border-color: var(--ob-accent); color: var(--ob-accent);
+      box-shadow: 0 0 0 4px rgba(var(--ob-accent-rgb),.15);
+      font-weight: 800;
+    }
+    .ob-prog-label {
+      font-size: .68rem; font-weight: 500; margin-top: 5px;
+      color: #d1d5db; white-space: nowrap;
+    }
+    .ob-prog-step.done .ob-prog-label  { color: var(--ob-accent); }
+    .ob-prog-step.active .ob-prog-label { color: var(--ob-accent); font-weight: 700; }
+    .ob-prog-counter {
+      text-align: center;
+      font-size: .78rem;
+      color: #9ca3af;
+      margin-top: .6rem;
+    }
 
-    .klauzula-box {
-      max-height: 280px; overflow-y: auto;
-      border: 1px solid #dee2e6; padding: 1rem;
-      background: #fafafa; border-radius: .5rem;
-      white-space: pre-wrap; font-size: .88rem; line-height: 1.6; color: #374151;
+    /* ── Card ────────────────────────────────────────────────── */
+    .ob-card {
+      background: #fff;
+      border-radius: 1rem;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+      overflow: hidden;
+    }
+    .ob-card-head {
+      padding: 1.5rem 2rem 0;
+      border-bottom: 1px solid #f3f4f6;
+      margin-bottom: 0;
+    }
+    .ob-card-head h2 {
+      font-size: 1.1rem; font-weight: 700; color: #111827; margin-bottom: .3rem;
+    }
+    .ob-card-head p {
+      font-size: .875rem; color: #6b7280; margin-bottom: 1.25rem; line-height: 1.5;
+    }
+    .ob-card-body { padding: 1.75rem 2rem; }
+    @media (max-width: 480px) {
+      .ob-card-head { padding: 1.25rem 1.25rem 0; }
+      .ob-card-body { padding: 1.25rem; }
     }
 
-    .upload-area {
-      border: 2px dashed #ced4da; border-radius: .5rem;
-      padding: 2rem; text-align: center; background: #fafafa;
-      cursor: pointer; transition: border-color .2s, background .2s;
+    /* ── Inputs ──────────────────────────────────────────────── */
+    .form-label { font-size: .875rem; font-weight: 600; color: #374151; margin-bottom: .35rem; }
+    .form-control, .form-select {
+      border-color: #d1d5db;
+      border-radius: .5rem;
+      font-size: .9rem;
+      color: #111827;
+      padding: .5rem .75rem;
+      transition: border-color .15s, box-shadow .15s;
     }
-    .upload-area:hover, .upload-area.dragover {
+    .form-control:focus, .form-select:focus {
       border-color: var(--ob-accent);
-      background: color-mix(in srgb, var(--ob-accent) 5%, #fff);
+      box-shadow: 0 0 0 3px rgba(var(--ob-accent-rgb),.15);
+      outline: none;
     }
-    .upload-area input[type=file] { position: absolute; width: 0; height: 0; opacity: 0; }
+    .form-control::placeholder { color: #9ca3af; }
+    .form-text { font-size: .78rem; color: #9ca3af; margin-top: .25rem; }
+    .input-group-text {
+      background: #f9fafb; border-color: #d1d5db; color: #6b7280; font-weight: 600; font-size: .9rem;
+    }
 
-    .section-label {
-      font-size: .8rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .06em; color: #6c757d;
-      border-bottom: 1px solid #e9ecef; padding-bottom: .4rem; margin-bottom: 1rem;
+    /* ── Divider label ───────────────────────────────────────── */
+    .field-group {
+      margin-bottom: 1.5rem;
     }
+    .field-group-label {
+      display: flex; align-items: center; gap: .6rem;
+      font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+      color: #9ca3af; margin-bottom: 1rem;
+    }
+    .field-group-label::after {
+      content: ''; flex: 1; height: 1px; background: #f3f4f6;
+    }
+
+    /* ── Typ selector ────────────────────────────────────────── */
+    .typ-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .typ-card {
+      display: flex; flex-direction: column;
+      padding: 1.1rem 1rem;
+      border: 2px solid #e5e7eb;
+      border-radius: .75rem;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, box-shadow .15s;
+      position: relative;
+    }
+    .typ-card:hover { border-color: var(--ob-accent); background: rgba(var(--ob-accent-rgb),.03); }
+    .typ-card input[type=radio] { position: absolute; opacity: 0; width: 0; height: 0; }
+    .typ-card.selected {
+      border-color: var(--ob-accent);
+      background: rgba(var(--ob-accent-rgb),.05);
+      box-shadow: 0 0 0 3px rgba(var(--ob-accent-rgb),.12);
+    }
+    .typ-card-check {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid #d1d5db;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: .75rem; flex-shrink: 0;
+      transition: border-color .15s, background .15s;
+    }
+    .typ-card.selected .typ-card-check {
+      border-color: var(--ob-accent); background: var(--ob-accent);
+    }
+    .typ-card.selected .typ-card-check::after {
+      content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff;
+    }
+    .typ-card-icon {
+      width: 40px; height: 40px; border-radius: .5rem;
+      background: #f3f4f6;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: .65rem;
+      transition: background .15s;
+    }
+    .typ-card.selected .typ-card-icon { background: rgba(var(--ob-accent-rgb),.12); }
+    .typ-card-icon svg { width: 22px; height: 22px; stroke: #6b7280; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .typ-card.selected .typ-card-icon svg { stroke: var(--ob-accent); }
+    .typ-card-name { font-weight: 700; font-size: .9rem; color: #111827; margin-bottom: .2rem; }
+    .typ-card-desc { font-size: .75rem; color: #9ca3af; line-height: 1.4; }
+
+    /* ── Button ──────────────────────────────────────────────── */
+    .btn-ob {
+      display: block; width: 100%;
+      background: var(--ob-accent);
+      color: #fff;
+      border: none;
+      border-radius: .6rem;
+      padding: .75rem 1.5rem;
+      font-size: .9rem; font-weight: 700;
+      cursor: pointer;
+      transition: filter .15s, transform .1s;
+      text-align: center;
+    }
+    .btn-ob:hover { filter: brightness(.9); }
+    .btn-ob:active { transform: scale(.98); }
+    .btn-ob:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-ob-ghost {
+      display: inline-block;
+      background: none; border: none;
+      color: #9ca3af; font-size: .8rem; cursor: pointer;
+      padding: .25rem .5rem; border-radius: .4rem;
+      transition: color .15s;
+      text-decoration: none;
+    }
+    .btn-ob-ghost:hover { color: #374151; }
+
+    /* ── Klauzula box ────────────────────────────────────────── */
+    .klauzula-box {
+      max-height: 240px; overflow-y: auto;
+      border: 1px solid #e5e7eb; border-radius: .6rem;
+      padding: .875rem 1rem;
+      background: #fafafa;
+      font-size: .83rem; line-height: 1.65; color: #374151;
+      white-space: pre-wrap;
+    }
+    .klauzula-box::-webkit-scrollbar { width: 5px; }
+    .klauzula-box::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+    /* ── Upload ──────────────────────────────────────────────── */
+    .upload-zone {
+      border: 2px dashed #d1d5db; border-radius: .75rem;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      background: #fafafa;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--ob-accent);
+      background: rgba(var(--ob-accent-rgb),.04);
+    }
+    .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .upload-zone-icon {
+      width: 48px; height: 48px; margin: 0 auto .75rem;
+      border-radius: .6rem; background: #f3f4f6;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-zone-icon svg { width: 24px; height: 24px; stroke: #9ca3af; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .upload-zone.has-file .upload-zone-icon { background: rgba(var(--ob-accent-rgb),.1); }
+    .upload-zone.has-file .upload-zone-icon svg { stroke: var(--ob-accent); }
+    .upload-zone-text { font-weight: 600; font-size: .88rem; color: #374151; margin-bottom: .2rem; }
+    .upload-zone-hint { font-size: .78rem; color: #9ca3af; }
+
+    /* ── SMS code input ──────────────────────────────────────── */
+    .code-input {
+      font-size: 2rem; letter-spacing: .3em; text-align: center;
+      font-weight: 700; border-radius: .6rem;
+      padding: .6rem 1rem;
+    }
+
+    /* ── Info box (email/sms instructions) ───────────────────── */
+    .ob-info-box {
+      background: #f8fafc; border: 1px solid #e5e7eb; border-radius: .75rem;
+      padding: 1.25rem; margin-bottom: 1.25rem;
+      display: flex; gap: .75rem; align-items: flex-start;
+    }
+    .ob-info-box-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      border-radius: .5rem; background: rgba(var(--ob-accent-rgb),.1);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ob-info-box-icon svg { width: 18px; height: 18px; stroke: var(--ob-accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .ob-info-box-text { font-size: .85rem; color: #374151; line-height: 1.5; }
+    .ob-info-box-text strong { color: #111827; }
+
+    /* ── Success ─────────────────────────────────────────────── */
+    .ob-success {
+      text-align: center; padding: 2rem 1rem;
+    }
+    .ob-success-icon {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: rgba(var(--ob-accent-rgb),.1);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.25rem;
+    }
+    .ob-success-icon svg { width: 36px; height: 36px; stroke: var(--ob-accent); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .ob-success h2 { font-size: 1.25rem; font-weight: 700; color: #111827; margin-bottom: .5rem; }
+    .ob-success p  { font-size: .88rem; color: #6b7280; line-height: 1.6; margin: 0; }
+
+    /* ── Alert ───────────────────────────────────────────────── */
+    .ob-alert {
+      border-radius: .6rem; padding: .875rem 1rem;
+      font-size: .85rem; line-height: 1.5; margin-bottom: 1.25rem;
+    }
+    .ob-alert ul { margin: 0; padding-left: 1.25rem; }
+    .ob-alert-danger { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .ob-alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+    /* ── Disabled page ───────────────────────────────────────── */
+    .ob-disabled {
+      text-align: center; padding: 3rem 1.5rem;
+      color: #9ca3af; font-size: .9rem;
+    }
+
+    /* ── Checkbox ────────────────────────────────────────────── */
+    .ob-check {
+      display: flex; gap: .75rem; align-items: flex-start;
+      padding: 1rem; background: #f9fafb; border-radius: .6rem;
+      border: 1px solid #e5e7eb; margin-bottom: 1.25rem;
+      cursor: pointer;
+    }
+    .ob-check input[type=checkbox] {
+      width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px;
+      accent-color: var(--ob-accent); cursor: pointer;
+    }
+    .ob-check-label { font-size: .85rem; color: #374151; line-height: 1.5; cursor: pointer; }
 
     <?php if ($ob_custom_css): ?>
     <?= $ob_custom_css . "\n" ?>
@@ -557,441 +784,536 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula', 'Oświadczenie'];
   </style>
 </head>
 <body>
-<div class="container py-5" style="max-width:600px">
+<div class="ob-wrap">
 
-  <?php if ($ob_logo): ?>
-  <div class="text-center mb-3">
-    <img src="<?= APP_URL . '/' . h($ob_logo) ?>" alt="<?= h($org_name) ?>"
-         style="max-height:80px;max-width:240px;object-fit:contain">
+  <!-- Header -->
+  <div class="ob-header">
+    <?php if ($ob_logo): ?>
+    <img src="<?= APP_URL . '/' . h($ob_logo) ?>" alt="<?= h($org_name) ?>" class="mb-3">
+    <?php elseif ($org_name): ?>
+    <div class="ob-org-name"><?= h($org_name) ?></div>
+    <?php endif; ?>
+    <h1 class="ob-title"><?= h($ob_title) ?></h1>
   </div>
-  <?php elseif ($org_name): ?>
-  <div class="text-center mb-2 text-muted small fw-semibold"><?= h($org_name) ?></div>
-  <?php endif; ?>
-
-  <h4 class="text-center mb-4 fw-bold"><?= h($ob_title) ?></h4>
 
 <?php if ($disabled_page): ?>
-  <div class="ob-card">
-    <div class="ob-card-body text-center py-5">
-      <p class="text-muted mb-0">Formularz rejestracyjny jest chwilowo niedostępny. Spróbuj ponownie później.</p>
-    </div>
-  </div>
+  <div class="ob-card"><div class="ob-card-body ob-disabled">
+    Formularz rejestracyjny jest chwilowo niedostepny. Sprobuj ponownie pozniej.
+  </div></div>
 <?php else: ?>
 
-  <?php if ($step >= 1 && $step <= 5): ?>
-  <div class="step-indicator mb-4">
-    <?php foreach ($step_labels as $i => $label):
-      $num = $i + 1;
-      $cls = $num < $step ? 'done' : ($num === $step ? 'active' : '');
-    ?>
-    <div class="step-item <?= $cls ?>">
-      <div class="step-circle"><?= $num < $step ? '&#10003;' : $num ?></div>
-      <div class="step-label"><?= h($label) ?></div>
+  <!-- Progress -->
+  <?php if ($step >= 1 && $step <= 5 && $_step_pos !== null): ?>
+  <div class="ob-progress">
+    <div class="ob-progress-track">
+      <?php foreach ($_active_steps as $idx => $url_step):
+        $pos = $idx + 1;
+        $cls = $pos < $_step_pos ? 'done' : ($pos === $_step_pos ? 'active' : '');
+      ?>
+      <div class="ob-prog-step <?= $cls ?>">
+        <div class="ob-prog-dot">
+          <?php if ($pos < $_step_pos): ?>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,8 6,12 14,4"/></svg>
+          <?php else: ?>
+          <?= $pos ?>
+          <?php endif; ?>
+        </div>
+        <div class="ob-prog-label"><?= h($_step_names[$url_step]) ?></div>
+      </div>
+      <?php endforeach; ?>
     </div>
-    <?php endforeach; ?>
+    <div class="ob-prog-counter">Krok <?= $_step_pos ?> z <?= $_step_total ?></div>
   </div>
   <?php endif; ?>
 
+  <!-- Alerts -->
   <?php if (!empty($errors)): ?>
-  <div class="alert alert-danger">
-    <ul class="mb-0 ps-3">
-      <?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
-    </ul>
+  <div class="ob-alert ob-alert-danger">
+    <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
   </div>
   <?php endif; ?>
-
   <?php if ($success): ?>
-  <div class="alert alert-success"><?= h($success) ?></div>
+  <div class="ob-alert ob-alert-success"><?= h($success) ?></div>
   <?php endif; ?>
 
+  <!-- Card -->
   <div class="ob-card">
-    <div class="ob-card-body">
 
-    <?php
-    // ═══════════════════════════════════════════════════════════
-    // STEP 1
-    // ═══════════════════════════════════════════════════════════
-    if ($step === 1):
-      $p = $_POST; // repopulate on error
-    ?>
+  <?php
+  // ═══════════════════════════════════════════════════════════
+  // STEP 1 — dane
+  // ═══════════════════════════════════════════════════════════
+  if ($step === 1):
+    $p = $_POST;
+  ?>
+    <div class="ob-card-head">
+      <h2>Twoje dane</h2>
+      <p>Wypelnij ponizszy formularz. Pola oznaczone gwiazdka (*) sa obowiazkowe.</p>
+    </div>
+    <div class="ob-card-body">
       <?php if ($ob_intro): ?>
-      <div class="mb-4 text-muted"><?= $ob_intro ?></div>
+      <div class="ob-alert ob-alert-success" style="background:#f0f9ff;border-color:#bae6fd;color:#0c4a6e"><?= $ob_intro ?></div>
       <?php endif; ?>
 
-      <form method="post" action="?step=1" id="step1form">
+      <form method="post" action="?step=1" id="step1form" novalidate>
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
-        <!-- Typ -->
-        <div class="mb-4">
-          <div class="section-label">Rodzaj współpracy</div>
-          <div class="d-flex gap-3">
-            <label class="typ-btn <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'selected' : '' ?>"
-                   id="btn-wolontariusz">
-              <input type="radio" name="typ" value="wolontariusz"
-                     <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'checked' : '' ?>>
-              <span class="typ-icon">🤝</span>
-              <span class="typ-name">Wolontariusz</span>
-              <span class="typ-desc">Umowa wolontariacka (bez wynagrodzenia)</span>
+        <!-- Typ wspolpracy -->
+        <div class="field-group">
+          <div class="field-group-label">Rodzaj wspolpracy</div>
+          <div class="typ-grid">
+
+            <label class="typ-card <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'selected' : '' ?>" id="btn-wolontariusz">
+              <input type="radio" name="typ" value="wolontariusz" <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'checked' : '' ?>>
+              <div class="typ-card-check"></div>
+              <div class="typ-card-icon">
+                <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </div>
+              <div class="typ-card-name">Wolontariusz</div>
+              <div class="typ-card-desc">Porozumienie wolontariackie, bez wynagrodzenia</div>
             </label>
-            <label class="typ-btn <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'selected' : '' ?>"
-                   id="btn-zleceniobiorca">
-              <input type="radio" name="typ" value="zleceniobiorca"
-                     <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'checked' : '' ?>>
-              <span class="typ-icon">📋</span>
-              <span class="typ-name">Zleceniobiorca</span>
-              <span class="typ-desc">Umowa zlecenie lub o dzieło</span>
+
+            <label class="typ-card <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'selected' : '' ?>" id="btn-zleceniobiorca">
+              <input type="radio" name="typ" value="zleceniobiorca" <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'checked' : '' ?>>
+              <div class="typ-card-check"></div>
+              <div class="typ-card-icon">
+                <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+              </div>
+              <div class="typ-card-name">Zleceniobiorca</div>
+              <div class="typ-card-desc">Umowa zlecenie lub o dzielo</div>
             </label>
+
           </div>
         </div>
 
-        <!-- Dane osobowe (wspólne) -->
-        <div class="section-label">Dane osobowe</div>
+        <!-- Dane osobowe -->
+        <div class="field-group">
+          <div class="field-group-label">Dane osobowe</div>
 
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Imię i nazwisko <span class="text-danger">*</span></label>
-          <input type="text" name="imie_nazwisko" class="form-control"
-                 value="<?= h($p['imie_nazwisko'] ?? '') ?>" required autofocus>
-        </div>
-
-        <div class="row g-3 mb-3">
-          <div class="col-sm-6">
-            <label class="form-label fw-semibold">PESEL</label>
-            <input type="text" name="pesel" id="pesel_input" class="form-control"
-                   maxlength="11" pattern="\d{11}"
-                   value="<?= h($p['pesel'] ?? '') ?>"
-                   placeholder="Opcjonalnie">
+          <div class="mb-3">
+            <label class="form-label" for="imie_nazwisko">Imie i nazwisko <span class="text-danger">*</span></label>
+            <input type="text" id="imie_nazwisko" name="imie_nazwisko" class="form-control"
+                   value="<?= h($p['imie_nazwisko'] ?? '') ?>" autocomplete="name" autofocus>
           </div>
-          <div class="col-sm-6">
-            <label class="form-label fw-semibold">Data urodzenia</label>
-            <input type="date" name="data_urodzenia" id="data_urodzenia_input" class="form-control"
-                   value="<?= h($p['data_urodzenia'] ?? '') ?>">
-          </div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Numer telefonu <span class="text-danger">*</span></label>
-          <div class="input-group">
-            <span class="input-group-text">+48</span>
-            <input type="tel" name="telefon" id="telefon_input" class="form-control"
-                   value="<?= h($p['telefon'] ?? '') ?>"
-                   placeholder="123456789" maxlength="9" required>
-          </div>
-        </div>
-
-        <div class="mb-4">
-          <label class="form-label fw-semibold">Adres e-mail <span class="text-danger">*</span></label>
-          <input type="email" name="email" class="form-control"
-                 value="<?= h($p['email'] ?? '') ?>" required>
-          <div class="form-text">Na ten adres wyślemy link do aktywacji konta.</div>
-        </div>
-
-        <!-- Sekcja: wolontariusz ───────────────────────────────── -->
-        <div id="sekcja-wolontariusz">
-          <div class="section-label">Adres zamieszkania</div>
-
-          <div class="mb-2">
-            <input type="text" name="adres" class="form-control"
-                   value="<?= h($p['adres'] ?? '') ?>"
-                   placeholder="ul. Przykładowa 1, 00-000 Miasto">
-          </div>
-        </div>
-
-        <!-- Sekcja: zleceniobiorca ────────────────────────────── -->
-        <div id="sekcja-zleceniobiorca" style="display:none">
-          <div class="section-label">Adres zamieszkania</div>
 
           <div class="row g-3 mb-3">
-            <div class="col-sm-8">
-              <label class="form-label fw-semibold">Ulica <span class="text-danger">*</span></label>
-              <input type="text" name="addr_street" class="form-control"
-                     value="<?= h($p['addr_street'] ?? '') ?>"
-                     placeholder="ul. Przykładowa">
+            <div class="col-7">
+              <label class="form-label" for="pesel_input">PESEL</label>
+              <input type="text" id="pesel_input" name="pesel" class="form-control"
+                     maxlength="11" inputmode="numeric" pattern="\d{11}"
+                     value="<?= h($p['pesel'] ?? '') ?>" placeholder="opcjonalnie"
+                     autocomplete="off">
             </div>
-            <div class="col-sm-2">
-              <label class="form-label fw-semibold">Nr domu <span class="text-danger">*</span></label>
-              <input type="text" name="addr_house" class="form-control"
-                     value="<?= h($p['addr_house'] ?? '') ?>" placeholder="1">
+            <div class="col-5">
+              <label class="form-label" for="data_urodzenia_input">Data urodzenia</label>
+              <input type="date" id="data_urodzenia_input" name="data_urodzenia" class="form-control"
+                     value="<?= h($p['data_urodzenia'] ?? '') ?>">
             </div>
-            <div class="col-sm-2">
-              <label class="form-label fw-semibold">Nr lok.</label>
-              <input type="text" name="addr_flat" class="form-control"
-                     value="<?= h($p['addr_flat'] ?? '') ?>" placeholder="2">
-            </div>
-          </div>
-          <div class="row g-3 mb-4">
-            <div class="col-sm-4">
-              <label class="form-label fw-semibold">Kod pocztowy <span class="text-danger">*</span></label>
-              <input type="text" name="addr_postal" class="form-control"
-                     value="<?= h($p['addr_postal'] ?? '') ?>"
-                     placeholder="00-000" maxlength="6">
-            </div>
-            <div class="col-sm-8">
-              <label class="form-label fw-semibold">Miejscowość <span class="text-danger">*</span></label>
-              <input type="text" name="addr_city" class="form-control"
-                     value="<?= h($p['addr_city'] ?? '') ?>">
-            </div>
-          </div>
-
-          <div class="section-label">Dane do umowy i rozliczeń</div>
-
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Seria i numer dowodu osobistego lub paszportu</label>
-            <input type="text" name="seria_nr_dowodu" class="form-control"
-                   value="<?= h($p['seria_nr_dowodu'] ?? '') ?>"
-                   placeholder="np. ABC 123456">
-            <div class="form-text">Wymagane do wystawienia rachunku/faktury i zgłoszenia do ZUS.</div>
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold">Właściwy urząd skarbowy</label>
-            <input type="text" name="urzad_skarbowy" class="form-control"
-                   value="<?= h($p['urzad_skarbowy'] ?? '') ?>"
-                   placeholder="np. Urząd Skarbowy Warszawa-Mokotów">
+            <label class="form-label" for="telefon_input">Numer telefonu <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <span class="input-group-text">+48</span>
+              <input type="tel" id="telefon_input" name="telefon" class="form-control"
+                     value="<?= h($p['telefon'] ?? '') ?>"
+                     placeholder="123&nbsp;456&nbsp;789" maxlength="11" inputmode="tel" autocomplete="tel">
+            </div>
           </div>
 
-          <div class="mb-2">
-            <label class="form-label fw-semibold">Numer rachunku bankowego</label>
-            <input type="text" name="rachunek_bankowy" class="form-control"
-                   value="<?= h($p['rachunek_bankowy'] ?? '') ?>"
-                   placeholder="26 cyfr, bez spacji"
-                   maxlength="32">
-            <div class="form-text">Numer konta do przelewu wynagrodzenia (26 cyfr, bez liter i spacji).</div>
+          <div class="mb-0">
+            <label class="form-label" for="email_input">Adres e-mail <span class="text-danger">*</span></label>
+            <input type="email" id="email_input" name="email" class="form-control"
+                   value="<?= h($p['email'] ?? '') ?>" autocomplete="email" inputmode="email">
+            <div class="form-text">Na ten adres wysylamy link do aktywacji konta.</div>
           </div>
         </div>
 
-        <div class="d-grid mt-4">
-          <button type="submit" class="btn btn-ob-primary">Dalej &rarr;</button>
+        <!-- Sekcja wolontariusz -->
+        <div id="sekcja-wolontariusz" class="field-group">
+          <div class="field-group-label">Adres zamieszkania</div>
+          <div class="mb-0">
+            <input type="text" name="adres" class="form-control"
+                   value="<?= h($p['adres'] ?? '') ?>"
+                   placeholder="ul. Przykladowa 1, 00-000 Miasto"
+                   autocomplete="street-address">
+          </div>
         </div>
+
+        <!-- Sekcja zleceniobiorca -->
+        <div id="sekcja-zleceniobiorca" style="display:none">
+
+          <div class="field-group">
+            <div class="field-group-label">Adres zamieszkania</div>
+            <div class="row g-2 mb-2">
+              <div class="col-7">
+                <label class="form-label" for="addr_street">Ulica <span class="text-danger">*</span></label>
+                <input type="text" id="addr_street" name="addr_street" class="form-control"
+                       value="<?= h($p['addr_street'] ?? '') ?>" placeholder="ul. Przykladowa"
+                       autocomplete="address-line1">
+              </div>
+              <div class="col-3">
+                <label class="form-label" for="addr_house">Nr domu <span class="text-danger">*</span></label>
+                <input type="text" id="addr_house" name="addr_house" class="form-control"
+                       value="<?= h($p['addr_house'] ?? '') ?>" placeholder="1">
+              </div>
+              <div class="col-2">
+                <label class="form-label" for="addr_flat">Lok.</label>
+                <input type="text" id="addr_flat" name="addr_flat" class="form-control"
+                       value="<?= h($p['addr_flat'] ?? '') ?>" placeholder="—">
+              </div>
+            </div>
+            <div class="row g-2 mb-0">
+              <div class="col-4">
+                <label class="form-label" for="addr_postal">Kod pocztowy <span class="text-danger">*</span></label>
+                <input type="text" id="addr_postal" name="addr_postal" class="form-control"
+                       value="<?= h($p['addr_postal'] ?? '') ?>" placeholder="00-000"
+                       maxlength="6" inputmode="numeric" autocomplete="postal-code">
+              </div>
+              <div class="col-8">
+                <label class="form-label" for="addr_city">Miejscowosc <span class="text-danger">*</span></label>
+                <input type="text" id="addr_city" name="addr_city" class="form-control"
+                       value="<?= h($p['addr_city'] ?? '') ?>" autocomplete="address-level2">
+              </div>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <div class="field-group-label">Dane do umowy i rozliczen</div>
+
+            <div class="mb-3">
+              <label class="form-label" for="seria_nr_dowodu">Seria i numer dowodu osobistego lub paszportu</label>
+              <input type="text" id="seria_nr_dowodu" name="seria_nr_dowodu" class="form-control"
+                     value="<?= h($p['seria_nr_dowodu'] ?? '') ?>" placeholder="np. ABC 123456"
+                     autocomplete="off" style="text-transform:uppercase">
+              <div class="form-text">Wymagane do wystawienia rachunku i zgloszenia do ZUS.</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="urzad_skarbowy">Wlasciwy urzad skarbowy</label>
+              <input type="text" id="urzad_skarbowy" name="urzad_skarbowy" class="form-control"
+                     value="<?= h($p['urzad_skarbowy'] ?? '') ?>"
+                     placeholder="np. US Warszawa-Mokotow">
+            </div>
+
+            <div class="mb-0">
+              <label class="form-label" for="rachunek_bankowy">Numer rachunku bankowego (IBAN)</label>
+              <input type="text" id="rachunek_bankowy" name="rachunek_bankowy" class="form-control"
+                     value="<?= h($p['rachunek_bankowy'] ?? '') ?>"
+                     placeholder="26 cyfr PL, bez spacji" maxlength="32"
+                     inputmode="numeric" autocomplete="off">
+              <div class="form-text">Numer konta do przelewu wynagrodzenia — 26 cyfr, bez liter ani spacji.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <button type="submit" class="btn-ob">Przejdz dalej &rarr;</button>
       </form>
+    </div>
 
-      <script>
-      (function() {
-        var radios = document.querySelectorAll('[name=typ]');
-        var btnW   = document.getElementById('btn-wolontariusz');
-        var btnZ   = document.getElementById('btn-zleceniobiorca');
-        var secW   = document.getElementById('sekcja-wolontariusz');
-        var secZ   = document.getElementById('sekcja-zleceniobiorca');
+    <script>
+    (function() {
+      var btnW = document.getElementById('btn-wolontariusz');
+      var btnZ = document.getElementById('btn-zleceniobiorca');
+      var secW = document.getElementById('sekcja-wolontariusz');
+      var secZ = document.getElementById('sekcja-zleceniobiorca');
 
-        function switchTyp(val) {
-          var isW = val === 'wolontariusz';
-          secW.style.display = isW ? '' : 'none';
-          secZ.style.display = isW ? 'none' : '';
-          btnW.classList.toggle('selected', isW);
-          btnZ.classList.toggle('selected', !isW);
-          // Wyłącz required na ukrytych polach
-          secW.querySelectorAll('[required]').forEach(function(el){ el.required = isW; });
-          secZ.querySelectorAll('[required]').forEach(function(el){ el.required = !isW; });
-        }
-
-        radios.forEach(function(r) {
-          r.addEventListener('change', function() { switchTyp(this.value); });
+      function switchTyp(val) {
+        var isW = val === 'wolontariusz';
+        secW.style.display = isW ? '' : 'none';
+        secZ.style.display = isW ? 'none' : '';
+        btnW.classList.toggle('selected', isW);
+        btnZ.classList.toggle('selected', !isW);
+        secW.querySelectorAll('input,select,textarea').forEach(function(el){
+          if (el.dataset.req) el.required = isW;
         });
-        [btnW, btnZ].forEach(function(btn) {
-          btn.addEventListener('click', function() {
-            var r = this.querySelector('[type=radio]');
-            if (r) { r.checked = true; switchTyp(r.value); }
-          });
+        secZ.querySelectorAll('input,select,textarea').forEach(function(el){
+          if (el.dataset.req) el.required = !isW;
         });
+      }
 
-        // Inicjalizacja
-        var checked = document.querySelector('[name=typ]:checked');
-        switchTyp(checked ? checked.value : 'wolontariusz');
+      // Mark required fields per section
+      // Wolontariusz: adres (only one field, no explicit required markup — server validates)
+      // Zleceniobiorca: addr_street, addr_house, addr_postal, addr_city
+      ['addr_street','addr_house','addr_postal','addr_city'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.dataset.req = '1';
+      });
 
-        // PESEL → data urodzenia
-        function peselToBirthdate(pesel) {
-          if (!/^\d{11}$/.test(pesel)) return null;
-          var y = parseInt(pesel.substring(0,2),10);
-          var m = parseInt(pesel.substring(2,4),10);
-          var d = parseInt(pesel.substring(4,6),10);
-          var year;
-          if (m>=81&&m<=92){year=1800+y;m-=80;}
-          else if(m>=1&&m<=12){year=1900+y;}
-          else if(m>=21&&m<=32){year=2000+y;m-=20;}
-          else if(m>=41&&m<=52){year=2100+y;m-=40;}
-          else if(m>=61&&m<=72){year=2200+y;m-=60;}
-          else return null;
-          return year+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-        }
-        var peselEl = document.getElementById('pesel_input');
-        if (peselEl) peselEl.addEventListener('input', function(){
-          var bd = peselToBirthdate(this.value);
-          if (bd) document.getElementById('data_urodzenia_input').value = bd;
+      [btnW, btnZ].forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var r = this.querySelector('input[type=radio]');
+          if (r && !r.checked) { r.checked = true; switchTyp(r.value); }
         });
+      });
+      document.querySelectorAll('[name=typ]').forEach(function(r){
+        r.addEventListener('change', function(){ switchTyp(this.value); });
+      });
 
-        // Telefon — strip prefix
-        document.getElementById('step1form').addEventListener('submit', function(){
-          var inp = document.getElementById('telefon_input');
-          var val = inp.value.replace(/\D/g,'');
-          if (val.length===11 && val.startsWith('48')) val=val.substring(2);
-          inp.value = val;
-        });
-      })();
-      </script>
+      var checked = document.querySelector('[name=typ]:checked');
+      switchTyp(checked ? checked.value : 'wolontariusz');
 
-    <?php
-    // ═══════════════════════════════════════════════════════════
-    // STEP 2 — weryfikacja SMS
-    // ═══════════════════════════════════════════════════════════
-    elseif ($step === 2):
-      $display_phone = $vol ? ('+' . $vol['telefon']) : '';
-    ?>
-      <h5 class="mb-3">Weryfikacja numeru telefonu</h5>
-      <p class="text-muted mb-3">
-        Wysłaliśmy kod SMS na numer <strong><?= h($display_phone) ?></strong>.<br>
-        Wpisz go poniżej, aby potwierdzić swój numer telefonu.
-      </p>
-      <form method="post" action="?step=2">
+      // PESEL → data urodzenia
+      function peselBd(p) {
+        if (!/^\d{11}$/.test(p)) return null;
+        var y=+p.slice(0,2), m=+p.slice(2,4), d=+p.slice(4,6), yr;
+        if(m>=81){yr=1800+y;m-=80;}else if(m>=21&&m<=32){yr=2000+y;m-=20;}
+        else if(m>=41&&m<=52){yr=2100+y;m-=40;}else if(m>=61){yr=2200+y;m-=60;}
+        else yr=1900+y;
+        return yr+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      }
+      document.getElementById('pesel_input').addEventListener('input', function(){
+        var bd = peselBd(this.value);
+        if (bd) document.getElementById('data_urodzenia_input').value = bd;
+      });
+
+      // Strip phone prefix on submit
+      document.getElementById('step1form').addEventListener('submit', function(){
+        var el = document.getElementById('telefon_input');
+        var v  = el.value.replace(/\D/g,'');
+        if (v.length===11 && v.startsWith('48')) v=v.slice(2);
+        el.value = v;
+      });
+
+      // Format IBAN-like bank account on blur
+      var rachunek = document.getElementById('rachunek_bankowy');
+      if (rachunek) rachunek.addEventListener('blur', function(){
+        this.value = this.value.replace(/\D/g,'');
+      });
+
+      // Uppercase doc number
+      var doc = document.getElementById('seria_nr_dowodu');
+      if (doc) doc.addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
+    })();
+    </script>
+
+  <?php
+  // ═══════════════════════════════════════════════════════════
+  // STEP 2 — SMS
+  // ═══════════════════════════════════════════════════════════
+  elseif ($step === 2):
+    $display_phone = $vol ? preg_replace('/^48/', '+48 ', $vol['telefon']) : '';
+  ?>
+    <div class="ob-card-head">
+      <h2>Weryfikacja telefonu</h2>
+      <p>Wysylamy jednorazowy kod SMS na numer <strong><?= h($display_phone) ?></strong>.</p>
+    </div>
+    <div class="ob-card-body">
+
+      <div class="ob-info-box">
+        <div class="ob-info-box-icon">
+          <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        </div>
+        <div class="ob-info-box-text">
+          Wpisz 6-cyfrowy kod z SMS-a. Kod wazny jest przez <strong>10 minut</strong>.
+          Jezeli nie dotarl, sprawdz czy numer jest poprawny i kliknij „Wyslij ponownie".
+        </div>
+      </div>
+
+      <form method="post" action="?step=2" id="sms-form">
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="action" value="verify">
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Kod weryfikacyjny (6 cyfr)</label>
-          <input type="text" name="code" class="form-control form-control-lg text-center"
+        <div class="mb-4">
+          <label class="form-label" for="sms_code">Kod SMS</label>
+          <input type="text" id="sms_code" name="code" class="form-control code-input"
                  maxlength="6" pattern="\d{6}" placeholder="000000"
-                 autocomplete="one-time-code" autofocus>
+                 autocomplete="one-time-code" inputmode="numeric" autofocus>
         </div>
-        <div class="d-grid mb-3">
-          <button type="submit" class="btn btn-ob-primary">Zweryfikuj kod</button>
-        </div>
-      </form>
-      <form method="post" action="?step=2" class="text-center">
-        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-        <input type="hidden" name="action" value="resend">
-        <button type="submit" class="btn btn-link btn-sm text-muted">Wyslij kod ponownie</button>
+        <button type="submit" class="btn-ob">Zweryfikuj kod</button>
       </form>
 
-    <?php
-    // ═══════════════════════════════════════════════════════════
-    // STEP 3 — weryfikacja e-mail
-    // ═══════════════════════════════════════════════════════════
-    elseif ($step === 3):
-      $display_email = $vol ? $vol['email'] : '';
-    ?>
-      <h5 class="mb-3">Weryfikacja adresu e-mail</h5>
-      <p class="text-muted mb-3">
-        Wysłaliśmy link weryfikacyjny na adres <strong><?= h($display_email) ?></strong>.<br>
-        Kliknij w link w wiadomości, a następnie wróć tutaj i naciśnij przycisk poniżej.
-      </p>
+      <div class="text-center mt-3">
+        <form method="post" action="?step=2" style="display:inline">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="action" value="resend">
+          <button type="submit" class="btn-ob-ghost">Wyslij kod ponownie</button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+    // Auto-submit after 6 digits
+    document.getElementById('sms_code').addEventListener('input', function(){
+      if (this.value.replace(/\D/g,'').length === 6) {
+        this.value = this.value.replace(/\D/g,'');
+        document.getElementById('sms-form').submit();
+      }
+    });
+    </script>
+
+  <?php
+  // ═══════════════════════════════════════════════════════════
+  // STEP 3 — e-mail
+  // ═══════════════════════════════════════════════════════════
+  elseif ($step === 3):
+    $display_email = $vol ? $vol['email'] : '';
+  ?>
+    <div class="ob-card-head">
+      <h2>Weryfikacja e-mail</h2>
+      <p>Sprawdz swoja skrzynke pocztowa i kliknij link weryfikacyjny.</p>
+    </div>
+    <div class="ob-card-body">
+
+      <div class="ob-info-box">
+        <div class="ob-info-box-icon">
+          <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <div class="ob-info-box-text">
+          Wyslalismy link weryfikacyjny na adres <strong><?= h($display_email) ?></strong>.<br>
+          Po kliknieciu w link wróc tutaj i kliknij przycisk ponizej.
+        </div>
+      </div>
+
       <form method="post" action="?step=3">
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="action" value="check">
-        <div class="d-grid mb-3">
-          <button type="submit" class="btn btn-ob-primary">Sprawdz weryfikację</button>
-        </div>
-      </form>
-      <form method="post" action="?step=3" class="text-center">
-        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-        <input type="hidden" name="action" value="resend_email">
-        <button type="submit" class="btn btn-link btn-sm text-muted">Wyslij link ponownie</button>
+        <button type="submit" class="btn-ob">Potwierdzam — e-mail zweryfikowany</button>
       </form>
 
-    <?php
-    // ═══════════════════════════════════════════════════════════
-    // STEP 4 — klauzula RODO
-    // ═══════════════════════════════════════════════════════════
-    elseif ($step === 4):
-      $klauzula_text = get_setting('onboarding_klauzula');
-      if ($klauzula_text === '') {
-          $klauzula_text = "Administratorem danych osobowych jest organizacja. Dane przetwarzane są w celu realizacji wolontariatu lub umowy cywilnoprawnej na podstawie zgody (art. 6 ust. 1 lit. a RODO). Przysługuje Pani/Panu prawo dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania oraz wniesienia skargi do organu nadzorczego.";
-      }
-    ?>
-      <h5 class="mb-3">Klauzula informacyjna RODO</h5>
-      <div class="klauzula-box mb-3"><?= h($klauzula_text) ?></div>
+      <div class="text-center mt-3">
+        <form method="post" action="?step=3" style="display:inline">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="action" value="resend_email">
+          <button type="submit" class="btn-ob-ghost">Wyslij link ponownie</button>
+        </form>
+      </div>
+    </div>
+
+  <?php
+  // ═══════════════════════════════════════════════════════════
+  // STEP 4 — klauzula RODO
+  // ═══════════════════════════════════════════════════════════
+  elseif ($step === 4):
+    $klauzula_text = get_setting('onboarding_klauzula');
+    if ($klauzula_text === '') {
+        $klauzula_text = "Administratorem danych osobowych jest organizacja. Dane przetwarzane sa w celu realizacji wolontariatu lub umowy cywilnoprawnej na podstawie zgody (art. 6 ust. 1 lit. a RODO). Przysluguje Pani/Panu prawo dostepu do danych, ich sprostowania, usuniecia, ograniczenia przetwarzania oraz wniesienia skargi do organu nadzorczego.";
+    }
+  ?>
+    <div class="ob-card-head">
+      <h2>Zgoda na przetwarzanie danych</h2>
+      <p>Przeczytaj tresc klauzuli, a nastepnie zaznacz zgode, aby kontynuowac.</p>
+    </div>
+    <div class="ob-card-body">
+
+      <div class="klauzula-box mb-4"><?= h($klauzula_text) ?></div>
+
       <form method="post" action="?step=4">
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-        <div class="mb-3 form-check">
-          <input type="checkbox" class="form-check-input" name="klauzula" value="1" id="klauzula_check" required>
-          <label class="form-check-label" for="klauzula_check">
-            Zapoznałam/em się z treścią klauzuli informacyjnej i wyrażam zgodę na przetwarzanie moich danych osobowych.
-          </label>
-        </div>
-        <div class="d-grid">
-          <button type="submit" class="btn btn-ob-primary">Akceptuję i przechodzę dalej &rarr;</button>
-        </div>
+        <label class="ob-check" for="klauzula_check">
+          <input type="checkbox" id="klauzula_check" name="klauzula" value="1" required>
+          <span class="ob-check-label">
+            Zapoznalam/em sie z trescia klauzuli informacyjnej i wyrazam zgode na przetwarzanie
+            moich danych osobowych w powyzszym celu.
+          </span>
+        </label>
+        <button type="submit" class="btn-ob">Akceptuje i przechodze dalej &rarr;</button>
       </form>
+    </div>
 
-    <?php
-    // ═══════════════════════════════════════════════════════════
-    // STEP 5 — oświadczenie
-    // ═══════════════════════════════════════════════════════════
-    elseif ($step === 5):
-      $existing_file = $vol['oswiadczenie_file'] ?? '';
-    ?>
-      <h5 class="mb-2">Oświadczenie do celów podatkowych i ZUS</h5>
-      <p class="text-muted mb-4" style="font-size:.93rem">
-        Wypełnij i podpisz oświadczenie, a następnie prześlij jego skan lub zdjęcie.
-        Dozwolone formaty: <strong>PDF, JPG, PNG, TIFF</strong> — maks. 10 MB.
-      </p>
+  <?php
+  // ═══════════════════════════════════════════════════════════
+  // STEP 5 — oswiadczenie
+  // ═══════════════════════════════════════════════════════════
+  elseif ($step === 5):
+    $existing_file = $vol['oswiadczenie_file'] ?? '';
+  ?>
+    <div class="ob-card-head">
+      <h2>Oswiadczenie podatkowe i ZUS</h2>
+      <p>Wypelnij i podpisz oswiadczenie do celow podatkowych i ZUS, a nastepnie przeslij jego skan lub zdjecie.</p>
+    </div>
+    <div class="ob-card-body">
 
       <?php if ($existing_file): ?>
-      <div class="alert alert-success py-2 mb-3">
-        Plik juz przesłany. Możesz go zastąpić nowym lub kliknąć "Wyslij zgłoszenie".
+      <div class="ob-alert ob-alert-success" style="margin-bottom:1.25rem">
+        Plik zostal juz przeslany. Mozesz go zastapic nowym lub od razu wyslac zgloszenie.
       </div>
       <?php endif; ?>
 
-      <form method="post" action="?step=5" enctype="multipart/form-data">
+      <form method="post" action="?step=5" enctype="multipart/form-data" id="upload-form">
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+
         <div class="mb-4">
-          <label class="form-label fw-semibold" for="oswiadczenie">
-            Skan oświadczenia <?= $existing_file ? '' : '<span class="text-danger">*</span>' ?>
+          <label class="form-label" for="oswiadczenie">
+            Skan lub zdjecie dokumentu <?= $existing_file ? '' : '<span class="text-danger">*</span>' ?>
           </label>
-          <div class="upload-area" id="upload-area"
-               onclick="document.getElementById('oswiadczenie').click()">
+          <div class="upload-zone <?= $existing_file ? 'has-file' : '' ?>" id="upload-zone">
             <input type="file" name="oswiadczenie" id="oswiadczenie"
                    accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif"
                    <?= $existing_file ? '' : 'required' ?>>
-            <p class="mb-1 fw-semibold" id="upload-label">Kliknij, aby wybrać plik</p>
-            <p class="text-muted mb-0" style="font-size:.85rem">lub przeciągnij plik tutaj</p>
+            <div class="upload-zone-icon">
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="upload-zone-text" id="upload-label">
+              <?= $existing_file ? 'Kliknij, aby zastapic plik' : 'Kliknij lub przeciagnij plik tutaj' ?>
+            </div>
+            <div class="upload-zone-hint">PDF, JPG, PNG, TIFF &mdash; maks. 10 MB</div>
           </div>
         </div>
-        <div class="d-grid">
-          <button type="submit" class="btn btn-ob-primary">Wyslij zgłoszenie</button>
-        </div>
-      </form>
 
-      <script>
-      var ui = document.getElementById('oswiadczenie');
-      var ul = document.getElementById('upload-label');
-      var ua = document.getElementById('upload-area');
-      ui.addEventListener('change', function(){
-        if (this.files.length>0){ ul.textContent=this.files[0].name; ua.style.borderColor='var(--ob-accent)'; }
+        <button type="submit" class="btn-ob" id="upload-btn">Wyslij zgloszenie</button>
+      </form>
+    </div>
+
+    <script>
+    (function(){
+      var zone  = document.getElementById('upload-zone');
+      var input = document.getElementById('oswiadczenie');
+      var label = document.getElementById('upload-label');
+      var btn   = document.getElementById('upload-btn');
+
+      function setFile(name) {
+        label.textContent = name;
+        zone.classList.add('has-file');
+      }
+      input.addEventListener('change', function(){
+        if (this.files[0]) setFile(this.files[0].name);
       });
-      ua.addEventListener('dragover', function(e){ e.preventDefault(); this.classList.add('dragover'); });
-      ua.addEventListener('dragleave', function(){ this.classList.remove('dragover'); });
-      ua.addEventListener('drop', function(e){
+      zone.addEventListener('dragover', function(e){ e.preventDefault(); this.classList.add('dragover'); });
+      zone.addEventListener('dragleave', function(){ this.classList.remove('dragover'); });
+      zone.addEventListener('drop', function(e){
         e.preventDefault(); this.classList.remove('dragover');
-        if (e.dataTransfer.files.length>0){
-          ui.files=e.dataTransfer.files;
-          ul.textContent=e.dataTransfer.files[0].name;
-          this.style.borderColor='var(--ob-accent)';
+        if (e.dataTransfer.files[0]) {
+          input.files = e.dataTransfer.files;
+          setFile(e.dataTransfer.files[0].name);
         }
       });
-      </script>
+      document.getElementById('upload-form').addEventListener('submit', function(){
+        btn.disabled = true;
+        btn.textContent = 'Wysylanie…';
+      });
+    })();
+    </script>
 
-    <?php
-    // ═══════════════════════════════════════════════════════════
-    // STEP 6 — dziękujemy
-    // ═══════════════════════════════════════════════════════════
-    elseif ($step === 6):
-    ?>
-      <div class="text-center py-4">
-        <div style="font-size:3.5rem;color:var(--ob-accent)">&#10003;</div>
-        <h4 class="fw-bold mt-2">Dziękujemy za zgłoszenie!</h4>
-        <p class="text-muted">
-          Twoje zgłoszenie zostało przyjęte i oczekuje na weryfikację.<br>
-          Na podany adres e-mail wysłaliśmy link do aktywacji konta — sprawdź skrzynkę pocztową.
+  <?php
+  // ═══════════════════════════════════════════════════════════
+  // STEP 6 — dziekujemy
+  // ═══════════════════════════════════════════════════════════
+  elseif ($step === 6):
+  ?>
+    <div class="ob-card-body">
+      <div class="ob-success">
+        <div class="ob-success-icon">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2>Dziekujemy za zgloszenie!</h2>
+        <p>
+          Twoje zgloszenie zostalo przyjete i oczekuje na weryfikacje koordynatora.<br><br>
+          Na podany adres e-mail wysylamy link do aktywacji konta &mdash;
+          sprawdz skrzynke pocztowa (rowniez folder SPAM).
         </p>
-        <p class="text-muted" style="font-size:.9rem">
-          Po zatwierdzeniu przez koordynatora zostaniesz poinformowany/a o dalszych krokach.
+        <p style="margin-top:.75rem;font-size:.82rem;color:#9ca3af">
+          Po zatwierdzeniu zgloszenia zostaniesz poinformowany/a o dalszych krokach.
         </p>
       </div>
-    <?php endif; ?>
-
     </div>
-  </div>
+  <?php endif; ?>
+
+  </div><!-- /.ob-card -->
 
 <?php endif; // disabled_page ?>
 
-</div>
+</div><!-- /.ob-wrap -->
 <script src="<?= APP_URL ?>/assets/bootstrap.bundle.min.js"></script>
 </body>
 </html>
