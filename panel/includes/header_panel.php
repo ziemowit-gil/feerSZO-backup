@@ -187,60 +187,17 @@ if ('serviceWorker' in navigator) {
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Zamknij menu"></button>
   </div>
   <nav class="offcanvas-body" aria-label="Sekcje panelu">
-  <div class="pv-nav-label" aria-hidden="true">Moje umowy</div>
-  <a href="<?= APP_URL ?>/panel/index.php" class="pv-nav-link<?= _pv_nav_active('/panel/index') ?>" aria-label="Moja umowa — przegląd">
-    <i class="bi bi-person-circle" aria-hidden="true"></i>Moja umowa
-  </a>
-  <?php if (module_enabled('messages_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/messages.php" class="pv-nav-link<?= _pv_nav_active('/panel/messages') ?>" aria-label="Wiadomości">
-    <i class="bi bi-chat-left-text" aria-hidden="true"></i>Wiadomości
-  </a>
-  <?php endif; ?>
-
-  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="pv-nav-label" aria-hidden="true">Sprawy</div>
-
-  <?php if (module_enabled('letters_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/letters.php" class="pv-nav-link<?= _pv_nav_active('/panel/letters') ?>">
-    <i class="bi bi-archive" aria-hidden="true"></i>Pisma
-  </a>
-  <?php endif; ?>
-  <a href="<?= APP_URL ?>/panel/apply.php" class="pv-nav-link<?= _pv_nav_active('/panel/apply') ?>">
-    <i class="bi bi-send" aria-hidden="true"></i>Wyślij wniosek
-  </a>
-  <?php if (module_enabled('dyspozycyjnosc_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/dyspozycyjnosc.php" class="pv-nav-link<?= _pv_nav_active('/panel/dyspozycyjnosc') ?>"
-     aria-label="Moja dyspozycyjność i urlopy">
-    <i class="bi bi-calendar-heart" aria-hidden="true"></i>Dyspozycyjność i urlopy
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('certificates_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/certificates.php" class="pv-nav-link<?= _pv_nav_active('/panel/certificates') ?>">
-    <i class="bi bi-award" aria-hidden="true"></i>Zaświadczenia
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('terminations_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/terminations.php" class="pv-nav-link<?= _pv_nav_active('/panel/terminations') ?>">
-    <i class="bi bi-file-earmark-x" aria-hidden="true"></i>Rozwiązanie umowy
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('timesheets_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/timesheets.php" class="pv-nav-link<?= _pv_nav_active('/panel/timesheets') ?>">
-    <i class="bi bi-clock-history" aria-hidden="true"></i>Ewidencja godzin
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('moodle_enabled')): ?>
-  <a href="<?= APP_URL ?>/panel/moodle.php" class="pv-nav-link<?= _pv_nav_active('/panel/moodle') ?>">
-    <i class="bi bi-mortarboard" aria-hidden="true"></i>Kursy Moodle
-  </a>
-  <?php endif; ?>
-  <?php if (module_enabled('tidycal_enabled') && trim(org_setting('tidycal_api_key')) !== ''): ?>
-  <a href="<?= APP_URL ?>/panel/szkolenie.php" class="pv-nav-link<?= _pv_nav_active('/panel/szkolenie') ?>">
-    <i class="bi bi-calendar2-check" aria-hidden="true"></i>Umów się na szkolenie
-  </a>
-  <?php endif; ?>
-
   <?php
+  // Liczba otwartych zgłoszeń helpdesk (dla odznaki)
+  $_hd_open = 0;
+  try {
+      $_hd_open = (int)(db_one(
+          "SELECT COUNT(*) AS c FROM helpdesk_tickets
+           WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')",
+          [(int)($_pu['id'] ?? 0)]
+      )['c'] ?? 0);
+  } catch (\Throwable $e) {}
+
   // Pokaż link do RODO jeśli użytkownik ma aktywne upoważnienie
   $_has_rodo = false;
   try {
@@ -258,26 +215,19 @@ if ('serviceWorker' in navigator) {
       }
   } catch (\Throwable $e) {}
   ?>
-  <?php if ($_has_rodo): ?>
-  <a href="<?= APP_URL ?>/panel/rodo.php" class="pv-nav-link<?= _pv_nav_active('/panel/rodo') ?>">
-    <i class="bi bi-shield-lock" aria-hidden="true"></i>Upoważnienie RODO
+
+  <?php /* ── Pulpit: najważniejsze codzienne akcje (bez nagłówka) ──────── */ ?>
+  <a href="<?= APP_URL ?>/panel/index.php" class="pv-nav-link<?= _pv_nav_active('/panel/index') ?>" aria-label="Moja umowa — przegląd">
+    <i class="bi bi-house-door" aria-hidden="true"></i>Pulpit
+  </a>
+  <?php if (module_enabled('messages_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/messages.php" class="pv-nav-link<?= _pv_nav_active('/panel/messages') ?>" aria-label="Wiadomości">
+    <i class="bi bi-chat-left-text" aria-hidden="true"></i>Wiadomości
   </a>
   <?php endif; ?>
-
-  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="pv-nav-label" aria-hidden="true">Wsparcie</div>
-
-  <?php
-  // Liczba otwartych zgłoszeń helpdesk (dla odznaki)
-  $_hd_open = 0;
-  try {
-      $_hd_open = (int)(db_one(
-          "SELECT COUNT(*) AS c FROM helpdesk_tickets
-           WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')",
-          [(int)($_pu['id'] ?? 0)]
-      )['c'] ?? 0);
-  } catch (\Throwable $e) {}
-  ?>
+  <a href="<?= APP_URL ?>/panel/apply.php" class="pv-nav-link<?= _pv_nav_active('/panel/apply') ?>">
+    <i class="bi bi-send" aria-hidden="true"></i>Wyślij wniosek
+  </a>
   <a href="<?= APP_URL ?>/panel/helpdesk.php"
      class="pv-nav-link<?= _pv_nav_active('/panel/helpdesk') ?>"
      aria-label="Helpdesk IT<?= $_hd_open ? " — {$_hd_open} otwartych" : '' ?>">
@@ -286,6 +236,55 @@ if ('serviceWorker' in navigator) {
     <span class="pv-badge" aria-label="<?= $_hd_open ?> otwartych zgłoszeń"><?= $_hd_open ?></span>
     <?php endif; ?>
   </a>
+
+  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
+  <div class="pv-nav-label" aria-hidden="true">Moje sprawy</div>
+
+  <?php if (module_enabled('letters_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/letters.php" class="pv-nav-link<?= _pv_nav_active('/panel/letters') ?>">
+    <i class="bi bi-archive" aria-hidden="true"></i>Pisma
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('dyspozycyjnosc_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/dyspozycyjnosc.php" class="pv-nav-link<?= _pv_nav_active('/panel/dyspozycyjnosc') ?>"
+     aria-label="Moja dyspozycyjność i urlopy">
+    <i class="bi bi-calendar-heart" aria-hidden="true"></i>Dyspozycyjność i urlopy
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('timesheets_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/timesheets.php" class="pv-nav-link<?= _pv_nav_active('/panel/timesheets') ?>">
+    <i class="bi bi-clock-history" aria-hidden="true"></i>Ewidencja godzin
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('certificates_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/certificates.php" class="pv-nav-link<?= _pv_nav_active('/panel/certificates') ?>">
+    <i class="bi bi-award" aria-hidden="true"></i>Zaświadczenia
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('moodle_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/moodle.php" class="pv-nav-link<?= _pv_nav_active('/panel/moodle') ?>">
+    <i class="bi bi-mortarboard" aria-hidden="true"></i>Kursy Moodle
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('tidycal_enabled') && trim(org_setting('tidycal_api_key')) !== ''): ?>
+  <a href="<?= APP_URL ?>/panel/szkolenie.php" class="pv-nav-link<?= _pv_nav_active('/panel/szkolenie') ?>">
+    <i class="bi bi-calendar2-check" aria-hidden="true"></i>Umów się na szkolenie
+  </a>
+  <?php endif; ?>
+  <?php if ($_has_rodo): ?>
+  <a href="<?= APP_URL ?>/panel/rodo.php" class="pv-nav-link<?= _pv_nav_active('/panel/rodo') ?>">
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>Upoważnienie RODO
+  </a>
+  <?php endif; ?>
+  <?php if (module_enabled('terminations_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/terminations.php" class="pv-nav-link<?= _pv_nav_active('/panel/terminations') ?>">
+    <i class="bi bi-file-earmark-x" aria-hidden="true"></i>Rozwiązanie umowy
+  </a>
+  <?php endif; ?>
+
+  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
+  <div class="pv-nav-label" aria-hidden="true">Organizacja i konto</div>
+
   <?php if (module_enabled('procedures_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/procedures.php" class="pv-nav-link<?= _pv_nav_active('/panel/procedures') ?>"
      aria-label="Procedury i instrukcje organizacji">
@@ -298,25 +297,6 @@ if ('serviceWorker' in navigator) {
     <i class="bi bi-folder2-open" aria-hidden="true"></i>Dokumenty organizacji
   </a>
   <?php endif; ?>
-
-  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="pv-nav-label" aria-hidden="true">Konto</div>
-
-  <a href="<?= APP_URL ?>/panel/m365.php" class="pv-nav-link<?= _pv_nav_active('/panel/m365') ?>">
-    <i class="bi bi-microsoft" aria-hidden="true"></i>Microsoft 365
-  </a>
-  <a href="<?= APP_URL ?>/panel/sessions.php" class="pv-nav-link<?= _pv_nav_active('/panel/sessions') ?>">
-    <i class="bi bi-shield-lock" aria-hidden="true"></i>Sesje
-  </a>
-  <a href="<?= APP_URL ?>/panel/password.php" class="pv-nav-link<?= _pv_nav_active('/panel/password') ?>">
-    <i class="bi bi-gear" aria-hidden="true"></i>Ustawienia konta
-  </a>
-  <a href="<?= APP_URL ?>/panel/panel_color.php" class="pv-nav-link<?= _pv_nav_active('/panel/panel_color') ?>">
-    <i class="bi bi-palette2" aria-hidden="true"></i>Kolor panelu
-  </a>
-
-  <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="pv-nav-label" aria-hidden="true">Organizacja</div>
   <?php if (module_enabled('org_calendar_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/calendar.php" class="pv-nav-link<?= _pv_nav_active('/panel/calendar') ?>">
     <i class="bi bi-calendar3" aria-hidden="true"></i>Kalendarz organizacji
@@ -329,6 +309,18 @@ if ('serviceWorker' in navigator) {
   <a href="<?= APP_URL ?>/org_intro/panel_guide.php" class="pv-nav-link<?= _pv_nav_active('/org_intro/panel_guide') ?>"
      aria-label="Przewodnik po panelu — jak korzystać z systemu">
     <i class="bi bi-book" aria-hidden="true"></i>Przewodnik po panelu
+  </a>
+  <a href="<?= APP_URL ?>/panel/m365.php" class="pv-nav-link<?= _pv_nav_active('/panel/m365') ?>">
+    <i class="bi bi-microsoft" aria-hidden="true"></i>Microsoft 365
+  </a>
+  <a href="<?= APP_URL ?>/panel/sessions.php" class="pv-nav-link<?= _pv_nav_active('/panel/sessions') ?>">
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>Sesje
+  </a>
+  <a href="<?= APP_URL ?>/panel/password.php" class="pv-nav-link<?= _pv_nav_active('/panel/password') ?>">
+    <i class="bi bi-gear" aria-hidden="true"></i>Ustawienia konta
+  </a>
+  <a href="<?= APP_URL ?>/panel/panel_color.php" class="pv-nav-link<?= _pv_nav_active('/panel/panel_color') ?>">
+    <i class="bi bi-palette2" aria-hidden="true"></i>Kolor panelu
   </a>
 
   <div class="pv-sidebar-bottom">

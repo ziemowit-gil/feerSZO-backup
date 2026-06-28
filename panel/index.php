@@ -328,6 +328,23 @@ if ($_is_volunteer_only) {
 <?php if ($_is_volunteer_only): ?>
 <?php /* ═══ PANEL WOLONTARIUSZA — nowy layout + WCAG 2.1 AA ══════════════════ */ ?>
 <?php
+// ── Dane platform (login portalu / M365 / Moodle) — jak w panel/standalone.php ─
+$u_db = db_one(
+    "SELECT u.*, ou.name AS org_unit_name
+     FROM users u
+     LEFT JOIN org_units ou ON ou.id = u.org_unit_id
+     WHERE u.id = ?",
+    [(int)$user['id']]
+) ?: [];
+$email        = $user['email'] ?? ($u_db['email'] ?? '');
+$m365_login   = $u_db['m365_login']   ?? ($_active_row['m365_login'] ?? '');
+$moodle_login = $u_db['moodle_login'] ?? '';
+$moodle_url   = '';
+try {
+    require_once dirname(__DIR__) . '/includes/moodle.php';
+    $moodle_url = rtrim((function_exists('moodle_setting') ? moodle_setting('url') : '') ?: org_setting('moodle_url') ?: '', '/');
+} catch (\Throwable $e) {}
+
 // RGB składowe koloru bez color-mix() — dla rgba() w CSS
 $_vol_rgb = (function(string $hex): string {
     $hex = ltrim($hex, '#');
@@ -419,19 +436,57 @@ $_vol_dark = (function(string $hex): string {
 }
 .vol-activity-row:last-child { border-bottom: none; }
 .vol-activity-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; flex-shrink: 0; }
+
+/* ══ Styl „standalone" (sv-*) — powitanie + karty platform ═══════════════ */
+.sv-panel       { max-width: 880px; }
+.sv-welcome     { margin-bottom: 1.5rem; }
+.sv-greeting    { font-size: 1.3rem; font-weight: 800; color: #0f172a; letter-spacing: -.01em; margin: 0; }
+.sv-sub         { font-size: .85rem; color: #64748b; margin-top: .2rem; }
+
+/* Karty platform */
+.sv-platforms   { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.sv-card        { border: 1px solid #e5e7eb; border-radius: 14px; padding: 1.25rem; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+.sv-card-head   { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+.sv-card-icon   { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+.sv-card-title  { font-weight: 700; font-size: .95rem; color: #0f172a; }
+.sv-card-sub    { font-size: .76rem; color: #94a3b8; }
+.sv-field       { margin-bottom: .65rem; }
+.sv-field-lbl   { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; margin-bottom: .2rem; }
+.sv-field-val   { font-size: .88rem; font-weight: 600; color: #1e293b; font-family: 'Courier New', monospace; word-break: break-all; }
+.sv-field-val a { color: var(--vol-color); text-decoration: none; font-family: system-ui, sans-serif; font-size: .85rem; font-weight: 500; }
+.sv-field-val a:hover { text-decoration: underline; }
+.sv-copy-btn    { background: none; border: none; padding: 0 0 0 .4rem; cursor: pointer; color: #94a3b8; font-size: .8rem; vertical-align: middle; }
+.sv-copy-btn:hover { color: var(--vol-color); }
+.sv-badge-ok    { display: inline-flex; align-items: center; gap: .3rem; background: #dcfce7; color: #166534; border-radius: 20px; padding: .15rem .6rem; font-size: .75rem; font-weight: 600; }
+.sv-badge-none  { display: inline-flex; align-items: center; gap: .3rem; background: #f1f5f9; color: #64748b; border-radius: 20px; padding: .15rem .6rem; font-size: .75rem; }
+.sv-card-footer { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid #f1f5f9; }
+.sv-card-footer a { font-size: .8rem; color: var(--vol-color); text-decoration: none; display: inline-flex; align-items: center; gap: .3rem; }
+.sv-card-footer a:hover { text-decoration: underline; }
+
+/* Pasek zadań (sv) — opcjonalny */
+.sv-tasks-bar   { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--vol-bg); border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+.sv-tasks-num   { font-size: 2rem; font-weight: 800; color: var(--vol-color); line-height: 1; }
+.sv-tasks-lbl   { font-size: .82rem; color: #64748b; }
+
+/* Szybkie linki (sv) */
+.sv-quick       { display: flex; align-items: center; gap: .6rem; padding: .85rem; border: 1px solid #e5e7eb; border-radius: 12px; text-decoration: none; color: #1e293b; background: #fff; font-size: .84rem; height: 100%; transition: border-color .12s, box-shadow .12s; }
+.sv-quick:hover { border-color: var(--vol-color); box-shadow: 0 4px 14px rgba(0,0,0,.06); color: #1e293b; }
+.sv-quick i     { font-size: 1.25rem; }
 </style>
 
-<!-- Nagłówek -->
+<div class="sv-panel mx-auto">
+
+<!-- Nagłówek powitania (styl standalone) -->
 <?php
 $_fname = trim(($_active_row['imie_nazwisko'] ?? $user['name'] ?? ''));
 $_fname_first = explode(' ', $_fname)[0] ?? 'Wolontariuszu';
 $_hour = (int)date('G');
 $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczór');
 ?>
-<div class="pv-page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+<div class="sv-welcome d-flex align-items-start justify-content-between flex-wrap gap-2">
   <div>
-    <h1 class="pv-page-title"><?= h($_greet) ?>, <?= h($_fname_first) ?> 👋</h1>
-    <div class="pv-page-sub"><?= h(ORG_NAME) ?> · <?= date('d F Y') ?></div>
+    <h1 class="sv-greeting"><?= h($_greet) ?>, <?= h($_fname_first) ?> 👋</h1>
+    <div class="sv-sub"><?= h(ORG_NAME) ?> · <?= date('d F Y') ?></div>
     <?php if (!empty($_active_contract) && in_array($_active_contract['status'] ?? '', ['podpisana','w realizacji'])): ?>
     <div class="pv-page-warmup">Cieszmy się, że jesteś z nami!<?php
       if (!empty($_active_row['data_zawarcia'])) {
@@ -450,6 +505,156 @@ $_greet = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczó
 </div>
 
 <?= flash_html() ?>
+
+<!-- ═══ KARTY PLATFORM (styl standalone) ═════════════════════════════════════ -->
+<div class="sv-platforms">
+
+  <!-- 1. Portal wolontariusza -->
+  <div class="sv-card">
+    <div class="sv-card-head">
+      <div class="sv-card-icon" style="background:var(--vol-bg);color:var(--vol-color)">
+        <i class="bi bi-house-fill"></i>
+      </div>
+      <div>
+        <div class="sv-card-title">Portal wolontariusza</div>
+        <div class="sv-card-sub"><?= h(parse_url(APP_URL, PHP_URL_HOST)) ?></div>
+      </div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Login (e-mail)</div>
+      <div class="sv-field-val">
+        <?= h($email) ?>
+        <button class="sv-copy-btn" type="button" onclick="copyText(<?= h(json_encode($email)) ?>, this)" title="Kopiuj" aria-label="Kopiuj login">
+          <i class="bi bi-copy"></i>
+        </button>
+      </div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Adres platformy</div>
+      <div class="sv-field-val"><a href="<?= h(APP_URL) ?>/auth/login.php" target="_blank" rel="noopener"><?= h(APP_URL) ?></a></div>
+    </div>
+    <div class="sv-card-footer">
+      <a href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-key"></i> Zmień hasło</a>
+    </div>
+  </div>
+
+  <!-- 2. Microsoft 365 -->
+  <?php if ($m365_login): ?>
+  <div class="sv-card">
+    <div class="sv-card-head">
+      <div class="sv-card-icon" style="background:#f0f4ff;color:#0078d4">
+        <i class="bi bi-microsoft"></i>
+      </div>
+      <div>
+        <div class="sv-card-title">Microsoft 365</div>
+        <div class="sv-card-sub">Outlook, Teams, OneDrive</div>
+      </div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Login M365</div>
+      <div class="sv-field-val">
+        <?= h($m365_login) ?>
+        <button class="sv-copy-btn" type="button" onclick="copyText(<?= h(json_encode($m365_login)) ?>, this)" title="Kopiuj" aria-label="Kopiuj login M365">
+          <i class="bi bi-copy"></i>
+        </button>
+      </div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Status</div>
+      <div><span class="sv-badge-ok"><i class="bi bi-check-circle-fill"></i> Aktywne</span></div>
+    </div>
+    <?php if (!empty($u_db['m365_security_group_name'])): ?>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Grupa dostępu</div>
+      <div class="sv-field-val" style="font-family:system-ui"><?= h($u_db['m365_security_group_name']) ?></div>
+    </div>
+    <?php endif; ?>
+    <div class="sv-card-footer">
+      <a href="https://portal.office.com" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right"></i> Otwórz portal.office.com
+      </a>
+    </div>
+  </div>
+  <?php elseif (!empty($user['microsoft_id']) || !empty($u_db['microsoft_id'])): ?>
+  <div class="sv-card">
+    <div class="sv-card-head">
+      <div class="sv-card-icon" style="background:#f0f4ff;color:#0078d4">
+        <i class="bi bi-microsoft"></i>
+      </div>
+      <div>
+        <div class="sv-card-title">Microsoft 365</div>
+        <div class="sv-card-sub">Outlook, Teams, OneDrive</div>
+      </div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Status</div>
+      <div><span class="sv-badge-ok"><i class="bi bi-check-circle-fill"></i> Aktywne</span></div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Login</div>
+      <div class="sv-field-val" style="font-family:system-ui;font-size:.82rem;color:#64748b">
+        Użyj swojego adresu e-mail: <?= h($email) ?>
+      </div>
+    </div>
+    <div class="sv-card-footer">
+      <a href="https://portal.office.com" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right"></i> Otwórz portal.office.com
+      </a>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- 3. Moodle -->
+  <?php if ($moodle_url): ?>
+  <div class="sv-card">
+    <div class="sv-card-head">
+      <div class="sv-card-icon" style="background:#fff3e0;color:#f57c00">
+        <i class="bi bi-mortarboard-fill"></i>
+      </div>
+      <div>
+        <div class="sv-card-title">Platforma e-learningowa</div>
+        <div class="sv-card-sub">Moodle — kursy i szkolenia</div>
+      </div>
+    </div>
+    <?php if ($moodle_login): ?>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Login Moodle</div>
+      <div class="sv-field-val">
+        <?= h($moodle_login) ?>
+        <button class="sv-copy-btn" type="button" onclick="copyText(<?= h(json_encode($moodle_login)) ?>, this)" title="Kopiuj" aria-label="Kopiuj login Moodle">
+          <i class="bi bi-copy"></i>
+        </button>
+      </div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Status</div>
+      <div><span class="sv-badge-ok"><i class="bi bi-check-circle-fill"></i> Konto aktywne</span></div>
+    </div>
+    <?php else: ?>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Login</div>
+      <div class="sv-field-val" style="font-family:system-ui;font-size:.82rem;color:#64748b">
+        Użyj swojego adresu e-mail: <?= h($email) ?>
+      </div>
+    </div>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Status</div>
+      <div><span class="sv-badge-none"><i class="bi bi-clock"></i> Oczekuje na synchronizację</span></div>
+    </div>
+    <?php endif; ?>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Adres platformy</div>
+      <div class="sv-field-val"><a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener"><?= h(parse_url($moodle_url, PHP_URL_HOST)) ?></a></div>
+    </div>
+    <div class="sv-card-footer">
+      <a href="<?= h($moodle_url) ?>" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right"></i> Otwórz platformę Moodle
+      </a>
+    </div>
+  </div>
+  <?php endif; ?>
+
+</div><!-- /sv-platforms -->
 
 <?php
 /* ── Skróty + powiadomienia: dane liczone tutaj, renderowane na dole panelu ── */
@@ -841,6 +1046,22 @@ include __DIR__ . '/includes/pv_apps_activity.php';
 <?php if ($_show_sms_nudge): include __DIR__ . '/includes/pv_sms_nudge.php'; endif; ?>
 
 <?php endif; // $contracts ?>
+
+</div><!-- /sv-panel -->
+
+<script>
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(function() {
+    var i = btn.querySelector('i');
+    i.className = 'bi bi-check-lg';
+    btn.style.color = '#16a34a';
+    setTimeout(function() {
+      i.className = 'bi bi-copy';
+      btn.style.color = '';
+    }, 1800);
+  });
+}
+</script>
 
 <?php else: ?>
 <?php /* ═══ STARY WIDOK DLA EDYTORÓW / ADMINÓW / k30_consultants ══════════ */ ?>
