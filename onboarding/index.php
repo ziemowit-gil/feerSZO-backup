@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/functions.php';
 
 require_role('admin', 'editor');
 require_module_enabled('onboarding_enabled', 'Moduł zgłoszeń wolontariuszy');
+require_once __DIR__ . '/../includes/onboarding_schema.php';
 
 $PAGE_TITLE = 'Zgłoszenia wolontariuszy';
 

@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 require_role('admin', 'editor');
+require_once __DIR__ . '/../includes/onboarding_schema.php';
 require_once __DIR__ . '/../includes/messages.php';
 
 // ── ensure messages table ──────────────────────────────────────────

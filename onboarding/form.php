@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
+require_once dirname(__DIR__) . '/includes/onboarding_schema.php';
 auth_start();
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -86,19 +87,11 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Pola zależne od typu
         if ($typ === 'wolontariusz') {
-            $adres  = trim($_POST['adres'] ?? '');
+            $adres = trim($_POST['adres'] ?? '');
             if ($adres === '') $errors[] = 'Adres jest wymagany.';
-            $miejsce   = trim($_POST['miejsce_wolontariatu'] ?? '');
-            $przedmiot = trim($_POST['przedmiot_porozumienia'] ?? '');
-            $data_rozp = trim($_POST['data_rozpoczecia'] ?? '');
-            $data_zak  = trim($_POST['data_zakonczenia'] ?? '');
 
             $row_extra = [
-                'adres'                  => $adres,
-                'miejsce_wolontariatu'   => $miejsce,
-                'przedmiot_porozumienia' => $przedmiot,
-                'data_rozpoczecia'       => $data_rozp,
-                'data_zakonczenia'       => $data_zak,
+                'adres' => $adres,
             ];
         } else {
             // zleceniobiorca — adres strukturalny
@@ -696,38 +689,10 @@ $step_labels = ['Dane', 'Telefon', 'E-mail', 'Klauzula', 'Oświadczenie'];
         <div id="sekcja-wolontariusz">
           <div class="section-label">Adres zamieszkania</div>
 
-          <div class="mb-4">
+          <div class="mb-2">
             <input type="text" name="adres" class="form-control"
                    value="<?= h($p['adres'] ?? '') ?>"
                    placeholder="ul. Przykładowa 1, 00-000 Miasto">
-          </div>
-
-          <div class="section-label">Dane do porozumienia wolontariackiego</div>
-
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Miejsce wolontariatu</label>
-            <input type="text" name="miejsce_wolontariatu" class="form-control"
-                   value="<?= h($p['miejsce_wolontariatu'] ?? '') ?>"
-                   placeholder="np. Biuro główne, ul. Przykładowa 1">
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Zakres działań</label>
-            <textarea name="przedmiot_porozumienia" class="form-control" rows="3"
-                      placeholder="Krótko opisz, w czym chcesz pomagać..."><?= h($p['przedmiot_porozumienia'] ?? '') ?></textarea>
-          </div>
-
-          <div class="row g-3 mb-2">
-            <div class="col-sm-6">
-              <label class="form-label fw-semibold">Planowana data rozpoczecia</label>
-              <input type="date" name="data_rozpoczecia" class="form-control"
-                     value="<?= h($p['data_rozpoczecia'] ?? '') ?>">
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label fw-semibold">Planowana data zakończenia</label>
-              <input type="date" name="data_zakonczenia" class="form-control"
-                     value="<?= h($p['data_zakonczenia'] ?? '') ?>">
-            </div>
           </div>
         </div>
 
