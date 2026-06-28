@@ -1047,6 +1047,22 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           </div>
           <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>
           <?php
+            $_payout_bb = (float)($course['lesson_payout_bb'] ?? 0);
+            if ($s['status'] === 'held' && $_payout_bb > 0):
+              $_pb = k30_ti_payout_breakdown($_payout_bb);
+              $_pf = fn($x) => number_format((float)$x, 2, ',', ' ');
+          ?>
+          <div class="mt-2 small">
+            <span class="badge rounded-pill text-bg-light border">
+              <i class="bi bi-wallet2 me-1 text-primary"></i>Wypłata:
+              <strong class="text-success"><?= $_pf($_pb['netto']) ?> zł</strong> na rękę
+            </span>
+            <span class="text-body-secondary ms-1">
+              (brutto-brutto <?= $_pf($_pb['brutto_brutto']) ?> zł · składki <?= $_pf($_pb['skladki']) ?> zł · podatek <?= $_pf($_pb['pit']) ?> zł)
+            </span>
+          </div>
+          <?php endif; ?>
+          <?php
             $pending = db_all(
               "SELECT a.client_id, cl.name, a.cancel_reason
                FROM k30_ti_attendance a JOIN k30_clients cl ON cl.id=a.client_id

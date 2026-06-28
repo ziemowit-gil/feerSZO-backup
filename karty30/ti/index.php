@@ -30,6 +30,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete')
     header('Location: index.php'); exit;
 }
 
+// Globalne stawki potrąceń od wynagrodzenia prowadzących — tylko administrator
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_payout_settings') {
+    csrf_check();
+    if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
+    foreach (array_keys(K30_TI_PAYOUT_DEFAULTS) as $key) {
+        $val = max(0, (float)str_replace(',', '.', (string)($_POST[$key] ?? '0')));
+        db()->prepare("INSERT OR REPLACE INTO settings (key_, value) VALUES (?, ?)")
+            ->execute([$key, (string)$val]);
+    }
+    flash_set('success', 'Stawki potrąceń zapisane.');
+    header('Location: index.php'); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $data = [
@@ -43,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'pay_account'         => trim($_POST['pay_account'] ?? ''),
         'pay_title'           => trim($_POST['pay_title'] ?? ''),
         'pay_due_days'        => ((int)($_POST['pay_due_days'] ?? 0)) ?: null,
+        'lesson_payout_bb'    => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
         'is_active'           => isset($_POST['is_active']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
@@ -295,6 +309,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </div>
         <div class="col-12"><div class="form-text">Używane domyślnie dla kursantów; można nadpisać indywidualnie (kod 9999) przy uczestniku.</div></div>
       </div>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold"><i class="bi bi-wallet2 me-1 text-primary"></i>Wynagrodzenie prowadzącego — kwota brutto-brutto za lekcję (zł)</label>
+          <input type="number" class="form-control" name="lesson_payout_bb" step="0.01" min="0"
+                 value="<?= h(number_format((float)($f['lesson_payout_bb'] ?? 0),2,'.','')) ?>" placeholder="0,00">
+          <div class="form-text">Stała należność za przeprowadzenie jednej lekcji. Prowadzący widzi w swoim panelu rozbicie na składki, podatek i kwotę „na rękę" (stawki potrąceń ustawisz niżej).</div>
+        </div>
+      </div>
       <div class="mb-3">
         <label class="form-label">Opis</label>
         <textarea class="form-control" name="description" rows="2" placeholder="Czego dotyczą zajęcia…"><?= h($f['description']) ?></textarea>
@@ -368,6 +390,58 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </div>
   </div>
   <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<?php if (is_admin()):
+  $_pd = K30_TI_PAYOUT_DEFAULTS;
+  $_pf = [
+    'ti_payout_zus_employer_pct' => 'Składki płatnika (% brutto)',
+    'ti_payout_zus_employee_pct' => 'Składki społeczne pracownika (% brutto)',
+    'ti_payout_health_pct'       => 'Składka zdrowotna (% podstawy)',
+    'ti_payout_kup_pct'          => 'Koszty uzyskania — KUP (% podstawy)',
+    'ti_payout_pit_pct'          => 'Zaliczka PIT (%)',
+  ];
+  $_ex = k30_ti_payout_breakdown(100.0);
+  $_fmt = fn($x) => number_format((float)$x, 2, ',', ' ');
+?>
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-header bg-white d-flex align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#payoutCfg" aria-expanded="false">
+    <i class="bi bi-wallet2 me-2 text-primary"></i>
+    <span class="fw-semibold">Wynagrodzenia prowadzących — stawki potrąceń</span>
+    <i class="bi bi-chevron-down ms-auto"></i>
+  </div>
+  <div class="collapse" id="payoutCfg">
+    <div class="card-body">
+      <p class="text-body-secondary small mb-3">
+        Kwotę brutto-brutto za lekcję ustawiasz przy każdym kursie. Poniższe stawki służą do rozbicia tej kwoty na składki, podatek i wartość „na rękę" — prowadzący widzi je w swoim panelu. Wartości przybliżone; dostosuj do formy umowy.
+      </p>
+      <form method="post" class="row g-3">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_op" value="save_payout_settings">
+        <?php foreach ($_pf as $key => $label): ?>
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label small fw-semibold"><?= h($label) ?></label>
+          <div class="input-group">
+            <input type="number" class="form-control" name="<?= $key ?>" step="0.01" min="0"
+                   value="<?= h(rtrim(rtrim(number_format(k30_ti_payout_rate($key),2,'.',''),'0'),'.')) ?>">
+            <span class="input-group-text">%</span>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz stawki</button>
+        </div>
+      </form>
+      <div class="mt-3 p-3 rounded bg-light small">
+        <div class="fw-semibold mb-1">Przykład dla 100,00 zł brutto-brutto (wg powyższych stawek):</div>
+        Brutto: <strong><?= $_fmt($_ex['brutto']) ?> zł</strong> ·
+        Składki pracownika: <strong><?= $_fmt($_ex['skladki']) ?> zł</strong> ·
+        Podatek: <strong><?= $_fmt($_ex['pit']) ?> zł</strong> ·
+        Na rękę: <strong class="text-success"><?= $_fmt($_ex['netto']) ?> zł</strong>
+      </div>
+    </div>
+  </div>
 </div>
 <?php endif; ?>
 

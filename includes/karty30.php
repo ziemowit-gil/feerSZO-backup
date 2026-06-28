@@ -308,6 +308,8 @@ function karty30_migrate(): void {
         // Model rozliczania kursu: 1=miesięczny, 2=godzinowy (domyślny), 3=stały
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 2",
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
+        // Wynagrodzenie prowadzącego: stała kwota brutto-brutto za przeprowadzoną lekcję
+        "ALTER TABLE k30_ti_courses ADD COLUMN lesson_payout_bb REAL NOT NULL DEFAULT 0",
         // Override modelu na kursancie (zapisie): 0=dziedziczy z kursu, >0=indywidualny (kod 9999)
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
@@ -1778,6 +1780,66 @@ const K30_TI_BILLING_MODELS = [
 
 function k30_ti_billing_model_label(int $code): string {
     return K30_TI_BILLING_MODELS[$code]['label'] ?? ('model ' . $code);
+}
+
+/**
+ * Domyślne stawki potrąceń od wynagrodzenia prowadzącego (konfigurowalne w
+ * ustawieniach — Zajęcia TI). Klucze tabeli settings → wartość % (string).
+ */
+const K30_TI_PAYOUT_DEFAULTS = [
+    'ti_payout_zus_employer_pct' => '20.48', // składki finansowane przez płatnika (od brutto) — część brutto-brutto
+    'ti_payout_zus_employee_pct' => '13.71', // składki społeczne zleceniobiorcy (od brutto)
+    'ti_payout_health_pct'       => '9.00',  // składka zdrowotna (od podstawy = brutto − społeczne pracownika)
+    'ti_payout_kup_pct'          => '20.00', // koszty uzyskania przychodu (od podstawy j.w.)
+    'ti_payout_pit_pct'          => '12.00', // zaliczka na podatek dochodowy
+];
+
+/** Odczyt stawki potrącenia (%) z ustawień, z fallbackiem do wartości domyślnej. */
+function k30_ti_payout_rate(string $key): float {
+    $def = K30_TI_PAYOUT_DEFAULTS[$key] ?? '0';
+    try {
+        $r = db_one("SELECT value FROM settings WHERE key_=?", [$key]);
+        $v = ($r && $r['value'] !== '' && $r['value'] !== null) ? $r['value'] : $def;
+    } catch (\Throwable $e) { $v = $def; }
+    return (float)str_replace(',', '.', (string)$v);
+}
+
+/**
+ * Rozbicie wynagrodzenia za lekcję z kwoty BRUTTO-BRUTTO na netto „na rękę".
+ * brutto-brutto = brutto + składki płatnika; od brutto odliczane są składki
+ * społeczne i zdrowotna pracownika oraz zaliczka PIT (z uwzględnieniem KUP).
+ * Zwraca komplet składowych (wszystkie kwoty zaokrąglone do groszy).
+ */
+function k30_ti_payout_breakdown(float $bb): array {
+    $emp_pct    = k30_ti_payout_rate('ti_payout_zus_employer_pct');
+    $ee_pct     = k30_ti_payout_rate('ti_payout_zus_employee_pct');
+    $health_pct = k30_ti_payout_rate('ti_payout_health_pct');
+    $kup_pct    = k30_ti_payout_rate('ti_payout_kup_pct');
+    $pit_pct    = k30_ti_payout_rate('ti_payout_pit_pct');
+
+    $bb = max(0.0, $bb);
+    $brutto       = $emp_pct > 0 ? $bb / (1 + $emp_pct / 100) : $bb;
+    $zus_employer = $bb - $brutto;
+    $zus_employee = $brutto * $ee_pct / 100;
+    $base         = max(0.0, $brutto - $zus_employee);   // podstawa zdrowotnej i KUP
+    $health       = $base * $health_pct / 100;
+    $kup          = $base * $kup_pct / 100;
+    $pit_base     = max(0.0, $base - $kup);
+    $pit          = round($pit_base * $pit_pct / 100);   // zaliczka PIT — w pełnych złotych
+    $skladki      = $zus_employee + $health;             // potrącone pracownikowi
+    $netto        = max(0.0, $brutto - $zus_employee - $health - $pit);
+
+    $r = fn($x) => round($x, 2);
+    return [
+        'brutto_brutto' => $r($bb),
+        'zus_employer'  => $r($zus_employer),
+        'brutto'        => $r($brutto),
+        'zus_employee'  => $r($zus_employee),
+        'health'        => $r($health),
+        'skladki'       => $r($skladki),
+        'pit'           => $r($pit),
+        'netto'         => $r($netto),
+    ];
 }
 
 /** Domyślny termin płatności (dni od wystawienia rozliczenia), gdy nie ustawiono na kursie/kursancie. */
