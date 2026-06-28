@@ -15,23 +15,29 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/auth_security.php';
 
-require_login();
+auth_start();
+
+$self_url = APP_URL . '/auth/convert_account.php';
 
 // Operujemy na PRAWDZIWIE zalogowanym koncie (pomijamy ewentualny kontekst admina).
 $me = function_exists('ctx_real_user') ? (ctx_real_user() ?? current_user()) : current_user();
 
-$self_url = APP_URL . '/auth/convert_account.php';
-
-// Wymagane logowanie przez Microsoft 365 (konto musi być powiązane z MS).
-if (empty($me['microsoft_id'])) {
+// Niezalogowany → zacznij logowanie przez Office i wróć tutaj. NIE używamy
+// require_login(), bo to odbiłoby na zwykły ekran logowania (wyglądało jak
+// „nie działa"). Gdy MS niedostępne — klasyczny ekran logowania jako fallback.
+if (!$me) {
     if (function_exists('ms_login_available') && ms_login_available()) {
         header('Location: ' . APP_URL . '/auth/ms365.php?redirect=' . urlencode($self_url));
-        exit;
+    } else {
+        header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($self_url));
     }
-    flash_set('error', 'Ta funkcja wymaga konta powiązanego z Microsoft 365.');
-    header('Location: ' . APP_URL . '/portal.php');
     exit;
 }
+
+// Zalogowany, ale konto nie jest powiązane z Microsoft 365. NIE przekierowujemy
+// do ms365.php (zalogowany użytkownik wróciłby od razu tutaj → pętla). Pokażemy
+// komunikat informacyjny zamiast formularza.
+$no_ms = empty($me['microsoft_id']);
 
 /** Generuje czytelne, silne hasło tymczasowe (bez znaków łatwych do pomylenia). */
 function _conv_gen_password(int $len = 12): string {
@@ -45,14 +51,18 @@ function _conv_gen_password(int $len = 12): string {
 $generated = null;
 $err = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$no_ms) {
     csrf_check();
     $pw   = _conv_gen_password();
     $hash = password_hash($pw, PASSWORD_BCRYPT);
     $is_office = account_is_office_only($me['email'] ?? '');
 
+    // Upewnij się, że kolumny istnieją (nie zakładamy, że _auth_security_init()
+    // zdążyło je dołożyć — ta strona nie używa require_login()).
+    try { db()->exec("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+
     try {
-        // allow_local_fallback istnieje dzięki _auth_security_init() (wywołane przez require_login()).
         db()->prepare(
             "UPDATE users SET password=?, must_change_password=1, allow_local_fallback=? WHERE id=?"
         )->execute([$hash, $is_office ? 1 : 0, (int)$me['id']]);
@@ -112,12 +122,24 @@ $tok      = csrf_token();
 <div class="wrap">
   <div class="head">
     <h1>🔐 Hasło awaryjne do logowania lokalnego</h1>
-    <p>Zalogowano przez Microsoft 365 jako <strong><?= h($me['email']) ?></strong></p>
+    <p>Zalogowano jako <strong><?= h($me['email']) ?></strong></p>
   </div>
 
   <?php if ($err): ?><div class="err"><?= h($err) ?></div><?php endif; ?>
 
-  <?php if ($generated !== null): ?>
+  <?php if ($no_ms): ?>
+  <!-- Konto bez powiązania z Microsoft 365 -->
+  <div class="card">
+    <h2>To konto nie wymaga hasła awaryjnego</h2>
+    <p class="desc">
+      Funkcja jest przeznaczona dla kont logujących się przez Microsoft 365 (Office) — tworzy dla nich
+      zapasowe hasło lokalne. Twoje konto <strong><?= h($me['email']) ?></strong> nie jest powiązane
+      z Microsoft 365 i loguje się standardowo loginem i hasłem.
+    </p>
+    <p class="desc">Jeśli zapomniałeś hasła, użyj opcji odzyskiwania na stronie logowania.</p>
+    <p class="muted"><a class="link" href="<?= h(APP_URL) ?>/portal.php">Wróć do systemu</a></p>
+  </div>
+  <?php elseif ($generated !== null): ?>
   <!-- Wynik: hasło pokazane RAZ -->
   <div class="card">
     <h2>✅ Hasło zostało utworzone</h2>
