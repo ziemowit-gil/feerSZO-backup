@@ -367,13 +367,13 @@ include __DIR__ . '/_layout_head.php';
       </li>
       <li class="nav-item">
         <a class="nav-link <?= $ptab==='wiadomosci'?'active':'' ?>" href="?ptab=wiadomosci" <?= $ptab==='wiadomosci'?'aria-current="page"':'' ?>>
-          <i class="bi bi-chat-text me-1" aria-hidden="true"></i>Wiadomosci
+          <i class="bi bi-chat-text me-1" aria-hidden="true"></i>Wiadomości
         </a>
       </li>
       <li class="nav-item">
         <a class="nav-link <?= $ptab==='dostep'?'active':'' ?>" href="?ptab=dostep" <?= $ptab==='dostep'?'aria-current="page"':'' ?>>
-          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Dostep dziecka
-          <?php if ($blocked): ?><span class="badge text-bg-danger ms-1" title="Dostep wstrzymany"><i class="bi bi-lock-fill" aria-hidden="true"></i></span><?php endif; ?>
+          <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Dostęp dziecka
+          <?php if ($blocked): ?><span class="badge text-bg-danger ms-1" title="Dostęp wstrzymany"><i class="bi bi-lock-fill" aria-hidden="true"></i></span><?php endif; ?>
         </a>
       </li>
     </ul>
@@ -463,8 +463,8 @@ include __DIR__ . '/_layout_head.php';
      LIMIT 120",
     [$parent['client_id'], $parent['client_id']]
   );
-  $months_pl_har = ['','sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','lis','gru'];
-  $days_pl_har   = ['Nd','Pn','Wt','Sr','Czw','Pt','Sb'];
+  $months_pl_har = ['','sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+  $days_pl_har   = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'];
   $today_har     = date('Y-m-d');
   $ptok_har      = student_token();
   // Mapa lekcji z oczekującą propozycją terminu (dziecko)
@@ -477,13 +477,13 @@ include __DIR__ . '/_layout_head.php';
   $hmsg = $_SESSION['k30_parent_msg'] ?? null; unset($_SESSION['k30_parent_msg']);
 ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
-    <i class="bi bi-calendar-week text-primary" aria-hidden="true"></i>Harmonogram zajec
+    <i class="bi bi-calendar-week text-primary" aria-hidden="true"></i>Harmonogram zajęć
   </h2>
   <?php if ($hmsg): ?>
   <div class="alert alert-<?= $hmsg[0]==='ok'?'success':'danger' ?> py-2"><?= h($hmsg[1]) ?></div>
   <?php endif; ?>
   <?php if (!$p_lessons): ?>
-  <div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>Brak nadchodzacych lekcji.</div>
+  <div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>Brak nadchodzących lekcji.</div>
   <?php else: ?>
   <div class="d-flex flex-column gap-2">
     <?php foreach ($p_lessons as $l):
@@ -518,13 +518,13 @@ include __DIR__ . '/_layout_head.php';
           <div class="text-body-secondary"><?= (int)$l['duration_min'] ?> min</div>
           <?php endif; ?>
           <?php if ($is_canc): ?>
-          <span class="badge text-bg-secondary">odwolana</span>
+          <span class="badge text-bg-secondary">odwołana</span>
           <?php elseif ($is_past && $attended): ?>
           <span class="badge text-bg-success">obecny</span>
           <?php elseif ($is_past && !$attended): ?>
           <span class="badge text-bg-danger">nieobecny</span>
           <?php elseif ($is_today): ?>
-          <span class="badge text-bg-primary">dzis</span>
+          <span class="badge text-bg-primary">dziś</span>
           <?php else: ?>
           <span class="badge text-bg-light text-dark border">zaplanowana</span>
           <?php endif; ?>
@@ -535,7 +535,7 @@ include __DIR__ . '/_layout_head.php';
             if ($can_propose):
               if ($rph):
                 $rphW = date('d.m.Y', strtotime($rph['proposed_date'])) . ($rph['proposed_from'] ? ' '.substr((string)$rph['proposed_from'],0,5) : ''); ?>
-          <div class="mt-1"><span class="badge text-bg-info" title="Czeka na decyzje prowadzacego"><i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Propozycja: <?= h($rphW) ?></span></div>
+          <div class="mt-1"><span class="badge text-bg-info" title="Czeka na decyzję prowadzącego"><i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Propozycja: <?= h($rphW) ?></span></div>
           <?php else: ?>
           <div class="mt-1">
             <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2"
@@ -622,7 +622,7 @@ include __DIR__ . '/_layout_head.php';
   foreach ($p_msgs as $m) {
     $key = trim((string)($m['subject'] ?? ''));
     if ($key === '') $key = '__ogolny__';
-    if (!isset($p_threads[$key])) $p_threads[$key] = ['subject' => $key === '__ogolny__' ? 'Wiadomosci ogolne' : $key, 'msgs' => [], 'last_at' => ''];
+    if (!isset($p_threads[$key])) $p_threads[$key] = ['subject' => $key === '__ogolny__' ? 'Wiadomości ogólne' : $key, 'msgs' => [], 'last_at' => ''];
     $p_threads[$key]['msgs'][] = $m;
     if ($m['created_at'] > $p_threads[$key]['last_at']) $p_threads[$key]['last_at'] = $m['created_at'];
   }
@@ -631,36 +631,36 @@ include __DIR__ . '/_layout_head.php';
   if ($active_ts === '' && !empty($p_threads)) $active_ts = array_key_first($p_threads);
 ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
-    <i class="bi bi-chat-text text-primary" aria-hidden="true"></i>Wiadomosci z prowadzacym
+    <i class="bi bi-chat-text text-primary" aria-hidden="true"></i>Wiadomości z prowadzącym
   </h2>
   <?php if ($msg_sent): ?>
   <div class="alert alert-success alert-dismissible py-2 small mb-3">
-    <i class="bi bi-check-circle me-1"></i>Wiadomosc wyslana.
+    <i class="bi bi-check-circle me-1"></i>Wiadomość wysłana.
     <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
   </div>
   <?php endif; ?>
-  <!-- Nowa wiadomosc / temat -->
+  <!-- Nowa wiadomość / temat -->
   <div class="card mb-3">
-    <div class="card-header small fw-semibold py-2"><i class="bi bi-pencil-square me-1"></i>Napisz do prowadzacego</div>
+    <div class="card-header small fw-semibold py-2"><i class="bi bi-pencil-square me-1"></i>Napisz do prowadzącego</div>
     <div class="card-body py-3">
       <form method="post">
         <input type="hidden" name="_token" value="<?= h($ptok) ?>">
         <input type="hidden" name="_op" value="parent_msg_send">
         <div class="mb-2">
           <label class="form-label small fw-semibold mb-1" for="pmsg-subj">Temat (opcjonalnie)</label>
-          <input type="text" class="form-control form-control-sm" id="pmsg-subj" name="subject" maxlength="200" placeholder="np. Pytanie o nieobecnosc">
+          <input type="text" class="form-control form-control-sm" id="pmsg-subj" name="subject" maxlength="200" placeholder="np. Pytanie o nieobecność">
         </div>
         <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1" for="pmsg-body">Tresc</label>
-          <textarea class="form-control form-control-sm" id="pmsg-body" name="body" rows="3" maxlength="4000" required placeholder="Twoja wiadomosc..."></textarea>
+          <label class="form-label small fw-semibold mb-1" for="pmsg-body">Treść</label>
+          <textarea class="form-control form-control-sm" id="pmsg-body" name="body" rows="3" maxlength="4000" required placeholder="Twoja wiadomość..."></textarea>
         </div>
-        <button class="btn btn-primary btn-sm"><i class="bi bi-send me-1"></i>Wyslij</button>
+        <button class="btn btn-primary btn-sm"><i class="bi bi-send me-1"></i>Wyślij</button>
       </form>
     </div>
   </div>
   <?php if (empty($p_threads)): ?>
   <div class="text-body-secondary small text-center py-4">
-    <i class="bi bi-chat-text fs-1 opacity-25 d-block mb-2"></i>Brak wiadomosci. Napisz pierwsza wiadomosc powyzej.
+    <i class="bi bi-chat-text fs-1 opacity-25 d-block mb-2"></i>Brak wiadomości. Napisz pierwszą wiadomość powyżej.
   </div>
   <?php else: ?>
   <?php foreach ($p_threads as $tkey => $thread):
@@ -677,7 +677,7 @@ include __DIR__ . '/_layout_head.php';
           $mine = ($m['sender'] ?? '') === 'parent';
           $is_staff = ($m['sender'] ?? '') === 'staff';
           $ts   = $m['created_at'] ? date('d.m.Y H:i', strtotime($m['created_at'])) : '';
-          $name = $mine ? 'Ty (opiekun)' : ($is_staff ? ($m['sender_name'] ?: 'Prowadzacy') : h($m['sender_name'] ?: 'Kursant'));
+          $name = $mine ? 'Ty (opiekun)' : ($is_staff ? ($m['sender_name'] ?: 'Prowadzący') : h($m['sender_name'] ?: 'Kursant'));
         ?>
         <div class="d-flex <?= $mine ? 'justify-content-end' : 'justify-content-start' ?>">
           <div class="px-3 py-2 rounded-4 <?= $mine ? 'bg-primary text-white' : 'bg-body-tertiary border' ?>" style="max-width:85%;word-break:break-word">
@@ -765,16 +765,16 @@ include __DIR__ . '/_layout_head.php';
     <div class="card-header fw-semibold"><i class="bi bi-bell me-2 text-primary" aria-hidden="true"></i>Powiadomienia e-mail</div>
     <div class="card-body">
       <?php if ($gemail === ''): ?>
-      <div class="alert alert-warning py-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Brak adresu e-mail opiekuna w systemie. Skontaktuj sie z prowadzacym, aby dodac adres.</div>
+      <div class="alert alert-warning py-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Brak adresu e-mail opiekuna w systemie. Skontaktuj się z prowadzącym, aby dodać adres.</div>
       <?php else: ?>
-      <p class="small text-body-secondary mb-3">Powiadomienia beda wysylane na: <strong><?= h($gemail) ?></strong></p>
+      <p class="small text-body-secondary mb-3">Powiadomienia będą wysyłane na: <strong><?= h($gemail) ?></strong></p>
       <form method="post">
         <input type="hidden" name="_token" value="<?= h($ptok_n) ?>">
         <input type="hidden" name="_op" value="parent_notify_prefs">
         <div class="d-flex flex-column gap-2">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="pn_absence" name="pn_absence" <?= !empty($pn_acc['parent_notify_absence']) ? 'checked' : '' ?>>
-            <label class="form-check-label small" for="pn_absence">Nieobecnosc dziecka na zajeciach</label>
+            <label class="form-check-label small" for="pn_absence">Nieobecność dziecka na zajęciach</label>
           </div>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="pn_grade" name="pn_grade" <?= !empty($pn_acc['parent_notify_grade']) ? 'checked' : '' ?>>
@@ -782,7 +782,7 @@ include __DIR__ . '/_layout_head.php';
           </div>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="pn_messages" name="pn_messages" <?= !empty($pn_acc['parent_notify_messages']) ? 'checked' : '' ?>>
-            <label class="form-check-label small" for="pn_messages">Nowa wiadomosc od prowadzacego</label>
+            <label class="form-check-label small" for="pn_messages">Nowa wiadomość od prowadzącego</label>
           </div>
         </div>
         <button class="btn btn-sm btn-primary mt-3"><i class="bi bi-check2 me-1"></i>Zapisz</button>
