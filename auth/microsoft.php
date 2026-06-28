@@ -115,6 +115,22 @@ if (!$error) {
         $ms_display_email = $email ?? '';
     }
 
+    // Logowanie przez Microsoft 365 jest zarezerwowane dla administracji i
+    // koordynatorów (konta @feer.org.pl w roli admin/editor — account_is_office_only).
+    // Wolontariusze i współpracownicy logują się prywatnym e-mailem i hasłem.
+    // Wyjątek: wejście do panelu dydaktyka (osobna weryfikacja uprawnień w
+    // office_enter.php) — tam Office mogą użyć też prowadzący w innych rolach.
+    if (!$error && isset($user)) {
+        $is_dyd_flow = str_contains((string)$redirect_after, '/karty30/ti/dydaktyk/');
+        if (!$is_dyd_flow && !account_is_office_only($user)) {
+            if (function_exists('authlog_write')) {
+                authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '',
+                    'Konto wolontariusza/współpracownika — logowanie przez Microsoft 365 zablokowane');
+            }
+            $error = 'office_not_allowed';
+        }
+    }
+
     // Zaloguj i przekieruj tylko gdy nie ma błędu
     if (!$error && isset($user)) {
         // Sprawdź czy crm_only — czy ma kod IKA (wymagany)
@@ -132,6 +148,9 @@ if (!$error) {
         } else {
             log_auth_action((int)$user['id'], 'login_ms', 'Logowanie Microsoft: ' . ($user['email'] ?? ''));
             login_user($user);
+            // Oznacz sesję założoną na potrzeby mostka do panelu dydaktyka — jeśli
+            // konto nie jest dydaktykiem, office_enter.php może ją wycofać.
+            if (!empty($is_dyd_flow)) $_SESSION['ms_dyd_bridge'] = 1;
 
             // crm_only → zawsze do CRM
             $final_redirect = $redirect_after;
@@ -176,7 +195,28 @@ if (!$error) {
 <div class="card shadow-sm">
 <div class="card-body p-4">
 
-<?php if ($error === 'no_account'): ?>
+<?php if ($error === 'office_not_allowed'): ?>
+  <!-- Konto wolontariusza/współpracownika — Office niedozwolone -->
+  <div class="text-center mb-3">
+    <div style="width:64px;height:64px;border-radius:16px;background:#DBEAFE;display:inline-flex;align-items:center;justify-content:center;font-size:1.8rem;margin-bottom:.75rem">
+      ✉️
+    </div>
+    <h5 class="fw-bold mb-1">Zaloguj się prywatnym e-mailem</h5>
+    <p class="text-muted small mb-0">
+      To konto (wolontariusz / współpracownik) loguje się <strong>prywatnym e-mailem i hasłem</strong>.
+      Logowanie przez Microsoft 365 jest zarezerwowane dla administracji i koordynatorów.
+    </p>
+  </div>
+  <div class="d-grid gap-2">
+    <a href="<?= APP_URL ?>/auth/login.php?view=priv" class="btn btn-primary btn-sm">
+      <i class="bi bi-box-arrow-in-right me-1"></i>Zaloguj się e-mailem i hasłem
+    </a>
+    <a href="<?= APP_URL ?>/auth/login.php" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Wróć do strony logowania
+    </a>
+  </div>
+
+<?php elseif ($error === 'no_account'): ?>
   <!-- Brak konta w systemie -->
   <div class="text-center mb-3">
     <div style="width:64px;height:64px;border-radius:16px;background:#FEF3C7;display:inline-flex;align-items:center;justify-content:center;font-size:1.8rem;margin-bottom:.75rem">

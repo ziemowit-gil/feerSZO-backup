@@ -19,6 +19,9 @@ karty30_migrate();
 auth_start();
 $su = current_user();
 $uid = $su ? (int)($su['id'] ?? 0) : 0;
+// Czy sesję główną założył dopiero co mostek Office (a nie wcześniejsze logowanie)?
+$via_bridge = !empty($_SESSION['ms_dyd_bridge']);
+unset($_SESSION['ms_dyd_bridge']); // znacznik jednorazowy
 
 // Domknij sesję główną, by móc otworzyć osobną sesję panelu dydaktyka
 // (inna nazwa ciasteczka — nie kolidują).
@@ -37,6 +40,16 @@ $data = $u ? dyd_profile_from_user($u) : null;
 
 if (!$data) {
     // Zalogowany w SZO, ale bez uprawnień dydaktyka TI.
+    // Mostek dydaktyka jest jedynym wyjątkiem od reguły „Office tylko dla
+    // administracji/koordynatorów" (auth/microsoft.php). Gdyby ktoś spoza tej
+    // grupy (nie office-only) wszedł tędy, by obejść blokadę — wycofaj sesję
+    // główną SZO, ale TYLKO jeśli założył ją dopiero ten mostek (znacznik
+    // ms_dyd_bridge). Wcześniej zalogowanego użytkownika nie wylogowujemy.
+    if ($via_bridge && $u && !account_is_office_only($u)) {
+        auth_start();
+        $_SESSION = [];
+        session_destroy();
+    }
     header('Location: login.php?office=denied'); exit;
 }
 
