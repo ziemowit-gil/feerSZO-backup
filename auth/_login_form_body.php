@@ -141,6 +141,14 @@ if ($is_feer) {
     Masz problem z logowaniem? Zgłoś to
   </a>
 </p>
+<p style="text-align:center;margin:.35rem 0 0">
+  <a href="<?= APP_URL ?>/auth/convert_account.php"
+     class="forgot-link" style="font-size:.82rem"
+     aria-label="Utwórz hasło awaryjne na podstawie konta Microsoft 365 — wymaga zalogowania przez Office">
+    <i class="bi bi-key" aria-hidden="true"></i>
+    Logowanie przez Office nie działa? Utwórz hasło awaryjne
+  </a>
+</p>
 
 <?php if (!empty($alt_tabs)): ?>
 <!-- ── Więcej opcji — rozwijane (kod jednorazowy / SMS / X.509) ─────────── -->

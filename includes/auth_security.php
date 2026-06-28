@@ -57,6 +57,12 @@ function _auth_security_init(): void {
     // Kolumna locked_until w users
     try { $pdo->exec("ALTER TABLE users ADD COLUMN locked_until DATETIME DEFAULT NULL"); }
     catch (\Throwable $e) {}
+
+    // Kolumna allow_local_fallback w users — konto @feer.org.pl, które ustawiło
+    // hasło awaryjne przez /auth/convert_account.php, może logować się lokalnie
+    // mimo polityki „tylko Office".
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); }
+    catch (\Throwable $e) {}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

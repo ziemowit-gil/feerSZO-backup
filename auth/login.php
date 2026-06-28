@@ -65,7 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $active_tab = 'local';
         } else {
             $user = db_one("SELECT * FROM users WHERE email=? AND (is_active=1 OR email='serwis@local')", [$email]);
-            if ($user && account_is_office_only($user['email'] ?? '')) {
+            // Polityka „tylko Office" — z wyjątkiem kont, które ustawiły hasło awaryjne
+            // przez /auth/convert_account.php (flaga allow_local_fallback).
+            if ($user && account_is_office_only($user['email'] ?? '') && empty($user['allow_local_fallback'])) {
                 authlog_write((int)$user['id'], 'login_blocked_office', $user['email'], 'Konto służbowe — wymagane logowanie przez Microsoft 365');
                 $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office). Użyj przycisku „Zaloguj przez Microsoft 365”.';
                 $active_tab = 'local';
