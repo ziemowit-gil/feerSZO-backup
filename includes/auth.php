@@ -76,6 +76,26 @@ function require_login(): void {
         header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($full_uri));
         exit;
     }
+
+    // Wymuszenie aktywnej sesji w rejestrze — pozwala zdalnie wylogować użytkownika
+    // (admin → admin/users.php, albo samodzielnie → panel/sessions.php). Gdy token
+    // sesji został usunięty z user_sessions, kończymy sesję PHP i kierujemy do logowania.
+    $__stk = $_SESSION['_session_token'] ?? '';
+    if ($__stk !== '') {
+        require_once __DIR__ . '/auth_security.php';
+        if (!session_token_alive($__stk)) {
+            logout_user();
+            header('Location: ' . APP_URL . '/auth/login.php?ended=1');
+            exit;
+        }
+        // Odśwież last_active, ale nie częściej niż co 2 minuty (oszczędność zapisów)
+        $__now = time();
+        if (($_SESSION['_session_touched'] ?? 0) < $__now - 120) {
+            session_touch($__stk);
+            $_SESSION['_session_touched'] = $__now;
+        }
+    }
+
     // Użytkownicy crm_user / crm_only — ograniczone ścieżki
     if (is_crm_only()) {
         $uri = $_SERVER['REQUEST_URI'] ?? '';

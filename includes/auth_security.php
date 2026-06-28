@@ -236,6 +236,23 @@ function sessions_for_user(int $user_id): array {
     );
 }
 
+/** Liczba aktywnych sesji użytkownika. */
+function sessions_count_for_user(int $user_id): int {
+    _auth_security_init();
+    $r = db_one("SELECT COUNT(*) AS c FROM user_sessions WHERE user_id=?", [$user_id]);
+    return (int)($r['c'] ?? 0);
+}
+
+/**
+ * Czy token sesji nadal istnieje w rejestrze (nie został zdalnie unieważniony)?
+ * Pusty token = sesja sprzed wdrożenia mechanizmu — nie wymuszamy wylogowania.
+ */
+function session_token_alive(string $token): bool {
+    if ($token === '') return true;
+    _auth_security_init();
+    return db_one("SELECT 1 AS x FROM user_sessions WHERE token=?", [$token]) !== null;
+}
+
 // ── UA parser — czytelna etykieta urządzenia/przeglądarki ────────────────────
 
 function ua_label(string $ua): string {

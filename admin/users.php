@@ -177,6 +177,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // FORCE LOGOUT — zdalne wylogowanie wszystkich sesji użytkownika
+    elseif ($action === 'force_logout') {
+        $uid = intval($_POST['user_id'] ?? 0);
+        if ($uid) {
+            require_once dirname(__DIR__) . '/includes/auth_security.php';
+            $me_id = (int)current_user()['id'];
+            // Przy wylogowaniu własnego konta zachowaj bieżącą sesję
+            $except = ($uid === $me_id) ? ($_SESSION['_session_token'] ?? '') : '';
+            $n = sessions_count_for_user($uid);
+            session_destroy_all($uid, $except);
+            log_user_action($uid, $me_id, 'user_force_logout', 'Admin zdalnie wylogował użytkownika (sesji: ' . $n . ')');
+            $u_email = db_one("SELECT email FROM users WHERE id=?", [$uid]);
+            authlog_write($uid, 'force_logout', $u_email['email'] ?? '', 'Zdalne wylogowanie przez administratora');
+            flash_set('success', 'Wylogowano użytkownika ze wszystkich aktywnych sesji.');
+        }
+        header('Location: users.php');
+        exit;
+    }
+
     // DISABLE 2FA
     elseif ($action === 'disable_2fa') {
         $uid = intval($_POST['user_id'] ?? 0);
@@ -296,6 +315,15 @@ $extra_mod_counts = [];
 try {
     foreach (db_all("SELECT user_id, COUNT(*) AS c FROM user_permissions GROUP BY user_id") as $em) {
         $extra_mod_counts[(int)$em['user_id']] = (int)$em['c'];
+    }
+} catch (\Throwable $e) {}
+
+// Liczba aktywnych sesji na użytkownika (dla przycisku zdalnego wylogowania)
+$session_counts = [];
+try {
+    require_once dirname(__DIR__) . '/includes/auth_security.php';
+    foreach (db_all("SELECT user_id, COUNT(*) AS c FROM user_sessions GROUP BY user_id") as $sc) {
+        $session_counts[(int)$sc['user_id']] = (int)$sc['c'];
     }
 } catch (\Throwable $e) {}
 
@@ -613,6 +641,20 @@ include dirname(__DIR__) . '/includes/header.php';
                 <input type="hidden" name="user_id"  value="<?= intval($u['id']) ?>">
                 <button type="submit" class="btn btn-sm btn-outline-warning" title="Wyłącz 2FA (<?= $fa_label ?>)">
                   <i class="bi bi-shield-x"></i>
+                </button>
+              </form>
+              <?php endif; ?>
+              <?php $sess_n = $session_counts[(int)$u['id']] ?? 0; ?>
+              <?php if ($sess_n > 0): ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Zdalnie wylogować <?= h(addslashes($u['name'])) ?> ze wszystkich aktywnych sesji (<?= $sess_n ?>)?<?= (int)$u['id'] === (int)$me['id'] ? '\nTwoja bieżąca sesja pozostanie aktywna.' : '' ?>')">
+                <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+                <input type="hidden" name="action"  value="force_logout">
+                <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
+                <button type="submit" class="btn btn-sm btn-outline-warning position-relative"
+                        title="Zdalne wylogowanie — zakończ wszystkie sesje (<?= $sess_n ?>)">
+                  <i class="bi bi-box-arrow-right"></i>
+                  <span class="badge rounded-pill bg-secondary position-absolute top-0 start-100 translate-middle" style="font-size:.6rem"><?= $sess_n ?></span>
                 </button>
               </form>
               <?php endif; ?>

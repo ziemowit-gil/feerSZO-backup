@@ -616,6 +616,13 @@ body{
   </div>
   <?php endif; ?>
 
+  <?php if (isset($_GET['ended'])): ?>
+  <div class="login-alert login-alert-success" role="status" style="border-color:#0ea5e9;background:#f0f9ff;color:#075985">
+    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+    <span>Twoja sesja została zakończona. Zaloguj się ponownie.</span>
+  </div>
+  <?php endif; ?>
+
   <?php if ($view === 'choose'): ?>
   <!-- ══ Widok: wybór rodzaju konta ════════════════════════════════════════ -->
   <div class="view-head center">
