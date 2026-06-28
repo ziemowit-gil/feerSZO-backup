@@ -21,10 +21,18 @@
         mime_type     TEXT    NOT NULL DEFAULT '',
         file_size     INTEGER NOT NULL DEFAULT 0,
         is_active     INTEGER NOT NULL DEFAULT 1,
+        visibility    TEXT    NOT NULL DEFAULT 'all',   -- all | unit
+        unit_id       INTEGER,                          -- gdy visibility='unit'
         created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // Dokładanie kolumn do istniejących tabel (z wcześniejszej wersji modułu)
+    try {
+        $cols = array_column(db_all("PRAGMA table_info(org_documents)"), 'name');
+        if (!in_array('visibility', $cols, true)) $pdo->exec("ALTER TABLE org_documents ADD COLUMN visibility TEXT NOT NULL DEFAULT 'all'");
+        if (!in_array('unit_id', $cols, true))    $pdo->exec("ALTER TABLE org_documents ADD COLUMN unit_id INTEGER");
+    } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_orgdoc_active ON org_documents(is_active)"); } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_orgdoc_cat    ON org_documents(category)"); } catch (\Throwable $e) {}
 })();
@@ -34,17 +42,56 @@ const ORGDOC_UPLOAD_SUBDIR = 'org_documents/';
 const ORGDOC_ALLOWED_EXT   = ['pdf','doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp','png','jpg','jpeg','gif','webp','zip','txt','csv'];
 const ORGDOC_MAX_SIZE      = 25 * 1024 * 1024; // 25 MB
 
+// ── Jednostki użytkownika (do filtra widoczności) ───────────────────────────────
+// Łączy: członkostwo w strukturze (org_members), bezpośrednie pole users.org_unit_id
+// oraz jednostkę z umowy wolontariusza (umowy_wolontariat.org_unit_id po e-mailu).
+function org_docs_user_unit_ids(int $userId): array {
+    $ids = [];
+    try { foreach (db_all("SELECT unit_id FROM org_members WHERE user_id=?", [$userId]) as $r) $ids[] = (int)$r['unit_id']; } catch (\Throwable $e) {}
+    try {
+        $u = db_one("SELECT email, org_unit_id FROM users WHERE id=?", [$userId]);
+        if ($u && !empty($u['org_unit_id'])) $ids[] = (int)$u['org_unit_id'];
+        if ($u && !empty($u['email'])) {
+            foreach (db_all("SELECT org_unit_id FROM umowy_wolontariat WHERE email=? AND org_unit_id IS NOT NULL", [$u['email']]) as $r) {
+                $ids[] = (int)$r['org_unit_id'];
+            }
+        }
+    } catch (\Throwable $e) {}
+    return array_values(array_unique(array_filter($ids)));
+}
+
+/** Czy użytkownik może zobaczyć dokument (po widoczności/jednostce). */
+function org_docs_can_view(array $doc, int $userId): bool {
+    if (($doc['visibility'] ?? 'all') === 'all') return true;
+    return in_array((int)($doc['unit_id'] ?? 0), org_docs_user_unit_ids($userId), true);
+}
+
 // ── Odczyt ────────────────────────────────────────────────────────────────────
 function org_docs_all(array $f = []): array {
     $where = []; $p = [];
-    if (!empty($f['active_only'])) $where[] = 'is_active = 1';
+    if (!empty($f['active_only'])) $where[] = 'd.is_active = 1';
     if (!empty($f['q'])) {
-        $where[] = '(title LIKE ? OR description LIKE ?)';
+        $where[] = '(d.title LIKE ? OR d.description LIKE ?)';
         $like = '%' . $f['q'] . '%'; $p[] = $like; $p[] = $like;
     }
-    if (!empty($f['category'])) { $where[] = 'category = ?'; $p[] = $f['category']; }
-    $sql = "SELECT d.*, u.name AS created_by_name FROM org_documents d
-            LEFT JOIN users u ON u.id = d.created_by";
+    if (!empty($f['category'])) { $where[] = 'd.category = ?'; $p[] = $f['category']; }
+
+    // Filtr widoczności dla czytelnika (gdy podano user_id) — wszyscy lub jego jednostki
+    if (!empty($f['user_id'])) {
+        $unitIds = org_docs_user_unit_ids((int)$f['user_id']);
+        if ($unitIds) {
+            $ph = implode(',', array_fill(0, count($unitIds), '?'));
+            $where[] = "(d.visibility='all' OR (d.visibility='unit' AND d.unit_id IN ($ph)))";
+            $p = array_merge($p, $unitIds);
+        } else {
+            $where[] = "d.visibility='all'";
+        }
+    }
+
+    $sql = "SELECT d.*, u.name AS created_by_name, ou.name AS unit_name
+            FROM org_documents d
+            LEFT JOIN users u ON u.id = d.created_by
+            LEFT JOIN org_units ou ON ou.id = d.unit_id";
     if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
     $sql .= ' ORDER BY d.category, d.title';
     return db_all($sql, $p);
@@ -94,6 +141,8 @@ function org_docs_upload(string $field): array {
 }
 
 function org_docs_create(array $data, int $userId): int {
+    $vis  = in_array($data['visibility'] ?? 'all', ['all', 'unit'], true) ? $data['visibility'] : 'all';
+    $unit = $vis === 'unit' ? ((int)($data['unit_id'] ?? 0) ?: null) : null;
     return db_insert('org_documents', [
         'title'         => $data['title'],
         'description'   => $data['description'] ?? '',
@@ -103,6 +152,8 @@ function org_docs_create(array $data, int $userId): int {
         'mime_type'     => $data['mime_type'] ?? '',
         'file_size'     => (int)($data['file_size'] ?? 0),
         'is_active'     => isset($data['is_active']) ? (int)$data['is_active'] : 1,
+        'visibility'    => $vis,
+        'unit_id'       => $unit,
         'created_by'    => $userId ?: null,
     ]);
 }
@@ -141,6 +192,12 @@ function org_docs_filesize_human(int $bytes): string {
     if ($bytes >= 1048576) return round($bytes / 1048576, 1) . ' MB';
     if ($bytes >= 1024)    return round($bytes / 1024) . ' KB';
     return $bytes . ' B';
+}
+
+/** Czytelna etykieta widoczności dokumentu (wiersz z org_docs_all/get + unit_name). */
+function org_docs_visibility_label(array $d): string {
+    if (($d['visibility'] ?? 'all') !== 'unit') return 'Wszyscy';
+    return 'Jednostka: ' . ($d['unit_name'] ?? ('#' . (int)($d['unit_id'] ?? 0)));
 }
 
 function org_docs_file_icon(string $name): string {

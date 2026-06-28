@@ -22,7 +22,8 @@ if (!$_is_volunteer_only) { header('Location: ' . APP_URL . '/admin/org_document
 $filter = [
     'q'           => trim($_GET['q'] ?? ''),
     'category'    => trim($_GET['category'] ?? ''),
-    'active_only' => true,   // wolontariusz widzi tylko widoczne
+    'active_only' => true,                 // wolontariusz widzi tylko widoczne
+    'user_id'     => (int)($user['id'] ?? 0), // + filtr widoczności wg jednostek
 ];
 $docs       = org_docs_all($filter);
 $categories = org_docs_categories();
@@ -65,6 +66,7 @@ include __DIR__ . '/includes/header_panel.php';
       <div class="fw-semibold d-flex align-items-center gap-2 flex-wrap">
         <?= h($d['title']) ?>
         <?php if (!empty($d['category'])): ?><span class="badge bg-light text-dark border" style="font-size:.65rem"><i class="bi bi-tag me-1" aria-hidden="true"></i><?= h($d['category']) ?></span><?php endif; ?>
+        <?php if (($d['visibility'] ?? 'all') === 'unit'): ?><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:.65rem"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i><?= h($d['unit_name'] ?: 'Twoja jednostka') ?></span><?php endif; ?>
       </div>
       <?php if (!empty($d['description'])): ?><div class="small text-muted"><?= h($d['description']) ?></div><?php endif; ?>
       <div class="small text-muted"><?= h($d['original_name']) ?> · <?= h(org_docs_filesize_human((int)$d['file_size'])) ?></div>
