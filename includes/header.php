@@ -1193,177 +1193,194 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     elseif ($_on_certs)   { $_sw_icon = 'bi-award-fill';      $_sw_label = 'Zaświadczenia'; }
     elseif ($_on_rodo)    { $_sw_icon = 'bi-shield-lock-fill'; $_sw_label = 'RODO'; }
     ?>
-    <div class="dropdown" id="mod-sw">
-      <button type="button" class="mod-sw-btn"
-              data-bs-toggle="dropdown" data-bs-auto-close="outside"
-              aria-expanded="false"
+    <?php
+    // ── Elementy launchera (pogrupowane w sekcje) ────────────────────────────
+    $_sw_items = [];
+    $__add = function (string $label, string $url, string $icon, string $mc, string $mb, bool $on, string $sec) use (&$_sw_items) {
+        $_sw_items[] = ['label'=>$label,'url'=>$url,'icon'=>$icon,'mc'=>$mc,'mb'=>$mb,'on'=>$on,'sec'=>$sec];
+    };
+    // Praca i umowy
+    $__add('SZO',           APP_URL.'/index.php',                      'bi-building',          '#2563eb','#eff6ff', $_on_szo,     'Praca i umowy');
+    $__add('Wolontariusze', APP_URL.'/contracts/wolontariat/list.php', 'bi-heart-fill',        '#e11d48','#fff1f2', $_on_wol,     'Praca i umowy');
+    $__add('Działania',     APP_URL.'/strategy/actions/index.php',     'bi-calendar-event',    '#0891b2','#ecfeff', $_on_actions, 'Praca i umowy');
+    $__add('Granty',        APP_URL.'/grants/index.php',               'bi-cash-coin',         '#15803d','#f0fdf4', str_contains($_uri,'/grants/'), 'Praca i umowy');
+    $__add('Strategia',     APP_URL.'/strategy/index.php',             'bi-bullseye',          '#7c3aed','#f5f3ff', (str_contains($_uri,'/strategy/') && !str_contains($_uri,'/strategy/actions/')), 'Praca i umowy');
+    $__add('Raporty',       APP_URL.'/reports/index.php',              'bi-bar-chart-line',    '#0284c7','#f0f9ff', str_contains($_uri,'/reports/'), 'Praca i umowy');
+    // Relacje i ludzie
+    if (module_enabled('crm_enabled') && can_read('crm'))
+        $__add('CRM',       APP_URL.'/crm/dashboard.php',              'bi-diagram-2-fill',    '#16a34a','#f0fdf4', $_on_crm,     'Relacje i ludzie');
+    $__add('Katalog',       APP_URL.'/directory/',                     'bi-person-lines-fill', '#4338ca','#eef2ff', $_on_dir,     'Relacje i ludzie');
+    // Dydaktyka
+    if (can_read('karty30')) {
+        $__add('Karty 30',  APP_URL.'/karty30/index.php',              'bi-card-checklist',    '#6d28d9','#f5f3ff', $_on_k30,     'Dydaktyka');
+    } else {
+        $_dyd_show = false;
+        if ($_u = current_user()) { try { $_dyd_show = !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)$_u['id']])['k30_consultant']); } catch (\Throwable $e) {} }
+        if ($_dyd_show)
+            $__add('Dydaktyka', APP_URL.'/karty30/ti/dydaktyk/index.php', 'bi-easel2',         '#2563eb','#eff6ff', str_contains($_uri,'/karty30/ti/dydaktyk'), 'Dydaktyka');
+    }
+    // Obsługa i zgłoszenia
+    if (module_enabled('tasks_enabled'))
+        $__add('Zadania',   APP_URL.'/tasks/dashboard.php',            'bi-kanban',            '#ea580c','#fff7ed', $_on_tasks,   'Obsługa i zgłoszenia');
+    if (module_enabled('helpdesk_enabled'))
+        $__add('Helpdesk',  APP_URL.'/helpdesk/index.php',             'bi-ticket-perforated', '#b45309','#fffbeb', str_contains($_uri,'/helpdesk/'), 'Obsługa i zgłoszenia');
+    $__add('RODO',          APP_URL.'/rodo/index.php',                 'bi-shield-lock',       '#475569','#f8fafc', $_on_rodo,    'Obsługa i zgłoszenia');
+    // Administracja
+    if (is_admin())
+        $__add('Admin',     APP_URL.'/admin/index.php',                'bi-gear-fill',         '#1e293b','#f1f5f9', $_on_admin,   'Administracja');
+    ?>
+    <div id="mod-sw">
+      <button type="button" class="mod-sw-btn" id="fl-trigger"
+              aria-haspopup="dialog" aria-expanded="false"
               aria-label="Przełącz moduł — aktualnie: <?= h($_sw_label) ?>">
         <i class="bi <?= $_sw_icon ?>"></i>
         <span class="mod-sw-cur"><?= h($_sw_label) ?></span>
         <i class="bi bi-chevron-down" style="font-size:.55rem;opacity:.45;margin-left:.05rem"></i>
       </button>
-
-      <div class="dropdown-menu p-0 shadow mod-sw-panel">
-        <div class="mod-sw-head">Przejdź do modułu</div>
-        <div class="mod-sw-grid">
-
-          <a href="<?= APP_URL ?>/index.php"
-             class="msw-tile <?= $_on_szo ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#2563eb;--mb:#eff6ff"><i class="bi bi-building"></i></div>
-            <span>SZO</span>
-          </a>
-
-          <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
-          <a href="<?= APP_URL ?>/crm/dashboard.php"
-             class="msw-tile <?= $_on_crm ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#16a34a;--mb:#f0fdf4"><i class="bi bi-diagram-2-fill"></i></div>
-            <span>CRM</span>
-          </a>
-          <?php endif; ?>
-
-          <?php if (module_enabled('tasks_enabled')): ?>
-          <a href="<?= APP_URL ?>/tasks/dashboard.php"
-             class="msw-tile <?= $_on_tasks ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#ea580c;--mb:#fff7ed"><i class="bi bi-kanban"></i></div>
-            <span>Zadania</span>
-          </a>
-          <?php endif; ?>
-
-          <a href="<?= APP_URL ?>/contracts/wolontariat/list.php"
-             class="msw-tile <?= $_on_wol ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#e11d48;--mb:#fff1f2"><i class="bi bi-heart-fill"></i></div>
-            <span>Wolontariusze</span>
-          </a>
-
-          <a href="<?= APP_URL ?>/strategy/actions/index.php"
-             class="msw-tile <?= $_on_actions ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#0891b2;--mb:#ecfeff"><i class="bi bi-calendar-event"></i></div>
-            <span>Działania</span>
-          </a>
-
-          <a href="<?= APP_URL ?>/grants/index.php"
-             class="msw-tile <?= str_contains($_uri,'/grants/') ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#15803d;--mb:#f0fdf4"><i class="bi bi-cash-coin"></i></div>
-            <span>Granty</span>
-          </a>
-
-          <a href="<?= APP_URL ?>/directory/"
-             class="msw-tile <?= $_on_dir ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#4338ca;--mb:#eef2ff"><i class="bi bi-person-lines-fill"></i></div>
-            <span>Katalog</span>
-          </a>
-
-          <a href="<?= APP_URL ?>/strategy/index.php"
-             class="msw-tile <?= (str_contains($_uri,'/strategy/') && !str_contains($_uri,'/strategy/actions/')) ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#7c3aed;--mb:#f5f3ff"><i class="bi bi-bullseye"></i></div>
-            <span>Strategia</span>
-          </a>
-
-          <a href="<?= APP_URL ?>/reports/index.php"
-             class="msw-tile <?= str_contains($_uri,'/reports/') ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#0284c7;--mb:#f0f9ff"><i class="bi bi-bar-chart-line"></i></div>
-            <span>Raporty</span>
-          </a>
-
-          <?php if (can_read('karty30')): ?>
-          <a href="<?= APP_URL ?>/karty30/index.php"
-             class="msw-tile <?= $_on_k30 ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#6d28d9;--mb:#f5f3ff"><i class="bi bi-card-checklist"></i></div>
-            <span>Karty 30</span>
-          </a>
-          <?php else: ?>
-          <?php // Doradca TI bez dostępu do całego modułu Karty 30 — wejście do panelu dydaktyka
-            $_dyd_show = false;
-            if ($_u = current_user()) { try { $_dyd_show = !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)$_u['id']])['k30_consultant']); } catch (\Throwable $e) {} }
-            if ($_dyd_show): ?>
-          <a href="<?= APP_URL ?>/karty30/ti/dydaktyk/index.php"
-             class="msw-tile <?= str_contains($_uri,'/karty30/ti/dydaktyk') ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#2563eb;--mb:#eff6ff"><i class="bi bi-easel2"></i></div>
-            <span>Dydaktyka</span>
-          </a>
-          <?php endif; ?>
-          <?php endif; ?>
-
-          <?php if (module_enabled('helpdesk_enabled')): ?>
-          <a href="<?= APP_URL ?>/helpdesk/index.php"
-             class="msw-tile <?= str_contains($_uri,'/helpdesk/') ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#b45309;--mb:#fffbeb"><i class="bi bi-ticket-perforated"></i></div>
-            <span>Helpdesk</span>
-          </a>
-          <?php endif; ?>
-
-          <a href="<?= APP_URL ?>/rodo/index.php"
-             class="msw-tile <?= $_on_rodo ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#475569;--mb:#f8fafc"><i class="bi bi-shield-lock"></i></div>
-            <span>RODO</span>
-          </a>
-
-          <?php if (is_admin()): ?>
-          <a href="<?= APP_URL ?>/admin/index.php"
-             class="msw-tile <?= $_on_admin ? 'msw-on' : '' ?>">
-            <div class="msw-ic" style="--mc:#1e293b;--mb:#f1f5f9"><i class="bi bi-gear-fill"></i></div>
-            <span>Admin</span>
-          </a>
-          <?php endif; ?>
-
-        </div><!-- /mod-sw-grid -->
-
-        <div class="mod-sw-footer">
-          <a href="<?= APP_URL ?>/portal.php">
-            <i class="bi bi-grid-3x3-gap me-1"></i>Portal — wszystkie moduły
-          </a>
-        </div>
-      </div><!-- /mod-sw-panel -->
-
     </div><!-- /#mod-sw -->
+    <div id="fl-root" hidden></div>
+    <script>window.__feerLauncher = <?= json_encode(['appUrl'=>APP_URL, 'items'=>$_sw_items], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;</script>
     <style>
-    /* ── Waffle module switcher ───────────────────────────────── */
+    /* ── Trigger (waffle) ─────────────────────────────────────── */
     .mod-sw-btn {
       display:inline-flex;align-items:center;gap:.3rem;
       background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
       padding:.28rem .6rem;font-size:.8rem;font-weight:500;color:#334155;
       cursor:pointer;line-height:1.4;transition:all .12s;white-space:nowrap;flex-shrink:0;
     }
-    .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] {
-      background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;
-    }
+    .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] { background:#eff6ff;border-color:#93c5fd;color:#1d4ed8; }
     .mod-sw-cur { max-width:80px;overflow:hidden;text-overflow:ellipsis; }
-    .mod-sw-panel { border-radius:14px !important;min-width:0 !important; }
-    .mod-sw-head {
-      padding:.6rem .7rem .25rem;
-      font-size:.63rem;font-weight:700;text-transform:uppercase;
-      letter-spacing:.09em;color:#94a3b8;
-    }
-    .mod-sw-grid {
-      display:grid;grid-template-columns:repeat(3,1fr);
-      gap:.15rem;padding:.15rem .45rem .35rem;
-    }
-    .msw-tile {
-      display:flex;flex-direction:column;align-items:center;gap:.28rem;
-      padding:.5rem .25rem;border-radius:10px;text-decoration:none;
-      color:#374151;font-size:.7rem;font-weight:500;text-align:center;
-      transition:background .1s,color .1s;line-height:1.25;
-    }
-    .msw-tile:hover { background:#f8fafc;color:#1e293b; }
-    .msw-tile.msw-on { background:#eff6ff;color:#1d4ed8; }
-    .msw-ic {
-      width:38px;height:38px;border-radius:10px;
-      background:var(--mb,#f8fafc);color:var(--mc,#64748b);
-      display:flex;align-items:center;justify-content:center;
-      font-size:1.05rem;transition:transform .12s;flex-shrink:0;
-    }
-    .msw-tile:hover .msw-ic { transform:scale(1.08); }
-    .msw-tile.msw-on .msw-ic { background:#dbeafe;color:#1d4ed8; }
-    .mod-sw-footer {
-      padding:.4rem .7rem .55rem;
-      border-top:1px solid #f1f5f9;margin-top:.15rem;
-    }
-    .mod-sw-footer a {
-      font-size:.74rem;color:#64748b;text-decoration:none;
-      display:inline-flex;align-items:center;gap:.25rem;
-    }
-    .mod-sw-footer a:hover { color:#1e293b; }
+
+    /* ── Launcher (3 układy: lista / szuflada / pełny ekran) ──── */
+    #fl-root *{box-sizing:border-box}
+    .fl-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:4000;animation:flFade .14s ease both}
+    @keyframes flFade{from{opacity:0}to{opacity:1}}
+    @keyframes flPop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+    @keyframes flSlide{from{transform:translateX(100%)}to{transform:none}}
+    /* wspólne: nagłówek, przełącznik układu, wyszukiwarka, sekcje, elementy */
+    .fl-head{display:flex;align-items:center;gap:.5rem;padding:.7rem .85rem;border-bottom:1px solid #eef2f7}
+    .fl-title{font-size:.8rem;font-weight:800;color:#0f172a;flex:1;letter-spacing:-.01em}
+    .fl-switch{display:inline-flex;background:#f1f5f9;border-radius:8px;padding:2px;gap:2px}
+    .fl-sw-btn{border:0;background:none;width:26px;height:24px;border-radius:6px;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.8rem}
+    .fl-sw-btn:hover{color:#1d4ed8}
+    .fl-sw-on{background:#fff;color:#1d4ed8;box-shadow:0 1px 2px rgba(2,6,23,.12)}
+    .fl-close{border:0;background:none;color:#94a3b8;cursor:pointer;font-size:.95rem;width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center}
+    .fl-close:hover{background:#f1f5f9;color:#0f172a}
+    .fl-search{position:relative;padding:.6rem .85rem .25rem}
+    .fl-search .bi{position:absolute;left:1.45rem;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.85rem;pointer-events:none}
+    .fl-search input{width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:.5rem .7rem .5rem 2rem;font-size:.86rem;outline:none}
+    .fl-search input:focus{border-color:#93c5fd;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+    .fl-scroll{overflow-y:auto}
+    .fl-sec-head{font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94a3b8;padding:.55rem .9rem .2rem}
+    .fl-list{display:flex;flex-direction:column;padding:0 .45rem .15rem}
+    .fl-item{display:flex;align-items:center;gap:.6rem;padding:.45rem .55rem;border-radius:9px;text-decoration:none;color:#374151;transition:background .1s,color .1s}
+    .fl-item:hover{background:#f8fafc;color:#0f172a}
+    .fl-on{background:#eff6ff;color:#1d4ed8}
+    .fl-ic{width:34px;height:34px;border-radius:9px;background:var(--mb,#f8fafc);color:var(--mc,#64748b);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+    .fl-label{font-size:.84rem;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fl-cur-badge{font-size:.6rem;font-weight:700;color:#1d4ed8;background:#dbeafe;border-radius:20px;padding:.1rem .45rem}
+    .fl-foot{padding:.45rem .85rem .6rem;border-top:1px solid #f1f5f9}
+    .fl-foot a{font-size:.74rem;color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem}
+    .fl-foot a:hover{color:#0f172a}
+    .fl-empty{padding:1.1rem .9rem;color:#94a3b8;font-size:.82rem;text-align:center}
+    /* układ: lista (dropdown pod przyciskiem) */
+    .fl-mode-list .fl-pop{position:fixed;z-index:4001;width:300px;max-width:calc(100vw - 16px);
+      background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 50px rgba(2,6,23,.22);
+      overflow:hidden;animation:flPop .15s ease both;display:flex;flex-direction:column;max-height:80vh}
+    .fl-mode-list .fl-scroll{max-height:60vh}
+    /* układ: szuflada (prawa krawędź) */
+    .fl-mode-drawer .fl-drawer{position:fixed;top:0;right:0;bottom:0;z-index:4001;width:340px;max-width:90vw;
+      background:#fff;box-shadow:-12px 0 40px rgba(2,6,23,.22);display:flex;flex-direction:column;animation:flSlide .2s cubic-bezier(.16,.84,.44,1) both}
+    .fl-mode-drawer .fl-scroll{flex:1}
+    /* układ: pełny ekran */
+    .fl-mode-overlay .fl-overlay-inner{position:fixed;inset:0;z-index:4001;display:flex;flex-direction:column;
+      max-width:760px;margin:0 auto;background:#fff;animation:flPop .16s ease both}
+    .fl-mode-overlay .fl-scroll{flex:1;padding-bottom:1rem}
+    .fl-mode-overlay .fl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.5rem;padding:.3rem .9rem .2rem}
+    .fl-mode-overlay .fl-item-big{flex-direction:column;align-items:flex-start;gap:.45rem;padding:.85rem;border:1px solid #eef2f7;min-height:96px}
+    .fl-mode-overlay .fl-item-big .fl-ic{width:42px;height:42px;font-size:1.2rem}
+    .fl-mode-overlay .fl-item-big .fl-label{font-size:.9rem;flex:0}
+    .fl-mode-overlay .fl-title{font-size:1.05rem}
+    @media(min-width:761px){.fl-mode-overlay .fl-overlay-inner{inset:0 auto 0 50%;transform:translateX(-50%);box-shadow:0 0 80px rgba(2,6,23,.3)}}
+    @media(prefers-reduced-motion:reduce){.fl-backdrop,.fl-pop,.fl-drawer,.fl-overlay-inner{animation:none!important}}
     </style>
+    <script>
+    (function(){
+      var cfg = window.__feerLauncher; if(!cfg) return;
+      var trigger = document.getElementById('fl-trigger');
+      var root    = document.getElementById('fl-root');
+      if(!trigger || !root) return;
+      if (root.parentNode !== document.body) document.body.appendChild(root); // fixed pozycjonowanie
+      var KEY='feerLauncherLayout', VALID=['list','drawer','overlay'];
+      var layout = localStorage.getItem(KEY); if(VALID.indexOf(layout)<0) layout='list';
+      var isOpen=false, query='';
+
+      function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+      function sections(){var order=[],map={};cfg.items.forEach(function(it){if(!map[it.sec]){map[it.sec]=[];order.push(it.sec);}map[it.sec].push(it);});return order.map(function(s){return{name:s,items:map[s]};});}
+      function match(it){return !query || (it.label||'').toLowerCase().indexOf(query.toLowerCase())>=0;}
+      function itemHTML(it,big){
+        return '<a class="fl-item'+(big?' fl-item-big':'')+(it.on?' fl-on':'')+'" href="'+esc(it.url)+'">'
+          +'<span class="fl-ic" style="--mc:'+esc(it.mc)+';--mb:'+esc(it.mb)+'"><i class="bi '+esc(it.icon)+'"></i></span>'
+          +'<span class="fl-label">'+esc(it.label)+'</span>'
+          +(it.on?'<span class="fl-cur-badge">Tutaj</span>':'')+'</a>';
+      }
+      function bodyHTML(big){
+        var html='';
+        sections().forEach(function(s){
+          var items=s.items.filter(match); if(!items.length) return;
+          html+='<div class="fl-sec-head">'+esc(s.name)+'</div><div class="'+(big?'fl-grid':'fl-list')+'">';
+          items.forEach(function(it){html+=itemHTML(it,big);});
+          html+='</div>';
+        });
+        return html || '<div class="fl-empty">Brak modułów pasujących do „'+esc(query)+'”.</div>';
+      }
+      function switchHTML(){
+        function b(k,icon,t){return '<button type="button" class="fl-sw-btn'+(layout===k?' fl-sw-on':'')+'" data-layout="'+k+'" title="'+t+'" aria-label="'+t+'"><i class="bi '+icon+'"></i></button>';}
+        return '<div class="fl-switch" role="group" aria-label="Układ launchera">'
+          +b('list','bi-list-ul','Lista')+b('drawer','bi-layout-sidebar-inset-reverse','Szuflada')+b('overlay','bi-fullscreen','Pełny ekran')+'</div>';
+      }
+      function headHTML(){return '<div class="fl-head"><span class="fl-title">Moduły</span>'+switchHTML()+'<button type="button" class="fl-close" id="fl-close" aria-label="Zamknij"><i class="bi bi-x-lg"></i></button></div>';}
+      function searchHTML(){return '<div class="fl-search"><i class="bi bi-search"></i><input type="search" id="fl-q" placeholder="Szukaj modułu…" autocomplete="off" value="'+esc(query)+'"></div>';}
+      function footHTML(){return '<div class="fl-foot"><a href="'+esc(cfg.appUrl)+'/portal.php"><i class="bi bi-grid-3x3-gap"></i> Portal — wszystkie moduły</a></div>';}
+
+      function render(){
+        root.className='fl-mode-'+layout;
+        var big = (layout==='overlay');
+        if(layout==='list'){
+          root.innerHTML='<div class="fl-pop" role="dialog" aria-label="Wybór modułu">'+headHTML()+'<div class="fl-scroll">'+bodyHTML(false)+'</div>'+footHTML()+'</div>';
+          position();
+        } else if(layout==='drawer'){
+          root.innerHTML='<div class="fl-backdrop" data-close="1"></div><div class="fl-drawer" role="dialog" aria-modal="true" aria-label="Wybór modułu">'+headHTML()+searchHTML()+'<div class="fl-scroll">'+bodyHTML(false)+'</div>'+footHTML()+'</div>';
+        } else {
+          root.innerHTML='<div class="fl-backdrop" data-close="1"></div><div class="fl-overlay-inner" role="dialog" aria-modal="true" aria-label="Wybór modułu">'+headHTML()+searchHTML()+'<div class="fl-scroll">'+bodyHTML(true)+'</div>'+footHTML()+'</div>';
+        }
+        bind(big);
+      }
+      function position(){
+        var pop=root.querySelector('.fl-pop'); if(!pop) return;
+        var r=trigger.getBoundingClientRect();
+        pop.style.top=(r.bottom+6)+'px';
+        var w=pop.offsetWidth||300, left=r.left;
+        if(left+w>window.innerWidth-8) left=window.innerWidth-8-w;
+        pop.style.left=Math.max(8,left)+'px';
+      }
+      function bind(big){
+        root.querySelectorAll('.fl-sw-btn').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();layout=b.getAttribute('data-layout');localStorage.setItem(KEY,layout);render();});});
+        var c=document.getElementById('fl-close'); if(c)c.addEventListener('click',close);
+        root.querySelectorAll('[data-close]').forEach(function(b){b.addEventListener('click',close);});
+        var q=document.getElementById('fl-q');
+        if(q){
+          q.addEventListener('input',function(){query=q.value;var sc=root.querySelector('.fl-scroll');if(sc)sc.innerHTML=bodyHTML(big);});
+          setTimeout(function(){q.focus();},30);
+        }
+      }
+      function openL(){isOpen=true;root.hidden=false;trigger.setAttribute('aria-expanded','true');query='';render();document.addEventListener('keydown',onKey);document.addEventListener('click',onDoc,true);window.addEventListener('resize',position);}
+      function close(){isOpen=false;root.hidden=true;root.innerHTML='';trigger.setAttribute('aria-expanded','false');document.removeEventListener('keydown',onKey);document.removeEventListener('click',onDoc,true);window.removeEventListener('resize',position);}
+      function onKey(e){if(e.key==='Escape')close();}
+      function onDoc(e){if(layout!=='list')return;if(root.contains(e.target)||trigger.contains(e.target))return;close();}
+      trigger.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();isOpen?close():openL();});
+    })();
+    </script>
       <!-- Szukajka — w ramach nawigacji modułów -->
       <div class="tb-search-wrap d-none d-md-block" id="qs-wrap" style="position:relative;margin-left:.25rem">
       <i class="tb-search-icon bi bi-search" aria-hidden="true"></i>
