@@ -1053,6 +1053,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <?php endif; ?>
     <a class="sb-sub-link<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php"><i class="bi bi-mailbox"></i> Korespondencja</a>
     <a class="sb-sub-link<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php"><i class="bi bi-list-task"></i> Procedury</a>
+    <?php if (module_enabled('org_documents_enabled')): ?>
+    <a class="sb-sub-link<?= _nav_active('/admin/org_documents') . _nav_active('/org_documents/') ?>" href="<?= APP_URL ?>/admin/org_documents.php"><i class="bi bi-folder2-open"></i> Dokumenty organizacji</a>
+    <?php endif; ?>
     <a class="sb-sub-link<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php"><i class="bi bi-file-ruled"></i> Uchwały</a>
   </div>
 

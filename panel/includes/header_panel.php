@@ -291,6 +291,12 @@ if ('serviceWorker' in navigator) {
     <i class="bi bi-journal-text" aria-hidden="true"></i>Procedury
   </a>
   <?php endif; ?>
+  <?php if (module_enabled('org_documents_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/org_documents.php" class="pv-nav-link<?= _pv_nav_active('/panel/org_documents') ?>"
+     aria-label="Dokumenty organizacji do pobrania">
+    <i class="bi bi-folder2-open" aria-hidden="true"></i>Dokumenty organizacji
+  </a>
+  <?php endif; ?>
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Konto</div>

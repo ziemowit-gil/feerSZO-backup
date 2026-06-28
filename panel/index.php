@@ -638,6 +638,13 @@ if (module_enabled('procedures_enabled')) {
         'label' => 'Procedury', 'sub' => 'dokumenty i instrukcje',
     ];
 }
+if (module_enabled('org_documents_enabled')) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/org_documents.php', 'icon' => 'bi-folder2-open',
+        'iconColor' => '#0D9488', 'iconBg' => '#F0FDFA',
+        'label' => 'Dokumenty organizacji', 'sub' => 'statut, regulaminy, wzory',
+    ];
+}
 $_pv_actions[] = [
     'href' => APP_URL . '/panel/helpdesk.php', 'icon' => 'bi-headset',
     'iconColor' => 'var(--vol-color)', 'iconBg' => '#F0F4FF',
