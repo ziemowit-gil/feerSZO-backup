@@ -85,6 +85,8 @@ RewriteRule ^vlab/?$          karty30/ti/vlab_admin.php [QSA,L]
 
 RewriteRule ^moj-panel/?$     panel/index.php       [QSA,L]
 
+RewriteRule ^awaryjne/?$      auth/awaryjne.php     [QSA,L]
+
 RewriteRule ^korespondencja/?$ correspondence/index.php [QSA,L]
 RewriteRule ^korespondencja/(.+)$ correspondence/$1  [QSA,L]
 
