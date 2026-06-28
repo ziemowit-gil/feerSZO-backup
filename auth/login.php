@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = db_one("SELECT * FROM users WHERE email=? AND (is_active=1 OR email='serwis@local')", [$email]);
             // Polityka „tylko Office" — z wyjątkiem kont, które ustawiły hasło awaryjne
             // przez /auth/convert_account.php (flaga allow_local_fallback).
-            if ($user && account_is_office_only($user['email'] ?? '') && empty($user['allow_local_fallback'])) {
+            if ($user && account_is_office_only($user) && empty($user['allow_local_fallback'])) {
                 authlog_write((int)$user['id'], 'login_blocked_office', $user['email'], 'Konto służbowe — wymagane logowanie przez Microsoft 365');
                 $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office). Użyj przycisku „Zaloguj przez Microsoft 365”.';
                 $active_tab = 'local';
@@ -149,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sms_code   = trim($_POST['sms_code']  ?? '');
         $active_tab = 'sms';
         $user       = sms_verify_otp($sms_phone, $sms_code);
-        if ($user && account_is_office_only($user['email'] ?? '')) {
+        if ($user && account_is_office_only($user)) {
             authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
             $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
             $active_tab = 'sms';
@@ -177,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $p12_data = file_get_contents($p12_file['tmp_name']);
             $user     = null;
             try { $user = x509_verify_login($p12_data, $cert_pass); } catch (\Throwable $e) {}
-            if ($user && account_is_office_only($user['email'] ?? '')) {
+            if ($user && account_is_office_only($user)) {
                 authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
                 $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
                 $active_tab = 'x509';
@@ -194,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($method === 'code') {
         $code = trim($_POST['login_code'] ?? '');
         $user = auth_login_by_code($code);
-        if ($user && account_is_office_only($user['email'] ?? '')) {
+        if ($user && account_is_office_only($user)) {
             authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
             $error      = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
             $active_tab = 'code';

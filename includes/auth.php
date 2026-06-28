@@ -282,15 +282,36 @@ function is_viewer(): bool {
 }
 
 /**
- * Konta służbowe @feer.org.pl (koordynatorzy/administracja) logują się WYŁĄCZNIE
- * przez Microsoft 365 (Office). Wszystkie pozostałe metody (hasło lokalne, SMS,
- * kod jednorazowy, certyfikat X.509) są dla nich zablokowane. Wyjątek: konto
- * awaryjne serwis@local zachowuje logowanie lokalne (break-glass).
+ * Administracja (rola `admin`) i koordynatorzy (rola `editor`) na koncie służbowym
+ * @feer.org.pl logują się WYŁĄCZNIE przez Microsoft 365 (Office). Pozostałe metody
+ * (hasło lokalne, SMS, kod jednorazowy, certyfikat X.509) są dla nich zablokowane.
+ * Konta @feer.org.pl w innych rolach (viewer, crm_user, ezd_user) logują się normalnie.
+ * Wyjątek: konto awaryjne serwis@local zachowuje logowanie lokalne (break-glass).
+ *
+ * Przyjmuje wiersz users (zalecane) lub sam e-mail (zgodność wstecz — rola dociągana
+ * z bazy). Zob. [[project_login_office_only]].
  */
-function account_is_office_only(?string $email): bool {
-    $email = strtolower(trim((string)$email));
+function account_is_office_only($user): bool {
+    if (is_array($user)) {
+        $email = strtolower(trim((string)($user['email'] ?? '')));
+        $role  = array_key_exists('role', $user) ? (string)$user['role'] : null;
+        $uid   = (int)($user['id'] ?? 0);
+    } else {
+        $email = strtolower(trim((string)$user));
+        $role  = null;
+        $uid   = 0;
+    }
     if ($email === '' || $email === 'serwis@local') return false;
-    return str_ends_with($email, '@feer.org.pl');
+    if (!str_ends_with($email, '@feer.org.pl')) return false;
+    // Rola wymagana do decyzji — dociągnij z bazy, gdy wywołano bez niej.
+    if ($role === null) {
+        try {
+            $row  = $uid ? db_one("SELECT role FROM users WHERE id=?", [$uid])
+                         : db_one("SELECT role FROM users WHERE email=?", [$email]);
+            $role = (string)($row['role'] ?? '');
+        } catch (\Throwable $e) { $role = ''; }
+    }
+    return in_array($role, ['admin', 'editor'], true);
 }
 
 // Zwraca true jeśli zalogowany użytkownik jest właścicielem umowy (lub ma uprawnienia edytora/admina).

@@ -813,10 +813,11 @@ include dirname(__DIR__) . '/includes/header.php';
 
         <div class="alert alert-warning py-2 px-3 small d-flex gap-2 mb-3">
           <i class="bi bi-microsoft flex-shrink-0 mt-1"></i>
-          <span>Konta służbowe <strong>@feer.org.pl</strong> (administracja i koordynatorzy) logują się
-          <strong>wyłącznie przez Microsoft 365</strong> — ustawione tu hasło nie pozwoli im na logowanie lokalne.
-          Hasło awaryjne takie konto może nadać sobie samodzielnie przez <code>/auth/convert_account</code>.
-          Dla pozostałych kont hasło działa normalnie (zmiana wymagana przy pierwszym logowaniu).</span>
+          <span>Konta <strong>@feer.org.pl</strong> w roli <strong>Administrator</strong> lub <strong>Operator</strong>
+          (administracja i koordynatorzy) logują się <strong>wyłącznie przez Microsoft 365</strong> — ustawione tu hasło
+          nie pozwoli im na logowanie lokalne. Hasło awaryjne takie konto może nadać sobie samodzielnie przez
+          <code>/auth/convert_account</code>. Dla pozostałych kont hasło działa normalnie (zmiana wymagana przy
+          pierwszym logowaniu).</span>
         </div>
 
         <!-- Option A: start password -->

@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $me && !$no_ms) {
     csrf_check();
     $pw   = _conv_gen_password();
     $hash = password_hash($pw, PASSWORD_BCRYPT);
-    $is_office = account_is_office_only($me['email'] ?? '');
+    $is_office = account_is_office_only($me);
 
     // Upewnij się, że kolumny istnieją (nie zakładamy, że _auth_security_init()
     // zdążyło je dołożyć — ta strona nie używa require_login()).
@@ -178,7 +178,7 @@ $tok          = csrf_token();
     </div>
     <div class="warn">
       Przy pierwszym logowaniu lokalnym system poprosi o ustawienie własnego hasła.
-      <?php if (account_is_office_only($me['email'] ?? '')): ?>
+      <?php if (account_is_office_only($me)): ?>
       Logowanie lokalne zostało odblokowane wyłącznie dla Twojego konta — pozostali użytkownicy @feer.org.pl nadal logują się tylko przez Office.
       <?php endif; ?>
     </div>
@@ -191,7 +191,7 @@ $tok          = csrf_token();
     <p class="desc">
       Gdy logowanie przez Microsoft 365 nie działa, możesz wejść do systemu loginem i hasłem lokalnym.
       Wygenerujemy dla Ciebie silne hasło i pokażemy je <strong>jednorazowo</strong> na następnym ekranie.
-      <?php if (account_is_office_only($me['email'] ?? '')): ?>
+      <?php if (account_is_office_only($me)): ?>
       <br><br>Twoje konto służbowe @feer.org.pl normalnie loguje się tylko przez Office — utworzenie hasła
       odblokuje dla niego również logowanie lokalne (jako awaryjne).
       <?php endif; ?>
