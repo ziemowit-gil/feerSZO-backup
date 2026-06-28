@@ -22,22 +22,18 @@ $self_url = APP_URL . '/auth/convert_account.php';
 // Operujemy na PRAWDZIWIE zalogowanym koncie (pomijamy ewentualny kontekst admina).
 $me = function_exists('ctx_real_user') ? (ctx_real_user() ?? current_user()) : current_user();
 
-// Niezalogowany → zacznij logowanie przez Office i wróć tutaj. NIE używamy
-// require_login(), bo to odbiłoby na zwykły ekran logowania (wyglądało jak
-// „nie działa"). Gdy MS niedostępne — klasyczny ekran logowania jako fallback.
-if (!$me) {
-    if (function_exists('ms_login_available') && ms_login_available()) {
-        header('Location: ' . APP_URL . '/auth/ms365.php?redirect=' . urlencode($self_url));
-    } else {
-        header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($self_url));
-    }
-    exit;
-}
+// Niezalogowany → NIE przekierowujemy od razu na logowanie. Pokazujemy najpierw
+// stronę WYJAŚNIAJĄCĄ, czym jest hasło awaryjne, z przyciskiem startu logowania
+// Office. Adres startu logowania (Office, fallback klasyczny ekran):
+$not_logged = !$me;
+$start_login_url = (function_exists('ms_login_available') && ms_login_available())
+    ? APP_URL . '/auth/ms365.php?redirect=' . urlencode($self_url)
+    : APP_URL . '/auth/login.php?redirect=' . urlencode($self_url);
 
 // Zalogowany, ale konto nie jest powiązane z Microsoft 365. NIE przekierowujemy
 // do ms365.php (zalogowany użytkownik wróciłby od razu tutaj → pętla). Pokażemy
 // komunikat informacyjny zamiast formularza.
-$no_ms = empty($me['microsoft_id']);
+$no_ms = !$not_logged && empty($me['microsoft_id']);
 
 /** Generuje czytelne, silne hasło tymczasowe (bez znaków łatwych do pomylenia). */
 function _conv_gen_password(int $len = 12): string {
@@ -51,7 +47,7 @@ function _conv_gen_password(int $len = 12): string {
 $generated = null;
 $err = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$no_ms) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $me && !$no_ms) {
     csrf_check();
     $pw   = _conv_gen_password();
     $hash = password_hash($pw, PASSWORD_BCRYPT);
@@ -122,12 +118,42 @@ $tok      = csrf_token();
 <div class="wrap">
   <div class="head">
     <h1>🔐 Hasło awaryjne do logowania lokalnego</h1>
+    <?php if ($not_logged): ?>
+    <p>Zapasowy sposób wejścia do systemu, gdy logowanie przez Office nie działa</p>
+    <?php else: ?>
     <p>Zalogowano jako <strong><?= h($me['email']) ?></strong></p>
+    <?php endif; ?>
   </div>
 
   <?php if ($err): ?><div class="err"><?= h($err) ?></div><?php endif; ?>
 
-  <?php if ($no_ms): ?>
+  <?php if ($not_logged): ?>
+  <!-- Strona wyjaśniająca (użytkownik niezalogowany) -->
+  <div class="card">
+    <h2>Co to jest hasło awaryjne?</h2>
+    <p class="desc">
+      Zwykle logujesz się przyciskiem <strong>„Zaloguj przez Microsoft 365"</strong> (Office).
+      Czasem jednak logowanie Microsoft może nie działać — np. awaria po stronie Microsoftu,
+      problem z kontem służbowym albo brak dostępu do telefonu z aplikacją uwierzytelniającą.
+    </p>
+    <p class="desc">
+      <strong>Hasło awaryjne</strong> to zapasowy sposób wejścia do systemu: ustawiasz dodatkowe
+      hasło lokalne, którym zalogujesz się <em>loginem (e-mail) i hasłem</em>, gdy Office zawiedzie.
+    </p>
+    <div class="warn">
+      Aby utworzyć hasło awaryjne, musisz <strong>najpierw raz zalogować się przez Microsoft 365</strong>
+      (póki działa) — w ten sposób potwierdzasz swoją tożsamość. Zrób to <strong>zawczasu</strong>,
+      zanim pojawią się problemy.
+    </div>
+    <p style="margin-top:1rem">
+      <a class="btn btn-primary" style="display:block;text-align:center;text-decoration:none"
+         href="<?= h($start_login_url) ?>">
+        Zaloguj przez Microsoft 365 i utwórz hasło
+      </a>
+    </p>
+    <p class="muted"><a class="link" href="<?= h($login_url) ?>">Wróć do logowania</a></p>
+  </div>
+  <?php elseif ($no_ms): ?>
   <!-- Konto bez powiązania z Microsoft 365 -->
   <div class="card">
     <h2>To konto nie wymaga hasła awaryjnego</h2>
