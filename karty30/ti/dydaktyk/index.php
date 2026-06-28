@@ -1034,6 +1034,19 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         </div>
         <?php endif; ?>
       </div>
+      <?php
+        $_pm_bb = (float)($course['lesson_payout_bb'] ?? 0);
+        if ($_pm_bb > 0):
+          $_pm = k30_ti_payout_month_for_course($cur_course, date('Y-m'));
+          $_pmf = fn($x) => number_format((float)$x, 2, ',', ' ');
+      ?>
+      <div class="alert alert-light border d-flex flex-wrap align-items-center gap-2 py-2 mb-2">
+        <i class="bi bi-wallet2 text-primary"></i>
+        <span class="small">Wypłaty w tym miesiącu (<strong><?= h(date('m.Y')) ?></strong>, ten kurs):</span>
+        <span class="small text-body-secondary"><?= (int)$_pm['lessons'] ?> lekcji · brutto-brutto <?= $_pmf($_pm['brutto_brutto']) ?> zł · składki <?= $_pmf($_pm['skladki']) ?> zł · podatek <?= $_pmf($_pm['pit']) ?> zł</span>
+        <span class="ms-auto fw-semibold text-success">Na rękę: <?= $_pmf($_pm['netto']) ?> zł</span>
+      </div>
+      <?php endif; ?>
       <div class="list-group list-group-flush" id="dyd-list-lekcje">
         <?php if (!$sessions): ?><div class="list-group-item text-body-secondary py-3">Brak lekcji. Kliknij „Dodaj lekcję", aby utworzyć pierwszą.</div><?php endif; ?>
         <div class="list-group-item dyd-filter-empty text-body-secondary py-3" style="display:none">Brak lekcji pasujących do wyszukiwania.</div>

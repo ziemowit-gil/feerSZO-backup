@@ -150,6 +150,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="urlopy.php"><i class="bi bi-airplane me-2"></i>Urlopy</a></li>
       <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia</a></li>
+      <li><a class="dropdown-item" href="payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
     </ul>
   </div>
   <div class="dropdown">

@@ -1842,6 +1842,76 @@ function k30_ti_payout_breakdown(float $bb): array {
     ];
 }
 
+/** Pusty agregat wypłat (do sumowania po lekcjach). */
+function _k30_ti_payout_zero(): array {
+    return ['lessons'=>0,'brutto_brutto'=>0.0,'zus_employer'=>0.0,'brutto'=>0.0,'skladki'=>0.0,'pit'=>0.0,'netto'=>0.0];
+}
+
+/** Dodaj rozbicie pojedynczej lekcji do agregatu (PIT zaokrąglany per lekcja → sumy dokładne). */
+function _k30_ti_payout_accumulate(array &$acc, array $b): void {
+    $acc['lessons']++;
+    $acc['brutto_brutto'] += $b['brutto_brutto'];
+    $acc['zus_employer']  += $b['zus_employer'];
+    $acc['brutto']        += $b['brutto'];
+    $acc['skladki']       += $b['skladki'];
+    $acc['pit']           += $b['pit'];
+    $acc['netto']         += $b['netto'];
+}
+
+/**
+ * Miesięczne sumy wypłat per prowadzący. $ym = 'YYYY-MM'.
+ * Liczy tylko lekcje odbyte (status='held') z kursów o stawce > 0.
+ * Zwraca wiersze posortowane wg nazwiska, z agregatem składowych + listą kursów.
+ */
+function k30_ti_payouts_by_instructor(string $ym): array {
+    $rows = db_all(
+        "SELECT c.instructor_id AS iid, COALESCE(u.name,'(brak prowadzącego)') AS iname,
+                c.id AS course_id, c.name AS course_name, c.lesson_payout_bb AS bb
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id = s.course_id
+         LEFT JOIN users u ON u.id = c.instructor_id
+         WHERE s.status='held' AND c.lesson_payout_bb > 0
+           AND strftime('%Y-%m', s.lesson_date) = ?
+         ORDER BY iname, c.name",
+        [$ym]
+    );
+    $by = [];
+    foreach ($rows as $r) {
+        $iid = $r['iid'] !== null ? (int)$r['iid'] : 0;
+        if (!isset($by[$iid])) {
+            $by[$iid] = _k30_ti_payout_zero();
+            $by[$iid]['instructor_id'] = $iid;
+            $by[$iid]['name']    = $r['iname'];
+            $by[$iid]['courses'] = [];
+        }
+        $b = k30_ti_payout_breakdown((float)$r['bb']);
+        _k30_ti_payout_accumulate($by[$iid], $b);
+        $cid = (int)$r['course_id'];
+        if (!isset($by[$iid]['courses'][$cid])) {
+            $by[$iid]['courses'][$cid] = _k30_ti_payout_zero();
+            $by[$iid]['courses'][$cid]['name'] = $r['course_name'];
+        }
+        _k30_ti_payout_accumulate($by[$iid]['courses'][$cid], $b);
+    }
+    return array_values($by);
+}
+
+/** Miesięczna suma wypłat dla jednego kursu (status='held'). $ym = 'YYYY-MM'. */
+function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
+    $bb = (float)(db_one("SELECT lesson_payout_bb FROM k30_ti_courses WHERE id=?", [$course_id])['lesson_payout_bb'] ?? 0);
+    $acc = _k30_ti_payout_zero();
+    if ($bb <= 0) return $acc;
+    $rows = db_all(
+        "SELECT COUNT(*) AS c FROM k30_ti_sessions
+         WHERE course_id=? AND status='held' AND strftime('%Y-%m', lesson_date)=?",
+        [$course_id, $ym]
+    );
+    $n = (int)($rows[0]['c'] ?? 0);
+    $b = k30_ti_payout_breakdown($bb);
+    for ($i = 0; $i < $n; $i++) _k30_ti_payout_accumulate($acc, $b);
+    return $acc;
+}
+
 /** Domyślny termin płatności (dni od wystawienia rozliczenia), gdy nie ustawiono na kursie/kursancie. */
 const K30_TI_PAY_DUE_DAYS_DEFAULT = 7;
 
