@@ -12,8 +12,10 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 
 karty30_migrate();
+k30_ti_reschedule_migrate();
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
 
@@ -277,6 +279,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )->execute([$sid]);
                 flash_set('success', 'Lekcja przywrócona (zaplanowana).');
             }
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
+    // Zmiana terminu lekcji (prowadzący / admin) — bezpośrednio, z opcjonalnym powiadomieniem
+    if ($op === 'reschedule_session') {
+        $sid  = (int)($_POST['session_id'] ?? 0);
+        $date = trim($_POST['lesson_date'] ?? '');
+        $tf   = trim($_POST['time_from'] ?? '');
+        $tt   = trim($_POST['time_to'] ?? '');
+        if ($sid && dyd_owns_session($uid, $sid)) {
+            if ($date === '') { flash_set('danger', 'Podaj nowy termin lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
+            if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            $old = k30_ti_do_reschedule($sid, $date, $tf, $tt);
+            if ($old !== null && isset($_POST['notify'])) {
+                k30_ti_reschedule_notify_parties($sid, $old, isset($_POST['notify_sms']));
+                flash_set('success', 'Termin lekcji zmieniony. Powiadomiono uczestników.');
+            } else {
+                flash_set('success', 'Termin lekcji zmieniony.');
+            }
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
+    // Decyzja ws. propozycji nowego terminu od kursanta / opiekuna
+    if ($op === 'reschedule_accept' || $op === 'reschedule_reject') {
+        $rid = (int)($_POST['request_id'] ?? 0);
+        $req = $rid ? k30_ti_reschedule_get($rid) : null;
+        if ($req && dyd_owns_session($uid, (int)$req['session_id'])) {
+            $accept = $op === 'reschedule_accept';
+            if ($accept) {
+                $av = ti_instructor_available_at(ti_course_instructor_id($course_id), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to']);
+                if (!$av['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            }
+            k30_ti_reschedule_decide($rid, $accept, (string)($me['name'] ?? ''), trim($_POST['note'] ?? ''));
+            flash_set('success', $accept
+                ? 'Propozycja zaakceptowana — termin lekcji zmieniony, kursant powiadomiony.'
+                : 'Propozycja odrzucona — kursant powiadomiony.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
@@ -1120,9 +1161,50 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <?php endforeach; ?>
           </div>
           <?php endif; ?>
+          <?php
+            $resch = k30_ti_reschedule_pending_for_session((int)$s['id']);
+            if ($resch): ?>
+          <div class="alert alert-info py-2 px-2 mt-2 mb-0 small">
+            <div class="fw-semibold mb-1"><i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Propozycje zmiany terminu — czekają na decyzję</div>
+            <?php foreach ($resch as $rq):
+              $rqNew = date('d.m.Y', strtotime($rq['proposed_date'])) . ($rq['proposed_from'] ? ' ' . substr((string)$rq['proposed_from'],0,5) . ($rq['proposed_to'] ? '–' . substr((string)$rq['proposed_to'],0,5) : '') : ''); ?>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+              <span>
+                <?= h($rq['client_name'] ?: $rq['requested_by']) ?>
+                <span class="text-body-secondary">→ proponuje <strong><?= h($rqNew) ?></strong></span>
+                <?php if ($rq['reason']): ?><span class="text-body-secondary">— <?= h($rq['reason']) ?></span><?php endif; ?>
+              </span>
+              <div class="ms-auto d-flex gap-1">
+                <form method="post" class="d-inline" onsubmit="return confirm('Zaakceptować propozycję? Termin lekcji zostanie zmieniony, a uczestnicy powiadomieni.')">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="reschedule_accept">
+                  <input type="hidden" name="_tab" value="lekcje">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="request_id" value="<?= (int)$rq['id'] ?>">
+                  <button class="btn btn-sm btn-success py-0 px-2"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Akceptuj termin</button>
+                </form>
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="reschedule_reject">
+                  <input type="hidden" name="_tab" value="lekcje">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="request_id" value="<?= (int)$rq['id'] ?>">
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Odrzuć</button>
+                </form>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
           <div class="mt-2 d-flex gap-2 flex-wrap">
             <button type="button" class="btn btn-sm btn-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"><i class="bi bi-people me-1"></i>Obecność</button>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
+            <?php if (($s['status'] ?? '') !== 'cancelled'): ?>
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2"
+                    onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y', strtotime($s['lesson_date'])).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from'] ?? '')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to'] ?? '')), ENT_QUOTES) ?>)">
+              <i class="bi bi-calendar2-range me-1"></i>Zmień termin
+            </button>
+            <?php endif; ?>
             <?php if (($s['status'] ?? '') === 'cancelled'): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
@@ -1359,6 +1441,50 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
           <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle me-1"></i>Odwołaj lekcję</button>
+        </div>
+      </form></div>
+    </div>
+
+    <!-- Modal: zmiana terminu lekcji -->
+    <div class="modal fade" id="reschedSessionModal" tabindex="-1" aria-labelledby="reschedSession_t" aria-hidden="true">
+      <div class="modal-dialog"><form method="post" class="modal-content">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="reschedule_session">
+        <input type="hidden" name="_tab" value="lekcje">
+        <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+        <input type="hidden" name="session_id" id="rs_sid" value="">
+        <div class="modal-header">
+          <h5 class="modal-title" id="reschedSession_t"><i class="bi bi-calendar2-range text-primary me-2"></i>Zmień termin lekcji</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-body-secondary small mb-3">Obecny termin: <strong id="rs_label"></strong></p>
+          <div class="mb-2">
+            <label class="form-label fw-semibold" for="rs_date">Nowa data <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="rs_date" name="lesson_date" required>
+          </div>
+          <div class="row g-2">
+            <div class="col-6 mb-2">
+              <label class="form-label" for="rs_from">Od</label>
+              <select class="form-select" id="rs_from" name="time_from"><?= ti_time_options('') ?></select>
+            </div>
+            <div class="col-6 mb-2">
+              <label class="form-label" for="rs_to">Do</label>
+              <select class="form-select" id="rs_to" name="time_to"><?= ti_time_options('') ?></select>
+            </div>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="rs_notify" name="notify" value="1" checked>
+            <label class="form-check-label" for="rs_notify">Powiadom uczestników e-mailem o nowym terminie</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="rs_notify_sms" name="notify_sms" value="1">
+            <label class="form-check-label" for="rs_notify_sms">Dodatkowo wyślij SMS</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-calendar2-check me-1"></i>Zapisz nowy termin</button>
         </div>
       </form></div>
     </div>
@@ -2002,6 +2128,15 @@ function dydOpenCancelSession(sid, label) {
   document.getElementById('cs_label').textContent = label || '';
   var t = document.getElementById('cs_reason'); if (t) t.value = '';
   new bootstrap.Modal(document.getElementById('cancelSessionModal')).show();
+}
+// Zmiana terminu lekcji — otwiera modal z bieżącym terminem.
+function dydOpenReschedule(sid, label, date, from, to) {
+  document.getElementById('rs_sid').value = sid;
+  document.getElementById('rs_label').textContent = label || '';
+  var d = document.getElementById('rs_date'); if (d) d.value = date || '';
+  var f = document.getElementById('rs_from'); if (f) f.value = from || '';
+  var t = document.getElementById('rs_to');   if (t) t.value = to || '';
+  new bootstrap.Modal(document.getElementById('reschedSessionModal')).show();
 }
 
 // Wyszukiwarka „Powiązana lekcja": tekst → ukryte session_id (mapa etykieta→id).

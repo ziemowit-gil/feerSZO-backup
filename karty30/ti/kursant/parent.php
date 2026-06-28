@@ -8,9 +8,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
+k30_ti_reschedule_migrate();
 
 $err = ''; $info = ''; $stage = 'phone'; // phone | code | choose | pwd
 if (($_GET['m'] ?? '') === 'pwd') $stage = 'pwd';
@@ -78,6 +80,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_m
         }
     }
     header('Location: parent.php?ptab=wiadomosci'); exit;
+}
+
+// Propozycja nowego terminu lekcji od opiekuna — czeka na decyzję prowadzącego
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'propose_reschedule') {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        $sid  = (int)($_POST['session_id'] ?? 0);
+        $date = trim($_POST['lesson_date'] ?? '');
+        $tf   = trim($_POST['time_from'] ?? '');
+        $tt   = trim($_POST['time_to'] ?? '');
+        $reason = trim($_POST['reason'] ?? '');
+        // Lekcja musi należeć do kursu dziecka i być zaplanowana
+        $own = db_one(
+            "SELECT s.id FROM k30_ti_sessions s
+             JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=? AND e.status='active'
+             WHERE s.id=? AND s.status='planned'",
+            [(int)$p['client_id'], $sid]
+        );
+        if ($own && $date !== '') {
+            k30_ti_request_reschedule($sid, (int)$p['client_id'], $date, $tf, $tt, $reason, 'opiekun', $p['name'] ?? 'Opiekun');
+            $_SESSION['k30_parent_msg'] = ['ok', 'Propozycja nowego terminu została wysłana do prowadzącego i czeka na decyzję.'];
+        }
+    }
+    header('Location: parent.php?ptab=harmonogram'); exit;
 }
 
 // Ustawienia powiadomien rodzica
@@ -422,7 +448,7 @@ include __DIR__ . '/_layout_head.php';
 
 <?php elseif ($ptab === 'harmonogram'):
   $p_lessons = db_all(
-    "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic, s.status,
+    "SELECT s.id AS session_id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic, s.status,
             c.name AS course_name, c.location,
             a.attended, a.cancelled AS att_cancelled
      FROM k30_ti_sessions s
@@ -440,10 +466,22 @@ include __DIR__ . '/_layout_head.php';
   $months_pl_har = ['','sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','lis','gru'];
   $days_pl_har   = ['Nd','Pn','Wt','Sr','Czw','Pt','Sb'];
   $today_har     = date('Y-m-d');
+  $ptok_har      = student_token();
+  // Mapa lekcji z oczekującą propozycją terminu (dziecko)
+  $resch_pending_har = [];
+  foreach (db_all(
+      "SELECT session_id, proposed_date, proposed_from FROM k30_ti_reschedule_requests
+       WHERE client_id=? AND status='pending'", [(int)$parent['client_id']]) as $rp) {
+      $resch_pending_har[(int)$rp['session_id']] = $rp;
+  }
+  $hmsg = $_SESSION['k30_parent_msg'] ?? null; unset($_SESSION['k30_parent_msg']);
 ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-calendar-week text-primary" aria-hidden="true"></i>Harmonogram zajec
   </h2>
+  <?php if ($hmsg): ?>
+  <div class="alert alert-<?= $hmsg[0]==='ok'?'success':'danger' ?> py-2"><?= h($hmsg[1]) ?></div>
+  <?php endif; ?>
   <?php if (!$p_lessons): ?>
   <div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>Brak nadchodzacych lekcji.</div>
   <?php else: ?>
@@ -490,12 +528,89 @@ include __DIR__ . '/_layout_head.php';
           <?php else: ?>
           <span class="badge text-bg-light text-dark border">zaplanowana</span>
           <?php endif; ?>
+          <?php
+            $sidh = (int)($l['session_id'] ?? 0);
+            $rph  = $resch_pending_har[$sidh] ?? null;
+            $can_propose = !$is_canc && !$is_past && ($l['status'] ?? 'planned') === 'planned';
+            if ($can_propose):
+              if ($rph):
+                $rphW = date('d.m.Y', strtotime($rph['proposed_date'])) . ($rph['proposed_from'] ? ' '.substr((string)$rph['proposed_from'],0,5) : ''); ?>
+          <div class="mt-1"><span class="badge text-bg-info" title="Czeka na decyzje prowadzacego"><i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Propozycja: <?= h($rphW) ?></span></div>
+          <?php else: ?>
+          <div class="mt-1">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2"
+                    data-reschedule-session="<?= $sidh ?>"
+                    data-lesson-label="<?= h($l['course_name'].' — '.($dt ? $dt->format('d.m.Y') : '')) ?>"
+                    data-lesson-date="<?= h((string)$l['lesson_date']) ?>"
+                    data-lesson-from="<?= h((string)($l['time_from'] ?? '')) ?>"
+                    data-lesson-to="<?= h((string)($l['time_to'] ?? '')) ?>">
+              <i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Zaproponuj termin
+            </button>
+          </div>
+          <?php endif; endif; ?>
         </div>
       </div>
     </div>
     <?php endforeach; ?>
   </div>
   <p class="text-body-secondary small mt-3"><i class="bi bi-info-circle me-1"></i>Pokazuje lekcje od 7 dni wstecz.</p>
+
+  <!-- Modal: propozycja nowego terminu (opiekun) -->
+  <div class="modal fade" id="reschedLessonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" class="modal-content">
+        <input type="hidden" name="_token"     value="<?= h($ptok_har) ?>">
+        <input type="hidden" name="_op"          value="propose_reschedule">
+        <input type="hidden" name="session_id"   id="rs_session_id" value="">
+        <div class="modal-header">
+          <h2 class="modal-title h5"><i class="bi bi-calendar2-range text-primary me-2" aria-hidden="true"></i>Zaproponuj nowy termin</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Lekcja: <strong id="rs_lesson_label"></strong></p>
+          <p class="text-body-secondary small mb-3">Propozycja zostanie wysłana do prowadzącego. Termin zmieni się dopiero po jego akceptacji.</p>
+          <div class="mb-2">
+            <label class="form-label fw-semibold" for="rs_date">Proponowana data</label>
+            <input type="date" class="form-control" id="rs_date" name="lesson_date" required>
+          </div>
+          <div class="row g-2">
+            <div class="col-6 mb-2">
+              <label class="form-label" for="rs_from">Od <span class="text-body-secondary fw-normal">(opc.)</span></label>
+              <input type="time" class="form-control" id="rs_from" name="time_from">
+            </div>
+            <div class="col-6 mb-2">
+              <label class="form-label" for="rs_to">Do <span class="text-body-secondary fw-normal">(opc.)</span></label>
+              <input type="time" class="form-control" id="rs_to" name="time_to">
+            </div>
+          </div>
+          <label class="form-label fw-semibold" for="rs_reason">Uzasadnienie <span class="text-body-secondary fw-normal">(opc.)</span></label>
+          <textarea class="form-control" id="rs_reason" name="reason" rows="2" maxlength="1000"
+                    placeholder="np. kolizja z innymi obowiazkami, wizyta lekarska…"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij propozycję</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var modalEl = document.getElementById('reschedLessonModal');
+    if (!modalEl) return;
+    document.querySelectorAll('[data-reschedule-session]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        document.getElementById('rs_session_id').value = btn.getAttribute('data-reschedule-session');
+        document.getElementById('rs_lesson_label').textContent = btn.getAttribute('data-lesson-label') || '';
+        document.getElementById('rs_date').value = btn.getAttribute('data-lesson-date') || '';
+        document.getElementById('rs_from').value = (btn.getAttribute('data-lesson-from') || '').slice(0,5);
+        document.getElementById('rs_to').value   = (btn.getAttribute('data-lesson-to') || '').slice(0,5);
+        document.getElementById('rs_reason').value = '';
+        new bootstrap.Modal(modalEl).show();
+      });
+    });
+  })();
+  </script>
   <?php endif; ?>
 
 <?php elseif ($ptab === 'wiadomosci'):
