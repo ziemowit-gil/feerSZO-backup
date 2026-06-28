@@ -45,6 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'file_size'     => $up['file_size'],
                 'visibility'    => $vis,
                 'unit_id'       => $unit,
+                'version'       => trim($_POST['version'] ?? '1'),
+                'owner_id'      => (int)($_POST['owner_id'] ?? 0),
             ], $uid);
             flash_set('success', 'Dokument „' . $title . '" został dodany.');
             header('Location: org_documents.php'); exit;
@@ -62,6 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'is_active'   => isset($_POST['is_active']) ? 1 : 0,
                 'visibility'  => $vis,
                 'unit_id'     => $vis === 'unit' ? ($unit ?: null) : null,
+                'version'     => trim($_POST['version'] ?? '1') ?: '1',
+                'owner_id'    => !empty($_POST['owner_id']) ? (int)$_POST['owner_id'] : null,
             ];
             if (!empty($_FILES['file']['name'])) {
                 try {
@@ -99,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $docs       = org_docs_all();           // wszystkie (admin)
 $categories = org_docs_categories();
 $units      = org_units_all('active');  // do wyboru jednostki
+$people     = db_all("SELECT id, name, email FROM users WHERE is_active=1 ORDER BY name"); // Lider
 
 /** Renderuje opcje <option> jednostek. */
 function _orgdoc_unit_options(array $units, int $selected = 0): string {
@@ -106,6 +111,15 @@ function _orgdoc_unit_options(array $units, int $selected = 0): string {
     foreach ($units as $u) {
         $label = $u['name'] . ($u['code'] ? ' (' . $u['code'] . ')' : '');
         $out .= '<option value="' . (int)$u['id'] . '"' . ((int)$u['id'] === $selected ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    return $out;
+}
+
+/** Renderuje opcje <option> osób (Lider). */
+function _orgdoc_people_options(array $people, int $selected = 0): string {
+    $out = '<option value="">— brak —</option>';
+    foreach ($people as $u) {
+        $out .= '<option value="' . (int)$u['id'] . '"' . ((int)$u['id'] === $selected ? ' selected' : '') . '>' . h($u['name']) . '</option>';
     }
     return $out;
 }
@@ -139,8 +153,9 @@ Wolontariusze znajdą je w panelu: <em>Wsparcie → Dokumenty organizacji</em>.<
         <?php foreach ($docs as $d): ?>
         <tr class="<?= $d['is_active'] ? '' : 'opacity-50' ?>">
           <td>
-            <div class="fw-semibold"><?= h($d['title']) ?></div>
+            <div class="fw-semibold"><?= h($d['title']) ?> <span class="badge bg-light text-dark border" style="font-size:.65rem">v<?= h($d['version'] ?? '1') ?></span></div>
             <?php if ($d['description']): ?><div class="small text-muted text-truncate" style="max-width:300px"><?= h($d['description']) ?></div><?php endif; ?>
+            <?php if (!empty($d['owner_name'])): ?><div class="small text-muted"><i class="bi bi-person me-1"></i>Lider: <?= h($d['owner_name']) ?></div><?php endif; ?>
           </td>
           <td class="small"><?= h($d['category'] ?: '—') ?></td>
           <td class="small">
@@ -188,6 +203,10 @@ Wolontariusze znajdą je w panelu: <em>Wsparcie → Dokumenty organizacji</em>.<
         <div class="modal-body">
           <div class="mb-2"><label class="form-label fw-semibold">Tytuł <span class="text-danger">*</span></label><input type="text" name="title" class="form-control" required maxlength="200" placeholder="np. Statut Fundacji"></div>
           <div class="mb-2"><label class="form-label">Kategoria</label><input type="text" name="category" class="form-control" list="orgdoc-cats" placeholder="np. Statut, Regulaminy"></div>
+          <div class="row g-2 mb-2">
+            <div class="col-5"><label class="form-label">Wersja</label><input type="text" name="version" class="form-control" value="1" placeholder="np. 1.0"></div>
+            <div class="col-7"><label class="form-label">Lider <span class="text-muted small">(osoba odpowiedzialna)</span></label><select name="owner_id" class="form-select"><?= _orgdoc_people_options($people) ?></select></div>
+          </div>
           <div class="mb-2"><label class="form-label">Opis</label><textarea name="description" class="form-control" rows="2"></textarea></div>
           <div class="mb-2"><label class="form-label fw-semibold">Plik <span class="text-danger">*</span></label><input type="file" name="file" class="form-control" required>
             <div class="form-text">Dozwolone: <?= h(implode(', ', ORGDOC_ALLOWED_EXT)) ?>; maks. <?= ORGDOC_MAX_SIZE/1048576 ?> MB.</div></div>
@@ -221,6 +240,10 @@ Wolontariusze znajdą je w panelu: <em>Wsparcie → Dokumenty organizacji</em>.<
         <div class="modal-body">
           <div class="mb-2"><label class="form-label fw-semibold">Tytuł</label><input type="text" name="title" class="form-control" value="<?= h($d['title']) ?>" required></div>
           <div class="mb-2"><label class="form-label">Kategoria</label><input type="text" name="category" class="form-control" value="<?= h($d['category']) ?>" list="orgdoc-cats"></div>
+          <div class="row g-2 mb-2">
+            <div class="col-5"><label class="form-label">Wersja</label><input type="text" name="version" class="form-control" value="<?= h($d['version'] ?? '1') ?>"></div>
+            <div class="col-7"><label class="form-label">Lider <span class="text-muted small">(odpowiedzialny)</span></label><select name="owner_id" class="form-select"><?= _orgdoc_people_options($people, (int)($d['owner_id'] ?? 0)) ?></select></div>
+          </div>
           <div class="mb-2"><label class="form-label">Opis</label><textarea name="description" class="form-control" rows="2"><?= h($d['description']) ?></textarea></div>
           <div class="mb-2"><label class="form-label">Podmień plik <span class="text-muted small">(opcjonalnie)</span></label><input type="file" name="file" class="form-control"><div class="form-text">Obecny: <?= h($d['original_name']) ?></div></div>
           <div class="mb-2"><label class="form-label fw-semibold">Widoczność</label>

@@ -65,11 +65,15 @@ include __DIR__ . '/includes/header_panel.php';
     <div class="flex-grow-1 min-w-0">
       <div class="fw-semibold d-flex align-items-center gap-2 flex-wrap">
         <?= h($d['title']) ?>
+        <span class="badge bg-light text-dark border" style="font-size:.65rem">v<?= h($d['version'] ?? '1') ?></span>
         <?php if (!empty($d['category'])): ?><span class="badge bg-light text-dark border" style="font-size:.65rem"><i class="bi bi-tag me-1" aria-hidden="true"></i><?= h($d['category']) ?></span><?php endif; ?>
         <?php if (($d['visibility'] ?? 'all') === 'unit'): ?><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:.65rem"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i><?= h($d['unit_name'] ?: 'Twoja jednostka') ?></span><?php endif; ?>
       </div>
       <?php if (!empty($d['description'])): ?><div class="small text-muted"><?= h($d['description']) ?></div><?php endif; ?>
-      <div class="small text-muted"><?= h($d['original_name']) ?> · <?= h(org_docs_filesize_human((int)$d['file_size'])) ?></div>
+      <div class="small text-muted">
+        <?= h($d['original_name']) ?> · <?= h(org_docs_filesize_human((int)$d['file_size'])) ?>
+        <?php if (!empty($d['owner_name'])): ?> · <i class="bi bi-person me-1" aria-hidden="true"></i>Lider: <?= h($d['owner_name']) ?><?php endif; ?>
+      </div>
     </div>
     <a href="<?= APP_URL ?>/org_documents/serve.php?id=<?= (int)$d['id'] ?>&download" class="btn btn-outline-primary btn-sm flex-shrink-0 mt-1" aria-label="Pobierz: <?= h($d['title']) ?>">
       <i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz

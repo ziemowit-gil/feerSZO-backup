@@ -23,6 +23,8 @@
         is_active     INTEGER NOT NULL DEFAULT 1,
         visibility    TEXT    NOT NULL DEFAULT 'all',   -- all | unit
         unit_id       INTEGER,                          -- gdy visibility='unit'
+        version       TEXT    NOT NULL DEFAULT '1',     -- wersja dokumentu (np. 1.0)
+        owner_id      INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Lider / osoba odpowiedzialna
         created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -32,6 +34,8 @@
         $cols = array_column(db_all("PRAGMA table_info(org_documents)"), 'name');
         if (!in_array('visibility', $cols, true)) $pdo->exec("ALTER TABLE org_documents ADD COLUMN visibility TEXT NOT NULL DEFAULT 'all'");
         if (!in_array('unit_id', $cols, true))    $pdo->exec("ALTER TABLE org_documents ADD COLUMN unit_id INTEGER");
+        if (!in_array('version', $cols, true))    $pdo->exec("ALTER TABLE org_documents ADD COLUMN version TEXT NOT NULL DEFAULT '1'");
+        if (!in_array('owner_id', $cols, true))   $pdo->exec("ALTER TABLE org_documents ADD COLUMN owner_id INTEGER");
     } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_orgdoc_active ON org_documents(is_active)"); } catch (\Throwable $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_orgdoc_cat    ON org_documents(category)"); } catch (\Throwable $e) {}
@@ -88,10 +92,11 @@ function org_docs_all(array $f = []): array {
         }
     }
 
-    $sql = "SELECT d.*, u.name AS created_by_name, ou.name AS unit_name
+    $sql = "SELECT d.*, u.name AS created_by_name, ou.name AS unit_name, ow.name AS owner_name
             FROM org_documents d
             LEFT JOIN users u ON u.id = d.created_by
-            LEFT JOIN org_units ou ON ou.id = d.unit_id";
+            LEFT JOIN org_units ou ON ou.id = d.unit_id
+            LEFT JOIN users ow ON ow.id = d.owner_id";
     if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
     $sql .= ' ORDER BY d.category, d.title';
     return db_all($sql, $p);
@@ -141,7 +146,7 @@ function org_docs_upload(string $field): array {
 }
 
 function org_docs_create(array $data, int $userId): int {
-    $vis  = in_array($data['visibility'] ?? 'all', ['all', 'unit'], true) ? $data['visibility'] : 'all';
+    $vis  = (($data['visibility'] ?? 'all') === 'unit') ? 'unit' : 'all';
     $unit = $vis === 'unit' ? ((int)($data['unit_id'] ?? 0) ?: null) : null;
     return db_insert('org_documents', [
         'title'         => $data['title'],
@@ -154,6 +159,8 @@ function org_docs_create(array $data, int $userId): int {
         'is_active'     => isset($data['is_active']) ? (int)$data['is_active'] : 1,
         'visibility'    => $vis,
         'unit_id'       => $unit,
+        'version'       => trim((string)($data['version'] ?? '1')) ?: '1',
+        'owner_id'      => !empty($data['owner_id']) ? (int)$data['owner_id'] : null,
         'created_by'    => $userId ?: null,
     ]);
 }
