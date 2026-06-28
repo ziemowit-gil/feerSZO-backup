@@ -5,10 +5,10 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 require_role('admin', 'editor');
-require_module_enabled('onboarding_enabled', 'Moduł zgłoszeń wolontariuszy');
+require_module_enabled('onboarding_enabled', 'Moduł zgłoszeń współpracowników');
 require_once __DIR__ . '/../includes/onboarding_schema.php';
 
-$PAGE_TITLE = 'Zgłoszenia wolontariuszy';
+$PAGE_TITLE = 'Zgłoszenia współpracowników';
 
 $f_status = $_GET['status'] ?? '';
 
@@ -52,7 +52,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h4 class="mb-0">
     <i class="bi bi-person-lines-fill text-primary"></i>
-    Zgłoszenia wolontariuszy
+    Zgłoszenia współpracowników
     <span class="badge bg-secondary ms-1"><?= $counts['all'] ?></span>
   </h4>
   <div class="d-flex gap-2">

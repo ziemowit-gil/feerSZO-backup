@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_role('admin');
 require_once __DIR__ . '/../includes/onboarding_schema.php';
 
-$PAGE_TITLE = 'Ustawienia — Kreator onboardingowy';
+$PAGE_TITLE = 'Ustawienia — Formularz zgłoszeń współpracowników';
 
 $keys = [
     'onboarding_enabled',
@@ -94,7 +94,7 @@ include __DIR__ . '/../includes/header.php';
   </a>
   <h4 class="mb-0">
     <i class="bi bi-sliders text-primary"></i>
-    Ustawienia — Kreator onboardingowy
+    Ustawienia — Zgłoszenia współpracowników
   </h4>
 </div>
 

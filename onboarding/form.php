@@ -95,50 +95,44 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($bd) $data_urodzenia = $bd;
         }
 
-        // Pola zależne od typu
-        if ($typ === 'wolontariusz') {
-            $adres = trim($_POST['adres'] ?? '');
-            if ($adres === '') $errors[] = 'Adres jest wymagany.';
+        // Adres strukturalny — wspólny dla obu typów
+        $addr_street = trim($_POST['addr_street'] ?? '');
+        $addr_house  = trim($_POST['addr_house']  ?? '');
+        $addr_flat   = trim($_POST['addr_flat']   ?? '');
+        $addr_postal = trim($_POST['addr_postal'] ?? '');
+        $addr_city   = trim($_POST['addr_city']   ?? '');
+        if ($addr_street === '') $errors[] = 'Ulica jest wymagana.';
+        if ($addr_house  === '') $errors[] = 'Numer domu jest wymagany.';
+        if ($addr_postal === '') $errors[] = 'Kod pocztowy jest wymagany.';
+        if ($addr_city   === '') $errors[] = 'Miejscowość jest wymagana.';
 
-            $row_extra = [
-                'adres' => $adres,
-            ];
-        } else {
-            // zleceniobiorca — adres strukturalny
-            $addr_street = trim($_POST['addr_street'] ?? '');
-            $addr_house  = trim($_POST['addr_house']  ?? '');
-            $addr_postal = trim($_POST['addr_postal'] ?? '');
-            $addr_city   = trim($_POST['addr_city']   ?? '');
-            if ($addr_street === '') $errors[] = 'Ulica jest wymagana.';
-            if ($addr_house  === '') $errors[] = 'Numer domu jest wymagany.';
-            if ($addr_postal === '') $errors[] = 'Kod pocztowy jest wymagany.';
-            if ($addr_city   === '') $errors[] = 'Miejscowość jest wymagana.';
+        $adres_parts = array_filter([
+            $addr_street . ' ' . $addr_house,
+            $addr_flat !== '' ? 'm. ' . $addr_flat : '',
+            $addr_postal . ' ' . $addr_city,
+        ]);
+        $adres = implode(', ', $adres_parts);
 
-            $seria_nr   = trim($_POST['seria_nr_dowodu'] ?? '');
-            $urzad_sk   = trim($_POST['urzad_skarbowy'] ?? '');
+        $row_extra = [
+            'adres'       => $adres,
+            'addr_street' => $addr_street,
+            'addr_house'  => $addr_house,
+            'addr_flat'   => $addr_flat,
+            'addr_postal' => $addr_postal,
+            'addr_city'   => $addr_city,
+        ];
+
+        // Pola specyficzne dla zleceniobiorcy
+        if ($typ === 'zleceniobiorca') {
             $rachunek   = preg_replace('/\s/', '', trim($_POST['rachunek_bankowy'] ?? ''));
             $bank_nazwa = trim($_POST['bank_nazwa'] ?? '');
-            // Walidacja numeru konta (26 cyfr)
             if ($rachunek !== '' && (!ctype_digit($rachunek) || strlen($rachunek) !== 26)) {
                 $errors[] = 'Numer rachunku bankowego musi mieć 26 cyfr (bez spacji).';
             }
-
-            // Zbuduj adres jednoliniowy jako adres fallback
-            $adres_parts = array_filter([$addr_street . ' ' . $addr_house, trim($_POST['addr_flat'] ?? '') !== '' ? 'm. ' . trim($_POST['addr_flat']) : '', $addr_postal . ' ' . $addr_city]);
-            $adres = implode(', ', $adres_parts);
-
-            $row_extra = [
-                'adres'           => $adres,
-                'addr_street'     => $addr_street,
-                'addr_house'      => $addr_house,
-                'addr_flat'       => trim($_POST['addr_flat'] ?? ''),
-                'addr_postal'     => $addr_postal,
-                'addr_city'       => $addr_city,
-                'seria_nr_dowodu' => $seria_nr,
-                'urzad_skarbowy'  => $urzad_sk,
-                'rachunek_bankowy'=> $rachunek,
-                'bank_nazwa'      => $bank_nazwa,
-            ];
+            $row_extra['seria_nr_dowodu'] = trim($_POST['seria_nr_dowodu'] ?? '');
+            $row_extra['urzad_skarbowy']  = trim($_POST['urzad_skarbowy']  ?? '');
+            $row_extra['rachunek_bankowy']= $rachunek;
+            $row_extra['bank_nazwa']      = $bank_nazwa;
         }
 
         if (empty($errors)) {
@@ -351,7 +345,7 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $notify_email = get_setting('onboarding_notify_email');
             if ($notify_email !== '') {
                 $link      = APP_URL . '/onboarding/view.php?id=' . $ob_id;
-                $typ_label = $vol['typ'] === 'zleceniobiorca' ? 'zleceniobiorcy' : 'wolontariusza';
+                $typ_label = $vol['typ'] === 'zleceniobiorca' ? 'zleceniobiorcy' : 'wspolpracownika (wolontariusz)';
                 $html      = '<p>Nowe zgłoszenie ' . $typ_label . ': <strong>' . h($vol['imie_nazwisko']) . '</strong>'
                            . ' (' . h($vol['email']) . ').</p>'
                            . '<p>Oświadczenie podatkowe/ZUS zostało dołączone do zgłoszenia.</p>'
@@ -612,18 +606,34 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
       background: #f9fafb; border-color: #d1d5db; color: #6b7280; font-weight: 600; font-size: .9rem;
     }
 
-    /* ── Divider label ───────────────────────────────────────── */
-    .field-group {
-      margin-bottom: 1.5rem;
+    /* ── Sekcja formularza ───────────────────────────────────── */
+    .ob-section {
+      border: 1px solid #e5e7eb;
+      border-radius: .75rem;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
     }
-    .field-group-label {
-      display: flex; align-items: center; gap: .6rem;
-      font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
-      color: #9ca3af; margin-bottom: 1rem;
+    .ob-section-head {
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+      padding: .6rem 1rem;
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
     }
-    .field-group-label::after {
-      content: ''; flex: 1; height: 1px; background: #f3f4f6;
+    .ob-section-head svg {
+      width: 14px; height: 14px; stroke: #9ca3af; fill: none; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
     }
+    .ob-section-body {
+      padding: 1rem;
+    }
+    .ob-section-body .row { margin-left: 0; margin-right: 0; }
 
     /* ── Typ selector ────────────────────────────────────────── */
     .typ-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
@@ -867,8 +877,8 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
     $p = $_POST;
   ?>
     <div class="ob-card-head">
-      <h2>Twoje dane</h2>
-      <p>Wypelnij ponizszy formularz. Pola oznaczone gwiazdka (*) sa obowiazkowe.</p>
+      <h2>Dane wspolpracownika</h2>
+      <p>Wypelnij formularz zgloszeniowy. Pola oznaczone * sa obowiazkowe.</p>
     </div>
     <div class="ob-card-body">
       <?php if ($ob_intro): ?>
@@ -878,93 +888,92 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
       <form method="post" action="?step=1" id="step1form" novalidate>
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
-        <!-- Typ wspolpracy -->
-        <div class="field-group">
-          <div class="field-group-label">Rodzaj wspolpracy</div>
-          <div class="typ-grid">
+        <!-- 1. Rodzaj wspolpracy -->
+        <div class="ob-section mb-4">
+          <div class="ob-section-head">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            Rodzaj wspolpracy
+          </div>
+          <div class="ob-section-body">
+            <div class="typ-grid">
 
-            <label class="typ-card <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'selected' : '' ?>" id="btn-wolontariusz">
-              <input type="radio" name="typ" value="wolontariusz" <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'checked' : '' ?>>
-              <div class="typ-card-check"></div>
-              <div class="typ-card-icon">
-                <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              <label class="typ-card <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'selected' : '' ?>" id="btn-wolontariusz">
+                <input type="radio" name="typ" value="wolontariusz" <?= ($p['typ'] ?? 'wolontariusz') === 'wolontariusz' ? 'checked' : '' ?>>
+                <div class="typ-card-check"></div>
+                <div class="typ-card-icon">
+                  <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </div>
+                <div class="typ-card-name">Wolontariusz</div>
+                <div class="typ-card-desc">Porozumienie wolontariackie, bez wynagrodzenia</div>
+              </label>
+
+              <label class="typ-card <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'selected' : '' ?>" id="btn-zleceniobiorca">
+                <input type="radio" name="typ" value="zleceniobiorca" <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'checked' : '' ?>>
+                <div class="typ-card-check"></div>
+                <div class="typ-card-icon">
+                  <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+                </div>
+                <div class="typ-card-name">Zleceniobiorca</div>
+                <div class="typ-card-desc">Umowa zlecenie lub o dzielo</div>
+              </label>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Dane osobowe -->
+        <div class="ob-section">
+          <div class="ob-section-head">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Dane osobowe
+          </div>
+          <div class="ob-section-body">
+            <div class="mb-3">
+              <label class="form-label" for="imie_nazwisko">Imie i nazwisko <span class="text-danger">*</span></label>
+              <input type="text" id="imie_nazwisko" name="imie_nazwisko" class="form-control"
+                     value="<?= h($p['imie_nazwisko'] ?? '') ?>" autocomplete="name" autofocus>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-sm-7">
+                <label class="form-label" for="pesel_input">PESEL</label>
+                <input type="text" id="pesel_input" name="pesel" class="form-control"
+                       maxlength="11" inputmode="numeric" pattern="\d{11}"
+                       value="<?= h($p['pesel'] ?? '') ?>" placeholder="opcjonalnie"
+                       autocomplete="off">
               </div>
-              <div class="typ-card-name">Wolontariusz</div>
-              <div class="typ-card-desc">Porozumienie wolontariackie, bez wynagrodzenia</div>
-            </label>
-
-            <label class="typ-card <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'selected' : '' ?>" id="btn-zleceniobiorca">
-              <input type="radio" name="typ" value="zleceniobiorca" <?= ($p['typ'] ?? '') === 'zleceniobiorca' ? 'checked' : '' ?>>
-              <div class="typ-card-check"></div>
-              <div class="typ-card-icon">
-                <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+              <div class="col-sm-5">
+                <label class="form-label" for="data_urodzenia_input">Data urodzenia</label>
+                <input type="date" id="data_urodzenia_input" name="data_urodzenia" class="form-control"
+                       value="<?= h($p['data_urodzenia'] ?? '') ?>">
               </div>
-              <div class="typ-card-name">Zleceniobiorca</div>
-              <div class="typ-card-desc">Umowa zlecenie lub o dzielo</div>
-            </label>
-
+            </div>
+            <div class="row g-2 mb-0">
+              <div class="col-sm-5">
+                <label class="form-label" for="telefon_input">Telefon <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">+48</span>
+                  <input type="tel" id="telefon_input" name="telefon" class="form-control"
+                         value="<?= h($p['telefon'] ?? '') ?>"
+                         placeholder="123 456 789" maxlength="11" inputmode="tel" autocomplete="tel">
+                </div>
+              </div>
+              <div class="col-sm-7">
+                <label class="form-label" for="email_input">Adres e-mail <span class="text-danger">*</span></label>
+                <input type="email" id="email_input" name="email" class="form-control"
+                       value="<?= h($p['email'] ?? '') ?>" autocomplete="email" inputmode="email">
+              </div>
+            </div>
+            <div class="form-text mt-1">Na podany adres e-mail wysylamy link aktywacyjny konta.</div>
           </div>
         </div>
 
-        <!-- Dane osobowe -->
-        <div class="field-group">
-          <div class="field-group-label">Dane osobowe</div>
-
-          <div class="mb-3">
-            <label class="form-label" for="imie_nazwisko">Imie i nazwisko <span class="text-danger">*</span></label>
-            <input type="text" id="imie_nazwisko" name="imie_nazwisko" class="form-control"
-                   value="<?= h($p['imie_nazwisko'] ?? '') ?>" autocomplete="name" autofocus>
+        <!-- 3. Adres zamieszkania (wspólny) -->
+        <div class="ob-section">
+          <div class="ob-section-head">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Adres zamieszkania
           </div>
-
-          <div class="row g-3 mb-3">
-            <div class="col-7">
-              <label class="form-label" for="pesel_input">PESEL</label>
-              <input type="text" id="pesel_input" name="pesel" class="form-control"
-                     maxlength="11" inputmode="numeric" pattern="\d{11}"
-                     value="<?= h($p['pesel'] ?? '') ?>" placeholder="opcjonalnie"
-                     autocomplete="off">
-            </div>
-            <div class="col-5">
-              <label class="form-label" for="data_urodzenia_input">Data urodzenia</label>
-              <input type="date" id="data_urodzenia_input" name="data_urodzenia" class="form-control"
-                     value="<?= h($p['data_urodzenia'] ?? '') ?>">
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label" for="telefon_input">Numer telefonu <span class="text-danger">*</span></label>
-            <div class="input-group">
-              <span class="input-group-text">+48</span>
-              <input type="tel" id="telefon_input" name="telefon" class="form-control"
-                     value="<?= h($p['telefon'] ?? '') ?>"
-                     placeholder="123&nbsp;456&nbsp;789" maxlength="11" inputmode="tel" autocomplete="tel">
-            </div>
-          </div>
-
-          <div class="mb-0">
-            <label class="form-label" for="email_input">Adres e-mail <span class="text-danger">*</span></label>
-            <input type="email" id="email_input" name="email" class="form-control"
-                   value="<?= h($p['email'] ?? '') ?>" autocomplete="email" inputmode="email">
-            <div class="form-text">Na ten adres wysylamy link do aktywacji konta.</div>
-          </div>
-        </div>
-
-        <!-- Sekcja wolontariusz -->
-        <div id="sekcja-wolontariusz" class="field-group">
-          <div class="field-group-label">Adres zamieszkania</div>
-          <div class="mb-0">
-            <input type="text" name="adres" class="form-control"
-                   value="<?= h($p['adres'] ?? '') ?>"
-                   placeholder="ul. Przykladowa 1, 00-000 Miasto"
-                   autocomplete="street-address">
-          </div>
-        </div>
-
-        <!-- Sekcja zleceniobiorca -->
-        <div id="sekcja-zleceniobiorca" style="display:none">
-
-          <div class="field-group">
-            <div class="field-group-label">Adres zamieszkania</div>
+          <div class="ob-section-body">
             <div class="row g-2 mb-2">
               <div class="col-7">
                 <label class="form-label" for="addr_street">Ulica <span class="text-danger">*</span></label>
@@ -983,9 +992,9 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
                        value="<?= h($p['addr_flat'] ?? '') ?>" placeholder="—">
               </div>
             </div>
-            <div class="row g-2 mb-0">
+            <div class="row g-2">
               <div class="col-4">
-                <label class="form-label" for="addr_postal">Kod pocztowy <span class="text-danger">*</span></label>
+                <label class="form-label" for="addr_postal">Kod <span class="text-danger">*</span></label>
                 <input type="text" id="addr_postal" name="addr_postal" class="form-control"
                        value="<?= h($p['addr_postal'] ?? '') ?>" placeholder="00-000"
                        maxlength="6" inputmode="numeric" autocomplete="postal-code">
@@ -997,43 +1006,45 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="field-group">
-            <div class="field-group-label">Dane do umowy i rozliczen</div>
-
-            <div class="mb-3">
-              <label class="form-label" for="seria_nr_dowodu">Seria i numer dowodu osobistego lub paszportu</label>
-              <input type="text" id="seria_nr_dowodu" name="seria_nr_dowodu" class="form-control"
-                     value="<?= h($p['seria_nr_dowodu'] ?? '') ?>" placeholder="np. ABC 123456"
-                     autocomplete="off" style="text-transform:uppercase">
-              <div class="form-text">Wymagane do wystawienia rachunku i zgloszenia do ZUS.</div>
+        <!-- 4. Dane do umowy (tylko zleceniobiorca) -->
+        <div id="sekcja-zleceniobiorca" class="ob-section" style="display:none">
+          <div class="ob-section-head">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Dane do umowy i rozliczen
+          </div>
+          <div class="ob-section-body">
+            <div class="row g-2 mb-2">
+              <div class="col-sm-6">
+                <label class="form-label" for="seria_nr_dowodu">Seria i nr dowodu / paszportu</label>
+                <input type="text" id="seria_nr_dowodu" name="seria_nr_dowodu" class="form-control"
+                       value="<?= h($p['seria_nr_dowodu'] ?? '') ?>" placeholder="np. ABC 123456"
+                       autocomplete="off" style="text-transform:uppercase">
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="urzad_skarbowy">Wlasciwy urzad skarbowy</label>
+                <input type="text" id="urzad_skarbowy" name="urzad_skarbowy" class="form-control"
+                       value="<?= h($p['urzad_skarbowy'] ?? '') ?>"
+                       placeholder="np. US Krakow-Srodmiescie">
+              </div>
             </div>
-
-            <div class="mb-3">
-              <label class="form-label" for="urzad_skarbowy">Wlasciwy urzad skarbowy</label>
-              <input type="text" id="urzad_skarbowy" name="urzad_skarbowy" class="form-control"
-                     value="<?= h($p['urzad_skarbowy'] ?? '') ?>"
-                     placeholder="np. US Warszawa-Mokotow">
-            </div>
-
-            <div class="mb-0">
-              <label class="form-label" for="rachunek_bankowy">Numer rachunku bankowego (IBAN)</label>
-              <input type="text" id="rachunek_bankowy" name="rachunek_bankowy" class="form-control"
-                     value="<?= h($p['rachunek_bankowy'] ?? '') ?>"
-                     placeholder="26 cyfr PL, bez spacji" maxlength="32"
-                     inputmode="numeric" autocomplete="off">
-              <div class="form-text">Numer konta do przelewu wynagrodzenia — 26 cyfr, bez liter ani spacji.</div>
-            </div>
-
-            <div class="mb-0">
-              <label class="form-label" for="bank_nazwa">Bank prowadzacy rachunek</label>
-              <input type="text" id="bank_nazwa" name="bank_nazwa" class="form-control"
-                     value="<?= h($p['bank_nazwa'] ?? '') ?>"
-                     placeholder="np. PKO Bank Polski, mBank, ING">
-              <div class="form-text">Nazwa banku pojawi sie w oswiadczeniu o rachunku bankowym.</div>
+            <div class="row g-2">
+              <div class="col-sm-8">
+                <label class="form-label" for="rachunek_bankowy">Numer rachunku bankowego</label>
+                <input type="text" id="rachunek_bankowy" name="rachunek_bankowy" class="form-control"
+                       value="<?= h($p['rachunek_bankowy'] ?? '') ?>"
+                       placeholder="26 cyfr, bez spacji" maxlength="32"
+                       inputmode="numeric" autocomplete="off">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label" for="bank_nazwa">Bank</label>
+                <input type="text" id="bank_nazwa" name="bank_nazwa" class="form-control"
+                       value="<?= h($p['bank_nazwa'] ?? '') ?>"
+                       placeholder="np. PKO, mBank">
+              </div>
             </div>
           </div>
-
         </div>
 
         <button type="submit" class="btn-ob">Przejdz dalej &rarr;</button>
@@ -1044,30 +1055,14 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
     (function() {
       var btnW = document.getElementById('btn-wolontariusz');
       var btnZ = document.getElementById('btn-zleceniobiorca');
-      var secW = document.getElementById('sekcja-wolontariusz');
       var secZ = document.getElementById('sekcja-zleceniobiorca');
 
       function switchTyp(val) {
-        var isW = val === 'wolontariusz';
-        secW.style.display = isW ? '' : 'none';
-        secZ.style.display = isW ? 'none' : '';
-        btnW.classList.toggle('selected', isW);
-        btnZ.classList.toggle('selected', !isW);
-        secW.querySelectorAll('input,select,textarea').forEach(function(el){
-          if (el.dataset.req) el.required = isW;
-        });
-        secZ.querySelectorAll('input,select,textarea').forEach(function(el){
-          if (el.dataset.req) el.required = !isW;
-        });
+        var isZ = val === 'zleceniobiorca';
+        secZ.style.display = isZ ? '' : 'none';
+        btnW.classList.toggle('selected', !isZ);
+        btnZ.classList.toggle('selected', isZ);
       }
-
-      // Mark required fields per section
-      // Wolontariusz: adres (only one field, no explicit required markup — server validates)
-      // Zleceniobiorca: addr_street, addr_house, addr_postal, addr_city
-      ['addr_street','addr_house','addr_postal','addr_city'].forEach(function(id){
-        var el = document.getElementById(id);
-        if (el) el.dataset.req = '1';
-      });
 
       [btnW, btnZ].forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -1104,15 +1099,15 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
         el.value = v;
       });
 
-      // Format IBAN-like bank account on blur
+      // Uppercase doc number
+      var doc = document.getElementById('seria_nr_dowodu');
+      if (doc) doc.addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
+
+      // Strip non-digits from bank account on blur
       var rachunek = document.getElementById('rachunek_bankowy');
       if (rachunek) rachunek.addEventListener('blur', function(){
         this.value = this.value.replace(/\D/g,'');
       });
-
-      // Uppercase doc number
-      var doc = document.getElementById('seria_nr_dowodu');
-      if (doc) doc.addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
     })();
     </script>
 

@@ -18,7 +18,7 @@ function render_page(string $type, string $title, string $body_html): void {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= h($title) ?> — <?= defined('ORG_NAME') ? h(ORG_NAME) : 'Portal wolontariusza' ?></title>
+  <title><?= h($title) ?> — <?= defined('ORG_NAME') ? h(ORG_NAME) : 'Portal wspolpracownika' ?></title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
         crossorigin="anonymous">
@@ -99,7 +99,7 @@ $success_html = <<<HTML
     <h4 class="mb-2">E-mail zweryfikowany!</h4>
     <p class="text-muted mb-4">
       Twój adres e-mail został potwierdzony. Możesz teraz wrócić do formularza
-      i kontynuować wypełnianie kwestionariusza wolontariusza.
+      i kontynuować wypełnianie formularza zgłoszeniowego.
     </p>
     <a href="{$wizard_url}" class="btn btn-success btn-lg px-4">
       <i class="bi bi-arrow-left-circle me-2"></i>Wróć do formularza
