@@ -21,7 +21,20 @@ const DYD_SESSION_TTL = 3600 * 8; // 8h
 
 function dyd_start(): void {
     if (session_status() !== PHP_SESSION_ACTIVE) {
+        // Ten sam magazyn sesji co reszta aplikacji (DB), aby sesja założona
+        // w jednym żądaniu (np. mostek Office office_enter.php) była widoczna
+        // w kolejnym (index.php). Bez tego domyślny handler plikowy i handler DB
+        // zarejestrowany przez auth_start() mogłyby się rozjechać.
+        static $handler_set = false;
+        if (!$handler_set) {
+            $handler_set = true;
+            try {
+                require_once dirname(dirname(dirname(__DIR__))) . '/includes/session_db_handler.php';
+                session_set_save_handler(new DbSessionHandler(db()), true);
+            } catch (\Throwable $e) { /* fallback: domyślny handler PHP */ }
+        }
         session_name('k30_dydaktyk');
+        session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         session_start();
     }
 }
@@ -35,12 +48,12 @@ function dyd_current(): ?array {
 }
 
 /**
- * Weryfikuje dane logowania SZO (e-mail + hasło) i uprawnienia dydaktyka.
- * Zwraca dane do zapisania w sesji lub null (błędne dane / brak uprawnień).
+ * Buduje profil sesji dydaktyka z wiersza users i sprawdza uprawnienia.
+ * Zwraca dane do zapisania w sesji lub null (konto nieaktywne / brak uprawnień).
+ * Wspólne dla logowania hasłem (dyd_authenticate) i Office (office_enter.php).
  */
-function dyd_authenticate(string $email, string $password): ?array {
-    $u = db_one("SELECT * FROM users WHERE email=? AND is_active=1", [$email]);
-    if (!$u || empty($u['password']) || !password_verify($password, $u['password'])) return null;
+function dyd_profile_from_user(array $u): ?array {
+    if (empty($u['is_active'])) return null;
     $role = $u['role'] ?? '';
     $rp = role_permissions($role);
     $up = user_permissions((int)$u['id']);
@@ -50,11 +63,21 @@ function dyd_authenticate(string $email, string $password): ?array {
     if (!$is_consultant) return null; // konto bez uprawnień doradcy/dydaktyka TI
     return [
         'user_id'  => (int)$u['id'],
-        'name'     => $u['name'] ?? $email,
-        'email'    => $u['email'] ?? $email,
+        'name'     => $u['name'] ?? ($u['email'] ?? ''),
+        'email'    => $u['email'] ?? '',
         'role'     => $role,
         'is_staff' => $is_staff,
     ];
+}
+
+/**
+ * Weryfikuje dane logowania SZO (e-mail + hasło) i uprawnienia dydaktyka.
+ * Zwraca dane do zapisania w sesji lub null (błędne dane / brak uprawnień).
+ */
+function dyd_authenticate(string $email, string $password): ?array {
+    $u = db_one("SELECT * FROM users WHERE email=? AND is_active=1", [$email]);
+    if (!$u || empty($u['password']) || !password_verify($password, $u['password'])) return null;
+    return dyd_profile_from_user($u);
 }
 
 function dyd_login_user(array $data): void {

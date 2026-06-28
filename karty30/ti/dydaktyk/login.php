@@ -11,6 +11,15 @@ karty30_migrate();
 if (dyd_current()) { header('Location: index.php'); exit; }
 
 $error = '';
+if (($_GET['office'] ?? '') === 'denied') {
+    $error = 'Zalogowano przez Microsoft 365, ale to konto nie ma uprawnień dydaktyka TI.';
+}
+
+// Start logowania Office — wspólny callback aplikacji, powrót do panelu dydaktyka.
+$office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
+    . urlencode(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/office_enter.php');
+$office_available = function_exists('ms_login_available') && ms_login_available();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -64,6 +73,17 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <?php if ($error): ?>
           <div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert">
             <i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($error) ?></span>
+          </div>
+          <?php endif; ?>
+
+          <?php if ($office_available): ?>
+          <a href="<?= h($office_login_url) ?>" class="btn btn-lg w-100 fw-semibold mb-3 d-flex align-items-center justify-content-center gap-2"
+             style="background:#2f2f2f;color:#fff">
+            <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true"><path fill="#f25022" d="M1 1h10v10H1z"/><path fill="#7fba00" d="M12 1h10v10H12z"/><path fill="#00a4ef" d="M1 12h10v10H1z"/><path fill="#ffb900" d="M12 12h10v10H12z"/></svg>
+            Zaloguj przez Microsoft 365
+          </a>
+          <div class="d-flex align-items-center gap-2 my-3 text-body-secondary" aria-hidden="true">
+            <hr class="flex-grow-1 m-0"><span class="small">albo hasłem</span><hr class="flex-grow-1 m-0">
           </div>
           <?php endif; ?>
 
