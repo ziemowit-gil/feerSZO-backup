@@ -28,6 +28,11 @@
         'addr_postal'            => 'TEXT',
         'addr_city'              => 'TEXT',
         'rachunek_bankowy'       => 'TEXT',
+        // v4
+        'bank_nazwa'             => 'TEXT',
+        'rachunek_podpis_at'     => 'TEXT',
+        'rachunek_podpis_ip'     => 'TEXT',
+        'rachunek_podpis_metoda' => 'TEXT',
     ];
 
     $db = db();

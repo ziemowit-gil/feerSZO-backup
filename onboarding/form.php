@@ -117,6 +117,7 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $seria_nr   = trim($_POST['seria_nr_dowodu'] ?? '');
             $urzad_sk   = trim($_POST['urzad_skarbowy'] ?? '');
             $rachunek   = preg_replace('/\s/', '', trim($_POST['rachunek_bankowy'] ?? ''));
+            $bank_nazwa = trim($_POST['bank_nazwa'] ?? '');
             // Walidacja numeru konta (26 cyfr)
             if ($rachunek !== '' && (!ctype_digit($rachunek) || strlen($rachunek) !== 26)) {
                 $errors[] = 'Numer rachunku bankowego musi mieć 26 cyfr (bez spacji).';
@@ -136,6 +137,7 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'seria_nr_dowodu' => $seria_nr,
                 'urzad_skarbowy'  => $urzad_sk,
                 'rachunek_bankowy'=> $rachunek,
+                'bank_nazwa'      => $bank_nazwa,
             ];
         }
 
@@ -256,8 +258,20 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $vol       = db_one("SELECT * FROM onboarding_volunteers WHERE id=?", [$ob_id]);
         $file_ok   = false;
         $file_path = $vol['oswiadczenie_file'] ?? '';
+        $action    = trim($_POST['action'] ?? '');
 
-        if (!empty($_FILES['oswiadczenie']['tmp_name'])) {
+        // Ścieżka dla zleceniobiorcy: podpis elektroniczny
+        if ($action === 'sign_electronic' && ($vol['typ'] ?? '') === 'zleceniobiorca') {
+            db_update('onboarding_volunteers', [
+                'rachunek_podpis_at'     => date('Y-m-d H:i:s'),
+                'rachunek_podpis_ip'     => $_SERVER['REMOTE_ADDR'] ?? '',
+                'rachunek_podpis_metoda' => 'elektroniczny',
+                'updated_at'             => date('Y-m-d H:i:s'),
+            ], $ob_id);
+            $file_ok = true;
+        }
+
+        if (!$file_ok && !empty($_FILES['oswiadczenie']['tmp_name'])) {
             $file = $_FILES['oswiadczenie'];
             $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             $allowed_ext = ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'tif'];
@@ -284,8 +298,14 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } elseif ($file_path !== '') {
             $file_ok = true;
+        } elseif (($vol['rachunek_podpis_at'] ?? '') !== '' || $file_ok) {
+            $file_ok = true;
         } else {
-            $errors[] = 'Oświadczenie jest wymagane. Prześlij skan lub zdjęcie dokumentu.';
+            if (($vol['typ'] ?? '') === 'zleceniobiorca') {
+                $errors[] = 'Podpisz oświadczenie elektronicznie lub prześlij skan podpisanego dokumentu.';
+            } else {
+                $errors[] = 'Oświadczenie jest wymagane. Prześlij skan lub zdjęcie dokumentu.';
+            }
         }
 
         if ($file_ok && empty($errors)) {
@@ -1004,6 +1024,14 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
                      inputmode="numeric" autocomplete="off">
               <div class="form-text">Numer konta do przelewu wynagrodzenia — 26 cyfr, bez liter ani spacji.</div>
             </div>
+
+            <div class="mb-0">
+              <label class="form-label" for="bank_nazwa">Bank prowadzacy rachunek</label>
+              <input type="text" id="bank_nazwa" name="bank_nazwa" class="form-control"
+                     value="<?= h($p['bank_nazwa'] ?? '') ?>"
+                     placeholder="np. PKO Bank Polski, mBank, ING">
+              <div class="form-text">Nazwa banku pojawi sie w oswiadczeniu o rachunku bankowym.</div>
+            </div>
           </div>
 
         </div>
@@ -1216,8 +1244,245 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
   // STEP 5 — oswiadczenie
   // ═══════════════════════════════════════════════════════════
   elseif ($step === 5):
-    $existing_file = $vol['oswiadczenie_file'] ?? '';
+    $existing_file     = $vol['oswiadczenie_file']      ?? '';
+    $vol_typ           = $vol['typ']                    ?? 'wolontariusz';
+    $juz_podpisano_el  = ($vol['rachunek_podpis_at']    ?? '') !== '';
+    $pdf_url           = APP_URL . '/onboarding/pdf_rachunek.php?id=' . $ob_id;
+    $pdf_signed_url    = $pdf_url . '&signed=1';
+
+    // Formatowanie rachunku do wyświetlenia
+    $fmt_iban_disp = function(string $s): string {
+        $s = preg_replace('/\D/', '', $s);
+        return trim(chunk_split($s, 4, ' '));
+    };
   ?>
+    <?php if ($vol_typ === 'zleceniobiorca'): ?>
+
+    <div class="ob-card-head">
+      <h2>Oswiadczenie o rachunku bankowym</h2>
+      <p>Zapoznaj sie z trescia oswiadczenia i podpisz je — elektronicznie lub recznie.</p>
+    </div>
+    <div class="ob-card-body">
+
+      <?php if ($juz_podpisano_el): ?>
+      <div class="ob-alert ob-alert-success">
+        Oswiadczenie podpisano elektronicznie <?= h(date('d.m.Y H:i', strtotime($vol['rachunek_podpis_at']))) ?>.
+        <a href="<?= h($pdf_signed_url) ?>" class="btn-ob-ghost" target="_blank">Pobierz PDF</a>
+      </div>
+      <form method="post" action="?step=5">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <button type="submit" class="btn-ob">Wyslij zgloszenie &rarr;</button>
+      </form>
+
+      <?php else: ?>
+
+      <!-- Podglad dokumentu -->
+      <div class="ob-decl-preview">
+        <div class="ob-decl-header">
+          <div class="ob-decl-person"><?= h($vol['imie_nazwisko'] ?? '') ?></div>
+          <div class="ob-decl-date">
+            <?php
+              $months_pl = ['', 'stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca',
+                            'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+              echo h((defined('ORG_CITY') ? ORG_CITY : 'Kraków') . ', '
+                    . (int)date('j') . ' ' . $months_pl[(int)date('n')] . ' ' . date('Y'));
+            ?>
+          </div>
+        </div>
+
+        <h3 class="ob-decl-title">Oswiadczenie o numerze rachunku bankowego</h3>
+
+        <p class="ob-decl-text">
+          Dane rachunku bankowego do wyplaty wynagrodzenia z tytulu zatrudnienia w
+          <?= h(defined('ORG_NAME') ? ORG_NAME : 'Fundacji') ?>.
+        </p>
+
+        <div class="ob-decl-field">
+          <div class="ob-decl-field-label">Numer:</div>
+          <div class="ob-decl-field-value"><?= h($fmt_iban_disp($vol['rachunek_bankowy'] ?? '')) ?: '&mdash;' ?></div>
+        </div>
+        <div class="ob-decl-field">
+          <div class="ob-decl-field-label">Bank prowadzacy rachunek</div>
+          <div class="ob-decl-field-value"><?= h($vol['bank_nazwa'] ?? '') ?: '&mdash;' ?></div>
+        </div>
+        <div class="ob-decl-field">
+          <div class="ob-decl-field-label">Imie i nazwisko posiadacza rachunku</div>
+          <div class="ob-decl-field-value"><?= h($vol['imie_nazwisko'] ?? '') ?></div>
+        </div>
+
+        <p class="ob-decl-text">
+          W zwiazku z planowanym zatrudnieniem na podstawie umowy cywilnoprawnej, realizowanej
+          w ramach <strong>zadania finansowanego ze srodkow publicznych</strong>, oswiadczam,
+          ze jestem wlascicielem wskazanego do wyplaty wynagrodzenia rachunku bankowego.
+        </p>
+        <p class="ob-decl-text">W odniesieniu do powyzszego rachunku potwierdzam, co nastepuje:</p>
+        <p class="ob-decl-text">
+          1) rachunek ten nie jest objety zadnym zajeciem komorniczym ani innymi postepowaniami egzekucyjnymi,<br>
+          2) rachunek jest prowadzony dla osoby fizycznej i nie jest wykorzystywany w ramach prowadzonej dzialalnosci gospodarczej.
+        </p>
+        <p class="ob-decl-text">
+          Jednoczesnie przyjmuje do wiadomosci, ze w przypadku uzyskania przez Fundacje informacji
+          o wystapieniu zajecia komorniczego na wskazanym rachunku, Fundacja zastrzega sobie prawo
+          do natychmiastowego rozwiazania zawartej umowy z wylacznej winy Zleceniobiorcy.
+        </p>
+        <p class="ob-decl-text">
+          Niniejsze oswiadczenie pozostaje w mocy do konca roku kalendarzowego, w ktorym zostalo
+          zlozone. Termin ten ulega skroceniu wylacznie w sytuacji, gdy w toku trwajacej wspolpracy
+          Zleceniobiorca zlozy nowe oswiadczenie o Numerze Rachunku Bankowego (NRB).
+        </p>
+      </div><!-- /.ob-decl-preview -->
+
+      <!-- Dwie opcje podpisu -->
+      <div class="ob-sign-options">
+
+        <!-- Opcja A: podpis elektroniczny -->
+        <div class="ob-sign-option" id="opt-electronic">
+          <div class="ob-sign-opt-head">
+            <div class="ob-sign-opt-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div>
+              <div class="ob-sign-opt-title">Podpisz elektronicznie</div>
+              <div class="ob-sign-opt-desc">Zaznacz zgode ponizej — dokument zostanie podpisany cyfrowo</div>
+            </div>
+          </div>
+          <form method="post" action="?step=5" id="sign-el-form">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="action" value="sign_electronic">
+            <label class="ob-check" for="el_agree">
+              <input type="checkbox" id="el_agree" name="el_agree" value="1" required>
+              <span class="ob-check-label">
+                Potwierdzam, ze zapoznalem/am sie z trescia oswiadczenia i skladam je
+                w imieniu wlasnym. Wyrazam zgode na zlozone oswiadczenie w formie elektronicznej.
+              </span>
+            </label>
+            <button type="submit" class="btn-ob" id="sign-el-btn">Podpisz i wyslij zgloszenie</button>
+          </form>
+        </div>
+
+        <div class="ob-sign-separator">lub</div>
+
+        <!-- Opcja B: ręczne -->
+        <div class="ob-sign-option" id="opt-manual">
+          <div class="ob-sign-opt-head">
+            <div class="ob-sign-opt-icon" style="background:#f3f4f6">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div>
+              <div class="ob-sign-opt-title">Podpisz recznie</div>
+              <div class="ob-sign-opt-desc">Pobierz PDF, podpisz odreczonie i przeslij skan</div>
+            </div>
+          </div>
+          <a href="<?= h($pdf_url) ?>" target="_blank" class="btn-ob" style="background:#6b7280;margin-bottom:.75rem">
+            Pobierz PDF do podpisu
+          </a>
+          <?php if ($existing_file): ?>
+          <div class="ob-alert ob-alert-success" style="margin-bottom:.75rem">
+            Skan juz przeslany. Mozesz go zastapic lub od razu wyslac zgloszenie.
+          </div>
+          <?php endif; ?>
+          <form method="post" action="?step=5" enctype="multipart/form-data" id="upload-form">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <div class="mb-3">
+              <div class="upload-zone <?= $existing_file ? 'has-file' : '' ?>" id="upload-zone">
+                <input type="file" name="oswiadczenie" id="oswiadczenie"
+                       accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif"
+                       <?= $existing_file ? '' : 'required' ?>>
+                <div class="upload-zone-icon">
+                  <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div class="upload-zone-text" id="upload-label">
+                  <?= $existing_file ? 'Kliknij, aby zastapic plik' : 'Kliknij lub przeciagnij plik tutaj' ?>
+                </div>
+                <div class="upload-zone-hint">PDF, JPG, PNG, TIFF &mdash; maks. 10 MB</div>
+              </div>
+            </div>
+            <button type="submit" class="btn-ob" id="upload-btn">Wyslij skan i zgloszenie</button>
+          </form>
+        </div>
+
+      </div><!-- /.ob-sign-options -->
+      <?php endif; ?>
+
+    </div><!-- /.ob-card-body -->
+
+    <style>
+    .ob-decl-preview {
+      background: #fafafa; border: 1px solid #e5e7eb; border-radius: .75rem;
+      padding: 1.5rem; margin-bottom: 1.5rem; font-size: .85rem; line-height: 1.65; color: #374151;
+    }
+    .ob-decl-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 1.25rem; gap: 1rem;
+    }
+    .ob-decl-person { font-weight: 700; font-size: .9rem; color: #111827; }
+    .ob-decl-date { font-size: .8rem; color: #6b7280; text-align: right; }
+    .ob-decl-title {
+      font-size: .95rem; font-weight: 700; text-align: center;
+      margin: 0 0 1rem; color: #111827;
+    }
+    .ob-decl-text { margin: 0 0 .6rem; }
+    .ob-decl-field { margin-bottom: .75rem; }
+    .ob-decl-field-label { font-weight: 700; font-size: .78rem; color: #6b7280; margin-bottom: .1rem; }
+    .ob-decl-field-value {
+      font-size: .9rem; color: #111827; padding: .3rem 0;
+      border-bottom: 1px solid #d1d5db; min-height: 1.8rem;
+    }
+
+    .ob-sign-options { display: flex; flex-direction: column; gap: 1rem; }
+    .ob-sign-option {
+      border: 2px solid #e5e7eb; border-radius: .75rem; padding: 1.25rem;
+    }
+    .ob-sign-opt-head {
+      display: flex; align-items: flex-start; gap: .75rem; margin-bottom: 1rem;
+    }
+    .ob-sign-opt-icon {
+      width: 36px; height: 36px; border-radius: .5rem; flex-shrink: 0;
+      background: rgba(var(--ob-accent-rgb),.1);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ob-sign-opt-icon svg { width: 18px; height: 18px; stroke: var(--ob-accent); }
+    .ob-sign-opt-title { font-weight: 700; font-size: .9rem; color: #111827; }
+    .ob-sign-opt-desc { font-size: .78rem; color: #6b7280; }
+    .ob-sign-separator {
+      text-align: center; font-size: .78rem; font-weight: 600;
+      color: #9ca3af; letter-spacing: .06em; text-transform: uppercase;
+      position: relative;
+    }
+    .ob-sign-separator::before, .ob-sign-separator::after {
+      content: ''; position: absolute; top: 50%; width: 42%; height: 1px; background: #e5e7eb;
+    }
+    .ob-sign-separator::before { left: 0; }
+    .ob-sign-separator::after  { right: 0; }
+    </style>
+
+    <script>
+    (function(){
+      var zone  = document.getElementById('upload-zone');
+      var input = document.getElementById('oswiadczenie');
+      var label = document.getElementById('upload-label');
+      var btn   = document.getElementById('upload-btn');
+      if (!zone) return;
+
+      function setFile(name) { label.textContent = name; zone.classList.add('has-file'); }
+      input && input.addEventListener('change', function(){ if (this.files[0]) setFile(this.files[0].name); });
+      zone.addEventListener('dragover', function(e){ e.preventDefault(); this.classList.add('dragover'); });
+      zone.addEventListener('dragleave', function(){ this.classList.remove('dragover'); });
+      zone.addEventListener('drop', function(e){
+        e.preventDefault(); this.classList.remove('dragover');
+        if (e.dataTransfer.files[0]) { input.files = e.dataTransfer.files; setFile(e.dataTransfer.files[0].name); }
+      });
+      var uf = document.getElementById('upload-form');
+      if (uf) uf.addEventListener('submit', function(){ if (btn) { btn.disabled=true; btn.textContent='Wysylanie…'; } });
+
+      var ef = document.getElementById('sign-el-form');
+      var eb = document.getElementById('sign-el-btn');
+      if (ef) ef.addEventListener('submit', function(){ if (eb) { eb.disabled=true; eb.textContent='Podpisywanie…'; } });
+    })();
+    </script>
+
+    <?php else: // wolontariusz — klasyczny upload ?>
+
     <div class="ob-card-head">
       <h2>Oswiadczenie podatkowe i ZUS</h2>
       <p>Wypelnij i podpisz oswiadczenie do celow podatkowych i ZUS, a nastepnie przeslij jego skan lub zdjecie.</p>
@@ -1262,28 +1527,21 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
       var label = document.getElementById('upload-label');
       var btn   = document.getElementById('upload-btn');
 
-      function setFile(name) {
-        label.textContent = name;
-        zone.classList.add('has-file');
-      }
-      input.addEventListener('change', function(){
-        if (this.files[0]) setFile(this.files[0].name);
-      });
+      function setFile(name) { label.textContent = name; zone.classList.add('has-file'); }
+      input.addEventListener('change', function(){ if (this.files[0]) setFile(this.files[0].name); });
       zone.addEventListener('dragover', function(e){ e.preventDefault(); this.classList.add('dragover'); });
       zone.addEventListener('dragleave', function(){ this.classList.remove('dragover'); });
       zone.addEventListener('drop', function(e){
         e.preventDefault(); this.classList.remove('dragover');
-        if (e.dataTransfer.files[0]) {
-          input.files = e.dataTransfer.files;
-          setFile(e.dataTransfer.files[0].name);
-        }
+        if (e.dataTransfer.files[0]) { input.files = e.dataTransfer.files; setFile(e.dataTransfer.files[0].name); }
       });
       document.getElementById('upload-form').addEventListener('submit', function(){
-        btn.disabled = true;
-        btn.textContent = 'Wysylanie…';
+        btn.disabled = true; btn.textContent = 'Wysylanie…';
       });
     })();
     </script>
+
+    <?php endif; // wolontariusz vs zleceniobiorca ?>
 
   <?php
   // ═══════════════════════════════════════════════════════════

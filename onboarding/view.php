@@ -399,6 +399,33 @@ include __DIR__ . '/../includes/header.php';
         <?php if (!empty($vol['rachunek_bankowy'])): ?>
         <tr><th>Rachunek bankowy</th><td><code><?= h(wordwrap($vol['rachunek_bankowy'], 4, ' ', true)) ?></code></td></tr>
         <?php endif; ?>
+        <?php if (!empty($vol['bank_nazwa'])): ?>
+        <tr><th>Bank</th><td><?= h($vol['bank_nazwa']) ?></td></tr>
+        <?php endif; ?>
+        <?php if (($vol['typ'] ?? '') === 'zleceniobiorca'): ?>
+        <tr>
+          <th>Oswiadczenie rachunkowe</th>
+          <td>
+            <?php if (!empty($vol['rachunek_podpis_at'])): ?>
+            <span class="badge bg-success">Podpisane elektronicznie</span>
+            <?= h(date('d.m.Y H:i', strtotime($vol['rachunek_podpis_at']))) ?>
+            &mdash;
+            <a href="<?= APP_URL ?>/onboarding/pdf_rachunek.php?id=<?= (int)$vol['id'] ?>&signed=1" target="_blank">
+              <i class="bi bi-file-earmark-pdf"></i> Pobierz PDF
+            </a>
+            <?php elseif (!empty($vol['oswiadczenie_file'])): ?>
+            <span class="badge bg-secondary">Skan (podpis reczny)</span>
+            <?php else: ?>
+            <span class="text-muted">Brak</span>
+            <?php endif; ?>
+            &nbsp;
+            <a href="<?= APP_URL ?>/onboarding/pdf_rachunek.php?id=<?= (int)$vol['id'] ?>" target="_blank"
+               class="btn btn-sm btn-outline-secondary ms-1">
+              <i class="bi bi-download"></i> Pobierz pusty formularz
+            </a>
+          </td>
+        </tr>
+        <?php endif; ?>
         <?php if (!empty($vol['miejsce_wolontariatu'])): ?>
         <tr><th>Miejsce wolontariatu</th><td><?= h($vol['miejsce_wolontariatu']) ?></td></tr>
         <?php endif; ?>
