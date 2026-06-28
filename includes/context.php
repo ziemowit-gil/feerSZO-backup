@@ -221,16 +221,15 @@ function ctx_banner_html(): string {
     $rname = $real['name'] ?? 'administrator';
     $app   = defined('APP_URL') ? APP_URL : '';
     $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-    $mode_txt = ($c['mode'] ?? '') === 'role' ? 'Podgląd roli' : 'Pracujesz jako';
-    return '<div style="position:sticky;top:0;z-index:10800;display:flex;align-items:center;gap:.6rem;'
-        . 'flex-wrap:wrap;background:#7c2d12;color:#fff;padding:.4rem 1rem;font-size:.85rem;'
-        . 'box-shadow:0 1px 4px rgba(0,0,0,.25)" role="alert">'
-        . '<i class="bi bi-incognito" style="font-size:1rem"></i>'
+    $mode_txt = ($c['mode'] ?? '') === 'role' ? 'Podgląd roli' : 'Jako';
+    return '<div style="position:sticky;top:0;z-index:10800;display:flex;align-items:center;gap:.45rem;'
+        . 'flex-wrap:wrap;background:#7c2d12;color:#fff;padding:.15rem .7rem;font-size:.72rem;line-height:1.4;'
+        . 'box-shadow:0 1px 3px rgba(0,0,0,.2)" role="alert">'
+        . '<i class="bi bi-incognito" style="font-size:.8rem"></i>'
         . '<span><strong>' . $h($mode_txt) . ':</strong> ' . $h($label) . '</span>'
-        . '<span style="opacity:.8">— zalogowany jako ' . $h($rname) . '</span>'
         . '<a href="' . $h($app) . '/auth/exit_context.php" '
         . 'style="margin-left:auto;background:#fff;color:#7c2d12;font-weight:700;text-decoration:none;'
-        . 'padding:.2rem .7rem;border-radius:6px;white-space:nowrap">'
+        . 'padding:.05rem .55rem;border-radius:5px;white-space:nowrap;font-size:.72rem">'
         . '<i class="bi bi-box-arrow-left"></i> Wróć do administratora</a>'
         . '</div>';
 }
