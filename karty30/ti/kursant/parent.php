@@ -196,11 +196,27 @@ include __DIR__ . '/_layout_head.php';
             <i class="bi bi-shield-lock text-primary d-md-none" aria-hidden="true"></i>Dostęp dla opiekuna
           </h1>
           <p class="text-body-secondary mb-4">
-            Zaloguj się kodem SMS wysłanym na numer opiekuna podany w placówce, lub skorzystaj z linku z e-maila.
+            <?php if ($stage === 'pwd'): ?>
+              Zaloguj się loginem i hasłem konta opiekuna nadanym w placówce.
+            <?php else: ?>
+              Zaloguj się kodem SMS wysłanym na numer opiekuna podany w placówce, lub skorzystaj z linku z e-maila.
+            <?php endif; ?>
           </p>
 
           <?php if ($err): ?><div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert"><i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($err) ?></span></div><?php endif; ?>
           <?php if ($info): ?><div class="alert alert-success d-flex align-items-center gap-2 py-2" role="status"><i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($info) ?></span></div><?php endif; ?>
+
+          <?php // Przełącznik dwóch form logowania opiekuna: numer telefonu (SMS) albo konto (login+hasło)
+          if (in_array($stage, ['phone', 'pwd'], true)): ?>
+          <div class="btn-group w-100 mb-4" role="group" aria-label="Wybierz sposób logowania opiekuna">
+            <a href="parent.php" class="btn btn-lg <?= $stage==='phone'?'btn-primary':'btn-outline-primary' ?>" <?= $stage==='phone'?'aria-current="true"':'' ?>>
+              <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Numer telefonu
+            </a>
+            <a href="parent.php?m=pwd" class="btn btn-lg <?= $stage==='pwd'?'btn-primary':'btn-outline-primary' ?>" <?= $stage==='pwd'?'aria-current="true"':'' ?>>
+              <i class="bi bi-person-lock me-1" aria-hidden="true"></i>Konto rodzica
+            </a>
+          </div>
+          <?php endif; ?>
 
           <?php if ($stage === 'choose'):
             $kids = $_SESSION['k30_parent_choose'] ?? []; ?>
@@ -234,9 +250,6 @@ include __DIR__ . '/_layout_head.php';
               </div>
               <button class="btn btn-primary btn-lg w-100"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj</button>
             </form>
-            <div class="text-center mt-3">
-              <a href="parent.php" class="btn btn-link btn-sm">Wolisz logowanie kodem SMS?</a>
-            </div>
           <?php elseif ($stage === 'code'): ?>
             <form method="post">
               <input type="hidden" name="_op" value="otp_verify">
@@ -262,14 +275,6 @@ include __DIR__ . '/_layout_head.php';
               </div>
               <button class="btn btn-primary btn-lg w-100"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
             </form>
-          <?php endif; ?>
-
-          <?php if ($stage !== 'pwd'): ?>
-          <div class="text-center mt-3">
-            <a href="parent.php?m=pwd" class="btn btn-link btn-sm">
-              <i class="bi bi-person-lock me-1" aria-hidden="true"></i>Masz konto rodzica (login i hasło)? Zaloguj się
-            </a>
-          </div>
           <?php endif; ?>
 
           <hr class="my-4">
