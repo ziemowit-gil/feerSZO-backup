@@ -270,6 +270,18 @@ function is_viewer(): bool {
     return $u && $u['role'] === 'viewer';
 }
 
+/**
+ * Konta służbowe @feer.org.pl (koordynatorzy/administracja) logują się WYŁĄCZNIE
+ * przez Microsoft 365 (Office). Wszystkie pozostałe metody (hasło lokalne, SMS,
+ * kod jednorazowy, certyfikat X.509) są dla nich zablokowane. Wyjątek: konto
+ * awaryjne serwis@local zachowuje logowanie lokalne (break-glass).
+ */
+function account_is_office_only(?string $email): bool {
+    $email = strtolower(trim((string)$email));
+    if ($email === '' || $email === 'serwis@local') return false;
+    return str_ends_with($email, '@feer.org.pl');
+}
+
 // Zwraca true jeśli zalogowany użytkownik jest właścicielem umowy (lub ma uprawnienia edytora/admina).
 // Używane w view.php do blokowania viewer-ów przed cudzymi umowami.
 function viewer_owns_contract(string $type, array $row): bool {

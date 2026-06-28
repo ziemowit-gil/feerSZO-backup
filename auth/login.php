@@ -65,7 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $active_tab = 'local';
         } else {
             $user = db_one("SELECT * FROM users WHERE email=? AND (is_active=1 OR email='serwis@local')", [$email]);
-            if ($user && $user['password'] && password_verify($pass, $user['password'])) {
+            if ($user && account_is_office_only($user['email'] ?? '')) {
+                authlog_write((int)$user['id'], 'login_blocked_office', $user['email'], 'Konto służbowe — wymagane logowanie przez Microsoft 365');
+                $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office). Użyj przycisku „Zaloguj przez Microsoft 365”.';
+                $active_tab = 'local';
+            } elseif ($user && $user['password'] && password_verify($pass, $user['password'])) {
                 brute_clear($email);
                 auth_start();
                 $_SESSION['_moodle_pwd'] = base64_encode($pass ^ str_repeat(session_id(), (int)ceil(strlen($pass) / 32)));
@@ -143,7 +147,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sms_code   = trim($_POST['sms_code']  ?? '');
         $active_tab = 'sms';
         $user       = sms_verify_otp($sms_phone, $sms_code);
-        if ($user) {
+        if ($user && account_is_office_only($user['email'] ?? '')) {
+            authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
+            $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+            $active_tab = 'sms';
+        } elseif ($user) {
             log_auth_action((int)$user['id'], 'login_sms', 'Logowanie SMS: ' . $sms_phone);
             authlog_write((int)$user['id'], 'login_sms', $user['email'] ?? $sms_phone, 'Logowanie SMS');
             login_user($user);
@@ -167,7 +175,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $p12_data = file_get_contents($p12_file['tmp_name']);
             $user     = null;
             try { $user = x509_verify_login($p12_data, $cert_pass); } catch (\Throwable $e) {}
-            if ($user) {
+            if ($user && account_is_office_only($user['email'] ?? '')) {
+                authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
+                $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+                $active_tab = 'x509';
+            } elseif ($user) {
                 log_auth_action((int)$user['id'], 'login_x509', 'Logowanie X.509: ' . $user['email']);
                 authlog_write((int)$user['id'], 'login_x509', $user['email'], 'Logowanie certyfikatem X.509');
                 login_user($user);
@@ -180,7 +192,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($method === 'code') {
         $code = trim($_POST['login_code'] ?? '');
         $user = auth_login_by_code($code);
-        if ($user) {
+        if ($user && account_is_office_only($user['email'] ?? '')) {
+            authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
+            $error      = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+            $active_tab = 'code';
+        } elseif ($user) {
             try {
                 db()->prepare("UPDATE users SET login_code=NULL WHERE id=?")->execute([$user['id']]);
             } catch (\Throwable $e) {}
