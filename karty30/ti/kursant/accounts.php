@@ -190,6 +190,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: accounts.php'); exit;
     }
 
+    // Odblokowanie dostępu wstrzymanego przez opiekuna (interwencja administracji)
+    if ($op === 'child_unblock') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        db()->prepare("UPDATE k30_ti_student_accounts SET child_access_blocked=0, updated_at=datetime('now') WHERE id=?")
+           ->execute([$aid]);
+        flash_set('success','Dostęp kursanta do panelu został przywrócony.');
+        header('Location: accounts.php'); exit;
+    }
+
     // ── Podszywanie się pod kursanta („zaloguj jako") ────────────────────────
     if ($op === 'impersonate') {
         $aid = (int)($_POST['account_id'] ?? 0);
@@ -720,6 +729,11 @@ function printBulk(){
                   <i class="bi bi-people"></i> małoletni
                 </span>
                 <?php endif; ?>
+                <?php if (!empty($a['child_access_blocked'])): ?>
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Logowanie kursanta wstrzymane przez opiekuna">
+                  <i class="bi bi-lock-fill"></i> wstrzymany przez opiekuna
+                </span>
+                <?php endif; ?>
               </td>
               <td style="min-width:200px">
                 <?php $has_ms = !empty($a['ms_user_id']); $has_moodle = !empty($a['moodle_user_id']); ?>
@@ -819,6 +833,16 @@ function printBulk(){
                         </button>
                       </form>
                     </li>
+                    <?php if (!empty($a['child_access_blocked'])): ?>
+                    <li>
+                      <form method="post" onsubmit="return confirm('Przywrócić kursantowi dostęp do panelu? Dostęp został wstrzymany przez opiekuna.')">
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="child_unblock">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-unlock text-success me-2" aria-hidden="true"></i>Odblokuj dostęp <span class="text-body-secondary small">(wstrzymany przez opiekuna)</span></button>
+                      </form>
+                    </li>
+                    <?php endif; ?>
 
                     <li><hr class="dropdown-divider"></li>
 
