@@ -17,10 +17,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notifications.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
 k30_ti_reschedule_migrate();
+k30_ti_notif_migrate();
 pfron_migrate();
 helpdesk_migrate();
 
@@ -39,6 +41,13 @@ if (isset($_GET['logout'])) {
 }
 
 $student    = student_require();
+
+// Oznaczenie powiadomień jako przejrzanych
+if (isset($_GET['notif_mark'])) {
+    k30_ti_notif_mark_seen((int)$student['id']);
+    $back = preg_replace('/[^a-z]/', '', (string)($_GET['tab'] ?? 'dane'));
+    header('Location: index.php?tab=' . ($back ?: 'dane')); exit;
+}
 
 // Eksport PDF wykazu ocen kursanta
 if (isset($_GET['grades_pdf'])) {
@@ -491,11 +500,54 @@ $months_pl  = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',
                7=>'Lip',8=>'Sie',9=>'Wrz',10=>'Paź',11=>'Lis',12=>'Gru'];
 
 $KP_TITLE  = 'Panel kursanta';
+
+// Centrum powiadomień — feed na żywo + dzwonek w pasku
+$notif_items  = k30_ti_notifications_for_client((int)$student['client_id'], (int)$student['id']);
+$notif_seen   = k30_ti_notif_seen_at((int)$student['id']);
+$notif_unread = k30_ti_notif_unread_count($notif_items, $notif_seen);
+ob_start(); ?>
+<div class="dropdown">
+  <button class="btn btn-outline-secondary btn-sm position-relative" type="button" id="kpNotifBtn"
+          data-bs-toggle="dropdown" aria-expanded="false"
+          aria-label="Powiadomienia<?= $notif_unread ? ' (' . $notif_unread . ' nowych)' : '' ?>" title="Powiadomienia">
+    <i class="bi bi-bell" aria-hidden="true"></i>
+    <?php if ($notif_unread > 0): ?>
+    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger" style="font-size:.6rem">
+      <?= $notif_unread > 9 ? '9+' : $notif_unread ?><span class="visually-hidden"> nowych powiadomień</span>
+    </span>
+    <?php endif; ?>
+  </button>
+  <div class="dropdown-menu dropdown-menu-end shadow" style="min-width:340px;max-width:92vw" aria-labelledby="kpNotifBtn">
+    <div class="d-flex align-items-center px-3 py-2">
+      <span class="fw-semibold"><i class="bi bi-bell me-1" aria-hidden="true"></i>Powiadomienia</span>
+      <?php if ($notif_unread > 0): ?><span class="badge text-bg-danger ms-2"><?= $notif_unread ?> nowych</span><?php endif; ?>
+      <?php if ($notif_items): ?><a href="?notif_mark=1&amp;tab=<?= h($tab) ?>" class="ms-auto small text-decoration-none">Oznacz jako przeczytane</a><?php endif; ?>
+    </div>
+    <div class="dropdown-divider my-0"></div>
+    <div style="max-height:60vh;overflow-y:auto">
+    <?php if (!$notif_items): ?>
+    <div class="px-3 py-4 text-body-secondary small text-center"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Brak powiadomień.</div>
+    <?php else: foreach ($notif_items as $it):
+      $isnew = $notif_seen === '' || strcmp((string)$it['ts'], $notif_seen) > 0; ?>
+    <a class="dropdown-item d-flex gap-2 py-2 <?= $isnew ? 'fw-semibold' : '' ?>" href="<?= h($it['url']) ?>" style="white-space:normal">
+      <i class="bi bi-<?= h($it['icon']) ?> mt-1 <?= $isnew ? 'text-primary' : 'text-body-secondary' ?>" aria-hidden="true"></i>
+      <span class="flex-grow-1">
+        <span class="d-block"><?= h($it['title']) ?></span>
+        <span class="d-block text-body-secondary small fw-normal"><?= h(k30_ti_notif_ago($it['ts'])) ?></span>
+      </span>
+      <?php if ($isnew): ?><span class="badge text-bg-primary align-self-start">nowe</span><?php endif; ?>
+    </a>
+    <?php endforeach; endif; ?>
+    </div>
+  </div>
+</div>
+<?php
 $KP_TOPBAR = [
     'brand'  => $org,
     'icon'   => 'pc-display',
     'user'   => $client['name'] ?? $account['login'],
     'logout' => 'index.php?logout=1',
+    'notifications' => ob_get_clean(),
 ];
 include __DIR__ . '/_layout_head.php';
 ?>

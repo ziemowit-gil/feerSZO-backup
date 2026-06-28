@@ -259,6 +259,7 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
         <span><?= h($KP_TOPBAR['brand'] ?? $KP_ORG) ?></span>
       </span>
       <div class="d-flex align-items-center gap-3">
+        <?php if (!empty($KP_TOPBAR['notifications'])): ?><?= $KP_TOPBAR['notifications'] ?><?php endif; ?>
         <button type="button" id="kp-bg-pick-btn" class="btn btn-outline-secondary btn-sm" aria-label="Zmien schemat kolorow" title="Schemat kolorow">
           <i class="bi bi-palette" aria-hidden="true"></i>
         </button>
