@@ -163,15 +163,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $new_pass .= $chars[random_int(0, strlen($chars) - 1)];
             }
             $hash_new = password_hash($new_pass, PASSWORD_BCRYPT);
-            // Hasło ustawione przez admina ma działać od razu — także dla kont
-            // służbowych @feer.org.pl (polityka „tylko Office"). Flaga
-            // allow_local_fallback odblokowuje im logowanie lokalne (jak /auth/convert_account).
-            try { db()->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
-            db()->prepare("UPDATE users SET password=?, must_change_password=1, allow_local_fallback=1 WHERE id=?")
+            // Konta służbowe @feer.org.pl (administracja/koordynatorzy) logują się
+            // WYŁĄCZNIE przez Microsoft 365 — admin nie odblokowuje im logowania
+            // lokalnego. Wyjątek awaryjny pozostaje po stronie użytkownika
+            // (/auth/convert_account.php). Dla pozostałych kont hasło działa bez flagi.
+            db()->prepare("UPDATE users SET password=?, must_change_password=1 WHERE id=?")
                 ->execute([$hash_new, $uid]);
             // Unieważnij wszystkie aktywne sesje użytkownika
             try { require_once dirname(__DIR__) . '/includes/auth_security.php'; session_destroy_all($uid); } catch(\Throwable $e) {}
-            log_user_action($uid, (int)current_user()['id'], 'user_password_reset', 'Losowy reset hasła (logowanie lokalne włączone)');
+            log_user_action($uid, (int)current_user()['id'], 'user_password_reset', 'Losowy reset hasła');
             $u_email = db_one("SELECT email FROM users WHERE id=?", [$uid]);
             if ($u_email) user_sync_push(['email' => $u_email['email'], 'password' => $hash_new]);
             auth_start();
@@ -221,14 +221,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($uid) {
             $default_pass = db_one("SELECT value FROM settings WHERE key_='default_user_password'")['value'] ?? '12345qwe';
             $use_pass = ($custom !== '') ? $custom : $default_pass;
-            // Hasło ustawione przez admina ma działać od razu — także dla kont
-            // służbowych @feer.org.pl (polityka „tylko Office"). Flaga
-            // allow_local_fallback odblokowuje im logowanie lokalne (jak /auth/convert_account).
-            try { db()->exec("ALTER TABLE users ADD COLUMN allow_local_fallback INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
-            db()->prepare("UPDATE users SET password=?, must_change_password=1, allow_local_fallback=1 WHERE id=?")
+            // Konta służbowe @feer.org.pl (administracja/koordynatorzy) logują się
+            // WYŁĄCZNIE przez Microsoft 365 — admin nie odblokowuje im logowania
+            // lokalnego. Wyjątek awaryjny pozostaje po stronie użytkownika
+            // (/auth/convert_account.php). Dla pozostałych kont hasło działa bez flagi.
+            db()->prepare("UPDATE users SET password=?, must_change_password=1 WHERE id=?")
                 ->execute([password_hash($use_pass, PASSWORD_BCRYPT), $uid]);
             try { require_once dirname(__DIR__) . '/includes/auth_security.php'; session_destroy_all($uid); } catch(\Throwable $e) {}
-            log_user_action($uid, (int)current_user()['id'], 'user_password_start', 'Ustawiono hasło startowe (logowanie lokalne włączone)');
+            log_user_action($uid, (int)current_user()['id'], 'user_password_start', 'Ustawiono hasło startowe');
             auth_start();
             $_SESSION['reset_pass_info'] = ['uid' => $uid, 'pass' => $use_pass];
         }
@@ -811,11 +811,12 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="modal-body">
         <div id="passModalUserName" class="fw-semibold mb-3 text-center text-muted small"></div>
 
-        <div class="alert alert-info py-2 px-3 small d-flex gap-2 mb-3">
-          <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
-          <span>Dla kont służbowych <strong>@feer.org.pl</strong> (logowanie tylko przez Microsoft 365)
-          ustawienie hasła <strong>odblokowuje logowanie lokalne</strong> tym hasłem (logowanie awaryjne).
-          Użytkownik zostanie poproszony o zmianę hasła przy pierwszym logowaniu.</span>
+        <div class="alert alert-warning py-2 px-3 small d-flex gap-2 mb-3">
+          <i class="bi bi-microsoft flex-shrink-0 mt-1"></i>
+          <span>Konta służbowe <strong>@feer.org.pl</strong> (administracja i koordynatorzy) logują się
+          <strong>wyłącznie przez Microsoft 365</strong> — ustawione tu hasło nie pozwoli im na logowanie lokalne.
+          Hasło awaryjne takie konto może nadać sobie samodzielnie przez <code>/auth/convert_account</code>.
+          Dla pozostałych kont hasło działa normalnie (zmiana wymagana przy pierwszym logowaniu).</span>
         </div>
 
         <!-- Option A: start password -->
