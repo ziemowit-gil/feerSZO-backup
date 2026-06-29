@@ -296,7 +296,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <div class="card-header d-flex align-items-center gap-2 fw-semibold" style="background:#f5f3ff;border-bottom:2px solid #7c3aed20">
     <i class="bi bi-building-fill-check text-purple" style="color:#7c3aed"></i>
     Umowy PFRON
-    <a href="?id=<?= $id ?>&pfron_edit=0#pfron" class="btn btn-sm btn-outline-secondary ms-auto py-0 px-2">
+    <a href="?id=<?= $id ?>&pfron_edit=0#pfron" id="pfron-add-btn" class="btn btn-sm btn-outline-secondary ms-auto py-0 px-2">
       <i class="bi bi-plus-lg me-1"></i>Dodaj umowę
     </a>
   </div>
@@ -352,7 +352,19 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php endif; ?>
 
     <?php if (!$pfron_contracts): ?>
-    <p class="text-muted mb-0">Brak umów PFRON dla tego beneficjenta.</p>
+    <div role="status" aria-live="polite" aria-atomic="true"
+         class="alert alert-warning d-flex gap-3 align-items-start mb-0" id="pfron-no-contracts-alert">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <div>
+        <strong>Brak umowy PFRON</strong> — aby wygenerować dokumenty (umowę uczestnictwa i regulamin),
+        najpierw dodaj umowę PFRON korzystając z formularza powyżej.
+        <button type="button" class="btn btn-sm btn-warning ms-2 fw-semibold"
+                onclick="document.getElementById('pfron-add-btn')?.click(); document.getElementById('pfron-add-btn')?.focus();"
+                aria-describedby="pfron-no-contracts-alert">
+          <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Dodaj umowę PFRON
+        </button>
+      </div>
+    </div>
     <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0" style="font-size:.87rem">
