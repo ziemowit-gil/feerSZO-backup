@@ -867,7 +867,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <!-- ════════════════════════════════════════
        3. IT — dostępy, konta, hasła
   ════════════════════════════════════════ -->
-  <?php $_it_active = str_contains($_uri, '/it/'); ?>
+  <?php $_it_active = str_contains($_uri, '/it/') || str_contains($_uri, '/tools/'); ?>
   <div class="sb-label">IT</div>
   <button type="button" class="sb-type-btn <?= $_it_active ? 'type-open' : '' ?>"
           data-bs-toggle="collapse" data-bs-target="#sb-it" aria-expanded="<?= $_it_active ? 'true' : 'false' ?>">
@@ -878,6 +878,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <a class="sb-sub-link<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php"><i class="bi bi-grid-1x2"></i> Dashboard IT</a>
     <a class="sb-sub-link<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php"><i class="bi bi-person-badge"></i> Konta</a>
     <a class="sb-sub-link<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php"><i class="bi bi-key"></i> Hasła</a>
+    <a class="sb-sub-link<?= _nav_active('/tools/r2_upload') ?>" href="<?= APP_URL ?>/tools/r2_upload.php"><i class="bi bi-cloud-arrow-up"></i> Upload do R2</a>
     <?php if (is_admin()): ?>
     <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php"><i class="bi bi-gear"></i> Serwisy IT</a>
     <?php endif; ?>
