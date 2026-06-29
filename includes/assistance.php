@@ -475,6 +475,7 @@ function asr_admin_update(int $id, array $in): array {
 
     $status = (string)($in['status'] ?? $cur['status']);
     if (!array_key_exists($status, asr_statuses())) $status = $cur['status'];
+    $rejection_reason = mb_substr(trim((string)($in['rejection_reason'] ?? '')), 0, 500);
 
     // Parsowanie przypisanej osoby: format "vol:123" lub "usr:456" lub "".
     $person_raw  = trim((string)($in['assigned_person'] ?? ''));
@@ -528,7 +529,8 @@ function asr_admin_update(int $id, array $in): array {
     $actor_id = isset($actor['id']) ? (int)$actor['id'] : null;
     $actor_nm = (string)($actor['imie_nazwisko'] ?? $actor['name'] ?? '');
     if ($status_changed) {
-        asr_log($id, $cur['status'], $status, '', $actor_id, $actor_nm);
+        $log_note = $rejection_reason !== '' ? "Powód: {$rejection_reason}" : '';
+        asr_log($id, $cur['status'], $status, $log_note, $actor_id, $actor_nm);
     }
     if ($assignment_changed) {
         if ($person_name !== '') {

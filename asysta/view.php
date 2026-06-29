@@ -231,6 +231,20 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
         </fieldset>
 
+        <div class="mt-3" id="rejection-reason-wrap" style="display:none">
+          <label for="rejection_reason" class="form-label fw-semibold">
+            Powód odrzucenia
+            <span class="text-danger" aria-hidden="true">*</span>
+          </label>
+          <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="3"
+                    maxlength="500" aria-describedby="rejection-reason-help"
+                    placeholder="Opisz powód odrzucenia — trafi do historii i może zostać przekazany uczestnikowi."
+                    ><?= h($_POST['rejection_reason'] ?? '') ?></textarea>
+          <div id="rejection-reason-help" class="form-text">
+            Widoczny w historii zmian. Przy statusach z powiadomieniem uczestnika warto opisać sytuację.
+          </div>
+        </div>
+
         <div class="mt-3">
           <label for="internal_notes" class="form-label fw-semibold">Notatki wewnętrzne</label>
           <textarea class="form-control" id="internal_notes" name="internal_notes" rows="4"
@@ -302,4 +316,24 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 
 </div>
+<script>
+(function () {
+  var sel  = document.getElementById('status');
+  var wrap = document.getElementById('rejection-reason-wrap');
+  var ta   = document.getElementById('rejection_reason');
+  if (!sel || !wrap) return;
+
+  var REJECTION_STATUSES = ['rejected', 'rejected_external', 'volunteer_rejected'];
+
+  function sync() {
+    var isRejection = REJECTION_STATUSES.indexOf(sel.value) !== -1;
+    wrap.style.display = isRejection ? '' : 'none';
+    if (ta) ta.required = isRejection;
+    if (isRejection && ta && wrap.style.display !== 'none') ta.focus();
+  }
+
+  sel.addEventListener('change', sync);
+  sync(); // inicjalizacja przy ładowaniu (np. po błędzie walidacji)
+})();
+</script>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

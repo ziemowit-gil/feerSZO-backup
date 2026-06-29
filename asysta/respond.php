@@ -260,27 +260,36 @@ $already_final = $req && in_array($req['status'], ['volunteer_accepted','volunte
               id="rsp-form">
           <?= csrf_field() ?>
 
-          <div class="mb-4" id="reject-reason-wrap" style="display:none">
-            <label for="reason" class="form-label fw-semibold">
-              Powód odrzucenia <span class="text-secondary fw-normal">(opcjonalnie)</span>
-            </label>
-            <textarea class="form-control" id="reason" name="reason" rows="3" maxlength="500"
-                      aria-describedby="reason-help"></textarea>
-            <div id="reason-help" class="form-text">Informacja trafi do koordynatora — nie jest przekazywana uczestnikowi.</div>
-          </div>
-
-          <div class="d-flex flex-wrap gap-3">
-            <button type="button" class="btn btn-success btn-lg px-4" id="btn-accept"
-                    aria-describedby="accept-desc">
+          <div class="d-flex flex-wrap gap-3 mb-4">
+            <button type="button" class="btn btn-success btn-lg px-4" id="btn-accept">
               <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Przyjmuję zgłoszenie
             </button>
-            <span id="accept-desc" class="visually-hidden">Potwierdza, że przyjmujesz realizację asysty dla tego uczestnika.</span>
-
-            <button type="button" class="btn btn-outline-danger btn-lg px-4" id="btn-reject"
-                    aria-describedby="reject-desc">
+            <button type="button" class="btn btn-outline-danger btn-lg px-4" id="btn-reject">
               <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Odrzucam zgłoszenie
             </button>
-            <span id="reject-desc" class="visually-hidden">Otwiera pole powodu i wysyła odrzucenie do koordynatora.</span>
+          </div>
+
+          <!-- Powód odrzucenia — widoczny po kliknięciu "Odrzucam" -->
+          <div id="reject-reason-wrap" style="display:none" role="region" aria-label="Powód odrzucenia">
+            <hr>
+            <label for="reason" class="form-label fw-semibold">
+              Powód odrzucenia
+              <span class="text-danger" aria-hidden="true">*</span>
+            </label>
+            <textarea class="form-control" id="reason" name="reason" rows="3" maxlength="500"
+                      required aria-describedby="reason-help"
+                      placeholder="Opisz, dlaczego nie możesz przyjąć tego zgłoszenia…"></textarea>
+            <div id="reason-help" class="form-text">
+              Informacja trafi do koordynatora — nie jest przekazywana bezpośrednio uczestnikowi.
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button type="button" class="btn btn-danger px-4" id="btn-reject-confirm">
+                <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Potwierdź odrzucenie
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="btn-reject-cancel">
+                Anuluj
+              </button>
+            </div>
           </div>
 
           <!-- ukryty submit generowany przez JS -->
@@ -302,14 +311,15 @@ $already_final = $req && in_array($req['status'], ['volunteer_accepted','volunte
 
 <script>
 (function () {
-  var btnAccept = document.getElementById('btn-accept');
-  var btnReject = document.getElementById('btn-reject');
-  var reasonWrap = document.getElementById('reject-reason-wrap');
-  var actionInput = document.getElementById('rsp-action');
-  var form = document.getElementById('rsp-form');
-  if (!btnAccept || !form) return;
-
-  var rejectPending = false;
+  var form          = document.getElementById('rsp-form');
+  var actionInput   = document.getElementById('rsp-action');
+  var btnAccept     = document.getElementById('btn-accept');
+  var btnReject     = document.getElementById('btn-reject');
+  var reasonWrap    = document.getElementById('reject-reason-wrap');
+  var btnConfirm    = document.getElementById('btn-reject-confirm');
+  var btnCancel     = document.getElementById('btn-reject-cancel');
+  var reasonTA      = document.getElementById('reason');
+  if (!form) return;
 
   btnAccept.addEventListener('click', function () {
     if (!confirm('Potwierdzasz przyjęcie zgłoszenia asysty?')) return;
@@ -318,19 +328,29 @@ $already_final = $req && in_array($req['status'], ['volunteer_accepted','volunte
   });
 
   btnReject.addEventListener('click', function () {
-    if (!rejectPending) {
-      // Pierwszy klik: pokaż pole powodu i zmień przycisk na „Potwierdź odrzucenie".
-      rejectPending = true;
-      reasonWrap.style.display = '';
-      reasonWrap.querySelector('textarea').focus();
-      btnReject.textContent = 'Potwierdź odrzucenie';
-      btnReject.classList.replace('btn-outline-danger', 'btn-danger');
-      btnAccept.style.display = 'none';
-    } else {
-      // Drugi klik: wyślij.
-      actionInput.value = 'reject';
-      form.submit();
+    reasonWrap.style.display = '';
+    btnAccept.disabled = true;
+    btnReject.disabled = true;
+    reasonTA.focus();
+  });
+
+  btnConfirm.addEventListener('click', function () {
+    if (reasonTA.value.trim() === '') {
+      reasonTA.setCustomValidity('Podaj powód odrzucenia.');
+      reasonTA.reportValidity();
+      return;
     }
+    reasonTA.setCustomValidity('');
+    actionInput.value = 'reject';
+    form.submit();
+  });
+
+  btnCancel.addEventListener('click', function () {
+    reasonWrap.style.display = 'none';
+    reasonTA.value = '';
+    reasonTA.setCustomValidity('');
+    btnAccept.disabled = false;
+    btnReject.disabled = false;
   });
 })();
 </script>
