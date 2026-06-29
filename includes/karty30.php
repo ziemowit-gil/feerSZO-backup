@@ -181,6 +181,7 @@ function karty30_migrate(): void {
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN doc_number     TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_at      DATETIME"); }                  catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signature_data TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_doc_path TEXT   NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     // Kolumny trybu rozliczenia i PFRON na terminie
     foreach ([
         "ALTER TABLE k30_schedules ADD COLUMN billing_type      TEXT NOT NULL DEFAULT 'free'",

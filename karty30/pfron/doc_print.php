@@ -62,10 +62,12 @@ $penalty_wrd = $d['penalty_words']       ?? 'sto';
 
 $existing_doc_number = '';
 $existing_signed_at  = '';
+$existing_signed_doc = '';
 if ($pfron_id) {
-    $pfrow = db_one("SELECT doc_number, signed_at FROM k30_pfron_contracts WHERE id=?", [$pfron_id]);
-    $existing_doc_number = $pfrow['doc_number'] ?? '';
-    $existing_signed_at  = $pfrow['signed_at']  ?? '';
+    $pfrow = db_one("SELECT doc_number, signed_at, signed_doc_path FROM k30_pfron_contracts WHERE id=?", [$pfron_id]);
+    $existing_doc_number = $pfrow['doc_number']      ?? '';
+    $existing_signed_at  = $pfrow['signed_at']       ?? '';
+    $existing_signed_doc = $pfrow['signed_doc_path'] ?? '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -185,6 +187,116 @@ if ($preview) {
         <div id="sign-result" class="mt-3" style="display:none"></div>
       </div>
     </div>
+    <?php endif; ?>
+
+    <!-- ── Wgranie podpisanej umowy (pełen dokument) ─────────────────────── -->
+    <?php if ($pfron_id): ?>
+    <div class="card mb-4 border-0 shadow-sm" style="max-width:680px" id="upload-doc-panel">
+      <div class="card-header d-flex align-items-center gap-2 fw-semibold">
+        <i class="bi bi-file-earmark-arrow-up text-primary" aria-hidden="true"></i>
+        Wgraj podpisaną umowę (pełen dokument)
+      </div>
+      <div class="card-body">
+        <?php if ($existing_signed_doc): ?>
+        <div class="alert alert-success d-flex gap-2 align-items-center mb-3" id="uploaded-ok">
+          <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+          <div class="flex-grow-1">
+            Plik wgrany:
+            <a href="<?= h(APP_URL . '/uploads/' . $existing_signed_doc) ?>" target="_blank" class="fw-semibold">
+              <?= h(basename($existing_signed_doc)) ?>
+            </a>
+          </div>
+          <span class="text-body-secondary small">Możesz zastąpić nowym plikiem poniżej.</span>
+        </div>
+        <?php endif; ?>
+
+        <div class="border rounded p-3 bg-body-secondary text-center mb-2" id="upload-drop-area">
+          <label for="doc-file" class="d-block mb-2 text-body-secondary small">
+            <i class="bi bi-file-earmark-pdf fs-3 d-block mb-1 text-danger" aria-hidden="true"></i>
+            Wgraj skan lub PDF podpisanej umowy (PDF, JPG, PNG, WebP — max 20 MB)
+          </label>
+          <input type="file" class="form-control" id="doc-file" accept=".pdf,.jpg,.jpeg,.png,.webp">
+        </div>
+        <div id="doc-preview" class="mb-2" style="display:none">
+          <img id="doc-preview-img" style="max-height:120px;max-width:100%;border:1px solid #ccc;border-radius:4px" alt="Podgląd">
+          <span id="doc-preview-name" class="d-block text-body-secondary small mt-1"></span>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <button class="btn btn-primary btn-sm" id="doc-upload-btn" disabled>
+            <i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj dokument
+          </button>
+          <span id="doc-upload-status" class="text-body-secondary small"></span>
+        </div>
+        <div id="doc-upload-result" class="mt-2" style="display:none"></div>
+      </div>
+    </div>
+
+    <script>
+    (function() {
+      const fileInput  = document.getElementById('doc-file');
+      const uploadBtn  = document.getElementById('doc-upload-btn');
+      const status     = document.getElementById('doc-upload-status');
+      const result     = document.getElementById('doc-upload-result');
+      const preview    = document.getElementById('doc-preview');
+      const previewImg = document.getElementById('doc-preview-img');
+      const previewNm  = document.getElementById('doc-preview-name');
+      let   chosenFile = null;
+
+      fileInput?.addEventListener('change', function() {
+        chosenFile = this.files[0] || null;
+        if (!chosenFile) { uploadBtn.disabled = true; preview.style.display='none'; return; }
+        previewNm.textContent = chosenFile.name + ' (' + (chosenFile.size / 1024).toFixed(0) + ' KB)';
+        if (chosenFile.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = e => { previewImg.src = e.target.result; previewImg.style.display=''; preview.style.display='block'; };
+          reader.readAsDataURL(chosenFile);
+        } else {
+          previewImg.style.display = 'none'; preview.style.display = 'block';
+        }
+        uploadBtn.disabled = false;
+      });
+
+      uploadBtn?.addEventListener('click', async function() {
+        if (!chosenFile) return;
+        uploadBtn.disabled = true; status.textContent = 'Przesyłanie…';
+
+        const fd = new FormData();
+        fd.append('pfron_id', '<?= $pfron_id ?>');
+        fd.append('_csrf',    <?= json_encode(csrf_token()) ?>);
+        fd.append('signed_doc', chosenFile);
+
+        try {
+          const res  = await fetch('upload_doc.php', { method: 'POST', body: fd });
+          const data = await res.json();
+          if (data.ok) {
+            result.className = 'alert alert-success';
+            result.innerHTML = 'Plik wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
+            result.style.display = 'block';
+            status.textContent = '';
+            const ok = document.getElementById('uploaded-ok');
+            if (ok) ok.innerHTML = result.innerHTML;
+            else result.scrollIntoView({behavior:'smooth',block:'nearest'});
+          } else if (data.ika_expired) {
+            result.className = 'alert alert-warning';
+            result.innerHTML = 'Sesja bezpieczeństwa wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';
+            result.style.display = 'block';
+            uploadBtn.disabled = false; status.textContent = '';
+          } else {
+            result.className = 'alert alert-danger';
+            result.textContent = 'Błąd: ' + (data.error || 'nieznany');
+            result.style.display = 'block';
+            uploadBtn.disabled = false; status.textContent = '';
+          }
+        } catch(e) {
+          result.className = 'alert alert-danger';
+          result.textContent = 'Błąd sieci: ' + e.message;
+          result.style.display = 'block';
+          uploadBtn.disabled = false; status.textContent = '';
+        }
+      });
+    })();
+    </script>
     <?php endif; ?>
 
     <script>
