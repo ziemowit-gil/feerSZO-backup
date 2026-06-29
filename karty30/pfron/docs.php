@@ -68,7 +68,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         $doc_type = ($_POST['doc_type'] ?? 'umowa') === 'regulamin' ? 'regulamin' : 'umowa';
-        header('Location: doc_print.php?type=' . $doc_type);
+        // Umowa: najpierw strona podpisu, potem PDF; regulamin: od razu PDF
+        if ($doc_type === 'umowa') {
+            header('Location: doc_print.php?type=umowa&preview=1');
+        } else {
+            header('Location: doc_print.php?type=regulamin');
+        }
         exit;
     }
 }

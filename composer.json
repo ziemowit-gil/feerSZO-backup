@@ -4,20 +4,22 @@
     "type": "project",
     "require": {
         "php": ">=8.1",
-        "bacon/bacon-qr-code": "^2.0",
+        "bacon/bacon-qr-code": "^3.0",
+        "mpdf/mpdf": "^8.3",
         "n1ebieski/ksef-php-client": "*",
         "nyholm/psr7": "^1.8",
         "php-amqplib/php-amqplib": "^3.7",
         "php-http/curl-client": "^2.4",
         "phpoffice/phpword": "^1.4",
         "picqer/php-barcode-generator": "^2.4",
-        "smsapi/php-client": "^4.0"
+        "smsapi/php-client": "^4.0",
+        "symfony/http-client": "^8.1"
     },
     "config": {
         "optimize-autoloader": true,
         "sort-packages": true,
         "platform": {
-            "php": "8.4.0"
+            "php": "8.5.6"
         },
         "allow-plugins": {
             "php-http/discovery": true

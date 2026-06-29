@@ -1,59 +1,57 @@
 <?php
 /**
- * karty30/pfron/doc_print.php — Strona druku dokumentów PFRON (umowa / regulamin).
+ * karty30/pfron/doc_print.php — Generowanie dokumentów PFRON jako PDF (mPDF).
  *
- * Dane pobierane z sesji (ustawionej przez docs.php).
- * Otwierana przez window.print() lub ręcznie z przeglądarki jako PDF.
+ * ?type=umowa  → PDF: Umowa uczestnictwa + Regulamin (jako załącznik)
+ * ?type=regulamin → PDF: sam Regulamin
+ * ?preview=1   → strona HTML z przyciskiem podpisu (wywoływana przez docs.php)
+ *
+ * Dane pobierane z $_SESSION['k30_pfron_doc_draft'] (ustawionej przez docs.php).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/vendor/autoload.php';
 
 k30_require_access();
+karty30_migrate();
 
-// 'umowa' = umowa + regulamin (jako załącznik); 'regulamin' = sam regulamin
-$type = in_array($_GET['type'] ?? '', ['umowa', 'regulamin'], true) ? $_GET['type'] : 'umowa';
-$d    = $_SESSION['k30_pfron_doc_draft'] ?? null;
+$type    = in_array($_GET['type'] ?? '', ['umowa', 'regulamin'], true) ? $_GET['type'] : 'umowa';
+$preview = !empty($_GET['preview']);   // tryb podpisu (strona HTML, nie PDF)
+$d       = $_SESSION['k30_pfron_doc_draft'] ?? null;
 
 if (!$d) {
     echo '<p style="font-family:sans-serif;padding:2rem">Brak danych dokumentu. <a href="docs.php">Wróć do formularza</a>.</p>';
     exit;
 }
 
-// Pomocnicze: formatowanie daty na czytelną polską
 function fmt_date(string $s): string {
     if (!$s) return '................................';
-    try {
-        $dt = new DateTime($s);
-        return $dt->format('d.m.Y');
-    } catch (\Throwable $e) { return h($s); }
+    try { return (new DateTime($s))->format('d.m.Y'); } catch (\Throwable $e) { return $s; }
 }
-
-function blank(string $v, string $placeholder = '................................'): string {
+function blank_pdf(string $v, string $ph = '................................'): string {
     $v = trim($v);
-    return $v !== '' ? h($v) : '<span class="blank">' . h($placeholder) . '</span>';
+    return $v !== '' ? htmlspecialchars($v, ENT_QUOTES) : '<span style="color:#999;font-style:italic">' . $ph . '</span>';
 }
 
-$pfron_id    = (int)($d['pfron_id']         ?? 0);
-$name        = $d['client_name']        ?? '';
-$pesel       = $d['pesel']              ?? '';
-$address     = $d['address']            ?? '';
-$phone       = $d['phone']              ?? '';
-$email       = $d['email']              ?? '';
-$c_date      = fmt_date($d['contract_date'] ?? '');
-$pfron_no    = $d['pfron_contract_no']  ?? '';
-$mc_date     = fmt_date($d['main_contract_date'] ?? '');
-$mc_sign     = $d['main_contract_sign'] ?? '';
-$h_total     = (int)($d['hours_total']    ?? 30);
-$h_training  = (int)($d['hours_training'] ?? 25);
+$pfron_id    = (int)($d['pfron_id']          ?? 0);
+$name        = $d['client_name']         ?? '';
+$pesel       = $d['pesel']               ?? '';
+$address     = $d['address']             ?? '';
+$phone       = $d['phone']               ?? '';
+$email       = $d['email']               ?? '';
+$c_date      = fmt_date($d['contract_date']       ?? '');
+$pfron_no    = $d['pfron_contract_no']   ?? '';
+$mc_date     = fmt_date($d['main_contract_date']  ?? '');
+$mc_sign     = $d['main_contract_sign']  ?? '';
+$h_total     = (int)($d['hours_total']     ?? 30);
+$h_training  = (int)($d['hours_training']  ?? 25);
 $h_trial     = 3;
-$penalty_amt = $d['penalty_amount']     ?? '100,00';
-$penalty_wrd = $d['penalty_words']      ?? 'sto';
-$org         = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju FEER';
+$penalty_amt = $d['penalty_amount']      ?? '100,00';
+$penalty_wrd = $d['penalty_words']       ?? 'sto';
 
-// Sprawdź czy umowa ma już nadany numer (podpisana wcześniej)
 $existing_doc_number = '';
 $existing_signed_at  = '';
 if ($pfron_id) {
@@ -61,652 +59,413 @@ if ($pfron_id) {
     $existing_doc_number = $pfrow['doc_number'] ?? '';
     $existing_signed_at  = $pfrow['signed_at']  ?? '';
 }
-?><!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= $type === 'umowa' ? 'Umowa uczestnictwa w szkoleniu PFRON' : 'Regulamin uczestnictwa w szkoleniach FEER' ?></title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; }
-  :root { --font: 'Times New Roman', Times, serif; --font-sz: 11pt; }
-  html { font-size: var(--font-sz); }
-  body {
-    font-family: var(--font);
-    font-size: var(--font-sz);
-    line-height: 1.55;
-    color: #000;
-    background: #fff;
-    margin: 0;
-    padding: 0;
-  }
-  .page {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0 auto;
-    padding: 25mm 25mm 20mm 25mm;
-  }
-  h1.doc-title {
-    font-size: 13pt;
-    font-weight: bold;
-    text-align: center;
-    text-transform: uppercase;
-    margin: 0 0 2pt 0;
-    line-height: 1.4;
-  }
-  h2.doc-subtitle {
-    font-size: 11pt;
-    font-weight: normal;
-    text-align: center;
-    margin: 0 0 6pt 0;
-  }
-  .doc-city {
-    text-align: center;
-    margin-bottom: 14pt;
-    font-size: 11pt;
-  }
-  .parties { margin-bottom: 14pt; }
-  .parties p { margin: 2pt 0; }
-  .bold { font-weight: bold; }
-  .par { margin: 0 0 8pt 0; }
-  h3.par-heading {
-    font-size: 11pt;
-    font-weight: bold;
-    text-align: center;
-    margin: 14pt 0 2pt 0;
-  }
-  h3.par-heading .par-no {
-    display: block;
-  }
-  ol { margin: 4pt 0 4pt 0; padding-left: 1.6em; }
-  ol li { margin-bottom: 2pt; }
-  ul { margin: 4pt 0 4pt 0; padding-left: 1.6em; }
-  ul li { margin-bottom: 2pt; }
-  .sigs { margin-top: 28pt; display: flex; justify-content: space-between; }
-  .sigs .sig-col { width: 44%; text-align: center; }
-  .sig-line { border-top: 1px solid #000; padding-top: 3pt; margin-top: 36pt; font-size: 10pt; }
-  .blank { color: #555; font-style: italic; }
-  .inline-blank { display: inline-block; min-width: 8em; border-bottom: 1px solid #555; }
-  .attachment-note { margin-top: 16pt; font-size: 10pt; }
-  .page-break { page-break-after: always; }
-  /* Strona druku */
-  @media screen {
-    body { background: #f5f5f5; }
-    .page { background: #fff; box-shadow: 0 0 12px rgba(0,0,0,.15); margin: 16px auto; }
-    .print-bar {
-      position: fixed; top: 0; left: 0; right: 0;
-      background: #1e3a5f; color: #fff;
-      padding: 8px 20px;
-      display: flex; align-items: center; gap: 12px;
-      z-index: 100; font-family: sans-serif; font-size: 13px;
-    }
-    .print-bar button {
-      background: #e53935; color: #fff; border: none;
-      padding: 6px 18px; border-radius: 4px; cursor: pointer; font-size: 13px;
-    }
-    .print-bar a { color: #aad4f5; font-size: 12px; }
-    body { padding-top: 44px; }
-  }
-  @media print {
-    .print-bar { display: none !important; }
-    .sign-panel { display: none !important; }
-    body { padding: 0; background: #fff; }
-    .page { margin: 0; box-shadow: none; padding: 20mm 20mm 15mm 25mm; width: 100%; }
-    .page-break { page-break-after: always; }
-  }
-  /* Panel podpisu */
-  .sign-panel {
-    width: 210mm; margin: 0 auto 24px; background: #fff;
-    border: 2px solid #1e3a5f; border-radius: 8px;
-    padding: 20px 24px; font-family: sans-serif;
-  }
-  .sign-panel h2 { font-size: 15px; font-weight: 700; color: #1e3a5f; margin: 0 0 6px; }
-  .sign-panel p  { font-size: 12px; color: #555; margin: 0 0 12px; }
-  #sig-canvas {
-    width: 100%; height: 160px; border: 1px solid #ccc; border-radius: 4px;
-    cursor: crosshair; touch-action: none; background: #fafafa; display: block;
-  }
-  .sign-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
-  .sign-btn { padding: 7px 18px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
-  .sign-btn-primary { background: #e53935; color: #fff; }
-  .sign-btn-primary:disabled { background: #ccc; cursor: not-allowed; }
-  .sign-btn-secondary { background: #eee; color: #333; }
-  .sign-result { display: none; margin-top: 12px; padding: 12px 16px; border-radius: 6px; }
-  .sign-result.ok  { background: #e8f5e9; border: 1px solid #81c784; }
-  .sign-result.err { background: #ffebee; border: 1px solid #e57373; }
-  .sign-result .doc-num { font-size: 18px; font-weight: 700; color: #1b5e20; letter-spacing: .5px; }
-  #sig-hint { font-size: 11px; color: #888; margin-top: 4px; }
-</style>
-</head>
-<body>
 
-<div class="print-bar" id="pbar">
-  <button onclick="window.print()">&#128438; Drukuj / Zapisz PDF</button>
-  <a href="docs.php">&larr; Wróć do formularza</a>
-  <?php if ($type === 'umowa'): ?>
-  <a href="doc_print.php?type=regulamin" target="_blank" style="margin-left:auto">Otwórz regulamin &rarr;</a>
-  <?php endif; ?>
-  <span style="margin-left:auto;opacity:.7"><?= $type === 'umowa' ? 'Umowa uczestnictwa' : 'Regulamin' ?></span>
-</div>
-
-<?php if ($type === 'umowa'): ?>
-<!-- ═══════════════════════════════════════ UMOWA ═══════════════════════════════════════ -->
-<div class="page">
-
-  <h1 class="doc-title">Umowa uczestnictwa w szkoleniu indywidualnym<br>finansowanym ze środków PFRON</h1>
-  <?php if ($existing_doc_number || $pfron_id): ?>
-  <p style="text-align:right;font-size:10pt;margin:0 0 4pt">
-    Nr dokumentu: <strong class="pfron-doc-number"><?= h($existing_doc_number) ?></strong>
-  </p>
-  <?php endif; ?>
-  <p class="doc-city">zawarta w dniu <strong><?= $c_date ?></strong> w Nowym Sączu pomiędzy:</p>
-
-  <div class="parties">
-    <p><strong>Fundacją Edukacji Empatii Rozwoju FEER</strong> z siedzibą w Nowym Sączu
-      (adres: ul. Barbackiego 28/18, 33-300 Nowy Sącz), wpisaną do rejestru stowarzyszeń
-      Krajowego Rejestru Sądowego, którego akta przechowuje Sąd Rejonowy dla Krakowa Śródmieścia
-      w Krakowie Wydział XII Gospodarczy KRS pod numerem 000779281, posiadającą NIP: 7343570539,
-      reprezentowaną przez: Ziemowita Gila – Prezesa Zarządu; zwaną dalej <strong>„Fundacją"</strong>,</p>
-    <p style="text-align:center;font-weight:bold;margin:8pt 0">a</p>
-    <p>
-      Panem/Panią <strong><?= blank($name) ?></strong><br>
-      PESEL: <?= blank($pesel) ?><br>
-      adres <?= blank($address) ?><br>
-      telefon <?= blank($phone) ?><br>
-      e-mail <?= blank($email) ?><br>
-      zwanym/-ą dalej <strong>„Uczestnikiem"</strong>.
-    </p>
-  </div>
-
-  <h3 class="par-heading"><span class="par-no">§ 1.</span>Przedmiot umowy</h3>
-  <ol>
-    <li>Przedmiotem niniejszej umowy jest określenie zasad uczestnictwa Uczestnika w indywidualnym
-      szkoleniu finansowanym ze środków Państwowego Funduszu Rehabilitacji Osób Niepełnosprawnych (PFRON),
-      realizowanym za pośrednictwem właściwego Miejskiego Ośrodka Pomocy Społecznej lub innej jednostki
-      uprawnionej do finansowania szkolenia – umowa główna [skierowanie] z dnia <?= blank($mc_date, '..................') ?>
-      - znak sprawy: <?= blank($mc_sign, '..................') ?></li>
-    <li>Szkolenie obejmuje łącznie <strong><?= $h_total ?> godzin dydaktycznych</strong>.</li>
-    <li>Szkolenie realizowane będzie zgodnie z indywidualnie ustalanym harmonogramem.</li>
-    <li>Integralną część niniejszej umowy stanowi Regulamin uczestnictwa w szkoleniach Fundacji.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 2.</span>Oświadczenia Uczestnika</h3>
-  <p class="par">Uczestnik oświadcza, że:</p>
-  <ol>
-    <li>został poinformowany o zasadach finansowania szkolenia;</li>
-    <li>wie, że środki publiczne przekazywane są Fundacji przed zakończeniem szkolenia;</li>
-    <li>ma świadomość, że Fundacja rezerwuje dla niego czas pracy trenera, zasoby organizacyjne
-      oraz możliwość udziału w szkoleniu kosztem innych osób oczekujących na wsparcie;</li>
-    <li>rozumie, że nieuzasadnione odwoływanie zajęć powoduje rzeczywiste koszty organizacyjne
-      oraz może skutkować obowiązkiem zwrotu części środków publicznych i składania wyjaśnień
-      wobec instytucji finansujących;</li>
-    <li>zobowiązuje się współdziałać z Fundacją w sposób umożliwiający prawidłowe wykonanie szkolenia.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 3.</span>Obowiązki Fundacji</h3>
-  <p class="par">Fundacja zobowiązuje się do:</p>
-  <ol>
-    <li>przeprowadzenia <strong><?= $h_training ?> godzin</strong> szkolenia;</li>
-    <li>zapewnienia wykwalifikowanego trenera;</li>
-    <li>pozostawania w gotowości do realizacji szkolenia przez okres jego trwania;</li>
-    <li>ustalania terminów zajęć z uwzględnieniem możliwości Uczestnika;</li>
-    <li>prowadzenia dokumentacji wymaganej przez instytucję finansującą.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 4.</span>Obowiązki Uczestnika</h3>
-  <p class="par">Uczestnik zobowiązuje się do:</p>
-  <ol>
-    <li>uczestnictwa we wszystkich zaplanowanych zajęciach;</li>
-    <li>aktywnego współdziałania z Fundacją w realizacji szkolenia;</li>
-    <li>punktualnego rozpoczynania zajęć;</li>
-    <li>niezwłocznego informowania o okolicznościach uniemożliwiających realizację szkolenia;</li>
-    <li>ukończenia szkolenia w terminie nie dłuższym niż 3 miesiące od pierwszych zajęć,
-      chyba że Fundacja wyrazi zgodę na jego przedłużenie.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 5.</span>Okres próbny</h3>
-  <ol>
-    <li>W ciągu pierwszych <?= $h_trial ?> godzin szkolenia Uczestnik może zrezygnować z udziału bez
-      podawania przyczyny. W tym okresie Uczestnik może zgłosić potrzebę zmiany trenera.</li>
-    <li>Po upływie <?= $h_trial ?> godzin strony uznają, że zaakceptowały sposób realizacji szkolenia
-      oraz zobowiązują się do jego ukończenia w całości.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 6.</span>Zmiana terminów</h3>
-  <ol>
-    <li>Terminy zajęć ustalane są wspólnie przez Strony. Uczestnik, z zastrzeżeniem warunku,
-      o którym mowa w ust. 2 poniżej, może dokonać zmiany terminu maksymalnie pięć razy w całym
-      okresie szkolenia.</li>
-    <li>Zmiana terminu wymaga zgłoszenia najpóźniej 48 godzin przed rozpoczęciem zajęć.</li>
-    <li>Zmiana wymaga akceptacji Fundacji. Zgłoszenie dokonane po upływie terminu wskazanego
-      w ust. 2 traktowane jest jako odwołanie zajęć z przyczyn leżących po stronie Uczestnika.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 7.</span>Kara umowna</h3>
-  <ol>
-    <li>Uczestnik przyjmuje do wiadomości, że przed każdym szkoleniem Fundacja dokonuje rezerwacji
-      czasu pracy trenera, przygotowuje harmonogram zajęć oraz pozostaje w gotowości do wykonania
-      szkolenia <strong>wyłącznie na rzecz danego Uczestnika</strong> – co dodatkowo wiąże się z kosztami
-      transportu oraz czasem pracy trenera.</li>
-    <li>Rezerwacja terminu uniemożliwia wykorzystanie tego czasu na realizację szkolenia innych
-      beneficjentów oraz powoduje ponoszenie przez Fundację kosztów organizacyjnych niezależnie od tego,
-      czy szkolenie zostanie przeprowadzone.</li>
-    <li>Strony zgodnie postanawiają, że prawidłowa realizacja niniejszej umowy wymaga współdziałania
-      Uczestnika z Fundacją.</li>
-    <li>W przypadku niewykonania lub nienależytego wykonania obowiązków wynikających z niniejszej umowy
-      z przyczyn leżących wyłącznie po stronie Uczestnika, Fundacja jest uprawniona do naliczenia
-      kary umownej.</li>
-    <li>Kara umowna wynosi <strong><?= h($penalty_amt) ?> zł (słownie: <?= h($penalty_wrd) ?> złotych)</strong>
-      za każdą godzinę szkolenia, która nie została zrealizowana wskutek:
-      <ol type="a">
-        <li>niestawienia się na umówione zajęcia;</li>
-        <li>odwołania zajęć z naruszeniem terminu 48 godzin;</li>
-        <li>przekroczenia dopuszczalnego limitu zmian terminów;</li>
-        <li>przerwania szkolenia po zakończeniu okresu próbnego;</li>
-        <li>odmowy kontynuowania szkolenia bez uzasadnionej przyczyny;</li>
-        <li>innych zawinionych działań lub zaniechań Uczestnika uniemożliwiających wykonanie szkolenia.</li>
+// ═══════════════════════════════════════════════════════════════════════════
+// TRYB PODGLĄDU: strona HTML z przyciskiem podpisu
+// ═══════════════════════════════════════════════════════════════════════════
+if ($preview) {
+    include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
+    ?>
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="docs.php<?= $pfron_id ? '?pfron_id='.$pfron_id : '' ?>">Dokumenty PFRON</a></li>
+        <li class="breadcrumb-item active">Podgląd i podpis</li>
       </ol>
-    </li>
-    <li>Kara umowna nie jest naliczana w przypadku:
-      <ol type="a">
-        <li>nagłej choroby,</li>
-        <li>hospitalizacji,</li>
-        <li>wypadku,</li>
-        <li>śmierci osoby najbliższej,</li>
-        <li>innych zdarzeń losowych o charakterze nadzwyczajnym, których Uczestnik nie mógł przewidzieć
-          ani im zapobiec.</li>
-      </ol>
-    </li>
-    <li>Fundacja może zażądać przedstawienia dokumentów potwierdzających okoliczności wskazane w ust. 6.</li>
-    <li>Łączna wysokość naliczonych kar umownych nie może przekroczyć wartości odpowiadającej liczbie
-      godzin szkolenia niezrealizowanych z przyczyn leżących po stronie Uczestnika.</li>
-    <li>Zapłata kary umownej nie wyłącza prawa Fundacji do dochodzenia odszkodowania przewyższającego
-      jej wysokość, jeżeli poniesiona szkoda jest wyższa.</li>
-  </ol>
+    </nav>
+    <?= flash_html() ?>
 
-  <h3 class="par-heading"><span class="par-no">§ 8.</span>Rozwiązanie umowy</h3>
-  <p class="par">Fundacja może rozwiązać niniejszą umowę ze skutkiem natychmiastowym w przypadku:</p>
-  <ol>
-    <li>dwukrotnego nieusprawiedliwionego niestawienia się Uczestnika;</li>
-    <li>uporczywego przekładania terminów;</li>
-    <li>przekroczenia limitu zmian terminów;</li>
-    <li>odmowy współpracy;</li>
-    <li>naruszenia Regulaminu;</li>
-    <li>zachowania uniemożliwiającego prowadzenie szkolenia.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 9.</span>Informowanie instytucji finansujących</h3>
-  <p class="par">Uczestnik przyjmuje do wiadomości, że w przypadku przerwania szkolenia lub niewykonania
-    niniejszej umowy Fundacja może przekazać właściwemu MOPS, PFRON lub innemu podmiotowi finansującemu
-    informacje dotyczące przebiegu realizacji szkolenia oraz przyczyn jego zakończenia w zakresie
-    wymaganym przepisami prawa i zasadami rozliczania środków publicznych.</p>
-
-  <h3 class="par-heading"><span class="par-no">§ 10.</span>Przetwarzanie danych</h3>
-  <p class="par">Zgodnie z art. 13 ust. 1 i 2 Rozporządzenia Parlamentu Europejskiego i Rady (UE)
-    2016/679 z dnia 27 kwietnia 2016 r. w sprawie ochrony osób fizycznych w związku z przetwarzaniem
-    danych osobowych (RODO) Fundacja informuje, że:</p>
-  <ol>
-    <li>Administratorem danych osobowych Uczestnika jest Fundacja Edukacji Empatii Rozwoju FEER
-      z siedzibą w Nowym Sączu (adres: ul. Barbackiego 28/18, 33-300 Nowy Sącz), wpisana do rejestru
-      stowarzyszeń KRS pod numerem 000779281, NIP: 7343570539, kontakt e-mail: kontakt@feer.org.pl;</li>
-    <li>dane osobowe Uczestnika przetwarzane są przez Fundację w związku z zawartą umową na wykonanie
-      szkolenia (art. 6 ust. 1 lit b RODO) oraz w celu wypełniania obowiązków prawnych związanych z
-      finansowaniem szkolenia ze środków publicznych (art. 6 ust. 1 lit c RODO);</li>
-    <li>Uczestnikowi przysługuje prawo żądania dostępu do danych osobowych, ich sprostowania, usunięcia,
-      ograniczenia przetwarzania oraz prawo żądania przeniesienia danych;</li>
-    <li>na działania Fundacji w zakresie przetwarzania danych osobowych przysługuje Uczestnikowi skarga
-      do Prezesa Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa;</li>
-    <li>dane osobowe Uczestnika nie podlegają zautomatyzowanemu podejmowaniu decyzji ani profilowaniu,
-      jak i nie są przekazywane do państw trzecich;</li>
-    <li>dane osobowe Uczestnika mogą być przekazywane podmiotom finansującym szkolenie (MOPS/PFRON)
-      oraz podmiotom współpracującym z Fundacją w zakresie niezbędnym do realizacji celów umowy.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 11.</span>Postanowienia końcowe</h3>
-  <ol>
-    <li>W sprawach nieuregulowanych zastosowanie mają przepisy Kodeksu cywilnego.</li>
-    <li>Wszelkie zmiany niniejszej umowy wymagają formy pisemnej pod rygorem nieważności.</li>
-    <li>Spory wynikłe z wykonania umowy strony będą starały się rozwiązać polubownie, a gdy to okaże się
-      niemożliwe – spór rozstrzygać będzie właściwy miejscowo sąd powszechny, ustalony ze względu na
-      miejsce wykonania umowy szkoleniowej.</li>
-    <li>Umowę wraz z załącznikiem sporządzono w dwóch jednobrzmiących egzemplarzach, po jednym dla
-      każdej ze Stron.</li>
-  </ol>
-
-  <div class="sigs">
-    <div class="sig-col">
-      <div class="sig-line">Fundacja</div>
+    <?php if ($pfron_id && !$existing_doc_number): ?>
+    <!-- Panel podpisu -->
+    <div class="card mb-4 border-warning shadow-sm" style="max-width:640px">
+      <div class="card-header fw-bold"><i class="bi bi-pen me-1" aria-hidden="true"></i>Podpis uczestnika</div>
+      <div class="card-body">
+        <p class="small text-body-secondary mb-2">
+          Uczestnik składa podpis odręczny poniżej. Po zatwierdzeniu umowie zostanie automatycznie nadany numer
+          <strong>PFRON-AS/xx/<?= date('Y') ?></strong> i będzie można pobrać PDF.
+        </p>
+        <canvas id="sig-canvas" style="width:100%;height:160px;border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;background:#fafafa;display:block" role="img" aria-label="Pole podpisu odręcznego"></canvas>
+        <div class="d-flex gap-2 mt-2 flex-wrap align-items-center">
+          <button class="btn btn-danger" id="sig-submit" disabled>
+            <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zatwierdź podpis i pobierz PDF
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" id="sig-clear">Wyczyść</button>
+          <span id="sig-status" class="text-body-secondary small"></span>
+        </div>
+        <div id="sign-result" class="mt-3" style="display:none"></div>
+      </div>
     </div>
-    <div class="sig-col">
-      <div class="sig-line">Uczestnik</div>
+    <?php elseif ($existing_doc_number): ?>
+    <div class="alert alert-success d-flex gap-2 align-items-center mb-4">
+      <i class="bi bi-patch-check-fill fs-4" aria-hidden="true"></i>
+      <div>
+        Umowa zarejestrowana: <strong class="font-monospace"><?= h($existing_doc_number) ?></strong>
+        <span class="text-body-secondary small ms-2"><?= $existing_signed_at ? date('d.m.Y H:i', strtotime($existing_signed_at)) : '' ?></span>
+      </div>
     </div>
-  </div>
+    <?php endif; ?>
 
-  <p class="attachment-note"><strong>Załącznik:</strong> Regulamin uczestnictwa w szkoleniach Fundacji</p>
-
-</div><!-- /page umowa -->
-
-<div class="page-break"></div>
-
-<?php endif; /* umowa */ ?>
-<?php if ($type === 'umowa' || $type === 'regulamin'): ?>
-<!-- ═══════ REGULAMIN — drukowany jako załącznik do umowy lub samodzielnie ═══════ -->
-<div class="page">
-
-  <h1 class="doc-title">Regulamin uczestnictwa w indywidualnych szkoleniach<br>
-    w Fundacji Edukacji Empatii Rozwoju „FEER"<br>finansowanych ze środków publicznych</h1>
-
-  <h3 class="par-heading"><span class="par-no">§ 1.</span>Postanowienia ogólne</h3>
-  <ol>
-    <li>Niniejszy Regulamin określa zasady uczestnictwa w indywidualnych szkoleniach organizowanych przez
-      Fundację Edukacji Empatii Rozwoju „FEER", zwaną dalej „Fundacją", finansowanych ze środków
-      publicznych (np. Państwowego Funduszu Rehabilitacji Osób Niepełnosprawnych (PFRON) lub innych
-      funduszy celowych), przekazywanych za pośrednictwem właściwego organu.</li>
-    <li>Regulamin stanowi integralny załącznik do Umowy uczestnictwa w indywidualnym szkoleniu
-      finansowanym ze środków publicznych.</li>
-    <li>Podpisanie Umowy oznacza potwierdzenie zapoznania się z treścią Regulaminu oraz zobowiązanie
-      do przestrzegania wszystkich jego postanowień.</li>
-    <li>Celem Regulaminu jest określenie praw i obowiązków stron, zapewnienie sprawnej organizacji
-      szkoleń oraz właściwego wykorzystania środków publicznych przeznaczonych na wsparcie osób
-      z niepełnosprawnościami.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 2.</span>Definicje</h3>
-  <p class="par">Ilekroć w Regulaminie jest mowa o:</p>
-  <ol>
-    <li><strong>Fundacji</strong> – należy przez to rozumieć Fundację Edukacji Empatii Rozwoju „FEER".</li>
-    <li><strong>Uczestniku</strong> – należy przez to rozumieć osobę zakwalifikowaną do udziału w szkoleniu
-      finansowanym ze środków publicznych.</li>
-    <li><strong>Szkoleniu</strong> – należy przez to rozumieć indywidualny proces edukacyjny obejmujący
-      określoną ilość godzin dydaktycznych, realizowany zgodnie z zakresem zaakceptowanym przez
-      instytucję finansującą.</li>
-    <li><strong>Trenerze</strong> – osobę prowadzącą szkolenie w imieniu Fundacji.</li>
-    <li><strong>Umowie</strong> – Umowę uczestnictwa w indywidualnym szkoleniu finansowanym ze środków
-      publicznych.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 3.</span>Charakter szkolenia</h3>
-  <ol>
-    <li>Szkolenia realizowane przez Fundację mają charakter indywidualny i są przygotowywane z
-      uwzględnieniem potrzeb konkretnego Uczestnika. Co do zasady koszt szkolenia pokrywany jest przez
-      podmiot publiczny (np. MOPS, PFRON lub inne). Środki finansowe przeznaczane są na realizację
-      szkolenia dla oznaczonego beneficjenta po uprzednim zaakceptowaniu kosztów przez instytucję
-      finansującą.</li>
-    <li>Z chwilą potwierdzenia realizacji szkolenia Fundacja zobowiązuje się do:
-      <ol type="a">
-        <li>zapewnienia wykwalifikowanego trenera,</li>
-        <li>przygotowania programu szkolenia,</li>
-        <li>rezerwacji czasu pracy trenera,</li>
-        <li>zapewnienia odpowiednich warunków organizacyjnych,</li>
-        <li>prowadzenia dokumentacji wymaganej przez instytucje finansujące.</li>
-      </ol>
-    </li>
-    <li>Każdy ustalony termin zajęć oznacza zarezerwowanie czasu pracy trenera wyłącznie dla jednego
-      i z góry określonego Uczestnika.</li>
-    <li>Fundacja organizuje szkolenia zgodnie z zasadą racjonalnego gospodarowania środkami publicznymi
-      oraz z poszanowaniem prawa innych beneficjentów do uzyskania wsparcia.</li>
-    <li>Szkolenia są dostosowywane do potrzeb, możliwości oraz poziomu wiedzy i umiejętności Uczestnika.
-      Program szkolenia może zostać zmodyfikowany w trakcie jego realizacji, jeżeli jest to uzasadnione
-      postępami Uczestnika lub zaleceniami instytucji finansującej, przy zachowaniu celu i zakresu
-      szkolenia.</li>
-    <li>Fundacja dobiera metody dydaktyczne, tempo pracy oraz wykorzystywane narzędzia z uwzględnieniem
-      rodzaju niepełnosprawności, możliwości psychofizycznych oraz indywidualnych potrzeb Uczestnika.</li>
-    <li>Uczestnik zobowiązuje się do aktywnego informowania trenera o okolicznościach mogących mieć
-      wpływ na sposób prowadzenia szkolenia.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 4.</span>Zasada współdziałania</h3>
-  <ol>
-    <li>Szkolenie finansowane jest ze środków publicznych przeznaczonych na wsparcie konkretnego
-      beneficjenta. Fundacja i Uczestnik zobowiązują się wykonywać swoje obowiązki w sposób lojalny,
-      z poszanowaniem czasu, pracy oraz uzasadnionych interesów drugiej strony.</li>
-    <li>Strony zobowiązują się do współpracy przez cały okres realizacji szkolenia.</li>
-    <li>Fundacja zobowiązuje się do wykonania szkolenia z należytą starannością.</li>
-    <li>Uczestnik zobowiązuje się współdziałać z Fundacją w sposób umożliwiający wykonanie szkolenia
-      zgodnie z jego celem, zakresem oraz warunkami finansowania.</li>
-    <li>Obowiązek współdziałania obejmuje w szczególności:
-      <ol type="a">
-        <li>terminowe uczestnictwo w zajęciach,</li>
-        <li>punktualne rozpoczynanie spotkań,</li>
-        <li>pozostawanie w kontakcie z Fundacją,</li>
-        <li>informowanie o przeszkodach mogących mieć wpływ na realizację szkolenia,</li>
-        <li>wykonywanie zaleceń organizacyjnych dotyczących przebiegu szkolenia.</li>
-      </ol>
-    </li>
-    <li>Uczestnik przyjmuje do wiadomości, że szkolenie finansowane jest ze środków publicznych, których
-      wykorzystanie podlega szczegółowym zasadom rozliczania. Niewykonanie lub przerwanie szkolenia z
-      przyczyn leżących po stronie Uczestnika może skutkować koniecznością dokonania korekt rozliczeń
-      lub zwrotu całości albo części otrzymanego dofinansowania.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 5.</span>Organizacja szkolenia i korzystanie ze sprzętu/materiałów</h3>
-  <ol>
-    <li>Szkolenie obejmuje <strong><?= $h_training ?> godzin dydaktycznych</strong>.
-      Co do zasady powinno zostać zakończone w terminie 3 miesięcy od dnia przeprowadzenia pierwszych zajęć.</li>
-    <li>Harmonogram ustalany jest indywidualnie pomiędzy Fundacją a Uczestnikiem.</li>
-    <li>Fundacja dokłada wszelkich starań, aby terminy były dostosowane do możliwości Uczestnika, jednak
-      ostateczna decyzja należy do Organizatora.</li>
-    <li>W trakcie szkolenia Fundacja może udostępniać Uczestnikowi sprzęt komputerowy, urządzenia
-      specjalistyczne, pomoce dydaktyczne oraz materiały szkoleniowe.</li>
-    <li>Uczestnik zobowiązuje się korzystać z udostępnionego sprzętu zgodnie z jego przeznaczeniem.</li>
-    <li>W przypadku zauważenia nieprawidłowości w działaniu sprzętu Uczestnik zobowiązany jest
-      niezwłocznie poinformować o tym trenera.</li>
-    <li>Zabrania się instalowania oprogramowania, zmiany konfiguracji sprzętu lub podejmowania innych
-      działań mogących wpłynąć na jego prawidłowe funkcjonowanie bez zgody Fundacji.</li>
-    <li>Materiały szkoleniowe przekazywane Uczestnikowi przeznaczone są wyłącznie do wykorzystania na
-      potrzeby realizowanego szkolenia. Ich rozpowszechnianie bez zgody Fundacji jest niedopuszczalne.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 6.</span>Znaczenie ustalonego terminu szkolenia</h3>
-  <ol>
-    <li>Ustalenie terminu zajęć oznacza, że Fundacja:
-      <ol type="a">
-        <li>rezerwuje czas pracy trenera,</li>
-        <li>zabezpiecza miejsce prowadzenia szkolenia i/lub właściwe środki techniczne,</li>
-        <li>przygotowuje materiały dydaktyczne,</li>
-        <li>pozostaje w gotowości do wykonania szkolenia.</li>
-      </ol>
-    </li>
-    <li>Z uwagi na indywidualny charakter szkolenia zarezerwowanego czasu nie można przeznaczyć dla
-      innego Uczestnika bez odpowiednio wcześniejszej informacji o zmianie terminu.</li>
-    <li>Każde nieodwołane spotkanie powoduje niewykorzystanie czasu pracy trenera oraz ogranicza
-      możliwość udzielenia wsparcia innym beneficjentom oczekującym na szkolenie.</li>
-    <li>Uczestnik przyjmuje do wiadomości, że Fundacja zobowiązana jest do rozliczenia środków
-      publicznych zgodnie z obowiązującymi przepisami oraz warunkami określonymi przez instytucję
-      finansującą.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 7.</span>Okres adaptacyjny</h3>
-  <ol>
-    <li>W trosce o komfort współpracy pierwsze 3 godziny szkolenia stanowią okres adaptacyjny.
-      W tym czasie Uczestnik może zrezygnować z udziału w dalszym szkoleniu bez obowiązku podawania
-      przyczyny.</li>
-    <li>W okresie adaptacyjnym Uczestnik może zgłosić zastrzeżenia dotyczące sposobu prowadzenia
-      szkolenia lub współpracy z trenerem.</li>
-    <li>Fundacja, w miarę możliwości organizacyjnych, może zaproponować zmianę trenera.</li>
-    <li>Po zakończeniu okresu adaptacyjnego przyjmuje się, że strony akceptują sposób realizacji
-      szkolenia i zobowiązują się do jego ukończenia w całości.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 8.</span>Zmiana terminów</h3>
-  <ol>
-    <li>Zmiana ustalonego terminu wymaga zgłoszenia Fundacji nie później niż 48 godzin przed planowanym
-      rozpoczęciem zajęć.</li>
-    <li>Zmiana terminu wymaga potwierdzenia przez Fundację.</li>
-    <li>Uczestnik może zmienić termin szkolenia maksymalnie pięć razy podczas całego procesu
-      szkoleniowego.</li>
-    <li>Każda kolejna zmiana może zostać nieuwzględniona przez Fundację.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 9.</span>Nieobecności</h3>
-  <ol>
-    <li>Za usprawiedliwioną nieobecność uważa się nieobecność spowodowaną takimi zdarzeniami jak:
-      nagła choroba, hospitalizacja, wypadek, zdarzenie losowe, inna okoliczność niezależna od
-      Uczestnika.</li>
-    <li>Nieobecność usprawiedliwiona powinna zostać zgłoszona niezwłocznie, możliwie przed planowanym
-      terminem zajęć lub bezpośrednio po zdarzeniu.</li>
-    <li>Fundacja może zażądać dokumentu potwierdzającego przyczynę nieobecności.</li>
-    <li>Nieobecność bez uprzedniego powiadomienia lub bez uzasadnionej przyczyny traktowana jest jako
-      nieusprawiedliwiona i może skutkować naliczeniem kary umownej.</li>
-  </ol>
-
-  <h3 class="par-heading"><span class="par-no">§ 10.</span>Postanowienia końcowe</h3>
-  <ol>
-    <li>Regulamin wchodzi w życie z dniem podpisania Umowy.</li>
-    <li>Fundacja zastrzega sobie prawo do zmiany Regulaminu. Zmiana wymaga poinformowania Uczestnika z
-      co najmniej 7-dniowym wyprzedzeniem.</li>
-    <li>W sprawach nieuregulowanych Regulaminem zastosowanie mają przepisy Kodeksu cywilnego.</li>
-  </ol>
-
-  <div class="sigs">
-    <div class="sig-col">
-      <div class="sig-line">Fundacja</div>
+    <!-- Przyciski pobierania PDF -->
+    <div class="d-flex gap-2 mb-4 flex-wrap">
+      <a href="doc_print.php?type=umowa" class="btn btn-danger" id="btn-pdf-umowa"
+         <?= ($pfron_id && !$existing_doc_number) ? 'style="display:none"' : '' ?>>
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF — Umowa + Regulamin
+      </a>
+      <a href="doc_print.php?type=regulamin" class="btn btn-outline-secondary">
+        <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Pobierz PDF — Sam regulamin
+      </a>
     </div>
-    <div class="sig-col">
-      <div class="sig-line">Uczestnik – potwierdzam zapoznanie się z Regulaminem</div>
-    </div>
-  </div>
 
-</div><!-- /page regulamin -->
-<?php endif; /* regulamin */  ?>
+    <script>
+    (function() {
+      const canvas  = document.getElementById('sig-canvas');
+      if (!canvas) return;
+      const ctx     = canvas.getContext('2d');
+      const submit  = document.getElementById('sig-submit');
+      const clear   = document.getElementById('sig-clear');
+      const status  = document.getElementById('sig-status');
+      const result  = document.getElementById('sign-result');
 
-<?php if ($type === 'umowa'): ?>
-<!-- ═══ PANEL PODPISU (tylko ekran) ═══════════════════════════════════════ -->
-<div class="sign-panel" id="sign-panel" aria-label="Panel podpisu umowy">
-
-  <?php if ($existing_doc_number): ?>
-  <!-- Umowa już podpisana -->
-  <h2><i class="bi bi-patch-check-fill" style="color:#2e7d32"></i> Umowa już zarejestrowana</h2>
-  <div class="sign-result ok" style="display:block">
-    <div>Numer dokumentu:</div>
-    <div class="doc-num"><?= h($existing_doc_number) ?></div>
-    <div style="font-size:12px;color:#555;margin-top:4px">
-      Podpisano: <?= $existing_signed_at ? date('d.m.Y H:i', strtotime($existing_signed_at)) : '—' ?>
-    </div>
-  </div>
-
-  <?php else: ?>
-  <!-- Formularz podpisu -->
-  <h2>Podpisz umowę i nadaj numer</h2>
-  <p>Uczestnik składa podpis odręczny poniżej. Po zatwierdzeniu umowie zostanie automatycznie nadany numer <strong>PFRON-AS/xx/<?= date('Y') ?></strong>.</p>
-
-  <canvas id="sig-canvas" role="img" aria-label="Pole podpisu odręcznego"></canvas>
-  <div id="sig-hint">Podpisz myszką, rysikiem lub palcem w powyższym polu.</div>
-
-  <div class="sign-actions">
-    <button class="sign-btn sign-btn-primary" id="sig-submit" disabled>
-      ✔ Zatwierdź podpis i zarejestruj umowę
-    </button>
-    <button class="sign-btn sign-btn-secondary" id="sig-clear">Wyczyść</button>
-    <span id="sig-status" style="font-size:12px;color:#555"></span>
-  </div>
-
-  <div class="sign-result" id="sign-result">
-    <div id="sign-result-content"></div>
-  </div>
-  <?php endif; ?>
-
-</div>
-<?php endif; ?>
-
-<script>
-(function() {
-  // ── Automatyczny druk ───────────────────────────────────────────────────
-  window.addEventListener('load', function() {
-    setTimeout(function() { window.print(); }, 400);
-  });
-
-  <?php if ($type === 'umowa' && !$existing_doc_number && $pfron_id): ?>
-  // ── Podpis odręczny ────────────────────────────────────────────────────
-  const canvas  = document.getElementById('sig-canvas');
-  const ctx     = canvas.getContext('2d');
-  const submit  = document.getElementById('sig-submit');
-  const clear   = document.getElementById('sig-clear');
-  const status  = document.getElementById('sig-status');
-  const result  = document.getElementById('sign-result');
-  const resContent = document.getElementById('sign-result-content');
-
-  // Ustaw rozmiar fizyczny canvas względem CSS
-  function resizeCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    canvas.width  = rect.width  * devicePixelRatio;
-    canvas.height = rect.height * devicePixelRatio;
-    ctx.scale(devicePixelRatio, devicePixelRatio);
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth   = 2;
-    ctx.lineCap     = 'round';
-    ctx.lineJoin    = 'round';
-  }
-  resizeCanvas();
-
-  let drawing = false, hasStroke = false;
-
-  function pos(e) {
-    const r  = canvas.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - r.left, y: src.clientY - r.top };
-  }
-  function startDraw(e) { e.preventDefault(); drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
-  function draw(e)      { if (!drawing) return; e.preventDefault(); const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); hasStroke = true; submit.disabled = false; }
-  function stopDraw()   { drawing = false; }
-
-  canvas.addEventListener('mousedown',  startDraw);
-  canvas.addEventListener('mousemove',  draw);
-  canvas.addEventListener('mouseup',    stopDraw);
-  canvas.addEventListener('mouseleave', stopDraw);
-  canvas.addEventListener('touchstart', startDraw, { passive: false });
-  canvas.addEventListener('touchmove',  draw,      { passive: false });
-  canvas.addEventListener('touchend',   stopDraw);
-
-  clear.addEventListener('click', function() {
-    ctx.clearRect(0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
-    hasStroke = false;
-    submit.disabled = true;
-    result.style.display = 'none';
-  });
-
-  submit.addEventListener('click', async function() {
-    if (!hasStroke) return;
-    submit.disabled = true;
-    status.textContent = 'Zapisywanie…';
-
-    const sigData = canvas.toDataURL('image/png');
-    const csrf    = <?= json_encode(csrf_token()) ?>;
-
-    try {
-      const res = await fetch('sign.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pfron_id: <?= $pfron_id ?>, signature_data: sigData, _csrf: csrf }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        result.className = 'sign-result ok';
-        resContent.innerHTML =
-          '<div>Numer dokumentu:</div>' +
-          '<div class="doc-num">' + data.doc_number + '</div>' +
-          '<div style="font-size:12px;color:#555;margin-top:4px">Umowa zarejestrowana — możesz teraz wydrukować dokument.</div>';
-        result.style.display = 'block';
-        status.textContent = '';
-        // Wstaw numer w nagłówku dokumentu
-        document.querySelectorAll('.pfron-doc-number').forEach(el => el.textContent = data.doc_number);
-      } else {
-        result.className = 'sign-result err';
-        resContent.textContent = 'Błąd: ' + (data.error || 'nieznany');
-        result.style.display = 'block';
-        submit.disabled = false;
-        status.textContent = '';
+      function resizeCanvas() {
+        const r = canvas.getBoundingClientRect();
+        canvas.width  = r.width  * devicePixelRatio;
+        canvas.height = r.height * devicePixelRatio;
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+        ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       }
-    } catch(e) {
-      result.className = 'sign-result err';
-      resContent.textContent = 'Błąd sieci: ' + e.message;
-      result.style.display = 'block';
-      submit.disabled = false;
-      status.textContent = '';
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      let drawing = false, hasStroke = false;
+      function pos(e) {
+        const r = canvas.getBoundingClientRect();
+        const s = e.touches ? e.touches[0] : e;
+        return { x: s.clientX - r.left, y: s.clientY - r.top };
+      }
+      function startDraw(e) { e.preventDefault(); drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+      function draw(e)      { if(!drawing)return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); hasStroke=true; submit.disabled=false; }
+      function stopDraw()   { drawing=false; }
+      canvas.addEventListener('mousedown',  startDraw);
+      canvas.addEventListener('mousemove',  draw);
+      canvas.addEventListener('mouseup',    stopDraw);
+      canvas.addEventListener('mouseleave', stopDraw);
+      canvas.addEventListener('touchstart', startDraw, {passive:false});
+      canvas.addEventListener('touchmove',  draw,      {passive:false});
+      canvas.addEventListener('touchend',   stopDraw);
+
+      clear.addEventListener('click', function() {
+        ctx.clearRect(0,0,canvas.width/devicePixelRatio,canvas.height/devicePixelRatio);
+        hasStroke=false; submit.disabled=true; result.style.display='none';
+      });
+
+      submit.addEventListener('click', async function() {
+        if (!hasStroke) return;
+        submit.disabled = true; status.textContent = 'Zapisywanie…';
+        const sig  = canvas.toDataURL('image/png');
+        const csrf = <?= json_encode(csrf_token()) ?>;
+        try {
+          const res  = await fetch('sign.php', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({pfron_id:<?= $pfron_id ?>, signature_data:sig, _csrf:csrf}),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            result.className = 'alert alert-success';
+            result.innerHTML = 'Numer dokumentu: <strong class="font-monospace">' + data.doc_number + '</strong>';
+            result.style.display = 'block';
+            status.textContent = '';
+            // Pokaż przycisk PDF
+            const btnPdf = document.getElementById('btn-pdf-umowa');
+            if (btnPdf) btnPdf.style.display = '';
+            submit.closest('.card').querySelector('p').textContent = 'Podpis zapisany. Pobierz PDF poniżej.';
+          } else {
+            result.className = 'alert alert-danger';
+            result.textContent = 'Błąd: ' + (data.error || 'nieznany');
+            result.style.display = 'block';
+            submit.disabled = false; status.textContent = '';
+          }
+        } catch(e) {
+          result.className = 'alert alert-danger';
+          result.textContent = 'Błąd sieci: ' + e.message;
+          result.style.display = 'block';
+          submit.disabled = false; status.textContent = '';
+        }
+      });
+    })();
+    </script>
+    <?php
+    include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php';
+    exit;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENEROWANIE PDF przez mPDF
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Zbierz podpis jeśli istnieje
+$sig_img_html = '';
+if ($pfron_id && $existing_doc_number) {
+    $pfrow2 = db_one("SELECT signature_data FROM k30_pfron_contracts WHERE id=?", [$pfron_id]);
+    $sig_b64 = $pfrow2['signature_data'] ?? '';
+    if ($sig_b64) {
+        $sig_img_html = '<img src="' . htmlspecialchars($sig_b64, ENT_QUOTES) . '" style="max-width:180px;max-height:60px;display:block">';
     }
-  });
-  <?php endif; ?>
-})();
-</script>
-</body>
-</html>
+}
+
+$doc_number_line = $existing_doc_number
+    ? '<p style="text-align:right;font-size:10pt;margin:0 0 4pt">Nr dokumentu: <strong>' . htmlspecialchars($existing_doc_number, ENT_QUOTES) . '</strong></p>'
+    : '';
+
+// ── HTML umowy ──────────────────────────────────────────────────────────────
+function html_umowa(array $v): string {
+    extract($v);
+    ob_start(); ?>
+<h1 style="font-size:13pt;font-weight:bold;text-align:center;text-transform:uppercase;margin:0 0 2pt;line-height:1.4">Umowa uczestnictwa w szkoleniu indywidualnym<br>finansowanym ze środków PFRON</h1>
+<?= $doc_number_line ?>
+<p style="text-align:center;margin:0 0 14pt">zawarta w dniu <strong><?= $c_date ?></strong> w Nowym Sączu pomiędzy:</p>
+
+<p style="margin:0 0 6pt"><strong>Fundacją Edukacji Empatii Rozwoju FEER</strong> z siedzibą w Nowym Sączu (adres: ul. Barbackiego 28/18, 33-300 Nowy Sącz), wpisaną do rejestru stowarzyszeń KRS pod numerem 000779281, NIP: 7343570539, reprezentowaną przez: Ziemowita Gila – Prezesa Zarządu; zwaną dalej <strong>„Fundacją"</strong>,</p>
+<p style="text-align:center;font-weight:bold;margin:6pt 0">a</p>
+<p style="margin:0 0 14pt">Panem/Panią <strong><?= blank_pdf($name) ?></strong><br>PESEL: <?= blank_pdf($pesel) ?><br>adres <?= blank_pdf($address) ?><br>telefon <?= blank_pdf($phone) ?><br>e-mail <?= blank_pdf($email) ?><br>zwanym/-ą dalej <strong>„Uczestnikiem"</strong>.</p>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 1. Przedmiot umowy</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Przedmiotem niniejszej umowy jest określenie zasad uczestnictwa Uczestnika w indywidualnym szkoleniu finansowanym ze środków Państwowego Funduszu Rehabilitacji Osób Niepełnosprawnych (PFRON), realizowanym za pośrednictwem właściwego MOPS lub innej jednostki uprawnionej – umowa główna [skierowanie] z dnia <?= blank_pdf($mc_date, '..................') ?> - znak sprawy: <?= blank_pdf($mc_sign, '..................') ?></li>
+  <li>Szkolenie obejmuje łącznie <strong><?= $h_total ?> godzin dydaktycznych</strong>.</li>
+  <li>Szkolenie realizowane będzie zgodnie z indywidualnie ustalanym harmonogramem.</li>
+  <li>Integralną część niniejszej umowy stanowi Regulamin uczestnictwa w szkoleniach Fundacji.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 2. Oświadczenia Uczestnika</h3>
+<p style="margin:0 0 4pt">Uczestnik oświadcza, że:</p>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>został poinformowany o zasadach finansowania szkolenia;</li>
+  <li>wie, że środki publiczne przekazywane są Fundacji przed zakończeniem szkolenia;</li>
+  <li>ma świadomość, że Fundacja rezerwuje dla niego czas pracy trenera kosztem innych osób oczekujących na wsparcie;</li>
+  <li>rozumie, że nieuzasadnione odwoływanie zajęć może skutkować obowiązkiem zwrotu środków publicznych;</li>
+  <li>zobowiązuje się współdziałać z Fundacją w sposób umożliwiający prawidłowe wykonanie szkolenia.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 3. Obowiązki Fundacji</h3>
+<p style="margin:0 0 4pt">Fundacja zobowiązuje się do:</p>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>przeprowadzenia <strong><?= $h_training ?> godzin</strong> szkolenia;</li>
+  <li>zapewnienia wykwalifikowanego trenera;</li>
+  <li>pozostawania w gotowości do realizacji szkolenia przez okres jego trwania;</li>
+  <li>ustalania terminów zajęć z uwzględnieniem możliwości Uczestnika;</li>
+  <li>prowadzenia dokumentacji wymaganej przez instytucję finansującą.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 4. Obowiązki Uczestnika</h3>
+<p style="margin:0 0 4pt">Uczestnik zobowiązuje się do:</p>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>uczestnictwa we wszystkich zaplanowanych zajęciach;</li>
+  <li>aktywnego współdziałania z Fundacją w realizacji szkolenia;</li>
+  <li>punktualnego rozpoczynania zajęć;</li>
+  <li>niezwłocznego informowania o okolicznościach uniemożliwiających realizację szkolenia;</li>
+  <li>ukończenia szkolenia w terminie nie dłuższym niż 3 miesiące od pierwszych zajęć, chyba że Fundacja wyrazi zgodę na przedłużenie.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 5. Okres próbny</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>W ciągu pierwszych <?= $h_trial ?> godzin szkolenia Uczestnik może zrezygnować bez podawania przyczyny i może zgłosić potrzebę zmiany trenera.</li>
+  <li>Po upływie <?= $h_trial ?> godzin strony uznają, że zaakceptowały sposób realizacji i zobowiązują się do ukończenia szkolenia w całości.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 6. Zmiana terminów</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Uczestnik może dokonać zmiany terminu maksymalnie pięć razy w całym okresie szkolenia.</li>
+  <li>Zmiana terminu wymaga zgłoszenia najpóźniej 48 godzin przed rozpoczęciem zajęć.</li>
+  <li>Zgłoszenie dokonane po upływie tego terminu traktowane jest jako odwołanie zajęć z przyczyn leżących po stronie Uczestnika.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 7. Kara umowna</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Uczestnik przyjmuje do wiadomości, że Fundacja rezerwuje czas pracy trenera <strong>wyłącznie na rzecz danego Uczestnika</strong> – co wiąże się z kosztami transportu oraz czasem pracy trenera.</li>
+  <li>Rezerwacja uniemożliwia realizację szkolenia innych beneficjentów niezależnie od tego, czy szkolenie zostanie przeprowadzone.</li>
+  <li>W przypadku niewykonania lub nienależytego wykonania obowiązków z przyczyn leżących wyłącznie po stronie Uczestnika, Fundacja jest uprawniona do naliczenia kary umownej.</li>
+  <li>Kara umowna wynosi <strong><?= htmlspecialchars($penalty_amt, ENT_QUOTES) ?> zł (słownie: <?= htmlspecialchars($penalty_wrd, ENT_QUOTES) ?> złotych)</strong> za każdą niezrealizowaną godzinę.</li>
+  <li>Kara nie jest naliczana w przypadku nagłej choroby, hospitalizacji, wypadku, śmierci osoby najbliższej lub innych nadzwyczajnych zdarzeń losowych.</li>
+  <li>Łączna wysokość kar nie może przekroczyć wartości odpowiadającej liczbie godzin niezrealizowanych z winy Uczestnika.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 8. Rozwiązanie umowy</h3>
+<p style="margin:0 0 4pt">Fundacja może rozwiązać umowę ze skutkiem natychmiastowym w przypadku: dwukrotnego nieusprawiedliwionego niestawienia się, uporczywego przekładania terminów, odmowy współpracy, naruszenia Regulaminu lub zachowania uniemożliwiającego prowadzenie szkolenia.</p>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 9. Informowanie instytucji finansujących</h3>
+<p style="margin:0 0 8pt">Uczestnik przyjmuje do wiadomości, że w przypadku przerwania lub niewykonania umowy Fundacja może przekazać właściwemu MOPS, PFRON lub innemu podmiotowi finansującemu informacje dotyczące przebiegu realizacji szkolenia w zakresie wymaganym przepisami prawa.</p>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 10. Przetwarzanie danych</h3>
+<p style="margin:0 0 4pt">Zgodnie z art. 13 RODO Fundacja informuje, że administratorem danych osobowych jest Fundacja Edukacji Empatii Rozwoju FEER (ul. Barbackiego 28/18, 33-300 Nowy Sącz, KRS 000779281, NIP 7343570539, kontakt@feer.org.pl). Dane przetwarzane są na podstawie art. 6 ust. 1 lit. b i c RODO w celu realizacji umowy i wypełniania obowiązków prawnych. Uczestnikowi przysługują prawa dostępu, sprostowania, usunięcia i ograniczenia przetwarzania danych oraz skarga do Prezesa UODO (ul. Stawki 2, 00-193 Warszawa). Dane mogą być przekazywane podmiotom finansującym (MOPS/PFRON) oraz podmiotom współpracującym z Fundacją.</p>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 11. Postanowienia końcowe</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>W sprawach nieuregulowanych zastosowanie mają przepisy Kodeksu cywilnego.</li>
+  <li>Wszelkie zmiany umowy wymagają formy pisemnej pod rygorem nieważności.</li>
+  <li>Spory strony będą starały się rozwiązać polubownie, a gdy niemożliwe – właściwy sąd powszechny ze względu na miejsce wykonania umowy.</li>
+  <li>Umowę sporządzono w dwóch jednobrzmiących egzemplarzach, po jednym dla każdej ze Stron.</li>
+</ol>
+
+<br><br>
+<table style="width:100%;border:none">
+  <tr>
+    <td style="width:44%;text-align:center;border:none">
+      <br><br><br>
+      <?= $sig_img_html ? '<div style="text-align:center">' . $sig_img_html . '</div>' : '<br>' ?>
+      <div style="border-top:1px solid #000;padding-top:3pt;font-size:10pt">Fundacja</div>
+    </td>
+    <td style="width:12%;border:none"></td>
+    <td style="width:44%;text-align:center;border:none">
+      <br><br><br><br>
+      <div style="border-top:1px solid #000;padding-top:3pt;font-size:10pt">Uczestnik</div>
+    </td>
+  </tr>
+</table>
+
+<p style="margin-top:16pt;font-size:10pt"><strong>Załącznik:</strong> Regulamin uczestnictwa w szkoleniach Fundacji</p>
+    <?php
+    return ob_get_clean();
+}
+
+// ── HTML regulaminu ─────────────────────────────────────────────────────────
+function html_regulamin(int $h_training): string {
+    ob_start(); ?>
+<h1 style="font-size:13pt;font-weight:bold;text-align:center;text-transform:uppercase;margin:0 0 4pt;line-height:1.4">Regulamin uczestnictwa w indywidualnych szkoleniach<br>w Fundacji Edukacji Empatii Rozwoju „FEER"<br>finansowanych ze środków publicznych</h1>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 1. Postanowienia ogólne</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Niniejszy Regulamin określa zasady uczestnictwa w indywidualnych szkoleniach organizowanych przez Fundację Edukacji Empatii Rozwoju „FEER", finansowanych ze środków publicznych (PFRON lub innych funduszy celowych), przekazywanych za pośrednictwem właściwego organu.</li>
+  <li>Regulamin stanowi integralny załącznik do Umowy uczestnictwa w indywidualnym szkoleniu finansowanym ze środków publicznych.</li>
+  <li>Podpisanie Umowy oznacza potwierdzenie zapoznania się z Regulaminem i zobowiązanie do jego przestrzegania.</li>
+  <li>Celem Regulaminu jest określenie praw i obowiązków stron, zapewnienie sprawnej organizacji szkoleń oraz właściwego wykorzystania środków publicznych.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 2. Definicje</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li><strong>Fundacja</strong> – Fundacja Edukacji Empatii Rozwoju „FEER".</li>
+  <li><strong>Uczestnik</strong> – osoba zakwalifikowana do udziału w szkoleniu finansowanym ze środków publicznych.</li>
+  <li><strong>Szkolenie</strong> – indywidualny proces edukacyjny o określonej liczbie godzin, realizowany zgodnie z zakresem zaakceptowanym przez instytucję finansującą.</li>
+  <li><strong>Trener</strong> – osoba prowadząca szkolenie w imieniu Fundacji.</li>
+  <li><strong>Umowa</strong> – Umowa uczestnictwa w indywidualnym szkoleniu finansowanym ze środków publicznych.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 3. Charakter szkolenia</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Szkolenia mają charakter indywidualny i są przygotowywane z uwzględnieniem potrzeb konkretnego Uczestnika. Koszt pokrywany jest przez podmiot publiczny po zaakceptowaniu przez instytucję finansującą.</li>
+  <li>Z chwilą potwierdzenia realizacji Fundacja zobowiązuje się do zapewnienia wykwalifikowanego trenera, przygotowania programu, rezerwacji czasu pracy trenera, zapewnienia warunków organizacyjnych i prowadzenia dokumentacji.</li>
+  <li>Każdy ustalony termin oznacza zarezerwowanie czasu pracy trenera wyłącznie dla jednego Uczestnika.</li>
+  <li>Program szkolenia może być modyfikowany w trakcie realizacji przy zachowaniu celu i zakresu szkolenia.</li>
+  <li>Fundacja dobiera metody z uwzględnieniem rodzaju niepełnosprawności i indywidualnych potrzeb Uczestnika.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 4. Zasada współdziałania</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Fundacja i Uczestnik wykonują swoje obowiązki w sposób lojalny, z poszanowaniem czasu i uzasadnionych interesów drugiej strony.</li>
+  <li>Fundacja realizuje szkolenie z należytą starannością.</li>
+  <li>Uczestnik współdziała z Fundacją: terminowo uczestniczy w zajęciach, punktualnie je rozpoczyna, pozostaje w kontakcie, informuje o przeszkodach i wykonuje zalecenia organizacyjne.</li>
+  <li>Niewykonanie szkolenia z przyczyn leżących po stronie Uczestnika może skutkować koniecznością dokonania korekt rozliczeń lub zwrotu dofinansowania.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 5. Organizacja szkolenia</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Szkolenie obejmuje <strong><?= $h_training ?> godzin dydaktycznych</strong> i co do zasady powinno zostać zakończone w terminie 3 miesięcy od dnia pierwszych zajęć.</li>
+  <li>Harmonogram ustalany jest indywidualnie pomiędzy Fundacją a Uczestnikiem.</li>
+  <li>W trakcie szkolenia Fundacja może udostępniać sprzęt, pomoce dydaktyczne i materiały szkoleniowe.</li>
+  <li>Uczestnik korzysta ze sprzętu zgodnie z jego przeznaczeniem i nie może instalować oprogramowania ani zmieniać konfiguracji bez zgody Fundacji.</li>
+  <li>Materiały szkoleniowe przeznaczone są wyłącznie do użytku Uczestnika i nie mogą być udostępniane osobom trzecim bez zgody Fundacji.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 6. Znaczenie ustalonego terminu</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Ustalenie terminu oznacza rezerwację czasu pracy trenera, zabezpieczenie miejsca, przygotowanie materiałów i gotowość do wykonania szkolenia.</li>
+  <li>Zarezerwowanego czasu nie można przeznaczyć dla innego Uczestnika bez odpowiednio wcześniejszej informacji.</li>
+  <li>Każde nieodwołane spotkanie powoduje niewykorzystanie czasu trenera i ogranicza możliwość wsparcia innych beneficjentów.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 7. Okres adaptacyjny</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Pierwsze 3 godziny stanowią okres adaptacyjny — Uczestnik może w tym czasie zrezygnować bez podawania przyczyny lub zgłosić zastrzeżenia do trenera.</li>
+  <li>Po zakończeniu okresu adaptacyjnego strony zobowiązują się do ukończenia szkolenia w całości.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 8. Zmiana terminów</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Zmiana wymaga zgłoszenia nie później niż 48 godzin przed zajęciami i potwierdzenia przez Fundację.</li>
+  <li>Uczestnik może zmienić termin maksymalnie pięć razy w całym szkoleniu.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 9. Nieobecności</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Usprawiedliwiona nieobecność: nagła choroba, hospitalizacja, wypadek, zdarzenie losowe lub inna okoliczność niezależna od Uczestnika.</li>
+  <li>Nieobecność powinna być zgłoszona niezwłocznie. Fundacja może żądać dokumentu potwierdzającego przyczynę.</li>
+  <li>Nieobecność bez powiadomienia lub bez uzasadnienia traktowana jest jako nieusprawiedliwiona i może skutkować karą umowną.</li>
+</ol>
+
+<h3 style="font-size:11pt;font-weight:bold;text-align:center;margin:14pt 0 2pt">§ 10. Postanowienia końcowe</h3>
+<ol style="margin:4pt 0;padding-left:1.6em">
+  <li>Regulamin wchodzi w życie z dniem podpisania Umowy.</li>
+  <li>Fundacja zastrzega prawo zmiany Regulaminu z co najmniej 7-dniowym wyprzedzeniem.</li>
+  <li>W sprawach nieuregulowanych zastosowanie mają przepisy Kodeksu cywilnego.</li>
+</ol>
+
+<br><br>
+<table style="width:100%;border:none">
+  <tr>
+    <td style="width:44%;text-align:center;border:none"><br><br><br><div style="border-top:1px solid #000;padding-top:3pt;font-size:10pt">Fundacja</div></td>
+    <td style="width:12%;border:none"></td>
+    <td style="width:44%;text-align:center;border:none"><br><br><br><div style="border-top:1px solid #000;padding-top:3pt;font-size:10pt">Uczestnik – potwierdzam zapoznanie się z Regulaminem</div></td>
+  </tr>
+</table>
+    <?php
+    return ob_get_clean();
+}
+
+// ── Złóż HTML i wygeneruj PDF ───────────────────────────────────────────────
+$v = compact('c_date','pfron_no','mc_date','mc_sign','h_total','h_training','h_trial',
+             'penalty_amt','penalty_wrd','name','pesel','address','phone','email',
+             'doc_number_line','sig_img_html');
+
+$body_html = '';
+if ($type === 'umowa') {
+    $body_html = html_umowa($v);
+    $body_html .= '<pagebreak />';
+    $body_html .= html_regulamin($h_training);
+} else {
+    $body_html = html_regulamin($h_training);
+}
+
+$base_css = '
+body { font-family: "DejaVu Serif", serif; font-size: 11pt; line-height: 1.55; color: #000; }
+ol   { margin: 4pt 0; padding-left: 1.6em; }
+ol li{ margin-bottom: 2pt; }
+table { border-collapse: collapse; }
+td   { vertical-align: top; }
+';
+
+try {
+    $mpdf = new \Mpdf\Mpdf([
+        'mode'          => 'utf-8',
+        'format'        => 'A4',
+        'margin_left'   => 25,
+        'margin_right'  => 20,
+        'margin_top'    => 20,
+        'margin_bottom' => 18,
+        'margin_header' => 0,
+        'margin_footer' => 0,
+        'default_font'  => 'dejavuserif',
+    ]);
+    $mpdf->SetTitle($type === 'umowa' ? 'Umowa PFRON' : 'Regulamin PFRON');
+    $mpdf->SetAuthor('FEER');
+    $mpdf->SetCreator('FEER SZO');
+    $mpdf->WriteHTML($base_css, \Mpdf\HTMLParserMode::HEADER_CSS);
+    $mpdf->WriteHTML($body_html, \Mpdf\HTMLParserMode::HTML_BODY);
+
+    $filename = $type === 'umowa'
+        ? 'PFRON-umowa' . ($existing_doc_number ? '-' . str_replace('/', '_', $existing_doc_number) : '') . '.pdf'
+        : 'PFRON-regulamin.pdf';
+
+    $mpdf->Output($filename, \Mpdf\Output\Destination::DOWNLOAD);
+} catch (\Throwable $e) {
+    http_response_code(500);
+    echo '<p style="font-family:sans-serif;color:red;padding:2rem">Błąd generowania PDF: ' . htmlspecialchars($e->getMessage()) . '</p>';
+}
