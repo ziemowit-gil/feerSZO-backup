@@ -177,6 +177,10 @@ function karty30_migrate(): void {
     // Liczba godzin szkolenia wg umowy (domyślnie 30 total / 25 właściwych)
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_total    INTEGER NOT NULL DEFAULT 30"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_training INTEGER NOT NULL DEFAULT 25"); } catch (\Throwable $e) {}
+    // Numer dokumentu umowy (PFRON-AS/xx/yyyy), podpis i data podpisania
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN doc_number     TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_at      DATETIME"); }                  catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signature_data TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     // Kolumny trybu rozliczenia i PFRON na terminie
     foreach ([
         "ALTER TABLE k30_schedules ADD COLUMN billing_type      TEXT NOT NULL DEFAULT 'free'",
@@ -1465,6 +1469,22 @@ function k30_pfron_contracts_for_client(int $client_id): array {
 
 function k30_pfron_contract_get(int $id): ?array {
     return db_one("SELECT * FROM k30_pfron_contracts WHERE id=?", [$id]) ?: null;
+}
+
+/**
+ * Generuje kolejny numer dokumentu umowy PFRON w formacie PFRON-AS/xx/yyyy.
+ * Blokuje wiersz i liczy istniejące numery w danym roku, żeby uniknąć duplikatów.
+ */
+function k30_pfron_next_doc_number(int $year = 0): string {
+    if (!$year) $year = (int)date('Y');
+    $prefix = "PFRON-AS/%/$year";
+    $row = db_one(
+        "SELECT COUNT(*) AS cnt FROM k30_pfron_contracts
+         WHERE doc_number LIKE ? AND doc_number != ''",
+        ["PFRON-AS/%/$year"]
+    );
+    $seq = (int)($row['cnt'] ?? 0) + 1;
+    return sprintf('PFRON-AS/%02d/%d', $seq, $year);
 }
 
 function k30_pfron_contract_save(array $data, ?int $id = null): int {

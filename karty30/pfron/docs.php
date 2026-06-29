@@ -50,6 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $_SESSION['k30_pfron_doc_draft'] = [
+            'pfron_id'           => (int)($_POST['pfron_id']          ?? 0),
+            'client_id'          => (int)($_POST['client_id']         ?? 0),
             'client_name'        => trim($_POST['client_name']        ?? ''),
             'pesel'              => trim($_POST['pesel']               ?? ''),
             'address'            => trim($_POST['address']             ?? ''),

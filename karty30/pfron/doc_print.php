@@ -36,6 +36,7 @@ function blank(string $v, string $placeholder = '...............................
     return $v !== '' ? h($v) : '<span class="blank">' . h($placeholder) . '</span>';
 }
 
+$pfron_id    = (int)($d['pfron_id']         ?? 0);
 $name        = $d['client_name']        ?? '';
 $pesel       = $d['pesel']              ?? '';
 $address     = $d['address']            ?? '';
@@ -51,6 +52,15 @@ $h_trial     = 3;
 $penalty_amt = $d['penalty_amount']     ?? '100,00';
 $penalty_wrd = $d['penalty_words']      ?? 'sto';
 $org         = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju FEER';
+
+// Sprawdź czy umowa ma już nadany numer (podpisana wcześniej)
+$existing_doc_number = '';
+$existing_signed_at  = '';
+if ($pfron_id) {
+    $pfrow = db_one("SELECT doc_number, signed_at FROM k30_pfron_contracts WHERE id=?", [$pfron_id]);
+    $existing_doc_number = $pfrow['doc_number'] ?? '';
+    $existing_signed_at  = $pfrow['signed_at']  ?? '';
+}
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -139,10 +149,33 @@ $org         = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwo
   }
   @media print {
     .print-bar { display: none !important; }
+    .sign-panel { display: none !important; }
     body { padding: 0; background: #fff; }
     .page { margin: 0; box-shadow: none; padding: 20mm 20mm 15mm 25mm; width: 100%; }
     .page-break { page-break-after: always; }
   }
+  /* Panel podpisu */
+  .sign-panel {
+    width: 210mm; margin: 0 auto 24px; background: #fff;
+    border: 2px solid #1e3a5f; border-radius: 8px;
+    padding: 20px 24px; font-family: sans-serif;
+  }
+  .sign-panel h2 { font-size: 15px; font-weight: 700; color: #1e3a5f; margin: 0 0 6px; }
+  .sign-panel p  { font-size: 12px; color: #555; margin: 0 0 12px; }
+  #sig-canvas {
+    width: 100%; height: 160px; border: 1px solid #ccc; border-radius: 4px;
+    cursor: crosshair; touch-action: none; background: #fafafa; display: block;
+  }
+  .sign-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .sign-btn { padding: 7px 18px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .sign-btn-primary { background: #e53935; color: #fff; }
+  .sign-btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+  .sign-btn-secondary { background: #eee; color: #333; }
+  .sign-result { display: none; margin-top: 12px; padding: 12px 16px; border-radius: 6px; }
+  .sign-result.ok  { background: #e8f5e9; border: 1px solid #81c784; }
+  .sign-result.err { background: #ffebee; border: 1px solid #e57373; }
+  .sign-result .doc-num { font-size: 18px; font-weight: 700; color: #1b5e20; letter-spacing: .5px; }
+  #sig-hint { font-size: 11px; color: #888; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -161,6 +194,11 @@ $org         = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwo
 <div class="page">
 
   <h1 class="doc-title">Umowa uczestnictwa w szkoleniu indywidualnym<br>finansowanym ze środków PFRON</h1>
+  <?php if ($existing_doc_number || $pfron_id): ?>
+  <p style="text-align:right;font-size:10pt;margin:0 0 4pt">
+    Nr dokumentu: <strong class="pfron-doc-number"><?= h($existing_doc_number) ?></strong>
+  </p>
+  <?php endif; ?>
   <p class="doc-city">zawarta w dniu <strong><?= $c_date ?></strong> w Nowym Sączu pomiędzy:</p>
 
   <div class="parties">
@@ -532,11 +570,143 @@ $org         = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwo
 </div><!-- /page regulamin -->
 <?php endif; /* regulamin */  ?>
 
+<?php if ($type === 'umowa'): ?>
+<!-- ═══ PANEL PODPISU (tylko ekran) ═══════════════════════════════════════ -->
+<div class="sign-panel" id="sign-panel" aria-label="Panel podpisu umowy">
+
+  <?php if ($existing_doc_number): ?>
+  <!-- Umowa już podpisana -->
+  <h2><i class="bi bi-patch-check-fill" style="color:#2e7d32"></i> Umowa już zarejestrowana</h2>
+  <div class="sign-result ok" style="display:block">
+    <div>Numer dokumentu:</div>
+    <div class="doc-num"><?= h($existing_doc_number) ?></div>
+    <div style="font-size:12px;color:#555;margin-top:4px">
+      Podpisano: <?= $existing_signed_at ? date('d.m.Y H:i', strtotime($existing_signed_at)) : '—' ?>
+    </div>
+  </div>
+
+  <?php else: ?>
+  <!-- Formularz podpisu -->
+  <h2>Podpisz umowę i nadaj numer</h2>
+  <p>Uczestnik składa podpis odręczny poniżej. Po zatwierdzeniu umowie zostanie automatycznie nadany numer <strong>PFRON-AS/xx/<?= date('Y') ?></strong>.</p>
+
+  <canvas id="sig-canvas" role="img" aria-label="Pole podpisu odręcznego"></canvas>
+  <div id="sig-hint">Podpisz myszką, rysikiem lub palcem w powyższym polu.</div>
+
+  <div class="sign-actions">
+    <button class="sign-btn sign-btn-primary" id="sig-submit" disabled>
+      ✔ Zatwierdź podpis i zarejestruj umowę
+    </button>
+    <button class="sign-btn sign-btn-secondary" id="sig-clear">Wyczyść</button>
+    <span id="sig-status" style="font-size:12px;color:#555"></span>
+  </div>
+
+  <div class="sign-result" id="sign-result">
+    <div id="sign-result-content"></div>
+  </div>
+  <?php endif; ?>
+
+</div>
+<?php endif; ?>
+
 <script>
-window.addEventListener('load', function() {
-  // Automatycznie otwórz dialog druku po załadowaniu
-  setTimeout(function() { window.print(); }, 400);
-});
+(function() {
+  // ── Automatyczny druk ───────────────────────────────────────────────────
+  window.addEventListener('load', function() {
+    setTimeout(function() { window.print(); }, 400);
+  });
+
+  <?php if ($type === 'umowa' && !$existing_doc_number && $pfron_id): ?>
+  // ── Podpis odręczny ────────────────────────────────────────────────────
+  const canvas  = document.getElementById('sig-canvas');
+  const ctx     = canvas.getContext('2d');
+  const submit  = document.getElementById('sig-submit');
+  const clear   = document.getElementById('sig-clear');
+  const status  = document.getElementById('sig-status');
+  const result  = document.getElementById('sign-result');
+  const resContent = document.getElementById('sign-result-content');
+
+  // Ustaw rozmiar fizyczny canvas względem CSS
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = rect.width  * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+  }
+  resizeCanvas();
+
+  let drawing = false, hasStroke = false;
+
+  function pos(e) {
+    const r  = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  }
+  function startDraw(e) { e.preventDefault(); drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
+  function draw(e)      { if (!drawing) return; e.preventDefault(); const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); hasStroke = true; submit.disabled = false; }
+  function stopDraw()   { drawing = false; }
+
+  canvas.addEventListener('mousedown',  startDraw);
+  canvas.addEventListener('mousemove',  draw);
+  canvas.addEventListener('mouseup',    stopDraw);
+  canvas.addEventListener('mouseleave', stopDraw);
+  canvas.addEventListener('touchstart', startDraw, { passive: false });
+  canvas.addEventListener('touchmove',  draw,      { passive: false });
+  canvas.addEventListener('touchend',   stopDraw);
+
+  clear.addEventListener('click', function() {
+    ctx.clearRect(0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+    hasStroke = false;
+    submit.disabled = true;
+    result.style.display = 'none';
+  });
+
+  submit.addEventListener('click', async function() {
+    if (!hasStroke) return;
+    submit.disabled = true;
+    status.textContent = 'Zapisywanie…';
+
+    const sigData = canvas.toDataURL('image/png');
+    const csrf    = <?= json_encode(csrf_token()) ?>;
+
+    try {
+      const res = await fetch('sign.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pfron_id: <?= $pfron_id ?>, signature_data: sigData, _csrf: csrf }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        result.className = 'sign-result ok';
+        resContent.innerHTML =
+          '<div>Numer dokumentu:</div>' +
+          '<div class="doc-num">' + data.doc_number + '</div>' +
+          '<div style="font-size:12px;color:#555;margin-top:4px">Umowa zarejestrowana — możesz teraz wydrukować dokument.</div>';
+        result.style.display = 'block';
+        status.textContent = '';
+        // Wstaw numer w nagłówku dokumentu
+        document.querySelectorAll('.pfron-doc-number').forEach(el => el.textContent = data.doc_number);
+      } else {
+        result.className = 'sign-result err';
+        resContent.textContent = 'Błąd: ' + (data.error || 'nieznany');
+        result.style.display = 'block';
+        submit.disabled = false;
+        status.textContent = '';
+      }
+    } catch(e) {
+      result.className = 'sign-result err';
+      resContent.textContent = 'Błąd sieci: ' + e.message;
+      result.style.display = 'block';
+      submit.disabled = false;
+      status.textContent = '';
+    }
+  });
+  <?php endif; ?>
+})();
 </script>
 </body>
 </html>
