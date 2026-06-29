@@ -20,6 +20,8 @@ require_login();
 
 $user     = current_user();
 $is_admin = is_admin();
+$is_ajax  = (($_GET['_ajax'] ?? '') === '1')
+    || (strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest');
 
 /* ── Konfiguracja z tabeli settings ──────────────────────────────────────── */
 function r2tool_cfg(): array {
@@ -159,6 +161,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+/* ── Odpowiedź AJAX (XHR z paskiem postępu) ──────────────────────────────── */
+if ($is_ajax && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['flash' => $flash, 'results' => $upload_res], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 /** Normalizuje podfolder podany przez użytkownika. */
 function r2tool_norm_folder(string $f): string {
     $f = str_replace('\\', '/', trim($f));
@@ -222,6 +231,9 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   <?php endif; ?>
 
+  <div id="r2-flash"></div>
+  <div id="r2-result"></div>
+
   <div class="row g-4">
     <div class="col-lg-7">
       <div class="card">
@@ -233,7 +245,7 @@ include dirname(__DIR__) . '/includes/header.php';
               <?php if ($is_admin): ?>Uzupełnij dane w panelu konfiguracji po prawej.<?php else: ?>Skontaktuj się z administratorem.<?php endif; ?>
             </div>
           <?php else: ?>
-            <form method="post" enctype="multipart/form-data">
+            <form method="post" enctype="multipart/form-data" id="r2-upload-form">
               <?= csrf_field() ?>
               <input type="hidden" name="action" value="upload">
 
@@ -258,7 +270,13 @@ include dirname(__DIR__) . '/includes/header.php';
                 </label>
               </div>
 
-              <button type="submit" class="btn btn-primary">
+              <div class="progress mb-3 d-none" id="r2-progress-wrap" style="height:1.4rem;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                     id="r2-progress-bar" role="progressbar" style="width:0%;"
+                     aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0%</div>
+              </div>
+
+              <button type="submit" class="btn btn-primary" id="r2-submit-btn">
                 <i class="bi bi-cloud-arrow-up me-1"></i>Wyślij do R2
               </button>
             </form>
@@ -363,5 +381,100 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  var form = document.getElementById('r2-upload-form');
+  if (!form || !window.FormData || !window.XMLHttpRequest) return; // fallback: zwykły POST
+
+  var wrap   = document.getElementById('r2-progress-wrap');
+  var bar    = document.getElementById('r2-progress-bar');
+  var btn    = document.getElementById('r2-submit-btn');
+  var flashE = document.getElementById('r2-flash');
+  var resE   = document.getElementById('r2-result');
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+
+  function setProgress(pct) {
+    pct = Math.max(0, Math.min(100, Math.round(pct)));
+    bar.style.width = pct + '%';
+    bar.setAttribute('aria-valuenow', pct);
+    bar.textContent = pct + '%';
+  }
+
+  function renderResults(data) {
+    flashE.innerHTML = '';
+    resE.innerHTML = '';
+    if (data.flash) {
+      flashE.innerHTML = '<div class="alert alert-' + esc(data.flash.type) + '">' +
+        esc(data.flash.msg) + '</div>';
+    }
+    var rows = data.results || [];
+    if (!rows.length) return;
+    var html = '<div class="card mb-4"><div class="card-header">' +
+      '<i class="bi bi-list-check me-1"></i>Wynik wysyłki</div>' +
+      '<ul class="list-group list-group-flush">';
+    rows.forEach(function (r) {
+      var icon = r.ok ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
+      var link = r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" ' +
+        'class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-up-right"></i> Link</a>' : '';
+      html += '<li class="list-group-item d-flex justify-content-between align-items-start">' +
+        '<div class="me-2"><i class="bi ' + icon + ' me-1"></i><strong>' + esc(r.name) + '</strong>' +
+        '<div class="small text-muted">' + esc(r.msg) + '</div></div>' + link + '</li>';
+    });
+    html += '</ul></div>';
+    resE.innerHTML = html;
+  }
+
+  form.addEventListener('submit', function (e) {
+    var fileInput = form.querySelector('input[type=file]');
+    if (!fileInput || !fileInput.files.length) return; // brak plików — pozwól na natywną walidację
+    e.preventDefault();
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', form.getAttribute('action') || (window.location.pathname + '?_ajax=1'));
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+    btn.disabled = true;
+    wrap.classList.remove('d-none');
+    bar.classList.add('progress-bar-animated');
+    setProgress(0);
+    flashE.innerHTML = '';
+    resE.innerHTML = '';
+
+    xhr.upload.addEventListener('progress', function (ev) {
+      if (ev.lengthComputable) setProgress(ev.loaded / ev.total * 100);
+    });
+
+    xhr.addEventListener('load', function () {
+      setProgress(100);
+      bar.classList.remove('progress-bar-animated');
+      btn.disabled = false;
+      var data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300 && data) {
+        renderResults(data);
+        form.reset();
+      } else {
+        flashE.innerHTML = '<div class="alert alert-danger">Błąd wysyłki (HTTP ' +
+          xhr.status + '). Spróbuj ponownie.</div>';
+      }
+      setTimeout(function () { wrap.classList.add('d-none'); setProgress(0); }, 1200);
+    });
+
+    xhr.addEventListener('error', function () {
+      btn.disabled = false;
+      bar.classList.remove('progress-bar-animated');
+      flashE.innerHTML = '<div class="alert alert-danger">Błąd sieci podczas wysyłki.</div>';
+    });
+
+    xhr.send(new FormData(form));
+  });
+})();
+</script>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
