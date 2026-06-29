@@ -378,7 +378,7 @@ if (!$pfron_id && !$client_id) {
         <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="_op"       value="generate">
         <input type="hidden" name="pfron_id"  value="<?= $pfron_id ?>" id="pfron-id-input">
-        <input type="hidden" name="client_id" value="<?= $client_id ?>">
+        <input type="hidden" name="client_id" value="<?= $client_id ?>" id="client-id-input">
         <input type="hidden" name="doc_type"  value="umowa" id="doc-type-input">
 
         <div class="modal-body">
@@ -388,6 +388,25 @@ if (!$pfron_id && !$client_id) {
             <p class="text-body-secondary small mb-3">
               Dane osobowe uczestnika do umowy. Pola wstępnie uzupełnione z karty beneficjenta.
             </p>
+            <?php if (!$client_id): ?>
+            <!-- Wyszukiwarka beneficjenta — gdy brak kontekstu client_id -->
+            <div class="mb-3 position-relative" id="client-search-wrap">
+              <label class="form-label fw-semibold" for="w_client_search">
+                Beneficjent <span class="text-danger" aria-label="wymagane">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+                <input type="text" class="form-control" id="w_client_search"
+                       placeholder="Szukaj po nazwisku lub PESEL…" autocomplete="off">
+              </div>
+              <ul id="client-search-results" class="list-group position-absolute w-100 shadow-sm z-3 mt-1" style="display:none;max-height:220px;overflow-y:auto"></ul>
+              <div id="client-selected-info" class="alert alert-success py-2 small mt-2" style="display:none">
+                <i class="bi bi-person-check me-1"></i>
+                <span id="client-selected-name"></span>
+                <button type="button" class="btn-close btn-close-sm float-end" id="client-deselect" aria-label="Zmień"></button>
+              </div>
+            </div>
+            <?php endif; ?>
             <div class="mb-3">
               <label class="form-label fw-semibold" for="w_name">Imię i nazwisko <span class="text-danger" aria-label="wymagane">*</span></label>
               <input type="text" class="form-control" id="w_name" name="client_name"
@@ -1030,5 +1049,82 @@ if (!$pfron_id && !$client_id) {
   if (<?= $auto_start ?>) { showStep(1); bsModal.show(); }
 })();
 </script>
+
+<?php if (!$client_id): ?>
+<script>
+(function() {
+  const searchInput  = document.getElementById('w_client_search');
+  const resultsList  = document.getElementById('client-search-results');
+  const selectedInfo = document.getElementById('client-selected-info');
+  const selectedName = document.getElementById('client-selected-name');
+  const deselect     = document.getElementById('client-deselect');
+  const clientIdInp  = document.getElementById('client-id-input');
+  const nameInp      = document.getElementById('w_name');
+  const peselInp     = document.getElementById('w_pesel');
+  const addrInp      = document.getElementById('w_address');
+  const phoneInp     = document.getElementById('w_phone');
+  const emailInp     = document.getElementById('w_email');
+
+  if (!searchInput) return;
+
+  let debounce = null;
+
+  searchInput.addEventListener('input', function() {
+    clearTimeout(debounce);
+    const q = this.value.trim();
+    if (q.length < 2) { resultsList.style.display = 'none'; return; }
+    debounce = setTimeout(() => fetchClients(q), 260);
+  });
+
+  async function fetchClients(q) {
+    try {
+      const res  = await fetch('<?= APP_URL ?>/karty30/pfron/client_search.php?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      resultsList.innerHTML = '';
+      if (!data.length) {
+        resultsList.innerHTML = '<li class="list-group-item text-body-secondary small">Brak wyników</li>';
+        resultsList.style.display = 'block';
+        return;
+      }
+      data.forEach(c => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item list-group-item-action py-2 small';
+        li.innerHTML = '<strong>' + c.name + '</strong>'
+          + (c.pesel ? ' <span class="text-body-secondary font-monospace">' + c.pesel + '</span>' : '');
+        li.addEventListener('mousedown', e => { e.preventDefault(); selectClient(c); });
+        resultsList.appendChild(li);
+      });
+      resultsList.style.display = 'block';
+    } catch(e) {}
+  }
+
+  function selectClient(c) {
+    clientIdInp.value  = c.id;
+    nameInp.value      = c.name  || '';
+    peselInp.value     = c.pesel || '';
+    addrInp.value      = c.address || '';
+    phoneInp.value     = c.phone || '';
+    emailInp.value     = c.email || '';
+    searchInput.value  = '';
+    resultsList.style.display = 'none';
+    selectedName.textContent  = c.name;
+    selectedInfo.style.display = 'block';
+    searchInput.closest('.input-group').style.display = 'none';
+  }
+
+  deselect?.addEventListener('click', () => {
+    clientIdInp.value = '0';
+    nameInp.value = peselInp.value = addrInp.value = phoneInp.value = emailInp.value = '';
+    selectedInfo.style.display = 'none';
+    searchInput.closest('.input-group').style.display = '';
+    searchInput.value = '';
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#client-search-wrap')) resultsList.style.display = 'none';
+  });
+})();
+</script>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
