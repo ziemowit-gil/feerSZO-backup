@@ -33,15 +33,16 @@ $c = $id ? cc_get($id) : null;
 if (!$c) { http_response_code(404); exit('Karta konsultacyjna nie istnieje.'); }
 
 $auto_print = !isset($_GET['noprint']);
+$just_saved = isset($_GET['saved']);
 
-echo cc_render_pdf_html($c, $auto_print);
+echo cc_render_pdf_html($c, $auto_print, $just_saved);
 
 /**
  * Zwraca kompletny dokument HTML protokołu konsultacji.
  * Wydzielone do funkcji, aby ten sam markup mógł zasilić generator PDF
  * (Dompdf/mPDF) bez fragmentu auto-druku.
  */
-function cc_render_pdf_html(array $c, bool $auto_print = false): string
+function cc_render_pdf_html(array $c, bool $auto_print = false, bool $just_saved = false): string
 {
     $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
     $area = cc_label(cc_areas(),  $c['area_type']);
@@ -63,9 +64,41 @@ function cc_render_pdf_html(array $c, bool $auto_print = false): string
     $back_label = (function_exists('current_user') && current_user() && !is_viewer())
         ? 'Powrót do listy' : 'Powrót do formularza';
 
+    // Forma zdalna (online / telefonicznie / mailowo) — beneficjent nie podpisuje.
+    $is_remote = in_array($c['form'], ['online', 'telefonicznie', 'mailowo'], true);
+
     $consultant = trim((string)$c['consultant']) !== '' ? h($c['consultant']) : '&nbsp;';
+
+    // Prawa kolumna podpisów: linia dla konsultacji stacjonarnej,
+    // adnotacja o braku podpisu dla konsultacji zdalnej.
+    if ($is_remote) {
+        $beneficiary_col =
+            '<div class="sig">
+               <div class="remote-note">
+                 Konsultacja udzielona zdalnie (' . h($form) . ') —
+                 podpis beneficjenta organizacji nie jest wymagany.
+               </div>
+             </div>';
+    } else {
+        $beneficiary_col =
+            '<div class="sig">
+               <div class="line">
+                 <div class="name">&nbsp;</div>
+                 <div class="role">Podpis przedstawiciela organizacji</div>
+               </div>
+             </div>';
+    }
+
+    // Dopisek o finansowaniu — stała stopka dokumentu.
+    $project_note =
+        'Konsultacja udzielona w ramach projektu „Akademia Dostępności w NGO" '
+      . 'finansowanego ze środków Miasta Krakowa.';
     $print_js = $auto_print
         ? '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},250);});</script>'
+        : '';
+
+    $saved_banner = $just_saved
+        ? '<div class="saved-banner" role="status">Karta zapisana. Dokument zostanie wydrukowany — wybierz „Zapisz jako PDF", aby pobrać plik.</div>'
         : '';
 
     $title = 'Karta konsultacji nr ' . (int)$c['id'];
@@ -97,6 +130,10 @@ function cc_render_pdf_html(array $c, bool $auto_print = false): string
     border:1px solid #cbd5e1; background:#fff; color:#1d4ed8; cursor:pointer; text-decoration:none;
   }
   .toolbar button:focus-visible, .toolbar a:focus-visible { outline:3px solid #1d4ed8; outline-offset:2px; }
+  .saved-banner {
+    max-width:210mm; margin: 10px auto 0; padding:.6rem .9rem; border-radius:8px;
+    background:#ecfdf5; border:1px solid #86efac; color:#166534; font-size:11pt;
+  }
   header.doc { border-bottom:2px solid var(--ink); padding-bottom:10px; margin-bottom:18px; }
   .org { font-size:13pt; font-weight:700; letter-spacing:.2px; }
   h1 { font-size:18pt; margin:6px 0 0; text-transform:uppercase; letter-spacing:.5px; }
@@ -126,11 +163,20 @@ function cc_render_pdf_html(array $c, bool $auto_print = false): string
   }
   .sig .name { font-weight:600; min-height:1.2em; }
   .sig .role { color:var(--muted); font-size:9.5pt; }
-  footer.doc { margin-top: 10mm; border-top:1px solid #d7dde5; padding-top:6px;
+  .sig .remote-note {
+    margin-top: 10mm; padding:10px 12px; border:1px dashed var(--line);
+    border-radius:6px; background:#f8fafc; color:#475569; font-size:9.5pt;
+    line-height:1.4; font-style:italic;
+  }
+  .project-note {
+    margin-top: 10mm; padding:9px 12px; border-left:3px solid var(--ink);
+    background:#f4f6fa; color:#334155; font-size:9.5pt; line-height:1.45;
+  }
+  footer.doc { margin-top: 8mm; border-top:1px solid #d7dde5; padding-top:6px;
     color:var(--muted); font-size:9pt; display:flex; justify-content:space-between; }
   @media print {
     body { background:#fff; }
-    .toolbar { display:none !important; }
+    .toolbar, .saved-banner { display:none !important; }
     .sheet { box-shadow:none; margin:0; width:auto; min-height:auto; padding:0; }
     @page { size: A4; margin: 18mm; }
   }
@@ -141,6 +187,7 @@ function cc_render_pdf_html(array $c, bool $auto_print = false): string
     <button type="button" onclick="window.print()">Drukuj / zapisz jako PDF</button>
     <a href="' . h($back_url) . '">' . h($back_label) . '</a>
   </div>
+  ' . $saved_banner . '
 
   <article class="sheet">
     <header class="doc">
@@ -172,13 +219,10 @@ function cc_render_pdf_html(array $c, bool $auto_print = false): string
           <div class="role">Podpis konsultanta</div>
         </div>
       </div>
-      <div class="sig">
-        <div class="line">
-          <div class="name">&nbsp;</div>
-          <div class="role">Podpis przedstawiciela organizacji</div>
-        </div>
-      </div>
+      ' . $beneficiary_col . '
     </div>
+
+    <div class="project-note">' . h($project_note) . '</div>
 
     <footer class="doc">
       <span>' . h($org) . '</span>
