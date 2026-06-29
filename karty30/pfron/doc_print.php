@@ -31,9 +31,17 @@ function fmt_date(string $s): string {
     if (!$s) return '................................';
     try { return (new DateTime($s))->format('d.m.Y'); } catch (\Throwable $e) { return $s; }
 }
+// Frazy oznaczające świadomy brak danych
+const BLANK_PHRASES = ['nie podano', 'nie posiada', 'brak', '-', '—', 'bd', 'b/d', 'n/d', 'nd'];
+
 function blank_pdf(string $v, string $ph = '................................'): string {
     $v = trim($v);
-    return $v !== '' ? htmlspecialchars($v, ENT_QUOTES) : '<span style="color:#999;font-style:italic">' . $ph . '</span>';
+    if ($v === '') return '<span style="color:#999;font-style:italic">' . $ph . '</span>';
+    // Jeśli użytkownik wpisał frazę "nie podano / nie posiada" — renderuj kursywą
+    if (in_array(mb_strtolower($v), BLANK_PHRASES, true)) {
+        return '<em style="color:#555">' . htmlspecialchars($v, ENT_QUOTES) . '</em>';
+    }
+    return htmlspecialchars($v, ENT_QUOTES);
 }
 
 $pfron_id    = (int)($d['pfron_id']          ?? 0);
@@ -80,15 +88,57 @@ if ($preview) {
       <div class="card-header fw-bold"><i class="bi bi-pen me-1" aria-hidden="true"></i>Podpis uczestnika</div>
       <div class="card-body">
         <p class="small text-body-secondary mb-2">
-          Uczestnik składa podpis odręczny poniżej. Po zatwierdzeniu umowie zostanie automatycznie nadany numer
-          <strong>PFRON-AS/xx/<?= date('Y') ?></strong> i będzie można pobrać PDF.
+          Uczestnik składa podpis odręczny poniżej lub wgraj skan podpisanej umowy.
+          Po zatwierdzeniu umowie zostanie automatycznie nadany numer <strong>PFRON-AS/xx/<?= date('Y') ?></strong>.
         </p>
-        <canvas id="sig-canvas" style="width:100%;height:160px;border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;background:#fafafa;display:block" role="img" aria-label="Pole podpisu odręcznego"></canvas>
-        <div class="d-flex gap-2 mt-2 flex-wrap align-items-center">
+
+        <!-- Zakładki: Odręczny / Skan -->
+        <ul class="nav nav-tabs nav-sm mb-3" id="sig-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-draw-btn" data-bs-toggle="tab" data-bs-target="#tab-draw"
+                    type="button" role="tab" aria-controls="tab-draw" aria-selected="true">
+              <i class="bi bi-pen me-1" aria-hidden="true"></i>Odręczny
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-scan-btn" data-bs-toggle="tab" data-bs-target="#tab-scan"
+                    type="button" role="tab" aria-controls="tab-scan" aria-selected="false">
+              <i class="bi bi-image me-1" aria-hidden="true"></i>Skan / zdjęcie
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          <!-- Podpis odręczny -->
+          <div class="tab-pane fade show active" id="tab-draw" role="tabpanel" aria-labelledby="tab-draw-btn">
+            <canvas id="sig-canvas" style="width:100%;height:160px;border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;background:#fafafa;display:block"
+                    role="img" aria-label="Pole podpisu odręcznego"></canvas>
+            <div class="d-flex gap-2 mt-2 align-items-center flex-wrap">
+              <button class="btn btn-outline-secondary btn-sm" id="sig-clear">Wyczyść</button>
+              <span class="text-body-secondary small">Mysz, rysik lub palec</span>
+            </div>
+          </div>
+
+          <!-- Skan / zdjęcie -->
+          <div class="tab-pane fade" id="tab-scan" role="tabpanel" aria-labelledby="tab-scan-btn">
+            <div class="border rounded p-3 bg-body-secondary text-center">
+              <label for="sig-file" class="d-block mb-2 text-body-secondary small">
+                <i class="bi bi-upload fs-4 d-block mb-1" aria-hidden="true"></i>
+                Wgraj skan lub zdjęcie podpisanej umowy (JPG, PNG, max 4 MB)
+              </label>
+              <input type="file" class="form-control" id="sig-file" accept="image/jpeg,image/png,image/webp">
+            </div>
+            <div id="sig-scan-preview" class="mt-2" style="display:none">
+              <img id="sig-scan-img" style="max-height:140px;max-width:100%;border:1px solid #ccc;border-radius:4px" alt="Podgląd skanu podpisu">
+              <button class="btn btn-outline-secondary btn-sm d-block mt-1" id="sig-scan-clear">Usuń</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-3 flex-wrap align-items-center">
           <button class="btn btn-danger" id="sig-submit" disabled>
             <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zatwierdź podpis i pobierz PDF
           </button>
-          <button class="btn btn-outline-secondary btn-sm" id="sig-clear">Wyczyść</button>
           <span id="sig-status" class="text-body-secondary small"></span>
         </div>
         <div id="sign-result" class="mt-3" style="display:none"></div>
@@ -117,56 +167,100 @@ if ($preview) {
 
     <script>
     (function() {
-      const canvas  = document.getElementById('sig-canvas');
-      if (!canvas) return;
-      const ctx     = canvas.getContext('2d');
-      const submit  = document.getElementById('sig-submit');
-      const clear   = document.getElementById('sig-clear');
-      const status  = document.getElementById('sig-status');
-      const result  = document.getElementById('sign-result');
+      const submit = document.getElementById('sig-submit');
+      const status = document.getElementById('sig-status');
+      const result = document.getElementById('sign-result');
+      if (!submit) return;
+
+      let activeSigData = null;   // aktualne dane podpisu (canvas lub skan)
+      let activeMode    = 'draw'; // 'draw' | 'scan'
+
+      // ── Zakładki ──────────────────────────────────────────────────────────
+      document.getElementById('tab-draw-btn')?.addEventListener('shown.bs.tab', () => { activeMode = 'draw'; checkReady(); });
+      document.getElementById('tab-scan-btn')?.addEventListener('shown.bs.tab', () => { activeMode = 'scan';  checkReady(); });
+
+      function checkReady() {
+        submit.disabled = !activeSigData;
+      }
+
+      // ── Podpis odręczny ───────────────────────────────────────────────────
+      const canvas = document.getElementById('sig-canvas');
+      const ctx    = canvas.getContext('2d');
 
       function resizeCanvas() {
         const r = canvas.getBoundingClientRect();
-        canvas.width  = r.width  * devicePixelRatio;
-        canvas.height = r.height * devicePixelRatio;
-        ctx.scale(devicePixelRatio, devicePixelRatio);
+        const dpr = devicePixelRatio;
+        canvas.width  = r.width  * dpr;
+        canvas.height = r.height * dpr;
+        ctx.scale(dpr, dpr);
         ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       }
       resizeCanvas();
       window.addEventListener('resize', resizeCanvas);
 
-      let drawing = false, hasStroke = false;
+      let drawing = false;
       function pos(e) {
         const r = canvas.getBoundingClientRect();
         const s = e.touches ? e.touches[0] : e;
         return { x: s.clientX - r.left, y: s.clientY - r.top };
       }
-      function startDraw(e) { e.preventDefault(); drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
-      function draw(e)      { if(!drawing)return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); hasStroke=true; submit.disabled=false; }
-      function stopDraw()   { drawing=false; }
-      canvas.addEventListener('mousedown',  startDraw);
-      canvas.addEventListener('mousemove',  draw);
-      canvas.addEventListener('mouseup',    stopDraw);
-      canvas.addEventListener('mouseleave', stopDraw);
-      canvas.addEventListener('touchstart', startDraw, {passive:false});
-      canvas.addEventListener('touchmove',  draw,      {passive:false});
-      canvas.addEventListener('touchend',   stopDraw);
+      canvas.addEventListener('mousedown',  e => { e.preventDefault(); drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); });
+      canvas.addEventListener('mousemove',  e => { if(!drawing)return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); activeSigData='canvas'; checkReady(); });
+      canvas.addEventListener('mouseup',    () => drawing=false);
+      canvas.addEventListener('mouseleave', () => drawing=false);
+      canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }, {passive:false});
+      canvas.addEventListener('touchmove',  e => { if(!drawing)return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); activeSigData='canvas'; checkReady(); }, {passive:false});
+      canvas.addEventListener('touchend',   () => drawing=false);
 
-      clear.addEventListener('click', function() {
-        ctx.clearRect(0,0,canvas.width/devicePixelRatio,canvas.height/devicePixelRatio);
-        hasStroke=false; submit.disabled=true; result.style.display='none';
+      document.getElementById('sig-clear')?.addEventListener('click', () => {
+        ctx.clearRect(0, 0, canvas.width/devicePixelRatio, canvas.height/devicePixelRatio);
+        activeSigData = null; checkReady(); result.style.display='none';
       });
 
+      // ── Upload skanu ──────────────────────────────────────────────────────
+      const fileInput   = document.getElementById('sig-file');
+      const scanPreview = document.getElementById('sig-scan-preview');
+      const scanImg     = document.getElementById('sig-scan-img');
+      let   scanDataUrl = null;
+
+      fileInput?.addEventListener('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) {
+          alert('Plik jest za duży (max 4 MB).'); this.value=''; return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+          scanDataUrl = e.target.result;
+          scanImg.src = scanDataUrl;
+          scanPreview.style.display = 'block';
+          activeSigData = 'scan'; checkReady();
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document.getElementById('sig-scan-clear')?.addEventListener('click', () => {
+        fileInput.value = ''; scanDataUrl = null;
+        scanPreview.style.display = 'none';
+        activeSigData = null; checkReady();
+      });
+
+      // ── Wysyłanie ─────────────────────────────────────────────────────────
       submit.addEventListener('click', async function() {
-        if (!hasStroke) return;
+        if (!activeSigData) return;
         submit.disabled = true; status.textContent = 'Zapisywanie…';
-        const sig  = canvas.toDataURL('image/png');
+
+        const sigData = activeMode === 'scan'
+          ? scanDataUrl
+          : canvas.toDataURL('image/png');
+
         const csrf = <?= json_encode(csrf_token()) ?>;
         try {
           const res  = await fetch('sign.php', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({pfron_id:<?= $pfron_id ?>, signature_data:sig, _csrf:csrf}),
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pfron_id: <?= $pfron_id ?>, signature_data: sigData, _csrf: csrf }),
           });
           const data = await res.json();
           if (data.ok) {
@@ -174,10 +268,9 @@ if ($preview) {
             result.innerHTML = 'Numer dokumentu: <strong class="font-monospace">' + data.doc_number + '</strong>';
             result.style.display = 'block';
             status.textContent = '';
-            // Pokaż przycisk PDF
             const btnPdf = document.getElementById('btn-pdf-umowa');
             if (btnPdf) btnPdf.style.display = '';
-            submit.closest('.card').querySelector('p').textContent = 'Podpis zapisany. Pobierz PDF poniżej.';
+            document.querySelector('#sign-panel p')?.remove();
           } else {
             result.className = 'alert alert-danger';
             result.textContent = 'Błąd: ' + (data.error || 'nieznany');

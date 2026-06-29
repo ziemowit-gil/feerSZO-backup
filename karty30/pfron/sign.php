@@ -34,8 +34,8 @@ if (!hash_equals(csrf_token(), $csrf)) json_err('Nieprawidłowy token CSRF.', 40
 if (!$pfron_id)  json_err('Brak ID umowy PFRON.');
 if (!$sig_data)  json_err('Brak danych podpisu.');
 
-// Walidacja formatu base64 PNG
-if (!preg_match('/^data:image\/png;base64,[A-Za-z0-9+\/=]+$/', $sig_data)) {
+// Walidacja formatu base64 (PNG z canvasa lub JPEG/PNG ze skanu)
+if (!preg_match('/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+\/=]+$/', $sig_data)) {
     json_err('Nieprawidłowy format podpisu.');
 }
 
