@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 array_unique(array_merge($_SESSION['cc_pub_pdf'] ?? [], [$saved_id])), -20
             );
             unset($_SESSION['cc_form_ts']);          // świeży token na kolejny wpis
-            // PRG: po zapisie ekran potwierdzenia (numer karty + pobranie PDF/ZIP).
-            header('Location: ' . $CC_FORM_URL . '?saved=' . (int)$saved_id);
+            // PRG: po zapisie od razu otwórz wygenerowany PDF (podgląd inline).
+            header('Location: ' . APP_URL . '/konsultacje/pdf.php?id=' . (int)$saved_id);
             exit;
         }
     }
