@@ -227,6 +227,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             2 => ['icon' => 'file-earmark-text',   'label' => 'Umowa'],
             3 => ['icon' => 'file-earmark-pdf',    'label' => 'Dokumenty'],
             4 => ['icon' => 'pen',                 'label' => 'Podpisz'],
+            5 => ['icon' => 'shield-check',        'label' => 'Zarząd'],
           ];
           foreach ($steps as $n => $s): ?>
           <button type="button" role="tab"
@@ -372,19 +373,31 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               </div>
             </div>
             <div id="step3-save-status" class="mb-3" style="display:none"></div>
-            <div class="d-flex gap-2 flex-wrap" id="step3-pdf-btns" style="display:none!important">
-              <a id="btn-pdf-umowa-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
-                 class="btn btn-danger flex-fill">
-                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz Umowę + Regulamin
-              </a>
-              <a id="btn-pdf-reg-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=regulamin" target="_blank"
-                 class="btn btn-outline-secondary">
-                <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
-              </a>
+
+            <!-- Przyciski PDF — widoczne po zapisaniu danych -->
+            <div id="step3-pdf-btns" style="display:none">
+              <div class="d-flex gap-2 flex-wrap mb-3">
+                <a id="btn-pdf-umowa-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
+                   class="btn btn-danger">
+                  <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Pobierz do podpisu (Umowa + Regulamin)
+                </a>
+                <a id="btn-pdf-reg-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=regulamin" target="_blank"
+                   class="btn btn-outline-secondary btn-sm align-self-center">
+                  <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
+                </a>
+              </div>
+              <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-0">
+                <i class="bi bi-arrow-right-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+                <div class="small">
+                  <strong>Wydrukuj umowę i daj uczestnikowi do podpisania.</strong><br>
+                  Gdy masz podpisany dokument — kliknij <strong>Dalej</strong>, aby przejść do kroku 4 (wgranie skanu lub podpis na ekranie).
+                </div>
+              </div>
             </div>
-            <p class="text-body-secondary mt-2 mb-0 small">
+
+            <p class="text-body-secondary mt-3 mb-0 small" id="step3-hint-before-save">
               <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-              Dane zostaną zapisane po kliknięciu „Dalej". Regulamin drukowany jako załącznik do umowy.
+              Kliknij „Dalej" — dane zostaną zapisane i pojawi się przycisk pobierania PDF.
             </p>
           </div>
 
@@ -435,6 +448,56 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <span id="wiz-upload-status" class="text-body-secondary small"></span>
             </div>
             <div id="wiz-upload-result" class="mt-2" style="display:none"></div>
+          </div>
+
+          <!-- ── Krok 5: Akceptacja Zarządu ──────────────────────────── -->
+          <div class="wizard-panel d-none" id="wizard-panel-5" role="tabpanel" aria-labelledby="wizard-tab-5">
+            <p class="text-body-secondary small mb-3">
+              Prześlij umowę do akceptacji przez Zarząd. Administrator otrzyma e-mail z linkiem do dokumentu.
+            </p>
+
+            <?php
+            $board_status = $pfron['board_approval_status'] ?? '';
+            $board_at     = $pfron['board_notified_at']     ?? '';
+            ?>
+
+            <?php if ($board_status === 'approved'): ?>
+            <div class="alert alert-success d-flex gap-2 align-items-center mb-3">
+              <i class="bi bi-shield-fill-check fs-4" aria-hidden="true"></i>
+              <div><strong>Zaakceptowana przez Zarząd.</strong>
+              <?= $board_at ? ' Powiadomienie wysłano ' . date('d.m.Y H:i', strtotime($board_at)) . '.' : '' ?></div>
+            </div>
+            <?php elseif ($board_status === 'pending'): ?>
+            <div class="alert alert-warning d-flex gap-2 align-items-center mb-3">
+              <i class="bi bi-hourglass-split fs-4" aria-hidden="true"></i>
+              <div><strong>Oczekuje na akceptację Zarządu.</strong>
+              <?= $board_at ? ' Powiadomienie wysłano ' . date('d.m.Y H:i', strtotime($board_at)) . '.' : '' ?>
+              Możesz ponownie wysłać powiadomienie.</div>
+            </div>
+            <?php else: ?>
+            <div class="alert alert-secondary d-flex gap-2 align-items-center mb-3">
+              <i class="bi bi-envelope fs-4" aria-hidden="true"></i>
+              <div>Powiadomienie do Zarządu jeszcze nie wysłane.</div>
+            </div>
+            <?php endif; ?>
+
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <button type="button" class="btn btn-primary" id="wiz-notify-btn">
+                <i class="bi bi-send me-1" aria-hidden="true"></i>
+                <?= $board_status === 'pending' ? 'Wyślij ponownie' : 'Wyślij do Zarządu' ?>
+              </button>
+              <span id="wiz-notify-status" class="text-body-secondary small"></span>
+            </div>
+            <div id="wiz-notify-result" class="mt-3" style="display:none"></div>
+
+            <hr class="my-4">
+            <p class="text-body-secondary small mb-0">
+              <i class="bi bi-check2-all me-1" aria-hidden="true"></i>
+              Proces zakończony. Możesz zamknąć kreator lub wrócić do poprzednich kroków.
+            </p>
+            <button type="button" class="btn btn-outline-secondary btn-sm mt-2" data-bs-dismiss="modal">
+              Zamknij
+            </button>
           </div>
 
         </div><!-- /modal-body -->
@@ -506,7 +569,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   peselInput?.addEventListener('blur',  validatePesel);
 
   // ── Wizard core ──────────────────────────────────────────────────────────
-  const TOTAL = 4;
+  const TOTAL = 5;
   let current = 1;
   let savedPfronId = <?= $pfron_id ?: 0 ?>;  // może być 0 gdy brak umowy PFRON
 
@@ -529,8 +592,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     backBtn.disabled  = (n === 1);
     const isLast = n === TOTAL;
     nextBtn.style.display = isLast ? 'none' : '';
-    if (!isLast) nextBtn.innerHTML = n === TOTAL - 1
-      ? '<i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz i pobierz PDF'
+    if (!isLast) nextBtn.innerHTML = n === 3 && document.getElementById('step3-pdf-btns').style.display !== 'none'
+      ? 'Dalej — Podpisz<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>'
       : 'Dalej<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
     stepLabel.textContent = `Krok ${n} z ${TOTAL}`;
     if (n === 3) fillSummary();
@@ -585,8 +648,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       if (data.ok) {
         savedPfronId = data.pfron_id || savedPfronId;
         status.className = 'alert alert-success py-2 small';
-        status.textContent = 'Dane zapisane. Pobierz dokumenty i przejdź do podpisania.';
-        pdfRow.style.setProperty('display', 'flex', 'important');
+        status.textContent = 'Dane zapisane. Pobierz PDF, wydrukuj i daj do podpisania.';
+        pdfRow.style.display = 'block';
+        document.getElementById('step3-hint-before-save')?.remove();
+        nextBtn.innerHTML = 'Dalej — Podpisz<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
         nextBtn.disabled = false;
         return true;
       } else {
@@ -740,6 +805,47 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     result.textContent = 'Błąd sieci: ' + e.message;
     status.textContent = ''; btn.disabled = false;
   }
+
+  // ── Krok 5: Powiadomienie Zarządu ────────────────────────────────────────
+  document.getElementById('wiz-notify-btn')?.addEventListener('click', async function() {
+    const btn    = this;
+    const status = document.getElementById('wiz-notify-status');
+    const result = document.getElementById('wiz-notify-result');
+    const pid    = savedPfronId;
+    if (!pid) {
+      result.className = 'alert alert-warning'; result.style.display='block';
+      result.textContent = 'Brak powiązanej umowy PFRON — nie można wysłać powiadomienia.';
+      return;
+    }
+    btn.disabled = true; status.textContent = 'Wysyłanie…';
+    const csrf = <?= json_encode(csrf_token()) ?>;
+    try {
+      const res  = await fetch('notify_board.php', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ pfron_id: pid, _csrf: csrf }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        result.className = 'alert alert-success'; result.style.display='block';
+        result.textContent = `Powiadomienie wysłane do ${data.notified_count} administratora/-ów.`;
+        status.textContent = '';
+        btn.textContent = 'Wyślij ponownie';
+        btn.disabled = false;
+      } else if (data.ika_expired) {
+        result.className = 'alert alert-warning'; result.style.display='block';
+        result.innerHTML = 'Sesja IKA wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';
+        status.textContent = ''; btn.disabled = false;
+      } else {
+        result.className = 'alert alert-danger'; result.style.display='block';
+        result.textContent = 'Błąd: ' + (data.error || 'nieznany');
+        status.textContent = ''; btn.disabled = false;
+      }
+    } catch(e) {
+      result.className = 'alert alert-danger'; result.style.display='block';
+      result.textContent = 'Błąd sieci: ' + e.message;
+      status.textContent = ''; btn.disabled = false;
+    }
+  });
 
   // ── Nawigacja ────────────────────────────────────────────────────────────
   nextBtn.addEventListener('click', async () => {
