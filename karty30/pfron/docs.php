@@ -507,6 +507,12 @@ if (!$pfron_id && !$client_id) {
 
           <!-- ── Krok 4: Dokumenty PDF ─────────────────────────────────── -->
           <div class="wizard-panel d-none" id="wizard-panel-4" role="tabpanel" aria-labelledby="wizard-tab-4">
+            <div id="wiz-doc-number-badge" class="mb-3" style="display:none">
+              <span class="badge text-bg-success fs-6 px-3 py-2 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+                Nadany numer: <span id="wiz-doc-number-val" class="font-monospace fw-bold"></span>
+              </span>
+            </div>
             <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-3">
               <i class="bi bi-arrow-right-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
               <div class="small">
@@ -783,6 +789,11 @@ if (!$pfron_id && !$client_id) {
               a.href = url.toString();
             } catch(e) {}
           });
+        }
+        if (data.doc_number) {
+          const badge = document.getElementById('wiz-doc-number-badge');
+          const val   = document.getElementById('wiz-doc-number-val');
+          if (badge && val) { val.textContent = data.doc_number; badge.style.display = ''; }
         }
         status.style.display = 'none';
         nextBtn.disabled = false;
