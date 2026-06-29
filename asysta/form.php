@@ -147,9 +147,14 @@ $checked = fn($k) => in_array($k, (array)$old['needs'], true);
           <?php else: ?>
             <p class="text-secondary mb-4">Twoje zgłoszenie zostało odnotowane.</p>
           <?php endif; ?>
-          <a href="<?= h($ASR_FORM_URL) ?>" class="btn btn-outline-secondary">
-            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Wyślij kolejne zgłoszenie
-          </a>
+          <div class="d-flex flex-wrap justify-content-center gap-2">
+            <a href="<?= h(APP_URL) ?>/asysta/status.php" class="btn btn-outline-primary">
+              <i class="bi bi-search me-1" aria-hidden="true"></i>Sprawdź status zgłoszenia
+            </a>
+            <a href="<?= h($ASR_FORM_URL) ?>" class="btn btn-outline-secondary">
+              <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Wyślij kolejne zgłoszenie
+            </a>
+          </div>
         </div>
       </div>
     <?php else: ?>

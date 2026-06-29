@@ -54,6 +54,7 @@ $statuses   = asr_statuses();
 $needs_all  = asr_needs();
 $channels   = asr_channels();
 $volunteers = asr_volunteers();
+$log        = asr_get_log($id);
 $picked_needs   = array_filter(array_map('trim', explode(',', (string)$req['needs'])));
 $picked_channels= array_filter(array_map('trim', explode(',', (string)$req['assigned_channels'])));
 
@@ -224,6 +225,49 @@ include dirname(__DIR__) . '/includes/header.php';
   <?php if (!empty($req['updated_at'])): ?>
     <p class="text-secondary small text-end">Ostatnia zmiana: <?= h($req['updated_at']) ?></p>
   <?php endif; ?>
+
+  <!-- ════ Historia zmian ════ -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-light fw-bold">
+      <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historia zmian
+    </div>
+    <?php if (!$log): ?>
+      <div class="card-body text-secondary small">Brak wpisów w historii.</div>
+    <?php else: ?>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" aria-label="Historia zmian zgłoszenia">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Data</th>
+            <th scope="col">Autor</th>
+            <th scope="col">Zmiana statusu</th>
+            <th scope="col">Nota</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($log as $entry): ?>
+          <tr>
+            <td class="text-nowrap text-secondary small"><?= h(substr((string)$entry['created_at'], 0, 16)) ?></td>
+            <td class="small"><?= $entry['actor_name'] !== '' ? h($entry['actor_name']) : '<span class="text-secondary">formularz</span>' ?></td>
+            <td class="text-nowrap small">
+              <?php if ($entry['status_from'] !== '' && $entry['status_from'] !== $entry['status_to']): ?>
+                <span class="badge <?= h(asr_status_class($entry['status_from'])) ?> me-1"><?= h(asr_label($statuses, $entry['status_from'])) ?></span>
+                <i class="bi bi-arrow-right text-secondary" aria-label="→"></i>
+                <span class="badge <?= h(asr_status_class($entry['status_to'])) ?> ms-1"><?= h(asr_label($statuses, $entry['status_to'])) ?></span>
+              <?php elseif ($entry['status_to'] !== ''): ?>
+                <span class="badge <?= h(asr_status_class($entry['status_to'])) ?>"><?= h(asr_label($statuses, $entry['status_to'])) ?></span>
+              <?php else: ?>
+                <span class="text-secondary">—</span>
+              <?php endif; ?>
+            </td>
+            <td class="small text-secondary"><?= h($entry['note']) ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+  </div>
 
 </div>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

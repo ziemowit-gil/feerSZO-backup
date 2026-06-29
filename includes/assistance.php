@@ -127,6 +127,20 @@ function asr_migrate(): void {
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_status ON szo_assistance_requests(status)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_vol    ON szo_assistance_requests(assigned_volunteer_id)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_created ON szo_assistance_requests(created_at)");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS szo_assistance_log (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id   INTEGER NOT NULL REFERENCES szo_assistance_requests(id) ON DELETE CASCADE,
+                actor_id     INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                actor_name   TEXT    NOT NULL DEFAULT '',
+                status_from  TEXT    NOT NULL DEFAULT '',
+                status_to    TEXT    NOT NULL DEFAULT '',
+                note         TEXT    NOT NULL DEFAULT '',
+                created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asl_req ON szo_assistance_log(request_id)");
     } else {
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS szo_assistance_requests (
@@ -155,7 +169,47 @@ function asr_migrate(): void {
                 KEY idx_asr_created (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS szo_assistance_log (
+                id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                request_id   INT UNSIGNED NOT NULL,
+                actor_id     INT UNSIGNED NULL,
+                actor_name   VARCHAR(255) NOT NULL DEFAULT '',
+                status_from  VARCHAR(32)  NOT NULL DEFAULT '',
+                status_to    VARCHAR(32)  NOT NULL DEFAULT '',
+                note         TEXT NOT NULL,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_asl_req (request_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
     }
+}
+
+/* ── Historia zmian (log) ──────────────────────────────────────────────────── */
+
+/**
+ * Dopisuje wpis do dziennika zmian zgłoszenia.
+ * $actor_id / $actor_name = null / '' gdy zmiana pochodzi z publicznego formularza.
+ */
+function asr_log(int $request_id, string $status_from, string $status_to, string $note = '', ?int $actor_id = null, string $actor_name = ''): void {
+    db_insert('szo_assistance_log', [
+        'request_id'  => $request_id,
+        'actor_id'    => $actor_id,
+        'actor_name'  => $actor_name,
+        'status_from' => $status_from,
+        'status_to'   => $status_to,
+        'note'        => $note,
+    ]);
+}
+
+/** Zwraca historię zmian zgłoszenia od najnowszej. */
+function asr_get_log(int $request_id): array {
+    return db_all(
+        "SELECT * FROM szo_assistance_log WHERE request_id=? ORDER BY id DESC",
+        [$request_id]
+    );
 }
 
 /* ── Operacje na danych ────────────────────────────────────────────────────── */
@@ -286,12 +340,26 @@ function asr_create(array $clean, ?int $created_by = null, ?string $ip = null): 
         'created_ip'        => $ip,
     ]);
 
-    // ───────────────────────────────────────────────────────────────────────
-    // HOOK (backend): nowe zgłoszenie przyjęte.
-    // Tutaj można podpiąć powiadomienie do koordynatora dostępności
-    // (mail_queue_add) lub webhook do n8n / Power Automate, np.:
-    //   asr_webhook_dispatch('created', asr_get($id));
-    // ───────────────────────────────────────────────────────────────────────
+    // Wpis do historii — zgłoszenie przyjęte.
+    asr_log($id, '', 'received', 'Zgłoszenie złożone przez formularz publiczny.', $created_by);
+
+    // Potwierdzenie e-mail do uczestnika.
+    if (function_exists('mail_queue_add')) {
+        $rec  = asr_get($id);
+        $no   = $rec ? asr_number($rec) : "#{$id}";
+        $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+        $subj = "{$org}: potwierdzenie zgłoszenia asysty {$no}";
+        $html = "<p>Drogi/Droga " . h($clean['participant_name']) . ",</p>"
+              . "<p>Twoje zgłoszenie asysty zostało przyjęte. Skontaktujemy się z Tobą "
+              . "na podany adres e-mail lub numer telefonu.</p>"
+              . "<p>Numer zgłoszenia: <strong>" . h($no) . "</strong><br>"
+              . "Zapisz go — ułatwi kontakt w sprawie obsługi.</p>"
+              . "<p style='color:#666;font-size:13px'>Wiadomość wygenerowana automatycznie — " . h($org) . ".</p>";
+        mail_queue_add(
+            $clean['participant_email'], $clean['participant_name'],
+            $subj, $html, '', 'assistance_request', $id
+        );
+    }
 
     return $id;
 }
@@ -332,6 +400,18 @@ function asr_admin_update(int $id, array $in): array {
 
     $status_changed     = $status !== $cur['status'];
     $assignment_changed = (int)($cur['assigned_volunteer_id'] ?? 0) !== (int)($vol_id ?? 0);
+
+    // Loguj zmiany statusu i przypisania do historii.
+    $actor    = function_exists('current_user') ? (current_user() ?? []) : [];
+    $actor_id = isset($actor['id']) ? (int)$actor['id'] : null;
+    $actor_nm = (string)($actor['imie_nazwisko'] ?? $actor['name'] ?? '');
+    if ($status_changed) {
+        asr_log($id, $cur['status'], $status, '', $actor_id, $actor_nm);
+    }
+    if ($assignment_changed) {
+        $note = $vol_id ? "Przypisano wolontariusza: {$vol_name}." : 'Usunięto przypisanie wolontariusza.';
+        asr_log($id, $status, $status, $note, $actor_id, $actor_nm);
+    }
 
     // ───────────────────────────────────────────────────────────────────────
     // HOOK (backend): zmiana statusu / przypisania.

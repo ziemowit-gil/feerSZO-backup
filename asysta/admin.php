@@ -27,6 +27,35 @@ if ($status !== '' && !array_key_exists($status, $statuses)) $status = '';
 
 $rows = asr_list($status, $q);
 
+/* ── Eksport CSV ──────────────────────────────────────────────────────────── */
+if (isset($_GET['_export']) && $_GET['_export'] === 'csv') {
+    $filename = 'zgloszenia-asysta-' . date('Y-m-d') . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-cache');
+    $out = fopen('php://output', 'w');
+    fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM — Excel UTF-8
+    fputcsv($out, ['Nr zgłoszenia','Data','Imię i nazwisko','E-mail','Telefon','Opiekun','Wydarzenie','Data i miejsce','Zakres asysty','Status','Wolontariusz','Notatki'], ';');
+    foreach ($rows as $r) {
+        fputcsv($out, [
+            asr_number($r),
+            substr((string)$r['created_at'], 0, 16),
+            $r['participant_name'],
+            $r['participant_email'],
+            $r['participant_phone'],
+            (int)$r['is_guardian'] ? 'Tak' : 'Nie',
+            $r['event_name'],
+            $r['event_when_where'],
+            implode('; ', asr_needs_labels($r['needs'])),
+            asr_label($statuses, $r['status']),
+            $r['assigned_name'],
+            $r['internal_notes'],
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 // Statystyki po wszystkich zgłoszeniach (niezależnie od filtra).
 $all = asr_list();
 $cnt = ['total' => count($all), 'open' => 0, 'done' => 0, 'unassigned' => 0];
@@ -47,9 +76,15 @@ include dirname(__DIR__) . '/includes/header.php';
     <h1 class="h4 fw-bold mb-0">
       <i class="bi bi-universal-access-circle text-primary me-1" aria-hidden="true"></i>Zgłoszenia asysty
     </h1>
-    <a class="btn btn-outline-secondary btn-sm" href="<?= h(APP_URL) ?>/extforms/asystaFEER/" target="_blank" rel="noopener">
-      <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Formularz publiczny
-    </a>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary btn-sm"
+         href="<?= h($base) ?>/admin.php?<?= http_build_query(['status' => $status, 'q' => $q, '_export' => 'csv']) ?>">
+        <i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Eksport CSV
+      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="<?= h(APP_URL) ?>/extforms/asystaFEER/" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Formularz publiczny
+      </a>
+    </div>
   </div>
 
   <!-- Statystyki -->
