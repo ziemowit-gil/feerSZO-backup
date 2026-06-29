@@ -2,13 +2,14 @@
 /**
  * konsultacje/zip.php — Eksport kart konsultacyjnych do archiwum ZIP.
  *
- * GET: from, to (Y-m-d, opcjonalne) — zakres dat.
+ * Tryby:
+ *   • ?id=N   — pojedyncza karta. Dostępne dla zalogowanego (nie-viewer) ALBO dla
+ *               osoby, która właśnie wypełniła tę kartę (ID na liście w sesji).
+ *   • from,to — zakres dat (Y-m-d, opcjonalne). Tylko dla zalogowanych.
  *
  * Tworzy archiwum z pojedynczymi plikami .txt (czytelny protokół) dla każdej
  * karty z zakresu. Pliki w archiwum nazwane wg schematu:
  *   RRRR-MM-DD_[Nazwa_Organizacji]_ID.txt
- *
- * Dostęp: tylko zalogowani (nie viewer).
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -16,25 +17,51 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/consultations.php';
 
-require_login();
-if (is_viewer()) { http_response_code(403); exit('Brak dostępu.'); }
-require_module_enabled('consultations_enabled', 'Moduł kart konsultacyjnych');
-
 if (!class_exists('ZipArchive')) {
     http_response_code(500);
     exit('Rozszerzenie PHP „zip" nie jest dostępne na tym serwerze.');
 }
 
-$from = trim($_GET['from'] ?? '');
-$to   = trim($_GET['to']   ?? '');
-if ($from !== '' && !cc_valid_date($from)) $from = '';
-if ($to   !== '' && !cc_valid_date($to))   $to   = '';
+cc_migrate();
+auth_start();
 
-$rows = cc_list($from, $to);
-if (!$rows) {
-    flash_set('warning', 'Brak kart do wyeksportowania w wybranym zakresie.');
-    header('Location: ' . APP_URL . '/konsultacje/admin.php');
-    exit;
+$id     = (int)($_GET['id'] ?? 0);
+$pub_ok = $id > 0 && in_array($id, $_SESSION['cc_pub_pdf'] ?? [], true);
+
+if ($pub_ok) {
+    // Publiczny eksport pojedynczej, świeżo wypełnionej karty.
+    $c = cc_get($id);
+    if (!$c) { http_response_code(404); exit('Karta konsultacyjna nie istnieje.'); }
+    $rows  = [$c];
+    $label = $c['consultation_date'] . '_karta_' . $id;
+} else {
+    // Pełny eksport zakresu — tylko dla zalogowanych.
+    require_login();
+    if (is_viewer()) { http_response_code(403); exit('Brak dostępu.'); }
+    require_module_enabled('consultations_enabled', 'Moduł kart konsultacyjnych');
+
+    if ($id > 0) {
+        // Zalogowany użytkownik prosi o konkretną kartę.
+        $c = cc_get($id);
+        if (!$c) { http_response_code(404); exit('Karta konsultacyjna nie istnieje.'); }
+        $rows  = [$c];
+        $label = $c['consultation_date'] . '_karta_' . $id;
+    } else {
+        $from = trim($_GET['from'] ?? '');
+        $to   = trim($_GET['to']   ?? '');
+        if ($from !== '' && !cc_valid_date($from)) $from = '';
+        if ($to   !== '' && !cc_valid_date($to))   $to   = '';
+
+        $rows = cc_list($from, $to);
+        if (!$rows) {
+            flash_set('warning', 'Brak kart do wyeksportowania w wybranym zakresie.');
+            header('Location: ' . APP_URL . '/konsultacje/admin.php');
+            exit;
+        }
+        $label = ($from !== '' || $to !== '')
+            ? ($from !== '' ? $from : 'poczatek') . '_do_' . ($to !== '' ? $to : date('Y-m-d'))
+            : 'wszystkie';
+    }
 }
 
 // Plik tymczasowy archiwum.
@@ -60,10 +87,6 @@ foreach ($rows as $c) {
 
 $zip->close();
 
-// Nazwa archiwum: zakres dat lub „wszystkie".
-$label = ($from !== '' || $to !== '')
-    ? ($from !== '' ? $from : 'poczatek') . '_do_' . ($to !== '' ? $to : date('Y-m-d'))
-    : 'wszystkie';
 $download = 'karty-konsultacyjne_' . $label . '.zip';
 
 $size = filesize($tmp);

@@ -207,6 +207,7 @@ function cc_render_pdf_html(array $c, bool $auto_print = false, bool $just_saved
 <body>
   <div class="toolbar" role="toolbar" aria-label="Akcje dokumentu">
     <button type="button" onclick="window.print()">Drukuj / zapisz jako PDF</button>
+    <a href="' . h(APP_URL . '/konsultacje/zip.php?id=' . (int)$c['id']) . '">Pobierz ZIP</a>
     <a href="' . h($back_url) . '">' . h($back_label) . '</a>
   </div>
   ' . $saved_banner . '
