@@ -63,14 +63,14 @@ $forms    = cc_forms();
 $statuses = cc_statuses();
 $zip_qs   = http_build_query(array_filter(['from' => $from, 'to' => $to]));
 
-$PAGE_TITLE = 'Karty konsultacyjne';
+$PAGE_TITLE = 'Karty doradztwa';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="container-fluid px-3 px-md-4 py-3">
 
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="h4 fw-bold mb-0">
-      <i class="bi bi-clipboard2-pulse text-primary me-1" aria-hidden="true"></i>Karty konsultacyjne
+      <i class="bi bi-clipboard2-pulse text-primary me-1" aria-hidden="true"></i>Karty doradztwa
     </h1>
     <div class="d-flex gap-2">
       <a class="btn btn-outline-secondary btn-sm" href="<?= h($base) ?>/form.php" target="_blank" rel="noopener">

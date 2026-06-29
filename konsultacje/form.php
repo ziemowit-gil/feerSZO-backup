@@ -98,7 +98,7 @@ $base = APP_URL . '/konsultacje';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Karta konsultacyjna — <?= h(defined('ORG_NAME') ? ORG_NAME : 'Konsultacje') ?></title>
+<title>Karta doradztwa — <?= h(defined('ORG_NAME') ? ORG_NAME : 'Konsultacje') ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
@@ -130,7 +130,7 @@ $base = APP_URL . '/konsultacje';
 
     <header class="text-center mb-4">
       <i class="bi bi-clipboard2-pulse text-primary" style="font-size:2.4rem" aria-hidden="true"></i>
-      <h1 class="h3 fw-bold mt-2 mb-1">Karta konsultacyjna</h1>
+      <h1 class="h3 fw-bold mt-2 mb-1">Karta doradztwa</h1>
       <p class="text-secondary mb-0"><?= h(defined('ORG_NAME') ? ORG_NAME : '') ?></p>
     </header>
 

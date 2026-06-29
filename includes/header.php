@@ -883,7 +883,7 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php"><i class="bi bi-gear"></i> Serwisy IT</a>
     <?php endif; ?>
     <?php if (module_enabled('consultations_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/konsultacje/') ?>" href="<?= APP_URL ?>/konsultacje/admin.php"><i class="bi bi-clipboard2-pulse"></i> Karty konsultacyjne</a>
+    <a class="sb-sub-link<?= _nav_active('/konsultacje/') ?>" href="<?= APP_URL ?>/konsultacje/admin.php"><i class="bi bi-clipboard2-pulse"></i> Karty doradztwa</a>
     <?php endif; ?>
   </div>
 

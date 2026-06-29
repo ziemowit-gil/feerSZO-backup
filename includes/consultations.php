@@ -318,7 +318,7 @@ function cc_to_text(array $c): string {
     $org = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
 
     $out  = $hr;
-    $out .= "  KARTA KONSULTACYJNA  ·  nr {$c['id']}\n";
+    $out .= "  KARTA DORADZTWA  ·  nr {$c['id']}\n";
     $out .= "  {$org}\n";
     $out .= $hr . "\n";
     $out .= $L('Organizacja',        $c['org_name']);
@@ -403,7 +403,7 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $pdf->Ln(4);
 
     $pdf->SetFont('DejaVu', 'B', 17);
-    $pdf->Cell($W, 9, $rp('KARTA KONSULTACJI'), 0, 1, 'L');
+    $pdf->Cell($W, 9, $rp('KARTA DORADZTWA'), 0, 1, 'L');
     $pdf->Ln(3);
 
     // ── Metryczka ─────────────────────────────────────────────────────────
@@ -476,13 +476,6 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
           . 'finansowanego ze środków Miasta Krakowa.'), 0, 'C');
     $pdf->SetTextColor(0, 0, 0);
 
-    $logo = cc_krakow_logo_path();
-    if ($logo) {
-        $imgW = 42; $x = (210 - $imgW) / 2;
-        $pdf->Ln(2);
-        $pdf->Image($logo, $x, $pdf->GetY(), $imgW);
-    }
-
     // ── Stopka (bez wypychania na nową stronę) ────────────────────────────
     $pdf->SetAutoPageBreak(false);
     $pdf->SetY(-15);
@@ -498,7 +491,7 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
 function cc_render_pdf_file(array $c, string $dest = 'I'): string {
     $pdf = cc_pdf_new();
     cc_pdf_add_card($pdf, $c);
-    $fname = 'Karta_konsultacji_' . cc_filename_base($c) . '.pdf';
+    $fname = 'Karta_doradztwa_' . cc_filename_base($c) . '.pdf';
     return (string)$pdf->Output($dest, $fname);
 }
 
