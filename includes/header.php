@@ -882,12 +882,21 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
     <?php if (is_admin()): ?>
     <a class="sb-sub-link<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php"><i class="bi bi-gear"></i> Serwisy IT</a>
     <?php endif; ?>
-    <?php if (module_enabled('consultations_enabled')): ?>
-    <a class="sb-sub-link<?= _nav_active('/konsultacje/') ?>" href="<?= APP_URL ?>/konsultacje/admin.php"><i class="bi bi-clipboard2-pulse"></i> Karty doradztwa</a>
-    <?php endif; ?>
   </div>
 
   <div class="sb-sep"></div>
+
+  <!-- ════════════════════════════════════════
+       Formularze zewnętrzne
+  ════════════════════════════════════════ -->
+  <?php if (module_enabled('consultations_enabled') && !is_viewer()): ?>
+  <div class="sb-label">Formularze zewnętrzne</div>
+  <a class="sb-link<?= _nav_active('/konsultacje/') ?>" href="<?= APP_URL ?>/konsultacje/admin.php">
+    <i class="bi bi-clipboard2-pulse"></i> Karty doradztwa
+  </a>
+
+  <div class="sb-sep"></div>
+  <?php endif; ?>
 
   <!-- ════════════════════════════════════════
        4. FINANSE
