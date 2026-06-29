@@ -68,9 +68,41 @@ if (!empty($pfron['signed_doc_path'])) {
     if (is_file($old)) @unlink($old);
 }
 
-db()->prepare(
-    "UPDATE k30_pfron_contracts SET signed_doc_path=?, updated_at=datetime('now') WHERE id=?"
-)->execute([$rel_path, $pfron_id]);
+// Nadaj numer dokumentu i zarejestruj — atomowo w transakcji
+$doc_number = $pfron['doc_number'] ?? '';
+$signed_at  = $pfron['signed_at']  ?? '';
+$is_new_registration = false;
+
+if (empty($doc_number)) {
+    try {
+        db()->beginTransaction();
+        $recheck = db_one("SELECT doc_number FROM k30_pfron_contracts WHERE id=?", [$pfron_id]);
+        if (empty($recheck['doc_number'])) {
+            $doc_number = k30_pfron_next_doc_number();
+            $signed_at  = date('Y-m-d H:i:s');
+            db()->prepare(
+                "UPDATE k30_pfron_contracts
+                 SET signed_doc_path=?, doc_number=?, signed_at=?, updated_at=datetime('now')
+                 WHERE id=?"
+            )->execute([$rel_path, $doc_number, $signed_at, $pfron_id]);
+            $is_new_registration = true;
+        } else {
+            $doc_number = $recheck['doc_number'];
+            db()->prepare(
+                "UPDATE k30_pfron_contracts SET signed_doc_path=?, updated_at=datetime('now') WHERE id=?"
+            )->execute([$rel_path, $pfron_id]);
+        }
+        db()->commit();
+    } catch (\Throwable $e) {
+        db()->rollBack();
+        jerr('Błąd rejestracji umowy: ' . $e->getMessage(), 500);
+    }
+} else {
+    // Umowa już zarejestrowana — tylko aktualizuj plik
+    db()->prepare(
+        "UPDATE k30_pfron_contracts SET signed_doc_path=?, updated_at=datetime('now') WHERE id=?"
+    )->execute([$rel_path, $pfron_id]);
+}
 
 // SP sync
 if (function_exists('sp_sync_upload')) {
@@ -80,8 +112,11 @@ if (function_exists('sp_sync_upload')) {
 }
 
 echo json_encode([
-    'ok'   => true,
-    'path' => $rel_path,
-    'url'  => APP_URL . '/uploads/' . $rel_path,
-    'name' => $filename,
+    'ok'          => true,
+    'path'        => $rel_path,
+    'url'         => APP_URL . '/uploads/' . $rel_path,
+    'name'        => $filename,
+    'doc_number'  => $doc_number,
+    'signed_at'   => $signed_at,
+    'registered'  => $is_new_registration,
 ]);

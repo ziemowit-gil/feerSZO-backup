@@ -271,12 +271,16 @@ if ($preview) {
           const data = await res.json();
           if (data.ok) {
             result.className = 'alert alert-success';
-            result.innerHTML = 'Plik wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
+            result.innerHTML = data.doc_number
+              ? 'Umowa zarejestrowana: <strong class="font-monospace">' + data.doc_number + '</strong>'
+                + ' — <a href="' + data.url + '" target="_blank">' + data.name + '</a>'
+              : 'Plik wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
             result.style.display = 'block';
             status.textContent = '';
             const ok = document.getElementById('uploaded-ok');
             if (ok) ok.innerHTML = result.innerHTML;
             else result.scrollIntoView({behavior:'smooth',block:'nearest'});
+            if (data.registered) setTimeout(() => location.reload(), 1800);
           } else if (data.ika_expired) {
             result.className = 'alert alert-warning';
             result.innerHTML = 'Sesja bezpieczeństwa wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';
