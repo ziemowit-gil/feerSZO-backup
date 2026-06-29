@@ -526,6 +526,16 @@ function pesel_to_birthdate(string $pesel): ?string {
     return sprintf('%04d-%02d-%02d', $y, $m, $d);
 }
 
+function pesel_valid(string $pesel): bool {
+    $pesel = preg_replace('/\D/', '', $pesel);
+    if (strlen($pesel) !== 11) return false;
+    $w = [1, 3, 7, 9, 1, 3, 7, 9, 1, 3];
+    $sum = 0;
+    for ($i = 0; $i < 10; $i++) $sum += $w[$i] * (int)$pesel[$i];
+    $check = (10 - ($sum % 10)) % 10;
+    return $check === (int)$pesel[10];
+}
+
 function get_opiekun_initials(string $opiekun): string {
     $map = ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z'];
     $clean = strtr($opiekun, $map);

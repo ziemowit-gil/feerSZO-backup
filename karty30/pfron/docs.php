@@ -30,6 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pid = (int)($_POST['pfron_id'] ?? 0);
         $cid = (int)($_POST['client_id'] ?? 0);
 
+        // Walidacja PESEL
+        $pesel_raw = trim($_POST['pesel'] ?? '');
+        if ($pesel_raw !== '') {
+            if (!pesel_valid($pesel_raw)) {
+                flash_set('danger', 'Podany PESEL jest nieprawidłowy. Sprawdź liczbę cyfr i sumę kontrolną.');
+                header('Location: ' . $_SERVER['REQUEST_URI']);
+                exit;
+            }
+        }
+
         // Blokada: jeśli umowa ma już numer dokumentu — nie pozwól nadpisać
         if ($pid) {
             $lock_check = db_one("SELECT doc_number FROM k30_pfron_contracts WHERE id=?", [$pid]);
@@ -249,8 +259,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <label class="form-label fw-semibold" for="w_pesel">PESEL</label>
               <input type="text" class="form-control font-monospace" id="w_pesel" name="pesel"
                      value="<?= h($f_pesel) ?>" maxlength="11" inputmode="numeric"
-                     autocomplete="off" placeholder="11 cyfr">
-              <div class="form-text">Zapisywany w karcie beneficjenta. Pojawi się tylko w dokumencie.</div>
+                     autocomplete="off" placeholder="11 cyfr" pattern="\d{11}">
+              <div class="valid-feedback" id="pesel-ok">PESEL poprawny</div>
+              <div class="invalid-feedback" id="pesel-err">Nieprawidłowy PESEL (błędna suma kontrolna lub liczba cyfr).</div>
+              <div class="form-text mt-1">Zapisywany w karcie beneficjenta. Pojawi się tylko w dokumencie.</div>
             </div>
             <div class="mb-3">
               <label class="form-label fw-semibold" for="w_address">Adres zamieszkania</label>
@@ -426,6 +438,31 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <script>
 (function () {
+  // ── Walidacja PESEL ─────────────────────────────────────────────────────
+  function peselValid(p) {
+    p = p.replace(/\D/g, '');
+    if (p.length !== 11) return false;
+    const w = [1,3,7,9,1,3,7,9,1,3];
+    let sum = 0;
+    for (let i = 0; i < 10; i++) sum += w[i] * parseInt(p[i]);
+    return (10 - (sum % 10)) % 10 === parseInt(p[10]);
+  }
+
+  const peselInput = document.getElementById('w_pesel');
+  function validatePesel() {
+    const v = peselInput.value.replace(/\D/g, '');
+    if (v === '') {
+      peselInput.classList.remove('is-valid', 'is-invalid');
+      return true; // pole opcjonalne
+    }
+    const ok = peselValid(v);
+    peselInput.classList.toggle('is-valid',   ok);
+    peselInput.classList.toggle('is-invalid', !ok);
+    return ok;
+  }
+  peselInput?.addEventListener('input', validatePesel);
+  peselInput?.addEventListener('blur',  validatePesel);
+
   const TOTAL = 3;
   let current = 1;
 
@@ -466,6 +503,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       el.classList.toggle('is-invalid', !el.value.trim());
       if (!el.value.trim()) ok = false;
     });
+    if (n === 1 && !validatePesel()) ok = false;
     return ok;
   }
 
