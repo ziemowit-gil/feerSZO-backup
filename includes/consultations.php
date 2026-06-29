@@ -141,6 +141,22 @@ function cc_list(string $from = '', string $to = ''): array {
     );
 }
 
+/**
+ * Suma godzin i liczba kart w rozbiciu na organizacje (w zakresie dat).
+ * Zwraca wiersze [org_name, cards, hours] posortowane malejąco po godzinach.
+ */
+function cc_hours_by_org(string $from = '', string $to = ''): array {
+    cc_migrate();
+    [$where, $params] = cc_date_where($from, $to);
+    return db_all(
+        "SELECT org_name, COUNT(*) AS cards, COALESCE(SUM(hours),0) AS hours
+         FROM szo_consultation_cards $where
+         GROUP BY org_name
+         ORDER BY hours DESC, org_name ASC",
+        $params
+    );
+}
+
 /** Walidacja daty Y-m-d. */
 function cc_valid_date(string $d): bool {
     $t = \DateTime::createFromFormat('Y-m-d', $d);

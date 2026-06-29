@@ -198,6 +198,16 @@ include dirname(__DIR__) . '/includes/header.php';
             <?php if (!$all_persons['vol'] && !$all_persons['usr']): ?>
               <div class="form-text text-warning">Brak osób do przypisania w bazie.</div>
             <?php endif; ?>
+            <?php if (!empty($req['assigned_token'])): ?>
+              <div class="form-text">
+                <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                Link do odpowiedzi:
+                <a href="<?= h(asr_respond_url($req['assigned_token'])) ?>" target="_blank" rel="noopener">
+                  <?= h(asr_respond_url($req['assigned_token'])) ?>
+                </a>
+                <span class="text-secondary">(zmiana przypisania unieważni link)</span>
+              </div>
+            <?php endif; ?>
           </div>
         </div>
 

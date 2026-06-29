@@ -122,7 +122,7 @@ include __DIR__ . '/_layout_head.php';
             <button type="submit" class="btn btn-primary btn-lg w-100 fw-semibold">
               <i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i>Zaloguj się
             </button>
-          </form>
+          </form> 
 
           <p class="text-body-secondary mt-3 mb-0" style="font-size:.82rem">
             <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Nie masz konta? Skontaktuj się z prowadzącym.

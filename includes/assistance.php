@@ -131,9 +131,11 @@ function asr_migrate(): void {
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_status ON szo_assistance_requests(status)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_vol    ON szo_assistance_requests(assigned_volunteer_id)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_created ON szo_assistance_requests(created_at)");
-        // Migracja do istniejących baz: assigned_user_id i assigned_person_type.
+        // Migracja do istniejących baz: assigned_user_id, assigned_person_type, assigned_token.
         try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
         try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_person_type TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+        try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_token TEXT NULL"); } catch (\Throwable $e) {}
+        $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_asr_token ON szo_assistance_requests(assigned_token) WHERE assigned_token IS NOT NULL");
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS szo_assistance_log (
@@ -181,6 +183,8 @@ function asr_migrate(): void {
         // Migracja do istniejących baz MySQL.
         try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_user_id INT UNSIGNED NULL"); } catch (\Throwable $e) {}
         try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_person_type VARCHAR(10) NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+        try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_token VARCHAR(64) NULL"); } catch (\Throwable $e) {}
+        try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD UNIQUE KEY idx_asr_token (assigned_token)"); } catch (\Throwable $e) {}
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS szo_assistance_log (
@@ -222,6 +226,23 @@ function asr_get_log(int $request_id): array {
         "SELECT * FROM szo_assistance_log WHERE request_id=? ORDER BY id DESC",
         [$request_id]
     );
+}
+
+/** Pobiera zgłoszenie po tokenie przypisania (dla strony respond.php). Zwraca null gdy brak. */
+function asr_get_by_token(string $token): ?array {
+    if ($token === '') return null;
+    asr_migrate();
+    return db_one("SELECT * FROM szo_assistance_requests WHERE assigned_token = ?", [$token]);
+}
+
+/** Generuje nowy unikalny token przypisania. */
+function asr_generate_token(): string {
+    return bin2hex(random_bytes(24));
+}
+
+/** Zwraca URL strony odpowiedzi dla przypisanej osoby. */
+function asr_respond_url(string $token): string {
+    return (defined('APP_URL') ? APP_URL : '') . '/asysta/respond.php?t=' . urlencode($token);
 }
 
 /* ── Operacje na danych ────────────────────────────────────────────────────── */
@@ -479,6 +500,14 @@ function asr_admin_update(int $id, array $in): array {
     $allowed_ch = array_keys(asr_channels());
     $channels = implode(',', array_values(array_intersect($allowed_ch, (array)($in['channels'] ?? []))));
 
+    // Generuj nowy token gdy przypisanie się zmieniło; wyczyść gdy brak osoby.
+    $prev_person = ($cur['assigned_person_type'] ?? '') . ':' . (($cur['assigned_volunteer_id'] ?? 0) ?: ($cur['assigned_user_id'] ?? 0));
+    $new_person  = $person_type . ':' . ($vol_id ?? $usr_id ?? 0);
+    $token = (string)($cur['assigned_token'] ?? '');
+    if ($prev_person !== $new_person) {
+        $token = $person_name !== '' ? asr_generate_token() : '';
+    }
+
     db_update('szo_assistance_requests', [
         'status'                => $status,
         'assigned_volunteer_id' => $vol_id,
@@ -486,12 +515,11 @@ function asr_admin_update(int $id, array $in): array {
         'assigned_person_type'  => $person_type,
         'assigned_name'         => $person_name,
         'assigned_channels'     => $channels,
+        'assigned_token'        => $token !== '' ? $token : null,
         'internal_notes'        => trim((string)($in['internal_notes'] ?? '')),
         'updated_at'            => date('Y-m-d H:i:s'),
     ], $id);
 
-    $prev_person = ($cur['assigned_person_type'] ?? '') . ':' . (($cur['assigned_volunteer_id'] ?? 0) ?: ($cur['assigned_user_id'] ?? 0));
-    $new_person  = $person_type . ':' . ($vol_id ?? $usr_id ?? 0);
     $status_changed     = $status !== $cur['status'];
     $assignment_changed = $prev_person !== $new_person;
 
@@ -631,6 +659,14 @@ function asr_notify_volunteer(int $id, array $channels): void {
         if (trim((string)$r['details']) !== '') {
             $html .= "<p><strong>Uwagi szczegółowe:</strong><br>" . nl2br(h($r['details'])) . "</p>";
         }
+        if (!empty($r['assigned_token'])) {
+            $link = asr_respond_url((string)$r['assigned_token']);
+            $html .= "<p style='margin-top:1.2em'>"
+                  . "<a href='" . h($link) . "' style='display:inline-block;padding:.6em 1.2em;"
+                  . "background:#1d4ed8;color:#fff;border-radius:6px;text-decoration:none;font-weight:600'>"
+                  . "✔ Przyjmij lub odrzuć zgłoszenie</a></p>"
+                  . "<p style='font-size:12px;color:#666'>Lub skopiuj link: " . h($link) . "</p>";
+        }
         $html .= "<p style='color:#666;font-size:13px'>Wiadomość wygenerowana automatycznie przez SZO — {$org}.</p>";
 
         mail_queue_add(
@@ -642,9 +678,10 @@ function asr_notify_volunteer(int $id, array $channels): void {
     // ── SMS ───────────────────────────────────────────────────────────────
     if (in_array('sms', $channels, true) && !empty($contact['phone'])
         && function_exists('sms_send') && (!function_exists('sms_is_enabled') || sms_is_enabled())) {
+        $link_part = !empty($r['assigned_token']) ? ' ' . asr_respond_url((string)$r['assigned_token']) : '';
         $msg = "{$org}: przydzielono Ci zgloszenie asysty {$no}"
              . ($event !== '' ? " ({$event})" : '')
-             . ". Szczegoly w panelu SZO.";
+             . ". Odpowiedz tutaj:{$link_part}";
         try { sms_send($contact['phone'], $msg); } catch (\Throwable $e) { /* cicho */ }
     }
 }
