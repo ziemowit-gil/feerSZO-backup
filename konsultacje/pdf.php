@@ -50,6 +50,17 @@ function cc_render_pdf_html(array $c, bool $auto_print = false, bool $just_saved
     $date = date_pl($c['consultation_date']);
     $hrs  = cc_hours_label((float)$c['hours']);
 
+    // Data sporządzenia — z created_at, a gdy go brak (np. stary rekord) → dziś.
+    $prepared = substr((string)($c['created_at'] ?? ''), 0, 10);
+    if ($prepared === '' || !cc_valid_date($prepared)) {
+        $prepared = date('Y-m-d');
+    }
+    $prepared_pl = date_pl($prepared);
+
+    // Logo Miasta Krakowa do stopki — wczytywane z pliku, jeśli istnieje.
+    // Wgraj oficjalny znak pod jedną ze ścieżek (PNG/JPG/SVG) i pojawi się sam.
+    $krakow_logo = cc_krakow_logo_tag();
+
     // Sekcje opisowe — zachowaj akapity z formularza.
     $section = function (string $title, ?string $body) {
         $txt = trim((string)$body);
@@ -172,6 +183,17 @@ function cc_render_pdf_html(array $c, bool $auto_print = false, bool $just_saved
     margin-top: 10mm; padding:9px 12px; border-left:3px solid var(--ink);
     background:#f4f6fa; color:#334155; font-size:9.5pt; line-height:1.45;
   }
+  .funding {
+    margin-top: 8mm; display:flex; flex-direction:column; align-items:center;
+    gap:5px; text-align:center;
+  }
+  .funding img { max-height: 22mm; max-width: 70mm; width:auto; height:auto; }
+  .funding .logo-missing {
+    width:60mm; height:18mm; border:1px dashed var(--line); border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:9pt; padding:4px 8px;
+  }
+  .funding-cap { color:var(--muted); font-size:9pt; }
   footer.doc { margin-top: 8mm; border-top:1px solid #d7dde5; padding-top:6px;
     color:var(--muted); font-size:9pt; display:flex; justify-content:space-between; }
   @media print {
@@ -193,7 +215,7 @@ function cc_render_pdf_html(array $c, bool $auto_print = false, bool $just_saved
     <header class="doc">
       <div class="org">' . h($org) . '</div>
       <h1>Karta konsultacji</h1>
-      <div class="docno">Dokument nr ' . (int)$c['id'] . ' &middot; sporządzono: ' . h(date_pl(substr((string)($c['created_at'] ?? ''), 0, 10))) . '</div>
+      <div class="docno">Dokument nr ' . (int)$c['id'] . ' &middot; data sporządzenia: ' . h($prepared_pl) . '</div>
     </header>
 
     <table class="meta">
@@ -224,12 +246,52 @@ function cc_render_pdf_html(array $c, bool $auto_print = false, bool $just_saved
 
     <div class="project-note">' . h($project_note) . '</div>
 
+    <div class="funding">
+      ' . $krakow_logo . '
+      <div class="funding-cap">Projekt finansowany ze środków Miasta Krakowa</div>
+    </div>
+
     <footer class="doc">
       <span>' . h($org) . '</span>
-      <span>Karta konsultacyjna #' . (int)$c['id'] . '</span>
+      <span>Karta konsultacyjna #' . (int)$c['id'] . ' &middot; ' . h($prepared_pl) . '</span>
     </footer>
   </article>
 ' . $print_js . '
 </body>
 </html>';
+}
+
+/**
+ * Zwraca znacznik <img> z logo Miasta Krakowa, jeśli plik istnieje, w przeciwnym
+ * razie dyskretny placeholder ze wskazówką, gdzie wgrać znak.
+ *
+ * Oficjalny znak należy wgrać (zachowując zasady KIWizualizacji Miasta) pod jedną
+ * ze ścieżek poniżej. Plik osadzamy jako data-URI, aby działał też na wydruku/PDF.
+ */
+function cc_krakow_logo_tag(): string
+{
+    $root = dirname(__DIR__);
+    $candidates = [
+        '/assets/logo/krakow.svg', '/assets/logo/krakow.png', '/assets/logo/krakow.jpg',
+        '/assets/img/krakow.svg',  '/assets/img/krakow.png',  '/assets/img/krakow.jpg',
+    ];
+    foreach ($candidates as $rel) {
+        $path = $root . $rel;
+        if (!is_file($path) || filesize($path) === 0) continue;
+
+        $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'svg'        => 'image/svg+xml',
+            'jpg','jpeg' => 'image/jpeg',
+            default      => 'image/png',
+        };
+        $data = @file_get_contents($path);
+        if ($data === false) continue;
+
+        $uri = 'data:' . $mime . ';base64,' . base64_encode($data);
+        return '<img src="' . h($uri) . '" alt="Logo Miasta Krakowa">';
+    }
+
+    // Brak pliku — placeholder z instrukcją (widoczny także na wydruku).
+    return '<div class="logo-missing">Logo Miasta Krakowa<br>(wgraj plik: assets/logo/krakow.png)</div>';
 }
