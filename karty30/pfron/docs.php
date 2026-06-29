@@ -743,9 +743,7 @@ if (!$pfron_id && !$client_id) {
     backBtn.disabled  = (n === 1);
     const isLast = n === TOTAL;
     nextBtn.style.display = isLast ? 'none' : '';
-    if (!isLast) nextBtn.innerHTML = n === 3 && document.getElementById('step3-pdf-btns').style.display !== 'none'
-      ? 'Dalej — Podpisz<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>'
-      : 'Dalej<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
+    if (!isLast) nextBtn.innerHTML = 'Dalej<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
     stepLabel.textContent = `Krok ${n} z ${TOTAL}`;
     if (n === 3) fillSummary();
     if (n === 5) initStep5();
@@ -762,6 +760,15 @@ if (!$pfron_id && !$client_id) {
       if (!el.value.trim()) ok = false;
     });
     if (n === 1 && !validatePesel()) ok = false;
+    // Wymagaj wybrania beneficjenta z wyszukiwarki gdy brak pre-ustawionego client_id
+    if (n === 1) {
+      const cid = parseInt(document.getElementById('client-id-input')?.value || '0');
+      const searchWrap = document.getElementById('client-search-wrap');
+      if (searchWrap && !cid) {
+        searchWrap.querySelector('input')?.classList.add('is-invalid');
+        ok = false;
+      }
+    }
     return ok;
   }
 
@@ -784,7 +791,6 @@ if (!$pfron_id && !$client_id) {
   // ── Krok 3 → AJAX save + pokaż przyciski PDF ────────────────────────────
   async function saveStep3() {
     const status = document.getElementById('step3-save-status');
-    const pdfRow = document.getElementById('step3-pdf-btns');
     status.style.display = 'block';
     status.className = 'alert alert-info py-2 small';
     status.textContent = 'Zapisywanie danych…';
@@ -1105,6 +1111,7 @@ if (!$pfron_id && !$client_id) {
     addrInp.value      = c.address || '';
     phoneInp.value     = c.phone || '';
     emailInp.value     = c.email || '';
+    searchInput.classList.remove('is-invalid');
     searchInput.value  = '';
     resultsList.style.display = 'none';
     selectedName.textContent  = c.name;
