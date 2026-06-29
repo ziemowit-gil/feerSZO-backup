@@ -384,7 +384,6 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $rp = fn($s) => cc_pdf_iconv((string)$s);
 
     $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-    $no   = cc_card_number($c);
     $area = cc_label(cc_areas(), $c['area_type']);
     $form = cc_label(cc_forms(), $c['form']);
     $date = date_pl($c['consultation_date']);
@@ -410,7 +409,7 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $pdf->SetFont('DejaVu', 'B', 17);
     $pdf->Cell($W, 9, $rp('KARTA KONSULTACJI'), 0, 1, 'L');
     $pdf->SetFont('DejaVu', '', 9.5); $pdf->SetTextColor(90, 90, 90);
-    $pdf->Cell($W, 5, $rp('Nr ' . $no . '   ·   data sporządzenia: ' . $prepared_pl), 0, 1, 'L');
+    $pdf->Cell($W, 5, $rp('Data sporządzenia: ' . $prepared_pl), 0, 1, 'L');
     $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(3);
 
@@ -496,7 +495,7 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $pdf->SetY(-15);
     $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(120, 120, 120);
     $pdf->Cell($W / 2, 5, $rp($org), 0, 0, 'L');
-    $pdf->Cell($W / 2, 5, $rp('Karta nr ' . $no . ' · ' . $prepared_pl), 0, 0, 'R');
+    $pdf->Cell($W / 2, 5, $rp($prepared_pl), 0, 0, 'R');
     $pdf->SetTextColor(0, 0, 0);
 }
 
@@ -507,7 +506,7 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
 function cc_render_pdf_file(array $c, string $dest = 'I'): string {
     $pdf = cc_pdf_new();
     cc_pdf_add_card($pdf, $c);
-    $fname = 'Karta_konsultacji_' . preg_replace('/[^0-9A-Za-z]+/', '-', cc_card_number($c)) . '.pdf';
+    $fname = 'Karta_konsultacji_' . cc_filename_base($c) . '.pdf';
     return (string)$pdf->Output($dest, $fname);
 }
 
