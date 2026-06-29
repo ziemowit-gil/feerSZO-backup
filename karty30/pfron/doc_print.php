@@ -490,16 +490,38 @@ if ($pfron_id && $existing_doc_number) {
     }
 }
 
-$doc_number_line = $existing_doc_number
-    ? '<p style="text-align:right;font-size:10pt;margin:0 0 4pt">Nr dokumentu: <strong>' . htmlspecialchars($existing_doc_number, ENT_QUOTES) . '</strong></p>'
+// Kod kreskowy + pracownik drukujący — nagłówek strony
+$printer_user = current_user();
+$printer_name = trim(($printer_user['first_name'] ?? '') . ' ' . ($printer_user['last_name'] ?? ''))
+    ?: ($printer_user['email'] ?? 'nieznany');
+$barcode_code = $existing_doc_number ?: ('PFRON-' . ($pfron_id ?: 'nowy'));
+$barcode_html = $existing_doc_number
+    ? '<barcode code="' . htmlspecialchars($barcode_code, ENT_QUOTES) . '" type="C128" height="8mm" pr="0.4" />'
     : '';
+$print_header_html = '
+<table style="width:100%;border:none;margin-bottom:6pt">
+  <tr>
+    <td style="border:none;vertical-align:middle;width:60%">
+      ' . $barcode_html . '
+    </td>
+    <td style="border:none;text-align:right;vertical-align:middle;font-size:8pt;color:#555">
+      Wydrukował/-a: <strong>' . htmlspecialchars($printer_name, ENT_QUOTES) . '</strong><br>
+      ' . date('d.m.Y H:i') . '
+    </td>
+  </tr>
+</table>
+<hr style="border:none;border-top:1px solid #ccc;margin:0 0 10pt">
+';
 
 // ── HTML umowy ──────────────────────────────────────────────────────────────
 function html_umowa(array $v): string {
     extract($v);
     ob_start(); ?>
-<h1 style="font-size:13pt;font-weight:bold;text-align:center;text-transform:uppercase;margin:0 0 2pt;line-height:1.4">Umowa uczestnictwa w szkoleniu indywidualnym<br>finansowanym ze środków PFRON</h1>
-<?= $doc_number_line ?>
+<?= $print_header_html ?>
+<h1 style="font-size:13pt;font-weight:bold;text-align:center;text-transform:uppercase;margin:0 0 6pt;line-height:1.5">
+  Umowa uczestnictwa w szkoleniu indywidualnym<br>
+  finansowanym ze środków PFRON<?= $existing_doc_number ? '<br><span style="font-size:11pt">nr ' . htmlspecialchars($existing_doc_number, ENT_QUOTES) . '</span>' : '' ?>
+</h1>
 <p style="text-align:center;margin:0 0 14pt">zawarta w dniu <strong><?= $c_date ?></strong> w Nowym Sączu pomiędzy:</p>
 
 <p style="margin:0 0 6pt"><strong>Fundacją Edukacji Empatii Rozwoju FEER</strong> z siedzibą w Nowym Sączu (adres: ul. Barbackiego 28/18, 33-300 Nowy Sącz), wpisaną do rejestru stowarzyszeń KRS pod numerem 000779281, NIP: 7343570539, reprezentowaną przez: Ziemowita Gila – Prezesa Zarządu; zwaną dalej <strong>„Fundacją"</strong>,</p>
@@ -701,7 +723,7 @@ function html_regulamin(int $h_training): string {
 // ── Złóż HTML i wygeneruj PDF ───────────────────────────────────────────────
 $v = compact('c_date','pfron_no','mc_date','mc_sign','h_total','h_training','h_trial',
              'penalty_amt','penalty_wrd','name','pesel','address','phone','email',
-             'doc_number_line','sig_img_html');
+             'sig_img_html','print_header_html','existing_doc_number');
 
 $body_html = '';
 if ($type === 'umowa') {
@@ -726,12 +748,13 @@ try {
         'format'        => 'A4',
         'margin_left'   => 25,
         'margin_right'  => 20,
-        'margin_top'    => 20,
+        'margin_top'    => 15,
         'margin_bottom' => 18,
         'margin_header' => 0,
         'margin_footer' => 0,
         'default_font'  => 'dejavuserif',
     ]);
+    $mpdf->showImageErrors = false;
     $mpdf->SetTitle($type === 'umowa' ? 'Umowa PFRON' : 'Regulamin PFRON');
     $mpdf->SetAuthor('FEER');
     $mpdf->SetCreator('FEER SZO');
