@@ -55,6 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE k30_clients SET pesel=?, updated_at=datetime('now') WHERE id=?")
                 ->execute([trim($_POST['pesel']), $cid]);
         }
+
+        // Utwórz umowę PFRON jeśli nie istnieje (kreator tworzy od zera)
+        if (!$pid && $cid) {
+            $cn = trim($_POST['pfron_contract_no'] ?? '');
+            if (!$cn) $cn = 'PFRON/' . date('Y') . '/brak-numeru';
+            $pid = k30_pfron_contract_save([
+                'client_id'       => $cid,
+                'contract_number' => $cn,
+                'hours_limit'     => max(1, (int)($_POST['hours_total'] ?? 30)),
+                'valid_from'      => trim($_POST['contract_date'] ?? date('Y-m-d')) ?: null,
+                'valid_to'        => null,
+                'status'          => 'active',
+                'notes'           => '',
+            ]);
+        }
+
         // Zapisz pola skierowania do umowy PFRON
         if ($pid) {
             db()->prepare(
@@ -646,9 +662,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       const res  = await fetch('', { method: 'POST', body: fd });
       const data = await res.json();
       if (data.ok) {
-        savedPfronId = data.pfron_id || savedPfronId;
+        if (data.pfron_id) {
+          savedPfronId = data.pfron_id;
+          const inp = document.getElementById('pfron-id-input');
+          if (inp) inp.value = savedPfronId;
+        }
         status.className = 'alert alert-success py-2 small';
-        status.textContent = 'Dane zapisane. Pobierz PDF, wydrukuj i daj do podpisania.';
+        status.textContent = 'Umowa PFRON zapisana. Pobierz PDF, wydrukuj i daj do podpisania.';
         pdfRow.style.display = 'block';
         document.getElementById('step3-hint-before-save')?.remove();
         nextBtn.innerHTML = 'Dalej — Podpisz<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
@@ -844,12 +864,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   nextBtn.addEventListener('click', async () => {
     if (!validateStep(current)) return;
     if (current === 3) {
-      if (!savedPfronId) {
-        const s = document.getElementById('step3-save-status');
-        s.style.display='block'; s.className='alert alert-warning py-2 small';
-        s.textContent = 'Aby wygenerować dokumenty i podpisać umowę, wybierz konkretną umowę PFRON z karty beneficjenta.';
-        return;
-      }
       const ok = await saveStep3();
       if (!ok) return;
     }
