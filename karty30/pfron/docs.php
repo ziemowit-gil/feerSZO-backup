@@ -40,11 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Blokada: jeśli umowa ma już numer dokumentu — nie pozwól nadpisać
+        // Blokada: jeśli umowa jest już podpisana — nie pozwól nadpisać
         if ($pid) {
-            $lock_check = db_one("SELECT doc_number FROM k30_pfron_contracts WHERE id=?", [$pid]);
-            if (!empty($lock_check['doc_number'])) {
-                flash_set('warning', 'Umowa jest już zarejestrowana (nr ' . $lock_check['doc_number'] . ') i nie może być ponownie wygenerowana.');
+            $lock_check = db_one("SELECT signed_at, doc_number FROM k30_pfron_contracts WHERE id=?", [$pid]);
+            if (!empty($lock_check['signed_at'])) {
+                flash_set('warning', 'Umowa jest już podpisana (nr ' . $lock_check['doc_number'] . ') i nie może być ponownie wygenerowana.');
                 header('Location: doc_print.php?type=umowa&preview=1');
                 exit;
             }
@@ -113,7 +113,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['ok' => false, 'ika_expired' => true, 'error' => 'Sesja IKA wygasła.']);
                 exit;
             }
-            echo json_encode(['ok' => true, 'pfron_id' => $pid]);
+            // Przypisz numer dokumentu już teraz — pojawi się w PDF
+            $doc_number = '';
+            if ($pid) {
+                $existing = db_one("SELECT doc_number FROM k30_pfron_contracts WHERE id=?", [$pid]);
+                $doc_number = $existing['doc_number'] ?? '';
+                if (empty($doc_number)) {
+                    $doc_number = k30_pfron_next_doc_number();
+                    db()->prepare(
+                        "UPDATE k30_pfron_contracts SET doc_number=?, updated_at=datetime('now') WHERE id=?"
+                    )->execute([$doc_number, $pid]);
+                }
+            }
+            // Zaktualizuj draft sesji o numer dokumentu
+            if (isset($_SESSION['k30_pfron_doc_draft'])) {
+                $_SESSION['k30_pfron_doc_draft']['doc_number'] = $doc_number;
+            }
+            echo json_encode(['ok' => true, 'pfron_id' => $pid, 'doc_number' => $doc_number]);
             exit;
         }
 
@@ -138,7 +154,7 @@ $f_mc_sign     = $pfron['main_contract_sign']?? '';
 $f_hours_total = (int)($pfron['hours_total']    ?? 30);
 $f_hours_tr    = (int)($pfron['hours_training'] ?? 25);
 
-$doc_locked    = !empty($pfron['doc_number']);
+$doc_locked    = !empty($pfron['signed_at']);   // blokada dopiero po złożeniu podpisu
 $doc_number    = $pfron['doc_number']  ?? '';
 $doc_signed_at = $pfron['signed_at']   ?? '';
 
