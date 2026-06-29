@@ -78,7 +78,7 @@ services:
       - "traefik.http.middlewares.sec-headers.headers.referrerPolicy=same-origin"
       - "traefik.http.middlewares.sec-headers.headers.customResponseHeaders.X-Powered-By="
 
-  # ── CRM redirect — crm.feer.org.pl → szo.feer.org.pl/crm ────────────────
+  # ── CRM redirect — crm.ngosystem.pl → szo.feer.org.pl/crm ───────────────
   # Używa wyłącznie Traefik middlewares (bez dodatkowego kontenera).
   # Serwis "dummy" jest potrzebny tylko jako uchwyt dla labels Traefika.
   crm-redirect:
@@ -89,12 +89,12 @@ services:
       - "traefik.enable=true"
 
       # ── Middleware: 301 redirect crm.* → szo.feer.org.pl/crm ─────────────
-      - "traefik.http.middlewares.crm-redirect.redirectregex.regex=^https?://${DOMAIN_CRM:-crm.feer.org.pl}/(.*)"
+      - "traefik.http.middlewares.crm-redirect.redirectregex.regex=^https?://${DOMAIN_CRM:-crm.ngosystem.pl}/(.*)"
       - "traefik.http.middlewares.crm-redirect.redirectregex.replacement=https://${DOMAIN}/crm/$${1}"
       - "traefik.http.middlewares.crm-redirect.redirectregex.permanent=true"
 
-      # ── Router HTTPS — crm.feer.org.pl ───────────────────────────────────
-      - "traefik.http.routers.crm-redirect.rule=Host(`${DOMAIN_CRM:-crm.feer.org.pl}`)"
+      # ── Router HTTPS — crm.ngosystem.pl ──────────────────────────────────
+      - "traefik.http.routers.crm-redirect.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
       - "traefik.http.routers.crm-redirect.entrypoints=websecure"
       - "traefik.http.routers.crm-redirect.tls=true"
       - "traefik.http.routers.crm-redirect.tls.certresolver=le"
@@ -102,13 +102,13 @@ services:
       - "traefik.http.services.crm-redirect.loadbalancer.server.port=80"
 
       # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
-      - "traefik.http.routers.crm-redirect-http.rule=Host(`${DOMAIN_CRM:-crm.feer.org.pl}`)"
+      - "traefik.http.routers.crm-redirect-http.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
       - "traefik.http.routers.crm-redirect-http.entrypoints=web"
       - "traefik.http.routers.crm-redirect-http.middlewares=https-redirect@docker"
     networks:
       - feer
 
-  # ── ZADANIA redirect — zadania.feer.org.pl → szo.feer.org.pl/tasks ──────
+  # ── ZADANIA redirect — zadania.ngosystem.pl → szo.feer.org.pl/tasks ─────
   # Używa wyłącznie Traefik middlewares (bez dodatkowego kontenera).
   # Serwis "dummy" jest potrzebny tylko jako uchwyt dla labels Traefika.
   tasks-redirect:
@@ -119,12 +119,12 @@ services:
       - "traefik.enable=true"
 
       # ── Middleware: 301 redirect zadania.* → szo.feer.org.pl/tasks ───────
-      - "traefik.http.middlewares.tasks-redirect.redirectregex.regex=^https?://${DOMAIN_TASKS:-zadania.feer.org.pl}/(.*)"
+      - "traefik.http.middlewares.tasks-redirect.redirectregex.regex=^https?://${DOMAIN_TASKS:-zadania.ngosystem.pl}/(.*)"
       - "traefik.http.middlewares.tasks-redirect.redirectregex.replacement=https://${DOMAIN}/tasks/$${1}"
       - "traefik.http.middlewares.tasks-redirect.redirectregex.permanent=true"
 
-      # ── Router HTTPS — zadania.feer.org.pl ───────────────────────────────
-      - "traefik.http.routers.tasks-redirect.rule=Host(`${DOMAIN_TASKS:-zadania.feer.org.pl}`)"
+      # ── Router HTTPS — zadania.ngosystem.pl ──────────────────────────────
+      - "traefik.http.routers.tasks-redirect.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
       - "traefik.http.routers.tasks-redirect.entrypoints=websecure"
       - "traefik.http.routers.tasks-redirect.tls=true"
       - "traefik.http.routers.tasks-redirect.tls.certresolver=le"
@@ -132,13 +132,13 @@ services:
       - "traefik.http.services.tasks-redirect.loadbalancer.server.port=80"
 
       # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
-      - "traefik.http.routers.tasks-redirect-http.rule=Host(`${DOMAIN_TASKS:-zadania.feer.org.pl}`)"
+      - "traefik.http.routers.tasks-redirect-http.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
       - "traefik.http.routers.tasks-redirect-http.entrypoints=web"
       - "traefik.http.routers.tasks-redirect-http.middlewares=https-redirect@docker"
     networks:
       - feer
 
-  # ── TI redirect — ti.feer.org.pl → szo.feer.org.pl/karty30/ti/kursant/ ──
+  # ── TI redirect — ti.ngosystem.pl → szo.feer.org.pl/karty30/ti/kursant/ ─
   # Panel kursanta TI. Używa wyłącznie Traefik middlewares (bez dodatkowego
   # kontenera); serwis "dummy" jest potrzebny tylko jako uchwyt dla labels.
   ti-redirect:
@@ -149,12 +149,12 @@ services:
       - "traefik.enable=true"
 
       # ── Middleware: 301 redirect ti.* → szo.feer.org.pl/karty30/ti/kursant/ ─
-      - "traefik.http.middlewares.ti-redirect.redirectregex.regex=^https?://${DOMAIN_TI:-ti.feer.org.pl}/(.*)"
+      - "traefik.http.middlewares.ti-redirect.redirectregex.regex=^https?://${DOMAIN_TI:-ti.ngosystem.pl}/(.*)"
       - "traefik.http.middlewares.ti-redirect.redirectregex.replacement=https://${DOMAIN}/karty30/ti/kursant/$${1}"
       - "traefik.http.middlewares.ti-redirect.redirectregex.permanent=true"
 
-      # ── Router HTTPS — ti.feer.org.pl ────────────────────────────────────
-      - "traefik.http.routers.ti-redirect.rule=Host(`${DOMAIN_TI:-ti.feer.org.pl}`)"
+      # ── Router HTTPS — ti.ngosystem.pl ───────────────────────────────────
+      - "traefik.http.routers.ti-redirect.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
       - "traefik.http.routers.ti-redirect.entrypoints=websecure"
       - "traefik.http.routers.ti-redirect.tls=true"
       - "traefik.http.routers.ti-redirect.tls.certresolver=le"
@@ -162,7 +162,7 @@ services:
       - "traefik.http.services.ti-redirect.loadbalancer.server.port=80"
 
       # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
-      - "traefik.http.routers.ti-redirect-http.rule=Host(`${DOMAIN_TI:-ti.feer.org.pl}`)"
+      - "traefik.http.routers.ti-redirect-http.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
       - "traefik.http.routers.ti-redirect-http.entrypoints=web"
       - "traefik.http.routers.ti-redirect-http.middlewares=https-redirect@docker"
     networks:

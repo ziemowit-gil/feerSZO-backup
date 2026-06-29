@@ -55,6 +55,28 @@ szo.feer.org.pl.   A   <IP_SERWERA>
 > ⚠️ DNS musi się propagować **zanim** uruchomisz stack. Let's Encrypt wymaga dostępu HTTP.
 > Sprawdź: `dig szo.feer.org.pl` lub `nslookup szo.feer.org.pl`
 
+#### Subdomeny przekierowań (ngosystem.pl)
+
+Subdomeny CRM / ZADANIA / TI są obsługiwane na domenie **ngosystem.pl** (DNS w Cloudflare)
+i 301-przekierowują na główną aplikację `szo.feer.org.pl`:
+
+```
+crm.ngosystem.pl       → https://szo.feer.org.pl/crm
+zadania.ngosystem.pl   → https://szo.feer.org.pl/tasks
+ti.ngosystem.pl        → https://szo.feer.org.pl/karty30/ti/kursant/
+```
+
+Rekordy DNS w Cloudflare utworzysz idempotentnym konfiguratorem:
+
+```bash
+cp docker/.env.cloudflare.example docker/.env.cloudflare   # wpisz token API + IP serwera
+bash docker/cloudflare-dns.sh --dry-run                    # podgląd
+bash docker/cloudflare-dns.sh                              # utworzenie/aktualizacja
+```
+
+> Rekordy są domyślnie **proxied** (pomarańczowa chmurka) — w Cloudflare ustaw SSL/TLS na
+> **Full (strict)**. Hosty subdomen ustawiasz w `.env.prod` (`DOMAIN_CRM`, `DOMAIN_TASKS`, `DOMAIN_TI`).
+
 ### Firewall
 
 ```bash

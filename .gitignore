@@ -29,4 +29,5 @@ tenants/*/master.db
 docker/.env
 config.local.php
 docker/.env.prod
+docker/.env.cloudflare
 debug_*.php
