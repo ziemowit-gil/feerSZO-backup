@@ -1,15 +1,18 @@
 <?php
 /**
- * konsultacje/pdf.php — Oficjalny protokół „Karta konsultacji" do druku/PDF.
+ * konsultacje/pdf.php — Generuje PRAWDZIWY plik PDF „Karta konsultacji".
  *
- * GET: id (int) — ID karty.
+ * GET:
+ *   id (int)  — ID karty.
+ *   dl (1)    — wymuś pobranie pliku (Content-Disposition: attachment).
+ *               Bez parametru dokument wyświetla się w przeglądarce jako PDF.
  *
- * Widok zoptymalizowany pod @media print (A4) z auto-wywołaniem okna druku.
- * Dla przeglądarki „Zapisz jako PDF" daje gotowy dokument. Układ jest tak
- * przygotowany, że ten sam HTML można też podać do Dompdf/mPDF (jeśli będą
- * dostępne) — patrz funkcja cc_render_pdf_html() na dole pliku.
+ * Dokument budowany jest po stronie serwera (FPDF + font DejaVu, kodowanie
+ * ISO-8859-2 dla polskich znaków) — to faktyczny plik PDF, nie wydruk z okna
+ * przeglądarki.
  *
- * Dostęp: tylko zalogowani (dokument zawiera pełną treść konsultacji).
+ * Dostęp: zalogowany (nie-viewer) ALBO autor świeżego wpisu z publicznego
+ * formularza (ID na liście dozwolonych w sesji — cc_pub_pdf).
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -19,9 +22,6 @@ require_once dirname(__DIR__) . '/includes/consultations.php';
 
 $id = (int)($_GET['id'] ?? 0);
 
-// Dostęp: zalogowany (nie-viewer) ALBO osoba, która właśnie wypełniła tę kartę
-// w publicznym formularzu (ID na liście dozwolonych w sesji). Dzięki temu
-// konsultant bez konta może wygenerować PDF tylko dla swojego świeżego wpisu.
 auth_start();
 $pub_ok = $id > 0 && in_array($id, $_SESSION['cc_pub_pdf'] ?? [], true);
 if (!$pub_ok) {
@@ -32,267 +32,146 @@ if (!$pub_ok) {
 $c = $id ? cc_get($id) : null;
 if (!$c) { http_response_code(404); exit('Karta konsultacyjna nie istnieje.'); }
 
-$auto_print = !isset($_GET['noprint']);
-$just_saved = isset($_GET['saved']);
-
-echo cc_render_pdf_html($c, $auto_print, $just_saved);
+cc_render_pdf_file($c, isset($_GET['dl']) ? 'D' : 'I');
 
 /**
- * Zwraca kompletny dokument HTML protokołu konsultacji.
- * Wydzielone do funkcji, aby ten sam markup mógł zasilić generator PDF
- * (Dompdf/mPDF) bez fragmentu auto-druku.
+ * Buduje i wysyła plik PDF protokołu konsultacji.
+ * $dest: 'I' = wyświetl w przeglądarce, 'D' = pobierz, 'S' = zwróć jako string.
  */
-function cc_render_pdf_html(array $c, bool $auto_print = false, bool $just_saved = false): string
+function cc_render_pdf_file(array $c, string $dest = 'I'): string
 {
-    $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-    $area = cc_label(cc_areas(),  $c['area_type']);
-    $form = cc_label(cc_forms(),  $c['form']);
-    $date = date_pl($c['consultation_date']);
-    $hrs  = cc_hours_label((float)$c['hours']);
+    require_once dirname(__DIR__) . '/includes/fpdf/fpdf.php';
+    require_once dirname(__DIR__) . '/includes/fpdi/autoload_fpdi.php';
 
-    // Data sporządzenia — z created_at, a gdy go brak (np. stary rekord) → dziś.
+    // Polskie znaki: font DejaVu + kodowanie ISO-8859-2 (wzorzec sprawdzony
+    // w onboarding/pdf_rachunek.php dla tej wersji FPDF).
+    $rp = fn($s) => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', (string)$s) ?: (string)$s;
+
+    $org   = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+    $no    = cc_card_number($c);
+    $area  = cc_label(cc_areas(), $c['area_type']);
+    $form  = cc_label(cc_forms(), $c['form']);
+    $date  = date_pl($c['consultation_date']);
+    $hrs   = cc_hours_label((float)$c['hours']);
+
     $prepared = substr((string)($c['created_at'] ?? ''), 0, 10);
-    if ($prepared === '' || !cc_valid_date($prepared)) {
-        $prepared = date('Y-m-d');
-    }
+    if ($prepared === '' || !cc_valid_date($prepared)) $prepared = date('Y-m-d');
     $prepared_pl = date_pl($prepared);
 
-    // Logo Miasta Krakowa do stopki — wczytywane z pliku, jeśli istnieje.
-    // Wgraj oficjalny znak pod jedną ze ścieżek (PNG/JPG/SVG) i pojawi się sam.
-    $krakow_logo = cc_krakow_logo_tag();
-
-    // Sekcje opisowe — zachowaj akapity z formularza.
-    $section = function (string $title, ?string $body) {
-        $txt = trim((string)$body);
-        $html = $txt !== '' ? nl2br(h($txt)) : '<span class="muted">—</span>';
-        return '<section class="block"><h2>' . h($title) . '</h2><div class="prose">' . $html . '</div></section>';
-    };
-
-    // Link powrotu: zalogowany → lista kart; publiczny konsultant → formularz.
-    $back_url   = (function_exists('current_user') && current_user() && !is_viewer())
-        ? APP_URL . '/konsultacje/admin.php'
-        : APP_URL . '/konsultacje/form.php';
-    $back_label = (function_exists('current_user') && current_user() && !is_viewer())
-        ? 'Powrót do listy' : 'Powrót do formularza';
-
-    // Forma zdalna (online / telefonicznie / mailowo) — beneficjent nie podpisuje.
     $is_remote = in_array($c['form'], ['online', 'telefonicznie', 'mailowo'], true);
 
-    $consultant = trim((string)$c['consultant']) !== '' ? h($c['consultant']) : '&nbsp;';
+    $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
+    $pdf->SetAutoPageBreak(true, 16);
+    $pdf->SetMargins(20, 18, 20);
+    $fd = dirname(__DIR__) . '/includes/fpdf/font/';
+    $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $fd);
+    $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $fd);
+    $pdf->AddPage();
 
-    // Prawa kolumna podpisów: linia dla konsultacji stacjonarnej,
-    // adnotacja o braku podpisu dla konsultacji zdalnej.
+    $W = 170; // 210 − 2·20
+
+    // ── Nagłówek ──────────────────────────────────────────────────────────
+    $pdf->SetFont('DejaVu', 'B', 9);
+    $pdf->Cell($W, 5, $rp($org), 0, 1, 'L');
+    $pdf->SetDrawColor(26, 26, 26); $pdf->SetLineWidth(0.5);
+    $y = $pdf->GetY() + 1; $pdf->Line(20, $y, 20 + $W, $y);
+    $pdf->Ln(4);
+
+    $pdf->SetFont('DejaVu', 'B', 17);
+    $pdf->Cell($W, 9, $rp('KARTA KONSULTACJI'), 0, 1, 'L');
+    $pdf->SetFont('DejaVu', '', 9.5); $pdf->SetTextColor(90, 90, 90);
+    $pdf->Cell($W, 5, $rp('Nr ' . $no . '   ·   data sporządzenia: ' . $prepared_pl), 0, 1, 'L');
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->Ln(3);
+
+    // ── Metryczka ─────────────────────────────────────────────────────────
+    $row = function (string $label, string $val) use ($pdf, $rp) {
+        $lw = 50; $vw = 120;
+        $pdf->SetFont('DejaVu', 'B', 10); $pdf->SetFillColor(244, 246, 250);
+        $pdf->SetDrawColor(215, 221, 229); $pdf->SetLineWidth(0.2);
+        $pdf->Cell($lw, 7, $rp($label), 1, 0, 'L', true);
+        $pdf->SetFont('DejaVu', '', 10);
+        $pdf->Cell($vw, 7, $rp($val), 1, 1, 'L');
+    };
+    $row('Organizacja',       $c['org_name']);
+    $row('Data konsultacji',  $date);
+    $row('Obszar wsparcia',   $area);
+    $row('Forma konsultacji', $form);
+    $row('Liczba godzin',     $hrs);
+
+    // ── Sekcje opisowe ──────────────────────────────────────────────────────
+    $section = function (string $title, ?string $body) use ($pdf, $rp, $W) {
+        $pdf->Ln(3);
+        $pdf->SetFont('DejaVu', 'B', 9.5); $pdf->SetTextColor(51, 51, 51);
+        $pdf->Cell($W, 6, $rp(mb_strtoupper($title, 'UTF-8')), 'B', 1, 'L');
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Ln(1);
+        $pdf->SetFont('DejaVu', '', 10.5);
+        $txt = trim((string)$body);
+        $pdf->MultiCell($W, 5, $rp($txt !== '' ? $txt : '—'), 0, 'L');
+    };
+    $section('Problem / zagadnienie', $c['problem_description']);
+    $section('Podjęte czynności',     $c['actions_taken']);
+    $section('Dalsze kroki',          $c['next_steps']);
+
+    // ── Podpisy ─────────────────────────────────────────────────────────────
+    if ($pdf->GetY() > 225) $pdf->AddPage();
+    $pdf->Ln(16);                       // miejsce na odręczny podpis
+    $lineY = $pdf->GetY();
+    $gap = 12; $colW = ($W - $gap) / 2;
+    $leftX = 20; $rightX = 20 + $colW + $gap;
+
+    // Lewa kolumna — konsultant (zawsze linia podpisu).
+    $pdf->SetDrawColor(120, 120, 120); $pdf->SetLineWidth(0.2);
+    $pdf->Line($leftX, $lineY, $leftX + $colW, $lineY);
+    $pdf->SetXY($leftX, $lineY + 1);
+    $pdf->SetFont('DejaVu', 'B', 9.5);
+    $pdf->Cell($colW, 5, $rp(trim((string)$c['consultant']) !== '' ? $c['consultant'] : ' '), 0, 2, 'C');
+    $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
+    $pdf->Cell($colW, 4, $rp('Podpis konsultanta'), 0, 0, 'C');
+    $pdf->SetTextColor(0, 0, 0);
+
+    // Prawa kolumna — beneficjent: linia (stacjonarnie) lub adnotacja (zdalnie).
     if ($is_remote) {
-        $beneficiary_col =
-            '<div class="sig">
-               <div class="remote-note">
-                 Konsultacja udzielona zdalnie (' . h($form) . ') —
-                 podpis beneficjenta organizacji nie jest wymagany.
-               </div>
-             </div>';
+        $pdf->SetXY($rightX, $lineY - 6);
+        $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(80, 80, 80);
+        $pdf->MultiCell($colW, 4,
+            $rp('Konsultacja udzielona zdalnie (' . $form . ') — podpis '
+              . 'beneficjenta organizacji nie jest wymagany.'), 1, 'C');
+        $pdf->SetTextColor(0, 0, 0);
     } else {
-        $beneficiary_col =
-            '<div class="sig">
-               <div class="line">
-                 <div class="name">&nbsp;</div>
-                 <div class="role">Podpis przedstawiciela organizacji</div>
-               </div>
-             </div>';
+        $pdf->Line($rightX, $lineY, $rightX + $colW, $lineY);
+        $pdf->SetXY($rightX, $lineY + 1);
+        $pdf->SetFont('DejaVu', 'B', 9.5);
+        $pdf->Cell($colW, 5, ' ', 0, 2, 'C');
+        $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
+        $pdf->Cell($colW, 4, $rp('Podpis przedstawiciela organizacji'), 0, 0, 'C');
+        $pdf->SetTextColor(0, 0, 0);
     }
 
-    // Dopisek o finansowaniu — stała stopka dokumentu.
-    $project_note =
-        'Konsultacja udzielona w ramach projektu „Akademia Dostępności w NGO" '
-      . 'finansowanego ze środków Miasta Krakowa.';
-    $print_js = $auto_print
-        ? '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},250);});</script>'
-        : '';
+    // ── Dopisek o finansowaniu + logo Miasta Krakowa ─────────────────────────
+    $pdf->SetY($pdf->GetY() + 14);
+    $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(60, 60, 60);
+    $pdf->MultiCell($W, 4.5,
+        $rp('Konsultacja udzielona w ramach projektu „Akademia Dostępności w NGO” '
+          . 'finansowanego ze środków Miasta Krakowa.'), 0, 'C');
+    $pdf->SetTextColor(0, 0, 0);
 
-    $saved_banner = $just_saved
-        ? '<div class="saved-banner" role="status">Karta zapisana. Dokument zostanie wydrukowany — wybierz „Zapisz jako PDF", aby pobrać plik.</div>'
-        : '';
-
-    $title = 'Karta konsultacji nr ' . (int)$c['id'];
-
-    return '<!doctype html>
-<html lang="pl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>' . h($title) . '</title>
-<style>
-  :root { --ink:#1a1a1a; --line:#94a3b8; --muted:#64748b; }
-  * { box-sizing:border-box; }
-  html,body { margin:0; padding:0; }
-  body {
-    font-family: "DejaVu Sans", "Segoe UI", Arial, sans-serif;
-    color: var(--ink); font-size: 12pt; line-height: 1.5; background:#f1f5f9;
-  }
-  .sheet {
-    background:#fff; width: 210mm; min-height: 297mm; margin: 12px auto;
-    padding: 22mm 20mm; box-shadow: 0 2px 18px rgba(0,0,0,.12);
-    display:flex; flex-direction:column;
-  }
-  .toolbar {
-    max-width:210mm; margin: 14px auto 0; display:flex; gap:.5rem; justify-content:flex-end;
-  }
-  .toolbar button, .toolbar a {
-    font: inherit; font-size: 11pt; padding:.45rem .9rem; border-radius:6px;
-    border:1px solid #cbd5e1; background:#fff; color:#1d4ed8; cursor:pointer; text-decoration:none;
-  }
-  .toolbar button:focus-visible, .toolbar a:focus-visible { outline:3px solid #1d4ed8; outline-offset:2px; }
-  .saved-banner {
-    max-width:210mm; margin: 10px auto 0; padding:.6rem .9rem; border-radius:8px;
-    background:#ecfdf5; border:1px solid #86efac; color:#166534; font-size:11pt;
-  }
-  header.doc { border-bottom:2px solid var(--ink); padding-bottom:10px; margin-bottom:18px; }
-  .org { font-size:13pt; font-weight:700; letter-spacing:.2px; }
-  h1 { font-size:18pt; margin:6px 0 0; text-transform:uppercase; letter-spacing:.5px; }
-  .docno { color:var(--muted); font-size:10.5pt; margin-top:2px; }
-  /* Tabela metryczki */
-  table.meta { width:100%; border-collapse:collapse; margin-bottom:14px; }
-  table.meta th, table.meta td {
-    text-align:left; padding:7px 10px; border:1px solid #d7dde5; vertical-align:top; font-size:11.5pt;
-  }
-  table.meta th { width:34%; background:#f4f6fa; font-weight:600; color:#334155; }
-  .block { margin: 10px 0 4px; }
-  .block h2 {
-    font-size:11.5pt; text-transform:uppercase; letter-spacing:.4px;
-    color:#334155; border-bottom:1px solid #d7dde5; padding-bottom:4px; margin:0 0 6px;
-  }
-  .prose { white-space:normal; }
-  .muted { color:var(--muted); }
-  .spacer { flex:1 1 auto; min-height: 18mm; }
-  /* Stopka podpisów — dwie równe kolumny */
-  .signatures {
-    margin-top: 16mm; display:flex; gap: 18mm; page-break-inside: avoid;
-  }
-  .sig { flex:1 1 0; text-align:center; }
-  .sig .line {
-    border-top:1px dotted var(--ink); margin-top: 16mm; padding-top:6px;
-    font-size:10.5pt; color:#334155;
-  }
-  .sig .name { font-weight:600; min-height:1.2em; }
-  .sig .role { color:var(--muted); font-size:9.5pt; }
-  .sig .remote-note {
-    margin-top: 10mm; padding:10px 12px; border:1px dashed var(--line);
-    border-radius:6px; background:#f8fafc; color:#475569; font-size:9.5pt;
-    line-height:1.4; font-style:italic;
-  }
-  .project-note {
-    margin-top: 10mm; padding:9px 12px; border-left:3px solid var(--ink);
-    background:#f4f6fa; color:#334155; font-size:9.5pt; line-height:1.45;
-  }
-  .funding {
-    margin-top: 8mm; display:flex; flex-direction:column; align-items:center;
-    gap:5px; text-align:center;
-  }
-  .funding img { max-height: 22mm; max-width: 70mm; width:auto; height:auto; }
-  .funding .logo-missing {
-    width:60mm; height:18mm; border:1px dashed var(--line); border-radius:6px;
-    display:flex; align-items:center; justify-content:center;
-    color:var(--muted); font-size:9pt; padding:4px 8px;
-  }
-  .funding-cap { color:var(--muted); font-size:9pt; }
-  footer.doc { margin-top: 8mm; border-top:1px solid #d7dde5; padding-top:6px;
-    color:var(--muted); font-size:9pt; display:flex; justify-content:space-between; }
-  @media print {
-    body { background:#fff; }
-    .toolbar, .saved-banner { display:none !important; }
-    .sheet { box-shadow:none; margin:0; width:auto; min-height:auto; padding:0; }
-    @page { size: A4; margin: 18mm; }
-  }
-</style>
-</head>
-<body>
-  <div class="toolbar" role="toolbar" aria-label="Akcje dokumentu">
-    <button type="button" onclick="window.print()">Drukuj / zapisz jako PDF</button>
-    <a href="' . h(APP_URL . '/konsultacje/zip.php?id=' . (int)$c['id']) . '">Pobierz ZIP</a>
-    <a href="' . h($back_url) . '">' . h($back_label) . '</a>
-  </div>
-  ' . $saved_banner . '
-
-  <article class="sheet">
-    <header class="doc">
-      <div class="org">' . h($org) . '</div>
-      <h1>Karta konsultacji</h1>
-      <div class="docno">Dokument nr ' . (int)$c['id'] . ' &middot; data sporządzenia: ' . h($prepared_pl) . '</div>
-    </header>
-
-    <table class="meta">
-      <tbody>
-        <tr><th scope="row">Organizacja</th><td>' . h($c['org_name']) . '</td></tr>
-        <tr><th scope="row">Data konsultacji</th><td>' . h($date) . '</td></tr>
-        <tr><th scope="row">Obszar wsparcia</th><td>' . h($area) . '</td></tr>
-        <tr><th scope="row">Forma konsultacji</th><td>' . h($form) . '</td></tr>
-        <tr><th scope="row">Liczba godzin</th><td>' . h($hrs) . '</td></tr>
-      </tbody>
-    </table>
-
-    ' . $section('Problem / zagadnienie', $c['problem_description']) . '
-    ' . $section('Podjęte czynności',     $c['actions_taken']) . '
-    ' . $section('Dalsze kroki',          $c['next_steps']) . '
-
-    <div class="spacer"></div>
-
-    <div class="signatures">
-      <div class="sig">
-        <div class="line">
-          <div class="name">' . $consultant . '</div>
-          <div class="role">Podpis konsultanta</div>
-        </div>
-      </div>
-      ' . $beneficiary_col . '
-    </div>
-
-    <div class="project-note">' . h($project_note) . '</div>
-
-    <div class="funding">
-      ' . $krakow_logo . '
-      <div class="funding-cap">Projekt finansowany ze środków Miasta Krakowa</div>
-    </div>
-
-    <footer class="doc">
-      <span>' . h($org) . '</span>
-      <span>Karta konsultacyjna #' . (int)$c['id'] . ' &middot; ' . h($prepared_pl) . '</span>
-    </footer>
-  </article>
-' . $print_js . '
-</body>
-</html>';
-}
-
-/**
- * Zwraca znacznik <img> z logo Miasta Krakowa, jeśli plik istnieje, w przeciwnym
- * razie dyskretny placeholder ze wskazówką, gdzie wgrać znak.
- *
- * Oficjalny znak należy wgrać (zachowując zasady KIWizualizacji Miasta) pod jedną
- * ze ścieżek poniżej. Plik osadzamy jako data-URI, aby działał też na wydruku/PDF.
- */
-function cc_krakow_logo_tag(): string
-{
-    $root = dirname(__DIR__);
-    $candidates = [
-        '/assets/logo/krakow.svg', '/assets/logo/krakow.png', '/assets/logo/krakow.jpg',
-        '/assets/img/krakow.svg',  '/assets/img/krakow.png',  '/assets/img/krakow.jpg',
-    ];
-    foreach ($candidates as $rel) {
-        $path = $root . $rel;
-        if (!is_file($path) || filesize($path) === 0) continue;
-
-        $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        $mime = match ($ext) {
-            'svg'        => 'image/svg+xml',
-            'jpg','jpeg' => 'image/jpeg',
-            default      => 'image/png',
-        };
-        $data = @file_get_contents($path);
-        if ($data === false) continue;
-
-        $uri = 'data:' . $mime . ';base64,' . base64_encode($data);
-        return '<img src="' . h($uri) . '" alt="Logo Miasta Krakowa">';
+    $logo = cc_krakow_logo_path();
+    if ($logo) {
+        $imgW = 42; $x = (210 - $imgW) / 2;
+        $pdf->Ln(2);
+        $pdf->Image($logo, $x, $pdf->GetY(), $imgW);
     }
 
-    // Brak pliku — placeholder z instrukcją (widoczny także na wydruku).
-    return '<div class="logo-missing">Logo Miasta Krakowa<br>(wgraj plik: assets/logo/krakow.png)</div>';
+    // ── Stopka ────────────────────────────────────────────────────────────
+    $pdf->SetAutoPageBreak(false);     // nie wypychaj stopki na nową stronę
+    $pdf->SetY(-15);
+    $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(120, 120, 120);
+    $pdf->Cell($W / 2, 5, $rp($org), 0, 0, 'L');
+    $pdf->Cell($W / 2, 5, $rp('Karta nr ' . $no . ' · ' . $prepared_pl), 0, 0, 'R');
+    $pdf->SetTextColor(0, 0, 0);
+
+    $fname = 'Karta_konsultacji_' . preg_replace('/[^0-9A-Za-z]+/', '-', $no) . '.pdf';
+    return (string)$pdf->Output($dest, $fname);
 }

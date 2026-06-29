@@ -279,6 +279,29 @@ function cc_create(array $clean, ?int $created_by = null, ?string $ip = null): i
     return db_insert('szo_consultation_cards', $data);
 }
 
+/** Czytelny numer karty: KK/0012/2026 (na podstawie ID i roku konsultacji). */
+function cc_card_number(array $c): string {
+    $year = substr((string)($c['consultation_date'] ?? ''), 0, 4);
+    if ($year === '' || !ctype_digit($year)) {
+        $year = substr((string)($c['created_at'] ?? date('Y')), 0, 4) ?: date('Y');
+    }
+    return sprintf('KK/%04d/%s', (int)$c['id'], $year);
+}
+
+/**
+ * Ścieżka pliku logo Miasta Krakowa do osadzenia w PDF (tylko rastry: PNG/JPG —
+ * FPDF nie obsługuje SVG). Zwraca null, gdy pliku brak.
+ */
+function cc_krakow_logo_path(): ?string {
+    $root = dirname(__DIR__);
+    foreach (['/assets/logo/krakow.png', '/assets/logo/krakow.jpg', '/assets/logo/krakow.jpeg',
+              '/assets/img/krakow.png',  '/assets/img/krakow.jpg'] as $rel) {
+        $p = $root . $rel;
+        if (is_file($p) && filesize($p) > 0) return $p;
+    }
+    return null;
+}
+
 /** Format godzin „2.5 h" → „2,5 godz." */
 function cc_hours_label(?float $h): string {
     $h = (float)$h;

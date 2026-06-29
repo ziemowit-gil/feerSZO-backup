@@ -32,6 +32,7 @@ $old = [
     'consultant'          => $_user['name'] ?? '',
 ];
 $saved_id = null;
+$saved_no = '';
 
 /* ── Token czasu (anty-bot) ───────────────────────────────────────────────── */
 if (empty($_SESSION['cc_form_ts'])) {
@@ -68,12 +69,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 array_unique(array_merge($_SESSION['cc_pub_pdf'] ?? [], [$saved_id])), -20
             );
             unset($_SESSION['cc_form_ts']);          // świeży token na kolejny wpis
-            // Eksport do PDF z automatu: po zapisie kierujemy wprost na dokument
-            // (pdf.php sam wywołuje okno druku → „zapisz jako PDF"). PRG chroni
-            // przed ponownym wysłaniem formularza.
-            header('Location: ' . APP_URL . '/konsultacje/pdf.php?id=' . (int)$saved_id . '&saved=1');
+            // PRG: po zapisie ekran potwierdzenia (numer karty + pobranie PDF/ZIP).
+            header('Location: ' . APP_URL . '/konsultacje/form.php?saved=' . (int)$saved_id);
             exit;
         }
+    }
+}
+
+/* ── Ekran potwierdzenia po zapisie (GET ?saved=ID) ───────────────────────── */
+if ($saved_id === null && isset($_GET['saved'])) {
+    $sid = (int)$_GET['saved'];
+    if ($sid > 0 && in_array($sid, $_SESSION['cc_pub_pdf'] ?? [], true)) {
+        $saved_id   = $sid;
+        $saved_card = cc_get($sid);
+        $saved_no   = $saved_card ? cc_card_number($saved_card) : '';
     }
 }
 
@@ -130,21 +139,33 @@ $base = APP_URL . '/konsultacje';
         <div class="card-body text-center p-4 p-md-5">
           <i class="bi bi-check-circle-fill text-success" style="font-size:3rem" aria-hidden="true"></i>
           <h2 class="h4 fw-bold mt-3">Dziękujemy — karta została zapisana</h2>
-          <p class="text-secondary mb-4">
-            Konsultacja została odnotowana w rejestrze.<?php if ($saved_id): ?>
-            Numer karty: <strong>#<?= (int)$saved_id ?></strong>.<?php endif; ?>
-          </p>
-          <div class="d-flex flex-wrap justify-content-center gap-2">
-            <?php if ($saved_id): ?>
-              <a href="<?= h($base) ?>/pdf.php?id=<?= (int)$saved_id ?>" class="btn btn-primary"
-                 target="_blank" rel="noopener">
-                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj PDF karty
+          <?php if ($saved_id): ?>
+            <p class="text-secondary mb-1">Konsultacja została odnotowana w rejestrze.</p>
+            <p class="mb-4">Numer karty: <strong class="fs-5"><?= h($saved_no) ?></strong></p>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+              <a href="<?= h($base) ?>/pdf.php?id=<?= (int)$saved_id ?>&dl=1" class="btn btn-primary">
+                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF karty
               </a>
-            <?php endif; ?>
+              <a href="<?= h($base) ?>/zip.php?id=<?= (int)$saved_id ?>" class="btn btn-outline-primary">
+                <i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>Pobierz ZIP
+              </a>
+              <a href="<?= h($base) ?>/form.php" class="btn btn-outline-secondary">
+                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj kolejną kartę
+              </a>
+            </div>
+            <p class="text-secondary small mt-3 mb-0">
+              Plik PDF pobierze się automatycznie. Jeśli pobieranie nie ruszyło,
+              użyj przycisku „Pobierz PDF karty".
+            </p>
+            <!-- Auto-pobranie pliku PDF (nie wymaga zgody na otwieranie okien) -->
+            <iframe title="Pobieranie PDF" src="<?= h($base) ?>/pdf.php?id=<?= (int)$saved_id ?>&dl=1"
+                    style="position:absolute;width:0;height:0;border:0" aria-hidden="true"></iframe>
+          <?php else: ?>
+            <p class="text-secondary mb-4">Konsultacja została odnotowana w rejestrze.</p>
             <a href="<?= h($base) ?>/form.php" class="btn btn-outline-secondary">
               <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj kolejną kartę
             </a>
-          </div>
+          <?php endif; ?>
         </div>
       </div>
     <?php else: ?>

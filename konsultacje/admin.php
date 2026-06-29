@@ -143,7 +143,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <caption class="visually-hidden">Lista kart konsultacyjnych posortowana od najnowszej</caption>
         <thead class="table-light">
           <tr>
-            <th scope="col">#</th>
+            <th scope="col">Nr karty</th>
             <th scope="col">Data</th>
             <th scope="col">Organizacja</th>
             <th scope="col">Obszar</th>
@@ -162,7 +162,7 @@ include dirname(__DIR__) . '/includes/header.php';
             </td></tr>
           <?php else: foreach ($rows as $r): ?>
             <tr>
-              <td class="text-secondary">#<?= (int)$r['id'] ?></td>
+              <td class="text-nowrap text-secondary small"><?= h(cc_card_number($r)) ?></td>
               <td class="text-nowrap"><?= h(date_pl($r['consultation_date'])) ?></td>
               <td>
                 <?= h($r['org_name']) ?>
