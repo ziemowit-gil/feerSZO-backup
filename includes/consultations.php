@@ -389,10 +389,6 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $date = date_pl($c['consultation_date']);
     $hrs  = cc_hours_label((float)$c['hours']);
 
-    $prepared = substr((string)($c['created_at'] ?? ''), 0, 10);
-    if ($prepared === '' || !cc_valid_date($prepared)) $prepared = date('Y-m-d');
-    $prepared_pl = date_pl($prepared);
-
     $is_remote = in_array($c['form'], ['online', 'telefonicznie', 'mailowo'], true);
 
     $pdf->SetAutoPageBreak(true, 16);
@@ -408,9 +404,6 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
 
     $pdf->SetFont('DejaVu', 'B', 17);
     $pdf->Cell($W, 9, $rp('KARTA KONSULTACJI'), 0, 1, 'L');
-    $pdf->SetFont('DejaVu', '', 9.5); $pdf->SetTextColor(90, 90, 90);
-    $pdf->Cell($W, 5, $rp('Data sporządzenia: ' . $prepared_pl), 0, 1, 'L');
-    $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(3);
 
     // ── Metryczka ─────────────────────────────────────────────────────────
@@ -494,8 +487,7 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $pdf->SetAutoPageBreak(false);
     $pdf->SetY(-15);
     $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(120, 120, 120);
-    $pdf->Cell($W / 2, 5, $rp($org), 0, 0, 'L');
-    $pdf->Cell($W / 2, 5, $rp($prepared_pl), 0, 0, 'R');
+    $pdf->Cell($W, 5, $rp($org), 0, 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
 }
 
