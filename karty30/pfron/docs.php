@@ -593,11 +593,46 @@ if (!$pfron_id && !$client_id) {
 
             <div class="d-flex gap-2 mt-3 flex-wrap align-items-center" id="wiz-upload-row">
               <button type="button" class="btn btn-primary" id="wiz-upload-btn" disabled>
-                <i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj i zarejestruj
+                <i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj egzemplarz nr 1
               </button>
               <span id="wiz-upload-status" class="text-body-secondary small"></span>
             </div>
             <div id="wiz-upload-result" class="mt-2" style="display:none"></div>
+
+            <!-- Egzemplarz nr 2 — pojawia się po wgraniu egz. 1 -->
+            <div id="wiz-egz2-section" class="mt-4 border-top pt-4" style="display:none">
+              <div class="alert alert-success d-flex gap-2 align-items-start py-2 mb-3">
+                <i class="bi bi-check-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+                <div class="small">
+                  <strong>Egzemplarz nr 1 wgrany.</strong>
+                  Wydrukuj egzemplarz nr 2 (archiwalny), podpisz go po stronie Fundacji i wgraj skan.
+                </div>
+              </div>
+              <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+                <a id="btn-egz2-pdf" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa2" target="_blank"
+                   class="btn btn-danger" data-pfron-link>
+                  <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz egzemplarz nr 2 (z QR i przebiegiem)
+                </a>
+                <span class="text-body-secondary small">z kodem QR, barkodem i danymi rejestracji</span>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold" for="wiz-doc2-file">
+                  Wgraj podpisany egzemplarz nr 2 <span class="text-body-secondary fw-normal">(PDF, JPG, PNG — max 20 MB)</span>
+                </label>
+                <input type="file" class="form-control" id="wiz-doc2-file" accept=".pdf,.jpg,.jpeg,.png,.webp">
+              </div>
+              <div id="wiz-doc2-preview" class="mb-2" style="display:none">
+                <img id="wiz-doc2-img" style="max-height:100px;max-width:100%;border:1px solid #ccc;border-radius:4px" alt="Podgląd egz. 2">
+                <span id="wiz-doc2-name" class="d-block text-body-secondary small mt-1"></span>
+              </div>
+              <div class="d-flex gap-2 align-items-center flex-wrap">
+                <button type="button" class="btn btn-outline-primary" id="wiz-upload2-btn" disabled>
+                  <i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj egzemplarz nr 2
+                </button>
+                <span id="wiz-upload2-status" class="text-body-secondary small"></span>
+              </div>
+              <div id="wiz-upload2-result" class="mt-2" style="display:none"></div>
+            </div>
           </div>
 
           <!-- ── Krok 5: Akceptacja Zarządu ──────────────────────────── -->
@@ -913,8 +948,61 @@ if (!$pfron_id && !$client_id) {
       checkUploadReady();
     });
 
-    // Upload button
+    // Upload button egz. 1
     document.getElementById('wiz-upload-btn')?.addEventListener('click', doUpload);
+
+    // Egzemplarz nr 2 — plik i upload
+    const file2Input  = document.getElementById('wiz-doc2-file');
+    const upload2Btn  = document.getElementById('wiz-upload2-btn');
+    const status2     = document.getElementById('wiz-upload2-status');
+    const result2     = document.getElementById('wiz-upload2-result');
+    const preview2    = document.getElementById('wiz-doc2-preview');
+    const preview2Img = document.getElementById('wiz-doc2-img');
+    const preview2Nm  = document.getElementById('wiz-doc2-name');
+    let   scan2File   = null;
+
+    file2Input?.addEventListener('change', function() {
+      scan2File = this.files[0] || null;
+      if (!scan2File) { upload2Btn.disabled = true; preview2.style.display='none'; return; }
+      preview2Nm.textContent = scan2File.name + ' (' + (scan2File.size/1024).toFixed(0) + ' KB)';
+      if (scan2File.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => { preview2Img.src = e.target.result; preview2Img.style.display=''; preview2.style.display='block'; };
+        reader.readAsDataURL(scan2File);
+      } else { preview2Img.style.display='none'; preview2.style.display='block'; }
+      upload2Btn.disabled = false;
+    });
+
+    upload2Btn?.addEventListener('click', async function() {
+      if (!scan2File) return;
+      upload2Btn.disabled = true; status2.textContent = 'Przesyłanie…';
+      const fd = new FormData();
+      fd.append('pfron_id', savedPfronId);
+      fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
+      fd.append('v', '2');
+      fd.append('signed_doc', scan2File);
+      try {
+        const res  = await fetch('upload_doc.php', { method:'POST', body:fd });
+        const data = await res.json();
+        if (data.ok) {
+          result2.className = 'alert alert-success'; result2.style.display='block';
+          result2.innerHTML = 'Egzemplarz nr 2 wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
+          status2.textContent = ''; upload2Btn.disabled = true;
+        } else if (data.ika_expired) {
+          result2.className = 'alert alert-warning'; result2.style.display='block';
+          result2.innerHTML = 'Sesja IKA wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';
+          status2.textContent = ''; upload2Btn.disabled = false;
+        } else {
+          result2.className = 'alert alert-danger'; result2.style.display='block';
+          result2.textContent = 'Błąd: ' + (data.error || 'nieznany');
+          status2.textContent = ''; upload2Btn.disabled = false;
+        }
+      } catch(e) {
+        result2.className = 'alert alert-danger'; result2.style.display='block';
+        result2.textContent = 'Błąd sieci: ' + e.message;
+        status2.textContent = ''; upload2Btn.disabled = false;
+      }
+    });
   }
 
   function checkUploadReady() {
@@ -964,9 +1052,14 @@ if (!$pfron_id && !$client_id) {
     if (data.ok) {
       result.className = 'alert alert-success'; result.style.display='block';
       result.innerHTML = data.doc_number
-        ? 'Podpis zapisany. Numer: <strong class="font-monospace">' + data.doc_number + '</strong>'
+        ? 'Egzemplarz nr 1 wgrany. Numer: <strong class="font-monospace">' + data.doc_number + '</strong>'
         : 'Plik wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
       status.textContent = ''; btn.disabled = true;
+      // Pokaż sekcję egzemplarza nr 2
+      if (!data.is_egz2) {
+        const s = document.getElementById('wiz-egz2-section');
+        if (s) s.style.display = '';
+      }
     } else if (data.ika_expired) {
       result.className = 'alert alert-warning'; result.style.display='block';
       result.innerHTML = 'Sesja IKA wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';

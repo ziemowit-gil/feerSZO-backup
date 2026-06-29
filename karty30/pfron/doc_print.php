@@ -18,7 +18,7 @@ require_once dirname(dirname(__DIR__)) . '/vendor/autoload.php';
 k30_require_access();
 karty30_migrate();
 
-$type    = in_array($_GET['type'] ?? '', ['umowa', 'regulamin'], true) ? $_GET['type'] : 'umowa';
+$type    = in_array($_GET['type'] ?? '', ['umowa', 'regulamin', 'umowa2'], true) ? $_GET['type'] : 'umowa';
 $preview = !empty($_GET['preview']);   // tryb podpisu (strona HTML, nie PDF)
 $d       = $_SESSION['k30_pfron_doc_draft'] ?? null;
 
@@ -720,16 +720,139 @@ function html_regulamin(int $h_training): string {
     return ob_get_clean();
 }
 
+// ── HTML egzemplarza nr 2 (egz. rejestrujący z QR, barcode, przebiegiem) ────
+function html_umowa2(array $v): string {
+    extract($v);
+    $pfrow_full = $pfron_id ? db_one(
+        "SELECT pc.*, u.first_name, u.last_name, u.email AS reg_email
+         FROM k30_pfron_contracts pc
+         LEFT JOIN users u ON u.id = pc.registered_by
+         WHERE pc.id = ?", [$pfron_id]
+    ) : [];
+
+    $reg_name = trim(($pfrow_full['first_name'] ?? '') . ' ' . ($pfrow_full['last_name'] ?? ''))
+        ?: ($pfrow_full['reg_email'] ?? '—');
+    $reg_at   = $pfrow_full['registered_at'] ?? '';
+    $board_st = $pfrow_full['board_approval_status'] ?? '';
+    $board_at = $pfrow_full['board_notified_at']     ?? '';
+    $board_ok = $pfrow_full['board_approved_at']     ?? '';
+    $created  = $pfrow_full['created_at'] ?? '';
+
+    $contract_url = APP_URL . '/karty30/pfron/docs.php?pfron_id=' . $pfron_id;
+
+    // Barcode Code128
+    $barcode_html = $existing_doc_number
+        ? '<barcode code="' . htmlspecialchars($existing_doc_number, ENT_QUOTES) . '" type="C128" height="10mm" pr="0.4" />'
+        : '';
+    // QR kod — link do kontraktu
+    $qr_html = '<barcode code="' . htmlspecialchars($contract_url, ENT_QUOTES) . '" type="QR" size="1.2" error="M" />';
+
+    ob_start(); ?>
+<table style="width:100%;border:none;margin-bottom:8pt">
+  <tr>
+    <td style="border:none;width:55%;vertical-align:middle">
+      <?= $barcode_html ?>
+      <p style="margin:2pt 0 0;font-size:8pt;color:#555"><?= htmlspecialchars($existing_doc_number, ENT_QUOTES) ?></p>
+    </td>
+    <td style="border:none;width:20%;text-align:center;vertical-align:middle">
+      <?= $qr_html ?>
+      <p style="margin:2pt 0 0;font-size:7pt;color:#888;text-align:center">Link do systemu</p>
+    </td>
+    <td style="border:none;text-align:right;vertical-align:middle;font-size:8pt;color:#555">
+      Wydrukował/-a: <strong><?= htmlspecialchars($printer_name, ENT_QUOTES) ?></strong><br>
+      <?= date('d.m.Y H:i') ?><br>
+      <strong style="color:#c00">EGZEMPLARZ NR 2 — DO ARCHIWUM FUNDACJI</strong>
+    </td>
+  </tr>
+</table>
+<hr style="border:none;border-top:2px solid #000;margin:0 0 8pt">
+
+<h1 style="font-size:13pt;font-weight:bold;text-align:center;text-transform:uppercase;margin:0 0 4pt;line-height:1.5">
+  Umowa uczestnictwa w szkoleniu indywidualnym<br>
+  finansowanym ze środków PFRON<br>
+  <span style="font-size:11pt">nr <?= htmlspecialchars($existing_doc_number, ENT_QUOTES) ?></span>
+</h1>
+<p style="text-align:center;font-size:9pt;color:#555;margin:0 0 10pt">
+  Egzemplarz archiwalny — Fundacja Edukacji Empatii Rozwoju FEER
+</p>
+
+<!-- Dane umowy -->
+<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:10pt">
+  <tr><td style="padding:3pt 6pt;background:#f0f0f0;font-weight:bold;border:1px solid #ccc" colspan="2">Dane uczestnika</td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc;width:38%">Imię i nazwisko</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($name) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">PESEL</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($pesel) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Adres</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($address) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Telefon</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($phone) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">E-mail</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($email) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;background:#f0f0f0;font-weight:bold;border:1px solid #ccc" colspan="2">Dane umowy</td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Nr umowy PFRON</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($pfron_no) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Data zawarcia</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($c_date) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Skierowanie / znak</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= blank_pdf($mc_date) ?> / <?= blank_pdf($mc_sign) ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Godziny (łącznie / szkoleniowe)</td><td style="padding:3pt 6pt;border:1px solid #ccc"><?= (int)$h_total ?> / <?= (int)$h_training ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Nr dokumentu SZO</td><td style="padding:3pt 6pt;border:1px solid #ccc;font-weight:bold"><?= htmlspecialchars($existing_doc_number, ENT_QUOTES) ?></td></tr>
+</table>
+
+<!-- Przebieg rejestracji -->
+<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:10pt">
+  <tr><td style="padding:3pt 6pt;background:#2d3748;color:#fff;font-weight:bold;border:1px solid #2d3748" colspan="2">Przebieg rejestracji</td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc;width:38%">Wpis do systemu</td>
+      <td style="padding:3pt 6pt;border:1px solid #ccc"><?= $created ? date('d.m.Y H:i', strtotime($created)) : '—' ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Numer nadany</td>
+      <td style="padding:3pt 6pt;border:1px solid #ccc"><?= $existing_doc_number ?: '—' ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Podpisano przez beneficjenta</td>
+      <td style="padding:3pt 6pt;border:1px solid #ccc"><?= $existing_signed_at ? date('d.m.Y H:i', strtotime($existing_signed_at)) : '—' ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Zarejestrowano przez</td>
+      <td style="padding:3pt 6pt;border:1px solid #ccc"><?= htmlspecialchars($reg_name, ENT_QUOTES) ?><?= $reg_at ? ' · ' . date('d.m.Y H:i', strtotime($reg_at)) : '' ?></td></tr>
+  <tr><td style="padding:3pt 6pt;border:1px solid #ccc">Powiadomienie Zarządu</td>
+      <td style="padding:3pt 6pt;border:1px solid #ccc">
+        <?php
+        if ($board_st === 'approved')
+            echo 'Zaakceptowana ' . ($board_ok ? date('d.m.Y H:i', strtotime($board_ok)) : '');
+        elseif ($board_st === 'pending')
+            echo 'Oczekuje — powiadomiono ' . ($board_at ? date('d.m.Y H:i', strtotime($board_at)) : '');
+        else
+            echo 'Nie wysłano';
+        ?>
+      </td></tr>
+</table>
+
+<!-- Podpisy -->
+<br>
+<table style="width:100%;border:none;margin-top:16pt">
+  <tr>
+    <td style="width:44%;text-align:center;border:none">
+      <br><br><br>
+      <?= $sig_img_html ? '<div style="text-align:center">' . $sig_img_html . '</div>' : '<br>' ?>
+      <div style="border-top:1px solid #000;padding-top:3pt;font-size:10pt">Fundacja</div>
+    </td>
+    <td style="width:12%;border:none"></td>
+    <td style="width:44%;text-align:center;border:none">
+      <br><br><br><br>
+      <div style="border-top:1px solid #000;padding-top:3pt;font-size:10pt">Uczestnik</div>
+    </td>
+  </tr>
+</table>
+    <?php
+    return ob_get_clean();
+}
+
 // ── Złóż HTML i wygeneruj PDF ───────────────────────────────────────────────
 $v = compact('c_date','pfron_no','mc_date','mc_sign','h_total','h_training','h_trial',
              'penalty_amt','penalty_wrd','name','pesel','address','phone','email',
              'sig_img_html','print_header_html','existing_doc_number');
+
+// Dodaj pfron_id i existing_* do $v dla umowa2
+$v['pfron_id']           = $pfron_id;
+$v['existing_signed_at'] = $existing_signed_at;
+$v['printer_name']       = $printer_name;
 
 $body_html = '';
 if ($type === 'umowa') {
     $body_html = html_umowa($v);
     $body_html .= '<pagebreak />';
     $body_html .= html_regulamin($h_training);
+} elseif ($type === 'umowa2') {
+    $body_html = html_umowa2($v);
 } else {
     $body_html = html_regulamin($h_training);
 }
@@ -761,9 +884,12 @@ try {
     $mpdf->WriteHTML($base_css, \Mpdf\HTMLParserMode::HEADER_CSS);
     $mpdf->WriteHTML($body_html, \Mpdf\HTMLParserMode::HTML_BODY);
 
-    $filename = $type === 'umowa'
-        ? 'PFRON-umowa' . ($existing_doc_number ? '-' . str_replace('/', '_', $existing_doc_number) : '') . '.pdf'
-        : 'PFRON-regulamin.pdf';
+    $safe = $existing_doc_number ? '-' . str_replace('/', '_', $existing_doc_number) : '';
+    $filename = match($type) {
+        'umowa'   => 'PFRON-umowa-egz1' . $safe . '.pdf',
+        'umowa2'  => 'PFRON-umowa-egz2' . $safe . '.pdf',
+        default   => 'PFRON-regulamin.pdf',
+    };
 
     $mpdf->Output($filename, \Mpdf\Output\Destination::DOWNLOAD);
 } catch (\Throwable $e) {

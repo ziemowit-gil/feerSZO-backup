@@ -184,7 +184,10 @@ function karty30_migrate(): void {
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN doc_number     TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_at      DATETIME"); }                  catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signature_data TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
-    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_doc_path      TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_doc_path  TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_doc2_path TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN registered_by    INTEGER REFERENCES users(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN registered_at    DATETIME"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN board_approval_status TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN board_notified_at     DATETIME"); }               catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN board_approved_by     INTEGER"); }                catch (\Throwable $e) {}
