@@ -357,7 +357,6 @@ if (!$pfron_id && !$client_id) {
             3 => ['icon' => 'clipboard2-check',    'label' => 'Potwierdź'],
             4 => ['icon' => 'file-earmark-pdf',    'label' => 'Dokumenty'],
             5 => ['icon' => 'pen',                 'label' => 'Podpisz'],
-            6 => ['icon' => 'shield-check',        'label' => 'Zarząd'],
           ];
           foreach ($steps as $n => $s): ?>
           <button type="button" role="tab"
@@ -593,7 +592,7 @@ if (!$pfron_id && !$client_id) {
 
             <div class="d-flex gap-2 mt-3 flex-wrap align-items-center" id="wiz-upload-row">
               <button type="button" class="btn btn-primary" id="wiz-upload-btn" disabled>
-                <i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj egzemplarz nr 1
+                <i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj egzemplarz nr 1 (dla Beneficjenta)
               </button>
               <span id="wiz-upload-status" class="text-body-secondary small"></span>
             </div>
@@ -604,20 +603,20 @@ if (!$pfron_id && !$client_id) {
               <div class="alert alert-success d-flex gap-2 align-items-start py-2 mb-3">
                 <i class="bi bi-check-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
                 <div class="small">
-                  <strong>Egzemplarz nr 1 wgrany.</strong>
-                  Wydrukuj egzemplarz nr 2 (archiwalny), podpisz go po stronie Fundacji i wgraj skan.
+                  <strong>Egzemplarz nr 1 (dla Beneficjenta) wgrany.</strong>
+                  Wydrukuj egzemplarz nr 2 przeznaczony dla Fundacji, podpisz go i wgraj skan.
                 </div>
               </div>
               <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
                 <a id="btn-egz2-pdf" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa2" target="_blank"
                    class="btn btn-danger" data-pfron-link>
-                  <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz egzemplarz nr 2 (z QR i przebiegiem)
+                  <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz egzemplarz nr 2 — dla Fundacji
                 </a>
-                <span class="text-body-secondary small">z kodem QR, barkodem i danymi rejestracji</span>
+                <span class="text-body-secondary small">z kodem QR, barkodem i przebiegiem rejestracji</span>
               </div>
               <div class="mb-2">
                 <label class="form-label fw-semibold" for="wiz-doc2-file">
-                  Wgraj podpisany egzemplarz nr 2 <span class="text-body-secondary fw-normal">(PDF, JPG, PNG — max 20 MB)</span>
+                  Wgraj podpisany egzemplarz nr 2 (dla Fundacji) <span class="text-body-secondary fw-normal">(PDF, JPG, PNG — max 20 MB)</span>
                 </label>
                 <input type="file" class="form-control" id="wiz-doc2-file" accept=".pdf,.jpg,.jpeg,.png,.webp">
               </div>
@@ -632,58 +631,17 @@ if (!$pfron_id && !$client_id) {
                 <span id="wiz-upload2-status" class="text-body-secondary small"></span>
               </div>
               <div id="wiz-upload2-result" class="mt-2" style="display:none"></div>
+              <div id="wiz-egz2-done" class="mt-3" style="display:none">
+                <hr class="my-3">
+                <p class="text-body-secondary small mb-2">
+                  <i class="bi bi-check2-all me-1 text-success" aria-hidden="true"></i>
+                  Proces rejestracji zakończony. Oba egzemplarze wgrane do systemu.
+                </p>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij kreator</button>
+              </div>
             </div>
           </div>
 
-          <!-- ── Krok 5: Akceptacja Zarządu ──────────────────────────── -->
-          <div class="wizard-panel d-none" id="wizard-panel-6" role="tabpanel" aria-labelledby="wizard-tab-6">
-            <p class="text-body-secondary small mb-3">
-              Prześlij umowę do akceptacji przez Zarząd. Administrator otrzyma e-mail z linkiem do dokumentu.
-            </p>
-
-            <?php
-            $board_status = $pfron['board_approval_status'] ?? '';
-            $board_at     = $pfron['board_notified_at']     ?? '';
-            ?>
-
-            <?php if ($board_status === 'approved'): ?>
-            <div class="alert alert-success d-flex gap-2 align-items-center mb-3">
-              <i class="bi bi-shield-fill-check fs-4" aria-hidden="true"></i>
-              <div><strong>Zaakceptowana przez Zarząd.</strong>
-              <?= $board_at ? ' Powiadomienie wysłano ' . date('d.m.Y H:i', strtotime($board_at)) . '.' : '' ?></div>
-            </div>
-            <?php elseif ($board_status === 'pending'): ?>
-            <div class="alert alert-warning d-flex gap-2 align-items-center mb-3">
-              <i class="bi bi-hourglass-split fs-4" aria-hidden="true"></i>
-              <div><strong>Oczekuje na akceptację Zarządu.</strong>
-              <?= $board_at ? ' Powiadomienie wysłano ' . date('d.m.Y H:i', strtotime($board_at)) . '.' : '' ?>
-              Możesz ponownie wysłać powiadomienie.</div>
-            </div>
-            <?php else: ?>
-            <div class="alert alert-secondary d-flex gap-2 align-items-center mb-3">
-              <i class="bi bi-envelope fs-4" aria-hidden="true"></i>
-              <div>Powiadomienie do Zarządu jeszcze nie wysłane.</div>
-            </div>
-            <?php endif; ?>
-
-            <div class="d-flex gap-2 align-items-center flex-wrap">
-              <button type="button" class="btn btn-primary" id="wiz-notify-btn">
-                <i class="bi bi-send me-1" aria-hidden="true"></i>
-                <?= $board_status === 'pending' ? 'Wyślij ponownie' : 'Wyślij do Zarządu' ?>
-              </button>
-              <span id="wiz-notify-status" class="text-body-secondary small"></span>
-            </div>
-            <div id="wiz-notify-result" class="mt-3" style="display:none"></div>
-
-            <hr class="my-4">
-            <p class="text-body-secondary small mb-0">
-              <i class="bi bi-check2-all me-1" aria-hidden="true"></i>
-              Proces zakończony. Możesz zamknąć kreator lub wrócić do poprzednich kroków.
-            </p>
-            <button type="button" class="btn btn-outline-secondary btn-sm mt-2" data-bs-dismiss="modal">
-              Zamknij
-            </button>
-          </div>
 
         </div><!-- /modal-body -->
 
@@ -754,7 +712,7 @@ if (!$pfron_id && !$client_id) {
   peselInput?.addEventListener('blur',  validatePesel);
 
   // ── Wizard core ──────────────────────────────────────────────────────────
-  const TOTAL = 6;
+  const TOTAL = 5;
   let current = 1;
   let confirmed = false;   // true po zapisaniu kroku 3
   let savedPfronId = parseInt(document.getElementById('pfron-id-input')?.value || '0') || <?= $pfron_id ?: 0 ?>;
@@ -986,8 +944,10 @@ if (!$pfron_id && !$client_id) {
         const data = await res.json();
         if (data.ok) {
           result2.className = 'alert alert-success'; result2.style.display='block';
-          result2.innerHTML = 'Egzemplarz nr 2 wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
+          result2.innerHTML = 'Egzemplarz nr 2 (dla Fundacji) wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
           status2.textContent = ''; upload2Btn.disabled = true;
+          const done = document.getElementById('wiz-egz2-done');
+          if (done) done.style.display = '';
         } else if (data.ika_expired) {
           result2.className = 'alert alert-warning'; result2.style.display='block';
           result2.innerHTML = 'Sesja IKA wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';
@@ -1077,46 +1037,6 @@ if (!$pfron_id && !$client_id) {
     status.textContent = ''; btn.disabled = false;
   }
 
-  // ── Krok 5: Powiadomienie Zarządu ────────────────────────────────────────
-  document.getElementById('wiz-notify-btn')?.addEventListener('click', async function() {
-    const btn    = this;
-    const status = document.getElementById('wiz-notify-status');
-    const result = document.getElementById('wiz-notify-result');
-    const pid    = savedPfronId;
-    if (!pid) {
-      result.className = 'alert alert-warning'; result.style.display='block';
-      result.textContent = 'Brak powiązanej umowy PFRON — nie można wysłać powiadomienia.';
-      return;
-    }
-    btn.disabled = true; status.textContent = 'Wysyłanie…';
-    const csrf = <?= json_encode(csrf_token()) ?>;
-    try {
-      const res  = await fetch('notify_board.php', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ pfron_id: pid, _csrf: csrf }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        result.className = 'alert alert-success'; result.style.display='block';
-        result.textContent = `Powiadomienie wysłane do ${data.notified_count} administratora/-ów.`;
-        status.textContent = '';
-        btn.textContent = 'Wyślij ponownie';
-        btn.disabled = false;
-      } else if (data.ika_expired) {
-        result.className = 'alert alert-warning'; result.style.display='block';
-        result.innerHTML = 'Sesja IKA wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';
-        status.textContent = ''; btn.disabled = false;
-      } else {
-        result.className = 'alert alert-danger'; result.style.display='block';
-        result.textContent = 'Błąd: ' + (data.error || 'nieznany');
-        status.textContent = ''; btn.disabled = false;
-      }
-    } catch(e) {
-      result.className = 'alert alert-danger'; result.style.display='block';
-      result.textContent = 'Błąd sieci: ' + e.message;
-      status.textContent = ''; btn.disabled = false;
-    }
-  });
 
   // ── Nawigacja ────────────────────────────────────────────────────────────
   nextBtn.addEventListener('click', async () => {
