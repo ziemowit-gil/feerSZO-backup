@@ -376,7 +376,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
             <!-- Przyciski PDF — widoczne po zapisaniu danych -->
             <div id="step3-pdf-btns" style="display:none">
-              <div class="d-flex gap-2 flex-wrap mb-3">
+              <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-3">
+                <i class="bi bi-arrow-right-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+                <div class="small">
+                  <strong>Wydrukuj umowę i daj uczestnikowi do podpisania.</strong><br>
+                  Gdy masz podpisany dokument — kliknij <strong>Dalej</strong>, aby przejść do kroku 4 (wgranie skanu lub podpis na ekranie).
+                </div>
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
                 <a id="btn-pdf-umowa-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
                    class="btn btn-danger">
                   <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Pobierz do podpisu (Umowa + Regulamin)
@@ -385,13 +392,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                    class="btn btn-outline-secondary btn-sm align-self-center">
                   <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
                 </a>
-              </div>
-              <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-0">
-                <i class="bi bi-arrow-right-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
-                <div class="small">
-                  <strong>Wydrukuj umowę i daj uczestnikowi do podpisania.</strong><br>
-                  Gdy masz podpisany dokument — kliknij <strong>Dalej</strong>, aby przejść do kroku 4 (wgranie skanu lub podpis na ekranie).
-                </div>
               </div>
             </div>
 
