@@ -206,6 +206,7 @@ function _k30_active(string $path): bool {
   } catch (\Throwable $e) {}
   $g_ti      = _k30_active('/karty30/ti/');
   $g_clients = _k30_active('/karty30/clients');
+  $g_pfron   = _k30_active('/karty30/pfron/');
   $g_kons    = $g_clients || _k30_active('/karty30/waiting')
             || _k30_active('/karty30/schedules') || _k30_active('/karty30/consultations')
             || _k30_active('/karty30/reports') || _k30_active('/karty30/blacklist')
@@ -273,6 +274,19 @@ function _k30_active(string $path): bool {
             </div>
           </li>
 
+          <!-- ══ PFRON ══ -->
+          <li class="nav-item dropdown">
+            <button type="button" class="nav-link dropdown-toggle d-inline-flex align-items-center gap-2 <?= $g_pfron ? 'active' : '' ?>"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-building-fill-check" aria-hidden="true"></i>PFRON</button>
+            <div class="dropdown-menu shadow py-1" style="min-width:220px">
+              <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/training.php" <?= _k30_active('/karty30/pfron/training') ? 'aria-current="page"' : '' ?>>
+                <i class="bi bi-mortarboard me-2" aria-hidden="true"></i>Szkolenia PFRON</a>
+              <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/docs.php" <?= _k30_active('/karty30/pfron/docs') || _k30_active('/karty30/pfron/doc_print') ? 'aria-current="page"' : '' ?>>
+                <i class="bi bi-file-earmark-pdf me-2 text-danger" aria-hidden="true"></i>Dokumenty PFRON</a>
+            </div>
+          </li>
+
           <!-- ══ Konsultacje tyflo ══ -->
           <li class="nav-item dropdown">
             <button type="button" class="nav-link dropdown-toggle d-inline-flex align-items-center gap-2 <?= $g_kons ? 'active' : '' ?>"
@@ -293,9 +307,6 @@ function _k30_active(string $path): bool {
                   <?php endif; ?>
                 </div>
                 <div class="col-12 col-md-6 border-start-md">
-                  <h6 class="dropdown-header">PFRON</h6>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/training.php" <?= _k30_active('/karty30/pfron/training') ? 'aria-current="page"' : '' ?>><i class="bi bi-building-fill-check me-2" style="color:#7c3aed" aria-hidden="true"></i>Szkolenia PFRON</a>
-                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/docs.php" <?= _k30_active('/karty30/pfron/docs') ? 'aria-current="page"' : '' ?>><i class="bi bi-file-earmark-pdf me-2 text-danger" aria-hidden="true"></i>Dokumenty PFRON</a>
                   <h6 class="dropdown-header">Konsultacje i raporty</h6>
                   <a class="dropdown-item" href="<?= APP_URL ?>/karty30/consultations/index.php" <?= _k30_active('/karty30/consultations') ? 'aria-current="page"' : '' ?>><i class="bi bi-clipboard2-check me-2" aria-hidden="true"></i>Konsultacje</a>
                   <a class="dropdown-item" href="<?= APP_URL ?>/karty30/reports/index.php" <?= _k30_active('/karty30/reports') ? 'aria-current="page"' : '' ?>><i class="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Raporty</a>

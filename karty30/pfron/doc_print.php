@@ -95,22 +95,22 @@ if ($preview) {
         <!-- Zakładki: Odręczny / Skan -->
         <ul class="nav nav-tabs nav-sm mb-3" id="sig-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="tab-draw-btn" data-bs-toggle="tab" data-bs-target="#tab-draw"
-                    type="button" role="tab" aria-controls="tab-draw" aria-selected="true">
-              <i class="bi bi-pen me-1" aria-hidden="true"></i>Odręczny
+            <button class="nav-link" id="tab-scan-btn" data-bs-toggle="tab" data-bs-target="#tab-scan"
+                    type="button" role="tab" aria-controls="tab-scan" aria-selected="true">
+              <i class="bi bi-image me-1" aria-hidden="true"></i>Skan / zdjęcie
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-scan-btn" data-bs-toggle="tab" data-bs-target="#tab-scan"
-                    type="button" role="tab" aria-controls="tab-scan" aria-selected="false">
-              <i class="bi bi-image me-1" aria-hidden="true"></i>Skan / zdjęcie
+            <button class="nav-link" id="tab-draw-btn" data-bs-toggle="tab" data-bs-target="#tab-draw"
+                    type="button" role="tab" aria-controls="tab-draw" aria-selected="false">
+              <i class="bi bi-pen me-1" aria-hidden="true"></i>Odręczny
             </button>
           </li>
         </ul>
 
         <div class="tab-content">
           <!-- Podpis odręczny -->
-          <div class="tab-pane fade show active" id="tab-draw" role="tabpanel" aria-labelledby="tab-draw-btn">
+          <div class="tab-pane fade" id="tab-draw" role="tabpanel" aria-labelledby="tab-draw-btn">
             <canvas id="sig-canvas" style="width:100%;height:160px;border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;background:#fafafa;display:block"
                     role="img" aria-label="Pole podpisu odręcznego"></canvas>
             <div class="d-flex gap-2 mt-2 align-items-center flex-wrap">
@@ -120,7 +120,7 @@ if ($preview) {
           </div>
 
           <!-- Skan / zdjęcie -->
-          <div class="tab-pane fade" id="tab-scan" role="tabpanel" aria-labelledby="tab-scan-btn">
+          <div class="tab-pane fade show active" id="tab-scan" role="tabpanel" aria-labelledby="tab-scan-btn">
             <div class="border rounded p-3 bg-body-secondary text-center">
               <label for="sig-file" class="d-block mb-2 text-body-secondary small">
                 <i class="bi bi-upload fs-4 d-block mb-1" aria-hidden="true"></i>
@@ -173,7 +173,7 @@ if ($preview) {
       if (!submit) return;
 
       let activeSigData = null;   // aktualne dane podpisu (canvas lub skan)
-      let activeMode    = 'draw'; // 'draw' | 'scan'
+      let activeMode    = 'scan'; // 'draw' | 'scan'
 
       // ── Zakładki ──────────────────────────────────────────────────────────
       document.getElementById('tab-draw-btn')?.addEventListener('shown.bs.tab', () => { activeMode = 'draw'; checkReady(); });
