@@ -702,6 +702,7 @@ if (!$pfron_id && !$client_id) {
   // ── Wizard core ──────────────────────────────────────────────────────────
   const TOTAL = 6;
   let current = 1;
+  let confirmed = false;   // true po zapisaniu kroku 3
   let savedPfronId = parseInt(document.getElementById('pfron-id-input')?.value || '0') || <?= $pfron_id ?: 0 ?>;
 
   const modal     = document.getElementById('pfronWizard');
@@ -795,6 +796,12 @@ if (!$pfron_id && !$client_id) {
           const val   = document.getElementById('wiz-doc-number-val');
           if (badge && val) { val.textContent = data.doc_number; badge.style.display = ''; }
         }
+        // Zablokuj kroki 1 i 2 — dane zatwierdzone i zapisane
+        confirmed = true;
+        stepBtns().forEach(b => {
+          const n = parseInt(b.dataset.step);
+          if (n <= 2) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
+        });
         status.style.display = 'none';
         nextBtn.disabled = false;
         return true;
@@ -1004,13 +1011,15 @@ if (!$pfron_id && !$client_id) {
   });
 
   backBtn.addEventListener('click', () => {
-    if (current > 1) showStep(current - 1);
+    const minStep = confirmed ? 3 : 1;
+    if (current > minStep) showStep(current - 1);
   });
 
   stepBtns().forEach(btn => {
     btn.addEventListener('click', () => {
       const n = parseInt(btn.dataset.step);
-      if (n < current || btn.classList.contains('done')) showStep(n);
+      const minStep = confirmed ? 3 : 1;
+      if (n >= minStep && (n < current || btn.classList.contains('done'))) showStep(n);
     });
   });
 
