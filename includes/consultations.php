@@ -19,10 +19,11 @@ require_once __DIR__ . '/db.php';
 /** Obszary wsparcia (select w formularzu). */
 function cc_areas(): array {
     return [
-        'dostepnosc_cyfrowa'        => 'Dostępność cyfrowa',
-        'dostepnosc_architektoniczna' => 'Dostępność architektoniczna',
-        'formalne_prawne'           => 'Sprawy formalne / prawne',
-        'inne'                      => 'Inne',
+        'dostepnosc_cyfrowa'           => 'Dostępność cyfrowa',
+        'dostepnosc_architektoniczna'  => 'Dostępność architektoniczna',
+        'dostepnosc_komunikacyjna'     => 'Dostępność komunikacyjno-informacyjna',
+        'formalne_prawne'              => 'Sprawy formalne / prawne',
+        'inne'                         => 'Inne',
     ];
 }
 
