@@ -30,6 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pid = (int)($_POST['pfron_id'] ?? 0);
         $cid = (int)($_POST['client_id'] ?? 0);
 
+        // Blokada: jeśli umowa ma już numer dokumentu — nie pozwól nadpisać
+        if ($pid) {
+            $lock_check = db_one("SELECT doc_number FROM k30_pfron_contracts WHERE id=?", [$pid]);
+            if (!empty($lock_check['doc_number'])) {
+                flash_set('warning', 'Umowa jest już zarejestrowana (nr ' . $lock_check['doc_number'] . ') i nie może być ponownie wygenerowana.');
+                header('Location: doc_print.php?type=umowa&preview=1');
+                exit;
+            }
+        }
+
         // Zapisz PESEL do klienta jeśli podany
         if ($cid && trim($_POST['pesel'] ?? '') !== '') {
             db()->prepare("UPDATE k30_clients SET pesel=?, updated_at=datetime('now') WHERE id=?")
@@ -89,8 +99,12 @@ $f_mc_sign     = $pfron['main_contract_sign']?? '';
 $f_hours_total = (int)($pfron['hours_total']    ?? 30);
 $f_hours_tr    = (int)($pfron['hours_training'] ?? 25);
 
-// Uruchom kreator od razu jeśli mamy pfron_id lub client_id
-$auto_start = ($pfron_id || $client_id) ? 'true' : 'false';
+$doc_locked    = !empty($pfron['doc_number']);
+$doc_number    = $pfron['doc_number']  ?? '';
+$doc_signed_at = $pfron['signed_at']   ?? '';
+
+// Uruchom kreator od razu tylko gdy mamy kontekst I umowa NIE jest zablokowana
+$auto_start = (!$doc_locked && ($pfron_id || $client_id)) ? 'true' : 'false';
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -118,8 +132,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   </button>
 </div>
 <?php else: ?>
-<!-- Przycisk do ponownego otwarcia gdy mamy kontekst -->
-<div class="d-flex align-items-center gap-3 mb-4">
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
   <div>
     <h1 class="h5 fw-bold mb-0">Dokumenty PFRON</h1>
     <?php if ($pfron): ?>
@@ -128,6 +141,34 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <p class="text-body-secondary small mb-0">Beneficjent: <strong><?= h($client['name']) ?></strong></p>
     <?php endif; ?>
   </div>
+
+  <?php if ($doc_locked): ?>
+  <!-- Zablokowany — umowa zarejestrowana -->
+  <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+    <span class="badge text-bg-success d-inline-flex align-items-center gap-1 fs-6 px-3 py-2">
+      <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+      <?= h($doc_number) ?>
+    </span>
+    <?php if ($doc_signed_at): ?>
+    <span class="text-body-secondary small"><?= date('d.m.Y H:i', strtotime($doc_signed_at)) ?></span>
+    <?php endif; ?>
+    <a href="doc_print.php?type=umowa&preview=1" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd i PDF
+    </a>
+  </div>
+  <div class="w-100">
+    <div class="alert alert-warning d-flex gap-2 align-items-start mb-0" role="status">
+      <i class="bi bi-lock-fill fs-5 flex-shrink-0" aria-hidden="true"></i>
+      <div>
+        <strong>Umowa zablokowana.</strong>
+        Dokument został już podpisany i zarejestrowany — nie można go ponownie wygenerować ani edytować.
+        Możesz pobrać PDF lub wgrać nowy skan podpisanego dokumentu na stronie podglądu.
+      </div>
+    </div>
+  </div>
+
+  <?php else: ?>
+  <!-- Odblokowany — można generować -->
   <button class="btn btn-danger ms-auto" id="btn-start-wizard">
     <i class="bi bi-magic me-2" aria-hidden="true"></i>Generuj dokumenty
   </button>
@@ -142,7 +183,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <?php endforeach; ?>
   </div>
   <?php endif; ?>
+  <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<?php if ($doc_locked): ?>
+<?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
+<?php exit; ?>
 <?php endif; ?>
 
 <!-- ═══════════════════════════ MODAL KREATOR ═══════════════════════════ -->
