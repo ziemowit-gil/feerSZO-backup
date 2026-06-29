@@ -18,6 +18,11 @@ require_once dirname(__DIR__) . '/includes/consultations.php';
 cc_migrate();
 auth_start();
 
+// URL publicznego formularza — ten sam adres używany do POST i przekierowania.
+// Punkt wejścia /extforms/konsultacjeADNGO/ ustawia własną wartość przed include,
+// dzięki czemu formularz działa pod dowolnym adresem.
+$CC_FORM_URL = $CC_FORM_URL ?? (APP_URL . '/konsultacje/form.php');
+
 $_user = current_user();              // null gdy niezalogowany — to jest OK
 $errors = [];
 $old = [
@@ -70,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             unset($_SESSION['cc_form_ts']);          // świeży token na kolejny wpis
             // PRG: po zapisie ekran potwierdzenia (numer karty + pobranie PDF/ZIP).
-            header('Location: ' . APP_URL . '/konsultacje/form.php?saved=' . (int)$saved_id);
+            header('Location: ' . $CC_FORM_URL . '?saved=' . (int)$saved_id);
             exit;
         }
     }
@@ -162,7 +167,7 @@ $base = APP_URL . '/konsultacje';
                     style="position:absolute;width:0;height:0;border:0" aria-hidden="true"></iframe>
           <?php else: ?>
             <p class="text-secondary mb-4">Konsultacja została odnotowana w rejestrze.</p>
-            <a href="<?= h($base) ?>/form.php" class="btn btn-outline-secondary">
+            <a href="<?= h($CC_FORM_URL) ?>" class="btn btn-outline-secondary">
               <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj kolejną kartę
             </a>
           <?php endif; ?>
@@ -178,7 +183,7 @@ $base = APP_URL . '/konsultacje';
       <?php endif; ?>
 
       <main id="main">
-      <form method="post" action="<?= h($base) ?>/form.php" novalidate
+      <form method="post" action="<?= h($CC_FORM_URL) ?>" novalidate
             class="card shadow-sm" aria-describedby="cc-intro">
         <div class="card-body p-4">
           <p id="cc-intro" class="text-secondary small mb-4">

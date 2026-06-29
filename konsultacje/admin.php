@@ -73,7 +73,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <i class="bi bi-clipboard2-pulse text-primary me-1" aria-hidden="true"></i>Karty doradztwa
     </h1>
     <div class="d-flex gap-2">
-      <a class="btn btn-outline-secondary btn-sm" href="<?= h($base) ?>/form.php" target="_blank" rel="noopener">
+      <a class="btn btn-outline-secondary btn-sm" href="<?= h(APP_URL) ?>/extforms/konsultacjeADNGO/" target="_blank" rel="noopener">
         <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Formularz publiczny
       </a>
       <a class="btn btn-danger btn-sm <?= $rows ? '' : 'disabled' ?>"
