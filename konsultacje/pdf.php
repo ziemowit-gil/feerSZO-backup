@@ -17,11 +17,19 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/consultations.php';
 
-require_login();
-if (is_viewer()) { http_response_code(403); exit('Brak dostępu.'); }
-
 $id = (int)($_GET['id'] ?? 0);
-$c  = $id ? cc_get($id) : null;
+
+// Dostęp: zalogowany (nie-viewer) ALBO osoba, która właśnie wypełniła tę kartę
+// w publicznym formularzu (ID na liście dozwolonych w sesji). Dzięki temu
+// konsultant bez konta może wygenerować PDF tylko dla swojego świeżego wpisu.
+auth_start();
+$pub_ok = $id > 0 && in_array($id, $_SESSION['cc_pub_pdf'] ?? [], true);
+if (!$pub_ok) {
+    require_login();
+    if (is_viewer()) { http_response_code(403); exit('Brak dostępu.'); }
+}
+
+$c = $id ? cc_get($id) : null;
 if (!$c) { http_response_code(404); exit('Karta konsultacyjna nie istnieje.'); }
 
 $auto_print = !isset($_GET['noprint']);
@@ -47,6 +55,13 @@ function cc_render_pdf_html(array $c, bool $auto_print = false): string
         $html = $txt !== '' ? nl2br(h($txt)) : '<span class="muted">—</span>';
         return '<section class="block"><h2>' . h($title) . '</h2><div class="prose">' . $html . '</div></section>';
     };
+
+    // Link powrotu: zalogowany → lista kart; publiczny konsultant → formularz.
+    $back_url   = (function_exists('current_user') && current_user() && !is_viewer())
+        ? APP_URL . '/konsultacje/admin.php'
+        : APP_URL . '/konsultacje/form.php';
+    $back_label = (function_exists('current_user') && current_user() && !is_viewer())
+        ? 'Powrót do listy' : 'Powrót do formularza';
 
     $consultant = trim((string)$c['consultant']) !== '' ? h($c['consultant']) : '&nbsp;';
     $print_js = $auto_print
@@ -124,7 +139,7 @@ function cc_render_pdf_html(array $c, bool $auto_print = false): string
 <body>
   <div class="toolbar" role="toolbar" aria-label="Akcje dokumentu">
     <button type="button" onclick="window.print()">Drukuj / zapisz jako PDF</button>
-    <a href="' . h(APP_URL . '/konsultacje/admin.php') . '">Powrót do listy</a>
+    <a href="' . h($back_url) . '">' . h($back_label) . '</a>
   </div>
 
   <article class="sheet">

@@ -62,6 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$errors) {
             $ip = $_SERVER['REMOTE_ADDR'] ?? null;
             $saved_id = cc_create($clean, $_user['id'] ?? null, $ip);
+            // Pozwól osobie, która właśnie wypełniła kartę, wygenerować jej PDF
+            // (nawet bez logowania) — wąska lista dozwolonych ID w sesji.
+            $_SESSION['cc_pub_pdf'] = array_slice(
+                array_unique(array_merge($_SESSION['cc_pub_pdf'] ?? [], [$saved_id])), -20
+            );
             unset($_SESSION['cc_form_ts']);          // świeży token na kolejny wpis
         }
     }
@@ -124,9 +129,17 @@ $base = APP_URL . '/konsultacje';
             Konsultacja została odnotowana w rejestrze.<?php if ($saved_id): ?>
             Numer karty: <strong>#<?= (int)$saved_id ?></strong>.<?php endif; ?>
           </p>
-          <a href="<?= h($base) ?>/form.php" class="btn btn-primary">
-            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj kolejną kartę
-          </a>
+          <div class="d-flex flex-wrap justify-content-center gap-2">
+            <?php if ($saved_id): ?>
+              <a href="<?= h($base) ?>/pdf.php?id=<?= (int)$saved_id ?>" class="btn btn-primary"
+                 target="_blank" rel="noopener">
+                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Generuj PDF karty
+              </a>
+            <?php endif; ?>
+            <a href="<?= h($base) ?>/form.php" class="btn btn-outline-secondary">
+              <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj kolejną kartę
+            </a>
+          </div>
         </div>
       </div>
     <?php else: ?>
