@@ -82,20 +82,61 @@ if ($preview) {
     </nav>
     <?= flash_html() ?>
 
-    <?php if ($pfron_id && !$existing_doc_number): ?>
-    <!-- Panel podpisu -->
-    <div class="card mb-4 border-warning shadow-sm" style="max-width:640px">
-      <div class="card-header fw-bold"><i class="bi bi-pen me-1" aria-hidden="true"></i>Podpis uczestnika</div>
-      <div class="card-body">
-        <p class="small text-body-secondary mb-2">
-          Uczestnik składa podpis odręczny poniżej lub wgraj skan podpisanej umowy.
-          Po zatwierdzeniu umowie zostanie automatycznie nadany numer <strong>PFRON-AS/xx/<?= date('Y') ?></strong>.
-        </p>
+    <?php if ($existing_doc_number): ?>
+    <div class="alert alert-success d-flex gap-2 align-items-center mb-4">
+      <i class="bi bi-patch-check-fill fs-4" aria-hidden="true"></i>
+      <div>
+        Umowa zarejestrowana: <strong class="font-monospace"><?= h($existing_doc_number) ?></strong>
+        <span class="text-body-secondary small ms-2"><?= $existing_signed_at ? date('d.m.Y H:i', strtotime($existing_signed_at)) : '' ?></span>
+      </div>
+    </div>
+    <?php endif; ?>
 
-        <!-- Zakładki: Odręczny / Skan -->
-        <ul class="nav nav-tabs nav-sm mb-3" id="sig-tabs" role="tablist">
+    <!-- Krok 1: Pobierz i wydrukuj -->
+    <div class="card mb-3 border-0 shadow-sm" style="max-width:680px">
+      <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+        <div class="d-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bold flex-shrink-0"
+             style="width:36px;height:36px;font-size:1.1rem" aria-hidden="true">1</div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold mb-1">Pobierz i wydrukuj umowę</div>
+          <div class="text-body-secondary small">Wydrukuj dokument, daj uczestnikowi do podpisania.</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="doc_print.php?type=umowa" class="btn btn-danger btn-sm">
+            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Umowa + Regulamin
+          </a>
+          <a href="doc_print.php?type=regulamin" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Krok 2: Podpisz ręcznie -->
+    <div class="card mb-3 border-0 shadow-sm" style="max-width:680px">
+      <div class="card-body d-flex align-items-start gap-3">
+        <div class="d-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bold flex-shrink-0"
+             style="width:36px;height:36px;font-size:1.1rem;margin-top:.1rem" aria-hidden="true">2</div>
+        <div>
+          <div class="fw-semibold mb-1">Uczestnik podpisuje ręcznie</div>
+          <div class="text-body-secondary small">Uczestnik składa podpis na wydruku. Możesz też zebrać podpis bezpośrednio na ekranie (zakładka „Odręczny" poniżej).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Krok 3: Wgraj podpis -->
+    <?php if ($pfron_id && !$existing_doc_number): ?>
+    <div class="card mb-4 border-warning shadow-sm" style="max-width:680px" id="sign-panel">
+      <div class="card-header d-flex align-items-center gap-2 fw-semibold">
+        <div class="d-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bold flex-shrink-0"
+             style="width:28px;height:28px;font-size:.95rem" aria-hidden="true">3</div>
+        Wgraj podpis i zarejestruj umowę
+        <span class="text-body-secondary fw-normal small ms-1">— nadany zostanie numer PFRON-AS/xx/<?= date('Y') ?></span>
+      </div>
+      <div class="card-body">
+        <ul class="nav nav-tabs mb-3" id="sig-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-scan-btn" data-bs-toggle="tab" data-bs-target="#tab-scan"
+            <button class="nav-link active" id="tab-scan-btn" data-bs-toggle="tab" data-bs-target="#tab-scan"
                     type="button" role="tab" aria-controls="tab-scan" aria-selected="true">
               <i class="bi bi-image me-1" aria-hidden="true"></i>Skan / zdjęcie
             </button>
@@ -103,22 +144,12 @@ if ($preview) {
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-draw-btn" data-bs-toggle="tab" data-bs-target="#tab-draw"
                     type="button" role="tab" aria-controls="tab-draw" aria-selected="false">
-              <i class="bi bi-pen me-1" aria-hidden="true"></i>Odręczny
+              <i class="bi bi-pen me-1" aria-hidden="true"></i>Odręczny (na ekranie)
             </button>
           </li>
         </ul>
 
         <div class="tab-content">
-          <!-- Podpis odręczny -->
-          <div class="tab-pane fade" id="tab-draw" role="tabpanel" aria-labelledby="tab-draw-btn">
-            <canvas id="sig-canvas" style="width:100%;height:160px;border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;background:#fafafa;display:block"
-                    role="img" aria-label="Pole podpisu odręcznego"></canvas>
-            <div class="d-flex gap-2 mt-2 align-items-center flex-wrap">
-              <button class="btn btn-outline-secondary btn-sm" id="sig-clear">Wyczyść</button>
-              <span class="text-body-secondary small">Mysz, rysik lub palec</span>
-            </div>
-          </div>
-
           <!-- Skan / zdjęcie -->
           <div class="tab-pane fade show active" id="tab-scan" role="tabpanel" aria-labelledby="tab-scan-btn">
             <div class="border rounded p-3 bg-body-secondary text-center">
@@ -129,41 +160,32 @@ if ($preview) {
               <input type="file" class="form-control" id="sig-file" accept="image/jpeg,image/png,image/webp">
             </div>
             <div id="sig-scan-preview" class="mt-2" style="display:none">
-              <img id="sig-scan-img" style="max-height:140px;max-width:100%;border:1px solid #ccc;border-radius:4px" alt="Podgląd skanu podpisu">
+              <img id="sig-scan-img" style="max-height:160px;max-width:100%;border:1px solid #ccc;border-radius:4px" alt="Podgląd skanu podpisu">
               <button class="btn btn-outline-secondary btn-sm d-block mt-1" id="sig-scan-clear">Usuń</button>
+            </div>
+          </div>
+
+          <!-- Podpis odręczny -->
+          <div class="tab-pane fade" id="tab-draw" role="tabpanel" aria-labelledby="tab-draw-btn">
+            <canvas id="sig-canvas" style="width:100%;height:160px;border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;background:#fafafa;display:block"
+                    role="img" aria-label="Pole podpisu odręcznego"></canvas>
+            <div class="d-flex gap-2 mt-2 align-items-center flex-wrap">
+              <button class="btn btn-outline-secondary btn-sm" id="sig-clear">Wyczyść</button>
+              <span class="text-body-secondary small">Mysz, rysik lub palec</span>
             </div>
           </div>
         </div>
 
         <div class="d-flex gap-2 mt-3 flex-wrap align-items-center">
-          <button class="btn btn-danger" id="sig-submit" disabled>
-            <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zatwierdź podpis i pobierz PDF
+          <button class="btn btn-warning fw-semibold" id="sig-submit" disabled>
+            <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zarejestruj podpis
           </button>
           <span id="sig-status" class="text-body-secondary small"></span>
         </div>
         <div id="sign-result" class="mt-3" style="display:none"></div>
       </div>
     </div>
-    <?php elseif ($existing_doc_number): ?>
-    <div class="alert alert-success d-flex gap-2 align-items-center mb-4">
-      <i class="bi bi-patch-check-fill fs-4" aria-hidden="true"></i>
-      <div>
-        Umowa zarejestrowana: <strong class="font-monospace"><?= h($existing_doc_number) ?></strong>
-        <span class="text-body-secondary small ms-2"><?= $existing_signed_at ? date('d.m.Y H:i', strtotime($existing_signed_at)) : '' ?></span>
-      </div>
-    </div>
     <?php endif; ?>
-
-    <!-- Przyciski pobierania PDF -->
-    <div class="d-flex gap-2 mb-4 flex-wrap">
-      <a href="doc_print.php?type=umowa" class="btn btn-danger" id="btn-pdf-umowa"
-         <?= ($pfron_id && !$existing_doc_number) ? 'style="display:none"' : '' ?>>
-        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF — Umowa + Regulamin
-      </a>
-      <a href="doc_print.php?type=regulamin" class="btn btn-outline-secondary">
-        <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Pobierz PDF — Sam regulamin
-      </a>
-    </div>
 
     <script>
     (function() {
@@ -265,12 +287,19 @@ if ($preview) {
           const data = await res.json();
           if (data.ok) {
             result.className = 'alert alert-success';
-            result.innerHTML = 'Numer dokumentu: <strong class="font-monospace">' + data.doc_number + '</strong>';
+            result.innerHTML = 'Umowa zarejestrowana. Numer dokumentu: <strong class="font-monospace">' + data.doc_number + '</strong>';
             result.style.display = 'block';
             status.textContent = '';
-            const btnPdf = document.getElementById('btn-pdf-umowa');
-            if (btnPdf) btnPdf.style.display = '';
-            document.querySelector('#sign-panel p')?.remove();
+            submit.disabled = true;
+            // Przeładuj po chwili żeby pokazać zarejestrowany status
+            setTimeout(() => location.reload(), 1800);
+          } else if (data.ika_expired) {
+            // Sesja IKA wygasła — przekieruj do ponownego uwierzytelnienia
+            const gate = <?= json_encode(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>;
+            result.className = 'alert alert-warning';
+            result.innerHTML = 'Sesja bezpieczeństwa wygasła. <a href="' + gate + '">Kliknij tutaj, aby się ponownie uwierzytelnić</a>.';
+            result.style.display = 'block';
+            submit.disabled = false; status.textContent = '';
           } else {
             result.className = 'alert alert-danger';
             result.textContent = 'Błąd: ' + (data.error || 'nieznany');

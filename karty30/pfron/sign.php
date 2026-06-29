@@ -34,6 +34,14 @@ if (!hash_equals(csrf_token(), $csrf)) json_err('Nieprawidłowy token CSRF.', 40
 if (!$pfron_id)  json_err('Brak ID umowy PFRON.');
 if (!$sig_data)  json_err('Brak danych podpisu.');
 
+// IKA — rejestracja podpisu to operacja na danych osobowych; sesja musi być aktywna
+$_ika_ts = (int)($_SESSION['_ika_ts'] ?? 0);
+if (function_exists('ika_require') && $_ika_ts > 0 && (time() - $_ika_ts) >= 1800) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'ika_expired' => true, 'error' => 'Sesja IKA wygasła. Zaloguj się ponownie.']);
+    exit;
+}
+
 // Walidacja formatu base64 (PNG z canvasa lub JPEG/PNG ze skanu)
 if (!preg_match('/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+\/=]+$/', $sig_data)) {
     json_err('Nieprawidłowy format podpisu.');
