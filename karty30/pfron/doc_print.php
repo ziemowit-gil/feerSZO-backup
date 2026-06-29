@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 
 k30_require_access();
 
+// 'umowa' = umowa + regulamin (jako załącznik); 'regulamin' = sam regulamin
 $type = in_array($_GET['type'] ?? '', ['umowa', 'regulamin'], true) ? $_GET['type'] : 'umowa';
 $d    = $_SESSION['k30_pfron_doc_draft'] ?? null;
 
@@ -347,8 +348,11 @@ $org         = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwo
 
 </div><!-- /page umowa -->
 
-<?php elseif ($type === 'regulamin'): ?>
-<!-- ═══════════════════════════════════════ REGULAMIN ═══════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<?php endif; /* umowa */ ?>
+<?php if ($type === 'umowa' || $type === 'regulamin'): ?>
+<!-- ═══════ REGULAMIN — drukowany jako załącznik do umowy lub samodzielnie ═══════ -->
 <div class="page">
 
   <h1 class="doc-title">Regulamin uczestnictwa w indywidualnych szkoleniach<br>
@@ -526,7 +530,7 @@ $org         = defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwo
   </div>
 
 </div><!-- /page regulamin -->
-<?php endif; ?>
+<?php endif; /* regulamin */  ?>
 
 <script>
 window.addEventListener('load', function() {

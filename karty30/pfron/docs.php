@@ -78,11 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         $_SESSION['k30_pfron_doc_draft'] = $doc_data;
 
-        if ($op === 'print_oba') {
-            // Otwiera obie zakładki — umowa przez redirect, regulamin przez JS
-            $_SESSION['k30_pfron_doc_draft_open_reg'] = true;
-            header('Location: doc_print.php?type=umowa&open_reg=1');
-        } elseif ($op === 'print_regulamin') {
+        if ($op === 'print_regulamin') {
             header('Location: doc_print.php?type=regulamin');
         } else {
             header('Location: doc_print.php?type=umowa');
@@ -266,15 +262,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <div class="card-body d-flex flex-wrap gap-2 align-items-center">
       <span class="fw-semibold me-1"><i class="bi bi-printer me-1" aria-hidden="true"></i>Generuj dokument:</span>
       <button type="submit" class="btn btn-danger" onclick="setOp('print_umowa')">
-        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Umowa uczestnictwa
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Umowa + Regulamin (do druku)
       </button>
-      <button type="submit" class="btn btn-outline-danger" onclick="setOp('print_regulamin')">
-        <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Regulamin
+      <button type="submit" class="btn btn-outline-secondary" onclick="setOp('print_regulamin')">
+        <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
       </button>
-      <button type="submit" class="btn btn-outline-secondary" onclick="setOp('print_oba')">
-        <i class="bi bi-files me-1" aria-hidden="true"></i>Oba dokumenty
-      </button>
-      <span class="text-body-secondary small ms-auto">Strona otworzy się do wydruku/zapisu PDF</span>
+      <span class="text-body-secondary small ms-auto">Regulamin drukuje się automatycznie jako załącznik do umowy</span>
     </div>
   </div>
 </form>
@@ -283,10 +276,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 function setOp(op) {
   document.getElementById('form-op').value = op;
 }
-// Otwarcie regulaminu w nowej zakładce jeśli flagowane z sesji PHP
-<?php if (!empty($_GET['open_reg'])): ?>
-window.open('doc_print.php?type=regulamin', '_blank');
-<?php endif; ?>
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
