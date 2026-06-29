@@ -106,6 +106,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Tryb AJAX (krok 3 kreatora) — zwróć JSON zamiast redirect
         if (!empty($_POST['_ajax'])) {
             header('Content-Type: application/json; charset=utf-8');
+            // IKA — zapis danych osobowych wymaga aktywnej sesji
+            $_ika_ts = (int)($_SESSION['_ika_ts'] ?? 0);
+            if (function_exists('ika_require') && $_ika_ts > 0 && (time() - $_ika_ts) >= 1800) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'ika_expired' => true, 'error' => 'Sesja IKA wygasła.']);
+                exit;
+            }
             echo json_encode(['ok' => true, 'pfron_id' => $pid]);
             exit;
         }
@@ -241,9 +248,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           $steps = [
             1 => ['icon' => 'person',              'label' => 'Uczestnik'],
             2 => ['icon' => 'file-earmark-text',   'label' => 'Umowa'],
-            3 => ['icon' => 'file-earmark-pdf',    'label' => 'Dokumenty'],
-            4 => ['icon' => 'pen',                 'label' => 'Podpisz'],
-            5 => ['icon' => 'shield-check',        'label' => 'Zarząd'],
+            3 => ['icon' => 'clipboard2-check',    'label' => 'Potwierdź'],
+            4 => ['icon' => 'file-earmark-pdf',    'label' => 'Dokumenty'],
+            5 => ['icon' => 'pen',                 'label' => 'Podpisz'],
+            6 => ['icon' => 'shield-check',        'label' => 'Zarząd'],
           ];
           foreach ($steps as $n => $s): ?>
           <button type="button" role="tab"
@@ -371,54 +379,49 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </div>
           </div>
 
-          <!-- ── Krok 3: Podsumowanie i pobieranie PDF ───────────────── -->
+          <!-- ── Krok 3: Potwierdź dane + IKA ──────────────────────── -->
           <div class="wizard-panel d-none" id="wizard-panel-3" role="tabpanel" aria-labelledby="wizard-tab-3">
-            <p class="text-body-secondary small mb-3">Sprawdź dane i pobierz dokumenty do wydruku.</p>
+            <p class="text-body-secondary small mb-3">Sprawdź dane przed zapisaniem. Wymagane potwierdzenie tożsamości (IKA).</p>
             <div class="card bg-body-secondary border-0 mb-3">
               <div class="card-body py-3">
                 <dl class="row mb-0 small" id="wizard-summary">
-                  <dt class="col-sm-4">Uczestnik</dt>   <dd class="col-sm-8" id="sum-name">—</dd>
-                  <dt class="col-sm-4">PESEL</dt>        <dd class="col-sm-8" id="sum-pesel">—</dd>
-                  <dt class="col-sm-4">Adres</dt>        <dd class="col-sm-8" id="sum-address">—</dd>
+                  <dt class="col-sm-4">Uczestnik</dt>      <dd class="col-sm-8" id="sum-name">—</dd>
+                  <dt class="col-sm-4">PESEL</dt>           <dd class="col-sm-8" id="sum-pesel">—</dd>
+                  <dt class="col-sm-4">Adres</dt>           <dd class="col-sm-8" id="sum-address">—</dd>
                   <dt class="col-sm-4">Telefon / e-mail</dt><dd class="col-sm-8" id="sum-contact">—</dd>
-                  <dt class="col-sm-4">Data umowy</dt>   <dd class="col-sm-8" id="sum-date">—</dd>
-                  <dt class="col-sm-4">Nr PFRON</dt>     <dd class="col-sm-8" id="sum-pfron-no">—</dd>
-                  <dt class="col-sm-4">Skierowanie</dt>  <dd class="col-sm-8" id="sum-mc">—</dd>
-                  <dt class="col-sm-4">Godziny</dt>      <dd class="col-sm-8" id="sum-hours">—</dd>
+                  <dt class="col-sm-4">Data umowy</dt>      <dd class="col-sm-8" id="sum-date">—</dd>
+                  <dt class="col-sm-4">Nr PFRON</dt>        <dd class="col-sm-8" id="sum-pfron-no">—</dd>
+                  <dt class="col-sm-4">Skierowanie</dt>     <dd class="col-sm-8" id="sum-mc">—</dd>
+                  <dt class="col-sm-4">Godziny</dt>         <dd class="col-sm-8" id="sum-hours">—</dd>
                 </dl>
               </div>
             </div>
-            <div id="step3-save-status" class="mb-3" style="display:none"></div>
-
-            <!-- Przyciski PDF — widoczne po zapisaniu danych -->
-            <div id="step3-pdf-btns" style="display:none">
-              <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-3">
-                <i class="bi bi-arrow-right-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
-                <div class="small">
-                  <strong>Wydrukuj umowę i daj uczestnikowi do podpisania.</strong><br>
-                  Gdy masz podpisany dokument — kliknij <strong>Dalej</strong>, aby przejść do kroku 4 (wgranie skanu lub podpis na ekranie).
-                </div>
-              </div>
-              <div class="d-flex gap-2 flex-wrap">
-                <a id="btn-pdf-umowa-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
-                   class="btn btn-danger">
-                  <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Pobierz do podpisu (Umowa + Regulamin)
-                </a>
-                <a id="btn-pdf-reg-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=regulamin" target="_blank"
-                   class="btn btn-outline-secondary btn-sm align-self-center">
-                  <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
-                </a>
-              </div>
-            </div>
-
-            <p class="text-body-secondary mt-3 mb-0 small" id="step3-hint-before-save">
-              <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-              Kliknij „Dalej" — dane zostaną zapisane i pojawi się przycisk pobierania PDF.
-            </p>
+            <div id="step3-save-status" style="display:none"></div>
           </div>
 
-          <!-- ── Krok 4: Podpisz i wgraj ──────────────────────────────── -->
+          <!-- ── Krok 4: Dokumenty PDF ─────────────────────────────────── -->
           <div class="wizard-panel d-none" id="wizard-panel-4" role="tabpanel" aria-labelledby="wizard-tab-4">
+            <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-3">
+              <i class="bi bi-arrow-right-circle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+              <div class="small">
+                <strong>Wydrukuj umowę i daj uczestnikowi do podpisania.</strong><br>
+                Gdy masz podpisany dokument — kliknij <strong>Dalej</strong>, aby przejść do kroku Podpisz.
+              </div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              <a id="btn-pdf-umowa-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
+                 class="btn btn-danger">
+                <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Pobierz do podpisu (Umowa + Regulamin)
+              </a>
+              <a href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=regulamin" target="_blank"
+                 class="btn btn-outline-secondary btn-sm align-self-center">
+                <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
+              </a>
+            </div>
+          </div>
+
+          <!-- ── Krok 5: Podpisz i wgraj ──────────────────────────────── -->
+          <div class="wizard-panel d-none" id="wizard-panel-5" role="tabpanel" aria-labelledby="wizard-tab-5">
             <p class="text-body-secondary small mb-3">
               Wydrukuj umowę, daj uczestnikowi do podpisania, następnie wgraj skan poniżej.
               Możesz też zebrać podpis bezpośrednio na tablecie / ekranie.
@@ -467,7 +470,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
 
           <!-- ── Krok 5: Akceptacja Zarządu ──────────────────────────── -->
-          <div class="wizard-panel d-none" id="wizard-panel-5" role="tabpanel" aria-labelledby="wizard-tab-5">
+          <div class="wizard-panel d-none" id="wizard-panel-6" role="tabpanel" aria-labelledby="wizard-tab-6">
             <p class="text-body-secondary small mb-3">
               Prześlij umowę do akceptacji przez Zarząd. Administrator otrzyma e-mail z linkiem do dokumentu.
             </p>
@@ -585,7 +588,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   peselInput?.addEventListener('blur',  validatePesel);
 
   // ── Wizard core ──────────────────────────────────────────────────────────
-  const TOTAL = 5;
+  const TOTAL = 6;
   let current = 1;
   let savedPfronId = parseInt(document.getElementById('pfron-id-input')?.value || '0') || <?= $pfron_id ?: 0 ?>;
 
@@ -613,7 +616,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       : 'Dalej<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
     stepLabel.textContent = `Krok ${n} z ${TOTAL}`;
     if (n === 3) fillSummary();
-    if (n === 4) initStep4();
+    if (n === 5) initStep5();
     const first = document.querySelector(`#wizard-panel-${n} input:not([type=file]), #wizard-panel-${n} textarea`);
     if (first) setTimeout(() => first.focus(), 80);
   }
@@ -667,15 +670,20 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           const inp = document.getElementById('pfron-id-input');
           if (inp) inp.value = savedPfronId;
         }
-        status.className = 'alert alert-success py-2 small';
-        status.textContent = 'Umowa PFRON zapisana. Pobierz PDF, wydrukuj i daj do podpisania.';
-        pdfRow.style.display = 'block';
-        document.getElementById('step3-hint-before-save')?.remove();
-        nextBtn.innerHTML = 'Dalej — Podpisz<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
+        status.style.display = 'none';
         nextBtn.disabled = false;
         return true;
+      } else if (data.ika_expired) {
+        const gate = <?= json_encode(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>;
+        status.className = 'alert alert-warning py-2 small';
+        status.style.display = 'block';
+        status.innerHTML = '<i class="bi bi-shield-exclamation me-1"></i>Sesja bezpieczeństwa (IKA) wygasła. '
+          + '<a href="' + gate + '" class="alert-link">Kliknij tutaj, aby się ponownie uwierzytelnić</a> — dane kreatora zostaną zachowane.';
+        nextBtn.disabled = false;
+        return false;
       } else {
         status.className = 'alert alert-danger py-2 small';
+        status.style.display = 'block';
         status.textContent = 'Błąd: ' + (data.error || 'nieznany');
         nextBtn.disabled = false;
         return false;
@@ -689,13 +697,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   }
 
   // ── Krok 4: canvas + upload ──────────────────────────────────────────────
-  let step4Inited = false;
+  let step5Inited = false;
   let wizCanvasData = null;   // 'canvas' gdy są kreski
   let wizScanFile   = null;   // File ze skanu
 
-  function initStep4() {
-    if (step4Inited) return;
-    step4Inited = true;
+  function initStep5() {
+    if (step5Inited) return;
+    step5Inited = true;
 
     // Canvas
     const canvas = document.getElementById('wiz-sig-canvas');
@@ -863,7 +871,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   // ── Nawigacja ────────────────────────────────────────────────────────────
   nextBtn.addEventListener('click', async () => {
     if (!validateStep(current)) return;
-    if (current === 3) {
+    if (current === 3) {   // Potwierdź → IKA check + zapis
       const ok = await saveStep3();
       if (!ok) return;
     }
