@@ -50,11 +50,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_edit) {
     exit;
 }
 
-$statuses   = asr_statuses();
-$needs_all  = asr_needs();
-$channels   = asr_channels();
-$volunteers = asr_volunteers();
-$log        = asr_get_log($id);
+$statuses    = asr_statuses();
+$needs_all   = asr_needs();
+$channels    = asr_channels();
+$all_persons = asr_all_assignees();
+$log         = asr_get_log($id);
+
+// Bieżąca wartość selecta: "vol:ID" lub "usr:ID" lub "".
+$cur_person_val = '';
+if (!empty($req['assigned_person_type']) && !empty($req['assigned_volunteer_id'] ?: $req['assigned_user_id'] ?? 0)) {
+    $pid = $req['assigned_person_type'] === 'vol' ? ($req['assigned_volunteer_id'] ?? 0) : ($req['assigned_user_id'] ?? 0);
+    if ($pid) $cur_person_val = $req['assigned_person_type'] . ':' . (int)$pid;
+}
 $picked_needs   = array_filter(array_map('trim', explode(',', (string)$req['needs'])));
 $picked_channels= array_filter(array_map('trim', explode(',', (string)$req['assigned_channels'])));
 
@@ -164,17 +171,32 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
 
           <div class="col-md-6">
-            <label for="assigned_volunteer_id" class="form-label fw-semibold">Przypisany wolontariusz</label>
-            <select class="form-select" id="assigned_volunteer_id" name="assigned_volunteer_id">
+            <label for="assigned_person" class="form-label fw-semibold">Przypisana osoba realizująca</label>
+            <select class="form-select" id="assigned_person" name="assigned_person">
               <option value="">— nie przypisano —</option>
-              <?php foreach ($volunteers as $v): ?>
-                <option value="<?= (int)$v['id'] ?>" <?= (int)$req['assigned_volunteer_id'] === (int)$v['id'] ? 'selected' : '' ?>>
-                  <?= h($v['imie_nazwisko']) ?><?= !empty($v['email']) ? ' (' . h($v['email']) . ')' : '' ?>
-                </option>
-              <?php endforeach; ?>
+              <?php if ($all_persons['vol']): ?>
+              <optgroup label="Wolontariusze">
+                <?php foreach ($all_persons['vol'] as $a): ?>
+                  <?php $val = 'vol:' . $a['id']; ?>
+                  <option value="<?= h($val) ?>" <?= $cur_person_val === $val ? 'selected' : '' ?>>
+                    <?= h($a['name']) ?><?= $a['email'] !== '' ? ' (' . h($a['email']) . ')' : '' ?>
+                  </option>
+                <?php endforeach; ?>
+              </optgroup>
+              <?php endif; ?>
+              <?php if ($all_persons['usr']): ?>
+              <optgroup label="Użytkownicy systemu">
+                <?php foreach ($all_persons['usr'] as $a): ?>
+                  <?php $val = 'usr:' . $a['id']; ?>
+                  <option value="<?= h($val) ?>" <?= $cur_person_val === $val ? 'selected' : '' ?>>
+                    <?= h($a['name']) ?><?= $a['email'] !== '' ? ' (' . h($a['email']) . ')' : '' ?>
+                  </option>
+                <?php endforeach; ?>
+              </optgroup>
+              <?php endif; ?>
             </select>
-            <?php if (!$volunteers): ?>
-              <div class="form-text text-warning">Brak wolontariuszy w bazie do przypisania.</div>
+            <?php if (!$all_persons['vol'] && !$all_persons['usr']): ?>
+              <div class="form-text text-warning">Brak osób do przypisania w bazie.</div>
             <?php endif; ?>
           </div>
         </div>

@@ -26,28 +26,32 @@ require_once __DIR__ . '/db.php';
  */
 function asr_statuses(): array {
     return [
-        'received'           => 'Przyjęty',
-        'processing'         => 'W trakcie przetwarzania',
-        'reviewing'          => 'W trakcie rozpatrywania',
-        'confirmed'          => 'Potwierdzony – czekaj na kontakt',
-        'done'               => 'Zrealizowany',
-        'rejected'           => 'Odrzucony – czekaj na kontakt',
-        'rejected_external'  => 'Odrzucony z przyczyn zewnętrznych – czekaj na kontakt',
-        'resubmitted'        => 'Zmieniony – jako nowe zgłoszenie',
+        'received'             => 'Przyjęty',
+        'processing'           => 'W trakcie przetwarzania',
+        'reviewing'            => 'W trakcie rozpatrywania',
+        'confirmed'            => 'Potwierdzony – czekaj na kontakt',
+        'volunteer_accepted'   => 'Przyjęty przez wolontariusza',
+        'done'                 => 'Zrealizowany',
+        'rejected'             => 'Odrzucony – czekaj na kontakt',
+        'rejected_external'    => 'Odrzucony z przyczyn zewnętrznych – czekaj na kontakt',
+        'volunteer_rejected'   => 'Odrzucony przez wolontariusza',
+        'resubmitted'          => 'Zmieniony – jako nowe zgłoszenie',
     ];
 }
 
 /** Kolor (klasa Bootstrap badge) dla statusu — do tabeli/karty. */
 function asr_status_class(string $status): string {
     return [
-        'received'          => 'text-bg-primary',
-        'processing'        => 'text-bg-info',
-        'reviewing'         => 'text-bg-info',
-        'confirmed'         => 'text-bg-success',
-        'done'              => 'text-bg-secondary',
-        'rejected'          => 'text-bg-danger',
-        'rejected_external' => 'text-bg-warning',
-        'resubmitted'       => 'text-bg-dark',
+        'received'           => 'text-bg-primary',
+        'processing'         => 'text-bg-info',
+        'reviewing'          => 'text-bg-info',
+        'confirmed'          => 'text-bg-success',
+        'volunteer_accepted' => 'text-bg-success',
+        'done'               => 'text-bg-secondary',
+        'rejected'           => 'text-bg-danger',
+        'rejected_external'  => 'text-bg-warning',
+        'volunteer_rejected' => 'text-bg-danger',
+        'resubmitted'        => 'text-bg-dark',
     ][$status] ?? 'text-bg-light';
 }
 
@@ -127,6 +131,9 @@ function asr_migrate(): void {
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_status ON szo_assistance_requests(status)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_vol    ON szo_assistance_requests(assigned_volunteer_id)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_asr_created ON szo_assistance_requests(created_at)");
+        // Migracja do istniejących baz: assigned_user_id i assigned_person_type.
+        try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
+        try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_person_type TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS szo_assistance_log (
@@ -163,12 +170,17 @@ function asr_migrate(): void {
                 created_ip           VARCHAR(64)  NULL,
                 created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at           TIMESTAMP NULL,
+                assigned_user_id     INT UNSIGNED NULL,
+                assigned_person_type VARCHAR(10)  NOT NULL DEFAULT '',
                 PRIMARY KEY (id),
                 KEY idx_asr_status (status),
                 KEY idx_asr_vol (assigned_volunteer_id),
                 KEY idx_asr_created (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        // Migracja do istniejących baz MySQL.
+        try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_user_id INT UNSIGNED NULL"); } catch (\Throwable $e) {}
+        try { $pdo->exec("ALTER TABLE szo_assistance_requests ADD COLUMN assigned_person_type VARCHAR(10) NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS szo_assistance_log (
@@ -268,6 +280,72 @@ function asr_volunteers(): array {
             return [];
         }
     }
+}
+
+/**
+ * Zwraca wszystkie osoby dostępne do przypisania jako realizator asysty,
+ * pogrupowane w dwie listy: wolontariusze i użytkownicy systemu.
+ * Każdy element ma: type ('vol'|'usr'), id, name, email, phone.
+ * Użyj do budowania optgroup w select.
+ */
+function asr_all_assignees(): array {
+    $groups = ['vol' => [], 'usr' => []];
+
+    foreach (asr_volunteers() as $v) {
+        $groups['vol'][] = [
+            'type'  => 'vol',
+            'id'    => (int)$v['id'],
+            'name'  => (string)$v['imie_nazwisko'],
+            'email' => (string)($v['email'] ?? ''),
+            'phone' => (string)($v['telefon'] ?? ''),
+        ];
+    }
+
+    try {
+        $users = db_all(
+            "SELECT id, name, email, twofa_phone AS phone
+               FROM users
+              WHERE is_active = 1 AND name IS NOT NULL AND name <> ''
+              ORDER BY name COLLATE NOCASE"
+        );
+        foreach ($users as $u) {
+            $groups['usr'][] = [
+                'type'  => 'usr',
+                'id'    => (int)$u['id'],
+                'name'  => (string)$u['name'],
+                'email' => (string)($u['email'] ?? ''),
+                'phone' => (string)($u['phone'] ?? ''),
+            ];
+        }
+    } catch (\Throwable $e) {}
+
+    return $groups;
+}
+
+/**
+ * Znajduje dane kontaktowe przypisanej osoby (wolontariusz lub użytkownik)
+ * na podstawie pól rekordu zgłoszenia. Zwraca ['name','email','phone'] lub null.
+ */
+function asr_assigned_contact(array $req): ?array {
+    $type = (string)($req['assigned_person_type'] ?? '');
+    if ($type === 'vol' && !empty($req['assigned_volunteer_id'])) {
+        foreach (asr_volunteers() as $v) {
+            if ((int)$v['id'] === (int)$req['assigned_volunteer_id']) {
+                return ['name' => $v['imie_nazwisko'], 'email' => $v['email'] ?? '', 'phone' => $v['telefon'] ?? ''];
+            }
+        }
+    }
+    if ($type === 'usr' && !empty($req['assigned_user_id'])) {
+        try {
+            $u = db_one("SELECT name, email, twofa_phone AS phone FROM users WHERE id=?", [(int)$req['assigned_user_id']]);
+            if ($u) return ['name' => $u['name'], 'email' => $u['email'] ?? '', 'phone' => $u['phone'] ?? ''];
+        } catch (\Throwable $e) {}
+    }
+    // Fallback: snapshot imienia jeśli typ niezapisany (stare rekordy).
+    if (!empty($req['assigned_name'])) {
+        return ['name' => $req['assigned_name'], 'email' => '', 'phone' => ''];
+    }
+    return null;
 }
 
 /**
@@ -377,13 +455,25 @@ function asr_admin_update(int $id, array $in): array {
     $status = (string)($in['status'] ?? $cur['status']);
     if (!array_key_exists($status, asr_statuses())) $status = $cur['status'];
 
-    $vol_id = (int)($in['assigned_volunteer_id'] ?? 0) ?: null;
-    $vol_name = '';
-    if ($vol_id) {
-        foreach (asr_volunteers() as $v) {
-            if ((int)$v['id'] === $vol_id) { $vol_name = (string)$v['imie_nazwisko']; break; }
+    // Parsowanie przypisanej osoby: format "vol:123" lub "usr:456" lub "".
+    $person_raw  = trim((string)($in['assigned_person'] ?? ''));
+    $person_type = '';
+    $vol_id      = null;
+    $usr_id      = null;
+    $person_name = '';
+    if (preg_match('/^(vol|usr):(\d+)$/', $person_raw, $pm)) {
+        $person_type = $pm[1];
+        $pid = (int)$pm[2];
+        $all = asr_all_assignees();
+        foreach ($all[$person_type] ?? [] as $a) {
+            if ($a['id'] === $pid) { $person_name = $a['name']; break; }
         }
-        if ($vol_name === '') $vol_id = null; // nieznany wolontariusz → wyczyść
+        if ($person_name !== '') {
+            if ($person_type === 'vol') $vol_id = $pid;
+            else                        $usr_id = $pid;
+        } else {
+            $person_type = ''; // nieznana osoba → czyść
+        }
     }
 
     $allowed_ch = array_keys(asr_channels());
@@ -392,14 +482,18 @@ function asr_admin_update(int $id, array $in): array {
     db_update('szo_assistance_requests', [
         'status'                => $status,
         'assigned_volunteer_id' => $vol_id,
-        'assigned_name'         => $vol_name,
+        'assigned_user_id'      => $usr_id,
+        'assigned_person_type'  => $person_type,
+        'assigned_name'         => $person_name,
         'assigned_channels'     => $channels,
         'internal_notes'        => trim((string)($in['internal_notes'] ?? '')),
         'updated_at'            => date('Y-m-d H:i:s'),
     ], $id);
 
+    $prev_person = ($cur['assigned_person_type'] ?? '') . ':' . (($cur['assigned_volunteer_id'] ?? 0) ?: ($cur['assigned_user_id'] ?? 0));
+    $new_person  = $person_type . ':' . ($vol_id ?? $usr_id ?? 0);
     $status_changed     = $status !== $cur['status'];
-    $assignment_changed = (int)($cur['assigned_volunteer_id'] ?? 0) !== (int)($vol_id ?? 0);
+    $assignment_changed = $prev_person !== $new_person;
 
     // Loguj zmiany statusu i przypisania do historii.
     $actor    = function_exists('current_user') ? (current_user() ?? []) : [];
@@ -409,7 +503,12 @@ function asr_admin_update(int $id, array $in): array {
         asr_log($id, $cur['status'], $status, '', $actor_id, $actor_nm);
     }
     if ($assignment_changed) {
-        $note = $vol_id ? "Przypisano wolontariusza: {$vol_name}." : 'Usunięto przypisanie wolontariusza.';
+        if ($person_name !== '') {
+            $type_lbl = $person_type === 'usr' ? 'użytkownika' : 'wolontariusza';
+            $note = "Przypisano {$type_lbl}: {$person_name}.";
+        } else {
+            $note = 'Usunięto przypisanie.';
+        }
         asr_log($id, $status, $status, $note, $actor_id, $actor_nm);
     }
 
@@ -439,7 +538,7 @@ function asr_admin_update(int $id, array $in): array {
 
 /** Zwraca statusy, przy których uczestnik dostaje automatyczne powiadomienie. */
 function asr_participant_notify_statuses(): array {
-    return ['confirmed', 'rejected', 'rejected_external', 'resubmitted'];
+    return ['confirmed', 'volunteer_accepted', 'rejected', 'rejected_external', 'volunteer_rejected', 'resubmitted'];
 }
 
 /* ── Powiadomienie uczestnika przy zmianie statusu ─────────────────────────── */
@@ -458,10 +557,12 @@ function asr_notify_participant(int $id): void {
     $status = asr_label(asr_statuses(), $r['status']);
 
     $msgs = [
-        'confirmed'         => 'Twoje zgłoszenie zostało potwierdzone. Wkrótce skontaktujemy się z Tobą w celu omówienia szczegółów.',
-        'rejected'          => 'Niestety Twoje zgłoszenie zostało odrzucone. Skontaktujemy się z Tobą, aby wyjaśnić sytuację.',
-        'rejected_external' => 'Twoje zgłoszenie zostało odrzucone z przyczyn zewnętrznych, niezależnych od nas. Skontaktujemy się z Tobą.',
-        'resubmitted'       => 'Twoje zgłoszenie zostało zmienione i zarejestrowane jako nowe. Sprawdź kolejne potwierdzenie lub skontaktuj się z nami.',
+        'confirmed'           => 'Twoje zgłoszenie zostało potwierdzone. Wkrótce skontaktujemy się z Tobą w celu omówienia szczegółów.',
+        'volunteer_accepted'  => 'Osoba realizująca asystę przyjęła Twoje zgłoszenie. Wkrótce skontaktuje się z Tobą.',
+        'rejected'            => 'Niestety Twoje zgłoszenie zostało odrzucone. Skontaktujemy się z Tobą, aby wyjaśnić sytuację.',
+        'rejected_external'   => 'Twoje zgłoszenie zostało odrzucone z przyczyn zewnętrznych, niezależnych od nas. Skontaktujemy się z Tobą.',
+        'volunteer_rejected'  => 'Niestety osoba realizująca asystę nie może przyjąć Twojego zgłoszenia. Skontaktujemy się z Tobą w celu dalszych ustaleń.',
+        'resubmitted'         => 'Twoje zgłoszenie zostało zmienione i zarejestrowane jako nowe. Sprawdź kolejne potwierdzenie lub skontaktuj się z nami.',
     ];
     $body_text = $msgs[$r['status']] ?? ('Status Twojego zgłoszenia zmienił się na: ' . $status . '.');
 
@@ -497,14 +598,10 @@ function asr_notify_participant(int $id): void {
  */
 function asr_notify_volunteer(int $id, array $channels): void {
     $r = asr_get($id);
-    if (!$r || empty($r['assigned_volunteer_id'])) return;
+    if (!$r) return;
 
-    // Dane kontaktowe wolontariusza ze snapshotu przypisania.
-    $vol = null;
-    foreach (asr_volunteers() as $v) {
-        if ((int)$v['id'] === (int)$r['assigned_volunteer_id']) { $vol = $v; break; }
-    }
-    if (!$vol) return;
+    $contact = asr_assigned_contact($r);
+    if (!$contact || $contact['name'] === '') return;
 
     $no    = asr_number($r);
     $org   = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
@@ -515,7 +612,7 @@ function asr_notify_volunteer(int $id, array $channels): void {
     $event = trim(($r['event_name'] ?? '') . ' · ' . ($r['event_when_where'] ?? ''), ' ·');
 
     // ── E-mail (kolejka poczty) ────────────────────────────────────────────
-    if (in_array('email', $channels, true) && !empty($vol['email'])
+    if (in_array('email', $channels, true) && !empty($contact['email'])
         && function_exists('mail_queue_add')) {
         $subject = "Przydzielono Ci zgłoszenie asysty {$no}";
         $rows = [
@@ -525,7 +622,7 @@ function asr_notify_volunteer(int $id, array $channels): void {
             'Uczestnik'        => $r['participant_name'],
             'Kontakt'          => trim($r['participant_email'] . ' · ' . $r['participant_phone'], ' ·'),
         ];
-        $html = "<p>Cześć " . h($vol['imie_nazwisko']) . ",</p>"
+        $html = "<p>Cześć " . h($contact['name']) . ",</p>"
               . "<p>Przydzielono Ci zgłoszenie asysty do realizacji:</p><table>";
         foreach ($rows as $k => $v) {
             $html .= "<tr><td style='padding:2px 12px 2px 0'><strong>" . h($k) . ":</strong></td><td>" . h($v) . "</td></tr>";
@@ -537,17 +634,17 @@ function asr_notify_volunteer(int $id, array $channels): void {
         $html .= "<p style='color:#666;font-size:13px'>Wiadomość wygenerowana automatycznie przez SZO — {$org}.</p>";
 
         mail_queue_add(
-            (string)$vol['email'], (string)$vol['imie_nazwisko'],
+            $contact['email'], $contact['name'],
             $subject, $html, '', 'assistance_request', $id
         );
     }
 
-    // ── SMS ──────────────────────────────────────────────────────────────────
-    if (in_array('sms', $channels, true) && !empty($vol['telefon'])
+    // ── SMS ───────────────────────────────────────────────────────────────
+    if (in_array('sms', $channels, true) && !empty($contact['phone'])
         && function_exists('sms_send') && (!function_exists('sms_is_enabled') || sms_is_enabled())) {
         $msg = "{$org}: przydzielono Ci zgloszenie asysty {$no}"
              . ($event !== '' ? " ({$event})" : '')
              . ". Szczegoly w panelu SZO.";
-        try { sms_send((string)$vol['telefon'], $msg); } catch (\Throwable $e) { /* cicho */ }
+        try { sms_send($contact['phone'], $msg); } catch (\Throwable $e) { /* cicho */ }
     }
 }
