@@ -75,12 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pid) {
             db()->prepare(
                 "UPDATE k30_pfron_contracts SET main_contract_date=?, main_contract_sign=?,
-                 hours_total=?, hours_training=?, updated_at=datetime('now') WHERE id=?"
+                 hours_total=?, hours_training=?, penalty_amount=?, penalty_words=?,
+                 updated_at=datetime('now') WHERE id=?"
             )->execute([
                 trim($_POST['main_contract_date'] ?? ''),
                 trim($_POST['main_contract_sign'] ?? ''),
                 max(1, (int)($_POST['hours_total']    ?? 30)),
                 max(1, (int)($_POST['hours_training'] ?? 25)),
+                trim($_POST['penalty_amount'] ?? '100,00'),
+                trim($_POST['penalty_words']  ?? 'sto'),
                 $pid,
             ]);
         }
@@ -125,9 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     )->execute([$doc_number, $pid]);
                 }
             }
-            // Zaktualizuj draft sesji o numer dokumentu
+            // Zaktualizuj draft sesji o numer dokumentu i pfron_id (dla doc_print.php)
             if (isset($_SESSION['k30_pfron_doc_draft'])) {
                 $_SESSION['k30_pfron_doc_draft']['doc_number'] = $doc_number;
+                $_SESSION['k30_pfron_doc_draft']['pfron_id']   = $pid;
             }
             echo json_encode(['ok' => true, 'pfron_id' => $pid, 'doc_number' => $doc_number]);
             exit;
@@ -176,16 +180,102 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <?= flash_html() ?>
 
+<?php
+$signed_list = [];
+if (!$pfron_id && !$client_id) {
+    $signed_list = db()->query(
+        "SELECT pc.id, pc.doc_number, pc.contract_number, pc.signed_at, pc.board_approval_status,
+                pc.signed_doc_path, c.name AS client_name, c.id AS client_id_val
+         FROM k30_pfron_contracts pc
+         LEFT JOIN k30_clients c ON c.id = pc.client_id
+         WHERE pc.doc_number != '' OR pc.signed_at IS NOT NULL
+         ORDER BY COALESCE(pc.signed_at, pc.created_at) DESC
+         LIMIT 200"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+}
+?>
 <?php if (!$pfron_id && !$client_id): ?>
 <!-- Strona startowa bez kontekstu -->
-<div class="text-center py-5">
-  <i class="bi bi-file-earmark-pdf display-4 text-danger mb-3" aria-hidden="true"></i>
-  <h1 class="h4 fw-bold mb-2">Dokumenty PFRON</h1>
-  <p class="text-body-secondary mb-4">Generowanie umowy uczestnictwa w szkoleniu i regulaminu.</p>
-  <button class="btn btn-danger btn-lg" id="btn-start-wizard">
-    <i class="bi bi-magic me-2" aria-hidden="true"></i>Uruchom kreator
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+  <div>
+    <h1 class="h5 fw-bold mb-0">Dokumenty PFRON</h1>
+    <p class="text-body-secondary small mb-0">Generowanie umów uczestnictwa i regulaminów.</p>
+  </div>
+  <button class="btn btn-danger ms-auto" id="btn-start-wizard">
+    <i class="bi bi-magic me-2" aria-hidden="true"></i>Nowa umowa
   </button>
 </div>
+
+<?php if ($signed_list): ?>
+<div class="card border-0 shadow-sm">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-patch-check-fill text-success" aria-hidden="true"></i>
+    Umowy PFRON — zarejestrowane (<?= count($signed_list) ?>)
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr>
+          <th>Nr dokumentu</th>
+          <th>Beneficjent</th>
+          <th>Nr umowy PFRON</th>
+          <th>Data podpisania</th>
+          <th>Zarząd</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($signed_list as $sl): ?>
+        <tr>
+          <td class="font-monospace fw-semibold"><?= h($sl['doc_number'] ?: '—') ?></td>
+          <td>
+            <?php if ($sl['client_id_val']): ?>
+              <a href="<?= APP_URL ?>/karty30/clients/view.php?id=<?= (int)$sl['client_id_val'] ?>#pfron" class="text-decoration-none">
+                <?= h($sl['client_name'] ?: 'nieznany') ?>
+              </a>
+            <?php else: ?>
+              <?= h($sl['client_name'] ?: '—') ?>
+            <?php endif; ?>
+          </td>
+          <td class="text-body-secondary"><?= h($sl['contract_number'] ?: '—') ?></td>
+          <td class="text-nowrap">
+            <?= $sl['signed_at'] ? date('d.m.Y', strtotime($sl['signed_at'])) : '<span class="text-warning">oczekuje</span>' ?>
+          </td>
+          <td>
+            <?php
+            $bs = $sl['board_approval_status'];
+            if ($bs === 'approved')
+                echo '<span class="badge text-bg-success">zatwierdzona</span>';
+            elseif ($bs === 'pending')
+                echo '<span class="badge text-bg-warning text-dark">oczekuje</span>';
+            else
+                echo '<span class="text-body-secondary">—</span>';
+            ?>
+          </td>
+          <td class="text-end">
+            <a href="docs.php?pfron_id=<?= (int)$sl['id'] ?>&client_id=<?= (int)$sl['client_id_val'] ?>"
+               class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd
+            </a>
+            <?php if ($sl['signed_doc_path']): ?>
+            <a href="<?= h(APP_URL . '/uploads/' . $sl['signed_doc_path']) ?>" target="_blank"
+               class="btn btn-outline-primary btn-sm ms-1">
+              <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Plik
+            </a>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php else: ?>
+<div class="text-center py-5 text-body-secondary">
+  <i class="bi bi-file-earmark-pdf display-4 mb-3" aria-hidden="true"></i>
+  <p class="mb-0">Brak zarejestrowanych umów PFRON.</p>
+</div>
+<?php endif; ?>
 <?php else: ?>
 <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
   <div>
@@ -426,11 +516,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </div>
             <div class="d-flex gap-2 flex-wrap">
               <a id="btn-pdf-umowa-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
-                 class="btn btn-danger">
+                 class="btn btn-danger" data-pfron-link>
                 <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Pobierz do podpisu (Umowa + Regulamin)
               </a>
               <a href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=regulamin" target="_blank"
-                 class="btn btn-outline-secondary btn-sm align-self-center">
+                 class="btn btn-outline-secondary btn-sm align-self-center" data-pfron-link>
                 <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
               </a>
             </div>
@@ -446,7 +536,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <!-- Linki PDF (powtórzone dla wygody) -->
             <div class="d-flex gap-2 mb-4 flex-wrap">
               <a id="btn-pdf-umowa-s4" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
-                 class="btn btn-outline-danger btn-sm">
+                 class="btn btn-outline-danger btn-sm" data-pfron-link>
                 <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF
               </a>
             </div>
@@ -685,6 +775,14 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           savedPfronId = data.pfron_id;
           const inp = document.getElementById('pfron-id-input');
           if (inp) inp.value = savedPfronId;
+          // Zaktualizuj hrefs linków PDF o pfron_id
+          document.querySelectorAll('a[data-pfron-link]').forEach(a => {
+            try {
+              const url = new URL(a.href, location.href);
+              url.searchParams.set('pfron_id', savedPfronId);
+              a.href = url.toString();
+            } catch(e) {}
+          });
         }
         status.style.display = 'none';
         nextBtn.disabled = false;

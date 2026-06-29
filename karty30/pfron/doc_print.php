@@ -22,6 +22,38 @@ $type    = in_array($_GET['type'] ?? '', ['umowa', 'regulamin'], true) ? $_GET['
 $preview = !empty($_GET['preview']);   // tryb podpisu (strona HTML, nie PDF)
 $d       = $_SESSION['k30_pfron_doc_draft'] ?? null;
 
+// Jeśli w URL podano pfron_id — załaduj realne dane z bazy (nadpisują sesję)
+$pfron_id_get = (int)($_GET['pfron_id'] ?? 0);
+if ($pfron_id_get) {
+    $pfrow_db = db_one(
+        "SELECT pc.*, c.name AS client_name, c.pesel, c.address, c.phone, c.email
+         FROM k30_pfron_contracts pc
+         LEFT JOIN k30_clients c ON c.id = pc.client_id
+         WHERE pc.id = ?",
+        [$pfron_id_get]
+    );
+    if ($pfrow_db) {
+        $d = [
+            'pfron_id'           => $pfron_id_get,
+            'client_id'          => (int)($pfrow_db['client_id'] ?? 0),
+            'client_name'        => $pfrow_db['client_name']        ?? '',
+            'pesel'              => $pfrow_db['pesel']               ?? '',
+            'address'            => $pfrow_db['address']             ?? '',
+            'phone'              => $pfrow_db['phone']               ?? '',
+            'email'              => $pfrow_db['email']               ?? '',
+            'contract_date'      => $pfrow_db['valid_from']          ?? date('Y-m-d'),
+            'pfron_contract_no'  => $pfrow_db['contract_number']     ?? '',
+            'main_contract_date' => $pfrow_db['main_contract_date']  ?? '',
+            'main_contract_sign' => $pfrow_db['main_contract_sign']  ?? '',
+            'hours_total'        => (int)($pfrow_db['hours_total']   ?? 30),
+            'hours_training'     => (int)($pfrow_db['hours_training']?? 25),
+            'penalty_amount'     => $pfrow_db['penalty_amount']      ?? '100,00',
+            'penalty_words'      => $pfrow_db['penalty_words']       ?? 'sto',
+            'doc_number'         => $pfrow_db['doc_number']          ?? '',
+        ];
+    }
+}
+
 if (!$d) {
     echo '<p style="font-family:sans-serif;padding:2rem">Brak danych dokumentu. <a href="docs.php">Wróć do formularza</a>.</p>';
     exit;
@@ -84,12 +116,20 @@ if ($preview) {
     </nav>
     <?= flash_html() ?>
 
-    <?php if ($existing_doc_number): ?>
+    <?php if ($existing_signed_at): ?>
     <div class="alert alert-success d-flex gap-2 align-items-center mb-4">
       <i class="bi bi-patch-check-fill fs-4" aria-hidden="true"></i>
       <div>
-        Umowa zarejestrowana: <strong class="font-monospace"><?= h($existing_doc_number) ?></strong>
-        <span class="text-body-secondary small ms-2"><?= $existing_signed_at ? date('d.m.Y H:i', strtotime($existing_signed_at)) : '' ?></span>
+        Umowa podpisana i zarejestrowana: <strong class="font-monospace"><?= h($existing_doc_number) ?></strong>
+        <span class="text-body-secondary small ms-2"><?= date('d.m.Y H:i', strtotime($existing_signed_at)) ?></span>
+      </div>
+    </div>
+    <?php elseif ($existing_doc_number): ?>
+    <div class="alert alert-info d-flex gap-2 align-items-center mb-4">
+      <i class="bi bi-file-earmark-check fs-4" aria-hidden="true"></i>
+      <div>
+        Numer nadany: <strong class="font-monospace"><?= h($existing_doc_number) ?></strong>
+        <span class="text-body-secondary small ms-2">— oczekuje na podpis</span>
       </div>
     </div>
     <?php endif; ?>
@@ -127,7 +167,7 @@ if ($preview) {
     </div>
 
     <!-- Krok 3: Wgraj podpis -->
-    <?php if ($pfron_id && !$existing_doc_number): ?>
+    <?php if ($pfron_id && !$existing_signed_at): ?>
     <div class="card mb-4 border-warning shadow-sm" style="max-width:680px" id="sign-panel">
       <div class="card-header d-flex align-items-center gap-2 fw-semibold">
         <div class="d-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bold flex-shrink-0"

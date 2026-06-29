@@ -177,6 +177,9 @@ function karty30_migrate(): void {
     // Liczba godzin szkolenia wg umowy (domyślnie 30 total / 25 właściwych)
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_total    INTEGER NOT NULL DEFAULT 30"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_training INTEGER NOT NULL DEFAULT 25"); } catch (\Throwable $e) {}
+    // Kara umowna (kwota i słownie) — do umowy
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN penalty_amount TEXT    NOT NULL DEFAULT '100,00'"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN penalty_words  TEXT    NOT NULL DEFAULT 'sto'");    } catch (\Throwable $e) {}
     // Numer dokumentu umowy (PFRON-AS/xx/yyyy), podpis i data podpisania
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN doc_number     TEXT    NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN signed_at      DATETIME"); }                  catch (\Throwable $e) {}
