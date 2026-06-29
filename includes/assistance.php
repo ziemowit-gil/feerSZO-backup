@@ -61,12 +61,13 @@ function asr_status_class(string $status): string {
  */
 function asr_needs(): array {
     return [
-        'pjm'          => 'Asysta tłumacza języka migowego (PJM)',
-        'wheelchair'   => 'Asysta osoby poruszającej się na wózku',
-        'hearing_loop' => 'Pętla indukcyjna / wsparcie dla słabosłyszących',
-        'blind'        => 'Asysta dla osoby niewidomej / słabowidzącej',
-        'quiet'        => 'Miejsce wyciszenia / wsparcie neuroróżnorodności',
-        'other'        => 'Inne (własny opis)',
+        'pjm'           => 'Asysta tłumacza języka migowego (PJM)',
+        'wheelchair'    => 'Asysta osoby poruszającej się na wózku',
+        'hearing_loop'  => 'Pętla indukcyjna / wsparcie dla słabosłyszących',
+        'blind'         => 'Asysta dla osoby niewidomej / słabowidzącej',
+        'quiet'         => 'Miejsce wyciszenia / wsparcie neuroróżnorodności',
+        'komunikacyjna' => 'Dostępność komunikacyjno-informacyjna',
+        'other'         => 'Inne (własny opis)',
     ];
 }
 

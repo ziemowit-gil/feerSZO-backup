@@ -902,6 +902,9 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <a class="sb-link ps-4<?= _nav_active('/asysta/') ?>" href="<?= APP_URL ?>/asysta/admin.php" style="font-size:.85em">
     <i class="bi bi-universal-access-circle"></i> Zgłoszenia asysty
   </a>
+  <a class="sb-link ps-4<?= _nav_active('/extforms/wolontariuszPotrzeby/') ?>" href="<?= APP_URL ?>/extforms/wolontariuszPotrzeby/" target="_blank" rel="noopener" style="font-size:.85em">
+    <i class="bi bi-person-heart"></i> Potrzeby wolontariuszy ↗
+  </a>
   <?php endif; ?>
 
   <div class="sb-sep"></div>
