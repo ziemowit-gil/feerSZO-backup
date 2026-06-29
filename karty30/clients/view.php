@@ -387,6 +387,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               </span>
             </td>
             <td class="text-end">
+              <a href="<?= APP_URL ?>/karty30/pfron/docs.php?pfron_id=<?= (int)$pc['id'] ?>&client_id=<?= $id ?>"
+                 class="btn btn-xs btn-sm btn-outline-danger py-0 px-2 me-1" title="Generuj dokumenty PDF"
+                 target="_blank">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
               <a href="?id=<?= $id ?>&pfron_edit=<?= (int)$pc['id'] ?>#pfron"
                  class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 me-1">
                 <i class="bi bi-pencil"></i>

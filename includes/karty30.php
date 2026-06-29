@@ -148,6 +148,8 @@ function karty30_migrate(): void {
     }
     // Godziny odpłatne (odrębne od bezpłatnych) na kliencie
     try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN used_paid REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // PESEL (do dokumentów PFRON)
+    try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN pesel TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     // Migracja statusów beneficjentów: stare wartości → nowe klucze
     try { $pdo->exec("UPDATE k30_clients SET status='learning'  WHERE status='ready'"); }     catch (\Throwable $e) {}
@@ -169,6 +171,12 @@ function karty30_migrate(): void {
         created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // Pola skierowania/umowy głównej PFRON (do generowania dokumentów)
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN main_contract_date DATE NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN main_contract_sign TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // Liczba godzin szkolenia wg umowy (domyślnie 30 total / 25 właściwych)
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_total    INTEGER NOT NULL DEFAULT 30"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k30_pfron_contracts ADD COLUMN hours_training INTEGER NOT NULL DEFAULT 25"); } catch (\Throwable $e) {}
     // Kolumny trybu rozliczenia i PFRON na terminie
     foreach ([
         "ALTER TABLE k30_schedules ADD COLUMN billing_type      TEXT NOT NULL DEFAULT 'free'",
