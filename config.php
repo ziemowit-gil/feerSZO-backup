@@ -60,7 +60,7 @@ if (!defined('APP_KEY'))    define('APP_KEY',    getenv('APP_KEY') ?: '0d74d40a1
 if (!defined('ORG_NAME'))   define('ORG_NAME',   getenv('ORG_NAME') ?: 'Fundacja Edukacji Empatii Rozwoju FEER');
 
 // Wersja i środowisko aplikacji
-if (!defined('APP_VERSION')) define('APP_VERSION', '1.9');
+if (!defined('APP_VERSION')) define('APP_VERSION', '11.0');
 if (!defined('APP_ENV'))     define('APP_ENV',     getenv('APP_ENV') ?: (
     ($_SERVER['SERVER_NAME'] ?? 'localhost') === 'localhost' ? 'development' : 'production'
 ));
