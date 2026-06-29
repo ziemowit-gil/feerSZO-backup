@@ -78,95 +78,50 @@ services:
       - "traefik.http.middlewares.sec-headers.headers.referrerPolicy=same-origin"
       - "traefik.http.middlewares.sec-headers.headers.customResponseHeaders.X-Powered-By="
 
-  # ── CRM redirect — crm.ngosystem.pl → szo.feer.org.pl/crm ───────────────
-  # Używa wyłącznie Traefik middlewares (bez dodatkowego kontenera).
-  # Serwis "dummy" jest potrzebny tylko jako uchwyt dla labels Traefika.
-  crm-redirect:
-    image: traefik/whoami:latest
-    container_name: feer-crm-redirect
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
+      # ══════════════════════════════════════════════════════════════════════
+      #  ALIASY ngosystem.pl — transparentne (bez 301), routing wprost do app.
+      #  Każdy alias dokleja prefiks ścieżki, więc np.
+      #    crm.ngosystem.pl/<x>  →  app obsługuje  /crm/<x>
+      #  Adres w pasku przeglądarki POZOSTAJE na *.ngosystem.pl.
+      #  Uwaga: aplikacja używa stałego APP_URL (szo.feer.org.pl) — zob. DEPLOY.md
+      #  „Aliasy ngosystem.pl" w sprawie świadomości hosta przy logowaniu/linkach.
+      # ══════════════════════════════════════════════════════════════════════
 
-      # ── Middleware: 301 redirect crm.* → szo.feer.org.pl/crm ─────────────
-      - "traefik.http.middlewares.crm-redirect.redirectregex.regex=^https?://${DOMAIN_CRM:-crm.ngosystem.pl}/(.*)"
-      - "traefik.http.middlewares.crm-redirect.redirectregex.replacement=https://${DOMAIN}/crm/$${1}"
-      - "traefik.http.middlewares.crm-redirect.redirectregex.permanent=true"
+      # ── Alias CRM — crm.ngosystem.pl (prefix /crm) ───────────────────────
+      - "traefik.http.middlewares.crm-prefix.addprefix.prefix=/crm"
+      - "traefik.http.routers.crm-alias.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
+      - "traefik.http.routers.crm-alias.entrypoints=websecure"
+      - "traefik.http.routers.crm-alias.tls=true"
+      - "traefik.http.routers.crm-alias.tls.certresolver=le"
+      - "traefik.http.routers.crm-alias.service=feer"
+      - "traefik.http.routers.crm-alias.middlewares=crm-prefix@docker,sec-headers@docker"
+      - "traefik.http.routers.crm-alias-http.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
+      - "traefik.http.routers.crm-alias-http.entrypoints=web"
+      - "traefik.http.routers.crm-alias-http.middlewares=https-redirect@docker"
 
-      # ── Router HTTPS — crm.ngosystem.pl ──────────────────────────────────
-      - "traefik.http.routers.crm-redirect.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
-      - "traefik.http.routers.crm-redirect.entrypoints=websecure"
-      - "traefik.http.routers.crm-redirect.tls=true"
-      - "traefik.http.routers.crm-redirect.tls.certresolver=le"
-      - "traefik.http.routers.crm-redirect.middlewares=crm-redirect@docker"
-      - "traefik.http.services.crm-redirect.loadbalancer.server.port=80"
+      # ── Alias ZADANIA — zadania.ngosystem.pl (prefix /tasks) ─────────────
+      - "traefik.http.middlewares.tasks-prefix.addprefix.prefix=/tasks"
+      - "traefik.http.routers.tasks-alias.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
+      - "traefik.http.routers.tasks-alias.entrypoints=websecure"
+      - "traefik.http.routers.tasks-alias.tls=true"
+      - "traefik.http.routers.tasks-alias.tls.certresolver=le"
+      - "traefik.http.routers.tasks-alias.service=feer"
+      - "traefik.http.routers.tasks-alias.middlewares=tasks-prefix@docker,sec-headers@docker"
+      - "traefik.http.routers.tasks-alias-http.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
+      - "traefik.http.routers.tasks-alias-http.entrypoints=web"
+      - "traefik.http.routers.tasks-alias-http.middlewares=https-redirect@docker"
 
-      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
-      - "traefik.http.routers.crm-redirect-http.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
-      - "traefik.http.routers.crm-redirect-http.entrypoints=web"
-      - "traefik.http.routers.crm-redirect-http.middlewares=https-redirect@docker"
-    networks:
-      - feer
-
-  # ── ZADANIA redirect — zadania.ngosystem.pl → szo.feer.org.pl/tasks ─────
-  # Używa wyłącznie Traefik middlewares (bez dodatkowego kontenera).
-  # Serwis "dummy" jest potrzebny tylko jako uchwyt dla labels Traefika.
-  tasks-redirect:
-    image: traefik/whoami:latest
-    container_name: feer-tasks-redirect
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-
-      # ── Middleware: 301 redirect zadania.* → szo.feer.org.pl/tasks ───────
-      - "traefik.http.middlewares.tasks-redirect.redirectregex.regex=^https?://${DOMAIN_TASKS:-zadania.ngosystem.pl}/(.*)"
-      - "traefik.http.middlewares.tasks-redirect.redirectregex.replacement=https://${DOMAIN}/tasks/$${1}"
-      - "traefik.http.middlewares.tasks-redirect.redirectregex.permanent=true"
-
-      # ── Router HTTPS — zadania.ngosystem.pl ──────────────────────────────
-      - "traefik.http.routers.tasks-redirect.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
-      - "traefik.http.routers.tasks-redirect.entrypoints=websecure"
-      - "traefik.http.routers.tasks-redirect.tls=true"
-      - "traefik.http.routers.tasks-redirect.tls.certresolver=le"
-      - "traefik.http.routers.tasks-redirect.middlewares=tasks-redirect@docker"
-      - "traefik.http.services.tasks-redirect.loadbalancer.server.port=80"
-
-      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
-      - "traefik.http.routers.tasks-redirect-http.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
-      - "traefik.http.routers.tasks-redirect-http.entrypoints=web"
-      - "traefik.http.routers.tasks-redirect-http.middlewares=https-redirect@docker"
-    networks:
-      - feer
-
-  # ── TI redirect — ti.ngosystem.pl → szo.feer.org.pl/karty30/ti/kursant/ ─
-  # Panel kursanta TI. Używa wyłącznie Traefik middlewares (bez dodatkowego
-  # kontenera); serwis "dummy" jest potrzebny tylko jako uchwyt dla labels.
-  ti-redirect:
-    image: traefik/whoami:latest
-    container_name: feer-ti-redirect
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-
-      # ── Middleware: 301 redirect ti.* → szo.feer.org.pl/karty30/ti/kursant/ ─
-      - "traefik.http.middlewares.ti-redirect.redirectregex.regex=^https?://${DOMAIN_TI:-ti.ngosystem.pl}/(.*)"
-      - "traefik.http.middlewares.ti-redirect.redirectregex.replacement=https://${DOMAIN}/karty30/ti/kursant/$${1}"
-      - "traefik.http.middlewares.ti-redirect.redirectregex.permanent=true"
-
-      # ── Router HTTPS — ti.ngosystem.pl ───────────────────────────────────
-      - "traefik.http.routers.ti-redirect.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
-      - "traefik.http.routers.ti-redirect.entrypoints=websecure"
-      - "traefik.http.routers.ti-redirect.tls=true"
-      - "traefik.http.routers.ti-redirect.tls.certresolver=le"
-      - "traefik.http.routers.ti-redirect.middlewares=ti-redirect@docker"
-      - "traefik.http.services.ti-redirect.loadbalancer.server.port=80"
-
-      # ── Router HTTP → redirect HTTPS ──────────────────────────────────────
-      - "traefik.http.routers.ti-redirect-http.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
-      - "traefik.http.routers.ti-redirect-http.entrypoints=web"
-      - "traefik.http.routers.ti-redirect-http.middlewares=https-redirect@docker"
-    networks:
-      - feer
+      # ── Alias TI — ti.ngosystem.pl (prefix /karty30/ti/kursant) ──────────
+      - "traefik.http.middlewares.ti-prefix.addprefix.prefix=/karty30/ti/kursant"
+      - "traefik.http.routers.ti-alias.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
+      - "traefik.http.routers.ti-alias.entrypoints=websecure"
+      - "traefik.http.routers.ti-alias.tls=true"
+      - "traefik.http.routers.ti-alias.tls.certresolver=le"
+      - "traefik.http.routers.ti-alias.service=feer"
+      - "traefik.http.routers.ti-alias.middlewares=ti-prefix@docker,sec-headers@docker"
+      - "traefik.http.routers.ti-alias-http.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
+      - "traefik.http.routers.ti-alias-http.entrypoints=web"
+      - "traefik.http.routers.ti-alias-http.middlewares=https-redirect@docker"
 
 volumes:
   letsencrypt_data:

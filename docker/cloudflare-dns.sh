@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # cloudflare-dns.sh — konfigurator DNS w Cloudflare dla subdomen przekierowań
 #
-# Tworzy / aktualizuje rekordy A (lub AAAA) dla subdomen ngosystem.pl, które
-# Traefik 301-przekierowuje na główną aplikację (szo.feer.org.pl):
+# Tworzy / aktualizuje rekordy A (lub AAAA) dla aliasów ngosystem.pl, które
+# Traefik kieruje transparentnie do aplikacji (system działa na szo.feer.org.pl):
 #
-#     crm.ngosystem.pl       → https://szo.feer.org.pl/crm
-#     zadania.ngosystem.pl   → https://szo.feer.org.pl/tasks
-#     ti.ngosystem.pl        → https://szo.feer.org.pl/karty30/ti/kursant/
+#     crm.ngosystem.pl       → app: /crm
+#     zadania.ngosystem.pl   → app: /tasks
+#     ti.ngosystem.pl        → app: /karty30/ti/kursant
 #
 # Skrypt jest IDEMPOTENTNY: istniejące rekordy aktualizuje, brakujące tworzy.
 #

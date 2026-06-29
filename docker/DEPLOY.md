@@ -55,15 +55,16 @@ szo.feer.org.pl.   A   <IP_SERWERA>
 > ⚠️ DNS musi się propagować **zanim** uruchomisz stack. Let's Encrypt wymaga dostępu HTTP.
 > Sprawdź: `dig szo.feer.org.pl` lub `nslookup szo.feer.org.pl`
 
-#### Subdomeny przekierowań (ngosystem.pl)
+#### Aliasy ngosystem.pl (transparentne)
 
-Subdomeny CRM / ZADANIA / TI są obsługiwane na domenie **ngosystem.pl** (DNS w Cloudflare)
-i 301-przekierowują na główną aplikację `szo.feer.org.pl`:
+System działa pod `szo.feer.org.pl`. Subdomeny **ngosystem.pl** są **transparentnymi aliasami**
+(bez 301) — Traefik kieruje ruch wprost do kontenera `app`, doklejając prefiks ścieżki, a adres
+w pasku przeglądarki **pozostaje** na ngosystem.pl:
 
 ```
-crm.ngosystem.pl       → https://szo.feer.org.pl/crm
-zadania.ngosystem.pl   → https://szo.feer.org.pl/tasks
-ti.ngosystem.pl        → https://szo.feer.org.pl/karty30/ti/kursant/
+crm.ngosystem.pl/<x>       → app obsługuje /crm/<x>
+zadania.ngosystem.pl/<x>   → app obsługuje /tasks/<x>
+ti.ngosystem.pl/<x>        → app obsługuje /karty30/ti/kursant/<x>
 ```
 
 Rekordy DNS w Cloudflare utworzysz idempotentnym konfiguratorem:
@@ -75,7 +76,15 @@ bash docker/cloudflare-dns.sh                              # utworzenie/aktualiz
 ```
 
 > Rekordy są domyślnie **proxied** (pomarańczowa chmurka) — w Cloudflare ustaw SSL/TLS na
-> **Full (strict)**. Hosty subdomen ustawiasz w `.env.prod` (`DOMAIN_CRM`, `DOMAIN_TASKS`, `DOMAIN_TI`).
+> **Full (strict)**. Hosty aliasów ustawiasz w `.env.prod` (`DOMAIN_CRM`, `DOMAIN_TASKS`, `DOMAIN_TI`).
+
+> ⚠️ **Świadomość hosta w aplikacji.** Aplikacja używa stałego `APP_URL=https://szo.feer.org.pl`,
+> więc linki nawigacyjne, przekierowanie logowania (`require_login`) oraz OAuth Microsoft / SAML
+> wskazują `szo.feer.org.pl`. W praktyce alias jest transparentny dla **wejścia** na stronę, ale
+> klikając dalej lub logując się użytkownik trafi z powrotem na `szo.feer.org.pl`. Pełna
+> transparentność (pozostanie na ngosystem.pl przez całą sesję) wymaga uczynienia `APP_URL`/ciasteczek
+> zależnymi od nagłówka `Host` oraz zarejestrowania hostów ngosystem.pl w Azure AD (redirect URI)
+> i w konfiguracji SAML. To osobna, większa zmiana po stronie aplikacji.
 
 ### Firewall
 
