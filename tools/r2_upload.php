@@ -58,8 +58,25 @@ $upload_res = [];     // wyniki wysyłki [['ok'=>,'name'=>,'msg'=>,'url'=>], ...
 
 /* ── POST ────────────────────────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
-    $action = $_POST['action'] ?? '';
+    // Przekroczenie post_max_size: PHP czyści $_POST/$_FILES, więc csrf_check()
+    // dałby mylący „błąd CSRF". Wykryj to i zwróć czytelny komunikat.
+    $content_len = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($content_len > 0 && empty($_POST) && empty($_FILES)) {
+        $limit = ini_get('post_max_size') ?: '?';
+        $msg   = "Plik(i) przekraczają dopuszczalny limit wysyłki (post_max_size = {$limit}). "
+               . "Zmniejsz rozmiar lub poproś administratora o podniesienie limitu.";
+        if ($is_ajax) {
+            http_response_code(413);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['flash' => ['type' => 'danger', 'msg' => $msg], 'results' => []], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $flash  = ['type' => 'danger', 'msg' => $msg];
+        $action = '';
+    } else {
+        csrf_check();
+        $action = $_POST['action'] ?? '';
+    }
 
     if ($action === 'save_settings') {
         if (!$is_admin) {
