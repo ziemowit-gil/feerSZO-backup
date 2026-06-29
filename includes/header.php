@@ -889,23 +889,16 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <!-- ════════════════════════════════════════
        Formularze zewnętrzne
   ════════════════════════════════════════ -->
-  <?php if ((module_enabled('consultations_enabled') || module_enabled('assistance_enabled')) && !is_viewer()): ?>
-  <a class="sb-link<?= _nav_active('/extforms/') ?>" href="<?= APP_URL ?>/extforms/">
-    <i class="bi bi-collection"></i> Formularze zewnętrzne
+  <?php if (module_enabled('dostepnosc_ngo_enabled') && !is_viewer()): ?>
+  <a class="sb-link<?= _nav_active('/dostepnosc/') ?>" href="<?= APP_URL ?>/dostepnosc/admin.php">
+    <i class="bi bi-universal-access"></i> Dostępność NGO
   </a>
-  <?php if (module_enabled('consultations_enabled')): ?>
   <a class="sb-link ps-4<?= _nav_active('/extforms/konsultacjeADNGO/') ?>" href="<?= APP_URL ?>/extforms/konsultacjeADNGO/admin.php" style="font-size:.85em">
     <i class="bi bi-clipboard2-pulse"></i> Karty doradztwa
   </a>
-  <?php endif; ?>
-  <?php if (module_enabled('assistance_enabled')): ?>
   <a class="sb-link ps-4<?= _nav_active('/asysta/') ?>" href="<?= APP_URL ?>/asysta/admin.php" style="font-size:.85em">
     <i class="bi bi-universal-access-circle"></i> Zgłoszenia asysty
   </a>
-  <a class="sb-link ps-4<?= _nav_active('/extforms/wolontariuszPotrzeby/') ?>" href="<?= APP_URL ?>/extforms/wolontariuszPotrzeby/" target="_blank" rel="noopener" style="font-size:.85em">
-    <i class="bi bi-person-heart"></i> Potrzeby wolontariuszy ↗
-  </a>
-  <?php endif; ?>
 
   <div class="sb-sep"></div>
   <?php endif; ?>

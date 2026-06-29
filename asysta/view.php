@@ -17,7 +17,7 @@ require_once dirname(__DIR__) . '/includes/assistance.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
-require_module_enabled('assistance_enabled', 'Moduł zgłoszeń asysty');
+require_module_enabled('dostepnosc_ngo_enabled', 'Moduł Dostępność NGO');
 asr_migrate();
 
 $base     = APP_URL . '/asysta';

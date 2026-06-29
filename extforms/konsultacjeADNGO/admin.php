@@ -12,7 +12,7 @@ require_once $_root . '/includes/consultations.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
-require_module_enabled('consultations_enabled', 'Moduł kart konsultacyjnych');
+require_module_enabled('dostepnosc_ngo_enabled', 'Moduł Dostępność NGO');
 cc_migrate();
 
 $can_edit = can_edit();

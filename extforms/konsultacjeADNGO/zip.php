@@ -29,7 +29,7 @@ if ($pub_ok) {
 } else {
     require_login();
     if (is_viewer()) { http_response_code(403); exit('Brak dostępu.'); }
-    require_module_enabled('consultations_enabled', 'Moduł kart konsultacyjnych');
+    require_module_enabled('dostepnosc_ngo_enabled', 'Moduł Dostępność NGO');
 
     if ($id > 0) {
         $c = cc_get($id);

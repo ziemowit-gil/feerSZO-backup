@@ -18,7 +18,7 @@ include $_root . '/includes/header.php';
 // Zbierz dostępne formularze (widoczne dla zalogowanego)
 $forms = [];
 
-if (module_enabled('consultations_enabled')) {
+if (module_enabled('dostepnosc_ngo_enabled')) {
     require_once $_root . '/includes/consultations.php';
     cc_migrate();
     $cnt = db_one("SELECT COUNT(*) AS c FROM szo_consultation_cards")['c'] ?? 0;
@@ -36,7 +36,7 @@ if (module_enabled('consultations_enabled')) {
     ];
 }
 
-if (module_enabled('assistance_enabled')) {
+if (module_enabled('dostepnosc_ngo_enabled')) {
     $cnt = db_one("SELECT COUNT(*) AS c FROM szo_assistance_requests WHERE status='new'")['c'] ?? 0;
     $forms[] = [
         'key'         => 'asystaFEER',
