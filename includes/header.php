@@ -893,11 +893,22 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <a class="sb-link<?= _nav_active('/dostepnosc/') ?>" href="<?= APP_URL ?>/dostepnosc/admin.php">
     <i class="bi bi-universal-access"></i> Dostępność NGO
   </a>
-  <a class="sb-link ps-4<?= _nav_active('/extforms/konsultacjeADNGO/') ?>" href="<?= APP_URL ?>/extforms/konsultacjeADNGO/admin.php" style="font-size:.85em">
-    <i class="bi bi-clipboard2-pulse"></i> Karty doradztwa
-  </a>
   <a class="sb-link ps-4<?= _nav_active('/asysta/') ?>" href="<?= APP_URL ?>/asysta/admin.php" style="font-size:.85em">
     <i class="bi bi-universal-access-circle"></i> Zgłoszenia asysty
+  </a>
+
+  <div class="sb-sep"></div>
+  <?php endif; ?>
+
+  <!-- ════════════════════════════════════════
+       Dedykowane dla projektów
+  ════════════════════════════════════════ -->
+  <?php if (module_enabled('projekty_enabled') && !is_viewer()): ?>
+  <a class="sb-link<?= _nav_active('/extforms/konsultacjeADNGO/') ?>" href="<?= APP_URL ?>/extforms/konsultacjeADNGO/admin.php">
+    <i class="bi bi-folder-symlink"></i> Dedykowane dla projektów
+  </a>
+  <a class="sb-link ps-4<?= _nav_active('/extforms/konsultacjeADNGO/') ?>" href="<?= APP_URL ?>/extforms/konsultacjeADNGO/admin.php" style="font-size:.85em">
+    <i class="bi bi-clipboard2-pulse"></i> Karty doradztwa ADNGO
   </a>
 
   <div class="sb-sep"></div>

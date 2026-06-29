@@ -12,7 +12,7 @@ require_once $_root . '/includes/consultations.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
-require_module_enabled('dostepnosc_ngo_enabled', 'Moduł Dostępność NGO');
+require_module_enabled('projekty_enabled', 'Moduł Dedykowane dla projektów');
 cc_migrate();
 
 $can_edit = can_edit();

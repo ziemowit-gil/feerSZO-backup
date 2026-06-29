@@ -10,14 +10,12 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/assistance.php';
-require_once dirname(__DIR__) . '/includes/consultations.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
 require_module_enabled('dostepnosc_ngo_enabled', 'Moduł Dostępność NGO');
 
 asr_migrate();
-cc_migrate();
 
 /* ── Statystyki zgłoszeń asysty ───────────────────────────────────────────── */
 $asr_all = asr_list();
@@ -32,22 +30,8 @@ foreach ($asr_all as $r) {
     }
 }
 
-/* ── Statystyki kart doradztwa ────────────────────────────────────────────── */
-$cc_all    = cc_list();
-$cc_total  = count($cc_all);
-$cc_months = [];
-foreach ($cc_all as $c) {
-    $ym = substr((string)$c['date_of_consultation'], 0, 7);
-    if ($ym) $cc_months[$ym] = ($cc_months[$ym] ?? 0) + 1;
-}
-krsort($cc_months);
-$cc_this_month = $cc_months[date('Y-m')] ?? 0;
-
 /* ── Ostatnie zgłoszenia asysty (5) ───────────────────────────────────────── */
 $asr_recent = array_slice($asr_all, 0, 5);
-
-/* ── Ostatnie karty doradztwa (5) ─────────────────────────────────────────── */
-$cc_recent = array_slice($cc_all, 0, 5);
 
 $PAGE_TITLE = 'Dostępność NGO';
 include dirname(__DIR__) . '/includes/header.php';
@@ -102,33 +86,6 @@ include dirname(__DIR__) . '/includes/header.php';
     </a>
   </div>
 
-  <!-- ════ Sekcja: Karty doradztwa ════ -->
-  <h2 class="h6 fw-bold text-secondary text-uppercase mb-2">
-    <i class="bi bi-clipboard2-pulse me-1" aria-hidden="true"></i>Karty doradztwa ADNGO
-  </h2>
-  <div class="row g-3 mb-2">
-    <div class="col-6 col-lg-3">
-      <div class="card border-0 shadow-sm h-100"><div class="card-body py-3">
-        <div class="text-secondary small text-uppercase">Wszystkich</div>
-        <div class="h3 fw-bold mb-0"><?= $cc_total ?></div>
-      </div></div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <div class="card border-0 shadow-sm h-100"><div class="card-body py-3">
-        <div class="text-secondary small text-uppercase">W tym miesiącu</div>
-        <div class="h3 fw-bold mb-0 text-primary"><?= $cc_this_month ?></div>
-      </div></div>
-    </div>
-  </div>
-  <div class="d-flex flex-wrap gap-2 mb-4">
-    <a href="<?= APP_URL ?>/extforms/konsultacjeADNGO/admin.php" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista kart doradztwa
-    </a>
-    <a href="<?= APP_URL ?>/extforms/konsultacjeADNGO/" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Formularz publiczny
-    </a>
-  </div>
-
   <!-- ════ Ostatnie zgłoszenia asysty ════ -->
   <?php if ($asr_recent): ?>
   <h2 class="h6 fw-bold text-secondary text-uppercase mb-2">Ostatnie zgłoszenia asysty</h2>
@@ -162,38 +119,6 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
   <?php endif; ?>
 
-  <!-- ════ Ostatnie karty doradztwa ════ -->
-  <?php if ($cc_recent): ?>
-  <h2 class="h6 fw-bold text-secondary text-uppercase mb-2">Ostatnie karty doradztwa</h2>
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="table-responsive">
-      <table class="table table-hover table-sm align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th scope="col">Nr</th>
-            <th scope="col">Data</th>
-            <th scope="col">Organizacja</th>
-            <th scope="col">Doradca</th>
-            <th scope="col">Obszar</th>
-            <th scope="col"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php $cc_areas = cc_areas(); foreach ($cc_recent as $c): ?>
-          <tr>
-            <td class="text-secondary small"><?= h(cc_card_number($c)) ?></td>
-            <td class="text-nowrap small"><?= h($c['date_of_consultation'] ?? '—') ?></td>
-            <td><?= h($c['org_name'] ?? '—') ?></td>
-            <td class="small"><?= h($c['advisor_name'] ?? '—') ?></td>
-            <td class="small"><?= h($cc_areas[$c['area'] ?? ''] ?? ($c['area'] ?? '—')) ?></td>
-            <td class="text-end"><a href="<?= APP_URL ?>/extforms/konsultacjeADNGO/admin.php?id=<?= (int)$c['id'] ?>" class="btn btn-outline-primary btn-sm py-0">Otwórz</a></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <?php endif; ?>
 
 </div>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
