@@ -87,8 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'penalty_words'      => trim($_POST['penalty_words']       ?? 'sto'),
         ];
 
+        // Tryb AJAX (krok 3 kreatora) — zwróć JSON zamiast redirect
+        if (!empty($_POST['_ajax'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => true, 'pfron_id' => $pid]);
+            exit;
+        }
+
         $doc_type = ($_POST['doc_type'] ?? 'umowa') === 'regulamin' ? 'regulamin' : 'umowa';
-        // Umowa: najpierw strona podpisu, potem PDF; regulamin: od razu PDF
         if ($doc_type === 'umowa') {
             header('Location: doc_print.php?type=umowa&preview=1');
         } else {
@@ -217,9 +223,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <div class="d-flex gap-0 mb-0" role="tablist" aria-label="Kroki kreatora" id="wizard-steps">
           <?php
           $steps = [
-            1 => ['icon' => 'person', 'label' => 'Uczestnik'],
-            2 => ['icon' => 'file-earmark-text', 'label' => 'Umowa'],
-            3 => ['icon' => 'check2-circle', 'label' => 'Generuj'],
+            1 => ['icon' => 'person',              'label' => 'Uczestnik'],
+            2 => ['icon' => 'file-earmark-text',   'label' => 'Umowa'],
+            3 => ['icon' => 'file-earmark-pdf',    'label' => 'Dokumenty'],
+            4 => ['icon' => 'pen',                 'label' => 'Podpisz'],
           ];
           foreach ($steps as $n => $s): ?>
           <button type="button" role="tab"
@@ -347,48 +354,87 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </div>
           </div>
 
-          <!-- ── Krok 3: Podsumowanie i generowanie ────────────────────── -->
+          <!-- ── Krok 3: Podsumowanie i pobieranie PDF ───────────────── -->
           <div class="wizard-panel d-none" id="wizard-panel-3" role="tabpanel" aria-labelledby="wizard-tab-3">
-            <p class="text-body-secondary small mb-3">
-              Sprawdź dane i wybierz dokument do wygenerowania.
-            </p>
-            <div class="card bg-body-secondary border-0 mb-4">
+            <p class="text-body-secondary small mb-3">Sprawdź dane i pobierz dokumenty do wydruku.</p>
+            <div class="card bg-body-secondary border-0 mb-3">
               <div class="card-body py-3">
                 <dl class="row mb-0 small" id="wizard-summary">
-                  <dt class="col-sm-4">Uczestnik</dt>
-                  <dd class="col-sm-8" id="sum-name">—</dd>
-                  <dt class="col-sm-4">PESEL</dt>
-                  <dd class="col-sm-8" id="sum-pesel">—</dd>
-                  <dt class="col-sm-4">Adres</dt>
-                  <dd class="col-sm-8" id="sum-address">—</dd>
-                  <dt class="col-sm-4">Telefon / e-mail</dt>
-                  <dd class="col-sm-8" id="sum-contact">—</dd>
-                  <dt class="col-sm-4">Data umowy</dt>
-                  <dd class="col-sm-8" id="sum-date">—</dd>
-                  <dt class="col-sm-4">Nr PFRON</dt>
-                  <dd class="col-sm-8" id="sum-pfron-no">—</dd>
-                  <dt class="col-sm-4">Skierowanie</dt>
-                  <dd class="col-sm-8" id="sum-mc">—</dd>
-                  <dt class="col-sm-4">Godziny</dt>
-                  <dd class="col-sm-8" id="sum-hours">—</dd>
+                  <dt class="col-sm-4">Uczestnik</dt>   <dd class="col-sm-8" id="sum-name">—</dd>
+                  <dt class="col-sm-4">PESEL</dt>        <dd class="col-sm-8" id="sum-pesel">—</dd>
+                  <dt class="col-sm-4">Adres</dt>        <dd class="col-sm-8" id="sum-address">—</dd>
+                  <dt class="col-sm-4">Telefon / e-mail</dt><dd class="col-sm-8" id="sum-contact">—</dd>
+                  <dt class="col-sm-4">Data umowy</dt>   <dd class="col-sm-8" id="sum-date">—</dd>
+                  <dt class="col-sm-4">Nr PFRON</dt>     <dd class="col-sm-8" id="sum-pfron-no">—</dd>
+                  <dt class="col-sm-4">Skierowanie</dt>  <dd class="col-sm-8" id="sum-mc">—</dd>
+                  <dt class="col-sm-4">Godziny</dt>      <dd class="col-sm-8" id="sum-hours">—</dd>
                 </dl>
               </div>
             </div>
-            <div class="d-flex gap-2 flex-wrap">
-              <button type="submit" class="btn btn-danger flex-fill"
-                      onclick="document.getElementById('doc-type-input').value='umowa'">
-                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Umowa + Regulamin
-              </button>
-              <button type="submit" class="btn btn-outline-secondary"
-                      onclick="document.getElementById('doc-type-input').value='regulamin'">
+            <div id="step3-save-status" class="mb-3" style="display:none"></div>
+            <div class="d-flex gap-2 flex-wrap" id="step3-pdf-btns" style="display:none!important">
+              <a id="btn-pdf-umowa-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
+                 class="btn btn-danger flex-fill">
+                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz Umowę + Regulamin
+              </a>
+              <a id="btn-pdf-reg-wiz" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=regulamin" target="_blank"
+                 class="btn btn-outline-secondary">
                 <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Sam regulamin
-              </button>
+              </a>
             </div>
-            <p class="text-body-secondary mt-2 mb-0" style="font-size:.8rem">
+            <p class="text-body-secondary mt-2 mb-0 small">
               <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-              Regulamin drukuje się automatycznie jako załącznik do umowy.
-              Dane skierowania i godziny zostaną zapisane w kartotece PFRON.
+              Dane zostaną zapisane po kliknięciu „Dalej". Regulamin drukowany jako załącznik do umowy.
             </p>
+          </div>
+
+          <!-- ── Krok 4: Podpisz i wgraj ──────────────────────────────── -->
+          <div class="wizard-panel d-none" id="wizard-panel-4" role="tabpanel" aria-labelledby="wizard-tab-4">
+            <p class="text-body-secondary small mb-3">
+              Wydrukuj umowę, daj uczestnikowi do podpisania, następnie wgraj skan poniżej.
+              Możesz też zebrać podpis bezpośrednio na tablecie / ekranie.
+            </p>
+
+            <!-- Linki PDF (powtórzone dla wygody) -->
+            <div class="d-flex gap-2 mb-4 flex-wrap">
+              <a id="btn-pdf-umowa-s4" href="<?= APP_URL ?>/karty30/pfron/doc_print.php?type=umowa" target="_blank"
+                 class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF
+              </a>
+            </div>
+
+            <!-- Upload podpisanego dokumentu -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="wiz-doc-file">
+                Wgraj podpisaną umowę <span class="text-body-secondary fw-normal">(PDF, JPG, PNG — max 20 MB)</span>
+              </label>
+              <input type="file" class="form-control" id="wiz-doc-file" accept=".pdf,.jpg,.jpeg,.png,.webp">
+            </div>
+            <div id="wiz-doc-preview" class="mb-2" style="display:none">
+              <img id="wiz-doc-img" style="max-height:120px;max-width:100%;border:1px solid #ccc;border-radius:4px" alt="Podgląd">
+              <span id="wiz-doc-name" class="d-block text-body-secondary small mt-1"></span>
+            </div>
+
+            <!-- Lub podpis odręczny na ekranie -->
+            <div class="mt-3 border-top pt-3">
+              <p class="small fw-semibold mb-2">
+                <i class="bi bi-pen me-1" aria-hidden="true"></i>Alternatywnie: podpis odręczny na ekranie
+              </p>
+              <canvas id="wiz-sig-canvas" style="width:100%;height:130px;border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;background:#fafafa;display:block"
+                      role="img" aria-label="Pole podpisu odręcznego"></canvas>
+              <div class="d-flex gap-2 mt-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="wiz-sig-clear">Wyczyść</button>
+                <span class="text-body-secondary small align-self-center">Mysz, rysik lub palec</span>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 mt-3 flex-wrap align-items-center" id="wiz-upload-row">
+              <button type="button" class="btn btn-primary" id="wiz-upload-btn" disabled>
+                <i class="bi bi-upload me-1" aria-hidden="true"></i>Wgraj i zarejestruj
+              </button>
+              <span id="wiz-upload-status" class="text-body-secondary small"></span>
+            </div>
+            <div id="wiz-upload-result" class="mt-2" style="display:none"></div>
           </div>
 
         </div><!-- /modal-body -->
@@ -438,7 +484,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <script>
 (function () {
-  // ── Walidacja PESEL ─────────────────────────────────────────────────────
+  // ── PESEL ────────────────────────────────────────────────────────────────
   function peselValid(p) {
     p = p.replace(/\D/g, '');
     if (p.length !== 11) return false;
@@ -447,24 +493,22 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     for (let i = 0; i < 10; i++) sum += w[i] * parseInt(p[i]);
     return (10 - (sum % 10)) % 10 === parseInt(p[10]);
   }
-
   const peselInput = document.getElementById('w_pesel');
   function validatePesel() {
     const v = peselInput.value.replace(/\D/g, '');
-    if (v === '') {
-      peselInput.classList.remove('is-valid', 'is-invalid');
-      return true; // pole opcjonalne
-    }
+    if (!v) { peselInput.classList.remove('is-valid','is-invalid'); return true; }
     const ok = peselValid(v);
-    peselInput.classList.toggle('is-valid',   ok);
+    peselInput.classList.toggle('is-valid', ok);
     peselInput.classList.toggle('is-invalid', !ok);
     return ok;
   }
   peselInput?.addEventListener('input', validatePesel);
   peselInput?.addEventListener('blur',  validatePesel);
 
-  const TOTAL = 3;
+  // ── Wizard core ──────────────────────────────────────────────────────────
+  const TOTAL = 4;
   let current = 1;
+  let savedPfronId = <?= $pfron_id ?: 0 ?>;  // może być 0 gdy brak umowy PFRON
 
   const modal     = document.getElementById('pfronWizard');
   const bsModal   = new bootstrap.Modal(modal);
@@ -482,16 +526,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       b.setAttribute('aria-selected', idx === n ? 'true' : 'false');
       b.classList.toggle('done', idx < n);
     });
-    backBtn.disabled = (n === 1);
-    nextBtn.textContent = n === TOTAL ? '' : 'Dalej';
-    nextBtn.innerHTML   = n === TOTAL
-      ? ''  // hidden on last step (submit buttons used)
+    backBtn.disabled  = (n === 1);
+    const isLast = n === TOTAL;
+    nextBtn.style.display = isLast ? 'none' : '';
+    if (!isLast) nextBtn.innerHTML = n === TOTAL - 1
+      ? '<i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz i pobierz PDF'
       : 'Dalej<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>';
-    nextBtn.style.display = n === TOTAL ? 'none' : '';
     stepLabel.textContent = `Krok ${n} z ${TOTAL}`;
-    if (n === TOTAL) fillSummary();
-    // Fokus na pierwszy input w kroku
-    const first = document.querySelector(`#wizard-panel-${n} input, #wizard-panel-${n} textarea`);
+    if (n === 3) fillSummary();
+    if (n === 4) initStep4();
+    const first = document.querySelector(`#wizard-panel-${n} input:not([type=file]), #wizard-panel-${n} textarea`);
     if (first) setTimeout(() => first.focus(), 80);
   }
 
@@ -508,24 +552,202 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   }
 
   function fillSummary() {
-    const g = id => document.getElementById(id)?.value || '—';
+    const g = id => document.getElementById(id)?.value || '';
     const blank = v => v || '<span class="text-body-secondary fst-italic">nie podano</span>';
     document.getElementById('sum-name').innerHTML    = blank(g('w_name'));
     document.getElementById('sum-pesel').innerHTML   = blank(g('w_pesel'));
     document.getElementById('sum-address').innerHTML = blank(g('w_address'));
-    const ph = [g('w_phone'), g('w_email')].filter(v => v && v !== '—').join(' / ');
+    const ph = [g('w_phone'), g('w_email')].filter(Boolean).join(' / ');
     document.getElementById('sum-contact').innerHTML  = blank(ph);
     document.getElementById('sum-date').innerHTML     = blank(g('w_date'));
     document.getElementById('sum-pfron-no').innerHTML = blank(g('w_pfron_no'));
-    const mc = [g('w_mc_date'), g('w_mc_sign')].filter(v => v && v !== '—').join(' · znak: ');
+    const mc = [g('w_mc_date'), g('w_mc_sign')].filter(Boolean).join(' · znak: ');
     document.getElementById('sum-mc').innerHTML    = blank(mc);
-    const ht  = g('w_ht')  || '30';
-    const htr = g('w_htr') || '25';
-    document.getElementById('sum-hours').textContent = `${ht} łącznie, ${htr} właściwych`;
+    document.getElementById('sum-hours').textContent =
+      `${g('w_ht')||'30'} łącznie, ${g('w_htr')||'25'} właściwych`;
   }
 
-  nextBtn.addEventListener('click', () => {
+  // ── Krok 3 → AJAX save + pokaż przyciski PDF ────────────────────────────
+  async function saveStep3() {
+    const status = document.getElementById('step3-save-status');
+    const pdfRow = document.getElementById('step3-pdf-btns');
+    status.style.display = 'block';
+    status.className = 'alert alert-info py-2 small';
+    status.textContent = 'Zapisywanie danych…';
+    nextBtn.disabled = true;
+
+    const fd = new FormData(document.getElementById('pfron-wizard-form'));
+    fd.set('_ajax', '1');
+
+    try {
+      const res  = await fetch('', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.ok) {
+        savedPfronId = data.pfron_id || savedPfronId;
+        status.className = 'alert alert-success py-2 small';
+        status.textContent = 'Dane zapisane. Pobierz dokumenty i przejdź do podpisania.';
+        pdfRow.style.setProperty('display', 'flex', 'important');
+        nextBtn.disabled = false;
+        return true;
+      } else {
+        status.className = 'alert alert-danger py-2 small';
+        status.textContent = 'Błąd: ' + (data.error || 'nieznany');
+        nextBtn.disabled = false;
+        return false;
+      }
+    } catch(e) {
+      status.className = 'alert alert-danger py-2 small';
+      status.textContent = 'Błąd sieci: ' + e.message;
+      nextBtn.disabled = false;
+      return false;
+    }
+  }
+
+  // ── Krok 4: canvas + upload ──────────────────────────────────────────────
+  let step4Inited = false;
+  let wizCanvasData = null;   // 'canvas' gdy są kreski
+  let wizScanFile   = null;   // File ze skanu
+
+  function initStep4() {
+    if (step4Inited) return;
+    step4Inited = true;
+
+    // Canvas
+    const canvas = document.getElementById('wiz-sig-canvas');
+    const ctx    = canvas.getContext('2d');
+    function resizeCanvas() {
+      const r = canvas.getBoundingClientRect(), dpr = devicePixelRatio;
+      canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+      ctx.scale(dpr, dpr);
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    let drawing = false;
+    function pos(e) {
+      const r = canvas.getBoundingClientRect();
+      const s = e.touches ? e.touches[0] : e;
+      return { x: s.clientX - r.left, y: s.clientY - r.top };
+    }
+    canvas.addEventListener('mousedown',  e => { e.preventDefault(); drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); });
+    canvas.addEventListener('mousemove',  e => { if(!drawing)return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); wizCanvasData='canvas'; checkUploadReady(); });
+    canvas.addEventListener('mouseup',    () => drawing=false);
+    canvas.addEventListener('mouseleave', () => drawing=false);
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }, {passive:false});
+    canvas.addEventListener('touchmove',  e => { if(!drawing)return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); wizCanvasData='canvas'; checkUploadReady(); }, {passive:false});
+    canvas.addEventListener('touchend',   () => drawing=false);
+
+    document.getElementById('wiz-sig-clear')?.addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width/devicePixelRatio, canvas.height/devicePixelRatio);
+      wizCanvasData = null; checkUploadReady();
+    });
+
+    // File input
+    const fileInput = document.getElementById('wiz-doc-file');
+    const preview   = document.getElementById('wiz-doc-preview');
+    const previewImg= document.getElementById('wiz-doc-img');
+    const previewNm = document.getElementById('wiz-doc-name');
+    fileInput?.addEventListener('change', function() {
+      wizScanFile = this.files[0] || null;
+      if (!wizScanFile) { preview.style.display='none'; checkUploadReady(); return; }
+      previewNm.textContent = wizScanFile.name + ' (' + (wizScanFile.size/1024).toFixed(0) + ' KB)';
+      if (wizScanFile.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => { previewImg.src = e.target.result; previewImg.style.display=''; preview.style.display='block'; };
+        reader.readAsDataURL(wizScanFile);
+      } else {
+        previewImg.style.display='none'; preview.style.display='block';
+      }
+      checkUploadReady();
+    });
+
+    // Upload button
+    document.getElementById('wiz-upload-btn')?.addEventListener('click', doUpload);
+  }
+
+  function checkUploadReady() {
+    const btn = document.getElementById('wiz-upload-btn');
+    if (btn) btn.disabled = !(wizScanFile || wizCanvasData);
+  }
+
+  async function doUpload() {
+    const btn    = document.getElementById('wiz-upload-btn');
+    const status = document.getElementById('wiz-upload-status');
+    const result = document.getElementById('wiz-upload-result');
+    btn.disabled = true; status.textContent = 'Przesyłanie…';
+
+    const csrf = <?= json_encode(csrf_token()) ?>;
+    const pid  = savedPfronId;
+
+    // Brak pfron_id — nie możemy zapisać podpisu
+    if (!pid) {
+      result.className = 'alert alert-warning'; result.style.display='block';
+      result.textContent = 'Brak powiązanej umowy PFRON — podpis można wgrać z karty beneficjenta.';
+      status.textContent = ''; btn.disabled = false; return;
+    }
+
+    // Przygotuj dane
+    const fd = new FormData();
+    fd.append('pfron_id', pid);
+    fd.append('_csrf', csrf);
+
+    if (wizScanFile) {
+      // Priorytet: plik
+      fd.append('signed_doc', wizScanFile);
+      try {
+        const res  = await fetch('upload_doc.php', { method:'POST', body:fd });
+        const data = await res.json();
+        handleUploadResult(data, result, status, btn);
+      } catch(e) { handleNetErr(e, result, status, btn); }
+    } else if (wizCanvasData) {
+      // Canvas → base64 → sign.php
+      const sigData = document.getElementById('wiz-sig-canvas').toDataURL('image/png');
+      const body = JSON.stringify({ pfron_id: pid, signature_data: sigData, _csrf: csrf });
+      try {
+        const res  = await fetch('sign.php', { method:'POST', headers:{'Content-Type':'application/json'}, body });
+        const data = await res.json();
+        if (data.ok) {
+          result.className = 'alert alert-success'; result.style.display='block';
+          result.innerHTML = 'Podpis zapisany. Numer umowy: <strong class="font-monospace">' + data.doc_number + '</strong>';
+          status.textContent = ''; btn.disabled = true;
+        } else handleUploadResult(data, result, status, btn);
+      } catch(e) { handleNetErr(e, result, status, btn); }
+    }
+  }
+
+  function handleUploadResult(data, result, status, btn) {
+    if (data.ok) {
+      result.className = 'alert alert-success'; result.style.display='block';
+      result.innerHTML = data.doc_number
+        ? 'Podpis zapisany. Numer: <strong class="font-monospace">' + data.doc_number + '</strong>'
+        : 'Plik wgrany: <a href="' + data.url + '" target="_blank" class="fw-semibold">' + data.name + '</a>';
+      status.textContent = ''; btn.disabled = true;
+    } else if (data.ika_expired) {
+      result.className = 'alert alert-warning'; result.style.display='block';
+      result.innerHTML = 'Sesja IKA wygasła. <a href="<?= h(APP_URL . '/contracts/ika_gate.php?to=' . urlencode(APP_URL . $_SERVER['REQUEST_URI'])) ?>">Zaloguj się ponownie</a>.';
+      status.textContent = ''; btn.disabled = false;
+    } else {
+      result.className = 'alert alert-danger'; result.style.display='block';
+      result.textContent = 'Błąd: ' + (data.error || 'nieznany');
+      status.textContent = ''; btn.disabled = false;
+    }
+  }
+
+  function handleNetErr(e, result, status, btn) {
+    result.className = 'alert alert-danger'; result.style.display='block';
+    result.textContent = 'Błąd sieci: ' + e.message;
+    status.textContent = ''; btn.disabled = false;
+  }
+
+  // ── Nawigacja ────────────────────────────────────────────────────────────
+  nextBtn.addEventListener('click', async () => {
     if (!validateStep(current)) return;
+    if (current === 3) {
+      const ok = await saveStep3();
+      if (!ok) return;
+    }
     if (current < TOTAL) showStep(current + 1);
   });
 
@@ -533,7 +755,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     if (current > 1) showStep(current - 1);
   });
 
-  // Kliknięcie w zakładkę kroku (tylko do ukończonych)
   stepBtns().forEach(btn => {
     btn.addEventListener('click', () => {
       const n = parseInt(btn.dataset.step);
@@ -541,17 +762,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     });
   });
 
-  // Otwieranie z przycisku
   document.getElementById('btn-start-wizard')?.addEventListener('click', () => {
-    showStep(1);
-    bsModal.show();
+    showStep(1); bsModal.show();
   });
 
-  // Auto-start jeśli mamy kontekst
-  if (<?= $auto_start ?>) {
-    showStep(1);
-    bsModal.show();
-  }
+  if (<?= $auto_start ?>) { showStep(1); bsModal.show(); }
 })();
 </script>
 
