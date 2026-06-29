@@ -67,7 +67,14 @@ zadania.ngosystem.pl/<x>   → app obsługuje /tasks/<x>
 ti.ngosystem.pl/<x>        → app obsługuje /karty30/ti/kursant/<x>
 ```
 
-Rekordy DNS w Cloudflare utworzysz idempotentnym konfiguratorem:
+Rekordy DNS w Cloudflare utworzysz idempotentnym konfiguratorem. Najprościej —
+kreator zada pytania i sam zapisze `docker/.env.cloudflare`:
+
+```bash
+bash docker/cloudflare-dns.sh --init     # kreator: token, IP, hosty → zapis + utworzenie rekordów
+```
+
+Albo ręcznie z pliku konfiguracyjnego:
 
 ```bash
 cp docker/.env.cloudflare.example docker/.env.cloudflare   # wpisz token API + IP serwera
