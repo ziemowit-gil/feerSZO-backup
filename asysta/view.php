@@ -1,0 +1,229 @@
+<?php
+/**
+ * asysta/view.php — Karta jednego zgłoszenia asysty (widok administracyjny).
+ *
+ * Góra: dane zgłoszenia (nr, data, status). Następnie dane zgłaszającego,
+ * szczegóły wydarzenia i zakres asysty (tylko do odczytu — pochodzą z
+ * publicznego formularza). Na dole sekcja administracyjna: zmiana statusu,
+ * przypisanie wolontariusza, kanał powiadomień (e-mail/SMS) i notatki wewnętrzne.
+ */
+require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/db.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/mail_queue.php';
+require_once dirname(__DIR__) . '/includes/sms.php';
+require_once dirname(__DIR__) . '/includes/assistance.php';
+
+require_login();
+if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
+require_module_enabled('assistance_enabled', 'Moduł zgłoszeń asysty');
+asr_migrate();
+
+$base     = APP_URL . '/asysta';
+$can_edit = can_edit();
+$id       = (int)($_GET['id'] ?? 0);
+$req      = $id ? asr_get($id) : null;
+
+if (!$req) {
+    flash_set('error', 'Nie znaleziono zgłoszenia.');
+    header('Location: ' . $base . '/admin.php');
+    exit;
+}
+
+/* ── Zapis sekcji administracyjnej (PRG) ──────────────────────────────────── */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_edit) {
+    csrf_check();
+    if (($_POST['_action'] ?? '') === 'delete' && is_admin()) {
+        db()->prepare("DELETE FROM szo_assistance_requests WHERE id=?")->execute([$id]);
+        flash_set('success', 'Zgłoszenie zostało usunięte.');
+        header('Location: ' . $base . '/admin.php');
+        exit;
+    }
+    $changes = asr_admin_update($id, $_POST);
+    $msg = 'Zapisano zmiany w zgłoszeniu ' . asr_number($req) . '.';
+    if (!empty($req['assigned_volunteer_id']) || ($_POST['assigned_volunteer_id'] ?? '') !== '') {
+        if (!empty($_POST['channels'])) $msg .= ' Powiadomienie wysłano wybranymi kanałami.';
+    }
+    flash_set('success', $msg);
+    header('Location: ' . $base . '/view.php?id=' . $id);
+    exit;
+}
+
+$statuses   = asr_statuses();
+$needs_all  = asr_needs();
+$channels   = asr_channels();
+$volunteers = asr_volunteers();
+$picked_needs   = array_filter(array_map('trim', explode(',', (string)$req['needs'])));
+$picked_channels= array_filter(array_map('trim', explode(',', (string)$req['assigned_channels'])));
+
+$PAGE_TITLE = 'Zgłoszenie ' . asr_number($req);
+include dirname(__DIR__) . '/includes/header.php';
+?>
+<div class="container-fluid px-3 px-md-4 py-3" style="max-width:980px">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h4 fw-bold mb-0">
+      <i class="bi bi-universal-access-circle text-primary me-1" aria-hidden="true"></i>
+      Zgłoszenie <?= h(asr_number($req)) ?>
+    </h1>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= h($base) ?>/admin.php">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do listy
+    </a>
+  </div>
+
+  <!-- ════ Dane zgłoszenia (góra, tylko do odczytu) ════ -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-sm-4">
+          <div class="text-secondary small text-uppercase">Numer zgłoszenia</div>
+          <div class="fw-semibold"><?= h(asr_number($req)) ?></div>
+        </div>
+        <div class="col-sm-4">
+          <div class="text-secondary small text-uppercase">Data wysłania</div>
+          <div class="fw-semibold"><?= h($req['created_at']) ?></div>
+        </div>
+        <div class="col-sm-4">
+          <div class="text-secondary small text-uppercase">Status</div>
+          <span class="badge <?= h(asr_status_class($req['status'])) ?>"><?= h(asr_label($statuses, $req['status'])) ?></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ Dane zgłaszającego + wydarzenie + zakres (tylko do odczytu) ════ -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <h2 class="h6 fw-bold text-secondary text-uppercase mb-3">Dane zgłaszającego</h2>
+      <dl class="row mb-0">
+        <dt class="col-sm-3">Imię i nazwisko</dt>
+        <dd class="col-sm-9"><?= h($req['participant_name']) ?></dd>
+        <dt class="col-sm-3">E-mail</dt>
+        <dd class="col-sm-9"><a href="mailto:<?= h($req['participant_email']) ?>"><?= h($req['participant_email']) ?></a></dd>
+        <dt class="col-sm-3">Telefon</dt>
+        <dd class="col-sm-9"><a href="tel:<?= h($req['participant_phone']) ?>"><?= h($req['participant_phone']) ?></a></dd>
+        <dt class="col-sm-3">Zgłasza jako opiekun</dt>
+        <dd class="col-sm-9"><?= ((int)$req['is_guardian'] === 1) ? 'Tak — w imieniu innej osoby' : 'Nie' ?></dd>
+      </dl>
+
+      <hr>
+      <h2 class="h6 fw-bold text-secondary text-uppercase mb-3">Wydarzenie</h2>
+      <dl class="row mb-0">
+        <dt class="col-sm-3">Nazwa wydarzenia</dt>
+        <dd class="col-sm-9"><?= h($req['event_name'] ?: '—') ?></dd>
+        <dt class="col-sm-3">Data i miejsce</dt>
+        <dd class="col-sm-9"><?= h($req['event_when_where'] ?: '—') ?></dd>
+      </dl>
+
+      <hr>
+      <h2 class="h6 fw-bold text-secondary text-uppercase mb-3">Zakres asysty i specjalne potrzeby</h2>
+      <?php if ($picked_needs): ?>
+        <ul class="mb-2">
+          <?php foreach ($picked_needs as $k): ?>
+            <li><?= h($needs_all[$k] ?? $k) ?>
+              <?php if ($k === 'other' && trim((string)$req['needs_other']) !== ''): ?>
+                — <em><?= h($req['needs_other']) ?></em>
+              <?php endif; ?>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php else: ?>
+        <p class="text-secondary mb-2">— brak —</p>
+      <?php endif; ?>
+      <?php if (trim((string)$req['details']) !== ''): ?>
+        <div class="mt-2">
+          <div class="fw-semibold">Dodatkowe informacje / uwagi:</div>
+          <div class="text-body"><?= nl2br(h($req['details'])) ?></div>
+        </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- ════ Sekcja administracyjna ════ -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-light fw-bold">
+      <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Obsługa zgłoszenia (administracja)
+    </div>
+    <div class="card-body">
+      <?php if (!$can_edit): ?>
+        <p class="text-secondary mb-0">Nie masz uprawnień do edycji tego zgłoszenia.</p>
+      <?php else: ?>
+      <form method="post" action="<?= h($base) ?>/view.php?id=<?= $id ?>" novalidate>
+        <?= csrf_field() ?>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="status" class="form-label fw-semibold">Status zgłoszenia</label>
+            <select class="form-select" id="status" name="status">
+              <?php foreach ($statuses as $k => $lbl): ?>
+                <option value="<?= h($k) ?>" <?= $req['status'] === $k ? 'selected' : '' ?>><?= h($lbl) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label for="assigned_volunteer_id" class="form-label fw-semibold">Przypisany wolontariusz</label>
+            <select class="form-select" id="assigned_volunteer_id" name="assigned_volunteer_id">
+              <option value="">— nie przypisano —</option>
+              <?php foreach ($volunteers as $v): ?>
+                <option value="<?= (int)$v['id'] ?>" <?= (int)$req['assigned_volunteer_id'] === (int)$v['id'] ? 'selected' : '' ?>>
+                  <?= h($v['imie_nazwisko']) ?><?= !empty($v['email']) ? ' (' . h($v['email']) . ')' : '' ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <?php if (!$volunteers): ?>
+              <div class="form-text text-warning">Brak wolontariuszy w bazie do przypisania.</div>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <fieldset class="border-0 p-0 m-0 mt-3">
+          <legend class="form-label fw-semibold fs-6 mb-2" style="border:0">
+            Kanał powiadomień dla wolontariusza
+          </legend>
+          <div role="group" aria-label="Kanał powiadomień dla wolontariusza">
+            <?php foreach ($channels as $k => $lbl): ?>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="channels[]"
+                       id="ch_<?= h($k) ?>" value="<?= h($k) ?>"
+                       <?= in_array($k, $picked_channels, true) ? 'checked' : '' ?>>
+                <label class="form-check-label" for="ch_<?= h($k) ?>"><?= h($lbl) ?></label>
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-text">
+            Po zapisaniu z zaznaczonym kanałem wolontariusz otrzyma powiadomienie
+            o przydzielonym zgłoszeniu (wymaga przypisania wolontariusza).
+          </div>
+        </fieldset>
+
+        <div class="mt-3">
+          <label for="internal_notes" class="form-label fw-semibold">Notatki wewnętrzne</label>
+          <textarea class="form-control" id="internal_notes" name="internal_notes" rows="4"
+                    aria-describedby="notes-help"><?= h($req['internal_notes']) ?></textarea>
+          <div id="notes-help" class="form-text">Widoczne tylko dla zespołu — nie są przekazywane zgłaszającemu.</div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-4">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz zmiany
+          </button>
+          <?php if (is_admin()): ?>
+            <button type="submit" name="_action" value="delete" class="btn btn-outline-danger ms-auto"
+                    onclick="return confirm('Usunąć zgłoszenie <?= h(asr_number($req)) ?>? Tej operacji nie można cofnąć.');">
+              <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń zgłoszenie
+            </button>
+          <?php endif; ?>
+        </div>
+      </form>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <?php if (!empty($req['updated_at'])): ?>
+    <p class="text-secondary small text-end">Ostatnia zmiana: <?= h($req['updated_at']) ?></p>
+  <?php endif; ?>
+
+</div>
+<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
