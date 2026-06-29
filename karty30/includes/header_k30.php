@@ -293,6 +293,9 @@ function _k30_active(string $path): bool {
                   <?php endif; ?>
                 </div>
                 <div class="col-12 col-md-6 border-start-md">
+                  <h6 class="dropdown-header">PFRON</h6>
+                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/training.php" <?= _k30_active('/karty30/pfron/training') ? 'aria-current="page"' : '' ?>><i class="bi bi-building-fill-check me-2" style="color:#7c3aed" aria-hidden="true"></i>Szkolenia PFRON</a>
+                  <a class="dropdown-item" href="<?= APP_URL ?>/karty30/pfron/docs.php" <?= _k30_active('/karty30/pfron/docs') ? 'aria-current="page"' : '' ?>><i class="bi bi-file-earmark-pdf me-2 text-danger" aria-hidden="true"></i>Dokumenty PFRON</a>
                   <h6 class="dropdown-header">Konsultacje i raporty</h6>
                   <a class="dropdown-item" href="<?= APP_URL ?>/karty30/consultations/index.php" <?= _k30_active('/karty30/consultations') ? 'aria-current="page"' : '' ?>><i class="bi bi-clipboard2-check me-2" aria-hidden="true"></i>Konsultacje</a>
                   <a class="dropdown-item" href="<?= APP_URL ?>/karty30/reports/index.php" <?= _k30_active('/karty30/reports') ? 'aria-current="page"' : '' ?>><i class="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Raporty</a>

@@ -29,6 +29,18 @@ $schedules = db_all(
      ORDER BY s.start_time DESC LIMIT 100"
 );
 
+// Mapa klientów z aktywnymi umowami PFRON (do sugestii w formularzu)
+$pfron_client_map = [];
+foreach (db_all(
+    "SELECT pc.id AS pfron_id, pc.client_id, pc.contract_number
+     FROM k30_pfron_contracts pc WHERE pc.status='active'"
+) as $pc) {
+    $pfron_client_map[(int)$pc['client_id']] = [
+        'pfron_id' => (int)$pc['pfron_id'],
+        'contract' => $pc['contract_number'],
+    ];
+}
+
 // Build schedule map for AJAX autofill
 $sched_map = [];
 foreach ($schedules as $s) {
@@ -128,6 +140,21 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </select>
       </div>
 
+      <!-- Sugestia PFRON — widoczna gdy wybrany beneficjent ma aktywną umowę PFRON -->
+      <div id="pfron-suggestion" class="alert alert-warning d-none d-flex gap-2 align-items-start py-2 mb-3" role="status" aria-live="polite">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+        <div class="small">
+          <strong>Ten beneficjent ma aktywną umowę PFRON</strong>
+          (<span id="pfron-suggestion-no" class="font-monospace"></span>).
+          Szkolenie PFRON to odrębny rodzaj świadczenia — czy na pewno chodzi o konsultację, a nie o zajęcia PFRON?
+          <a id="pfron-suggestion-link" href="#" class="alert-link fw-semibold d-block mt-1">
+            <i class="bi bi-arrow-right me-1" aria-hidden="true"></i>Przejdź do szkolenia PFRON →
+          </a>
+        </div>
+        <button type="button" class="btn-close btn-sm ms-auto flex-shrink-0" aria-label="Zamknij"
+                onclick="document.getElementById('pfron-suggestion').classList.add('d-none')"></button>
+      </div>
+
       <div class="mb-3">
         <label class="form-label">Konsultant</label>
         <select name="consultant_id" class="form-select">
@@ -191,6 +218,32 @@ document.getElementById('schedule_id').addEventListener('change', function() {
 (function() {
     const sel = document.getElementById('schedule_id');
     if (sel.value) sel.dispatchEvent(new Event('change'));
+})();
+
+// Sugestia PFRON przy wyborze beneficjenta
+(function() {
+    const pfronMap = <?= json_encode($pfron_client_map, JSON_HEX_TAG) ?>;
+    const appUrl   = <?= json_encode(APP_URL) ?>;
+
+    function checkPfron(clientId) {
+        const data = pfronMap[parseInt(clientId)];
+        const box  = document.getElementById('pfron-suggestion');
+        if (!box) return;
+        if (data) {
+            document.getElementById('pfron-suggestion-no').textContent = data.contract;
+            document.getElementById('pfron-suggestion-link').href =
+                appUrl + '/karty30/pfron/training.php?pfron_id=' + data.pfron_id + '&client_id=' + clientId;
+            box.classList.remove('d-none');
+        } else {
+            box.classList.add('d-none');
+        }
+    }
+
+    document.getElementById('client_id').addEventListener('change', function() {
+        checkPfron(this.value);
+    });
+    // Sprawdź przy załadowaniu jeśli klient był wstępnie wybrany
+    checkPfron(document.getElementById('client_id').value);
 })();
 </script>
 
