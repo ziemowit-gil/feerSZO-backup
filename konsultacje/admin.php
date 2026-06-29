@@ -76,6 +76,11 @@ include dirname(__DIR__) . '/includes/header.php';
       <a class="btn btn-outline-secondary btn-sm" href="<?= h($base) ?>/form.php" target="_blank" rel="noopener">
         <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Formularz publiczny
       </a>
+      <a class="btn btn-danger btn-sm <?= $rows ? '' : 'disabled' ?>"
+         href="<?= h($base) ?>/export_pdf.php<?= $zip_qs ? '?' . h($zip_qs) : '' ?>"
+         <?= $rows ? '' : 'aria-disabled="true" tabindex="-1"' ?>>
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz zbiorczy PDF
+      </a>
       <a class="btn btn-success btn-sm <?= $rows ? '' : 'disabled' ?>"
          href="<?= h($base) ?>/zip.php<?= $zip_qs ? '?' . h($zip_qs) : '' ?>"
          <?= $rows ? '' : 'aria-disabled="true" tabindex="-1"' ?>>

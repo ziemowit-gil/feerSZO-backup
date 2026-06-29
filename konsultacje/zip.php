@@ -77,12 +77,12 @@ if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) {
 $used = [];
 foreach ($rows as $c) {
     $base = cc_filename_base($c);          // RRRR-MM-DD_Nazwa_ID
-    $name = $base . '.txt';
-    // Zabezpieczenie przed kolizją nazw.
-    if (isset($used[$name])) { $name = $base . '_' . $c['id'] . '.txt'; }
-    $used[$name] = true;
+    if (isset($used[$base])) { $base .= '_' . $c['id']; } // ochrona przed kolizją
+    $used[$base] = true;
 
-    $zip->addFromString($name, cc_to_text($c));
+    // Oficjalny dokument PDF (budowany serwerowo) + czytelny protokół tekstowy.
+    $zip->addFromString($base . '.pdf', cc_render_pdf_file($c, 'S'));
+    $zip->addFromString($base . '.txt', cc_to_text($c));
 }
 
 $zip->close();
