@@ -247,7 +247,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <form method="post" id="pfron-wizard-form" novalidate>
         <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="_op"       value="generate">
-        <input type="hidden" name="pfron_id"  value="<?= $pfron_id ?>">
+        <input type="hidden" name="pfron_id"  value="<?= $pfron_id ?>" id="pfron-id-input">
         <input type="hidden" name="client_id" value="<?= $client_id ?>">
         <input type="hidden" name="doc_type"  value="umowa" id="doc-type-input">
 
@@ -571,7 +571,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   // ── Wizard core ──────────────────────────────────────────────────────────
   const TOTAL = 5;
   let current = 1;
-  let savedPfronId = <?= $pfron_id ?: 0 ?>;  // może być 0 gdy brak umowy PFRON
+  let savedPfronId = parseInt(document.getElementById('pfron-id-input')?.value || '0') || <?= $pfron_id ?: 0 ?>;
 
   const modal     = document.getElementById('pfronWizard');
   const bsModal   = new bootstrap.Modal(modal);
@@ -746,13 +746,6 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     const csrf = <?= json_encode(csrf_token()) ?>;
     const pid  = savedPfronId;
 
-    // Brak pfron_id — nie możemy zapisać podpisu
-    if (!pid) {
-      result.className = 'alert alert-warning'; result.style.display='block';
-      result.textContent = 'Brak powiązanej umowy PFRON — podpis można wgrać z karty beneficjenta.';
-      status.textContent = ''; btn.disabled = false; return;
-    }
-
     // Przygotuj dane
     const fd = new FormData();
     fd.append('pfron_id', pid);
@@ -851,6 +844,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   nextBtn.addEventListener('click', async () => {
     if (!validateStep(current)) return;
     if (current === 3) {
+      if (!savedPfronId) {
+        const s = document.getElementById('step3-save-status');
+        s.style.display='block'; s.className='alert alert-warning py-2 small';
+        s.textContent = 'Aby wygenerować dokumenty i podpisać umowę, wybierz konkretną umowę PFRON z karty beneficjenta.';
+        return;
+      }
       const ok = await saveStep3();
       if (!ok) return;
     }
