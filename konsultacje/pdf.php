@@ -1,0 +1,176 @@
+<?php
+/**
+ * konsultacje/pdf.php — Oficjalny protokół „Karta konsultacji" do druku/PDF.
+ *
+ * GET: id (int) — ID karty.
+ *
+ * Widok zoptymalizowany pod @media print (A4) z auto-wywołaniem okna druku.
+ * Dla przeglądarki „Zapisz jako PDF" daje gotowy dokument. Układ jest tak
+ * przygotowany, że ten sam HTML można też podać do Dompdf/mPDF (jeśli będą
+ * dostępne) — patrz funkcja cc_render_pdf_html() na dole pliku.
+ *
+ * Dostęp: tylko zalogowani (dokument zawiera pełną treść konsultacji).
+ */
+require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/db.php';
+require_once dirname(__DIR__) . '/includes/auth.php';
+require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/consultations.php';
+
+require_login();
+if (is_viewer()) { http_response_code(403); exit('Brak dostępu.'); }
+
+$id = (int)($_GET['id'] ?? 0);
+$c  = $id ? cc_get($id) : null;
+if (!$c) { http_response_code(404); exit('Karta konsultacyjna nie istnieje.'); }
+
+$auto_print = !isset($_GET['noprint']);
+
+echo cc_render_pdf_html($c, $auto_print);
+
+/**
+ * Zwraca kompletny dokument HTML protokołu konsultacji.
+ * Wydzielone do funkcji, aby ten sam markup mógł zasilić generator PDF
+ * (Dompdf/mPDF) bez fragmentu auto-druku.
+ */
+function cc_render_pdf_html(array $c, bool $auto_print = false): string
+{
+    $org  = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+    $area = cc_label(cc_areas(),  $c['area_type']);
+    $form = cc_label(cc_forms(),  $c['form']);
+    $date = date_pl($c['consultation_date']);
+    $hrs  = cc_hours_label((float)$c['hours']);
+
+    // Sekcje opisowe — zachowaj akapity z formularza.
+    $section = function (string $title, ?string $body) {
+        $txt = trim((string)$body);
+        $html = $txt !== '' ? nl2br(h($txt)) : '<span class="muted">—</span>';
+        return '<section class="block"><h2>' . h($title) . '</h2><div class="prose">' . $html . '</div></section>';
+    };
+
+    $consultant = trim((string)$c['consultant']) !== '' ? h($c['consultant']) : '&nbsp;';
+    $print_js = $auto_print
+        ? '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},250);});</script>'
+        : '';
+
+    $title = 'Karta konsultacji nr ' . (int)$c['id'];
+
+    return '<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>' . h($title) . '</title>
+<style>
+  :root { --ink:#1a1a1a; --line:#94a3b8; --muted:#64748b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; }
+  body {
+    font-family: "DejaVu Sans", "Segoe UI", Arial, sans-serif;
+    color: var(--ink); font-size: 12pt; line-height: 1.5; background:#f1f5f9;
+  }
+  .sheet {
+    background:#fff; width: 210mm; min-height: 297mm; margin: 12px auto;
+    padding: 22mm 20mm; box-shadow: 0 2px 18px rgba(0,0,0,.12);
+    display:flex; flex-direction:column;
+  }
+  .toolbar {
+    max-width:210mm; margin: 14px auto 0; display:flex; gap:.5rem; justify-content:flex-end;
+  }
+  .toolbar button, .toolbar a {
+    font: inherit; font-size: 11pt; padding:.45rem .9rem; border-radius:6px;
+    border:1px solid #cbd5e1; background:#fff; color:#1d4ed8; cursor:pointer; text-decoration:none;
+  }
+  .toolbar button:focus-visible, .toolbar a:focus-visible { outline:3px solid #1d4ed8; outline-offset:2px; }
+  header.doc { border-bottom:2px solid var(--ink); padding-bottom:10px; margin-bottom:18px; }
+  .org { font-size:13pt; font-weight:700; letter-spacing:.2px; }
+  h1 { font-size:18pt; margin:6px 0 0; text-transform:uppercase; letter-spacing:.5px; }
+  .docno { color:var(--muted); font-size:10.5pt; margin-top:2px; }
+  /* Tabela metryczki */
+  table.meta { width:100%; border-collapse:collapse; margin-bottom:14px; }
+  table.meta th, table.meta td {
+    text-align:left; padding:7px 10px; border:1px solid #d7dde5; vertical-align:top; font-size:11.5pt;
+  }
+  table.meta th { width:34%; background:#f4f6fa; font-weight:600; color:#334155; }
+  .block { margin: 10px 0 4px; }
+  .block h2 {
+    font-size:11.5pt; text-transform:uppercase; letter-spacing:.4px;
+    color:#334155; border-bottom:1px solid #d7dde5; padding-bottom:4px; margin:0 0 6px;
+  }
+  .prose { white-space:normal; }
+  .muted { color:var(--muted); }
+  .spacer { flex:1 1 auto; min-height: 18mm; }
+  /* Stopka podpisów — dwie równe kolumny */
+  .signatures {
+    margin-top: 16mm; display:flex; gap: 18mm; page-break-inside: avoid;
+  }
+  .sig { flex:1 1 0; text-align:center; }
+  .sig .line {
+    border-top:1px dotted var(--ink); margin-top: 16mm; padding-top:6px;
+    font-size:10.5pt; color:#334155;
+  }
+  .sig .name { font-weight:600; min-height:1.2em; }
+  .sig .role { color:var(--muted); font-size:9.5pt; }
+  footer.doc { margin-top: 10mm; border-top:1px solid #d7dde5; padding-top:6px;
+    color:var(--muted); font-size:9pt; display:flex; justify-content:space-between; }
+  @media print {
+    body { background:#fff; }
+    .toolbar { display:none !important; }
+    .sheet { box-shadow:none; margin:0; width:auto; min-height:auto; padding:0; }
+    @page { size: A4; margin: 18mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar" role="toolbar" aria-label="Akcje dokumentu">
+    <button type="button" onclick="window.print()">Drukuj / zapisz jako PDF</button>
+    <a href="' . h(APP_URL . '/konsultacje/admin.php') . '">Powrót do listy</a>
+  </div>
+
+  <article class="sheet">
+    <header class="doc">
+      <div class="org">' . h($org) . '</div>
+      <h1>Karta konsultacji</h1>
+      <div class="docno">Dokument nr ' . (int)$c['id'] . ' &middot; sporządzono: ' . h(date_pl(substr((string)($c['created_at'] ?? ''), 0, 10))) . '</div>
+    </header>
+
+    <table class="meta">
+      <tbody>
+        <tr><th scope="row">Organizacja</th><td>' . h($c['org_name']) . '</td></tr>
+        <tr><th scope="row">Data konsultacji</th><td>' . h($date) . '</td></tr>
+        <tr><th scope="row">Obszar wsparcia</th><td>' . h($area) . '</td></tr>
+        <tr><th scope="row">Forma konsultacji</th><td>' . h($form) . '</td></tr>
+        <tr><th scope="row">Liczba godzin</th><td>' . h($hrs) . '</td></tr>
+      </tbody>
+    </table>
+
+    ' . $section('Problem / zagadnienie', $c['problem_description']) . '
+    ' . $section('Podjęte czynności',     $c['actions_taken']) . '
+    ' . $section('Dalsze kroki',          $c['next_steps']) . '
+
+    <div class="spacer"></div>
+
+    <div class="signatures">
+      <div class="sig">
+        <div class="line">
+          <div class="name">' . $consultant . '</div>
+          <div class="role">Podpis konsultanta</div>
+        </div>
+      </div>
+      <div class="sig">
+        <div class="line">
+          <div class="name">&nbsp;</div>
+          <div class="role">Podpis przedstawiciela organizacji</div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="doc">
+      <span>' . h($org) . '</span>
+      <span>Karta konsultacyjna #' . (int)$c['id'] . '</span>
+    </footer>
+  </article>
+' . $print_js . '
+</body>
+</html>';
+}
