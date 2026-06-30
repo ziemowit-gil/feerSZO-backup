@@ -397,7 +397,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: accounts.php?authp=' . $aid_scan); exit;
     }
 
-    if (in_array($op, ['authp_add', 'authp_toggle', 'authp_delete', 'authp_reset_pass'], true)) {
+    if (in_array($op, ['authp_add', 'authp_toggle', 'authp_delete', 'authp_reset_pass', 'authp_revoke_scan'], true)) {
         $aid  = (int)($_POST['account_id'] ?? 0);
         $acc  = $aid ? db_one(
             "SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a
@@ -518,10 +518,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$ap_id_edit, $aid]
         ) : null;
         if (!$ap) { flash_set('danger','Nie znaleziono upoważnienia.'); header('Location: accounts.php?authp=' . $aid); exit; }
-        if ($op === 'authp_toggle') {
-            db()->prepare("UPDATE k30_ti_authorized_persons SET is_active=? WHERE id=?")
-               ->execute([$ap['is_active'] ? 0 : 1, $ap_id_edit]);
-            flash_set('success', $ap['is_active'] ? 'Dostęp wstrzymany.' : 'Dostęp przywrócony.');
+        if ($op === 'authp_revoke_scan') {
+            require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+            $rs_att = mail_queue_save_attachment($_FILES['revoke_scan_file'] ?? []);
+            if ($rs_att) {
+                db()->prepare("UPDATE k30_ti_authorized_persons SET revoke_scan_path=? WHERE id=?")
+                   ->execute([$rs_att['path'], $ap_id_edit]);
+                flash_set('success', 'Skan odwołania zapisany.');
+            } else {
+                flash_set('danger', 'Nie udało się zapisać pliku.');
+            }
+            header('Location: accounts.php?authp=' . $aid); exit;
+        } elseif ($op === 'authp_toggle') {
+            $revoking = (bool)$ap['is_active']; // true = właśnie cofamy dostęp
+            $revoker  = current_user()['name'] ?? current_user()['email'] ?? 'Administrator';
+            if ($revoking) {
+                db()->prepare("UPDATE k30_ti_authorized_persons SET is_active=0, revoked_at=datetime('now'), revoked_by_name=? WHERE id=?")
+                   ->execute([$revoker, $ap_id_edit]);
+                $_SESSION['authp_revoked_id'] = $ap_id_edit;
+                flash_set('success', 'Dostęp wstrzymany. Wydrukuj dokument odwołania.');
+            } else {
+                db()->prepare("UPDATE k30_ti_authorized_persons SET is_active=1, revoked_at=NULL, revoked_by_name='' WHERE id=?")
+                   ->execute([$ap_id_edit]);
+                flash_set('success', 'Dostęp przywrócony.');
+            }
         } elseif ($op === 'authp_delete') {
             db()->prepare("DELETE FROM k30_ti_authorized_persons WHERE id=?")->execute([$ap_id_edit]);
             flash_set('success', "Upoważnienie usunięte: {$ap['name']}.");
@@ -575,8 +595,10 @@ $parent_link = $_SESSION['parent_link'] ?? null;
 unset($_SESSION['parent_link']);
 $new_parent_creds = $_SESSION['new_parent_creds'] ?? null;
 unset($_SESSION['new_parent_creds']);
-$new_authp_creds = $_SESSION['new_authp_creds'] ?? null;
+$new_authp_creds  = $_SESSION['new_authp_creds']  ?? null;
 unset($_SESSION['new_authp_creds']);
+$authp_revoked_id = $_SESSION['authp_revoked_id'] ?? null;
+unset($_SESSION['authp_revoked_id']);
 
 // Edytor opiekuna
 $guardian_id  = (int)($_GET['guardian'] ?? 0);
@@ -841,6 +863,34 @@ function printBulk(){
     </div>
     <?php endif; ?>
 
+    <?php if ($authp_revoked_id):
+      $rev_ap = db_one("SELECT p.*, cl.name AS student_name FROM k30_ti_authorized_persons p
+                        JOIN k30_ti_student_accounts a ON a.id=p.student_account_id
+                        JOIN k30_clients cl ON cl.id=a.client_id WHERE p.id=?", [$authp_revoked_id]); ?>
+    <?php if ($rev_ap): ?>
+    <div class="alert alert-warning border-0 shadow-sm mb-3">
+      <div class="fw-semibold mb-1"><i class="bi bi-slash-circle me-1"></i>Dostęp odwołany: <?= h($rev_ap['name']) ?></div>
+      <div class="d-flex gap-2 flex-wrap align-items-center mt-2">
+        <a href="authp_revoke_print.php?id=<?= (int)$authp_revoked_id ?>" target="_blank"
+           class="btn btn-sm btn-warning">
+          <i class="bi bi-printer me-1"></i>Drukuj dokument odwołania
+        </a>
+        <form method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="authp_revoke_scan">
+          <input type="hidden" name="account_id" value="<?= (int)$authp_account_id ?>">
+          <input type="hidden" name="ap_id" value="<?= (int)$authp_revoked_id ?>">
+          <input type="file" name="revoke_scan_file" accept="image/*,application/pdf"
+                 class="form-control form-control-sm" style="max-width:220px">
+          <button type="submit" class="btn btn-sm btn-outline-warning">
+            <i class="bi bi-cloud-upload me-1"></i>Wgraj skan odwołania
+          </button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
+    <?php endif; ?>
+
     <?php if ($authp_list_admin): ?>
     <div class="table-responsive mb-3">
       <table class="table table-sm align-middle mb-0">
@@ -890,6 +940,10 @@ function printBulk(){
                    class="btn btn-sm btn-outline-secondary py-0" title="Kartka dla osoby upoważnionej"><i class="bi bi-printer"></i></a>
                 <a href="authp_declaration.php?id=<?= (int)$ap['id'] ?>" target="_blank"
                    class="btn btn-sm btn-outline-secondary py-0" title="Oświadczenie administratora"><i class="bi bi-file-earmark-text"></i></a>
+                <?php if (!$ap['is_active']): ?>
+                <a href="authp_revoke_print.php?id=<?= (int)$ap['id'] ?>" target="_blank"
+                   class="btn btn-sm btn-outline-warning py-0" title="Dokument odwołania"><i class="bi bi-file-earmark-x"></i></a>
+                <?php endif; ?>
                 <form method="post" class="d-inline">
                   <?= csrf_field() ?>
                   <input type="hidden" name="_op" value="authp_toggle">
