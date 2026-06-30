@@ -801,7 +801,8 @@ $sessionPicker = function (string $pfx, int $selId) use ($session_label_by_id) {
 // $r = wiersz do edycji lub null (dodawanie). $pfx = unikalny prefiks id pól/modalu.
 
 $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
-    $isEdit = (bool)$r; ?>
+    $isEdit  = (bool)$r;
+    $isPast  = $isEdit && isset($r['lesson_date']) && $r['lesson_date'] < date('Y-m-d'); ?>
   <form method="post">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_lesson">
@@ -813,6 +814,15 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
     </div>
     <div class="modal-body">
+      <?php if ($isPast): ?>
+      <div class="alert alert-secondary py-2 mb-3 small d-flex align-items-center gap-2">
+        <i class="bi bi-lock-fill"></i>
+        <span>Lekcja z przeszłości — zmiana terminu niedostępna.</span>
+        <input type="hidden" name="lesson_date" value="<?= h($r['lesson_date']) ?>">
+        <input type="hidden" name="time_from" value="<?= h($r['time_from'] ?? '') ?>">
+        <input type="hidden" name="time_to" value="<?= h($r['time_to'] ?? '') ?>">
+      </div>
+      <?php else: ?>
       <div class="mb-2">
         <label class="form-label fw-semibold" for="<?= $pfx ?>_date">Data <span class="text-danger">*</span></label>
         <input type="date" class="form-control" id="<?= $pfx ?>_date" name="lesson_date" required value="<?= h($r['lesson_date'] ?? date('Y-m-d')) ?>">
@@ -827,6 +837,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
           <select class="form-select" id="<?= $pfx ?>_to" name="time_to"><?= ti_time_options($r['time_to'] ?? '') ?></select>
         </div>
       </div>
+      <?php endif; ?>
       <div class="mb-2">
         <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
         <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML">
@@ -1474,7 +1485,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
                   <i class="bi bi-pencil me-1"></i>Edytuj
                 </button>
-                <?php if ($s['status'] !== 'cancelled'): ?>
+                <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
                         onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from']??'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to']??'')), ENT_QUOTES) ?>)">
                   <i class="bi bi-calendar2-range me-1"></i>Przenieś
