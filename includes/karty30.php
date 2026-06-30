@@ -739,6 +739,22 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_parent_tokens_student ON k30_ti_parent_tokens(student_id)");
 
+    // Osoby upoważnione przez pełnoletniego kursanta do wglądu w jego konto
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_authorized_persons (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_account_id INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        name               TEXT    NOT NULL DEFAULT '',
+        email              TEXT    NOT NULL DEFAULT '',
+        login              TEXT    NOT NULL UNIQUE,
+        password_hash      TEXT    NOT NULL DEFAULT '',
+        is_active          INTEGER NOT NULL DEFAULT 1,
+        notes              TEXT    NOT NULL DEFAULT '',
+        created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login         DATETIME
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_authp_student ON k30_ti_authorized_persons(student_account_id)");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_authp_login  ON k30_ti_authorized_persons(login)");
+
     // Wnioski o wypisanie z kursu (wymagane zatwierdzenie rodzica+admina dla małoletnich)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_unenroll_requests (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,

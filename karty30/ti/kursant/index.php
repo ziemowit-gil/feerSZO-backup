@@ -383,6 +383,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: index.php?tab=dane'); exit;
     }
+
+    // Zarządzanie osobami upoważnionymi (tylko pełnoletni)
+    if (in_array($op, ['authp_add', 'authp_toggle', 'authp_delete', 'authp_reset_pass'], true)
+        && empty($account['is_minor'])) {
+        if ($op === 'authp_add') {
+            $ap_name  = mb_substr(trim((string)($_POST['ap_name']  ?? '')), 0, 100);
+            $ap_email = mb_substr(trim((string)($_POST['ap_email'] ?? '')), 0, 150);
+            $ap_notes = mb_substr(trim((string)($_POST['ap_notes'] ?? '')), 0, 300);
+            $ap_login = mb_strtolower(mb_substr(trim((string)($_POST['ap_login'] ?? '')), 0, 40));
+            if ($ap_name !== '' && preg_match('/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/', $ap_login)) {
+                $exists = db_one("SELECT id FROM k30_ti_authorized_persons WHERE login=?", [$ap_login]);
+                $exists2 = db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$ap_login]);
+                if (!$exists && !$exists2) {
+                    $ap_pass = _authp_gen_pass();
+                    db_insert('k30_ti_authorized_persons', [
+                        'student_account_id' => (int)$student['id'],
+                        'name'  => $ap_name,
+                        'email' => $ap_email,
+                        'login' => $ap_login,
+                        'password_hash' => password_hash($ap_pass, PASSWORD_BCRYPT),
+                        'notes' => $ap_notes,
+                    ]);
+                    ti_account_log((int)$student['id'], 'authp_add', "Dodano upoważnienie: {$ap_name} ({$ap_login})");
+                    $_SESSION['k30_authp_new'] = ['login' => $ap_login, 'pass' => $ap_pass, 'name' => $ap_name];
+                    header('Location: index.php?tab=upowaznieni&added=1'); exit;
+                }
+            }
+            header('Location: index.php?tab=upowaznieni&err=login'); exit;
+        }
+        $ap_id = (int)($_POST['ap_id'] ?? 0);
+        $own = $ap_id ? db_one(
+            "SELECT * FROM k30_ti_authorized_persons WHERE id=? AND student_account_id=?",
+            [$ap_id, (int)$student['id']]
+        ) : null;
+        if ($own) {
+            if ($op === 'authp_toggle') {
+                db()->prepare("UPDATE k30_ti_authorized_persons SET is_active=? WHERE id=?")
+                   ->execute([$own['is_active'] ? 0 : 1, $ap_id]);
+            } elseif ($op === 'authp_delete') {
+                db()->prepare("DELETE FROM k30_ti_authorized_persons WHERE id=?")->execute([$ap_id]);
+                ti_account_log((int)$student['id'], 'authp_delete', "Usunięto upoważnienie: " . $own['name']);
+            } elseif ($op === 'authp_reset_pass') {
+                $np = _authp_gen_pass();
+                db()->prepare("UPDATE k30_ti_authorized_persons SET password_hash=? WHERE id=?")
+                   ->execute([password_hash($np, PASSWORD_BCRYPT), $ap_id]);
+                $_SESSION['k30_authp_new'] = ['login' => $own['login'], 'pass' => $np, 'name' => $own['name']];
+                header('Location: index.php?tab=upowaznieni&reset=1'); exit;
+            }
+        }
+        header('Location: index.php?tab=upowaznieni'); exit;
+    }
+}
+
+function _authp_gen_pass(): string {
+    $w = ['Kotek','Rower','Zamek','Kwiat','Statek','Zegar','Obraz','Lampa'];
+    return $w[array_rand($w)] . random_int(100, 999);
 }
 
 // Kursy i lekcje kursanta
@@ -640,6 +696,11 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item">
       <a class="nav-link <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
         <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='upowaznieni'?'active':'' ?>" href="?tab=upowaznieni" <?= $tab==='upowaznieni'?'aria-current="page"':'' ?>>
+        <i class="bi bi-person-check me-1" aria-hidden="true"></i>Upoważnieni
       </a>
     </li>
     <?php endif; ?>
@@ -3483,6 +3544,140 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php elseif (empty($terms_pending)): ?>
   <div class="text-body-secondary small"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Brak akceptacji do wyświetlenia.</div>
   <?php endif; ?>
+
+<?php endif; ?>
+
+<?php if ($tab === 'upowaznieni' && !$is_minor): ?>
+
+<?php
+$authp_list    = db_all("SELECT * FROM k30_ti_authorized_persons WHERE student_account_id=? ORDER BY created_at DESC", [(int)$student['id']]);
+$authp_new     = $_SESSION['k30_authp_new'] ?? null;
+unset($_SESSION['k30_authp_new']);
+$authp_added   = !empty($_GET['added']);
+$authp_reset   = !empty($_GET['reset']);
+$authp_err_login = ($_GET['err'] ?? '') === 'login';
+?>
+
+<h1 class="h5 fw-bold mb-1"><i class="bi bi-person-check text-primary me-2" aria-hidden="true"></i>Osoby upoważnione</h1>
+<p class="text-body-secondary small mb-3">Osoby, którym dajesz wgląd w swój panel (lekcje, frekwencja, rozliczenia). Logują się do <a href="authorized_person.php">authorized_person.php</a> własnym loginem i hasłem.</p>
+
+<?php if ($authp_new): ?>
+<div class="alert alert-success" role="alert">
+  <strong><?= $authp_added ? 'Dodano upoważnienie' : 'Nowe hasło ustawione' ?>.</strong>
+  Przekaż poniższe dane osobie: <strong><?= h($authp_new['name']) ?></strong>
+  <div class="mt-2 font-monospace small p-2 bg-light border rounded">
+    Login: <strong><?= h($authp_new['login']) ?></strong><br>
+    Hasło: <strong><?= h($authp_new['pass']) ?></strong>
+  </div>
+  <div class="small text-body-secondary mt-1"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Hasło nie będzie wyświetlone ponownie.</div>
+</div>
+<?php endif; ?>
+
+<?php if ($authp_err_login): ?>
+<div class="alert alert-danger py-2 small" role="alert"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Login jest zajęty lub nieprawidłowy (3–30 znaków: litery, cyfry, kropki, myślniki).</div>
+<?php endif; ?>
+
+<?php if ($authp_list): ?>
+<div class="card shadow-sm border-0 mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Nazwa / imię</th>
+          <th>Login</th>
+          <th>E-mail</th>
+          <th>Uwagi</th>
+          <th>Ostatnie logowanie</th>
+          <th>Status</th>
+          <th><span class="visually-hidden">Akcje</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($authp_list as $ap): ?>
+        <tr class="<?= $ap['is_active'] ? '' : 'text-body-secondary' ?>">
+          <td class="fw-semibold"><?= h($ap['name']) ?></td>
+          <td class="font-monospace small"><?= h($ap['login']) ?></td>
+          <td class="small"><?= h($ap['email']) ?: '—' ?></td>
+          <td class="small"><?= h($ap['notes']) ?: '—' ?></td>
+          <td class="small text-nowrap"><?= $ap['last_login'] ? h(date('d.m.Y H:i', strtotime($ap['last_login']))) : '—' ?></td>
+          <td>
+            <?php if ($ap['is_active']): ?>
+            <span class="badge text-bg-success">aktywna</span>
+            <?php else: ?>
+            <span class="badge text-bg-secondary">wstrzymana</span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                <input type="hidden" name="_op" value="authp_toggle">
+                <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary py-0" title="<?= $ap['is_active'] ? 'Wstrzymaj' : 'Aktywuj' ?>">
+                  <i class="bi bi-<?= $ap['is_active'] ? 'pause' : 'play' ?>-fill" aria-hidden="true"></i>
+                </button>
+              </form>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                <input type="hidden" name="_op" value="authp_reset_pass">
+                <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-warning py-0" title="Resetuj hasło">
+                  <i class="bi bi-key" aria-hidden="true"></i>
+                </button>
+              </form>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć upoważnienie dla <?= h(addslashes($ap['name'])) ?>?')">
+                <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                <input type="hidden" name="_op" value="authp_delete">
+                <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0" title="Usuń">
+                  <i class="bi bi-trash" aria-hidden="true"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php else: ?>
+<div class="alert alert-light border small mb-4"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Nie masz jeszcze żadnych upoważnionych osób.</div>
+<?php endif; ?>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header fw-semibold"><i class="bi bi-person-plus me-2" aria-hidden="true"></i>Dodaj osobę upoważnioną</div>
+  <div class="card-body">
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+      <input type="hidden" name="_op" value="authp_add">
+      <div class="row g-3">
+        <div class="col-md-5">
+          <label class="form-label fw-semibold" for="ap-name">Imię i nazwisko <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="ap-name" name="ap_name" maxlength="100" required placeholder="np. Anna Kowalska">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold" for="ap-login">Login (unikalny) <span class="text-danger">*</span></label>
+          <input type="text" class="form-control font-monospace" id="ap-login" name="ap_login" maxlength="40" required
+                 pattern="[a-z0-9][a-z0-9.\-_]{1,28}[a-z0-9]" title="3–30 znaków: małe litery, cyfry, kropki, myślniki"
+                 placeholder="np. a.kowalska-up">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold" for="ap-email">E-mail (opcjonalnie)</label>
+          <input type="email" class="form-control" id="ap-email" name="ap_email" maxlength="150" placeholder="np. anna@example.com">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold" for="ap-notes">Uwagi (opcjonalnie)</label>
+          <input type="text" class="form-control" id="ap-notes" name="ap_notes" maxlength="300" placeholder="np. opiekun, rodzic, pracownik socjalny">
+        </div>
+      </div>
+      <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Dodaj i wygeneruj hasło</button>
+      </div>
+      <p class="text-body-secondary small mt-2 mb-0">Hasło zostanie wygenerowane automatycznie i pokazane jednorazowo. Osoba upoważniona loguje się przez oddzielny panel.</p>
+    </form>
+  </div>
+</div>
 
 <?php endif; ?>
 

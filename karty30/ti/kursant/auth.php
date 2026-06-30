@@ -224,3 +224,49 @@ function parent_token_student(string $token): ?int {
     );
     return $row ? (int)$row['student_id'] : null;
 }
+
+// ── Osoby upoważnione przez pełnoletniego kursanta ────────────────────────────
+const AUTHP_SESSION_KEY = 'k30_ti_authp';
+const AUTHP_SESSION_TTL = 3600 * 8; // 8h
+
+function authp_current(): ?array {
+    student_start();
+    $p = $_SESSION[AUTHP_SESSION_KEY] ?? null;
+    if (!$p) return null;
+    if ((time() - ($p['ts'] ?? 0)) > AUTHP_SESSION_TTL) {
+        unset($_SESSION[AUTHP_SESSION_KEY]);
+        return null;
+    }
+    return $p;
+}
+
+function authp_login(string $login, string $pass): bool {
+    $login = strtolower(trim($login));
+    if ($login === '' || $pass === '') return false;
+    $row = db_one(
+        "SELECT p.*, a.client_id, a.is_minor FROM k30_ti_authorized_persons p
+         JOIN k30_ti_student_accounts a ON a.id=p.student_account_id
+         WHERE p.login=? AND p.is_active=1",
+        [$login]
+    );
+    if (!$row || empty($row['password_hash'])) return false;
+    if (!password_verify($pass, $row['password_hash'])) return false;
+    // Tylko dla pełnoletnich kursantów
+    if (!empty($row['is_minor'])) return false;
+    db()->prepare("UPDATE k30_ti_authorized_persons SET last_login=datetime('now') WHERE id=?")
+       ->execute([(int)$row['id']]);
+    student_start();
+    $_SESSION[AUTHP_SESSION_KEY] = [
+        'authp_id'   => (int)$row['id'],
+        'student_id' => (int)$row['student_account_id'],
+        'client_id'  => (int)$row['client_id'],
+        'name'       => $row['name'],
+        'ts'         => time(),
+    ];
+    return true;
+}
+
+function authp_logout(): void {
+    student_start();
+    unset($_SESSION[AUTHP_SESSION_KEY]);
+}
