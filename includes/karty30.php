@@ -765,6 +765,15 @@ function karty30_migrate(): void {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
 
+    // Migracja: planned lekcje bez żadnych kursantów → cancelled
+    try {
+        $pdo->exec(
+            "UPDATE k30_ti_sessions SET status='cancelled', cancel_reason='Brak zapisanych kursantów'
+             WHERE status='planned'
+               AND NOT EXISTS (SELECT 1 FROM k30_ti_attendance a WHERE a.session_id=k30_ti_sessions.id)"
+        );
+    } catch (\Throwable $e) {}
+
     // Migracja statusu: held + (nieobecny beneficjent LUB kurs jednosobowy) → individual_change
     try {
         $pdo->exec(

@@ -1296,6 +1296,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <span class="fw-semibold"><i class="bi bi-calendar-event me-1 text-primary"></i><?= date('d.m.Y', strtotime($s['lesson_date'])) ?></span>
             <?php if ($s['time_from']): ?><span class="text-body-secondary small"><i class="bi bi-clock me-1"></i><?= h($s['time_from']) ?><?= $s['time_to'] ? '–'.h($s['time_to']) : '' ?></span><?php endif; ?>
             <span class="badge ms-1" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>33"><?= h($st['label']) ?></span>
+            <?php if ((int)$s['total_count'] === 0 && $s['status'] === 'planned'): ?>
+            <span class="badge text-bg-danger ms-1" title="Brak zapisanych kursantów — lekcja nie może się odbyć"><i class="bi bi-exclamation-triangle-fill me-1"></i>Brak kursantów</span>
+            <?php endif; ?>
             <span class="text-body-secondary small ms-auto"><i class="bi bi-people me-1"></i><?= (int)$s['attended_count'] ?>/<?= (int)$s['total_count'] ?></span>
           </div>
           <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>

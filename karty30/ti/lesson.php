@@ -75,7 +75,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             "SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'",
             [$session['course_id']]
         )['n'] ?? 0);
-        $new_status = ($any_absent || $enrolled_count <= 1) ? 'individual_change' : 'held';
+        if ($enrolled_count === 0) {
+            $new_status = 'cancelled';
+        } elseif ($any_absent || $enrolled_count === 1) {
+            $new_status = 'individual_change';
+        } else {
+            $new_status = 'held';
+        }
         db()->prepare(
             "UPDATE k30_ti_sessions
              SET status=?, topic=?, instructor_notes=?, has_homework=?, self_prep_remote=?,
@@ -300,6 +306,19 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
 </div>
 
 <?= flash_html() ?>
+
+<?php
+$_no_students = empty($attendance) && $session['status'] === 'planned';
+if ($_no_students): ?>
+<div class="alert alert-danger d-flex align-items-center gap-2">
+  <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0"></i>
+  <div>
+    <strong>Brak zapisanych kursantów.</strong> Lekcja nie może się odbyć.
+    Zapisz lekcję, aby automatycznie ustawić status na <em>Odwołana</em>,
+    lub odwołaj ją ręcznie.
+  </div>
+</div>
+<?php endif; ?>
 
 <?php if ($session['status'] === 'cancelled'): ?>
 <div class="alert alert-danger d-flex align-items-start gap-2">
