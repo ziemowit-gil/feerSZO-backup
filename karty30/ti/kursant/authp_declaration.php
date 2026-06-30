@@ -153,14 +153,10 @@ $changes = [
     ochrony danych i regulaminem organizacji.
   </div>
 
-  <div class="sign-row">
-    <div class="sign-block">
+  <div class="sign-row" style="justify-content:flex-start">
+    <div class="sign-block" style="max-width:80mm">
       Podpis administratora<br><br><br>
       <strong><?= htmlspecialchars($admin, ENT_QUOTES) ?></strong>
-    </div>
-    <div class="sign-block">
-      Podpis osoby upoważnionej<br><br><br>
-      <strong><?= htmlspecialchars($ap['name'], ENT_QUOTES) ?></strong>
     </div>
   </div>
 
