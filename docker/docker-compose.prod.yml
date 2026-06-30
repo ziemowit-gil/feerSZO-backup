@@ -79,49 +79,128 @@ services:
       - "traefik.http.middlewares.sec-headers.headers.customResponseHeaders.X-Powered-By="
 
       # ══════════════════════════════════════════════════════════════════════
-      #  ALIASY ngosystem.pl — transparentne (bez 301), routing wprost do app.
-      #  Każdy alias dokleja prefiks ścieżki, więc np.
-      #    crm.ngosystem.pl/<x>  →  app obsługuje  /crm/<x>
-      #  Adres w pasku przeglądarki POZOSTAJE na *.ngosystem.pl.
-      #  Uwaga: aplikacja używa stałego APP_URL (szo.feer.org.pl) — zob. DEPLOY.md
-      #  „Aliasy ngosystem.pl" w sprawie świadomości hosta przy logowaniu/linkach.
+      #  PRZEKIEROWANIA ngosystem.pl → feer.org.pl (301 Permanent)
+      #
+      #  Każda subdomena ngosystem.pl dostaje router HTTP + HTTPS.
+      #  HTTP-01 ACME wystawia certyfikaty dla wymienionych subdomen.
+      #  Catch-all (HostRegexp) przechwytuje pozostałe subdomeny na HTTP.
       # ══════════════════════════════════════════════════════════════════════
 
-      # ── Alias CRM — crm.ngosystem.pl (prefix /crm) ───────────────────────
-      - "traefik.http.middlewares.crm-prefix.addprefix.prefix=/crm"
-      - "traefik.http.routers.crm-alias.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
-      - "traefik.http.routers.crm-alias.entrypoints=websecure"
-      - "traefik.http.routers.crm-alias.tls=true"
-      - "traefik.http.routers.crm-alias.tls.certresolver=le"
-      - "traefik.http.routers.crm-alias.service=feer"
-      - "traefik.http.routers.crm-alias.middlewares=crm-prefix@docker,sec-headers@docker"
-      - "traefik.http.routers.crm-alias-http.rule=Host(`${DOMAIN_CRM:-crm.ngosystem.pl}`)"
-      - "traefik.http.routers.crm-alias-http.entrypoints=web"
-      - "traefik.http.routers.crm-alias-http.middlewares=https-redirect@docker"
+      # ── crm.ngosystem.pl → crm.feer.org.pl (ścieżka zachowana) ──────────
+      - "traefik.http.middlewares.ngo-crm-redir.redirectregex.regex=^https?://crm\\.ngosystem\\.pl(.*)"
+      - "traefik.http.middlewares.ngo-crm-redir.redirectregex.replacement=https://crm.feer.org.pl$${1}"
+      - "traefik.http.middlewares.ngo-crm-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-crm.rule=Host(`crm.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-crm.entrypoints=websecure"
+      - "traefik.http.routers.ngo-crm.tls=true"
+      - "traefik.http.routers.ngo-crm.tls.certresolver=le"
+      - "traefik.http.routers.ngo-crm.service=feer"
+      - "traefik.http.routers.ngo-crm.middlewares=ngo-crm-redir@docker"
+      - "traefik.http.routers.ngo-crm-http.rule=Host(`crm.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-crm-http.entrypoints=web"
+      - "traefik.http.routers.ngo-crm-http.service=feer"
+      - "traefik.http.routers.ngo-crm-http.middlewares=ngo-crm-redir@docker"
 
-      # ── Alias ZADANIA — zadania.ngosystem.pl (prefix /tasks) ─────────────
-      - "traefik.http.middlewares.tasks-prefix.addprefix.prefix=/tasks"
-      - "traefik.http.routers.tasks-alias.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
-      - "traefik.http.routers.tasks-alias.entrypoints=websecure"
-      - "traefik.http.routers.tasks-alias.tls=true"
-      - "traefik.http.routers.tasks-alias.tls.certresolver=le"
-      - "traefik.http.routers.tasks-alias.service=feer"
-      - "traefik.http.routers.tasks-alias.middlewares=tasks-prefix@docker,sec-headers@docker"
-      - "traefik.http.routers.tasks-alias-http.rule=Host(`${DOMAIN_TASKS:-zadania.ngosystem.pl}`)"
-      - "traefik.http.routers.tasks-alias-http.entrypoints=web"
-      - "traefik.http.routers.tasks-alias-http.middlewares=https-redirect@docker"
+      # ── ti.ngosystem.pl → ti.feer.org.pl (ścieżka zachowana) ────────────
+      - "traefik.http.middlewares.ngo-ti-redir.redirectregex.regex=^https?://ti\\.ngosystem\\.pl(.*)"
+      - "traefik.http.middlewares.ngo-ti-redir.redirectregex.replacement=https://ti.feer.org.pl$${1}"
+      - "traefik.http.middlewares.ngo-ti-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-ti.rule=Host(`ti.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-ti.entrypoints=websecure"
+      - "traefik.http.routers.ngo-ti.tls=true"
+      - "traefik.http.routers.ngo-ti.tls.certresolver=le"
+      - "traefik.http.routers.ngo-ti.service=feer"
+      - "traefik.http.routers.ngo-ti.middlewares=ngo-ti-redir@docker"
+      - "traefik.http.routers.ngo-ti-http.rule=Host(`ti.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-ti-http.entrypoints=web"
+      - "traefik.http.routers.ngo-ti-http.service=feer"
+      - "traefik.http.routers.ngo-ti-http.middlewares=ngo-ti-redir@docker"
 
-      # ── Alias TI — ti.ngosystem.pl (prefix /karty30/ti/kursant) ──────────
-      - "traefik.http.middlewares.ti-prefix.addprefix.prefix=/karty30/ti/kursant"
-      - "traefik.http.routers.ti-alias.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
-      - "traefik.http.routers.ti-alias.entrypoints=websecure"
-      - "traefik.http.routers.ti-alias.tls=true"
-      - "traefik.http.routers.ti-alias.tls.certresolver=le"
-      - "traefik.http.routers.ti-alias.service=feer"
-      - "traefik.http.routers.ti-alias.middlewares=ti-prefix@docker,sec-headers@docker"
-      - "traefik.http.routers.ti-alias-http.rule=Host(`${DOMAIN_TI:-ti.ngosystem.pl}`)"
-      - "traefik.http.routers.ti-alias-http.entrypoints=web"
-      - "traefik.http.routers.ti-alias-http.middlewares=https-redirect@docker"
+      # ── kurs.ngosystem.pl → szo.feer.org.pl (panel kursanta, bez ścieżki)
+      - "traefik.http.middlewares.ngo-kurs-redir.redirectregex.regex=^https?://kurs\\.ngosystem\\.pl.*"
+      - "traefik.http.middlewares.ngo-kurs-redir.redirectregex.replacement=https://szo.feer.org.pl"
+      - "traefik.http.middlewares.ngo-kurs-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-kurs.rule=Host(`kurs.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-kurs.entrypoints=websecure"
+      - "traefik.http.routers.ngo-kurs.tls=true"
+      - "traefik.http.routers.ngo-kurs.tls.certresolver=le"
+      - "traefik.http.routers.ngo-kurs.service=feer"
+      - "traefik.http.routers.ngo-kurs.middlewares=ngo-kurs-redir@docker"
+      - "traefik.http.routers.ngo-kurs-http.rule=Host(`kurs.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-kurs-http.entrypoints=web"
+      - "traefik.http.routers.ngo-kurs-http.service=feer"
+      - "traefik.http.routers.ngo-kurs-http.middlewares=ngo-kurs-redir@docker"
+
+      # ── zadania.ngosystem.pl → szo.feer.org.pl/tasks ─────────────────────
+      - "traefik.http.middlewares.ngo-tasks-redir.redirectregex.regex=^https?://zadania\\.ngosystem\\.pl(.*)"
+      - "traefik.http.middlewares.ngo-tasks-redir.redirectregex.replacement=https://szo.feer.org.pl/tasks$${1}"
+      - "traefik.http.middlewares.ngo-tasks-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-tasks.rule=Host(`zadania.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-tasks.entrypoints=websecure"
+      - "traefik.http.routers.ngo-tasks.tls=true"
+      - "traefik.http.routers.ngo-tasks.tls.certresolver=le"
+      - "traefik.http.routers.ngo-tasks.service=feer"
+      - "traefik.http.routers.ngo-tasks.middlewares=ngo-tasks-redir@docker"
+      - "traefik.http.routers.ngo-tasks-http.rule=Host(`zadania.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-tasks-http.entrypoints=web"
+      - "traefik.http.routers.ngo-tasks-http.service=feer"
+      - "traefik.http.routers.ngo-tasks-http.middlewares=ngo-tasks-redir@docker"
+
+      # ── strukturaorg.ngosystem.pl → strukturaorg.feer.org.pl ─────────────
+      - "traefik.http.middlewares.ngo-struktura-redir.redirectregex.regex=^https?://strukturaorg\\.ngosystem\\.pl(.*)"
+      - "traefik.http.middlewares.ngo-struktura-redir.redirectregex.replacement=https://strukturaorg.feer.org.pl$${1}"
+      - "traefik.http.middlewares.ngo-struktura-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-struktura.rule=Host(`strukturaorg.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-struktura.entrypoints=websecure"
+      - "traefik.http.routers.ngo-struktura.tls=true"
+      - "traefik.http.routers.ngo-struktura.tls.certresolver=le"
+      - "traefik.http.routers.ngo-struktura.service=feer"
+      - "traefik.http.routers.ngo-struktura.middlewares=ngo-struktura-redir@docker"
+      - "traefik.http.routers.ngo-struktura-http.rule=Host(`strukturaorg.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-struktura-http.entrypoints=web"
+      - "traefik.http.routers.ngo-struktura-http.service=feer"
+      - "traefik.http.routers.ngo-struktura-http.middlewares=ngo-struktura-redir@docker"
+
+      # ── szo-logowanie365.ngosystem.pl → szo-logowanie365.feer.org.pl ─────
+      - "traefik.http.middlewares.ngo-logowanie-redir.redirectregex.regex=^https?://szo-logowanie365\\.ngosystem\\.pl.*"
+      - "traefik.http.middlewares.ngo-logowanie-redir.redirectregex.replacement=https://szo-logowanie365.feer.org.pl"
+      - "traefik.http.middlewares.ngo-logowanie-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-logowanie.rule=Host(`szo-logowanie365.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-logowanie.entrypoints=websecure"
+      - "traefik.http.routers.ngo-logowanie.tls=true"
+      - "traefik.http.routers.ngo-logowanie.tls.certresolver=le"
+      - "traefik.http.routers.ngo-logowanie.service=feer"
+      - "traefik.http.routers.ngo-logowanie.middlewares=ngo-logowanie-redir@docker"
+      - "traefik.http.routers.ngo-logowanie-http.rule=Host(`szo-logowanie365.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-logowanie-http.entrypoints=web"
+      - "traefik.http.routers.ngo-logowanie-http.service=feer"
+      - "traefik.http.routers.ngo-logowanie-http.middlewares=ngo-logowanie-redir@docker"
+
+      # ── ngosystem.pl / www / szo → szo.feer.org.pl ───────────────────────
+      - "traefik.http.middlewares.ngo-apex-redir.redirectregex.regex=^https?://(www\\.|szo\\.)?ngosystem\\.pl.*"
+      - "traefik.http.middlewares.ngo-apex-redir.redirectregex.replacement=https://szo.feer.org.pl"
+      - "traefik.http.middlewares.ngo-apex-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-apex.rule=Host(`ngosystem.pl`) || Host(`www.ngosystem.pl`) || Host(`szo.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-apex.entrypoints=websecure"
+      - "traefik.http.routers.ngo-apex.tls=true"
+      - "traefik.http.routers.ngo-apex.tls.certresolver=le"
+      - "traefik.http.routers.ngo-apex.service=feer"
+      - "traefik.http.routers.ngo-apex.middlewares=ngo-apex-redir@docker"
+      - "traefik.http.routers.ngo-apex-http.rule=Host(`ngosystem.pl`) || Host(`www.ngosystem.pl`) || Host(`szo.ngosystem.pl`)"
+      - "traefik.http.routers.ngo-apex-http.entrypoints=web"
+      - "traefik.http.routers.ngo-apex-http.service=feer"
+      - "traefik.http.routers.ngo-apex-http.middlewares=ngo-apex-redir@docker"
+
+      # ── Catch-all: pozostałe *.ngosystem.pl → szo.feer.org.pl ───────────
+      # Niższy priorytet niż reguły Host() powyżej (Traefik v3: krótszy rule = niższy prio).
+      - "traefik.http.middlewares.ngo-wildcard-redir.redirectregex.regex=^https?://[^/]*\\.ngosystem\\.pl.*"
+      - "traefik.http.middlewares.ngo-wildcard-redir.redirectregex.replacement=https://szo.feer.org.pl"
+      - "traefik.http.middlewares.ngo-wildcard-redir.redirectregex.permanent=true"
+      - "traefik.http.routers.ngo-wildcard-http.rule=HostRegexp(`^[a-z0-9-]+\\.ngosystem\\.pl$`)"
+      - "traefik.http.routers.ngo-wildcard-http.entrypoints=web"
+      - "traefik.http.routers.ngo-wildcard-http.priority=1"
+      - "traefik.http.routers.ngo-wildcard-http.service=feer"
+      - "traefik.http.routers.ngo-wildcard-http.middlewares=ngo-wildcard-redir@docker"
 
 volumes:
   letsencrypt_data:
