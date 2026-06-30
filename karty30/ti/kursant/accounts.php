@@ -379,6 +379,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── Upoważnienia (tylko pełnoletni) ──────────────────────────────────────
+    if ($op === 'authp_scan_upload') {
+        // Wgraj skan podpisanego upoważnienia do istniejącego wpisu
+        $ap_id_scan = (int)($_POST['ap_id'] ?? 0);
+        $ap_scan = $ap_id_scan ? db_one("SELECT * FROM k30_ti_authorized_persons WHERE id=?", [$ap_id_scan]) : null;
+        $aid_scan = $ap_scan ? (int)$ap_scan['student_account_id'] : 0;
+        if (!$ap_scan) { flash_set('danger','Nie znaleziono upoważnienia.'); header('Location: accounts.php'); exit; }
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+        $scan_att = isset($_FILES['scan_file']) ? mail_queue_save_attachment($_FILES['scan_file']) : null;
+        if ($scan_att) {
+            db()->prepare("UPDATE k30_ti_authorized_persons SET scan_path=? WHERE id=?")
+               ->execute([$scan_att['path'], $ap_id_scan]);
+            flash_set('success', 'Skan podpisanego upoważnienia zapisany.');
+        } else {
+            flash_set('danger', 'Nie udało się zapisać skanu. Sprawdź format (PDF, PNG, JPG) i rozmiar (max 15 MB).');
+        }
+        header('Location: accounts.php?authp=' . $aid_scan); exit;
+    }
+
     if (in_array($op, ['authp_add', 'authp_toggle', 'authp_delete', 'authp_reset_pass'], true)) {
         $aid  = (int)($_POST['account_id'] ?? 0);
         $acc  = $aid ? db_one(
@@ -413,6 +431,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'password_hash' => password_hash($ap_pass, PASSWORD_BCRYPT),
                 'notes' => $ap_notes,
             ]);
+            // Wyślij mail do osoby upoważnionej (jeśli ma adres e-mail)
+            if ($ap_email !== '') {
+                try {
+                    require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+                    $org_name    = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+                    $portal_link = rtrim(APP_URL, '/') . '/karty30/ti/kursant/authorized_person.php';
+                    $mail_html   = '<html><body style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px">'
+                        . '<p>Dzień dobry,</p>'
+                        . '<p>Zostałaś/eś upoważniona/y przez <strong>' . htmlspecialchars($acc['client_name'], ENT_QUOTES) . '</strong>'
+                        . ' do wglądu w dane jej/jego panelu kursanta w systemie <strong>' . htmlspecialchars($org_name, ENT_QUOTES) . '</strong>.</p>'
+                        . '<p>Upoważnienie umożliwia podgląd lekcji, frekwencji i rozliczeń kursanta — wyłącznie do odczytu.</p>'
+                        . '<table style="border-collapse:collapse;margin:16px 0">'
+                        . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Panel:</td><td><a href="' . htmlspecialchars($portal_link, ENT_QUOTES) . '">' . htmlspecialchars($portal_link, ENT_QUOTES) . '</a></td></tr>'
+                        . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Login:</td><td><strong>' . htmlspecialchars($ap_login, ENT_QUOTES) . '</strong></td></tr>'
+                        . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Hasło:</td><td>przekazane ustnie / na kartce upoważnienia</td></tr>'
+                        . '</table>'
+                        . '<p>Upoważnienie zostało potwierdzone podpisem. Prosimy o nieudostępnianie danych logowania osobom trzecim.</p>'
+                        . '<p>W razie pytań skontaktuj się z biurem.</p>'
+                        . '<hr style="border:none;border-top:1px solid #ddd;margin:20px 0">'
+                        . '<p style="font-size:.8em;color:#888">Wiadomość automatyczna — ' . htmlspecialchars($org_name, ENT_QUOTES) . '.</p>'
+                        . '</body></html>';
+                    mail_queue_add($ap_email, $ap_name,
+                        "Upoważnienie do wglądu w panel kursanta — {$org_name}",
+                        $mail_html, '', 'authp', (int)$ap_id, '', true);
+                } catch (\Throwable $e) {}
+            }
             $_SESSION['new_authp_creds'] = [
                 'id'          => (int)$ap_id,
                 'name'        => $ap_name,
@@ -420,6 +464,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'pass'        => $ap_pass,
                 'student_name'=> $acc['client_name'],
                 'account_id'  => $aid,
+                'emailed'     => $ap_email !== '',
             ];
             flash_set('success', "Upoważnienie dodane: {$ap_name} (login: {$ap_login}). Wygenerowano hasło — wydrukuj kartkę.");
             header('Location: accounts.php?authp=' . $aid . '&new_authp=1'); exit;
@@ -733,10 +778,18 @@ function printBulk(){
           Login: <strong><?= h($new_authp_creds['login']) ?></strong><br>
           Hasło: <strong><?= h($new_authp_creds['pass']) ?></strong>
         </div>
-        <a href="authp_print.php?id=<?= (int)$new_authp_creds['id'] ?>"
-           target="_blank" class="btn btn-sm btn-primary">
-          <i class="bi bi-printer me-1"></i>Drukuj kartkę z potwierdzeniem
-        </a>
+        <?php if (!empty($new_authp_creds['emailed'])): ?>
+        <div class="small text-success mb-2"><i class="bi bi-envelope-check me-1"></i>E-mail z informacją o upoważnieniu wysłany do osoby upoważnionej.</div>
+        <?php endif; ?>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <a href="authp_print.php?id=<?= (int)$new_authp_creds['id'] ?>"
+             target="_blank" class="btn btn-sm btn-primary">
+            <i class="bi bi-printer me-1"></i>Drukuj kartkę z potwierdzeniem
+          </a>
+          <span class="badge text-bg-warning">
+            <i class="bi bi-exclamation-triangle me-1"></i>Pamiętaj o wgraniu skanu po podpisaniu
+          </span>
+        </div>
       </div>
     </div>
     <?php endif; ?>
@@ -747,7 +800,7 @@ function printBulk(){
         <thead class="table-light">
           <tr>
             <th>Imię i nazwisko</th><th>Login</th><th>E-mail</th><th>Uwagi</th>
-            <th>Ostatnie logowanie</th><th>Status</th><th></th>
+            <th>Ostatnie log.</th><th>Status</th><th>Skan</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -759,8 +812,33 @@ function printBulk(){
             <td class="small"><?= h($ap['notes']) ?: '—' ?></td>
             <td class="small text-nowrap"><?= $ap['last_login'] ? h(date('d.m.Y H:i', strtotime($ap['last_login']))) : '—' ?></td>
             <td><span class="badge text-bg-<?= $ap['is_active'] ? 'success' : 'secondary' ?>"><?= $ap['is_active'] ? 'aktywna' : 'wstrzymana' ?></span></td>
+            <td class="small">
+              <?php if (!empty($ap['scan_path'])): ?>
+                <?php $scan_url = rtrim(APP_URL,'/'). '/uploads/' . ltrim($ap['scan_path'],'/'); ?>
+                <a href="<?= h($scan_url) ?>" target="_blank" class="btn btn-sm btn-outline-success py-0" title="Otwórz skan">
+                  <i class="bi bi-file-earmark-check"></i>
+                </a>
+              <?php else: ?>
+                <button type="button" class="btn btn-sm btn-outline-warning py-0"
+                        onclick="document.getElementById('scan-form-<?= (int)$ap['id'] ?>').classList.toggle('d-none')"
+                        title="Wgraj skan podpisanego dokumentu">
+                  <i class="bi bi-upload"></i>
+                </button>
+                <form id="scan-form-<?= (int)$ap['id'] ?>" method="post" enctype="multipart/form-data"
+                      class="d-none mt-1" style="min-width:200px">
+                  <?php csrf_field(); ?>
+                  <input type="hidden" name="_op" value="authp_scan_upload">
+                  <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                  <input type="file" class="form-control form-control-sm mb-1" name="scan_file"
+                         accept=".pdf,.png,.jpg,.jpeg" required>
+                  <button type="submit" class="btn btn-sm btn-success py-0">
+                    <i class="bi bi-cloud-upload me-1"></i>Zapisz
+                  </button>
+                </form>
+              <?php endif; ?>
+            </td>
             <td>
-              <div class="d-flex gap-1">
+              <div class="d-flex gap-1 flex-wrap">
                 <a href="authp_print.php?id=<?= (int)$ap['id'] ?>" target="_blank"
                    class="btn btn-sm btn-outline-secondary py-0" title="Drukuj kartkę"><i class="bi bi-printer"></i></a>
                 <form method="post" class="d-inline">

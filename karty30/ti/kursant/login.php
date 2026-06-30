@@ -133,10 +133,19 @@ include __DIR__ . '/_layout_head.php';
           <a href="parent.php" class="btn btn-outline-secondary w-100">
             <i class="bi bi-people me-2" aria-hidden="true"></i>Logowanie dla rodzica / opiekuna
           </a>
-          
+
+          <a href="authorized_person.php" class="btn btn-outline-secondary w-100 mt-2">
+            <i class="bi bi-person-check me-2" aria-hidden="true"></i>Logowanie dla osoby upoważnionej
+          </a>
+          <p class="text-body-secondary mt-1 mb-3" style="font-size:.78rem">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+            Osoby upoważnione przez pełnoletniego kursanta logują się tutaj loginem i hasłem
+            nadanym przez administratora. Login i hasło są na kartce upoważnienia.
+          </p>
 
           <a href="pfron.php" class="btn btn-outline-secondary w-100">
-            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd) </a>
+            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd)
+          </a>
 
           <a href="../dydaktyk/login.php" class="btn btn-outline-secondary w-100 mt-2">
             <i class="bi bi-easel me-2" aria-hidden="true"></i>Panel dydaktyka (prowadzącego)

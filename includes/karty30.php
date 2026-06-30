@@ -754,6 +754,9 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_authp_student ON k30_ti_authorized_persons(student_account_id)");
     $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_authp_login  ON k30_ti_authorized_persons(login)");
+    foreach (["ALTER TABLE k30_ti_authorized_persons ADD COLUMN scan_path TEXT NOT NULL DEFAULT ''"] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
 
     // Wnioski o wypisanie z kursu (wymagane zatwierdzenie rodzica+admina dla małoletnich)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_unenroll_requests (
