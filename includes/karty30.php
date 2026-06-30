@@ -3480,6 +3480,78 @@ function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, s
             'cancelled_at'      => date('Y-m-d H:i:s'),
         ]);
     }
+    k30_ti_notify_no_show($session_id, $client_id, $billing, $reason);
+}
+
+/**
+ * Wysyła e-mail do rodzica/opiekuna (i kursanta) o niepojawieniu się na zajęciach.
+ * Dla małoletnich: główny adresat = guardian_email (jeśli ustawiony i parent_notify_absence=1).
+ * Dla pełnoletnich: adresat = email kursanta.
+ */
+function k30_ti_notify_no_show(int $session_id, int $client_id, string $billing, string $reason): void {
+    $row = db_one(
+        "SELECT s.lesson_date, s.time_from, s.duration_min, c.name AS course_name,
+                cl.name AS client_name, cl.email,
+                a.is_minor, a.guardian_email, a.guardian_name,
+                a.parent_notify_absence
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id=s.course_id
+         JOIN k30_clients cl ON cl.id=?
+         LEFT JOIN k30_ti_student_accounts a ON a.client_id=cl.id AND a.is_active=1
+         WHERE s.id=? LIMIT 1",
+        [$client_id, $session_id]
+    );
+    if (!$row) return;
+    // Szanuj opt-out rodzica (gdy konto istnieje i flaga jawnie wyłączona)
+    if ($row['parent_notify_absence'] !== null && (int)$row['parent_notify_absence'] === 0) return;
+
+    $is_minor   = !empty($row['is_minor']);
+    $gemail     = trim((string)($row['guardian_email'] ?? ''));
+    $gname      = trim((string)($row['guardian_name'] ?? ''));
+    $stu_email  = trim((string)($row['email'] ?? ''));
+    $stu_name   = (string)$row['client_name'];
+
+    // Wyślij do rodzica (małoletni) lub do samego kursanta (pełnoletni)
+    $emails = [];
+    if ($is_minor && $gemail !== '' && filter_var($gemail, FILTER_VALIDATE_EMAIL)) {
+        $emails[$gemail] = $gname ?: $stu_name;
+    } elseif (!$is_minor && $stu_email !== '' && filter_var($stu_email, FILTER_VALIDATE_EMAIL)) {
+        $emails[$stu_email] = $stu_name;
+    }
+    if (!$emails) return;
+
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return;
+    if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
+
+    $org  = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    $url  = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
+    $when = date('d.m.Y', strtotime($row['lesson_date']));
+    if (!empty($row['time_from'])) $when .= ' o ' . substr((string)$row['time_from'], 0, 5);
+    $dur_h = round((int)$row['duration_min'] / 60, 2);
+    $billing_label = $billing === '1h' ? '1 godzina (rozpoczęta)' : 'cała lekcja (' . number_format($dur_h, 0) . ' h)';
+    $reason_row = $reason !== ''
+        ? '<tr><td style="padding:3px 14px 3px 0;color:#555;white-space:nowrap">Opis sytuacji:</td><td>' . htmlspecialchars($reason, ENT_QUOTES) . '</td></tr>'
+        : '';
+
+    $r = function_exists('email_tpl_render') ? email_tpl_render('ti_no_show', [
+        'org'           => $org,
+        'client_name'   => htmlspecialchars($stu_name, ENT_QUOTES),
+        'course_name'   => htmlspecialchars((string)$row['course_name'], ENT_QUOTES),
+        'when'          => htmlspecialchars($when, ENT_QUOTES),
+        'billing_label' => htmlspecialchars($billing_label, ENT_QUOTES),
+        'reason_row'    => $reason_row,
+        'url'           => htmlspecialchars($url, ENT_QUOTES),
+    ]) : [
+        'subject' => "{$org}: nieobecność na zajęciach — {$when}",
+        'html'    => "<p>{$stu_name} nie pojawił/a się na zajęciach {$row['course_name']} ({$when}). Rozliczenie: {$billing_label}." . ($reason ? " Opis: {$reason}." : '') . "</p>",
+        'enabled' => true,
+    ];
+    if (empty($r['enabled'])) return;
+    foreach ($emails as $addr => $nm) {
+        try { mail_queue_add($addr, $nm, $r['subject'], $r['html'], '', 'ti_no_show', $session_id, '', false); }
+        catch (\Throwable $e) {}
+    }
 }
 
 /**

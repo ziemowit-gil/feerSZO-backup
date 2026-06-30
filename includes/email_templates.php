@@ -330,6 +330,33 @@ HTML;
 </div></body></html>
 HTML;
 
+    // ── TI: nieobecność bez zgłoszenia (no-show) ─────────────────────
+    $ti_no_show_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,#b45309,#f59e0b);padding:22px 26px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">⚠️ {{org}} — nieobecność na zajęciach</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Dzień dobry,</p>
+  <p>Informujemy, że <strong>{{client_name}}</strong> nie pojawił/a się na zajęciach kursu <strong>{{course_name}}</strong> w dniu <strong>{{when}}</strong>.</p>
+  <div style="background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;padding:14px 18px;margin:14px 0">
+    <table style="border-collapse:collapse;width:100%">
+      <tr><td style="padding:3px 14px 3px 0;color:#555;white-space:nowrap">Sposób rozliczenia:</td><td><strong>{{billing_label}}</strong></td></tr>
+      {{reason_row}}
+    </table>
+  </div>
+  <p style="font-size:.9em;color:#495057">Jeśli nieobecność była spowodowana nagłą sytuacją, skontaktuj się z nami jak najszybciej — możemy to uwzględnić.</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{{url}}" style="background:#b45309;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Panel kursanta →
+    </a>
+  </div>
+  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość automatyczna z systemu {{org}}.
+  </p>
+</div></body></html>
+HTML;
+
     // ── TI: rozliczenie miesięczne (do kursanta) ──────────────────────
     $ti_billing_body = <<<'HTML'
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
@@ -513,6 +540,25 @@ HTML;
                 'when'         => ['label' => 'Data i godzina lekcji', 'sample' => '30.06.2026 o 10:00'],
                 'reason_block' => ['label' => 'Blok z powodem odwołania (HTML lub pusty)', 'sample' => '<p>Powód: problemy zdrowotne</p>'],
                 'url'          => ['label' => 'Link do panelu dydaktyka', 'sample' => $base . '/karty30/ti/dydaktyk/index.php'],
+            ],
+        ],
+
+        'ti_no_show' => [
+            'label'       => 'TI: nieobecność bez zgłoszenia (do rodzica/kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-dash-circle',
+            'auto'        => true,
+            'description' => 'Powiadomienie o niepojawieniu się beneficjenta na zajęciach wraz z informacją o sposobie rozliczenia.',
+            'subject'     => '{{org}}: nieobecność na zajęciach — {{when}}',
+            'body'        => $ti_no_show_body,
+            'vars'        => [
+                'org'           => ['label' => 'Nazwa organizacji',          'sample' => 'Dydaktyka TI'],
+                'client_name'   => ['label' => 'Imię i nazwisko kursanta',   'sample' => 'Jan Kowalski'],
+                'course_name'   => ['label' => 'Nazwa kursu',                'sample' => 'Kurs obsługi komputera'],
+                'when'          => ['label' => 'Data i godzina lekcji',      'sample' => '30.06.2026 o 10:00'],
+                'billing_label' => ['label' => 'Sposób rozliczenia',         'sample' => 'cała lekcja (2 h)'],
+                'reason_row'    => ['label' => 'Wiersz tabeli z opisem (HTML lub pusty)', 'sample' => ''],
+                'url'           => ['label' => 'Link do panelu kursanta',    'sample' => $base . '/karty30/ti/kursant/index.php?tab=lekcje'],
             ],
         ],
 
