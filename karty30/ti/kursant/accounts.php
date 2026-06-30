@@ -409,18 +409,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($op === 'authp_add') {
             $ap_name  = mb_substr(trim((string)($_POST['ap_name']  ?? '')), 0, 100);
-            $ap_login = mb_strtolower(mb_substr(trim((string)($_POST['ap_login'] ?? '')), 0, 40));
             $ap_email = mb_substr(trim((string)($_POST['ap_email'] ?? '')), 0, 150);
             $ap_notes = mb_substr(trim((string)($_POST['ap_notes'] ?? '')), 0, 300);
-            if ($ap_name === '' || !preg_match('/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/', $ap_login)) {
-                flash_set('danger', 'Nieprawidłowy login lub brakujące imię.');
+            if ($ap_name === '') {
+                flash_set('danger', 'Podaj imię i nazwisko osoby upoważnionej.');
                 header('Location: accounts.php?authp=' . $aid); exit;
             }
-            $conflict = db_one("SELECT id FROM k30_ti_authorized_persons WHERE login=?", [$ap_login])
-                     ?? db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$ap_login]);
-            if ($conflict) {
-                flash_set('danger', 'Login jest już zajęty przez inny konto.');
-                header('Location: accounts.php?authp=' . $aid); exit;
+            // Wygeneruj unikalny login z imienia/nazwiska + sufiks -up
+            $ap_login = _gen_student_login($ap_name, '-up');
+            $suffix = 0;
+            $base   = $ap_login;
+            while (db_one("SELECT id FROM k30_ti_authorized_persons WHERE login=?", [$ap_login])
+                || db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$ap_login])) {
+                $suffix++;
+                $ap_login = $base . $suffix;
             }
             $ap_pass = _authp_gen_pass_admin();
             $ap_id   = db_insert('k30_ti_authorized_persons', [
@@ -826,7 +828,7 @@ function printBulk(){
                 </button>
                 <form id="scan-form-<?= (int)$ap['id'] ?>" method="post" enctype="multipart/form-data"
                       class="d-none mt-1" style="min-width:200px">
-                  <?php csrf_field(); ?>
+                  <?= csrf_field() ?>
                   <input type="hidden" name="_op" value="authp_scan_upload">
                   <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
                   <input type="file" class="form-control form-control-sm mb-1" name="scan_file"
@@ -842,7 +844,7 @@ function printBulk(){
                 <a href="authp_print.php?id=<?= (int)$ap['id'] ?>" target="_blank"
                    class="btn btn-sm btn-outline-secondary py-0" title="Drukuj kartkę"><i class="bi bi-printer"></i></a>
                 <form method="post" class="d-inline">
-                  <?php csrf_field(); ?>
+                  <?= csrf_field() ?>
                   <input type="hidden" name="_op" value="authp_toggle">
                   <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
                   <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
@@ -851,14 +853,14 @@ function printBulk(){
                   </button>
                 </form>
                 <form method="post" class="d-inline">
-                  <?php csrf_field(); ?>
+                  <?= csrf_field() ?>
                   <input type="hidden" name="_op" value="authp_reset_pass">
                   <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
                   <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
                   <button type="submit" class="btn btn-sm btn-outline-warning py-0" title="Resetuj hasło"><i class="bi bi-key"></i></button>
                 </form>
                 <form method="post" class="d-inline" onsubmit="return confirm('Usunąć upoważnienie dla <?= h(addslashes($ap['name'])) ?>?')">
-                  <?php csrf_field(); ?>
+                  <?= csrf_field() ?>
                   <input type="hidden" name="_op" value="authp_delete">
                   <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
                   <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
@@ -876,30 +878,27 @@ function printBulk(){
     <?php endif; ?>
 
     <form method="post" class="border-top pt-3 mt-1">
-      <?php csrf_field(); ?>
+      <?= csrf_field() ?>
       <input type="hidden" name="_op" value="authp_add">
       <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
       <div class="row g-2">
-        <div class="col-md-4">
+        <div class="col-md-5">
           <label class="form-label small fw-semibold" for="apn-name">Imię i nazwisko *</label>
-          <input type="text" class="form-control form-control-sm" id="apn-name" name="ap_name" maxlength="100" required placeholder="np. Anna Kowalska">
+          <input type="text" class="form-control form-control-sm" id="apn-name" name="ap_name" maxlength="100" required
+                 placeholder="np. Anna Kowalska" autofocus>
+          <div class="form-text">Login zostanie wygenerowany automatycznie.</div>
         </div>
-        <div class="col-md-3">
-          <label class="form-label small fw-semibold" for="apn-login">Login (unikalny) *</label>
-          <input type="text" class="form-control form-control-sm font-monospace" id="apn-login" name="ap_login" maxlength="40" required
-                 pattern="[a-z0-9][a-z0-9.\-_]{1,28}[a-z0-9]" placeholder="np. a.kowalska-up">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small fw-semibold" for="apn-email">E-mail</label>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="apn-email">E-mail (do powiadomienia)</label>
           <input type="email" class="form-control form-control-sm" id="apn-email" name="ap_email" maxlength="150" placeholder="anna@example.com">
         </div>
-        <div class="col-md-2">
+        <div class="col-md-3">
           <label class="form-label small fw-semibold" for="apn-notes">Uwagi</label>
-          <input type="text" class="form-control form-control-sm" id="apn-notes" name="ap_notes" maxlength="300" placeholder="np. opiekun">
+          <input type="text" class="form-control form-control-sm" id="apn-notes" name="ap_notes" maxlength="300" placeholder="np. opiekun, rodzic">
         </div>
       </div>
       <button type="submit" class="btn btn-sm btn-primary mt-2">
-        <i class="bi bi-person-plus me-1"></i>Dodaj i wygeneruj hasło
+        <i class="bi bi-person-plus me-1"></i>Dodaj i wygeneruj login + hasło
       </button>
     </form>
   </div>
