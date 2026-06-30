@@ -309,6 +309,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sid = (int)($_POST['session_id'] ?? 0);
         if ($sid && dyd_owns_session($uid, $sid)) {
             if ($op === 'cancel_session') {
+                // Blokada odwoływania lekcji z przeszłości
+                $_sess_date = (string)(db_one("SELECT lesson_date FROM k30_ti_sessions WHERE id=?", [$sid])['lesson_date'] ?? '');
+                if ($_sess_date && $_sess_date < date('Y-m-d')) {
+                    flash_set('danger', 'Nie można odwołać lekcji z przeszłości.');
+                    header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+                }
                 $reason = trim($_POST['reason'] ?? '');
                 if ($reason === '') { flash_set('danger', 'Podaj powód odwołania lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
                 $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
@@ -1409,11 +1415,13 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
               <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć lekcję</button>
             </form>
-            <?php else: ?>
+            <?php elseif ($s['lesson_date'] >= date('Y-m-d')): ?>
             <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
                     onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y', strtotime($s['lesson_date'])).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>)">
               <i class="bi bi-x-circle me-1"></i>Odwołaj lekcję
             </button>
+            <?php else: ?>
+            <span class="text-body-secondary small"><i class="bi bi-lock me-1"></i>Odwołanie niedostępne</span>
             <?php endif; ?>
             <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-list-check me-1"></i>Szczegóły</a>
             <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">

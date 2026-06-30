@@ -141,6 +141,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 
     // Zmiana statusu bez zapisu obecności
     if ($op === 'set_status') {
+        // Lekcje z przeszłości (przed dzisiaj) — nie można odwoływać ani zmieniać terminu
+        if ($session['lesson_date'] < date('Y-m-d') && ($_POST['status'] ?? '') === 'cancelled') {
+            flash_set('danger', 'Nie można odwołać lekcji z przeszłości.');
+            header('Location: lesson.php?id=' . $session_id); exit;
+        }
         $st = array_key_exists($_POST['status'] ?? '', K30_TI_SESSION_STATUSES)
               ? $_POST['status'] : 'planned';
         if ($st === 'cancelled') {
@@ -245,6 +250,7 @@ $session    = k30_ti_session_get($session_id);
 $attendance = k30_ti_session_attendance($session_id);
 $st_info    = K30_TI_SESSION_STATUSES[$session['status']] ?? ['label' => $session['status'], 'color' => '#666', 'bg' => '#eee'];
 $is_held    = in_array($session['status'], ['held', 'individual_change']);
+$is_past    = $session['lesson_date'] < date('Y-m-d'); // lekcja z dnia wcześniejszego niż dziś
 
 // Indywidualne uwagi (pobierz z bazy)
 $ind_notes_map = [];
@@ -340,10 +346,16 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
         <?php endforeach; ?>
       </select>
     </form>
+    <?php if ($is_past): ?>
+    <span class="text-body-secondary small" title="Lekcji z przeszłości nie można odwołać">
+      <i class="bi bi-lock me-1"></i>Odwołanie niedostępne
+    </span>
+    <?php else: ?>
     <button type="button" class="btn btn-sm btn-outline-danger"
             data-bs-toggle="modal" data-bs-target="#cancelLessonModal">
       <i class="bi bi-x-circle me-1"></i>Odwołaj lekcję
     </button>
+    <?php endif; ?>
     <?php else: ?>
     <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
       <input type="hidden" name="_csrf"  value="<?= h(csrf_token()) ?>">
@@ -564,11 +576,11 @@ if ($_no_students): ?>
         <label class="form-label fw-semibold d-block">Czas zajęć</label>
         <div class="row g-2">
           <div class="col-5">
-            <select class="form-select" id="ltime_from" name="time_from" aria-label="Początek" onchange="recalcDur()" <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_from'] ?? '') ?></select>
+            <select class="form-select" id="ltime_from" name="time_from" aria-label="Początek" onchange="recalcDur()" <?= (!$can_write || $is_past) ? 'disabled' : '' ?>><?= ti_time_options($session['time_from'] ?? '') ?></select>
           </div>
           <div class="col-2 text-center pt-2 text-muted">–</div>
           <div class="col-5">
-            <select class="form-select" id="ltime_to" name="time_to" aria-label="Koniec" onchange="recalcDur()" <?= !$can_write ? 'disabled' : '' ?>><?= ti_time_options($session['time_to'] ?? '') ?></select>
+            <select class="form-select" id="ltime_to" name="time_to" aria-label="Koniec" onchange="recalcDur()" <?= (!$can_write || $is_past) ? 'disabled' : '' ?>><?= ti_time_options($session['time_to'] ?? '') ?></select>
           </div>
         </div>
         <div class="form-text">Czas trwania: <span class="fw-semibold" id="dur_display"><?php $dm=(int)$session['duration_min']; echo $dm>=60 ? floor($dm/60).'h'.($dm%60?' '.($dm%60).'m':'') : $dm.'m'; ?></span></div>
