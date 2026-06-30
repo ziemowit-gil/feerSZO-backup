@@ -276,9 +276,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sid     = (int)($_POST['session_id'] ?? 0);
         $cid     = (int)($_POST['client_id'] ?? 0);
         $billing = trim($_POST['no_show_billing'] ?? 'full');
+        $reason  = trim($_POST['no_show_reason'] ?? '');
         if ($sid && $cid && dyd_owns_session($uid, $sid)) {
             $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
-            k30_ti_mark_no_show($sid, $cid, $billing, $role, (string)($me['name'] ?? ''));
+            k30_ti_mark_no_show($sid, $cid, $billing, $role, (string)($me['name'] ?? ''), $reason);
             flash_set('success', 'Oznaczono jako „nie pojawił się" — rozliczenie: ' . ($billing === '1h' ? '1 godzina' : 'cała lekcja') . '.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
@@ -1649,6 +1650,11 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               </label>
             </div>
           </div>
+          <div class="mt-3">
+            <label class="form-label fw-semibold" for="dns_reason">Opis sytuacji <span class="text-body-secondary fw-normal small">(opcjonalnie)</span></label>
+            <textarea class="form-control" id="dns_reason" name="no_show_reason" rows="2"
+                      placeholder="np. brak kontaktu, hospitalizacja, awaria dojazdu…"></textarea>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
@@ -1877,7 +1883,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php if ($tab === 'nieobecnosci'):
       $absences = db_all(
         "SELECT a.session_id, a.client_id, a.cancelled, a.cancel_reason, a.cancelled_by, a.cancelled_at,
-                a.no_show, a.no_show_billing,
+                a.no_show, a.no_show_billing, a.no_show_reason,
                 s.lesson_date, s.time_from, s.topic, cl.name AS client_name
          FROM k30_ti_attendance a
          JOIN k30_ti_sessions s ON s.id=a.session_id
@@ -1906,8 +1912,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <tbody>
             <?php foreach ($absences as $ab):
               $excused  = (int)($ab['cancelled'] ?? 0) === 1;
-              $no_show  = !$excused && (int)($ab['no_show'] ?? 0) === 1;
-              $ns_bill  = ($ab['no_show_billing'] ?? 'full') === '1h' ? '1 godz.' : 'cała lekcja';
+              $no_show    = !$excused && (int)($ab['no_show'] ?? 0) === 1;
+              $ns_bill    = ($ab['no_show_billing'] ?? 'full') === '1h' ? '1 godz.' : 'cała lekcja';
+              $ns_reason  = $ab['no_show_reason'] ?? '';
               $lbl = h($ab['client_name']) . ' — ' . date('d.m.Y', strtotime($ab['lesson_date'])); ?>
             <tr>
               <td class="text-nowrap small">
@@ -1928,6 +1935,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <td class="small text-body-secondary" style="max-width:220px">
                 <?php if ($no_show): ?>
                 Rozliczenie: <?= h($ns_bill) ?>
+                <?php if ($ns_reason): ?><div><?= h($ns_reason) ?></div><?php endif; ?>
                 <?php if ($ab['cancelled_by']): ?><div class="text-body-tertiary"><?= h($ab['cancelled_by']) ?></div><?php endif; ?>
                 <?php elseif ($excused): ?>
                 <?= $ab['cancel_reason'] ? h($ab['cancel_reason']) : '—' ?>
@@ -2757,6 +2765,7 @@ function dydNoShow(sid, cid, name) {
   document.getElementById('dns_cid').value = cid;
   document.getElementById('dns_name').textContent = name || '';
   document.getElementById('dns_full').checked = true;
+  var r = document.getElementById('dns_reason'); if (r) r.value = '';
   new bootstrap.Modal(document.getElementById('dydNoShowModal')).show();
 }
 // Odwołanie całej lekcji — otwiera modal z powodem.

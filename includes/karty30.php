@@ -358,6 +358,7 @@ function karty30_migrate(): void {
         // Beneficjent nie pojawił się na zajęciach (lekcja się odbyła, prowadzący był) + model rozliczenia
         "ALTER TABLE k30_ti_attendance ADD COLUMN no_show          INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_attendance ADD COLUMN no_show_billing  TEXT    NOT NULL DEFAULT 'full'",
+        "ALTER TABLE k30_ti_attendance ADD COLUMN no_show_reason   TEXT    NOT NULL DEFAULT ''",
         // Token prywatnego kanału iCal (subskrypcja lekcji w Google/Apple/Outlook)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN calendar_token TEXT NOT NULL DEFAULT ''",
         // Zgoda kursanta/beneficjenta na powiadomienia SMS o zajęciach (opt-in)
@@ -3378,6 +3379,7 @@ function k30_ti_session_attendance(int $session_id): array {
         $e['cancelled_by']      = $att_map[$cid]['cancelled_by'] ?? '';
         $e['no_show']           = isset($att_map[$cid]) ? (int)($att_map[$cid]['no_show'] ?? 0) : 0;
         $e['no_show_billing']   = $att_map[$cid]['no_show_billing'] ?? 'full';
+        $e['no_show_reason']    = $att_map[$cid]['no_show_reason'] ?? '';
     }
     return $enrolled;
 }
@@ -3452,17 +3454,17 @@ function k30_ti_uncancel_attendance(int $session_id, int $client_id): void {
  * Lekcja się odbyła, ale beneficjent nie stawił się — nadal rozliczany wg wybranego modelu:
  *   'full' = cała lekcja, '1h' = tylko 1 godzina rozpoczęta.
  */
-function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, string $role, string $by_label): void {
+function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, string $role, string $by_label, string $reason = ''): void {
     $billing = in_array($billing, ['full', '1h'], true) ? $billing : 'full';
     $ex = db_one("SELECT id FROM k30_ti_attendance WHERE session_id=? AND client_id=?", [$session_id, $client_id]);
     if ($ex) {
         db()->prepare(
             "UPDATE k30_ti_attendance
              SET attended=0, cancelled=0, cancel_pending=0,
-                 no_show=1, no_show_billing=?,
+                 no_show=1, no_show_billing=?, no_show_reason=?,
                  cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now')
              WHERE id=?"
-        )->execute([$billing, $role, $by_label, (int)$ex['id']]);
+        )->execute([$billing, $reason, $role, $by_label, (int)$ex['id']]);
     } else {
         db_insert('k30_ti_attendance', [
             'session_id'        => $session_id,
@@ -3472,6 +3474,7 @@ function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, s
             'cancel_pending'    => 0,
             'no_show'           => 1,
             'no_show_billing'   => $billing,
+            'no_show_reason'    => $reason,
             'cancelled_by_role' => $role,
             'cancelled_by'      => $by_label,
             'cancelled_at'      => date('Y-m-d H:i:s'),

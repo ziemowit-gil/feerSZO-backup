@@ -133,8 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'mark_no_show') {
         $cid     = (int)($_POST['client_id'] ?? 0);
         $billing = trim($_POST['no_show_billing'] ?? 'full');
+        $reason  = trim($_POST['no_show_reason'] ?? '');
         if ($cid) {
-            k30_ti_mark_no_show($session_id, $cid, $billing, $cancel_role, $cancel_label);
+            k30_ti_mark_no_show($session_id, $cid, $billing, $cancel_role, $cancel_label, $reason);
             flash_set('success', 'Oznaczono jako „nie pojawił się" — rozliczenie: ' . ($billing === '1h' ? '1 godzina' : 'cała lekcja') . '.');
         }
         header('Location: lesson.php?id=' . $session_id);
@@ -414,6 +415,9 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
       <?php elseif ($no_show): ?>
       <div class="mt-1 ms-5 small text-warning-emphasis">
         <i class="bi bi-dash-circle me-1"></i>Nie pojawił się — rozliczono: <strong><?= $ns_bill ?></strong>.
+        <?php if (!empty($a['no_show_reason'])): ?>
+        <span class="text-muted d-block"><?= h($a['no_show_reason']) ?></span>
+        <?php endif; ?>
         <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
         <span class="text-muted d-block">Oznaczył(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
         <?php endif; ?>
@@ -650,6 +654,11 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
             </label>
           </div>
         </div>
+        <div class="mt-3">
+          <label class="form-label fw-semibold" for="ns_reason">Opis sytuacji <span class="text-body-secondary fw-normal small">(opcjonalnie)</span></label>
+          <textarea class="form-control" id="ns_reason" name="no_show_reason" rows="2"
+                    placeholder="np. brak kontaktu, hospitalizacja, awaria dojazdu…"></textarea>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
@@ -672,6 +681,7 @@ function openNoShow(cid, name) {
   document.getElementById('ns_cid').value = cid;
   document.getElementById('ns_name').textContent = name;
   document.getElementById('ns_full').checked = true;
+  var r = document.getElementById('ns_reason'); if (r) r.value = '';
   new bootstrap.Modal(document.getElementById('noShowModal')).show();
 }
 function openCancelAtt(cid, name) {
