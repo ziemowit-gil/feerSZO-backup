@@ -136,7 +136,7 @@ include __DIR__ . '/_layout_head.php';
           <p class="text-body-secondary mt-1 mb-3" style="font-size:.78rem">
             <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
             Opiekunowie logują się SMS-em lub hasłem konta. Osoby upoważnione przez pełnoletniego kursanta
-            logują się loginem i hasłem z kartki upoważnienia.
+            logują się danymi z upoważnienia.
           </p>
 
           <a href="pfron.php" class="btn btn-outline-secondary w-100">

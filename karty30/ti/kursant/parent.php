@@ -252,7 +252,7 @@ include __DIR__ . '/_layout_head.php';
           <?php if ($role === 'up'): ?>
           <!-- ── Logowanie osoby upoważnionej ──────────────────────────────── -->
           <p class="text-body-secondary mb-3 small">
-            Zaloguj się loginem i hasłem z kartki upoważnienia nadanej przez administratora.
+            Zaloguj się danymi logowania podanymi w upoważnieniu.
           </p>
           <form method="post" autocomplete="on">
             <input type="hidden" name="_op" value="up_login">
