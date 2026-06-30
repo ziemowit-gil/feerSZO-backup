@@ -1296,146 +1296,229 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <span class="ms-auto fw-semibold text-success">Na rękę: <?= $_pmf($_pm['netto']) ?> zł</span>
       </div>
       <?php endif; ?>
-      <div class="list-group list-group-flush" id="dyd-list-lekcje">
-        <?php if (!$sessions): ?><div class="list-group-item text-body-secondary py-3">Brak lekcji. Kliknij „Dodaj lekcję", aby utworzyć pierwszą.</div><?php endif; ?>
-        <div class="list-group-item dyd-filter-empty text-body-secondary py-3" style="display:none">Brak lekcji pasujących do wyszukiwania.</div>
-        <?php foreach ($sessions as $s): $st = $STATUS[$s['status']] ?? $STATUS['planned']; ?>
-        <div class="list-group-item" data-filter-item="1">
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            <span class="fw-semibold"><i class="bi bi-calendar-event me-1 text-primary"></i><?= date('d.m.Y', strtotime($s['lesson_date'])) ?></span>
-            <?php if ($s['time_from']): ?><span class="text-body-secondary small"><i class="bi bi-clock me-1"></i><?= h($s['time_from']) ?><?= $s['time_to'] ? '–'.h($s['time_to']) : '' ?></span><?php endif; ?>
-            <span class="badge ms-1" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>33"><?= h($st['label']) ?></span>
-            <?php if ((int)$s['total_count'] === 0 && $s['status'] === 'planned'): ?>
-            <span class="badge text-bg-danger ms-1" title="Brak zapisanych kursantów — lekcja nie może się odbyć"><i class="bi bi-exclamation-triangle-fill me-1"></i>Brak kursantów</span>
-            <?php endif; ?>
-            <span class="text-body-secondary small ms-auto"><i class="bi bi-people me-1"></i><?= (int)$s['attended_count'] ?>/<?= (int)$s['total_count'] ?></span>
-          </div>
-          <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>
-          <?php
-            $_payout_bb = (float)($course['lesson_payout_bb'] ?? 0);
-            if (in_array($s['status'], ['held','individual_change']) && $_payout_bb > 0):
-              $_pb = k30_ti_payout_breakdown($_payout_bb);
-              $_pf = fn($x) => number_format((float)$x, 2, ',', ' ');
-          ?>
-          <div class="mt-2 small">
-            <span class="badge rounded-pill text-bg-light border">
-              <i class="bi bi-wallet2 me-1 text-primary"></i>Wypłata:
-              <strong class="text-success"><?= $_pf($_pb['netto']) ?> zł</strong> na rękę
-            </span>
-            <span class="text-body-secondary ms-1">
-              (brutto-brutto <?= $_pf($_pb['brutto_brutto']) ?> zł · składki <?= $_pf($_pb['skladki']) ?> zł · podatek <?= $_pf($_pb['pit']) ?> zł)
-            </span>
-          </div>
-          <?php endif; ?>
-          <?php
-            $pending = db_all(
-              "SELECT a.client_id, cl.name, a.cancel_reason
-               FROM k30_ti_attendance a JOIN k30_clients cl ON cl.id=a.client_id
-               WHERE a.session_id=? AND a.cancel_pending=1 ORDER BY cl.name", [(int)$s['id']]);
-            if ($pending): ?>
-          <div class="alert alert-warning py-2 px-2 mt-2 mb-0 small">
-            <div class="fw-semibold mb-1"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Prośby o odwołanie udziału — czekają na potwierdzenie</div>
-            <?php foreach ($pending as $pr): ?>
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-              <span><?= h($pr['name']) ?><?php if ($pr['cancel_reason']): ?> <span class="text-body-secondary">— <?= h($pr['cancel_reason']) ?></span><?php endif; ?></span>
-              <div class="ms-auto d-flex gap-1">
-                <form method="post" class="d-inline" onsubmit="return confirm('Potwierdzić odwołanie udziału tego kursanta?')">
-                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                  <input type="hidden" name="_op" value="confirm_cancel">
-                  <input type="hidden" name="_tab" value="lekcje">
-                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                  <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                  <input type="hidden" name="client_id" value="<?= (int)$pr['client_id'] ?>">
-                  <button class="btn btn-sm btn-danger py-0 px-2"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Potwierdź odwołanie</button>
-                </form>
-                <form method="post" class="d-inline">
-                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                  <input type="hidden" name="_op" value="reject_cancel">
-                  <input type="hidden" name="_tab" value="lekcje">
-                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                  <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                  <input type="hidden" name="client_id" value="<?= (int)$pr['client_id'] ?>">
-                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Odrzuć</button>
-                </form>
-              </div>
-            </div>
-            <?php endforeach; ?>
-          </div>
-          <?php endif; ?>
-          <?php
-            $resch = k30_ti_reschedule_pending_for_session((int)$s['id']);
-            if ($resch): ?>
-          <div class="alert alert-info py-2 px-2 mt-2 mb-0 small">
-            <div class="fw-semibold mb-1"><i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Propozycje zmiany terminu — czekają na decyzję</div>
-            <?php foreach ($resch as $rq):
-              $rqNew = date('d.m.Y', strtotime($rq['proposed_date'])) . ($rq['proposed_from'] ? ' ' . substr((string)$rq['proposed_from'],0,5) . ($rq['proposed_to'] ? '–' . substr((string)$rq['proposed_to'],0,5) : '') : ''); ?>
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-              <span>
-                <?= h($rq['client_name'] ?: $rq['requested_by']) ?>
-                <span class="text-body-secondary">→ proponuje <strong><?= h($rqNew) ?></strong></span>
-                <?php if ($rq['reason']): ?><span class="text-body-secondary">— <?= h($rq['reason']) ?></span><?php endif; ?>
-              </span>
-              <div class="ms-auto d-flex gap-1">
-                <form method="post" class="d-inline" onsubmit="return confirm('Zaakceptować propozycję? Termin lekcji zostanie zmieniony, a uczestnicy powiadomieni.')">
-                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                  <input type="hidden" name="_op" value="reschedule_accept">
-                  <input type="hidden" name="_tab" value="lekcje">
-                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                  <input type="hidden" name="request_id" value="<?= (int)$rq['id'] ?>">
-                  <button class="btn btn-sm btn-success py-0 px-2"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Akceptuj termin</button>
-                </form>
-                <form method="post" class="d-inline">
-                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                  <input type="hidden" name="_op" value="reschedule_reject">
-                  <input type="hidden" name="_tab" value="lekcje">
-                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                  <input type="hidden" name="request_id" value="<?= (int)$rq['id'] ?>">
-                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Odrzuć</button>
-                </form>
-              </div>
-            </div>
-            <?php endforeach; ?>
-          </div>
-          <?php endif; ?>
-          <div class="mt-2 d-flex gap-2 flex-wrap">
-            <button type="button" class="btn btn-sm btn-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>"><i class="bi bi-people me-1"></i>Obecność</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>"><i class="bi bi-pencil me-1"></i>Edytuj</button>
-            <?php if (($s['status'] ?? '') !== 'cancelled'): ?>
-            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2"
-                    onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y', strtotime($s['lesson_date'])).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from'] ?? '')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to'] ?? '')), ENT_QUOTES) ?>)">
-              <i class="bi bi-calendar2-range me-1"></i>Zmień termin
-            </button>
-            <?php endif; ?>
-            <?php if (($s['status'] ?? '') === 'cancelled'): ?>
-            <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
-              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op" value="uncancel_session">
-              <input type="hidden" name="_tab" value="lekcje">
-              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-              <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-              <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć lekcję</button>
-            </form>
-            <?php elseif ($s['lesson_date'] >= date('Y-m-d')): ?>
-            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
-                    onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y', strtotime($s['lesson_date'])).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>)">
-              <i class="bi bi-x-circle me-1"></i>Odwołaj lekcję
-            </button>
-            <?php else: ?>
-            <span class="text-body-secondary small"><i class="bi bi-lock me-1"></i>Odwołanie niedostępne</span>
-            <?php endif; ?>
-            <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-list-check me-1"></i>Szczegóły</a>
-            <form method="post" class="ms-auto" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
-              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op" value="delete_lesson">
-              <input type="hidden" name="_tab" value="lekcje">
-              <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-              <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-              <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń lekcję"><i class="bi bi-trash"></i></button>
-            </form>
-          </div>
+      <?php
+        $_today  = date('Y-m-d');
+        $_days_pl = ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
+        $_mon_pl  = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
+        // Grupowanie po miesiącu
+        $_grouped = [];
+        foreach ($sessions as $_sx) {
+            $_mk = date('Y-m', strtotime($_sx['lesson_date']));
+            $_grouped[$_mk][] = $_sx;
+        }
+      ?>
+      <div id="dyd-list-lekcje">
+        <?php if (!$sessions): ?>
+        <div class="text-body-secondary py-4 text-center">
+          <i class="bi bi-calendar-x fs-2 d-block mb-2 opacity-50"></i>
+          Brak lekcji. Kliknij „Dodaj lekcję", aby utworzyć pierwszą.
         </div>
+        <?php endif; ?>
+        <div class="dyd-filter-empty text-body-secondary py-3" style="display:none">Brak lekcji pasujących do wyszukiwania.</div>
+
+        <?php foreach ($_grouped as $_mk => $_gsessions): ?>
+        <?php $_mdt = \DateTime::createFromFormat('Y-m', $_mk); ?>
+        <div class="d-flex align-items-center gap-2 mt-3 mb-2">
+          <span class="fw-semibold text-body-secondary small text-uppercase ls-wide" style="letter-spacing:.06em">
+            <?php $mnum=(int)$_mdt->format('n'); echo $_mon_pl[$mnum].' '.$_mdt->format('Y'); ?>
+          </span>
+          <hr class="flex-grow-1 my-0" style="border-color:var(--bs-border-color)">
+          <span class="badge bg-secondary-subtle text-secondary-emphasis small"><?= count($_gsessions) ?></span>
+        </div>
+
+        <?php foreach ($_gsessions as $s):
+          $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
+          $sdate   = strtotime($s['lesson_date']);
+          $is_past = $s['lesson_date'] < $_today;
+          $is_today= $s['lesson_date'] === $_today;
+          $dow     = $_days_pl[(int)date('w', $sdate)];
+          $_payout_bb = (float)($course['lesson_payout_bb'] ?? 0);
+          $_has_pay   = in_array($s['status'], ['held','individual_change']) && $_payout_bb > 0;
+          if ($_has_pay) { $_pb = k30_ti_payout_breakdown($_payout_bb); $_pf = fn($x) => number_format((float)$x, 2, ',', ' '); }
+          $pending = db_all("SELECT a.client_id, cl.name, a.cancel_reason FROM k30_ti_attendance a JOIN k30_clients cl ON cl.id=a.client_id WHERE a.session_id=? AND a.cancel_pending=1 ORDER BY cl.name", [(int)$s['id']]);
+          $resch   = k30_ti_reschedule_pending_for_session((int)$s['id']);
+          $has_alert = $pending || $resch;
+          $att_total  = (int)$s['total_count'];
+          $att_present= (int)$s['attended_count'];
+          $no_students= $att_total === 0 && $s['status'] === 'planned';
+        ?>
+        <div class="card mb-2 border-0 shadow-sm overflow-hidden dyd-lesson-card <?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>"
+             data-filter-item="1"
+             style="<?= $is_today ? 'box-shadow:0 0 0 2px #2563eb40!important' : '' ?>">
+          <!-- Pasek akcentu (kolor statusu) po lewej -->
+          <div class="d-flex" style="border-left:4px solid <?= h($st['color']) ?>">
+
+            <!-- Kolumna daty -->
+            <div class="d-flex flex-column align-items-center justify-content-start text-center px-3 py-3 flex-shrink-0"
+                 style="min-width:64px;background:<?= h($st['bg']) ?>">
+              <span class="fw-bold lh-1" style="font-size:1.45rem;color:<?= h($st['color']) ?>"><?= date('d', $sdate) ?></span>
+              <span class="small text-muted lh-1 mt-1"><?= $dow ?></span>
+              <span class="small text-muted lh-1"><?= $_mon_pl[(int)date('n',$sdate)] ?></span>
+              <?php if ($is_today): ?>
+              <span class="badge mt-2 px-1 py-0" style="font-size:.6rem;background:#2563eb;color:#fff">dziś</span>
+              <?php endif; ?>
+            </div>
+
+            <!-- Treść karty -->
+            <div class="flex-grow-1 px-3 py-3 min-width-0">
+
+              <!-- Nagłówek: godziny + status + frekwencja -->
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                <?php if ($s['time_from']): ?>
+                <span class="fw-semibold" style="font-size:.95rem">
+                  <i class="bi bi-clock text-primary me-1" style="font-size:.8rem"></i><?= h(substr((string)$s['time_from'],0,5)) ?><?= $s['time_to'] ? '–'.h(substr((string)$s['time_to'],0,5)) : '' ?>
+                  <?php if ($s['duration_min']): ?><span class="text-body-secondary fw-normal small ms-1"><?= (int)$s['duration_min'] ?> min</span><?php endif; ?>
+                </span>
+                <?php endif; ?>
+                <span class="badge" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.75rem"><?= h($st['label']) ?></span>
+                <?php if ($no_students): ?>
+                <span class="badge text-bg-danger" style="font-size:.72rem"><i class="bi bi-exclamation-triangle-fill me-1"></i>Brak kursantów</span>
+                <?php endif; ?>
+                <!-- Frekwencja po prawej -->
+                <div class="ms-auto d-flex align-items-center gap-2 flex-shrink-0">
+                  <?php if ($has_alert): ?>
+                  <span class="badge text-bg-warning" style="font-size:.7rem" title="Oczekujące prośby"><i class="bi bi-exclamation-circle"></i> <?= count($pending) + count($resch) ?></span>
+                  <?php endif; ?>
+                  <?php if ($att_total > 0): ?>
+                  <span class="d-flex align-items-center gap-1 text-body-secondary small">
+                    <i class="bi bi-people"></i>
+                    <span class="fw-semibold <?= $att_present===$att_total&&$s['status']!=='planned'?'text-success':'' ?>"><?= $att_present ?></span><span>/<?= $att_total ?></span>
+                  </span>
+                  <?php endif; ?>
+                </div>
+              </div>
+
+              <!-- Temat -->
+              <?php if (!empty($s['topic'])): ?>
+              <div class="text-truncate mb-1" style="font-size:.9rem"><?= h($s['topic']) ?></div>
+              <?php endif; ?>
+
+              <!-- Wypłata -->
+              <?php if ($_has_pay): ?>
+              <div class="mb-2">
+                <span class="badge rounded-pill" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:.75rem">
+                  <i class="bi bi-wallet2 me-1"></i><?= $_pf($_pb['netto']) ?> zł netto
+                  <span class="opacity-75 ms-1">(bb: <?= $_pf($_pb['brutto_brutto']) ?> zł)</span>
+                </span>
+              </div>
+              <?php endif; ?>
+
+              <!-- Oczekujące prośby odwołania -->
+              <?php if ($pending): ?>
+              <div class="rounded border border-warning-subtle bg-warning-subtle px-3 py-2 mb-2 small">
+                <div class="fw-semibold mb-1 text-warning-emphasis"><i class="bi bi-hourglass-split me-1"></i>Prośby o odwołanie udziału</div>
+                <?php foreach ($pending as $pr): ?>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                  <span class="text-body-emphasis"><?= h($pr['name']) ?><?php if ($pr['cancel_reason']): ?> <span class="text-body-secondary">— <?= h($pr['cancel_reason']) ?></span><?php endif; ?></span>
+                  <div class="ms-auto d-flex gap-1">
+                    <form method="post" class="d-inline" onsubmit="return confirm('Potwierdzić odwołanie udziału tego kursanta?')">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="confirm_cancel">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                      <input type="hidden" name="client_id" value="<?= (int)$pr['client_id'] ?>">
+                      <button class="btn btn-sm btn-danger py-0 px-2"><i class="bi bi-check-lg me-1"></i>Potwierdź</button>
+                    </form>
+                    <form method="post" class="d-inline">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="reject_cancel">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                      <input type="hidden" name="client_id" value="<?= (int)$pr['client_id'] ?>">
+                      <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-x-lg me-1"></i>Odrzuć</button>
+                    </form>
+                  </div>
+                </div>
+                <?php endforeach; ?>
+              </div>
+              <?php endif; ?>
+
+              <!-- Oczekujące propozycje zmiany terminu -->
+              <?php if ($resch): ?>
+              <div class="rounded border border-info-subtle bg-info-subtle px-3 py-2 mb-2 small">
+                <div class="fw-semibold mb-1 text-info-emphasis"><i class="bi bi-calendar2-range me-1"></i>Propozycje zmiany terminu</div>
+                <?php foreach ($resch as $rq):
+                  $rqNew = date('d.m.Y', strtotime($rq['proposed_date'])) . ($rq['proposed_from'] ? ' '.substr((string)$rq['proposed_from'],0,5).($rq['proposed_to']?'–'.substr((string)$rq['proposed_to'],0,5):'') : ''); ?>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                  <span><?= h($rq['client_name'] ?: $rq['requested_by']) ?> → <strong><?= h($rqNew) ?></strong><?php if ($rq['reason']): ?> <span class="text-body-secondary">— <?= h($rq['reason']) ?></span><?php endif; ?></span>
+                  <div class="ms-auto d-flex gap-1">
+                    <form method="post" class="d-inline" onsubmit="return confirm('Zaakceptować propozycję? Termin lekcji zostanie zmieniony.')">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="reschedule_accept">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="request_id" value="<?= (int)$rq['id'] ?>">
+                      <button class="btn btn-sm btn-success py-0 px-2"><i class="bi bi-check-lg me-1"></i>Akceptuj</button>
+                    </form>
+                    <form method="post" class="d-inline">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="reschedule_reject">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="request_id" value="<?= (int)$rq['id'] ?>">
+                      <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-x-lg me-1"></i>Odrzuć</button>
+                    </form>
+                  </div>
+                </div>
+                <?php endforeach; ?>
+              </div>
+              <?php endif; ?>
+
+              <!-- Akcje -->
+              <div class="d-flex flex-wrap align-items-center gap-1 pt-1" style="border-top:1px solid var(--bs-border-color-translucent)">
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#attL<?= (int)$s['id'] ?>">
+                  <i class="bi bi-people me-1"></i>Obecność
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$s['id'] ?>">
+                  <i class="bi bi-pencil me-1"></i>Edytuj
+                </button>
+                <?php if ($s['status'] !== 'cancelled'): ?>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="dydOpenReschedule(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)$s['lesson_date']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_from']??'')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode((string)($s['time_to']??'')), ENT_QUOTES) ?>)">
+                  <i class="bi bi-calendar2-range me-1"></i>Przenieś
+                </button>
+                <?php endif; ?>
+                <a href="<?= h(rtrim(APP_URL,'/')) ?>/karty30/ti/lesson.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-list-check me-1"></i>Szczegóły
+                </a>
+                <!-- Odwołanie / przywrócenie — po prawej -->
+                <div class="ms-auto d-flex gap-1 align-items-center">
+                  <?php if ($s['status'] === 'cancelled'): ?>
+                  <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić lekcję (status: zaplanowana)?')">
+                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                    <input type="hidden" name="_op" value="uncancel_session">
+                    <input type="hidden" name="_tab" value="lekcje">
+                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć</button>
+                  </form>
+                  <?php elseif (!$is_past): ?>
+                  <button type="button" class="btn btn-sm btn-outline-danger"
+                          onclick="dydOpenCancelSession(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')), ENT_QUOTES) ?>)">
+                    <i class="bi bi-x-circle me-1"></i>Odwołaj
+                  </button>
+                  <?php else: ?>
+                  <span class="text-body-secondary small"><i class="bi bi-lock me-1"></i>Zablokowane</span>
+                  <?php endif; ?>
+                  <form method="post" onsubmit="return confirm('Usunąć lekcję wraz z obecnością?')">
+                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                    <input type="hidden" name="_op" value="delete_lesson">
+                    <input type="hidden" name="_tab" value="lekcje">
+                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                    <button class="btn btn-sm btn-outline-danger" title="Usuń lekcję"><i class="bi bi-trash"></i></button>
+                  </form>
+                </div>
+              </div>
+
+            </div><!-- /treść -->
+          </div><!-- /d-flex accent -->
+        </div><!-- /card -->
         <?php endforeach; ?>
-      </div>
+        <?php endforeach; // grouped months ?>
+      </div><!-- /dyd-list-lekcje -->
     </div>
     <!-- Wyskakujące okienka: dodawanie + edycja lekcji -->
     <div class="modal fade" id="addL" tabindex="-1" aria-labelledby="addL_t" aria-hidden="true">
