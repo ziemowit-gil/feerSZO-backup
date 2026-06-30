@@ -332,29 +332,18 @@ HTML;
 
     // ── TI: nieobecność bez zgłoszenia (no-show) ─────────────────────
     $ti_no_show_body = <<<'HTML'
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:linear-gradient(135deg,#b45309,#f59e0b);padding:22px 26px;border-radius:10px 10px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">⚠️ {{org}} — nieobecność na zajęciach</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
-  <p>Dzień dobry,</p>
-  <p>Informujemy, że <strong>{{client_name}}</strong> nie pojawił/a się na zajęciach kursu <strong>{{course_name}}</strong> w dniu <strong>{{when}}</strong>.</p>
-  <div style="background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;padding:14px 18px;margin:14px 0">
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:3px 14px 3px 0;color:#555;white-space:nowrap">Sposób rozliczenia:</td><td><strong>{{billing_label}}</strong></td></tr>
-      {{reason_row}}
-    </table>
-  </div>
-  <p style="font-size:.9em;color:#495057">Jeśli nieobecność była spowodowana nagłą sytuacją, skontaktuj się z nami jak najszybciej — możemy to uwzględnić.</p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{{url}}" style="background:#b45309;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-      Panel kursanta →
-    </a>
-  </div>
-  <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
-    Wiadomość automatyczna z systemu {{org}}.
-  </p>
-</div></body></html>
+<html><body style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px">
+<p>Dzień dobry,</p>
+<p>Informujemy, że <strong>{{client_name}}</strong> nie pojawił/a się na zajęciach kursu <strong>{{course_name}}</strong> w dniu <strong>{{when}}</strong>.</p>
+<table style="border-collapse:collapse;margin:16px 0">
+  <tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Sposób rozliczenia:</td><td><strong>{{billing_label}}</strong></td></tr>
+  {{reason_row}}
+</table>
+<p>Jeśli nieobecność była spowodowana nagłą sytuacją, prosimy o kontakt.</p>
+<p><a href="{{url}}">Panel kursanta</a></p>
+<hr style="border:none;border-top:1px solid #ddd;margin:20px 0">
+<p style="font-size:.8em;color:#888">Wiadomość automatyczna — {{org}}.</p>
+</body></html>
 HTML;
 
     // ── TI: rozliczenie miesięczne (do kursanta) ──────────────────────
