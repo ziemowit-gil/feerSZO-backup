@@ -408,11 +408,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: accounts.php'); exit;
         }
         if ($op === 'authp_add') {
-            $ap_name  = mb_substr(trim((string)($_POST['ap_name']  ?? '')), 0, 100);
-            $ap_email = mb_substr(trim((string)($_POST['ap_email'] ?? '')), 0, 150);
-            $ap_notes = mb_substr(trim((string)($_POST['ap_notes'] ?? '')), 0, 300);
+            $ap_name      = mb_substr(trim((string)($_POST['ap_name']   ?? '')), 0, 100);
+            $ap_email     = mb_substr(trim((string)($_POST['ap_email']  ?? '')), 0, 150);
+            $ap_notes     = mb_substr(trim((string)($_POST['ap_notes']  ?? '')), 0, 300);
+            $ap_reason    = mb_substr(trim((string)($_POST['ap_reason'] ?? '')), 0, 400);
+            $ap_added_by  = current_user()['name'] ?? current_user()['email'] ?? 'Administrator';
             if ($ap_name === '') {
                 flash_set('danger', 'Podaj imię i nazwisko osoby upoważnionej.');
+                header('Location: accounts.php?authp=' . $aid); exit;
+            }
+            if ($ap_reason === '') {
+                flash_set('danger', 'Podaj powód upoważnienia.');
                 header('Location: accounts.php?authp=' . $aid); exit;
             }
             // Wygeneruj unikalny login z imienia/nazwiska + sufiks -up
@@ -427,36 +433,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ap_pass = _authp_gen_pass_admin();
             $ap_id   = db_insert('k30_ti_authorized_persons', [
                 'student_account_id' => $aid,
-                'name'  => $ap_name,
-                'login' => $ap_login,
-                'email' => $ap_email,
-                'password_hash' => password_hash($ap_pass, PASSWORD_BCRYPT),
-                'notes' => $ap_notes,
+                'name'         => $ap_name,
+                'login'        => $ap_login,
+                'email'        => $ap_email,
+                'password_hash'=> password_hash($ap_pass, PASSWORD_BCRYPT),
+                'notes'        => $ap_notes,
+                'added_by_name'=> $ap_added_by,
+                'reason'       => $ap_reason,
             ]);
-            // Wyślij mail do osoby upoważnionej (jeśli ma adres e-mail)
-            if ($ap_email !== '') {
+            // Pobierz prowadzących kursanta — do kopii maila
+            $instructors = db()->prepare(
+                "SELECT DISTINCT u.name, u.email FROM k30_ti_enrollments e
+                 JOIN k30_ti_courses c ON c.id=e.course_id
+                 JOIN users u ON u.id=c.instructor_id
+                 WHERE e.client_id=? AND e.status='active' AND u.email!='' AND u.email IS NOT NULL"
+            );
+            $instructors->execute([(int)$acc['client_id']]);
+            $instructor_rows = $instructors->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Wyślij mail do osoby upoważnionej + CC do prowadzącego
+            if ($ap_email !== '' || !empty($instructor_rows)) {
                 try {
                     require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
                     $org_name    = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-                    $portal_link = rtrim(APP_URL, '/') . '/karty30/ti/kursant/authorized_person.php';
+                    $portal_link = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?role=up';
+                    $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES);
                     $mail_html   = '<html><body style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px">'
                         . '<p>Dzień dobry,</p>'
-                        . '<p>Zostałaś/eś upoważniona/y przez <strong>' . htmlspecialchars($acc['client_name'], ENT_QUOTES) . '</strong>'
-                        . ' do wglądu w dane jej/jego panelu kursanta w systemie <strong>' . htmlspecialchars($org_name, ENT_QUOTES) . '</strong>.</p>'
+                        . '<p>Niniejszym informujemy, że administrator systemu <strong>' . $esc($org_name) . '</strong>'
+                        . ' — <strong>' . $esc($ap_added_by) . '</strong>'
+                        . ' — wystawił upoważnienie do wglądu w dane panelu kursanta'
+                        . ' <strong>' . $esc($acc['client_name']) . '</strong>'
+                        . ' dla osoby: <strong>' . $esc($ap_name) . '</strong>.</p>'
+                        . '<p><strong>Powód:</strong> ' . $esc($ap_reason) . '</p>'
                         . '<p>Upoważnienie umożliwia podgląd lekcji, frekwencji i rozliczeń kursanta — wyłącznie do odczytu.</p>'
                         . '<table style="border-collapse:collapse;margin:16px 0">'
-                        . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Panel:</td><td><a href="' . htmlspecialchars($portal_link, ENT_QUOTES) . '">' . htmlspecialchars($portal_link, ENT_QUOTES) . '</a></td></tr>'
-                        . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Login:</td><td><strong>' . htmlspecialchars($ap_login, ENT_QUOTES) . '</strong></td></tr>'
+                        . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Panel:</td><td><a href="' . $esc($portal_link) . '">' . $esc($portal_link) . '</a></td></tr>'
+                        . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Login:</td><td><strong>' . $esc($ap_login) . '</strong></td></tr>'
                         . '<tr><td style="padding:3px 20px 3px 0;color:#555;white-space:nowrap">Hasło:</td><td>przekazane ustnie / na kartce upoważnienia</td></tr>'
                         . '</table>'
-                        . '<p>Upoważnienie zostało potwierdzone podpisem. Prosimy o nieudostępnianie danych logowania osobom trzecim.</p>'
+                        . '<p>Upoważnienie zostało wystawione przez administratora. Prosimy o nieudostępnianie danych logowania osobom trzecim.</p>'
                         . '<p>W razie pytań skontaktuj się z biurem.</p>'
                         . '<hr style="border:none;border-top:1px solid #ddd;margin:20px 0">'
-                        . '<p style="font-size:.8em;color:#888">Wiadomość automatyczna — ' . htmlspecialchars($org_name, ENT_QUOTES) . '.</p>'
+                        . '<p style="font-size:.8em;color:#888">Wiadomość automatyczna — ' . $esc($org_name) . '.</p>'
                         . '</body></html>';
-                    mail_queue_add($ap_email, $ap_name,
-                        "Upoważnienie do wglądu w panel kursanta — {$org_name}",
-                        $mail_html, '', 'authp', (int)$ap_id, '', true);
+                    $subject = "Upoważnienie do wglądu w panel kursanta — {$org_name}";
+                    // Mail do osoby upoważnionej
+                    if ($ap_email !== '') {
+                        mail_queue_add($ap_email, $ap_name, $subject, $mail_html, '', 'authp', (int)$ap_id, '', true);
+                    }
+                    // Kopia do każdego prowadzącego
+                    $instr_subject = "[Kopia] Upoważnienie wgląd w panel: {$acc['client_name']} → {$ap_name}";
+                    $instr_html    = '<html><body style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px">'
+                        . '<p><strong>Kopia informacyjna dla prowadzącego.</strong></p>'
+                        . '<p>Administrator <strong>' . $esc($ap_added_by) . '</strong> wystawił upoważnienie do wglądu w panel kursanta'
+                        . ' <strong>' . $esc($acc['client_name']) . '</strong>'
+                        . ' dla osoby: <strong>' . $esc($ap_name) . '</strong>.</p>'
+                        . '<p><strong>Powód:</strong> ' . $esc($ap_reason) . '</p>'
+                        . ($ap_notes !== '' ? '<p><strong>Uwagi:</strong> ' . $esc($ap_notes) . '</p>' : '')
+                        . '<p>Upoważniony/a ma dostęp do podglądu lekcji, frekwencji i rozliczeń kursanta.</p>'
+                        . '<hr style="border:none;border-top:1px solid #ddd;margin:20px 0">'
+                        . '<p style="font-size:.8em;color:#888">Wiadomość automatyczna — ' . $esc($org_name) . '.</p>'
+                        . '</body></html>';
+                    foreach ($instructor_rows as $instr) {
+                        mail_queue_add($instr['email'], $instr['name'], $instr_subject, $instr_html, '', 'authp_cc', (int)$ap_id, '', true);
+                    }
                 } catch (\Throwable $e) {}
             }
             $_SESSION['new_authp_creds'] = [
@@ -893,8 +934,13 @@ function printBulk(){
           <input type="email" class="form-control form-control-sm" id="apn-email" name="ap_email" maxlength="150" placeholder="anna@example.com">
         </div>
         <div class="col-md-3">
-          <label class="form-label small fw-semibold" for="apn-notes">Uwagi</label>
+          <label class="form-label small fw-semibold" for="apn-notes">Stosunek do kursanta</label>
           <input type="text" class="form-control form-control-sm" id="apn-notes" name="ap_notes" maxlength="300" placeholder="np. opiekun, rodzic">
+        </div>
+        <div class="col-12">
+          <label class="form-label small fw-semibold" for="apn-reason">Powód upoważnienia *</label>
+          <input type="text" class="form-control form-control-sm" id="apn-reason" name="ap_reason" maxlength="400" required
+                 placeholder="np. Kursant przebywa za granicą i upoważnił opiekuna do kontrolowania postępów">
         </div>
       </div>
       <button type="submit" class="btn btn-sm btn-primary mt-2">

@@ -22,9 +22,10 @@ $ap  = $id ? db_one(
 ) : null;
 if (!$ap) { http_response_code(404); die('Nie znaleziono.'); }
 
-$org      = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+$org        = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
 $portal_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?role=up';
-$today    = date('d.m.Y');
+$today      = date('d.m.Y');
+$by_admin   = !empty($ap['added_by_name']); // true = upoważnienie wystawione przez admina
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -72,9 +73,23 @@ $today    = date('d.m.Y');
 <div class="page">
 
   <h1><?= h($org) ?></h1>
-  <div class="subtitle">Upoważnienie do wglądu w panel kursanta</div>
+  <div class="subtitle">
+    <?= $by_admin
+      ? 'Upoważnienie administracyjne do wglądu w panel kursanta'
+      : 'Upoważnienie do wglądu w panel kursanta' ?>
+  </div>
 
   <div class="sign-date">Data wystawienia: <strong><?= $today ?></strong></div>
+
+  <?php if ($by_admin): ?>
+  <div class="section">
+    <div class="section-title">Wystawione przez</div>
+    <dl>
+      <dt>Administrator:</dt><dd><?= h($ap['added_by_name']) ?></dd>
+      <dt>Powód upoważnienia:</dt><dd><?= h($ap['reason']) ?></dd>
+    </dl>
+  </div>
+  <?php endif; ?>
 
   <div class="section">
     <div class="section-title">Kursant</div>
@@ -111,7 +126,7 @@ $today    = date('d.m.Y');
     </div>
     <div class="login-box">
       <div class="lbl">Hasło (jednorazowe — zmień po pierwszym logowaniu)</div>
-      <div class="val"><?= h('(hasło przekazywane ustnie / generowane przez administratora)') ?></div>
+      <div class="val">(hasło przekazywane ustnie / na kartce przez administratora)</div>
     </div>
     <p class="notice" style="margin-top:3mm">
       Hasło podane ustnie lub przekazane przez administratora. Po pierwszym zalogowaniu zalecana jest zmiana
@@ -119,6 +134,22 @@ $today    = date('d.m.Y');
     </p>
   </div>
 
+  <?php if ($by_admin): ?>
+  <div class="declaration">
+    <strong>Oświadczenie osoby upoważnionej:</strong><br>
+    Przyjmuję do wiadomości, że administrator placówki <strong><?= h($ap['added_by_name']) ?></strong>
+    upoważnił mnie do wglądu w dane panelu kursanta <strong><?= h($ap['student_name']) ?></strong>.
+    Powód upoważnienia: <em><?= h($ap['reason']) ?></em>.
+    Zobowiązuję się do nieudostępniania danych logowania osobom trzecim
+    oraz do korzystania z panelu wyłącznie w celach, dla których upoważnienie zostało udzielone.
+    Upoważnienie może zostać cofnięte przez administratora w dowolnym momencie.
+  </div>
+
+  <div class="sign-area">
+    <div class="sign-block">Podpis osoby upoważnionej<br><br><br></div>
+    <div class="sign-block">Podpis administratora<br><strong style="font-size:10pt"><?= h($ap['added_by_name']) ?></strong><br><br></div>
+  </div>
+  <?php else: ?>
   <div class="declaration">
     <strong>Oświadczenie osoby upoważnionej:</strong><br>
     Przyjmuję do wiadomości, że zostałam/em upoważniona/y przez kursanta <strong><?= h($ap['student_name']) ?></strong>
@@ -129,8 +160,9 @@ $today    = date('d.m.Y');
 
   <div class="sign-area">
     <div class="sign-block">Podpis osoby upoważnionej<br><br><br></div>
-    <div class="sign-block">Podpis administratora / pracownika<br><br><br></div>
+    <div class="sign-block">Podpis kursanta / administratora<br><br><br></div>
   </div>
+  <?php endif; ?>
 
 </div>
 </body>
