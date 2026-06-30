@@ -3454,7 +3454,7 @@ function k30_ti_uncancel_attendance(int $session_id, int $client_id): void {
  * Lekcja się odbyła, ale beneficjent nie stawił się — nadal rozliczany wg wybranego modelu:
  *   'full' = cała lekcja, '1h' = tylko 1 godzina rozpoczęta.
  */
-function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, string $role, string $by_label, string $reason = ''): void {
+function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, string $role, string $by_label, string $reason = '', array $attachment = []): void {
     $billing = in_array($billing, ['full', '1h'], true) ? $billing : 'full';
     $ex = db_one("SELECT id FROM k30_ti_attendance WHERE session_id=? AND client_id=?", [$session_id, $client_id]);
     if ($ex) {
@@ -3480,7 +3480,7 @@ function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, s
             'cancelled_at'      => date('Y-m-d H:i:s'),
         ]);
     }
-    k30_ti_notify_no_show($session_id, $client_id, $billing, $reason);
+    k30_ti_notify_no_show($session_id, $client_id, $billing, $reason, $attachment);
 }
 
 /**
@@ -3488,7 +3488,7 @@ function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, s
  * Dla małoletnich: główny adresat = guardian_email (jeśli ustawiony i parent_notify_absence=1).
  * Dla pełnoletnich: adresat = email kursanta.
  */
-function k30_ti_notify_no_show(int $session_id, int $client_id, string $billing, string $reason): void {
+function k30_ti_notify_no_show(int $session_id, int $client_id, string $billing, string $reason, array $attachment = []): void {
     $row = db_one(
         "SELECT s.lesson_date, s.time_from, s.duration_min, c.name AS course_name,
                 cl.name AS client_name, cl.email,
@@ -3533,6 +3533,9 @@ function k30_ti_notify_no_show(int $session_id, int $client_id, string $billing,
     $reason_row = $reason !== ''
         ? '<tr><td style="padding:3px 14px 3px 0;color:#555;white-space:nowrap">Opis sytuacji:</td><td>' . htmlspecialchars($reason, ENT_QUOTES) . '</td></tr>'
         : '';
+    $attach_row = !empty($attachment['name'])
+        ? '<tr><td style="padding:3px 14px 3px 0;color:#555;white-space:nowrap">Załącznik:</td><td>📎 ' . htmlspecialchars($attachment['name'], ENT_QUOTES) . '</td></tr>'
+        : '';
 
     $r = function_exists('email_tpl_render') ? email_tpl_render('ti_no_show', [
         'org'           => $org,
@@ -3540,7 +3543,7 @@ function k30_ti_notify_no_show(int $session_id, int $client_id, string $billing,
         'course_name'   => htmlspecialchars((string)$row['course_name'], ENT_QUOTES),
         'when'          => htmlspecialchars($when, ENT_QUOTES),
         'billing_label' => htmlspecialchars($billing_label, ENT_QUOTES),
-        'reason_row'    => $reason_row,
+        'reason_row'    => $reason_row . $attach_row,
         'url'           => htmlspecialchars($url, ENT_QUOTES),
     ]) : [
         'subject' => "{$org}: nieobecność na zajęciach — {$when}",
@@ -3548,8 +3551,9 @@ function k30_ti_notify_no_show(int $session_id, int $client_id, string $billing,
         'enabled' => true,
     ];
     if (empty($r['enabled'])) return;
+    $atts = !empty($attachment['path']) ? [$attachment] : [];
     foreach ($emails as $addr => $nm) {
-        try { mail_queue_add($addr, $nm, $r['subject'], $r['html'], '', 'ti_no_show', $session_id, '', false); }
+        try { mail_queue_add($addr, $nm, $r['subject'], $r['html'], '', 'ti_no_show', $session_id, '', false, $atts); }
         catch (\Throwable $e) {}
     }
 }

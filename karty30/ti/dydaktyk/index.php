@@ -277,9 +277,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cid     = (int)($_POST['client_id'] ?? 0);
         $billing = trim($_POST['no_show_billing'] ?? 'full');
         $reason  = trim($_POST['no_show_reason'] ?? '');
+        $attachment = [];
+        if (!empty($_FILES['no_show_screenshot']['name'])) {
+            if (!function_exists('mail_queue_save_attachment')) @require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+            if (function_exists('mail_queue_save_attachment')) {
+                $att = mail_queue_save_attachment($_FILES['no_show_screenshot']);
+                if ($att) $attachment = $att;
+            }
+        }
         if ($sid && $cid && dyd_owns_session($uid, $sid)) {
             $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
-            k30_ti_mark_no_show($sid, $cid, $billing, $role, (string)($me['name'] ?? ''), $reason);
+            k30_ti_mark_no_show($sid, $cid, $billing, $role, (string)($me['name'] ?? ''), $reason, $attachment);
             flash_set('success', 'Oznaczono jako „nie pojawił się" — rozliczenie: ' . ($billing === '1h' ? '1 godzina' : 'cała lekcja') . '.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
@@ -1620,7 +1628,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
     <!-- Modal: nie pojawił się na zajęciach -->
     <div class="modal fade" id="dydNoShowModal" tabindex="-1" aria-labelledby="dydNoShow_t" aria-hidden="true">
-      <div class="modal-dialog"><form method="post" class="modal-content">
+      <div class="modal-dialog"><form method="post" enctype="multipart/form-data" class="modal-content">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op"        value="mark_no_show">
         <input type="hidden" name="_tab"       value="lekcje">
@@ -1654,6 +1662,11 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <label class="form-label fw-semibold" for="dns_reason">Opis sytuacji <span class="text-body-secondary fw-normal small">(opcjonalnie)</span></label>
             <textarea class="form-control" id="dns_reason" name="no_show_reason" rows="2"
                       placeholder="np. brak kontaktu, hospitalizacja, awaria dojazdu…"></textarea>
+          </div>
+          <div class="mt-3">
+            <label class="form-label fw-semibold" for="dns_screenshot">Screenshot / dokumentacja <span class="text-body-secondary fw-normal small">(opcjonalnie, PNG/JPG/PDF, max 15 MB)</span></label>
+            <input class="form-control" type="file" id="dns_screenshot" name="no_show_screenshot" accept=".png,.jpg,.jpeg,.pdf">
+            <div class="form-text">Plik zostanie dołączony do maila wysyłanego do rodzica/kursanta.</div>
           </div>
         </div>
         <div class="modal-footer">
@@ -2766,6 +2779,7 @@ function dydNoShow(sid, cid, name) {
   document.getElementById('dns_name').textContent = name || '';
   document.getElementById('dns_full').checked = true;
   var r = document.getElementById('dns_reason'); if (r) r.value = '';
+  var f = document.getElementById('dns_screenshot'); if (f) f.value = '';
   new bootstrap.Modal(document.getElementById('dydNoShowModal')).show();
 }
 // Odwołanie całej lekcji — otwiera modal z powodem.

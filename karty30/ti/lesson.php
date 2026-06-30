@@ -134,8 +134,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $cid     = (int)($_POST['client_id'] ?? 0);
         $billing = trim($_POST['no_show_billing'] ?? 'full');
         $reason  = trim($_POST['no_show_reason'] ?? '');
+        $attachment = [];
+        if (!empty($_FILES['no_show_screenshot']['name'])) {
+            if (!function_exists('mail_queue_save_attachment')) @require_once dirname(__DIR__, 2) . '/includes/mail_queue.php';
+            if (function_exists('mail_queue_save_attachment')) {
+                $att = mail_queue_save_attachment($_FILES['no_show_screenshot']);
+                if ($att) $attachment = $att;
+            }
+        }
         if ($cid) {
-            k30_ti_mark_no_show($session_id, $cid, $billing, $cancel_role, $cancel_label, $reason);
+            k30_ti_mark_no_show($session_id, $cid, $billing, $cancel_role, $cancel_label, $reason, $attachment);
             flash_set('success', 'Oznaczono jako „nie pojawił się" — rozliczenie: ' . ($billing === '1h' ? '1 godzina' : 'cała lekcja') . '.');
         }
         header('Location: lesson.php?id=' . $session_id);
@@ -627,7 +635,7 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
 <!-- Modal: nie pojawił się na zajęciach -->
 <div class="modal fade" id="noShowModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
-    <form method="post" class="modal-content">
+    <form method="post" enctype="multipart/form-data" class="modal-content">
       <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="_op"       value="mark_no_show">
       <input type="hidden" name="client_id" id="ns_cid" value="">
@@ -659,6 +667,11 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
           <textarea class="form-control" id="ns_reason" name="no_show_reason" rows="2"
                     placeholder="np. brak kontaktu, hospitalizacja, awaria dojazdu…"></textarea>
         </div>
+        <div class="mt-3">
+          <label class="form-label fw-semibold" for="ns_screenshot">Screenshot / dokumentacja <span class="text-body-secondary fw-normal small">(opcjonalnie, PNG/JPG/PDF, max 15 MB)</span></label>
+          <input class="form-control" type="file" id="ns_screenshot" name="no_show_screenshot" accept=".png,.jpg,.jpeg,.pdf">
+          <div class="form-text">Plik zostanie dołączony do maila wysyłanego do rodzica/kursanta.</div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
@@ -682,6 +695,7 @@ function openNoShow(cid, name) {
   document.getElementById('ns_name').textContent = name;
   document.getElementById('ns_full').checked = true;
   var r = document.getElementById('ns_reason'); if (r) r.value = '';
+  var f = document.getElementById('ns_screenshot'); if (f) f.value = '';
   new bootstrap.Modal(document.getElementById('noShowModal')).show();
 }
 function openCancelAtt(cid, name) {
