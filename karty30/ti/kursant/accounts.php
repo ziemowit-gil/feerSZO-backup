@@ -827,7 +827,11 @@ function printBulk(){
         <div class="d-flex gap-2 flex-wrap align-items-center">
           <a href="authp_print.php?id=<?= (int)$new_authp_creds['id'] ?>"
              target="_blank" class="btn btn-sm btn-primary">
-            <i class="bi bi-printer me-1"></i>Drukuj kartkę z potwierdzeniem
+            <i class="bi bi-printer me-1"></i>Drukuj kartkę dla osoby upoważnionej
+          </a>
+          <a href="authp_declaration.php?id=<?= (int)$new_authp_creds['id'] ?>"
+             target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-file-earmark-text me-1"></i>Drukuj oświadczenie administratora
           </a>
           <span class="badge text-bg-warning">
             <i class="bi bi-exclamation-triangle me-1"></i>Pamiętaj o wgraniu skanu po podpisaniu
@@ -883,7 +887,9 @@ function printBulk(){
             <td>
               <div class="d-flex gap-1 flex-wrap">
                 <a href="authp_print.php?id=<?= (int)$ap['id'] ?>" target="_blank"
-                   class="btn btn-sm btn-outline-secondary py-0" title="Drukuj kartkę"><i class="bi bi-printer"></i></a>
+                   class="btn btn-sm btn-outline-secondary py-0" title="Kartka dla osoby upoważnionej"><i class="bi bi-printer"></i></a>
+                <a href="authp_declaration.php?id=<?= (int)$ap['id'] ?>" target="_blank"
+                   class="btn btn-sm btn-outline-secondary py-0" title="Oświadczenie administratora"><i class="bi bi-file-earmark-text"></i></a>
                 <form method="post" class="d-inline">
                   <?= csrf_field() ?>
                   <input type="hidden" name="_op" value="authp_toggle">
