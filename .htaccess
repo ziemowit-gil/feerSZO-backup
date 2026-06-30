@@ -32,6 +32,13 @@ RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
+# ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
+# Identyczny mechanizm jak ti*., tylko bez aliasu /dydaktyk.
+RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
+RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
+RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
+
 # ── Subdomena strukturaorg. → katalog / struktura organizacji ───────────────
 # Host strukturaorg.feer.org.pl WEWNĘTRZNIE serwuje moduł directory/ (URL w
 # przeglądarce zostaje czysty, jak przy aliasach CRM / panelu TI). Pomijamy sam
