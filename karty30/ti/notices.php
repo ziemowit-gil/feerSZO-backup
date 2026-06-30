@@ -147,7 +147,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="d-flex gap-1 flex-shrink-0">
         <!-- Przypnij/odepnij -->
         <form method="post" class="d-inline">
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="toggle_pin">
           <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
           <input type="hidden" name="val" value="<?= $is_pinned ? 0 : 1 ?>">
@@ -157,7 +157,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
         </form>
         <!-- Aktywuj/dezaktywuj -->
         <form method="post" class="d-inline" <?= $is_active?'onsubmit="return confirm(\'Dezaktywować?\')"':'' ?>>
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="toggle_active">
           <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
           <input type="hidden" name="val" value="<?= $is_active ? 0 : 1 ?>">
@@ -173,7 +173,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
         </button>
         <!-- Usuń -->
         <form method="post" class="d-inline" onsubmit="return confirm('Trwale usunąć komunikat?')">
-          <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="delete">
           <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
           <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń"><i class="bi bi-trash"></i></button>
@@ -194,7 +194,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <form method="post" id="noticeForm">
-        <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="_op" value="add">
         <input type="hidden" name="id" id="nf_id" value="0">
         <div class="modal-header">

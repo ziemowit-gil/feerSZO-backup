@@ -142,7 +142,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/header.php';
             <i class="bi bi-pencil"></i>
           </button>
           <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ten wpis?')">
-            <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
             <input type="hidden" name="_op" value="delete">
             <input type="hidden" name="id" value="<?= (int)$h['id'] ?>">
             <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash"></i></button>
@@ -187,7 +187,7 @@ if ($upcoming):
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <form method="post">
-        <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="_op" value="save">
         <input type="hidden" name="id" id="hol_id" value="0">
         <div class="modal-header">
