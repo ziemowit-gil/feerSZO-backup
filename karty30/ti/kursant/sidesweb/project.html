@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platforma vLAB – Fundacja FEER</title>
+    <!-- Google Fonts: Roboto (Regular, Medium, Bold) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Free 6.4.0 CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1E6DFF;
+            --primary-dark: #0A53D6;
+            --primary-light: #F0F6FF;
+            --text-dark: #0F172A;
+            --text-light: #64748B;
+            --bg-muted: #F8FAFC;
+            --bg-white: #FFFFFF;
+            --border-light: #E2E8F0;
+            --radius-sm: 8px;
+            --radius-lg: 20px;
+            --max-width: 1140px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Roboto', system-ui, -apple-system, sans-serif;
+            color: var(--text-dark);
+            background-color: var(--bg-white);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- STYLISH BLURRED HEADER --- */
+        header {
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(241, 245, 249, 0.6);
+            box-shadow: 0 4px 30px rgba(15, 23, 42, 0.01);
+        }
+        .header-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 1.5rem;
+        }
+        .logo-area {
+            text-decoration: none;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: -0.5px;
+        }
+        .logo-area span {
+            color: var(--primary);
+        }
+        .nav-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+        }
+        .main-nav {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+            align-items: center;
+        }
+        .nav-item {
+            position: relative;
+        }
+        .nav-link {
+            color: var(--text-dark);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.95rem;
+            padding: 0.5rem 0;
+            position: relative;
+            transition: var(--transition);
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background-color: var(--primary);
+            transition: var(--transition);
+            transform: translateX(-50%);
+        }
+        .nav-link:hover {
+            color: var(--primary);
+        }
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        .btn-header-donate {
+            background-color: var(--text-dark);
+            color: #FFFFFF;
+            text-decoration: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+        }
+        .btn-header-donate:hover {
+            background-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        /* --- BREADCRUMBS --- */
+        .breadcrumbs {
+            max-width: var(--max-width);
+            margin: 2rem auto 0 auto;
+            padding: 0 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+        .breadcrumbs a {
+            color: var(--text-light);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        .breadcrumbs a:hover {
+            color: var(--primary);
+        }
+        .breadcrumbs span {
+            margin: 0 0.5rem;
+            opacity: 0.5;
+        }
+
+        /* --- PROJECT HERO --- */
+        .project-hero {
+            padding: 3rem 1.5rem 5rem 1.5rem;
+            background: radial-gradient(120% 120% at 100% 0%, rgba(30, 109, 255, 0.04) 0%, rgba(255, 255, 255, 0) 100%);
+        }
+        .project-hero-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 4rem;
+            align-items: center;
+        }
+        .project-badge {
+            background-color: var(--primary-light);
+            color: var(--primary);
+            padding: 0.4rem 1rem;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .project-hero h1 {
+            font-size: 3.2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+            letter-spacing: -1.5px;
+        }
+        .project-hero .lead-text {
+            font-size: 1.2rem;
+            color: var(--text-light);
+            margin-bottom: 2rem;
+        }
+        
+        /* Specyfikacja projektu w bocznej karcie */
+        .project-spec-card {
+            background-color: var(--bg-muted);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+        }
+        .spec-item {
+            margin-bottom: 1.5rem;
+        }
+        .spec-item:last-child {
+            margin-bottom: 0;
+        }
+        .spec-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+        .spec-value {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        .spec-value i {
+            color: #10B981; /* Zielony indykator dla aktywnego statusu */
+            margin-right: 0.25rem;
+        }
+
+        /* --- STYLE SEKCJI --- */
+        .site-section {
+            padding: 5rem 1.5rem;
+        }
+        .site-section.bg-light {
+            background-color: var(--bg-muted);
+        }
+        .section-title-block {
+            max-width: var(--max-width);
+            margin: 0 auto 3rem auto;
+        }
+        .section-title-block h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 0.4rem;
+        }
+        .section-title-block p {
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+
+        /* --- OPIS DETALICZNY & MINI BENTO --- */
+        .features-grid {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+        .feature-tile {
+            background-color: var(--bg-white);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2rem;
+            transition: var(--transition);
+        }
+        .feature-tile:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.03);
+            border-color: var(--border-light);
+        }
+        .feature-icon {
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+        }
+        .feature-tile h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .feature-tile p {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        /* --- SEKCJA AKTUALNOŚCI DLA PROJEKTU --- */
+        .news-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+        .project-news-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .project-news-item {
+            background-color: var(--bg-white);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            text-decoration: none;
+            color: inherit;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 2.5rem;
+            align-items: center;
+            transition: var(--transition);
+            border: 1px solid transparent;
+        }
+        .project-news-item:hover {
+            border-color: var(--border-light);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.02);
+            transform: translateX(4px);
+        }
+        .item-date-badge {
+            background-color: var(--bg-muted);
+            padding: 0.75rem 1.25rem;
+            border-radius: var(--radius-sm);
+            text-align: center;
+            min-width: 110px;
+        }
+        .item-date-badge .day {
+            display: block;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            line-height: 1.1;
+        }
+        .item-date-badge .month {
+            display: block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            margin-top: 0.1rem;
+        }
+        .item-content h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            transition: var(--transition);
+        }
+        .project-news-item:hover .item-content h3 {
+            color: var(--primary);
+        }
+        .item-content p {
+            color: var(--text-light);
+            font-size: 0.95rem;
+        }
+        .item-arrow {
+            font-size: 1.2rem;
+            color: var(--text-light);
+            opacity: 0.3;
+            transition: var(--transition);
+        }
+        .project-news-item:hover .item-arrow {
+            opacity: 1;
+            color: var(--primary);
+            transform: translateX(2px);
+        }
+
+        /* --- FOOTER --- */
+        footer {
+            border-top: 1px solid var(--border-light);
+            padding: 4rem 1.5rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+            background-color: var(--bg-muted);
+        }
+        .footer-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        .footer-links a {
+            color: var(--text-light);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        @media (max-width: 900px) {
+            .project-hero-container { grid-template-columns: 1fr; gap: 2rem; }
+            .features-grid { grid-template-columns: 1fr; }
+            .project-news-item { grid-template-columns: 1fr; gap: 1rem; text-align: left; }
+            .item-date-badge { align-self: flex-start; }
+            .item-arrow { display: none; }
+            .main-nav { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- STYLISH BLURRED HEADER -->
+    <header>
+        <div class="header-container">
+            <a href="#" class="logo-area">Fundacja <span>FEER</span></a>
+            
+            <div class="nav-wrapper">
+                <nav>
+                    <ul class="main-nav">
+                        <li class="nav-item"><a href="#" class="nav-link">O nas</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link">Aktualności</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link">Zasoby</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link">Kontakt</a></li>
+                    </ul>
+                </nav>
+                <a href="#" class="btn-header-donate">Wspieraj</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- BREADCRUMBS -->
+    <nav class="breadcrumbs">
+        <a href="#">Strona główna</a><span>/</span><a href="#">Zasoby</a><span>/</span>vLAB
+    </nav>
+
+    <!-- PROJECT HERO -->
+    <section class="project-hero">
+        <div class="project-hero-container">
+            <div>
+                <span class="project-badge">Moduł Infrastruktury</span>
+                <h1>Platforma vLAB</h1>
+                <p class="lead-text">Zintegrowany ekosystem wirtualnych laboratoriów technologicznych. Umożliwiamy dynamiczne uruchamianie odizolowanych środowisk testowych i szkoleniowych, wspierając edukację informatyczną bez barier licencyjnych i sprzętowych.</p>
+            </div>
+            
+            <!-- Side spec card -->
+            <div class="project-spec-card">
+                <div class="spec-item">
+                    <div class="spec-label">Status operacyjny</div>
+                    <div class="spec-value"><i class="fa-solid fa-circle-check"></i> Aktywny (v2.4)</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Architektura</div>
+                    <div class="spec-value">Open-Source / Docker VPS</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Grupa docelowa</div>
+                    <div class="spec-value">Edukatorzy, NGO, Trenerzy IT</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ROZWIĄZANIA (MINI BENTO) -->
+    <section class="site-section bg-light">
+        <div class="section-title-block">
+            <h2>Możliwości i architektura vLAB</h2>
+            <p>Jak wirtualne laboratoria zmieniają standard prowadzenia warsztatów technicznych.</p>
+        </div>
+
+        <div class="features-grid">
+            <!-- Box 1 -->
+            <div class="feature-tile">
+                <div class="feature-icon"><i class="fa-solid fa-cubes"></i></div>
+                <h3>Konteneryzacja sandbox</h3>
+                <p>Każdy uczestnik szkolenia otrzymuje własne, w pełni bezpieczne i niezależne środowisko uruchomieniowe w kilka sekund.</p>
+            </div>
+            <!-- Box 2 -->
+            <div class="feature-tile">
+                <div class="feature-icon"><i class="fa-solid fa-bolt"></i></div>
+                <h3>Automatyzacja procesów</h3>
+                <p>Pełna integracja z systemami wewnętrznymi fundacji pozwala na bezobsługowe tworzenie kont i czyszczenie zasobów po kursie.</p>
+            </div>
+            <!-- Box 3 -->
+            <div class="feature-tile">
+                <div class="feature-icon"><i class="fa-solid fa-universal-access"></i></div>
+                <h3>Dostępność z przeglądarki</h3>
+                <p>Brak wymagań sprzętowych. Do pracy z zaawansowanymi skryptami wystarczy dowolne urządzenie z dostępem do sieci.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- DEDYKOWANE AKTUALNOŚCI DLA TEGO DZIAŁANIA -->
+    <section class="site-section">
+        <div class="section-title-block">
+            <h2>Aktualności i dziennik zmian vLAB</h2>
+            <p>Kronika wdrożeń, aktualizacji oraz wydarzeń powiązanych bezpośrednio z modułem laboratoryjnym.</p>
+        </div>
+
+        <div class="news-container">
+            <div class="project-news-list">
+                
+                <!-- Wpis 1 -->
+                <a href="#" class="project-news-item">
+                    <div class="item-date-badge">
+                        <span class="day">24</span>
+                        <span class="month">Cze 2026</span>
+                    </div>
+                    <div class="item-content">
+                        <h3>Nowe zestawy narzędziowe w programach vLAB</h3>
+                        <p>Wprowadziliśmy gotowe, prekonfigurowane pakiety narzędzi programistycznych ułatwiające start nowym grupom warsztatowym.</p>
+                    </div>
+                    <div class="item-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+                </a>
+
+                <!-- Wpis 2 -->
+                <a href="#" class="project-news-item">
+                    <div class="item-date-badge">
+                        <span class="day">18</span>
+                        <span class="month">Maj 2026</span>
+                    </div>
+                    <div class="item-content">
+                        <h3>Optymalizacja kontenerów bazodanowych</h3>
+                        <p>Zakończyliśmy migrację obrazów bazowych vLAB do lżejszych instancji SQLite i MySQL, skracając czas gotowości środowisk o 40%.</p>
+                    </div>
+                    <div class="item-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+                </a>
+
+                <!-- Wpis 3 -->
+                <a href="#" class="project-news-item">
+                    <div class="item-date-badge">
+                        <span class="day">05</span>
+                        <span class="month">Mar 2026</span>
+                    </div>
+                    <div class="item-content">
+                        <h3>Wdrożenie modułu vLAB w strukturę SZO</h3>
+                        <p>Udana integracja panelu laboratoriów z centralnym Systemem Obsługi Organizacji. Zarządzanie uprawnieniami jest od teraz automatyczne.</p>
+                    </div>
+                    <div class="item-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+                </a>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="footer-container">
+            <p>&copy; 2026 Fundacja FEER. Architektura Open Source.</p>
+            <ul class="footer-links">
+                <li><a href="#">Statut</a></li>
+                <li><a href="#">Sprawozdania</a></li>
+                <li><a href="#">Polityka prywatności</a></li>
+            </ul>
+        </div>
+    </footer>
+
+</body>
+</html>

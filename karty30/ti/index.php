@@ -164,7 +164,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="licencje_admin.php"><i class="bi bi-key me-2"></i>Licencje</a></li>
       <li><a class="dropdown-item" href="vlab_admin.php"><i class="bi bi-hdd-stack me-2"></i>VLab</a></li>
       <li><hr class="dropdown-divider"></li>
+      <li><h6 class="dropdown-header">Organizacja</h6></li>
+      <li><a class="dropdown-item" href="holidays.php"><i class="bi bi-calendar-x me-2"></i>Kalendarz pracy — dni wolne</a></li>
       <li><a class="dropdown-item" href="notices.php"><i class="bi bi-megaphone me-2"></i>Komunikaty placówki</a></li>
+      <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="komunikacja.php"><i class="bi bi-send me-2"></i>Wysyłka e-mail/SMS</a></li>
       <li><a class="dropdown-item" href="kursant/accounts.php"><i class="bi bi-people me-2"></i>Konta kursantów</a></li>
       <li><a class="dropdown-item" href="unenroll_admin.php"><i class="bi bi-box-arrow-left me-2"></i>Wnioski wypisania

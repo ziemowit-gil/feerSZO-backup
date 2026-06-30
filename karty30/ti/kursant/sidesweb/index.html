@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fundacja FEER – Portal NGO</title>
+    <!-- Google Fonts: Roboto (Regular, Medium, Bold) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Free 6.4.0 CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1E6DFF;
+            --primary-dark: #0A53D6;
+            --primary-light: #F0F6FF;
+            --text-dark: #0F172A;
+            --text-light: #64748B;
+            --bg-muted: #F8FAFC;
+            --bg-white: #FFFFFF;
+            --border-light: #E2E8F0;
+            --radius-sm: 8px;
+            --radius-lg: 20px; /* Nieco mocniejsze zaokrąglenia dla nowoczesnego looku */
+            --max-width: 1140px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Roboto', system-ui, -apple-system, sans-serif;
+            color: var(--text-dark);
+            background-color: var(--bg-white);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- PODRASOWANY FLOATING HEADER --- */
+        header {
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(241, 245, 249, 0.6);
+            box-shadow: 0 4px 30px rgba(15, 23, 42, 0.01);
+        }
+        .header-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 1.5rem;
+        }
+        
+        .logo-area {
+            text-decoration: none;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .logo-area span {
+            color: var(--primary);
+        }
+        
+        .nav-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+        }
+
+        /* Zaawansowane animacje linków menu */
+        .main-nav {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+            align-items: center;
+        }
+        .nav-item {
+            position: relative;
+        }
+        .nav-link {
+            color: var(--text-dark);
+            text-decoration: none;
+            font-weight: 700; /* Roboto Bold */
+            font-size: 0.95rem;
+            padding: 0.5rem 0;
+            position: relative;
+            transition: var(--transition);
+        }
+        /* Nowoczesny podkreślnik rozwijany od środka */
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background-color: var(--primary);
+            transition: var(--transition);
+            transform: translateX(-50%);
+        }
+        .nav-link:hover {
+            color: var(--primary);
+        }
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* Pigułkowy przycisk z mikro-cieniem */
+        .btn-header-donate {
+            background-color: var(--text-dark);
+            color: #FFFFFF;
+            text-decoration: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+        }
+        .btn-header-donate:hover {
+            background-color: var(--primary);
+            box-shadow: 0 6px 20px rgba(30, 109, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* --- HERO BANNER --- */
+        .hero-section {
+            padding: 7rem 1.5rem 5rem 1.5rem;
+            background: radial-gradient(100% 100% at 50% 0%, rgba(30, 109, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
+        }
+        .hero-container {
+            max-width: 850px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .hero-badge {
+            background-color: var(--primary-light);
+            color: var(--primary);
+            padding: 0.4rem 1rem;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .hero-container h1 {
+            font-size: 3.4rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+            letter-spacing: -1.5px;
+        }
+        .hero-container p {
+            font-size: 1.25rem;
+            color: var(--text-light);
+            max-width: 650px;
+            margin: 0 auto;
+            font-weight: 400;
+        }
+
+        /* --- STYLE SEKCJI --- */
+        .site-section {
+            padding: 5rem 1.5rem;
+        }
+        .section-title-block {
+            max-width: var(--max-width);
+            margin: 0 auto 3rem auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .section-title-block h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 0.4rem;
+        }
+        .section-title-block p {
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+        .section-action-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: var(--transition);
+        }
+        .section-action-link:hover {
+            gap: 0.75rem;
+        }
+
+        /* --- SEKCJA AKTUALNOŚCI (ELEGANCJA I DYNAMIKA) --- */
+        .news-grid {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2.5rem;
+        }
+        .news-card {
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+        }
+        .news-image-wrapper {
+            width: 100%;
+            height: 220px;
+            background-color: var(--bg-muted);
+            border-radius: var(--radius-lg);
+            margin-bottom: 1.25rem;
+            overflow: hidden;
+            position: relative;
+        }
+        .news-image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: var(--transition);
+        }
+        .news-tag {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background-color: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(8px);
+            color: #FFFFFF;
+            padding: 0.3rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: var(--radius-sm);
+            text-transform: uppercase;
+        }
+        .news-card:hover img {
+            transform: scale(1.04);
+        }
+        .news-card-date {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+        }
+        .news-card h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1.35;
+            margin-bottom: 0.5rem;
+            transition: var(--transition);
+        }
+        .news-card:hover h3 {
+            color: var(--primary);
+        }
+        .news-card p {
+            color: var(--text-light);
+            font-size: 0.95rem;
+        }
+
+        /* --- SEKCJA KAFELKÓW (ZMODERNIZOWANY BENTO GRID Z GŁĘBIĄ) --- */
+        .quick-links-grid {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+        }
+        .quick-tile {
+            background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+            border: 1px solid rgba(226, 232, 240, 0.5);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2rem;
+            text-decoration: none;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 240px;
+            transition: var(--transition);
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.01);
+        }
+        .quick-tile:hover {
+            background: #FFFFFF;
+            border-color: rgba(30, 109, 255, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 32px rgba(30, 109, 255, 0.06);
+        }
+        .tile-icon {
+            font-size: 1.6rem;
+            color: var(--primary);
+            background-color: #FFFFFF;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.02);
+            transition: var(--transition);
+        }
+        .quick-tile:hover .tile-icon {
+            background-color: var(--primary);
+            color: #FFFFFF;
+        }
+        .quick-tile h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 0.3rem;
+        }
+        .quick-tile p {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
+        /* --- PREMIUM CALL TO ACTION --- */
+        .simple-cta {
+            max-width: var(--max-width);
+            margin: 4rem auto;
+            background: radial-gradient(circle at top right, #2575FC, var(--primary));
+            color: #FFFFFF;
+            border-radius: var(--radius-lg);
+            padding: 4rem 3rem;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(30, 109, 255, 0.15);
+        }
+        .simple-cta h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+            letter-spacing: -0.5px;
+        }
+        .simple-cta p {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 1.05rem;
+            margin-bottom: 2rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .btn-cta {
+            background-color: #FFFFFF;
+            color: var(--primary);
+            text-decoration: none;
+            padding: 0.85rem 2.5rem;
+            border-radius: 50px;
+            font-weight: 700;
+            display: inline-block;
+            transition: var(--transition);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+        }
+        .btn-cta:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.15);
+        }
+
+        /* --- STOPKA --- */
+        footer {
+            border-top: 1px solid var(--border-light);
+            padding: 4rem 1.5rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+            background-color: var(--bg-muted);
+        }
+        .footer-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        .footer-links a {
+            color: var(--text-light);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        @media (max-width: 950px) {
+            .news-grid { grid-template-columns: 1fr; gap: 2rem; }
+            .quick-links-grid { grid-template-columns: repeat(2, 1fr); }
+            .main-nav { display: none; }
+            .section-title-block { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            .footer-container { flex-direction: column; gap: 1.5rem; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- STYLISH BLURRED HEADER -->
+    <header>
+        <div class="header-container">
+            <a href="#" class="logo-area">Fundacja <span>FEER</span></a>
+            
+            <div class="nav-wrapper">
+                <nav>
+                    <ul class="main-nav">
+                        <li class="nav-item"><a href="#" class="nav-link">O nas</a></li>
+                        <li class="nav-item"><a href="#aktualnosci" class="nav-link">Aktualności</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link">Zasoby</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link">Kontakt</a></li>
+                    </ul>
+                </nav>
+                <a href="#wspieraj" class="btn-header-donate">Wspieraj</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section class="hero-section">
+        <div class="hero-container">
+            <div class="hero-badge">Portal NGO</div>
+            <h1>Wspieramy edukację cyfrową i rozwój kompetencji</h1>
+            <p>Tworzymy otwarte zasoby wiedzy, prowadzimy zaawansowane warsztaty technologiczne oraz wspieramy organizacje w dostosowywaniu systemów do standardów dostępności cyfrowej [cite: Explicit self-identification and usage of the title in professional correspondence and system setup. Conversation Date: 2025-09 to 2026-06., Sustained engagement in providing expert advice, auditing websites for WCAG compliance, and organizing industry events on the topic. Conversation Date: 2025-09 to 2026-06.].</p>
+        </div>
+    </section>
+
+    <!-- SEKCJA AKTUALNOŚCI -->
+    <section class="site-section" id="aktualnosci">
+        <div class="section-title-block">
+            <div>
+                <h2>Aktualności i publikacje</h2>
+                <p>Bądź na bieżąco z najnowszymi informacjami oraz wdrożeniami.</p>
+            </div>
+            <a href="#" class="section-action-link">Wszystkie wpisy <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+
+        <div class="news-grid">
+            <!-- Karta 1 -->
+            <a href="#" class="news-card">
+                <div class="news-image-wrapper">
+                    <span class="news-tag">Edukacja</span>
+                    <img src="https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?auto=format&fit=cover&w=500&q=80" alt="Warsztaty">
+                </div>
+                <div class="news-card-date">24 czerwca 2026</div>
+                <h3>Nowe zestawy narzędziowe w programach vLAB</h3>
+                <p>Wprowadziliśmy kolejne gotowe pakiety wirtualnych środowisk laboratoryjnych dla szkoleniowców.</p>
+            </a>
+
+            <!-- Karta 2 -->
+            <a href="#" class="news-card">
+                <div class="news-image-wrapper">
+                    <span class="news-tag">Dostępność</span>
+                    <img src="https://images.unsplash.com/photo-1508921912186-1d1a45ebb3c1?auto=format&fit=cover&w=500&q=80" alt="Audyt">
+                </div>
+                <div class="news-card-date">12 maja 2026</div>
+                <h3>Jak weryfikować serwisy zgodnie z WCAG?</h3>
+                <p>Krótki, praktyczny przewodnik po szybkiej ocenie czytelności i dostępności stron www.</p>
+            </a>
+
+            <!-- Karta 3 -->
+            <a href="#" class="news-card">
+                <div class="news-image-wrapper">
+                    <span class="news-tag">Statutowe</span>
+                    <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=cover&w=500&q=80" alt="Raport">
+                </div>
+                <div class="news-card-date">10 kwietnia 2026</div>
+                <h3>Podsumowanie kwartalne działań fundacji</h3>
+                <p>Transparentne zestawienie zrealizowanych celów technicznych i merytorycznych.</p>
+            </a>
+        </div>
+    </section>
+
+    <!-- SEKCJA KAFELKÓW (BENTO GRID PREMIUM) -->
+    <section class="site-section">
+        <div class="section-title-block">
+            <div>
+                <h2>Kluczowe obszary zasobów</h2>
+                <p>Dedykowane narzędzia i repozytoria wiedzy rozwijane przez nasz zespół.</p>
+            </div>
+        </div>
+
+        <div class="quick-links-grid">
+            <!-- Box 1 -->
+            <a href="#" class="quick-tile">
+                <div class="tile-icon"><i class="fa-solid fa-flask"></i></div>
+                <div>
+                    <h3>Platforma vLAB</h3>
+                    <p>Zaawansowane środowiska szkoleniowe uruchamiane w chmurze.</p>
+                </div>
+            </a>
+
+            <!-- Box 2 -->
+            <a href="#" class="quick-tile">
+                <div class="tile-icon"><i class="fa-solid fa-universal-access"></i></div>
+                <div>
+                    <h3>Audyty i WCAG</h3>
+                    <p>Wsparcie techniczne w optymalizacji i walidacji kodu.</p>
+                </div>
+            </a>
+
+            <!-- Box 3 -->
+            <a href="#" class="quick-tile">
+                <div class="tile-icon"><i class="fa-solid fa-book-open"></i></div>
+                <div>
+                    <h3>Baza Wiedzy</h3>
+                    <p>Otwarte podręczniki, dokumentacja i skrypty open-source.</p>
+                </div>
+            </a>
+
+            <!-- Box 4 -->
+            <a href="#" class="quick-tile">
+                <div class="tile-icon"><i class="fa-solid fa-layer-group"></i></div>
+                <div>
+                    <h3>Struktura SZO</h3>
+                    <p>System Obsługi Organizacji i mechanizmy automatyzacji.</p>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- CTA BANNER -->
+    <section class="site-section" id="wspieraj">
+        <div class="simple-cta">
+            <h2>Wspieraj rozwój otwartej technologii</h2>
+            <p>Każda darowizna pozwala nam utrzymać infrastrukturę open-source i tworzyć darmowe materiały edukacyjne pozbawione barier.</p>
+            <a href="#" class="btn-cta" onclick="alert('Przekierowanie do bramki płatności...'); return false;">Przekaż wsparcie</a>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="footer-container">
+            <p>&copy; 2026 Fundacja FEER. Architektura Open Source.</p>
+            <ul class="footer-links">
+                <li><a href="#">Statut</a></li>
+                <li><a href="#">Sprawozdania</a></li>
+                <li><a href="#">Polityka prywatności</a></li>
+            </ul>
+        </div>
+    </footer>
+
+</body>
+</html>

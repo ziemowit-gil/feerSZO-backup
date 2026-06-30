@@ -1024,21 +1024,6 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <!-- ════════════════════════════════════════
        6. ORGANIZACJA
   ════════════════════════════════════════ -->
-  <div class="sb-label">Organizacja</div>
-  <a class="sb-link<?= _nav_active('/org/holidays') ?>" href="<?= APP_URL ?>/org/holidays.php">
-    <i class="bi bi-calendar-x"></i> Kalendarz pracy
-  </a>
-  <?php if (panel_visible('komunikaty') && is_admin()): ?>
-  <a class="sb-link<?= _nav_active('/komunikaty/admin') ?>" href="<?= APP_URL ?>/komunikaty/admin.php">
-    <i class="bi bi-bell"></i> Ogłoszenia SZO
-  </a>
-  <?php endif; ?>
-  <?php if (can_read('karty30')): ?>
-  <a class="sb-link<?= _nav_active('/karty30/ti/notices') ?>" href="<?= APP_URL ?>/karty30/ti/notices.php">
-    <i class="bi bi-megaphone"></i> Komunikaty TI
-  </a>
-  <?php endif; ?>
-
   <div class="sb-sep"></div>
 
   <div class="sb-label">Pozostałe</div>

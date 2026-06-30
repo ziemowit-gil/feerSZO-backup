@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KraFOS – Krakowskie Forum Organizacji Społecznych</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        /* Reset i typografia */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background-color: #f4f6f8;
+        }
+
+        /* Górny pasek nawigacji */
+        header {
+            background-color: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 2rem;
+        }
+        .logo {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #1a5276;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            letter-spacing: 0.5px;
+        }
+        .logo span {
+            color: #2980b9;
+        }
+        .nav-links {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: #566573;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover {
+            color: #2980b9;
+        }
+
+        /* Sekcja Hero */
+        .hero {
+            background: linear-gradient(135deg, #1f618d 0%, #114b72 100%);
+            color: #fff;
+            padding: 6rem 2rem;
+            text-align: center;
+        }
+        .hero-content {
+            max-width: 850px;
+            margin: 0 auto;
+        }
+        .hero h1 {
+            font-size: 2.6rem;
+            margin-bottom: 1.2rem;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2.5rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #e67e22;
+            color: #fff;
+            padding: 0.8rem 2rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn:hover {
+            background-color: #d35400;
+            transform: translateY(-1px);
+        }
+
+        /* Sekcja Filarów / Misji (Użycie ikon z Twojego CSS) */
+        .features {
+            max-width: 1200px;
+            margin: -3rem auto 4rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+        .feature-card {
+            background: #fff;
+            padding: 3rem 2rem;
+            border-radius: 6px;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.02);
+            transition: transform 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .feature-card i {
+            color: #2980b9;
+            margin-bottom: 1.5rem;
+        }
+        .feature-card h3 {
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+            color: #1f618d;
+        }
+        .feature-card p {
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        /* Sekcja O nas / Federacji */
+        .about {
+            background-color: #fff;
+            padding: 5rem 2rem;
+            border-top: 1px solid #e5e8e8;
+            border-bottom: 1px solid #e5e8e8;
+        }
+        .about-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .section-title {
+            text-align: center;
+            font-size: 2rem;
+            color: #1f618d;
+            margin-bottom: 2rem;
+        }
+        .about p {
+            color: #566573;
+            margin-bottom: 1.5rem;
+            font-size: 1.05rem;
+            text-align: justify;
+        }
+
+        /* Stopka i kontakt */
+        footer {
+            background-color: #1c2833;
+            color: #fff;
+            padding: 4rem 2rem 2rem 2rem;
+        }
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 3rem;
+            border-bottom: 1px solid #34495e;
+            padding-bottom: 3rem;
+        }
+        .footer-col h4 {
+            color: #e67e22;
+            margin-bottom: 1.2rem;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .footer-col p, .footer-col ul {
+            color: #b2babb;
+            font-size: 0.95rem;
+            list-style: none;
+        }
+        .footer-col ul li {
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .footer-col ul li i {
+            color: #2980b9;
+        }
+        .footer-bottom {
+            max-width: 1200px;
+            margin: 2rem auto 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            color: #7f8c8d;
+            font-size: 0.85rem;
+        }
+        .footer-socials {
+            display: flex;
+            gap: 1.2rem;
+        }
+        .footer-socials a {
+            color: #b2babb;
+            font-size: 1.3rem;
+            transition: color 0.2s;
+        }
+        .footer-socials a:hover {
+            color: #e67e22;
+        }
+
+        /* Responsywność */
+        @media (max-width: 768px) {
+            .nav-container {
+                flex-direction: column;
+                gap: 1.2rem;
+            }
+            .hero h1 {
+                font-size: 2rem;
+            }
+            .features {
+                margin-top: 2rem;
+            }
+            .footer-bottom {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <nav class="nav-container">
+            <a href="#" class="logo">
+                <i class="fas fa-building"></i> Kra<span>FOS</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#misja">Misja i Sieć</a></li>
+                <li><a href="#o-nas">O Federacji</a></li>
+                <li><a href="#centra">Centrum Obywatelskie</a></li>
+                <li><a href="#kontakt">Kontakt</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Krakowskie Forum Organizacji Społecznych</h1>
+            <p>Działamy nieprzerwanie od 1998 roku jako organizacja parasolowa, budując silne społeczeństwo obywatelskie i wspierając małopolskie organizacje pozarządowe.</p>
+            <a href="#o-nas" class="btn">Poznaj nasze programy</a>
+        </div>
+    </section>
+
+    <section class="features" id="misja">
+        <div class="feature-card">
+            <i class="fas fa-building fa-3x"></i>
+            <h3>Związek Organizacji</h3>
+            <p>Zgrupujemy dziesiątki małopolskich NGO. Jako organizacja parasolowa tworzymy stabilne warunki rozwoju dla stowarzyszeń i fundacji o profilu socjalnym.</p>
+        </div>
+
+        <div class="feature-card">
+            <i class="fas fa-hands-helping fa-3x"></i>
+            <h3>Ośrodek Pomocy</h3>
+            <p>Prowadzimy Okręgowy Ośrodek Pomocy Pokrzywdzonym Przestępstwem. Świadczymy bezpłatne, interdyscyplinarne i profesjonalne wsparcie.</p>
+        </div>
+
+        <div class="feature-card">
+            <i class="fas fa-graduation-cap fa-3x"></i>
+            <h3>Centrum Obywatelskie</h3>
+            <p>Jako oficjalny operator przestrzeni przy ul. Reymonta 20 wspieramy grupy nieformalne, liderów lokalnych oraz krakowski trzeci sektor.</p>
+        </div>
+    </section>
+
+    <section class="about" id="o-nas">
+        <div class="about-container">
+            <h2 class="section-title">O nas – Razem dla lepszego jutra</h2>
+            <p>KraFOS to jedna z pierwszych w Małopolsce federacji zrzeszających organizacje pozarządowe. Od lat wspieramy trzeci sektor poprzez działalność doradczą, szkoleniową i informacyjną. Ściśle współpracujemy ze strukturami samorządowymi oraz rządowymi, opiniując projekty i reprezentując głos organizacji socjalnych pracujących z osobami z niepełnosprawnościami, seniorami czy dziećmi.</p>
+            <p>Naszą nadrzędną wartością jest człowiek. Łączymy ekspercką wiedzę z zakresu zarządzania organizacjami pozarządowymi z bezpośrednim, dyskretnym i bezpłatnym niesieniem pomocy tam, gdzie system wymaga uszczelnienia.</p>
+        </div>
+    </section>
+
+    <footer id="kontakt">
+        <div class="footer-container">
+            <div class="footer-col">
+                <h4>O Federacji</h4>
+                <p>KraFOS reprezentuje interesy organizacji społecznych w Małopolsce, budując mosty pomiędzy sektorem obywatelskim a samorządem.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Programy i Punkty</h4>
+                <ul>
+                    <li><i class="fas fa-angle-right"></i> Centrum Obywatelskie (Reymonta 20)</li>
+                    <li><i class="fas fa-angle-right"></i> Okręgowy Ośrodek Pomocy</li>
+                    <li><i class="fas fa-angle-right"></i> Konsultacje i Poradnictwo NGO</li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Kontakt biuro</h4>
+                <ul>
+                    <li><i class="fas fa-envelope"></i> pokrzywdzeni@krafos.pl</li>
+                    <li><i class="fas fa-phone"></i> +48 12 421 22 88</li>
+                    <li><i class="fas fa-university"></i> Kraków, Małopolska</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 KraFOS. Wszystkie prawa zastrzeżone. Projekt zintegrowany z otwartymi standardami Web.</p>
+            <div class="footer-socials">
+                <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" aria-label="Linkedin"><i class="fab fa-linkedin-in"></i></a>
+                <a href="#" aria-label="GitHub"><i class="fab fa-github"></i></a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
