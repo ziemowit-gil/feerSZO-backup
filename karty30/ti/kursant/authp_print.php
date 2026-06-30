@@ -23,7 +23,7 @@ $ap  = $id ? db_one(
 if (!$ap) { http_response_code(404); die('Nie znaleziono.'); }
 
 $org      = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-$portal_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/authorized_person.php';
+$portal_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?role=up';
 $today    = date('d.m.Y');
 ?><!DOCTYPE html>
 <html lang="pl">

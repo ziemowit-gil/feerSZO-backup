@@ -16,6 +16,7 @@ k30_ti_reschedule_migrate();
 
 $err = ''; $info = ''; $stage = 'phone'; // phone | code | choose | pwd
 if (($_GET['m'] ?? '') === 'pwd') $stage = 'pwd';
+$role = in_array($_GET['role'] ?? '', ['up'], true) ? 'up' : 'rodzic'; // up = osoba upoważniona
 
 /** Proste hasło dla dziecka: słowo + 2 cyfry. */
 function _parent_gen_child_pass(): string {
@@ -130,6 +131,15 @@ if (isset($_GET['t'])) {
     $err = 'Link wygasł lub jest nieprawidłowy. Zaloguj się kodem SMS.';
 }
 
+// ── Logowanie osoby upoważnionej (role=up) ───────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'up_login' && !authp_current()) {
+    if (authp_login((string)($_POST['login'] ?? ''), (string)($_POST['password'] ?? ''))) {
+        header('Location: authorized_person.php'); exit;
+    }
+    $err  = 'Nieprawidłowy login lub hasło.';
+    $role = 'up';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op = $_POST['_op'] ?? '';
     if ($op === 'otp_request') {
@@ -219,27 +229,68 @@ include __DIR__ . '/_layout_head.php';
       <div class="col-md-7">
         <div class="card-body p-4 p-lg-5">
           <h1 class="h4 fw-bold d-flex align-items-center gap-2 mb-1">
-            <i class="bi bi-shield-lock text-primary d-md-none" aria-hidden="true"></i>Dostęp dla opiekuna
+            <i class="bi bi-shield-lock text-primary d-md-none" aria-hidden="true"></i>Dostęp zewnętrzny
           </h1>
-          <p class="text-body-secondary mb-4">
-            <?php if ($stage === 'pwd'): ?>
-              Zaloguj się loginem i hasłem konta opiekuna nadanym w placówce.
-            <?php else: ?>
-              Zaloguj się kodem SMS wysłanym na numer opiekuna podany w placówce, lub skorzystaj z linku z e-maila.
-            <?php endif; ?>
-          </p>
+
+          <!-- Wybór roli -->
+          <?php if (in_array($stage, ['phone', 'pwd'], true) || $role === 'up'): ?>
+          <div class="btn-group w-100 mb-4" role="group" aria-label="Wybierz rolę">
+            <a href="parent.php" class="btn btn-lg <?= $role==='rodzic'?'btn-primary':'btn-outline-primary' ?>"
+               <?= $role==='rodzic'?'aria-current="true"':'' ?>>
+              <i class="bi bi-people me-1" aria-hidden="true"></i>Rodzic / opiekun
+            </a>
+            <a href="parent.php?role=up" class="btn btn-lg <?= $role==='up'?'btn-primary':'btn-outline-primary' ?>"
+               <?= $role==='up'?'aria-current="true"':'' ?>>
+              <i class="bi bi-person-check me-1" aria-hidden="true"></i>Osoba upoważniona
+            </a>
+          </div>
+          <?php endif; ?>
 
           <?php if ($err): ?><div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert"><i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($err) ?></span></div><?php endif; ?>
           <?php if ($info): ?><div class="alert alert-success d-flex align-items-center gap-2 py-2" role="status"><i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($info) ?></span></div><?php endif; ?>
 
-          <?php // Przełącznik dwóch form logowania opiekuna: numer telefonu (SMS) albo konto (login+hasło)
+          <?php if ($role === 'up'): ?>
+          <!-- ── Logowanie osoby upoważnionej ──────────────────────────────── -->
+          <p class="text-body-secondary mb-3 small">
+            Zaloguj się loginem i hasłem z kartki upoważnienia nadanej przez administratora.
+          </p>
+          <form method="post" autocomplete="on">
+            <input type="hidden" name="_op" value="up_login">
+            <label class="form-label fw-semibold" for="up-login">Login</label>
+            <div class="input-group input-group-lg mb-3">
+              <span class="input-group-text" aria-hidden="true"><i class="bi bi-person"></i></span>
+              <input class="form-control form-control-lg" id="up-login" name="login"
+                     autocomplete="username" value="<?= h($_POST['login'] ?? '') ?>" required autofocus>
+            </div>
+            <label class="form-label fw-semibold" for="up-pass">Hasło</label>
+            <div class="input-group input-group-lg mb-4">
+              <span class="input-group-text" aria-hidden="true"><i class="bi bi-lock"></i></span>
+              <input class="form-control form-control-lg" id="up-pass" name="password"
+                     type="password" autocomplete="current-password" placeholder="••••••••" required>
+            </div>
+            <button class="btn btn-primary btn-lg w-100">
+              <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj się
+            </button>
+          </form>
+
+          <?php else: ?>
+          <!-- ── Logowanie rodzica / opiekuna ─────────────────────────────── -->
+          <p class="text-body-secondary mb-4 small">
+            <?= $stage === 'pwd'
+              ? 'Zaloguj się loginem i hasłem konta opiekuna nadanym w placówce.'
+              : 'Zaloguj się kodem SMS wysłanym na numer opiekuna podany w placówce, lub skorzystaj z linku z e-maila.' ?>
+          </p>
+
+          <?php // Przełącznik sposobu logowania opiekuna: SMS albo login+hasło
           if (in_array($stage, ['phone', 'pwd'], true)): ?>
-          <div class="btn-group w-100 mb-4" role="group" aria-label="Wybierz sposób logowania opiekuna">
-            <a href="parent.php" class="btn btn-lg <?= $stage==='phone'?'btn-primary':'btn-outline-primary' ?>" <?= $stage==='phone'?'aria-current="true"':'' ?>>
-              <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Numer telefonu
+          <div class="btn-group w-100 mb-4" role="group" aria-label="Sposób logowania opiekuna">
+            <a href="parent.php" class="btn <?= $stage==='phone'?'btn-secondary':'btn-outline-secondary' ?>"
+               <?= $stage==='phone'?'aria-current="true"':'' ?>>
+              <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Kod SMS
             </a>
-            <a href="parent.php?m=pwd" class="btn btn-lg <?= $stage==='pwd'?'btn-primary':'btn-outline-primary' ?>" <?= $stage==='pwd'?'aria-current="true"':'' ?>>
-              <i class="bi bi-person-lock me-1" aria-hidden="true"></i>Konto rodzica
+            <a href="parent.php?m=pwd" class="btn <?= $stage==='pwd'?'btn-secondary':'btn-outline-secondary' ?>"
+               <?= $stage==='pwd'?'aria-current="true"':'' ?>>
+              <i class="bi bi-person-lock me-1" aria-hidden="true"></i>Login i hasło
             </a>
           </div>
           <?php endif; ?>
