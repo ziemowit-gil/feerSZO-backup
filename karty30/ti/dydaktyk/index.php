@@ -13,15 +13,18 @@ require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 
 karty30_migrate();
 k30_ti_reschedule_migrate();
+ti_notices_migrate();
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
 
 $courses   = dyd_courses($uid);
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
 $my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
+$dyd_notices = ti_notices_list_active_for_instructor(); // komunikaty placówki (read-only)
 
 // ── Pobieranie załączników (zadania / materiały) — tylko z własnych kursów ────
 if (isset($_GET['dl'])) {
@@ -51,7 +54,7 @@ $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
 $cur_course = (int)($_GET['course'] ?? 0);
 if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
 $tab = $_GET['tab'] ?? 'lekcje';
-if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci'], true)) $tab = 'lekcje';
+if (!in_array($tab, ['lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'wiadomosci', 'formalnosci', 'komunikaty'], true)) $tab = 'lekcje';
 
 // ── Umowy powiązane z kontem dydaktyka ───────────────────────────────────────
 $dyd_contracts = [];
@@ -1139,6 +1142,13 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <i class="bi bi-envelope" aria-hidden="true"></i>Wiadomości
     <?php if (!empty($dyd_msg_unread_total)): ?>
     <span class="badge bg-danger" style="font-size:.65rem"><?= (int)$dyd_msg_unread_total ?></span>
+    <?php endif; ?>
+  </a>
+  <a class="dyd-gb-link <?= $tab==='komunikaty'?'active':'' ?>" href="index.php?tab=komunikaty"
+     <?= $tab==='komunikaty'?'aria-current="page"':'' ?>>
+    <i class="bi bi-megaphone" aria-hidden="true"></i>Komunikaty
+    <?php if (!empty($dyd_notices)): ?>
+    <span class="badge bg-warning text-dark" style="font-size:.65rem"><?= count($dyd_notices) ?></span>
     <?php endif; ?>
   </a>
 </nav>
@@ -2775,6 +2785,44 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </div>
     </div>
     <?php endif; /* wiadomosci */ ?>
+
+  <?php /* ═══════════════════ KOMUNIKATY ═══════════════════ */ ?>
+  <?php if ($tab === 'komunikaty'): ?>
+  <div class="mt-3">
+    <h2 class="h5 fw-bold mb-3"><i class="bi bi-megaphone text-warning me-2" aria-hidden="true"></i>Komunikaty placówki</h2>
+    <?php if (!$dyd_notices): ?>
+    <div class="card border-0 shadow-sm"><div class="card-body text-body-secondary py-4 text-center">
+      <i class="bi bi-megaphone fs-2 d-block mb-2" aria-hidden="true"></i>
+      Brak aktywnych komunikatów.
+    </div></div>
+    <?php else: ?>
+    <div class="d-flex flex-column gap-2">
+    <?php foreach ($dyd_notices as $dn):
+      $is_pinned = (int)$dn['is_pinned'];
+    ?>
+    <div class="card border-0 shadow-sm" style="border-left:4px solid <?= $is_pinned ? '#f59e0b' : '#c2410c80' ?>!important">
+      <div class="card-body py-2 px-3">
+        <div class="d-flex align-items-start gap-2 flex-wrap">
+          <?php if ($is_pinned): ?><i class="bi bi-pin-angle-fill text-warning mt-1" title="Przypięty" aria-hidden="true"></i><?php endif; ?>
+          <div class="flex-grow-1">
+            <div class="fw-semibold"><?= h($dn['title']) ?></div>
+            <?php if ($dn['body']): ?>
+            <div class="text-body-secondary mt-1" style="white-space:pre-wrap;font-size:.9rem"><?= h($dn['body']) ?></div>
+            <?php endif; ?>
+            <div class="mt-1 text-body-secondary" style="font-size:.78rem">
+              <i class="bi bi-person me-1" aria-hidden="true"></i><?= h($dn['author_name'] ?? '—') ?>
+              <span class="ms-2"><i class="bi bi-clock me-1" aria-hidden="true"></i><?= substr($dn['created_at'],0,16) ?></span>
+              <?php if ($dn['expires_at']): ?><span class="ms-2"><i class="bi bi-calendar-x me-1" aria-hidden="true"></i>do <?= h($dn['expires_at']) ?></span><?php endif; ?>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+  <?php endif; /* komunikaty */ ?>
 
   <?php /* ═══════════════════ FORMALNOŚCI ═══════════════════ */ ?>
   <?php if ($tab === 'formalnosci'): ?>

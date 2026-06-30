@@ -53,8 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 
         if (!$errors) {
             if ($id) {
-                db_query("UPDATE k30_ti_holidays SET date_from=?, date_to=?, name=?, type=?, note=?, updated_at=datetime('now') WHERE id=?",
-                    [$df, $dt, $name, $type, $note, $id]);
+                db()->prepare("UPDATE k30_ti_holidays SET date_from=?, date_to=?, name=?, type=?, note=?, updated_at=datetime('now') WHERE id=?")
+                    ->execute([$df, $dt, $name, $type, $note, $id]);
                 flash_set('success', 'Zaktualizowano wpis.');
             } else {
                 db_insert('k30_ti_holidays', ['date_from'=>$df,'date_to'=>$dt,'name'=>$name,'type'=>$type,'note'=>$note,'created_by'=>$uid]);
@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $form_err = compact('id','df','dt','name','type','note','errors');
     } elseif ($op === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
-        if ($id) db_query("DELETE FROM k30_ti_holidays WHERE id=?", [$id]);
+        if ($id) db()->prepare("DELETE FROM k30_ti_holidays WHERE id=?")->execute([$id]);
         flash_set('success', 'Usunięto wpis.');
         header('Location: holidays.php'); exit;
     }

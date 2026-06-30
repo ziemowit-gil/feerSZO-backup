@@ -58,8 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id) {
-            db_query("DELETE FROM k30_ti_notice_reads WHERE notice_id=?", [$id]);
-            db_query("DELETE FROM k30_ti_notices WHERE id=?", [$id]);
+            db()->prepare("DELETE FROM k30_ti_notice_reads WHERE notice_id=?")->execute([$id]);
+            db()->prepare("DELETE FROM k30_ti_notices WHERE id=?")->execute([$id]);
             flash_set('success', 'Komunikat usunięty.');
         }
         header('Location: notices.php'); exit;
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'toggle_active') {
         $id  = (int)($_POST['id'] ?? 0);
         $val = (int)($_POST['val'] ?? 0);
-        if ($id) db_query("UPDATE k30_ti_notices SET is_active=?, updated_at=datetime('now') WHERE id=?", [$val, $id]);
+        if ($id) db()->prepare("UPDATE k30_ti_notices SET is_active=?, updated_at=datetime('now') WHERE id=?")->execute([$val, $id]);
         flash_set('success', $val ? 'Komunikat aktywowany.' : 'Komunikat dezaktywowany.');
         header('Location: notices.php'); exit;
     }
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'toggle_pin') {
         $id  = (int)($_POST['id'] ?? 0);
         $val = (int)($_POST['val'] ?? 0);
-        if ($id) db_query("UPDATE k30_ti_notices SET is_pinned=?, updated_at=datetime('now') WHERE id=?", [$val, $id]);
+        if ($id) db()->prepare("UPDATE k30_ti_notices SET is_pinned=?, updated_at=datetime('now') WHERE id=?")->execute([$val, $id]);
         flash_set('success', $val ? 'Komunikat przypięty.' : 'Odepnięto komunikat.');
         header('Location: notices.php'); exit;
     }

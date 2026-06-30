@@ -29,6 +29,17 @@ function ti_notices_migrate(): void {
     } catch (\Throwable $e) {}
 }
 
+function ti_notices_list_active_for_instructor(): array {
+    try {
+        return db_all(
+            "SELECT * FROM k30_ti_notices
+             WHERE is_active=1 AND (expires_at IS NULL OR expires_at >= date('now'))
+             ORDER BY is_pinned DESC, created_at DESC",
+            []
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
 function ti_notices_list_admin(): array {
     try {
         return db_all(
@@ -169,16 +180,15 @@ function _ti_notice_email_html(string $recipient_name, string $title, string $bo
 }
 
 function ti_notices_update(int $id, array $data): void {
-    db_query(
-        "UPDATE k30_ti_notices SET title=?, body=?, audience=?, is_pinned=?, is_active=?, expires_at=?, updated_at=datetime('now') WHERE id=?",
-        [
-            $data['title'],
-            $data['body'] ?? '',
-            $data['audience'] ?? 'all',
-            (int)($data['is_pinned'] ?? 0),
-            (int)($data['is_active'] ?? 1),
-            ($data['expires_at'] ?? '') ?: null,
-            $id,
-        ]
-    );
+    db()->prepare(
+        "UPDATE k30_ti_notices SET title=?, body=?, audience=?, is_pinned=?, is_active=?, expires_at=?, updated_at=datetime('now') WHERE id=?"
+    )->execute([
+        $data['title'],
+        $data['body'] ?? '',
+        $data['audience'] ?? 'all',
+        (int)($data['is_pinned'] ?? 0),
+        (int)($data['is_active'] ?? 1),
+        ($data['expires_at'] ?? '') ?: null,
+        $id,
+    ]);
 }
