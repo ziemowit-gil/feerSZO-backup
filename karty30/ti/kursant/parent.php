@@ -354,6 +354,8 @@ include __DIR__ . '/_layout_head.php';
             </form>
           <?php endif; ?>
 
+          <?php endif; // end role === 'up' / else ?>
+
           <hr class="my-4">
           <a href="login.php" class="btn btn-outline-secondary w-100">
             <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
