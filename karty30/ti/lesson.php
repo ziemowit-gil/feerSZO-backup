@@ -37,6 +37,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'save_lesson') {
         $attended = array_map('intval', (array)($_POST['attended'] ?? []));
 
+        // Kurs jednosobowy + jedyna osoba nieobecna → decyzja o rozliczeniu
+        $solo_action = trim($_POST['_solo_absent_action'] ?? '');
+        if ($solo_action === 'cancel') {
+            // Admin wybrał „nie licz" — anuluj lekcję
+            db()->prepare(
+                "UPDATE k30_ti_sessions SET status='cancelled', cancel_reason='Nieobecność kursanta — lekcja niezaliczona',
+                 updated_at=datetime('now') WHERE id=?"
+            )->execute([$session_id]);
+            flash_set('success', 'Lekcja odwołana — nie jest liczona do rozliczenia.');
+            header('Location: lesson.php?id=' . $session_id); exit;
+        }
+        if (in_array($solo_action, ['no_show_full', 'no_show_1h'], true)) {
+            // Zapisz obecność (nieobecny), metadane i oznacz jako no-show
+            k30_ti_save_attendance($session_id, $attended);
+            $billing = $solo_action === 'no_show_1h' ? '1h' : 'full';
+            $reason  = trim($_POST['solo_absent_reason'] ?? '');
+            // Oznacz każdego nieobecnego jako no-show
+            $att_rows = db_all("SELECT client_id FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$session_id]);
+            foreach ($att_rows as $ar) {
+                if (!in_array((int)$ar['client_id'], $attended)) {
+                    k30_ti_mark_no_show($session_id, (int)$ar['client_id'], $billing, 'admin', 'Administrator', $reason, null);
+                }
+            }
+            $topic            = trim($_POST['topic'] ?? '');
+            $instructor_notes = trim($_POST['instructor_notes'] ?? '');
+            $has_homework     = !empty($_POST['has_homework']) ? 1 : 0;
+            $self_prep_remote = !empty($_POST['self_prep_remote']) ? 1 : 0;
+            $duration_min     = max(1, (int)($_POST['duration_min'] ?? $session['duration_min']));
+            $time_from        = trim($_POST['time_from'] ?? $session['time_from']);
+            $time_to          = trim($_POST['time_to']   ?? $session['time_to']);
+            if ($time_from && $time_to) {
+                $m = (strtotime('1970-01-01 '.$time_to) - strtotime('1970-01-01 '.$time_from)) / 60;
+                if ($m > 0) $duration_min = (int)$m;
+            }
+            db()->prepare(
+                "UPDATE k30_ti_sessions SET status='individual_change', topic=?, instructor_notes=?,
+                 has_homework=?, self_prep_remote=?, duration_min=?, time_from=?, time_to=?,
+                 updated_at=datetime('now') WHERE id=?"
+            )->execute([$topic, $instructor_notes, $has_homework, $self_prep_remote, $duration_min, $time_from, $time_to, $session_id]);
+            flash_set('success', 'Lekcja zapisana jako zajęcia indywidualne — brak kursanta (' . ($billing === '1h' ? '1 godzina' : 'cała lekcja') . ').');
+            header('Location: lesson.php?id=' . $session_id); exit;
+        }
+
         // Zapisz obecność (ogólna)
         k30_ti_save_attendance($session_id, $attended);
 
@@ -208,6 +251,12 @@ try {
     foreach ($rows as $r) $ind_notes_map[(int)$r['client_id']] = $r['ind_notes'];
 } catch (\Throwable $e) {}
 
+// Liczba aktywnych zapisów do kursu (do obsługi kursu jednosobowego)
+$solo_enrolled = (int)(db_one(
+    "SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'",
+    [$session['course_id']]
+)['n'] ?? 0);
+
 // Oceny lekcji od kursantów (1–5)
 $ratings     = k30_ti_session_ratings($session_id);
 $rating_avg  = $ratings ? round(array_sum(array_column($ratings, 'rating')) / count($ratings), 2) : 0;
@@ -342,6 +391,8 @@ if ($_no_students): ?>
 <form method="post" id="lesson_form">
 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 <input type="hidden" name="_op"   value="save_lesson">
+<input type="hidden" name="_solo_absent_action" id="solo_absent_action" value="">
+<input type="hidden" name="solo_absent_reason"  id="solo_absent_reason" value="">
 
 <!-- ══ Podsumowanie (gdy odbyta) — pasek statystyk u góry ══ -->
 <?php if ($is_held && $attendance):
@@ -788,5 +839,91 @@ function updateCount() {
 
 updateCount();
 </script>
+
+<?php if ($can_write && $solo_enrolled === 1 && !$is_held && $session['status'] !== 'cancelled'): ?>
+<!-- Modal: kurs jednosobowy — nieobecność jedynego kursanta -->
+<div class="modal fade" id="soloAbsentModal" tabindex="-1" aria-labelledby="soloAbsentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-warning" style="background:#fffbeb">
+        <h5 class="modal-title" id="soloAbsentModalLabel">
+          <i class="bi bi-question-circle text-warning me-2"></i>Jedyny kursant nieobecny — jak liczyć?
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-body-secondary small mb-3">
+          Kurs jest jednosobowy, a kursant nie był obecny na zajęciach.
+          Wybierz, jak potraktować tę lekcję w rozliczeniu.
+        </p>
+        <div class="d-grid gap-2">
+          <label class="border rounded p-3 d-flex gap-3 align-items-start" style="cursor:pointer">
+            <input type="radio" name="_solo_choice" value="no_show_full" class="form-check-input mt-1 flex-shrink-0" checked>
+            <div>
+              <div class="fw-semibold">Licz — cała lekcja</div>
+              <div class="text-muted small">Prowadzący stawił się, kursant nie — nalicz pełny czas (<?= h(number_format((float)$session['duration_min']/60, 2, ',', '')) ?>&nbsp;h).</div>
+            </div>
+          </label>
+          <label class="border rounded p-3 d-flex gap-3 align-items-start" style="cursor:pointer">
+            <input type="radio" name="_solo_choice" value="no_show_1h" class="form-check-input mt-1 flex-shrink-0">
+            <div>
+              <div class="fw-semibold">Licz — tylko 1 godzina</div>
+              <div class="text-muted small">Nalicz 1 godzinę za stawiennictwo prowadzącego.</div>
+            </div>
+          </label>
+          <label class="border rounded p-3 d-flex gap-3 align-items-start" style="cursor:pointer">
+            <input type="radio" name="_solo_choice" value="cancel" class="form-check-input mt-1 flex-shrink-0">
+            <div>
+              <div class="fw-semibold">Nie licz — odwołaj lekcję</div>
+              <div class="text-muted small">Lekcja nie wejdzie do rozliczenia (status: <em>Odwołana</em>).</div>
+            </div>
+          </label>
+        </div>
+        <div class="mt-3">
+          <label class="form-label fw-semibold small" for="solo_reason_inp">Opis / powód <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+          <input type="text" class="form-control form-control-sm" id="solo_reason_inp"
+                 placeholder="np. hospitalizacja, brak kontaktu…">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-warning" id="soloAbsentConfirm">
+          <i class="bi bi-check-lg me-1"></i>Zapisz z wybraną opcją
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var form     = document.getElementById('lesson_form');
+  var actionIn = document.getElementById('solo_absent_action');
+  var reasonIn = document.getElementById('solo_absent_reason');
+  if (!form || !actionIn) return;
+
+  form.addEventListener('submit', function(e){
+    // Sprawdź czy jedyna osoba jest nieobecna (żaden checkbox nie zaznaczony)
+    var cbs = form.querySelectorAll('.att-cb');
+    if (cbs.length === 0) return; // brak kursantów — normalny submit
+    var anyChecked = Array.from(cbs).some(function(cb){ return cb.checked; });
+    if (!anyChecked && actionIn.value === '') {
+      // Jedyny kursant nieobecny i jeszcze nie wybrano opcji → pokaż modal
+      e.preventDefault();
+      var modal = new bootstrap.Modal(document.getElementById('soloAbsentModal'));
+      modal.show();
+    }
+  });
+
+  document.getElementById('soloAbsentConfirm').addEventListener('click', function(){
+    var choice = document.querySelector('input[name="_solo_choice"]:checked');
+    if (!choice) return;
+    actionIn.value = choice.value;
+    reasonIn.value = (document.getElementById('solo_reason_inp').value || '').trim();
+    bootstrap.Modal.getInstance(document.getElementById('soloAbsentModal')).hide();
+    form.submit();
+  });
+})();
+</script>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
