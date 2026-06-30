@@ -27,6 +27,10 @@ $rv_mon = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',7=>'Lip',8=>'Si
             <span class="badge text-bg-secondary"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
             <?php elseif ($l['attended']): ?>
             <span class="badge text-bg-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>obecny</span>
+            <?php elseif ((int)($l['att_no_show'] ?? 0) === 1): ?>
+            <span class="badge text-bg-warning"><i class="bi bi-dash-circle me-1" aria-hidden="true"></i>nie pojawił się</span>
+            <?php elseif ((int)($l['att_cancelled'] ?? 0) === 1): ?>
+            <span class="badge text-bg-secondary"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>odwołany</span>
             <?php else: ?>
             <span class="badge text-bg-danger"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>nieobecny</span>
             <?php endif; ?>

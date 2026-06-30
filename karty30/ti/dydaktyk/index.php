@@ -271,6 +271,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // Oznaczenie kursanta jako „nie pojawił się" (no_show)
+    if ($op === 'mark_no_show') {
+        $sid     = (int)($_POST['session_id'] ?? 0);
+        $cid     = (int)($_POST['client_id'] ?? 0);
+        $billing = trim($_POST['no_show_billing'] ?? 'full');
+        if ($sid && $cid && dyd_owns_session($uid, $sid)) {
+            $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
+            k30_ti_mark_no_show($sid, $cid, $billing, $role, (string)($me['name'] ?? ''));
+            flash_set('success', 'Oznaczono jako „nie pojawił się" — rozliczenie: ' . ($billing === '1h' ? '1 godzina' : 'cała lekcja') . '.');
+        }
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     // Odwołanie / przywrócenie całej lekcji (prowadzący / admin)
     if ($op === 'cancel_session' || $op === 'uncancel_session') {
         $sid = (int)($_POST['session_id'] ?? 0);
@@ -871,18 +884,22 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
         <button type="button" class="btn btn-link btn-sm ms-auto p-0 att-toggle-all" data-target="<?= $pfx ?>">Zaznacz / odznacz wszystkich</button>
       </div>
       <div class="list-group">
-        <?php foreach ($rows as $r): $cid = (int)$r['client_id']; $canc = (int)($r['cancelled'] ?? 0) === 1; $pend = (int)($r['cancel_pending'] ?? 0) === 1; ?>
-        <div class="list-group-item d-flex align-items-center gap-2 <?= $canc?'opacity-75':'' ?>">
+        <?php foreach ($rows as $r): $cid = (int)$r['client_id']; $canc = (int)($r['cancelled'] ?? 0) === 1; $pend = (int)($r['cancel_pending'] ?? 0) === 1; $ns = !$canc && !$pend && (int)($r['no_show'] ?? 0) === 1; ?>
+        <div class="list-group-item d-flex align-items-center gap-2 <?= ($canc||$ns)?'opacity-75':'' ?>">
           <label class="d-flex align-items-center gap-2 flex-grow-1 mb-0">
             <input class="form-check-input mt-0" type="checkbox" name="attended[]" value="<?= $cid ?>"
-                   <?= (int)$r['attended']===1?'checked':'' ?> <?= $canc?'disabled':'' ?>>
+                   <?= (int)$r['attended']===1?'checked':'' ?> <?= ($canc||$ns)?'disabled':'' ?>>
             <span><?= h($r['client_name']) ?></span>
           </label>
-          <?php if ($canc): ?>
+          <?php if ($ns): ?>
+          <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-dash-circle me-1"></i>nie pojawił się</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Przywróć udział" onclick="dydRestoreAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-arrow-counterclockwise"></i></button>
+          <?php elseif ($canc): ?>
           <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-x-circle me-1"></i>odwołany</span>
           <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Przywróć udział" onclick="dydRestoreAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-arrow-counterclockwise"></i></button>
           <?php else: ?>
           <?php if ($pend): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1"></i>czeka</span><?php endif; ?>
+          <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" title="Nie pojawił się na zajęciach" onclick="dydNoShow(<?= (int)$s['id'] ?>,<?= $cid ?>,<?= htmlspecialchars(json_encode($r['client_name']), ENT_QUOTES) ?>)"><i class="bi bi-dash-circle"></i></button>
           <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Odwołaj udział (nie liczone do ceny)" onclick="dydCancelAtt(<?= (int)$s['id'] ?>,<?= $cid ?>)"><i class="bi bi-x-circle"></i></button>
           <?php endif; ?>
         </div>
@@ -1600,6 +1617,46 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       </form></div>
     </div>
 
+    <!-- Modal: nie pojawił się na zajęciach -->
+    <div class="modal fade" id="dydNoShowModal" tabindex="-1" aria-labelledby="dydNoShow_t" aria-hidden="true">
+      <div class="modal-dialog"><form method="post" class="modal-content">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"        value="mark_no_show">
+        <input type="hidden" name="_tab"       value="lekcje">
+        <input type="hidden" name="course_id"  value="<?= $cur_course ?>">
+        <input type="hidden" name="session_id" id="dns_sid" value="">
+        <input type="hidden" name="client_id"  id="dns_cid" value="">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dydNoShow_t"><i class="bi bi-dash-circle text-warning me-2"></i>Nie pojawił się</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Uczestnik: <strong id="dns_name"></strong></p>
+          <p class="text-muted small mb-3">Lekcja się odbyła, ale beneficjent nie stawił się. Wybierz sposób rozliczenia:</p>
+          <div class="d-grid gap-2">
+            <div class="form-check border rounded p-3">
+              <input class="form-check-input" type="radio" name="no_show_billing" id="dns_full" value="full" checked>
+              <label class="form-check-label w-100" for="dns_full">
+                <div class="fw-semibold">Cała lekcja</div>
+                <div class="text-muted small">Policz pełny czas trwania zajęć.</div>
+              </label>
+            </div>
+            <div class="form-check border rounded p-3">
+              <input class="form-check-input" type="radio" name="no_show_billing" id="dns_1h" value="1h">
+              <label class="form-check-label w-100" for="dns_1h">
+                <div class="fw-semibold">Tylko 1 godzina (rozpoczęta)</div>
+                <div class="text-muted small">Policz 1 godzinę — minimum za stawienie się prowadzącego.</div>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-dash-circle me-1"></i>Oznacz: nie pojawił się</button>
+        </div>
+      </form></div>
+    </div>
+
     <!-- Modal: zmiana terminu lekcji -->
     <div class="modal fade" id="reschedSessionModal" tabindex="-1" aria-labelledby="reschedSession_t" aria-hidden="true">
       <div class="modal-dialog"><form method="post" class="modal-content">
@@ -1820,6 +1877,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php if ($tab === 'nieobecnosci'):
       $absences = db_all(
         "SELECT a.session_id, a.client_id, a.cancelled, a.cancel_reason, a.cancelled_by, a.cancelled_at,
+                a.no_show, a.no_show_billing,
                 s.lesson_date, s.time_from, s.topic, cl.name AS client_name
          FROM k30_ti_attendance a
          JOIN k30_ti_sessions s ON s.id=a.session_id
@@ -1828,7 +1886,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
            AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancel_pending,0)=0
          ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
         [$cur_course]);
-      $abs_unexcused = array_filter($absences, fn($r) => (int)($r['cancelled'] ?? 0) === 0);
+      $abs_unexcused = array_filter($absences, fn($r) => (int)($r['cancelled'] ?? 0) === 0 && (int)($r['no_show'] ?? 0) === 0);
     ?>
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
@@ -1847,7 +1905,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           </thead>
           <tbody>
             <?php foreach ($absences as $ab):
-              $excused = (int)($ab['cancelled'] ?? 0) === 1;
+              $excused  = (int)($ab['cancelled'] ?? 0) === 1;
+              $no_show  = !$excused && (int)($ab['no_show'] ?? 0) === 1;
+              $ns_bill  = ($ab['no_show_billing'] ?? 'full') === '1h' ? '1 godz.' : 'cała lekcja';
               $lbl = h($ab['client_name']) . ' — ' . date('d.m.Y', strtotime($ab['lesson_date'])); ?>
             <tr>
               <td class="text-nowrap small">
@@ -1857,20 +1917,34 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <td class="fw-semibold"><?= h($ab['client_name']) ?></td>
               <td class="small text-body-secondary" style="max-width:220px"><?= $ab['topic'] ? h($ab['topic']) : '—' ?></td>
               <td>
-                <?php if ($excused): ?>
+                <?php if ($no_show): ?>
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-dash-circle me-1"></i>nie pojawił się</span>
+                <?php elseif ($excused): ?>
                 <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-check2-circle me-1"></i>usprawiedliwiona</span>
                 <?php else: ?>
                 <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-x-circle me-1"></i>nieusprawiedliwiona</span>
                 <?php endif; ?>
               </td>
               <td class="small text-body-secondary" style="max-width:220px">
-                <?php if ($excused): ?>
+                <?php if ($no_show): ?>
+                Rozliczenie: <?= h($ns_bill) ?>
+                <?php if ($ab['cancelled_by']): ?><div class="text-body-tertiary"><?= h($ab['cancelled_by']) ?></div><?php endif; ?>
+                <?php elseif ($excused): ?>
                 <?= $ab['cancel_reason'] ? h($ab['cancel_reason']) : '—' ?>
                 <?php if ($ab['cancelled_by']): ?><div class="text-body-tertiary"><?= h($ab['cancelled_by']) ?></div><?php endif; ?>
                 <?php else: ?>—<?php endif; ?>
               </td>
               <td class="text-end">
-                <?php if ($excused): ?>
+                <?php if ($no_show): ?>
+                <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć oznaczenie? Udział uczestnika zostanie przywrócony.')">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="restore_attendee">
+                  <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                  <input type="hidden" name="session_id" value="<?= (int)$ab['session_id'] ?>">
+                  <input type="hidden" name="client_id" value="<?= (int)$ab['client_id'] ?>">
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-arrow-counterclockwise me-1"></i>Cofnij</button>
+                </form>
+                <?php elseif ($excused): ?>
                 <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć usprawiedliwienie? Nieobecność znów będzie nieusprawiedliwiona.')">
                   <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
                   <input type="hidden" name="_op" value="unexcuse_absence">
@@ -2677,6 +2751,13 @@ function dydRestoreAtt(sid, cid) {
   document.getElementById('daa_sid').value = sid;
   document.getElementById('daa_cid').value = cid;
   document.getElementById('dydAttAction').submit();
+}
+function dydNoShow(sid, cid, name) {
+  document.getElementById('dns_sid').value = sid;
+  document.getElementById('dns_cid').value = cid;
+  document.getElementById('dns_name').textContent = name || '';
+  document.getElementById('dns_full').checked = true;
+  new bootstrap.Modal(document.getElementById('dydNoShowModal')).show();
 }
 // Odwołanie całej lekcji — otwiera modal z powodem.
 function dydOpenCancelSession(sid, label) {

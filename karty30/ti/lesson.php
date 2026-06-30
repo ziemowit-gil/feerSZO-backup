@@ -129,6 +129,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         exit;
     }
 
+    // Oznaczenie uczestnika jako „nie pojawił się" (no_show)
+    if ($op === 'mark_no_show') {
+        $cid     = (int)($_POST['client_id'] ?? 0);
+        $billing = trim($_POST['no_show_billing'] ?? 'full');
+        if ($cid) {
+            k30_ti_mark_no_show($session_id, $cid, $billing, $cancel_role, $cancel_label);
+            flash_set('success', 'Oznaczono jako „nie pojawił się" — rozliczenie: ' . ($billing === '1h' ? '1 godzina' : 'cała lekcja') . '.');
+        }
+        header('Location: lesson.php?id=' . $session_id);
+        exit;
+    }
+
     // Potwierdzenie / odrzucenie prośby kursanta o odwołanie udziału (czeka na potwierdzenie)
     if ($op === 'confirm_cancel_req' || $op === 'reject_cancel_req') {
         $cid = (int)($_POST['client_id'] ?? 0);
@@ -182,6 +194,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 .att-row.present  { background: #f0fdf4; }
 .att-row.absent   { background: #fafafa; }
 .att-row.cancelled{ background: #fef2f2; }
+.att-row.no-show  { background: #fefce8; }
 .att-row.pending  { background: #fffbeb; }
 .att-cb           { width: 1.4em; height: 1.4em; flex-shrink: 0; cursor: pointer; }
 .section-head     { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 12px; }
@@ -329,11 +342,13 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
       $cid       = (int)$a['client_id'];
       $cancelled = (int)($a['cancelled'] ?? 0) === 1;
       $pending   = (int)($a['cancel_pending'] ?? 0) === 1;
-      $present   = !$cancelled && (bool)$a['attended'];
+      $no_show   = !$cancelled && !$pending && (int)($a['no_show'] ?? 0) === 1;
+      $present   = !$cancelled && !$no_show && (bool)$a['attended'];
       $note      = $ind_notes_map[$cid] ?? '';
       $role_lbl  = K30_TI_CANCEL_ROLES[$a['cancelled_by_role'] ?? ''] ?? ($a['cancelled_by_role'] ?? '');
+      $ns_bill   = ($a['no_show_billing'] ?? 'full') === '1h' ? '1 godzina' : 'cała lekcja';
     ?>
-    <div class="list-group-item att-row <?= $pending ? 'pending' : ($cancelled ? 'cancelled' : ($present ? 'present' : 'absent')) ?> py-2 px-3"
+    <div class="list-group-item att-row <?= $pending ? 'pending' : ($cancelled ? 'cancelled' : ($no_show ? 'no-show' : ($present ? 'present' : 'absent'))) ?> py-2 px-3"
          id="row_<?= $cid ?>">
       <div class="d-flex align-items-center gap-3">
         <input class="att-cb form-check-input" type="checkbox"
@@ -341,9 +356,9 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
                <?= $present ? 'checked' : '' ?>
                onchange="rowToggle(this)"
                aria-label="Obecny: <?= h($a['client_name']) ?>"
-               <?= (!$can_write || $cancelled) ? 'disabled' : '' ?>>
+               <?= (!$can_write || $cancelled || $no_show) ? 'disabled' : '' ?>>
         <div class="flex-grow-1 min-width-0">
-          <div class="fw-semibold text-truncate <?= $cancelled ? 'text-decoration-line-through text-muted' : '' ?>"><?= h($a['client_name']) ?></div>
+          <div class="fw-semibold text-truncate <?= ($cancelled || $no_show) ? 'text-muted' : '' ?>"><?= h($a['client_name']) ?></div>
           <?php if ($a['client_email']): ?>
           <div class="text-muted" style="font-size:.75rem"><?= h($a['client_email']) ?></div>
           <?php endif; ?>
@@ -361,12 +376,17 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
                   onclick="rejectCancelReq(<?= $cid ?>)" title="Odrzuć prośbę (przywróć udział)" aria-label="Odrzuć prośbę o odwołanie">
             <i class="bi bi-x-lg"></i>
           </button>
-          <?php elseif ($cancelled): ?>
+          <?php elseif ($cancelled || $no_show): ?>
           <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
                   onclick="restoreAtt(<?= $cid ?>)" title="Przywróć udział" aria-label="Przywróć udział: <?= h($a['client_name']) ?>">
             <i class="bi bi-arrow-counterclockwise"></i>
           </button>
           <?php else: ?>
+          <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2 flex-shrink-0"
+                  onclick="openNoShow(<?= $cid ?>, <?= htmlspecialchars(json_encode($a['client_name']), ENT_QUOTES) ?>)"
+                  title="Nie pojawił się na zajęciach" aria-label="Nie pojawił się: <?= h($a['client_name']) ?>">
+            <i class="bi bi-dash-circle"></i>
+          </button>
           <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 flex-shrink-0"
                   onclick="openCancelAtt(<?= $cid ?>, <?= htmlspecialchars(json_encode($a['client_name']), ENT_QUOTES) ?>)"
                   title="Odwołaj udział (nie liczone do ceny)" aria-label="Odwołaj udział: <?= h($a['client_name']) ?>">
@@ -389,6 +409,13 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
         <?php if (!empty($a['cancel_reason'])): ?><span class="text-muted">Powód:</span> <?= h($a['cancel_reason']) ?><?php endif; ?>
         <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
         <span class="text-muted d-block">Odwołał(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
+        <?php endif; ?>
+      </div>
+      <?php elseif ($no_show): ?>
+      <div class="mt-1 ms-5 small text-warning-emphasis">
+        <i class="bi bi-dash-circle me-1"></i>Nie pojawił się — rozliczono: <strong><?= $ns_bill ?></strong>.
+        <?php if ($role_lbl || !empty($a['cancelled_by'])): ?>
+        <span class="text-muted d-block">Oznaczył(a): <?= h(trim(($role_lbl ?: '') . (!empty($a['cancelled_by']) ? ' — '.$a['cancelled_by'] : ''))) ?></span>
         <?php endif; ?>
       </div>
       <?php else: ?>
@@ -593,6 +620,45 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
   </div>
 </div>
 
+<!-- Modal: nie pojawił się na zajęciach -->
+<div class="modal fade" id="noShowModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op"       value="mark_no_show">
+      <input type="hidden" name="client_id" id="ns_cid" value="">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-dash-circle text-warning me-2"></i>Nie pojawił się</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">Uczestnik: <strong id="ns_name"></strong></p>
+        <p class="text-muted small mb-3">Lekcja się odbyła, ale beneficjent nie stawił się. Wybierz sposób rozliczenia:</p>
+        <div class="d-grid gap-2">
+          <div class="form-check border rounded p-3">
+            <input class="form-check-input" type="radio" name="no_show_billing" id="ns_full" value="full" checked>
+            <label class="form-check-label w-100" for="ns_full">
+              <div class="fw-semibold">Cała lekcja</div>
+              <div class="text-muted small">Policz pełny czas trwania zajęć (<?= h(number_format((float)$session['duration_min']/60, 2, ',', '')) ?>&nbsp;h).</div>
+            </label>
+          </div>
+          <div class="form-check border rounded p-3">
+            <input class="form-check-input" type="radio" name="no_show_billing" id="ns_1h" value="1h">
+            <label class="form-check-label w-100" for="ns_1h">
+              <div class="fw-semibold">Tylko 1 godzina (rozpoczęta)</div>
+              <div class="text-muted small">Policz 1 godzinę — minimalną jednostkę za stawienie się prowadzącego.</div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-warning"><i class="bi bi-dash-circle me-1"></i>Oznacz: nie pojawił się</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Ukryty formularz akcji uczestnika (przywracanie) -->
 <form method="post" id="attActionForm" class="d-none">
   <input type="hidden" name="_csrf"     value="<?= h(csrf_token()) ?>">
@@ -602,6 +668,12 @@ details.lesson-card[open] > summary .chev { transform: rotate(180deg); }
 <?php endif; ?>
 
 <script>
+function openNoShow(cid, name) {
+  document.getElementById('ns_cid').value = cid;
+  document.getElementById('ns_name').textContent = name;
+  document.getElementById('ns_full').checked = true;
+  new bootstrap.Modal(document.getElementById('noShowModal')).show();
+}
 function openCancelAtt(cid, name) {
   document.getElementById('ca_cid').value = cid;
   document.getElementById('ca_name').textContent = name;
