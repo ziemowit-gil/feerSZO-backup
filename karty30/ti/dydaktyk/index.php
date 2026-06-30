@@ -229,7 +229,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $att = array_map('intval', (array)($_POST['attended'] ?? []));
             k30_ti_save_attendance($sid, $att);
             // Sprawdzenie obecności oznacza, że lekcja się odbyła (gdy była zaplanowana).
-            db()->prepare("UPDATE k30_ti_sessions SET status='held', updated_at=datetime('now') WHERE id=? AND status='planned'")->execute([$sid]);
+            // Jeśli ≥1 beneficjent nieobecny → zmiana indywidualna
+            $any_absent = !empty(array_filter(
+                db_all("SELECT attended FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$sid]),
+                fn($r) => !$r['attended']
+            ));
+            $new_st = $any_absent ? 'individual_change' : 'held';
+            db()->prepare("UPDATE k30_ti_sessions SET status=?, updated_at=datetime('now') WHERE id=? AND status='planned'")->execute([$new_st, $sid]);
             flash_set('success', 'Obecność zapisana.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
@@ -1185,7 +1191,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       $absent_count = $cur_course ? (int)(db_one(
           "SELECT COUNT(*) AS n FROM k30_ti_attendance a
            JOIN k30_ti_sessions s ON s.id=a.session_id
-           WHERE s.course_id=? AND s.status='held' AND COALESCE(a.attended,0)=0
+           WHERE s.course_id=? AND s.status IN ('held','individual_change') AND COALESCE(a.attended,0)=0
              AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.cancel_pending,0)=0", [$cur_course])['n'] ?? 0) : 0;
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
                'zadania'=>['Zadania','journal-check',count($homeworks)],
@@ -1293,7 +1299,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <?php if (!empty($s['topic'])): ?><div class="mt-1"><?= h($s['topic']) ?></div><?php endif; ?>
           <?php
             $_payout_bb = (float)($course['lesson_payout_bb'] ?? 0);
-            if ($s['status'] === 'held' && $_payout_bb > 0):
+            if (in_array($s['status'], ['held','individual_change']) && $_payout_bb > 0):
               $_pb = k30_ti_payout_breakdown($_payout_bb);
               $_pf = fn($x) => number_format((float)$x, 2, ',', ' ');
           ?>
@@ -1901,7 +1907,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
          FROM k30_ti_attendance a
          JOIN k30_ti_sessions s ON s.id=a.session_id
          JOIN k30_clients cl ON cl.id=a.client_id
-         WHERE s.course_id=? AND s.status='held'
+         WHERE s.course_id=? AND s.status IN ('held','individual_change')
            AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancel_pending,0)=0
          ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
         [$cur_course]);

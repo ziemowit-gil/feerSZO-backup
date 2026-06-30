@@ -66,12 +66,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             if ($m > 0) $duration_min = (int)$m;
         }
 
+        // Jeśli ≥1 beneficjent nieobecny → zmiana indywidualna; inaczej lekcja odbyła się normalnie.
+        $any_absent = !empty(array_filter(
+            db_all("SELECT attended FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$session_id]),
+            fn($r) => !$r['attended']
+        ));
+        $new_status = $any_absent ? 'individual_change' : 'held';
         db()->prepare(
             "UPDATE k30_ti_sessions
-             SET status='held', topic=?, instructor_notes=?, has_homework=?, self_prep_remote=?,
+             SET status=?, topic=?, instructor_notes=?, has_homework=?, self_prep_remote=?,
                  duration_min=?, time_from=?, time_to=?, updated_at=datetime('now')
              WHERE id=?"
-        )->execute([$topic, $instructor_notes, $has_homework, $self_prep_remote, $duration_min, $time_from, $time_to, $session_id]);
+        )->execute([$new_status, $topic, $instructor_notes, $has_homework, $self_prep_remote, $duration_min, $time_from, $time_to, $session_id]);
 
         flash_set('success', 'Lekcja zapisana.');
         header('Location: lesson.php?id=' . $session_id);
@@ -183,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 $session    = k30_ti_session_get($session_id);
 $attendance = k30_ti_session_attendance($session_id);
 $st_info    = K30_TI_SESSION_STATUSES[$session['status']] ?? ['label' => $session['status'], 'color' => '#666', 'bg' => '#eee'];
-$is_held    = $session['status'] === 'held';
+$is_held    = in_array($session['status'], ['held', 'individual_change']);
 
 // Indywidualne uwagi (pobierz z bazy)
 $ind_notes_map = [];

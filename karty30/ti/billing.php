@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'issue_all') {
         $clients_with_sessions = db_all(
             "SELECT DISTINCT e.client_id FROM k30_ti_attendance a
-             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status='held'
+             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change')
              JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id
              WHERE a.attended=1 AND strftime('%m',s.lesson_date)=? AND strftime('%Y',s.lesson_date)=?",
             [sprintf('%02d',$month), (string)$year]

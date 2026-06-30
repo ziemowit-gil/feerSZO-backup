@@ -23,7 +23,7 @@ $rv_mon = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',7=>'Lip',8=>'Si
           <td class="text-body-secondary small"><?= h($l['course_name']) ?></td>
           <td class="small"><?= $l['topic'] ? h($l['topic']) : '<span class="text-body-secondary">—</span>' ?></td>
           <td class="text-center">
-            <?php if ($l['status'] !== 'held'): ?>
+            <?php if (!in_array($l['status'], ['held','individual_change'])): ?>
             <span class="badge text-bg-secondary"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
             <?php elseif ($l['attended']): ?>
             <span class="badge text-bg-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>obecny</span>
