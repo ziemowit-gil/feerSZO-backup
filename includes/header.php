@@ -1021,6 +1021,25 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
 
   <div class="sb-sep"></div>
 
+  <!-- ════════════════════════════════════════
+       6. ORGANIZACJA
+  ════════════════════════════════════════ -->
+  <?php $_org_active = str_contains($_uri,'/org/holidays') || str_contains($_uri,'/komunikaty/admin') || str_contains($_uri,'/komunikaty/compose'); ?>
+  <div class="sb-label">Organizacja</div>
+  <a class="sb-link<?= _nav_active('/org/holidays') ?>" href="<?= APP_URL ?>/org/holidays.php">
+    <i class="bi bi-calendar-x"></i> Kalendarz pracy
+  </a>
+  <?php if (panel_visible('komunikaty')): ?>
+  <a class="sb-link<?= _nav_active('/komunikaty/admin') ?>" href="<?= APP_URL ?>/komunikaty/admin.php">
+    <i class="bi bi-megaphone"></i> Komunikaty placówki
+  </a>
+  <a class="sb-sub-link<?= _nav_active('/komunikaty/compose') ?>" href="<?= APP_URL ?>/komunikaty/compose.php">
+    <i class="bi bi-plus-circle"></i> Nowy komunikat
+  </a>
+  <?php endif; ?>
+
+  <div class="sb-sep"></div>
+
   <div class="sb-label">Pozostałe</div>
 
   <!-- LUDZIE (zwijane) -->
