@@ -673,16 +673,15 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     if ($doc['description']) {
         $descLines = max(2, (int)ceil(mb_strlen($doc['description']) / 100) + 1);
         $descH     = $descLines * 5 + 8;
-        $pdf->SetFillColor(237, 244, 255);
-        $pdf->Rect(15, $y, $W, $descH, 'F');
-        $pdf->SetFillColor(22, 53, 102);
+        $pdf->SetFillColor(255, 255, 255);
+        $pdf->Rect(15, $y, $W, $descH, 'FD');
+        $pdf->SetFillColor(0, 0, 0);
         $pdf->Rect(15, $y, 3, $descH, 'F'); // lewy pasek akcentu
         $pdf->SetFont('DejaVu', 'B', 7.5);
-        $pdf->SetTextColor(40, 70, 130);
+        $pdf->SetTextColor(0, 0, 0);
         $pdf->SetXY(21, $y + 2);
         $pdf->Cell(0, 4.5, _pdf('OPIS MERYTORYCZNY'), 0, 1);
         $pdf->SetFont('DejaVu', '', 9);
-        $pdf->SetTextColor(20, 20, 20);
         $pdf->SetX(21);
         $pdf->MultiCell($W - 6, 5, _pdf($doc['description']), 0, 'L');
         $y = $pdf->GetY() + 3;
