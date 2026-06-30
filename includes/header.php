@@ -1024,17 +1024,18 @@ body { display:flex; min-height:100vh; background:#f8fafc; }
   <!-- ════════════════════════════════════════
        6. ORGANIZACJA
   ════════════════════════════════════════ -->
-  <?php $_org_active = str_contains($_uri,'/org/holidays') || str_contains($_uri,'/komunikaty/admin') || str_contains($_uri,'/komunikaty/compose'); ?>
   <div class="sb-label">Organizacja</div>
   <a class="sb-link<?= _nav_active('/org/holidays') ?>" href="<?= APP_URL ?>/org/holidays.php">
     <i class="bi bi-calendar-x"></i> Kalendarz pracy
   </a>
-  <?php if (panel_visible('komunikaty')): ?>
+  <?php if (panel_visible('komunikaty') && is_admin()): ?>
   <a class="sb-link<?= _nav_active('/komunikaty/admin') ?>" href="<?= APP_URL ?>/komunikaty/admin.php">
-    <i class="bi bi-megaphone"></i> Komunikaty placówki
+    <i class="bi bi-bell"></i> Ogłoszenia SZO
   </a>
-  <a class="sb-sub-link<?= _nav_active('/komunikaty/compose') ?>" href="<?= APP_URL ?>/komunikaty/compose.php">
-    <i class="bi bi-plus-circle"></i> Nowy komunikat
+  <?php endif; ?>
+  <?php if (can_read('karty30')): ?>
+  <a class="sb-link<?= _nav_active('/karty30/ti/notices') ?>" href="<?= APP_URL ?>/karty30/ti/notices.php">
+    <i class="bi bi-megaphone"></i> Komunikaty TI
   </a>
   <?php endif; ?>
 

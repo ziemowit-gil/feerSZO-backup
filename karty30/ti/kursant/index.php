@@ -18,11 +18,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_leaves.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notifications.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
 k30_ti_reschedule_migrate();
 k30_ti_notif_migrate();
+ti_notices_migrate();
 pfron_migrate();
 helpdesk_migrate();
 
@@ -47,6 +49,20 @@ if (isset($_GET['notif_mark'])) {
     k30_ti_notif_mark_seen((int)$student['id']);
     $back = preg_replace('/[^a-z]/', '', (string)($_GET['tab'] ?? 'dane'));
     header('Location: index.php?tab=' . ($back ?: 'dane')); exit;
+}
+
+if (isset($_POST['_op']) && $_POST['_op'] === 'mark_notice_read') {
+    if (hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        $nid = (int)($_POST['notice_id'] ?? 0);
+        if ($nid) ti_notices_mark_read($nid, (int)$student['id']);
+    }
+    header('Location: index.php?tab=komunikaty'); exit;
+}
+if (isset($_POST['_op']) && $_POST['_op'] === 'mark_notices_all_read') {
+    if (hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        ti_notices_mark_all_read((int)$student['id']);
+    }
+    header('Location: index.php?tab=komunikaty'); exit;
 }
 
 // Eksport PDF wykazu ocen kursanta
@@ -481,6 +497,9 @@ $sms_pref       = (int)($account['notify_sms_lessons'] ?? 0);
 $sms_phone      = trim((string)($client['phone'] ?? ''));
 $sms_global_on  = function_exists('sms_is_enabled') && sms_is_enabled();
 
+// Komunikaty placówki — licznik nieprzeczytanych
+$notices_unread = ti_notices_unread_count((int)$student['id']);
+
 // Wiadomości — licznik nieprzeczytanych + ustawienia powiadomień
 $msg_unread     = ti_msg_unread_for_student((int)$student['id']);
 $msg_pref_email = (int)($account['notify_email_messages'] ?? 1);
@@ -629,6 +648,13 @@ include __DIR__ . '/_layout_head.php';
         <li><a class="dropdown-item <?= $tab==='testy'?'active':'' ?>" href="?tab=testy" <?= $tab==='testy'?'aria-current="page"':'' ?>>
           <i class="bi bi-card-checklist me-2" aria-hidden="true"></i>Testy</a></li>
       </ul>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link <?= $tab==='komunikaty'?'active':'' ?>" href="?tab=komunikaty" <?= $tab==='komunikaty'?'aria-current="page"':'' ?>>
+        <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Komunikaty
+        <?php if ($notices_unread > 0): ?><span class="badge text-bg-danger ms-1"><?= $notices_unread ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif; ?>
+      </a>
     </li>
 
     <li class="nav-item">
@@ -3556,6 +3582,73 @@ $authp_list = db_all(
 </div>
 <?php else: ?>
 <div class="text-body-secondary small"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Brak upoważnionych osób.</div>
+<?php endif; ?>
+
+<?php elseif ($tab === 'komunikaty'): ?>
+
+<?php
+  $notices_all = ti_notices_list_for_student((int)$student['id']);
+?>
+<div class="d-flex align-items-center gap-2 mb-3">
+  <h1 class="h5 fw-bold mb-0"><i class="bi bi-megaphone text-primary me-1" aria-hidden="true"></i>Komunikaty placówki</h1>
+  <?php if ($notices_unread > 0): ?>
+  <form method="post" class="ms-auto">
+    <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+    <input type="hidden" name="_op" value="mark_notices_all_read">
+    <button class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-check2-all me-1"></i>Oznacz wszystkie jako przeczytane
+    </button>
+  </form>
+  <?php endif; ?>
+</div>
+
+<?php if (!$notices_all): ?>
+<div class="text-body-secondary text-center py-5">
+  <i class="bi bi-megaphone fs-2 d-block mb-2 opacity-40" aria-hidden="true"></i>
+  Brak aktywnych komunikatów.
+</div>
+<?php else: ?>
+<div class="d-flex flex-column gap-3">
+<?php foreach ($notices_all as $n):
+  $is_read   = (int)$n['is_read'];
+  $is_pinned = (int)$n['is_pinned'];
+?>
+<div class="card border-0 shadow-sm <?= !$is_read ? 'border-start border-primary border-3' : '' ?>"
+     style="<?= $is_pinned ? 'border-left:4px solid #f59e0b!important' : (!$is_read ? '' : '') ?>">
+  <div class="card-body">
+    <div class="d-flex align-items-start gap-2 mb-1">
+      <?php if ($is_pinned): ?><i class="bi bi-pin-angle-fill text-warning flex-shrink-0 mt-1" title="Przypięty" aria-hidden="true"></i><?php endif; ?>
+      <h2 class="h6 fw-bold mb-0 flex-grow-1 <?= !$is_read ? 'text-primary' : '' ?>">
+        <?php if (!$is_read): ?><span class="visually-hidden">(Nowe) </span><?php endif; ?>
+        <?= h($n['title']) ?>
+      </h2>
+      <?php if (!$is_read): ?>
+      <span class="badge text-bg-primary flex-shrink-0">Nowe</span>
+      <?php endif; ?>
+    </div>
+    <?php if ($n['body']): ?>
+    <div class="text-body-secondary" style="white-space:pre-wrap;font-size:.92rem"><?= h($n['body']) ?></div>
+    <?php endif; ?>
+    <div class="mt-2 d-flex align-items-center gap-3" style="font-size:.78rem">
+      <span class="text-body-secondary"><i class="bi bi-clock me-1" aria-hidden="true"></i><?= substr($n['created_at'],0,10) ?></span>
+      <?php if ($n['expires_at']): ?>
+      <span class="text-body-secondary"><i class="bi bi-calendar-x me-1" aria-hidden="true"></i>ważny do <?= h($n['expires_at']) ?></span>
+      <?php endif; ?>
+      <?php if (!$is_read): ?>
+      <form method="post" class="ms-auto">
+        <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+        <input type="hidden" name="_op" value="mark_notice_read">
+        <input type="hidden" name="notice_id" value="<?= (int)$n['id'] ?>">
+        <button class="btn btn-sm btn-link p-0 text-body-secondary" style="font-size:.78rem">
+          <i class="bi bi-check2 me-1"></i>Oznacz jako przeczytany
+        </button>
+      </form>
+      <?php endif; ?>
+    </div>
+  </div>
+</div>
+<?php endforeach; ?>
+</div>
 <?php endif; ?>
 
 <?php endif; ?>
