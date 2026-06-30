@@ -765,16 +765,22 @@ function karty30_migrate(): void {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
 
-    // Migracja statusu: held + nieobecny beneficjent → individual_change
+    // Migracja statusu: held + (nieobecny beneficjent LUB kurs jednosobowy) → individual_change
     try {
         $pdo->exec(
             "UPDATE k30_ti_sessions SET status='individual_change'
              WHERE status='held'
-               AND EXISTS (
-                   SELECT 1 FROM k30_ti_attendance a
-                   WHERE a.session_id=k30_ti_sessions.id
-                     AND COALESCE(a.attended,0)=0
-                     AND COALESCE(a.cancelled,0)=0
+               AND (
+                   EXISTS (
+                       SELECT 1 FROM k30_ti_attendance a
+                       WHERE a.session_id=k30_ti_sessions.id
+                         AND COALESCE(a.attended,0)=0
+                         AND COALESCE(a.cancelled,0)=0
+                   )
+                   OR (
+                       SELECT COUNT(*) FROM k30_ti_enrollments e
+                       WHERE e.course_id=k30_ti_sessions.course_id AND e.status='active'
+                   ) <= 1
                )"
         );
     } catch (\Throwable $e) {}

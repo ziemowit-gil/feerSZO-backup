@@ -66,12 +66,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             if ($m > 0) $duration_min = (int)$m;
         }
 
-        // Jeśli ≥1 beneficjent nieobecny → zmiana indywidualna; inaczej lekcja odbyła się normalnie.
+        // Zmiana indywidualna gdy: ≥1 nieobecny LUB kurs jednosobowy (1 aktywny zapis).
         $any_absent = !empty(array_filter(
             db_all("SELECT attended FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$session_id]),
             fn($r) => !$r['attended']
         ));
-        $new_status = $any_absent ? 'individual_change' : 'held';
+        $enrolled_count = (int)(db_one(
+            "SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'",
+            [$session['course_id']]
+        )['n'] ?? 0);
+        $new_status = ($any_absent || $enrolled_count <= 1) ? 'individual_change' : 'held';
         db()->prepare(
             "UPDATE k30_ti_sessions
              SET status=?, topic=?, instructor_notes=?, has_homework=?, self_prep_remote=?,
