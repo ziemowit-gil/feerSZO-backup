@@ -57,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'pay_title'           => trim($_POST['pay_title'] ?? ''),
         'pay_due_days'        => ((int)($_POST['pay_due_days'] ?? 0)) ?: null,
         'lesson_payout_bb'    => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
+        'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
         'is_active'           => isset($_POST['is_active']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
@@ -322,6 +323,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <label class="form-label">Opis</label>
         <textarea class="form-control" name="description" rows="2" placeholder="Czego dotyczą zajęcia…"><?= h($f['description']) ?></textarea>
       </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="is_subgroup" id="c_sub" <?= !empty($f['is_subgroup'])?'checked':'' ?>>
+        <label class="form-check-label" for="c_sub">
+          Podgrupa <span class="text-body-secondary small">(lekcje zawsze jako <em>Zajęcia indywidualne</em>, oznaczenie 1I)</span>
+        </label>
+      </div>
       <div class="form-check form-switch mb-3">
         <input class="form-check-input" type="checkbox" name="is_active" id="c_act" <?= $f['is_active']?'checked':'' ?>>
         <label class="form-check-label" for="c_act">Kurs aktywny</label>
@@ -360,6 +367,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="text-muted small"><i class="bi bi-geo-alt me-1"></i><?= h($c['location']) ?></div>
             <?php endif; ?>
           </div>
+          <?php if (!empty($c['is_subgroup'])): ?>
+          <span class="badge" style="font-size:.65rem;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe" title="Podgrupa — lekcje zawsze jako Zajęcia indywidualne">1I</span>
+          <?php endif; ?>
           <?php if (!$c['is_active']): ?>
           <span class="badge bg-secondary" style="font-size:.65rem">Nieaktywny</span>
           <?php endif; ?>

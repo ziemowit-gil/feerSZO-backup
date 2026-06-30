@@ -337,8 +337,9 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
         // Dane do wpłat: domyślne na kursie + indywidualne na kursancie (używane gdy kod 9999)
-        "ALTER TABLE k30_ti_courses ADD COLUMN pay_account TEXT NOT NULL DEFAULT ''",
-        "ALTER TABLE k30_ti_courses ADD COLUMN pay_title   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_courses ADD COLUMN pay_account  TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_courses ADD COLUMN pay_title    TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_courses ADD COLUMN is_subgroup  INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN pay_account TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN pay_title   TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
@@ -774,7 +775,7 @@ function karty30_migrate(): void {
         );
     } catch (\Throwable $e) {}
 
-    // Migracja statusu: held + (nieobecny beneficjent LUB kurs jednosobowy) → individual_change
+    // Migracja statusu: held + (nieobecny beneficjent LUB kurs jednosobowy LUB podgrupa) → individual_change
     try {
         $pdo->exec(
             "UPDATE k30_ti_sessions SET status='individual_change'
@@ -790,6 +791,10 @@ function karty30_migrate(): void {
                        SELECT COUNT(*) FROM k30_ti_enrollments e
                        WHERE e.course_id=k30_ti_sessions.course_id AND e.status='active'
                    ) <= 1
+                   OR EXISTS (
+                       SELECT 1 FROM k30_ti_courses c
+                       WHERE c.id=k30_ti_sessions.course_id AND COALESCE(c.is_subgroup,0)=1
+                   )
                )"
         );
     } catch (\Throwable $e) {}

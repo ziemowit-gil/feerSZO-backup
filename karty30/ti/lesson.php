@@ -109,18 +109,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             if ($m > 0) $duration_min = (int)$m;
         }
 
-        // Zmiana indywidualna gdy: ≥1 nieobecny LUB kurs jednosobowy (1 aktywny zapis).
+        // Status po zapisie obecności
         $any_absent = !empty(array_filter(
             db_all("SELECT attended FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$session_id]),
             fn($r) => !$r['attended']
         ));
+        $course_row     = db_one("SELECT is_subgroup FROM k30_ti_courses WHERE id=?", [$session['course_id']]);
+        $is_subgroup    = !empty($course_row['is_subgroup']);
         $enrolled_count = (int)(db_one(
             "SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'",
             [$session['course_id']]
         )['n'] ?? 0);
         if ($enrolled_count === 0) {
             $new_status = 'cancelled';
-        } elseif ($any_absent || $enrolled_count === 1) {
+        } elseif ($is_subgroup || $any_absent || $enrolled_count === 1) {
             $new_status = 'individual_change';
         } else {
             $new_status = 'held';
@@ -251,8 +253,10 @@ try {
     foreach ($rows as $r) $ind_notes_map[(int)$r['client_id']] = $r['ind_notes'];
 } catch (\Throwable $e) {}
 
-// Liczba aktywnych zapisów do kursu (do obsługi kursu jednosobowego)
-$solo_enrolled = (int)(db_one(
+// Liczba aktywnych zapisów i flaga podgrupy (obsługa kursu jednosobowego / podgrupy)
+$_course_flags  = db_one("SELECT is_subgroup FROM k30_ti_courses WHERE id=?", [$session['course_id']]);
+$is_subgroup_view = !empty($_course_flags['is_subgroup']);
+$solo_enrolled  = (int)(db_one(
     "SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'",
     [$session['course_id']]
 )['n'] ?? 0);
@@ -840,7 +844,7 @@ function updateCount() {
 updateCount();
 </script>
 
-<?php if ($can_write && $solo_enrolled === 1 && !$is_held && $session['status'] !== 'cancelled'): ?>
+<?php if ($can_write && ($solo_enrolled === 1 || $is_subgroup_view) && !$is_held && $session['status'] !== 'cancelled'): ?>
 <!-- Modal: kurs jednosobowy — nieobecność jedynego kursanta -->
 <div class="modal fade" id="soloAbsentModal" tabindex="-1" aria-labelledby="soloAbsentModalLabel" aria-hidden="true">
   <div class="modal-dialog">

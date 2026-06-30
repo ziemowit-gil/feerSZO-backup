@@ -229,14 +229,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $att = array_map('intval', (array)($_POST['attended'] ?? []));
             k30_ti_save_attendance($sid, $att);
             // Sprawdzenie obecności oznacza, że lekcja się odbyła (gdy była zaplanowana).
-            // Zmiana indywidualna gdy: ≥1 nieobecny LUB kurs jednosobowy (1 aktywny zapis).
+            // Zmiana indywidualna gdy: podgrupa LUB ≥1 nieobecny LUB kurs jednosobowy.
             $any_absent = !empty(array_filter(
                 db_all("SELECT attended FROM k30_ti_attendance WHERE session_id=? AND COALESCE(cancelled,0)=0", [$sid]),
                 fn($r) => !$r['attended']
             ));
-            $_s_course = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$sid]);
-            $_enrolled = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$_s_course['course_id'] ?? 0])['n'] ?? 0);
-            $new_st = ($any_absent || $_enrolled <= 1) ? 'individual_change' : 'held';
+            $_s_course   = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$sid]);
+            $_cid        = (int)($_s_course['course_id'] ?? 0);
+            $_course_row = db_one("SELECT is_subgroup FROM k30_ti_courses WHERE id=?", [$_cid]);
+            $_is_sub     = !empty($_course_row['is_subgroup']);
+            $_enrolled   = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$_cid])['n'] ?? 0);
+            $new_st = ($_is_sub || $any_absent || $_enrolled <= 1) ? 'individual_change' : 'held';
             db()->prepare("UPDATE k30_ti_sessions SET status=?, updated_at=datetime('now') WHERE id=? AND status='planned'")->execute([$new_st, $sid]);
             flash_set('success', 'Obecność zapisana.');
         }
