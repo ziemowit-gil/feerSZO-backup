@@ -74,57 +74,116 @@ if ($out === 'pdf') {
     // ── Okładka (tylko dla całej sprawy) ─────────────────────────────────────
     if ($with_cover) {
         $pdf->AddPage('P', 'A4');
-        $W = 180;
-        $pdf->SetFillColor(30, 64, 120);
-        $pdf->Rect(15, 15, $W, 11, 'F');
+        $W = 180; // szerokość robocza (mm)
+
+        // ── Pasek nagłówkowy ─────────────────────────────────────────────────
+        $pdf->SetFillColor(22, 53, 102);
+        $pdf->Rect(15, 15, $W, 14, 'F');
         $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetFont('DejaVu', 'B', 13);
-        $pdf->SetXY(15, 15);
-        $pdf->Cell($W, 11, $pl('KARTA SPRAWY'), 0, 1, 'C');
+        $pdf->SetFont('DejaVu', 'B', 11);
+        $pdf->SetXY(18, 15);
+        $pdf->Cell($W - 6, 7, $pl('KARTA SPRAWY'), 0, 1, 'L');
+        $pdf->SetFont('DejaVu', '', 8);
+        $pdf->SetXY(18, 22);
+        $pdf->Cell($W - 6, 7, $pl(($org_name ?: '') . '   ·   Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'L');
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->Ln(6);
 
-        if ($org_name) { $pdf->SetFont('DejaVu', 'B', 11); $pdf->Cell(0, 6, $pl($org_name), 0, 1); }
-        $pdf->SetFont('DejaVu', '', 9);
-        $pdf->SetTextColor(110, 110, 110);
-        $pdf->Cell(0, 5, $pl('Wygenerowano: ' . date('d.m.Y H:i')), 0, 1);
+        // ── Znak sprawy (duży, wyróżniony) ──────────────────────────────────
+        $pdf->SetY(35);
+        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->SetTextColor(100, 100, 100);
+        $pdf->Cell(0, 5, $pl('ZNAK SPRAWY'), 0, 1);
+        $pdf->SetFont('DejaVu', 'B', 17);
+        $pdf->SetTextColor(22, 53, 102);
+        $pdf->Cell(0, 9, $pl($sprawa['znak_sprawy'] ?: '—'), 0, 1);
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->Ln(3);
-
-        $pdf->SetFont('DejaVu', 'B', 14);
-        $pdf->MultiCell(0, 7, $pl($sprawa['title']), 0, 'L');
         $pdf->Ln(1);
 
-        $row = function (string $k, string $v) use ($pdf, $pl) {
-            $pdf->SetFont('DejaVu', '', 9);  $pdf->SetTextColor(110, 110, 110); $pdf->Cell(40, 6, $pl($k), 0, 0);
-            $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetTextColor(0, 0, 0);
-            $pdf->MultiCell(0, 6, $pl($v !== '' ? $v : '—'), 0, 'L');
-        };
-        $stat = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
-        $row('Znak sprawy:',  (string)$sprawa['znak_sprawy']);
-        $row('Teczka (JRWA):', (string)$sprawa['teczka_symbol']);
-        $row('Status:',        (string)$stat);
-        $row('Właściciel:',    (string)($sprawa['owner_name'] ?? ''));
-        $row('Otwarto:',       $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '');
-        if (!empty($sprawa['ciagla']))      $row('Termin:', 'sprawa ciągła (stale otwarta)');
-        elseif (!empty($sprawa['deadline'])) $row('Termin:', date('d.m.Y', strtotime($sprawa['deadline'])));
-        if (!empty($sprawa['closed_at']))   $row('Zamknięto:', date('d.m.Y', strtotime($sprawa['closed_at'])));
-        if (!empty($sprawa['description'])) { $pdf->Ln(1); $row('Opis:', (string)$sprawa['description']); }
+        // ── Tytuł sprawy ─────────────────────────────────────────────────────
+        $pdf->SetFont('DejaVu', 'B', 13);
+        $pdf->MultiCell(0, 7, $pl($sprawa['title']), 0, 'L');
+        $pdf->Ln(3);
 
+        // ── Opis — wyróżnione pole ────────────────────────────────────────────
+        if (!empty($sprawa['description'])) {
+            $desc = $pl($sprawa['description']);
+            $pdf->SetFillColor(240, 245, 255);
+            // Szacuj wysokość multi-cell: ~5mm na linię, min 14mm
+            $lines = max(3, (int)ceil(mb_strlen($sprawa['description']) / 90) + 1);
+            $boxH  = $lines * 5.5 + 6;
+            $pdf->Rect(15, $pdf->GetY(), $W, $boxH, 'F');
+            $pdf->SetDrawColor(180, 200, 230);
+            $pdf->Rect(15, $pdf->GetY(), 2, $boxH, 'F');     // lewy pasek akcentu
+            $pdf->SetDrawColor(200, 200, 200);
+            $xStart = $pdf->GetY();
+            $pdf->SetFont('DejaVu', 'B', 8);
+            $pdf->SetTextColor(80, 100, 140);
+            $pdf->SetXY(19, $xStart + 2);
+            $pdf->Cell(0, 5, $pl('OPIS SPRAWY'), 0, 1);
+            $pdf->SetFont('DejaVu', '', 9.5);
+            $pdf->SetTextColor(30, 30, 30);
+            $pdf->SetX(19);
+            $pdf->MultiCell($W - 4, 5.5, $desc, 0, 'L');
+            $pdf->SetY($xStart + $boxH + 4);
+        }
+        $pdf->Ln(2);
+
+        // ── Metadane (dwie kolumny) ───────────────────────────────────────────
+        $stat   = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
+        $meta   = [
+            ['Teczka (JRWA)', $sprawa['teczka_symbol'] ?? '—'],
+            ['Status',        $stat],
+            ['Właściciel',    $sprawa['owner_name'] ?? '—'],
+            ['Otwarto',       $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
+        ];
+        if (!empty($sprawa['ciagla']))        $meta[] = ['Termin', 'sprawa ciągła (stale otwarta)'];
+        elseif (!empty($sprawa['deadline']))  $meta[] = ['Termin', date('d.m.Y', strtotime($sprawa['deadline']))];
+        if (!empty($sprawa['closed_at']))     $meta[] = ['Zamknięto', date('d.m.Y', strtotime($sprawa['closed_at']))];
+
+        $colW = ($W - 6) / 2;
+        $y0   = $pdf->GetY();
+        $col  = 0;
+        foreach ($meta as $i => [$k, $v]) {
+            $x = 15 + ($col ? $colW + 6 : 0);
+            $pdf->SetXY($x, $y0 + (int)floor($i / 2) * 11);
+            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
+            $pdf->Cell($colW, 5, $pl($k), 0, 1);
+            $pdf->SetX($x);
+            $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetTextColor(0, 0, 0);
+            $pdf->Cell($colW, 5.5, $pl($v), 0, 1);
+            $col = 1 - $col;
+        }
+        $pdf->SetY($y0 + (int)ceil(count($meta) / 2) * 11 + 4);
+
+        // ── Separator ────────────────────────────────────────────────────────
+        $pdf->SetDrawColor(210, 215, 225);
+        $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
         $pdf->Ln(4);
-        $pdf->SetFont('DejaVu', 'B', 10);
-        $pdf->Cell(0, 7, $pl('Załączone dokumenty (' . count($files) . ')'), 0, 1);
-        $pdf->SetFont('DejaVu', '', 9);
+
+        // ── Spis dokumentów ───────────────────────────────────────────────────
+        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->SetTextColor(22, 53, 102);
+        $pdf->Cell(0, 6, $pl('DOKUMENTY W SPRAWIE  (' . count($files) . ')'), 0, 1);
+        $pdf->SetTextColor(0, 0, 0);
         if ($files) {
-            $i = 0;
-            foreach ($files as $z) {
-                $i++;
-                $line = $i . '. ' . $z['original_name'] . '  [' . $zal_src($z) . ', ' . ezd_filesize($z['file_size']) . ']';
-                $pdf->MultiCell(0, 5.5, $pl($line), 0, 'L');
+            foreach ($files as $i => $z) {
+                $pdf->SetFillColor($i % 2 === 0 ? 250 : 244, $i % 2 === 0 ? 251 : 247, 255);
+                $pdf->Rect(15, $pdf->GetY(), $W, 6.5, 'F');
+                $pdf->SetFont('DejaVu', '', 8.5);
+                $nr   = $pl(($i + 1) . '.');
+                $name = $pl($z['original_name']);
+                $src  = $pl($zal_src($z) . ' · ' . ezd_filesize($z['file_size']));
+                $pdf->SetXY(16, $pdf->GetY() + 0.5);
+                $pdf->Cell(8, 5.5, $nr, 0, 0);
+                $pdf->Cell(110, 5.5, $name, 0, 0);
+                $pdf->SetTextColor(120, 120, 120);
+                $pdf->Cell(0, 5.5, $src, 0, 1);
+                $pdf->SetTextColor(0, 0, 0);
             }
         } else {
-            $pdf->SetTextColor(110, 110, 110);
-            $pdf->Cell(0, 6, $pl('Brak plików w sprawie — karta zawiera wyłącznie metadane.'), 0, 1);
+            $pdf->SetFont('DejaVu', '', 9);
+            $pdf->SetTextColor(130, 130, 130);
+            $pdf->Cell(0, 6, $pl('Brak plików — karta zawiera wyłącznie metadane.'), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
         }
     }
@@ -178,6 +237,7 @@ if ($out === 'pdf') {
 
 // ── Ekran wyboru ─────────────────────────────────────────────────────────────
 $PAGE_TITLE = 'Drukuj sprawę — ' . $sprawa['znak_sprawy'];
+$stat_label = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
@@ -188,60 +248,111 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="d-flex align-items-center mb-3 gap-2">
-  <h4 class="fw-bold mb-0"><i class="bi bi-printer text-dark me-2"></i>Drukuj sprawę do PDF</h4>
-  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-arrow-left me-1"></i>Wróć do sprawy</a>
-</div>
+<div style="max-width:860px">
 
-<div class="row g-3" style="max-width:820px">
-  <!-- Cała sprawa -->
-  <div class="col-12">
-    <div class="card shadow-sm">
-      <div class="card-body d-flex align-items-center gap-3 flex-wrap">
-        <i class="bi bi-file-earmark-pdf text-danger" style="font-size:2rem"></i>
-        <div class="flex-grow-1">
-          <div class="fw-bold">Cała sprawa (wszystkie dokumenty)</div>
-          <div class="text-muted" style="font-size:.83rem">Okładka z danymi sprawy + scalone wszystkie pliki (<?= count($zalaczniki) ?>) w jednym PDF.</div>
+  <!-- ── Karta podglądu sprawy ─────────────────────────────────────────────── -->
+  <div class="card border-0 shadow-sm mb-4 overflow-hidden">
+    <div style="background:linear-gradient(135deg,#163566 0%,#1e4a8a 100%);padding:20px 24px 14px">
+      <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+        <div>
+          <div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.55);text-transform:uppercase;margin-bottom:4px">Znak sprawy</div>
+          <div style="font-size:1.45rem;font-weight:800;color:#fff;letter-spacing:.01em;line-height:1.15"><?= h($sprawa['znak_sprawy']) ?></div>
         </div>
-        <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener" class="btn btn-dark">
-          <i class="bi bi-download me-1"></i>Pobierz PDF
+        <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>"
+           class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);white-space:nowrap">
+          <i class="bi bi-arrow-left me-1"></i>Wróć do sprawy
         </a>
       </div>
+      <div style="font-size:1.05rem;font-weight:600;color:rgba(255,255,255,.9);margin-top:10px;line-height:1.35">
+        <?= h($sprawa['title']) ?>
+      </div>
+    </div>
+
+    <?php if (!empty($sprawa['description'])): ?>
+    <div style="background:#f0f5ff;border-left:4px solid #163566;padding:14px 20px 14px 20px;display:flex;gap:12px;align-items:flex-start">
+      <i class="bi bi-card-text" style="color:#163566;font-size:1.15rem;margin-top:2px;flex-shrink:0"></i>
+      <div>
+        <div style="font-size:.68rem;font-weight:700;letter-spacing:.09em;color:#4a6096;text-transform:uppercase;margin-bottom:4px">Opis sprawy</div>
+        <div style="font-size:.93rem;color:#1a2a45;line-height:1.55;white-space:pre-wrap"><?= h($sprawa['description']) ?></div>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="card-body py-3 px-4 d-flex gap-4 flex-wrap" style="font-size:.82rem;background:#fff;border-top:1px solid #e8ecf4">
+      <span><span class="text-secondary">Teczka:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
+      <span><span class="text-secondary">Status:</span> <strong><?= h($stat_label) ?></strong></span>
+      <?php if (!empty($sprawa['owner_name'])): ?>
+      <span><span class="text-secondary">Właściciel:</span> <strong><?= h($sprawa['owner_name']) ?></strong></span>
+      <?php endif; ?>
+      <?php if (!empty($sprawa['deadline'])): ?>
+      <span><span class="text-secondary">Termin:</span> <strong><?= date('d.m.Y', strtotime($sprawa['deadline'])) ?></strong></span>
+      <?php endif; ?>
+      <span class="ms-auto text-secondary"><?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : (count($zalaczniki) < 5 ? 'dokumenty' : 'dokumentów') ?></span>
     </div>
   </div>
 
-  <!-- Pojedynczy dokument -->
-  <div class="col-12">
-    <div class="card shadow-sm">
-      <div class="card-header fw-semibold"><i class="bi bi-files me-2"></i>…albo jeden dokument</div>
-      <div class="card-body p-0">
-        <?php if (!$zalaczniki): ?>
-        <div class="text-center text-muted py-3" style="font-size:.85rem">Brak dokumentów w tej sprawie.</div>
-        <?php else: foreach ($zalaczniki as $z):
-          $ext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
-          $printable = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true);
-        ?>
-        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.84rem">
-          <i class="bi <?= ezd_file_icon($z['original_name']) ?> fs-5 flex-shrink-0"></i>
-          <div class="flex-grow-1 overflow-hidden">
-            <div class="fw-semibold text-truncate"><?= h($z['original_name']) ?></div>
-            <div class="text-muted" style="font-size:.72rem"><?= h($zal_src($z)) ?> · <?= ezd_filesize($z['file_size']) ?></div>
-          </div>
-          <?php if ($printable): ?>
-          <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark">
-            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
-          </a>
-          <?php else: ?>
-          <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$z['id'] ?>&dl=1" class="btn btn-sm btn-outline-secondary" title="Format nie-PDF — pobierz oryginał">
-            <i class="bi bi-download me-1"></i>Oryginał
-          </a>
-          <?php endif; ?>
-        </div>
-        <?php endforeach; endif; ?>
+  <!-- ── Akcja: cała sprawa ────────────────────────────────────────────────── -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body d-flex align-items-center gap-4 flex-wrap px-4 py-3">
+      <div style="width:48px;height:48px;background:#fff0f0;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="bi bi-file-earmark-pdf" style="font-size:1.6rem;color:#dc2626"></i>
       </div>
+      <div class="flex-grow-1">
+        <div class="fw-bold mb-1">Cała sprawa — jeden plik PDF</div>
+        <div class="text-secondary" style="font-size:.82rem">
+          Okładka z danymi i opisem sprawy + scalone <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> w jednym pliku.
+        </div>
+      </div>
+      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener"
+         class="btn btn-danger px-4">
+        <i class="bi bi-download me-2"></i>Pobierz PDF
+      </a>
     </div>
-    <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Pliki PDF i obrazy trafiają do PDF. Inne formaty (DOCX, ZIP…) pobierz jako oryginał — w PDF całej sprawy są wykazane na okładce.</div>
   </div>
+
+  <!-- ── Lista dokumentów ─────────────────────────────────────────────────── -->
+  <?php if ($zalaczniki): ?>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header border-0 bg-white px-4 pt-3 pb-2">
+      <span class="fw-semibold"><i class="bi bi-files me-2 text-secondary"></i>Pojedynczy dokument</span>
+      <span class="text-secondary ms-2" style="font-size:.8rem">— wybierz z listy</span>
+    </div>
+    <div class="card-body p-0">
+      <?php foreach ($zalaczniki as $i => $z):
+        $ext       = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
+        $printable = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true);
+        $icon      = ezd_file_icon($z['original_name']);
+        $bg        = $i % 2 === 0 ? '' : 'style="background:#fafbfc"';
+      ?>
+      <div class="d-flex align-items-center gap-3 px-4 py-2 border-bottom" <?= $bg ?>>
+        <div style="width:34px;height:34px;background:<?= $printable ? '#eff6ff' : '#f8fafc' ?>;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="bi <?= $icon ?>" style="font-size:1.1rem;color:<?= $printable ? '#2563eb' : '#94a3b8' ?>"></i>
+        </div>
+        <div class="flex-grow-1 overflow-hidden">
+          <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($z['original_name']) ?></div>
+          <div class="text-secondary" style="font-size:.73rem"><?= h($zal_src($z)) ?> · <?= ezd_filesize($z['file_size']) ?></div>
+        </div>
+        <?php if ($printable): ?>
+        <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>"
+           target="_blank" rel="noopener"
+           class="btn btn-sm btn-outline-primary" style="white-space:nowrap">
+          <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+        </a>
+        <?php else: ?>
+        <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$z['id'] ?>&dl=1"
+           class="btn btn-sm btn-outline-secondary" style="white-space:nowrap" title="Format nie-PDF — pobierz oryginał">
+          <i class="bi bi-download me-1"></i>Oryginał
+        </a>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <div class="card-footer border-0 bg-white px-4 py-2" style="font-size:.76rem;color:#94a3b8">
+      <i class="bi bi-info-circle me-1"></i>PDF i obrazy (JPG, PNG) można eksportować do PDF. Inne formaty pobierz jako oryginał — są wykazane na okładce PDF całej sprawy.
+    </div>
+  </div>
+  <?php endif; ?>
+
 </div>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
