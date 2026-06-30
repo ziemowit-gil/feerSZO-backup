@@ -377,6 +377,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: accounts.php?guardian=' . $aid); exit;
     }
+
+    // ── Upoważnienia (tylko pełnoletni) ──────────────────────────────────────
+    if (in_array($op, ['authp_add', 'authp_toggle', 'authp_delete', 'authp_reset_pass'], true)) {
+        $aid  = (int)($_POST['account_id'] ?? 0);
+        $acc  = $aid ? db_one(
+            "SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a
+             JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$aid]
+        ) : null;
+        if (!$acc || !empty($acc['is_minor'])) {
+            flash_set('danger', 'Upoważnienia obsługiwane tylko dla pełnoletnich kursantów.');
+            header('Location: accounts.php'); exit;
+        }
+        if ($op === 'authp_add') {
+            $ap_name  = mb_substr(trim((string)($_POST['ap_name']  ?? '')), 0, 100);
+            $ap_login = mb_strtolower(mb_substr(trim((string)($_POST['ap_login'] ?? '')), 0, 40));
+            $ap_email = mb_substr(trim((string)($_POST['ap_email'] ?? '')), 0, 150);
+            $ap_notes = mb_substr(trim((string)($_POST['ap_notes'] ?? '')), 0, 300);
+            if ($ap_name === '' || !preg_match('/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/', $ap_login)) {
+                flash_set('danger', 'Nieprawidłowy login lub brakujące imię.');
+                header('Location: accounts.php?authp=' . $aid); exit;
+            }
+            $conflict = db_one("SELECT id FROM k30_ti_authorized_persons WHERE login=?", [$ap_login])
+                     ?? db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$ap_login]);
+            if ($conflict) {
+                flash_set('danger', 'Login jest już zajęty przez inny konto.');
+                header('Location: accounts.php?authp=' . $aid); exit;
+            }
+            $ap_pass = _authp_gen_pass_admin();
+            $ap_id   = db_insert('k30_ti_authorized_persons', [
+                'student_account_id' => $aid,
+                'name'  => $ap_name,
+                'login' => $ap_login,
+                'email' => $ap_email,
+                'password_hash' => password_hash($ap_pass, PASSWORD_BCRYPT),
+                'notes' => $ap_notes,
+            ]);
+            $_SESSION['new_authp_creds'] = [
+                'id'          => (int)$ap_id,
+                'name'        => $ap_name,
+                'login'       => $ap_login,
+                'pass'        => $ap_pass,
+                'student_name'=> $acc['client_name'],
+                'account_id'  => $aid,
+            ];
+            flash_set('success', "Upoważnienie dodane: {$ap_name} (login: {$ap_login}). Wygenerowano hasło — wydrukuj kartkę.");
+            header('Location: accounts.php?authp=' . $aid . '&new_authp=1'); exit;
+        }
+        $ap_id_edit = (int)($_POST['ap_id'] ?? 0);
+        $ap = $ap_id_edit ? db_one(
+            "SELECT * FROM k30_ti_authorized_persons WHERE id=? AND student_account_id=?",
+            [$ap_id_edit, $aid]
+        ) : null;
+        if (!$ap) { flash_set('danger','Nie znaleziono upoważnienia.'); header('Location: accounts.php?authp=' . $aid); exit; }
+        if ($op === 'authp_toggle') {
+            db()->prepare("UPDATE k30_ti_authorized_persons SET is_active=? WHERE id=?")
+               ->execute([$ap['is_active'] ? 0 : 1, $ap_id_edit]);
+            flash_set('success', $ap['is_active'] ? 'Dostęp wstrzymany.' : 'Dostęp przywrócony.');
+        } elseif ($op === 'authp_delete') {
+            db()->prepare("DELETE FROM k30_ti_authorized_persons WHERE id=?")->execute([$ap_id_edit]);
+            flash_set('success', "Upoważnienie usunięte: {$ap['name']}.");
+        } elseif ($op === 'authp_reset_pass') {
+            $np = _authp_gen_pass_admin();
+            db()->prepare("UPDATE k30_ti_authorized_persons SET password_hash=? WHERE id=?")
+               ->execute([password_hash($np, PASSWORD_BCRYPT), $ap_id_edit]);
+            $cl_row = db_one("SELECT cl.name FROM k30_ti_student_accounts a JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$aid]);
+            $_SESSION['new_authp_creds'] = [
+                'id'          => $ap_id_edit,
+                'name'        => $ap['name'],
+                'login'       => $ap['login'],
+                'pass'        => $np,
+                'student_name'=> $cl_row['name'] ?? '',
+                'account_id'  => $aid,
+            ];
+            flash_set('success', "Hasło upoważnienia zresetowane dla {$ap['name']}. Wydrukuj kartkę.");
+            header('Location: accounts.php?authp=' . $aid . '&new_authp=1'); exit;
+        }
+        header('Location: accounts.php?authp=' . $aid); exit;
+    }
+}
+
+function _authp_gen_pass_admin(): string {
+    $w = ['Kotek','Rower','Zamek','Kwiat','Statek','Zegar','Obraz','Lampa'];
+    return $w[array_rand($w)] . random_int(100, 999);
 }
 
 // Wczytaj
@@ -404,6 +487,8 @@ $parent_link = $_SESSION['parent_link'] ?? null;
 unset($_SESSION['parent_link']);
 $new_parent_creds = $_SESSION['new_parent_creds'] ?? null;
 unset($_SESSION['new_parent_creds']);
+$new_authp_creds = $_SESSION['new_authp_creds'] ?? null;
+unset($_SESSION['new_authp_creds']);
 
 // Edytor opiekuna
 $guardian_id  = (int)($_GET['guardian'] ?? 0);
@@ -412,8 +497,21 @@ $guardian_acc = $guardian_id ? db_one(
      JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$guardian_id]
 ) : null;
 
-$portal_url        = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
-$parent_portal_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php';
+$portal_url         = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
+$parent_portal_url  = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php';
+$authp_portal_url   = rtrim(APP_URL, '/') . '/karty30/ti/kursant/authorized_person.php';
+
+// Edytor upoważnień
+$authp_account_id  = (int)($_GET['authp'] ?? 0);
+$authp_account     = $authp_account_id ? db_one(
+    "SELECT a.*, cl.name AS client_name FROM k30_ti_student_accounts a
+     JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=? AND COALESCE(a.is_minor,0)=0",
+    [$authp_account_id]
+) : null;
+$authp_list_admin  = $authp_account ? db_all(
+    "SELECT * FROM k30_ti_authorized_persons WHERE student_account_id=? ORDER BY created_at DESC",
+    [$authp_account_id]
+) : [];
 
 include dirname(dirname(dirname(__DIR__))) . '/karty30/includes/header_k30.php';
 ?>
@@ -610,6 +708,122 @@ function printBulk(){
       <button class="btn btn-primary btn-sm"><i class="bi bi-person-plus me-1"></i>Utwórz konto rodzica</button>
     </form>
     <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($authp_account): ?>
+<!-- ── Edytor upoważnionych osób ──────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="bi bi-person-check text-primary"></i>
+    <span>Upoważnieni — <?= h($authp_account['client_name']) ?></span>
+    <a href="accounts.php" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-arrow-left me-1"></i>Zamknij</a>
+  </div>
+  <div class="card-body">
+
+    <?php if ($new_authp_creds): ?>
+    <div class="alert alert-success d-flex gap-3 align-items-start">
+      <i class="bi bi-check-circle-fill flex-shrink-0 fs-5 mt-1"></i>
+      <div class="flex-grow-1">
+        <div class="fw-semibold mb-1">Hasło wygenerowane — przekaż kartkę do podpisu</div>
+        <div class="font-monospace bg-white border rounded p-2 small mb-2">
+          Kursant: <strong><?= h($new_authp_creds['student_name']) ?></strong><br>
+          Osoba upoważniona: <strong><?= h($new_authp_creds['name']) ?></strong><br>
+          Login: <strong><?= h($new_authp_creds['login']) ?></strong><br>
+          Hasło: <strong><?= h($new_authp_creds['pass']) ?></strong>
+        </div>
+        <a href="authp_print.php?id=<?= (int)$new_authp_creds['id'] ?>"
+           target="_blank" class="btn btn-sm btn-primary">
+          <i class="bi bi-printer me-1"></i>Drukuj kartkę z potwierdzeniem
+        </a>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($authp_list_admin): ?>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Imię i nazwisko</th><th>Login</th><th>E-mail</th><th>Uwagi</th>
+            <th>Ostatnie logowanie</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($authp_list_admin as $ap): ?>
+          <tr class="<?= $ap['is_active'] ? '' : 'text-body-secondary' ?>">
+            <td class="fw-semibold"><?= h($ap['name']) ?></td>
+            <td class="font-monospace small"><?= h($ap['login']) ?></td>
+            <td class="small"><?= h($ap['email']) ?: '—' ?></td>
+            <td class="small"><?= h($ap['notes']) ?: '—' ?></td>
+            <td class="small text-nowrap"><?= $ap['last_login'] ? h(date('d.m.Y H:i', strtotime($ap['last_login']))) : '—' ?></td>
+            <td><span class="badge text-bg-<?= $ap['is_active'] ? 'success' : 'secondary' ?>"><?= $ap['is_active'] ? 'aktywna' : 'wstrzymana' ?></span></td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="authp_print.php?id=<?= (int)$ap['id'] ?>" target="_blank"
+                   class="btn btn-sm btn-outline-secondary py-0" title="Drukuj kartkę"><i class="bi bi-printer"></i></a>
+                <form method="post" class="d-inline">
+                  <?php csrf_field(); ?>
+                  <input type="hidden" name="_op" value="authp_toggle">
+                  <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
+                  <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary py-0" title="<?= $ap['is_active'] ? 'Wstrzymaj' : 'Aktywuj' ?>">
+                    <i class="bi bi-<?= $ap['is_active'] ? 'pause' : 'play' ?>-fill"></i>
+                  </button>
+                </form>
+                <form method="post" class="d-inline">
+                  <?php csrf_field(); ?>
+                  <input type="hidden" name="_op" value="authp_reset_pass">
+                  <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
+                  <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-warning py-0" title="Resetuj hasło"><i class="bi bi-key"></i></button>
+                </form>
+                <form method="post" class="d-inline" onsubmit="return confirm('Usunąć upoważnienie dla <?= h(addslashes($ap['name'])) ?>?')">
+                  <?php csrf_field(); ?>
+                  <input type="hidden" name="_op" value="authp_delete">
+                  <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
+                  <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-danger py-0" title="Usuń"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php else: ?>
+    <p class="text-body-secondary small mb-3">Brak upoważnionych osób dla tego kursanta.</p>
+    <?php endif; ?>
+
+    <form method="post" class="border-top pt-3 mt-1">
+      <?php csrf_field(); ?>
+      <input type="hidden" name="_op" value="authp_add">
+      <input type="hidden" name="account_id" value="<?= $authp_account_id ?>">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="apn-name">Imię i nazwisko *</label>
+          <input type="text" class="form-control form-control-sm" id="apn-name" name="ap_name" maxlength="100" required placeholder="np. Anna Kowalska">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="apn-login">Login (unikalny) *</label>
+          <input type="text" class="form-control form-control-sm font-monospace" id="apn-login" name="ap_login" maxlength="40" required
+                 pattern="[a-z0-9][a-z0-9.\-_]{1,28}[a-z0-9]" placeholder="np. a.kowalska-up">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="apn-email">E-mail</label>
+          <input type="email" class="form-control form-control-sm" id="apn-email" name="ap_email" maxlength="150" placeholder="anna@example.com">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold" for="apn-notes">Uwagi</label>
+          <input type="text" class="form-control form-control-sm" id="apn-notes" name="ap_notes" maxlength="300" placeholder="np. opiekun">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary mt-2">
+        <i class="bi bi-person-plus me-1"></i>Dodaj i wygeneruj hasło
+      </button>
+    </form>
   </div>
 </div>
 <?php endif; ?>
@@ -812,6 +1026,9 @@ function printBulk(){
                     <?php endif; ?>
                     <li><a class="dropdown-item" href="../messages.php?student=<?= (int)$a['id'] ?>"><i class="bi bi-envelope me-2" aria-hidden="true"></i>Wyślij wiadomość</a></li>
                     <li><a class="dropdown-item" href="?guardian=<?= (int)$a['id'] ?>"><i class="bi bi-people me-2 text-info" aria-hidden="true"></i>Opiekun / dostęp rodzica</a></li>
+                    <?php if (empty($a['is_minor'])): ?>
+                    <li><a class="dropdown-item" href="?authp=<?= (int)$a['id'] ?>"><i class="bi bi-person-check me-2 text-primary" aria-hidden="true"></i>Osoby upoważnione</a></li>
+                    <?php endif; ?>
 
                     <li><hr class="dropdown-divider"></li>
 
