@@ -96,8 +96,8 @@ function _mr(string $s): string {
     return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
-$MONTHS_PL_FULL = ['','Styczen','Luty','Marzec','Kwiecien','Maj','Czerwiec',
-                   'Lipiec','Sierpien','Wrzesien','Pazdziernik','Listopad','Grudzien'];
+$MONTHS_PL_FULL = ['','Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
+                   'Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
 $ORG = defined('ORG_NAME') ? ORG_NAME : '';
 
 $pdf = new FPDF('L', 'mm', 'A4');
@@ -123,7 +123,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $pdf->Cell($PW, 9, _mr('Raport frekwencji — ' . ($course['name'] ?? '')), 0, 1, 'C', true);
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetFont('DejaVu', '', 8);
-    $pdf->Cell($PW, 5, _mr(($ORG ? $ORG . '   |   ' : '') . 'Miesiac: ' . $month_label . '   |   Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'C');
+    $pdf->Cell($PW, 5, _mr(($ORG ? $ORG . '   |   ' : '') . 'Miesiąc: ' . $month_label . '   |   Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'C');
     $pdf->Ln(3);
 
     // Statystyki miesiaca
@@ -132,7 +132,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $held_s  = $total_s - $canc_s;
     $pdf->SetFont('DejaVu', '', 7.5);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->Cell($PW, 5, _mr("Lekcje w miesiacu: $total_s   |   Odbyte: $held_s   |   Odwolane: $canc_s   |   Aktywnych kursantow: " . count($c_enrollees)), 0, 1, 'C');
+    $pdf->Cell($PW, 5, _mr("Lekcje w miesiącu: $total_s   |   Odbyłe się: $held_s   |   Odwołane: $canc_s   |   Aktywnych kursantów: " . count($c_enrollees)), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(2);
 
@@ -164,7 +164,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $pdf->SetFillColor(220, 232, 248);
     $pdf->Cell($stat_w, $row_h * 2, _mr('Frekw.'), 1, 1, 'C', true);
 
-    // Wiersze kursantow
+    // Wiersze kursantów
     $pdf->SetFont('DejaVu', '', 7.5);
     $fill = false;
     $course_total_att = 0;
@@ -253,7 +253,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $pdf->Ln(3);
     $pdf->SetFont('DejaVu', '', 6.5);
     $pdf->SetTextColor(100, 100, 100);
-    $pdf->Cell($PW, 4, _mr('+  obecny     –  nieobecny     x  odwolany udz.     —  lekcja odwolana     %  frekwencja (bez odwolanych)'), 0, 1, 'L');
+    $pdf->Cell($PW, 4, _mr('+  obecny     –  nieobecny     x  odwołany udział     —  lekcja odwołana     %  frekwencja (bez odwołanych)'), 0, 1, 'L');
 }
 
 $fname = 'frekwencja_' . str_replace('-', '_', $month_raw) . '_' . date('His') . '.pdf';
