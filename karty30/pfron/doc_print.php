@@ -852,7 +852,12 @@ if ($type === 'umowa') {
     $body_html .= '<pagebreak />';
     $body_html .= html_regulamin($h_training);
 } elseif ($type === 'umowa2') {
+    // Kartka rejestracyjna + pełna umowa + regulamin
     $body_html = html_umowa2($v);
+    $body_html .= '<pagebreak />';
+    $body_html .= html_umowa($v);
+    $body_html .= '<pagebreak />';
+    $body_html .= html_regulamin($h_training);
 } else {
     $body_html = html_regulamin($h_training);
 }
