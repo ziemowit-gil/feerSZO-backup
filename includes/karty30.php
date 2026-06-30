@@ -1844,7 +1844,7 @@ const K30_TI_DAYS = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=
 const K30_TI_SESSION_STATUSES = [
     'planned'           => ['label'=>'Zaplanowana',          'color'=>'#F59E0B', 'bg'=>'#FFFBEB'],
     'held'              => ['label'=>'Odbyła się',           'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
-    'individual_change' => ['label'=>'Zmiana indywidualna',  'color'=>'#7C3AED', 'bg'=>'#F5F3FF'],
+    'individual_change' => ['label'=>'Zajęcia indywidualne', 'color'=>'#7C3AED', 'bg'=>'#F5F3FF'],
     'cancelled'         => ['label'=>'Odwołana',             'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
 ];
 
