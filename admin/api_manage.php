@@ -28,6 +28,8 @@ const AM_API_PERMISSIONS = [
     'crm:write'        => 'CRM — zapis kontaktów (twórz / edytuj / usuń)',
     'karty30:read'     => 'Karty 30 — odczyt (beneficjenci, wizyty, konsultacje, TI)',
     'karty30:write'    => 'Karty 30 — zapis (twórz / edytuj / usuń)',
+    'events:read'      => 'Wydarzenia — odczyt (lista, szczegóły, rejestracje)',
+    'events:write'     => 'Wydarzenia — zapis (twórz / edytuj / rejestracje)',
 ];
 
 // ── Zdarzenia Webhook ──────────────────────────────────────────────────────────
@@ -439,9 +441,30 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
       <h6 class="fw-semibold"><i class="bi bi-diagram-2-fill text-success me-1"></i>CRM — <code><?= h($api_base) ?>/crm.php</code></h6>
       <p class="mb-2">CRUD kontaktów + notatki/tagi. Scope: <code>crm:read</code> / <code>crm:write</code>.
         Filtry: <code>q, status, type, source, branza, tag, wojewodztwo, has_email, has_phone, created_from, created_to</code>.</p>
-      <pre class="bg-dark text-light p-2 rounded mb-0" style="white-space:pre-wrap;font-size:.8rem">curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+      <pre class="bg-dark text-light p-2 rounded mb-3" style="white-space:pre-wrap;font-size:.8rem">curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"imie_nazwisko":"Anna Kowalska","email":"anna@example.pl"}' \
   "<?= h($api_base) ?>/crm.php"</pre>
+
+      <h6 class="fw-semibold"><i class="bi bi-calendar-event-fill text-primary me-1" style="color:#7c3aed"></i>Wydarzenia — <code><?= h($api_base) ?>/events.php</code></h6>
+      <p class="mb-1">Routing <code>?id=N&amp;resource=registrations&amp;reg_id=M</code>; metody GET/POST/PATCH/DELETE. Scope: <code>events:read</code> / <code>events:write</code>.</p>
+      <ul class="mb-2">
+        <li>Wydarzenia: <code>GET</code> lista (filtry <code>status, type, is_public, upcoming, q, from, to</code>), <code>GET ?id=N</code>, <code>POST</code> (nowe — status <code>draft</code>), <code>PATCH ?id=N</code>, <code>DELETE ?id=N</code> (archiwizuje).</li>
+        <li>Rejestracje: <code>GET/POST ?id=N&amp;resource=registrations</code>, <code>GET/PATCH/DELETE …&amp;reg_id=M</code>. Zapis przez API wywołuje sync CRM i webhook Power Automate identycznie jak formularz publiczny.</li>
+      </ul>
+      <pre class="bg-dark text-light p-2 rounded mb-0" style="white-space:pre-wrap;font-size:.8rem"># Lista nadchodzących, opublikowanych wydarzeń
+curl -H "Authorization: Bearer $KEY" "<?= h($api_base) ?>/events.php?status=published&upcoming=1"
+
+# Zgłoszenie rejestracji na wydarzenie o id=5
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"first_name":"Jan","last_name":"Nowak","email":"jan@example.pl"}' \
+  "<?= h($api_base) ?>/events.php?id=5&resource=registrations"</pre>
+
+      <div class="alert alert-light border small mt-3 mb-0">
+        <i class="bi bi-info-circle me-1"></i>
+        Do osadzenia listy wydarzeń na zewnętrznej stronie (bez klucza API, tylko wydarzenia publiczne)
+        służy osobny, bez-autoryzacyjny widget — zobacz
+        <a href="<?= APP_URL ?>/events/settings/embed.php">Wydarzenia → Osadzanie / API</a>.
+      </div>
     </div>
   </div>
 </div><!-- /pane-api -->

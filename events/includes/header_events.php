@@ -235,9 +235,13 @@ body { margin:0; background:var(--ev-bg); color:var(--ev-text);
   <?php if ($_is_admin): ?>
   <div class="ev-nav-sep" role="separator"></div>
   <span class="ev-nav-label">Ustawienia</span>
-  <a class="ev-nav-link <?= _ev_active('/events/settings/') ? 'active' : '' ?>"
+  <a class="ev-nav-link <?= _ev_active('/events/settings/roles') ? 'active' : '' ?>"
      href="<?= APP_URL ?>/events/settings/roles.php<?= $_ev_id ? '?id='.$_ev_id : '' ?>">
     <i class="bi bi-people-fill" aria-hidden="true"></i>Role i dostęp
+  </a>
+  <a class="ev-nav-link <?= _ev_active('/events/settings/embed') ? 'active' : '' ?>"
+     href="<?= APP_URL ?>/events/settings/embed.php">
+    <i class="bi bi-code-slash" aria-hidden="true"></i>Osadzanie / API
   </a>
   <?php endif; ?>
 

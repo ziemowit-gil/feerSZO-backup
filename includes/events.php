@@ -303,3 +303,93 @@ function ev_parse_json(): array {
     $b = json_decode(file_get_contents('php://input'), true);
     return is_array($b) ? $b : [];
 }
+
+// ── API / embed — serializacja ─────────────────────────────────────────────
+
+function ev_register_url(string $slug): string {
+    return rtrim(APP_URL, '/') . '/events/public/register.php?slug=' . urlencode($slug);
+}
+
+function ev_spots_left(array $ev, ?int $reg_count = null): ?int {
+    if (empty($ev['capacity'])) return null;
+    if ($reg_count === null) $reg_count = ev_reg_count((int)$ev['id']);
+    return max(0, (int)$ev['capacity'] - $reg_count);
+}
+
+/**
+ * Publiczna (bezpieczna) reprezentacja wydarzenia — do feedu / osadzania.
+ * Nigdy nie zawiera meeting_url ani danych uczestników.
+ */
+function ev_public_event(array $r): array {
+    $type_info = EV_TYPE[$r['type']] ?? ['label' => $r['type'], 'icon' => 'bi-calendar'];
+    $reg_count = ev_reg_count((int)$r['id']);
+    return [
+        'id'          => (int)$r['id'],
+        'slug'        => $r['slug'],
+        'title'       => $r['title'],
+        'description' => $r['description'] ? mb_substr(trim(strip_tags($r['description'])), 0, 300) : null,
+        'type'        => $r['type'],
+        'type_label'  => $type_info['label'],
+        'start_at'    => $r['start_at'],
+        'end_at'      => $r['end_at'],
+        'venue'       => $r['type'] === 'stationary' ? ($r['venue'] ?: null) : null,
+        'cover_image' => $r['cover_image']
+            ? (preg_match('#^https?://#', $r['cover_image']) ? $r['cover_image'] : rtrim(APP_URL, '/') . '/' . ltrim($r['cover_image'], '/'))
+            : null,
+        'capacity'    => $r['capacity'] !== null && $r['capacity'] !== '' ? (int)$r['capacity'] : null,
+        'spots_left'  => ev_spots_left($r, $reg_count),
+        'register_url'=> ev_register_url($r['slug']),
+    ];
+}
+
+/** Pełna reprezentacja wydarzenia dla API wewnętrznego (Bearer, events:read/write). */
+function ev_api_event(array $r): array {
+    $type_info   = EV_TYPE[$r['type']] ?? ['label' => $r['type'], 'icon' => 'bi-calendar'];
+    $status_info = EV_STATUS[$r['status']] ?? ['label' => $r['status'], 'class' => 'secondary'];
+    $reg_count   = ev_reg_count((int)$r['id']);
+    return [
+        'id'           => (int)$r['id'],
+        'slug'         => $r['slug'],
+        'title'        => $r['title'],
+        'description'  => $r['description'],
+        'type'         => $r['type'],
+        'type_label'   => $type_info['label'],
+        'status'       => $r['status'],
+        'status_label' => $status_info['label'],
+        'venue'        => $r['venue'],
+        'address'      => $r['address'],
+        'meeting_url'  => $r['meeting_url'],
+        'start_at'     => $r['start_at'],
+        'end_at'       => $r['end_at'],
+        'capacity'     => $r['capacity'] !== null && $r['capacity'] !== '' ? (int)$r['capacity'] : null,
+        'reg_count'    => $reg_count,
+        'spots_left'   => ev_spots_left($r, $reg_count),
+        'is_public'    => (bool)$r['is_public'],
+        'reg_open_at'  => $r['reg_open_at'],
+        'reg_close_at' => $r['reg_close_at'],
+        'cover_image'  => $r['cover_image'],
+        'register_url' => ev_register_url($r['slug']),
+        'created_at'   => $r['created_at'],
+        'updated_at'   => $r['updated_at'],
+    ];
+}
+
+/** Rejestracja — reprezentacja dla API wewnętrznego. */
+function ev_api_registration(array $r): array {
+    return [
+        'id'            => (int)$r['id'],
+        'event_id'      => (int)$r['event_id'],
+        'first_name'    => $r['first_name'],
+        'last_name'     => $r['last_name'],
+        'email'         => $r['email'],
+        'phone'         => $r['phone'],
+        'ticket_code'   => $r['ticket_code'],
+        'status'        => $r['status'],
+        'checked_in_at' => $r['checked_in_at'],
+        'reg_data'      => $r['reg_data'] ? json_decode($r['reg_data'], true) : null,
+        'source'        => $r['source'],
+        'notes'         => $r['notes'],
+        'created_at'    => $r['created_at'],
+        'updated_at'    => $r['updated_at'],
+    ];
+}
