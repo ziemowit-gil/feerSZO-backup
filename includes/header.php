@@ -846,6 +846,8 @@ if ($_user) {
     $__add('Granty',        APP_URL.'/grants/index.php',               'bi-cash-coin',         '#15803d','#f0fdf4', str_contains($_uri,'/grants/'), 'Praca i umowy');
     $__add('Strategia',     APP_URL.'/strategy/index.php',             'bi-bullseye',          '#7c3aed','#f5f3ff', (str_contains($_uri,'/strategy/') && !str_contains($_uri,'/strategy/actions/')), 'Praca i umowy');
     $__add('Raporty',       APP_URL.'/reports/index.php',              'bi-bar-chart-line',    '#0284c7','#f0f9ff', str_contains($_uri,'/reports/'), 'Praca i umowy');
+    if (module_enabled('events_enabled'))
+        $__add('Wydarzenia', APP_URL.'/events/dashboard.php',          'bi-calendar-event-fill','#7c3aed','#f5f3ff', str_contains($_uri,'/events/'), 'Praca i umowy');
     // Relacje i ludzie
     if (module_enabled('crm_enabled') && can_read('crm'))
         $__add('CRM',       APP_URL.'/crm/dashboard.php',              'bi-diagram-2-fill',    '#16a34a','#f0fdf4', $_on_crm,     'Relacje i ludzie');
