@@ -200,6 +200,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // TOGGLE WEBAUTHN REQUIRED — wymóg klucza przy KAŻDEJ metodzie logowania
+    // (nie tylko haśle) dla wskazanego użytkownika; reszta admin/editor może
+    // logować się zwykłą metodą (np. samym Microsoft 365).
+    elseif ($action === 'toggle_webauthn_required') {
+        require_once dirname(__DIR__) . '/includes/webauthn.php';
+        webauthn_migrate();
+        $uid = intval($_POST['user_id'] ?? 0);
+        if ($uid) {
+            $u = db_one("SELECT webauthn_required, email FROM users WHERE id=?", [$uid]);
+            if ($u) {
+                $new = empty($u['webauthn_required']) ? 1 : 0;
+                db()->prepare("UPDATE users SET webauthn_required=? WHERE id=?")->execute([$new, $uid]);
+                log_user_action($uid, (int)current_user()['id'], 'webauthn_required_toggle',
+                    $new ? 'Wymuszono klucz WebAuthn przy każdym logowaniu (3 weryfikacje)' : 'Zniesiono wymóg klucza WebAuthn przy logowaniu');
+                flash_set('success', $new
+                    ? 'Klucz WebAuthn będzie teraz wymagany przy każdym logowaniu tego użytkownika.'
+                    : 'Zniesiono wymóg klucza WebAuthn — użytkownik może logować się zwykłą metodą (np. Microsoft 365).');
+            }
+        }
+        header('Location: users.php');
+        exit;
+    }
+
     // DISABLE 2FA
     elseif ($action === 'disable_2fa') {
         $uid = intval($_POST['user_id'] ?? 0);
@@ -307,6 +330,17 @@ $webauthn_uids = [];
 try {
     foreach (db_all("SELECT DISTINCT user_id FROM webauthn_credentials") as $wk) {
         $webauthn_uids[(int)$wk['user_id']] = true;
+    }
+} catch (\Throwable $e) {}
+
+// Użytkownicy, dla których admin wymusił klucz WebAuthn przy KAŻDEJ metodzie
+// logowania (3 weryfikacje) — reszta admin/editor może logować się np. samym M365.
+$webauthn_required_uids = [];
+try {
+    require_once dirname(__DIR__) . '/includes/webauthn.php';
+    webauthn_migrate();
+    foreach (db_all("SELECT id FROM users WHERE webauthn_required=1") as $wr) {
+        $webauthn_required_uids[(int)$wr['id']] = true;
     }
 } catch (\Throwable $e) {}
 
@@ -649,6 +683,26 @@ include dirname(__DIR__) . '/includes/header.php';
                 <input type="hidden" name="user_id"  value="<?= intval($u['id']) ?>">
                 <button type="submit" class="btn btn-sm btn-outline-warning" title="Wyłącz 2FA (<?= $fa_label ?>)">
                   <i class="bi bi-shield-x"></i>
+                </button>
+              </form>
+              <?php endif; ?>
+              <?php if (in_array($u['role'], ['admin', 'editor'], true)):
+                $wa_req = isset($webauthn_required_uids[(int)$u['id']]);
+                $wa_has_key = isset($webauthn_uids[(int)$u['id']]);
+                $wa_title = $wa_req
+                    ? 'Klucz WebAuthn WYMAGANY przy każdym logowaniu (3 weryfikacje)' . (!$wa_has_key ? ' — uwaga: brak jeszcze zarejestrowanego klucza' : '') . ' — kliknij, aby znieść'
+                    : 'Klucz WebAuthn nie jest wymuszony — może logować się zwykłą metodą (np. Microsoft 365). Kliknij, aby wymusić 3 weryfikacje.';
+              ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('<?= $wa_req ? 'Znieść wymóg klucza WebAuthn' : 'Wymusić klucz WebAuthn przy KAŻDYM logowaniu (3 weryfikacje)' ?> dla <?= h(addslashes($u['name'])) ?>?')">
+                <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+                <input type="hidden" name="action"  value="toggle_webauthn_required">
+                <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
+                <button type="submit" class="btn btn-sm position-relative <?= $wa_req ? 'text-white' : 'btn-outline-secondary' ?>"
+                        style="<?= $wa_req ? 'background:#be123c;border-color:#be123c' : '' ?>"
+                        title="<?= h($wa_title) ?>">
+                  <i class="bi bi-shield-lock<?= $wa_req ? '-fill' : '' ?>"></i>
+                  <?php if ($wa_req && !$wa_has_key): ?><span class="badge rounded-pill bg-warning text-dark position-absolute top-0 start-100 translate-middle" style="font-size:.55rem" title="Brak zarejestrowanego klucza">!</span><?php endif; ?>
                 </button>
               </form>
               <?php endif; ?>

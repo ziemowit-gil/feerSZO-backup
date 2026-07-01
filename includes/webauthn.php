@@ -37,6 +37,21 @@ function webauthn_migrate(): void {
     } catch (\Throwable $e) {
         error_log('[webauthn] migrate: ' . $e->getMessage());
     }
+    // Wymóg klucza sprzętowego przy KAŻDYM logowaniu jest ustawiany RĘCZNIE
+    // przez admina per-user (admin/users.php) — nie każdy admin/editor musi
+    // przechodzić przez surową, 3-etapową weryfikację; reszta loguje się
+    // normalnie (np. samym Microsoft 365).
+    try {
+        db()->exec("ALTER TABLE users ADD COLUMN webauthn_required INTEGER NOT NULL DEFAULT 0");
+        // Migracja z poprzedniego zachowania (wymóg automatyczny dla każdego
+        // admin/editor z zarejestrowanym kluczem) — zachowaj ochronę już
+        // skonfigurowanych kont; dalej admin zarządza tym ręcznie.
+        db()->exec("UPDATE users SET webauthn_required = 1
+                     WHERE role IN ('admin','editor')
+                       AND id IN (SELECT DISTINCT user_id FROM webauthn_credentials)");
+    } catch (\Throwable $e) {
+        // Kolumna już istnieje — nic do zrobienia.
+    }
 }
 
 function webauthn_b64u_encode(string $data): string {
@@ -510,15 +525,16 @@ function webauthn_complete_auth(array $response): int {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Bramka logowania: jeśli user ma rolę admin/editor i ma zarejestrowany klucz
- * sprzętowy, przekierowuje do weryfikacji WebAuthn zamiast pozwolić
- * `login_user()` ustanowić sesję bezpośrednio — niezależnie od metody, którą
- * przeszedł uwierzytelnienie (hasło, Microsoft 365, SMS, X.509, kod dostępu).
+ * Bramka logowania: tylko konta oznaczone przez admina flagą
+ * `webauthn_required` (admin/users.php) przechodzą surową, 3-etapową
+ * weryfikację — metoda logowania (hasło/MS365/SMS/X.509/kod) + klucz
+ * sprzętowy. Pozostali admini/edytorzy mogą logować się zwykłą metodą,
+ * np. samym Microsoft 365, bez dodatkowego kroku.
  * Zwraca true, gdy wykonano redirect (wywołujący powinien wtedy `exit`).
  */
 function webauthn_login_gate(array $user, string $redirect_after): bool {
-    if (!in_array($user['role'] ?? '', ['admin', 'editor'], true)) return false;
     webauthn_migrate();
+    if (empty($user['webauthn_required'])) return false;
     if (!webauthn_user_has_keys((int)$user['id'])) return false;
     $_SESSION['webauthn_pending_uid'] = (int)$user['id'];
     header('Location: ' . APP_URL . '/auth/webauthn.php?redirect=' . urlencode($redirect_after));
