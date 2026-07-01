@@ -5,10 +5,15 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
+require_once __DIR__ . '/../includes/webauthn.php';
 
 require_login();
 if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
 kdok_migrate();
+webauthn_migrate();
+
+// Role wymagające podpisu (opisywania dokumentów) — bez klucza WebAuthn użytkownik nie może ich wykonać
+$signing_roles = ['meryt', 'formal', 'zatwierdza'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -31,9 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $users    = db_all("SELECT id, name, email, role FROM users WHERE is_active = 1 ORDER BY name");
-$all_roles_map = [];
+$all_roles_map    = [];
+$has_webauthn_map = [];
+$missing_key_users = [];
 foreach ($users as $u) {
-    $all_roles_map[$u['id']] = kdok_user_roles($u['id']);
+    $all_roles_map[$u['id']]    = kdok_user_roles($u['id']);
+    $has_webauthn_map[$u['id']] = webauthn_user_has_keys((int)$u['id']);
+
+    $has_signing_role = $u['role'] === 'admin' || array_intersect($all_roles_map[$u['id']], $signing_roles);
+    if ($has_signing_role && !$has_webauthn_map[$u['id']]) {
+        $missing_key_users[] = $u;
+    }
 }
 
 $PAGE_TITLE = 'Role — EOD Dokumentów Księgowych';
@@ -50,7 +63,23 @@ require_once __DIR__ . '/../includes/header.php';
   Poniżej przypisz role dla pozostałych użytkowników.
 </div>
 
-<div class="card shadow-sm" style="max-width:800px">
+<?php if ($missing_key_users): ?>
+<div class="alert alert-warning">
+  <strong><i class="bi bi-exclamation-triangle-fill"></i> Brak klucza WebAuthn u <?= count($missing_key_users) ?>
+  <?= count($missing_key_users) === 1 ? 'osoby' : 'osób' ?> z uprawnieniami do opisywania dokumentów:</strong>
+  <div class="small mt-1">
+    Opisywanie dokumentów (akceptacja merytoryczna/formalna/wypłaty) wymaga zarejestrowanego klucza WebAuthn —
+    bez niego poniższe osoby nie będą mogły podejmować decyzji na swoich krokach.
+  </div>
+  <ul class="mb-0 mt-2">
+    <?php foreach ($missing_key_users as $mu): ?>
+    <li><?= h($mu['name']) ?> <span class="text-muted">(<?= h($mu['email']) ?>)</span></li>
+    <?php endforeach; ?>
+  </ul>
+</div>
+<?php endif; ?>
+
+<div class="card shadow-sm" style="max-width:900px">
   <div class="card-body p-0">
     <table class="table table-hover mb-0 align-middle small">
       <thead class="table-light">
@@ -60,6 +89,7 @@ require_once __DIR__ . '/../includes/header.php';
           <?php foreach (KDOK_ROLES as $r => $label): ?>
           <th class="text-center"><?= h($label) ?></th>
           <?php endforeach; ?>
+          <th class="text-center">Klucz WebAuthn</th>
           <th></th>
         </tr>
       </thead>
@@ -79,6 +109,13 @@ require_once __DIR__ . '/../includes/header.php';
               <?= in_array($r, $all_roles_map[$u['id']], true) ? 'checked' : '' ?>>
           </td>
           <?php endforeach; ?>
+          <td class="text-center">
+            <?php if ($has_webauthn_map[$u['id']]): ?>
+            <span class="badge bg-success"><i class="bi bi-check-lg"></i> Tak</span>
+            <?php else: ?>
+            <span class="badge bg-danger"><i class="bi bi-x-lg"></i> Brak</span>
+            <?php endif; ?>
+          </td>
           <td>
             <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i></button>
           </td>

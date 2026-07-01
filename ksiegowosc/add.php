@@ -44,6 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ksef_ref = trim($_POST['ksef_reference'] ?? '');
     $is_ksef  = ($type === 'ksef');
 
+    // Opcjonalne powiązanie z umową (tylko dla typu "rachunek")
+    $contract_type = trim($_POST['contract_type'] ?? '');
+    $contract_id   = (int)($_POST['contract_id'] ?? 0);
+    if ($type !== 'rachunek' || !$contract_type || !$contract_id) {
+        $contract_type = null; $contract_id = null;
+    } elseif (!kdok_contract_label($contract_type, $contract_id)) {
+        $errors[] = 'Wybrana umowa nie istnieje — wyszukaj ją ponownie.';
+        $contract_type = null; $contract_id = null;
+    }
+
     if (!isset(KDOK_TYPES[$type]))  $errors[] = 'Wybierz typ dokumentu.';
     if ($title === '')              $errors[] = 'Tytuł jest wymagany.';
     if ($is_ksef && $ksef_ref === '') $errors[] = 'Podaj numer referencyjny KSeF.';
@@ -137,6 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_by'   => $cu['id'],
             'miesiac'      => (int)date('n'),
             'rok'          => (int)date('Y'),
+            'contract_type'=> $contract_type,
+            'contract_id'  => $contract_id,
         ]);
 
         foreach (array_keys(KDOK_STEPS) as $step) {
@@ -260,6 +272,23 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <?php endif; ?>
 
+      <!-- Sekcja umowy (widoczna tylko dla typu "rachunek") -->
+      <?php $picked_contract = ($_POST['contract_type'] ?? '') && ($_POST['contract_id'] ?? '')
+          ? kdok_contract_label($_POST['contract_type'], (int)$_POST['contract_id']) : null; ?>
+      <div class="mb-3" id="contract-section" style="display:none">
+        <label for="contract-search" class="form-label fw-semibold">
+          <i class="bi bi-person-vcard text-primary"></i>
+          Umowa <span class="text-muted fw-normal small">(opcjonalnie)</span>
+        </label>
+        <input type="text" id="contract-search" class="form-control" autocomplete="off"
+               value="<?= h($picked_contract['label'] ?? '') ?>"
+               placeholder="Szukaj po numerze umowy lub nazwisku…">
+        <input type="hidden" id="contract-type" name="contract_type" value="<?= h($picked_contract ? $_POST['contract_type'] : '') ?>">
+        <input type="hidden" id="contract-id"   name="contract_id"   value="<?= h($picked_contract ? $_POST['contract_id']   : '') ?>">
+        <div id="contract-results" class="list-group mt-1" style="display:none;position:absolute;z-index:20;max-width:600px"></div>
+        <div id="contract-picked" class="form-text mt-1"><?= $picked_contract ? 'Wybrano: ' . h($picked_contract['label']) : '' ?></div>
+      </div>
+
       <!-- Sekcja KSeF (widoczna tylko dla typu ksef) -->
       <div class="mb-3" id="ksef-section" style="display:none">
         <label class="form-label fw-semibold">
@@ -300,22 +329,82 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
 (function () {
-  var ksefSection = document.getElementById('ksef-section');
-  var fileSection = document.getElementById('file-section');
-  var fileInput   = document.getElementById('file');
-  var radios      = document.querySelectorAll('input[name="type"]');
+  var ksefSection     = document.getElementById('ksef-section');
+  var fileSection     = document.getElementById('file-section');
+  var contractSection = document.getElementById('contract-section');
+  var fileInput       = document.getElementById('file');
+  var radios          = document.querySelectorAll('input[name="type"]');
 
   function toggleSections() {
-    var selected = document.querySelector('input[name="type"]:checked');
-    var isKsef   = selected && selected.value === 'ksef';
-    if (ksefSection) ksefSection.style.display = isKsef ? '' : 'none';
-    if (fileSection) fileSection.style.display = isKsef ? 'none' : '';
+    var selected   = document.querySelector('input[name="type"]:checked');
+    var isKsef     = selected && selected.value === 'ksef';
+    var isRachunek = selected && selected.value === 'rachunek';
+    if (ksefSection)     ksefSection.style.display = isKsef ? '' : 'none';
+    if (fileSection)     fileSection.style.display = isKsef ? 'none' : '';
+    if (contractSection) contractSection.style.display = isRachunek ? '' : 'none';
     // required tylko na aktywnym polu
     if (fileInput) fileInput.required = !isKsef;
   }
 
   radios.forEach(function(r) { r.addEventListener('change', toggleSections); });
   toggleSections(); // ustaw stan przy ładowaniu strony
+
+  // ── Wyszukiwanie umowy (dla typu "rachunek") ────────────────────────────────
+  (function () {
+    var search  = document.getElementById('contract-search');
+    var typeF   = document.getElementById('contract-type');
+    var idF     = document.getElementById('contract-id');
+    var results = document.getElementById('contract-results');
+    var picked  = document.getElementById('contract-picked');
+    if (!search) return;
+
+    function showPicked(label) {
+      picked.textContent = label ? ('Wybrano: ' + label) : '';
+    }
+    // Jeśli formularz wraca po błędzie walidacji z już wybraną umową
+    if (idF.value) {
+      search.placeholder = 'Zmień wybraną umowę…';
+    }
+
+    var timer = null;
+    search.addEventListener('input', function () {
+      typeF.value = ''; idF.value = ''; showPicked('');
+      clearTimeout(timer);
+      var q = search.value.trim();
+      if (q.length < 2) { results.style.display = 'none'; return; }
+      timer = setTimeout(function () {
+        fetch('<?= APP_URL ?>/ksiegowosc/search_contract.php?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            results.innerHTML = '';
+            if (!data.results || !data.results.length) {
+              results.style.display = 'none';
+              return;
+            }
+            data.results.forEach(function (item) {
+              var a = document.createElement('button');
+              a.type = 'button';
+              a.className = 'list-group-item list-group-item-action py-1 small';
+              a.textContent = item.label;
+              a.addEventListener('click', function () {
+                typeF.value = item.type;
+                idF.value   = item.id;
+                search.value = item.label;
+                showPicked(item.label);
+                results.style.display = 'none';
+              });
+              results.appendChild(a);
+            });
+            results.style.display = '';
+          })
+          .catch(function () { results.style.display = 'none'; });
+      }, 250);
+    });
+
+    document.addEventListener('click', function (e) {
+      if (e.target !== search && !results.contains(e.target)) results.style.display = 'none';
+    });
+  })();
 
   <?php if ($ksef_enabled): ?>
   // ── Pobieranie danych z KSeF ────────────────────────────────────────────────

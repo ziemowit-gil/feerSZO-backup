@@ -17,6 +17,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ksiegowy_email.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rozliczenia.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ksiegowosc.php';
 
 require_login();
 $TYPE  = 'zlecenie';
@@ -62,6 +63,7 @@ $_letters         = get_contract_letters($TYPE, $id);
 $cert_requests    = get_certificate_requests($TYPE, $id);
 $rozliczenia      = get_rozliczenia($TYPE, $id);
 $_rozl_open       = count(array_filter($rozliczenia, fn($r) => in_array($r['status'], ['oczekuje','wyslane'], true)));
+try { $kdok_docs = kdok_documents_for_contract($TYPE, $id); } catch (\Throwable $e) { $kdok_docs = []; }
 $cert_has_pending = !empty(array_filter($cert_requests, fn($r) => $r['status'] === 'oczekuje'));
 $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] === 'oczekuje'));
 $m365_enabled     = m365_setting('m365_enabled') === '1';
@@ -631,6 +633,32 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <?php endif; ?>
   </div>
 
+  <?php if ($kdok_docs): ?>
+  <div class="card shadow-sm mt-3">
+    <div class="card-header fw-semibold"><i class="bi bi-file-earmark-check"></i> Rachunki w EOD Dokumentów Księgowych</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr><th>Numer</th><th>Tytuł</th><th>Kwota</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+        <?php foreach ($kdok_docs as $kd): ?>
+        <tr>
+          <td><code><?= h($kd['number']) ?></code></td>
+          <td><?= h($kd['title']) ?></td>
+          <td class="text-nowrap"><?= $kd['kwota'] !== '' ? h($kd['kwota']) . ' PLN' : '—' ?></td>
+          <td><?= kdok_status_badge($kd['status']) ?></td>
+          <td class="text-end">
+            <a href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= (int)$kd['id'] ?>" target="_blank"
+               class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php endif; ?>
 
 </div><!-- /tab-rozliczenia -->
 

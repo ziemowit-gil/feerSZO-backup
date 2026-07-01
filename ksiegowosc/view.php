@@ -27,10 +27,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Aktualizacja metadanych dokumentu
     if ($action === 'update_meta' && (is_admin() || kdok_has_role('upload'))) {
+        $contract_type = trim($_POST['contract_type'] ?? '');
+        $contract_id   = (int)($_POST['contract_id'] ?? 0);
+        if ($doc['type'] !== 'rachunek' || !$contract_type || !$contract_id || !kdok_contract_label($contract_type, $contract_id)) {
+            $contract_type = null; $contract_id = null;
+        }
+
         kdok_exec(
-            "UPDATE kdok_documents SET description=?, uwagi=?, kwota=?, grant_name=?, mpk=?, updated_at=datetime('now') WHERE id=?",
+            "UPDATE kdok_documents SET description=?, uwagi=?, kwota=?, grant_name=?, mpk=?, contract_type=?, contract_id=?, updated_at=datetime('now') WHERE id=?",
             [trim($_POST['description'] ?? ''), trim($_POST['uwagi'] ?? ''), trim($_POST['kwota'] ?? ''),
-             trim($_POST['grant_name'] ?? ''), trim($_POST['mpk'] ?? ''), $id]
+             trim($_POST['grant_name'] ?? ''), trim($_POST['mpk'] ?? ''), $contract_type, $contract_id, $id]
         );
         kdok_log($id, 'Zaktualizowano metadane dokumentu');
         flash_set('success', 'Dane zaktualizowane.');
@@ -198,6 +204,14 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <?php endif; ?>
 
+        <?php $linked_contract = kdok_contract_label($doc['contract_type'] ?? null, $doc['contract_id'] ?? null); ?>
+        <?php if ($linked_contract): ?>
+        <div class="mb-2 small">
+          <i class="bi bi-person-vcard text-primary"></i> <span class="text-muted">Umowa:</span>
+          <a href="<?= h($linked_contract['url']) ?>" target="_blank"><?= h($linked_contract['label']) ?></a>
+        </div>
+        <?php endif; ?>
+
         <?php if (!$errors && (is_admin() || kdok_has_role('upload'))): ?>
         <button class="btn btn-sm btn-outline-secondary mb-2" type="button"
           data-bs-toggle="collapse" data-bs-target="#metaForm">
@@ -248,6 +262,17 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
           <?php else: ?>
           <input type="hidden" name="mpk" value="<?= h($doc['mpk']) ?>">
+          <?php endif; ?>
+          <?php if ($doc['type'] === 'rachunek'): ?>
+          <?php $cur_contract = kdok_contract_label($doc['contract_type'] ?? null, $doc['contract_id'] ?? null); ?>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1"><i class="bi bi-person-vcard"></i> Umowa <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <input type="text" id="metaContractSearch" class="form-control form-control-sm" autocomplete="off"
+              value="<?= h($cur_contract['label'] ?? '') ?>" placeholder="Szukaj po numerze umowy lub nazwisku…">
+            <input type="hidden" id="metaContractType" name="contract_type" value="<?= h($doc['contract_type'] ?? '') ?>">
+            <input type="hidden" id="metaContractId"   name="contract_id"   value="<?= h($doc['contract_id']   ?? '') ?>">
+            <div id="metaContractResults" class="list-group mt-1" style="display:none;position:absolute;z-index:20;max-width:600px"></div>
+          </div>
           <?php endif; ?>
           <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz</button>
         </form>
@@ -736,6 +761,50 @@ window.addEventListener('load', function () {
   _modalEl.addEventListener('hidden.bs.modal', function () {
     if (_waError) _waError.style.display = 'none';
     setWebauthnVerified(false);
+  });
+});
+
+// ── Wyszukiwanie umowy w formularzu edycji (dla typu "rachunek") ────────────
+window.addEventListener('load', function () {
+  var search  = document.getElementById('metaContractSearch');
+  var typeF   = document.getElementById('metaContractType');
+  var idF     = document.getElementById('metaContractId');
+  var results = document.getElementById('metaContractResults');
+  if (!search) return;
+
+  var timer = null;
+  search.addEventListener('input', function () {
+    typeF.value = ''; idF.value = '';
+    clearTimeout(timer);
+    var q = search.value.trim();
+    if (q.length < 2) { results.style.display = 'none'; return; }
+    timer = setTimeout(function () {
+      fetch('<?= APP_URL ?>/ksiegowosc/search_contract.php?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          results.innerHTML = '';
+          if (!data.results || !data.results.length) { results.style.display = 'none'; return; }
+          data.results.forEach(function (item) {
+            var a = document.createElement('button');
+            a.type = 'button';
+            a.className = 'list-group-item list-group-item-action py-1 small';
+            a.textContent = item.label;
+            a.addEventListener('click', function () {
+              typeF.value = item.type;
+              idF.value   = item.id;
+              search.value = item.label;
+              results.style.display = 'none';
+            });
+            results.appendChild(a);
+          });
+          results.style.display = '';
+        })
+        .catch(function () { results.style.display = 'none'; });
+    }, 250);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (e.target !== search && !results.contains(e.target)) results.style.display = 'none';
   });
 });
 </script>

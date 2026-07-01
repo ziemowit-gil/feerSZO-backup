@@ -44,6 +44,13 @@ const KDOK_ROLES = [
     'zatwierdza' => 'Zatwierdzenie do wypłaty',
 ];
 
+// Typy umów, do których można podpiąć dokument typu "Rachunek do umowy" (zawsze w głównej bazie aplikacji)
+const KDOK_CONTRACT_TYPES = [
+    'zlecenie' => ['table' => 'umowy_zlecenie', 'label' => 'Umowa zlecenie', 'przedmiot' => 'przedmiot_zlecenia', 'url' => '/contracts/zlecenie/view.php?id='],
+    'dzielo'   => ['table' => 'umowy_dzielo',   'label' => 'Umowa o dzieło', 'przedmiot' => 'opis_dziela',        'url' => '/contracts/dzielo/view.php?id='],
+    'uslugi'   => ['table' => 'umowy_uslugi',   'label' => 'Umowa usługi',   'przedmiot' => 'przedmiot_uslugi',   'url' => '/contracts/uslugi/view.php?id='],
+];
+
 // ── Połączenie z bazą KDOK ────────────────────────────────────────────────────
 
 function kdok_db(): PDO {
@@ -200,13 +207,15 @@ function kdok_migrate(): void {
 
     // Migracja schemy — dodaj nowe kolumny do istniejących tabel
     _kdok_add_columns($kdb, 'kdok_documents', [
-        'uwagi'        => "TEXT NOT NULL DEFAULT ''",
-        'grant_name'   => "TEXT NOT NULL DEFAULT ''",
-        'mpk'          => "TEXT NOT NULL DEFAULT ''",
-        'kwota'        => "TEXT NOT NULL DEFAULT ''",
-        'creator_name' => "TEXT NOT NULL DEFAULT ''",
-        'miesiac'      => "INTEGER",
-        'rok'          => "INTEGER",
+        'uwagi'         => "TEXT NOT NULL DEFAULT ''",
+        'grant_name'    => "TEXT NOT NULL DEFAULT ''",
+        'mpk'           => "TEXT NOT NULL DEFAULT ''",
+        'kwota'         => "TEXT NOT NULL DEFAULT ''",
+        'creator_name'  => "TEXT NOT NULL DEFAULT ''",
+        'miesiac'       => "INTEGER",
+        'rok'           => "INTEGER",
+        'contract_type' => "TEXT",
+        'contract_id'   => "INTEGER",
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",
@@ -632,6 +641,55 @@ function kdok_get(int $id): ?array {
     );
 
     return $doc;
+}
+
+// ── Powiązanie z umową (dokument typu "Rachunek do umowy") ────────────────────
+// Umowy żyją zawsze w głównej bazie aplikacji (nie w oddzielnej bazie KDOK), więc
+// wyszukiwanie/etykietowanie robimy osobnymi zapytaniami na db(), bez JOIN-a.
+
+function kdok_contract_search(string $q): array {
+    $q = trim($q);
+    if (mb_strlen($q) < 2) return [];
+    $like = '%' . $q . '%';
+    $results = [];
+    foreach (KDOK_CONTRACT_TYPES as $type => $cfg) {
+        $rows = db_all(
+            "SELECT id, numer_umowy, imie_nazwisko FROM {$cfg['table']}
+             WHERE numer_umowy LIKE ? OR imie_nazwisko LIKE ?
+             ORDER BY id DESC LIMIT 15",
+            [$like, $like]
+        );
+        foreach ($rows as $r) {
+            $results[] = [
+                'type'  => $type,
+                'id'    => (int)$r['id'],
+                'label' => $cfg['label'] . ' ' . $r['numer_umowy'] . ' — ' . $r['imie_nazwisko'],
+            ];
+        }
+    }
+    return $results;
+}
+
+// Dokumenty KDOK powiązane z daną umową — do wyświetlenia na widoku umowy (sekcja "Rachunki w EOD")
+function kdok_documents_for_contract(string $contract_type, int $contract_id): array {
+    kdok_migrate();
+    return kdok_all(
+        "SELECT id, number, title, kwota, status FROM kdok_documents
+         WHERE contract_type = ? AND contract_id = ? ORDER BY id DESC",
+        [$contract_type, $contract_id]
+    );
+}
+
+// Zwraca ['label'=>string, 'url'=>string] albo null, gdy umowa nie istnieje/typ nieznany
+function kdok_contract_label(?string $type, ?int $id): ?array {
+    if (!$type || !$id || !isset(KDOK_CONTRACT_TYPES[$type])) return null;
+    $cfg = KDOK_CONTRACT_TYPES[$type];
+    $row = db_one("SELECT id, numer_umowy, imie_nazwisko FROM {$cfg['table']} WHERE id = ?", [$id]);
+    if (!$row) return null;
+    return [
+        'label' => $cfg['label'] . ' ' . $row['numer_umowy'] . ' — ' . $row['imie_nazwisko'],
+        'url'   => APP_URL . $cfg['url'] . $row['id'],
+    ];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
