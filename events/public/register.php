@@ -56,22 +56,25 @@ $errors  = [];
 $success = false;
 $ticket_code = '';
 
+$field_errors = []; // per-field error tracking for aria-invalid
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_name = trim($_POST['first_name'] ?? '');
     $last_name  = trim($_POST['last_name']  ?? '');
     $email      = trim($_POST['email']      ?? '');
     $phone      = trim($_POST['phone']      ?? '');
 
-    if (!$first_name) $errors[] = 'Imię jest wymagane.';
-    if (!$last_name)  $errors[] = 'Nazwisko jest wymagane.';
-    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Podaj poprawny adres email.';
+    if (!$first_name) { $errors[] = 'Imię jest wymagane.';                                   $field_errors['first_name'] = true; }
+    if (!$last_name)  { $errors[] = 'Nazwisko jest wymagane.';                               $field_errors['last_name']  = true; }
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) { $errors[] = 'Podaj poprawny adres email.'; $field_errors['email'] = true; }
 
     // Custom fields validation
     $extra_data = [];
     foreach ($form_fields as $ff) {
         $val = trim($_POST['field_' . $ff['field_key']] ?? '');
         if ($ff['is_required'] && $val === '') {
-            $errors[] = 'Pole "' . $ff['label'] . '" jest wymagane.';
+            $errors[] = 'Pole „' . $ff['label'] . '" jest wymagane.';
+            $field_errors['field_' . $ff['field_key']] = true;
         }
         $extra_data[$ff['field_key']] = $val;
     }
@@ -186,159 +189,267 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-:root{--ev-purple:#7c3aed;--ev-purple-bg:#f5f3ff;}
-body{background:var(--ev-purple-bg);min-height:100vh}
-.reg-card{max-width:560px;margin:2.5rem auto;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1)}
-.reg-header{background:var(--ev-purple);color:#fff;border-radius:16px 16px 0 0;padding:1.75rem}
-.ticket-box{background:#f0fdf4;border:2px dashed #22c55e;border-radius:12px;padding:1.5rem;text-align:center}
-.ticket-code{font-size:2.2rem;font-weight:800;letter-spacing:.2em;color:var(--ev-purple)}
+:root { --ev-purple:#7c3aed; --ev-purple-dark:#5b21b6; --ev-purple-bg:#f5f3ff; }
+body { background:var(--ev-purple-bg); min-height:100vh; }
+
+/* Skip link */
+.skip-link {
+    position:absolute; left:-999px; top:auto; width:1px; height:1px; overflow:hidden;
+}
+.skip-link:focus {
+    position:fixed; left:1rem; top:1rem; width:auto; height:auto; overflow:visible;
+    background:#fff; color:var(--ev-purple); font-weight:700; padding:.5rem 1rem;
+    border:2px solid var(--ev-purple); border-radius:6px; z-index:9999;
+    text-decoration:none;
+}
+
+/* Card */
+.reg-card { max-width:560px; margin:2.5rem auto; border-radius:16px; box-shadow:0 4px 24px rgba(0,0,0,.1); }
+.reg-header { background:var(--ev-purple); color:#fff; border-radius:16px 16px 0 0; padding:1.75rem; }
+.reg-header .reg-meta { color:rgba(255,255,255,.85); font-size:.88rem; }
+
+/* Ticket */
+.ticket-box { background:#f0fdf4; border:2px dashed #22c55e; border-radius:12px; padding:1.5rem; text-align:center; }
+.ticket-code { font-size:2.2rem; font-weight:800; letter-spacing:.2em; color:var(--ev-purple); font-family:monospace; }
+.ticket-code-wrap { display:inline-block; }
+
+/* Focus ring — wzmocniony dla lepszej widoczności (WCAG 2.4.11) */
+:focus-visible { outline:3px solid var(--ev-purple); outline-offset:2px; }
+
+/* Kontrast pomocniczych tekstów — co najmniej 4.5:1 */
+.reg-hint { color:#4b5563; font-size:.85rem; }
+
+/* Pola z błędem */
+.form-control.is-invalid, .form-select.is-invalid { border-color:#dc2626; }
 </style>
 </head>
 <body>
+
+<!-- Link pominięcia nawigacji (WCAG 2.4.1) -->
+<a class="skip-link" href="#reg-main">Przejdź do formularza rejestracji</a>
+
+<main id="reg-main">
 <div class="reg-card bg-white">
     <div class="reg-header">
-        <h4 class="mb-1 fw-bold"><?= h($event['title']) ?></h4>
-        <div class="small opacity-75">
+        <h1 class="mb-1 fw-bold fs-4"><?= h($event['title']) ?></h1>
+        <p class="reg-meta mb-0">
             <?php if ($event['start_at']): ?>
-            <i class="bi bi-clock me-1"></i><?= date('d.m.Y H:i', strtotime($event['start_at'])) ?>
+            <i class="bi bi-clock me-1" aria-hidden="true"></i>
+            <time datetime="<?= h(substr($event['start_at'],0,16)) ?>"><?= date('d.m.Y H:i', strtotime($event['start_at'])) ?></time>
             <?php endif; ?>
             <?php if ($event['type'] === 'stationary' && $event['venue']): ?>
-            · <i class="bi bi-geo-alt me-1"></i><?= h($event['venue']) ?>
+            <span aria-hidden="true"> · </span>
+            <i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($event['venue']) ?>
             <?php elseif ($event['type'] === 'webinar'): ?>
-            · <i class="bi bi-camera-video me-1"></i>Wydarzenie online
+            <span aria-hidden="true"> · </span>
+            <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Wydarzenie online
             <?php endif; ?>
-        </div>
+        </p>
     </div>
 
     <div class="card-body p-4">
+
         <?php if ($success): ?>
-        <?php
-            $s_label = $status === 'waitlist' ? 'Lista oczekujących' : 'Rejestracja potwierdzona';
-            $s_class = $status === 'waitlist' ? 'warning' : 'success';
-        ?>
-        <div class="ticket-box mb-3">
-            <div class="text-success mb-2"><i class="bi bi-check-circle-fill" style="font-size:2rem"></i></div>
-            <h5 class="fw-bold"><?= $status === 'waitlist' ? 'Trafiłeś na listę oczekujących' : 'Rejestracja zakończona pomyślnie!' ?></h5>
+        <!-- ── Sukces ── -->
+        <div role="status" aria-live="polite" class="ticket-box mb-3" tabindex="-1" id="reg-result">
+            <i class="bi bi-check-circle-fill text-success mb-2 d-block" style="font-size:2rem" aria-hidden="true"></i>
+            <h2 class="fw-bold fs-5"><?= $status === 'waitlist' ? 'Trafiłeś/aś na listę oczekujących' : 'Rejestracja zakończona pomyślnie!' ?></h2>
             <?php if ($status === 'confirmed'): ?>
-            <p class="text-muted small mb-2">Twój kod biletu:</p>
-            <div class="ticket-code"><?= h($ticket_code) ?></div>
+            <p class="reg-hint mb-2">Twój kod biletu:</p>
+            <div class="ticket-code-wrap" aria-label="Kod biletu: <?= h($ticket_code) ?>">
+                <div class="ticket-code" aria-hidden="true"><?= h($ticket_code) ?></div>
+            </div>
             <?php if ($event['type'] === 'webinar' && !empty($event['meeting_url'])): ?>
-            <a href="<?= h($event['meeting_url']) ?>" target="_blank" rel="noopener"
+            <a href="<?= h($event['meeting_url']) ?>" target="_blank" rel="noopener noreferrer"
                class="btn btn-sm mt-3" style="background:var(--ev-purple);color:#fff">
-                <i class="bi bi-camera-video me-1"></i>Dołącz do wydarzenia online
+                <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz do wydarzenia online
+                <span class="visually-hidden">(otwiera się w nowej karcie)</span>
             </a>
-            <p class="text-muted small mt-2 mb-0">Link wysłaliśmy też na Twój e-mail.</p>
+            <p class="reg-hint mt-2 mb-0">Link wysłaliśmy też na Twój e-mail.</p>
             <?php else: ?>
-            <p class="text-muted small mt-2">Zachowaj ten kod — będzie potrzebny przy wejściu.</p>
+            <p class="reg-hint mt-2">Zachowaj ten kod — będzie potrzebny przy wejściu.</p>
             <?php endif; ?>
             <?php else: ?>
-            <p class="text-muted small">Zostaniesz powiadomiony, jeśli zwolni się miejsce.</p>
+            <p class="reg-hint">Zostaniesz powiadomiony/a, jeśli zwolni się miejsce.</p>
             <?php endif; ?>
         </div>
         <div class="text-center">
-            <a href="<?= APP_URL ?>/events/public/register.php?slug=<?= urlencode($slug) ?>" class="btn btn-outline-secondary btn-sm">
+            <a href="<?= APP_URL ?>/events/public/register.php?slug=<?= urlencode($slug) ?>"
+               class="btn btn-outline-secondary btn-sm">
                 Powrót do formularza
             </a>
         </div>
 
         <?php elseif ($reg_not_yet): ?>
-        <div class="alert alert-info">
-            <i class="bi bi-clock me-2"></i>Rejestracja otworzy się
-            <?= date('d.m.Y o H:i', strtotime($event['reg_open_at'])) ?>.
+        <div role="status" class="alert alert-info d-flex gap-2 align-items-start">
+            <i class="bi bi-clock-history flex-shrink-0 mt-1" aria-hidden="true"></i>
+            <span>Rejestracja otworzy się
+                <strong><?= date('d.m.Y o H:i', strtotime($event['reg_open_at'])) ?></strong>.
+            </span>
         </div>
 
         <?php elseif ($reg_closed): ?>
-        <div class="alert alert-warning">
-            <i class="bi bi-lock me-2"></i>Rejestracja na to wydarzenie jest zamknięta.
+        <div role="status" class="alert alert-warning d-flex gap-2 align-items-start">
+            <i class="bi bi-lock-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+            <span>Rejestracja na to wydarzenie jest zamknięta.</span>
         </div>
 
         <?php elseif ($capacity_full && !$waitlist_enabled): ?>
-        <div class="alert alert-warning">
-            <i class="bi bi-people me-2"></i>Brak wolnych miejsc na to wydarzenie.
+        <div role="status" class="alert alert-warning d-flex gap-2 align-items-start">
+            <i class="bi bi-people-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+            <span>Brak wolnych miejsc na to wydarzenie.</span>
         </div>
 
         <?php else: ?>
+
         <?php if ($capacity_full && $waitlist_enabled): ?>
-        <div class="alert alert-warning small">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            Brak wolnych miejsc — Twoja rejestracja trafi na listę oczekujących.
+        <div role="note" class="alert alert-warning d-flex gap-2 align-items-start">
+            <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+            <span>Brak wolnych miejsc — Twoja rejestracja trafi na listę oczekujących.</span>
         </div>
         <?php endif; ?>
 
         <?php if ($errors): ?>
-        <div class="alert alert-danger">
-            <ul class="mb-0">
+        <!-- Podsumowanie błędów (WCAG 3.3.1) — focus przenoszony przez JS -->
+        <div id="reg-errors" class="alert alert-danger" role="alert" aria-live="assertive" tabindex="-1">
+            <h2 class="fw-semibold fs-6 mb-2">
+                <i class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></i>
+                Formularz zawiera <?= count($errors) === 1 ? 'błąd' : 'błędy' ?> — popraw je i spróbuj ponownie:
+            </h2>
+            <ul class="mb-0 ps-3">
                 <?php foreach ($errors as $err): ?><li><?= h($err) ?></li><?php endforeach; ?>
             </ul>
         </div>
         <?php endif; ?>
 
-        <form method="post">
+        <form method="post" novalidate aria-label="Formularz rejestracji na wydarzenie">
+            <!-- Nota o polach wymaganych (WCAG 3.3.2) -->
+            <p class="reg-hint mb-3">
+                Pola oznaczone <abbr title="wymagane" aria-label="wymagane">*</abbr> są obowiązkowe.
+            </p>
+
             <div class="row g-3 mb-3">
-                <div class="col-6">
-                    <label for="first_name" class="form-label fw-semibold">Imię <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="first_name" name="first_name"
-                           value="<?= h($_POST['first_name'] ?? '') ?>" required>
+                <div class="col-sm-6">
+                    <label for="first_name" class="form-label fw-semibold">
+                        Imię <abbr title="wymagane" aria-label="wymagane" class="text-danger" style="text-decoration:none">*</abbr>
+                    </label>
+                    <input type="text" autocomplete="given-name"
+                           class="form-control<?= isset($field_errors['first_name']) ? ' is-invalid' : '' ?>"
+                           id="first_name" name="first_name"
+                           value="<?= h($_POST['first_name'] ?? '') ?>"
+                           required
+                           aria-required="true"
+                           <?= isset($field_errors['first_name']) ? 'aria-invalid="true" aria-describedby="err-first_name"' : '' ?>>
+                    <?php if (isset($field_errors['first_name'])): ?>
+                    <div id="err-first_name" class="invalid-feedback">Imię jest wymagane.</div>
+                    <?php endif; ?>
                 </div>
-                <div class="col-6">
-                    <label for="last_name" class="form-label fw-semibold">Nazwisko <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="last_name" name="last_name"
-                           value="<?= h($_POST['last_name'] ?? '') ?>" required>
+                <div class="col-sm-6">
+                    <label for="last_name" class="form-label fw-semibold">
+                        Nazwisko <abbr title="wymagane" aria-label="wymagane" class="text-danger" style="text-decoration:none">*</abbr>
+                    </label>
+                    <input type="text" autocomplete="family-name"
+                           class="form-control<?= isset($field_errors['last_name']) ? ' is-invalid' : '' ?>"
+                           id="last_name" name="last_name"
+                           value="<?= h($_POST['last_name'] ?? '') ?>"
+                           required
+                           aria-required="true"
+                           <?= isset($field_errors['last_name']) ? 'aria-invalid="true" aria-describedby="err-last_name"' : '' ?>>
+                    <?php if (isset($field_errors['last_name'])): ?>
+                    <div id="err-last_name" class="invalid-feedback">Nazwisko jest wymagane.</div>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="mb-3">
-                <label for="email" class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
-                <input type="email" class="form-control" id="email" name="email"
-                       value="<?= h($_POST['email'] ?? '') ?>" required>
+                <label for="email" class="form-label fw-semibold">
+                    Adres e-mail <abbr title="wymagane" aria-label="wymagane" class="text-danger" style="text-decoration:none">*</abbr>
+                </label>
+                <input type="email" autocomplete="email"
+                       class="form-control<?= isset($field_errors['email']) ? ' is-invalid' : '' ?>"
+                       id="email" name="email"
+                       value="<?= h($_POST['email'] ?? '') ?>"
+                       required
+                       aria-required="true"
+                       <?= isset($field_errors['email']) ? 'aria-invalid="true" aria-describedby="err-email"' : '' ?>>
+                <?php if (isset($field_errors['email'])): ?>
+                <div id="err-email" class="invalid-feedback">Podaj poprawny adres e-mail.</div>
+                <?php endif; ?>
             </div>
 
             <div class="mb-3">
-                <label for="phone" class="form-label fw-semibold">Telefon</label>
-                <input type="tel" class="form-control" id="phone" name="phone"
+                <label for="phone" class="form-label fw-semibold">Numer telefonu</label>
+                <input type="tel" autocomplete="tel"
+                       class="form-control"
+                       id="phone" name="phone"
                        value="<?= h($_POST['phone'] ?? '') ?>">
+                <div class="form-text reg-hint">Opcjonalnie — używany tylko w razie konieczności kontaktu.</div>
             </div>
 
             <?php foreach ($form_fields as $ff):
-                $fval = $_POST['field_' . $ff['field_key']] ?? '';
-                $fid  = 'field_' . h($ff['field_key']);
+                $fval     = $_POST['field_' . $ff['field_key']] ?? '';
+                $fid      = 'field_' . h($ff['field_key']);
+                $ferr_id  = 'err-' . h($ff['field_key']);
+                $has_err  = isset($field_errors['field_' . $ff['field_key']]);
+                $invalid_attrs = $has_err
+                    ? 'aria-invalid="true" aria-describedby="' . $ferr_id . '"'
+                    : '';
             ?>
             <div class="mb-3">
                 <label for="<?= $fid ?>" class="form-label fw-semibold">
                     <?= h($ff['label']) ?>
-                    <?php if ($ff['is_required']): ?><span class="text-danger">*</span><?php endif; ?>
+                    <?php if ($ff['is_required']): ?>
+                    <abbr title="wymagane" aria-label="wymagane" class="text-danger" style="text-decoration:none">*</abbr>
+                    <?php endif; ?>
                 </label>
                 <?php if ($ff['type'] === 'textarea'): ?>
-                <textarea class="form-control" id="<?= $fid ?>" name="<?= $fid ?>"
-                          <?= $ff['is_required']?'required':'' ?>
-                          placeholder="<?= h($ff['placeholder']) ?>"><?= h($fval) ?></textarea>
+                <textarea class="form-control<?= $has_err ? ' is-invalid' : '' ?>"
+                          id="<?= $fid ?>" name="<?= $fid ?>"
+                          <?= $ff['is_required'] ? 'required aria-required="true"' : '' ?>
+                          placeholder="<?= h($ff['placeholder']) ?>"
+                          <?= $invalid_attrs ?>><?= h($fval) ?></textarea>
                 <?php elseif ($ff['type'] === 'select'):
                     $opts = $ff['options'] ? (is_string($ff['options']) ? json_decode($ff['options'],true) : $ff['options']) : [];
                 ?>
-                <select class="form-select" id="<?= $fid ?>" name="<?= $fid ?>" <?= $ff['is_required']?'required':'' ?>>
+                <select class="form-select<?= $has_err ? ' is-invalid' : '' ?>"
+                        id="<?= $fid ?>" name="<?= $fid ?>"
+                        <?= $ff['is_required'] ? 'required aria-required="true"' : '' ?>
+                        <?= $invalid_attrs ?>>
                     <option value="">Wybierz…</option>
                     <?php foreach ($opts as $opt): ?>
-                    <option value="<?= h($opt) ?>" <?= $fval === $opt ? 'selected':'' ?>><?= h($opt) ?></option>
+                    <option value="<?= h($opt) ?>" <?= $fval === $opt ? 'selected' : '' ?>><?= h($opt) ?></option>
                     <?php endforeach; ?>
                 </select>
                 <?php elseif ($ff['type'] === 'checkbox'): ?>
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="<?= $fid ?>" name="<?= $fid ?>"
-                           value="1" <?= $fval ? 'checked':'' ?> <?= $ff['is_required']?'required':'' ?>>
+                    <input class="form-check-input<?= $has_err ? ' is-invalid' : '' ?>"
+                           type="checkbox" id="<?= $fid ?>" name="<?= $fid ?>"
+                           value="1" <?= $fval ? 'checked' : '' ?>
+                           <?= $ff['is_required'] ? 'required aria-required="true"' : '' ?>
+                           <?= $invalid_attrs ?>>
                     <label class="form-check-label" for="<?= $fid ?>"><?= h($ff['placeholder'] ?: $ff['label']) ?></label>
                 </div>
                 <?php else: ?>
-                <input type="<?= h($ff['type']) ?>" class="form-control" id="<?= $fid ?>" name="<?= $fid ?>"
+                <input type="<?= h($ff['type']) ?>"
+                       class="form-control<?= $has_err ? ' is-invalid' : '' ?>"
+                       id="<?= $fid ?>" name="<?= $fid ?>"
                        value="<?= h($fval) ?>"
                        placeholder="<?= h($ff['placeholder']) ?>"
-                       <?= $ff['is_required']?'required':'' ?>>
+                       <?= $ff['is_required'] ? 'required aria-required="true"' : '' ?>
+                       <?= $invalid_attrs ?>>
+                <?php endif; ?>
+                <?php if ($has_err): ?>
+                <div id="<?= $ferr_id ?>" class="invalid-feedback">
+                    Pole „<?= h($ff['label']) ?>" jest wymagane.
+                </div>
                 <?php endif; ?>
             </div>
             <?php endforeach; ?>
 
             <div class="d-grid mt-4">
-                <button type="submit" class="btn btn-lg btn-primary" style="background:var(--ev-purple);border-color:var(--ev-purple)">
-                    <i class="bi bi-check-circle me-2"></i>Zarejestruj się
+                <button type="submit" class="btn btn-lg"
+                        style="background:var(--ev-purple);border-color:var(--ev-purple-dark);color:#fff;font-weight:600">
+                    <i class="bi bi-check-circle me-2" aria-hidden="true"></i>Zarejestruj się
                 </button>
             </div>
         </form>
@@ -346,10 +457,20 @@ body{background:var(--ev-purple-bg);min-height:100vh}
     </div>
 </div>
 
-<div class="text-center text-muted small pb-4" style="opacity:.6">
+<p class="text-center reg-hint pb-4 mt-2">
     <?= defined('ORG_NAME') ? h(ORG_NAME) : '' ?>
-</div>
+</p>
+</main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Przenieś fokus na blok błędów po reload (WCAG 2.4.3 / 3.3.1)
+(function () {
+    var errBox = document.getElementById('reg-errors');
+    if (errBox) { errBox.focus(); return; }
+    var result = document.getElementById('reg-result');
+    if (result) result.focus();
+})();
+</script>
 </body>
 </html>
