@@ -166,7 +166,6 @@ function s3_request(array $cfg, string $method, string $key = '', string $body =
     $response = curl_exec($ch);
     $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err      = curl_error($ch);
-    curl_close($ch);
 
     if ($err !== '') {
         return ['ok' => false, 'http' => $http, 'body' => (string)$response, 'err' => "błąd cURL: {$err}"];
