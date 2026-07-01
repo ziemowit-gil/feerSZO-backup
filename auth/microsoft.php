@@ -172,22 +172,16 @@ if (!$error) {
                 $final_url = $final_redirect;
             }
 
-            // Admini/edytorzy z zarejestrowanym kluczem sprzętowym muszą go użyć
-            // RÓWNIEŻ przy logowaniu przez Microsoft 365 — nie tylko lokalnym hasłem.
-            require_once dirname(__DIR__) . '/includes/webauthn.php';
-            webauthn_migrate();
-            if (in_array($user['role'] ?? '', ['admin', 'editor'], true) && webauthn_user_has_keys((int)$user['id'])) {
-                $_SESSION['webauthn_pending_uid'] = (int)$user['id'];
-                if (!empty($is_dyd_flow)) $_SESSION['ms_dyd_bridge'] = 1;
-                header('Location: ' . APP_URL . '/auth/webauthn.php?redirect=' . urlencode($final_url));
-                exit;
-            }
-
-            login_user($user);
             // Oznacz sesję założoną na potrzeby mostka do panelu dydaktyka — jeśli
             // konto nie jest dydaktykiem, office_enter.php może ją wycofać.
             if (!empty($is_dyd_flow)) $_SESSION['ms_dyd_bridge'] = 1;
 
+            // Admini/edytorzy z zarejestrowanym kluczem sprzętowym muszą go użyć
+            // RÓWNIEŻ przy logowaniu przez Microsoft 365 — nie tylko lokalnym hasłem.
+            require_once dirname(__DIR__) . '/includes/webauthn.php';
+            if (webauthn_login_gate($user, $final_url)) exit;
+
+            login_user($user);
             header('Location: ' . $final_url);
             exit;
         }

@@ -94,12 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 log_auth_action((int)$user['id'], 'login', 'Logowanie lokalne: ' . $user['email']);
                 authlog_write((int)$user['id'], 'login', $user['email'], 'Logowanie lokalne');
                 require_once dirname(__DIR__) . '/includes/webauthn.php';
-                webauthn_migrate();
-                if (in_array($user['role'] ?? '', ['admin', 'editor'], true) && webauthn_user_has_keys((int)$user['id'])) {
-                    $_SESSION['webauthn_pending_uid'] = (int)$user['id'];
-                    header('Location: ' . APP_URL . '/auth/webauthn.php?redirect=' . urlencode($redirect));
-                    exit;
-                }
+                if (webauthn_login_gate($user, $redirect)) exit;
                 login_user($user);
                 if (auth_must_change_password($user)) {
                     flash_set('warning', 'Administrator zresetował Twoje hasło. Ustaw nowe przed kontynuowaniem.');
@@ -156,6 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($user) {
             log_auth_action((int)$user['id'], 'login_sms', 'Logowanie SMS: ' . $sms_phone);
             authlog_write((int)$user['id'], 'login_sms', $user['email'] ?? $sms_phone, 'Logowanie SMS');
+            require_once dirname(__DIR__) . '/includes/webauthn.php';
+            if (webauthn_login_gate($user, $redirect)) exit;
             login_user($user);
             if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
                 header('Location: ' . APP_URL . '/portal.php'); exit;
@@ -184,6 +181,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($user) {
                 log_auth_action((int)$user['id'], 'login_x509', 'Logowanie X.509: ' . $user['email']);
                 authlog_write((int)$user['id'], 'login_x509', $user['email'], 'Logowanie certyfikatem X.509');
+                require_once dirname(__DIR__) . '/includes/webauthn.php';
+                if (webauthn_login_gate($user, $redirect)) exit;
                 login_user($user);
                 header('Location: ' . $redirect); exit;
             }
@@ -204,6 +203,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (\Throwable $e) {}
             log_auth_action((int)$user['id'], 'login_code', 'Logowanie jednorazowym kodem dostępu');
             authlog_write((int)$user['id'], 'login_code', $user['email'] ?? '', 'Logowanie kodem jednorazowym');
+            require_once dirname(__DIR__) . '/includes/webauthn.php';
+            if (webauthn_login_gate($user, $redirect)) exit;
             login_user($user);
             if (($user['role'] ?? '') === 'crm_user' || ($user['role'] ?? '') === 'ezd_user') {
                 header('Location: ' . APP_URL . '/portal.php'); exit;

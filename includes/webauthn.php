@@ -509,6 +509,22 @@ function webauthn_complete_auth(array $response): int {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Bramka logowania: jeśli user ma rolę admin/editor i ma zarejestrowany klucz
+ * sprzętowy, przekierowuje do weryfikacji WebAuthn zamiast pozwolić
+ * `login_user()` ustanowić sesję bezpośrednio — niezależnie od metody, którą
+ * przeszedł uwierzytelnienie (hasło, Microsoft 365, SMS, X.509, kod dostępu).
+ * Zwraca true, gdy wykonano redirect (wywołujący powinien wtedy `exit`).
+ */
+function webauthn_login_gate(array $user, string $redirect_after): bool {
+    if (!in_array($user['role'] ?? '', ['admin', 'editor'], true)) return false;
+    webauthn_migrate();
+    if (!webauthn_user_has_keys((int)$user['id'])) return false;
+    $_SESSION['webauthn_pending_uid'] = (int)$user['id'];
+    header('Location: ' . APP_URL . '/auth/webauthn.php?redirect=' . urlencode($redirect_after));
+    return true;
+}
+
 function webauthn_user_has_keys(int $user_id): bool {
     $r = db_one(
         "SELECT COUNT(*) AS c FROM webauthn_credentials WHERE user_id=?",
