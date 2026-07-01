@@ -884,11 +884,17 @@ if ($_user) {
     /* ── Trigger (waffle) ─────────────────────────────────────── */
     .mod-sw-btn {
       display:inline-flex;align-items:center;gap:.3rem;
-      background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:8px;
-      padding:.28rem .6rem;font-size:.8rem;font-weight:500;color:<?= h($_sb_text) ?>;
+      background:rgba(255,255,255,.14);
+      border:1px solid rgba(255,255,255,.22);
+      border-bottom:2px solid <?= h($_sb_icon_color) ?>;
+      border-radius:8px 8px 4px 4px;
+      padding:.28rem .6rem .22rem;font-size:.8rem;font-weight:600;color:<?= h($_sb_text) ?>;
       cursor:pointer;line-height:1.4;transition:all .12s;white-space:nowrap;flex-shrink:0;
     }
-    .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] { background:rgba(255,255,255,.22);color:<?= h($_sb_hover_text) ?>; }
+    .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] {
+      background:rgba(255,255,255,.22);color:<?= h($_sb_hover_text) ?>;
+      border-bottom-color:<?= h($_sb_icon_color) ?>;
+    }
     .mod-sw-cur { max-width:80px;overflow:hidden;text-overflow:ellipsis; }
 
     /* ── Launcher (3 układy: lista / szuflada / pełny ekran) ──── */
