@@ -285,9 +285,10 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
           Autoryzacja niemożliwa bez zarejestrowanego klucza WebAuthn i ważnego certyfikatu X.509.
         </div>
         <?php else: ?>
+        <div class="form-text mt-0 mb-2">Po dotknięciu klucza dokumenty zostaną zaakceptowane automatycznie.</div>
         <div class="d-flex align-items-center gap-2">
-          <button type="button" id="bulkWebauthnConfirm" class="btn btn-outline-primary">
-            <i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn
+          <button type="button" id="bulkWebauthnConfirm" class="btn btn-primary">
+            <i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn i zatwierdź
           </button>
           <span id="bulkWebauthnSpinner" class="spinner-border spinner-border-sm text-primary" style="display:none"></span>
           <span id="bulkWebauthnOk" class="text-success fw-semibold" style="display:none">
@@ -299,11 +300,6 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <?php if ($auth_ready): ?>
-        <button type="button" id="bulkAcceptConfirm" class="btn btn-success" disabled>
-          <i class="bi bi-check-lg"></i> Zaakceptuj
-        </button>
-        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -357,7 +353,6 @@ window.addEventListener('load', function () {
   var waSpinner  = document.getElementById('bulkWebauthnSpinner');
   var waOk       = document.getElementById('bulkWebauthnOk');
   var waError    = document.getElementById('bulkWebauthnError');
-  var confirmBtn = document.getElementById('bulkAcceptConfirm');
   var waVerified = false;
 
   function b64u_to_ab(str) {
@@ -378,8 +373,38 @@ window.addEventListener('load', function () {
 
   function setWebauthnVerified(ok) {
     waVerified = ok;
-    if (confirmBtn) confirmBtn.disabled = !ok;
     if (waOk) waOk.style.display = ok ? '' : 'none';
+  }
+
+  async function doAccept() {
+    var ids = getChecked();
+    if (!ids.length) return;
+
+    var csrf = document.getElementById('kdokWebauthnCsrf').value;
+    var url  = document.getElementById('kdokBulkAcceptUrl').value;
+
+    if (waBtn) {
+      waBtn.disabled = true;
+      waBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Zatwierdzanie…';
+    }
+
+    try {
+      var resp = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _csrf: csrf, ids: ids })
+      });
+      var data = await resp.json();
+      if (!data.ok) throw new Error(data.message || 'Błąd akceptacji');
+      bsModal().hide();
+      location.reload();
+    } catch (e) {
+      setWebauthnVerified(false);
+      if (waBtn) {
+        waBtn.disabled = false;
+        waBtn.innerHTML = '<i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn i zatwierdź';
+      }
+      if (waError) { waError.style.display = ''; waError.textContent = e.message || 'Błąd akceptacji.'; }
+    }
   }
 
   async function doWebauthn() {
@@ -427,6 +452,7 @@ window.addEventListener('load', function () {
       if (!verifyData.ok) throw new Error(verifyData.message || 'Błąd weryfikacji klucza');
 
       setWebauthnVerified(true);
+      await doAccept();
     } catch (e) {
       setWebauthnVerified(false);
       if (waError) {
@@ -447,38 +473,6 @@ window.addEventListener('load', function () {
     if (waError) waError.style.display = 'none';
     bsModal().show();
   };
-
-  if (confirmBtn) {
-    confirmBtn.addEventListener('click', async function () {
-      if (!waVerified) {
-        if (waError) { waError.style.display = ''; waError.textContent = 'Najpierw zweryfikuj się kluczem WebAuthn.'; }
-        return;
-      }
-      var ids = getChecked();
-      if (!ids.length) return;
-
-      var csrf = document.getElementById('kdokWebauthnCsrf').value;
-      var url  = document.getElementById('kdokBulkAcceptUrl').value;
-
-      confirmBtn.disabled = true;
-      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Proszę czekać…';
-
-      try {
-        var resp = await fetch(url, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ _csrf: csrf, ids: ids })
-        });
-        var data = await resp.json();
-        if (!data.ok) throw new Error(data.message || 'Błąd akceptacji');
-        bsModal().hide();
-        location.reload();
-      } catch (e) {
-        confirmBtn.disabled = false;
-        confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Zaakceptuj';
-        if (waError) { waError.style.display = ''; waError.textContent = e.message || 'Błąd akceptacji.'; }
-      }
-    });
-  }
 
   modalEl.addEventListener('hidden.bs.modal', function () {
     if (waError) waError.style.display = 'none';

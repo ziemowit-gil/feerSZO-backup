@@ -77,6 +77,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Zatwierdź wszystkie oczekujące kroki naraz — jedna autoryzacja kluczem WebAuthn
+    if ($action === 'accept_all_steps') {
+        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
+            $errors[] = 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony') . ' — decyzja jest zablokowana.';
+        }
+
+        $auth = null;
+        if (!$errors) {
+            $auth = kdok_auth_verify((int)$user['id']);
+            if (!$auth['ok']) {
+                $errors[] = $auth['error'];
+            }
+        }
+
+        if (!$errors) {
+            $acted = false;
+            foreach (array_keys(KDOK_STEPS) as $step_key) {
+                if (!kdok_has_role($step_key)) continue;
+                $existing = $doc['steps'][$step_key] ?? null;
+                if ($existing && in_array($existing['status'], ['ok', 'uwagi', 'odrzucono'], true)) continue;
+
+                kdok_decide_step($doc, $step_key, 'ok', (int)$user['id'], '', $auth);
+                $acted = true;
+                $doc = kdok_get($id);
+                if (in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) break;
+            }
+            flash_set($acted ? 'success' : 'warning', $acted ? 'Zatwierdzono wszystkie oczekujące kroki.' : 'Brak kroków do zatwierdzenia.');
+            header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+            exit;
+        }
+    }
+
     // Generuj PDF
     if ($action === 'generate_pdf') {
         kdok_require_role('zatwierdza');
@@ -235,7 +267,29 @@ require_once __DIR__ . '/../includes/header.php';
         'formal'     => ['label' => 'Sprawdzono pod kątem formalnym i rachunkowym', 'icon' => 'bi-calculator', 'color' => 'info'],
         'zatwierdza' => ['label' => 'Zatwierdzam do wypłaty', 'icon' => 'bi-cash-coin', 'color' => 'success'],
     ];
+
+    // Czy zalogowany użytkownik ma więcej niż jeden nierozstrzygnięty krok — pod zbiorczą akceptację
+    $can_accept_all = 0;
+    if (!in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
+        foreach (array_keys($steps_config) as $step_key_chk) {
+            if (!kdok_has_role($step_key_chk)) continue;
+            $st_chk = $doc['steps'][$step_key_chk]['status'] ?? null;
+            if (!in_array($st_chk, ['ok', 'uwagi', 'odrzucono'], true)) $can_accept_all++;
+        }
+    }
     ?>
+    <?php if ($can_accept_all > 1): ?>
+    <div class="mb-3">
+      <button type="button" class="btn btn-sm btn-success kdok-open-ikaks"
+        data-form="form_accept_all" data-label="Zatwierdź wszystkie kroki naraz (<?= $can_accept_all ?>)">
+        <i class="bi bi-check2-all"></i> Zatwierdź wszystkie kroki naraz (<?= $can_accept_all ?>) — jedna autoryzacja
+      </button>
+      <form method="post" id="form_accept_all" style="display:none">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="action" value="accept_all_steps">
+      </form>
+    </div>
+    <?php endif; ?>
     <?php foreach ($steps_config as $step_key => $cfg): ?>
     <?php
     $step    = $doc['steps'][$step_key] ?? null;
@@ -500,11 +554,11 @@ $auth_ready   = $cert_ok && $has_webauthn;
             Zweryfikuj kluczem WebAuthn
           </label>
           <div class="form-text mt-0 mb-2">
-            Klucz WebAuthn zastępuje kod IKAKS — po weryfikacji kluczem nie musisz go podawać.
+            Klucz WebAuthn zastępuje kod IKAKS — po dotknięciu klucza decyzja zapisze się automatycznie.
           </div>
           <div class="d-flex align-items-center gap-2">
-            <button type="button" id="webauthnConfirm" class="btn btn-outline-primary">
-              <i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn
+            <button type="button" id="webauthnConfirm" class="btn btn-primary">
+              <i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn i zapisz
             </button>
             <span id="webauthnSpinner" class="spinner-border spinner-border-sm text-primary" style="display:none"></span>
             <span id="webauthnOk" class="text-success fw-semibold" style="display:none">
@@ -517,11 +571,6 @@ $auth_ready   = $cert_ok && $has_webauthn;
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <?php if ($auth_ready): ?>
-        <button type="button" id="ikaksConfirm" class="btn btn-dark" disabled>
-          <i class="bi bi-shield-check"></i> Potwierdź autoryzację
-        </button>
-        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -537,7 +586,6 @@ window.addEventListener('load', function () {
   var _modalEl    = document.getElementById('ikaksModal');
   if (!_modalEl) return;
 
-  var _confirmBtn = document.getElementById('ikaksConfirm');
   var _labelEl    = document.getElementById('ikaksModalLabel');
 
   // ── Krok WebAuthn ────────────────────────────────────────────────────────
@@ -565,7 +613,6 @@ window.addEventListener('load', function () {
 
   function setWebauthnVerified(ok) {
     _waVerified = ok;
-    if (_confirmBtn) _confirmBtn.disabled = !ok;
     if (_waOk) _waOk.style.display = ok ? '' : 'none';
   }
 
@@ -616,6 +663,7 @@ window.addEventListener('load', function () {
       if (!verifyData.ok) throw new Error(verifyData.message || 'Błąd weryfikacji klucza');
 
       setWebauthnVerified(true);
+      doConfirm();
     } catch (e) {
       setWebauthnVerified(false);
       if (_waError) {
@@ -642,19 +690,21 @@ window.addEventListener('load', function () {
       if (!form) return;
 
       var radios = form.querySelectorAll('input[name="step_status"]');
-      var checked = Array.from(radios).some(function (r) { return r.checked; });
-      if (!checked) {
-        var wrap = radios[0] && radios[0].closest('.d-flex');
-        if (wrap) {
-          wrap.classList.add('border', 'border-danger', 'rounded', 'p-1');
-          wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (radios.length) {
+        var checked = Array.from(radios).some(function (r) { return r.checked; });
+        if (!checked) {
+          var wrap = radios[0] && radios[0].closest('.d-flex');
+          if (wrap) {
+            wrap.classList.add('border', 'border-danger', 'rounded', 'p-1');
+            wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          return;
         }
-        return;
-      }
-      // Ostrzeżenie przy wyborze "Odrzuć"
-      var selected = Array.from(radios).find(function(r){ return r.checked; });
-      if (selected && selected.value === 'odrzucono') {
-        if (!confirm('Czy na pewno chcesz ODRZUCIĆ dokument? Tej decyzji nie można cofnąć.')) return;
+        // Ostrzeżenie przy wyborze "Odrzuć"
+        var selected = Array.from(radios).find(function(r){ return r.checked; });
+        if (selected && selected.value === 'odrzucono') {
+          if (!confirm('Czy na pewno chcesz ODRZUCIĆ dokument? Tej decyzji nie można cofnąć.')) return;
+        }
       }
 
       _targetForm = form;
@@ -681,8 +731,6 @@ window.addEventListener('load', function () {
     bsModal().hide();
     setTimeout(function () { form.submit(); }, 150);
   }
-
-  if (_confirmBtn) _confirmBtn.addEventListener('click', doConfirm);
 
   // ── Czyszczenie po zamknięciu ─────────────────────────────────────────────
   _modalEl.addEventListener('hidden.bs.modal', function () {
