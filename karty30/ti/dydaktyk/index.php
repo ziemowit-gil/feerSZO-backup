@@ -1190,41 +1190,75 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     </div></div>
   <?php else: ?>
 
-  <!-- Wybór kursu — tylko gdy aktywna zakładka dotyczy kursu -->
+  <!-- Wybór kursu — popup picker -->
   <?php if (count($courses) > 1 && $tab_is_course): ?>
-  <div class="dyd-course-switcher mb-3 d-flex align-items-center gap-3 flex-wrap">
-    <!-- Select (kompaktowy; auto-nawigacja JS) -->
-    <div class="d-flex align-items-center gap-2 flex-shrink-0">
-      <label class="form-label mb-0 text-body-secondary small fw-semibold text-nowrap" for="dyd-course-select">
-        <i class="bi bi-collection me-1" aria-hidden="true"></i>Grupa:
-      </label>
-      <select id="dyd-course-select" class="form-select form-select-sm" style="min-width:180px;max-width:320px"
-              aria-label="Wybór grupy / kursu"
-              onchange="location.href='index.php?course='+this.value+'&tab=<?= h($tab) ?>'">
-        <?php foreach ($courses as $c): ?>
-        <option value="<?= (int)$c['id'] ?>" <?= (int)$c['id']===$cur_course ? 'selected' : '' ?>>
-          <?= h($c['name']) ?> (<?= (int)$c['enrolled_count'] ?> os.)
-        </option>
-        <?php endforeach; ?>
-      </select>
+  <?php
+  $_cp_data = array_map(fn($c) => [
+      'id'       => (int)$c['id'],
+      'name'     => $c['name'],
+      'location' => $c['location'] ?? '',
+      'enrolled' => (int)($c['enrolled_count'] ?? 0),
+      'active'   => (int)$c['id'] === $cur_course,
+      'url'      => 'index.php?course=' . (int)$c['id'] . '&tab=' . urlencode($tab),
+  ], $courses);
+  ?>
+  <div class="mb-3" style="position:relative">
+    <button type="button" id="dyd-cp-trigger"
+            class="btn btn-sm d-inline-flex align-items-center gap-2"
+            style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.35rem .85rem;font-weight:600;color:#1e293b;box-shadow:0 1px 3px rgba(0,0,0,.07)"
+            aria-haspopup="listbox" aria-expanded="false">
+      <i class="bi bi-collection" style="color:#6d28d9" aria-hidden="true"></i>
+      <span id="dyd-cp-label"><?= h($course['name'] ?? 'Wybierz grupę') ?></span>
+      <span class="badge rounded-pill" style="background:#f0fdf4;color:#16a34a;font-size:.65rem;border:1px solid #bbf7d0"><?= (int)($course['enrolled_count'] ?? 0) ?> os.</span>
+      <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.5" aria-hidden="true"></i>
+    </button>
+
+    <!-- Panel wyskakujący -->
+    <div id="dyd-cp-panel" hidden
+         role="listbox" aria-label="Wybierz grupę"
+         style="position:absolute;top:calc(100% + 6px);left:0;z-index:500;
+                background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+                box-shadow:0 12px 40px rgba(2,6,23,.16);padding:.35rem;
+                min-width:280px;max-width:420px;width:max-content">
+      <?php foreach ($courses as $c): ?>
+      <?php $_active = (int)$c['id'] === $cur_course; ?>
+      <a href="index.php?course=<?= (int)$c['id'] ?>&tab=<?= h($tab) ?>"
+         role="option" aria-selected="<?= $_active ? 'true' : 'false' ?>"
+         class="dyd-cp-item d-flex align-items-center gap-3 text-decoration-none rounded-3 px-3 py-2<?= $_active ? ' dyd-cp-active' : '' ?>">
+        <span class="dyd-cp-ic d-flex align-items-center justify-content-center flex-shrink-0"
+              style="width:36px;height:36px;border-radius:9px;
+                     background:<?= $_active ? '#ede9fe' : '#f8fafc' ?>;
+                     color:<?= $_active ? '#7c3aed' : '#64748b' ?>">
+          <i class="bi bi-people-fill" aria-hidden="true"></i>
+        </span>
+        <span class="flex-grow-1 min-width-0">
+          <span class="d-block fw-semibold" style="font-size:.88rem;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px"><?= h($c['name']) ?></span>
+          <?php if (!empty($c['location'])): ?>
+          <span class="d-block text-body-secondary" style="font-size:.73rem"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($c['location']) ?></span>
+          <?php endif; ?>
+        </span>
+        <span class="flex-shrink-0" style="font-size:.72rem;font-weight:600;color:<?= $_active ? '#7c3aed' : '#94a3b8' ?>">
+          <?= (int)($c['enrolled_count'] ?? 0) ?> os.
+        </span>
+        <?php if ($_active): ?>
+        <i class="bi bi-check2 flex-shrink-0" style="color:#7c3aed;font-size:1rem" aria-hidden="true"></i>
+        <?php endif; ?>
+      </a>
+      <?php endforeach; ?>
     </div>
-    <!-- Pills — ukryte gdy kursów >5 (zbyt wiele) -->
-    <?php if (count($courses) <= 5): ?>
-    <nav aria-label="Wybór kursu — przyciski">
-      <ul class="nav nav-pills gap-2 flex-wrap mb-0">
-        <?php foreach ($courses as $c): ?>
-        <li class="nav-item">
-          <a class="nav-link <?= (int)$c['id']===$cur_course ? 'active' : '' ?>"
-             href="index.php?course=<?= (int)$c['id'] ?>&tab=<?= h($tab) ?>">
-            <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($c['name']) ?>
-            <span class="badge badge-soft ms-1"><?= (int)$c['enrolled_count'] ?> os.</span>
-          </a>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-    </nav>
-    <?php endif; ?>
   </div>
+  <script>
+  (function(){
+    var btn   = document.getElementById('dyd-cp-trigger');
+    var panel = document.getElementById('dyd-cp-panel');
+    if (!btn || !panel) return;
+    function open()  { panel.hidden=false; btn.setAttribute('aria-expanded','true');  btn.querySelector('.bi-chevron-down').style.transform='rotate(180deg)'; }
+    function close() { panel.hidden=true;  btn.setAttribute('aria-expanded','false'); btn.querySelector('.bi-chevron-down').style.transform=''; }
+    btn.addEventListener('click', function(e){ e.stopPropagation(); panel.hidden ? open() : close(); });
+    document.addEventListener('click', function(e){ if (!btn.contains(e.target) && !panel.contains(e.target)) close(); });
+    document.addEventListener('keydown', function(e){ if (e.key==='Escape') close(); });
+  })();
+  </script>
   <?php endif; ?>
 
   <?php if ($course): ?>
