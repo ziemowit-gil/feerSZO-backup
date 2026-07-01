@@ -1192,19 +1192,39 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
   <!-- Wybór kursu — tylko gdy aktywna zakładka dotyczy kursu -->
   <?php if (count($courses) > 1 && $tab_is_course): ?>
-  <nav class="dyd-course-pills mb-3" aria-label="Wybór kursu">
-    <ul class="nav nav-pills gap-2 flex-wrap">
-      <?php foreach ($courses as $c): ?>
-      <li class="nav-item">
-        <a class="nav-link <?= (int)$c['id']===$cur_course ? 'active' : '' ?>"
-           href="index.php?course=<?= (int)$c['id'] ?>&tab=<?= h($tab) ?>">
-          <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($c['name']) ?>
-          <span class="badge badge-soft ms-1"><?= (int)$c['enrolled_count'] ?> os.</span>
-        </a>
-      </li>
-      <?php endforeach; ?>
-    </ul>
-  </nav>
+  <div class="dyd-course-switcher mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <!-- Select (kompaktowy; auto-nawigacja JS) -->
+    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+      <label class="form-label mb-0 text-body-secondary small fw-semibold text-nowrap" for="dyd-course-select">
+        <i class="bi bi-collection me-1" aria-hidden="true"></i>Grupa:
+      </label>
+      <select id="dyd-course-select" class="form-select form-select-sm" style="min-width:180px;max-width:320px"
+              aria-label="Wybór grupy / kursu"
+              onchange="location.href='index.php?course='+this.value+'&tab=<?= h($tab) ?>'">
+        <?php foreach ($courses as $c): ?>
+        <option value="<?= (int)$c['id'] ?>" <?= (int)$c['id']===$cur_course ? 'selected' : '' ?>>
+          <?= h($c['name']) ?> (<?= (int)$c['enrolled_count'] ?> os.)
+        </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <!-- Pills — ukryte gdy kursów >5 (zbyt wiele) -->
+    <?php if (count($courses) <= 5): ?>
+    <nav aria-label="Wybór kursu — przyciski">
+      <ul class="nav nav-pills gap-2 flex-wrap mb-0">
+        <?php foreach ($courses as $c): ?>
+        <li class="nav-item">
+          <a class="nav-link <?= (int)$c['id']===$cur_course ? 'active' : '' ?>"
+             href="index.php?course=<?= (int)$c['id'] ?>&tab=<?= h($tab) ?>">
+            <i class="bi bi-pc-display me-1" aria-hidden="true"></i><?= h($c['name']) ?>
+            <span class="badge badge-soft ms-1"><?= (int)$c['enrolled_count'] ?> os.</span>
+          </a>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </nav>
+    <?php endif; ?>
+  </div>
   <?php endif; ?>
 
   <?php if ($course): ?>
