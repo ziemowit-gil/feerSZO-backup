@@ -5,9 +5,11 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
+require_once __DIR__ . '/../includes/webauthn.php';
 
 require_login();
 kdok_migrate();
+webauthn_migrate();
 
 $PAGE_TITLE = 'EOD Dokumentów Księgowych';
 
@@ -59,8 +61,25 @@ foreach ($docs as &$doc) {
         [$doc['id']]
     );
     $doc['steps'] = array_column($steps, 'status', 'step_type');
+
+    // Czy zalogowany użytkownik ma choć jeden nierozstrzygnięty krok do zaakceptowania — pod masową akceptację
+    $doc['can_bulk'] = !in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true);
+    if ($doc['can_bulk']) {
+        $doc['can_bulk'] = false;
+        foreach (array_keys(KDOK_STEPS) as $step) {
+            if (!kdok_has_role($step)) continue;
+            $s = $doc['steps'][$step] ?? null;
+            if (!in_array($s, ['ok', 'uwagi', 'odrzucono'], true)) { $doc['can_bulk'] = true; break; }
+        }
+    }
 }
 unset($doc);
+
+$user         = current_user();
+$has_webauthn = webauthn_user_has_keys((int)$user['id']);
+$my_cert      = kdok_cert_get((int)$user['id']);
+$cert_ok      = $my_cert && kdok_cert_is_valid($my_cert);
+$auth_ready   = $cert_ok && $has_webauthn;
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -140,6 +159,7 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
     <table class="table table-hover mb-0 align-middle small">
       <thead class="table-light">
         <tr>
+          <th style="width:2rem"><input type="checkbox" id="cb-all" class="form-check-input" aria-label="Zaznacz wszystkie"></th>
           <th>Numer</th>
           <th>Typ</th>
           <th>Tytuł</th>
@@ -154,10 +174,15 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
       </thead>
       <tbody>
       <?php if (!$docs): ?>
-        <tr><td colspan="10" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
+        <tr><td colspan="11" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
       <?php endif; ?>
       <?php foreach ($docs as $doc): ?>
         <tr>
+          <td>
+            <?php if ($doc['can_bulk']): ?>
+            <input type="checkbox" class="form-check-input cb-row" value="<?= $doc['id'] ?>" aria-label="Zaznacz dokument <?= h($doc['number']) ?>">
+            <?php endif; ?>
+          </td>
           <td><code><?= h($doc['number']) ?></code></td>
           <td><i class="<?= h(KDOK_TYPES[$doc['type']]['icon'] ?? 'bi-file') ?>"></i> <?= h(KDOK_TYPES[$doc['type']]['label'] ?? $doc['type']) ?></td>
           <td><?= h($doc['title']) ?></td>
@@ -189,5 +214,277 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
 </div>
 
 <?= pagination_html($pag, '?type=' . urlencode($filter_type) . '&status=' . urlencode($filter_status) . '&q=' . urlencode($filter_q) . '&miesiac=' . $filter_miesiac . '&rok=' . $filter_rok . '&') ?>
+
+<!-- Pasek masowej akceptacji (pojawia się po zaznaczeniu wierszy) -->
+<div id="bulk-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:1050;
+     background:#1e293b;color:#f8fafc;padding:.55rem 1.25rem;
+     box-shadow:0 -3px 14px rgba(0,0,0,.3);border-top:2px solid #334155"
+     role="toolbar" aria-label="Akcje masowe">
+  <div class="d-flex align-items-center gap-2 flex-wrap" style="max-width:1200px;margin:0 auto">
+    <span class="fw-semibold me-1" style="font-size:.85rem">
+      <i class="bi bi-check2-square me-1"></i>
+      <span id="bulk-count">0</span> zaznaczonych
+    </span>
+    <button type="button" class="btn btn-sm btn-success py-1 px-3" onclick="bulkOpenAccept()">
+      <i class="bi bi-check-lg me-1"></i>Zaakceptuj zaznaczone
+    </button>
+    <button type="button" class="btn btn-sm btn-link text-white-50 ms-auto p-0"
+            onclick="bulkClear()" title="Anuluj zaznaczenie" aria-label="Anuluj zaznaczenie">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+</div>
+
+<!-- Modal: masowa akceptacja (autoryzacja kluczem WebAuthn) -->
+<div class="modal fade" id="bulkAcceptModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title"><i class="bi bi-shield-lock-fill"></i> Masowa akceptacja</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          Zostaną zaakceptowane wszystkie oczekujące kroki (merytoryczny/formalny/wypłata),
+          do których masz uprawnienia, dla <strong id="bulk-accept-count">0</strong> zaznaczonych dokumentów.
+        </p>
+
+        <div class="mb-3 p-2 rounded border <?= $has_webauthn ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10' ?>">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-usb-symbol fs-4 <?= $has_webauthn ? 'text-success' : 'text-danger' ?>"></i>
+            <div>
+              <?php if ($has_webauthn): ?>
+              <div class="fw-semibold">Klucz WebAuthn zarejestrowany</div>
+              <?php else: ?>
+              <div class="fw-semibold text-danger">Brak zarejestrowanego klucza WebAuthn</div>
+              <div class="small text-muted">
+                Zarejestruj go w <a href="<?= APP_URL ?>/panel/webauthn.php" target="_blank">Mój profil → Klucze bezpieczeństwa</a>.
+              </div>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3 p-2 rounded border <?= $cert_ok ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10' ?>">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-patch-<?= $cert_ok ? 'check-fill text-success' : 'x-fill text-danger' ?> fs-4"></i>
+            <div>
+              <?php if ($cert_ok): ?>
+              <div class="fw-semibold"><?= h($my_cert['subject_cn']) ?></div>
+              <div class="small text-muted">Certyfikat X.509 aktywny · ważny do <?= date('d.m.Y', strtotime($my_cert['valid_to'])) ?></div>
+              <?php else: ?>
+              <div class="fw-semibold text-danger">Brak ważnego certyfikatu X.509</div>
+              <div class="small text-muted">Skontaktuj się z administratorem.</div>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+
+        <?php if (!$auth_ready): ?>
+        <div class="alert alert-danger mb-0">
+          Autoryzacja niemożliwa bez zarejestrowanego klucza WebAuthn i ważnego certyfikatu X.509.
+        </div>
+        <?php else: ?>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" id="bulkWebauthnConfirm" class="btn btn-outline-primary">
+            <i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn
+          </button>
+          <span id="bulkWebauthnSpinner" class="spinner-border spinner-border-sm text-primary" style="display:none"></span>
+          <span id="bulkWebauthnOk" class="text-success fw-semibold" style="display:none">
+            <i class="bi bi-check-circle-fill"></i> Zweryfikowano
+          </span>
+        </div>
+        <div id="bulkWebauthnError" class="text-danger small mt-1" style="display:none"></div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <?php if ($auth_ready): ?>
+        <button type="button" id="bulkAcceptConfirm" class="btn btn-success" disabled>
+          <i class="bi bi-check-lg"></i> Zaakceptuj
+        </button>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
+<input type="hidden" id="kdokWebauthnCsrf" value="<?= csrf_token() ?>">
+<input type="hidden" id="kdokWebauthnBeginUrl" value="<?= APP_URL ?>/ksiegowosc/webauthn_begin.php">
+<input type="hidden" id="kdokWebauthnVerifyUrl" value="<?= APP_URL ?>/ksiegowosc/webauthn_verify.php">
+<input type="hidden" id="kdokBulkAcceptUrl" value="<?= APP_URL ?>/ksiegowosc/bulk_accept.php">
+
+<script>
+window.addEventListener('load', function () {
+  var bar   = document.getElementById('bulk-bar');
+  var cbAll = document.getElementById('cb-all');
+  var modalEl = document.getElementById('bulkAcceptModal');
+  if (!bar || !modalEl) return;
+
+  function getChecked() {
+    return Array.from(document.querySelectorAll('.cb-row:checked')).map(function (c) { return c.value; });
+  }
+
+  function updateBar() {
+    var n   = getChecked().length;
+    var all = document.querySelectorAll('.cb-row').length;
+    bar.style.display = n ? '' : 'none';
+    document.getElementById('bulk-count').textContent = n;
+    if (cbAll) {
+      cbAll.checked       = n > 0 && n === all;
+      cbAll.indeterminate = n > 0 && n < all;
+    }
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'cb-all') {
+      document.querySelectorAll('.cb-row').forEach(function (c) { c.checked = e.target.checked; });
+    }
+    if (e.target && (e.target.id === 'cb-all' || e.target.classList.contains('cb-row'))) {
+      updateBar();
+    }
+  });
+
+  window.bulkClear = function () {
+    document.querySelectorAll('.cb-row').forEach(function (c) { c.checked = false; });
+    if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+    updateBar();
+  };
+
+  function bsModal() { return bootstrap.Modal.getOrCreateInstance(modalEl); }
+
+  // ── Krok WebAuthn ────────────────────────────────────────────────────────
+  var waBtn      = document.getElementById('bulkWebauthnConfirm');
+  var waSpinner  = document.getElementById('bulkWebauthnSpinner');
+  var waOk       = document.getElementById('bulkWebauthnOk');
+  var waError    = document.getElementById('bulkWebauthnError');
+  var confirmBtn = document.getElementById('bulkAcceptConfirm');
+  var waVerified = false;
+
+  function b64u_to_ab(str) {
+    var s = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var bin = atob(s);
+    var buf = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  }
+
+  function ab_to_b64u(buf) {
+    var bytes = new Uint8Array(buf);
+    var bin   = '';
+    for (var i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function setWebauthnVerified(ok) {
+    waVerified = ok;
+    if (confirmBtn) confirmBtn.disabled = !ok;
+    if (waOk) waOk.style.display = ok ? '' : 'none';
+  }
+
+  async function doWebauthn() {
+    if (!waBtn) return;
+    var csrf      = document.getElementById('kdokWebauthnCsrf').value;
+    var beginUrl  = document.getElementById('kdokWebauthnBeginUrl').value;
+    var verifyUrl = document.getElementById('kdokWebauthnVerifyUrl').value;
+
+    waBtn.disabled = true;
+    if (waSpinner) waSpinner.style.display = '';
+    if (waError) { waError.style.display = 'none'; waError.textContent = ''; }
+
+    try {
+      var beginResp = await fetch(beginUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _csrf: csrf })
+      });
+      var beginData = await beginResp.json();
+      if (!beginData.ok) throw new Error(beginData.message || 'Błąd inicjalizacji');
+
+      var opts = beginData.options;
+      opts.challenge = b64u_to_ab(opts.challenge);
+      if (opts.allowCredentials) {
+        opts.allowCredentials = opts.allowCredentials.map(function (c) {
+          return Object.assign({}, c, { id: b64u_to_ab(c.id) });
+        });
+      }
+
+      var credential = await navigator.credentials.get({ publicKey: opts });
+
+      var credData = {
+        id:                credential.id,
+        rawId:             ab_to_b64u(credential.rawId),
+        clientDataJSON:    ab_to_b64u(credential.response.clientDataJSON),
+        authenticatorData: ab_to_b64u(credential.response.authenticatorData),
+        signature:         ab_to_b64u(credential.response.signature),
+        userHandle:        credential.response.userHandle ? ab_to_b64u(credential.response.userHandle) : null,
+      };
+
+      var verifyResp = await fetch(verifyUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _csrf: csrf, response: credData })
+      });
+      var verifyData = await verifyResp.json();
+      if (!verifyData.ok) throw new Error(verifyData.message || 'Błąd weryfikacji klucza');
+
+      setWebauthnVerified(true);
+    } catch (e) {
+      setWebauthnVerified(false);
+      if (waError) {
+        waError.style.display = '';
+        waError.textContent = e.message || 'Nie udało się zweryfikować klucza. Spróbuj ponownie.';
+      }
+    } finally {
+      waBtn.disabled = false;
+      if (waSpinner) waSpinner.style.display = 'none';
+    }
+  }
+
+  if (waBtn) waBtn.addEventListener('click', doWebauthn);
+
+  window.bulkOpenAccept = function () {
+    document.getElementById('bulk-accept-count').textContent = getChecked().length;
+    setWebauthnVerified(false);
+    if (waError) waError.style.display = 'none';
+    bsModal().show();
+  };
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', async function () {
+      if (!waVerified) {
+        if (waError) { waError.style.display = ''; waError.textContent = 'Najpierw zweryfikuj się kluczem WebAuthn.'; }
+        return;
+      }
+      var ids = getChecked();
+      if (!ids.length) return;
+
+      var csrf = document.getElementById('kdokWebauthnCsrf').value;
+      var url  = document.getElementById('kdokBulkAcceptUrl').value;
+
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Proszę czekać…';
+
+      try {
+        var resp = await fetch(url, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ _csrf: csrf, ids: ids })
+        });
+        var data = await resp.json();
+        if (!data.ok) throw new Error(data.message || 'Błąd akceptacji');
+        bsModal().hide();
+        location.reload();
+      } catch (e) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Zaakceptuj';
+        if (waError) { waError.style.display = ''; waError.textContent = e.message || 'Błąd akceptacji.'; }
+      }
+    });
+  }
+
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    if (waError) waError.style.display = 'none';
+    setWebauthnVerified(false);
+  });
+});
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

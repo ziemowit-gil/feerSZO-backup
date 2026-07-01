@@ -6,6 +6,9 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
 require_once __DIR__ . '/../includes/kdok_archive.php';
+require_once __DIR__ . '/../includes/webauthn.php';
+
+webauthn_migrate();
 
 require_login();
 kdok_migrate();
@@ -58,8 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($status, ['ok', 'uwagi', 'odrzucono'], true)) {
                 $errors[] = 'Wybierz decyzję.';
             } else {
-                // Weryfikacja IKAKS + certyfikat X.509
-                $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '');
+                // Weryfikacja kluczem WebAuthn + certyfikat X.509
+                $auth = kdok_auth_verify((int)$user['id']);
                 if (!$auth['ok']) {
                     $errors[] = $auth['error'];
                 }
@@ -67,54 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$errors) {
-            $cert     = $auth['cert'];
-            $step_row = $doc['steps'][$action] ?? null;
-            $dec_label = match($status) { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', 'odrzucono' => 'ODRZUCONO', default => $status };
-            if ($step_row) {
-                kdok_exec(
-                    "UPDATE kdok_steps SET status=?, user_id=?, user_name=?, cert_cn=?, cert_fingerprint=?, cert_subject=?, decided_at=datetime('now'), notes=? WHERE id=?",
-                    [$status, $user['id'], $auth['display_name'],
-                     $cert['subject_cn'] ?? '', $cert['fingerprint_sha256'] ?? '', $cert['subject_dn'] ?? '',
-                     $notes, $step_row['id']]
-                );
-            } else {
-                kdok_insert('kdok_steps', [
-                    'doc_id'           => $id,
-                    'step_type'        => $action,
-                    'status'           => $status,
-                    'user_id'          => $user['id'],
-                    'user_name'        => $auth['display_name'],
-                    'cert_cn'          => $cert['subject_cn']         ?? '',
-                    'cert_fingerprint' => $cert['fingerprint_sha256'] ?? '',
-                    'cert_subject'     => $cert['subject_dn']         ?? '',
-                    'decided_at'       => date('Y-m-d H:i:s'),
-                    'notes'            => $notes,
-                ]);
-            }
-
-            kdok_log($id, KDOK_STEPS[$action] . ' → ' . $dec_label, $notes);
-
-            if ($status === 'odrzucono') {
-                kdok_exec("UPDATE kdok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
-                kdok_log($id, 'Dokument odrzucony na etapie: ' . KDOK_STEPS[$action], $notes);
-                flash_set('warning', 'Dokument odrzucony.');
-            } else {
-                $doc = kdok_get($id);
-                $new_status = kdok_is_complete($doc) ? 'zaakceptowany' : 'w_obiegu';
-                kdok_exec("UPDATE kdok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
-                if ($new_status === 'zaakceptowany') {
-                    kdok_log($id, 'Obieg zakończony — dokument zaakceptowany');
-                    // Auto-push do eArchiwum jeśli włączone
-                    if (org_setting('kdok_archive_enabled') === '1') {
-                        try {
-                            kdok_archive_push($id);
-                        } catch (\Throwable $arch_e) {
-                            kdok_log($id, 'eArchiwum: błąd wysyłki', $arch_e->getMessage());
-                        }
-                    }
-                }
-                flash_set('success', 'Decyzja zapisana.');
-            }
+            $result = kdok_decide_step($doc, $action, $status, (int)$user['id'], $notes, $auth);
+            flash_set($result['rejected'] ? 'warning' : 'success', $result['rejected'] ? 'Dokument odrzucony.' : 'Decyzja zapisana.');
             header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
             exit;
         }
@@ -330,7 +287,6 @@ require_once __DIR__ . '/../includes/header.php';
             id="form_<?= $step_key ?>">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="action" value="<?= $step_key ?>">
-            <input type="hidden" name="ikaks" value="" class="kdok-ikaks-value">
             <div class="d-flex gap-3 mb-2 flex-wrap">
               <div class="form-check">
                 <input class="form-check-input" type="radio" name="step_status"
@@ -469,8 +425,10 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- ── Modal IKAKS — wspólny dla wszystkich kroków ─────────────────────────── -->
 <?php
-$my_cert = kdok_cert_get((int)$user['id']);
-$cert_ok = $my_cert && kdok_cert_is_valid($my_cert);
+$my_cert      = kdok_cert_get((int)$user['id']);
+$cert_ok      = $my_cert && kdok_cert_is_valid($my_cert);
+$has_webauthn = webauthn_user_has_keys((int)$user['id']);
+$auth_ready   = $cert_ok && $has_webauthn;
 ?>
 <div class="modal fade" id="ikaksModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
@@ -483,6 +441,25 @@ $cert_ok = $my_cert && kdok_cert_is_valid($my_cert);
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+
+        <!-- Status klucza WebAuthn -->
+        <div class="mb-3 p-2 rounded border <?= $has_webauthn ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10' ?>">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-usb-symbol fs-4 <?= $has_webauthn ? 'text-success' : 'text-danger' ?>"></i>
+            <div>
+              <?php if ($has_webauthn): ?>
+              <div class="fw-semibold">Klucz WebAuthn zarejestrowany</div>
+              <div class="small text-muted">Opisywanie dokumentów wymaga świeżej weryfikacji kluczem sprzętowym.</div>
+              <?php else: ?>
+              <div class="fw-semibold text-danger">Brak zarejestrowanego klucza WebAuthn</div>
+              <div class="small text-muted">
+                Opisywanie dokumentów wymaga klucza sprzętowego. Zarejestruj go w
+                <a href="<?= APP_URL ?>/panel/webauthn.php" target="_blank">Mój profil → Klucze bezpieczeństwa</a>.
+              </div>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
 
         <!-- Status certyfikatu -->
         <div class="mb-3 p-2 rounded border <?= $cert_ok ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10' ?>">
@@ -508,37 +485,40 @@ $cert_ok = $my_cert && kdok_cert_is_valid($my_cert);
           </div>
         </div>
 
-        <?php if (!$cert_ok): ?>
+        <?php if (!$auth_ready): ?>
         <div class="alert alert-danger mb-0">
-          Autoryzacja niemożliwa bez ważnego certyfikatu X.509.
+          Autoryzacja niemożliwa bez zarejestrowanego klucza WebAuthn i ważnego certyfikatu X.509.
           <?php if (!$my_cert): ?>
           Poproś admina o dodanie certyfikatu w
           <a href="<?= APP_URL ?>/admin/kdok_certs.php">Certyfikaty X.509 i IKAKS</a>.
           <?php endif; ?>
         </div>
         <?php else: ?>
-        <div>
+        <div id="webauthnStep">
           <label class="form-label fw-semibold">
-            <i class="bi bi-key-fill text-warning"></i>
-            IKAKS — Indywidualny Kod Autoryzacyjny
+            <i class="bi bi-usb-symbol text-primary"></i>
+            Zweryfikuj kluczem WebAuthn
           </label>
-          <input type="password" id="ikaksInput" class="form-control form-control-lg"
-            placeholder="Wpisz swój kod IKAKS…" autocomplete="off">
-          <div class="form-text">
-            Podaj kod IKAKS, który nadał Ci administrator.
-            Możesz go zmienić w
-            <a href="<?= APP_URL ?>/user/kdok_ikaks.php" target="_blank">Moim profilu → IKAKS</a>.
+          <div class="form-text mt-0 mb-2">
+            Klucz WebAuthn zastępuje kod IKAKS — po weryfikacji kluczem nie musisz go podawać.
           </div>
-          <div id="ikaksError" class="text-danger small mt-1" style="display:none">
-            Wpisz kod IKAKS przed zatwierdzeniem.
+          <div class="d-flex align-items-center gap-2">
+            <button type="button" id="webauthnConfirm" class="btn btn-outline-primary">
+              <i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn
+            </button>
+            <span id="webauthnSpinner" class="spinner-border spinner-border-sm text-primary" style="display:none"></span>
+            <span id="webauthnOk" class="text-success fw-semibold" style="display:none">
+              <i class="bi bi-check-circle-fill"></i> Zweryfikowano
+            </span>
           </div>
+          <div id="webauthnError" class="text-danger small mt-1" style="display:none"></div>
         </div>
         <?php endif; ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <?php if ($cert_ok): ?>
-        <button type="button" id="ikaksConfirm" class="btn btn-dark">
+        <?php if ($auth_ready): ?>
+        <button type="button" id="ikaksConfirm" class="btn btn-dark" disabled>
           <i class="bi bi-shield-check"></i> Potwierdź autoryzację
         </button>
         <?php endif; ?>
@@ -546,6 +526,9 @@ $cert_ok = $my_cert && kdok_cert_is_valid($my_cert);
     </div>
   </div>
 </div>
+<input type="hidden" id="kdokWebauthnCsrf" value="<?= csrf_token() ?>">
+<input type="hidden" id="kdokWebauthnBeginUrl" value="<?= APP_URL ?>/ksiegowosc/webauthn_begin.php">
+<input type="hidden" id="kdokWebauthnVerifyUrl" value="<?= APP_URL ?>/ksiegowosc/webauthn_verify.php">
 
 <script>
 // Skrypt działa po załadowaniu Bootstrap (który jest w footer.php)
@@ -554,10 +537,98 @@ window.addEventListener('load', function () {
   var _modalEl    = document.getElementById('ikaksModal');
   if (!_modalEl) return;
 
-  var _inp        = document.getElementById('ikaksInput');
   var _confirmBtn = document.getElementById('ikaksConfirm');
-  var _errorEl    = document.getElementById('ikaksError');
   var _labelEl    = document.getElementById('ikaksModalLabel');
+
+  // ── Krok WebAuthn ────────────────────────────────────────────────────────
+  var _waBtn      = document.getElementById('webauthnConfirm');
+  var _waSpinner  = document.getElementById('webauthnSpinner');
+  var _waOk       = document.getElementById('webauthnOk');
+  var _waError    = document.getElementById('webauthnError');
+  var _waVerified = false;
+
+  function b64u_to_ab(str) {
+    var s = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var bin = atob(s);
+    var buf = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  }
+
+  function ab_to_b64u(buf) {
+    var bytes = new Uint8Array(buf);
+    var bin   = '';
+    for (var i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function setWebauthnVerified(ok) {
+    _waVerified = ok;
+    if (_confirmBtn) _confirmBtn.disabled = !ok;
+    if (_waOk) _waOk.style.display = ok ? '' : 'none';
+  }
+
+  async function doWebauthn() {
+    if (!_waBtn) return;
+    var csrf      = document.getElementById('kdokWebauthnCsrf').value;
+    var beginUrl  = document.getElementById('kdokWebauthnBeginUrl').value;
+    var verifyUrl = document.getElementById('kdokWebauthnVerifyUrl').value;
+
+    _waBtn.disabled = true;
+    if (_waSpinner) _waSpinner.style.display = '';
+    if (_waError) { _waError.style.display = 'none'; _waError.textContent = ''; }
+
+    try {
+      var beginResp = await fetch(beginUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _csrf: csrf })
+      });
+      var beginData = await beginResp.json();
+      if (!beginData.ok) throw new Error(beginData.message || 'Błąd inicjalizacji');
+
+      var opts = beginData.options;
+      opts.challenge = b64u_to_ab(opts.challenge);
+      if (opts.allowCredentials) {
+        opts.allowCredentials = opts.allowCredentials.map(function (c) {
+          return Object.assign({}, c, { id: b64u_to_ab(c.id) });
+        });
+      }
+
+      var credential = await navigator.credentials.get({ publicKey: opts });
+
+      var credData = {
+        id:                credential.id,
+        rawId:             ab_to_b64u(credential.rawId),
+        clientDataJSON:    ab_to_b64u(credential.response.clientDataJSON),
+        authenticatorData: ab_to_b64u(credential.response.authenticatorData),
+        signature:         ab_to_b64u(credential.response.signature),
+        userHandle:        credential.response.userHandle ? ab_to_b64u(credential.response.userHandle) : null,
+      };
+
+      var verifyResp = await fetch(verifyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _csrf: csrf, response: credData })
+      });
+      var verifyData = await verifyResp.json();
+      if (!verifyData.ok) throw new Error(verifyData.message || 'Błąd weryfikacji klucza');
+
+      setWebauthnVerified(true);
+    } catch (e) {
+      setWebauthnVerified(false);
+      if (_waError) {
+        _waError.style.display = '';
+        _waError.textContent = e.message || 'Nie udało się zweryfikować klucza. Spróbuj ponownie.';
+      }
+    } finally {
+      _waBtn.disabled = false;
+      if (_waSpinner) _waSpinner.style.display = 'none';
+    }
+  }
+
+  if (_waBtn) _waBtn.addEventListener('click', doWebauthn);
 
   // Lazily get Bootstrap Modal (bootstrap jest gwarantowanie załadowany przy 'load')
   function bsModal() {
@@ -588,29 +659,23 @@ window.addEventListener('load', function () {
 
       _targetForm = form;
       if (_labelEl) _labelEl.textContent = this.dataset.label || '';
-      if (_inp)     _inp.value = '';
-      if (_errorEl) _errorEl.style.display = 'none';
+      setWebauthnVerified(false);
+      if (_waError) _waError.style.display = 'none';
 
       bsModal().show();
     });
   });
 
-  // ── Focus po otwarciu ─────────────────────────────────────────────────────
-  _modalEl.addEventListener('shown.bs.modal', function () {
-    if (_inp) _inp.focus();
-  });
-
   // ── Potwierdzenie ─────────────────────────────────────────────────────────
   function doConfirm() {
-    if (!_inp || !_inp.value.trim()) {
-      if (_errorEl) _errorEl.style.display = '';
-      if (_inp)     _inp.focus();
+    if (!_waVerified) {
+      if (_waError) {
+        _waError.style.display = '';
+        _waError.textContent = 'Najpierw zweryfikuj się kluczem WebAuthn.';
+      }
       return;
     }
     if (!_targetForm) return;
-
-    var hidden = _targetForm.querySelector('.kdok-ikaks-value');
-    if (hidden) hidden.value = _inp.value;
 
     var form = _targetForm;
     bsModal().hide();
@@ -619,16 +684,10 @@ window.addEventListener('load', function () {
 
   if (_confirmBtn) _confirmBtn.addEventListener('click', doConfirm);
 
-  if (_inp) {
-    _inp.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); doConfirm(); }
-    });
-  }
-
   // ── Czyszczenie po zamknięciu ─────────────────────────────────────────────
   _modalEl.addEventListener('hidden.bs.modal', function () {
-    if (_inp)     _inp.value = '';
-    if (_errorEl) _errorEl.style.display = 'none';
+    if (_waError) _waError.style.display = 'none';
+    setWebauthnVerified(false);
   });
 });
 </script>

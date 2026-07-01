@@ -108,6 +108,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Dokument źródłowy może być dodany do obiegu tylko raz — sprawdź po sumie SHA-256
+    if (!$errors && $file_sha256) {
+        $dup = kdok_one("SELECT id, number FROM kdok_documents WHERE file_sha256 = ?", [$file_sha256]);
+        if ($dup) {
+            $errors[] = 'Ten dokument źródłowy jest już w obiegu jako ' . $dup['number'] . ' — nie można dodać go ponownie.';
+            if (isset($dest) && is_file($dest)) @unlink($dest);
+        }
+    }
+
     if (!$errors) {
         $number = kdok_next_number();
         $cu = current_user();

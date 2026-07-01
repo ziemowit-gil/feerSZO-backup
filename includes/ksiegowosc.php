@@ -17,9 +17,11 @@
 // ── Stałe ─────────────────────────────────────────────────────────────────────
 
 const KDOK_TYPES = [
-    'ksef'       => ['label' => 'Dokument z KSeF',  'icon' => 'bi-receipt'],
-    'lista_plac' => ['label' => 'Lista płac',        'icon' => 'bi-people-fill'],
-    'wyciag'     => ['label' => 'Wyciąg bankowy',    'icon' => 'bi-bank'],
+    'ksef'        => ['label' => 'Dokument z KSeF',                     'icon' => 'bi-receipt'],
+    'ksef_reczny' => ['label' => 'Faktura pobrana ręcznie z KSeF',      'icon' => 'bi-receipt-cutoff'],
+    'rachunek'    => ['label' => 'Rachunek do umowy',                   'icon' => 'bi-person-vcard'],
+    'lista_plac'  => ['label' => 'Lista płac',                          'icon' => 'bi-people-fill'],
+    'wyciag'      => ['label' => 'Wyciąg bankowy',                      'icon' => 'bi-bank'],
 ];
 
 const KDOK_STATUSES = [
@@ -400,20 +402,43 @@ function kdok_cert_is_valid(?array $cert): bool {
     return strtotime($cert['valid_from']) <= $now && $now <= strtotime($cert['valid_to']);
 }
 
+// ── WebAuthn — klucz sprzętowy wymagany do opisywania dokumentów ──────────────
+
+const KDOK_WEBAUTHN_TTL = 300; // sekundy ważności świeżej weryfikacji kluczem
+
+// Zapamiętuje udaną weryfikację kluczem WebAuthn (wywoływane z ksiegowosc/webauthn_verify.php)
+function kdok_webauthn_mark(int $user_id): void {
+    $_SESSION['kdok_webauthn_uid'] = $user_id;
+    $_SESSION['kdok_webauthn_at']  = time();
+}
+
+// Sprawdza i jednorazowo zużywa świeżą weryfikację kluczem — wymusza nowy dotyk klucza przy każdej akcji
+function kdok_webauthn_check(int $user_id): bool {
+    $ok = !empty($_SESSION['kdok_webauthn_uid'])
+        && (int)$_SESSION['kdok_webauthn_uid'] === $user_id
+        && (time() - (int)($_SESSION['kdok_webauthn_at'] ?? 0)) <= KDOK_WEBAUTHN_TTL;
+    unset($_SESSION['kdok_webauthn_uid'], $_SESSION['kdok_webauthn_at']);
+    return $ok;
+}
+
 /**
- * Weryfikuje IKAKS + certyfikat przed akceptacją kroku.
+ * Weryfikuje klucz WebAuthn + certyfikat przed akceptacją kroku.
+ * Klucz WebAuthn zastępuje IKAKS — gdy jest świeżo zweryfikowany, kod IKAKS nie jest wymagany.
  * Zwraca ['ok'=>bool, 'error'=>string|null, 'cert'=>array|null, 'display_name'=>string]
  */
-function kdok_auth_verify(int $user_id, string $ika_plain): array {
-    // 1. IKAKS
-    if (!kdok_ikaks_has($user_id)) {
-        return ['ok' => false, 'error' => 'Nie masz ustawionego IKAKS. Skontaktuj się z administratorem.', 'cert' => null, 'display_name' => ''];
+function kdok_auth_verify(int $user_id): array {
+    require_once __DIR__ . '/webauthn.php';
+    webauthn_migrate();
+
+    // Klucz WebAuthn — wymagany do opisywania dokumentów (zastępuje IKAKS)
+    if (!webauthn_user_has_keys($user_id)) {
+        return ['ok' => false, 'error' => 'Opisywanie dokumentów wymaga zarejestrowanego klucza WebAuthn. Zarejestruj klucz w Mój profil → Klucze bezpieczeństwa.', 'cert' => null, 'display_name' => ''];
     }
-    if (!kdok_ikaks_verify($user_id, $ika_plain)) {
-        return ['ok' => false, 'error' => 'Nieprawidłowy IKAKS. Autoryzacja odrzucona.', 'cert' => null, 'display_name' => ''];
+    if (!kdok_webauthn_check($user_id)) {
+        return ['ok' => false, 'error' => 'Wymagana świeża weryfikacja kluczem WebAuthn. Dotknij klucza sprzętowego i spróbuj ponownie.', 'cert' => null, 'display_name' => ''];
     }
 
-    // 2. Certyfikat X.509
+    // Certyfikat X.509
     $cert = kdok_cert_get($user_id);
     if (!$cert) {
         return ['ok' => false, 'error' => 'Brak certyfikatu X.509 w systemie. Poproś administratora o dodanie certyfikatu.', 'cert' => null, 'display_name' => ''];
@@ -427,6 +452,63 @@ function kdok_auth_verify(int $user_id, string $ika_plain): array {
     $display_name = $cert['subject_cn'] ?: ($user['name'] ?? '');
 
     return ['ok' => true, 'error' => null, 'cert' => $cert, 'display_name' => $display_name];
+}
+
+/**
+ * Zapisuje decyzję jednego kroku obiegu (meryt/formal/zatwierdza) dla dokumentu.
+ * Wymaga wcześniejszego udanego kdok_auth_verify() — $auth to jego wynik.
+ * Zwraca ['status'=>string kdok_documents.status po zapisie, 'rejected'=>bool].
+ */
+function kdok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes, array $auth): array {
+    $id       = (int)$doc['id'];
+    $cert     = $auth['cert'];
+    $step_row = $doc['steps'][$step_key] ?? null;
+    $dec_label = match($status) { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', 'odrzucono' => 'ODRZUCONO', default => $status };
+
+    if ($step_row) {
+        kdok_exec(
+            "UPDATE kdok_steps SET status=?, user_id=?, user_name=?, cert_cn=?, cert_fingerprint=?, cert_subject=?, decided_at=datetime('now'), notes=? WHERE id=?",
+            [$status, $user_id, $auth['display_name'],
+             $cert['subject_cn'] ?? '', $cert['fingerprint_sha256'] ?? '', $cert['subject_dn'] ?? '',
+             $notes, $step_row['id']]
+        );
+    } else {
+        kdok_insert('kdok_steps', [
+            'doc_id'           => $id,
+            'step_type'        => $step_key,
+            'status'           => $status,
+            'user_id'          => $user_id,
+            'user_name'        => $auth['display_name'],
+            'cert_cn'          => $cert['subject_cn']         ?? '',
+            'cert_fingerprint' => $cert['fingerprint_sha256'] ?? '',
+            'cert_subject'     => $cert['subject_dn']         ?? '',
+            'decided_at'       => date('Y-m-d H:i:s'),
+            'notes'            => $notes,
+        ]);
+    }
+
+    kdok_log($id, KDOK_STEPS[$step_key] . ' → ' . $dec_label, $notes);
+
+    if ($status === 'odrzucono') {
+        kdok_exec("UPDATE kdok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
+        kdok_log($id, 'Dokument odrzucony na etapie: ' . KDOK_STEPS[$step_key], $notes);
+        return ['status' => 'odrzucony', 'rejected' => true];
+    }
+
+    $fresh_doc  = kdok_get($id);
+    $new_status = kdok_is_complete($fresh_doc) ? 'zaakceptowany' : 'w_obiegu';
+    kdok_exec("UPDATE kdok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
+    if ($new_status === 'zaakceptowany') {
+        kdok_log($id, 'Obieg zakończony — dokument zaakceptowany');
+        if (org_setting('kdok_archive_enabled') === '1') {
+            try {
+                kdok_archive_push($id);
+            } catch (\Throwable $arch_e) {
+                kdok_log($id, 'eArchiwum: błąd wysyłki', $arch_e->getMessage());
+            }
+        }
+    }
+    return ['status' => $new_status, 'rejected' => false];
 }
 
 // ── Test połączenia ───────────────────────────────────────────────────────────
@@ -647,7 +729,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->SetFont('DejaVu', '', 8);
     $pdf->SetXY(18, 21.5);
     $typLabel = KDOK_TYPES[$doc['type']]['label'] ?? $doc['type'];
-    $pdf->Cell(0, 6, _pdf($typLabel . '   ·   nr: ' . $doc['number']), 0, 1, 'L');
+    $pdf->Cell(0, 6, _pdf($typLabel . '   ·   nr obiegu (system): ' . $doc['number']), 0, 1, 'L');
     $pdf->SetTextColor(0, 0, 0);
 
     // ── Tytuł dokumentu ──────────────────────────────────────────────────────
@@ -783,7 +865,7 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->SetFont('DejaVu', '', 7);
     $klauzula = 'Niniejszy dokument zostal zatwierdzony elektronicznie w systemie EOD Dokumentow Ksiegowych ' . $org
         . '. Elektroniczne zatwierdzenie jest rownowazne z podpisem wlasnorecznym (art. 7 ustawy o rachunkowosci,'
-        . ' Dz.U. 2023 poz. 120). Kazdy etap akceptacji wymagal certyfikatu X.509 oraz kodu IKAKS.';
+        . ' Dz.U. 2023 poz. 120). Kazdy etap akceptacji wymagal certyfikatu X.509 oraz klucza sprzetowego WebAuthn.';
     $pdf->MultiCell($W, 4, _pdf($klauzula), 1, 'J', true);
     $pdf->SetFont('DejaVu', '', 6);
     $pdf->SetTextColor(120, 120, 120);
