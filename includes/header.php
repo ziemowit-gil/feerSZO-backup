@@ -271,7 +271,7 @@ body { background: #f8fafc; }
 }
 
 /* Right side */
-#nb-right { display: flex; align-items: center; gap: .3rem; flex-shrink: 0; }
+#nb-right { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; margin-left: auto; }
 
 /* User chip */
 .nb-user-chip {
@@ -884,11 +884,11 @@ if ($_user) {
     /* ── Trigger (waffle) ─────────────────────────────────────── */
     .mod-sw-btn {
       display:inline-flex;align-items:center;gap:.3rem;
-      background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
-      padding:.28rem .6rem;font-size:.8rem;font-weight:500;color:#334155;
+      background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:8px;
+      padding:.28rem .6rem;font-size:.8rem;font-weight:500;color:<?= h($_sb_text) ?>;
       cursor:pointer;line-height:1.4;transition:all .12s;white-space:nowrap;flex-shrink:0;
     }
-    .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] { background:#eff6ff;border-color:#93c5fd;color:#1d4ed8; }
+    .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] { background:rgba(255,255,255,.22);color:<?= h($_sb_hover_text) ?>; }
     .mod-sw-cur { max-width:80px;overflow:hidden;text-overflow:ellipsis; }
 
     /* ── Launcher (3 układy: lista / szuflada / pełny ekran) ──── */
@@ -1022,8 +1022,8 @@ if ($_user) {
     })();
     </script>
       <!-- Szukajka — w ramach nawigacji modułów -->
-      <div class="tb-search-wrap d-none d-md-block" id="qs-wrap" style="position:relative;margin-left:.25rem">
-      <i class="tb-search-icon bi bi-search" aria-hidden="true"></i>
+      <div class="nb-search-wrap d-none d-md-block" id="qs-wrap">
+      <i class="nb-search-icon bi bi-search" aria-hidden="true"></i>
       <form method="get" action="<?= APP_URL ?>/search.php" id="qs-form" autocomplete="off">
         <input type="search" name="q" id="topbar-search"
                placeholder="Szukaj modułu lub danych… (Ctrl+K)"
@@ -1032,7 +1032,7 @@ if ($_user) {
                aria-expanded="false"
                aria-controls="qs-dropdown"
                aria-autocomplete="list"
-               style="padding-left:1.8rem"
+               style="padding-left:1.75rem"
                onfocus="this.classList.add('expanded')"
                onblur="if(!this.value)this.classList.remove('expanded')">
       </form>
@@ -1075,7 +1075,7 @@ if ($_user) {
     <script>
     (function(){
       var inp    = document.getElementById('topbar-search');
-      var wrap   = document.getElementById('qs-wrap');
+      var wrap   = document.getElementById('qs-wrap'); // nb-search-wrap
       var drop   = document.getElementById('qs-dropdown');
       var active = -1;
       var items  = [];
@@ -1196,10 +1196,8 @@ if ($_user) {
             onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}))"
             title="Skróty klawiaturowe (?)"
             aria-label="Skróty klawiaturowe"
-            style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:.18rem .45rem;font-size:.72rem;color:#94a3b8;cursor:pointer;line-height:1.4;transition:all .1s;white-space:nowrap;flex-shrink:0"
-            onmouseover="this.style.borderColor='#94a3b8';this.style.color='#475569'"
-            onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#94a3b8'">
-      <kbd style="background:none;border:none;padding:0;font-size:inherit;color:inherit;font-family:inherit">?</kbd>
+            class="nb-icon-btn">
+      <kbd style="background:none;border:none;padding:0;font-size:.72rem;color:inherit;font-family:inherit">?</kbd>
     </button>
     <?php endif; // can_edit ?>
 
@@ -1219,12 +1217,10 @@ if ($_user) {
             data-bs-toggle="modal" data-bs-target="#bugReportModal"
             title="Zgłoś błąd na tej stronie"
             aria-label="Zgłoś błąd"
-            style="background:none;border:1px solid #fca5a5;border-radius:6px;
-                   padding:.18rem .5rem;font-size:.78rem;color:#dc2626;cursor:pointer;
-                   line-height:1.5;transition:all .12s;white-space:nowrap;flex-shrink:0;
-                   display:inline-flex;align-items:center;gap:.3rem">
-      <i class="bi bi-bug-fill" style="font-size:.85rem"></i>
-      <span class="d-none d-sm-inline">Zgłoś błąd</span>
+            class="nb-icon-btn"
+            style="border-color:#fca5a5;color:#dc2626">
+      <i class="bi bi-bug-fill"></i>
+      <span class="d-none d-sm-inline" style="font-size:.78rem">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
 
@@ -1233,7 +1229,7 @@ if ($_user) {
     $_notif_latest = notif_latest((int)$_user['id'], 6);
     ?>
     <div class="dropdown me-2" id="notif-bell">
-      <button type="button" class="btn btn-sm btn-outline-secondary position-relative"
+      <button type="button" class="nb-icon-btn position-relative"
               data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
               aria-label="Powiadomienia — <?= $_notif_count ?> nieprzeczytanych"
               id="notif-btn">
@@ -1292,7 +1288,7 @@ if ($_user) {
     <?php if ($_user): ?>
     <!-- Chip użytkownika z dropdown -->
     <div class="dropdown">
-      <button class="topbar-user-chip border-0" type="button" data-bs-toggle="dropdown">
+      <button class="nb-user-chip" type="button" data-bs-toggle="dropdown">
         <span class="avatar"><?= h($_nb_initials ?: mb_strtoupper(mb_substr($_user['name'],0,1))) ?></span>
         <span class="d-none d-sm-inline"><?= h(explode(' ', $_user['name'])[0]) ?></span>
         <i class="bi bi-chevron-down" style="font-size:.65rem;opacity:.6"></i>
