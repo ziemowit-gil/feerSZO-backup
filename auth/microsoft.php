@@ -147,12 +147,9 @@ if (!$error) {
             $error = 'Twoje konto wymaga aktywacji kodu IKA przed pierwszym logowaniem. Skontaktuj się z administratorem.';
         } else {
             log_auth_action((int)$user['id'], 'login_ms', 'Logowanie Microsoft: ' . ($user['email'] ?? ''));
-            login_user($user);
-            // Oznacz sesję założoną na potrzeby mostka do panelu dydaktyka — jeśli
-            // konto nie jest dydaktykiem, office_enter.php może ją wycofać.
-            if (!empty($is_dyd_flow)) $_SESSION['ms_dyd_bridge'] = 1;
 
-            // crm_only → zawsze do CRM
+            // Docelowy adres liczymy PRZED zalogowaniem — potrzebny też, gdy trzeba
+            // przejść przez weryfikację klucza WebAuthn (admin/editor).
             $final_redirect = $redirect_after;
             if ($u_crm_only) {
                 $crm_base = APP_URL . '/crm/';
@@ -167,15 +164,31 @@ if (!$error) {
                 try { $r = db_one("SELECT ezd_only FROM roles WHERE name=?", [$user['role']]); $u_ezd_only = !empty($r['ezd_only']); } catch (\Throwable $e) {}
             }
             if ($u_ezd_only) {
-                header('Location: ' . APP_URL . '/ezd/index.php'); exit;
+                $final_url = APP_URL . '/ezd/index.php';
+            } elseif (!empty($user['cpc_code'])) {
+                // Przez IKA gate jeśli kod ustawiony
+                $final_url = APP_URL . '/contracts/ika_gate.php?to=' . urlencode($final_redirect);
+            } else {
+                $final_url = $final_redirect;
             }
 
-            // Przez IKA gate jeśli kod ustawiony
-            if (!empty($user['cpc_code'])) {
-                header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($final_redirect));
-            } else {
-                header('Location: ' . $final_redirect);
+            // Admini/edytorzy z zarejestrowanym kluczem sprzętowym muszą go użyć
+            // RÓWNIEŻ przy logowaniu przez Microsoft 365 — nie tylko lokalnym hasłem.
+            require_once dirname(__DIR__) . '/includes/webauthn.php';
+            webauthn_migrate();
+            if (in_array($user['role'] ?? '', ['admin', 'editor'], true) && webauthn_user_has_keys((int)$user['id'])) {
+                $_SESSION['webauthn_pending_uid'] = (int)$user['id'];
+                if (!empty($is_dyd_flow)) $_SESSION['ms_dyd_bridge'] = 1;
+                header('Location: ' . APP_URL . '/auth/webauthn.php?redirect=' . urlencode($final_url));
+                exit;
             }
+
+            login_user($user);
+            // Oznacz sesję założoną na potrzeby mostka do panelu dydaktyka — jeśli
+            // konto nie jest dydaktykiem, office_enter.php może ją wycofać.
+            if (!empty($is_dyd_flow)) $_SESSION['ms_dyd_bridge'] = 1;
+
+            header('Location: ' . $final_url);
             exit;
         }
     }
