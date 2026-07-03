@@ -75,11 +75,14 @@ foreach ($docs as &$doc) {
 }
 unset($doc);
 
-$user         = current_user();
-$has_webauthn = webauthn_user_has_keys((int)$user['id']);
-$my_cert      = kdok_cert_get((int)$user['id']);
-$cert_ok      = $my_cert && kdok_cert_is_valid($my_cert);
-$auth_ready   = $cert_ok && $has_webauthn;
+$user             = current_user();
+$has_webauthn     = webauthn_user_has_keys((int)$user['id']);
+$has_ikaks        = kdok_ikaks_has((int)$user['id']);
+$my_cert          = kdok_cert_get((int)$user['id']);
+$cert_ok          = $my_cert && kdok_cert_is_valid($my_cert);
+$auth_ready       = $cert_ok && ($has_webauthn || $has_ikaks);
+$ikaks_session_ok = !$has_webauthn && kdok_ikaks_session_ok((int)$user['id']);
+$ikaks_expires_at = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user['id']) : null;
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -249,16 +252,17 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
           do których masz uprawnienia, dla <strong id="bulk-accept-count">0</strong> zaznaczonych dokumentów.
         </p>
 
-        <div class="mb-3 p-2 rounded border <?= $has_webauthn ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10' ?>">
+        <div class="mb-3 p-2 rounded border <?= $has_webauthn ? 'border-success bg-success bg-opacity-10' : 'border-warning bg-warning bg-opacity-10' ?>">
           <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-usb-symbol fs-4 <?= $has_webauthn ? 'text-success' : 'text-danger' ?>"></i>
+            <i class="bi bi-usb-symbol fs-4 <?= $has_webauthn ? 'text-success' : 'text-warning' ?>"></i>
             <div>
               <?php if ($has_webauthn): ?>
               <div class="fw-semibold">Klucz WebAuthn zarejestrowany</div>
               <?php else: ?>
-              <div class="fw-semibold text-danger">Brak zarejestrowanego klucza WebAuthn</div>
+              <div class="fw-semibold text-warning-emphasis">Brak zarejestrowanego klucza WebAuthn</div>
               <div class="small text-muted">
-                Zarejestruj go w <a href="<?= APP_URL ?>/panel/webauthn.php" target="_blank">Mój profil → Klucze bezpieczeństwa</a>.
+                Możesz awaryjnie użyć kodu IKAKS poniżej. Docelowo zarejestruj klucz w
+                <a href="<?= APP_URL ?>/panel/webauthn.php" target="_blank">Mój profil → Klucze bezpieczeństwa</a>.
               </div>
               <?php endif; ?>
             </div>
@@ -282,9 +286,10 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
 
         <?php if (!$auth_ready): ?>
         <div class="alert alert-danger mb-0">
-          Autoryzacja niemożliwa bez zarejestrowanego klucza WebAuthn i ważnego certyfikatu X.509.
+          Autoryzacja niemożliwa. Wymagany ważny certyfikat X.509 oraz zarejestrowany klucz WebAuthn
+          albo (awaryjnie) ustawiony kod IKAKS.
         </div>
-        <?php else: ?>
+        <?php elseif ($has_webauthn): ?>
         <div class="form-text mt-0 mb-2">Po dotknięciu klucza dokumenty zostaną zaakceptowane automatycznie.</div>
         <div class="d-flex align-items-center gap-2">
           <button type="button" id="bulkWebauthnConfirm" class="btn btn-primary">
@@ -296,10 +301,39 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
           </span>
         </div>
         <div id="bulkWebauthnError" class="text-danger small mt-1" style="display:none"></div>
+        <?php elseif ($ikaks_session_ok): ?>
+        <div class="alert alert-success mb-0">
+          <i class="bi bi-check-circle-fill"></i> Sesja awaryjna IKAKS jest aktywna do
+          <strong><?= date('H:i', $ikaks_expires_at) ?></strong> — kliknij „Potwierdź autoryzację”, bez ponownego podawania kodu.
+        </div>
+        <?php else: ?>
+        <div>
+          <label class="form-label fw-semibold">
+            <i class="bi bi-key-fill text-warning"></i>
+            IKAKS — Indywidualny Kod Autoryzacyjny (awaryjnie, brak klucza WebAuthn)
+          </label>
+          <input type="password" id="bulkIkaksInput" class="form-control form-control-lg"
+            placeholder="Wpisz swój kod IKAKS…" autocomplete="off">
+          <div id="bulkIkaksError" class="text-danger small mt-1 mb-2" style="display:none"></div>
+          <label class="form-label fw-semibold">Powód użycia kodu IKAKS zamiast klucza WebAuthn</label>
+          <textarea id="bulkIkaksReasonInput" class="form-control" rows="2"
+            placeholder="Np. klucz zgubiony/w naprawie, jeszcze nie zarejestrowany…"></textarea>
+          <div class="form-text">
+            Kod wystarczy podać raz na 6 godzin — kolejne decyzje w tym oknie czasowym nie wymagają ponownej autoryzacji.
+          </div>
+          <div id="bulkIkaksReasonError" class="text-danger small mt-1" style="display:none">
+            Podaj powód użycia kodu IKAKS.
+          </div>
+        </div>
         <?php endif; ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <?php if ($auth_ready && !$has_webauthn): ?>
+        <button type="button" id="bulkIkaksConfirm" class="btn btn-dark">
+          <i class="bi bi-shield-check"></i> Potwierdź autoryzację
+        </button>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -376,7 +410,7 @@ window.addEventListener('load', function () {
     if (waOk) waOk.style.display = ok ? '' : 'none';
   }
 
-  async function doAccept() {
+  async function doAccept(ikaks, ikaksReason) {
     var ids = getChecked();
     if (!ids.length) return;
 
@@ -387,11 +421,18 @@ window.addEventListener('load', function () {
       waBtn.disabled = true;
       waBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Zatwierdzanie…';
     }
+    if (ikaksBtn) {
+      ikaksBtn.disabled = true;
+      ikaksBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Zatwierdzanie…';
+    }
 
     try {
+      var body = { _csrf: csrf, ids: ids };
+      if (ikaks)       body.ikaks = ikaks;
+      if (ikaksReason) body.ikaks_reason = ikaksReason;
       var resp = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ _csrf: csrf, ids: ids })
+        body: JSON.stringify(body)
       });
       var data = await resp.json();
       if (!data.ok) throw new Error(data.message || 'Błąd akceptacji');
@@ -403,8 +444,46 @@ window.addEventListener('load', function () {
         waBtn.disabled = false;
         waBtn.innerHTML = '<i class="bi bi-usb-plug"></i> Dotknij klucz WebAuthn i zatwierdź';
       }
-      if (waError) { waError.style.display = ''; waError.textContent = e.message || 'Błąd akceptacji.'; }
+      if (ikaksBtn) {
+        ikaksBtn.disabled = false;
+        ikaksBtn.innerHTML = '<i class="bi bi-shield-check"></i> Potwierdź autoryzację';
+      }
+      if (waError)    { waError.style.display    = ''; waError.textContent    = e.message || 'Błąd akceptacji.'; }
+      if (ikaksError) { ikaksError.style.display = ''; ikaksError.textContent = e.message || 'Błąd akceptacji.'; }
     }
+  }
+
+  // ── Krok IKAKS (awaryjnie, gdy brak klucza WebAuthn) ────────────────────────
+  var ikaksInp         = document.getElementById('bulkIkaksInput');
+  var ikaksError       = document.getElementById('bulkIkaksError');
+  var ikaksReasonInp   = document.getElementById('bulkIkaksReasonInput');
+  var ikaksReasonError = document.getElementById('bulkIkaksReasonError');
+  var ikaksBtn         = document.getElementById('bulkIkaksConfirm');
+
+  if (ikaksBtn) {
+    ikaksBtn.addEventListener('click', function () {
+      // Brak pola kodu w DOM = aktywna sesja awaryjna IKAKS — po prostu zatwierdź
+      if (!ikaksInp) { doAccept(); return; }
+
+      if (!ikaksInp.value.trim()) {
+        if (ikaksError) { ikaksError.style.display = ''; ikaksError.textContent = 'Wpisz kod IKAKS przed zatwierdzeniem.'; }
+        ikaksInp.focus();
+        return;
+      }
+      if (ikaksError) ikaksError.style.display = 'none';
+      if (ikaksReasonInp && !ikaksReasonInp.value.trim()) {
+        if (ikaksReasonError) ikaksReasonError.style.display = '';
+        ikaksReasonInp.focus();
+        return;
+      }
+      if (ikaksReasonError) ikaksReasonError.style.display = 'none';
+      doAccept(ikaksInp.value, ikaksReasonInp ? ikaksReasonInp.value : '');
+    });
+  }
+  if (ikaksInp) {
+    ikaksInp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); ikaksBtn && ikaksBtn.click(); }
+    });
   }
 
   async function doWebauthn() {
@@ -470,13 +549,25 @@ window.addEventListener('load', function () {
   window.bulkOpenAccept = function () {
     document.getElementById('bulk-accept-count').textContent = getChecked().length;
     setWebauthnVerified(false);
-    if (waError) waError.style.display = 'none';
+    if (waError)          waError.style.display = 'none';
+    if (ikaksInp)         ikaksInp.value = '';
+    if (ikaksError)       ikaksError.style.display = 'none';
+    if (ikaksReasonInp)   ikaksReasonInp.value = '';
+    if (ikaksReasonError) ikaksReasonError.style.display = 'none';
     bsModal().show();
   };
+
+  modalEl.addEventListener('shown.bs.modal', function () {
+    if (ikaksInp) ikaksInp.focus();
+  });
 
   modalEl.addEventListener('hidden.bs.modal', function () {
     if (waError) waError.style.display = 'none';
     setWebauthnVerified(false);
+    if (ikaksInp)         ikaksInp.value = '';
+    if (ikaksError)       ikaksError.style.display = 'none';
+    if (ikaksReasonInp)   ikaksReasonInp.value = '';
+    if (ikaksReasonError) ikaksReasonError.style.display = 'none';
   });
 });
 </script>

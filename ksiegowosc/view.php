@@ -67,8 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($status, ['ok', 'uwagi', 'odrzucono'], true)) {
                 $errors[] = 'Wybierz decyzję.';
             } else {
-                // Weryfikacja kluczem WebAuthn + certyfikat X.509
-                $auth = kdok_auth_verify((int)$user['id']);
+                // Weryfikacja kluczem WebAuthn (albo, gdy brak klucza, kodem IKAKS) + certyfikat X.509
+                $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '', $_POST['ikaks_reason'] ?? '');
                 if (!$auth['ok']) {
                     $errors[] = $auth['error'];
                 }
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $auth = null;
         if (!$errors) {
-            $auth = kdok_auth_verify((int)$user['id']);
+            $auth = kdok_auth_verify((int)$user['id'], $_POST['ikaks'] ?? '', $_POST['ikaks_reason'] ?? '');
             if (!$auth['ok']) {
                 $errors[] = $auth['error'];
             }
@@ -312,6 +312,8 @@ require_once __DIR__ . '/../includes/header.php';
       <form method="post" id="form_accept_all" style="display:none">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="action" value="accept_all_steps">
+        <input type="hidden" name="ikaks" value="" class="kdok-ikaks-value">
+        <input type="hidden" name="ikaks_reason" value="" class="kdok-ikaks-reason-value">
       </form>
     </div>
     <?php endif; ?>
@@ -366,6 +368,8 @@ require_once __DIR__ . '/../includes/header.php';
             id="form_<?= $step_key ?>">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="action" value="<?= $step_key ?>">
+            <input type="hidden" name="ikaks" value="" class="kdok-ikaks-value">
+        <input type="hidden" name="ikaks_reason" value="" class="kdok-ikaks-reason-value">
             <div class="d-flex gap-3 mb-2 flex-wrap">
               <div class="form-check">
                 <input class="form-check-input" type="radio" name="step_status"
@@ -504,10 +508,13 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- ── Modal IKAKS — wspólny dla wszystkich kroków ─────────────────────────── -->
 <?php
-$my_cert      = kdok_cert_get((int)$user['id']);
-$cert_ok      = $my_cert && kdok_cert_is_valid($my_cert);
-$has_webauthn = webauthn_user_has_keys((int)$user['id']);
-$auth_ready   = $cert_ok && $has_webauthn;
+$my_cert          = kdok_cert_get((int)$user['id']);
+$cert_ok          = $my_cert && kdok_cert_is_valid($my_cert);
+$has_webauthn     = webauthn_user_has_keys((int)$user['id']);
+$has_ikaks        = kdok_ikaks_has((int)$user['id']);
+$auth_ready       = $cert_ok && ($has_webauthn || $has_ikaks);
+$ikaks_session_ok = !$has_webauthn && kdok_ikaks_session_ok((int)$user['id']);
+$ikaks_expires_at = $ikaks_session_ok ? kdok_ikaks_session_expires_at((int)$user['id']) : null;
 ?>
 <div class="modal fade" id="ikaksModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
@@ -522,17 +529,17 @@ $auth_ready   = $cert_ok && $has_webauthn;
       <div class="modal-body">
 
         <!-- Status klucza WebAuthn -->
-        <div class="mb-3 p-2 rounded border <?= $has_webauthn ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10' ?>">
+        <div class="mb-3 p-2 rounded border <?= $has_webauthn ? 'border-success bg-success bg-opacity-10' : 'border-warning bg-warning bg-opacity-10' ?>">
           <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-usb-symbol fs-4 <?= $has_webauthn ? 'text-success' : 'text-danger' ?>"></i>
+            <i class="bi bi-usb-symbol fs-4 <?= $has_webauthn ? 'text-success' : 'text-warning' ?>"></i>
             <div>
               <?php if ($has_webauthn): ?>
               <div class="fw-semibold">Klucz WebAuthn zarejestrowany</div>
-              <div class="small text-muted">Opisywanie dokumentów wymaga świeżej weryfikacji kluczem sprzętowym.</div>
+              <div class="small text-muted">Wymagana świeża weryfikacja kluczem sprzętowym.</div>
               <?php else: ?>
-              <div class="fw-semibold text-danger">Brak zarejestrowanego klucza WebAuthn</div>
+              <div class="fw-semibold text-warning-emphasis">Brak zarejestrowanego klucza WebAuthn</div>
               <div class="small text-muted">
-                Opisywanie dokumentów wymaga klucza sprzętowego. Zarejestruj go w
+                Możesz awaryjnie użyć kodu IKAKS poniżej. Docelowo zarejestruj klucz w
                 <a href="<?= APP_URL ?>/panel/webauthn.php" target="_blank">Mój profil → Klucze bezpieczeństwa</a>.
               </div>
               <?php endif; ?>
@@ -566,20 +573,21 @@ $auth_ready   = $cert_ok && $has_webauthn;
 
         <?php if (!$auth_ready): ?>
         <div class="alert alert-danger mb-0">
-          Autoryzacja niemożliwa bez zarejestrowanego klucza WebAuthn i ważnego certyfikatu X.509.
+          Autoryzacja niemożliwa. Wymagany ważny certyfikat X.509 oraz zarejestrowany klucz WebAuthn
+          albo (awaryjnie) ustawiony kod IKAKS.
           <?php if (!$my_cert): ?>
           Poproś admina o dodanie certyfikatu w
           <a href="<?= APP_URL ?>/admin/kdok_certs.php">Certyfikaty X.509 i IKAKS</a>.
           <?php endif; ?>
         </div>
-        <?php else: ?>
+        <?php elseif ($has_webauthn): ?>
         <div id="webauthnStep">
           <label class="form-label fw-semibold">
             <i class="bi bi-usb-symbol text-primary"></i>
             Zweryfikuj kluczem WebAuthn
           </label>
           <div class="form-text mt-0 mb-2">
-            Klucz WebAuthn zastępuje kod IKAKS — po dotknięciu klucza decyzja zapisze się automatycznie.
+            Po dotknięciu klucza decyzja zapisze się automatycznie.
           </div>
           <div class="d-flex align-items-center gap-2">
             <button type="button" id="webauthnConfirm" class="btn btn-primary">
@@ -592,10 +600,45 @@ $auth_ready   = $cert_ok && $has_webauthn;
           </div>
           <div id="webauthnError" class="text-danger small mt-1" style="display:none"></div>
         </div>
+        <?php elseif ($ikaks_session_ok): ?>
+        <div class="alert alert-success mb-0">
+          <i class="bi bi-check-circle-fill"></i> Sesja awaryjna IKAKS jest aktywna do
+          <strong><?= date('H:i', $ikaks_expires_at) ?></strong> — kliknij „Potwierdź autoryzację”, bez ponownego podawania kodu.
+        </div>
+        <?php else: ?>
+        <div>
+          <label class="form-label fw-semibold">
+            <i class="bi bi-key-fill text-warning"></i>
+            IKAKS — Indywidualny Kod Autoryzacyjny (awaryjnie, brak klucza WebAuthn)
+          </label>
+          <input type="password" id="ikaksInput" class="form-control form-control-lg"
+            placeholder="Wpisz swój kod IKAKS…" autocomplete="off">
+          <div class="form-text mb-2">
+            Podaj kod IKAKS, który nadał Ci administrator. Możesz go zmienić w
+            <a href="<?= APP_URL ?>/user/kdok_ikaks.php" target="_blank">Moim profilu → IKAKS</a>.
+          </div>
+          <div id="ikaksError" class="text-danger small mt-1 mb-2" style="display:none">
+            Wpisz kod IKAKS przed zatwierdzeniem.
+          </div>
+          <label class="form-label fw-semibold">Powód użycia kodu IKAKS zamiast klucza WebAuthn</label>
+          <textarea id="ikaksReasonInput" class="form-control" rows="2"
+            placeholder="Np. klucz zgubiony/w naprawie, jeszcze nie zarejestrowany…"></textarea>
+          <div class="form-text">
+            Kod wystarczy podać raz na 6 godzin — kolejne decyzje w tym oknie czasowym nie wymagają ponownej autoryzacji.
+          </div>
+          <div id="ikaksReasonError" class="text-danger small mt-1" style="display:none">
+            Podaj powód użycia kodu IKAKS.
+          </div>
+        </div>
         <?php endif; ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <?php if ($auth_ready && !$has_webauthn): ?>
+        <button type="button" id="ikaksConfirm" class="btn btn-dark">
+          <i class="bi bi-shield-check"></i> Potwierdź autoryzację
+        </button>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -612,6 +655,13 @@ window.addEventListener('load', function () {
   if (!_modalEl) return;
 
   var _labelEl    = document.getElementById('ikaksModalLabel');
+
+  // ── Krok IKAKS (awaryjnie, gdy brak klucza WebAuthn) ────────────────────────
+  var _inp          = document.getElementById('ikaksInput');
+  var _errorEl      = document.getElementById('ikaksError');
+  var _reasonInp    = document.getElementById('ikaksReasonInput');
+  var _reasonErrorEl= document.getElementById('ikaksReasonError');
+  var _confirmBtn   = document.getElementById('ikaksConfirm');
 
   // ── Krok WebAuthn ────────────────────────────────────────────────────────
   var _waBtn      = document.getElementById('webauthnConfirm');
@@ -735,32 +785,86 @@ window.addEventListener('load', function () {
       _targetForm = form;
       if (_labelEl) _labelEl.textContent = this.dataset.label || '';
       setWebauthnVerified(false);
-      if (_waError) _waError.style.display = 'none';
+      if (_waError)       _waError.style.display = 'none';
+      if (_inp)           _inp.value = '';
+      if (_errorEl)       _errorEl.style.display = 'none';
+      if (_reasonInp)     _reasonInp.value = '';
+      if (_reasonErrorEl) _reasonErrorEl.style.display = 'none';
 
       bsModal().show();
     });
   });
 
+  // ── Focus na polu IKAKS po otwarciu (tryb awaryjny) ─────────────────────────
+  _modalEl.addEventListener('shown.bs.modal', function () {
+    if (_inp) _inp.focus();
+  });
+
   // ── Potwierdzenie ─────────────────────────────────────────────────────────
   function doConfirm() {
-    if (!_waVerified) {
-      if (_waError) {
-        _waError.style.display = '';
-        _waError.textContent = 'Najpierw zweryfikuj się kluczem WebAuthn.';
+    if (_inp) {
+      // Tryb awaryjny: świeży kod IKAKS + powód (brak aktywnej sesji 6h)
+      if (!_inp.value.trim()) {
+        if (_errorEl) _errorEl.style.display = '';
+        _inp.focus();
+        return;
       }
+      if (_errorEl) _errorEl.style.display = 'none';
+      if (_reasonInp && !_reasonInp.value.trim()) {
+        if (_reasonErrorEl) _reasonErrorEl.style.display = '';
+        _reasonInp.focus();
+        return;
+      }
+      if (_reasonErrorEl) _reasonErrorEl.style.display = 'none';
+      if (!_targetForm) return;
+      var hidden = _targetForm.querySelector('.kdok-ikaks-value');
+      if (hidden) hidden.value = _inp.value;
+      var hiddenReason = _targetForm.querySelector('.kdok-ikaks-reason-value');
+      if (hiddenReason && _reasonInp) hiddenReason.value = _reasonInp.value;
+      var form1 = _targetForm;
+      bsModal().hide();
+      setTimeout(function () { form1.submit(); }, 150);
       return;
     }
-    if (!_targetForm) return;
 
-    var form = _targetForm;
+    if (_waBtn) {
+      // Tryb WebAuthn
+      if (!_waVerified) {
+        if (_waError) {
+          _waError.style.display = '';
+          _waError.textContent = 'Najpierw zweryfikuj się kluczem WebAuthn.';
+        }
+        return;
+      }
+      if (!_targetForm) return;
+      var form = _targetForm;
+      bsModal().hide();
+      setTimeout(function () { form.submit(); }, 150);
+      return;
+    }
+
+    // Tryb: aktywna sesja awaryjna IKAKS (bez ponownego podawania kodu) — po prostu zapisz
+    if (!_targetForm) return;
+    var form2 = _targetForm;
     bsModal().hide();
-    setTimeout(function () { form.submit(); }, 150);
+    setTimeout(function () { form2.submit(); }, 150);
+  }
+
+  if (_confirmBtn) _confirmBtn.addEventListener('click', doConfirm);
+  if (_inp) {
+    _inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); doConfirm(); }
+    });
   }
 
   // ── Czyszczenie po zamknięciu ─────────────────────────────────────────────
   _modalEl.addEventListener('hidden.bs.modal', function () {
-    if (_waError) _waError.style.display = 'none';
+    if (_waError)       _waError.style.display = 'none';
     setWebauthnVerified(false);
+    if (_inp)           _inp.value = '';
+    if (_errorEl)       _errorEl.style.display = 'none';
+    if (_reasonInp)     _reasonInp.value = '';
+    if (_reasonErrorEl) _reasonErrorEl.style.display = 'none';
   });
 });
 

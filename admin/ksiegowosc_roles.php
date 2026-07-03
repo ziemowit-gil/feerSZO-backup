@@ -38,13 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $users    = db_all("SELECT id, name, email, role FROM users WHERE is_active = 1 ORDER BY name");
 $all_roles_map    = [];
 $has_webauthn_map = [];
+$has_ikaks_map    = [];
 $missing_key_users = [];
 foreach ($users as $u) {
     $all_roles_map[$u['id']]    = kdok_user_roles($u['id']);
     $has_webauthn_map[$u['id']] = webauthn_user_has_keys((int)$u['id']);
+    $has_ikaks_map[$u['id']]    = kdok_ikaks_has((int)$u['id']);
 
     $has_signing_role = $u['role'] === 'admin' || array_intersect($all_roles_map[$u['id']], $signing_roles);
-    if ($has_signing_role && !$has_webauthn_map[$u['id']]) {
+    if ($has_signing_role && !$has_webauthn_map[$u['id']] && !$has_ikaks_map[$u['id']]) {
         $missing_key_users[] = $u;
     }
 }
@@ -64,12 +66,12 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php if ($missing_key_users): ?>
-<div class="alert alert-warning">
-  <strong><i class="bi bi-exclamation-triangle-fill"></i> Brak klucza WebAuthn u <?= count($missing_key_users) ?>
+<div class="alert alert-danger">
+  <strong><i class="bi bi-exclamation-triangle-fill"></i> Brak klucza WebAuthn i kodu IKAKS u <?= count($missing_key_users) ?>
   <?= count($missing_key_users) === 1 ? 'osoby' : 'osób' ?> z uprawnieniami do opisywania dokumentów:</strong>
   <div class="small mt-1">
-    Opisywanie dokumentów (akceptacja merytoryczna/formalna/wypłaty) wymaga zarejestrowanego klucza WebAuthn —
-    bez niego poniższe osoby nie będą mogły podejmować decyzji na swoich krokach.
+    Opisywanie dokumentów (akceptacja merytoryczna/formalna/wypłaty) wymaga klucza WebAuthn albo — awaryjnie —
+    kodu IKAKS. Poniższe osoby nie mają ani jednego, ani drugiego, więc nie będą mogły podejmować decyzji na swoich krokach.
   </div>
   <ul class="mb-0 mt-2">
     <?php foreach ($missing_key_users as $mu): ?>
@@ -90,6 +92,7 @@ require_once __DIR__ . '/../includes/header.php';
           <th class="text-center"><?= h($label) ?></th>
           <?php endforeach; ?>
           <th class="text-center">Klucz WebAuthn</th>
+          <th class="text-center">IKAKS (awaryjnie)</th>
           <th></th>
         </tr>
       </thead>
@@ -113,7 +116,14 @@ require_once __DIR__ . '/../includes/header.php';
             <?php if ($has_webauthn_map[$u['id']]): ?>
             <span class="badge bg-success"><i class="bi bi-check-lg"></i> Tak</span>
             <?php else: ?>
-            <span class="badge bg-danger"><i class="bi bi-x-lg"></i> Brak</span>
+            <span class="badge bg-<?= $has_ikaks_map[$u['id']] ? 'warning text-dark' : 'danger' ?>"><i class="bi bi-x-lg"></i> Brak</span>
+            <?php endif; ?>
+          </td>
+          <td class="text-center">
+            <?php if ($has_ikaks_map[$u['id']]): ?>
+            <span class="badge bg-success"><i class="bi bi-check-lg"></i> Tak</span>
+            <?php else: ?>
+            <span class="badge bg-<?= $has_webauthn_map[$u['id']] ? 'secondary' : 'danger' ?>"><i class="bi bi-x-lg"></i> Brak</span>
             <?php endif; ?>
           </td>
           <td>

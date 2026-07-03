@@ -413,7 +413,8 @@ function kdok_cert_is_valid(?array $cert): bool {
 
 // ── WebAuthn — klucz sprzętowy wymagany do opisywania dokumentów ──────────────
 
-const KDOK_WEBAUTHN_TTL = 300; // sekundy ważności świeżej weryfikacji kluczem
+const KDOK_WEBAUTHN_TTL      = 300;   // sekundy ważności świeżej weryfikacji kluczem (5 min, dotyk za każdym razem)
+const KDOK_IKAKS_SESSION_TTL = 21600; // sekundy ważności sesji awaryjnej kodem IKAKS (6h, bez ponownego pytania)
 
 // Zapamiętuje udaną weryfikację kluczem WebAuthn (wywoływane z ksiegowosc/webauthn_verify.php)
 function kdok_webauthn_mark(int $user_id): void {
@@ -430,37 +431,75 @@ function kdok_webauthn_check(int $user_id): bool {
     return $ok;
 }
 
+// Zapamiętuje udane awaryjne użycie kodu IKAKS — w odróżnieniu od WebAuthn, sesja NIE jest
+// zużywana po jednym sprawdzeniu: trwa KDOK_IKAKS_SESSION_TTL, żeby nie pytać o kod i powód
+// przy każdej pojedynczej decyzji w ramach tej samej "sesji pracy" bez klucza.
+function kdok_ikaks_mark(int $user_id): void {
+    $_SESSION['kdok_ikaks_uid'] = $user_id;
+    $_SESSION['kdok_ikaks_at']  = time();
+}
+
+function kdok_ikaks_session_ok(int $user_id): bool {
+    return !empty($_SESSION['kdok_ikaks_uid'])
+        && (int)$_SESSION['kdok_ikaks_uid'] === $user_id
+        && (time() - (int)($_SESSION['kdok_ikaks_at'] ?? 0)) <= KDOK_IKAKS_SESSION_TTL;
+}
+
+// Znacznik czasu (unix) wygaśnięcia bieżącej sesji IKAKS, albo null gdy nieaktywna
+function kdok_ikaks_session_expires_at(int $user_id): ?int {
+    if (!kdok_ikaks_session_ok($user_id)) return null;
+    return (int)$_SESSION['kdok_ikaks_at'] + KDOK_IKAKS_SESSION_TTL;
+}
+
 /**
- * Weryfikuje klucz WebAuthn + certyfikat przed akceptacją kroku.
- * Klucz WebAuthn zastępuje IKAKS — gdy jest świeżo zweryfikowany, kod IKAKS nie jest wymagany.
- * Zwraca ['ok'=>bool, 'error'=>string|null, 'cert'=>array|null, 'display_name'=>string]
+ * Weryfikuje klucz WebAuthn (albo, gdy użytkownik nie ma zarejestrowanego klucza,
+ * kod IKAKS jako awaryjną alternatywę) + certyfikat przed akceptacją kroku.
+ * Pierwsze awaryjne użycie IKAKS w danym oknie 6h wymaga podania powodu (audytowalne);
+ * kolejne decyzje w tym oknie nie proszą już ani o kod, ani o powód.
+ * Zwraca ['ok'=>bool, 'error'=>string|null, 'cert'=>array|null, 'display_name'=>string,
+ *         'ikaks_reason_logged'=>string|null].
  */
-function kdok_auth_verify(int $user_id): array {
+function kdok_auth_verify(int $user_id, string $ika_plain = '', string $ika_reason = ''): array {
     require_once __DIR__ . '/webauthn.php';
     webauthn_migrate();
 
-    // Klucz WebAuthn — wymagany do opisywania dokumentów (zastępuje IKAKS)
-    if (!webauthn_user_has_keys($user_id)) {
-        return ['ok' => false, 'error' => 'Opisywanie dokumentów wymaga zarejestrowanego klucza WebAuthn. Zarejestruj klucz w Mój profil → Klucze bezpieczeństwa.', 'cert' => null, 'display_name' => ''];
+    $ikaks_reason_logged = null;
+
+    if (webauthn_user_has_keys($user_id)) {
+        // Ma zarejestrowany klucz — wymagana świeża weryfikacja WebAuthn
+        if (!kdok_webauthn_check($user_id)) {
+            return ['ok' => false, 'error' => 'Wymagana świeża weryfikacja kluczem WebAuthn. Dotknij klucza sprzętowego i spróbuj ponownie.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+        }
+    } elseif (!kdok_ikaks_session_ok($user_id)) {
+        // Brak zarejestrowanego klucza i brak aktywnej sesji awaryjnej — wymagany kod IKAKS + powód
+        if (!kdok_ikaks_has($user_id)) {
+            return ['ok' => false, 'error' => 'Nie masz zarejestrowanego klucza WebAuthn ani ustawionego kodu IKAKS. Zarejestruj klucz w Mój profil → Klucze bezpieczeństwa albo poproś administratora o nadanie IKAKS.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+        }
+        if (trim($ika_reason) === '') {
+            return ['ok' => false, 'error' => 'Podaj powód użycia kodu IKAKS zamiast klucza WebAuthn.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+        }
+        if (!kdok_ikaks_verify($user_id, $ika_plain)) {
+            return ['ok' => false, 'error' => 'Nieprawidłowy IKAKS. Autoryzacja odrzucona.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
+        }
+        kdok_ikaks_mark($user_id);
+        $ikaks_reason_logged = trim($ika_reason);
     }
-    if (!kdok_webauthn_check($user_id)) {
-        return ['ok' => false, 'error' => 'Wymagana świeża weryfikacja kluczem WebAuthn. Dotknij klucza sprzętowego i spróbuj ponownie.', 'cert' => null, 'display_name' => ''];
-    }
+    // else: aktywna sesja awaryjna IKAKS (ustanowiona w ciągu ostatnich 6h) — nic więcej nie pytamy
 
     // Certyfikat X.509
     $cert = kdok_cert_get($user_id);
     if (!$cert) {
-        return ['ok' => false, 'error' => 'Brak certyfikatu X.509 w systemie. Poproś administratora o dodanie certyfikatu.', 'cert' => null, 'display_name' => ''];
+        return ['ok' => false, 'error' => 'Brak certyfikatu X.509 w systemie. Poproś administratora o dodanie certyfikatu.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
     }
     if (!kdok_cert_is_valid($cert)) {
-        return ['ok' => false, 'error' => 'Certyfikat X.509 wygasł (' . date('d.m.Y', strtotime($cert['valid_to'])) . '). Skontaktuj się z administratorem.', 'cert' => null, 'display_name' => ''];
+        return ['ok' => false, 'error' => 'Certyfikat X.509 wygasł (' . date('d.m.Y', strtotime($cert['valid_to'])) . '). Skontaktuj się z administratorem.', 'cert' => null, 'display_name' => '', 'ikaks_reason_logged' => null];
     }
 
     // Pełne imię: preferuj CN z certyfikatu, fallback na users.name
     $user = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
     $display_name = $cert['subject_cn'] ?: ($user['name'] ?? '');
 
-    return ['ok' => true, 'error' => null, 'cert' => $cert, 'display_name' => $display_name];
+    return ['ok' => true, 'error' => null, 'cert' => $cert, 'display_name' => $display_name, 'ikaks_reason_logged' => $ikaks_reason_logged];
 }
 
 /**
@@ -468,11 +507,18 @@ function kdok_auth_verify(int $user_id): array {
  * Wymaga wcześniejszego udanego kdok_auth_verify() — $auth to jego wynik.
  * Zwraca ['status'=>string kdok_documents.status po zapisie, 'rejected'=>bool].
  */
-function kdok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes, array $auth): array {
+function kdok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes, array &$auth): array {
     $id       = (int)$doc['id'];
     $cert     = $auth['cert'];
     $step_row = $doc['steps'][$step_key] ?? null;
     $dec_label = match($status) { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', 'odrzucono' => 'ODRZUCONO', default => $status };
+
+    // Powód awaryjnego użycia IKAKS logujemy tylko raz — przy pierwszej decyzji objętej tą
+    // samą autoryzacją (np. "zatwierdź wszystkie kroki naraz" albo masowa akceptacja).
+    if (!empty($auth['ikaks_reason_logged'])) {
+        kdok_log($id, 'Autoryzacja kodem IKAKS (awaryjnie, brak klucza WebAuthn)', $auth['ikaks_reason_logged']);
+        $auth['ikaks_reason_logged'] = null;
+    }
 
     if ($step_row) {
         kdok_exec(
@@ -944,7 +990,8 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->SetFont('DejaVu', '', 7);
     $klauzula = 'Niniejszy dokument zostal zatwierdzony elektronicznie w systemie EOD Dokumentow Ksiegowych ' . $org
         . '. Elektroniczne zatwierdzenie jest rownowazne z podpisem wlasnorecznym (art. 7 ustawy o rachunkowosci,'
-        . ' Dz.U. 2023 poz. 120). Kazdy etap akceptacji wymagal certyfikatu X.509 oraz klucza sprzetowego WebAuthn.';
+        . ' Dz.U. 2023 poz. 120). Kazdy etap akceptacji wymagal certyfikatu X.509 oraz klucza sprzetowego WebAuthn'
+        . ' (lub, w przypadku braku klucza, kodu IKAKS).';
     $pdf->MultiCell($W, 4, _pdf($klauzula), 1, 'J', true);
     $pdf->SetFont('DejaVu', '', 6);
     $pdf->SetTextColor(120, 120, 120);

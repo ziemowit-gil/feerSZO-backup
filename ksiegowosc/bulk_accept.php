@@ -40,7 +40,7 @@ if (!kdok_has_role('meryt') && !kdok_has_role('formal') && !kdok_has_role('zatwi
     exit;
 }
 
-$auth = kdok_auth_verify((int)$user['id']);
+$auth = kdok_auth_verify((int)$user['id'], $body['ikaks'] ?? '', $body['ikaks_reason'] ?? '');
 if (!$auth['ok']) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'message' => $auth['error']]);
