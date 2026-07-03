@@ -4,16 +4,18 @@
  *
  * Jedyne źródło prawdy: min_version.txt (config.php go odczytuje, patrz APP_VERSION).
  * Skrypt: liczy nową wersję, pokazuje podgląd zmian od ostatniego bumpa (git log),
- * po potwierdzeniu zapisuje plik i tworzy commit `chore(version): ...` (+ opcjonalnie tag).
+ * po potwierdzeniu zapisuje plik, commituje `chore(version): ...` i TAGUJE go
+ * (git tag vX.Y) — wersja pliku i tag wydania zawsze idą w parze, ten sam bump,
+ * dwa zapisy (patrz też admin/version.php: pokazuje oba obok siebie).
  *
  * Użycie:
- *   php cli/bump_version.php minor            # 1.11 -> 1.12 (domyślnie)
- *   php cli/bump_version.php major            # 1.11 -> 2.0
- *   php cli/bump_version.php patch            # 1.11.2 -> 1.11.3 (tylko schemat X.Y.Z)
- *   php cli/bump_version.php 1.12             # ustaw wprost
- *   php cli/bump_version.php minor --tag      # + git tag -a vX.Y
- *   php cli/bump_version.php minor --yes      # bez pytania o potwierdzenie
- *   php cli/bump_version.php minor --dry-run  # tylko podgląd, nic nie zapisuje
+ *   php cli/bump_version.php minor              # 1.11 -> 1.12 (domyślnie) + tag v1.12
+ *   php cli/bump_version.php major               # 1.11 -> 2.0 + tag v2.0
+ *   php cli/bump_version.php patch               # 1.11.2 -> 1.11.3 (tylko schemat X.Y.Z)
+ *   php cli/bump_version.php 1.12e               # ustaw wprost (dopuszczalny sufiks literowy)
+ *   php cli/bump_version.php minor --no-tag      # bez tagu git (tylko plik + commit)
+ *   php cli/bump_version.php minor --yes         # bez pytania o potwierdzenie
+ *   php cli/bump_version.php minor --dry-run     # tylko podgląd, nic nie zapisuje
  *
  * Kody wyjścia: 0 = OK, 1 = błąd użycia/danych, 2 = błąd krytyczny (git/zapis).
  */
@@ -43,7 +45,7 @@ $args    = array_slice($argv, 1);
 $flags   = array_values(array_filter($args, fn($a) => str_starts_with($a, '--')));
 $posArgs = array_values(array_filter($args, fn($a) => !str_starts_with($a, '--')));
 
-$want_tag   = in_array('--tag', $flags, true);
+$want_tag   = !in_array('--no-tag', $flags, true); // domyślnie tag zawsze towarzyszy bumpowi
 $auto_yes   = in_array('--yes', $flags, true) || in_array('-y', $flags, true);
 $dry_run    = in_array('--dry-run', $flags, true);
 $bump_arg   = $posArgs[0] ?? 'minor';
@@ -145,7 +147,7 @@ if ($dry_run) {
 
 // ── Potwierdzenie ────────────────────────────────────────────────────────────
 if (!$auto_yes) {
-    cli_line("Zapisać v$new i utworzyć commit" . ($want_tag ? " + tag v$new" : '') . "? [t/N]");
+    cli_line("Zapisać v$new i utworzyć commit" . ($want_tag ? " + tag v$new" : ' (bez tagu, --no-tag)') . "? [t/N]");
     $answer = trim((string)fgets(STDIN));
     if (!in_array(strtolower($answer), ['t', 'tak', 'y', 'yes'], true)) {
         cli_line("Przerwano.");
@@ -176,11 +178,16 @@ if (upd_git_available()) {
 
         if ($want_tag) {
             $tag_name = 'v' . $new;
-            $tag      = upd_git('tag -a ' . escapeshellarg($tag_name) . ' -m ' . escapeshellarg("Wersja $new"));
-            if ($tag['code'] === 0) {
-                cli_line("  ✔ tag: $tag_name");
+            $exists   = upd_git('tag -l ' . escapeshellarg($tag_name));
+            if ($exists['code'] === 0 && trim($exists['out']) !== '') {
+                cli_err("  ⚠ tag $tag_name już istnieje — pomijam (usuń go ręcznie, jeśli to pomyłka).");
             } else {
-                cli_err("  ⚠ git tag nie powiódł się: {$tag['out']}");
+                $tag = upd_git('tag -a ' . escapeshellarg($tag_name) . ' -m ' . escapeshellarg("Wersja $new"));
+                if ($tag['code'] === 0) {
+                    cli_line("  ✔ tag: $tag_name");
+                } else {
+                    cli_err("  ⚠ git tag nie powiódł się: {$tag['out']}");
+                }
             }
         }
     }

@@ -44,6 +44,42 @@ function app_version(): array {
 }
 
 /**
+ * Ostatni tag wydania (git tag w formacie vX.Y[.Z][litera]) i jego zgodność z HEAD.
+ * Tag jest tworzony automatycznie przez cli/bump_version.php przy każdym bumpie,
+ * więc w normalnej sytuacji wskazuje ten sam commit co ostatni bump wersji.
+ */
+function app_release_tag(): array {
+    static $t = null;
+    if ($t !== null) return $t;
+
+    $base = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__);
+    $git  = fn(string $args) => trim(@shell_exec(
+        "cd " . escapeshellarg($base) . " && git -c safe.directory=" . escapeshellarg($base) . " $args 2>/dev/null"
+    ) ?: '');
+
+    $name = $git("describe --tags --match 'v*' --abbrev=0");
+
+    if ($name === '') {
+        $t = ['name' => '', 'hash' => '', 'date' => '', 'synced' => false, 'commits_since' => 0];
+        return $t;
+    }
+
+    $hash  = $git('rev-parse --short ' . escapeshellarg($name . '^{commit}'));
+    $head  = $git('rev-parse --short HEAD');
+    $date  = $git('log -1 --format=%ci ' . escapeshellarg($name));
+    $count = $git('rev-list --count ' . escapeshellarg($name . '..HEAD'));
+
+    $t = [
+        'name'          => $name,
+        'hash'          => $hash,
+        'date'          => $date ? date('d.m.Y', strtotime($date)) : '',
+        'synced'        => ($hash !== '' && $hash === $head),
+        'commits_since' => (int)$count,
+    ];
+    return $t;
+}
+
+/**
  * Pobiera ostatnie N commitów jako historię zmian.
  */
 function app_changelog(int $limit = 20): array {
