@@ -24,6 +24,8 @@ services:
       # Entrypoints
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      # Dodatkowy entrypoint dla EJBCA AdminWeb (TLS passthrough, zob. docker-compose.ejbca.yml)
+      - "--entrypoints.ejbca-admin.address=:8443"
       # Let's Encrypt (HTTP-01 challenge)
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
@@ -35,6 +37,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8443:8443"   # EJBCA AdminWeb (TLS passthrough) — nieaktywny bez docker-compose.ejbca.yml
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "letsencrypt_data:/letsencrypt"

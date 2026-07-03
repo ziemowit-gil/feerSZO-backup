@@ -114,6 +114,7 @@ docker/
 ├── docker-compose.override.yml  # DEV: mailpit, rabbitmq, port :80
 ├── docker-compose.prod.yml  # PROD: Traefik + SSL + php.prod.ini
 ├── docker-compose.mysql.yml # Addon: MySQL 8.4 (dev lub prod)
+├── docker-compose.ejbca.yml # Addon: EJBCA CE — wewnętrzny CA (opcjonalny, zob. EJBCA.md)
 ├── apache.conf              # VirtualHost (RemoteIP dla Traefik)
 ├── php.ini                  # Dev PHP config (E_ALL, display_errors=On)
 ├── php.prod.ini             # Prod PHP config (błędy ukryte, opcache)
@@ -122,7 +123,8 @@ docker/
 ├── msmtp.conf               # PHP mail() → Mailpit (dev) lub SMTP
 ├── .env.example             # Szablon zmiennych DEV
 ├── .env.prod.example        # Szablon zmiennych PROD ← wypełnij to
-└── DEPLOY.md                # Ta instrukcja
+├── DEPLOY.md                # Ta instrukcja
+└── EJBCA.md                 # Wdrożenie opcjonalnego CA (EJBCA)
 ```
 
 ---
