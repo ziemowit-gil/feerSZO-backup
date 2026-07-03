@@ -7,13 +7,42 @@ require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
 
 $PAGE_TITLE = 'Sprawy';
+$user_id    = (int)current_user()['id'];
 
 $status_f   = $_GET['status']    ?? '';
 $priority_f = $_GET['priority']  ?? '';
+$owner_f    = (int)($_GET['owner_id'] ?? 0);
+$mine_f     = !empty($_GET['mine']);
+$dod        = $_GET['deadline_od'] ?? '';
+$ddo        = $_GET['deadline_do'] ?? '';
 $q          = trim($_GET['q']    ?? '');
 
-$filters = ['status' => $status_f, 'priority' => $priority_f, 'q' => $q];
-$sprawy  = ezd_sprawy_all($filters);
+$filters = [
+    'status' => $status_f, 'priority' => $priority_f, 'q' => $q,
+    'owner_id' => $owner_f, 'deadline_od' => $dod, 'deadline_do' => $ddo,
+    'mine_or_shared' => $mine_f,
+];
+$sprawy  = ezd_sprawy_all($filters, $user_id);
+$owners  = db_all("SELECT DISTINCT u.id, u.name FROM ezd_sprawy s JOIN users u ON u.id=s.owner_id ORDER BY u.name");
+
+// Eksport CSV bieżących wyników (respektuje filtry)
+if (($_GET['export'] ?? '') === 'csv') {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="sprawy_' . date('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM dla Excela
+    fputcsv($out, ['Znak sprawy','Tytuł','Teczka','Status','Priorytet','Etap','Właściciel','Termin'], ';');
+    foreach ($sprawy as $s) {
+        fputcsv($out, [
+            $s['znak_sprawy'], $s['title'], $s['teczka_symbol'].' — '.$s['teczka_title'],
+            EZD_STATUSES_SPRAWA[$s['status']]['label'] ?? $s['status'],
+            EZD_PRIORITIES[$s['priority']]['label'] ?? $s['priority'],
+            ezd_etap_label_map()[$s['etap'] ?? '']['label'] ?? ($s['etap'] ?? ''),
+            $s['owner_name'] ?? '', $s['deadline'] ?? '',
+        ], ';');
+    }
+    fclose($out); exit;
+}
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
@@ -26,9 +55,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-folder2-open text-primary me-2"></i>Sprawy</h4>
-  <?php if(can_edit()): ?>
-  <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa sprawa</a>
-  <?php endif; ?>
+  <div class="d-flex gap-2">
+    <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Eksport CSV</a>
+    <?php if(can_edit()): ?>
+    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa sprawa</a>
+    <?php endif; ?>
+  </div>
 </div>
 
 <?= flash_html() ?>
@@ -36,10 +68,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <!-- Filtry -->
 <form method="get" class="mb-3">
 <div class="row g-2 align-items-end">
-  <div class="col-md-4">
+  <div class="col-md-3">
     <input type="search" name="q" class="form-control form-control-sm" placeholder="Szukaj znaku lub tytułu…" value="<?= h($q) ?>">
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
     <select name="status" class="form-select form-select-sm">
       <option value="">Wszystkie statusy</option>
       <?php foreach(EZD_STATUSES_SPRAWA as $sv=>$sl): ?>
@@ -47,7 +79,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php endforeach; ?>
     </select>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
     <select name="priority" class="form-select form-select-sm">
       <option value="">Wszystkie priorytety</option>
       <?php foreach(EZD_PRIORITIES as $pv=>$pl): ?>
@@ -56,8 +88,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </select>
   </div>
   <div class="col-md-2">
+    <select name="owner_id" class="form-select form-select-sm">
+      <option value="">Wszyscy właściciele</option>
+      <?php foreach($owners as $o): ?>
+      <option value="<?= $o['id'] ?>" <?= $owner_f===(int)$o['id']?'selected':'' ?>><?= h($o['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-md-1">
+    <input type="date" name="deadline_od" class="form-control form-control-sm" value="<?= h($dod) ?>" title="Termin od">
+  </div>
+  <div class="col-md-1">
+    <input type="date" name="deadline_do" class="form-control form-control-sm" value="<?= h($ddo) ?>" title="Termin do">
+  </div>
+  <div class="col-md-1">
     <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Szukaj</button>
   </div>
+</div>
+<div class="form-check mt-2">
+  <input class="form-check-input" type="checkbox" name="mine" value="1" id="f-mine" <?= $mine_f?'checked':'' ?> onchange="this.form.submit()">
+  <label class="form-check-label" for="f-mine" style="font-size:.82rem">Tylko moje i współdzielone ze mną</label>
 </div>
 </form>
 
