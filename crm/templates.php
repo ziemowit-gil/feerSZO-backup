@@ -154,6 +154,9 @@ include __DIR__ . '/includes/header_crm.php';
     <button class="btn btn-crm-primary btn-sm" data-bs-toggle="modal" data-bs-target="#tplModal" onclick="tplNew()">
       <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy szablon
     </button>
+    <a href="<?= APP_URL ?>/crm/mosaico/index.php" class="btn btn-crm-outline btn-sm">
+      <i class="bi bi-palette-fill me-1" aria-hidden="true"></i>Zaprojektuj w Mosaico
+    </a>
     <?php endif; ?>
     <a href="<?= APP_URL ?>/crm/communicate.php" class="btn btn-crm-outline btn-sm">
       <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij wiadomość
@@ -253,6 +256,12 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
     <?php elseif ($crm_can_write): ?>
     <div class="tpl-actions">
+      <?php if (($t['source'] ?? 'manual') === 'mosaico'): ?>
+      <a class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj w Mosaico" aria-label="Edytuj w Mosaico szablon <?= h($t['name']) ?>"
+         href="<?= APP_URL ?>/crm/mosaico/index.php?template_id=<?= (int)$t['id'] ?>">
+        <i class="bi bi-palette-fill" aria-hidden="true"></i>
+      </a>
+      <?php endif; ?>
       <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edytuj" aria-label="Edytuj szablon <?= h($t['name']) ?>"
               onclick='tplEdit(<?= json_encode([
                   'id' => (int)$t['id'], 'name' => $t['name'], 'channel' => $t['channel'],

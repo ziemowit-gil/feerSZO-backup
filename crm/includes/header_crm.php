@@ -472,6 +472,7 @@ window.openCommModal = function(contactId, channel) {
       <ul class="dropdown-menu">
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/communicate.php"><i class="bi bi-send-fill me-2"></i>Wyślij wiadomość</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/mass_send.php"><i class="bi bi-megaphone-fill me-2"></i>Wysyłka masowa</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/campaign/index.php"><i class="bi bi-graph-up-arrow me-2"></i>Kampanie mailowe</a></li>
         <?php if ($_crm_can_write): ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/templates.php"><i class="bi bi-file-earmark-text-fill me-2"></i>Szablony wiadomości</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/form/manage.php"><i class="bi bi-window-split me-2"></i>Formularze</a></li>

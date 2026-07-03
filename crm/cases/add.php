@@ -48,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_at'  => date('Y-m-d H:i:s'),
             'updated_at'  => date('Y-m-d H:i:s'),
         ]);
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
+        crm_automation_fire('case_created', $cid, ['case_id' => $case_id]);
         flash_set('success', 'Sprawa „' . $title . '" została utworzona.');
         header('Location: ' . APP_URL . '/crm/cases/view.php?id=' . $case_id); exit;
     }

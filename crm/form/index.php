@@ -93,6 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Utwórz kontakt
         $contact_id = crm_insert('crm_contacts', array_filter($data, fn($v) => $v !== null));
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
+        crm_automation_fire('contact_created', $contact_id);
 
         // Dodaj do grupy
         if ($form['group_id'] && $contact_id) {
@@ -187,14 +189,17 @@ function run_form_automations(array $autos, int $contact_id, array $data, array 
                 case 'add_tag':
                     $tags = array_filter(array_map('trim', explode(',', $cfg['tags'] ?? '')));
                     foreach ($tags as $tag) {
-                        try { crm_insert('crm_tags', ['contact_id'=>$contact_id,'tag'=>$tag,'created_at'=>date('Y-m-d H:i:s')]); } catch (\Throwable $e) {}
+                        try { CrmManager::addTag($contact_id, $tag); } catch (\Throwable $e) {}
                     }
                     break;
 
                 case 'set_status':
                     $status = trim($cfg['status'] ?? '');
-                    if ($status && array_key_exists($status, crm_statuses())) {
+                    if ($status && array_key_exists($status, crm_statuses()) && $status !== ($contact['status'] ?? null)) {
+                        $from_status = $contact['status'] ?? null;
                         crm_db()->prepare("UPDATE crm_contacts SET status=? WHERE id=?")->execute([$status, $contact_id]);
+                        require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
+                        crm_automation_fire('contact_status_changed', $contact_id, ['from_status' => $from_status, 'to_status' => $status]);
                     }
                     break;
 

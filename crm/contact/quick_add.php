@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
 
 require_login();
 require_module_enabled('crm_enabled', 'CRM');
@@ -69,12 +70,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_at'    => date('Y-m-d H:i:s'),
             'updated_at'    => date('Y-m-d H:i:s'),
         ], fn($v) => $v !== null));
+        crm_automation_fire('contact_created', $contact_id);
 
         // Tagi
         if ($tags_raw) {
             $tags = array_unique(array_filter(array_map('trim', preg_split('/[,\s]+/', $tags_raw))));
             foreach ($tags as $tag) {
-                try { crm_insert('crm_tags', ['contact_id'=>$contact_id,'tag'=>$tag,'created_at'=>date('Y-m-d H:i:s')]); } catch (\Throwable $e) {}
+                try { CrmManager::addTag($contact_id, $tag); } catch (\Throwable $e) {}
             }
         }
 

@@ -46,6 +46,10 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [4, 6],       // między 4:00 a 6:00
     ],
+    'campaign_send' => [
+        'file'     => __DIR__ . '/campaign_send.php',
+        'interval' => 60,           // co minutę
+    ],
     'bulk_email' => [
         'file'     => __DIR__ . '/bulk_email_process.php',
         'interval' => 60,           // co minutę

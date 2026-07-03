@@ -194,6 +194,8 @@ function ev_crm_sync(array $reg, int $event_id): ?int {
                 'created_at'     => date('Y-m-d H:i:s'),
                 'updated_at'     => date('Y-m-d H:i:s'),
             ]);
+            if (!function_exists('crm_automation_fire')) require_once __DIR__ . '/crm_automation.php';
+            crm_automation_fire('contact_created', $contact_id);
         }
 
         // Dodaj do grupy CRM powiązanej z wydarzeniem
