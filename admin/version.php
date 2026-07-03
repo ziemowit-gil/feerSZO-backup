@@ -36,68 +36,52 @@ include dirname(__DIR__) . '/includes/header.php';
   </ol>
 </nav>
 
-<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
   <h4 class="mb-0"><i class="bi bi-git me-2 text-primary"></i>Wersja aplikacji</h4>
-  <span class="badge bg-primary" style="font-size:1rem;padding:.4rem .85rem">v<?= h($ver['main']) ?></span>
-  <span class="badge bg-dark font-monospace" style="font-size:.8rem" title="Git commit hash"><?= h($ver['hash']) ?></span>
-  <?php if ($ver['date']): ?>
-  <span class="text-muted small"><?= h($ver['date']) ?></span>
-  <?php endif; ?>
   <span class="ms-auto text-muted small font-monospace" title="Każdy bump automatycznie tworzy tag git — plik wersji i tag wydania zawsze idą w parze">
     <i class="bi bi-terminal me-1"></i>php cli/bump_version.php minor
   </span>
 </div>
 
-<!-- Karta wersji -->
-<div class="row g-3 mb-4">
-  <div class="col-sm-3">
-    <div class="card shadow-sm h-100 border-primary">
-      <div class="card-body py-3">
-        <div class="small text-muted mb-1">Wersja robocza</div>
-        <div class="fw-bold" style="font-size:1.4rem">v<?= h($ver['main']) ?></div>
-        <div class="small text-muted">z min_version.txt</div>
+<!-- Hero: dwie wersje obok siebie -->
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row g-4 align-items-center">
+      <div class="col-md-5 text-center border-end-md">
+        <div class="small text-muted text-uppercase" style="letter-spacing:.05em">Wersja robocza</div>
+        <div class="fw-bold text-primary" style="font-size:2.4rem;line-height:1.1">v<?= h($ver['main']) ?></div>
+        <div class="small text-muted">min_version.txt</div>
       </div>
-    </div>
-  </div>
-  <div class="col-sm-3">
-    <div class="card shadow-sm h-100 <?= $tag['name'] ? ($tag['synced'] ? 'border-success' : 'border-warning') : '' ?>">
-      <div class="card-body py-3">
-        <div class="small text-muted mb-1">Wydanie (tag git)</div>
+      <div class="col-md-2 text-center text-muted d-none d-md-block">
+        <i class="bi bi-arrow-left-right fs-3"></i>
+      </div>
+      <div class="col-md-5 text-center">
+        <div class="small text-muted text-uppercase" style="letter-spacing:.05em">Wydanie (git tag)</div>
         <?php if ($tag['name']): ?>
-        <div class="fw-bold font-monospace" style="font-size:1.2rem"><?= h($tag['name']) ?></div>
+        <div class="fw-bold <?= $tag['synced'] ? 'text-success' : 'text-warning-emphasis' ?>" style="font-size:2.4rem;line-height:1.1"><?= h($tag['name']) ?></div>
         <?php if ($tag['synced']): ?>
-        <div class="small text-success"><i class="bi bi-check-circle me-1"></i>zgodny z bieżącym stanem</div>
+        <div class="small text-success"><i class="bi bi-check-circle me-1"></i>zgodny z bieżącym commitem</div>
         <?php else: ?>
         <div class="small text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i><?= (int)$tag['commits_since'] ?> commit(ów) po tagu</div>
         <?php endif; ?>
         <?php else: ?>
-        <div class="fw-bold text-muted">brak</div>
+        <div class="fw-bold text-muted" style="font-size:2.4rem;line-height:1.1">—</div>
         <div class="small text-muted">żaden bump jeszcze nie otagował repo</div>
         <?php endif; ?>
       </div>
     </div>
   </div>
-  <div class="col-sm-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body py-3">
-        <div class="small text-muted mb-1">Commit (git)</div>
-        <div class="fw-bold font-monospace"><?= h($ver['hash']) ?></div>
-        <?php if ($ver['hash_full']): ?>
-        <div class="small text-muted font-monospace" style="font-size:.68rem;word-break:break-all"><?= h(substr($ver['hash_full'], 0, 20)) ?>…</div>
-        <?php endif; ?>
-        <div class="small text-muted"><?= h($ver['date'] ?: '—') ?></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body py-3">
-        <div class="small text-muted mb-1">Gałąź (branch)</div>
-        <div class="fw-bold font-monospace"><?= h($ver['branch']) ?></div>
-      </div>
-    </div>
+  <div class="card-footer bg-light py-2 d-flex gap-4 flex-wrap small text-muted">
+    <span title="Aktualny commit HEAD"><i class="bi bi-code-square me-1"></i>commit <code><?= h($ver['hash']) ?></code></span>
+    <?php if ($tag['name']): ?>
+    <span title="Commit, na który wskazuje tag"><i class="bi bi-tag me-1"></i>tag → <code><?= h($tag['hash']) ?></code></span>
+    <?php endif; ?>
+    <span><i class="bi bi-clock me-1"></i><?= h($ver['date'] ?: '—') ?></span>
+    <span><i class="bi bi-diagram-2 me-1"></i>gałąź <code><?= h($ver['branch']) ?></code></span>
   </div>
 </div>
+
+<style>.border-end-md{border-inline-end:0}@media(min-width:768px){.border-end-md{border-inline-end:1px solid var(--bs-border-color)}}</style>
 
 <!-- Historia zmian -->
 <div class="card shadow-sm">
