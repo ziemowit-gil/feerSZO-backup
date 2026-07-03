@@ -31,6 +31,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         pdo_mysql \
         xml \
         xmlwriter \
+        soap \
         zip \
     && pecl install redis \
     && docker-php-ext-enable redis

@@ -938,12 +938,18 @@ function migrate_tenant_db(PDO $pdo): array {
         $results[] = ['skip', 'helpdesk_tickets (moduł utworzy schemat przy 1. użyciu)'];
     }
 
+    // ── Schema v12: admin_x509_certs — źródło certyfikatu (self-signed vs EJBCA) ─
+    $run('admin_x509_certs.issuer_type',     "ALTER TABLE admin_x509_certs ADD COLUMN issuer_type TEXT NOT NULL DEFAULT 'self'");
+    $run('admin_x509_certs.serial_hex',      "ALTER TABLE admin_x509_certs ADD COLUMN serial_hex TEXT DEFAULT NULL");
+    $run('admin_x509_certs.ejbca_username',  "ALTER TABLE admin_x509_certs ADD COLUMN ejbca_username TEXT DEFAULT NULL");
+
     // ── Nowe domyślne settings ─────────────────────────────────────────────────
     $new_settings = [
         'wa_enabled' => '0', 'tasks_enabled' => '1',
         'ceidg_enabled' => '0', 'postivo_enabled' => '0',
         'msg_notify_email' => '0', 'm365_enabled' => '0',
         'org_enabled' => '0', 'saml_idp_enabled' => '0',
+        'ejbca_enabled' => '0',
     ];
     $ins = $pdo->prepare("INSERT OR IGNORE INTO settings (key_,value) VALUES (?,?)");
     foreach ($new_settings as $k => $v) {

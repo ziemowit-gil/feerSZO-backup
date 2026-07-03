@@ -97,8 +97,30 @@ function x509_generate_for_user(
 }
 
 /**
+ * Registers a certificate issued externally (EJBCA) — same DB bookkeeping as
+ * x509_generate_for_user() but for a keystore we didn't generate ourselves.
+ * $result is the array returned by ejbca_issue_login_cert() (includes/ejbca.php).
+ */
+function x509_register_ejbca_cert(int $user_id, string $cn, array $result): void {
+    x509_init();
+    $issuer_id = (int)(current_user()['id'] ?? 0);
+    db()->prepare(
+        "INSERT INTO admin_x509_certs
+             (user_id, fingerprint, subject_cn, valid_from, valid_to, issued_by,
+              issuer_type, serial_hex, ejbca_username)
+         VALUES (?, ?, ?, ?, ?, ?, 'ejbca', ?, ?)"
+    )->execute([
+        $user_id, $result['fingerprint'], $cn, $result['valid_from'], $result['valid_to'],
+        $issuer_id ?: null, $result['serial_hex'], $result['ejbca_username'],
+    ]);
+}
+
+/**
  * Verifies a PKCS#12 blob + password and returns the matching user row or null.
  * Only active admin/editor users with non-revoked, non-expired certs pass.
+ * Certs issued by EJBCA additionally must chain to the trusted ManagementCA
+ * (certs/ejbca_ca.pem) — self-signed certs keep the original fingerprint-only
+ * trust model unchanged.
  */
 function x509_verify_login(string $p12_data, string $cert_password): ?array {
     x509_init();
@@ -108,14 +130,15 @@ function x509_verify_login(string $p12_data, string $cert_password): ?array {
         return null;
     }
 
-    $cert = @openssl_x509_read($certs['cert'] ?? '');
+    $cert_pem = $certs['cert'] ?? '';
+    $cert = @openssl_x509_read($cert_pem);
     if (!$cert) return null;
 
     $fp = openssl_x509_fingerprint($cert, 'sha256');
     if (!$fp) return null;
 
     $row = db_one(
-        "SELECT u.*
+        "SELECT u.*, c.issuer_type
          FROM admin_x509_certs c
          JOIN users u ON u.id = c.user_id
          WHERE c.fingerprint  = ?
@@ -128,16 +151,37 @@ function x509_verify_login(string $p12_data, string $cert_password): ?array {
 
     if (!in_array($row['role'] ?? '', ['admin', 'editor', 'superadmin'], true)) return null;
 
+    if (($row['issuer_type'] ?? 'self') === 'ejbca') {
+        require_once __DIR__ . '/ejbca.php';
+        $ca_cert = ejbca_ca_cert_path();
+        if (!is_file($ca_cert) || openssl_x509_checkpurpose($cert_pem, X509_PURPOSE_ANY, [$ca_cert]) !== true) {
+            error_log('[x509_login] łańcuch certyfikatu EJBCA nie zweryfikował się dla fp=' . $fp);
+            return null;
+        }
+    }
+
     return $row;
 }
 
 /**
- * Revokes a cert (soft delete by timestamp).
+ * Revokes a cert (soft delete by timestamp). For certy wystawione przez EJBCA
+ * odwołuje też End Entity po stronie CA (ejbca_revoke_user) — panel i CA
+ * zostają w synchronizacji.
  */
 function x509_revoke(int $cert_id): void {
     x509_init();
+    $cert = db_one("SELECT * FROM admin_x509_certs WHERE id=?", [$cert_id]);
     db()->prepare("UPDATE admin_x509_certs SET revoked_at = datetime('now') WHERE id = ?")
         ->execute([$cert_id]);
+
+    if ($cert && ($cert['issuer_type'] ?? 'self') === 'ejbca' && !empty($cert['ejbca_username'])) {
+        try {
+            require_once __DIR__ . '/ejbca.php';
+            ejbca_revoke_user($cert['ejbca_username']);
+        } catch (\Throwable $e) {
+            error_log('[x509_login] odwołanie w EJBCA nie powiodło się dla ' . $cert['ejbca_username'] . ': ' . $e->getMessage());
+        }
+    }
 }
 
 /**

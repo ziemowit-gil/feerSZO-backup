@@ -217,3 +217,63 @@ Sprawdzaj w tej kolejności (każdy kolejny krok zakłada, że poprzedni jest OK
    `setclearpwd` → `batch` → pobrać plik **na nowo** (i nadpisać starą kopię
    lokalną — sprawdź `sha256sum` po obu stronach transferu, żeby mieć pewność
    że to ten sam plik).
+
+## 9. Integracja z panelem FEER SZO — wystawianie certów logowania
+
+Panel (`admin/x509_login.php`) potrafi wystawiać certyfikaty logowania X.509
+bezpośrednio przez EJBCA (obok istniejącej opcji self-signed), z realną
+walidacją łańcucha CA przy logowaniu (`includes/x509_login.php::x509_verify_login()`)
+— nie tylko dopasowaniem fingerprintu jak w self-signed.
+
+**Jak to działa:** `includes/ejbca.php` łączy się z SOAP web service EJBCA
+(`EjbcaWS`, endpoint `/ejbca/ejbcaws/ejbcaws?wsdl` — dostępny w Community
+Edition, w odróżnieniu od pełnego REST API, które jest zablokowane/403 w tym
+obrazie i prawdopodobnie zarezerwowane dla Enterprise). Uwierzytelnienie do
+WS — mutual TLS własnym certyfikatem aplikacji, nie certyfikatem
+SuperAdmina.
+
+### Wymagania wstępne
+
+1. Rozszerzenie PHP `soap` (dodane do wszystkich 3 Dockerfile'i) —
+   `bash rebuild.sh --no-cache` jeśli obraz był budowany wcześniej.
+2. Migracja schematu (`cli/migrate.php` — nowe kolumny w `admin_x509_certs`).
+3. Jednorazowy bootstrap certyfikatu aplikacji:
+   ```bash
+   cd /opt/feer-szo/docker
+   bash scripts/ejbca_provision_app_cert.sh /root/superadmin.p12 <hasło-do-p12>
+   ```
+   Wymaga tymczasowo pliku `.p12` **dowolnego istniejącego administratora**
+   EJBCA (np. `superadmin.p12` z sekcji 5) — używanego tylko do jednorazowej
+   autoryzacji utworzenia dedykowanego konta dla aplikacji (`feer-app-ra`).
+   Nie jest nigdzie trwale zapisywany. Skrypt:
+   - tworzy end entity `feer-app-ra` przez WS (`editUser` + `pkcs12Req`),
+   - dodaje go do roli **„Super Administrator Role"** (`addSubjectToRole`) —
+     zobacz zastrzeżenie niżej,
+   - pobiera łańcuch `ManagementCA` (`getLastCAChain`),
+   - zapisuje `certs/ejbca_client.pem` (cert+klucz aplikacji, bez hasła,
+     `chmod 600`) i `certs/ejbca_ca.pem` (do walidacji łańcucha przy loginie),
+   - włącza integrację (`ejbca_enabled=1` w `settings`).
+
+### ⚠ Zastrzeżenie bezpieczeństwa — rola aplikacji
+
+`feer-app-ra` dostaje pełną **„Super Administrator Role"** (tak samo szeroką
+jak certyfikat ludzkiego SuperAdmina) — najprostsza droga do działania, ale
+narusza zasadę najmniejszych uprawnień: kompromitacja certyfikatu aplikacji
+(`certs/ejbca_client.pem` na serwerze) daje pełną kontrolę nad całym CA, nie
+tylko nad wystawianiem certów logowania. Docelowo warto zawęzić to do
+osobnej roli z uprawnieniami ograniczonymi do `/ra_functionality/*` i
+`/ca/<caid>` dla konkretnego CA — wymaga to dodatkowej pracy przez WS
+(`getAvailableCertificateProfiles`, ręczne reguły dostępu) albo AdminWeb,
+nieopisanej tutaj ze względu na zakres.
+
+### Codzienne użycie
+
+- Admin → panel → **Certyfikaty X.509** → wybór źródła „Wewnętrzny CA (EJBCA)"
+  zamiast self-signed. Ważność i rozmiar klucza określa wtedy profil
+  certyfikatu w EJBCA (`ejbca_cert_profile`, domyślnie `ENDUSER`), nie pola
+  formularza.
+- Unieważnienie certyfikatu w panelu (przycisk „Unieważnij") dla certów
+  EJBCA dodatkowo woła `revokeUser` przez WS — CA i panel zostają w
+  synchronizacji automatycznie.
+- Test połączenia: `ejbca_test_connection()` w `includes/ejbca.php`
+  (`getEjbcaVersion` przez WS).
