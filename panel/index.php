@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/messages.php';
 require_once dirname(__DIR__) . '/includes/applications.php';
 
 require_login();
+_applications_init();
 $PAGE_TITLE = 'Mój panel';
 $user = current_user();
 
