@@ -115,6 +115,7 @@ docker/
 ├── docker-compose.prod.yml  # PROD: Traefik + SSL + php.prod.ini
 ├── docker-compose.mysql.yml # Addon: MySQL 8.4 (dev lub prod)
 ├── docker-compose.ejbca.yml # Addon: EJBCA CE — wewnętrzny CA (opcjonalny, zob. EJBCA.md)
+├── setup-ejbca.sh           # Wdraża EJBCA obok już działającego stacku
 ├── apache.conf              # VirtualHost (RemoteIP dla Traefik)
 ├── php.ini                  # Dev PHP config (E_ALL, display_errors=On)
 ├── php.prod.ini             # Prod PHP config (błędy ukryte, opcache)

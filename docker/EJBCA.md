@@ -44,10 +44,25 @@ szyfrują dane w bazie / chronią klucz prywatny CA.
 
 ## 4. Uruchomienie
 
+Zalecane — skrypt dokłada EJBCA do już działającego stacku FEER (nie startuje
+niczego od zera, generuje brakujące sekrety w `.env.prod`, otwiera port
+w ufw jeśli aktywny, czeka na gotowość i pokazuje logi z instrukcją enrollmentu):
+
+```bash
+cd /opt/feer-szo/docker   # katalog z .env.prod głównego stacku
+bash setup-ejbca.sh ca.feer.org.pl
+```
+
+Uwaga: skrypt restartuje `feer-traefik` (dostaje nowy entrypoint `:8443`) —
+to kilka sekund przerwy w dostępności głównej aplikacji. Reszta usług
+(app/mysql/redis) nie jest ruszana.
+
+Ręcznie (bez skryptu), jeśli wolisz pełną kontrolę:
+
 ```bash
 cd /opt/feer-szo/docker   # lub gdziekolwiek leży repo na serwerze
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-  -f docker-compose.ejbca.yml --env-file .env.prod up -d ejbca-db ejbca
+  -f docker-compose.ejbca.yml --env-file .env.prod up -d
 ```
 
 ## 5. Pierwsze uruchomienie — enrollment SuperAdmina
