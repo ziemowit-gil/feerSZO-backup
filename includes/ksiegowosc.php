@@ -594,6 +594,27 @@ function kdok_require_role(string $role): void {
     }
 }
 
+// Czy user ma JAKĄKOLWIEK rolę w KDOK (upload/meryt/formal/zatwierdza) — bazowe członkostwo w module
+function kdok_has_any_role(?int $user_id = null): bool {
+    if (is_admin()) return true;
+    $uid = $user_id ?? (current_user()['id'] ?? 0);
+    if (!$uid) return false;
+    return (bool) db_one("SELECT 1 FROM kdok_user_roles WHERE user_id = ?", [$uid]);
+}
+
+// Bramka dostępu do modułu (przeglądanie rejestru/dokumentów) — bez tego każdy zalogowany
+// widziałby całe archiwum dokumentów księgowych, niezależnie od przypisanych ról
+function kdok_require_access(): void {
+    require_login();
+    if (!kdok_has_any_role()) {
+        http_response_code(403);
+        require_once __DIR__ . '/header.php';
+        echo '<div class="alert alert-danger m-4">Brak dostępu do modułu EOD Dokumentów Księgowych.</div>';
+        require_once __DIR__ . '/footer.php';
+        exit;
+    }
+}
+
 function kdok_user_roles(int $user_id): array {
     $rows = db_all("SELECT role FROM kdok_user_roles WHERE user_id = ?", [$user_id]);
     return array_column($rows, 'role');

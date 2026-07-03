@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
 require_once __DIR__ . '/../includes/webauthn.php';
 
-require_login();
+kdok_require_access();
 kdok_migrate();
 webauthn_migrate();
 

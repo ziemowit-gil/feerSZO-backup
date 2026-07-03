@@ -10,7 +10,7 @@ require_once __DIR__ . '/../includes/webauthn.php';
 
 webauthn_migrate();
 
-require_login();
+kdok_require_access();
 kdok_migrate();
 
 $id  = (int)($_GET['id'] ?? 0);

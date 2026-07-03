@@ -10,7 +10,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
 
-require_login();
+kdok_require_access();
 kdok_migrate();
 
 $id  = (int)($_GET['id'] ?? 0);
