@@ -165,20 +165,28 @@ $edit_automations = $edit ? (json_decode($edit['automations_json'] ?? '[]', true
 $all_custom_fields = CrmManager::getFieldDefs('', true);
 $all_groups    = CrmManager::getGroups();
 
+/** Pobiera listę projektów Nozbe RAZ na całe żądanie (nie osobno dla każdej automatyzacji). */
+function getNozbeProjectsOnce(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = [];
+    try {
+        require_once dirname(dirname(__DIR__)) . '/includes/nozbe.php';
+        if (nozbe_setting('nozbe_enabled') === '1') {
+            $nz = NozbeAPI::from_settings();
+            if ($nz->is_configured()) $cache = $nz->get_projects();
+        }
+    } catch (\Throwable $e) {}
+    return $cache;
+}
+
 /** Renderuj pola konfiguracji automatyzacji dla edytora. */
 function renderAutoConfig(int $idx, string $type, array $cfg): string {
     $n = fn(string $k) => "auto_config[{$idx}][{$k}]";
     $v = fn(string $k, string $d = '') => htmlspecialchars($cfg[$k] ?? $d, ENT_QUOTES);
 
-    $all_statuses = crm_statuses();
-    $nozbe_projects = [];
-    try {
-        require_once dirname(dirname(__DIR__)) . '/includes/nozbe.php';
-        if (nozbe_setting('nozbe_enabled') === '1') {
-            $nz = NozbeAPI::from_settings();
-            if ($nz->is_configured()) $nozbe_projects = $nz->get_projects();
-        }
-    } catch (\Throwable $e) {}
+    $all_statuses   = crm_statuses();
+    $nozbe_projects = getNozbeProjectsOnce();
 
     $html = '';
     switch ($type) {
@@ -924,22 +932,16 @@ const CF = {
 
 // ── Automatyzacje ─────────────────────────────────────────────────────────────
 <?php
-// Pobierz projekty Nozbe dla JS (odfiltruj puste nazwy / single-actions)
+// Reużywa listę projektów Nozbe pobraną (co najwyżej raz) przez renderAutoConfig() —
+// bez tego każda automatyzacja typu nozbe_task + ten blok JS robiły osobne wywołanie
+// zewnętrznego API Nozbe na jednym ładowaniu strony (ryzyko timeoutu/502 przy wolnym API).
 $nozbe_projects_for_js = [];
-try {
-    require_once dirname(dirname(__DIR__)) . '/includes/nozbe.php';
-    if (nozbe_setting('nozbe_enabled') === '1') {
-        $nz_js = NozbeAPI::from_settings();
-        if ($nz_js->is_configured()) {
-            foreach ($nz_js->get_projects() as $p) {
-                $name = trim($p['name'] ?? '');
-                if ($name && empty($p['is_single_actions']) && empty($p['is_template'])) {
-                    $nozbe_projects_for_js[] = ['id'=>$p['id'], 'name'=>$name];
-                }
-            }
-        }
+foreach (getNozbeProjectsOnce() as $p) {
+    $name = trim($p['name'] ?? '');
+    if ($name && empty($p['is_single_actions']) && empty($p['is_template'])) {
+        $nozbe_projects_for_js[] = ['id'=>$p['id'], 'name'=>$name];
     }
-} catch (\Throwable $e) {}
+}
 $nozbe_default_proj_js = nozbe_setting('nozbe_default_project_id');
 ?>
 const AT = {
