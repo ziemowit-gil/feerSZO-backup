@@ -78,7 +78,7 @@ $doc_out = [
 
 // Kroki — pełne dane
 $steps_raw = kdok_all(
-    "SELECT * FROM kdok_steps WHERE doc_id = ? ORDER BY CASE step_type WHEN 'meryt' THEN 1 WHEN 'formal' THEN 2 WHEN 'zatwierdza' THEN 3 END",
+    "SELECT * FROM kdok_steps WHERE doc_id = ? ORDER BY CASE step_type WHEN 'formal' THEN 1 WHEN 'meryt' THEN 2 WHEN 'zatwierdza' THEN 3 END",
     [$id]
 );
 $steps_out = [];

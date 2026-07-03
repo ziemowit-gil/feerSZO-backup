@@ -484,8 +484,8 @@ echo pagination_html($pag, '?' . $qs . ($qs ? '&' : ''));
 
     // Step labels
     var stepLabels = {
-      meryt:      { label: 'Sprawdzono merytorycznie',        color: 'primary', icon: 'bi-patch-check' },
       formal:     { label: 'Sprawdzono formalnie i rachunkowo', color: 'info',    icon: 'bi-calculator' },
+      meryt:      { label: 'Sprawdzono merytorycznie',        color: 'primary', icon: 'bi-patch-check' },
       zatwierdza: { label: 'Zatwierdzono do wypłaty',          color: 'success', icon: 'bi-cash-coin'  },
     };
 
@@ -548,7 +548,7 @@ echo pagination_html($pag, '?' . $qs . ($qs ? '&' : ''));
     html += '<div class="p-3">';
     html += '<h6 class="fw-semibold mb-3"><i class="bi bi-list-check"></i> Etapy akceptacji</h6>';
 
-    var stepOrder = ['meryt', 'formal', 'zatwierdza'];
+    var stepOrder = ['formal', 'meryt', 'zatwierdza'];
     stepOrder.forEach(function (skey) {
       var cfg  = stepLabels[skey];
       var step = steps[skey] || null;

@@ -288,8 +288,8 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- Kroki akceptacji -->
     <?php
     $steps_config = [
-        'meryt'      => ['label' => 'Sprawdzono pod kątem merytorycznym', 'icon' => 'bi-patch-check', 'color' => 'primary'],
         'formal'     => ['label' => 'Sprawdzono pod kątem formalnym i rachunkowym', 'icon' => 'bi-calculator', 'color' => 'info'],
+        'meryt'      => ['label' => 'Sprawdzono pod kątem merytorycznym', 'icon' => 'bi-patch-check', 'color' => 'primary'],
         'zatwierdza' => ['label' => 'Zatwierdzam do wypłaty', 'icon' => 'bi-cash-coin', 'color' => 'success'],
     ];
 

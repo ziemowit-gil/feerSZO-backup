@@ -239,9 +239,12 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <div class="alert alert-info small mb-3">
-  <strong>Autoryzacja dwuskładnikowa:</strong>
-  Każda akceptacja dokumentu wymaga <strong>IKAKS</strong> (Indywidualny Kod Autoryzacyjny — min. 6 znaków, ustawiany przez admina)
-  oraz ważnego <strong>certyfikatu X.509</strong> (PEM). Imię i nazwisko na PDF pochodzi z pola <code>CN</code> certyfikatu.
+  <strong>Autoryzacja:</strong>
+  Każda akceptacja dokumentu wymaga ważnego <strong>certyfikatu X.509</strong> (PEM) oraz — jako podstawowej metody —
+  zarejestrowanego przez użytkownika klucza <strong>WebAuthn</strong> (Mój profil → Klucze bezpieczeństwa).
+  Osoba bez zarejestrowanego klucza może awaryjnie użyć <strong>IKAKS</strong> (Indywidualny Kod Autoryzacyjny —
+  min. 6 znaków, ustawiany tutaj przez admina) — nadaj go, jeśli ktoś nie ma jeszcze klucza WebAuthn.
+  Imię i nazwisko na PDF pochodzi z pola <code>CN</code> certyfikatu.
 </div>
 
 <div class="table-responsive">

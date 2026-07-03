@@ -32,15 +32,15 @@ const KDOK_STATUSES = [
 ];
 
 const KDOK_STEPS = [
-    'meryt'      => 'Sprawdzono merytorycznie',
     'formal'     => 'Sprawdzono formalnie i rachunkowo',
+    'meryt'      => 'Sprawdzono merytorycznie',
     'zatwierdza' => 'Zatwierdzono do wypłaty',
 ];
 
 const KDOK_ROLES = [
     'upload'     => 'Może dodawać dokumenty',
-    'meryt'      => 'Akceptacja merytoryczna',
     'formal'     => 'Akceptacja formalna i rachunkowa',
+    'meryt'      => 'Akceptacja merytoryczna',
     'zatwierdza' => 'Zatwierdzenie do wypłaty',
 ];
 
@@ -697,7 +697,7 @@ function kdok_get(int $id): ?array {
     // Pobierz kroki — zaindeksuj po step_type
     $doc['steps'] = [];
     foreach (kdok_all("SELECT * FROM kdok_steps WHERE doc_id = ?
-        ORDER BY CASE step_type WHEN 'meryt' THEN 1 WHEN 'formal' THEN 2 WHEN 'zatwierdza' THEN 3 END",
+        ORDER BY CASE step_type WHEN 'formal' THEN 1 WHEN 'meryt' THEN 2 WHEN 'zatwierdza' THEN 3 END",
         [$id]) as $s) {
         $doc['steps'][$s['step_type']] = $s;
     }
@@ -800,20 +800,6 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $font_dir);
     $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $font_dir);
 
-    // Oryginalne strony PDF
-    $orig_path = UPLOAD_DIR . ltrim($doc['file_path'] ?? '', '/');
-    if ($doc['file_path'] && is_file($orig_path)) {
-        try {
-            $count = $pdf->setSourceFile($orig_path);
-            for ($i = 1; $i <= $count; $i++) {
-                $tpl  = $pdf->importPage($i);
-                $size = $pdf->getTemplateSize($tpl);
-                $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
-                $pdf->useTemplate($tpl);
-            }
-        } catch (\Exception $e) {}
-    }
-
     // ── Oryginalne strony PDF ─────────────────────────────────────────────────
     $orig_path = UPLOAD_DIR . ltrim($doc['file_path'] ?? '', '/');
     if ($doc['file_path'] && is_file($orig_path)) {
@@ -833,64 +819,113 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $W   = 267;
     $LIM = 195; // max Y na stronie A4L
 
-    // pomocnik: pasek-nagłówek sekcji
-    $sectionBar = function (string $txt) use ($pdf, $W) {
-        $pdf->SetFillColor(22, 53, 102); $pdf->SetTextColor(255, 255, 255);
+    // Paleta — łupkowy grafit + ciepły akcent (odróżnia kartę od oryginału dokumentu)
+    $INK    = [33, 43, 54];    // niemal-czarny grafit — tytuły, tekst
+    $ACCENT = [43, 87, 96];    // łupkowy teal — akcenty, linie, nagłówki sekcji
+    $TINT   = [232, 238, 238]; // bardzo jasny teal — tła nagłówków tabel
+    $LINE   = [210, 215, 217]; // jasnoszare linie/obramowania
+    $GOLD   = [163, 116, 41];  // ciepły akcent — kwota, wyróżnienia
+
+    // pomocnik: etykieta sekcji (kreska akcentu + tekst + cienka linia pod spodem)
+    $sectionLabel = function (string $txt) use ($pdf, $W, $ACCENT, $INK, $LINE) {
+        $y = $pdf->GetY();
+        $pdf->SetFillColor(...$ACCENT);
+        $pdf->Rect(15, $y + 0.8, 2.2, 4, 'F');
+        $pdf->SetTextColor(...$INK);
         $pdf->SetFont('DejaVu', 'B', 8.5);
-        $pdf->Cell($W, 6.5, _pdf($txt), 0, 1, 'L', true);
+        $pdf->SetXY(19, $y);
+        $pdf->Cell($W - 4, 5.6, _pdf(mb_strtoupper($txt)), 0, 1, 'L');
+        $pdf->SetDrawColor(...$LINE);
+        $pdf->SetLineWidth(0.25);
+        $pdf->Line(15, $pdf->GetY() + 0.5, 15 + $W, $pdf->GetY() + 0.5);
+        $pdf->SetY($pdf->GetY() + 2.3);
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetX(15);
     };
 
-    // ── Pasek nagłówkowy ─────────────────────────────────────────────────────
-    $pdf->SetFillColor(22, 53, 102);
-    $pdf->Rect(15, 15, $W, 13, 'F');
-    $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('DejaVu', 'B', 10);
-    $pdf->SetXY(18, 15);
-    $pdf->Cell($W * 0.5, 6.5, _pdf('KARTA OBIEGU DOKUMENTU KSIĘGOWEGO'), 0, 0, 'L');
-    $pdf->SetFont('DejaVu', '', 7.5);
-    $pdf->Cell(0, 6.5, _pdf($org . '   ·   ' . date('d.m.Y H:i')), 0, 1, 'R');
-    $pdf->SetFont('DejaVu', '', 8);
-    $pdf->SetXY(18, 21.5);
+    // ── Kod kreskowy (Code128, nr obiegu) — do skanowania przy dekretacji ─────
+    $barcodeW = 0; $barcodeH = 0;
+    $barcodeTmp = null;
+    try {
+        $gen = new \Picqer\Barcode\BarcodeGeneratorPNG();
+        $png = $gen->getBarcode($doc['number'], $gen::TYPE_CODE_128, 2, 40, [0, 0, 0]);
+        $barcodeTmp = tempnam(sys_get_temp_dir(), 'kdokbc') . '.png';
+        file_put_contents($barcodeTmp, $png);
+        $barcodeW = 52; $barcodeH = 11;
+    } catch (\Throwable $e) { $barcodeTmp = null; }
+
+    // ── Nagłówek — cienka linijka eyebrow + reguła akcentu ────────────────────
+    $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetTextColor(120, 128, 132);
+    $pdf->SetXY(15, 15);
+    $pdf->Cell($W * 0.6, 4, _pdf(mb_strtoupper('System EOD Dokumentów Księgowych' . ($org ? ' · ' . $org : ''))), 0, 0, 'L');
+    $pdf->Cell($W * 0.4, 4, _pdf('Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'R');
+    $pdf->SetDrawColor(...$ACCENT);
+    $pdf->SetLineWidth(0.8);
+    $pdf->Line(15, 19.5, 15 + $W, 19.5);
+    $pdf->SetLineWidth(0.2);
+    $pdf->SetTextColor(0, 0, 0);
+
+    // ── Tytuł (lewo) + kod kreskowy i kwota (prawo) ───────────────────────────
+    $leftW  = $W * 0.62;
+    $rightX = 15 + $leftW + 5;
+    $rightW = $W - $leftW - 5;
+    $topY   = 23;
+
     $typLabel = KDOK_TYPES[$doc['type']]['label'] ?? $doc['type'];
-    $pdf->Cell(0, 6, _pdf($typLabel . '   ·   nr obiegu (system): ' . $doc['number']), 0, 1, 'L');
-    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetXY(15, $topY);
+    $pdf->SetFont('DejaVu', 'B', 8);
+    $pdf->SetTextColor(...$ACCENT);
+    $pdf->Cell($leftW, 4.5, _pdf(mb_strtoupper($typLabel) . '   ·   NR OBIEGU: ' . $doc['number']), 0, 1, 'L');
+    $pdf->SetTextColor(...$INK);
+    $pdf->SetX(15);
+    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->MultiCell($leftW, 6.5, _pdf($doc['title']), 0, 'L');
 
-    // ── Tytuł dokumentu ──────────────────────────────────────────────────────
-    $pdf->SetY(31);
-    $pdf->SetFont('DejaVu', 'B', 12);
-    $pdf->SetTextColor(22, 53, 102);
-    $pdf->MultiCell($W * 0.72, 7, _pdf($doc['title']), 0, 'L');
-    $pdf->SetTextColor(0, 0, 0);
-
-    // Kwota — w prawym górnym rogu (nad metadanymi), jeśli podana
-    if ($doc['kwota']) {
-        $pdf->SetXY(15 + $W * 0.74, 31);
-        $pdf->SetFillColor(22, 53, 102);
-        $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetFont('DejaVu', 'B', 14);
-        $pdf->Cell($W * 0.26, 9, _pdf($doc['kwota'] . ' PLN'), 0, 0, 'R', true);
-        $pdf->SetTextColor(0, 0, 0);
-        $pdf->Ln();
+    if ($barcodeTmp) {
+        $pdf->Image($barcodeTmp, $rightX + ($rightW - $barcodeW) / 2, $topY, $barcodeW, $barcodeH, 'PNG');
+        @unlink($barcodeTmp);
+        $pdf->SetFont('DejaVu', '', 6.5);
+        $pdf->SetTextColor(...$INK);
+        $pdf->SetXY($rightX, $topY + $barcodeH + 0.5);
+        $pdf->Cell($rightW, 3.5, _pdf($doc['number']), 0, 1, 'C');
     }
 
+    if ($doc['kwota']) {
+        $boxY = $topY + $barcodeH + 5.5;
+        $pdf->SetDrawColor(...$LINE);
+        $pdf->SetFillColor(255, 255, 255);
+        $pdf->Rect($rightX, $boxY, $rightW, 11, 'DF');
+        $pdf->SetFont('DejaVu', '', 6.5);
+        $pdf->SetTextColor(120, 128, 132);
+        $pdf->SetXY($rightX + 3, $boxY + 1.3);
+        $pdf->Cell($rightW - 6, 3.5, _pdf('KWOTA DO WYPŁATY'), 0, 1, 'L');
+        $pdf->SetFont('DejaVu', 'B', 11);
+        $pdf->SetTextColor(...$GOLD);
+        $pdf->SetXY($rightX + 3, $boxY + 4.8);
+        $pdf->Cell($rightW - 6, 5.5, _pdf($doc['kwota'] . ' PLN'), 0, 1, 'L');
+        $pdf->SetTextColor(0, 0, 0);
+    }
+
+    $y = max($pdf->GetY(), $topY + $barcodeH + ($doc['kwota'] ? 17 : 6)) + 3;
+
     // ── Opis merytoryczny — wyróżniony blok ──────────────────────────────────
-    $y = max($pdf->GetY(), 31 + 9) + 3;
     if ($doc['description']) {
         $descLines = max(2, (int)ceil(mb_strlen($doc['description']) / 100) + 1);
         $descH     = $descLines * 5 + 8;
-        $pdf->SetFillColor(255, 255, 255);
-        $pdf->Rect(15, $y, $W, $descH, 'FD');
-        $pdf->SetFillColor(0, 0, 0);
-        $pdf->Rect(15, $y, 3, $descH, 'F'); // lewy pasek akcentu
-        $pdf->SetFont('DejaVu', 'B', 7.5);
-        $pdf->SetTextColor(0, 0, 0);
-        $pdf->SetXY(21, $y + 2);
-        $pdf->Cell(0, 4.5, _pdf('OPIS MERYTORYCZNY'), 0, 1);
+        $pdf->SetDrawColor(...$LINE);
+        $pdf->SetFillColor(250, 250, 249);
+        $pdf->Rect(15, $y, $W, $descH, 'DF');
+        $pdf->SetFillColor(...$ACCENT);
+        $pdf->Rect(15, $y, 1.4, $descH, 'F'); // lewy pasek akcentu
+        $pdf->SetFont('DejaVu', 'B', 7);
+        $pdf->SetTextColor(...$ACCENT);
+        $pdf->SetXY(20, $y + 2);
+        $pdf->Cell(0, 4, _pdf('OPIS MERYTORYCZNY'), 0, 1);
         $pdf->SetFont('DejaVu', '', 9);
-        $pdf->SetX(21);
-        $pdf->MultiCell($W - 6, 5, _pdf($doc['description']), 0, 'L');
+        $pdf->SetTextColor(...$INK);
+        $pdf->SetX(20);
+        $pdf->MultiCell($W - 8, 5, _pdf($doc['description']), 0, 'L');
+        $pdf->SetTextColor(0, 0, 0);
         $y = $pdf->GetY() + 3;
     }
 
@@ -900,12 +935,12 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     if ($doc['grant_name']) $extras[] = 'Grant: ' . $doc['grant_name'];
     if ($doc['uwagi'])      $extras[] = 'Uwagi: ' . $doc['uwagi'];
     if ($extras) {
-        $pdf->SetFillColor(255, 249, 215);
+        $pdf->SetFillColor(...$TINT);
         $pdf->Rect(15, $y, $W, 6, 'F');
         $pdf->SetFont('DejaVu', '', 7.5);
-        $pdf->SetTextColor(100, 70, 0);
+        $pdf->SetTextColor(...$ACCENT);
         $pdf->SetXY(18, $y + 0.8);
-        $pdf->Cell(0, 4.5, _pdf(implode('   |   ', $extras)), 0, 1);
+        $pdf->Cell(0, 4.5, _pdf(implode('     ·     ', $extras)), 0, 1);
         $pdf->SetTextColor(0, 0, 0);
         $y += 7;
     }
@@ -915,86 +950,101 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
 
     // ── Tabela akceptacji ─────────────────────────────────────────────────────
     $pdf->SetX(15);
-    $sectionBar('ETAPY AKCEPTACJI — PODPIS ELEKTRONICZNY X.509 + IKAKS');
+    $sectionLabel('Etapy akceptacji — podpis elektroniczny X.509 + WebAuthn/IKAKS');
 
     $cW = [75, 55, 32, 22, 83]; // etap | CN | data | decyzja | autoryzacja
-    $pdf->SetFillColor(230, 237, 250); $pdf->SetFont('DejaVu', 'B', 7.5);
-    $pdf->Cell($cW[0], 5.5, _pdf('Etap'),                  1, 0, 'L', true);
-    $pdf->Cell($cW[1], 5.5, _pdf('Imie i nazwisko (CN)'),  1, 0, 'L', true);
-    $pdf->Cell($cW[2], 5.5, _pdf('Data i godzina'),        1, 0, 'C', true);
-    $pdf->Cell($cW[3], 5.5, _pdf('Decyzja'),               1, 0, 'C', true);
-    $pdf->Cell($cW[4], 5.5, _pdf('Autoryzacja X.509'),     1, 1, 'C', true);
+    $pdf->SetDrawColor(...$LINE);
+    $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('DejaVu', 'B', 7.5);
+    $pdf->Cell($cW[0], 6, _pdf('Etap'),                  'B', 0, 'L', true);
+    $pdf->Cell($cW[1], 6, _pdf('Imie i nazwisko (CN)'),  'B', 0, 'L', true);
+    $pdf->Cell($cW[2], 6, _pdf('Data i godzina'),        'B', 0, 'C', true);
+    $pdf->Cell($cW[3], 6, _pdf('Decyzja'),               'B', 0, 'C', true);
+    $pdf->Cell($cW[4], 6, _pdf('Autoryzacja X.509'),     'B', 1, 'C', true);
 
-    $stepColors = ['ok' => [235, 250, 238], 'uwagi' => [255, 250, 220], 'odrzucono' => [255, 235, 235], '' => [255, 255, 255]];
+    $stepDot = ['ok' => [46, 125, 90], 'uwagi' => [163, 116, 41], 'odrzucono' => [178, 58, 58], '' => [170, 175, 178]];
     $pdf->SetFont('DejaVu', '', 7.5);
-    foreach (['meryt' => 'Sprawdzono merytorycznie', 'formal' => 'Sprawdzono formalnie i rachunkowo', 'zatwierdza' => 'Zatwierdzono do wyplaty'] as $key => $label) {
+    $rowAlt = false;
+    foreach (['formal' => 'Sprawdzono formalnie i rachunkowo', 'meryt' => 'Sprawdzono merytorycznie', 'zatwierdza' => 'Zatwierdzono do wyplaty'] as $key => $label) {
         $step   = $doc['steps'][$key] ?? null;
         $status = $step['status'] ?? '';
         $dec    = match($status) { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', 'odrzucono' => 'ODRZUCONO', default => 'Oczekuje' };
         $dt     = ($step && $step['decided_at']) ? date('d.m.Y H:i', strtotime($step['decided_at'])) : '—';
         $cn     = ($step['cert_cn'] ?? '') ?: ($step['user_name'] ?? '—');
         $fp     = $step['cert_fingerprint'] ?? '';
-        [$r,$g,$b] = $stepColors[$status] ?? $stepColors[''];
+        $dot    = $stepDot[$status] ?? $stepDot[''];
+        $rowAlt = !$rowAlt;
 
-        $pdf->SetFillColor($r, $g, $b);
-        $pdf->Cell($cW[0], 6, _pdf($label),  1, 0, 'L', true);
-        $pdf->Cell($cW[1], 6, _pdf($cn),     1, 0, 'L', true);
-        $pdf->Cell($cW[2], 6, _pdf($dt),     1, 0, 'C', true);
-        $pdf->Cell($cW[3], 6, _pdf($dec),    1, 0, 'C', true);
-        $pdf->Cell($cW[4], 6, _pdf($fp ? 'X.509 + IKAKS' : '—'), 1, 1, 'C', true);
+        $pdf->SetFillColor($rowAlt ? 250 : 255, $rowAlt ? 250 : 255, $rowAlt ? 249 : 255);
+        $pdf->Cell($cW[0], 6.5, _pdf($label),  'B', 0, 'L', true);
+        $pdf->Cell($cW[1], 6.5, _pdf($cn),     'B', 0, 'L', true);
+        $pdf->Cell($cW[2], 6.5, _pdf($dt),     'B', 0, 'C', true);
+        $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->SetTextColor(...$dot);
+        $pdf->Cell($cW[3], 6.5, _pdf($dec), 'B', 0, 'C', true);
+        $pdf->SetFont('DejaVu', '', 7.5);
+        $pdf->SetTextColor(...$INK);
+        $pdf->Cell($cW[4], 6.5, _pdf($fp ? 'X.509 + WebAuthn/IKAKS' : '—'), 'B', 1, 'C', true);
 
         if ($fp) {
-            $pdf->SetFont('DejaVu', '', 5.5); $pdf->SetFillColor(245, 248, 255); $pdf->SetX(15);
+            $pdf->SetFont('DejaVu', '', 5.5); $pdf->SetTextColor(120, 128, 132); $pdf->SetX(15);
             $fc = str_replace(':', '', $fp);
-            $pdf->MultiCell($W, 3.8, _pdf('SHA-256: ' . substr($fc, 0, 32) . "\n         " . substr($fc, 32)), 1, 'L', true);
-            $pdf->SetFont('DejaVu', '', 7.5);
+            $pdf->MultiCell($W, 3.6, _pdf('SHA-256  ' . substr($fc, 0, 32) . "\n              " . substr($fc, 32)), 'B', 'L', false);
+            $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(...$INK);
         }
         if ($step && $step['notes']) {
-            $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetFillColor(255, 252, 225); $pdf->SetX(15);
-            $pdf->MultiCell($W, 4, _pdf('Uwagi: ' . $step['notes']), 1, 'L', true);
-            $pdf->SetFont('DejaVu', '', 7.5);
+            $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetTextColor(...$GOLD); $pdf->SetX(15);
+            $pdf->MultiCell($W, 4, _pdf('Uwagi: ' . $step['notes']), 'B', 'L', false);
+            $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(...$INK);
         }
     }
+    $pdf->SetDrawColor(...$LINE);
+    $pdf->Line(15, $pdf->GetY(), 15 + $W, $pdf->GetY());
+    $pdf->SetTextColor(0, 0, 0);
 
-    $y = $pdf->GetY() + 4;
+    $y = $pdf->GetY() + 5;
 
     // ── Historia obiegu ───────────────────────────────────────────────────────
     if ($y > $LIM - 30) { $pdf->AddPage('L', 'A4'); $y = 15; }
     $pdf->SetXY(15, $y);
-    $sectionBar('HISTORIA OBIEGU');
+    $sectionLabel('Historia obiegu');
 
     $hW = [34, 58, $W - 92];
-    $pdf->SetFillColor(230, 237, 250); $pdf->SetFont('DejaVu', 'B', 7.5);
-    $pdf->Cell($hW[0], 5, _pdf('Data i czas'), 1, 0, 'C', true);
-    $pdf->Cell($hW[1], 5, _pdf('Uzytkownik'),  1, 0, 'C', true);
-    $pdf->Cell($hW[2], 5, _pdf('Zdarzenie'),   1, 1, 'C', true);
+    $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('DejaVu', 'B', 7.5);
+    $pdf->Cell($hW[0], 5.5, _pdf('Data i czas'), 'B', 0, 'C', true);
+    $pdf->Cell($hW[1], 5.5, _pdf('Uzytkownik'),  'B', 0, 'C', true);
+    $pdf->Cell($hW[2], 5.5, _pdf('Zdarzenie'),   'B', 1, 'C', true);
+    $pdf->SetTextColor(0, 0, 0);
 
     $pdf->SetFont('DejaVu', '', 7.5); $alt = false;
     foreach ($history as $row) {
         if ($pdf->GetY() > $LIM - 10) { $pdf->AddPage('L', 'A4'); }
         $alt = !$alt;
-        $pdf->SetFillColor($alt ? 248 : 255, $alt ? 249 : 255, $alt ? 252 : 255);
+        $pdf->SetFillColor($alt ? 250 : 255, $alt ? 250 : 255, $alt ? 249 : 255);
         $txt = $row['action'] . ($row['note'] ? ': ' . $row['note'] : '');
-        $pdf->Cell($hW[0], 5, _pdf(date('d.m.Y H:i', strtotime($row['created_at']))), 1, 0, 'C', true);
-        $pdf->Cell($hW[1], 5, _pdf($row['user_name']), 1, 0, 'L', true);
-        $pdf->Cell($hW[2], 5, _pdf($txt),              1, 1, 'L', true);
+        $pdf->Cell($hW[0], 5.5, _pdf(date('d.m.Y H:i', strtotime($row['created_at']))), 'B', 0, 'C', true);
+        $pdf->Cell($hW[1], 5.5, _pdf($row['user_name']), 'B', 0, 'L', true);
+        $pdf->Cell($hW[2], 5.5, _pdf($txt),              'B', 1, 'L', true);
     }
+    $pdf->SetDrawColor(...$LINE);
+    $pdf->Line(15, $pdf->GetY(), 15 + $W, $pdf->GetY());
 
-    $y = $pdf->GetY() + 4;
+    $y = $pdf->GetY() + 5;
 
     // ── Klauzula ─────────────────────────────────────────────────────────────
     if ($y > $LIM - 22) { $pdf->AddPage('L', 'A4'); $y = 15; }
     $pdf->SetXY(15, $y);
-    $sectionBar('KLAUZULA ZATWIERDZENIA ELEKTRONICZNEGO');
-    $pdf->SetFillColor(248, 249, 252);
+    $sectionLabel('Klauzula zatwierdzenia elektronicznego');
+    $pdf->SetDrawColor(...$LINE);
+    $pdf->SetFillColor(250, 250, 249);
     $pdf->SetFont('DejaVu', '', 7);
+    $pdf->SetTextColor(...$INK);
     $klauzula = 'Niniejszy dokument zostal zatwierdzony elektronicznie w systemie EOD Dokumentow Ksiegowych ' . $org
         . '. Elektroniczne zatwierdzenie jest rownowazne z podpisem wlasnorecznym (art. 7 ustawy o rachunkowosci,'
         . ' Dz.U. 2023 poz. 120). Kazdy etap akceptacji wymagal certyfikatu X.509 oraz klucza sprzetowego WebAuthn'
         . ' (lub, w przypadku braku klucza, kodu IKAKS).';
     $pdf->MultiCell($W, 4, _pdf($klauzula), 1, 'J', true);
     $pdf->SetFont('DejaVu', '', 6);
-    $pdf->SetTextColor(120, 120, 120);
+    $pdf->SetTextColor(120, 128, 132);
     $pdf->SetXY(15, $pdf->GetY() + 1);
     $pdf->Cell($W, 4, _pdf('SHA-256: ' . ($doc['file_sha256'] ?: '—') . '   |   ' . $doc['number'] . '   |   ' . date('d.m.Y H:i:s')), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);

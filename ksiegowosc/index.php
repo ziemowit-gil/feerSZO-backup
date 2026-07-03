@@ -167,8 +167,8 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
           <th>Typ</th>
           <th>Tytuł</th>
           <th>Status</th>
-          <th class="text-center">Mer.</th>
           <th class="text-center">Fml.</th>
+          <th class="text-center">Mer.</th>
           <th class="text-center">Wyp.</th>
           <th>Dodano</th>
           <th>Dodał</th>
@@ -190,7 +190,7 @@ $years_range = range((int)date('Y') - 3, (int)date('Y') + 1);
           <td><i class="<?= h(KDOK_TYPES[$doc['type']]['icon'] ?? 'bi-file') ?>"></i> <?= h(KDOK_TYPES[$doc['type']]['label'] ?? $doc['type']) ?></td>
           <td><?= h($doc['title']) ?></td>
           <td><?= kdok_status_badge($doc['status']) ?></td>
-          <?php foreach (['meryt','formal','zatwierdza'] as $step): ?>
+          <?php foreach (['formal','meryt','zatwierdza'] as $step): ?>
           <td class="text-center">
             <?php $s = $doc['steps'][$step] ?? 'oczekuje'; ?>
             <?php if ($s === 'ok'): ?>
