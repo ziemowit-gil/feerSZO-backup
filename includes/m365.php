@@ -456,6 +456,10 @@ class M365Graph {
             $url .= "&\$filter=" . rawurlencode("receivedDateTime ge {$since}");
         }
         $resp = $this->http_get($url);
+        if (isset($resp['error'])) {
+            $msg = $resp['error']['message'] ?? json_encode($resp['error']);
+            throw new \RuntimeException("Graph API (inbox_messages): {$msg}");
+        }
         return $resp['value'] ?? [];
     }
 
