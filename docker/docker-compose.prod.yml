@@ -79,6 +79,58 @@ services:
       - "traefik.http.middlewares.sec-headers.headers.customResponseHeaders.X-Powered-By="
 
       # ══════════════════════════════════════════════════════════════════════
+      #  ALIASY feer.org.pl (bez 301 — ta sama apka, .htaccess robi resztę)
+      #
+      #  crm./ti./strukturaorg./szo-logowanie365.feer.org.pl to CELE przekierowań
+      #  ngosystem.pl poniżej — muszą mieć własny router, inaczej Traefik zwraca
+      #  404 (brak reguły Host dopasowującej te subdomeny).
+      # ══════════════════════════════════════════════════════════════════════
+
+      - "traefik.http.routers.feer-crm.rule=Host(`crm.feer.org.pl`)"
+      - "traefik.http.routers.feer-crm.entrypoints=websecure"
+      - "traefik.http.routers.feer-crm.tls=true"
+      - "traefik.http.routers.feer-crm.tls.certresolver=le"
+      - "traefik.http.routers.feer-crm.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-crm.service=feer"
+      - "traefik.http.routers.feer-crm-http.rule=Host(`crm.feer.org.pl`)"
+      - "traefik.http.routers.feer-crm-http.entrypoints=web"
+      - "traefik.http.routers.feer-crm-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-crm-http.service=feer"
+
+      - "traefik.http.routers.feer-ti.rule=Host(`ti.feer.org.pl`)"
+      - "traefik.http.routers.feer-ti.entrypoints=websecure"
+      - "traefik.http.routers.feer-ti.tls=true"
+      - "traefik.http.routers.feer-ti.tls.certresolver=le"
+      - "traefik.http.routers.feer-ti.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-ti.service=feer"
+      - "traefik.http.routers.feer-ti-http.rule=Host(`ti.feer.org.pl`)"
+      - "traefik.http.routers.feer-ti-http.entrypoints=web"
+      - "traefik.http.routers.feer-ti-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-ti-http.service=feer"
+
+      - "traefik.http.routers.feer-struktura.rule=Host(`strukturaorg.feer.org.pl`)"
+      - "traefik.http.routers.feer-struktura.entrypoints=websecure"
+      - "traefik.http.routers.feer-struktura.tls=true"
+      - "traefik.http.routers.feer-struktura.tls.certresolver=le"
+      - "traefik.http.routers.feer-struktura.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-struktura.service=feer"
+      - "traefik.http.routers.feer-struktura-http.rule=Host(`strukturaorg.feer.org.pl`)"
+      - "traefik.http.routers.feer-struktura-http.entrypoints=web"
+      - "traefik.http.routers.feer-struktura-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-struktura-http.service=feer"
+
+      - "traefik.http.routers.feer-logowanie.rule=Host(`szo-logowanie365.feer.org.pl`)"
+      - "traefik.http.routers.feer-logowanie.entrypoints=websecure"
+      - "traefik.http.routers.feer-logowanie.tls=true"
+      - "traefik.http.routers.feer-logowanie.tls.certresolver=le"
+      - "traefik.http.routers.feer-logowanie.middlewares=sec-headers@docker"
+      - "traefik.http.routers.feer-logowanie.service=feer"
+      - "traefik.http.routers.feer-logowanie-http.rule=Host(`szo-logowanie365.feer.org.pl`)"
+      - "traefik.http.routers.feer-logowanie-http.entrypoints=web"
+      - "traefik.http.routers.feer-logowanie-http.middlewares=https-redirect@docker"
+      - "traefik.http.routers.feer-logowanie-http.service=feer"
+
+      # ══════════════════════════════════════════════════════════════════════
       #  PRZEKIEROWANIA ngosystem.pl → feer.org.pl (301 Permanent)
       #
       #  Każda subdomena ngosystem.pl dostaje router HTTP + HTTPS.

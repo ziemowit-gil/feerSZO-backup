@@ -39,6 +39,15 @@ RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
+# ── Subdomena crm. → moduł CRM ──────────────────────────────────────────────
+# Host crm.feer.org.pl WEWNĘTRZNIE serwuje moduł crm/ (URL w przeglądarce
+# zostaje czysty, jak przy aliasie strukturaorg.). Pomijamy sam katalog modułu
+# (aby nie zapętlić) oraz zasoby statyczne / strony błędów.
+RewriteCond %{HTTP_HOST} ^crm\. [NC]
+RewriteCond %{REQUEST_URI} !^/crm/ [NC]
+RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteRule ^(.*)$ /crm/$1 [L]
+
 # ── Subdomena strukturaorg. → katalog / struktura organizacji ───────────────
 # Host strukturaorg.feer.org.pl WEWNĘTRZNIE serwuje moduł directory/ (URL w
 # przeglądarce zostaje czysty, jak przy aliasach CRM / panelu TI). Pomijamy sam
