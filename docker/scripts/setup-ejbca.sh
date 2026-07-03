@@ -155,10 +155,13 @@ done
 # ── 8. Logi — instrukcje enrollmentu SuperAdmina ──────────────────────────────
 section "8. Logi EJBCA (szukaj instrukcji SuperAdmin)"
 
-if docker logs "${APP_CONTAINER}" 2>&1 | grep -qi "superadmin"; then
+if docker logs "${APP_CONTAINER}" 2>&1 | grep -qi "enrollment url"; then
+    docker logs "${APP_CONTAINER}" 2>&1 | grep -i -B2 -A 10 "enrollment url"
+elif docker logs "${APP_CONTAINER}" 2>&1 | grep -qi "superadmin"; then
+    warn "Appserver jeszcze nie wypisał URL-a enrollmentu — może wciąż kończyć start. Fragment o SuperAdmin:"
     docker logs "${APP_CONTAINER}" 2>&1 | grep -i -B2 -A 40 "superadmin" | head -80
 else
-    warn "Nie znaleziono wzmianki o SuperAdmin w logach — pokazuję ostatnie 80 linii:"
+    warn "Nie znaleziono jeszcze instrukcji enrollmentu w logach — pokazuję ostatnie 80 linii:"
     docker logs "${APP_CONTAINER}" --tail=80
 fi
 
@@ -171,9 +174,9 @@ echo ""
 echo -e "  ${BOLD}Public Web / RA / OCSP / CRL:${RESET}  https://${CA_DOMAIN}/"
 echo -e "  ${BOLD}AdminWeb (wymaga cert. klienta):${RESET}  https://${CA_DOMAIN}:8443/ejbca/adminweb/"
 echo ""
-echo -e "  ${YELLOW}Instrukcje enrollmentu SuperAdmina są w logu powyżej.${RESET}"
-echo -e "  Jeśli przewinęły się zanim zdążyłeś przeczytać:"
-echo -e "  ${CYAN}docker logs ${APP_CONTAINER} | less${RESET}"
+echo -e "  ${YELLOW}Instrukcje enrollmentu SuperAdmina (URL + jednorazowe hasło) są w logu powyżej.${RESET}"
+echo -e "  Jeśli ich tam nie ma (appserver jeszcze kończy start), za chwilę:"
+echo -e "  ${CYAN}docker logs ${APP_CONTAINER} 2>&1 | grep -i -A 10 'enrollment url'${RESET}"
 echo ""
 echo -e "  ${BOLD}Dalsze kroki i backup:${RESET}  docker/EJBCA.md"
 echo -e "  ${BOLD}Ponowne uruchomienie tego skryptu jest bezpieczne (nie resetuje CA).${RESET}"

@@ -67,28 +67,39 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 
 ## 5. Pierwsze uruchomienie — enrollment SuperAdmina
 
-Przy pierwszym starcie (`TLS_SETUP_ENABLED=true`) EJBCA generuje własne
-Management CA oraz certyfikat klucza SuperAdmin. **Dokładne instrukcje
-(jak pobrać plik .p12 i jakie jest hasło) EJBCA wypisuje w logach kontenera**
-przy starcie — to jest oficjalny, wspierany sposób ich odczytania:
+Przy pierwszym starcie (`TLS_SETUP_ENABLED=true`) EJBCA tworzy Management CA
+i konto `superadmin`, a pod koniec startu (appserver WildFly potrzebuje na to
+2–3 minuty) wypisuje w logu kontenera dokładny URL do samodzielnego
+enrollmentu i jednorazowe hasło, w takiej postaci:
 
-```bash
-docker compose logs -f ejbca
+```
+* Initial SuperAdmin client certificate enrollment URL (adapt port to your mapping): *
+*   URL:      https://ca.feer.org.pl:443/ejbca/ra/enrollwithusername.xhtml?username=superadmin *
+*   Password: <losowe-haslo>                                                        *
 ```
 
-Poczekaj, aż appserver (WildFly) w pełni wystartuje (może to potrwać kilka minut
-przy pierwszym uruchomieniu) i przeczytaj instrukcje w logu. Zazwyczaj sprowadza
-się to do:
+Znajdź ten fragment (zamiast przewijać cały log):
 
-1. Skopiowania wygenerowanego `superadmin.p12` z kontenera (`docker cp`) na swój
-   komputer.
-2. Zaimportowania go do przeglądarki (magazyn certyfikatów osobistych).
-3. Wejścia na `https://${CA_DOMAIN}:8443/ejbca/adminweb/` w **nowym oknie
-   prywatnym** (przeglądarka musi użyć certyfikatu klienta, a nie starej sesji)
-   i wybrania zaimportowanego certyfikatu przy monicie TLS.
+```bash
+docker logs feer-ejbca 2>&1 | grep -i -A 10 "enrollment url"
+```
 
-Jeśli logi „przewiną się" zanim zdążysz je przeczytać, użyj
-`docker compose logs ejbca | less` albo `docker compose logs --since 1h ejbca`.
+Uwaga — to jest URL do **RA web** (część publiczna, port 8080 w kontenerze,
+idzie przez zwykły Traefik na 443), **nie** do AdminWeb na 8443. Nie trzeba
+niczego kopiować `docker cp` z kontenera. Kroki:
+
+1. Wejdź w przeglądarce na ten URL (domena bez `:443` w pasku, to domyślny port HTTPS).
+2. Podaj wypisane hasło — strona sama wygeneruje i pobierze plik `.p12`.
+3. Zaimportuj `.p12` do przeglądarki (magazyn certyfikatów osobistych/klienckich),
+   używając tego samego hasła.
+4. Wejdź na `https://${CA_DOMAIN}:8443/ejbca/adminweb/` w **nowym oknie
+   prywatnym** (przeglądarka musi użyć świeżo zaimportowanego certyfikatu,
+   a nie starej sesji bez certyfikatu) i wybierz go przy monicie TLS.
+
+Hasło enrollmentu jest jednorazowe (EJBCA je unieważnia po użyciu), ale
+dopóki enrollment nie jest dokończony, ktokolwiek je pozna może przejąć
+konto SuperAdmina — dokończ ten krok możliwie od razu po starcie, nie
+zostawiaj logów z hasłem w miejscach dostępnych dla innych.
 
 ## 6. Backup
 
