@@ -246,4 +246,10 @@ cron/mail_queue.php (co minutę)
 | `php.ini` | E_ALL, upload 50M, strefa Warsaw, sesje Redis |
 | `msmtp.conf` | PHP `mail()` → Mailpit |
 | `crontab` | Zadania cykliczne aplikacji |
-| `entrypoint.sh` | Start crona + Apache |
+| `entrypoint.sh` | Start crona + Apache (COPY do obrazu — musi zostać w `docker/`) |
+
+Pozostałe skrypty administracyjne (`rebuild.sh`, `update.sh`, `run.sh`, ...)
+fizycznie leżą w [`scripts/`](scripts/) — w `docker/` są tylko symlinki o tych
+samych nazwach, więc wszystkie dotychczasowe komendy (`bash rebuild.sh` itp.)
+działają bez zmian. Wyjątki, które zostały w `docker/` naprawdę (nie symlinki):
+`entrypoint.sh`, `setup.sh`, `clean.sh` — zob. [`scripts/README.md`](scripts/README.md).

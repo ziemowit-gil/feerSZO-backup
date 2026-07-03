@@ -115,17 +115,20 @@ docker/
 ├── docker-compose.prod.yml  # PROD: Traefik + SSL + php.prod.ini
 ├── docker-compose.mysql.yml # Addon: MySQL 8.4 (dev lub prod)
 ├── docker-compose.ejbca.yml # Addon: EJBCA CE — wewnętrzny CA (opcjonalny, zob. EJBCA.md)
-├── setup-ejbca.sh           # Wdraża EJBCA obok już działającego stacku
 ├── apache.conf              # VirtualHost (RemoteIP dla Traefik)
 ├── php.ini                  # Dev PHP config (E_ALL, display_errors=On)
 ├── php.prod.ini             # Prod PHP config (błędy ukryte, opcache)
-├── entrypoint.sh            # Start: uprawnienia → cron → Apache
+├── entrypoint.sh            # Start: uprawnienia → cron → Apache (musi zostać tu — COPY do obrazu)
+├── setup.sh                 # Bootstrap (curl-fetchowany przed sklonowaniem repo — musi zostać tu)
+├── clean.sh                 # Fallback curl-fetchowany przez setup.sh — musi zostać tu
 ├── crontab                  # Zadania cykliczne (mail, umowy, dispatcher)
 ├── msmtp.conf               # PHP mail() → Mailpit (dev) lub SMTP
 ├── .env.example             # Szablon zmiennych DEV
 ├── .env.prod.example        # Szablon zmiennych PROD ← wypełnij to
 ├── DEPLOY.md                # Ta instrukcja
-└── EJBCA.md                 # Wdrożenie opcjonalnego CA (EJBCA)
+├── EJBCA.md                 # Wdrożenie opcjonalnego CA (EJBCA)
+└── scripts/                 # Wszystkie pozostałe skrypty .sh (rebuild, update, run, ...)
+                              # docker/ ma symlinki o tych samych nazwach — zob. scripts/README.md
 ```
 
 ---
