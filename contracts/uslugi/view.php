@@ -99,9 +99,11 @@ $_cvh_list_url   = APP_URL . '/contracts/uslugi/list.php';
 $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
+require_once dirname(__DIR__) . '/includes/cv_layout.php';
 ?>
 
-<ul class="nav nav-tabs mb-0 no-print" id="uslugiTabs" role="tablist">
+<div class="cv-tabs-layout">
+<ul class="nav nav-pills cv-side-tabs mb-0 no-print" id="uslugiTabs" role="tablist">
 
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="tab-umowa-btn" data-bs-toggle="tab"
@@ -195,88 +197,96 @@ include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
 
 </ul>
 
-<div class="tab-content border border-top-0 rounded-bottom bg-white shadow-sm mb-3"
-     id="uslugiTabsContent" style="padding:1.25rem">
+<div class="tab-content cv-side-tabs-content" id="uslugiTabsContent">
 
 <!-- ═══════════════════ TAB 1 — UMOWA ═══════════════════ -->
 <div class="tab-pane fade" id="tab-umowa" role="tabpanel">
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Dane podstawowe</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data zawarcia</div><div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data rozpoczęcia</div><div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data zakończenia</div>
-      <div class="detail-value"><?= $row['czas_nieokreslony'] ? '<em class="text-muted">bezterminowo</em>' : date_pl($row['data_zakonczenia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Czas nieokreślony</div><div class="detail-value"><?= yn($row['czas_nieokreslony']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Okres wypowiedzenia</div><div class="detail-value"><?= h($row['okres_wypowiedzenia']) ?: '—' ?></div></div>
-    <div class="col-12"><div class="detail-label">Przedmiot usługi</div><div class="detail-value"><?= nl2br(h($row['przedmiot_uslugi'])) ?: '—' ?></div></div>
-    <div class="col-12"><div class="detail-label">Zakres usług</div><div class="detail-value"><?= nl2br(h($row['zakres_uslug'])) ?: '—' ?></div></div>
-    <div class="col-md-6"><div class="detail-label">Numer projektu / źródło finansowania</div><div class="detail-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
-  </div>
-  </div>
-  </div>
-
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Warunki finansowe</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-3"><div class="detail-label">Wartość netto</div><div class="detail-value"><?= money($row['wartosc_netto']) ?></div></div>
-    <div class="col-md-2"><div class="detail-label">VAT</div><div class="detail-value"><?= ($row['stawka_vat'] !== null && $row['stawka_vat'] !== '') ? h($row['stawka_vat']) . '%' : '—' ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Wartość brutto</div><div class="detail-value fw-bold text-success"><?= money($row['wartosc_brutto']) ?></div></div>
-    <div class="col-md-2"><div class="detail-label">Waluta</div><div class="detail-value"><?= h($row['waluta'] ?: 'PLN') ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Harmonogram płatności</div><div class="detail-value"><?= h(ucfirst($row['harmonogram_platnosci'] ?? '')) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Termin płatności (dni)</div><div class="detail-value"><?= ($row['termin_platnosci_dni'] !== null && $row['termin_platnosci_dni'] !== '') ? h($row['termin_platnosci_dni']) . ' dni' : '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Wymagana faktura VAT</div><div class="detail-value"><?= yn($row['wymagana_faktura']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Wymagany protokół odbioru</div><div class="detail-value"><?= yn($row['wymagany_protokol']) ?></div></div>
-    <?php if ($row['data_odbioru']): ?>
-    <div class="col-md-4"><div class="detail-label">Data odbioru</div><div class="detail-value"><?= date_pl($row['data_odbioru']) ?></div></div>
-    <?php endif; ?>
-  </div>
-  </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
+      <span class="cv-section-title">Dane podstawowe</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Opiekun</div><div class="cv-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data zawarcia</div><div class="cv-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data rozpoczęcia</div><div class="cv-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data zakończenia</div>
+        <div class="cv-value"><?= $row['czas_nieokreslony'] ? '<em class="text-muted">bezterminowo</em>' : date_pl($row['data_zakonczenia']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Czas nieokreślony</div><div class="cv-value"><?= yn($row['czas_nieokreslony']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Okres wypowiedzenia</div><div class="cv-value"><?= h($row['okres_wypowiedzenia']) ?: '—' ?></div></div>
+      <div class="cv-field-full"><div class="cv-label">Przedmiot usługi</div><div class="cv-value"><?= nl2br(h($row['przedmiot_uslugi'])) ?: '—' ?></div></div>
+      <div class="cv-field-full"><div class="cv-label">Zakres usług</div><div class="cv-value"><?= nl2br(h($row['zakres_uslug'])) ?: '—' ?></div></div>
+      <div class="cv-field-wide"><div class="cv-label">Numer projektu / źródło finansowania</div><div class="cv-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
+    </div>
   </div>
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Podpisanie</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Forma podpisania</div><div class="detail-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
-    <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
-    <div class="col-md-4"><div class="detail-label">Platforma</div><div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">ID dokumentu</div><div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Plik potwierdzenia</div><div class="detail-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div></div>
-    <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
-    <div class="col-md-4"><div class="detail-label">Dostawca podpisu</div><div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Nr certyfikatu</div><div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Ważność certyfikatu</div><div class="detail-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
-    <?php endif; ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-cash-coin"></i></div>
+      <span class="cv-section-title">Warunki finansowe</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Wartość netto</div><div class="cv-value"><?= money($row['wartosc_netto']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">VAT</div><div class="cv-value"><?= ($row['stawka_vat'] !== null && $row['stawka_vat'] !== '') ? h($row['stawka_vat']) . '%' : '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Wartość brutto</div><div class="cv-value fw-bold text-success"><?= money($row['wartosc_brutto']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Waluta</div><div class="cv-value"><?= h($row['waluta'] ?: 'PLN') ?></div></div>
+      <div class="cv-field"><div class="cv-label">Harmonogram płatności</div><div class="cv-value"><?= h(ucfirst($row['harmonogram_platnosci'] ?? '')) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Termin płatności (dni)</div><div class="cv-value"><?= ($row['termin_platnosci_dni'] !== null && $row['termin_platnosci_dni'] !== '') ? h($row['termin_platnosci_dni']) . ' dni' : '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Wymagana faktura VAT</div><div class="cv-value"><?= yn($row['wymagana_faktura']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Wymagany protokół odbioru</div><div class="cv-value"><?= yn($row['wymagany_protokol']) ?></div></div>
+      <?php if ($row['data_odbioru']): ?>
+      <div class="cv-field"><div class="cv-label">Data odbioru</div><div class="cv-value"><?= date_pl($row['data_odbioru']) ?></div></div>
+      <?php endif; ?>
+    </div>
   </div>
-  </div>
+
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
+      <span class="cv-section-title">Podpisanie</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Forma podpisania</div><div class="cv-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
+      <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
+      <div class="cv-field"><div class="cv-label">Platforma</div><div class="cv-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">ID dokumentu</div><div class="cv-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Plik potwierdzenia</div><div class="cv-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div></div>
+      <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
+      <div class="cv-field"><div class="cv-label">Dostawca podpisu</div><div class="cv-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Nr certyfikatu</div><div class="cv-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Ważność certyfikatu</div><div class="cv-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php if ($row['uwagi']): ?>
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Uwagi</div>
-  <div class="card-body"><?= nl2br(h($row['uwagi'])) ?></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
+      <span class="cv-section-title">Uwagi</span>
+    </div>
+    <div class="cv-value"><?= nl2br(h($row['uwagi'])) ?></div>
   </div>
   <?php endif; ?>
 
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
-  <div class="card shadow-sm">
-  <div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-  <div class="card-body"><div class="row g-3">
-    <?php if ($row['nr_roboczy']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr roboczy</div><div class="detail-value"><?= h($row['nr_roboczy']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_system']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr ogólny (webNGO)</div><div class="detail-value"><?= h($row['nr_system']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_rejestru']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr rejestru</div><div class="detail-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
-    <?php endif; ?>
-  </div></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
+      <span class="cv-section-title">Numery referencyjne</span>
+    </div>
+    <div class="cv-fields">
+      <?php if ($row['nr_roboczy']): ?>
+      <div class="cv-field"><div class="cv-label">Nr roboczy</div><div class="cv-value"><?= h($row['nr_roboczy']) ?></div></div>
+      <?php endif; ?>
+      <?php if ($row['nr_system']): ?>
+      <div class="cv-field"><div class="cv-label">Nr ogólny (webNGO)</div><div class="cv-value"><?= h($row['nr_system']) ?></div></div>
+      <?php endif; ?>
+      <?php if ($row['nr_rejestru']): ?>
+      <div class="cv-field"><div class="cv-label">Nr rejestru</div><div class="cv-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
+      <?php endif; ?>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -288,21 +298,22 @@ include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
   <div class="row g-3">
   <div class="col-lg-8">
 
-    <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane wykonawcy</div>
-    <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-6"><div class="detail-label">Nazwa wykonawcy</div><div class="detail-value fw-semibold"><?= h($row['nazwa_wykonawcy']) ?: '—' ?></div></div>
-      <div class="col-md-6"><div class="detail-label">NIP / PESEL</div><div class="detail-value font-monospace"><?= h($row['nip_pesel']) ?: '—' ?></div></div>
-      <div class="col-12"><div class="detail-label">Adres</div><div class="detail-value"><?= h($row['adres']) ?: '—' ?></div></div>
-      <div class="col-md-6"><div class="detail-label">Adres e-mail</div>
-        <div class="detail-value">
-          <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
-        </div>
+    <div class="cv-section">
+      <div class="cv-section-head">
+        <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
+        <span class="cv-section-title">Dane wykonawcy</span>
       </div>
-      <div class="col-12"><div class="detail-label">Rachunek bankowy / dane do faktury</div><div class="detail-value"><?= h($row['rachunek_lub_faktura']) ?: '—' ?></div></div>
-    </div>
-    </div>
+      <div class="cv-fields">
+        <div class="cv-field-wide"><div class="cv-label">Nazwa wykonawcy</div><div class="cv-value fw-semibold"><?= h($row['nazwa_wykonawcy']) ?: '—' ?></div></div>
+        <div class="cv-field-wide"><div class="cv-label">NIP / PESEL</div><div class="cv-value font-monospace"><?= h($row['nip_pesel']) ?: '—' ?></div></div>
+        <div class="cv-field-full"><div class="cv-label">Adres</div><div class="cv-value"><?= h($row['adres']) ?: '—' ?></div></div>
+        <div class="cv-field-wide"><div class="cv-label">Adres e-mail</div>
+          <div class="cv-value">
+            <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
+          </div>
+        </div>
+        <div class="cv-field-full"><div class="cv-label">Rachunek bankowy / dane do faktury</div><div class="cv-value"><?= h($row['rachunek_lub_faktura']) ?: '—' ?></div></div>
+      </div>
     </div>
 
   </div>
@@ -844,6 +855,7 @@ include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
 <?php endif; ?>
 
 </div><!-- /tab-content -->
+</div><!-- /cv-tabs-layout -->
 
 <?php if (is_admin()): ?>
 <div class="modal fade" id="deleteModal" tabindex="-1">

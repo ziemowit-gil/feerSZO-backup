@@ -115,9 +115,11 @@ $_cvh_subject    = $row['przedmiot_zlecenia'] ?? null;
 $_cvh_list_url   = APP_URL . '/contracts/zlecenie/list.php';
 $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
+require_once dirname(__DIR__) . '/includes/cv_layout.php';
 ?>
 
-<ul class="nav nav-tabs mb-0 no-print" id="zlecenieTabs" role="tablist">
+<div class="cv-tabs-layout">
+<ul class="nav nav-pills cv-side-tabs mb-0 no-print" id="zlecenieTabs" role="tablist">
 
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="tab-umowa-btn" data-bs-toggle="tab"
@@ -221,132 +223,141 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 
 </ul>
 
-<div class="tab-content border border-top-0 rounded-bottom bg-white shadow-sm mb-3"
-     id="zlecenieTabsContent" style="padding:1.25rem">
+<div class="tab-content cv-side-tabs-content" id="zlecenieTabsContent">
 
 <!-- ═══════════════════ TAB 1 — UMOWA ═══════════════════ -->
 <div class="tab-pane fade" id="tab-umowa" role="tabpanel">
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Dane podstawowe</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data zawarcia</div><div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data rozpoczęcia</div><div class="detail-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data zakończenia</div><div class="detail-value"><?= date_pl($row['data_zakonczenia']) ?></div></div>
-    <div class="col-12"><div class="detail-label">Przedmiot zlecenia</div><div class="detail-value"><?= nl2br(h($row['przedmiot_zlecenia'])) ?: '—' ?></div></div>
-    <div class="col-md-6"><div class="detail-label">Numer projektu / źródło finansowania</div><div class="detail-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
-  </div>
-  </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
+      <span class="cv-section-title">Dane podstawowe</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Opiekun</div><div class="cv-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data zawarcia</div><div class="cv-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data rozpoczęcia</div><div class="cv-value"><?= date_pl($row['data_rozpoczecia']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data zakończenia</div><div class="cv-value"><?= date_pl($row['data_zakonczenia']) ?></div></div>
+      <div class="cv-field-full"><div class="cv-label">Przedmiot zlecenia</div><div class="cv-value"><?= nl2br(h($row['przedmiot_zlecenia'])) ?: '—' ?></div></div>
+      <div class="cv-field-wide"><div class="cv-label">Numer projektu / źródło finansowania</div><div class="cv-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
+    </div>
   </div>
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Wynagrodzenie i podatek</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-3"><div class="detail-label">Wynagrodzenie brutto</div><div class="detail-value fw-bold text-success"><?= money($row['wynagrodzenie_brutto']) ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Stawka</div><div class="detail-value"><?= money($row['stawka_kwota']) ?> (<?= h($row['typ_stawki']) ?: '—' ?>)</div></div>
-    <div class="col-md-3"><div class="detail-label">Liczba godzin planowana</div><div class="detail-value"><?= h($row['liczba_godzin_planowana']) ?: '—' ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Termin płatności</div><div class="detail-value"><?= h($row['termin_platnosci']) ?: '—' ?></div></div>
-    <div class="col-md-3"><div class="detail-label">KUP</div><div class="detail-value"><?= $row['kup'] && $row['kup'] !== 'brak' ? h($row['kup']) . '%' : '—' ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Zaliczka podatek</div><div class="detail-value"><?= money($row['zaliczka_podatek']) ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Składki ZUS</div><div class="detail-value"><?= yn($row['zus_skladki']) ?></div></div>
-    <div class="col-md-3"><div class="detail-label">Zwolnienie &lt;26 lat</div><div class="detail-value"><?= yn($row['zwolnienie_wiek']) ?></div></div>
-    <?php if ($row['tytul_ubezpieczenia']): ?>
-    <div class="col-md-6"><div class="detail-label">Tytuł ubezpieczenia</div><div class="detail-value"><?= h($row['tytul_ubezpieczenia']) ?></div></div>
-    <?php endif; ?>
-  </div>
-  </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-cash-coin"></i></div>
+      <span class="cv-section-title">Wynagrodzenie i podatek</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Wynagrodzenie brutto</div><div class="cv-value fw-bold text-success"><?= money($row['wynagrodzenie_brutto']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Stawka</div><div class="cv-value"><?= money($row['stawka_kwota']) ?> (<?= h($row['typ_stawki']) ?: '—' ?>)</div></div>
+      <div class="cv-field"><div class="cv-label">Liczba godzin planowana</div><div class="cv-value"><?= h($row['liczba_godzin_planowana']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Termin płatności</div><div class="cv-value"><?= h($row['termin_platnosci']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">KUP</div><div class="cv-value"><?= $row['kup'] && $row['kup'] !== 'brak' ? h($row['kup']) . '%' : '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Zaliczka podatek</div><div class="cv-value"><?= money($row['zaliczka_podatek']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Składki ZUS</div><div class="cv-value"><?= yn($row['zus_skladki']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Zwolnienie &lt;26 lat</div><div class="cv-value"><?= yn($row['zwolnienie_wiek']) ?></div></div>
+      <?php if ($row['tytul_ubezpieczenia']): ?>
+      <div class="cv-field-wide"><div class="cv-label">Tytuł ubezpieczenia</div><div class="cv-value"><?= h($row['tytul_ubezpieczenia']) ?></div></div>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php if (!empty($row['zus_skladki'])):
     // ── Rejestracja / wyrejestrowanie ZUS (termin: 7 dni od zdarzenia) ──────────
     $_zus_box = static function (string $label, string $action, ?string $done, ?string $anchor): string {
         if (!empty($done)) {
-            return '<div class="detail-label">' . $label . '</div>'
-                 . '<div class="detail-value"><span class="badge bg-success">' . $action . ': ' . date_pl($done) . '</span></div>';
+            return '<div class="cv-label">' . $label . '</div>'
+                 . '<div class="cv-value"><span class="badge bg-success">' . $action . ': ' . date_pl($done) . '</span></div>';
         }
         if (empty($anchor)) {
-            return '<div class="detail-label">' . $label . '</div>'
-                 . '<div class="detail-value text-muted">brak daty odniesienia</div>';
+            return '<div class="cv-label">' . $label . '</div>'
+                 . '<div class="cv-value text-muted">brak daty odniesienia</div>';
         }
         $deadline = date('Y-m-d', strtotime($anchor . ' +7 days'));
         $dleft    = (int) round((strtotime($deadline) - strtotime(date('Y-m-d'))) / 86400);
         if     ($dleft < 0)  { $cls = 'danger';    $txt = 'po terminie (' . abs($dleft) . ' dni)'; }
         elseif ($dleft <= 3) { $cls = 'warning';   $txt = 'pozostało ' . $dleft . ' dni'; }
         else                 { $cls = 'secondary'; $txt = 'pozostało ' . $dleft . ' dni'; }
-        return '<div class="detail-label">' . $label . '</div>'
-             . '<div class="detail-value">Termin: <strong>' . date_pl($deadline) . '</strong> '
+        return '<div class="cv-label">' . $label . '</div>'
+             . '<div class="cv-value">Termin: <strong>' . date_pl($deadline) . '</strong> '
              . '<span class="badge bg-' . $cls . '">' . $txt . '</span></div>';
     };
     $_zus_anchor_reg = $row['data_rozpoczecia'] ?: $row['data_zawarcia'];
   ?>
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold"><i class="bi bi-shield-check"></i> ZUS — rejestracja i wyrejestrowanie</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-6"><?= $_zus_box('Zgłoszenie do ZUS (ZUA/ZZA)', 'Zgłoszono', $row['zus_data_rejestracji'] ?? null, $_zus_anchor_reg) ?></div>
-    <?php if (empty($row['bezterminowa']) && !empty($row['data_zakonczenia'])): ?>
-    <div class="col-md-6"><?= $_zus_box('Wyrejestrowanie z ZUS (ZWUA)', 'Wyrejestrowano', $row['zus_data_wyrejestrowania'] ?? null, $row['data_zakonczenia']) ?></div>
-    <?php endif; ?>
-  </div>
-  </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-shield-check"></i></div>
+      <span class="cv-section-title">ZUS — rejestracja i wyrejestrowanie</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field-wide"><?= $_zus_box('Zgłoszenie do ZUS (ZUA/ZZA)', 'Zgłoszono', $row['zus_data_rejestracji'] ?? null, $_zus_anchor_reg) ?></div>
+      <?php if (empty($row['bezterminowa']) && !empty($row['data_zakonczenia'])): ?>
+      <div class="cv-field-wide"><?= $_zus_box('Wyrejestrowanie z ZUS (ZWUA)', 'Wyrejestrowano', $row['zus_data_wyrejestrowania'] ?? null, $row['data_zakonczenia']) ?></div>
+      <?php endif; ?>
+    </div>
   </div>
   <?php endif; ?>
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Rachunek i podpisanie</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Wymagany rachunek</div><div class="detail-value"><?= yn($row['wymagany_rachunek']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data złożenia rachunku</div><div class="detail-value"><?= date_pl($row['data_zl_rachunku']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data rachunku</div><div class="detail-value"><?= date_pl($row['data_rachunku'] ?? '') ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Za jaki okres jest rachunek</div><div class="detail-value"><?= h($row['okres_rachunku'] ?? '') ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Forma podpisania</div><div class="detail-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
-    <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
-    <div class="col-md-4"><div class="detail-label">Platforma</div><div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">ID dokumentu</div><div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Plik potwierdzenia</div><div class="detail-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div></div>
-    <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
-    <div class="col-md-4"><div class="detail-label">Dostawca podpisu</div><div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Nr certyfikatu</div><div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Ważność certyfikatu</div><div class="detail-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
-    <?php endif; ?>
-    <?php if (!empty($row['podpisujacy_fundacja'])): ?>
-    <div class="col-md-4">
-      <div class="detail-label">Podpisuje ze strony fundacji</div>
-      <div class="detail-value fw-semibold"><?= h($row['podpisujacy_fundacja']) ?></div>
-      <?php if (!empty($row['podpisujacy_stanowisko'])): ?>
-      <div class="text-muted" style="font-size:.8rem"><?= h($row['podpisujacy_stanowisko']) ?></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
+      <span class="cv-section-title">Rachunek i podpisanie</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Wymagany rachunek</div><div class="cv-value"><?= yn($row['wymagany_rachunek']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data złożenia rachunku</div><div class="cv-value"><?= date_pl($row['data_zl_rachunku']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data rachunku</div><div class="cv-value"><?= date_pl($row['data_rachunku'] ?? '') ?></div></div>
+      <div class="cv-field"><div class="cv-label">Za jaki okres jest rachunek</div><div class="cv-value"><?= h($row['okres_rachunku'] ?? '') ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Forma podpisania</div><div class="cv-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
+      <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
+      <div class="cv-field"><div class="cv-label">Platforma</div><div class="cv-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">ID dokumentu</div><div class="cv-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Plik potwierdzenia</div><div class="cv-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div></div>
+      <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
+      <div class="cv-field"><div class="cv-label">Dostawca podpisu</div><div class="cv-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Nr certyfikatu</div><div class="cv-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Ważność certyfikatu</div><div class="cv-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
+      <?php endif; ?>
+      <?php if (!empty($row['podpisujacy_fundacja'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">Podpisuje ze strony fundacji</div>
+        <div class="cv-value fw-semibold"><?= h($row['podpisujacy_fundacja']) ?></div>
+        <?php if (!empty($row['podpisujacy_stanowisko'])): ?>
+        <div class="text-muted" style="font-size:.8rem"><?= h($row['podpisujacy_stanowisko']) ?></div>
+        <?php endif; ?>
+      </div>
       <?php endif; ?>
     </div>
-    <?php endif; ?>
-  </div>
-  </div>
   </div>
 
   <?php if ($row['uwagi']): ?>
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Uwagi</div>
-  <div class="card-body"><?= nl2br(h($row['uwagi'])) ?></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
+      <span class="cv-section-title">Uwagi</span>
+    </div>
+    <div class="cv-value"><?= nl2br(h($row['uwagi'])) ?></div>
   </div>
   <?php endif; ?>
 
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
-  <div class="card shadow-sm">
-  <div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-  <div class="card-body"><div class="row g-3">
-    <?php if ($row['nr_roboczy']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr roboczy</div><div class="detail-value"><?= h($row['nr_roboczy']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_system']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr ogólny (webNGO)</div><div class="detail-value"><?= h($row['nr_system']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_rejestru']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr rejestru</div><div class="detail-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
-    <?php endif; ?>
-  </div></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
+      <span class="cv-section-title">Numery referencyjne</span>
+    </div>
+    <div class="cv-fields">
+      <?php if ($row['nr_roboczy']): ?>
+      <div class="cv-field"><div class="cv-label">Nr roboczy</div><div class="cv-value"><?= h($row['nr_roboczy']) ?></div></div>
+      <?php endif; ?>
+      <?php if ($row['nr_system']): ?>
+      <div class="cv-field"><div class="cv-label">Nr ogólny (webNGO)</div><div class="cv-value"><?= h($row['nr_system']) ?></div></div>
+      <?php endif; ?>
+      <?php if ($row['nr_rejestru']): ?>
+      <div class="cv-field"><div class="cv-label">Nr rejestru</div><div class="cv-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
+      <?php endif; ?>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -358,23 +369,24 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <div class="row g-3">
   <div class="col-lg-8">
 
-    <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane osobowe</div>
-    <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-6"><div class="detail-label">Imię i nazwisko</div><div class="detail-value fw-semibold"><?= h($row['imie_nazwisko']) ?: '—' ?></div></div>
-      <div class="col-md-3"><div class="detail-label">PESEL</div><div class="detail-value font-monospace"><?= h($row['pesel']) ?: '—' ?></div></div>
-      <div class="col-md-3"><div class="detail-label">Seria/nr dowodu</div><div class="detail-value"><?= h($row['seria_nr_dowodu']) ?: '—' ?></div></div>
-      <div class="col-md-8"><div class="detail-label">Adres</div><div class="detail-value"><?= address_format($row, true) ?: '—' ?></div></div>
-      <div class="col-md-4"><div class="detail-label">Adres e-mail</div>
-        <div class="detail-value">
-          <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
-        </div>
+    <div class="cv-section">
+      <div class="cv-section-head">
+        <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
+        <span class="cv-section-title">Dane osobowe</span>
       </div>
-      <div class="col-md-4"><div class="detail-label">Urząd skarbowy</div><div class="detail-value"><?= h($row['urzad_skarbowy']) ?: '—' ?></div></div>
-      <div class="col-12"><div class="detail-label">Rachunek bankowy</div><div class="detail-value font-monospace"><?= h($row['rachunek_bankowy']) ?: '—' ?></div></div>
-    </div>
-    </div>
+      <div class="cv-fields">
+        <div class="cv-field-wide"><div class="cv-label">Imię i nazwisko</div><div class="cv-value fw-semibold"><?= h($row['imie_nazwisko']) ?: '—' ?></div></div>
+        <div class="cv-field"><div class="cv-label">PESEL</div><div class="cv-value font-monospace"><?= h($row['pesel']) ?: '—' ?></div></div>
+        <div class="cv-field"><div class="cv-label">Seria/nr dowodu</div><div class="cv-value"><?= h($row['seria_nr_dowodu']) ?: '—' ?></div></div>
+        <div class="cv-field-wide"><div class="cv-label">Adres</div><div class="cv-value"><?= address_format($row, true) ?: '—' ?></div></div>
+        <div class="cv-field"><div class="cv-label">Adres e-mail</div>
+          <div class="cv-value">
+            <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
+          </div>
+        </div>
+        <div class="cv-field"><div class="cv-label">Urząd skarbowy</div><div class="cv-value"><?= h($row['urzad_skarbowy']) ?: '—' ?></div></div>
+        <div class="cv-field-full"><div class="cv-label">Rachunek bankowy</div><div class="cv-value font-monospace"><?= h($row['rachunek_bankowy']) ?: '—' ?></div></div>
+      </div>
     </div>
 
   </div>
@@ -1018,6 +1030,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <?php endif; ?>
 
 </div><!-- /tab-content -->
+</div><!-- /cv-tabs-layout -->
 
 <?php if (is_admin()): ?>
 <div class="modal fade" id="deleteModal" tabindex="-1">

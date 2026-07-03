@@ -111,9 +111,11 @@ $_cvh_subject    = $row['opis_dziela'] ?? ($row['rodzaj_dziela'] ?? null);
 $_cvh_list_url   = APP_URL . '/contracts/dzielo/list.php';
 $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
+require_once dirname(__DIR__) . '/includes/cv_layout.php';
 ?>
 
-<ul class="nav nav-tabs mb-0 no-print" id="dzieloTabs" role="tablist">
+<div class="cv-tabs-layout">
+<ul class="nav nav-pills cv-side-tabs mb-0 no-print" id="dzieloTabs" role="tablist">
 
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="tab-umowa-btn" data-bs-toggle="tab"
@@ -207,108 +209,118 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 
 </ul>
 
-<div class="tab-content border border-top-0 rounded-bottom bg-white shadow-sm mb-3"
-     id="dzieloTabsContent" style="padding:1.25rem">
+<div class="tab-content cv-side-tabs-content" id="dzieloTabsContent">
 
 <!-- ═══════════════════ TAB 1 — UMOWA ═══════════════════ -->
 <div class="tab-pane fade" id="tab-umowa" role="tabpanel">
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Dane podstawowe</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Data zawarcia</div><div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Numer projektu</div><div class="detail-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
-  </div>
-  </div>
-  </div>
-
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Dzieło i wynagrodzenie</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-12"><div class="detail-label">Opis dzieła</div><div class="detail-value"><?= nl2br(h($row['opis_dziela'])) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Termin oddania</div><div class="detail-value"><?= date_pl($row['termin_oddania']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Wynagrodzenie brutto</div><div class="detail-value fw-bold text-success"><?= money($row['wynagrodzenie_brutto']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Zaliczka na podatek</div><div class="detail-value"><?= money($row['zaliczka_podatek']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">50% KUP</div><div class="detail-value"><?= yn($row['kup50']) ?></div></div>
-  </div>
-  </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
+      <span class="cv-section-title">Dane podstawowe</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Data zawarcia</div><div class="cv-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Opiekun</div><div class="cv-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Numer projektu</div><div class="cv-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
+    </div>
   </div>
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Prawa autorskie</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Przeniesienie praw autorskich</div><div class="detail-value"><?= yn($row['prawa_autorskie']) ?></div></div>
-    <?php if ($row['prawa_autorskie'] && $row['zakres_praw']): ?>
-    <div class="col-12"><div class="detail-label">Zakres praw autorskich</div><div class="detail-value"><?= nl2br(h($row['zakres_praw'])) ?></div></div>
-    <?php endif; ?>
-  </div>
-  </div>
-  </div>
-
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Odbiór dzieła</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Wymagany protokół odbioru</div><div class="detail-value"><?= yn($row['wymagany_protokol']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data odbioru</div><div class="detail-value"><?= date_pl($row['data_odbioru']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Dzieło przyjęte</div><div class="detail-value"><?= yn($row['dzielo_przyjete']) ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Data złożenia rachunku</div><div class="detail-value"><?= date_pl($row['data_zl_rachunku']) ?></div></div>
-  </div>
-  </div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-palette-fill"></i></div>
+      <span class="cv-section-title">Dzieło i wynagrodzenie</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field-full"><div class="cv-label">Opis dzieła</div><div class="cv-value"><?= nl2br(h($row['opis_dziela'])) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Termin oddania</div><div class="cv-value"><?= date_pl($row['termin_oddania']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Wynagrodzenie brutto</div><div class="cv-value fw-bold text-success"><?= money($row['wynagrodzenie_brutto']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Zaliczka na podatek</div><div class="cv-value"><?= money($row['zaliczka_podatek']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">50% KUP</div><div class="cv-value"><?= yn($row['kup50']) ?></div></div>
+    </div>
   </div>
 
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Forma podpisania</div>
-  <div class="card-body">
-  <div class="row g-3">
-    <div class="col-md-4"><div class="detail-label">Forma podpisania</div><div class="detail-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
-    <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
-    <div class="col-md-4"><div class="detail-label">Platforma</div><div class="detail-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">ID dokumentu</div><div class="detail-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Plik potwierdzenia</div><div class="detail-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div></div>
-    <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
-    <div class="col-md-4"><div class="detail-label">Dostawca podpisu</div><div class="detail-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Nr certyfikatu</div><div class="detail-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
-    <div class="col-md-4"><div class="detail-label">Ważność certyfikatu</div><div class="detail-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
-    <?php endif; ?>
-    <?php if (!empty($row['podpisujacy_fundacja'])): ?>
-    <div class="col-md-4">
-      <div class="detail-label">Podpisuje ze strony fundacji</div>
-      <div class="detail-value fw-semibold"><?= h($row['podpisujacy_fundacja']) ?></div>
-      <?php if (!empty($row['podpisujacy_stanowisko'])): ?>
-      <div class="text-muted" style="font-size:.8rem"><?= h($row['podpisujacy_stanowisko']) ?></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-shield-check"></i></div>
+      <span class="cv-section-title">Prawa autorskie</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Przeniesienie praw autorskich</div><div class="cv-value"><?= yn($row['prawa_autorskie']) ?></div></div>
+      <?php if ($row['prawa_autorskie'] && $row['zakres_praw']): ?>
+      <div class="cv-field-full"><div class="cv-label">Zakres praw autorskich</div><div class="cv-value"><?= nl2br(h($row['zakres_praw'])) ?></div></div>
       <?php endif; ?>
     </div>
-    <?php endif; ?>
   </div>
+
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-clipboard-check"></i></div>
+      <span class="cv-section-title">Odbiór dzieła</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Wymagany protokół odbioru</div><div class="cv-value"><?= yn($row['wymagany_protokol']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data odbioru</div><div class="cv-value"><?= date_pl($row['data_odbioru']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Dzieło przyjęte</div><div class="cv-value"><?= yn($row['dzielo_przyjete']) ?></div></div>
+      <div class="cv-field"><div class="cv-label">Data złożenia rachunku</div><div class="cv-value"><?= date_pl($row['data_zl_rachunku']) ?></div></div>
+    </div>
   </div>
+
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
+      <span class="cv-section-title">Forma podpisania</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Forma podpisania</div><div class="cv-value"><?= h(ucfirst($row['forma_podpisania'] ?? '')) ?: '—' ?></div></div>
+      <?php if ($row['forma_podpisania'] === 'elektroniczna'): ?>
+      <div class="cv-field"><div class="cv-label">Platforma</div><div class="cv-value"><?= h($row['platforma_el']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">ID dokumentu</div><div class="cv-value"><?= h($row['id_dokumentu_el']) ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Plik potwierdzenia</div><div class="cv-value"><?= upload_link_signed($row['plik_potwierdzenia']) ?></div></div>
+      <?php elseif ($row['forma_podpisania'] === 'epodpis_kwalifikowany'): ?>
+      <div class="cv-field"><div class="cv-label">Dostawca podpisu</div><div class="cv-value"><?= h($row['epodpis_dostawca'] ?? '') ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Nr certyfikatu</div><div class="cv-value font-monospace small"><?= h($row['epodpis_nr_certyfikatu'] ?? '') ?: '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Ważność certyfikatu</div><div class="cv-value"><?= date_pl($row['epodpis_data_waznosci'] ?? '') ?></div></div>
+      <?php endif; ?>
+      <?php if (!empty($row['podpisujacy_fundacja'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">Podpisuje ze strony fundacji</div>
+        <div class="cv-value fw-semibold"><?= h($row['podpisujacy_fundacja']) ?></div>
+        <?php if (!empty($row['podpisujacy_stanowisko'])): ?>
+        <div class="text-muted" style="font-size:.8rem"><?= h($row['podpisujacy_stanowisko']) ?></div>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php if ($row['uwagi']): ?>
-  <div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold">Uwagi</div>
-  <div class="card-body"><?= nl2br(h($row['uwagi'])) ?></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
+      <span class="cv-section-title">Uwagi</span>
+    </div>
+    <div class="cv-value"><?= nl2br(h($row['uwagi'])) ?></div>
   </div>
   <?php endif; ?>
 
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
-  <div class="card shadow-sm">
-  <div class="card-header fw-semibold"><i class="bi bi-hash"></i> Numery referencyjne</div>
-  <div class="card-body"><div class="row g-3">
-    <?php if ($row['nr_roboczy']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr roboczy</div><div class="detail-value"><?= h($row['nr_roboczy']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_system']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr ogólny (webNGO)</div><div class="detail-value"><?= h($row['nr_system']) ?></div></div>
-    <?php endif; ?>
-    <?php if ($row['nr_rejestru']): ?>
-    <div class="col-md-4"><div class="detail-label">Nr rejestru</div><div class="detail-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
-    <?php endif; ?>
-  </div></div>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
+      <span class="cv-section-title">Numery referencyjne</span>
+    </div>
+    <div class="cv-fields">
+      <?php if ($row['nr_roboczy']): ?>
+      <div class="cv-field"><div class="cv-label">Nr roboczy</div><div class="cv-value"><?= h($row['nr_roboczy']) ?></div></div>
+      <?php endif; ?>
+      <?php if ($row['nr_system']): ?>
+      <div class="cv-field"><div class="cv-label">Nr ogólny (webNGO)</div><div class="cv-value"><?= h($row['nr_system']) ?></div></div>
+      <?php endif; ?>
+      <?php if ($row['nr_rejestru']): ?>
+      <div class="cv-field"><div class="cv-label">Nr rejestru</div><div class="cv-value fw-bold font-monospace"><?= h($row['nr_rejestru']) ?></div></div>
+      <?php endif; ?>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -320,22 +332,23 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   <div class="row g-3">
   <div class="col-lg-8">
 
-    <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane osobowe</div>
-    <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-6"><div class="detail-label">Imię i nazwisko</div><div class="detail-value fw-semibold"><?= h($row['imie_nazwisko']) ?: '—' ?></div></div>
-      <div class="col-md-6"><div class="detail-label">PESEL</div><div class="detail-value font-monospace"><?= h($row['pesel']) ?: '—' ?></div></div>
-      <div class="col-md-8"><div class="detail-label">Adres</div><div class="detail-value"><?= address_format($row, true) ?: '—' ?></div></div>
-      <div class="col-md-4"><div class="detail-label">Adres e-mail</div>
-        <div class="detail-value">
-          <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
-        </div>
+    <div class="cv-section">
+      <div class="cv-section-head">
+        <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
+        <span class="cv-section-title">Dane osobowe</span>
       </div>
-      <div class="col-md-4"><div class="detail-label">Urząd skarbowy</div><div class="detail-value"><?= h($row['urzad_skarbowy']) ?: '—' ?></div></div>
-      <div class="col-12"><div class="detail-label">Rachunek bankowy</div><div class="detail-value font-monospace"><?= h($row['rachunek_bankowy']) ?: '—' ?></div></div>
-    </div>
-    </div>
+      <div class="cv-fields">
+        <div class="cv-field-wide"><div class="cv-label">Imię i nazwisko</div><div class="cv-value fw-semibold"><?= h($row['imie_nazwisko']) ?: '—' ?></div></div>
+        <div class="cv-field-wide"><div class="cv-label">PESEL</div><div class="cv-value font-monospace"><?= h($row['pesel']) ?: '—' ?></div></div>
+        <div class="cv-field-wide"><div class="cv-label">Adres</div><div class="cv-value"><?= address_format($row, true) ?: '—' ?></div></div>
+        <div class="cv-field"><div class="cv-label">Adres e-mail</div>
+          <div class="cv-value">
+            <?= $row['email'] ? '<a href="mailto:' . h($row['email']) . '">' . h($row['email']) . '</a>' : '—' ?>
+          </div>
+        </div>
+        <div class="cv-field"><div class="cv-label">Urząd skarbowy</div><div class="cv-value"><?= h($row['urzad_skarbowy']) ?: '—' ?></div></div>
+        <div class="cv-field-full"><div class="cv-label">Rachunek bankowy</div><div class="cv-value font-monospace"><?= h($row['rachunek_bankowy']) ?: '—' ?></div></div>
+      </div>
     </div>
 
   </div>
@@ -896,6 +909,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <?php endif; ?>
 
 </div><!-- /tab-content -->
+</div><!-- /cv-tabs-layout -->
 
 <?php if (is_admin()): ?>
 <div class="modal fade" id="deleteModal" tabindex="-1">
