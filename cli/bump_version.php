@@ -53,12 +53,12 @@ $ver_file = $base . '/min_version.txt';
 $current  = is_file($ver_file) ? trim((string)file_get_contents($ver_file)) : '1.0';
 if ($current === '') $current = '1.0';
 
-if (!preg_match('/^(\d+)\.(\d+)(?:\.(\d+))?$/', $current, $m)) {
-    cli_err("Nieczytelna wersja w min_version.txt: \"$current\" (oczekiwano X.Y lub X.Y.Z).");
+if (!preg_match('/^(\d+)\.(\d+)(?:\.(\d+))?([a-z])?$/i', $current, $m)) {
+    cli_err("Nieczytelna wersja w min_version.txt: \"$current\" (oczekiwano X.Y, X.Y.Z lub X.Yx).");
     exit(1);
 }
 [$maj, $min] = [(int)$m[1], (int)$m[2]];
-$patch = isset($m[3]) ? (int)$m[3] : null;
+$patch = ($m[3] ?? '') !== '' ? (int)$m[3] : null;
 
 // ── Oblicz nową wersję ───────────────────────────────────────────────────────
 function fmt_ver(int $maj, int $min, ?int $patch): string {
@@ -81,8 +81,8 @@ switch ($bump_arg) {
         $new = fmt_ver($maj, $min, $patch + 1);
         break;
     default:
-        if (!preg_match('/^\d+\.\d+(?:\.\d+)?$/', $bump_arg)) {
-            cli_err("Nieznany argument: \"$bump_arg\". Użyj: major | minor | patch | X.Y[.Z]");
+        if (!preg_match('/^\d+\.\d+(?:\.\d+)?[a-z]?$/i', $bump_arg)) {
+            cli_err("Nieznany argument: \"$bump_arg\". Użyj: major | minor | patch | X.Y[.Z][litera]");
             exit(1);
         }
         $new = $bump_arg;

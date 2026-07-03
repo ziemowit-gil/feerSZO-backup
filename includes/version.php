@@ -18,7 +18,7 @@ function app_version(): array {
         $ver_file = $base . '/min_version.txt';
         $main_ver = file_exists($ver_file) ? trim(file_get_contents($ver_file)) : '';
     }
-    $main_ver = preg_replace('/[^0-9.]/', '', $main_ver); // tylko cyfry i kropki
+    $main_ver = preg_replace('/[^0-9.a-zA-Z]/', '', $main_ver); // cyfry, kropki, sufiks literowy (np. 1.12e)
 
     // Hash commitu
     $hash      = trim(@shell_exec("cd " . escapeshellarg($base) . " && git rev-parse --short HEAD 2>/dev/null") ?: '');
