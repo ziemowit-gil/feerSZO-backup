@@ -36,6 +36,7 @@ $row = [
     'category'     => '',
     'status'       => 'new',
     'handled_by'   => '',
+    'medium'       => 'papier',
 ];
 $from_ezd_id = $from_ezd_pismo ? (int)$from_ezd_pismo['id'] : 0;
 
@@ -51,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'category'     => trim($_POST['category'] ?? ''),
         'status'       => $_POST['status']       ?? 'new',
         'handled_by'   => (int)($_POST['handled_by'] ?? 0) ?: null,
+        'medium'       => array_key_exists($_POST['medium'] ?? '', CORR_MEDIA) ? $_POST['medium'] : 'papier',
     ];
 
     if (!$row['subject'])      $errors[] = 'Temat jest wymagany.';
@@ -150,6 +152,15 @@ include dirname(__DIR__) . '/includes/header.php';
               <?php endforeach; ?>
             </select>
           </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Rodzaj medium</label>
+          <select name="medium" class="form-select" style="max-width:280px">
+            <?php foreach (CORR_MEDIA as $mv=>$ml): ?>
+            <option value="<?= $mv ?>" <?= $row['medium']===$mv?'selected':'' ?>><?= h($ml['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
         </div>
 
         <div class="mb-3">

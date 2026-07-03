@@ -14,6 +14,7 @@ $filters = [
     'direction' => $_GET['direction'] ?? '',
     'status'    => $_GET['status']    ?? '',
     'category'  => $_GET['category']  ?? '',
+    'medium'    => $_GET['medium']    ?? '',
     'q'         => trim($_GET['q']    ?? ''),
     'date_from' => $_GET['date_from'] ?? '',
     'date_to'   => $_GET['date_to']   ?? '',
@@ -96,6 +97,14 @@ include dirname(__DIR__) . '/includes/header.php';
       </div>
       <?php endif; ?>
       <div class="col-6 col-sm-4 col-md-2">
+        <select name="medium" class="form-select form-select-sm">
+          <option value="">Rodzaj medium</option>
+          <?php foreach (CORR_MEDIA as $mv=>$ml): ?>
+          <option value="<?= $mv ?>" <?= $filters['medium']===$mv?'selected':'' ?>><?= h($ml['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
         <input type="date" name="date_from" class="form-control form-control-sm"
                value="<?= h($filters['date_from']) ?>" title="Data od">
       </div>
@@ -144,6 +153,8 @@ include dirname(__DIR__) . '/includes/header.php';
     <tr class="cursor-pointer" onclick="location.href='<?= APP_URL ?>/correspondence/view.php?id=<?= $it['id'] ?>'">
       <td class="text-center">
         <i class="bi <?= $dicon ?> text-<?= $dcolor ?>" title="<?= $dlabel ?>"></i>
+        <?php $medium = CORR_MEDIA[$it['medium'] ?? 'papier'] ?? CORR_MEDIA['papier']; ?>
+        <i class="bi <?= $medium['icon'] ?> text-muted ms-1" style="font-size:.78rem" title="<?= h($medium['label']) ?>"></i>
       </td>
       <td class="font-monospace text-muted" style="font-size:.78rem"><?= h($it['number'] ?: '—') ?></td>
       <td class="text-nowrap"><?= h(date_pl($it['date'])) ?></td>

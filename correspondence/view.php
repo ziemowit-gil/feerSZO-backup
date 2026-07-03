@@ -65,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_edit) {
             'category'     => trim($_POST['category'] ?? ''),
             'status'       => $_POST['status']       ?? $it['status'],
             'handled_by'   => (int)($_POST['handled_by'] ?? 0) ?: null,
+            'medium'       => array_key_exists($_POST['medium'] ?? '', CORR_MEDIA) ? $_POST['medium'] : $it['medium'],
         ];
         if (!$data['subject'])       $errors[] = 'Temat jest wymagany.';
         if (!$data['correspondent']) $errors[] = 'Nadawca/Odbiorca jest wymagany.';
@@ -126,6 +127,8 @@ include dirname(__DIR__) . '/includes/header.php';
         <span class="fw-semibold">
           <i class="bi <?= $dicon ?> text-<?= $dcolor ?> me-1"></i>
           <?= $dlabel ?> · <span class="badge bg-<?= $scolor ?> bg-opacity-15 text-<?= $scolor ?>"><?= $slabel ?></span>
+          <?php $medium = CORR_MEDIA[$it['medium'] ?? 'papier'] ?? CORR_MEDIA['papier']; ?>
+          <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:.7rem"><i class="bi <?= $medium['icon'] ?> me-1"></i><?= h($medium['label']) ?></span>
         </span>
         <?php if ($can_edit): ?>
         <button class="btn btn-sm btn-outline-secondary" type="button"
@@ -212,6 +215,14 @@ include dirname(__DIR__) . '/includes/header.php';
                   <?php endforeach; ?>
                 </select>
               </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm fw-semibold">Rodzaj medium</label>
+              <select name="medium" class="form-select form-select-sm" style="max-width:260px">
+                <?php foreach (CORR_MEDIA as $mv=>$ml): ?>
+                <option value="<?= $mv ?>" <?= ($it['medium']??'papier')===$mv?'selected':'' ?>><?= h($ml['label']) ?></option>
+                <?php endforeach; ?>
+              </select>
             </div>
             <div class="mb-2">
               <label class="form-label form-label-sm fw-semibold">Nadawca/Odbiorca</label>

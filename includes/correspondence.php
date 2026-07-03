@@ -41,7 +41,19 @@ function _corr_init(): void {
     try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN contract_id      INTEGER DEFAULT NULL"); } catch(\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN s10_number       TEXT NOT NULL DEFAULT ''"); } catch(\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN apaczka_shipment_id INTEGER DEFAULT NULL"); } catch(\Throwable $e) {}
+
+    // Rodzaj medium — rozróżnienie korespondencji papierowej od elektronicznej
+    try { $pdo->exec("ALTER TABLE correspondence ADD COLUMN medium TEXT NOT NULL DEFAULT 'papier'"); } catch(\Throwable $e) {}
 }
+
+// Rodzaj medium korespondencji (spójne z EZD_MEDIA w includes/ezd.php)
+const CORR_MEDIA = [
+    'papier' => ['label' => 'Papierowe',            'icon' => 'bi-file-earmark-text'],
+    'email'  => ['label' => 'E-mail',               'icon' => 'bi-at'],
+    'epuap'  => ['label' => 'ePUAP / e-Doręczenia', 'icon' => 'bi-shield-lock'],
+    'faks'   => ['label' => 'Faks',                 'icon' => 'bi-printer'],
+    'inne'   => ['label' => 'Inne',                 'icon' => 'bi-question-circle'],
+];
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
@@ -57,6 +69,9 @@ function corr_get_all(array $filters = []): array {
     }
     if (!empty($filters['category'])) {
         $where[] = 'category=?'; $params[] = $filters['category'];
+    }
+    if (!empty($filters['medium'])) {
+        $where[] = 'medium=?'; $params[] = $filters['medium'];
     }
     if (!empty($filters['q'])) {
         $where[] = '(subject LIKE ? OR correspondent LIKE ? OR number LIKE ?)';
@@ -220,6 +235,7 @@ function corr_register_in_ezd(int $corr_id, int $sprawa_id, int $user_id): int {
         'status'       => 'nowe',
         'owner_id'     => $user_id,
         'corr_id'      => $corr_id,
+        'rodzaj_medium'=> array_key_exists($corr['medium'] ?? '', EZD_MEDIA) ? $corr['medium'] : 'papier',
     ], $user_id);
 
     // Aktualizuj oba rekordy z cross-linkiem
