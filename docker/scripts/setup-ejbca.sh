@@ -138,22 +138,29 @@ done
 # ── 7. Czekaj na appserver EJBCA ───────────────────────────────────────────────
 section "7. Oczekiwanie na EJBCA (WildFly — to może potrwać kilka minut)"
 
+# Sprawdzamy przez `docker logs` (nie `docker exec ... curl`) — obraz EJBCA
+# może nie mieć curl, a port TLS bywa otwarty na długo przed pełnym
+# wdrożeniem ejbca.ear, więc sam "port odpowiada" to fałszywy sygnał gotowości.
 READY=0
 for i in $(seq 1 60); do
-    CODE="$(docker exec "${APP_CONTAINER}" curl -sk -o /dev/null -w '%{http_code}' https://localhost:8443/ejbca/ 2>/dev/null || echo 000)"
-    if [[ "${CODE}" != "000" ]]; then
-        ok "EJBCA odpowiada (HTTP ${CODE}) po $((i * 10))s"
+    if docker logs "${APP_CONTAINER}" 2>&1 | grep -q 'Deployed "ejbca.ear"'; then
+        ok "EJBCA wdrożone (WildFly) po $((i * 10))s"
         READY=1
         break
     fi
     sleep 10
 done
-[[ "${READY}" -eq 1 ]] || warn "EJBCA jeszcze nie odpowiada po 10 minutach — to się zdarza przy pierwszym starcie, sprawdź logi (krok niżej)."
+[[ "${READY}" -eq 1 ]] || warn "EJBCA jeszcze nie zgłosiło pełnego wdrożenia po 10 minutach — to się zdarza przy pierwszym starcie, sprawdź logi (krok niżej)."
 
 # ── 8. Logi — instrukcje enrollmentu SuperAdmina ──────────────────────────────
 section "8. Logi EJBCA (szukaj instrukcji SuperAdmin)"
 
-docker logs "${APP_CONTAINER}" --tail=80
+if docker logs "${APP_CONTAINER}" 2>&1 | grep -qi "superadmin"; then
+    docker logs "${APP_CONTAINER}" 2>&1 | grep -i -B2 -A 40 "superadmin" | head -80
+else
+    warn "Nie znaleziono wzmianki o SuperAdmin w logach — pokazuję ostatnie 80 linii:"
+    docker logs "${APP_CONTAINER}" --tail=80
+fi
 
 # ── Podsumowanie ──────────────────────────────────────────────────────────────
 echo ""
