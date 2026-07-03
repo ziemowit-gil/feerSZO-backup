@@ -16,9 +16,14 @@ require_once dirname(__DIR__) . '/includes/branding.php';
 
 auth_start();
 
+// Alias crm.feer.org.pl/crm.ngosystem.pl → zostań na tym hoście (APP_URL jest
+// stałe i wskazuje szo.feer.org.pl, więc bez tego użytkownik wylądowałby na
+// głównej domenie zamiast w CRM).
+$crm_base = crm_alias_base_url() ?? APP_URL;
+
 // Już zalogowany → dashboard
 if (current_user()) {
-    header('Location: ' . APP_URL . '/crm/dashboard.php');
+    header('Location: ' . $crm_base . '/crm/dashboard.php');
     exit;
 }
 
@@ -28,7 +33,7 @@ $org_name = $_b['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : 'System');
 // Microsoft 365 login — dostępny jeśli skonfigurowany
 $ms_crm_available = ms_login_available();
 $ms_crm_url       = $ms_crm_available
-    ? ms_auth_url(APP_URL . '/crm/dashboard.php')
+    ? ms_auth_url($crm_base . '/crm/dashboard.php')
     : '';
 
 // Dodatkowe moduły dla CRM-only (do wyświetlenia)
@@ -50,7 +55,7 @@ $crm_scope_label = 'CRM' . ($crm_extra
     : '');
 
 // URL powrotu po zalogowaniu
-$redirect = APP_URL . '/crm/dashboard.php';
+$redirect = $crm_base . '/crm/dashboard.php';
 
 $error = '';
 

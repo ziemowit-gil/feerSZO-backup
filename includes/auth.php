@@ -76,6 +76,21 @@ function is_ezd_only(): bool {
     } catch (\Throwable $e) { return false; }
 }
 
+/**
+ * Zwraca "schemat://host" gdy request przyszedł na dedykowany alias CRM
+ * (crm.feer.org.pl / crm.ngosystem.pl), inaczej null. APP_URL jest stałe
+ * (szo.feer.org.pl), więc bez tego require_login()/crm/login.php wyrzucałyby
+ * niezalogowanego użytkownika z powrotem na główną domenę zamiast zostawić go
+ * na crm.*.
+ */
+function crm_alias_base_url(): ?string {
+    $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+    if (!in_array($host, ['crm.feer.org.pl', 'crm.ngosystem.pl'], true)) return null;
+    $https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+        || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    return ($https ? 'https' : 'http') . '://' . $host;
+}
+
 function require_login(): void {
     if (!current_user()) {
         $uri  = $_SERVER['REQUEST_URI'] ?? '/';
@@ -83,8 +98,13 @@ function require_login(): void {
         if ($base !== '' && $base !== '/' && str_starts_with($uri, $base . '/')) {
             $uri = substr($uri, strlen($base));
         }
-        $full_uri = APP_URL . $uri;
-        header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($full_uri));
+        $crm_base = crm_alias_base_url();
+        if ($crm_base !== null) {
+            header('Location: ' . $crm_base . '/crm/login.php?redirect=' . urlencode($crm_base . $uri));
+        } else {
+            $full_uri = APP_URL . $uri;
+            header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($full_uri));
+        }
         exit;
     }
 
