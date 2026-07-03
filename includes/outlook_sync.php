@@ -144,6 +144,9 @@ class OutlookSync
                         $addr,
                         $outlook_id,
                     ]);
+                    $new_contact_id = (int)$this->pdo->lastInsertId();
+                    if (!function_exists('crm_automation_fire')) require_once __DIR__ . '/crm_automation.php';
+                    crm_automation_fire('contact_created', $new_contact_id);
                     $created++;
                 }
             } catch (\Throwable $e) {

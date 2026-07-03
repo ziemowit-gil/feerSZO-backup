@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -34,16 +35,23 @@ try {
     if ($action === 'set_status') {
         $status = trim($body['value'] ?? '');
         if (!array_key_exists($status, crm_statuses())) { echo json_encode(['ok'=>false,'error'=>'Nieprawidłowy status.']); exit; }
+        // Stare statusy — potrzebne do kontekstu zdarzenia contact_status_changed
+        $before = db_all("SELECT id, status FROM crm_contacts WHERE id IN ($ph) AND crm_active=1", $ids);
         $st = db()->prepare("UPDATE crm_contacts SET status=?,updated_at=datetime('now') WHERE id IN ($ph) AND crm_active=1");
         $st->execute(array_merge([$status], $ids));
         $affected = $st->rowCount();
+        foreach ($before as $c) {
+            if ($c['status'] !== $status) {
+                crm_automation_fire('contact_status_changed', (int)$c['id'], ['from_status' => $c['status'], 'to_status' => $status]);
+            }
+        }
 
     } elseif ($action === 'add_tag') {
         $tag = trim($body['value'] ?? '');
         if (!$tag) { echo json_encode(['ok'=>false,'error'=>'Podaj tag.']); exit; }
         foreach ($ids as $cid) {
             try {
-                db_insert('crm_tags', ['contact_id'=>$cid,'tag'=>$tag,'created_at'=>date('Y-m-d H:i:s')]);
+                CrmManager::addTag($cid, $tag); // odpala zdarzenie tag_added
                 $affected++;
             } catch (\Throwable $e) {} // UNIQUE — ignoruj duplikat
         }

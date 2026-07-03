@@ -1,0 +1,12 @@
+Mosaico — Responsive Email Template Editor
+Źródło:  https://github.com/voidlabs/mosaico
+Wersja:  v0.18.7 (oficjalny prebuilt dist.zip z GitHub Releases — nowsze wersje
+         nie mają gotowego builda, wymagałyby lokalnego toolchainu Node/npm/grunt)
+Licencja: GNU GPL v3 (patrz LICENSE w tym katalogu) — statyczna aplikacja JS,
+         komunikuje się WYŁĄCZNIE przez HTTP z naszym własnym backendem PHP
+         (crm/mosaico/*.php), które implementują udokumentowany kontrakt API
+         Mosaico (endpointy /img/, /upload/, /dl/) jako osobny, oryginalny kod —
+         brak linkowania/kompilacji z kodem Mosaico.
+
+Nie modyfikować plików w rs/ ani templates/ — to niezmieniony build upstream.
+Integrację (routing, auth, zapis do crm_templates) realizują pliki w crm/mosaico/.

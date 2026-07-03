@@ -280,6 +280,9 @@ function crm_migrate(): void {
         "ALTER TABLE crm_contacts ADD COLUMN addr_postal     TEXT",
         "ALTER TABLE crm_contacts ADD COLUMN addr_city       TEXT",
         "ALTER TABLE crm_contacts ADD COLUMN addr_country    TEXT",
+        // Wypisanie z wysyłek mailowych (kampanie + automatyzacje) — globalne, nie per-kampania
+        "ALTER TABLE crm_contacts ADD COLUMN email_opt_out    INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE crm_contacts ADD COLUMN email_opt_out_at DATETIME",
     ];
     foreach ($extra_cols as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
@@ -353,6 +356,8 @@ function crm_migrate(): void {
     )");
     // Szablon zastrzeżony (is_locked=1) — edytować/usuwać może tylko administrator.
     try { $pdo->exec("ALTER TABLE crm_templates ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // Źródło szablonu — 'manual' (edycja tekstowa) lub 'mosaico' (edytor drag&drop).
+    try { $pdo->exec("ALTER TABLE crm_templates ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"); } catch (\Throwable $e) {}
 
     // Log synchronizacji
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_sync_log (
@@ -363,6 +368,74 @@ function crm_migrate(): void {
         ip              TEXT,
         details         TEXT
     )");
+
+    // Kampanie mailowe
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_campaigns (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        name               TEXT    NOT NULL,
+        template_id        INTEGER REFERENCES crm_templates(id) ON DELETE SET NULL,
+        subject            TEXT    NOT NULL DEFAULT '',
+        segment_type       TEXT    NOT NULL DEFAULT 'tags',
+        segment_config     TEXT    NOT NULL DEFAULT '{}',
+        status             TEXT    NOT NULL DEFAULT 'draft',
+        scheduled_at       DATETIME,
+        sent_at            DATETIME,
+        created_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        recipients_count   INTEGER NOT NULL DEFAULT 0,
+        sent_count         INTEGER NOT NULL DEFAULT 0,
+        failed_count       INTEGER NOT NULL DEFAULT 0,
+        opened_count       INTEGER NOT NULL DEFAULT 0,
+        clicked_count      INTEGER NOT NULL DEFAULT 0,
+        unsubscribed_count INTEGER NOT NULL DEFAULT 0
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_campaigns_status ON crm_campaigns(status, scheduled_at)");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_campaign_recipients (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        campaign_id      INTEGER NOT NULL REFERENCES crm_campaigns(id) ON DELETE CASCADE,
+        contact_id       INTEGER NOT NULL REFERENCES crm_contacts(id)  ON DELETE CASCADE,
+        mail_queue_id    INTEGER,
+        tracking_token   TEXT    NOT NULL,
+        status           TEXT    NOT NULL DEFAULT 'queued',
+        sent_at          DATETIME,
+        opened_at        DATETIME,
+        first_clicked_at DATETIME,
+        click_count      INTEGER NOT NULL DEFAULT 0,
+        unsubscribed_at  DATETIME,
+        created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(campaign_id, contact_id)
+    )");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_camp_rcpt_token ON crm_campaign_recipients(tracking_token)");
+
+    // Automatyzacje — reguły „zdarzenie → akcja"
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_automations (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        name           TEXT    NOT NULL,
+        trigger_event  TEXT    NOT NULL,
+        trigger_config TEXT    NOT NULL DEFAULT '{}',
+        action_type    TEXT    NOT NULL,
+        action_config  TEXT    NOT NULL DEFAULT '{}',
+        is_active      INTEGER NOT NULL DEFAULT 1,
+        run_count      INTEGER NOT NULL DEFAULT 0,
+        last_run_at    DATETIME,
+        created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_automations_event ON crm_automations(trigger_event, is_active)");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS crm_automation_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        automation_id INTEGER NOT NULL REFERENCES crm_automations(id) ON DELETE CASCADE,
+        contact_id   INTEGER REFERENCES crm_contacts(id) ON DELETE CASCADE,
+        event        TEXT    NOT NULL,
+        status       TEXT    NOT NULL,
+        detail       TEXT    NOT NULL DEFAULT '',
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_crm_automation_log ON crm_automation_log(automation_id, contact_id, created_at)");
 
     // Powiązanie kontaktów CRM z działaniami systemu głównego
     $pdo->exec("CREATE TABLE IF NOT EXISTS crm_action_links (
@@ -1119,7 +1192,10 @@ class CrmManager
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
         ];
         $data = array_intersect_key($data, array_flip($allowed));
-        return db_insert('crm_contacts', $data);
+        $id = db_insert('crm_contacts', $data);
+        require_once __DIR__ . '/crm_automation.php';
+        crm_automation_fire('contact_created', $id);
+        return $id;
     }
 
     /** Aktualizuje kontakt (automatycznie updated_at przez db_update). */
@@ -1164,6 +1240,8 @@ class CrmManager
         } catch (\Throwable $e) {}
         db()->prepare("UPDATE crm_contacts SET updated_at=? WHERE id=?")
             ->execute([date('Y-m-d H:i:s'), $contact_id]);
+        require_once __DIR__ . '/crm_automation.php';
+        crm_automation_fire('tag_added', $contact_id, ['tag' => $tag]);
     }
 
     public static function removeTag(int $contact_id, string $tag): void
@@ -2093,7 +2171,7 @@ class CrmManager
 
         $case_number = crm_next_case_number();
 
-        db_insert('crm_cases', [
+        $case_id = db_insert('crm_cases', [
             'contact_id'    => $contact_id,
             'title'         => $title,
             'description'   => $parts ? implode("\n", $parts) : null,
@@ -2106,6 +2184,8 @@ class CrmManager
             'contract_type' => $type,
             'contract_id'   => $contract_id > 0 ? $contract_id : null,
         ]);
+        require_once __DIR__ . '/crm_automation.php';
+        crm_automation_fire('case_created', $contact_id, ['case_id' => $case_id]);
     }
 
     /**
@@ -2155,7 +2235,7 @@ class CrmManager
 
         $case_number = crm_next_case_number();
 
-        db_insert('crm_cases', [
+        $case_id = db_insert('crm_cases', [
             'contact_id'    => $contact_id,
             'title'         => $title,
             'description'   => $short ?: null,
@@ -2168,6 +2248,8 @@ class CrmManager
             'contract_type' => 'amendment',
             'contract_id'   => $amendment_id > 0 ? $amendment_id : null,
         ]);
+        require_once __DIR__ . '/crm_automation.php';
+        crm_automation_fire('case_created', $contact_id, ['case_id' => $case_id]);
     }
 
     // ── Dodatkowe pola (definicje) ─────────────────────────────────────────

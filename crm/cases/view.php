@@ -49,7 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     // Zmiana statusu
     if ($action === 'set_status') {
         $ns = $_POST['status'] ?? '';
-        if (array_key_exists($ns, $status_cfg)) {
+        if (array_key_exists($ns, $status_cfg) && $ns !== $case['status']) {
+            $from_status = $case['status'];
             db()->prepare(
                 "UPDATE crm_cases SET status=?, updated_at=?, closed_at=? WHERE id=?"
             )->execute([
@@ -57,6 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 in_array($ns, ['closed','cancelled']) ? date('Y-m-d H:i:s') : null,
                 $id,
             ]);
+            if ($case['contact_id']) {
+                require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
+                crm_automation_fire('case_status_changed', (int)$case['contact_id'], [
+                    'case_id' => $id, 'from_status' => $from_status, 'to_status' => $ns,
+                ]);
+            }
             flash_set('success', 'Status zmieniony na: ' . $status_cfg[$ns]['label']);
         }
         header('Location: view.php?id=' . $id . '#status'); exit;

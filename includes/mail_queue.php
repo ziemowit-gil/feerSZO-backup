@@ -196,7 +196,12 @@ function mail_queue_process_db(int $batch_size = 20): array
 /** Wysyła jedną wiadomość i aktualizuje status w SQLite. Modyfikuje $sent/$failed przez referencję. */
 function _mail_queue_send_one(array $msg, int &$sent, int &$failed): bool
 {
-    db()->prepare("UPDATE mail_queue SET status='sending' WHERE id=?")->execute([$msg['id']]);
+    // Claim atomowy — dwa crony (mail_queue.php co 5 min + bulk_email_process.php co minutę)
+    // mogą pobrać ten sam pending batch na nakładającym się ticku; warunek AND status='pending'
+    // gwarantuje, że tylko jeden proces faktycznie wyśle daną wiadomość.
+    $claimed = db()->prepare("UPDATE mail_queue SET status='sending' WHERE id=? AND status='pending'");
+    $claimed->execute([$msg['id']]);
+    if ($claimed->rowCount() === 0) return false;
     try {
         $ok = _mail_send($msg);
         if ($ok) {

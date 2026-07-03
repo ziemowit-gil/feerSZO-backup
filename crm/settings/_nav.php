@@ -86,6 +86,13 @@ $_sn_root = preg_match('|/crm/settings/(index\.php)?$|', strtok($_sn_uri, '?'));
   </a>
 
   <div class="csn-sep"></div>
+  <div class="csn-title">Automatyzacje</div>
+
+  <a href="<?= APP_URL ?>/crm/settings/automations.php" class="csn-link<?= $_sn_a('settings/automations') ?>">
+    <i class="bi bi-lightning-charge-fill"></i> Reguły automatyzacji
+  </a>
+
+  <div class="csn-sep"></div>
   <div class="csn-title">Pola formularza</div>
 
   <a href="<?= APP_URL ?>/crm/settings/field_groups.php" class="csn-link<?= $_sn_a('settings/field_groups') ?>">
