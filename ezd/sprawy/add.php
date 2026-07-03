@@ -5,7 +5,6 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
-if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 $users  = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
 $teczki = ezd_teczki_all('open');
@@ -14,6 +13,11 @@ $teczki = ezd_teczki_all('open');
 $parent_id = (int)($_GET['parent_id'] ?? $_POST['parent_id'] ?? 0);
 $parent    = $parent_id ? ezd_sprawa_get($parent_id) : null;
 $PAGE_TITLE = $parent ? 'Nowa podsprawa' : 'Nowa sprawa';
+
+$_can_create = $parent
+    ? ezd_sprawa_access($parent, (int)current_user()['id']) === 'write'
+    : can_edit();
+if (!$_can_create) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 // pre-select teczka if passed via GET (podsprawa dziedziczy teczkę rodzica)
 $preselect_teczka = $parent ? (int)$parent['teczka_id'] : (int)($_GET['teczka_id'] ?? 0);

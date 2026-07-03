@@ -5,11 +5,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
-if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 $sprawa_id = (int)($_GET['sprawa_id'] ?? 0);
 $sprawa    = ezd_sprawa_get($sprawa_id);
 if (!$sprawa) { flash_set('error','Sprawa nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+if (ezd_sprawa_access($sprawa, (int)current_user()['id']) !== 'write') { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 if ($sprawa['status'] === 'closed' && !is_admin()) {
     flash_set('error','Sprawa jest zamknięta.'); header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$sprawa_id); exit;
 }
@@ -31,6 +31,7 @@ $row = [
     'data_wysylki'=> '',
     'status'      => 'nowe',
     'owner_id'    => current_user()['id'],
+    'rodzaj_medium' => 'papier',
 ];
 $errors = [];
 
@@ -48,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'data_wysylki' => $_POST['data_wysylki']?? '',
         'status'       => $_POST['status']      ?? 'nowe',
         'owner_id'     => (int)($_POST['owner_id']??0) ?: null,
+        'rodzaj_medium'=> $_POST['rodzaj_medium'] ?? 'papier',
     ];
     if (!$row['title']) $errors[] = 'Tytuł pisma jest wymagany.';
     if (!in_array($row['kierunek'], array_keys(EZD_KIERUNKI))) $errors[] = 'Nieprawidłowy kierunek.';
@@ -100,6 +102,16 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <label class="form-label fw-semibold">Tytuł / przedmiot pisma <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>"
            placeholder="np. Oferta cenowa nr 123/2026" required>
+  </div>
+
+  <!-- Rodzaj medium -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Rodzaj medium</label>
+    <select name="rodzaj_medium" class="form-select" style="max-width:280px">
+      <?php foreach(EZD_MEDIA as $mv=>$ml): ?>
+      <option value="<?= $mv ?>" <?= $row['rodzaj_medium']===$mv?'selected':'' ?>><?= h($ml['label']) ?></option>
+      <?php endforeach; ?>
+    </select>
   </div>
 
   <!-- Nadawca / Odbiorca -->

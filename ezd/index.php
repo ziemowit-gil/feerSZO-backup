@@ -14,7 +14,7 @@ $rpw_stats  = ezd_rpw_stats();
 $user_id    = (int)current_user()['id'];
 
 // Ostatnie sprawy
-$recent_sprawy = ezd_sprawy_all(['status' => '']);  // all statuses, limited in function
+$recent_sprawy = ezd_sprawy_all(['status' => ''], $user_id);  // all statuses, limited in function
 $recent_sprawy = array_slice(array_filter($recent_sprawy, fn($s) => $s['status'] !== 'closed'), 0, 8);
 
 // Moje dekretacje (oczekujące)
@@ -28,13 +28,16 @@ $my_dekr = db_all(
     [$user_id]
 );
 
-// Moje sprawy (jestem właścicielem/referentem)
+// Moje sprawy (jestem właścicielem/referentem lub mają ze mną współdzielone)
 $my_sprawy = db_all(
-    "SELECT s.*, t.symbol AS teczka_symbol FROM ezd_sprawy s
+    "SELECT s.*, t.symbol AS teczka_symbol,
+            (s.owner_id!=? AND s.created_by!=?) AS is_shared
+     FROM ezd_sprawy s
      JOIN ezd_teczki t ON t.id=s.teczka_id
-     WHERE s.owner_id=? AND s.status!='closed'
+     WHERE s.status!='closed' AND (s.owner_id=? OR s.created_by=?
+           OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))
      ORDER BY (s.deadline IS NULL), s.deadline ASC, s.updated_at DESC LIMIT 8",
-    [$user_id]
+    [$user_id, $user_id, $user_id, $user_id, $user_id]
 );
 // Moje pisma (jestem referentem)
 $my_pisma = db_all(
@@ -43,7 +46,11 @@ $my_pisma = db_all(
      WHERE p.owner_id=? ORDER BY p.updated_at DESC LIMIT 8",
     [$user_id]
 );
-$my_sprawy_cnt = (int)(db_one("SELECT COUNT(*) c FROM ezd_sprawy WHERE owner_id=? AND status!='closed'", [$user_id])['c'] ?? 0);
+$my_sprawy_cnt = (int)(db_one(
+    "SELECT COUNT(*) c FROM ezd_sprawy s WHERE s.status!='closed' AND (s.owner_id=? OR s.created_by=?
+     OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))",
+    [$user_id, $user_id, $user_id]
+)['c'] ?? 0);
 $my_pisma_cnt  = (int)(db_one("SELECT COUNT(*) c FROM ezd_pisma WHERE owner_id=?", [$user_id])['c'] ?? 0);
 
 // Ostatnia aktywność (log)
@@ -146,7 +153,9 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php foreach($my_sprawy as $s): ?>
           <tr onclick="location='<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>'" style="cursor:pointer">
             <td class="font-monospace fw-semibold text-primary" style="white-space:nowrap;font-size:.74rem"><?= h($s['znak_sprawy']) ?></td>
-            <td class="text-truncate" style="max-width:1px"><?= h($s['title']) ?></td>
+            <td class="text-truncate" style="max-width:1px"><?= h($s['title']) ?>
+              <?php if(!empty($s['is_shared'])): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-1" style="font-size:.6rem"><i class="bi bi-people me-1"></i>Współdzielona</span><?php endif; ?>
+            </td>
             <td class="text-nowrap"><?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?></td>
             <td class="text-nowrap text-end" style="font-size:.72rem">
               <?php if(!empty($s['ciagla'])): ?><span class="text-info"><i class="bi bi-infinity"></i></span>

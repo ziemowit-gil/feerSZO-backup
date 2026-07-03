@@ -11,6 +11,10 @@ $pismo = ezd_pismo_get($id);
 if (!$pismo) { flash_set('error','Pismo nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 
 $sprawa_id = (int)$pismo['sprawa_id'];
+$_sprawa_pisma = ezd_sprawa_get($sprawa_id);
+$_access = $_sprawa_pisma ? ezd_sprawa_access($_sprawa_pisma, (int)current_user()['id']) : null;
+if (!$_access) { flash_set('error','Brak dostępu do tej sprawy.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
+$can_act = $_access === 'write';
 $PAGE_TITLE = $pismo['sygnatura'];
 
 // Integracja z korespondencją
@@ -28,11 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['_action'] ?? '';
 
-    if ($action === 'upload' && can_edit()) {
+    if ($action === 'upload' && $can_act) {
         $err = ezd_upload('file', $sprawa_id, $user_id, $id);
         flash_set($err ? 'error' : 'success', $err ?? 'Plik dodany.');
     }
-    if ($action === 'del_file' && can_edit()) {
+    if ($action === 'del_file' && $can_act) {
         $zid = (int)($_POST['zid'] ?? 0);
         ezd_zal_delete($zid, $user_id);
         flash_set('success','Plik usunięty.');
@@ -73,10 +77,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               </span>
               <span class="badge bg-secondary bg-opacity-10 text-secondary border font-monospace" style="font-size:.72rem"><?= h($pismo['sygnatura']) ?></span>
               <span class="badge bg-light text-dark border" style="font-size:.68rem"><?= h($pismo['status']) ?></span>
+              <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:.68rem"><i class="bi <?= EZD_MEDIA[$pismo['rodzaj_medium']]['icon'] ?? 'bi-question-circle' ?> me-1"></i><?= h(EZD_MEDIA[$pismo['rodzaj_medium']]['label'] ?? $pismo['rodzaj_medium']) ?></span>
             </div>
             <h5 class="fw-bold mb-0"><?= h($pismo['title']) ?></h5>
           </div>
-          <?php if(can_edit() && $pismo['sprawa_status'] !== 'closed'): ?>
+          <?php if($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
           <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
           <?php endif; ?>
         </div>
@@ -105,7 +110,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" target="_blank" class="text-decoration-none fw-semibold text-truncate d-block" style="font-size:.82rem"><?= h($z['original_name']) ?></a>
             <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · v<?= $z['wersja'] ?> · <?= h($z['uploader']??'—') ?> · <?= date('d.m.Y H:i',strtotime($z['uploaded_at'])) ?></div>
           </div>
-          <?php if(can_edit() && $pismo['sprawa_status']!=='closed'): ?>
+          <?php if($can_act && $pismo['sprawa_status']!=='closed'): ?>
           <form method="post" onsubmit="return confirm('Usunąć plik?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="del_file">
@@ -117,7 +122,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <?php endforeach; ?>
       </div>
       <?php endif; ?>
-      <?php if(can_edit() && $pismo['sprawa_status']!=='closed'): ?>
+      <?php if($can_act && $pismo['sprawa_status']!=='closed'): ?>
       <div class="card-footer">
         <form method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

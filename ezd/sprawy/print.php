@@ -22,6 +22,7 @@ require_module_enabled('ezd_enabled', 'Moduł kancelarii');
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
 if (!$sprawa) { flash_set('error', 'Sprawa nie istnieje.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
+if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error', 'Brak dostępu do tej sprawy.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
 
 $zalaczniki = ezd_zalaczniki_by($id); // wszystkie dokumenty sprawy (jednolita ścieżka)
 $out   = $_GET['out'] ?? '';

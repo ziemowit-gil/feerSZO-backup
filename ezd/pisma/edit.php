@@ -5,11 +5,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
-if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 $id    = (int)($_GET['id'] ?? 0);
 $pismo = ezd_pismo_get($id);
 if (!$pismo) { flash_set('error','Pismo nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+$_sprawa_pisma = ezd_sprawa_get((int)$pismo['sprawa_id']);
+if (!$_sprawa_pisma || ezd_sprawa_access($_sprawa_pisma, (int)current_user()['id']) !== 'write') { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 if ($pismo['sprawa_status'] === 'closed' && !is_admin()) {
     flash_set('error','Sprawa jest zamknięta.'); header('Location:'.APP_URL.'/ezd/pisma/view.php?id='.$id); exit;
 }
@@ -32,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'data_wysylki' => $_POST['data_wysylki']?? '',
         'status'       => $_POST['status']      ?? $pismo['status'],
         'owner_id'     => (int)($_POST['owner_id']??0) ?: null,
+        'rodzaj_medium'=> $_POST['rodzaj_medium'] ?? $pismo['rodzaj_medium'],
     ];
     if (!$row['title']) $errors[] = 'Tytuł pisma jest wymagany.';
 
@@ -79,6 +81,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="mb-3">
     <label class="form-label fw-semibold">Tytuł / przedmiot <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>" required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Rodzaj medium</label>
+    <select name="rodzaj_medium" class="form-select" style="max-width:280px">
+      <?php foreach(EZD_MEDIA as $mv=>$ml): ?>
+      <option value="<?= $mv ?>" <?= $row['rodzaj_medium']===$mv?'selected':'' ?>><?= h($ml['label']) ?></option>
+      <?php endforeach; ?>
+    </select>
   </div>
 
   <div class="row g-3 mb-3">

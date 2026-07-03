@@ -5,11 +5,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
-if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
 if (!$sprawa) { flash_set('error','Sprawa nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+if (ezd_sprawa_access($sprawa, (int)current_user()['id']) !== 'write') { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 if ($sprawa['status'] === 'closed' && !is_admin()) {
     flash_set('error','Sprawa jest zamknięta — tylko administrator może ją edytować.');
     header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$id); exit;

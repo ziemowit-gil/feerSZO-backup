@@ -232,6 +232,17 @@
         updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Współdzielenie spraw — dostęp dodatkowy ponad rolę/właściciela
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_sprawa_users (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        sprawa_id   INTEGER NOT NULL REFERENCES ezd_sprawy(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        uprawnienie TEXT    NOT NULL DEFAULT 'odczyt',
+        added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        added_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(sprawa_id, user_id)
+    )");
+
     // Kolumny dokładane do istniejących tabel (idempotentnie)
     foreach ([
         "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
@@ -239,6 +250,7 @@
         "ALTER TABLE ezd_sprawy     ADD COLUMN etap        TEXT    NOT NULL DEFAULT 'wszczeta'",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN dokument_id INTEGER REFERENCES ezd_dokumenty(id) ON DELETE CASCADE",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN grupa_id    INTEGER REFERENCES ezd_grupy_plikow(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_pisma      ADD COLUMN rodzaj_medium TEXT  NOT NULL DEFAULT 'papier'",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -261,6 +273,8 @@
         "CREATE INDEX IF NOT EXISTS idx_ezd_zal_grupa      ON ezd_zalaczniki(grupa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_grupy_sprawa   ON ezd_grupy_plikow(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_parent  ON ezd_sprawy(parent_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_sprawa_users_s ON ezd_sprawa_users(sprawa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_sprawa_users_u ON ezd_sprawa_users(user_id)",
     ] as $idx) {
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
     }
@@ -347,6 +361,14 @@ const EZD_KIERUNKI = [
     'przychodzace' => ['label' => 'Przychodzące', 'icon' => 'bi-box-arrow-in-down-left', 'class' => 'info'],
     'wychodzace'   => ['label' => 'Wychodzące',   'icon' => 'bi-box-arrow-up-right',     'class' => 'primary'],
     'wewnetrzne'   => ['label' => 'Wewnętrzne',   'icon' => 'bi-arrow-left-right',       'class' => 'secondary'],
+];
+// Rodzaj medium pisma — rozróżnienie korespondencji papierowej od elektronicznej
+const EZD_MEDIA = [
+    'papier' => ['label' => 'Papierowe',        'icon' => 'bi-file-earmark-text'],
+    'email'  => ['label' => 'E-mail',           'icon' => 'bi-at'],
+    'epuap'  => ['label' => 'ePUAP / e-Doręczenia', 'icon' => 'bi-shield-lock'],
+    'faks'   => ['label' => 'Faks',             'icon' => 'bi-printer'],
+    'inne'   => ['label' => 'Inne',             'icon' => 'bi-question-circle'],
 ];
 const EZD_DYSPOZYCJE = [
     'do_zalat'   => 'Do załatwienia',
@@ -552,13 +574,28 @@ function ezd_sprawy_by_teczka(int $teczka_id): array {
     );
 }
 
-function ezd_sprawy_all(array $f = []): array {
+/**
+ * @param int|null $viewer_id Gdy podane i użytkownik NIE ma ogólnej roli z odczytem do EZD
+ *                             (can_read('ezd')) ani nie jest adminem — lista zawęża się do
+ *                             spraw, w których jest właścicielem/twórcą lub ma współdzielenie.
+ */
+function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
     $where = ["1=1"]; $params = [];
     if (!empty($f['status']))    { $where[] = "s.status=?";     $params[] = $f['status']; }
     if (!empty($f['priority']))  { $where[] = "s.priority=?";   $params[] = $f['priority']; }
     if (!empty($f['teczka_id'])) { $where[] = "s.teczka_id=?";  $params[] = (int)$f['teczka_id']; }
     if (!empty($f['owner_id']))  { $where[] = "s.owner_id=?";   $params[] = (int)$f['owner_id']; }
     if (!empty($f['q']))         { $where[] = "(s.title LIKE ? OR s.znak_sprawy LIKE ?)"; $q = '%'.$f['q'].'%'; $params[] = $q; $params[] = $q; }
+    if (!empty($f['deadline_od'])) { $where[] = "s.deadline>=?"; $params[] = $f['deadline_od']; }
+    if (!empty($f['deadline_do'])) { $where[] = "s.deadline<=?"; $params[] = $f['deadline_do']; }
+    if (!empty($f['mine_or_shared']) && $viewer_id) {
+        $where[] = "(s.owner_id=? OR s.created_by=? OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))";
+        array_push($params, $viewer_id, $viewer_id, $viewer_id);
+    }
+    if ($viewer_id !== null && !is_admin() && !can_read('ezd')) {
+        $where[] = "(s.owner_id=? OR s.created_by=? OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))";
+        array_push($params, $viewer_id, $viewer_id, $viewer_id);
+    }
     return db_all(
         "SELECT s.*, t.symbol AS teczka_symbol, t.title AS teczka_title, u.name AS owner_name
          FROM ezd_sprawy s
@@ -648,6 +685,68 @@ function ezd_sprawa_update(int $id, array $d, int $user_id): void {
         db()->prepare("UPDATE ezd_dekretacje SET status='zakonczone',completed_at=datetime('now') WHERE sprawa_id=? AND status='oczekuje'")->execute([$id]);
     }
     ezd_log(null, $id, null, null, $user_id, 'sprawa_update', 'Edytowano sprawę #' . $id);
+}
+
+const EZD_SPRAWA_UPRAWNIENIA = [
+    'odczyt' => 'Odczyt',
+    'edycja' => 'Odczyt i edycja',
+];
+
+/** Lista osób, z którymi współdzielona jest sprawa (poza właścicielem/rolą). */
+function ezd_sprawa_share_list(int $sprawa_id): array {
+    return db_all(
+        "SELECT su.*, u.name AS user_name, b.name AS added_by_name
+         FROM ezd_sprawa_users su
+         JOIN users u ON u.id = su.user_id
+         LEFT JOIN users b ON b.id = su.added_by
+         WHERE su.sprawa_id=? ORDER BY u.name", [$sprawa_id]
+    );
+}
+
+/** Uprawnienie danego użytkownika ze współdzielenia (bez uwzględnienia roli/właściciela) lub null. */
+function ezd_sprawa_share_get(int $sprawa_id, int $user_id): ?string {
+    $r = db_one("SELECT uprawnienie FROM ezd_sprawa_users WHERE sprawa_id=? AND user_id=?", [$sprawa_id, $user_id]);
+    return $r['uprawnienie'] ?? null;
+}
+
+function ezd_sprawa_share_add(int $sprawa_id, int $user_id, string $uprawnienie, int $by_user_id): void {
+    if (!array_key_exists($uprawnienie, EZD_SPRAWA_UPRAWNIENIA)) $uprawnienie = 'odczyt';
+    db()->prepare(
+        "INSERT OR REPLACE INTO ezd_sprawa_users (sprawa_id,user_id,uprawnienie,added_by,added_at)
+         VALUES (?,?,?,?,datetime('now'))"
+    )->execute([$sprawa_id, $user_id, $uprawnienie, $by_user_id]);
+    $u = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
+    ezd_log(null, $sprawa_id, null, null, $by_user_id, 'sprawa_share_add',
+            'Udostępniono sprawę: ' . ($u['name'] ?? $user_id) . ' (' . EZD_SPRAWA_UPRAWNIENIA[$uprawnienie] . ')');
+}
+
+function ezd_sprawa_share_remove(int $sprawa_id, int $user_id, int $by_user_id): void {
+    db()->prepare("DELETE FROM ezd_sprawa_users WHERE sprawa_id=? AND user_id=?")->execute([$sprawa_id, $user_id]);
+    $u = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
+    ezd_log(null, $sprawa_id, null, null, $by_user_id, 'sprawa_share_del',
+            'Odebrano współdzielenie sprawy: ' . ($u['name'] ?? $user_id));
+}
+
+/**
+ * Efektywny dostęp danego użytkownika do sprawy: 'write' | 'read' | null (brak dostępu).
+ * Kolejność: admin/rola z zapisem do EZD i właściciel/twórca → write; jawne współdzielenie →
+ * wg uprawnienia; rola z odczytem do EZD → read; w przeciwnym razie brak dostępu.
+ */
+function ezd_sprawa_access(array $sprawa, int $user_id): ?string {
+    if (is_admin() || can_write('ezd')) return 'write';
+    if ((int)($sprawa['owner_id'] ?? 0) === $user_id || (int)($sprawa['created_by'] ?? 0) === $user_id) return 'write';
+    $share = ezd_sprawa_share_get((int)$sprawa['id'], $user_id);
+    if ($share === 'edycja') return 'write';
+    if ($share === 'odczyt') return 'read';
+    if (can_read('ezd')) return 'read';
+    return null;
+}
+
+/** Może zarządzać listą współdzielenia (nie mylić z dostępem do treści sprawy). */
+function ezd_sprawa_can_manage_share(array $sprawa, int $user_id): bool {
+    return is_admin() || can_write('ezd')
+        || (int)($sprawa['owner_id'] ?? 0) === $user_id
+        || (int)($sprawa['created_by'] ?? 0) === $user_id;
 }
 
 function _ezd_next_numer(int $teczka_id, int $rok): int {
@@ -898,10 +997,11 @@ function ezd_pismo_create(array $d, int $user_id): int {
     _ezd_check_sprawa_open($sprawa);
 
     $sygnatura = _ezd_next_sygnatura_pisma((int)$d['sprawa_id'], $sprawa['znak_sprawy']);
+    $medium    = array_key_exists($d['rodzaj_medium'] ?? '', EZD_MEDIA) ? $d['rodzaj_medium'] : 'papier';
     db()->prepare(
         "INSERT INTO ezd_pisma (sprawa_id,sygnatura,kierunek,title,tresc,nadawca,odbiorca,
-         data_pisma,data_wplywu,data_wysylki,status,owner_id,created_by,updated_at)
-         VALUES (:sid,:sygn,:kier,:title,:tresc,:nad,:odb,:dp,:dw,:dy,:status,:owner,:uid,datetime('now'))"
+         data_pisma,data_wplywu,data_wysylki,status,owner_id,rodzaj_medium,created_by,updated_at)
+         VALUES (:sid,:sygn,:kier,:title,:tresc,:nad,:odb,:dp,:dw,:dy,:status,:owner,:medium,:uid,datetime('now'))"
     )->execute([
         ':sid'    => (int)$d['sprawa_id'],
         ':sygn'   => $sygnatura,
@@ -915,6 +1015,7 @@ function ezd_pismo_create(array $d, int $user_id): int {
         ':dy'     => $d['data_wysylki'] ?: null,
         ':status' => $d['status']   ?? 'nowe',
         ':owner'  => $d['owner_id'] ?: null,
+        ':medium' => $medium,
         ':uid'    => $user_id,
     ]);
     $id = (int)db()->lastInsertId();
@@ -927,9 +1028,10 @@ function ezd_pismo_update(int $id, array $d, int $user_id): void {
     $p = ezd_pismo_get($id);
     if (!$p) return;
     _ezd_check_sprawa_open(['status' => $p['sprawa_status']]);
+    $medium = array_key_exists($d['rodzaj_medium'] ?? '', EZD_MEDIA) ? $d['rodzaj_medium'] : $p['rodzaj_medium'];
     db()->prepare(
         "UPDATE ezd_pisma SET kierunek=:k,title=:t,tresc=:tr,nadawca=:n,odbiorca=:o,
-         data_pisma=:dp,data_wplywu=:dw,data_wysylki=:dy,status=:s,owner_id=:ow,
+         data_pisma=:dp,data_wplywu=:dw,data_wysylki=:dy,status=:s,owner_id=:ow,rodzaj_medium=:med,
          updated_at=datetime('now') WHERE id=:id"
     )->execute([
         ':k' => $d['kierunek'] ?? $p['kierunek'], ':t'  => trim($d['title']),
@@ -937,6 +1039,7 @@ function ezd_pismo_update(int $id, array $d, int $user_id): void {
         ':o' => $d['odbiorca'] ?? '',              ':dp' => $d['data_pisma']   ?: null,
         ':dw'=> $d['data_wplywu'] ?: null,         ':dy' => $d['data_wysylki'] ?: null,
         ':s' => $d['status']   ?? $p['status'],   ':ow' => $d['owner_id'] ?: null,
+        ':med' => $medium,
         ':id'=> $id,
     ]);
     ezd_log(null, (int)$p['sprawa_id'], $id, null, $user_id, 'pismo_update', 'Edytowano pismo #' . $id);

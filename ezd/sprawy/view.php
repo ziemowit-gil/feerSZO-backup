@@ -17,8 +17,11 @@ $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
 if (!$sprawa) { flash_set('error', 'Sprawa nie istnieje.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
 
+$user_id = (int)current_user()['id'];
+$access  = ezd_sprawa_access($sprawa, $user_id);
+if (!$access) { flash_set('error', 'Brak dostępu do tej sprawy.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
+
 $PAGE_TITLE = $sprawa['znak_sprawy'] . ' — ' . $sprawa['title'];
-$user_id    = (int)current_user()['id'];
 
 $timeline    = ezd_timeline($id);
 $dekretacje  = ezd_dekretacje_by_sprawa($id);
@@ -29,6 +32,7 @@ $podsprawy   = ezd_podsprawy_by_parent($id);
 $dokumenty   = ezd_dokumenty_by_sprawa($id);
 $notatki     = ezd_notatki_by_sprawa($id);
 $grupy       = ezd_grupy_by_sprawa($id);
+$shares      = ezd_sprawa_share_list($id);
 
 // Pliki repozytorium pogrupowane: grupa_id => [pliki], 0 => bez grupy
 $grupy_map = [];
@@ -40,9 +44,11 @@ foreach ($zalaczniki as $z) {
     else $bez_grupy[] = $z;
 }
 
-$is_closed = $sprawa['status'] === 'closed';
-$can_act   = can_edit() && !$is_closed;
-$mini      = ezd_mini(); // tryb uproszczony — ukrywa metrykę i obieg/workflow
+$is_closed        = $sprawa['status'] === 'closed';
+$can_edit_case    = $access === 'write';           // zarządzanie sprawą (metadane, współdzielenie) — niezależnie od zamknięcia
+$can_act          = $can_edit_case && !$is_closed; // dodawanie treści do sprawy — tylko gdy otwarta
+$can_manage_share = ezd_sprawa_can_manage_share($sprawa, $user_id);
+$mini             = ezd_mini(); // tryb uproszczony — ukrywa metrykę i obieg/workflow
 
 // Obsługa POST (upload + dekretacja + zmiana statusu sprawy)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -50,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? '';
 
     if ($action === 'upload') {
-        if (!can_edit()) { http_response_code(403); exit; }
+        if (!$can_act) { http_response_code(403); exit; }
         $grupa_id = (int)($_POST['grupa_id'] ?? 0) ?: null;
         $custom_name = trim($_POST['custom_name'] ?? '');
         $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null);
@@ -59,28 +65,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'del_file') {
-        if (!can_edit()) { http_response_code(403); exit; }
+        if (!$can_act) { http_response_code(403); exit; }
         ezd_zal_delete((int)($_POST['zal_id'] ?? 0), $user_id);
         flash_set('success', 'Plik usunięty.');
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
-    if ($action === 'grupa_add' && can_edit()) {
+    if ($action === 'grupa_add' && $can_act) {
         try { ezd_grupa_create($id, $_POST['nazwa'] ?? '', $user_id); flash_set('success','Grupa plików utworzona.'); }
         catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
-    if ($action === 'grupa_del' && can_edit()) {
+    if ($action === 'grupa_del' && $can_act) {
         ezd_grupa_delete((int)($_POST['grupa_id'] ?? 0), $user_id);
         flash_set('success', 'Grupę usunięto (pliki pozostały bez grupy).');
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
-    if ($action === 'zal_move' && can_edit()) {
+    if ($action === 'zal_move' && $can_act) {
         ezd_zal_set_grupa((int)($_POST['zal_id'] ?? 0), (int)($_POST['grupa_id'] ?? 0) ?: null, $user_id);
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
-    if ($action === 'dekretacja' && can_edit()) {
+    if ($action === 'share_add' && $can_manage_share) {
+        $su_id = (int)($_POST['share_user_id'] ?? 0);
+        $su_upr = $_POST['share_uprawnienie'] ?? 'odczyt';
+        if ($su_id) { ezd_sprawa_share_add($id, $su_id, $su_upr, $user_id); flash_set('success', 'Sprawa udostępniona.'); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#wspoldzielenie'); exit;
+    }
+    if ($action === 'share_del' && $can_manage_share) {
+        ezd_sprawa_share_remove($id, (int)($_POST['share_user_id'] ?? 0), $user_id);
+        flash_set('success', 'Odebrano współdzielenie.');
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#wspoldzielenie'); exit;
+    }
+
+    if ($action === 'dekretacja' && $can_act) {
         try {
             $unit_id_d    = (int)($_POST['unit_id'] ?? 0) ?: null;
             $wykonawca_id = (int)($_POST['wykonawca_id'] ?? 0);
@@ -139,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($tresc !== '') { ezd_notatka_create($id, $tresc, $user_id); flash_set('success', 'Notatka dodana.'); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
     }
-    if ($action === 'note_edit' && can_edit()) {
+    if ($action === 'note_edit' && $can_act) {
         $n = ezd_notatka_get((int)($_POST['note_id'] ?? 0));
         if ($n && ($n['created_by'] == $user_id || is_admin())) {
             ezd_notatka_update((int)$n['id'], trim($_POST['tresc'] ?? ''), $user_id);
@@ -147,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else { flash_set('error', 'Brak uprawnień do edycji notatki.'); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
     }
-    if ($action === 'note_del' && can_edit()) {
+    if ($action === 'note_del' && $can_act) {
         $n = ezd_notatka_get((int)($_POST['note_id'] ?? 0));
         if ($n && ($n['created_by'] == $user_id || is_admin())) {
             ezd_notatka_delete((int)$n['id'], $user_id);
@@ -155,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else { flash_set('error', 'Brak uprawnień do usunięcia notatki.'); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
     }
-    if ($action === 'note_pin' && can_edit()) {
+    if ($action === 'note_pin' && $can_act) {
         ezd_notatka_toggle_pin((int)($_POST['note_id'] ?? 0), $user_id);
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#notatki'); exit;
     }
@@ -277,7 +295,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <i class="bi bi-file-earmark-plus me-1"></i>Umowa
             </a>
             <?php endif; ?>
-            <?php if(can_edit()): ?>
+            <?php if($can_edit_case): ?>
             <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
               <i class="bi bi-pencil"></i>
             </a>
@@ -491,7 +509,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <span class="fw-semibold text-dark"><?= h($n['author'] ?? '—') ?></span>
             <span><?= date('d.m.Y H:i', strtotime($n['created_at'])) ?></span>
             <?php if($n['updated_at'] && $n['updated_at'] !== $n['created_at']): ?><span class="fst-italic">(edytowano)</span><?php endif; ?>
-            <?php if(can_edit()): ?>
+            <?php if($can_act): ?>
             <div class="ms-auto d-flex gap-1">
               <form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_pin"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
                 <button class="btn btn-xs btn-link p-0 text-muted" title="<?= $n['pinned']?'Odepnij':'Przypnij' ?>"><i class="bi bi-pin-angle<?= $n['pinned']?'-fill text-warning':'' ?>"></i></button>
@@ -506,7 +524,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
           </div>
           <div style="white-space:pre-wrap"><?= h($n['tresc']) ?></div>
-          <?php if($own && can_edit()): ?>
+          <?php if($own && $can_act): ?>
           <div class="collapse mt-2" id="note-edit-<?= $n['id'] ?>">
             <form method="post">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_edit"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
@@ -529,12 +547,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
           <i class="bi bi-folder2 me-1"></i>Repozytorium plików sprawy (<?= count($zalaczniki) ?>)
         </h6>
-        <?php if(can_edit()): ?>
+        <?php if($can_act): ?>
         <button class="btn btn-xs btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
         <?php endif; ?>
       </div>
 
-      <?php if(can_edit()): ?>
+      <?php if($can_act): ?>
       <div class="collapse mb-3" id="new-grupa">
         <form method="post" class="d-flex gap-2">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -578,7 +596,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               data-reason="<?= h((string)($sig['reason'] ?? '')) ?>" data-location="<?= h((string)($sig['location'] ?? '')) ?>"
               data-note="<?= h((string)($sig['note'] ?? '')) ?>"><i class="bi bi-patch-check"></i></button>
             <?php endif; ?>
-            <?php if(can_edit() && $grupy): ?>
+            <?php if($can_act && $grupy): ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="zal_move">
@@ -587,7 +605,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </form>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
-            <?php if(can_edit()): ?>
+            <?php if($can_act): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="del_file">
@@ -611,7 +629,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <i class="bi bi-folder-fill text-warning"></i>
             <span class="fw-bold"><?= h($g['nazwa']) ?></span>
             <span class="badge bg-secondary bg-opacity-15 text-secondary"><?= (int)$g['plik_count'] ?></span>
-            <?php if(can_edit()): ?>
+            <?php if($can_act): ?>
             <form method="post" class="d-inline ms-auto" onsubmit="return confirm('Usunąć grupę? Pliki pozostaną w repozytorium (bez grupy).')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="grupa_del">
@@ -630,7 +648,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php endif; ?>
           <?php foreach ($bez_grupy as $z) $renderZal($z); ?>
 
-          <?php if(can_edit()): ?>
+          <?php if($can_act): ?>
           <form method="post" enctype="multipart/form-data" class="p-3 border-top">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="upload">
@@ -720,8 +738,49 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
 
+    <!-- Współdzielenie sprawy -->
+    <div class="bc" id="wspoldzielenie">
+      <div class="bc-h"><i class="bi bi-people"></i>Współdzielone z<?= $shares ? ' ('.count($shares).')' : '' ?></div>
+      <div class="bc-b">
+        <?php foreach($shares as $sh): ?>
+        <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.8rem">
+          <i class="bi bi-person-circle text-muted"></i>
+          <div class="flex-grow-1">
+            <div class="fw-semibold"><?= h($sh['user_name']) ?></div>
+            <div class="text-muted" style="font-size:.7rem"><?= h(EZD_SPRAWA_UPRAWNIENIA[$sh['uprawnienie']] ?? $sh['uprawnienie']) ?></div>
+          </div>
+          <?php if($can_manage_share): ?>
+          <form method="post" onsubmit="return confirm('Odebrać dostęp?')">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="share_del">
+            <input type="hidden" name="share_user_id" value="<?= (int)$sh['user_id'] ?>">
+            <button class="btn btn-xs btn-link p-0 text-danger" title="Odbierz dostęp"><i class="bi bi-x-circle"></i></button>
+          </form>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+        <?php if(!$shares): ?>
+        <div class="text-muted text-center mb-2" style="font-size:.78rem">Sprawa nie jest współdzielona z dodatkowymi osobami.</div>
+        <?php endif; ?>
+        <?php if($can_manage_share): ?>
+        <form method="post" class="d-flex flex-column gap-2 mt-2 pt-2 border-top">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="share_add">
+          <select name="share_user_id" class="form-select form-select-sm" required>
+            <option value="">— wybierz osobę —</option>
+            <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+          </select>
+          <select name="share_uprawnienie" class="form-select form-select-sm">
+            <?php foreach(EZD_SPRAWA_UPRAWNIENIA as $uv=>$ul): ?><option value="<?= $uv ?>"><?= h($ul) ?></option><?php endforeach; ?>
+          </select>
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-plus me-1"></i>Udostępnij</button>
+        </form>
+        <?php endif; ?>
+      </div>
+    </div>
+
     <!-- Szybkie akcje -->
-    <?php if(can_edit()): ?>
+    <?php if($can_edit_case): ?>
     <div class="bc">
       <div class="bc-h"><i class="bi bi-lightning-charge"></i>Akcje</div>
       <div class="bc-b d-flex flex-column gap-2">
@@ -767,7 +826,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <?php if($d['deadline']): ?> · <span class="<?= $d['deadline']<date('Y-m-d')&&$d['status']==='oczekuje'?'text-danger fw-bold':'' ?>"><?= date_pl($d['deadline']) ?></span><?php endif; ?>
             </div>
           </div>
-          <?php if($d['status']==='oczekuje' && can_edit()): ?>
+          <?php if($d['status']==='oczekuje' && $can_act): ?>
           <form method="post" class="d-inline flex-shrink-0">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="dekr_done">
