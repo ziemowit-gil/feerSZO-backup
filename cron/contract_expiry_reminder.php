@@ -24,13 +24,20 @@ $today = date('Y-m-d');
 // Dni przed wygaśnięciem, dla których wysyłamy przypomnienia
 $notify_days = [30, 14, 7, 1];
 
-// Tabele i ich krótkie kody do numeru / logu
+// Tabele i ich krótkie kody do numeru / logu, wraz z kolumnami specyficznymi
+// dla danego typu umowy:
+//   table        - nazwa tabeli
+//   date_col     - kolumna terminu końcowego (dla dzieła: termin_oddania)
+//   flag_col     - kolumna "bezterminowa"/"czas_nieokreslony" (lub null gdy brak)
+//   name_col     - kolumna z nazwą/imieniem strony umowy (uslugi/inne nie mają imie_nazwisko)
+//   has_guardian - czy tabela ma kolumny guardian_editor_id / m365_nie_wylaczaj
+//                  (dodane migracją cpc_migrate tylko dla wolontariat/zlecenie/dzielo)
 $contract_tables = [
-    'wolontariat' => 'umowy_wolontariat',
-    'zlecenie'    => 'umowy_zlecenie',
-    'dzielo'      => 'umowy_dzielo',
-    'uslugi'      => 'umowy_uslugi',
-    'inne'        => 'umowy_inne',
+    'wolontariat' => ['table' => 'umowy_wolontariat', 'date_col' => 'data_zakonczenia', 'flag_col' => 'bezterminowa',       'name_col' => 'imie_nazwisko',   'has_guardian' => true],
+    'zlecenie'    => ['table' => 'umowy_zlecenie',    'date_col' => 'data_zakonczenia', 'flag_col' => null,                 'name_col' => 'imie_nazwisko',   'has_guardian' => true],
+    'dzielo'      => ['table' => 'umowy_dzielo',      'date_col' => 'termin_oddania',   'flag_col' => null,                 'name_col' => 'imie_nazwisko',   'has_guardian' => true],
+    'uslugi'      => ['table' => 'umowy_uslugi',      'date_col' => 'data_zakonczenia', 'flag_col' => 'czas_nieokreslony',  'name_col' => 'nazwa_wykonawcy', 'has_guardian' => false],
+    'inne'        => ['table' => 'umowy_inne',        'date_col' => 'data_zakonczenia', 'flag_col' => 'czas_nieokreslony',  'name_col' => 'strona_umowy',    'has_guardian' => false],
 ];
 
 $sent  = 0;
@@ -39,25 +46,32 @@ $errs  = 0;
 
 echo "[" . date('Y-m-d H:i:s') . "] Start: contract_expiry_reminder\n";
 
-// Tabele z kolumną m365_nie_wylaczaj (dodaną przez cpc_migrate) — pomijamy
-// przypomnienia dla umów z utrzymanym dostępem po wygaśnięciu. uslugi/inne
-// nie mają tej kolumny, więc filtr nakładamy warunkowo.
-$tables_with_keep_flag = ['wolontariat', 'zlecenie', 'dzielo'];
+foreach ($contract_tables as $type => $cfg) {
+    $table    = $cfg['table'];
+    $date_col = $cfg['date_col'];
 
-foreach ($contract_tables as $type => $table) {
-    $keep_filter = in_array($type, $tables_with_keep_flag, true)
-        ? ' AND m365_nie_wylaczaj = 0'
-        : '';
-    // Pobierz wszystkie aktywne, terminowe umowy
-    $contracts = db_all(
-        "SELECT id, numer_umowy, imie_nazwisko, data_zakonczenia, opiekun, email, guardian_editor_id
-         FROM {$table}
-         WHERE bezterminowa = 0
-           AND data_zakonczenia IS NOT NULL
-           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
-           {$keep_filter}",
-        []
-    );
+    $flag_filter = $cfg['flag_col'] ? " AND {$cfg['flag_col']} = 0" : '';
+    // m365_nie_wylaczaj: pomijamy przypomnienia dla umów z utrzymanym dostępem
+    // po wygaśnięciu — kolumna istnieje tylko tam, gdzie jest guardian_editor_id.
+    $keep_filter     = $cfg['has_guardian'] ? ' AND m365_nie_wylaczaj = 0' : '';
+    $guardian_select = $cfg['has_guardian'] ? 'guardian_editor_id' : 'NULL AS guardian_editor_id';
+
+    try {
+        // Pobierz wszystkie aktywne, terminowe umowy
+        $contracts = db_all(
+            "SELECT id, numer_umowy, {$cfg['name_col']} AS imie_nazwisko, {$date_col} AS data_zakonczenia, opiekun, email, {$guardian_select}
+             FROM {$table}
+             WHERE {$date_col} IS NOT NULL
+               AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
+               {$flag_filter}
+               {$keep_filter}",
+            []
+        );
+    } catch (\Throwable $e) {
+        echo "[" . date('Y-m-d H:i:s') . "] BLAD zapytania dla {$type}: " . $e->getMessage() . "\n";
+        $errs++;
+        continue;
+    }
 
     foreach ($contracts as $c) {
         $end_date = $c['data_zakonczenia'];
