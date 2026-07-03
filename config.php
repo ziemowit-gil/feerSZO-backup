@@ -60,7 +60,12 @@ if (!defined('APP_KEY'))    define('APP_KEY',    getenv('APP_KEY') ?: '0d74d40a1
 if (!defined('ORG_NAME'))   define('ORG_NAME',   getenv('ORG_NAME') ?: 'Fundacja Edukacji Empatii Rozwoju FEER');
 
 // Wersja i środowisko aplikacji
-if (!defined('APP_VERSION')) define('APP_VERSION', '1.11');
+// Jedyne źródło prawdy: min_version.txt (patrz cli/bump_version.php).
+if (!defined('APP_VERSION')) {
+    $__ver_file = __DIR__ . '/min_version.txt';
+    define('APP_VERSION', is_file($__ver_file) ? trim((string)file_get_contents($__ver_file)) : '1.0');
+    unset($__ver_file);
+}
 if (!defined('APP_ENV'))     define('APP_ENV',     getenv('APP_ENV') ?: (
     ($_SERVER['SERVER_NAME'] ?? 'localhost') === 'localhost' ? 'development' : 'production'
 ));

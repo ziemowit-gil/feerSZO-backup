@@ -42,9 +42,9 @@ include dirname(__DIR__) . '/includes/header.php';
   <?php if ($ver['date']): ?>
   <span class="text-muted small"><?= h($ver['date']) ?></span>
   <?php endif; ?>
-  <a href="<?= APP_URL ?>/min_version.txt" class="btn btn-sm btn-outline-secondary ms-auto" style="font-size:.75rem">
-    <i class="bi bi-pencil me-1"></i>Edytuj min_version.txt
-  </a>
+  <span class="ms-auto text-muted small font-monospace" title="Podnoszenie wersji tylko przez CLI — zapewnia spójny commit + tag">
+    <i class="bi bi-terminal me-1"></i>php cli/bump_version.php minor --tag
+  </span>
 </div>
 
 <!-- Karta wersji -->
