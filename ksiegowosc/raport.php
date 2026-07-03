@@ -17,6 +17,13 @@ $id  = (int)($_GET['id'] ?? 0);
 $doc = kdok_get($id);
 if (!$doc) { http_response_code(404); die('Dokument nie istnieje.'); }
 
+// Gdy istnieje już oficjalny, zahaszowany finalny PDF — nie generuj kolejnej "wersji na żywo",
+// tylko przekieruj do archiwalnego pliku (patrz przycisk w ksiegowosc/view.php).
+if ($doc['generated']) {
+    header('Location: ' . APP_URL . '/ksiegowosc/download.php?id=' . $id . '&type=final');
+    exit;
+}
+
 $history  = kdok_get_history($id);
 $pdf      = kdok_build_report_pdf($doc, $history);
 $filename = 'raport_' . preg_replace('/[^a-zA-Z0-9_\-]/', '_', $doc['number']) . '.pdf';

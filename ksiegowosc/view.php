@@ -410,10 +410,17 @@ require_once __DIR__ . '/../includes/header.php';
 
     <!-- Generuj PDF + raport + odrzucenie (admin) -->
     <div class="d-flex gap-2 flex-wrap mb-3">
+      <?php if ($doc['generated']): ?>
+      <button type="button" class="btn btn-outline-secondary disabled" disabled
+              title="Dostępny jest już oficjalny finalny PDF (poniżej) — raport na żywo jest wyłączony, aby uniknąć dwóch różnych wersji dokumentu.">
+        <i class="bi bi-printer"></i> Raport weryfikacji
+      </button>
+      <?php else: ?>
       <a href="<?= APP_URL ?>/ksiegowosc/raport.php?id=<?= $id ?>" target="_blank"
          class="btn btn-outline-secondary">
         <i class="bi bi-printer"></i> Raport weryfikacji
       </a>
+      <?php endif; ?>
       <?php if (kdok_has_role('zatwierdza')): ?>
       <form method="post">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
