@@ -41,6 +41,11 @@ $AGENTS = [
         'interval' => 604800,       // raz w tygodniu
         'schedule' => [2, 4],       // między 2:00 a 4:00
     ],
+    'contract_auto_complete' => [
+        'file'     => __DIR__ . '/contract_auto_complete.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [4, 6],       // między 4:00 a 6:00
+    ],
     'bulk_email' => [
         'file'     => __DIR__ . '/bulk_email_process.php',
         'interval' => 60,           // co minutę

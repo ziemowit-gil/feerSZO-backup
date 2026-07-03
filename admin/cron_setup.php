@@ -48,6 +48,7 @@ $agents = [
     ['script' => 'cron/sync_m365_reverse.php',      'freq' => 'co godzinę',   'tag' => 'Microsoft 365',  'desc' => 'Synchronizacja odwrotna Azure AD → DB'],
     ['script' => 'cron/outlook_calendar_sync.php',  'freq' => 'co godzinę',   'tag' => 'CRM / Outlook',  'desc' => 'Synchronizacja kalendarzy Outlook per-user → crm_events (tylko użytkownicy z kontem M365)'],
     ['script' => 'cron/kdok_cleanup.php',           'freq' => 'raz w tygodniu','tag'=> 'Dokumenty',       'desc' => 'Czyszczenie dokumentów EOD Dokumentów Księgowych'],
+    ['script' => 'cron/contract_auto_complete.php', 'freq' => 'codziennie 4:00-6:00','tag'=> 'Umowy',    'desc' => 'Automatyczne kończenie umów po upływie terminu'],
     ['script' => 'cron/sync_users_to_test.php',     'freq' => 'co godzinę',   'tag' => 'Testy',          'desc' => 'Synchronizacja kont użytkowników prod → środowisko testowe (tylko gdy TEST_SYNC_URL skonfigurowane)'],
 ];
 
