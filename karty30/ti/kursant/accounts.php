@@ -1057,18 +1057,31 @@ function printBulk(){
 
         <hr class="my-3">
 
-        <!-- Zbiorcze tworzenie kont -->
-        <form method="post">
-          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_op"   value="bulk_create">
-          <label class="form-label fw-semibold mb-1"><i class="bi bi-people me-1"></i>Utwórz zbiorczo</label>
-          <p class="form-text mt-0 mb-2">Zaznacz beneficjentów — dla każdego powstanie konto z loginem i hasłem (pokazane raz).</p>
+        <button type="button" class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#bulkCreateModal">
+          <i class="bi bi-people me-1"></i>Utwórz zbiorczo (<?= count($no_account) ?>)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: zbiorcze tworzenie kont -->
+  <div class="modal fade" id="bulkCreateModal" tabindex="-1" aria-labelledby="bulkCreateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <form method="post" class="modal-content">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_op"   value="bulk_create">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="bulkCreateModalLabel"><i class="bi bi-people text-success me-2" aria-hidden="true"></i>Utwórz konta zbiorczo</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mt-0 mb-2">Zaznacz beneficjentów — dla każdego powstanie konto z loginem i hasłem (pokazane raz).</p>
           <div class="form-check mb-1">
             <input class="form-check-input" type="checkbox" id="bulk_all"
                    onclick="var v=this.checked;document.querySelectorAll('.bulk-cb').forEach(function(c){c.checked=v});">
             <label class="form-check-label small fw-semibold" for="bulk_all">Zaznacz wszystkich (<?= count($no_account) ?>)</label>
           </div>
-          <div class="border rounded p-2 mb-2" style="max-height:220px;overflow:auto">
+          <div class="border rounded p-2 mb-2" style="max-height:320px;overflow:auto">
             <?php foreach ($no_account as $c): ?>
             <div class="form-check">
               <input class="form-check-input bulk-cb" type="checkbox" name="client_ids[]" value="<?= (int)$c['id'] ?>" id="bc<?= (int)$c['id'] ?>">
@@ -1080,11 +1093,12 @@ function printBulk(){
             <input class="form-check-input" type="checkbox" name="send_sms" id="bulk_sms" checked>
             <label class="form-check-label small" for="bulk_sms">Wyślij dane SMS-em (gdy jest numer telefonu)</label>
           </div>
-          <button type="submit" class="btn btn-outline-success w-100">
-            <i class="bi bi-people me-1"></i>Utwórz zaznaczonym
-          </button>
-        </form>
-      </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-people me-1" aria-hidden="true"></i>Utwórz zaznaczonym</button>
+        </div>
+      </form>
     </div>
   </div>
   <?php endif; ?>
@@ -1102,7 +1116,7 @@ function printBulk(){
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <thead class="table-light">
-            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Alias</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
+            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
             <?php foreach ($accounts as $a): ?>
@@ -1113,23 +1127,16 @@ function printBulk(){
                   <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
                   <input type="hidden" name="_op"         value="set_no">
                   <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
-                  <input type="text" name="student_no" value="<?= h($a['student_no'] ?? '') ?>"
-                         class="form-control form-control-sm font-monospace py-0" style="width:84px" placeholder="—" title="Numer kursanta">
-                  <button type="submit" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-1" title="Zapisz numer"><i class="bi bi-save"></i></button>
+                  <label class="visually-hidden" for="no<?= (int)$a['id'] ?>">Numer kursanta — <?= h($a['client_name']) ?></label>
+                  <input type="text" id="no<?= (int)$a['id'] ?>" name="student_no" value="<?= h($a['student_no'] ?? '') ?>"
+                         class="form-control form-control-sm font-monospace py-0" style="width:84px" placeholder="—">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Zapisz numer kursanta" aria-label="Zapisz numer kursanta"><i class="bi bi-save" aria-hidden="true"></i></button>
                 </form>
               </td>
-              <td class="font-monospace"><?= h($a['login']) ?></td>
               <td>
+                <div class="font-monospace"><?= h($a['login']) ?></div>
                 <?php if (!empty($a['login_alias'])): ?>
-                <span class="font-monospace small text-info" title="Alias ustawiony przez kursanta"><?= h($a['login_alias']) ?></span>
-                <form method="post" class="d-inline ms-1" onsubmit="return confirm('Usunąć alias logowania tego kursanta?')">
-                  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="_op" value="clear_alias">
-                  <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                  <button type="submit" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-1" title="Usuń alias"><i class="bi bi-x"></i></button>
-                </form>
-                <?php else: ?>
-                <span class="text-body-secondary small">—</span>
+                <div class="small text-info" title="Alias ustawiony przez kursanta"><i class="bi bi-arrow-return-right" aria-hidden="true"></i> <?= h($a['login_alias']) ?></div>
                 <?php endif; ?>
               </td>
               <td>
@@ -1147,55 +1154,31 @@ function printBulk(){
                 </span>
                 <?php endif; ?>
               </td>
-              <td style="min-width:200px">
+              <td style="min-width:160px">
                 <?php $has_ms = !empty($a['ms_user_id']); $has_moodle = !empty($a['moodle_user_id']); ?>
                 <?php if (!$ms_online_enabled && !$moodle_online_enabled): ?>
                 <span class="text-muted small">moduł wyłączony</span>
                 <?php else: ?>
                 <div class="d-flex flex-column gap-1">
-                  <!-- Microsoft 365 -->
                   <?php if ($ms_online_enabled): ?>
-                  <div class="d-flex align-items-center gap-1">
-                    <?php if ($has_ms): ?>
-                    <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" title="<?= h($a['ms_upn']) ?>">
-                      <i class="bi bi-microsoft"></i> MS
-                    </span>
-                    <span class="font-monospace text-truncate small" style="max-width:120px" title="<?= h($a['ms_upn']) ?>"><?= h($a['ms_upn']) ?></span>
-                    <form method="post" class="d-inline ms-auto" onsubmit="return confirm('Usunąć konto Microsoft tego kursanta?')">
-                      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-                      <input type="hidden" name="_op" value="ms_delete">
-                      <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                      <button class="btn btn-xs btn-sm btn-outline-danger py-0 px-1" title="Usuń konto MS"><i class="bi bi-trash"></i></button>
-                    </form>
-                    <?php else: ?>
-                    <form method="post" class="d-inline">
-                      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-                      <input type="hidden" name="_op" value="ms_create">
-                      <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                      <button class="btn btn-xs btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-microsoft me-1"></i>Utwórz MS</button>
-                    </form>
-                    <?php endif; ?>
-                  </div>
+                  <?php if ($has_ms): ?>
+                  <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle text-truncate" style="max-width:100%" title="<?= h($a['ms_upn']) ?>">
+                    <i class="bi bi-microsoft" aria-hidden="true"></i> <span class="font-monospace"><?= h($a['ms_upn']) ?></span>
+                  </span>
+                  <?php else: ?>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis border">Brak konta MS</span>
                   <?php endif; ?>
-                  <!-- Moodle -->
+                  <?php endif; ?>
                   <?php if ($moodle_online_enabled): ?>
-                  <div class="d-flex align-items-center gap-1">
-                    <?php if ($has_moodle): ?>
-                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">
-                      <i class="bi bi-mortarboard"></i> Moodle
-                    </span>
-                    <span class="font-monospace text-truncate small" style="max-width:120px" title="<?= h($a['moodle_username']) ?>"><?= h($a['moodle_username']) ?></span>
-                    <?php elseif ($has_ms): ?>
-                    <form method="post" class="d-inline">
-                      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-                      <input type="hidden" name="_op" value="moodle_create">
-                      <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                      <button class="btn btn-xs btn-sm btn-outline-success py-0 px-2"><i class="bi bi-mortarboard me-1"></i>Utwórz Moodle</button>
-                    </form>
-                    <?php else: ?>
-                    <span class="text-muted small">wymaga konta MS</span>
-                    <?php endif; ?>
-                  </div>
+                  <?php if ($has_moodle): ?>
+                  <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle text-truncate" style="max-width:100%" title="<?= h($a['moodle_username']) ?>">
+                    <i class="bi bi-mortarboard" aria-hidden="true"></i> <span class="font-monospace"><?= h($a['moodle_username']) ?></span>
+                  </span>
+                  <?php elseif ($has_ms): ?>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis border">Brak konta Moodle</span>
+                  <?php else: ?>
+                  <span class="text-muted small">Moodle wymaga konta MS</span>
+                  <?php endif; ?>
                   <?php endif; ?>
                 </div>
                 <?php endif; ?>
@@ -1245,6 +1228,44 @@ function printBulk(){
                       </form>
                     </li>
                     <?php endforeach; ?>
+
+                    <?php if (!empty($a['login_alias'])): ?>
+                    <li>
+                      <form method="post" onsubmit="return confirm('Usunąć alias logowania tego kursanta?')">
+                        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op" value="clear_alias">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-x-circle me-2 text-secondary" aria-hidden="true"></i>Usuń alias logowania <span class="text-body-secondary small">(<?= h($a['login_alias']) ?>)</span></button>
+                      </form>
+                    </li>
+                    <?php endif; ?>
+
+                    <?php if ($ms_online_enabled || $moodle_online_enabled): ?>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header">Nauka online</h6></li>
+                    <?php if ($ms_online_enabled): ?>
+                    <li>
+                      <form method="post" <?= $has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="<?= $has_ms ? 'ms_delete' : 'ms_create' ?>">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item <?= $has_ms ? 'text-danger' : '' ?>">
+                          <i class="bi bi-microsoft me-2 <?= $has_ms ? 'text-danger' : 'text-primary' ?>" aria-hidden="true"></i><?= $has_ms ? 'Usuń konto Microsoft' : 'Utwórz konto Microsoft' ?>
+                        </button>
+                      </form>
+                    </li>
+                    <?php endif; ?>
+                    <?php if ($moodle_online_enabled && !$has_moodle && $has_ms): ?>
+                    <li>
+                      <form method="post">
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="moodle_create">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-mortarboard me-2 text-success" aria-hidden="true"></i>Utwórz konto Moodle</button>
+                      </form>
+                    </li>
+                    <?php endif; ?>
+                    <?php endif; ?>
 
                     <li><hr class="dropdown-divider"></li>
 
