@@ -742,6 +742,9 @@ if ($_user) {
       <?php endif; ?>
       <li><a class="dropdown-item<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php"><i class="bi bi-mailbox me-2"></i>Korespondencja</a></li>
       <li><a class="dropdown-item<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php"><i class="bi bi-list-task me-2"></i>Procedury</a></li>
+      <?php if (module_enabled('doc_signing_enabled')): ?>
+      <li><a class="dropdown-item<?= _nav_active('/podpisy/') ?>" href="<?= APP_URL ?>/podpisy/index.php"><i class="bi bi-pen me-2"></i>Podpisz dokument</a></li>
+      <?php endif; ?>
       <?php if (module_enabled('org_documents_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/admin/org_documents') . _nav_active('/org_documents/') ?>" href="<?= APP_URL ?>/admin/org_documents.php"><i class="bi bi-folder2-open me-2"></i>Dokumenty organizacji</a></li>
       <?php endif; ?>

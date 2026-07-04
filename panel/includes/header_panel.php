@@ -304,6 +304,11 @@ try {
     <i class="bi bi-file-earmark-x" aria-hidden="true"></i>Rozwiązanie umowy
   </a>
   <?php endif; ?>
+  <?php if (module_enabled('doc_signing_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/sign_document.php" class="pv-nav-link<?= _pv_nav_active('/panel/sign_document') ?>">
+    <i class="bi bi-pen" aria-hidden="true"></i>Podpisz dokument
+  </a>
+  <?php endif; ?>
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
   <div class="pv-nav-label" aria-hidden="true">Organizacja</div>
