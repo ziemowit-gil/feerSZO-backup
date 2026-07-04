@@ -72,6 +72,11 @@ hr    { border: none; border-top: 1px solid #ccc; }
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
+// Katalog tmp domyślny mPDF (vendor/mpdf/mpdf/tmp) bywa niezapisywalny w środowisku
+// produkcyjnym — używamy własnego, gwarantowanie zapisywalnego katalogu w uploads/.
+$mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
+if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
+
 try {
     $mpdf = new \Mpdf\Mpdf([
         'mode'          => 'utf-8',
@@ -81,6 +86,7 @@ try {
         'margin_top'    => 18,
         'margin_bottom' => 18,
         'default_font'  => 'dejavuserif',
+        'tempDir'       => $mpdf_tmp,
     ]);
     $mpdf->SetTitle('Podbicie zgłoszenia ' . $ticket['number']);
     $mpdf->SetAuthor($org);
