@@ -16,11 +16,12 @@ $mine_f     = !empty($_GET['mine']);
 $dod        = $_GET['deadline_od'] ?? '';
 $ddo        = $_GET['deadline_do'] ?? '';
 $q          = trim($_GET['q']    ?? '');
+$hide_ciagla_f = !empty($_GET['hide_ciagla']);
 
 $filters = [
     'status' => $status_f, 'priority' => $priority_f, 'q' => $q,
     'owner_id' => $owner_f, 'deadline_od' => $dod, 'deadline_do' => $ddo,
-    'mine_or_shared' => $mine_f,
+    'mine_or_shared' => $mine_f, 'hide_ciagla' => $hide_ciagla_f,
 ];
 $sprawy  = ezd_sprawy_all($filters, $user_id);
 $owners  = db_all("SELECT DISTINCT u.id, u.name FROM ezd_sprawy s JOIN users u ON u.id=s.owner_id ORDER BY u.name");
@@ -105,9 +106,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Szukaj</button>
   </div>
 </div>
-<div class="form-check mt-2">
-  <input class="form-check-input" type="checkbox" name="mine" value="1" id="f-mine" <?= $mine_f?'checked':'' ?> onchange="this.form.submit()">
-  <label class="form-check-label" for="f-mine" style="font-size:.82rem">Tylko moje i współdzielone ze mną</label>
+<div class="d-flex flex-wrap gap-3 mt-2">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="mine" value="1" id="f-mine" <?= $mine_f?'checked':'' ?> onchange="this.form.submit()">
+    <label class="form-check-label" for="f-mine" style="font-size:.82rem">Tylko moje i współdzielone ze mną</label>
+  </div>
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="hide_ciagla" value="1" id="f-hide-ciagla" <?= $hide_ciagla_f?'checked':'' ?> onchange="this.form.submit()">
+    <label class="form-check-label" for="f-hide-ciagla" style="font-size:.82rem"><i class="bi bi-infinity me-1 text-info"></i>Ukryj ciągle otwarte</label>
+  </div>
 </div>
 </form>
 
