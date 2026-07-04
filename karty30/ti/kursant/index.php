@@ -11,6 +11,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/vlab.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_messages.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_moodle.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // ti_moodle_enabled()
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/pfron.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
@@ -1979,6 +1980,13 @@ document.addEventListener('DOMContentLoaded', function() {
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
   <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".</p>
 
+  <?php if (ti_moodle_enabled()): ?>
+  <div class="alert alert-warning d-flex align-items-start gap-2 mb-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div><strong>Platforma Moodle zostanie wyłączona od 6.07.2026.</strong> Materiały i zadania znajdziesz odtąd tutaj, w Dydaktyce / eLearningu.</div>
+  </div>
+  <?php endif; ?>
+
   <?php
     $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']);
     if ($hwf): ?>
@@ -3851,6 +3859,13 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
   <?php else: ?>
+
+  <?php if (ti_moodle_enabled()): ?>
+  <div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div><strong>Platforma Moodle zostanie wyłączona od 6.07.2026.</strong> Materiały i zadania znajdziesz odtąd w zakładce <a href="?tab=zadania">Dydaktyka / eLearning</a>.</div>
+  </div>
+  <?php endif; ?>
 
   <?php if ($moodle_courses_student): ?>
   <section class="card mb-4" aria-labelledby="mdl-heading">

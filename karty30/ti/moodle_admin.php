@@ -144,6 +144,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <?= flash_html() ?>
 
+<div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div><strong>Platforma Moodle zostanie wyłączona od 6.07.2026.</strong> Nie zakładaj nowych kont/kursów na Moodle — materiały i zadania przenoszą się do modułu Dydaktyka / eLearning.</div>
+</div>
+
 <div class="row g-4">
   <!-- Serwery -->
   <div class="col-lg-5">
