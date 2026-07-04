@@ -320,6 +320,12 @@ try {
     <i class="bi bi-folder2-open" aria-hidden="true"></i>Dokumenty organizacji
   </a>
   <?php endif; ?>
+  <?php if (module_enabled('whatsapp_group_enabled')): ?>
+  <a href="<?= APP_URL ?>/panel/whatsapp_group.php" class="pv-nav-link<?= _pv_nav_active('/panel/whatsapp_group') ?>"
+     aria-label="Grupa organizacji na WhatsApp">
+    <i class="bi bi-whatsapp" aria-hidden="true"></i>WhatsApp — grupa
+  </a>
+  <?php endif; ?>
   <?php if (module_enabled('org_calendar_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/calendar.php" class="pv-nav-link<?= _pv_nav_active('/panel/calendar') ?>">
     <i class="bi bi-calendar3" aria-hidden="true"></i>Kalendarz organizacji

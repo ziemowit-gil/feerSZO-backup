@@ -203,6 +203,7 @@ $groups = [
             ['icon'=>'bi-envelope-check',       'label'=>'Masowe maile',            'url'=>'/admin/bulk_email.php'],
             ['icon'=>'bi-chat-dots',            'label'=>'SMS',                     'url'=>'/admin/sms_settings.php'],
             ['icon'=>'bi-whatsapp',             'label'=>'WhatsApp',                'url'=>'/admin/whatsapp_settings.php'],
+            ['icon'=>'bi-whatsapp',             'label'=>'WhatsApp — grupa',        'url'=>'/admin/whatsapp_group.php'],
             ['icon'=>'bi-envelope-at',          'label'=>'Postivo',                 'url'=>'/admin/postivo_settings.php'],
             ['icon'=>'bi-envelope-heart',       'label'=>'Wysyłka powitalna',       'url'=>'/admin/resend_welcome.php'],
         ],
