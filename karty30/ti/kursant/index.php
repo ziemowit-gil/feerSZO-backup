@@ -1011,65 +1011,6 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 
-  <!-- ── Usługi dodatkowe — podsumowanie (dedykowane IP, VPS, licencje) ──────── -->
-  <?php
-    $sum_dedips = vlab_dedicated_ip_for_student((int)$student['id']);
-    $sum_vps    = vlab_dedicated_server_for_student((int)$student['id']);
-    if ($sum_vps && $sum_vps['status'] === 'cancelled') $sum_vps = null;
-    $sum_lic    = k30_ti_client_licenses((int)$student['client_id']);
-  ?>
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header fw-semibold d-flex align-items-center gap-2">
-      <i class="bi bi-stars text-primary" aria-hidden="true"></i>Usługi dodatkowe
-    </div>
-    <div class="card-body">
-      <?php if (!$sum_dedips && !$sum_vps && !$sum_lic): ?>
-      <p class="text-body-secondary small mb-0">
-        Nie korzystasz jeszcze z żadnej usługi dodatkowej. Sprawdź zakładkę <a href="?tab=vlab">VLab</a> (dedykowane IP, VPS ze zniżką)
-        lub <a href="?tab=licencje">Licencje</a>.
-      </p>
-      <?php else: ?>
-      <div class="row g-3">
-        <?php foreach ($sum_dedips as $dip): ?>
-        <div class="col-12 col-md-4">
-          <div class="border rounded p-2 h-100">
-            <div class="small text-body-secondary mb-1"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP — <?= h($dip['cont_label'] ?: $dip['container_name']) ?></div>
-            <?php if ($dip['status'] === 'active'): ?>
-            <span class="badge text-bg-success"><?= h($dip['ip_address']) ?></span>
-            <?php else: ?>
-            <span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>oczekuje na aktywację</span>
-            <?php endif; ?>
-            <div class="mt-1"><a href="?tab=vlab" class="small">Szczegóły →</a></div>
-          </div>
-        </div>
-        <?php endforeach; ?>
-
-        <?php if ($sum_vps):
-          $vps_labels = ['requested' => ['oczekuje na opłatę', 'text-bg-warning'], 'paid' => ['opłacony — realizacja', 'text-bg-info'], 'active' => ['aktywny', 'text-bg-success']];
-          [$vlbl, $vcls] = $vps_labels[$sum_vps['status']] ?? [$sum_vps['status'], 'text-bg-secondary'];
-        ?>
-        <div class="col-12 col-md-4">
-          <div class="border rounded p-2 h-100">
-            <div class="small text-body-secondary mb-1"><i class="bi bi-hdd-rack me-1" aria-hidden="true"></i>VPS — <?= h($sum_vps['server_hostname'] ?: $sum_vps['hostname_prefix']) ?></div>
-            <span class="badge <?= $vcls ?>"><?= h($vlbl) ?></span>
-            <div class="mt-1"><a href="?tab=vlab" class="small">Szczegóły →</a></div>
-          </div>
-        </div>
-        <?php endif; ?>
-
-        <?php if ($sum_lic): ?>
-        <div class="col-12 col-md-4">
-          <div class="border rounded p-2 h-100">
-            <div class="small text-body-secondary mb-1"><i class="bi bi-key me-1" aria-hidden="true"></i>Licencje</div>
-            <span class="badge text-bg-primary"><?= count($sum_lic) ?> aktywnych</span>
-            <div class="mt-1"><a href="?tab=licencje" class="small">Szczegóły →</a></div>
-          </div>
-        </div>
-        <?php endif; ?>
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
   <?php
     $contact_emails = [];
     if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
@@ -1309,6 +1250,66 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="fs-3 fw-bold lh-1"><?= count($my_licenses) ?></div>
         <div class="text-body-secondary small mt-1">Licencji</div>
       </div></a>
+    </div>
+  </div>
+
+  <!-- ── Usługi dodatkowe — podsumowanie (dedykowane IP, VPS, licencje) — na samym dole strony ── -->
+  <?php
+    $sum_dedips = vlab_dedicated_ip_for_student((int)$student['id']);
+    $sum_vps    = vlab_dedicated_server_for_student((int)$student['id']);
+    if ($sum_vps && $sum_vps['status'] === 'cancelled') $sum_vps = null;
+    $sum_lic    = k30_ti_client_licenses((int)$student['client_id']);
+  ?>
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-stars text-primary" aria-hidden="true"></i>Usługi dodatkowe
+    </div>
+    <div class="card-body">
+      <?php if (!$sum_dedips && !$sum_vps && !$sum_lic): ?>
+      <p class="text-body-secondary small mb-0">
+        Nie korzystasz jeszcze z żadnej usługi dodatkowej. Sprawdź zakładkę <a href="?tab=vlab">VLab</a> (dedykowane IP, VPS ze zniżką)
+        lub <a href="?tab=licencje">Licencje</a>.
+      </p>
+      <?php else: ?>
+      <div class="row g-3">
+        <?php foreach ($sum_dedips as $dip): ?>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-body-secondary mb-1"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP — <?= h($dip['cont_label'] ?: $dip['container_name']) ?></div>
+            <?php if ($dip['status'] === 'active'): ?>
+            <span class="badge text-bg-success"><?= h($dip['ip_address']) ?></span>
+            <?php else: ?>
+            <span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>oczekuje na aktywację</span>
+            <?php endif; ?>
+            <div class="mt-1"><a href="?tab=vlab" class="small">Szczegóły →</a></div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+
+        <?php if ($sum_vps):
+          $vps_labels = ['requested' => ['oczekuje na opłatę', 'text-bg-warning'], 'paid' => ['opłacony — realizacja', 'text-bg-info'], 'active' => ['aktywny', 'text-bg-success']];
+          [$vlbl, $vcls] = $vps_labels[$sum_vps['status']] ?? [$sum_vps['status'], 'text-bg-secondary'];
+        ?>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-body-secondary mb-1"><i class="bi bi-hdd-rack me-1" aria-hidden="true"></i>VPS — <?= h($sum_vps['server_hostname'] ?: $sum_vps['hostname_prefix']) ?></div>
+            <span class="badge <?= $vcls ?>"><?= h($vlbl) ?></span>
+            <div class="mt-1"><a href="?tab=vlab" class="small">Szczegóły →</a></div>
+          </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($sum_lic): ?>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-body-secondary mb-1"><i class="bi bi-key me-1" aria-hidden="true"></i>Licencje</div>
+            <span class="badge text-bg-primary"><?= count($sum_lic) ?> aktywnych</span>
+            <div class="mt-1"><a href="?tab=licencje" class="small">Szczegóły →</a></div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
     </div>
   </div>
 
