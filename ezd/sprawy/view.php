@@ -59,8 +59,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$can_act) { http_response_code(403); exit; }
         $grupa_id = (int)($_POST['grupa_id'] ?? 0) ?: null;
         $custom_name = trim($_POST['custom_name'] ?? '');
-        $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null);
-        flash_set($err ? 'error' : 'success', $err ?: 'Plik dodany do repozytorium sprawy.');
+        $new_zal_id = null;
+        $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null, $new_zal_id);
+        $msg = $err ?: 'Plik dodany do repozytorium sprawy.';
+        if (!$err && $new_zal_id && !empty($_POST['convert_pdf'])) {
+            $conv = ezd_convert_to_pdf($new_zal_id, $user_id);
+            $msg .= $conv['ok'] ? ' Utworzono też wersję PDF.' : (' Konwersja na PDF nie powiodła się: ' . $conv['error']);
+        }
+        flash_set($err ? 'error' : 'success', $msg);
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
+
+    if ($action === 'convert_pdf') {
+        if (!$can_act) { http_response_code(403); exit; }
+        $conv = ezd_convert_to_pdf((int)($_POST['zal_id'] ?? 0), $user_id);
+        flash_set($conv['ok'] ? 'success' : 'error', $conv['ok'] ? 'Utworzono wersję PDF.' : ('Nie udało się przekonwertować: ' . $conv['error']));
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
@@ -595,7 +608,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
       <?php
       // Funkcja renderująca wiersz pliku (z przenoszeniem między grupami)
-      $renderZal = function(array $z) use ($grupy) {
+      $renderZal = function(array $z) use ($grupy, $can_act) {
           $opts = '';
           $opts .= '<option value="0"'.(empty($z['grupa_id'])?' selected':'').'>— bez grupy —</option>';
           foreach ($grupy as $g) {
@@ -645,6 +658,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
             <?php elseif (!empty($z['sp_web_url'])): ?>
             <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary btn-sm" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
+            <?php endif; ?>
+            <?php if ($can_act && in_array($zext, EZD_PDF_CONVERTIBLE_EXT, true)): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Przekonwertować plik na PDF? Powstanie osobny plik PDF obok oryginału.');">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="convert_pdf">
+              <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-outline-danger btn-sm" title="Konwertuj na PDF"><i class="bi bi-filetype-pdf"></i></button>
+            </form>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>
@@ -705,11 +726,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php foreach ($bez_grupy as $z) $renderZal($z); ?>
 
           <?php if($can_act): ?>
-          <form method="post" enctype="multipart/form-data" class="p-3 border-top">
+          <form method="post" enctype="multipart/form-data" class="p-3 border-top" id="ezd-upload-form">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="_action" value="upload">
             <div class="d-flex gap-2 align-items-center flex-wrap">
-              <input type="file" name="file" class="form-control form-control-sm" style="max-width:260px"
+              <input type="file" id="ezd-upload-file" name="file" class="form-control form-control-sm" style="max-width:260px"
                      accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.pptx,.png,.jpg,.jpeg,.zip,.txt,.csv,.eml,.msg" required>
               <input type="text" name="custom_name" class="form-control form-control-sm" style="max-width:240px"
                      placeholder="Własna nazwa (opcjonalnie)" maxlength="200"
@@ -723,7 +744,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Dodaj do sprawy</button>
               <small class="text-muted">Maks. 25 MB</small>
             </div>
+            <div class="form-check mt-2 d-none" id="ezd-upload-convert-wrap">
+              <input type="checkbox" class="form-check-input" name="convert_pdf" value="1" id="ezd-upload-convert">
+              <label class="form-check-label" for="ezd-upload-convert" style="font-size:.78rem">
+                Przekonwertować też ten plik na PDF? (utworzy dodatkową kopię PDF obok oryginału)
+              </label>
+            </div>
           </form>
+          <script>
+          (function(){
+            var input = document.getElementById('ezd-upload-file');
+            var wrap  = document.getElementById('ezd-upload-convert-wrap');
+            var check = document.getElementById('ezd-upload-convert');
+            if (!input || !wrap || !check) return;
+            var CONVERTIBLE = ['doc','docx','xls','xlsx'];
+            input.addEventListener('change', function(){
+              var name = input.value || '';
+              var ext  = name.split('.').pop().toLowerCase();
+              if (CONVERTIBLE.indexOf(ext) !== -1) {
+                wrap.classList.remove('d-none');
+              } else {
+                wrap.classList.add('d-none');
+                check.checked = false;
+              }
+            });
+          })();
+          </script>
           <?php endif; ?>
         </div>
       </div>

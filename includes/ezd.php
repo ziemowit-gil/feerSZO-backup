@@ -257,6 +257,7 @@
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_synced_at DATETIME",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_drive_id  TEXT",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_item_id   TEXT",
+        "ALTER TABLE ezd_zalaczniki ADD COLUMN converted_from_id INTEGER REFERENCES ezd_zalaczniki(id) ON DELETE SET NULL",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -338,6 +339,7 @@ const EZD_UPLOAD_SUBDIR = 'ezd/';
 const EZD_ALLOWED_EXT   = ['pdf','doc','docx','xls','xlsx','odt','ods','pptx','png','jpg','jpeg','gif','zip','txt','csv','eml','msg'];
 const EZD_MAX_SIZE      = 25 * 1024 * 1024; // 25 MB
 const EZD_OFFICE_ONLINE_EXT = ['doc','docx']; // rozszerzenia otwierane w Word Online
+const EZD_PDF_CONVERTIBLE_EXT = ['doc','docx','xls','xlsx']; // rozszerzenia z możliwością konwersji na PDF
 
 const EZD_STATUSES_SPRAWA = [
     'open'        => ['label' => 'Otwarta',      'class' => 'success'],
@@ -1969,7 +1971,7 @@ function ezd_zalaczniki_by(int $sprawa_id, ?int $pismo_id = null, ?int $umowa_id
     return db_all("SELECT z.*,u.name AS uploader FROM ezd_zalaczniki z LEFT JOIN users u ON u.id=z.uploaded_by WHERE z.sprawa_id=? ORDER BY z.uploaded_at DESC", [$sprawa_id]);
 }
 
-function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null, ?int $grupa_id = null, ?string $custom_name = null): ?string {
+function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id = null, ?int $umowa_id = null, ?int $dokument_id = null, ?int $replace_id = null, ?int $grupa_id = null, ?string $custom_name = null, ?int &$out_id = null): ?string {
     if (empty($_FILES[$field]['tmp_name'])) return 'Nie wybrano pliku.';
     $f = $_FILES[$field];
     if ($f['error'] !== UPLOAD_ERR_OK) return 'Błąd przesyłania (kod: ' . $f['error'] . ').';
@@ -2005,6 +2007,7 @@ function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id 
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $grupa_id ?: null, $stored, $orig_name, $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
     $new_zal_id = (int)db()->lastInsertId();
+    $out_id     = $new_zal_id;
 
     ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $orig_name . " (v$wersja)");
 
@@ -2169,6 +2172,59 @@ function ezd_office_online_pull(int $zal_id, int $user_id): array {
 
     ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online_pull',
         'Zapisano zmiany z Word Online jako nową wersję: ' . $z['original_name'] . " (v" . ((int)$z['wersja'] + 1) . ")");
+
+    return ['ok' => true, 'error' => null, 'id' => $new_id];
+}
+
+/**
+ * Konwertuje plik Word/Excel (doc/docx/xls/xlsx) na PDF przez Microsoft Graph
+ * (?format=pdf) i zapisuje wynik jako nowy, osobny załącznik w tej samej grupie
+ * plików — obok oryginału (nie jako jego nowa wersja, bo to inny format).
+ * Wymaga synchronizacji z SharePoint; jeśli plik nie był jeszcze wysłany, wysyła go najpierw.
+ * @return array{ok:bool,error:?string,id:?int}
+ */
+function ezd_convert_to_pdf(int $zal_id, int $user_id): array {
+    $z = ezd_zal_get($zal_id);
+    if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'id' => null];
+
+    $ext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true)) {
+        return ['ok' => false, 'error' => 'Konwersja na PDF jest dostępna tylko dla plików Word/Excel (doc, docx, xls, xlsx).', 'id' => null];
+    }
+
+    if (empty($z['sp_drive_id']) || empty($z['sp_item_id'])) {
+        $sync = ezd_sp_sync_attachment($zal_id);
+        if (!$sync['ok']) return ['ok' => false, 'error' => $sync['error'] ?: 'Nie udało się wysłać pliku na SharePoint.', 'id' => null];
+        $z = ezd_zal_get($zal_id);
+    }
+
+    require_once __DIR__ . '/m365.php';
+    try {
+        $graph   = new M365Graph();
+        $content = $graph->sp_download_file_as_pdf($z['sp_drive_id'], $z['sp_item_id']);
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Błąd konwersji: ' . $e->getMessage(), 'id' => null];
+    }
+
+    $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
+    if (file_put_contents($dir . $stored, $content) === false) {
+        return ['ok' => false, 'error' => 'Nie udało się zapisać pliku PDF.', 'id' => null];
+    }
+    $pdf_name = pathinfo($z['original_name'], PATHINFO_FILENAME) . '.pdf';
+
+    db()->prepare(
+        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,converted_from_id,uploaded_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([
+        $z['sprawa_id'], $z['pismo_id'], $z['umowa_id'], $z['dokument_id'], $z['grupa_id'],
+        $stored, $pdf_name, 'application/pdf', strlen($content), 1, null, $zal_id, $user_id,
+    ]);
+    $new_id = (int)db()->lastInsertId();
+
+    ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'convert_pdf',
+        'Przekonwertowano na PDF: ' . $z['original_name'] . ' → ' . $pdf_name);
 
     return ['ok' => true, 'error' => null, 'id' => $new_id];
 }

@@ -687,6 +687,20 @@ class M365Graph {
         return $data;
     }
 
+    /** Pobiera plik Word/Excel z SharePoint przekonwertowany do PDF (Graph ?format=pdf). */
+    public function sp_download_file_as_pdf(string $drive_id, string $item_id): string {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'GET',
+            'header'        => "Authorization: Bearer {$this->token()}\r\n",
+            'ignore_errors' => true,
+        ]]);
+        $data = @file_get_contents("https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/{$item_id}/content?format=pdf", false, $ctx);
+        if ($data === false || $data === '') {
+            throw new \RuntimeException('Nie udało się pobrać wersji PDF z SharePoint.');
+        }
+        return $data;
+    }
+
     private function sp_upload_large(string $session_url, string $local_path, int $size): array {
         $session = $this->http_post($session_url, ['item' => ['@microsoft.graph.conflictBehavior' => 'replace']]);
         $upload_url = $session['uploadUrl'] ?? '';
