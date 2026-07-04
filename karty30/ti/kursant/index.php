@@ -948,6 +948,66 @@ document.addEventListener('DOMContentLoaded', function() {
       </a>
     </div>
   </div>
+
+  <!-- ── Usługi dodatkowe — podsumowanie (dedykowane IP, VPS, licencje) ──────── -->
+  <?php
+    $sum_dedips = vlab_dedicated_ip_for_student((int)$student['id']);
+    $sum_vps    = vlab_dedicated_server_for_student((int)$student['id']);
+    if ($sum_vps && $sum_vps['status'] === 'cancelled') $sum_vps = null;
+    $sum_lic    = k30_ti_client_licenses((int)$student['client_id']);
+  ?>
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-stars text-primary" aria-hidden="true"></i>Usługi dodatkowe
+    </div>
+    <div class="card-body">
+      <?php if (!$sum_dedips && !$sum_vps && !$sum_lic): ?>
+      <p class="text-body-secondary small mb-0">
+        Nie korzystasz jeszcze z żadnej usługi dodatkowej. Sprawdź zakładkę <a href="?tab=vlab">VLab</a> (dedykowane IP, VPS ze zniżką)
+        lub <a href="?tab=licencje">Licencje</a>.
+      </p>
+      <?php else: ?>
+      <div class="row g-3">
+        <?php foreach ($sum_dedips as $dip): ?>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-body-secondary mb-1"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP — <?= h($dip['cont_label'] ?: $dip['container_name']) ?></div>
+            <?php if ($dip['status'] === 'active'): ?>
+            <span class="badge text-bg-success"><?= h($dip['ip_address']) ?></span>
+            <?php else: ?>
+            <span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>oczekuje na aktywację</span>
+            <?php endif; ?>
+            <div class="mt-1"><a href="?tab=vlab" class="small">Szczegóły →</a></div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+
+        <?php if ($sum_vps):
+          $vps_labels = ['requested' => ['oczekuje na opłatę', 'text-bg-warning'], 'paid' => ['opłacony — realizacja', 'text-bg-info'], 'active' => ['aktywny', 'text-bg-success']];
+          [$vlbl, $vcls] = $vps_labels[$sum_vps['status']] ?? [$sum_vps['status'], 'text-bg-secondary'];
+        ?>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-body-secondary mb-1"><i class="bi bi-hdd-rack me-1" aria-hidden="true"></i>VPS — <?= h($sum_vps['server_hostname'] ?: $sum_vps['hostname_prefix']) ?></div>
+            <span class="badge <?= $vcls ?>"><?= h($vlbl) ?></span>
+            <div class="mt-1"><a href="?tab=vlab" class="small">Szczegóły →</a></div>
+          </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($sum_lic): ?>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-body-secondary mb-1"><i class="bi bi-key me-1" aria-hidden="true"></i>Licencje</div>
+            <span class="badge text-bg-primary"><?= count($sum_lic) ?> aktywnych</span>
+            <div class="mt-1"><a href="?tab=licencje" class="small">Szczegóły →</a></div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
   <?php
     $contact_emails = [];
     if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
@@ -2600,10 +2660,13 @@ document.addEventListener('DOMContentLoaded', function() {
       <?php endif; ?>
 
       <?php if (!$dsrv_order || $dsrv_order['status'] === 'cancelled'): ?>
-      <p class="text-body-secondary small mb-3">
-        Własny VPS w cenie obniżonej dla kursantów fundacji. Fundacja wystawia fakturę VAT za wybrany okres;
-        po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy Twój serwer.
+      <p class="text-body-secondary small mb-2">
+        Własny VPS w cenie obniżonej dla kursantów fundacji. Fundacja wystawia fakturę VAT za wybrany okres
+        (+ jednorazowa opłata aktywacyjna); po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy Twój serwer.
       </p>
+      <?php if ($dsrv_pricing['activation_fee'] > 0): ?>
+      <p class="small mb-3"><i class="bi bi-tag me-1" aria-hidden="true"></i>Opłata aktywacyjna (jednorazowo): <strong><?= number_format($dsrv_pricing['activation_fee'], 2, ',', ' ') ?> zł</strong></p>
+      <?php endif; ?>
       <div class="row g-2 mb-3">
         <?php foreach ($dsrv_pricing['periods'] as $pkey => $plan): ?>
         <div class="col-6">
@@ -2641,7 +2704,7 @@ document.addEventListener('DOMContentLoaded', function() {
           </select>
         </div>
         <div class="col-12 col-md-2">
-          <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Zamówić dedykowany serwer? Opłata za wybrany okres zostanie dodana do Twojego rozliczenia.')">
+          <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Zamówić VPS? Opłata za wybrany okres oraz opłata aktywacyjna zostaną dodane do Twojego rozliczenia.')">
             <i class="bi bi-cart-plus me-1" aria-hidden="true"></i>Zamów
           </button>
         </div>
@@ -2652,7 +2715,9 @@ document.addEventListener('DOMContentLoaded', function() {
         <i class="bi bi-hourglass-split mt-1" aria-hidden="true"></i>
         <div>
           Zamówienie serwera <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> czeka na opłatę
-          (<?= number_format((float)$dsrv_order['price'], 2, ',', ' ') ?> zł, okres: <?= $dsrv_order['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?>).
+          (<?= number_format((float)$dsrv_order['price'] + (float)$dsrv_order['activation_fee'], 2, ',', ' ') ?> zł
+          <?php if ((float)$dsrv_order['activation_fee'] > 0): ?>w tym <?= number_format((float)$dsrv_order['activation_fee'], 2, ',', ' ') ?> zł aktywacji, <?php endif; ?>
+          okres: <?= $dsrv_order['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?>).
           Fundacja wystawi fakturę VAT — sprawdź zakładkę <a href="?tab=rozliczenia">Rozliczenia</a>. Po zaksięgowaniu wpłaty złożymy zamówienie u partnera.
         </div>
       </div>
@@ -3318,7 +3383,14 @@ document.addEventListener('DOMContentLoaded', function() {
   <p class="text-body-secondary small mb-3">
     Licencje na oprogramowanie (inne niż Microsoft&nbsp;365) przypisane do Ciebie. Klucze i hasła trzymaj w tajemnicy.
   </p>
-  <?php $rv_client_id = $student['client_id']; include __DIR__ . '/_licencje_view.php'; ?>
+  <?php
+    $rv_client_id        = $student['client_id'];
+    $rv_lic_term         = ti_term_get('licencje');
+    $rv_lic_term_ok      = ti_term_accepted((int)$student['client_id'], 'licencje');
+    $rv_lic_token         = $vlab_token;
+    $rv_lic_redirect_tab  = 'licencje';
+    include __DIR__ . '/_licencje_view.php';
+  ?>
 
 <?php elseif ($tab === 'pfron'):
     $pf_msg      = $_SESSION['pfron_msg'] ?? null; unset($_SESSION['pfron_msg']);

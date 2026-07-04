@@ -677,9 +677,26 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_monthly_regular_price REAL NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_price          REAL NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_regular_price  REAL NOT NULL DEFAULT 0",
+        // Opłata aktywacyjna VPS (jednorazowa, realny koszt uruchomienia u partnera)
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_activation_fee REAL NOT NULL DEFAULT 0",
         // Opłata manipulacyjna przy samodzielnej rezygnacji kursanta z abonamentu (IP/VPS)
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN self_cancel_fee REAL NOT NULL DEFAULT 10",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
+    // Domyślny cennik/specyfikacja VPS wg realnej oferty partnera — wgrywany jednorazowo, tylko gdy
+    // konfiguracja jest jeszcze przy pierwotnych wartościach placeholder (nie nadpisuje ustawień admina).
+    $_dsrv_row = db_one("SELECT dedicated_server_specs, dedicated_server_monthly_price FROM k30_ti_vlab_config WHERE id=1");
+    if ($_dsrv_row !== null
+        && trim((string)$_dsrv_row['dedicated_server_specs']) === '8 GB RAM / 50 GB SSD'
+        && (float)$_dsrv_row['dedicated_server_monthly_price'] === 0.0
+    ) {
+        db()->prepare(
+            "UPDATE k30_ti_vlab_config
+             SET dedicated_server_specs='8 vCPU AMD Epyc (min. 3 GHz) / 16 GB RAM ECC REG / 100 GB NVMe / bez limitu transferu / Ubuntu 24.04 / 1× adres IPv4 / bez panelu hostingowego',
+                 dedicated_server_activation_fee=200,
+                 dedicated_server_monthly_price=160
+             WHERE id=1"
+        )->execute();
+    }
     // Domyślna treść listy zabronionego oprogramowania — wgrywana jednorazowo, tylko gdy pole jest
     // jeszcze puste (nie nadpisuje treści już zmienionej przez administratora w panelu VLAB).
     $_bsw_row = db_one("SELECT blocked_software FROM k30_ti_vlab_config WHERE id=1");
@@ -793,6 +810,7 @@ HTML;
         billing_period    TEXT    NOT NULL DEFAULT 'monthly', -- monthly|annual
         price             REAL    NOT NULL DEFAULT 0,    -- cena promocyjna za okres, zamrożona z chwili zamówienia
         regular_price     REAL    NOT NULL DEFAULT 0,    -- cena regularna (do pokazania wysokości zniżki)
+        activation_fee    REAL    NOT NULL DEFAULT 0,    -- jednorazowa opłata aktywacyjna, zamrożona z chwili zamówienia
         status            TEXT    NOT NULL DEFAULT 'requested', -- requested|paid|active|cancelled
         server_hostname   TEXT    NOT NULL DEFAULT '',   -- pełny hostname po realizacji (zwykle = prefix + domena)
         partner_order_ref TEXT    NOT NULL DEFAULT '',   -- numer zamówienia u zewnętrznego partnera (notatka admina)
@@ -809,6 +827,8 @@ HTML;
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedsrv_student ON k30_ti_vlab_dedicated_server(student_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedsrv_status  ON k30_ti_vlab_dedicated_server(status)");
+    // Dla instalacji, w których tabela istniała jeszcze bez opłaty aktywacyjnej
+    try { $pdo->exec("ALTER TABLE k30_ti_vlab_dedicated_server ADD COLUMN activation_fee REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
     foreach ([

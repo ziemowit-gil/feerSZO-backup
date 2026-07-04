@@ -10,6 +10,7 @@
 const TI_TERM_TYPES = [
     'szkolenia' => 'Regulamin szkoleń',
     'vlab'      => 'Regulamin vLAB',
+    'licencje'  => 'Oświadczenie o poufności — Licencje',
 ];
 
 function ti_terms_migrate(): void {
@@ -48,11 +49,26 @@ function ti_terms_migrate(): void {
     foreach (TI_TERM_TYPES as $type => $title) {
         $ex = db_one("SELECT id FROM k30_ti_terms WHERE type=?", [$type]);
         if (!$ex) {
+            $body_html = '<p>Treść regulaminu zostanie uzupełniona przez administratora.</p>';
+            $is_active = 0;
+            if ($type === 'licencje') {
+                $body_html = '<p>Oświadczam, że dane logowania oraz klucze licencyjne udostępnione mi w module '
+                    . 'Licencje są przeznaczone wyłącznie do mojego osobistego użytku w ramach zajęć i projektów '
+                    . 'realizowanych z Fundacją. Zobowiązuję się:</p>'
+                    . '<ul>'
+                    . '<li>nie udostępniać loginów, haseł ani kluczy licencyjnych osobom trzecim,</li>'
+                    . '<li>nie publikować ich w internecie (repozytoria, fora, media społecznościowe),</li>'
+                    . '<li>korzystać z licencjonowanego oprogramowania zgodnie z warunkami licencji producenta,</li>'
+                    . '<li>niezwłocznie poinformować administratora o podejrzeniu wycieku lub nieautoryzowanego użycia danych.</li>'
+                    . '</ul>'
+                    . '<p>Naruszenie poufności może skutkować odebraniem dostępu do licencji.</p>';
+                $is_active = 1;
+            }
             db_insert('k30_ti_terms', [
                 'type'      => $type,
                 'title'     => $title,
-                'body_html' => '<p>Treść regulaminu zostanie uzupełniona przez administratora.</p>',
-                'is_active' => 0,
+                'body_html' => $body_html,
+                'is_active' => $is_active,
             ]);
         }
     }

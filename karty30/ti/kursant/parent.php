@@ -518,7 +518,14 @@ include __DIR__ . '/_layout_head.php';
 <?php elseif ($ptab === 'licencje'): ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-1"><i class="bi bi-key text-primary" aria-hidden="true"></i>Licencje dziecka</h2>
   <p class="text-body-secondary small mb-3">Licencje na oprogramowanie (inne niż Microsoft&nbsp;365) przypisane dziecku. Klucze i hasła trzymaj w tajemnicy.</p>
-  <?php $rv_client_id = $parent['client_id']; include __DIR__ . '/_licencje_view.php'; ?>
+  <?php
+    $rv_client_id        = $parent['client_id'];
+    $rv_lic_term         = ti_term_get('licencje');
+    $rv_lic_term_ok      = ti_term_accepted((int)$parent['client_id'], 'licencje');
+    $rv_lic_token         = student_token();
+    $rv_lic_redirect_tab  = 'licencje';
+    include __DIR__ . '/_licencje_view.php';
+  ?>
 
 <?php elseif ($ptab === 'harmonogram'):
   $p_lessons = db_all(

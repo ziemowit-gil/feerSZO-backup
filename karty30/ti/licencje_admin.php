@@ -93,6 +93,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         flash_set('success','Przypisanie cofnięte.');
         header('Location: licencje_admin.php#assign'); exit;
     }
+
+    // Integracja JetBrains — tylko konfiguracja (token/URL); logika wywołań API do wdrożenia po ustaleniu
+    // konkretnego produktu (Floating License Server / inny) i uzyskaniu danych dostępowych.
+    if ($op === 'jetbrains_save') {
+        org_setting_set('jetbrains_enabled', isset($_POST['jetbrains_enabled']) ? '1' : '0');
+        org_setting_set('jetbrains_api_url', trim($_POST['jetbrains_api_url'] ?? ''));
+        if (trim($_POST['jetbrains_api_token'] ?? '') !== '') {
+            org_setting_set('jetbrains_api_token', trim($_POST['jetbrains_api_token']));
+        }
+        flash_set('success', 'Ustawienia integracji JetBrains zapisane.');
+        header('Location: licencje_admin.php#jetbrains'); exit;
+    }
 }
 
 $licenses   = k30_ti_licenses_all(false);
@@ -119,6 +131,10 @@ $assignments = db_all(
 );
 $today = date('Y-m-d');
 
+$jb_enabled = org_setting('jetbrains_enabled') === '1';
+$jb_api_url = org_setting('jetbrains_api_url');
+$jb_has_token = org_setting('jetbrains_api_token') !== '';
+
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
@@ -134,6 +150,48 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- Integracja JetBrains — konfiguracja (token/URL); logika automatyzacji do wdrożenia po ustaleniu produktu -->
+<div class="card border-0 shadow-sm mb-4" id="jetbrains">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-plug text-primary"></i>Integracja JetBrains (API)
+    <span class="badge <?= $jb_enabled ? 'bg-success' : 'bg-secondary' ?> ms-auto"><?= $jb_enabled ? 'Włączona' : 'Wyłączona' ?></span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Miejsce na dane dostępowe do API JetBrains (np. Floating License Server). Same pola konfiguracyjne —
+      automatyczne przydzielanie/odbieranie licencji trzeba dopiąć osobno, gdy będzie znany konkretny
+      produkt/rodzaj licencji JetBrains.
+    </p>
+    <?php if ($can_write): ?>
+    <form method="post" class="row g-2 align-items-end">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_op" value="jetbrains_save">
+      <div class="col-auto">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="jetbrains_enabled" id="jbEnabled" <?= $jb_enabled ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="jbEnabled">Włączona</label>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small" for="jbUrl">URL serwera / API</label>
+        <input type="text" class="form-control form-control-sm" id="jbUrl" name="jetbrains_api_url"
+               value="<?= h($jb_api_url) ?>" placeholder="np. https://license-server.wewnetrzny.pl">
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small" for="jbToken">Token API <span class="text-muted">(zostaw puste, by nie zmieniać)</span></label>
+        <input type="password" class="form-control form-control-sm" id="jbToken" name="jetbrains_api_token"
+               placeholder="<?= $jb_has_token ? '••••••••' : '' ?>">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary btn-sm"><i class="bi bi-floppy me-1"></i>Zapisz</button>
+      </div>
+    </form>
+    <?php else: ?>
+    <div class="alert alert-secondary py-2 small mb-0">Brak uprawnień do edycji.</div>
+    <?php endif; ?>
+  </div>
+</div>
 
 <div class="row g-4">
 

@@ -60,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'dedicated_server_monthly_regular_price'  => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_monthly_regular_price'] ?? 0)),
             'dedicated_server_annual_price'           => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_annual_price'] ?? 0)),
             'dedicated_server_annual_regular_price'   => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_annual_regular_price'] ?? 0)),
+            'dedicated_server_activation_fee'         => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_activation_fee'] ?? 0)),
             'self_cancel_fee' => max(0, (float)str_replace(',', '.', $_POST['self_cancel_fee'] ?? 10)),
             'updated_by'      => $uid ?: null,
         ];
@@ -401,6 +402,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
               <input class="form-control form-control-sm" name="dedicated_server_specs" value="<?= h($cfg['dedicated_server_specs'] ?? '8 GB RAM / 50 GB SSD') ?>"></div>
           </div>
           <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label small">Opłata aktywacyjna (zł, jednorazowo, niezależnie od okresu)</label>
+              <input class="form-control form-control-sm" name="dedicated_server_activation_fee" value="<?= h(number_format((float)($cfg['dedicated_server_activation_fee'] ?? 0), 2, ',', '')) ?>"></div>
+          </div>
+          <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label small">Miesięczny — cena promocyjna (zł)</label>
               <input class="form-control form-control-sm" name="dedicated_server_monthly_price" value="<?= h(number_format((float)($cfg['dedicated_server_monthly_price'] ?? 0), 2, ',', '')) ?>"></div>
             <div class="col-6"><label class="form-label small">Miesięczny — cena regularna (zł)</label>
@@ -597,7 +602,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <td class="font-monospace small"><?= $dsHost ?></td>
             <td class="small"><?= h($ds['server_username']) ?></td>
             <td class="small"><?= $ds['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?></td>
-            <td class="small"><?= number_format((float)$ds['price'], 2, ',', ' ') ?> zł</td>
+            <td class="small"><?= number_format((float)$ds['price'], 2, ',', ' ') ?> zł<?= (float)$ds['activation_fee'] > 0 ? ' + ' . number_format((float)$ds['activation_fee'], 2, ',', ' ') . ' zł aktywacja' : '' ?></td>
             <td><span class="badge <?= $ds['status'] === 'paid' ? 'bg-info text-dark' : 'bg-warning text-dark' ?>"><?= $ds['status'] === 'paid' ? 'opłacone — czeka na realizację' : 'czeka na opłatę' ?></span></td>
             <td class="text-end text-nowrap">
               <?php if ($ds['status'] === 'requested'): ?>

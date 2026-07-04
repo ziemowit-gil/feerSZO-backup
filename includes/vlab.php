@@ -1106,6 +1106,18 @@ function vlab_dedicated_ip_history_for(int $containerId): array {
     return db_all("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE container_id=? ORDER BY id DESC", [$containerId]);
 }
 
+/** Wszystkie nieanulowane zamówienia dedykowanego IP kursanta (dowolna z jego maszyn) — do podsumowań. */
+function vlab_dedicated_ip_for_student(int $studentId): array {
+    return db_all(
+        "SELECT d.*, c.label AS cont_label, c.container_name
+         FROM k30_ti_vlab_dedicated_ip d
+         JOIN k30_ti_vlab_containers c ON c.id=d.container_id
+         WHERE d.student_id=? AND d.status IN ('requested','active')
+         ORDER BY d.id DESC",
+        [$studentId]
+    );
+}
+
 /** Wszystkie zamówienia oczekujące na przydzielenie IP (widok globalny admina). */
 function vlab_dedicated_ip_pending_all(): array {
     return db_all(
@@ -1322,9 +1334,11 @@ function vlab_dedicated_ip_notify(array $order, string $event, string $reason = 
 function vlab_dedicated_server_pricing(): array {
     $c = vlab_config();
     return [
-        'enabled' => !empty($c['dedicated_server_enabled']),
-        'domain'  => $c['dedicated_server_domain'] !== '' ? $c['dedicated_server_domain'] : 'edukacja.cloud',
-        'specs'   => $c['dedicated_server_specs'] !== '' ? $c['dedicated_server_specs'] : '8 GB RAM / 50 GB SSD',
+        'enabled'        => !empty($c['dedicated_server_enabled']),
+        'domain'         => $c['dedicated_server_domain'] !== '' ? $c['dedicated_server_domain'] : 'edukacja.cloud',
+        'specs'          => $c['dedicated_server_specs'] !== '' ? $c['dedicated_server_specs'] : '8 GB RAM / 50 GB SSD',
+        // Jednorazowa opłata aktywacyjna (uruchomienie u partnera) — ta sama niezależnie od okresu rozliczeniowego.
+        'activation_fee' => (float)($c['dedicated_server_activation_fee'] ?? 0),
         'periods' => [
             'monthly' => [
                 'label'         => 'Miesięczny',
@@ -1405,10 +1419,16 @@ function vlab_dedicated_server_request(int $studentId, string $hostnamePrefix, s
     $plan = $pricing['periods'][$period];
     if ((float)$plan['price'] <= 0) return ['ok' => false, 'msg' => 'Cennik dla tego okresu nie jest jeszcze skonfigurowany — skontaktuj się z administratorem.'];
 
+    $activationFee = (float)$pricing['activation_fee'];
+
     if (!function_exists('ti_billing_add_charge')) require_once __DIR__ . '/ti_payments.php';
+    $hostLabel = $hostnamePrefix . '.' . $pricing['domain'];
+    if ($activationFee > 0) {
+        ti_billing_add_charge($clientId, $activationFee, 'Dedykowany serwer ' . $hostLabel . ' — opłata aktywacyjna');
+    }
     $chargeId = ti_billing_add_charge(
         $clientId, (float)$plan['price'],
-        'Dedykowany serwer ' . $hostnamePrefix . '.' . $pricing['domain'] . ' — okres ' . $plan['label']
+        'Dedykowany serwer ' . $hostLabel . ' — okres ' . $plan['label']
     );
 
     $orderId = db_insert('k30_ti_vlab_dedicated_server', [
@@ -1419,6 +1439,7 @@ function vlab_dedicated_server_request(int $studentId, string $hostnamePrefix, s
         'billing_period'    => $period,
         'price'             => $plan['price'],
         'regular_price'     => $plan['regular_price'],
+        'activation_fee'    => $activationFee,
         'status'            => 'requested',
         'billing_charge_id' => $chargeId,
     ]);
@@ -1503,7 +1524,7 @@ function vlab_dedicated_server_self_cancel(int $orderId, int $studentId): array 
     $clientId = (int)$order['client_id'];
     $fee      = (float)(vlab_config()['self_cancel_fee'] ?? 10);
     $refund   = $order['status'] === 'requested'
-        ? round((float)$order['price'], 2)
+        ? round((float)$order['price'] + (float)$order['activation_fee'], 2)
         : vlab_dedicated_server_prorated_refund($order);
 
     if ($refund > 0) {
@@ -1570,10 +1591,13 @@ function vlab_dedicated_server_notify(array $order, string $event, string $reaso
     $panelUrl = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/index.php?tab=vlab';
 
     if ($event === 'requested') {
+        $activationFee = (float)($order['activation_fee'] ?? 0);
+        $totalDue = round($activationFee + (float)$order['price'], 2);
         $subject = "{$org}: zamówienie dedykowanego serwera przyjęte";
         $body = "<p>Przyjęliśmy zamówienie dedykowanego serwera <strong>{$hostFull}</strong>.</p>"
-              . "<p>Opłata " . number_format((float)$order['price'], 2, ',', ' ') . " zł została dodana do rozliczenia — otrzymasz fakturę. "
-              . "Po zaksięgowaniu wpłaty złożymy zamówienie u partnera i uruchomimy serwer.</p>";
+              . "<p>Łączna opłata " . number_format($totalDue, 2, ',', ' ') . " zł"
+              . ($activationFee > 0 ? " (w tym " . number_format($activationFee, 2, ',', ' ') . " zł opłaty aktywacyjnej)" : "")
+              . " została dodana do rozliczenia — otrzymasz fakturę. Po zaksięgowaniu wpłaty złożymy zamówienie u partnera i uruchomimy serwer.</p>";
     } elseif ($event === 'paid') {
         $subject = "{$org}: wpłata za dedykowany serwer potwierdzona";
         $body = "<p>Potwierdziliśmy wpłatę za serwer <strong>{$hostFull}</strong>. Składamy zamówienie u partnera — o uruchomieniu poinformujemy kolejnym e-mailem.</p>";

@@ -1,14 +1,24 @@
 <?php
 /**
  * Partial: lista licencji na oprogramowanie kursanta. Wymaga: $rv_client_id (int).
+ * Opcjonalnie (blokada odsłaniania kluczy do akceptacji oświadczenia o poufności):
+ * $rv_lic_term_ok (bool), $rv_lic_term (array z ti_term_get('licencje')), $rv_lic_token (string),
+ * $rv_lic_redirect_tab (string). Gdy nie podane — nie blokuje (kompatybilność wstecz).
  * Używany przez panel kursanta (zakładka „Licencje") i panel rodzica.
  */
-$rv_licenses = k30_ti_client_licenses((int)$rv_client_id);
+$rv_licenses    = k30_ti_client_licenses((int)$rv_client_id);
+$rv_lic_term_ok = $rv_lic_term_ok ?? true;
 ?>
 <?php if (!$rv_licenses): ?>
 <div class="alert alert-info">
   <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak przypisanych licencji.
 </div>
+<?php elseif (!$rv_lic_term_ok): ?>
+<?= _ti_terms_acceptance_block($rv_lic_term ?? null, $rv_lic_token ?? '', $rv_lic_redirect_tab ?? 'licencje') ?>
+<p class="text-body-secondary small mt-2">
+  <i class="bi bi-key me-1" aria-hidden="true"></i>Masz przypisan(ą/e) <?= count($rv_licenses) ?> licencj(ę/e) —
+  klucze i dane logowania zobaczysz po zaakceptowaniu oświadczenia powyżej.
+</p>
 <?php else: $rv_lic_today = date('Y-m-d'); ?>
 <div class="row g-3">
   <?php foreach ($rv_licenses as $lic):
