@@ -109,6 +109,8 @@ RewriteRule ^korespondencja/(.+)$ correspondence/$1  [QSA,L]
 RewriteRule ^zasady/?$        org_intro/index.php   [QSA,L]
 RewriteRule ^zasady/(.+)$     org_intro/$1           [QSA,L]
 
+RewriteRule ^wa/?$            panel/whatsapp_group.php [QSA,L]
+
 # Publiczna weryfikacja zaświadczeń (skan QR)
 RewriteRule ^weryfikuj/?$     weryfikuj/index.php   [QSA,L]
 

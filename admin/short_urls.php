@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$slug || !preg_match('/^[a-z0-9][a-z0-9_-]*$/', $slug)) {
             $errors[] = 'Alias musi zawierać tylko litery, cyfry i myślniki (bez spacji).';
-        } elseif (in_array($slug, ['katalog','zadania','granty','dzialania','osoby','raporty','procedury','tyflo','crm','moj-panel','korespondencja','api','auth','admin','contracts','uploads','assets','directory','tasks','grants','actions','persons','reports','procedures','panel','karty30'])) {
+        } elseif (in_array($slug, ['katalog','zadania','granty','dzialania','osoby','raporty','procedury','tyflo','crm','moj-panel','korespondencja','wa','api','auth','admin','contracts','uploads','assets','directory','tasks','grants','actions','persons','reports','procedures','panel','karty30'])) {
             $errors[] = 'Alias "' . $slug . '" jest zarezerwowany przez system.';
         } elseif (!$target) {
             $errors[] = 'Docelowy URL jest wymagany.';
@@ -114,6 +114,7 @@ $hardcoded = [
     ['slug'=>'crm',            'target'=>'/crm/dashboard.php','label'=>'CRM'],
     ['slug'=>'moj-panel',      'target'=>'/panel/',            'label'=>'Panel użytkownika'],
     ['slug'=>'korespondencja', 'target'=>'/correspondence/',   'label'=>'Korespondencja'],
+    ['slug'=>'wa',             'target'=>'/panel/whatsapp_group.php', 'label'=>'WhatsApp — grupa'],
 ];
 
 $base = APP_URL;
