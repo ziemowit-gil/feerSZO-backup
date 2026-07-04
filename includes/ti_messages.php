@@ -118,7 +118,7 @@ function ti_msg_student_reply(int $studentId, string $body, string $subject = ''
 /** Wysyła powiadomienie do kursanta o nowej wiadomości (e-mail i/lub SMS wg ustawień). */
 function ti_msg_notify_student(int $studentId, string $subject, string $body): void {
     $acc = db_one(
-        "SELECT a.notify_email_messages, a.notify_sms_messages, a.notify_phone2, a.notify_phone3,
+        "SELECT a.notify_email_messages, a.notify_sms_messages, a.notify_phone2, a.notify_phone2_verified, a.notify_phone3, a.notify_phone3_verified,
                 cl.name, cl.email, cl.phone
          FROM k30_ti_student_accounts a LEFT JOIN k30_clients cl ON cl.id=a.client_id
          WHERE a.id=?",

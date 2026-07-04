@@ -72,6 +72,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: accounts.php'); exit;
     }
 
+    // Ręczne zatwierdzenie dodatkowego numeru SMS (alternatywa dla samoobsługowej weryfikacji
+    // kodem SMS — np. gdy kursant nie może odebrać kodu na ten numer).
+    if ($op === 'approve_notify_phone') {
+        $aid   = (int)($_POST['account_id'] ?? 0);
+        $which = ((string)($_POST['which'] ?? '')) === '3' ? 3 : 2;
+        if ($aid) {
+            db()->prepare("UPDATE k30_ti_student_accounts
+                            SET notify_phone{$which}_verified=1, notify_phone{$which}_otp='', notify_phone{$which}_otp_expires='',
+                                updated_at=datetime('now') WHERE id=?")
+               ->execute([$aid]);
+            flash_set('success', 'Numer zatwierdzony — od teraz będzie otrzymywał powiadomienia SMS.');
+        }
+        header('Location: accounts.php'); exit;
+    }
+
     if ($op === 'create') {
         $cid  = (int)($_POST['client_id'] ?? 0);
         $c    = $cid ? db_one("SELECT * FROM k30_clients WHERE id=?", [$cid]) : null;
@@ -1212,6 +1227,24 @@ function printBulk(){
                     <?php if (empty($a['is_minor'])): ?>
                     <li><a class="dropdown-item" href="?authp=<?= (int)$a['id'] ?>"><i class="bi bi-person-check me-2 text-primary" aria-hidden="true"></i>Osoby upoważnione</a></li>
                     <?php endif; ?>
+
+                    <?php foreach ([2, 3] as $pn):
+                      $pval = trim((string)($a["notify_phone{$pn}"] ?? ''));
+                      if ($pval === '' || !empty($a["notify_phone{$pn}_verified"])) continue;
+                    ?>
+                    <li>
+                      <form method="post" onsubmit="return confirm('Zatwierdzić numer <?= h($pval) ?> do powiadomień SMS tego kursanta? Rób to tylko, gdy masz pewność, że numer należy do kursanta lub jego opiekuna.')">
+                        <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+                        <input type="hidden" name="_op"        value="approve_notify_phone">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <input type="hidden" name="which"      value="<?= $pn ?>">
+                        <button type="submit" class="dropdown-item">
+                          <i class="bi bi-shield-check me-2 text-warning" aria-hidden="true"></i>Zatwierdź numer SMS <?= $pn === 2 ? 'drugi' : 'trzeci' ?>
+                          <span class="text-body-secondary small">(<?= h($pval) ?>)</span>
+                        </button>
+                      </form>
+                    </li>
+                    <?php endforeach; ?>
 
                     <li><hr class="dropdown-divider"></li>
 

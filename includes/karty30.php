@@ -372,6 +372,15 @@ function karty30_migrate(): void {
         // Dodatkowe numery telefonu do powiadomień SMS (np. rodzic/opiekun)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone2 TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone3 TEXT NOT NULL DEFAULT ''",
+        // Weryfikacja dodatkowych numerów (kodem SMS wysłanym samodzielnie lub ręcznym
+        // zatwierdzeniem przez administratora) — dopóki numer nie jest zweryfikowany,
+        // nie trafiają na niego żadne powiadomienia (k30_ti_sms_numbers go pomija).
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone2_verified INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone3_verified INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone2_otp TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone3_otp TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone2_otp_expires TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone3_otp_expires TEXT NOT NULL DEFAULT ''",
         // Powiadomienia o zmianach w dydaktyce/eLearningu (nowe materiały, zadania, terminy)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_dydaktyka INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_dydaktyka   INTEGER NOT NULL DEFAULT 0",
@@ -2692,7 +2701,7 @@ function ti_lesson_sms_notify(int $courseId, string $message): int {
     require_once __DIR__ . '/sms.php';
     if (!function_exists('sms_is_enabled') || !sms_is_enabled()) return 0;
     $rows = db_all(
-        "SELECT cl.phone, a.notify_phone2, a.notify_phone3
+        "SELECT cl.phone, a.notify_phone2, a.notify_phone2_verified, a.notify_phone3, a.notify_phone3_verified
          FROM k30_ti_enrollments e
          JOIN k30_ti_student_accounts a ON a.client_id = e.client_id AND a.is_active = 1 AND a.notify_sms_lessons = 1
          JOIN k30_clients cl ON cl.id = e.client_id
@@ -2711,11 +2720,17 @@ function ti_lesson_sms_notify(int $courseId, string $message): int {
 /**
  * Zwraca listę unikalnych, niepustych numerów SMS dla kursanta z wiersza zawierającego
  * `phone` (główny, z k30_clients) oraz opcjonalne `notify_phone2` / `notify_phone3`.
+ * Numery dodatkowe trafiają na listę tylko, gdy są zweryfikowane (kodem SMS albo ręcznie
+ * przez administratora) — inaczej kursant mógłby wpisać cudzy numer i podsłuchiwać
+ * powiadomienia kogoś innego.
  */
 function k30_ti_sms_numbers(array $row): array {
     $out = [];
-    foreach (['phone', 'notify_phone2', 'notify_phone3'] as $k) {
-        $p = trim((string)($row[$k] ?? ''));
+    $p = trim((string)($row['phone'] ?? ''));
+    if ($p !== '') $out[] = $p;
+    foreach ([2, 3] as $n) {
+        if (empty($row["notify_phone{$n}_verified"])) continue;
+        $p = trim((string)($row["notify_phone{$n}"] ?? ''));
         if ($p !== '' && !in_array($p, $out, true)) $out[] = $p;
     }
     return $out;
@@ -3372,7 +3387,7 @@ function k30_ti_is_available(?string $open_at, ?string $close_at, ?string $now =
  */
 function k30_ti_notify_dydaktyka(int $course_id, string $subject, string $bodyHtml, string $url, string $smsText): void {
     $rows = db_all(
-        "SELECT a.id, a.notify_email_dydaktyka, a.notify_sms_dydaktyka, a.notify_phone2, a.notify_phone3,
+        "SELECT a.id, a.notify_email_dydaktyka, a.notify_sms_dydaktyka, a.notify_phone2, a.notify_phone2_verified, a.notify_phone3, a.notify_phone3_verified,
                 cl.name, cl.email, cl.phone
          FROM k30_ti_enrollments e
          JOIN k30_ti_student_accounts a ON a.client_id=e.client_id AND a.is_active=1
