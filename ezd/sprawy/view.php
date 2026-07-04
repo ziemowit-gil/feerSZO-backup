@@ -644,7 +644,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.8rem">
             <i class="bi <?= ezd_file_icon($z['original_name']) ?> fs-5 flex-shrink-0"></i>
             <div class="flex-grow-1 overflow-hidden">
-              <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="text-decoration-none fw-semibold text-truncate d-block"><?= h($z['original_name']) ?>
+              <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>"
+                 class="text-decoration-none fw-semibold text-truncate d-block<?= $zext === 'pdf' ? ' ezd-pdf-btn' : '' ?>"
+                 <?php if ($zext === 'pdf'): ?>data-url="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>" title="Podgląd PDF"<?php endif; ?>><?= h($z['original_name']) ?>
                 <?php if(!empty($sig['signed'])): ?><span class="badge bg-success bg-opacity-15 text-success border border-success ms-1" style="font-size:.6rem"><i class="bi bi-patch-check-fill me-1"></i>Podpis el.</span><?php endif; ?>
               </a>
               <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · <?= h($z['uploader'] ?? '—') ?> · <?= date('d.m.Y H:i', strtotime($z['uploaded_at'])) ?>
@@ -686,6 +688,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
               <button type="submit" class="btn btn-xs btn-outline-danger btn-sm" title="Konwertuj na PDF"><i class="bi bi-filetype-pdf"></i></button>
             </form>
+            <?php endif; ?>
+            <?php if ($zext === 'pdf'): ?>
+            <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm ezd-pdf-btn"
+               data-url="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>" title="Podgląd PDF"><i class="bi bi-eye"></i></a>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>

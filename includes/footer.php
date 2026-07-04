@@ -25,6 +25,10 @@
 if (!defined('EZD_SIG_MODAL_RENDERED') && function_exists('current_user') && current_user()) {
     require __DIR__ . '/ezd_sig_modal.php';
 }
+// Modal „Podgląd PDF" (wyskakujące okienko z iframe) — globalnie dla zalogowanych.
+if (!defined('EZD_PDF_MODAL_RENDERED') && function_exists('current_user') && current_user()) {
+    require __DIR__ . '/ezd_pdf_modal.php';
+}
 ?>
 
 <?php require_once __DIR__ . '/chat_widget.php'; ?>
