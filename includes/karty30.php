@@ -677,6 +677,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_monthly_regular_price REAL NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_price          REAL NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_regular_price  REAL NOT NULL DEFAULT 0",
+        // Opłata manipulacyjna przy samodzielnej rezygnacji kursanta z abonamentu (IP/VPS)
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN self_cancel_fee REAL NOT NULL DEFAULT 10",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
     // Domyślna treść listy zabronionego oprogramowania — wgrywana jednorazowo, tylko gdy pole jest
     // jeszcze puste (nie nadpisuje treści już zmienionej przez administratora w panelu VLAB).

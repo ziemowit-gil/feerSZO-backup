@@ -112,6 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=vlab'); exit;
     }
 
+    // Samodzielna rezygnacja z zamówionego/aktywnego VPS
+    if ($op === 'cancel_dedicated_server') {
+        $r = vlab_dedicated_server_self_cancel((int)($_POST['order_id'] ?? 0), (int)$student['id']);
+        $_SESSION['k30_ds_msg'] = [$r['ok'] ? 'ok' : 'err', $r['msg']];
+        header('Location: index.php?tab=vlab'); exit;
+    }
+
     if ($op === 'cancel_lesson' || $op === 'uncancel_lesson') {
         $sid = (int)($_POST['session_id'] ?? 0);
         // Lekcja musi należeć do kursu, do którego kursant jest aktywnie zapisany, i być zaplanowana
@@ -2418,9 +2425,11 @@ document.addEventListener('DOMContentLoaded', function() {
               html += '<p class="small text-body-secondary mb-2"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-order-dedip="'+m.id+'">zamów</button>'
                 + ' <span class="text-body-secondary">('+af+' zł aktywacja + '+mf+' zł/mc)</span></p>';
             } else if (dip.status === 'requested'){
-              html += '<p class="small mb-2"><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Dedykowane IP: oczekuje na aktywację</span></p>';
+              html += '<p class="small mb-2"><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Dedykowane IP: oczekuje na aktywację</span> '
+                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'">zrezygnuj</button></p>';
             } else if (dip.status === 'active'){
-              html += '<p class="small mb-2"><span class="badge text-bg-success"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: '+esc(dip.ip_address)+'</span></p>';
+              html += '<p class="small mb-2"><span class="badge text-bg-success"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: '+esc(dip.ip_address)+'</span> '
+                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'">zrezygnuj</button></p>';
             }
           }
           html += '<div class="d-flex flex-wrap gap-2">';
@@ -2529,6 +2538,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
+      const cancelDedipBtn = e.target.closest('[data-cancel-dedip]');
+      if (cancelDedipBtn){
+        if (!confirm('Zrezygnować z dedykowanego IP? Otrzymasz zwrot proporcjonalny do niewykorzystanej części opłaconego okresu, pomniejszony o opłatę manipulacyjną.')) return;
+        cancelDedipBtn.disabled = true;
+        const r = await api('cancel_dedicated_ip', {id: cancelDedipBtn.dataset.cancelDedip});
+        if (!r.ok) { cancelDedipBtn.disabled = false; alert(r.msg || 'Błąd.'); return; }
+        alert(r.msg || 'Zrezygnowano.');
+        if (r.data) render(r.data); else reload();
+        return;
+      }
+
       const createBtn = e.target.closest('[data-create]');
       if (createBtn){
         // Otwórz okienko: nazwa + porty do wystawienia (podpowiedź z szablonu)
@@ -2628,7 +2648,7 @@ document.addEventListener('DOMContentLoaded', function() {
       </form>
 
       <?php elseif ($dsrv_order['status'] === 'requested'): ?>
-      <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
+      <div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
         <i class="bi bi-hourglass-split mt-1" aria-hidden="true"></i>
         <div>
           Zamówienie serwera <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> czeka na opłatę
@@ -2636,24 +2656,36 @@ document.addEventListener('DOMContentLoaded', function() {
           Fundacja wystawi fakturę VAT — sprawdź zakładkę <a href="?tab=rozliczenia">Rozliczenia</a>. Po zaksięgowaniu wpłaty złożymy zamówienie u partnera.
         </div>
       </div>
+      <form method="post" onsubmit="return confirm('Zrezygnować z zamówienia? Otrzymasz zwrot całej naliczonej opłaty, pomniejszony o opłatę manipulacyjną.')">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op" value="cancel_dedicated_server">
+        <input type="hidden" name="order_id" value="<?= (int)$dsrv_order['id'] ?>">
+        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Zrezygnuj z zamówienia</button>
+      </form>
 
       <?php elseif ($dsrv_order['status'] === 'paid'): ?>
       <div class="alert alert-info d-flex align-items-start gap-2 mb-0">
         <i class="bi bi-truck mt-1" aria-hidden="true"></i>
         <div>
           Wpłata za serwer <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> została potwierdzona —
-          składamy zamówienie u partnera. O uruchomieniu poinformujemy e-mailem.
+          składamy zamówienie u partnera. O uruchomieniu poinformujemy e-mailem. Na tym etapie rezygnacja wymaga kontaktu z administratorem.
         </div>
       </div>
 
       <?php else: /* active */ ?>
-      <div class="alert alert-success d-flex align-items-start gap-2 mb-0">
+      <div class="alert alert-success d-flex align-items-start gap-2 mb-3">
         <i class="bi bi-check-circle-fill mt-1" aria-hidden="true"></i>
         <div>
           Serwer <strong><?= h($dsrv_order['server_hostname']) ?></strong> jest aktywny (użytkownik: <?= h($dsrv_order['server_username']) ?>).
           Kolejne odnowienie (<?= $dsrv_order['billing_period'] === 'annual' ? 'roczne' : 'miesięczne' ?>): <?= $dsrv_order['next_renewal_at'] ? h(date('d.m.Y', strtotime($dsrv_order['next_renewal_at']))) : '—' ?>.
         </div>
       </div>
+      <form method="post" onsubmit="return confirm('Zrezygnować z VPS? Otrzymasz zwrot proporcjonalny do niewykorzystanej części opłaconego okresu, pomniejszony o opłatę manipulacyjną.')">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op" value="cancel_dedicated_server">
+        <input type="hidden" name="order_id" value="<?= (int)$dsrv_order['id'] ?>">
+        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Zrezygnuj z usługi</button>
+      </form>
       <?php endif; ?>
     </div>
   </div>

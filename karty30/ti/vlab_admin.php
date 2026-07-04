@@ -60,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'dedicated_server_monthly_regular_price'  => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_monthly_regular_price'] ?? 0)),
             'dedicated_server_annual_price'           => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_annual_price'] ?? 0)),
             'dedicated_server_annual_regular_price'   => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_annual_regular_price'] ?? 0)),
+            'self_cancel_fee' => max(0, (float)str_replace(',', '.', $_POST['self_cancel_fee'] ?? 10)),
             'updated_by'      => $uid ?: null,
         ];
         // Hasło SSH zmieniamy tylko jeśli podane (puste = bez zmian)
@@ -411,6 +412,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="col-6"><label class="form-label small">Roczny — cena regularna (zł)</label>
               <input class="form-control form-control-sm" name="dedicated_server_annual_regular_price" value="<?= h(number_format((float)($cfg['dedicated_server_annual_regular_price'] ?? 0), 2, ',', '')) ?>"></div>
             <div class="form-text small">Cena regularna jest opcjonalna — pokazuje kursantowi wysokość zniżki (przekreślona cena). Faktury VAT dołączasz do należności w zakładce <a href="billing.php" target="_blank" rel="noopener">Rozliczenia</a>. Odnowienia nalicza cron <code>cli/vlab_dedicated_server_renew.php</code>.</div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6"><label class="form-label small">Opłata manipulacyjna za samodzielną rezygnację (zł)</label>
+              <input class="form-control form-control-sm" name="self_cancel_fee" value="<?= h(number_format((float)($cfg['self_cancel_fee'] ?? 10), 2, ',', '')) ?>"></div>
+            <div class="col-6 form-text small align-self-end">
+              Kursant może samodzielnie zrezygnować z dedykowanego IP lub VPS — dostaje zwrot proporcjonalny do niewykorzystanej części opłaconego okresu, pomniejszony o tę opłatę.
+            </div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-12"><label class="form-label small">Subscription ID</label>

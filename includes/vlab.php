@@ -1196,6 +1196,61 @@ function vlab_dedicated_ip_cancel(int $orderId, int $adminId, string $reason = '
     return ['ok' => true, 'msg' => 'Usługa dedykowanego IP anulowana.'];
 }
 
+/** Zwrot proporcjonalny do niewykorzystanej części bieżącego (już opłaconego) miesiąca dedykowanego IP. */
+function vlab_dedicated_ip_prorated_refund(array $order): float {
+    $period = (string)($order['last_billed_period'] ?: date('Y-m'));
+    $start  = $period . '-01';
+    $end    = date('Y-m-01', strtotime($start . ' +1 month'));
+    $totalDays     = max(1, (int)round((strtotime($end) - strtotime($start)) / 86400));
+    $remainingDays = max(0, (int)round((strtotime($end) - strtotime('today')) / 86400));
+    return round((float)$order['monthly_fee'] * min(1, $remainingDays / $totalDays), 2);
+}
+
+/**
+ * Kursant samodzielnie rezygnuje z usługi dedykowanego IP. Opłata aktywacyjna (realne przydzielenie
+ * adresu) nie jest zwracana, gdy usługa jest już aktywna — zwracana jest tylko proporcjonalna część
+ * bieżącego, już opłaconego okresu abonamentowego, pomniejszona o opłatę manipulacyjną. Jeśli usługa
+ * jeszcze nie została aktywowana przez admina (status 'requested'), zwracana jest cała opłata
+ * aktywacyjna (usługa nie została zrealizowana) — również pomniejszona o opłatę manipulacyjną.
+ */
+function vlab_dedicated_ip_self_cancel(int $orderId, int $studentId): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE id=? AND student_id=? AND status IN ('requested','active')", [$orderId, $studentId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub nie można go już samodzielnie odwołać — skontaktuj się z administratorem.'];
+
+    if (!function_exists('ti_billing_add_charge')) require_once __DIR__ . '/ti_payments.php';
+    $clientId = (int)$order['client_id'];
+    $fee      = (float)(vlab_config()['self_cancel_fee'] ?? 10);
+    $refund   = $order['status'] === 'requested'
+        ? round((float)$order['activation_fee'], 2)
+        : vlab_dedicated_ip_prorated_refund($order);
+
+    if ($refund > 0) {
+        ti_billing_add_charge($clientId, -$refund, 'Zwrot za rezygnację z dedykowanego IP (samoobsługa kursanta)');
+    }
+    ti_billing_add_charge($clientId, $fee, 'Opłata manipulacyjna za rezygnację z usługi (samoobsługa)');
+
+    db()->prepare(
+        "UPDATE k30_ti_vlab_dedicated_ip SET status='cancelled', cancelled_at=datetime('now'), note=? WHERE id=?"
+    )->execute(['Rezygnacja kursanta (samoobsługa panelu).', $orderId]);
+
+    $order['status'] = 'cancelled';
+    vlab_dedicated_ip_notify($order, 'cancelled', 'Rezygnacja kursanta — zwrot ' . number_format($refund, 2, ',', ' ')
+        . ' zł, opłata manipulacyjna ' . number_format($fee, 2, ',', ' ') . ' zł.');
+
+    return ['ok' => true, 'msg' => vlab_self_cancel_message($refund, $fee)];
+}
+
+/** Ujednolicony komunikat wynikowy po samodzielnej rezygnacji: zwrot minus opłata manipulacyjna. */
+function vlab_self_cancel_message(float $refund, float $fee): string {
+    $net = round($refund - $fee, 2);
+    if ($net >= 0) {
+        return 'Zrezygnowano z usługi. Zwrot ' . number_format($refund, 2, ',', ' ') . ' zł minus opłata manipulacyjna '
+            . number_format($fee, 2, ',', ' ') . ' zł — saldo zmniejszone o ' . number_format($net, 2, ',', ' ') . ' zł.';
+    }
+    return 'Zrezygnowano z usługi. Opłata manipulacyjna ' . number_format($fee, 2, ',', ' ') . ' zł przewyższa zwrot ('
+        . number_format($refund, 2, ',', ' ') . ' zł) — do rozliczenia dodano ' . number_format(abs($net), 2, ',', ' ') . ' zł.';
+}
+
 /**
  * Cron: nalicza opłatę abonamentową za bieżący miesiąc każdej aktywnej usłudze, która
  * jeszcze nie została rozliczona w tym miesiącu (last_billed_period). Idempotentne —
@@ -1421,6 +1476,50 @@ function vlab_dedicated_server_cancel(int $orderId, int $adminId, string $reason
 
     vlab_dedicated_server_notify($order, 'cancelled', $reason);
     return ['ok' => true, 'msg' => 'Zamówienie/usługa dedykowanego serwera anulowana.'];
+}
+
+/** Zwrot proporcjonalny do niewykorzystanej części bieżącego (już opłaconego) okresu VPS. */
+function vlab_dedicated_server_prorated_refund(array $order): float {
+    $end = (string)$order['next_renewal_at'];
+    if ($end === '') return 0.0;
+    $start = date('Y-m-d', strtotime($end . ($order['billing_period'] === 'annual' ? ' -1 year' : ' -1 month')));
+    $totalDays     = max(1, (int)round((strtotime($end) - strtotime($start)) / 86400));
+    $remainingDays = max(0, (int)round((strtotime($end) - strtotime('today')) / 86400));
+    return round((float)$order['price'] * min(1, $remainingDays / $totalDays), 2);
+}
+
+/**
+ * Kursant samodzielnie rezygnuje z VPS. Dla usługi aktywnej zwracana jest tylko proporcjonalna część
+ * bieżącego, już opłaconego okresu (na podstawie next_renewal_at), pomniejszona o opłatę manipulacyjną.
+ * Dla zamówienia jeszcze nieopłaconego u partnera (status 'requested') zwracana jest cała naliczona
+ * opłata (usługa nie została zrealizowana). Zamówienia ze statusem 'paid' (fundacja może być w trakcie
+ * składania zamówienia u partnera) nie można odwołać samodzielnie — wymaga kontaktu z administratorem.
+ */
+function vlab_dedicated_server_self_cancel(int $orderId, int $studentId): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_server WHERE id=? AND student_id=? AND status IN ('requested','active')", [$orderId, $studentId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub nie można go już samodzielnie odwołać — skontaktuj się z administratorem.'];
+
+    if (!function_exists('ti_billing_add_charge')) require_once __DIR__ . '/ti_payments.php';
+    $clientId = (int)$order['client_id'];
+    $fee      = (float)(vlab_config()['self_cancel_fee'] ?? 10);
+    $refund   = $order['status'] === 'requested'
+        ? round((float)$order['price'], 2)
+        : vlab_dedicated_server_prorated_refund($order);
+
+    if ($refund > 0) {
+        ti_billing_add_charge($clientId, -$refund, 'Zwrot za rezygnację z VPS (samoobsługa kursanta)');
+    }
+    ti_billing_add_charge($clientId, $fee, 'Opłata manipulacyjna za rezygnację z usługi (samoobsługa)');
+
+    db()->prepare(
+        "UPDATE k30_ti_vlab_dedicated_server SET status='cancelled', cancelled_at=datetime('now'), note=? WHERE id=?"
+    )->execute(['Rezygnacja kursanta (samoobsługa panelu).', $orderId]);
+
+    $order['status'] = 'cancelled';
+    vlab_dedicated_server_notify($order, 'cancelled', 'Rezygnacja kursanta — zwrot ' . number_format($refund, 2, ',', ' ')
+        . ' zł, opłata manipulacyjna ' . number_format($fee, 2, ',', ' ') . ' zł.');
+
+    return ['ok' => true, 'msg' => vlab_self_cancel_message($refund, $fee)];
 }
 
 /**

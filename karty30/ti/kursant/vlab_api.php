@@ -1,7 +1,7 @@
 <?php
 /**
  * karty30/ti/kursant/vlab_api.php — endpoint AJAX VLAB dla kursanta.
- * Akcje: list | create | start | stop | restart | remove | refresh | order_dedicated_ip.
+ * Akcje: list | create | start | stop | restart | remove | refresh | order_dedicated_ip | cancel_dedicated_ip.
  * Każda operacja ograniczona do kontenerów zalogowanego kursanta.
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
@@ -49,6 +49,7 @@ function vlab_payload(array $student): array {
             'force_pw'   => (int)($r['force_pw_pending'] ?? 0) === 1,
             'created_at' => $r['created_at'],
             'dedicated_ip' => $dedip ? [
+                'order_id'   => (int)$dedip['id'],
                 'status'     => $dedip['status'],
                 'ip_address' => $dedip['ip_address'],
             ] : null,
@@ -68,7 +69,7 @@ function vlab_payload(array $student): array {
 }
 
 // Operacje modyfikujące wymagają tokenu i metody POST
-$modifying = in_array($action, ['create', 'start', 'stop', 'restart', 'remove', 'port_open', 'port_close', 'port_request_open', 'port_request_close', 'order_dedicated_ip'], true);
+$modifying = in_array($action, ['create', 'start', 'stop', 'restart', 'remove', 'port_open', 'port_close', 'port_request_open', 'port_request_close', 'order_dedicated_ip', 'cancel_dedicated_ip'], true);
 if ($modifying) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'msg' => 'Metoda niedozwolona.']); exit; }
     student_token_check();
@@ -139,6 +140,13 @@ try {
         case 'order_dedicated_ip': {
             $id  = (int)($_POST['id'] ?? 0);
             $res = vlab_dedicated_ip_request($id, $student['id']);
+            echo json_encode($res + ['data' => vlab_payload($student)]);
+            break;
+        }
+
+        case 'cancel_dedicated_ip': {
+            $id  = (int)($_POST['id'] ?? 0);
+            $res = vlab_dedicated_ip_self_cancel($id, $student['id']);
             echo json_encode($res + ['data' => vlab_payload($student)]);
             break;
         }
