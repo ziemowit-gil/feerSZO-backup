@@ -93,6 +93,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" target="_blank" class="text-decoration-none fw-semibold text-truncate d-block" style="font-size:.82rem"><?= h($z['original_name']) ?></a>
             <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · <?= h($z['uploader']??'—') ?> · <?= date('d.m.Y H:i',strtotime($z['uploaded_at'])) ?></div>
           </div>
+          <?php if (in_array(strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)), EZD_OFFICE_ONLINE_EXT, true)): ?>
+          <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
+          <?php endif; ?>
           <?php if($can_act): ?>
           <form method="post" onsubmit="return confirm('Usunąć plik?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

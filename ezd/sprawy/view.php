@@ -604,6 +604,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <select name="grupa_id" class="form-select form-select-sm" style="width:auto;font-size:.72rem" onchange="this.form.submit()" title="Przenieś do grupy"><?= $opts ?></select>
             </form>
             <?php endif; ?>
+            <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
+            <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
+            <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">

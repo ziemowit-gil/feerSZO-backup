@@ -253,6 +253,8 @@
         "ALTER TABLE ezd_pisma      ADD COLUMN rodzaj_medium TEXT  NOT NULL DEFAULT 'papier'",
         "ALTER TABLE ezd_sprawy     ADD COLUMN ref_type     TEXT",
         "ALTER TABLE ezd_sprawy     ADD COLUMN ref_id       INTEGER",
+        "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_web_url   TEXT",
+        "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_synced_at DATETIME",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -333,6 +335,7 @@ function ezd_mini(): bool {
 const EZD_UPLOAD_SUBDIR = 'ezd/';
 const EZD_ALLOWED_EXT   = ['pdf','doc','docx','xls','xlsx','odt','ods','pptx','png','jpg','jpeg','gif','zip','txt','csv','eml','msg'];
 const EZD_MAX_SIZE      = 25 * 1024 * 1024; // 25 MB
+const EZD_OFFICE_ONLINE_EXT = ['doc','docx']; // rozszerzenia otwierane w Word Online
 
 const EZD_STATUSES_SPRAWA = [
     'open'        => ['label' => 'Otwarta',      'class' => 'success'],
@@ -2003,6 +2006,70 @@ function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id 
 
 function ezd_zal_get(int $id): ?array {
     return db_one("SELECT * FROM ezd_zalaczniki WHERE id=?", [$id]);
+}
+
+/**
+ * Zwraca adres do otwarcia pliku Word (.doc/.docx) w Office Word Online.
+ * Przy 1. wywołaniu wysyła plik na skonfigurowaną witrynę SharePoint (patrz
+ * admin/sp_onboarding.php) i zapamiętuje zwrócony przez Graph API webUrl —
+ * kolejne otwarcia tej samej wersji pliku używają już zapamiętanego adresu.
+ * @return array{ok:bool,error:?string,url:?string}
+ */
+function ezd_office_online_url(int $zal_id, int $user_id): array {
+    $z = ezd_zal_get($zal_id);
+    if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'url' => null];
+
+    $ext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, EZD_OFFICE_ONLINE_EXT, true)) {
+        return ['ok' => false, 'error' => 'Otwieranie w Word Online jest dostępne tylko dla plików .doc/.docx.', 'url' => null];
+    }
+
+    if (!empty($z['sp_web_url'])) {
+        return ['ok' => true, 'error' => null, 'url' => $z['sp_web_url']];
+    }
+
+    require_once __DIR__ . '/m365.php';
+
+    if (m365_setting('sp_enabled') !== '1') {
+        return ['ok' => false, 'error' => 'Synchronizacja z SharePoint nie jest włączona (Admin → SharePoint).', 'url' => null];
+    }
+    $site_url = m365_setting('sp_site_url');
+    if (!$site_url) {
+        return ['ok' => false, 'error' => 'Brak skonfigurowanej witryny SharePoint (Admin → SharePoint).', 'url' => null];
+    }
+
+    $local_path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/' . $z['filename'];
+    if (!is_file($local_path)) {
+        return ['ok' => false, 'error' => 'Plik nie istnieje na serwerze.', 'url' => null];
+    }
+
+    try {
+        $graph = new M365Graph();
+        if (!$graph->is_configured()) {
+            return ['ok' => false, 'error' => 'Integracja Microsoft 365 nie jest skonfigurowana.', 'url' => null];
+        }
+        $library     = m365_setting('sp_library') ?: '';
+        $base_folder = trim(m365_setting('sp_base_folder'), '/');
+        $sp_path     = ($base_folder !== '' ? $base_folder . '/' : '') . 'ezd_office/' . $zal_id . '/' . $z['original_name'];
+
+        $site_id  = $graph->sp_site_id($site_url);
+        $drive_id = $graph->sp_drive_id($site_id, $library);
+        $item     = $graph->sp_upload_file($site_id, $drive_id, $sp_path, $local_path);
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Błąd SharePoint: ' . $e->getMessage(), 'url' => null];
+    }
+
+    $web_url = $item['webUrl'] ?? null;
+    if (!$web_url) {
+        return ['ok' => false, 'error' => 'SharePoint nie zwrócił adresu dokumentu.', 'url' => null];
+    }
+
+    db()->prepare("UPDATE ezd_zalaczniki SET sp_web_url=?, sp_synced_at=CURRENT_TIMESTAMP WHERE id=?")
+        ->execute([$web_url, $zal_id]);
+    ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online',
+        'Otwarto w Word Online: ' . $z['original_name']);
+
+    return ['ok' => true, 'error' => null, 'url' => $web_url];
 }
 
 function ezd_zal_delete(int $id, int $user_id): void {

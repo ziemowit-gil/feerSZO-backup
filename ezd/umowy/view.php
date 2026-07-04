@@ -150,6 +150,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             data-reason="<?= h((string)($sig['reason'] ?? '')) ?>" data-location="<?= h((string)($sig['location'] ?? '')) ?>"
             data-note="<?= h((string)($sig['note'] ?? '')) ?>"><i class="bi bi-patch-check"></i></button>
           <?php endif; ?>
+          <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
+          <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
+          <?php endif; ?>
           <?php if(can_edit() && $is_active): ?>
           <form method="post" onsubmit="return confirm('Usunąć plik?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
