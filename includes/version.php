@@ -80,6 +80,58 @@ function app_release_tag(): array {
 }
 
 /**
+ * Litera sekwencyjna licząc od 0: 0=a, 25=z, 26=aa, 27=ab, ... (jak kolumny arkusza).
+ * Zwykły a-z (26 liter) nie starcza — bywa >100 commitów między bumpami wersji głównej.
+ */
+function app_seq_letter(int $n): string {
+    $n++; // 1-indeksowane
+    $s = '';
+    while ($n > 0) {
+        $n--;
+        $s = chr(97 + ($n % 26)) . $s;
+        $n = intdiv($n, 26);
+    }
+    return $s;
+}
+
+/**
+ * Wersja "build" tego konkretnego commita: {wersja_główna}{litera}+{ddmmrrrrGGii}.
+ *
+ * Wersja główna (np. 1.13) jest ustawiana ręcznie przez admina — cli/bump_version.php.
+ * Litera rośnie automatycznie z każdym kolejnym commitem od ostatniego bumpa
+ * (a, b, c… z, aa, ab…), znacznik czasu to data commitu HEAD. Nic nie jest zapisywane
+ * na dysku — liczone na bieżąco z historii gita, tak jak hash/data/branch w app_version().
+ * Przykład: 1.13a+030720262014 (3 lipca 2026, 20:14, pierwszy commit po bumpie do 1.13).
+ */
+function app_build_version(): array {
+    static $b = null;
+    if ($b !== null) return $b;
+
+    $base = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__);
+    $git  = fn(string $args) => trim(@shell_exec(
+        "cd " . escapeshellarg($base) . " && git -c safe.directory=" . escapeshellarg($base) . " $args 2>/dev/null"
+    ) ?: '');
+
+    $main = app_version()['main'];
+
+    $last_bump = $git("log --grep='^chore(version)' --format=%H -1");
+    $count     = $last_bump !== ''
+        ? (int)$git('rev-list --count ' . escapeshellarg($last_bump . '..HEAD'))
+        : 0;
+    $letter = app_seq_letter($count);
+
+    $commit_epoch = $git('log -1 --format=%ct');
+    $ts           = $commit_epoch !== '' ? date('dmYHi', (int)$commit_epoch) : '';
+
+    $b = [
+        'letter' => $letter,
+        'ts'     => $ts,
+        'full'   => $main . $letter . ($ts ? '+' . $ts : ''),
+    ];
+    return $b;
+}
+
+/**
  * Pobiera ostatnie N commitów jako historię zmian.
  */
 function app_changelog(int $limit = 20): array {

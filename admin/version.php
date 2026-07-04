@@ -13,6 +13,7 @@ $PAGE_TITLE = 'Wersja i historia zmian';
 
 $ver       = app_version();
 $tag       = app_release_tag();
+$build     = app_build_version();
 $changelog = app_changelog(50);
 
 $type_badge = [
@@ -50,7 +51,10 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="col-md-5 text-center border-end-md">
         <div class="small text-muted text-uppercase" style="letter-spacing:.05em">Wersja robocza</div>
         <div class="fw-bold text-primary" style="font-size:2.4rem;line-height:1.1">v<?= h($ver['main']) ?></div>
-        <div class="small text-muted">min_version.txt</div>
+        <div class="small text-muted">min_version.txt — ustawiana ręcznie</div>
+        <div class="small font-monospace text-secondary mt-1" title="Wersja tego commita: litera rośnie automatycznie od ostatniego bumpa, znacznik czasu to data commitu">
+          <i class="bi bi-hash me-1"></i><?= h($build['full']) ?>
+        </div>
       </div>
       <div class="col-md-2 text-center text-muted d-none d-md-block">
         <i class="bi bi-arrow-left-right fs-3"></i>
