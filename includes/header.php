@@ -196,7 +196,9 @@ if ($_user) {
 <title><?= h($_page_title) ?> — <?= h(ORG_NAME) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<link href="<?= APP_URL ?>/assets/css/app.css" rel="stylesheet">
+<?php $_app_css_path = dirname(__DIR__) . '/assets/css/app.css';
+      $_app_css_v = @filemtime($_app_css_path) ?: date('Ymd'); ?>
+<link href="<?= APP_URL ?>/assets/css/app.css?v=<?= $_app_css_v ?>" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= APP_URL ?>/assets/js/app.js" defer></script>
 <script src="<?= APP_URL ?>/assets/js/utils.js" defer></script>
