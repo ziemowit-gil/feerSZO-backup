@@ -912,14 +912,6 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .tk-card-drop-hint{text-align:center;padding:.75rem .5rem;font-size:.75rem;color:#94a3b8;border:1.5px dashed #e2e8f0;border-radius:6px;margin:.25rem 0}
 .tk-card-ghost{opacity:.4;background:#eff6ff!important;border-color:#93c5fd!important}
 .tk-card-dragging{box-shadow:0 8px 24px rgba(0,0,0,.18);transform:rotate(1.5deg)}
-/* Picker osób w modalu tworzenia */
-.at-user-grid{display:flex;flex-wrap:wrap;gap:.35rem;max-height:120px;overflow-y:auto;padding:.25rem 0}
-.at-user-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .5rem .2rem .25rem;
-  border:1.5px solid #e2e8f0;border-radius:20px;cursor:pointer;transition:all .12s;user-select:none;
-  font-size:.78rem;color:#374151;background:#fff}
-.at-user-chip:hover{border-color:#93c5fd;background:#eff6ff}
-.at-user-chip.selected{border-color:#2563eb;background:#dbeafe;color:#1d4ed8}
-.at-user-name{white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
 /* Notify prefs modal */
 .np-row{display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid #f1f5f9}
 .np-row:last-child{border-bottom:none}
@@ -1286,15 +1278,11 @@ require_once __DIR__ . '/includes/header_tasks.php';
             <!-- Panel: osoba -->
             <div id="at-person-panel">
               <?php if ($ws_members_for_assign): ?>
-              <div class="at-user-grid" role="group" aria-label="Wybierz osoby">
+              <select id="at-user-select" multiple placeholder="Wyszukaj i dodaj osobę…" aria-label="Wybierz osoby">
                 <?php foreach ($ws_members_for_assign as $m): ?>
-                <label class="at-user-chip" title="<?= h($m['name']) ?>">
-                  <input type="checkbox" class="at-user-chk visually-hidden" value="<?= (int)$m['user_id'] ?>">
-                  <?= task_avatar_initials($m['name'], '#e2e8f0', '#64748b') ?>
-                  <span class="at-user-name"><?= h($m['name']) ?></span>
-                </label>
+                <option value="<?= (int)$m['user_id'] ?>"><?= h($m['name']) ?></option>
                 <?php endforeach; ?>
-              </div>
+              </select>
               <?php else: ?>
               <p class="text-muted small mb-0">Brak użytkowników w obszarze.</p>
               <?php endif; ?>
@@ -1563,9 +1551,9 @@ function openAddModal(listId) {
         document.getElementById('at-person-panel')?.classList.remove('d-none');
         document.getElementById('at-unit-panel')?.classList.add('d-none');
     }
-    // Reset user chips
-    el.querySelectorAll('.at-user-chk').forEach(c => { c.checked = false; });
-    el.querySelectorAll('.at-user-chip').forEach(c => c.classList.remove('selected'));
+    // Reset wyboru osób
+    atInitUserSelect();
+    _atUserTs?.clear(true);
     // Reset unit select
     const unitSel = document.getElementById('at-unit');
     if (unitSel) unitSel.value = '0';
@@ -1578,16 +1566,13 @@ function atToggleMode(mode) {
     const up = document.getElementById('at-unit-panel');
     if (mode === 'unit') {
         // Sprawdź czy jakieś osoby są zaznaczone
-        const checked = document.querySelectorAll('.at-user-chk:checked');
-        if (checked.length > 0) {
+        const selected = _atUserTs ? _atUserTs.getValue() : [];
+        if (selected.length > 0) {
             if (!confirm('Przełączyć na przypisanie do jednostki?\nWybrane osoby zostaną odznaczone.')) {
                 document.getElementById('at-mode-person').checked = true;
                 return;
             }
-            checked.forEach(c => {
-                c.checked = false;
-                c.closest('.at-user-chip')?.classList.remove('selected');
-            });
+            _atUserTs.clear(true);
         } else if (!confirm('Przypisać zadanie do jednostki organizacyjnej?\n(Osoby preferowane — tylko jeśli brak konkretnej osoby)')) {
             document.getElementById('at-mode-person').checked = true;
             return;
@@ -1622,7 +1607,7 @@ function submitAddTask() {
 
     const assignMode = document.querySelector('input[name="at-assign-mode"]:checked')?.value || 'person';
     const assignees  = assignMode === 'person'
-        ? Array.from(document.querySelectorAll('.at-user-chk:checked')).map(c => parseInt(c.value))
+        ? (_atUserTs ? _atUserTs.getValue().map(v => parseInt(v)) : [])
         : [];
     const unitId     = assignMode === 'unit'
         ? (parseInt(document.getElementById('at-unit')?.value || '0') || null)
@@ -1847,22 +1832,19 @@ function tkPollTick() {
 
 document.addEventListener('DOMContentLoaded', tkStartPolling);
 
-// ── User chips w modalu tworzenia ─────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-    document.addEventListener('change', function(e) {
-        const chk = e.target.closest('.at-user-chk');
-        if (!chk) return;
-        chk.closest('.at-user-chip')?.classList.toggle('selected', chk.checked);
+// ── Wybór osoby w modalu tworzenia (wyszukiwarka zamiast siatki chipów) ───
+let _atUserTs = null;
+
+function atInitUserSelect() {
+    const el = document.getElementById('at-user-select');
+    if (!el || typeof TomSelect === 'undefined' || _atUserTs) return;
+    _atUserTs = new TomSelect(el, {
+        plugins:     ['remove_button'],
+        placeholder: 'Wyszukaj i dodaj osobę…',
     });
-    document.addEventListener('click', function(e) {
-        const chip = e.target.closest('.at-user-chip');
-        if (!chip) return;
-        const chk = chip.querySelector('.at-user-chk');
-        if (!chk || e.target === chk) return;
-        chk.checked = !chk.checked;
-        chip.classList.toggle('selected', chk.checked);
-    });
-});
+}
+
+document.addEventListener('DOMContentLoaded', atInitUserSelect);
 
 // ── Modal powiadomień ─────────────────────────────────────────────────────
 function openNotifyModal() {

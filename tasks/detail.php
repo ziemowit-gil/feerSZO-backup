@@ -263,18 +263,7 @@ function td_render_mentions(string $text, array $users): string {
 }
 
 /* ── Przypisani ─────────────────────────────────────────────── */
-.td-users { display: flex; flex-wrap: wrap; gap: .35rem; }
-.td-user-btn {
-  display: inline-flex; align-items: center; gap: .3rem;
-  padding: .18rem .6rem; border-radius: 2rem;
-  font-size: .77rem; font-weight: 500;
-  border: 1.5px solid #e2e8f0; background: var(--c-soft); color: var(--c-muted);
-  cursor: pointer; transition: all .12s;
-}
-.td-user-btn.active { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
-.td-user-btn:hover  { border-color: #93c5fd; color: #1d4ed8; }
-.td-user-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
-.td-user-btn:disabled { opacity: .55; cursor: not-allowed; }
+#td-users-select { width: 100%; }
 
 /* ── Tagi ────────────────────────────────────────────────────── */
 .td-tags { display: flex; flex-wrap: wrap; gap: .35rem; }
@@ -790,27 +779,16 @@ function td_render_mentions(string $text, array $users): string {
   <div class="td-label">
     <i class="bi bi-people" aria-hidden="true"></i>Przypisani
   </div>
-  <div class="td-users" id="td-users" role="group" aria-label="Przypisani użytkownicy">
-    <?php foreach ($all_users as $u):
-      $on = in_array($u['id'], $assign_ids, true);
-    ?>
-    <button type="button"
-            class="td-user-btn <?= $on ? 'active' : '' ?>"
-            data-user-id="<?= $u['id'] ?>"
-            data-active="<?= $on ? 1 : 0 ?>"
-            aria-pressed="<?= $on ? 'true' : 'false' ?>"
-            <?= $can_edit ? 'onclick="tdToggleUser(' . (int)$u['id'] . ', this)"' : 'disabled aria-disabled="true"' ?>>
-      <?= task_avatar_initials($u['name'], $on ? '#2563eb' : '#e2e8f0', $on ? '#fff' : '#64748b') ?>
-      <span><?= h($u['name']) ?></span>
-      <?php if ($on): ?>
-      <i class="bi bi-check2 text-primary" style="font-size:.65rem" aria-hidden="true"></i>
-      <?php endif; ?>
-    </button>
+  <?php if ($all_users): ?>
+  <select id="td-users-select" multiple placeholder="Wyszukaj i dodaj osobę…"
+          aria-label="Przypisani użytkownicy" <?= $can_edit ? '' : 'disabled' ?>>
+    <?php foreach ($all_users as $u): ?>
+    <option value="<?= (int)$u['id'] ?>" <?= in_array($u['id'], $assign_ids, true) ? 'selected' : '' ?>><?= h($u['name']) ?></option>
     <?php endforeach; ?>
-    <?php if (!$all_users): ?>
-    <p class="text-muted small mb-0">Brak użytkowników w systemie.</p>
-    <?php endif; ?>
-  </div>
+  </select>
+  <?php else: ?>
+  <p class="text-muted small mb-0">Brak użytkowników w systemie.</p>
+  <?php endif; ?>
 </div>
 
 <!-- ══ TAGI ════════════════════════════════════════════════════════════════ -->
@@ -1687,18 +1665,13 @@ window.tdSetUnit = function(sel) {
         tdPatch({unit_id: null});
         return;
     }
-    const unitName   = sel.options[sel.selectedIndex].text.trim();
-    const hasAssignees = document.querySelectorAll('.td-user-btn.active').length > 0;
+    const unitName      = sel.options[sel.selectedIndex].text.trim();
+    const hasAssignees  = _tdUserTs ? _tdUserTs.getValue().length > 0 : false;
 
     const proceed = (clearAssignees) => {
         sel.dataset.prev = sel.value;
         if (clearAssignees) {
-            // Wyczyść UI przypisanych
-            document.querySelectorAll('.td-user-btn.active').forEach(b => {
-                b.classList.remove('active');
-                b.dataset.active = '0';
-                b.setAttribute('aria-pressed', 'false');
-            });
+            _tdUserTs?.clear(true); // silent — bez wywołania API per-osoba, całość idzie przez clear_assignees
             tdPatch({unit_id: newVal, clear_assignees: true});
         } else {
             tdPatch({unit_id: newVal});
@@ -1736,16 +1709,59 @@ window.tdToggleTag = function(tagId, btn) {
         });
 };
 
-window.tdToggleUser = function(userId, btn) {
-    const act = btn.dataset.active === '1' ? 'remove' : 'add';
-    btn.disabled = true;
-    api('/tasks/api/assign.php', {task_id:TID, user_id:userId, action:act})
+let _tdUserTs = null;
+
+/* Odśwież panel po zmianie przypisań — nazwa funkcji hosta różni się
+ * w zależności od strony, z której otwarto offcanvas (index/dashboard/inbox). */
+function tdReloadPanel() {
+    if (typeof window.openTask === 'function') window.openTask(TID);
+    else if (typeof window.taskOpenById === 'function') window.taskOpenById(TID);
+}
+
+function tdAssignApi(userId, action) {
+    api('/tasks/api/assign.php', {task_id: TID, user_id: userId, action: action})
         .then(r => {
-            btn.disabled = false;
-            if (r.ok) openTask(TID);
-            else alert(r.error);
-        });
-};
+            if (!r.ok) {
+                alert(r.error || 'Błąd zapisu przypisania.');
+                // Cofnij zmianę w UI bez ponownego wywołania API (silent)
+                if (action === 'add') _tdUserTs?.removeItem(String(userId), true);
+                else _tdUserTs?.addItem(String(userId), true);
+            }
+        })
+        .catch(() => alert('Błąd połączenia.'));
+}
+
+function tdInitUsersSelect() {
+    const el = document.getElementById('td-users-select');
+    if (!el || typeof TomSelect === 'undefined') return;
+    const readOnly = el.disabled;
+    _tdUserTs = new TomSelect(el, {
+        plugins:     readOnly ? [] : ['remove_button'],
+        placeholder: 'Wyszukaj i dodaj osobę…',
+    });
+    if (readOnly) { _tdUserTs.disable(); return; }
+
+    let prev = new Set(_tdUserTs.getValue().map(Number));
+    let reloadTimer = null;
+
+    _tdUserTs.on('change', function(values) {
+        const next    = new Set(values.map(Number));
+        const added   = [...next].filter(id => !prev.has(id));
+        const removed = [...prev].filter(id => !next.has(id));
+        prev = next;
+
+        added.forEach(id   => tdAssignApi(id, 'add'));
+        removed.forEach(id => tdAssignApi(id, 'remove'));
+
+        // Odśwież panel (historia, itp.) dopiero po chwili ciszy — nie przy każdym pojedynczym wyborze.
+        if (added.length || removed.length) {
+            clearTimeout(reloadTimer);
+            reloadTimer = setTimeout(tdReloadPanel, 900);
+        }
+    });
+}
+
+tdInitUsersSelect();
 
 window.tdAddComment = function() {
     const ta   = document.getElementById('td-new-cmt');
