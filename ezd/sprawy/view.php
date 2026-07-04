@@ -70,6 +70,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
+    if ($action === 'new_office_file') {
+        if (!$can_act) { http_response_code(403); exit; }
+        $grupa_id = (int)($_POST['grupa_id'] ?? 0) ?: null;
+        $r = ezd_new_office_file($id, $user_id, $_POST['filetype'] ?? '', trim($_POST['name'] ?? ''), $grupa_id);
+        flash_set($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Utworzono nowy plik.' : $r['error']);
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
+
     if ($action === 'convert_pdf') {
         if (!$can_act) { http_response_code(403); exit; }
         $conv = ezd_convert_to_pdf((int)($_POST['zal_id'] ?? 0), $user_id);
@@ -591,7 +599,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <i class="bi bi-folder2 me-1"></i>Repozytorium plików sprawy (<?= count($zalaczniki) ?>)
         </h6>
         <?php if($can_act): ?>
-        <button class="btn btn-xs btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
+        <div class="d-flex gap-2">
+          <div class="dropdown">
+            <button class="btn btn-xs btn-outline-success btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-file-earmark-plus me-1"></i>Nowy plik
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item ezd-new-office-file" href="#" data-type="docx" data-bs-toggle="modal" data-bs-target="#newOfficeFileModal"><i class="bi bi-file-earmark-word text-primary me-2"></i>Word (.docx)</a></li>
+              <li><a class="dropdown-item ezd-new-office-file" href="#" data-type="xlsx" data-bs-toggle="modal" data-bs-target="#newOfficeFileModal"><i class="bi bi-file-earmark-excel text-success me-2"></i>Excel (.xlsx)</a></li>
+            </ul>
+          </div>
+          <button class="btn btn-xs btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
+        </div>
         <?php endif; ?>
       </div>
 
@@ -648,12 +667,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </form>
             <?php endif; ?>
             <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
-            <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
+            <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Office Online"><i class="bi bi-microsoft"></i></a>
             <?php if (!empty($z['sp_web_url'])): ?>
-            <form method="post" action="<?= APP_URL ?>/ezd/office_online_pull.php" class="d-inline" onsubmit="return confirm('Zapisać aktualną treść z Word Online jako nową wersję pliku?');">
+            <form method="post" action="<?= APP_URL ?>/ezd/office_online_pull.php" class="d-inline" onsubmit="return confirm('Zapisać aktualną treść z Office Online jako nową wersję pliku?');">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="id" value="<?= $z['id'] ?>">
-              <button type="submit" class="btn btn-xs btn-outline-success btn-sm" title="Zapisz zmiany z Word Online jako nową wersję"><i class="bi bi-cloud-arrow-down"></i></button>
+              <button type="submit" class="btn btn-xs btn-outline-success btn-sm" title="Zapisz zmiany z Office Online jako nową wersję"><i class="bi bi-cloud-arrow-down"></i></button>
             </form>
             <?php endif; ?>
             <?php elseif (!empty($z['sp_web_url'])): ?>
@@ -944,6 +963,64 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   </div><!-- /col-lg-4 -->
 </div>
+
+<!-- ── Modal: nowy plik Word/Excel ────────────────────────────────────────── -->
+<?php if($can_act): ?>
+<div class="modal fade" id="newOfficeFileModal" tabindex="-1" aria-labelledby="newOfficeFileModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="new_office_file">
+        <input type="hidden" name="filetype" id="nof-filetype" value="docx">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="newOfficeFileModalLabel"><i class="bi bi-file-earmark-plus text-success me-2" aria-hidden="true"></i>Nowy plik <span id="nof-type-label">Word</span></h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="nof-name">Nazwa pliku <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <input type="text" name="name" id="nof-name" class="form-control" placeholder="np. Notatka służbowa" maxlength="200" required>
+              <span class="input-group-text" id="nof-ext">.docx</span>
+            </div>
+          </div>
+          <?php if($grupy): ?>
+          <div class="mb-1">
+            <label class="form-label fw-semibold" for="nof-grupa">Grupa plików</label>
+            <select name="grupa_id" id="nof-grupa" class="form-select">
+              <option value="0">— bez grupy —</option>
+              <?php foreach($grupy as $g): ?><option value="<?= $g['id'] ?>"><?= h($g['nazwa']) ?></option><?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Utwórz</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var typeInput = document.getElementById('nof-filetype');
+  var typeLabel = document.getElementById('nof-type-label');
+  var extLabel  = document.getElementById('nof-ext');
+  var META = { docx: {label: 'Word', ext: '.docx'}, xlsx: {label: 'Excel', ext: '.xlsx'} };
+  document.querySelectorAll('.ezd-new-office-file').forEach(function(a){
+    a.addEventListener('click', function(){
+      var t = a.getAttribute('data-type');
+      var m = META[t] || META.docx;
+      typeInput.value = t;
+      typeLabel.textContent = m.label;
+      extLabel.textContent = m.ext;
+    });
+  });
+})();
+</script>
+<?php endif; ?>
 
 <!-- ── Modal: nowe pismo ──────────────────────────────────────────────────── -->
 <?php if($can_act): ?>

@@ -338,7 +338,7 @@ function ezd_mini(): bool {
 const EZD_UPLOAD_SUBDIR = 'ezd/';
 const EZD_ALLOWED_EXT   = ['pdf','doc','docx','xls','xlsx','odt','ods','pptx','png','jpg','jpeg','gif','zip','txt','csv','eml','msg'];
 const EZD_MAX_SIZE      = 25 * 1024 * 1024; // 25 MB
-const EZD_OFFICE_ONLINE_EXT = ['doc','docx']; // rozszerzenia otwierane w Word Online
+const EZD_OFFICE_ONLINE_EXT = ['doc','docx','xls','xlsx']; // rozszerzenia otwierane w Office Online (Word/Excel)
 const EZD_PDF_CONVERTIBLE_EXT = ['doc','docx','xls','xlsx']; // rozszerzenia z możliwością konwersji na PDF
 
 const EZD_STATUSES_SPRAWA = [
@@ -2017,6 +2017,58 @@ function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id 
     return null;
 }
 
+// Szablony pustych plików do funkcji "Nowy plik" (repozytorium sprawy).
+const EZD_OFFICE_TEMPLATES = [
+    'docx' => ['file' => 'ezd_blank.docx', 'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'label' => 'Nowy dokument'],
+    'xlsx' => ['file' => 'ezd_blank.xlsx', 'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       'label' => 'Nowy arkusz'],
+];
+
+/**
+ * Tworzy nowy, pusty plik Word/Excel w repozytorium sprawy (z szablonu) pod
+ * podaną nazwą. Synchronizuje z SharePoint w tle, żeby dało się go od razu
+ * otworzyć do edycji w Office Online.
+ * @return array{ok:bool,error:?string,id:?int}
+ */
+function ezd_new_office_file(int $sprawa_id, int $user_id, string $type, string $name, ?int $grupa_id = null): array {
+    if (!isset(EZD_OFFICE_TEMPLATES[$type])) {
+        return ['ok' => false, 'error' => 'Nieprawidłowy typ pliku.', 'id' => null];
+    }
+    $tpl = EZD_OFFICE_TEMPLATES[$type];
+
+    $name = str_replace(['/', '\\', "\0"], '', $name);
+    $name = trim(preg_replace('/\s+/', ' ', $name));
+    if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) === $type) {
+        $name = pathinfo($name, PATHINFO_FILENAME);
+    }
+    if ($name === '') $name = $tpl['label'];
+    $orig_name = mb_substr($name, 0, 200) . '.' . $type;
+
+    $tpl_path = __DIR__ . '/templates/' . $tpl['file'];
+    if (!is_file($tpl_path)) {
+        return ['ok' => false, 'error' => 'Brak szablonu pliku na serwerze.', 'id' => null];
+    }
+
+    $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $type;
+    if (!copy($tpl_path, $dir . $stored)) {
+        return ['ok' => false, 'error' => 'Nie udało się utworzyć pliku.', 'id' => null];
+    }
+
+    db()->prepare(
+        "INSERT INTO ezd_zalaczniki (sprawa_id,grupa_id,filename,original_name,mime_type,file_size,uploaded_by)
+         VALUES (?,?,?,?,?,?,?)"
+    )->execute([$sprawa_id, $grupa_id ?: null, $stored, $orig_name, $tpl['mime'], filesize($dir . $stored), $user_id]);
+    $new_id = (int)db()->lastInsertId();
+
+    ezd_log(null, $sprawa_id, null, null, $user_id, 'new_file', 'Utworzono nowy plik: ' . $orig_name);
+
+    // Synchronizacja z SharePoint (folder sprawy) w tle — błąd nie blokuje utworzenia pliku.
+    try { ezd_sp_sync_attachment($new_id); } catch (\Throwable $e) {}
+
+    return ['ok' => true, 'error' => null, 'id' => $new_id];
+}
+
 function ezd_zal_get(int $id): ?array {
     return db_one("SELECT * FROM ezd_zalaczniki WHERE id=?", [$id]);
 }
@@ -2117,7 +2169,7 @@ function ezd_office_online_url(int $zal_id, int $user_id): array {
 
     $ext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
     if (!in_array($ext, EZD_OFFICE_ONLINE_EXT, true)) {
-        return ['ok' => false, 'error' => 'Otwieranie w Word Online jest dostępne tylko dla plików .doc/.docx.', 'url' => null];
+        return ['ok' => false, 'error' => 'Otwieranie w Office Online jest dostępne tylko dla plików Word/Excel (doc, docx, xls, xlsx).', 'url' => null];
     }
 
     if (!empty($z['sp_web_url'])) {
