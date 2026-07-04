@@ -100,6 +100,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=' . urlencode($redirect_tab) . '&accepted=1'); exit;
     }
 
+    // Zamówienie dedykowanego serwera u zewnętrznego partnera
+    if ($op === 'order_dedicated_server') {
+        $r = vlab_dedicated_server_request(
+            (int)$student['id'],
+            (string)($_POST['hostname_prefix'] ?? ''),
+            (string)($_POST['server_username'] ?? ''),
+            (string)($_POST['billing_period'] ?? 'monthly')
+        );
+        $_SESSION['k30_ds_msg'] = [$r['ok'] ? 'ok' : 'err', $r['msg']];
+        header('Location: index.php?tab=vlab'); exit;
+    }
+
     if ($op === 'cancel_lesson' || $op === 'uncancel_lesson') {
         $sid = (int)($_POST['session_id'] ?? 0);
         // Lekcja musi należeć do kursu, do którego kursant jest aktywnie zapisany, i być zaplanowana
@@ -2536,6 +2548,102 @@ document.addEventListener('DOMContentLoaded', function() {
     reload();
   })();
   </script>
+
+  <?php
+  // ── Dedykowany serwer u zewnętrznego partnera (xxx.edukacja.cloud) ─────────
+  $dsrv_pricing = vlab_dedicated_server_pricing();
+  if ($dsrv_pricing['enabled']):
+      $dsrv_order = vlab_dedicated_server_for_student((int)$student['id']);
+      $dsrv_msg   = $_SESSION['k30_ds_msg'] ?? null; unset($_SESSION['k30_ds_msg']);
+  ?>
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-hdd-rack text-primary" aria-hidden="true"></i>Dedykowany serwer ze zniżką
+    </div>
+    <div class="card-body">
+      <?php if ($dsrv_msg): ?>
+      <div class="alert alert-<?= $dsrv_msg[0]==='ok'?'success':'danger' ?> py-2 small"><?= h($dsrv_msg[1]) ?></div>
+      <?php endif; ?>
+
+      <?php if (!$dsrv_order || $dsrv_order['status'] === 'cancelled'): ?>
+      <p class="text-body-secondary small mb-3">
+        Własny serwer u zewnętrznego partnera hostingowego (<?= h($dsrv_pricing['specs']) ?>) w cenie obniżonej dla kursantów fundacji.
+        Fundacja wystawia fakturę VAT za wybrany okres; po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy serwer.
+      </p>
+      <div class="row g-2 mb-3">
+        <?php foreach ($dsrv_pricing['periods'] as $pkey => $plan): ?>
+        <div class="col-6">
+          <div class="border rounded p-2 text-center h-100">
+            <div class="small text-body-secondary"><?= h($plan['label']) ?></div>
+            <?php if ($plan['regular_price'] > $plan['price']): ?>
+            <div class="text-decoration-line-through text-body-secondary small"><?= number_format($plan['regular_price'], 2, ',', ' ') ?> zł</div>
+            <?php endif; ?>
+            <div class="fw-bold fs-5"><?= number_format($plan['price'], 2, ',', ' ') ?> zł</div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op" value="order_dedicated_server">
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="ds-prefix">Nazwa serwera</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control" id="ds-prefix" name="hostname_prefix" required maxlength="32"
+                   pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?" placeholder="np. jkowalski">
+            <span class="input-group-text">.<?= h($dsrv_pricing['domain']) ?></span>
+          </div>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small" for="ds-user">Nazwa użytkownika</label>
+          <input type="text" class="form-control form-control-sm" id="ds-user" name="server_username" required maxlength="64">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small" for="ds-period">Okres rozliczeniowy</label>
+          <select class="form-select form-select-sm" id="ds-period" name="billing_period">
+            <?php foreach ($dsrv_pricing['periods'] as $pkey => $plan): ?>
+            <option value="<?= h($pkey) ?>"><?= h($plan['label']) ?> — <?= number_format($plan['price'], 2, ',', ' ') ?> zł</option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-12 col-md-2">
+          <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Zamówić dedykowany serwer? Opłata za wybrany okres zostanie dodana do Twojego rozliczenia.')">
+            <i class="bi bi-cart-plus me-1" aria-hidden="true"></i>Zamów
+          </button>
+        </div>
+      </form>
+
+      <?php elseif ($dsrv_order['status'] === 'requested'): ?>
+      <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
+        <i class="bi bi-hourglass-split mt-1" aria-hidden="true"></i>
+        <div>
+          Zamówienie serwera <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> czeka na opłatę
+          (<?= number_format((float)$dsrv_order['price'], 2, ',', ' ') ?> zł, okres: <?= $dsrv_order['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?>).
+          Fundacja wystawi fakturę VAT — sprawdź zakładkę <a href="?tab=rozliczenia">Rozliczenia</a>. Po zaksięgowaniu wpłaty złożymy zamówienie u partnera.
+        </div>
+      </div>
+
+      <?php elseif ($dsrv_order['status'] === 'paid'): ?>
+      <div class="alert alert-info d-flex align-items-start gap-2 mb-0">
+        <i class="bi bi-truck mt-1" aria-hidden="true"></i>
+        <div>
+          Wpłata za serwer <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> została potwierdzona —
+          składamy zamówienie u partnera. O uruchomieniu poinformujemy e-mailem.
+        </div>
+      </div>
+
+      <?php else: /* active */ ?>
+      <div class="alert alert-success d-flex align-items-start gap-2 mb-0">
+        <i class="bi bi-check-circle-fill mt-1" aria-hidden="true"></i>
+        <div>
+          Serwer <strong><?= h($dsrv_order['server_hostname']) ?></strong> jest aktywny (użytkownik: <?= h($dsrv_order['server_username']) ?>).
+          Kolejne odnowienie (<?= $dsrv_order['billing_period'] === 'annual' ? 'roczne' : 'miesięczne' ?>): <?= $dsrv_order['next_renewal_at'] ? h(date('d.m.Y', strtotime($dsrv_order['next_renewal_at']))) : '—' ?>.
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <?php endif; // vlab_term_ok ?>
 

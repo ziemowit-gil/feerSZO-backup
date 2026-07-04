@@ -1262,3 +1262,243 @@ function vlab_dedicated_ip_notify(array $order, string $event, string $reason = 
         mail_queue_add($email, $client['name'] ?? '', $subject, $html, '', 'vlab_dedicated_ip', (int)$order['id'], '', false);
     } catch (\Throwable $e) {}
 }
+
+// ── Dedykowany serwer u zewnętrznego partnera (xxx.edukacja.cloud) ───────────
+
+/** Cennik i dostępność usługi (z konfiguracji admina). */
+function vlab_dedicated_server_pricing(): array {
+    $c = vlab_config();
+    return [
+        'enabled' => !empty($c['dedicated_server_enabled']),
+        'domain'  => $c['dedicated_server_domain'] !== '' ? $c['dedicated_server_domain'] : 'edukacja.cloud',
+        'specs'   => $c['dedicated_server_specs'] !== '' ? $c['dedicated_server_specs'] : '8 GB RAM / 50 GB SSD',
+        'periods' => [
+            'monthly' => [
+                'label'         => 'Miesięczny',
+                'price'         => (float)($c['dedicated_server_monthly_price'] ?? 0),
+                'regular_price' => (float)($c['dedicated_server_monthly_regular_price'] ?? 0),
+            ],
+            'annual' => [
+                'label'         => 'Roczny',
+                'price'         => (float)($c['dedicated_server_annual_price'] ?? 0),
+                'regular_price' => (float)($c['dedicated_server_annual_regular_price'] ?? 0),
+            ],
+        ],
+    ];
+}
+
+/** Aktualne (nieanulowane) zamówienie kursanta, jeśli istnieje. */
+function vlab_dedicated_server_for_student(int $studentId): ?array {
+    return db_one(
+        "SELECT * FROM k30_ti_vlab_dedicated_server WHERE student_id=? AND status!='cancelled' ORDER BY id DESC LIMIT 1",
+        [$studentId]
+    ) ?: null;
+}
+
+/** Cała historia zamówień kursanta (widok admina). */
+function vlab_dedicated_server_history_for(int $studentId): array {
+    return db_all("SELECT * FROM k30_ti_vlab_dedicated_server WHERE student_id=? ORDER BY id DESC", [$studentId]);
+}
+
+/** Zamówienia wymagające akcji admina: 'requested' czeka na opłatę, 'paid' czeka na realizację u partnera. */
+function vlab_dedicated_server_pending_all(): array {
+    return db_all(
+        "SELECT d.*, cl.name AS client_name, a.login AS student_login
+         FROM k30_ti_vlab_dedicated_server d
+         LEFT JOIN k30_clients cl ON cl.id=d.client_id
+         LEFT JOIN k30_ti_student_accounts a ON a.id=d.student_id
+         WHERE d.status IN ('requested','paid')
+         ORDER BY d.requested_at ASC"
+    );
+}
+
+/** Waliduje prefiks nazwy hosta: etykieta DNS 2–32 znaki, litery/cyfry/myślnik, bez myślnika na krawędziach. */
+function vlab_dedicated_server_valid_prefix(string $prefix): bool {
+    return (bool)preg_match('/^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/', $prefix);
+}
+
+/**
+ * Kursant zamawia dedykowany serwer: nalicza opłatę za pierwszy okres do rozliczenia (k30_ti_billing —
+ * fundacja wystawia i podpina fakturę przez istniejący mechanizm faktur w Rozliczeniach) i zapisuje
+ * zamówienie ze statusem 'requested'. Realizację u zewnętrznego partnera wykonuje admin ręcznie po
+ * potwierdzeniu wpłaty (vlab_dedicated_server_mark_paid → vlab_dedicated_server_activate).
+ */
+function vlab_dedicated_server_request(int $studentId, string $hostnamePrefix, string $username, string $period): array {
+    $hostnamePrefix = strtolower(trim($hostnamePrefix));
+    $username       = trim($username);
+    $period         = $period === 'annual' ? 'annual' : 'monthly';
+
+    if (!vlab_dedicated_server_valid_prefix($hostnamePrefix)) {
+        return ['ok' => false, 'msg' => 'Nazwa serwera może zawierać tylko małe litery, cyfry i myślniki (2–32 znaki), bez myślnika na początku/końcu.'];
+    }
+    if ($username === '' || mb_strlen($username) > 64) {
+        return ['ok' => false, 'msg' => 'Podaj nazwę użytkownika (max 64 znaki).'];
+    }
+
+    $pricing = vlab_dedicated_server_pricing();
+    if (!$pricing['enabled']) return ['ok' => false, 'msg' => 'Zamawianie dedykowanych serwerów jest obecnie niedostępne.'];
+
+    $student = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=? AND is_active=1", [$studentId]);
+    if (!$student) return ['ok' => false, 'msg' => 'Konto kursanta nie istnieje.'];
+    $clientId = (int)$student['client_id'];
+    if (!$clientId) return ['ok' => false, 'msg' => 'Konto nie jest powiązane z kontem rozliczeniowym.'];
+
+    $dup = db_one("SELECT id FROM k30_ti_vlab_dedicated_server WHERE student_id=? AND status!='cancelled'", [$studentId]);
+    if ($dup) return ['ok' => false, 'msg' => 'Masz już zamówienie lub aktywny dedykowany serwer.'];
+
+    $taken = db_one("SELECT id FROM k30_ti_vlab_dedicated_server WHERE hostname_prefix=? AND status!='cancelled'", [$hostnamePrefix]);
+    if ($taken) return ['ok' => false, 'msg' => 'Ta nazwa serwera jest już zajęta — wybierz inną.'];
+
+    $plan = $pricing['periods'][$period];
+    if ((float)$plan['price'] <= 0) return ['ok' => false, 'msg' => 'Cennik dla tego okresu nie jest jeszcze skonfigurowany — skontaktuj się z administratorem.'];
+
+    if (!function_exists('ti_billing_add_charge')) require_once __DIR__ . '/ti_payments.php';
+    $chargeId = ti_billing_add_charge(
+        $clientId, (float)$plan['price'],
+        'Dedykowany serwer ' . $hostnamePrefix . '.' . $pricing['domain'] . ' — okres ' . $plan['label']
+    );
+
+    $orderId = db_insert('k30_ti_vlab_dedicated_server', [
+        'student_id'        => $studentId,
+        'client_id'         => $clientId,
+        'hostname_prefix'   => $hostnamePrefix,
+        'server_username'   => $username,
+        'billing_period'    => $period,
+        'price'             => $plan['price'],
+        'regular_price'     => $plan['regular_price'],
+        'status'            => 'requested',
+        'billing_charge_id' => $chargeId,
+    ]);
+
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_server WHERE id=?", [$orderId]);
+    if ($order) vlab_dedicated_server_notify($order, 'requested');
+
+    return ['ok' => true, 'msg' => 'Zamówienie przyjęte. Opłata ' . number_format((float)$plan['price'], 2, ',', ' ')
+        . ' zł za okres „' . $plan['label'] . '" została dodana do Twojego rozliczenia — fundacja wystawi fakturę. '
+        . 'Po zaksięgowaniu wpłaty złożymy zamówienie u partnera i uruchomimy serwer.'];
+}
+
+/** Admin potwierdza otrzymanie wpłaty — kolejny krok: złożenie zamówienia u zewnętrznego partnera. */
+function vlab_dedicated_server_mark_paid(int $orderId, int $adminId): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_server WHERE id=? AND status='requested'", [$orderId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub nie czeka na opłatę.'];
+
+    db()->prepare("UPDATE k30_ti_vlab_dedicated_server SET status='paid', paid_at=datetime('now'), paid_by=? WHERE id=?")
+        ->execute([$adminId, $orderId]);
+
+    $order['status'] = 'paid';
+    vlab_dedicated_server_notify($order, 'paid');
+    return ['ok' => true, 'msg' => 'Zamówienie oznaczone jako opłacone.'];
+}
+
+/** Admin aktywuje serwer po zrealizowaniu zamówienia u zewnętrznego partnera. */
+function vlab_dedicated_server_activate(int $orderId, int $adminId, string $hostname = '', string $partnerRef = ''): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_server WHERE id=? AND status='paid'", [$orderId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub nie jest opłacone.'];
+
+    $pricing  = vlab_dedicated_server_pricing();
+    $hostname = trim($hostname) !== '' ? trim($hostname) : ($order['hostname_prefix'] . '.' . $pricing['domain']);
+    $next     = $order['billing_period'] === 'annual' ? date('Y-m-d', strtotime('+1 year')) : date('Y-m-d', strtotime('+1 month'));
+
+    db()->prepare(
+        "UPDATE k30_ti_vlab_dedicated_server
+         SET status='active', server_hostname=?, partner_order_ref=?, activated_at=datetime('now'), activated_by=?, next_renewal_at=?
+         WHERE id=?"
+    )->execute([$hostname, mb_substr($partnerRef, 0, 200), $adminId, $next, $orderId]);
+
+    $order['status']          = 'active';
+    $order['server_hostname'] = $hostname;
+    vlab_dedicated_server_notify($order, 'active');
+    return ['ok' => true, 'msg' => 'Serwer aktywowany.'];
+}
+
+/** Admin anuluje zamówienie/usługę — zatrzymuje dalsze naliczanie odnowień. */
+function vlab_dedicated_server_cancel(int $orderId, int $adminId, string $reason = ''): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_server WHERE id=? AND status IN ('requested','paid','active')", [$orderId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub jest już zakończone.'];
+
+    db()->prepare(
+        "UPDATE k30_ti_vlab_dedicated_server SET status='cancelled', cancelled_at=datetime('now'), cancelled_by=?, note=? WHERE id=?"
+    )->execute([$adminId, mb_substr($reason, 0, 300), $orderId]);
+
+    vlab_dedicated_server_notify($order, 'cancelled', $reason);
+    return ['ok' => true, 'msg' => 'Zamówienie/usługa dedykowanego serwera anulowana.'];
+}
+
+/**
+ * Cron: nalicza opłatę za kolejny okres każdemu aktywnemu serwerowi, którego termin odnowienia minął,
+ * i przesuwa termin o kolejny okres (miesiąc/rok). Bezpieczne do wielokrotnego uruchamiania w tym samym
+ * dniu — po przesunięciu next_renewal_at wiersz nie kwalifikuje się już do ponownego naliczenia.
+ */
+function vlab_dedicated_server_bill_renewals(): array {
+    if (!function_exists('ti_billing_add_charge')) require_once __DIR__ . '/ti_payments.php';
+    $today = date('Y-m-d');
+    $rows  = db_all(
+        "SELECT * FROM k30_ti_vlab_dedicated_server WHERE status='active' AND next_renewal_at IS NOT NULL AND next_renewal_at<=?",
+        [$today]
+    );
+
+    $pricing = vlab_dedicated_server_pricing();
+    $billed  = 0;
+    foreach ($rows as $r) {
+        if ((float)$r['price'] > 0) {
+            ti_billing_add_charge(
+                (int)$r['client_id'], (float)$r['price'],
+                'Dedykowany serwer ' . ($r['server_hostname'] ?: ($r['hostname_prefix'] . '.' . $pricing['domain'])) . ' — odnowienie (' . $r['billing_period'] . ')'
+            );
+            $billed++;
+        }
+        $next = $r['billing_period'] === 'annual'
+            ? date('Y-m-d', strtotime($r['next_renewal_at'] . ' +1 year'))
+            : date('Y-m-d', strtotime($r['next_renewal_at'] . ' +1 month'));
+        db()->prepare("UPDATE k30_ti_vlab_dedicated_server SET next_renewal_at=? WHERE id=?")->execute([$next, (int)$r['id']]);
+        vlab_dedicated_server_notify($r, 'renewed');
+    }
+    return ['ok' => true, 'billed' => $billed, 'checked' => count($rows), 'date' => $today];
+}
+
+/** Powiadomienie e-mail do kursanta o zdarzeniu w cyklu życia zamówienia dedykowanego serwera. */
+function vlab_dedicated_server_notify(array $order, string $event, string $reason = ''): void {
+    if (!function_exists('mail_queue_add')) { @require_once __DIR__ . '/mail_queue.php'; }
+    if (!function_exists('mail_queue_add')) return;
+
+    $client = db_one("SELECT name, email FROM k30_clients WHERE id=?", [(int)$order['client_id']]);
+    $email  = trim((string)($client['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+
+    $pricing  = vlab_dedicated_server_pricing();
+    $hostFull = htmlspecialchars($order['server_hostname'] ?: ($order['hostname_prefix'] . '.' . $pricing['domain']), ENT_QUOTES);
+    $org      = defined('ORG_NAME') ? ORG_NAME : 'VLab';
+    $name     = htmlspecialchars($client['name'] ?? '', ENT_QUOTES);
+    $panelUrl = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/index.php?tab=vlab';
+
+    if ($event === 'requested') {
+        $subject = "{$org}: zamówienie dedykowanego serwera przyjęte";
+        $body = "<p>Przyjęliśmy zamówienie dedykowanego serwera <strong>{$hostFull}</strong>.</p>"
+              . "<p>Opłata " . number_format((float)$order['price'], 2, ',', ' ') . " zł została dodana do rozliczenia — otrzymasz fakturę. "
+              . "Po zaksięgowaniu wpłaty złożymy zamówienie u partnera i uruchomimy serwer.</p>";
+    } elseif ($event === 'paid') {
+        $subject = "{$org}: wpłata za dedykowany serwer potwierdzona";
+        $body = "<p>Potwierdziliśmy wpłatę za serwer <strong>{$hostFull}</strong>. Składamy zamówienie u partnera — o uruchomieniu poinformujemy kolejnym e-mailem.</p>";
+    } elseif ($event === 'active') {
+        $subject = "{$org}: dedykowany serwer aktywny";
+        $body = "<p style='color:#166534;background:#dcfce7;padding:10px 14px;border-radius:6px'>"
+              . "✅ Twój dedykowany serwer <strong>{$hostFull}</strong> jest aktywny.</p>"
+              . "<p>Dane dostępowe (login: <strong>" . htmlspecialchars($order['server_username'] ?? '', ENT_QUOTES) . "</strong>) otrzymasz od naszego partnera hostingowego lub od administratora.</p>";
+    } elseif ($event === 'renewed') {
+        $subject = "{$org}: odnowienie dedykowanego serwera";
+        $body = "<p>Naliczyliśmy opłatę za kolejny okres rozliczeniowy serwera <strong>{$hostFull}</strong>: "
+              . number_format((float)$order['price'], 2, ',', ' ') . " zł.</p>";
+    } else {
+        $subject = "{$org}: zamówienie dedykowanego serwera zakończone";
+        $reasonHtml = $reason !== '' ? "<p><strong>Powód:</strong> " . htmlspecialchars($reason, ENT_QUOTES) . "</p>" : '';
+        $body = "<p>Zamówienie/usługa dedykowanego serwera <strong>{$hostFull}</strong> zostało zakończone.</p>{$reasonHtml}";
+    }
+
+    $html = "<p>Cześć {$name},</p>{$body}<p><a href='{$panelUrl}'>Przejdź do panelu VLab</a></p>"
+          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna — {$org}.</p>";
+
+    try {
+        mail_queue_add($email, $client['name'] ?? '', $subject, $html, '', 'vlab_dedicated_server', (int)$order['id'], '', false);
+    } catch (\Throwable $e) {}
+}

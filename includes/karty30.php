@@ -669,6 +669,14 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_monthly_fee    REAL    NOT NULL DEFAULT 30",
         // Lista zablokowanego oprogramowania (jedna pozycja na wiersz) — informacja dla kursanta
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN blocked_software TEXT NOT NULL DEFAULT ''",
+        // Dedykowany serwer u zewnętrznego partnera (8 GB RAM / 50 GB SSD, ze zniżką) — cennik
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_enabled  INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_domain  TEXT    NOT NULL DEFAULT 'edukacja.cloud'",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_specs   TEXT    NOT NULL DEFAULT '8 GB RAM / 50 GB SSD'",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_monthly_price         REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_monthly_regular_price REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_price          REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_regular_price  REAL NOT NULL DEFAULT 0",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
     // Rejestr otwartych portów per kontener (UFW + Azure NSG)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_ports (
@@ -730,6 +738,33 @@ function karty30_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedip_container ON k30_ti_vlab_dedicated_ip(container_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedip_status    ON k30_ti_vlab_dedicated_ip(status)");
+
+    // Zamówienia dedykowanego serwera u zewnętrznego partnera (xxx.edukacja.cloud, 8 GB RAM / 50 GB SSD)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_dedicated_server (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id        INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        client_id         INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        hostname_prefix   TEXT    NOT NULL DEFAULT '',   -- 'xxx' z xxx.edukacja.cloud
+        server_username   TEXT    NOT NULL DEFAULT '',
+        billing_period    TEXT    NOT NULL DEFAULT 'monthly', -- monthly|annual
+        price             REAL    NOT NULL DEFAULT 0,    -- cena promocyjna za okres, zamrożona z chwili zamówienia
+        regular_price     REAL    NOT NULL DEFAULT 0,    -- cena regularna (do pokazania wysokości zniżki)
+        status            TEXT    NOT NULL DEFAULT 'requested', -- requested|paid|active|cancelled
+        server_hostname   TEXT    NOT NULL DEFAULT '',   -- pełny hostname po realizacji (zwykle = prefix + domena)
+        partner_order_ref TEXT    NOT NULL DEFAULT '',   -- numer zamówienia u zewnętrznego partnera (notatka admina)
+        billing_charge_id INTEGER REFERENCES k30_ti_billing(id) ON DELETE SET NULL,
+        next_renewal_at   DATE,
+        requested_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        paid_at           DATETIME,
+        paid_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        activated_at      DATETIME,
+        activated_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        cancelled_at      DATETIME,
+        cancelled_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        note              TEXT    NOT NULL DEFAULT ''
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedsrv_student ON k30_ti_vlab_dedicated_server(student_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedsrv_status  ON k30_ti_vlab_dedicated_server(status)");
 
     // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
     foreach ([

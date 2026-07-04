@@ -53,6 +53,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'dedicated_ip_activation_fee' => max(0, (float)str_replace(',', '.', $_POST['dedicated_ip_activation_fee'] ?? 100)),
             'dedicated_ip_monthly_fee'    => max(0, (float)str_replace(',', '.', $_POST['dedicated_ip_monthly_fee'] ?? 30)),
             'blocked_software' => trim($_POST['blocked_software'] ?? ''),
+            'dedicated_server_enabled'               => isset($_POST['dedicated_server_enabled']) ? 1 : 0,
+            'dedicated_server_domain'                => trim($_POST['dedicated_server_domain'] ?? '') ?: 'edukacja.cloud',
+            'dedicated_server_specs'                 => trim($_POST['dedicated_server_specs'] ?? '') ?: '8 GB RAM / 50 GB SSD',
+            'dedicated_server_monthly_price'          => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_monthly_price'] ?? 0)),
+            'dedicated_server_monthly_regular_price'  => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_monthly_regular_price'] ?? 0)),
+            'dedicated_server_annual_price'           => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_annual_price'] ?? 0)),
+            'dedicated_server_annual_regular_price'   => max(0, (float)str_replace(',', '.', $_POST['dedicated_server_annual_regular_price'] ?? 0)),
             'updated_by'      => $uid ?: null,
         ];
         // Hasło SSH zmieniamy tylko jeśli podane (puste = bez zmian)
@@ -160,6 +167,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: vlab_admin.php'); exit;
     }
 
+    // Dedykowany serwer: potwierdzenie wpłaty → składamy zamówienie u partnera
+    if ($op === 'dedserver_mark_paid') {
+        $r = vlab_dedicated_server_mark_paid((int)($_POST['order_id'] ?? 0), $uid);
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_admin.php#dedserver'); exit;
+    }
+
+    // Dedykowany serwer: aktywacja po realizacji u partnera
+    if ($op === 'dedserver_activate') {
+        $r = vlab_dedicated_server_activate(
+            (int)($_POST['order_id'] ?? 0), $uid,
+            (string)($_POST['server_hostname'] ?? ''), (string)($_POST['partner_order_ref'] ?? '')
+        );
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_admin.php#dedserver'); exit;
+    }
+
+    // Dedykowany serwer: anulowanie zamówienia/usługi
+    if ($op === 'dedserver_cancel') {
+        $r = vlab_dedicated_server_cancel((int)($_POST['order_id'] ?? 0), $uid, (string)($_POST['dedserver_reason'] ?? ''));
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_admin.php#dedserver'); exit;
+    }
+
     // Wymuszenie zmiany hasła SSH przy następnym logowaniu (bez zmiany hasła).
     if ($op === 'host_pass_force') {
         $cid = (int)($_POST['container_id'] ?? 0);
@@ -200,6 +231,17 @@ $dedip_pending = vlab_dedicated_ip_pending_all();
 $dedip_pending_by_container = [];
 foreach ($dedip_pending as $dp) { $dedip_pending_by_container[(int)$dp['container_id']] = $dp; }
 
+// Zamówienia dedykowanych serwerów (oczekujące na akcję + krótka historia)
+$dedserver_pending = vlab_dedicated_server_pending_all();
+$dedserver_history = db_all(
+    "SELECT d.*, cl.name AS client_name, a.login AS student_login
+     FROM k30_ti_vlab_dedicated_server d
+     LEFT JOIN k30_clients cl ON cl.id=d.client_id
+     LEFT JOIN k30_ti_student_accounts a ON a.id=d.student_id
+     WHERE d.status IN ('active','cancelled')
+     ORDER BY d.id DESC LIMIT 100"
+);
+
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
@@ -220,6 +262,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <?php endif; ?>
   <?php if ($dedip_pending): ?>
   <span class="badge bg-warning text-dark"><i class="bi bi-globe me-1"></i><?= count($dedip_pending) ?> zamówień(-ie) dedykowanego IP czeka na aktywację</span>
+  <?php endif; ?>
+  <?php if ($dedserver_pending): ?>
+  <a href="#dedserver" class="badge bg-warning text-dark text-decoration-none"><i class="bi bi-hdd-rack me-1"></i><?= count($dedserver_pending) ?> zamówień(-ie) dedykowanego serwera czeka na akcję</a>
   <?php endif; ?>
 </div>
 
@@ -341,6 +386,31 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <label class="form-label small" for="blocked_software">Jedna pozycja na wiersz — informacja wyświetlana kursantom w zakładce VLab</label>
             <textarea class="form-control form-control-sm" name="blocked_software" id="blocked_software" rows="4"
                       placeholder="np.&#10;Klienty torrent (qBittorrent, Transmission…)&#10;Narzędzia do kopania kryptowalut&#10;Skanery portów masowe (nmap w trybie agresywnym)"><?= h($cfg['blocked_software'] ?? '') ?></textarea>
+          </div>
+          <hr>
+          <p class="fw-semibold small mb-2"><i class="bi bi-hdd-rack me-1"></i>Dedykowany serwer u partnera (ze zniżką)</p>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="dedicated_server_enabled" id="dsrven" <?= !empty($cfg['dedicated_server_enabled']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="dsrven">Pozwól kursantom zamawiać dedykowany serwer</label>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label small">Domena (xxx.<strong>domena</strong>)</label>
+              <input class="form-control form-control-sm" name="dedicated_server_domain" value="<?= h($cfg['dedicated_server_domain'] ?? 'edukacja.cloud') ?>"></div>
+            <div class="col-6"><label class="form-label small">Opis specyfikacji</label>
+              <input class="form-control form-control-sm" name="dedicated_server_specs" value="<?= h($cfg['dedicated_server_specs'] ?? '8 GB RAM / 50 GB SSD') ?>"></div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label small">Miesięczny — cena promocyjna (zł)</label>
+              <input class="form-control form-control-sm" name="dedicated_server_monthly_price" value="<?= h(number_format((float)($cfg['dedicated_server_monthly_price'] ?? 0), 2, ',', '')) ?>"></div>
+            <div class="col-6"><label class="form-label small">Miesięczny — cena regularna (zł)</label>
+              <input class="form-control form-control-sm" name="dedicated_server_monthly_regular_price" value="<?= h(number_format((float)($cfg['dedicated_server_monthly_regular_price'] ?? 0), 2, ',', '')) ?>"></div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6"><label class="form-label small">Roczny — cena promocyjna (zł)</label>
+              <input class="form-control form-control-sm" name="dedicated_server_annual_price" value="<?= h(number_format((float)($cfg['dedicated_server_annual_price'] ?? 0), 2, ',', '')) ?>"></div>
+            <div class="col-6"><label class="form-label small">Roczny — cena regularna (zł)</label>
+              <input class="form-control form-control-sm" name="dedicated_server_annual_regular_price" value="<?= h(number_format((float)($cfg['dedicated_server_annual_regular_price'] ?? 0), 2, ',', '')) ?>"></div>
+            <div class="form-text small">Cena regularna jest opcjonalna — pokazuje kursantowi wysokość zniżki (przekreślona cena). Faktury VAT dołączasz do należności w zakładce <a href="billing.php" target="_blank" rel="noopener">Rozliczenia</a>. Odnowienia nalicza cron <code>cli/vlab_dedicated_server_renew.php</code>.</div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-12"><label class="form-label small">Subscription ID</label>
@@ -488,6 +558,111 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash"></i> Usuń</button>
               </form>
             </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+
+<!-- Zamówienia dedykowanych serwerów -->
+<div class="card border-0 shadow-sm mt-4" id="dedserver">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-hdd-rack me-1"></i>Dedykowane serwery — zamówienia
+    <?php if ($dedserver_pending): ?><span class="badge text-bg-warning ms-auto"><?= count($dedserver_pending) ?> do obsłużenia</span><?php endif; ?>
+  </div>
+  <div class="card-body">
+    <?php if (!$dedserver_pending): ?>
+    <p class="text-muted small mb-0">Brak zamówień oczekujących na akcję.</p>
+    <?php else: ?>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Kursant</th><th>Serwer</th><th>Użytkownik</th><th>Okres</th><th>Cena</th><th>Status</th><th class="text-end">Akcja</th></tr></thead>
+        <tbody>
+        <?php foreach ($dedserver_pending as $ds):
+          $dsHost = h($ds['hostname_prefix']) . '.' . h($cfg['dedicated_server_domain'] ?? 'edukacja.cloud');
+        ?>
+          <tr>
+            <td><?= h($ds['client_name'] ?? $ds['student_login'] ?? '—') ?></td>
+            <td class="font-monospace small"><?= $dsHost ?></td>
+            <td class="small"><?= h($ds['server_username']) ?></td>
+            <td class="small"><?= $ds['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?></td>
+            <td class="small"><?= number_format((float)$ds['price'], 2, ',', ' ') ?> zł</td>
+            <td><span class="badge <?= $ds['status'] === 'paid' ? 'bg-info text-dark' : 'bg-warning text-dark' ?>"><?= $ds['status'] === 'paid' ? 'opłacone — czeka na realizację' : 'czeka na opłatę' ?></span></td>
+            <td class="text-end text-nowrap">
+              <?php if ($ds['status'] === 'requested'): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Oznaczyć jako opłacone? Sprawdź wpłatę w Rozliczeniach kursanta.')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="dedserver_mark_paid">
+                <input type="hidden" name="order_id" value="<?= (int)$ds['id'] ?>">
+                <button class="btn btn-sm btn-success py-0"><i class="bi bi-cash-coin me-1"></i>Oznacz opłacone</button>
+              </form>
+              <?php else: ?>
+              <button type="button" class="btn btn-sm btn-primary py-0" data-bs-toggle="collapse" data-bs-target="#dsact<?= (int)$ds['id'] ?>"><i class="bi bi-rocket-takeoff me-1"></i>Aktywuj</button>
+              <?php endif; ?>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0" data-bs-toggle="collapse" data-bs-target="#dscancel<?= (int)$ds['id'] ?>"><i class="bi bi-x-lg"></i></button>
+            </td>
+          </tr>
+          <?php if ($ds['status'] === 'paid'): ?>
+          <tr class="collapse" id="dsact<?= (int)$ds['id'] ?>">
+            <td colspan="7" class="bg-body-tertiary">
+              <form method="post" class="row g-2 align-items-end py-2">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="dedserver_activate">
+                <input type="hidden" name="order_id" value="<?= (int)$ds['id'] ?>">
+                <div class="col-auto">
+                  <label class="form-label small">Hostname (domyślnie <?= $dsHost ?>)</label>
+                  <input class="form-control form-control-sm" name="server_hostname" placeholder="<?= $dsHost ?>" style="width:220px">
+                </div>
+                <div class="col-auto">
+                  <label class="form-label small">Nr zamówienia u partnera (opc.)</label>
+                  <input class="form-control form-control-sm" name="partner_order_ref" style="width:180px">
+                </div>
+                <div class="col-auto">
+                  <button class="btn btn-sm btn-success"><i class="bi bi-check-lg me-1"></i>Aktywuj serwer</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          <?php endif; ?>
+          <tr class="collapse" id="dscancel<?= (int)$ds['id'] ?>">
+            <td colspan="7" class="bg-body-tertiary">
+              <form method="post" class="row g-2 align-items-end py-2" onsubmit="return confirm('Anulować to zamówienie dedykowanego serwera?')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="dedserver_cancel">
+                <input type="hidden" name="order_id" value="<?= (int)$ds['id'] ?>">
+                <div class="col-auto">
+                  <label class="form-label small">Powód anulowania (opc.)</label>
+                  <input class="form-control form-control-sm" name="dedserver_reason" style="width:260px">
+                </div>
+                <div class="col-auto">
+                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg me-1"></i>Anuluj zamówienie</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($dedserver_history): ?>
+    <p class="small fw-semibold mb-1">Historia (aktywne / anulowane)</p>
+    <div class="table-responsive" style="max-height:300px;overflow-y:auto">
+      <table class="table table-sm align-middle mb-0 small">
+        <thead class="table-light sticky-top"><tr><th>Kursant</th><th>Serwer</th><th>Okres</th><th>Cena</th><th>Status</th><th>Odnowienie</th></tr></thead>
+        <tbody>
+        <?php foreach ($dedserver_history as $dh): ?>
+          <tr>
+            <td><?= h($dh['client_name'] ?? $dh['student_login'] ?? '—') ?></td>
+            <td class="font-monospace"><?= h($dh['server_hostname'] ?: ($dh['hostname_prefix'] . '.' . ($cfg['dedicated_server_domain'] ?? 'edukacja.cloud'))) ?></td>
+            <td><?= $dh['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?></td>
+            <td><?= number_format((float)$dh['price'], 2, ',', ' ') ?> zł</td>
+            <td><span class="badge <?= $dh['status'] === 'active' ? 'bg-success' : 'bg-secondary' ?>"><?= $dh['status'] === 'active' ? 'aktywny' : 'anulowany' ?></span></td>
+            <td><?= $dh['next_renewal_at'] ? h(date('d.m.Y', strtotime($dh['next_renewal_at']))) : '—' ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
