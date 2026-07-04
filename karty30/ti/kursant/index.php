@@ -2486,10 +2486,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 + ' <span class="text-body-secondary">('+af+' zł aktywacja + '+mf+' zł/mc)</span></p>';
             } else if (dip.status === 'requested'){
               html += '<p class="small mb-2"><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Dedykowane IP: oczekuje na aktywację</span> '
-                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'">zrezygnuj</button></p>';
+                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'" data-cancel-dedip-status="requested">zrezygnuj</button></p>';
             } else if (dip.status === 'active'){
               html += '<p class="small mb-2"><span class="badge text-bg-success"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: '+esc(dip.ip_address)+'</span> '
-                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'">zrezygnuj</button></p>';
+                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'" data-cancel-dedip-status="active">zrezygnuj</button></p>';
             }
           }
           html += '<div class="d-flex flex-wrap gap-2">';
@@ -2600,7 +2600,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const cancelDedipBtn = e.target.closest('[data-cancel-dedip]');
       if (cancelDedipBtn){
-        if (!confirm('Zrezygnować z dedykowanego IP? Otrzymasz zwrot proporcjonalny do niewykorzystanej części opłaconego okresu, pomniejszony o opłatę manipulacyjną.')) return;
+        const dedipConfirmMsg = cancelDedipBtn.dataset.cancelDedipStatus === 'active'
+          ? 'Zrezygnować z dedykowanego IP? Opłata za bieżący, już opłacony okres NIE jest zwracana (środki poszły do operatora) — naliczona zostanie tylko opłata manipulacyjna.'
+          : 'Zrezygnować z zamówienia dedykowanego IP? Usługa nie została jeszcze aktywowana — otrzymasz zwrot całej opłaty, pomniejszony o opłatę manipulacyjną.';
+        if (!confirm(dedipConfirmMsg)) return;
         cancelDedipBtn.disabled = true;
         const r = await api('cancel_dedicated_ip', {id: cancelDedipBtn.dataset.cancelDedip});
         if (!r.ok) { cancelDedipBtn.disabled = false; alert(r.msg || 'Błąd.'); return; }
@@ -2745,7 +2748,7 @@ document.addEventListener('DOMContentLoaded', function() {
           Kolejne odnowienie (<?= $dsrv_order['billing_period'] === 'annual' ? 'roczne' : 'miesięczne' ?>): <?= $dsrv_order['next_renewal_at'] ? h(date('d.m.Y', strtotime($dsrv_order['next_renewal_at']))) : '—' ?>.
         </div>
       </div>
-      <form method="post" onsubmit="return confirm('Zrezygnować z VPS? Otrzymasz zwrot proporcjonalny do niewykorzystanej części opłaconego okresu, pomniejszony o opłatę manipulacyjną.')">
+      <form method="post" onsubmit="return confirm('Zrezygnować z VPS? Opłata za bieżący, już opłacony okres NIE jest zwracana (środki poszły do partnera) — naliczona zostanie tylko opłata manipulacyjna.')">
         <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
         <input type="hidden" name="_op" value="cancel_dedicated_server">
         <input type="hidden" name="order_id" value="<?= (int)$dsrv_order['id'] ?>">

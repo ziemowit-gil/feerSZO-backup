@@ -422,7 +422,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="col-6"><label class="form-label small">Opłata manipulacyjna za samodzielną rezygnację (zł)</label>
               <input class="form-control form-control-sm" name="self_cancel_fee" value="<?= h(number_format((float)($cfg['self_cancel_fee'] ?? 10), 2, ',', '')) ?>"></div>
             <div class="col-6 form-text small align-self-end">
-              Kursant może samodzielnie zrezygnować z dedykowanego IP lub VPS — dostaje zwrot proporcjonalny do niewykorzystanej części opłaconego okresu, pomniejszony o tę opłatę.
+              Kursant może samodzielnie zrezygnować z dedykowanego IP lub VPS. Zamówienie jeszcze nieaktywowane — zwrot całej opłaty minus ta opłata.
+              Usługa już aktywna — bez zwrotu za bieżący okres (środki poszły do operatora/partnera), naliczana jest tylko ta opłata.
             </div>
           </div>
           <div class="row g-2 mb-3">
