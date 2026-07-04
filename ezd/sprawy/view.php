@@ -71,6 +71,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
+    if ($action === 'pismo_add' && $can_act) {
+        try {
+            $pid = ezd_pismo_create([
+                'sprawa_id'     => $id,
+                'kierunek'      => $_POST['kierunek']     ?? 'przychodzace',
+                'title'         => trim($_POST['title']   ?? ''),
+                'tresc'         => $_POST['tresc']        ?? '',
+                'nadawca'       => trim($_POST['nadawca'] ?? ''),
+                'odbiorca'      => trim($_POST['odbiorca']?? ''),
+                'data_pisma'    => $_POST['data_pisma']   ?? '',
+                'data_wplywu'   => $_POST['data_wplywu']  ?? '',
+                'data_wysylki'  => $_POST['data_wysylki'] ?? '',
+                'status'        => $_POST['status']       ?? 'nowe',
+                'owner_id'      => (int)($_POST['owner_id'] ?? 0) ?: null,
+                'rodzaj_medium' => $_POST['rodzaj_medium'] ?? 'papier',
+            ], $user_id);
+            flash_set('success', 'Pismo dodane.');
+            header('Location: ' . APP_URL . '/ezd/pisma/view.php?id=' . $pid); exit;
+        } catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#pisma'); exit;
+    }
+
     if ($action === 'grupa_add' && $can_act) {
         try { ezd_grupa_create($id, $_POST['nazwa'] ?? '', $user_id); flash_set('success','Grupa plików utworzona.'); }
         catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
@@ -293,12 +315,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </a>
             <?php endif; ?>
             <?php if($can_act): ?>
-            <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-info">
+            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal">
               <i class="bi bi-envelope-plus me-1"></i>Pismo
-            </a>
+            </button>
             <a href="<?= APP_URL ?>/ezd/umowy/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-warning">
               <i class="bi bi-file-earmark-plus me-1"></i>Umowa
             </a>
+            <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#dekrModal">
+              <i class="bi bi-person-lines-fill me-1"></i>Dekretacja
+            </button>
             <?php endif; ?>
             <?php if($can_edit_case): ?>
             <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
@@ -868,20 +893,95 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
         <?php endforeach; ?>
         <?php if(!$dekretacje): ?><div class="text-muted text-center" style="font-size:.78rem">Brak dekretacji</div><?php endif; ?>
-
-        <!-- Nowa dekretacja — otwierana w wyskakującym oknie -->
-        <?php if($can_act): ?>
-        <div class="mt-3 pt-3 border-top">
-          <button type="button" class="btn btn-sm btn-warning w-100" data-bs-toggle="modal" data-bs-target="#dekrModal">
-            <i class="bi bi-person-lines-fill me-1"></i>Nowa dekretacja
-          </button>
-        </div>
-        <?php endif; ?>
       </div>
     </div>
 
   </div><!-- /col-lg-4 -->
 </div>
+
+<!-- ── Modal: nowe pismo ──────────────────────────────────────────────────── -->
+<?php if($can_act): ?>
+<div class="modal fade" id="pismoModal" tabindex="-1" aria-labelledby="pismoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="pismo_add">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="pismoModalLabel"><i class="bi bi-envelope-plus text-info me-2" aria-hidden="true"></i>Nowe pismo</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Kierunek <span class="text-danger">*</span></label>
+            <div class="d-flex gap-2 flex-wrap">
+              <?php foreach(EZD_KIERUNKI as $kv=>$kl): ?>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="kierunek" id="pm_k_<?= $kv ?>" value="<?= $kv ?>" <?= $kv==='przychodzace'?'checked':'' ?>>
+                <label class="form-check-label" for="pm_k_<?= $kv ?>"><i class="bi <?= $kl['icon'] ?> me-1"></i><?= h($kl['label']) ?></label>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="pm-title">Tytuł / przedmiot pisma <span class="text-danger">*</span></label>
+            <input type="text" name="title" id="pm-title" class="form-control" placeholder="np. Oferta cenowa nr 123/2026" required>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold" for="pm-medium">Rodzaj medium</label>
+              <select name="rodzaj_medium" id="pm-medium" class="form-select">
+                <?php foreach(EZD_MEDIA as $mv=>$ml): ?>
+                <option value="<?= $mv ?>" <?= $mv==='papier'?'selected':'' ?>><?= h($ml['label']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold" for="pm-owner">Referent</label>
+              <select name="owner_id" id="pm-owner" class="form-select">
+                <option value="">— brak —</option>
+                <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold" for="pm-nadawca">Nadawca</label>
+              <input type="text" name="nadawca" id="pm-nadawca" class="form-control" placeholder="Nazwa / firma nadawcy">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold" for="pm-odbiorca">Odbiorca</label>
+              <input type="text" name="odbiorca" id="pm-odbiorca" class="form-control" placeholder="Nazwa / firma odbiorcy">
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-4">
+              <label class="form-label fw-semibold" for="pm-data-pisma">Data pisma</label>
+              <input type="date" name="data_pisma" id="pm-data-pisma" class="form-control" value="<?= date('Y-m-d') ?>">
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold" for="pm-data-wplywu">Data wpływu</label>
+              <input type="date" name="data_wplywu" id="pm-data-wplywu" class="form-control" value="<?= date('Y-m-d') ?>">
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold" for="pm-data-wysylki">Data wysyłki</label>
+              <input type="date" name="data_wysylki" id="pm-data-wysylki" class="form-control">
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold" for="pm-tresc">Treść / notatka <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <textarea name="tresc" id="pm-tresc" class="form-control" rows="3" placeholder="Streszczenie, dyspozycje, dodatkowe informacje…"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-info"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Dodaj pismo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── Modal: nowa dekretacja ─────────────────────────────────────────────── -->
 <?php if($can_act):
