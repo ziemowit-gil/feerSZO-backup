@@ -649,7 +649,7 @@ include __DIR__ . '/_layout_head.php';
   $metro_i = 0;
   $mc = function () use (&$metro_i, $metro_tile_colors) { return $metro_tile_colors[$metro_i++ % count($metro_tile_colors)]; };
 ?>
-<nav class="container-xl px-3 pt-3" aria-label="Sekcje panelu">
+<nav class="container-xl px-3 pt-3 <?= $tab === 'dane' ? 'kp-nav-startpage' : '' ?>" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
 
     <li class="nav-item">
@@ -935,18 +935,31 @@ document.addEventListener('DOMContentLoaded', function() {
   // na pozostałe schematy kolorów.
   $kp_welcome_name  = trim((string)($client['name'] ?? ''));
   $kp_welcome_first = $kp_welcome_name !== '' ? explode(' ', $kp_welcome_name)[0] : ((string)($account['login'] ?? 'Kursancie'));
+  // Kompletna lista — ta ściana ZASTĘPUJE (nie duplikuje) kompaktowy pasek kafli z góry strony:
+  // na tej zakładce pasek jest ukrywany w motywie Metro (patrz .kp-nav-startpage niżej), więc
+  // Start musi dawać dostęp do wszystkich sekcji, łącznie z tymi schowanymi wcześniej w rozwijanych
+  // podgrupach „Nauka”/„Dostępy”.
   $kp_start_items = [
-    ['tab' => 'lekcje',     'icon' => 'calendar-check', 'label' => 'Moje lekcje'],
-    ['tab' => 'zadania',    'icon' => 'journal-check',  'label' => 'Dydaktyka / eLearning', 'badge' => $hw_pending_total],
-    ['tab' => 'komunikaty', 'icon' => 'megaphone',      'label' => 'Komunikaty',             'badge' => $notices_unread],
-    ['tab' => 'wiadomosci', 'icon' => 'envelope',       'label' => 'Wiadomości',             'badge' => $msg_unread],
-    ['tab' => 'plan',       'icon' => 'list-check',     'label' => 'Plan nauczania'],
-    ['tab' => 'testy',      'icon' => 'card-checklist', 'label' => 'Testy'],
-    ['tab' => 'online',     'icon' => 'camera-video',   'label' => 'Szkolenia online'],
-    ['tab' => 'vlab',       'icon' => 'code-square',    'label' => 'VLab'],
+    ['tab' => 'lekcje',      'icon' => 'calendar-check',   'label' => 'Moje lekcje'],
+    ['tab' => 'zadania',     'icon' => 'journal-check',    'label' => 'Dydaktyka / eLearning', 'badge' => $hw_pending_total],
+    ['tab' => 'oceny',       'icon' => 'table',             'label' => 'Oceny'],
+    ['tab' => 'plan',        'icon' => 'list-check',       'label' => 'Plan nauczania'],
+    ['tab' => 'testy',       'icon' => 'card-checklist',   'label' => 'Testy'],
+    ['tab' => 'komunikaty',  'icon' => 'megaphone',        'label' => 'Komunikaty',             'badge' => $notices_unread],
+    ['tab' => 'wiadomosci',  'icon' => 'envelope',         'label' => 'Wiadomości',             'badge' => $msg_unread],
   ];
-  if (!$is_minor) { $kp_start_items[] = ['tab' => 'rozliczenia', 'icon' => 'receipt', 'label' => 'Rozliczenia']; }
-  $kp_start_items[] = ['tab' => 'ustawienia', 'icon' => 'gear', 'label' => 'Ustawienia'];
+  if (!$is_minor) {
+    $kp_start_items[] = ['tab' => 'rozliczenia',  'icon' => 'receipt',      'label' => 'Rozliczenia'];
+    $kp_start_items[] = ['tab' => 'upowaznieni',  'icon' => 'person-check', 'label' => 'Upoważnieni'];
+  }
+  $kp_start_items[] = ['tab' => 'online',      'icon' => 'camera-video', 'label' => 'Szkolenia online'];
+  $kp_start_items[] = ['tab' => 'vlab',        'icon' => 'code-square',  'label' => 'VLab'];
+  $kp_start_items[] = ['tab' => 'licencje',    'icon' => 'key',          'label' => 'Licencje',   'badge' => !empty($my_licenses) ? count($my_licenses) : 0];
+  $kp_start_items[] = ['tab' => 'pfron',       'icon' => 'shield-lock',  'label' => 'PFRON (konsultacje)'];
+  $kp_start_items[] = ['tab' => 'problem',     'icon' => 'life-preserver', 'label' => 'Pomoc'];
+  $kp_start_items[] = ['tab' => 'aktywnosc',   'icon' => 'clock-history', 'label' => 'Aktywność'];
+  $kp_start_items[] = ['tab' => 'ustawienia',  'icon' => 'gear',         'label' => 'Ustawienia'];
+  $kp_start_items[] = ['tab' => 'regulaminy',  'icon' => 'file-earmark-text', 'label' => 'Regulaminy', 'badge' => !empty($terms_pending) ? count($terms_pending) : 0];
   $kp_si = 0;
 ?>
 <div class="kp-startwall">

@@ -301,6 +301,11 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 html.kp-metro-notice-dismissed .kp-metro-notice { display:none !important; }
 .kp-metro-notice .btn-close { filter:invert(1) grayscale(1) brightness(2); }
 
+/* Kompaktowy pasek kafli u góry strony dublowałby ścianę Start (ten sam zestaw linków w innej
+   formie) — na zakładce landingowej („Dane kursanta”) chowamy go w motywie Metro, bo ściana
+   Start przejmuje w komplecie jego rolę nawigacyjną. Na pozostałych zakładkach pasek zostaje. */
+[data-kp-scheme="metro"] .kp-nav-startpage { display:none; }
+
 /* ── Ekran startowy „Start" — ściana dużych kafli, widoczna po zalogowaniu (zakładka Dane) ── */
 .kp-startwall { display:none; }
 [data-kp-scheme="metro"] .kp-startwall {
