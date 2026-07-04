@@ -2192,23 +2192,48 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php else: ?>
 
-  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
-    <i class="bi bi-hdd-stack text-primary" aria-hidden="true"></i>VLab — Twoje maszyny
-  </h1>
-  <p class="text-body-secondary small mb-3">
-    Twórz własne środowiska (kontenery Docker) do ćwiczeń. Dostęp przez terminal w przeglądarce lub po SSH.
-  </p>
+  <style>
+    .vlab-hero{background:linear-gradient(135deg,var(--bs-primary) 0%,#0b5ed7 100%);color:#fff;border-radius:1rem}
+    .vlab-hero .bi{opacity:.9}
+    .vlab-icon-badge{width:44px;height:44px;border-radius:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .vlab-card{border:1px solid var(--bs-border-color);border-radius:.9rem;transition:box-shadow .15s ease,transform .15s ease}
+    .vlab-card:hover{box-shadow:0 .5rem 1.25rem rgba(0,0,0,.08);transform:translateY(-1px)}
+    .vlab-card .card-body{padding:1.1rem}
+    .vlab-status-dot{width:.55rem;height:.55rem;border-radius:50%;display:inline-block}
+    .vlab-tpl-card{border:1px solid var(--bs-border-color);border-radius:.9rem;transition:box-shadow .15s ease,border-color .15s ease}
+    .vlab-tpl-card:hover{box-shadow:0 .5rem 1.25rem rgba(0,0,0,.08);border-color:var(--bs-primary)}
+    [data-bs-toggle="collapse"] .bi-chevron-down{transition:transform .2s ease}
+    [data-bs-toggle="collapse"][aria-expanded="true"] .bi-chevron-down{transform:rotate(180deg)}
+  </style>
+
+  <!-- ── Nagłówek (hero) ──────────────────────────────────────────────────── -->
+  <div class="vlab-hero p-3 p-md-4 mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <span class="vlab-icon-badge bg-white bg-opacity-15">
+      <i class="bi bi-hdd-stack fs-4" aria-hidden="true"></i>
+    </span>
+    <div class="flex-grow-1 min-width-0">
+      <h1 class="h5 fw-bold mb-1">VLab — Twoje środowiska do ćwiczeń</h1>
+      <p class="mb-0 small opacity-90">
+        Wirtualne maszyny (kontenery Docker), dostęp przez terminal w przeglądarce lub po SSH — plus opcje rozszerzeń: dedykowane IP i VPS ze zniżką.
+      </p>
+    </div>
+  </div>
 
   <?php $vlab_blocked_html = vlab_blocked_software_html(); if (trim($vlab_blocked_html) !== ''): ?>
-  <div class="card border-warning-subtle mb-3">
-    <div class="card-header bg-warning bg-opacity-10 p-0">
-      <button type="button" class="btn btn-link text-decoration-none w-100 text-start px-3 py-2 fw-semibold"
-              data-bs-toggle="collapse" data-bs-target="#vlab-blocked-sw" aria-expanded="false" aria-controls="vlab-blocked-sw">
-        <i class="bi bi-shield-x text-warning me-2" aria-hidden="true"></i>Zabronione oprogramowanie i usługi w VLab
-        <i class="bi bi-chevron-down float-end mt-1" aria-hidden="true"></i>
-      </button>
-    </div>
+  <div class="vlab-card mb-3 overflow-hidden">
+    <button type="button" class="btn text-decoration-none w-100 text-start px-3 py-3 d-flex align-items-center gap-2 bg-transparent border-0 rounded-0"
+            data-bs-toggle="collapse" data-bs-target="#vlab-blocked-sw" aria-expanded="false" aria-controls="vlab-blocked-sw">
+      <span class="vlab-icon-badge bg-danger-subtle text-danger">
+        <i class="bi bi-shield-x" aria-hidden="true"></i>
+      </span>
+      <span class="flex-grow-1">
+        <span class="fw-semibold d-block">Zabronione oprogramowanie i usługi</span>
+        <span class="text-body-secondary small">Zasady korzystania z maszyn VLab — rozwiń, aby przeczytać</span>
+      </span>
+      <i class="bi bi-chevron-down" aria-hidden="true"></i>
+    </button>
     <div id="vlab-blocked-sw" class="collapse">
+      <hr class="m-0">
       <div class="card-body small">
         <?= $vlab_blocked_html ?>
       </div>
@@ -2218,7 +2243,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <div id="vlab-root" data-token="<?= h($vlab_token) ?>">
     <div id="vlab-content" aria-live="polite">
-      <div class="text-body-secondary py-4 text-center">Ładowanie…</div>
+      <div class="text-body-secondary py-4 text-center">
+        <div class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></div>Ładowanie…
+      </div>
     </div>
   </div>
 
@@ -2439,34 +2466,42 @@ document.addEventListener('DOMContentLoaded', function() {
           + '<span>Moduł VLab nie został jeszcze skonfigurowany przez administratora.</span></div>';
         return;
       }
-      let html = '<h2 class="h6 fw-bold d-flex align-items-center mb-2"><i class="bi bi-pc-display me-2" aria-hidden="true"></i>'
-        + 'Moje maszyny <span class="badge text-bg-secondary ms-2">'+d.count+' / '+d.max+'</span></h2>';
+      let html = '<div class="d-flex align-items-center gap-2 mb-3">'
+        + '<span class="vlab-icon-badge bg-primary-subtle text-primary"><i class="bi bi-pc-display" aria-hidden="true"></i></span>'
+        + '<h2 class="h6 fw-bold mb-0 flex-grow-1">Moje maszyny</h2>'
+        + '<span class="badge text-bg-light border">'+d.count+' / '+d.max+'</span></div>';
 
       const af = d.dedicated_ip ? Number(d.dedicated_ip.activation_fee).toFixed(2).replace('.',',') : '';
       const mf = d.dedicated_ip ? Number(d.dedicated_ip.monthly_fee).toFixed(2).replace('.',',') : '';
 
       if (!d.machines.length){
-        html += '<div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary mb-4">'
+        html += '<div class="vlab-card p-4 text-center text-body-secondary mb-4">'
+          + '<i class="bi bi-inboxes fs-1 opacity-25 d-block mb-2" aria-hidden="true"></i>'
           + 'Nie masz jeszcze żadnej maszyny. Utwórz ją z szablonu poniżej.</div>';
       } else {
+        html += '<div class="row g-3 mb-4">';
         for (const m of d.machines){
           const [col,lbl] = stMap[m.status] || ['secondary', m.status];
-          html += '<div class="card mb-3"><div class="card-body">'
-            + '<div class="d-flex align-items-center gap-2 mb-2">'
+          html += '<div class="col-12 col-lg-6"><div class="vlab-card h-100"><div class="card-body">'
+            + '<div class="d-flex align-items-start gap-2 mb-2">'
+            + '<span class="vlab-icon-badge bg-'+col+'-subtle text-'+col+'"><i class="bi bi-hdd-stack" aria-hidden="true"></i></span>'
+            + '<div class="flex-grow-1 min-width-0">'
+            + '<div class="d-flex align-items-center gap-2 flex-wrap">'
             + '<span class="fw-semibold">'+esc(m.label)+'</span>'
-            + '<span class="badge text-bg-'+col+'">'+lbl+'</span>'
+            + '<span class="badge text-bg-'+col+'"><span class="vlab-status-dot bg-white me-1" style="opacity:.85"></span>'+lbl+'</span>'
             + (m.force_pw ? '<span class="badge text-bg-warning"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>zmień hasło przy logowaniu</span>' : '')
             + '</div>';
           if (m.status === 'error' && m.error){
-            html += '<p class="text-danger small mb-2">'+esc(m.error)+'</p>';
+            html += '<p class="text-danger small mb-0 mt-1">'+esc(m.error)+'</p>';
           }
+          html += '</div></div>';
           // Efektywne dane SSH: konto hosta (preferowane) lub fallback na bezpośredni port kontenera.
           const sshUser = m.host_user || m.ssh_user || '';
           const sshPort = m.host_user ? m.host_port : (m.ssh_port || 0);
           const sshOk   = m.status === 'running' && m.ssh_host && sshUser && sshPort;
           if (sshOk){
             const c = lastCreds[m.id]; // pełne dane logowania, tylko bezpośrednio po utworzeniu
-            html += '<div class="bg-body-tertiary border rounded p-2 mb-2 small font-monospace">'
+            html += '<div class="bg-body-tertiary border rounded-3 p-2 mb-2 small font-monospace">'
               + '<div class="fw-semibold mb-1" style="font-family:inherit"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Dane logowania (Docker)</div>'
               + '<div><span class="text-body-secondary">SSH:</span> ssh '+esc(sshUser)+'@'+esc(m.ssh_host)+' -p '+sshPort+'</div>';
             if (c){
@@ -2482,14 +2517,20 @@ document.addEventListener('DOMContentLoaded', function() {
           if (d.dedicated_ip && d.dedicated_ip.enabled){
             const dip = m.dedicated_ip;
             if (!dip){
-              html += '<p class="small text-body-secondary mb-2"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-order-dedip="'+m.id+'">zamów</button>'
-                + ' <span class="text-body-secondary">('+af+' zł aktywacja + '+mf+' zł/mc)</span></p>';
+              html += '<div class="bg-body-tertiary rounded-3 p-2 mb-2 small d-flex align-items-center gap-2">'
+                + '<i class="bi bi-globe text-body-secondary" aria-hidden="true"></i>'
+                + '<span class="text-body-secondary flex-grow-1">Dedykowane IP — '+af+' zł aktywacja + '+mf+' zł/mc</span>'
+                + '<button type="button" class="btn btn-primary btn-sm py-0" data-order-dedip="'+m.id+'">Zamów</button></div>';
             } else if (dip.status === 'requested'){
-              html += '<p class="small mb-2"><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Dedykowane IP: oczekuje na aktywację</span> '
-                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'" data-cancel-dedip-status="requested">zrezygnuj</button></p>';
+              html += '<div class="bg-warning-subtle rounded-3 p-2 mb-2 small d-flex align-items-center gap-2">'
+                + '<i class="bi bi-hourglass-split text-warning-emphasis" aria-hidden="true"></i>'
+                + '<span class="flex-grow-1">Dedykowane IP: oczekuje na aktywację</span>'
+                + '<button type="button" class="btn btn-link btn-sm p-0 text-danger" data-cancel-dedip="'+dip.order_id+'" data-cancel-dedip-status="requested">zrezygnuj</button></div>';
             } else if (dip.status === 'active'){
-              html += '<p class="small mb-2"><span class="badge text-bg-success"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: '+esc(dip.ip_address)+'</span> '
-                + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" data-cancel-dedip="'+dip.order_id+'" data-cancel-dedip-status="active">zrezygnuj</button></p>';
+              html += '<div class="bg-success-subtle rounded-3 p-2 mb-2 small d-flex align-items-center gap-2">'
+                + '<i class="bi bi-globe text-success-emphasis" aria-hidden="true"></i>'
+                + '<span class="flex-grow-1">Dedykowane IP: <span class="font-monospace">'+esc(dip.ip_address)+'</span></span>'
+                + '<button type="button" class="btn btn-link btn-sm p-0 text-danger" data-cancel-dedip="'+dip.order_id+'" data-cancel-dedip-status="active">zrezygnuj</button></div>';
             }
           }
           html += '<div class="d-flex flex-wrap gap-2">';
@@ -2509,21 +2550,25 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<button type="button" class="btn btn-outline-success btn-sm" data-act="start" data-id="'+m.id+'"><i class="bi bi-play-circle me-1" aria-hidden="true"></i>Uruchom</button>';
           }
           html += '<button type="button" class="btn btn-outline-danger btn-sm" data-act="remove" data-id="'+m.id+'"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń</button>';
-          html += '</div></div></div>';
+          html += '</div></div></div></div>';
         }
+        html += '</div>';
       }
 
-      html += '<h2 class="h6 fw-bold d-flex align-items-center mt-4 mb-2"><i class="bi bi-collection me-2" aria-hidden="true"></i>Utwórz nową maszynę</h2>';
+      html += '<div class="d-flex align-items-center gap-2 mt-4 mb-3">'
+        + '<span class="vlab-icon-badge bg-primary-subtle text-primary"><i class="bi bi-collection" aria-hidden="true"></i></span>'
+        + '<h2 class="h6 fw-bold mb-0">Utwórz nową maszynę</h2></div>';
       const canCreate = d.count < d.max;
       if (!canCreate){
-        html += '<p class="text-body-secondary small">Osiągnięto limit maszyn ('+d.max+'). Usuń istniejącą, aby utworzyć nową.</p>';
+        html += '<div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Osiągnięto limit maszyn ('+d.max+'). Usuń istniejącą, aby utworzyć nową.</div>';
       }
       if (!d.templates.length){
-        html += '<div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary">Brak dostępnych szablonów.</div>';
+        html += '<div class="vlab-card p-4 text-center text-body-secondary">Brak dostępnych szablonów.</div>';
       } else {
         html += '<div class="row g-3">';
         for (const t of d.templates){
-          html += '<div class="col-12 col-md-6 col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column">'
+          html += '<div class="col-12 col-md-6 col-lg-4"><div class="vlab-tpl-card h-100"><div class="card-body d-flex flex-column">'
+            + '<span class="vlab-icon-badge bg-body-secondary bg-opacity-10 text-body-secondary mb-2"><i class="bi bi-box-seam" aria-hidden="true"></i></span>'
             + '<h3 class="h6 mb-1">'+esc(t.name)+'</h3>'
             + '<p class="text-body-secondary small flex-grow-1">'+esc(t.description||'')+'</p>'
             + '<button type="button" class="btn btn-primary btn-sm" data-create="'+t.id+'" data-tpl-name="'+esc(t.name)+'" data-tpl-ports="'+esc(t.default_ports||'')+'" '+(canCreate?'':'disabled')+'>'
@@ -2640,16 +2685,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <?php
   // ── Dedykowany serwer u zewnętrznego partnera (xxx.edukacja.cloud) ─────────
-  $dsrv_pricing = vlab_dedicated_server_pricing();
+  $dsrv_pricing  = vlab_dedicated_server_pricing();
+  $dsrv_periods  = array_filter($dsrv_pricing['periods'], fn($p) => (float)$p['price'] > 0);
   if ($dsrv_pricing['enabled']):
       $dsrv_order = vlab_dedicated_server_for_student((int)$student['id']);
       $dsrv_msg   = $_SESSION['k30_ds_msg'] ?? null; unset($_SESSION['k30_ds_msg']);
   ?>
-  <div class="card border-0 shadow-sm mt-4">
-    <div class="card-header fw-semibold d-flex align-items-center gap-2">
-      <i class="bi bi-hdd-rack text-primary" aria-hidden="true"></i>Twój serwer VPS ze zniżką
-    </div>
+  <div class="vlab-card mt-4">
     <div class="card-body">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="vlab-icon-badge bg-primary-subtle text-primary"><i class="bi bi-hdd-rack" aria-hidden="true"></i></span>
+        <h2 class="h6 fw-bold mb-0">Twój serwer VPS ze zniżką</h2>
+      </div>
       <div class="alert alert-light border small d-flex align-items-start gap-2 mb-3">
         <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
         <span>
@@ -2667,18 +2714,21 @@ document.addEventListener('DOMContentLoaded', function() {
         Własny VPS w cenie obniżonej dla kursantów fundacji. Fundacja wystawia fakturę VAT za wybrany okres
         (+ jednorazowa opłata aktywacyjna); po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy Twój serwer.
       </p>
+      <?php if (!$dsrv_periods): ?>
+      <div class="alert alert-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Cennik nie jest jeszcze skonfigurowany — skontaktuj się z administratorem.</div>
+      <?php else: ?>
       <?php if ($dsrv_pricing['activation_fee'] > 0): ?>
       <p class="small mb-3"><i class="bi bi-tag me-1" aria-hidden="true"></i>Opłata aktywacyjna (jednorazowo): <strong><?= number_format($dsrv_pricing['activation_fee'], 2, ',', ' ') ?> zł</strong></p>
       <?php endif; ?>
       <div class="row g-2 mb-3">
-        <?php foreach ($dsrv_pricing['periods'] as $pkey => $plan): ?>
-        <div class="col-6">
-          <div class="border rounded p-2 text-center h-100">
+        <?php foreach ($dsrv_periods as $pkey => $plan): ?>
+        <div class="col-6 col-md-4">
+          <div class="border rounded-3 p-2 text-center h-100">
             <div class="small text-body-secondary"><?= h($plan['label']) ?></div>
             <?php if ($plan['regular_price'] > $plan['price']): ?>
             <div class="text-decoration-line-through text-body-secondary small"><?= number_format($plan['regular_price'], 2, ',', ' ') ?> zł</div>
             <?php endif; ?>
-            <div class="fw-bold fs-5"><?= number_format($plan['price'], 2, ',', ' ') ?> zł</div>
+            <div class="fw-bold fs-5 text-primary"><?= number_format($plan['price'], 2, ',', ' ') ?> zł</div>
           </div>
         </div>
         <?php endforeach; ?>
@@ -2701,7 +2751,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="col-12 col-md-3">
           <label class="form-label small" for="ds-period">Okres rozliczeniowy</label>
           <select class="form-select form-select-sm" id="ds-period" name="billing_period">
-            <?php foreach ($dsrv_pricing['periods'] as $pkey => $plan): ?>
+            <?php foreach ($dsrv_periods as $pkey => $plan): ?>
             <option value="<?= h($pkey) ?>"><?= h($plan['label']) ?> — <?= number_format($plan['price'], 2, ',', ' ') ?> zł</option>
             <?php endforeach; ?>
           </select>
@@ -2712,6 +2762,7 @@ document.addEventListener('DOMContentLoaded', function() {
           </button>
         </div>
       </form>
+      <?php endif; ?>
 
       <?php elseif ($dsrv_order['status'] === 'requested'): ?>
       <div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
