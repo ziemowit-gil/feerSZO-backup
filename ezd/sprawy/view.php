@@ -73,7 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'new_office_file') {
         if (!$can_act) { http_response_code(403); exit; }
         $grupa_id = (int)($_POST['grupa_id'] ?? 0) ?: null;
-        $r = ezd_new_office_file($id, $user_id, $_POST['filetype'] ?? '', trim($_POST['name'] ?? ''), $grupa_id);
+        $with_znak = !empty($_POST['with_znak']);
+        $r = ezd_new_office_file($id, $user_id, $_POST['filetype'] ?? '', trim($_POST['name'] ?? ''), $grupa_id, $with_znak);
         flash_set($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Utworzono nowy plik.' : $r['error']);
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
@@ -986,7 +987,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </div>
           </div>
           <?php if($grupy): ?>
-          <div class="mb-1">
+          <div class="mb-3">
             <label class="form-label fw-semibold" for="nof-grupa">Grupa plików</label>
             <select name="grupa_id" id="nof-grupa" class="form-select">
               <option value="0">— bez grupy —</option>
@@ -994,6 +995,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </select>
           </div>
           <?php endif; ?>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" name="with_znak" value="1" id="nof-znak" checked>
+            <label class="form-check-label" for="nof-znak" style="font-size:.85rem">
+              Dodaj znak sprawy w nagłówku (prawy górny róg) — <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span>
+            </label>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>

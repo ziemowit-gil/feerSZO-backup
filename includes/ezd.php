@@ -2023,13 +2023,77 @@ const EZD_OFFICE_TEMPLATES = [
     'xlsx' => ['file' => 'ezd_blank.xlsx', 'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       'label' => 'Nowy arkusz'],
 ];
 
+/** Buduje pusty .docx z nagłówkiem strony (prawy górny róg) zawierającym znak sprawy. */
+function _ezd_build_docx_with_header(string $path, string $headerText): void {
+    require_once dirname(__DIR__) . '/vendor/autoload.php';
+    $phpWord = new \PhpOffice\PhpWord\PhpWord();
+    $phpWord->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
+    $section = $phpWord->addSection();
+    $header  = $section->addHeader();
+    $header->addText(htmlspecialchars($headerText, ENT_QUOTES, 'UTF-8'), ['size' => 9, 'color' => '555555'], ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::END]);
+    $section->addText('');
+    \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007')->save($path);
+}
+
+/** Buduje pusty .xlsx z nagłówkiem wydruku (prawa sekcja — prawy górny róg) zawierającym znak sprawy. */
+function _ezd_build_xlsx_with_header(string $path, string $headerText): void {
+    // Kod &R = prawa sekcja nagłówka wydruku Excela; && to literalny znak & w tym języku.
+    $safe = str_replace('&', '&&', $headerText);
+    $safe = htmlspecialchars($safe, ENT_QUOTES | ENT_XML1, 'UTF-8');
+
+    $zip = new \ZipArchive();
+    $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        . '<Default Extension="xml" ContentType="application/xml"/>'
+        . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        . '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+        . '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
+        . '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'
+        . '</Types>');
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'
+        . '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'
+        . '</Relationships>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        . '<sheets><sheet name="Arkusz1" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        . '</Relationships>');
+    $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        . '<sheetData/><headerFooter><oddHeader>&amp;R' . $safe . '</oddHeader></headerFooter></worksheet>');
+    $zip->addFromString('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        . '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>'
+        . '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
+        . '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+        . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+        . '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>');
+    $zip->addFromString('docProps/core.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+        . '<dc:creator>feerSZO</dc:creator></cp:coreProperties>');
+    $zip->addFromString('docProps/app.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
+        . '<Application>feerSZO</Application></Properties>');
+    $zip->close();
+}
+
 /**
- * Tworzy nowy, pusty plik Word/Excel w repozytorium sprawy (z szablonu) pod
- * podaną nazwą. Synchronizuje z SharePoint w tle, żeby dało się go od razu
- * otworzyć do edycji w Office Online.
+ * Tworzy nowy, pusty plik Word/Excel w repozytorium sprawy pod podaną nazwą —
+ * domyślnie z gotowego szablonu, a gdy $with_znak, ze świeżo zbudowanym
+ * nagłówkiem strony zawierającym znak sprawy (prawy górny róg). Synchronizuje
+ * z SharePoint w tle, żeby dało się go od razu otworzyć do edycji w Office Online.
  * @return array{ok:bool,error:?string,id:?int}
  */
-function ezd_new_office_file(int $sprawa_id, int $user_id, string $type, string $name, ?int $grupa_id = null): array {
+function ezd_new_office_file(int $sprawa_id, int $user_id, string $type, string $name, ?int $grupa_id = null, bool $with_znak = false): array {
     if (!isset(EZD_OFFICE_TEMPLATES[$type])) {
         return ['ok' => false, 'error' => 'Nieprawidłowy typ pliku.', 'id' => null];
     }
@@ -2043,16 +2107,28 @@ function ezd_new_office_file(int $sprawa_id, int $user_id, string $type, string 
     if ($name === '') $name = $tpl['label'];
     $orig_name = mb_substr($name, 0, 200) . '.' . $type;
 
-    $tpl_path = __DIR__ . '/templates/' . $tpl['file'];
-    if (!is_file($tpl_path)) {
-        return ['ok' => false, 'error' => 'Brak szablonu pliku na serwerze.', 'id' => null];
-    }
-
     $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $type;
-    if (!copy($tpl_path, $dir . $stored)) {
-        return ['ok' => false, 'error' => 'Nie udało się utworzyć pliku.', 'id' => null];
+    $dest   = $dir . $stored;
+
+    if ($with_znak) {
+        $sprawa = ezd_sprawa_get($sprawa_id);
+        $znak   = 'Znak sprawy: ' . ($sprawa['znak_sprawy'] ?? '');
+        try {
+            if ($type === 'docx') _ezd_build_docx_with_header($dest, $znak);
+            else _ezd_build_xlsx_with_header($dest, $znak);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => 'Nie udało się zbudować pliku z nagłówkiem: ' . $e->getMessage(), 'id' => null];
+        }
+    } else {
+        $tpl_path = __DIR__ . '/templates/' . $tpl['file'];
+        if (!is_file($tpl_path)) {
+            return ['ok' => false, 'error' => 'Brak szablonu pliku na serwerze.', 'id' => null];
+        }
+        if (!copy($tpl_path, $dest)) {
+            return ['ok' => false, 'error' => 'Nie udało się utworzyć pliku.', 'id' => null];
+        }
     }
 
     db()->prepare(
