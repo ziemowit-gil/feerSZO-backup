@@ -208,6 +208,11 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 [data-kp-scheme="metro"] .vlab-icon-badge, [data-kp-scheme="metro"] .kp-auth-card, [data-kp-scheme="metro"] .kp-auth-logo {
   border-radius:0 !important;
 }
+/* Siatka bezpieczeństwa: łapie też zaokrąglenia/cienie dopisane inline (style="...") w treści
+   poszczególnych zakładek, których nie widać w ogólnej liście klas powyżej — np. odznaki statusu,
+   ramki list — żeby "płaski" wygląd Metro obejmował całą treść panelu, a nie tylko znane komponenty. */
+[data-kp-scheme="metro"] [style*="border-radius"] { border-radius:0 !important; }
+[data-kp-scheme="metro"] [style*="box-shadow"] { box-shadow:none !important; }
 [data-kp-scheme="metro"] .card, [data-kp-scheme="metro"] .shadow, [data-kp-scheme="metro"] .shadow-sm,
 [data-kp-scheme="metro"] .vlab-hero, [data-kp-scheme="metro"] .vlab-card, [data-kp-scheme="metro"] .vlab-tpl-card,
 [data-kp-scheme="metro"] .kp-auth-card, [data-kp-scheme="metro"] .btn {
