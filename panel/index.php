@@ -883,6 +883,13 @@ if (module_enabled('org_documents_enabled')) {
         'label' => 'Dokumenty organizacji', 'sub' => 'statut, regulaminy, wzory',
     ];
 }
+if (module_enabled('whatsapp_group_enabled') && org_setting('whatsapp_group_link')) {
+    $_pv_actions[] = [
+        'href' => APP_URL . '/panel/whatsapp_group.php', 'icon' => 'bi-whatsapp',
+        'iconColor' => '#25D366', 'iconBg' => '#F0FDF4',
+        'label' => 'WhatsApp — grupa', 'sub' => 'dołącz do grupy',
+    ];
+}
 $_pv_actions[] = [
     'href' => APP_URL . '/panel/helpdesk.php', 'icon' => 'bi-headset',
     'iconColor' => 'var(--vol-color)', 'iconBg' => '#F0F4FF',
