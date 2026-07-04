@@ -618,6 +618,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <button type="submit" class="btn btn-xs btn-outline-success btn-sm" title="Zapisz zmiany z Word Online jako nową wersję"><i class="bi bi-cloud-arrow-down"></i></button>
             </form>
             <?php endif; ?>
+            <?php elseif (!empty($z['sp_web_url'])): ?>
+            <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary btn-sm" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>
@@ -867,63 +869,95 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <?php endforeach; ?>
         <?php if(!$dekretacje): ?><div class="text-muted text-center" style="font-size:.78rem">Brak dekretacji</div><?php endif; ?>
 
-        <!-- Formularz nowej dekretacji -->
+        <!-- Nowa dekretacja — otwierana w wyskakującym oknie -->
         <?php if($can_act): ?>
-        <?php
-          $org_units_list = [];
-          if (module_enabled('org_enabled') && function_exists('org_units_all')) {
-              $org_units_list = org_units_all('active');
-          }
-        ?>
         <div class="mt-3 pt-3 border-top">
-          <div class="fw-semibold mb-2" style="font-size:.78rem">Nowa dekretacja:</div>
-          <form method="post" class="d-flex flex-column gap-2" id="dekr-form">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="dekretacja">
-            <?php if ($org_units_list): ?>
-            <select name="unit_id" class="form-select form-select-sm" id="dekr-unit" onchange="dekrUnitChange(this)">
-              <option value="">— lub wybierz jednostkę —</option>
-              <?php foreach($org_units_list as $ou): ?>
-              <option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?> <small>(<?= h($ou['code']) ?>)</small></option>
-              <?php endforeach; ?>
-            </select>
-            <?php endif; ?>
-            <select name="wykonawca_id" class="form-select form-select-sm" id="dekr-user">
-              <option value="">— wybierz osobę —</option>
-              <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
-            </select>
-            <select name="dyspozycja" class="form-select form-select-sm">
-              <?php foreach(EZD_DYSPOZYCJE as $k=>$v): ?><option value="<?= $k ?>"><?= h($v) ?></option><?php endforeach; ?>
-            </select>
-            <input type="text" name="tresc" class="form-control form-control-sm" placeholder="Treść dyspozycji (opcjonalnie)">
-            <input type="date" name="deadline" class="form-control form-control-sm" min="<?= date('Y-m-d') ?>">
-            <button type="submit" class="btn btn-sm btn-warning"><i class="bi bi-send me-1"></i>Dekretuj</button>
-          </form>
+          <button type="button" class="btn btn-sm btn-warning w-100" data-bs-toggle="modal" data-bs-target="#dekrModal">
+            <i class="bi bi-person-lines-fill me-1"></i>Nowa dekretacja
+          </button>
         </div>
-        <?php if ($org_units_list): ?>
-        <script>
-        // Wczytaj kierownika jednostki przy wyborze z listy
-        var dekrHeads = <?= json_encode(array_reduce($org_units_list, function($carry, $u) {
-            $head = function_exists('org_unit_head') ? org_unit_head((int)$u['id']) : null;
-            if ($head) $carry[(string)$u['id']] = (int)$head['user_id'];
-            return $carry;
-        }, [])) ?>;
-        function dekrUnitChange(sel) {
-            var uid = sel.value;
-            var userSel = document.getElementById('dekr-user');
-            if (uid && dekrHeads[uid]) {
-                userSel.value = dekrHeads[uid];
-            } else if (!uid) {
-                // Nie resetuj — użytkownik może wybrać ręcznie
-            }
-        }
-        </script>
-        <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>
 
   </div><!-- /col-lg-4 -->
 </div>
+
+<!-- ── Modal: nowa dekretacja ─────────────────────────────────────────────── -->
+<?php if($can_act):
+  $org_units_list = [];
+  if (module_enabled('org_enabled') && function_exists('org_units_all')) {
+      $org_units_list = org_units_all('active');
+  }
+?>
+<div class="modal fade" id="dekrModal" tabindex="-1" aria-labelledby="dekrModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" id="dekr-form">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="dekretacja">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="dekrModalLabel"><i class="bi bi-person-lines-fill text-warning me-2" aria-hidden="true"></i>Nowa dekretacja</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <?php if ($org_units_list): ?>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="dekr-unit">Jednostka organizacyjna</label>
+            <select name="unit_id" class="form-select" id="dekr-unit" onchange="dekrUnitChange(this)">
+              <option value="">— lub wybierz jednostkę —</option>
+              <?php foreach($org_units_list as $ou): ?>
+              <option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?> (<?= h($ou['code']) ?>)</option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Wybór jednostki podpowie jej kierownika jako wykonawcę.</div>
+          </div>
+          <?php endif; ?>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="dekr-user">Wykonawca (osoba) <span class="text-danger">*</span></label>
+            <select name="wykonawca_id" class="form-select" id="dekr-user">
+              <option value="">— wybierz osobę —</option>
+              <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="dekr-dysp">Dyspozycja</label>
+            <select name="dyspozycja" id="dekr-dysp" class="form-select">
+              <?php foreach(EZD_DYSPOZYCJE as $k=>$v): ?><option value="<?= $k ?>"><?= h($v) ?></option><?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="dekr-tresc">Treść dyspozycji <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <input type="text" name="tresc" id="dekr-tresc" class="form-control" placeholder="np. proszę o przygotowanie odpowiedzi">
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold" for="dekr-deadline">Termin</label>
+            <input type="date" name="deadline" id="dekr-deadline" class="form-control" min="<?= date('Y-m-d') ?>">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-send me-1" aria-hidden="true"></i>Dekretuj</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php if ($org_units_list): ?>
+<script>
+// Wczytaj kierownika jednostki przy wyborze z listy
+var dekrHeads = <?= json_encode(array_reduce($org_units_list, function($carry, $u) {
+    $head = function_exists('org_unit_head') ? org_unit_head((int)$u['id']) : null;
+    if ($head) $carry[(string)$u['id']] = (int)$head['user_id'];
+    return $carry;
+}, [])) ?>;
+function dekrUnitChange(sel) {
+    var uid = sel.value;
+    var userSel = document.getElementById('dekr-user');
+    if (uid && dekrHeads[uid]) userSel.value = dekrHeads[uid];
+}
+</script>
+<?php endif; ?>
+<?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
