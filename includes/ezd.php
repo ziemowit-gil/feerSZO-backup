@@ -1341,6 +1341,7 @@ function ezd_rpw_assign(int $id, array $d, int $user_id): int {
                     "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,filename,original_name,mime_type,file_size,uploaded_by)
                      VALUES (?,?,?,?,?,?,?)"
                 )->execute([$sprawa_id, $pismo_id, $stored, $r['scan_name'] ?: $r['scan_file'], $r['scan_mime'] ?: 'application/octet-stream', (int)$r['scan_size'], $user_id]);
+                try { ezd_sp_sync_attachment((int)db()->lastInsertId()); } catch (\Throwable $e) {}
             }
         }
     }
@@ -1850,7 +1851,9 @@ function ezd_attach_path(string $srcPath, string $origName, int $sprawa_id, ?int
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([$sprawa_id, $pismo_id, null, null, null, $stored, mb_substr($origName, 0, 255), $mime, $size, 1, null, $user_id]);
     ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'upload', 'Wgrano plik: ' . $origName);
-    return (int)db()->lastInsertId();
+    $new_id = (int)db()->lastInsertId();
+    try { ezd_sp_sync_attachment($new_id); } catch (\Throwable $e) {}
+    return $new_id;
 }
 
 /**
@@ -2001,8 +2004,13 @@ function ezd_upload(string $field, int $sprawa_id, int $user_id, ?int $pismo_id 
         "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $grupa_id ?: null, $stored, $orig_name, $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
+    $new_zal_id = (int)db()->lastInsertId();
 
     ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $orig_name . " (v$wersja)");
+
+    // Synchronizacja z SharePoint (folder sprawy) w tle — błąd nie blokuje uploadu.
+    try { ezd_sp_sync_attachment($new_zal_id); } catch (\Throwable $e) {}
+
     return null;
 }
 
@@ -2017,18 +2025,42 @@ function ezd_zal_get(int $id): ?array {
  * kolejne otwarcia tej samej wersji pliku używają już zapamiętanego adresu.
  * @return array{ok:bool,error:?string,url:?string}
  */
-function ezd_office_online_url(int $zal_id, int $user_id): array {
+/** Usuwa znaki niedozwolone w nazwach plików/folderów SharePoint. */
+function _ezd_sp_sanitize(string $s): string {
+    $s = str_replace(['"', '*', ':', '<', '>', '?', '\\', '|', '/'], '-', $s);
+    $s = trim(preg_replace('/\s+/', ' ', $s), " ./");
+    return $s !== '' ? $s : 'bez-nazwy';
+}
+
+/**
+ * Ścieżka folderu sprawy na SharePoint: cases/{symbol JRWA}/{znak sprawy + tytuł}.
+ * Współdzielona przez wszystkie pliki sprawy — repozytorium sprawy i pliki
+ * dołączone do jej pism/umów/dokumentów trafiają do tego samego folderu.
+ */
+function ezd_sprawa_sp_folder(int $sprawa_id): ?string {
+    $row = db_one(
+        "SELECT s.znak_sprawy, s.title, j.symbol AS jrwa_symbol
+         FROM ezd_sprawy s
+         JOIN ezd_teczki t ON t.id = s.teczka_id
+         LEFT JOIN ezd_jrwa j ON j.id = t.jrwa_id
+         WHERE s.id = ?", [$sprawa_id]
+    );
+    if (!$row) return null;
+    $jrwa = _ezd_sp_sanitize($row['jrwa_symbol'] ?: 'bez-JRWA');
+    $case = _ezd_sp_sanitize(trim($row['znak_sprawy'] . ' ' . $row['title']));
+    return 'cases/' . $jrwa . '/' . $case;
+}
+
+/**
+ * Wysyła załącznik na SharePoint do folderu jego sprawy (patrz ezd_sprawa_sp_folder)
+ * i zapamiętuje webUrl/drive_id/item_id na rekordzie. Bezpieczna do wywołania
+ * „w tle" (fire-and-forget) po każdym wgraniu pliku — nigdy nie zgłasza wyjątku,
+ * błąd wraca w tablicy wyniku.
+ * @return array{ok:bool,error:?string,url:?string}
+ */
+function ezd_sp_sync_attachment(int $zal_id): array {
     $z = ezd_zal_get($zal_id);
     if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'url' => null];
-
-    $ext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, EZD_OFFICE_ONLINE_EXT, true)) {
-        return ['ok' => false, 'error' => 'Otwieranie w Word Online jest dostępne tylko dla plików .doc/.docx.', 'url' => null];
-    }
-
-    if (!empty($z['sp_web_url'])) {
-        return ['ok' => true, 'error' => null, 'url' => $z['sp_web_url']];
-    }
 
     require_once __DIR__ . '/m365.php';
 
@@ -2039,7 +2071,10 @@ function ezd_office_online_url(int $zal_id, int $user_id): array {
     if (!$site_url) {
         return ['ok' => false, 'error' => 'Brak skonfigurowanej witryny SharePoint (Admin → SharePoint).', 'url' => null];
     }
-
+    $folder = ezd_sprawa_sp_folder((int)$z['sprawa_id']);
+    if (!$folder) {
+        return ['ok' => false, 'error' => 'Nie udało się wyznaczyć folderu sprawy na SharePoint.', 'url' => null];
+    }
     $local_path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/' . $z['filename'];
     if (!is_file($local_path)) {
         return ['ok' => false, 'error' => 'Plik nie istnieje na serwerze.', 'url' => null];
@@ -2052,7 +2087,7 @@ function ezd_office_online_url(int $zal_id, int $user_id): array {
         }
         $library     = m365_setting('sp_library') ?: '';
         $base_folder = trim(m365_setting('sp_base_folder'), '/');
-        $sp_path     = ($base_folder !== '' ? $base_folder . '/' : '') . 'ezd_office/' . $zal_id . '/' . $z['original_name'];
+        $sp_path     = ($base_folder !== '' ? $base_folder . '/' : '') . $folder . '/' . $z['original_name'];
 
         $site_id  = $graph->sp_site_id($site_url);
         $drive_id = $graph->sp_drive_id($site_id, $library);
@@ -2069,10 +2104,29 @@ function ezd_office_online_url(int $zal_id, int $user_id): array {
 
     db()->prepare("UPDATE ezd_zalaczniki SET sp_web_url=?, sp_synced_at=CURRENT_TIMESTAMP, sp_drive_id=?, sp_item_id=? WHERE id=?")
         ->execute([$web_url, $drive_id, $item_id, $zal_id]);
-    ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online',
-        'Otwarto w Word Online: ' . $z['original_name']);
 
     return ['ok' => true, 'error' => null, 'url' => $web_url];
+}
+
+function ezd_office_online_url(int $zal_id, int $user_id): array {
+    $z = ezd_zal_get($zal_id);
+    if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'url' => null];
+
+    $ext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, EZD_OFFICE_ONLINE_EXT, true)) {
+        return ['ok' => false, 'error' => 'Otwieranie w Word Online jest dostępne tylko dla plików .doc/.docx.', 'url' => null];
+    }
+
+    if (!empty($z['sp_web_url'])) {
+        return ['ok' => true, 'error' => null, 'url' => $z['sp_web_url']];
+    }
+
+    $r = ezd_sp_sync_attachment($zal_id);
+    if ($r['ok']) {
+        ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online',
+            'Otwarto w Word Online: ' . $z['original_name']);
+    }
+    return $r;
 }
 
 /**

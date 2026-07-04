@@ -119,6 +119,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <button type="submit" class="btn btn-sm btn-outline-success" title="Zapisz zmiany z Word Online jako nową wersję"><i class="bi bi-cloud-arrow-down"></i></button>
           </form>
           <?php endif; ?>
+          <?php elseif (!empty($z['sp_web_url'])): ?>
+          <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
           <?php endif; ?>
           <?php if($can_act && $pismo['sprawa_status']!=='closed'): ?>
           <form method="post" onsubmit="return confirm('Usunąć plik?')">
