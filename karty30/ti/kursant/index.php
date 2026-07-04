@@ -3522,80 +3522,123 @@ document.addEventListener('DOMContentLoaded', function() {
             </tbody>
           </table>
         </div>
-        <?php if ($sms_global_on): ?>
-        <div class="border-top pt-3">
-          <h3 class="h6 fw-semibold mb-1"><i class="bi bi-telephone-plus me-2 text-secondary" aria-hidden="true"></i>Dodatkowe numery do SMS</h3>
-          <?php if ($sms_phone !== ''): ?>
-          <p class="text-body-secondary small mb-2">Numer glowny: <span class="font-monospace"><?= h(preg_replace('/.(?=.{2})/u', 'x', $sms_phone)) ?></span></p>
-          <?php endif; ?>
-          <p class="text-body-secondary small mb-2">
-            <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Nowy numer musi zostać potwierdzony — wyślij sobie kod SMS albo poczekaj na
-            ręczne zatwierdzenie przez administratora. Dopóki numer nie jest potwierdzony, nie otrzyma żadnych powiadomień.
-          </p>
+        <?php if ($sms_global_on):
+          $ph2val = trim((string)($account['notify_phone2'] ?? ''));
+          $ph3val = trim((string)($account['notify_phone3'] ?? ''));
+          $ph2ok  = !empty($account['notify_phone2_verified']);
+          $ph3ok  = !empty($account['notify_phone3_verified']);
 
-          <?php
-            $phones_qs  = (string)($_GET['phones'] ?? '');
-            $phones_msg = null;
-            if ($phones_qs === 'err_missing')                     $phones_msg = ['danger',  'Najpierw zapisz numer, zanim wyślesz kod.'];
-            elseif ($phones_qs === 'err_sms_off')                 $phones_msg = ['danger',  'Wysyłka SMS jest obecnie wyłączona — poproś administratora o ręczne zatwierdzenie numeru.'];
-            elseif (str_starts_with($phones_qs, 'otp_sent_'))     $phones_msg = ['success', 'Kod weryfikacyjny wysłany SMS-em — wpisz go poniżej (ważny 10 minut).'];
-            elseif (str_starts_with($phones_qs, 'verified_'))     $phones_msg = ['success', 'Numer potwierdzony — od teraz będzie otrzymywał powiadomienia.'];
-            elseif (str_starts_with($phones_qs, 'err_code_'))     $phones_msg = ['danger',  'Nieprawidłowy lub wygasły kod.'];
-          ?>
-          <?php if ($phones_msg): ?>
-          <div class="alert alert-<?= $phones_msg[0] ?> py-2 small"><?= h($phones_msg[1]) ?></div>
-          <?php endif; ?>
-
-          <form method="post" class="row g-2 align-items-end mb-3">
-            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-            <input type="hidden" name="_op" value="notify_phones">
-            <div class="col-sm-5">
-              <label class="form-label small mb-1" for="ph2">Drugi numer</label>
-              <input type="tel" class="form-control form-control-sm" id="ph2" name="phone2" maxlength="30" value="<?= h((string)($account['notify_phone2'] ?? '')) ?>" placeholder="np. 600 700 800">
+          $phones_qs  = (string)($_GET['phones'] ?? '');
+          $phones_msg = null;
+          if ($phones_qs === 'err_missing')                     $phones_msg = ['danger',  'Najpierw zapisz numer, zanim wyślesz kod.'];
+          elseif ($phones_qs === 'err_sms_off')                 $phones_msg = ['danger',  'Wysyłka SMS jest obecnie wyłączona — poproś administratora o ręczne zatwierdzenie numeru.'];
+          elseif (str_starts_with($phones_qs, 'otp_sent_'))     $phones_msg = ['success', 'Kod weryfikacyjny wysłany SMS-em — wpisz go poniżej (ważny 10 minut).'];
+          elseif (str_starts_with($phones_qs, 'verified_'))     $phones_msg = ['success', 'Numer potwierdzony — od teraz będzie otrzymywał powiadomienia.'];
+          elseif (str_starts_with($phones_qs, 'err_code_'))     $phones_msg = ['danger',  'Nieprawidłowy lub wygasły kod.'];
+          elseif ($phones_qs === '1')                           $phones_msg = ['success', 'Numery do powiadomień SMS zapisane.'];
+        ?>
+        <div class="border-top pt-3 d-flex flex-wrap align-items-center gap-3">
+          <div class="flex-grow-1 min-width-0">
+            <h3 class="h6 fw-semibold mb-1"><i class="bi bi-telephone-plus me-2 text-secondary" aria-hidden="true"></i>Dodatkowe numery do SMS</h3>
+            <div class="small text-body-secondary">
+              <?php if ($ph2val === '' && $ph3val === ''): ?>
+              Nie dodano dodatkowych numerów.
+              <?php else: ?>
+              <?php if ($ph2val !== ''): ?>
+              <span class="badge <?= $ph2ok ? 'text-bg-success' : 'text-bg-warning' ?>"><i class="bi bi-<?= $ph2ok ? 'check-circle' : 'hourglass-split' ?> me-1" aria-hidden="true"></i><?= $ph2ok ? 'Zweryfikowany' : 'Niepotwierdzony' ?></span>
+              <?= h($ph2val) ?>
+              <?php endif; ?>
+              <?php if ($ph3val !== ''): ?>
+              <span class="badge <?= $ph3ok ? 'text-bg-success' : 'text-bg-warning' ?>"><i class="bi bi-<?= $ph3ok ? 'check-circle' : 'hourglass-split' ?> me-1" aria-hidden="true"></i><?= $ph3ok ? 'Zweryfikowany' : 'Niepotwierdzony' ?></span>
+              <?= h($ph3val) ?>
+              <?php endif; ?>
+              <?php endif; ?>
             </div>
-            <div class="col-sm-5">
-              <label class="form-label small mb-1" for="ph3">Trzeci numer</label>
-              <input type="tel" class="form-control form-control-sm" id="ph3" name="phone3" maxlength="30" value="<?= h((string)($account['notify_phone3'] ?? '')) ?>" placeholder="np. 600 700 900">
-            </div>
-            <div class="col-sm-2">
-              <button class="btn btn-primary btn-sm w-100"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
-            </div>
-          </form>
-
-          <?php foreach ([2, 3] as $wn):
-            $pval = trim((string)($account["notify_phone{$wn}"] ?? ''));
-            if ($pval === '') continue;
-            $verified        = !empty($account["notify_phone{$wn}_verified"]);
-            $otp_exp         = (string)($account["notify_phone{$wn}_otp_expires"] ?? '');
-            $has_pending_otp = !empty($account["notify_phone{$wn}_otp"]) && $otp_exp !== '' && $otp_exp > date('Y-m-d H:i:s');
-          ?>
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-2 small">
-            <span class="text-body-secondary">Numer <?= $wn === 2 ? 'drugi' : 'trzeci' ?>:</span>
-            <span class="font-monospace"><?= h($pval) ?></span>
-            <?php if ($verified): ?>
-            <span class="badge text-bg-success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zweryfikowany</span>
-            <?php else: ?>
-            <span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Niepotwierdzony</span>
-            <form method="post" class="d-inline">
-              <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-              <input type="hidden" name="_op" value="notify_phone_send_otp">
-              <input type="hidden" name="which" value="<?= $wn ?>">
-              <button class="btn btn-outline-secondary btn-sm py-0"><i class="bi bi-send me-1" aria-hidden="true"></i><?= $has_pending_otp ? 'Wyślij kod ponownie' : 'Wyślij kod SMS' ?></button>
-            </form>
-            <?php if ($has_pending_otp): ?>
-            <form method="post" class="d-flex gap-1 align-items-center">
-              <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-              <input type="hidden" name="_op" value="notify_phone_verify_otp">
-              <input type="hidden" name="which" value="<?= $wn ?>">
-              <input type="text" class="form-control form-control-sm" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-                     placeholder="kod" style="width:6rem" required aria-label="Kod weryfikacyjny numeru <?= $wn === 2 ? 'drugiego' : 'trzeciego' ?>">
-              <button class="btn btn-primary btn-sm">Potwierdź</button>
-            </form>
-            <?php endif; ?>
-            <?php endif; ?>
           </div>
-          <?php endforeach; ?>
+          <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" data-bs-toggle="modal" data-bs-target="#phonesModal">
+            <i class="bi bi-telephone-plus me-1" aria-hidden="true"></i>Zarządzaj numerami
+          </button>
         </div>
+
+        <!-- Modal: dodatkowe numery do SMS (zapis + weryfikacja kodem/administratorem) -->
+        <div class="modal fade" id="phonesModal" tabindex="-1" aria-labelledby="phonesModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h2 class="modal-title h5" id="phonesModalLabel"><i class="bi bi-telephone-plus text-primary me-2" aria-hidden="true"></i>Dodatkowe numery do SMS</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+              </div>
+              <div class="modal-body">
+                <?php if ($sms_phone !== ''): ?>
+                <p class="text-body-secondary small mb-2">Numer glowny: <span class="font-monospace"><?= h(preg_replace('/.(?=.{2})/u', 'x', $sms_phone)) ?></span></p>
+                <?php endif; ?>
+                <p class="text-body-secondary small mb-3">
+                  <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Nowy numer musi zostać potwierdzony — wyślij sobie kod SMS albo poczekaj na
+                  ręczne zatwierdzenie przez administratora. Dopóki numer nie jest potwierdzony, nie otrzyma żadnych powiadomień.
+                </p>
+
+                <?php if ($phones_msg): ?>
+                <div class="alert alert-<?= $phones_msg[0] ?> py-2 small" role="<?= $phones_msg[0] === 'danger' ? 'alert' : 'status' ?>"><?= h($phones_msg[1]) ?></div>
+                <?php endif; ?>
+
+                <form method="post" class="row g-2 align-items-end mb-3">
+                  <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                  <input type="hidden" name="_op" value="notify_phones">
+                  <div class="col-sm-5">
+                    <label class="form-label small mb-1" for="ph2">Drugi numer</label>
+                    <input type="tel" class="form-control form-control-sm" id="ph2" name="phone2" maxlength="30" value="<?= h($ph2val) ?>" placeholder="np. 600 700 800">
+                  </div>
+                  <div class="col-sm-5">
+                    <label class="form-label small mb-1" for="ph3">Trzeci numer</label>
+                    <input type="tel" class="form-control form-control-sm" id="ph3" name="phone3" maxlength="30" value="<?= h($ph3val) ?>" placeholder="np. 600 700 900">
+                  </div>
+                  <div class="col-sm-2">
+                    <button class="btn btn-primary btn-sm w-100"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+                  </div>
+                </form>
+
+                <?php foreach ([2, 3] as $wn):
+                  $pval = trim((string)($account["notify_phone{$wn}"] ?? ''));
+                  if ($pval === '') continue;
+                  $verified        = !empty($account["notify_phone{$wn}_verified"]);
+                  $otp_exp         = (string)($account["notify_phone{$wn}_otp_expires"] ?? '');
+                  $has_pending_otp = !empty($account["notify_phone{$wn}_otp"]) && $otp_exp !== '' && $otp_exp > date('Y-m-d H:i:s');
+                  $wn_word         = $wn === 2 ? 'drugi' : 'trzeci';
+                ?>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2 small border-top pt-2">
+                  <span class="text-body-secondary">Numer <?= $wn_word ?>:</span>
+                  <span class="font-monospace"><?= h($pval) ?></span>
+                  <?php if ($verified): ?>
+                  <span class="badge text-bg-success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zweryfikowany</span>
+                  <?php else: ?>
+                  <span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Niepotwierdzony</span>
+                  <form method="post" class="d-inline">
+                    <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                    <input type="hidden" name="_op" value="notify_phone_send_otp">
+                    <input type="hidden" name="which" value="<?= $wn ?>">
+                    <button class="btn btn-outline-secondary btn-sm py-0"><i class="bi bi-send me-1" aria-hidden="true"></i><?= $has_pending_otp ? 'Wyślij kod ponownie' : 'Wyślij kod SMS' ?></button>
+                  </form>
+                  <?php if ($has_pending_otp): ?>
+                  <form method="post" class="d-flex gap-1 align-items-center">
+                    <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+                    <input type="hidden" name="_op" value="notify_phone_verify_otp">
+                    <input type="hidden" name="which" value="<?= $wn ?>">
+                    <label class="visually-hidden" for="code<?= $wn ?>">Kod weryfikacyjny numeru <?= $wn_word ?>ego</label>
+                    <input type="text" class="form-control form-control-sm" id="code<?= $wn ?>" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                           placeholder="kod" style="width:6rem" required>
+                    <button class="btn btn-primary btn-sm">Potwierdź</button>
+                  </form>
+                  <?php endif; ?>
+                  <?php endif; ?>
+                </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+        <?php if ($phones_msg): ?>
+        <script>document.addEventListener('DOMContentLoaded', function(){ if (window.bootstrap) new bootstrap.Modal(document.getElementById('phonesModal')).show(); });</script>
+        <?php endif; ?>
         <?php endif; ?>
       </div>
     </section>
