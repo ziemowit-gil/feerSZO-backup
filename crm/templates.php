@@ -343,6 +343,11 @@ include __DIR__ . '/includes/header_crm.php';
 
               <!-- E-mail: edytor WYSIWYG (HTML) -->
               <div id="tpl_body_rich_wrap">
+                <div class="d-flex justify-content-end mb-1">
+                  <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="tplOpenHtmlPaste()">
+                    <i class="bi bi-code-slash me-1" aria-hidden="true"></i>Wklej zawartość HTML
+                  </button>
+                </div>
                 <div id="tpl-quill-wrapper">
                   <div id="tpl_body_editor" aria-label="Treść szablonu" aria-required="true"></div>
                 </div>
@@ -398,6 +403,31 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
+<!-- ═══ MODAL: Wklej zawartość HTML ═══════════════════════════════════════ -->
+<div class="modal fade" id="tplHtmlPasteModal" tabindex="-1" aria-labelledby="tplHtmlPasteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h6 fw-bold" id="tplHtmlPasteModalLabel"><i class="bi bi-code-slash me-2" aria-hidden="true"></i>Wklej zawartość HTML</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Wklej kod HTML wiadomości — zastąpi on obecną treść w edytorze powyżej.</p>
+        <label class="visually-hidden" for="tpl_html_paste">Kod HTML</label>
+        <textarea id="tpl_html_paste" class="form-control form-control-sm font-monospace" rows="14"
+                  style="font-size:.8rem" placeholder="&lt;p&gt;Treść wiadomości…&lt;/p&gt;"
+                  spellcheck="false"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-crm-primary btn-sm" onclick="tplApplyHtmlPaste()">
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Wstaw
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 var _tplQuill = null;
 
@@ -424,6 +454,29 @@ function tplInitQuill() {
   });
 }
 document.addEventListener('DOMContentLoaded', tplInitQuill);
+
+// Otwiera modal wklejania HTML — wstępnie wypełniony obecną treścią edytora (podgląd/edycja źródła)
+function tplOpenHtmlPaste() {
+  tplInitQuill();
+  var ta = document.getElementById('tpl_html_paste');
+  if (ta) ta.value = _tplQuill ? _tplQuill.root.innerHTML : '';
+  new bootstrap.Modal(document.getElementById('tplHtmlPasteModal')).show();
+  setTimeout(function () { ta?.focus(); }, 300);
+}
+
+// Zastępuje treść edytora wklejonym kodem HTML
+function tplApplyHtmlPaste() {
+  var html = document.getElementById('tpl_html_paste').value;
+  tplInitQuill();
+  if (_tplQuill) {
+    _tplQuill.root.innerHTML = html;
+    if (_tplQuill.getText().trim() !== '') {
+      document.getElementById('tpl_body_err').classList.add('d-none');
+      document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
+    }
+  }
+  bootstrap.Modal.getInstance(document.getElementById('tplHtmlPasteModal'))?.hide();
+}
 
 function tplToggleSubject() {
   var ch = document.getElementById('tpl_channel').value;
