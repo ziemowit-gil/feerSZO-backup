@@ -20,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_ann'])) {
 }
 
 $PAGE_TITLE = 'Komunikaty';
-require_once dirname(__DIR__) . '/includes/header.php';
 
 $announcements  = ann_list_for_user($_uid, $_role);
 $notifications  = notif_latest($_uid, 20);
@@ -31,36 +30,42 @@ foreach ($announcements as $a) {
     if (!(int)($a['is_read_by_me'] ?? 0)) $ann_unread_count++;
 }
 
-// Pobierz org_units do ewentualnych etykiet
-$org_units = [];
-try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); } catch (\Throwable $e) {}
+// Powłoka: panel wolontariusza dla samych wolontariuszy, powłoka admina dla reszty
+// (edytorzy/admini potrzebują pełnej nawigacji — wzorzec jak panel/rodo.php)
+$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [$_uid]);
+
+if ($_is_volunteer_only) {
+    include dirname(__DIR__) . '/panel/includes/header_panel.php';
+} else {
+    include dirname(__DIR__) . '/includes/header.php';
+}
+require_once dirname(__DIR__) . '/panel/includes/pv_ui.php';
+
+$_compose_btn = is_admin()
+    ? '<a href="' . APP_URL . '/komunikaty/compose.php" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Nowe ogłoszenie</a>'
+    : '';
+
+pv_page_header('Komunikaty', [
+    'icon'    => 'bi-megaphone',
+    'sub'     => 'Ogłoszenia organizacji i Twoje powiadomienia',
+    'actions' => $_compose_btn,
+]);
 ?>
 
 <?php if ($ann_unread_count > 0): ?>
-<div class="alert alert-info d-flex align-items-center gap-2 py-2 mb-3" role="alert">
-  <i class="bi bi-bell-fill flex-shrink-0"></i>
-  <span>Masz <strong><?= $ann_unread_count ?></strong> nieprzeczytane<?= $ann_unread_count === 1 ? '' : ($ann_unread_count < 5 ? ' ogłoszenia' : ' ogłoszeń') ?>.</span>
+<div class="pv-note">
+  <i class="bi bi-bell-fill"></i>
+  <div>Masz <strong><?= $ann_unread_count ?></strong> nieprzeczytane<?= $ann_unread_count === 1 ? '' : ($ann_unread_count < 5 ? ' ogłoszenia' : ' ogłoszeń') ?>.</div>
 </div>
 <?php endif; ?>
-
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h5 class="mb-0 fw-semibold"><i class="bi bi-megaphone me-2 text-warning"></i>Komunikaty</h5>
-  <?php if (is_admin()): ?>
-  <a href="<?= APP_URL ?>/komunikaty/compose.php" class="btn btn-sm btn-primary">
-    <i class="bi bi-plus-lg me-1"></i>Nowe ogłoszenie
-  </a>
-  <?php endif; ?>
-</div>
 
 <div class="row g-3">
   <!-- Lewa kolumna: ogłoszenia -->
   <div class="col-lg-8">
     <?php if (empty($announcements)): ?>
-    <div class="card border-0 shadow-sm rounded-3">
-      <div class="card-body text-center text-muted py-5">
-        <i class="bi bi-megaphone d-block mb-2" style="font-size:2rem;opacity:.3"></i>
-        Brak aktywnych ogłoszeń
-      </div>
+    <div class="pv-empty">
+      <i class="bi bi-megaphone" aria-hidden="true"></i>
+      <div class="pv-empty-title">Brak aktywnych ogłoszeń</div>
     </div>
     <?php else: ?>
     <?php foreach ($announcements as $ann):
@@ -69,12 +74,12 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
       $ann_id     = (int)$ann['id'];
       $body_len   = mb_strlen($ann['body']);
       $collapsed  = $body_len > 300 && !$is_pinned;
-      $border_clr = $is_pinned ? '#F59E0B' : ($is_read ? '#E2E8F0' : '#2563EB');
-      $bg_clr     = $is_pinned ? '#FFFBEB' : ($is_read ? '' : '#EFF6FF');
+      $border_clr = $is_pinned ? '#F59E0B' : ($is_read ? '#E2E8F0' : 'var(--vol-color,#2563EB)');
+      $bg_clr     = $is_pinned ? '#FFFBEB' : ($is_read ? '' : 'var(--vol-bg,#EFF6FF)');
     ?>
-    <div class="card border-0 shadow-sm rounded-3 mb-3"
+    <div class="pv-card"
          style="border-left:3px solid <?= $border_clr ?>!important;<?= $bg_clr ? 'background:'.$bg_clr : '' ?>">
-      <div class="card-body pb-2">
+      <div class="pv-card-bd pb-2">
 
         <!-- Nagłówek karty -->
         <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
@@ -83,7 +88,7 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
             <span class="badge" style="background:#F59E0B;font-size:.68rem"><i class="bi bi-pin-angle-fill me-1"></i>Przypięte</span>
             <?php endif; ?>
             <?php if (!$is_read): ?>
-            <span class="badge bg-primary" style="font-size:.68rem">Nowe</span>
+            <span class="badge" style="background:var(--vol-color,#2563EB);font-size:.68rem">Nowe</span>
             <?php endif; ?>
             <span class="badge bg-light text-secondary border" style="font-size:.67rem">
               <i class="bi bi-<?= ($ann['audience'] ?? '') === 'public' ? 'globe2' : 'people-fill' ?> me-1"></i><?= h(ann_audience_label($ann['audience'] ?? 'all')) ?>
@@ -98,9 +103,9 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
         </div>
 
         <!-- Tytuł -->
-        <h6 class="<?= !$is_read ? 'fw-bold' : 'fw-semibold' ?> mb-2" style="font-size:.95rem">
+        <h2 class="<?= !$is_read ? 'fw-bold' : 'fw-semibold' ?> mb-2" style="font-size:.95rem">
           <?= h($ann['title']) ?>
-        </h6>
+        </h2>
 
         <!-- Treść — pełna lub kolapsowalna -->
         <?php if ($ann['body']): ?>
@@ -110,7 +115,7 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
           <div class="ann-fade" id="ann-fade-<?= $ann_id ?>" style="position:absolute;bottom:0;left:0;right:0;height:2rem;background:linear-gradient(transparent,<?= $bg_clr ?: '#fff' ?>)"></div>
         </div>
         <button type="button" class="btn btn-link btn-sm p-0 mt-1 ann-toggle" data-id="<?= $ann_id ?>"
-                style="font-size:.8rem;text-decoration:none;color:#2563EB">
+                style="font-size:.8rem;text-decoration:none;color:var(--vol-color,#2563EB)">
           <i class="bi bi-chevron-down me-1" id="ann-icon-<?= $ann_id ?>"></i><span id="ann-lbl-<?= $ann_id ?>">Rozwiń treść</span>
         </button>
         <?php else: ?>
@@ -132,7 +137,7 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="mark_ann" value="<?= $ann_id ?>">
-              <button type="submit" class="btn btn-sm btn-primary" style="font-size:.78rem;padding:.2rem .65rem">
+              <button type="submit" class="btn btn-sm" style="background:var(--vol-color,#2563EB);color:#fff;font-size:.78rem;padding:.2rem .65rem">
                 <i class="bi bi-check2 me-1"></i>Przeczytane
               </button>
             </form>
@@ -149,43 +154,45 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
 
   <!-- Prawa kolumna: feed powiadomień -->
   <div class="col-lg-4">
-    <div class="card border-0 shadow-sm rounded-3" style="position:sticky;top:1rem">
-      <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-2">
-        <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-bell me-1"></i>Powiadomienia</span>
+    <div class="vol-detail-card" style="position:sticky;top:1rem">
+      <div class="vol-detail-header justify-content-between">
+        <span><i class="bi bi-bell me-1" aria-hidden="true"></i>Powiadomienia</span>
         <?php if ($notif_unread > 0): ?>
         <button type="button" class="btn btn-link btn-sm p-0 text-muted" style="font-size:.75rem" id="markAllRead">
           Oznacz wszystkie
         </button>
         <?php endif; ?>
       </div>
-      <div class="card-body p-0" style="max-height:520px;overflow-y:auto">
+      <div style="max-height:520px;overflow-y:auto">
         <?php if (empty($notifications)): ?>
-        <div class="text-center text-muted py-4" style="font-size:.83rem">
-          <i class="bi bi-bell-slash d-block mb-2" style="font-size:1.5rem;opacity:.3"></i>
-          Brak powiadomień
+        <div class="pv-empty" style="padding:2rem 1rem">
+          <i class="bi bi-bell-slash" style="font-size:1.5rem" aria-hidden="true"></i>
+          <div class="pv-empty-sub mt-0">Brak powiadomień</div>
         </div>
         <?php else: ?>
         <?php foreach ($notifications as $n):
           $is_read_n = (int)($n['is_read'] ?? 0);
+          $n_color   = notif_type_color($n['type'] ?? 'system');
         ?>
         <a href="<?= h($n['url'] ?: APP_URL . '/komunikaty/index.php') ?>"
-           class="d-flex gap-2 align-items-start px-3 py-2 text-decoration-none border-bottom notif-item <?= $is_read_n ? '' : 'fw-semibold' ?>"
-           style="font-size:.82rem;<?= $is_read_n ? 'color:#374151' : 'background:#f0f5ff;color:#1e293b' ?>"
+           class="vol-activity-row text-decoration-none notif-item <?= $is_read_n ? '' : 'fw-semibold' ?>"
+           style="<?= $is_read_n ? 'color:#374151' : 'background:var(--vol-bg,#f0f5ff);color:#1e293b' ?>"
            data-notif-id="<?= (int)$n['id'] ?>">
-          <i class="bi <?= notif_type_icon($n['type'] ?? 'system') ?> mt-1 flex-shrink-0"
-             style="color:<?= notif_type_color($n['type'] ?? 'system') ?>;font-size:.9rem"></i>
-          <div class="flex-grow-1 min-width-0">
+          <div class="vol-activity-icon" style="background:<?= h($n_color) ?>22;color:<?= h($n_color) ?>">
+            <i class="bi <?= notif_type_icon($n['type'] ?? 'system') ?>" aria-hidden="true"></i>
+          </div>
+          <div class="flex-grow-1" style="min-width:0">
             <div style="word-break:break-word"><?= h($n['title']) ?></div>
             <div class="fw-normal" style="font-size:.73rem;color:#64748b"><?= h(substr($n['created_at'] ?? '', 0, 16)) ?></div>
           </div>
           <?php if (!$is_read_n): ?>
-          <span class="rounded-circle bg-primary flex-shrink-0" style="width:7px;height:7px;margin-top:5px"></span>
+          <span class="rounded-circle flex-shrink-0" style="width:7px;height:7px;background:var(--vol-color,#2563EB)"></span>
           <?php endif; ?>
         </a>
         <?php endforeach; ?>
         <?php endif; ?>
       </div>
-      <div class="card-footer bg-white border-top py-2 px-3">
+      <div class="vol-detail-body border-top">
         <a href="<?= APP_URL ?>/komunikaty/index.php" class="btn btn-sm w-100"
            style="background:#f1f5f9;color:#374151;font-size:.8rem">
           <i class="bi bi-envelope-open me-1"></i>Odśwież
@@ -196,8 +203,6 @@ try { $org_units = db_all("SELECT id, name FROM org_units ORDER BY name", []); }
 </div>
 
 <script>
-var APP_URL = '<?= APP_URL ?>';
-
 // Kolapsowanie treści ogłoszeń
 document.querySelectorAll('.ann-toggle').forEach(function (btn) {
   btn.addEventListener('click', function () {
@@ -248,7 +253,7 @@ if (markAllBtn) {
           el.classList.remove('fw-semibold');
           el.style.background = '';
           el.style.color = '#374151';
-          var dot = el.querySelector('.bg-primary.rounded-circle');
+          var dot = el.querySelector('.rounded-circle');
           if (dot) dot.remove();
         });
         markAllBtn.remove();
@@ -258,4 +263,8 @@ if (markAllBtn) {
 }
 </script>
 
-<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php if ($_is_volunteer_only): ?>
+<?php include dirname(__DIR__) . '/panel/includes/footer_panel.php'; ?>
+<?php else: ?>
+<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php endif; ?>
