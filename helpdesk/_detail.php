@@ -273,7 +273,8 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
         <div class="d-flex flex-column gap-1 mb-2">
           <?php foreach (HD_STATUSES as $k => $s):
             if ($k === $ticket['status']) continue;
-            if ($k === 'przekazane_zewn') continue; ?>
+            if ($k === 'przekazane_zewn') continue;
+            if ($k === 'zastepcze') continue; ?>
           <button type="submit" name="status" value="<?= h($k) ?>"
                   class="btn btn-sm btn-outline-<?= $s['class'] ?> text-start py-1">
             <i class="bi <?= $s['icon'] ?> me-1"></i><?= h($s['label']) ?>
@@ -415,6 +416,14 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
               data-bs-toggle="modal" data-bs-target="#hdVendorCaseModal">
         <i class="bi bi-folder-plus me-1"></i>Brak reakcji — załóż sprawę
       </button>
+      <?php if (!in_array($ticket['status'], ['zastepcze', 'zamknięte'], true)): ?>
+      <hr class="my-2">
+      <p class="text-muted mb-2" style="font-size:.75rem">Gdy nie ma już jak rozwiązać sprawy przez firmę zewnętrzną (upadłość, likwidacja) — skieruj zgłoszenie do rozwiązania zastępczego.</p>
+      <button class="btn btn-sm btn-dark text-start py-1 w-100" type="button"
+              data-bs-toggle="modal" data-bs-target="#hdVendorInsolventModal">
+        <i class="bi bi-shield-exclamation me-1"></i>Upadłość — skieruj do rozwiązania zastępczego
+      </button>
+      <?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
@@ -583,6 +592,37 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
         <div class="modal-footer py-2">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
           <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-folder-plus me-1"></i>Załóż sprawę</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: upadłość firmy zewnętrznej — skierowanie do rozwiązania zastępczego -->
+<div class="modal fade" id="hdVendorInsolventModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form
+            data-hd-confirm="Skierować zgłoszenie do rozwiązania zastępczego? Zmieni to status zgłoszenia i założy pilną sprawę w Kancelarii.">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_vendor_insolvent" value="1">
+        <div class="modal-header text-bg-dark py-2">
+          <h5 class="modal-title fs-6"><i class="bi bi-shield-exclamation me-1"></i>Rozwiązanie zastępcze — upadłość firmy zewnętrznej</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Użyj, gdy nie ma już możliwości rozwiązania sprawy przez firmę zewnętrzną
+            (upadłość, likwidacja, zerwanie współpracy). Zgłoszenie przejdzie na status „Rozwiązanie zastępcze",
+            a w Kancelarii zostanie założona pilna sprawa z terminem 3 dni.</p>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Opis sytuacji <span class="text-danger">*</span></label>
+            <textarea name="vendor_insolvent_desc" class="form-control form-control-sm" rows="5" required
+                      placeholder="np. informacja o upadłości/likwidacji, źródło informacji, ustalenia dot. dalszego postępowania"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-sm btn-dark"><i class="bi bi-shield-exclamation me-1"></i>Skieruj do rozwiązania zastępczego</button>
         </div>
       </form>
     </div>

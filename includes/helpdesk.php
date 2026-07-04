@@ -9,6 +9,7 @@ const HD_STATUSES = [
     'oczekuje'        => ['label' => 'Oczekuje',                        'class' => 'secondary', 'icon' => 'bi-hourglass-split',    'text' => 'white'],
     'krytyczne'       => ['label' => 'Krytyczne — wymaga interwencji',  'class' => 'danger',    'icon' => 'bi-exclamation-octagon-fill', 'text' => 'white'],
     'przekazane_zewn' => ['label' => 'Przekazano do firmy zewnętrznej', 'class' => 'dark',      'icon' => 'bi-box-arrow-up-right', 'text' => 'white'],
+    'zastepcze'       => ['label' => 'Rozwiązanie zastępcze (upadłość firmy zewn.)', 'class' => 'dark', 'icon' => 'bi-shield-exclamation', 'text' => 'white'],
     'wymaga_prac'     => ['label' => 'Wymaga prac programistycznych',   'class' => 'info',      'icon' => 'bi-code-slash',         'text' => 'dark'],
     'rozwiązane'      => ['label' => 'Rozwiązane',                      'class' => 'info',      'icon' => 'bi-check-circle-fill',  'text' => 'dark'],
     'zamknięte'       => ['label' => 'Zamknięte',                       'class' => 'success',   'icon' => 'bi-lock-fill',          'text' => 'white'],
@@ -597,6 +598,85 @@ function hd_vendor_cases(int $ticket_id): array {
         require_once dirname(__DIR__) . '/includes/ezd.php';
         return ezd_sprawy_by_ref('helpdesk_ticket', $ticket_id);
     } catch (\Throwable $e) { return []; }
+}
+
+// ── Upadłość firmy zewnętrznej — skierowanie do rozwiązania zastępczego ───────
+
+/**
+ * Gdy firmy zewnętrznej nie da się już użyć do rozwiązania zgłoszenia (upadłość,
+ * likwidacja, zerwanie współpracy), operator kieruje sprawę do rozwiązania
+ * zastępczego: zgłoszenie przechodzi na status 'zastepcze' (dalej prowadzi je
+ * zespół wewnętrzny), a w EZD/Kancelarii zakłada się pilną sprawę (priorytet
+ * 'urgent', termin 3 dni) z dekretacją „do załatwienia". Wyłącznie dla operatorów
+ * helpdesku — sprawdź hd_is_operator() przed wywołaniem.
+ * $who = ['id'=>?int, 'name'=>string] — operator dokonujący skierowania.
+ * @return array{sprawa_id:int, znak_sprawy:string, url:string} znak_sprawy='' gdy EZD wyłączone.
+ */
+function hd_vendor_substitute_resolution(array $ticket, string $description, array $who): array {
+    $vendor = trim((string)($ticket['ext_vendor'] ?? '')) ?: 'nieznana firma';
+    $who_id = (int)($who['id'] ?? 0) ?: null;
+
+    $case = ['sprawa_id' => 0, 'znak_sprawy' => '', 'url' => ''];
+    if (module_enabled('ezd_enabled')) {
+        require_once dirname(__DIR__) . '/includes/ezd.php';
+        $teczka_id = _ezd_it_teczka_id((int)date('Y'), $who_id ?: 0);
+
+        $desc = "Zgłoszenie helpdesku: {$ticket['number']} — {$ticket['title']}\n"
+              . "Firma zewnętrzna: {$vendor}\n"
+              . (!empty($ticket['ext_ref']) ? "Nr zgłoszenia u firmy: {$ticket['ext_ref']}\n" : '')
+              . "\nPowód skierowania do rozwiązania zastępczego (upadłość/niewypłacalność podmiotu):\n" . trim($description);
+
+        $wykonawca_id = (int)($ticket['assigned_to'] ?? 0) ?: $who_id;
+        $deadline = date('Y-m-d', strtotime('+3 days'));
+
+        $sprawa_id = ezd_sprawa_create([
+            'teczka_id'   => $teczka_id,
+            'title'       => 'Rozwiązanie zastępcze — upadłość firmy ' . $vendor . ' (zgł. ' . $ticket['number'] . ')',
+            'description' => $desc,
+            'status'      => 'open',
+            'priority'    => 'urgent',
+            'owner_id'    => $wykonawca_id,
+            'deadline'    => $deadline,
+            'ref_type'    => 'helpdesk_ticket',
+            'ref_id'      => (int)$ticket['id'],
+        ], $who_id ?: 0);
+
+        if ($wykonawca_id) {
+            try {
+                $dekr_id = ezd_dekretacja_create([
+                    'sprawa_id' => $sprawa_id, 'pismo_id' => null, 'umowa_id' => null, 'unit_id' => null,
+                    'wykonawca_id' => $wykonawca_id, 'dyspozycja' => 'do_zalat',
+                    'tresc' => "Firma zewnętrzna ({$vendor}) nie może kontynuować (upadłość) — zgłoszenie {$ticket['number']} wymaga rozwiązania zastępczego.",
+                    'deadline' => $deadline,
+                ], $who_id ?: 0);
+                require_once dirname(__DIR__) . '/includes/org.php';
+                require_once dirname(__DIR__) . '/includes/mail_queue.php';
+                require_once dirname(__DIR__) . '/includes/notification_service.php';
+                NotificationService::onDekretacja($dekr_id);
+            } catch (\Throwable $e) {}
+        }
+
+        $sprawa_row = ezd_sprawa_get($sprawa_id);
+        $case = ['sprawa_id' => $sprawa_id, 'znak_sprawy' => $sprawa_row['znak_sprawy'], 'url' => APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id];
+    }
+
+    $old_status = $ticket['status'];
+    db_update('helpdesk_tickets', ['status' => 'zastepcze', 'updated_at' => date('Y-m-d H:i:s')], (int)$ticket['id']);
+
+    $note = "Firma zewnętrzna ({$vendor}) nie może już kontynuować obsługi zgłoszenia (upadłość/niewypłacalność) — skierowano do rozwiązania zastępczego.";
+    if ($case['znak_sprawy'] !== '') $note .= " Założono pilną sprawę w EZD: {$case['znak_sprawy']}.";
+    if (trim($description) !== '') $note .= "\n\nOpis sytuacji:\n" . trim($description);
+    db_insert('helpdesk_messages', [
+        'ticket_id'   => (int)$ticket['id'],
+        'user_id'     => $who_id,
+        'user_name'   => $who['name'] ?? '',
+        'body'        => $note,
+        'is_internal' => 1,
+    ]);
+
+    hd_notify_status_change(array_merge($ticket, ['status' => 'zastepcze']), $old_status, 'zastepcze', trim($description));
+
+    return $case;
 }
 
 /** Powiadamia priorytetowo operatora (lub wszystkich, gdy brak przypisania) o podbiciu. */

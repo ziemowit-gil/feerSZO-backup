@@ -225,6 +225,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_vendor_no_response']
     hd_finish($xhr, $id);
 }
 
+// ── Upadłość firmy zewnętrznej — skierowanie do rozwiązania zastępczego ──────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_vendor_insolvent']) && $is_op) {
+    csrf_check();
+    $description = trim($_POST['vendor_insolvent_desc'] ?? '');
+    if ($description === '') {
+        flash_set('danger', 'Opisz sytuację przed skierowaniem do rozwiązania zastępczego.');
+        hd_finish($xhr, $id);
+    }
+    $case = hd_vendor_substitute_resolution($ticket, $description, ['id' => $uid, 'name' => $u['name'] ?? '']);
+    $msg = 'Zgłoszenie skierowane do rozwiązania zastępczego.';
+    if ($case['znak_sprawy'] !== '') $msg .= ' Założono pilną sprawę w EZD: ' . $case['znak_sprawy'] . '.';
+    flash_set('success', $msg);
+    hd_finish($xhr, $id, $case);
+}
+
 // ── Usuń zgłoszenie (admin) ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_delete']) && is_admin()) {
     csrf_check();
