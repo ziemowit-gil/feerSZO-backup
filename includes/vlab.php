@@ -1075,3 +1075,183 @@ function vlab_port_request_notify(array $req, string $decision, string $reason =
         mail_queue_add($email, $client['name'] ?? '', $subject, $html, '', 'vlab_port', (int)$cont['id'], '', false);
     } catch (\Throwable $e) {}
 }
+
+// ── Dedykowany adres IP (usługa płatna: aktywacja + abonament miesięczny) ────
+
+/** Cennik i dostępność usługi (z konfiguracji admina). */
+function vlab_dedicated_ip_pricing(): array {
+    $c = vlab_config();
+    return [
+        'enabled'        => !empty($c['dedicated_ip_enabled']),
+        'activation_fee' => (float)($c['dedicated_ip_activation_fee'] ?? 100),
+        'monthly_fee'    => (float)($c['dedicated_ip_monthly_fee'] ?? 30),
+    ];
+}
+
+/** Aktualne zamówienie (oczekujące lub aktywne) dla maszyny, albo null. */
+function vlab_dedicated_ip_for_container(int $containerId): ?array {
+    return db_one(
+        "SELECT * FROM k30_ti_vlab_dedicated_ip WHERE container_id=? AND status IN ('requested','active') ORDER BY id DESC LIMIT 1",
+        [$containerId]
+    ) ?: null;
+}
+
+/** Cała historia zamówień dedykowanego IP dla maszyny (widok admina). */
+function vlab_dedicated_ip_history_for(int $containerId): array {
+    return db_all("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE container_id=? ORDER BY id DESC", [$containerId]);
+}
+
+/** Wszystkie zamówienia oczekujące na przydzielenie IP (widok globalny admina). */
+function vlab_dedicated_ip_pending_all(): array {
+    return db_all(
+        "SELECT d.*, c.label AS cont_label, c.container_name, cl.name AS client_name
+         FROM k30_ti_vlab_dedicated_ip d
+         JOIN k30_ti_vlab_containers c ON c.id=d.container_id
+         LEFT JOIN k30_clients cl ON cl.id=d.client_id
+         WHERE d.status='requested'
+         ORDER BY d.requested_at ASC"
+    );
+}
+
+/**
+ * Kursant zamawia dedykowane IP dla swojej maszyny: dolicza jednorazową opłatę aktywacyjną
+ * do rozliczenia (k30_ti_billing) i zapisuje zamówienie ze statusem 'requested' — realny
+ * adres przydziela administrator ręcznie (vlab_dedicated_ip_activate).
+ */
+function vlab_dedicated_ip_request(int $containerId, int $studentId): array {
+    $cont = db_one("SELECT * FROM k30_ti_vlab_containers WHERE id=? AND status!='removed'", [$containerId]);
+    if (!$cont) return ['ok' => false, 'msg' => 'Maszyna nie istnieje.'];
+    if ((int)$cont['student_id'] !== $studentId) return ['ok' => false, 'msg' => 'Brak dostępu.'];
+
+    $pricing = vlab_dedicated_ip_pricing();
+    if (!$pricing['enabled']) return ['ok' => false, 'msg' => 'Usługa dedykowanego IP jest obecnie niedostępna.'];
+
+    $dup = db_one("SELECT id FROM k30_ti_vlab_dedicated_ip WHERE container_id=? AND status IN ('requested','active')", [$containerId]);
+    if ($dup) return ['ok' => false, 'msg' => 'Dla tej maszyny już istnieje zamówienie lub aktywna usługa dedykowanego IP.'];
+
+    $clientId = (int)$cont['client_id'];
+    if (!$clientId) return ['ok' => false, 'msg' => 'Maszyna nie jest powiązana z kontem rozliczeniowym.'];
+
+    if (!function_exists('ti_billing_add_charge')) require_once __DIR__ . '/ti_payments.php';
+    $label    = $cont['label'] !== '' ? $cont['label'] : $cont['container_name'];
+    $chargeId = ti_billing_add_charge(
+        $clientId, $pricing['activation_fee'],
+        'VLAB: aktywacja dedykowanego IP — maszyna „' . $label . '"'
+    );
+
+    $orderId = db_insert('k30_ti_vlab_dedicated_ip', [
+        'container_id'         => $containerId,
+        'student_id'           => $studentId,
+        'client_id'            => $clientId,
+        'status'               => 'requested',
+        'activation_fee'       => $pricing['activation_fee'],
+        'monthly_fee'          => $pricing['monthly_fee'],
+        'activation_charge_id' => $chargeId,
+    ]);
+
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE id=?", [$orderId]);
+    if ($order) vlab_dedicated_ip_notify($order, 'requested');
+
+    return ['ok' => true, 'msg' => 'Zamówienie przyjęte. Opłata aktywacyjna '
+        . number_format($pricing['activation_fee'], 2, ',', ' ') . ' zł została dodana do Twojego rozliczenia. '
+        . 'Administrator przydzieli adres IP i powiadomi Cię e-mailem.'];
+}
+
+/** Admin przydziela realny adres IP i aktywuje usługę. */
+function vlab_dedicated_ip_activate(int $orderId, int $adminId, string $ip): array {
+    $ip = trim($ip);
+    if ($ip === '' || !filter_var($ip, FILTER_VALIDATE_IP)) return ['ok' => false, 'msg' => 'Nieprawidłowy adres IP.'];
+
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE id=? AND status='requested'", [$orderId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub nie jest oczekujące.'];
+
+    // Miesiąc aktywacji jest już pokryty opłatą aktywacyjną — cykl abonamentowy zaczyna się od kolejnego.
+    db()->prepare(
+        "UPDATE k30_ti_vlab_dedicated_ip
+         SET status='active', ip_address=?, activated_at=datetime('now'), activated_by=?, last_billed_period=?
+         WHERE id=?"
+    )->execute([$ip, $adminId, date('Y-m'), $orderId]);
+
+    $order['status'] = 'active';
+    $order['ip_address'] = $ip;
+    vlab_dedicated_ip_notify($order, 'activated');
+    return ['ok' => true, 'msg' => 'Dedykowany adres IP aktywowany.'];
+}
+
+/** Admin anuluje zamówienie/usługę — zatrzymuje dalsze naliczanie abonamentu. */
+function vlab_dedicated_ip_cancel(int $orderId, int $adminId, string $reason = ''): array {
+    $order = db_one("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE id=? AND status IN ('requested','active')", [$orderId]);
+    if (!$order) return ['ok' => false, 'msg' => 'Zamówienie nie istnieje lub jest już zakończone.'];
+
+    db()->prepare(
+        "UPDATE k30_ti_vlab_dedicated_ip SET status='cancelled', cancelled_at=datetime('now'), cancelled_by=?, note=? WHERE id=?"
+    )->execute([$adminId, mb_substr($reason, 0, 300), $orderId]);
+
+    vlab_dedicated_ip_notify($order, 'cancelled', $reason);
+    return ['ok' => true, 'msg' => 'Usługa dedykowanego IP anulowana.'];
+}
+
+/**
+ * Cron: nalicza opłatę abonamentową za bieżący miesiąc każdej aktywnej usłudze, która
+ * jeszcze nie została rozliczona w tym miesiącu (last_billed_period). Idempotentne —
+ * bezpieczne do wielokrotnego wywołania w tym samym miesiącu.
+ */
+function vlab_dedicated_ip_bill_monthly(): array {
+    if (!function_exists('ti_billing_add_charge')) require_once __DIR__ . '/ti_payments.php';
+    $period = date('Y-m');
+    $rows = db_all("SELECT * FROM k30_ti_vlab_dedicated_ip WHERE status='active' AND last_billed_period!=?", [$period]);
+
+    $billed = 0;
+    foreach ($rows as $r) {
+        if ((float)$r['monthly_fee'] > 0) {
+            $cont  = db_one("SELECT label, container_name FROM k30_ti_vlab_containers WHERE id=?", [(int)$r['container_id']]);
+            $label = $cont ? ($cont['label'] !== '' ? $cont['label'] : $cont['container_name']) : '';
+            ti_billing_add_charge(
+                (int)$r['client_id'], (float)$r['monthly_fee'],
+                'VLAB: opłata miesięczna za dedykowane IP — maszyna „' . $label . '" (' . $r['ip_address'] . ')'
+            );
+            $billed++;
+        }
+        db()->prepare("UPDATE k30_ti_vlab_dedicated_ip SET last_billed_period=? WHERE id=?")->execute([$period, (int)$r['id']]);
+    }
+    return ['ok' => true, 'billed' => $billed, 'checked' => count($rows), 'period' => $period];
+}
+
+/** Powiadomienie e-mail do kursanta o zdarzeniu w cyklu życia zamówienia dedykowanego IP. */
+function vlab_dedicated_ip_notify(array $order, string $event, string $reason = ''): void {
+    if (!function_exists('mail_queue_add')) { @require_once __DIR__ . '/mail_queue.php'; }
+    if (!function_exists('mail_queue_add')) return;
+
+    $client = db_one("SELECT name, email FROM k30_clients WHERE id=?", [(int)$order['client_id']]);
+    $email  = trim((string)($client['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+
+    $cont     = db_one("SELECT label, container_name FROM k30_ti_vlab_containers WHERE id=?", [(int)$order['container_id']]);
+    $contLbl  = htmlspecialchars($cont['label'] ?? $cont['container_name'] ?? '', ENT_QUOTES);
+    $org      = defined('ORG_NAME') ? ORG_NAME : 'VLab';
+    $name     = htmlspecialchars($client['name'] ?? '', ENT_QUOTES);
+    $panelUrl = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/index.php?tab=vlab';
+
+    if ($event === 'requested') {
+        $subject = "{$org}: zamówienie dedykowanego IP przyjęte";
+        $body = "<p>Przyjęliśmy zamówienie dedykowanego adresu IP dla maszyny <strong>{$contLbl}</strong>.</p>"
+              . "<p>Opłata aktywacyjna " . number_format((float)$order['activation_fee'], 2, ',', ' ') . " zł została dodana do rozliczenia. "
+              . "Po przydzieleniu adresu przez administratora otrzymasz kolejny e-mail.</p>";
+    } elseif ($event === 'activated') {
+        $subject = "{$org}: dedykowane IP aktywne";
+        $body = "<p style='color:#166534;background:#dcfce7;padding:10px 14px;border-radius:6px'>"
+              . "✅ Dedykowany adres IP dla maszyny <strong>{$contLbl}</strong> jest aktywny: <strong>" . htmlspecialchars($order['ip_address'] ?? '', ENT_QUOTES) . "</strong></p>"
+              . "<p>Opłata abonamentowa: " . number_format((float)$order['monthly_fee'], 2, ',', ' ') . " zł / miesiąc.</p>";
+    } else {
+        $subject = "{$org}: usługa dedykowanego IP zakończona";
+        $reasonHtml = $reason !== '' ? "<p><strong>Powód:</strong> " . htmlspecialchars($reason, ENT_QUOTES) . "</p>" : '';
+        $body = "<p>Usługa dedykowanego adresu IP dla maszyny <strong>{$contLbl}</strong> została zakończona.</p>{$reasonHtml}";
+    }
+
+    $html = "<p>Cześć {$name},</p>{$body}<p><a href='{$panelUrl}'>Przejdź do panelu VLab</a></p>"
+          . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna — {$org}.</p>";
+
+    try {
+        mail_queue_add($email, $client['name'] ?? '', $subject, $html, '', 'vlab_dedicated_ip', (int)$order['id'], '', false);
+    } catch (\Throwable $e) {}
+}

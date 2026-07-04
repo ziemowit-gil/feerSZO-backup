@@ -75,6 +75,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
         header('Location: vlab_ports.php?container=' . $cid); exit;
     }
+
+    // Przydzielenie dedykowanego IP i aktywacja zamówienia (tylko admin)
+    if ($op === 'dedip_activate' && is_admin()) {
+        $oid = (int)($_POST['order_id'] ?? 0);
+        $ip  = (string)($_POST['ip_address'] ?? '');
+        $r = vlab_dedicated_ip_activate($oid, $uid, $ip);
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_ports.php?container=' . $cid); exit;
+    }
+
+    // Anulowanie zamówienia/usługi dedykowanego IP (tylko admin)
+    if ($op === 'dedip_cancel' && is_admin()) {
+        $oid    = (int)($_POST['order_id'] ?? 0);
+        $reason = trim($_POST['dedip_reason'] ?? '');
+        $r = vlab_dedicated_ip_cancel($oid, $uid, $reason);
+        flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
+        header('Location: vlab_ports.php?container=' . $cid); exit;
+    }
 }
 
 $ports    = vlab_ports_list($cid);
@@ -84,6 +102,9 @@ $ufw_on   = vlab_ufw_enabled();
 $requests = vlab_port_requests_for($cid);
 $pending  = array_values(array_filter($requests, fn($r) => $r['status'] === 'pending'));
 $history  = array_values(array_filter($requests, fn($r) => $r['status'] !== 'pending'));
+
+$dedip_history = vlab_dedicated_ip_history_for($cid);
+$dedip_current = $dedip_history ? $dedip_history[0] : null; // najnowsze zamówienie (requested/active/cancelled)
 
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
@@ -118,6 +139,76 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <div class="alert alert-light border small d-flex flex-wrap gap-3 mb-3">
   <span><i class="bi bi-shield<?= $ufw_on ? '-check text-success' : ' text-muted' ?> me-1"></i>UFW: <strong><?= $ufw_on ? 'włączone' : 'wyłączone' ?></strong></span>
   <span><i class="bi bi-cloud<?= $az_on ? '-check text-success' : ' text-muted' ?> me-1"></i>Azure NSG: <strong><?= $az_on ? 'skonfigurowane' : 'nie' ?></strong></span>
+</div>
+
+<!-- ── Dedykowane IP (usługa płatna) ──────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4<?= ($dedip_current && $dedip_current['status'] === 'requested') ? ' border-warning' : '' ?>">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-globe text-primary"></i>Dedykowane IP
+    <?php if ($dedip_current && $dedip_current['status'] === 'requested'): ?>
+    <span class="badge text-bg-warning ms-auto">oczekuje na aktywację</span>
+    <?php elseif ($dedip_current && $dedip_current['status'] === 'active'): ?>
+    <span class="badge text-bg-success ms-auto">aktywne</span>
+    <?php endif; ?>
+  </div>
+  <div class="card-body">
+    <?php if (!$dedip_current || $dedip_current['status'] === 'cancelled'): ?>
+      <p class="text-muted small mb-0">Kursant nie zamówił dedykowanego adresu IP dla tej maszyny.</p>
+    <?php elseif ($dedip_current['status'] === 'requested'): ?>
+      <p class="small mb-3">
+        Zamówienie #<?= (int)$dedip_current['id'] ?> z dnia <?= h(date('d.m.Y H:i', strtotime($dedip_current['requested_at']))) ?> ·
+        aktywacja <?= number_format((float)$dedip_current['activation_fee'], 2, ',', ' ') ?> zł ·
+        abonament <?= number_format((float)$dedip_current['monthly_fee'], 2, ',', ' ') ?> zł/mc
+        (dodano do rozliczenia kursanta).
+      </p>
+      <div class="d-flex flex-wrap gap-3 align-items-end">
+        <form method="post" class="row g-2 align-items-end">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="dedip_activate">
+          <input type="hidden" name="container_id" value="<?= $cid ?>">
+          <input type="hidden" name="order_id" value="<?= (int)$dedip_current['id'] ?>">
+          <div class="col-auto">
+            <label class="form-label small" for="dedip-ip">Adres IP do przydzielenia</label>
+            <input class="form-control form-control-sm" id="dedip-ip" name="ip_address" required placeholder="np. 10.20.0.50" style="width:200px">
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-success btn-sm"><i class="bi bi-check-lg me-1"></i>Aktywuj</button>
+          </div>
+        </form>
+        <form method="post" onsubmit="return confirm('Odrzucić/anulować to zamówienie dedykowanego IP?')">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="dedip_cancel">
+          <input type="hidden" name="container_id" value="<?= $cid ?>">
+          <input type="hidden" name="order_id" value="<?= (int)$dedip_current['id'] ?>">
+          <button class="btn btn-outline-danger btn-sm"><i class="bi bi-x-lg me-1"></i>Odrzuć zamówienie</button>
+        </form>
+      </div>
+    <?php else: /* active */ ?>
+      <p class="small mb-3">
+        Adres: <code class="fw-semibold"><?= h($dedip_current['ip_address']) ?></code> ·
+        aktywne od <?= h(date('d.m.Y', strtotime($dedip_current['activated_at']))) ?> ·
+        abonament <?= number_format((float)$dedip_current['monthly_fee'], 2, ',', ' ') ?> zł/mc
+        (ostatnio rozliczono: <?= $dedip_current['last_billed_period'] !== '' ? h($dedip_current['last_billed_period']) : '—' ?>)
+      </p>
+      <form method="post" onsubmit="return confirm('Zakończyć usługę dedykowanego IP dla tej maszyny? Abonament przestanie być naliczany.')">
+        <?= csrf_field() ?>
+        <input type="hidden" name="_op" value="dedip_cancel">
+        <input type="hidden" name="container_id" value="<?= $cid ?>">
+        <input type="hidden" name="order_id" value="<?= (int)$dedip_current['id'] ?>">
+        <button class="btn btn-outline-danger btn-sm"><i class="bi bi-x-lg me-1"></i>Zakończ usługę</button>
+      </form>
+    <?php endif; ?>
+
+    <?php if (count($dedip_history) > 1): ?>
+    <hr>
+    <p class="small fw-semibold mb-1">Historia zamówień</p>
+    <ul class="small text-muted mb-0 ps-3">
+      <?php foreach (array_slice($dedip_history, 1) as $dh): ?>
+      <li>#<?= (int)$dh['id'] ?> — <?= h($dh['status']) ?><?= $dh['ip_address'] !== '' ? ' (' . h($dh['ip_address']) . ')' : '' ?>, <?= h(date('d.m.Y', strtotime($dh['requested_at']))) ?></li>
+      <?php endforeach; ?>
+    </ul>
+    <?php endif; ?>
+  </div>
 </div>
 
 <!-- ── Wnioski oczekujące (tylko dla admina) ─────────────────────────────── -->

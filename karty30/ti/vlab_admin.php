@@ -49,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'az_subscription' => trim($_POST['az_subscription'] ?? ''),
             'az_resource_group' => trim($_POST['az_resource_group'] ?? ''),
             'az_nsg'          => trim($_POST['az_nsg'] ?? ''),
+            'dedicated_ip_enabled'        => isset($_POST['dedicated_ip_enabled']) ? 1 : 0,
+            'dedicated_ip_activation_fee' => max(0, (float)str_replace(',', '.', $_POST['dedicated_ip_activation_fee'] ?? 100)),
+            'dedicated_ip_monthly_fee'    => max(0, (float)str_replace(',', '.', $_POST['dedicated_ip_monthly_fee'] ?? 30)),
             'updated_by'      => $uid ?: null,
         ];
         // Hasło SSH zmieniamy tylko jeśli podane (puste = bez zmian)
@@ -191,6 +194,11 @@ $containers = db_all(
 $reset_creds = $_SESSION['vlab_reset_creds'] ?? null;
 unset($_SESSION['vlab_reset_creds']);
 
+// Zamówienia dedykowanego IP oczekujące na przydzielenie adresu (do badge'a w liście maszyn)
+$dedip_pending = vlab_dedicated_ip_pending_all();
+$dedip_pending_by_container = [];
+foreach ($dedip_pending as $dp) { $dedip_pending_by_container[(int)$dp['container_id']] = $dp; }
+
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 
@@ -208,6 +216,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <span class="badge <?= $cfg['is_enabled'] ? 'bg-success' : 'bg-secondary' ?> ms-auto">
     <?= $cfg['is_enabled'] ? 'Włączony' : 'Wyłączony' ?>
   </span>
+  <?php endif; ?>
+  <?php if ($dedip_pending): ?>
+  <span class="badge bg-warning text-dark"><i class="bi bi-globe me-1"></i><?= count($dedip_pending) ?> zamówień(-ie) dedykowanego IP czeka na aktywację</span>
   <?php endif; ?>
 </div>
 
@@ -310,6 +321,19 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
           <div class="mb-2"><label class="form-label small">Client secret <span class="text-muted">(zostaw puste, by nie zmieniać)</span></label>
             <input class="form-control form-control-sm" type="password" name="az_client_secret" value="" placeholder="<?= !empty($cfg['az_client_secret']) ? '••••••••' : '' ?>"></div>
+          <hr>
+          <p class="fw-semibold small mb-2"><i class="bi bi-globe me-1"></i>Dedykowane IP (usługa płatna)</p>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="dedicated_ip_enabled" id="dedipen" <?= !empty($cfg['dedicated_ip_enabled']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="dedipen">Pozwól kursantom zamawiać dedykowany adres IP</label>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6"><label class="form-label small">Opłata aktywacyjna (zł, jednorazowo)</label>
+              <input class="form-control form-control-sm" name="dedicated_ip_activation_fee" value="<?= h(number_format((float)($cfg['dedicated_ip_activation_fee'] ?? 100), 2, ',', '')) ?>"></div>
+            <div class="col-6"><label class="form-label small">Abonament miesięczny (zł)</label>
+              <input class="form-control form-control-sm" name="dedicated_ip_monthly_fee" value="<?= h(number_format((float)($cfg['dedicated_ip_monthly_fee'] ?? 30), 2, ',', '')) ?>"></div>
+            <div class="form-text small">Adres IP przydziela admin ręcznie po zamówieniu (zakładka „Porty" maszyny). Abonament nalicza cron <code>cli/vlab_dedicated_ip_monthly_charge.php</code>.</div>
+          </div>
           <div class="row g-2 mb-3">
             <div class="col-12"><label class="form-label small">Subscription ID</label>
               <input class="form-control form-control-sm" name="az_subscription" value="<?= h($cfg['az_subscription'] ?? '') ?>"></div>
@@ -432,7 +456,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <td class="small"><?= $c['ssh_port'] ? (int)$c['ssh_port'] : '—' ?> / <?= $c['ttyd_port'] ? (int)$c['ttyd_port'] : '—' ?></td>
             <td class="small text-muted"><?= h($c['created_at']) ?></td>
             <td class="text-end text-nowrap">
-              <a href="vlab_ports.php?container=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-primary py-0" title="Zarządzaj portami (UFW / Azure)"><i class="bi bi-hdd-network"></i></a>
+              <a href="vlab_ports.php?container=<?= (int)$c['id'] ?>" class="btn btn-sm py-0 <?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'btn-warning' : 'btn-outline-primary' ?>" title="<?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'Zamówienie dedykowanego IP czeka na aktywację' : 'Zarządzaj portami (UFW / Azure)' ?>">
+                <i class="bi <?= isset($dedip_pending_by_container[(int)$c['id']]) ? 'bi-globe' : 'bi-hdd-network' ?>"></i>
+              </a>
               <form method="post" class="d-inline" onsubmit="return confirm('Ustawić NOWE hasło SSH dla tego konta? Stare przestanie działać.')">
                 <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="_op" value="host_pass_reset">

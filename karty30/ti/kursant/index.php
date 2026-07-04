@@ -2321,6 +2321,9 @@ document.addEventListener('DOMContentLoaded', function() {
       let html = '<h2 class="h6 fw-bold d-flex align-items-center mb-2"><i class="bi bi-pc-display me-2" aria-hidden="true"></i>'
         + 'Moje maszyny <span class="badge text-bg-secondary ms-2">'+d.count+' / '+d.max+'</span></h2>';
 
+      const af = d.dedicated_ip ? Number(d.dedicated_ip.activation_fee).toFixed(2).replace('.',',') : '';
+      const mf = d.dedicated_ip ? Number(d.dedicated_ip.monthly_fee).toFixed(2).replace('.',',') : '';
+
       if (!d.machines.length){
         html += '<div class="border border-secondary-subtle rounded p-4 text-center text-body-secondary mb-4">'
           + 'Nie masz jeszcze żadnej maszyny. Utwórz ją z szablonu poniżej.</div>';
@@ -2354,6 +2357,17 @@ document.addEventListener('DOMContentLoaded', function() {
               html += '<div class="mt-1 text-body-secondary" style="font-family:inherit"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Dane logowania zgodne z obrazem maszyny (hasło lub klucz SSH).</div>';
             }
             html += '</div>';
+          }
+          if (d.dedicated_ip && d.dedicated_ip.enabled){
+            const dip = m.dedicated_ip;
+            if (!dip){
+              html += '<p class="small text-body-secondary mb-2"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-order-dedip="'+m.id+'">zamów</button>'
+                + ' <span class="text-body-secondary">('+af+' zł aktywacja + '+mf+' zł/mc)</span></p>';
+            } else if (dip.status === 'requested'){
+              html += '<p class="small mb-2"><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Dedykowane IP: oczekuje na aktywację</span></p>';
+            } else if (dip.status === 'active'){
+              html += '<p class="small mb-2"><span class="badge text-bg-success"><i class="bi bi-globe me-1" aria-hidden="true"></i>Dedykowane IP: '+esc(dip.ip_address)+'</span></p>';
+            }
           }
           html += '<div class="d-flex flex-wrap gap-2">';
           if (m.ttyd_url && m.status === 'running'){
@@ -2449,6 +2463,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const portsBtn = e.target.closest('[data-ports]');
       if (portsBtn){ loadPorts(portsBtn.dataset.ports); return; }
+
+      const dedipBtn = e.target.closest('[data-order-dedip]');
+      if (dedipBtn){
+        if (!confirm('Zamówić dedykowane IP dla tej maszyny? Opłata aktywacyjna zostanie dodana do Twojego rozliczenia, a następnie naliczany będzie abonament miesięczny. Adres IP przydzieli administrator.')) return;
+        dedipBtn.disabled = true;
+        const r = await api('order_dedicated_ip', {id: dedipBtn.dataset.orderDedip});
+        if (!r.ok) { dedipBtn.disabled = false; alert(r.msg || 'Błąd.'); return; }
+        alert(r.msg || 'Zamówienie przyjęte.');
+        if (r.data) render(r.data); else reload();
+        return;
+      }
 
       const createBtn = e.target.closest('[data-create]');
       if (createBtn){

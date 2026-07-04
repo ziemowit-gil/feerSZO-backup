@@ -88,6 +88,46 @@ function ti_billing_recompute(int $client_id): array {
             'credit' => $credit, 'debt' => $debt];
 }
 
+/**
+ * Dopisuje należność do rozliczenia klienta za dany miesiąc (np. usługa dodatkowa poza zajęciami:
+ * dedykowane IP VLAB). Jeśli rozliczenie za ten miesiąc już istnieje (np. za zajęcia), kwota trafia
+ * do pola `adjustment` (korekta/dopłata) — tak jak ręczne korekty admina. W przeciwnym razie tworzy
+ * nowy wiersz k30_ti_billing z amount=0 i całą kwotą w adjustment. Przelicza saldo klienta.
+ * @return int id wiersza k30_ti_billing
+ */
+function ti_billing_add_charge(int $clientId, float $amount, string $note, ?int $month = null, ?int $year = null): int {
+    ti_payments_migrate();
+    $month  = $month ?? (int)date('n');
+    $year   = $year  ?? (int)date('Y');
+    $amount = round($amount, 2);
+
+    $existing = db_one("SELECT id, adjustment, adjustment_note FROM k30_ti_billing WHERE client_id=? AND month=? AND year=?", [$clientId, $month, $year]);
+    if ($existing) {
+        $id       = (int)$existing['id'];
+        $newAdj   = round((float)$existing['adjustment'] + $amount, 2);
+        $prevNote = trim((string)($existing['adjustment_note'] ?? ''));
+        $newNote  = $prevNote !== '' ? $prevNote . ' · ' . $note : $note;
+        db()->prepare("UPDATE k30_ti_billing SET adjustment=?, adjustment_note=? WHERE id=?")
+            ->execute([$newAdj, mb_substr($newNote, 0, 500), $id]);
+    } else {
+        $id = db_insert('k30_ti_billing', [
+            'client_id'       => $clientId,
+            'month'           => $month,
+            'year'            => $year,
+            'hours_billed'    => 0,
+            'hourly_rate'     => 0,
+            'amount'          => 0,
+            'adjustment'      => $amount,
+            'adjustment_note' => mb_substr($note, 0, 500),
+            'status'          => 'issued',
+            'issued_at'       => date('Y-m-d H:i:s'),
+            'created_at'      => date('Y-m-d H:i:s'),
+        ]);
+    }
+    ti_billing_recompute($clientId);
+    return $id;
+}
+
 /** Saldo klienta (bez przeliczania zapisu): nadpłata (credit) lub niedopłata (debt). */
 function ti_client_balance(int $client_id): array {
     $payments = ti_payments_total($client_id);

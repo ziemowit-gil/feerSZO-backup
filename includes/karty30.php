@@ -663,6 +663,10 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN az_nsg          TEXT    NOT NULL DEFAULT ''",
         // Czy kursant może sam otwierać/zamykać porty swoich maszyn (w obrębie ich mapowań)
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN ports_self_service INTEGER NOT NULL DEFAULT 1",
+        // Płatna usługa: dedykowany adres IP dla maszyny (aktywacja jednorazowa + opłata miesięczna)
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_enabled        INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_activation_fee REAL    NOT NULL DEFAULT 100",
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_monthly_fee    REAL    NOT NULL DEFAULT 30",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
     // Rejestr otwartych portów per kontener (UFW + Azure NSG)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_ports (
@@ -702,6 +706,28 @@ function karty30_migrate(): void {
 
     // Sugerowane porty do wystawienia dla szablonu (np. „80,443") — podpowiedź przy tworzeniu maszyny
     try { $pdo->exec("ALTER TABLE k30_ti_vlab_templates ADD COLUMN default_ports TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+
+    // Zamówienia dedykowanego adresu IP (płatna usługa: aktywacja jednorazowa + opłata miesięczna)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_dedicated_ip (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        container_id        INTEGER NOT NULL REFERENCES k30_ti_vlab_containers(id) ON DELETE CASCADE,
+        student_id          INTEGER NOT NULL REFERENCES k30_ti_student_accounts(id) ON DELETE CASCADE,
+        client_id           INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        status              TEXT    NOT NULL DEFAULT 'requested', -- requested|active|cancelled
+        ip_address          TEXT    NOT NULL DEFAULT '',
+        activation_fee      REAL    NOT NULL DEFAULT 0,
+        monthly_fee         REAL    NOT NULL DEFAULT 0,
+        last_billed_period  TEXT    NOT NULL DEFAULT '',           -- ostatni rozliczony miesiąc abonamentu, format 'YYYY-MM'
+        activation_charge_id INTEGER REFERENCES k30_ti_billing(id) ON DELETE SET NULL,
+        requested_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+        activated_at        DATETIME,
+        activated_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        cancelled_at        DATETIME,
+        cancelled_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        note                TEXT    NOT NULL DEFAULT ''
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedip_container ON k30_ti_vlab_dedicated_ip(container_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_vlab_dedip_status    ON k30_ti_vlab_dedicated_ip(status)");
 
     // ── Dostęp rodzica / małoletni kursant ───────────────────────────────────
     foreach ([
