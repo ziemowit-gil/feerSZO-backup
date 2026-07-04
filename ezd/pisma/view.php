@@ -112,6 +112,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </div>
           <?php if (in_array(strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)), EZD_OFFICE_ONLINE_EXT, true)): ?>
           <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
+          <?php if (!empty($z['sp_web_url'])): ?>
+          <form method="post" action="<?= APP_URL ?>/ezd/office_online_pull.php" class="d-inline" onsubmit="return confirm('Zapisać aktualną treść z Word Online jako nową wersję pliku?');">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="id" value="<?= $z['id'] ?>">
+            <button type="submit" class="btn btn-sm btn-outline-success" title="Zapisz zmiany z Word Online jako nową wersję"><i class="bi bi-cloud-arrow-down"></i></button>
+          </form>
+          <?php endif; ?>
           <?php endif; ?>
           <?php if($can_act && $pismo['sprawa_status']!=='closed'): ?>
           <form method="post" onsubmit="return confirm('Usunąć plik?')">

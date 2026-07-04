@@ -673,6 +673,20 @@ class M365Graph {
         return $this->sp_upload_large("{$item_url}:/createUploadSession", $local_path, $size);
     }
 
+    /** Pobiera zawartość pliku z SharePoint/OneDrive (surowe bajty). */
+    public function sp_download_file(string $drive_id, string $item_id): string {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'GET',
+            'header'        => "Authorization: Bearer {$this->token()}\r\n",
+            'ignore_errors' => true,
+        ]]);
+        $data = @file_get_contents("https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/{$item_id}/content", false, $ctx);
+        if ($data === false || $data === '') {
+            throw new \RuntimeException('Nie udało się pobrać pliku z SharePoint.');
+        }
+        return $data;
+    }
+
     private function sp_upload_large(string $session_url, string $local_path, int $size): array {
         $session = $this->http_post($session_url, ['item' => ['@microsoft.graph.conflictBehavior' => 'replace']]);
         $upload_url = $session['uploadUrl'] ?? '';

@@ -606,6 +606,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
             <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
             <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
+            <?php if (!empty($z['sp_web_url'])): ?>
+            <form method="post" action="<?= APP_URL ?>/ezd/office_online_pull.php" class="d-inline" onsubmit="return confirm('Zapisać aktualną treść z Word Online jako nową wersję pliku?');">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="id" value="<?= $z['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-outline-success btn-sm" title="Zapisz zmiany z Word Online jako nową wersję"><i class="bi bi-cloud-arrow-down"></i></button>
+            </form>
+            <?php endif; ?>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
             <?php if($can_act): ?>

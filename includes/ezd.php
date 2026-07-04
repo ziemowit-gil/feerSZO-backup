@@ -255,6 +255,8 @@
         "ALTER TABLE ezd_sprawy     ADD COLUMN ref_id       INTEGER",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_web_url   TEXT",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_synced_at DATETIME",
+        "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_drive_id  TEXT",
+        "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_item_id   TEXT",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -2060,16 +2062,61 @@ function ezd_office_online_url(int $zal_id, int $user_id): array {
     }
 
     $web_url = $item['webUrl'] ?? null;
-    if (!$web_url) {
+    $item_id = $item['id'] ?? null;
+    if (!$web_url || !$item_id) {
         return ['ok' => false, 'error' => 'SharePoint nie zwrócił adresu dokumentu.', 'url' => null];
     }
 
-    db()->prepare("UPDATE ezd_zalaczniki SET sp_web_url=?, sp_synced_at=CURRENT_TIMESTAMP WHERE id=?")
-        ->execute([$web_url, $zal_id]);
+    db()->prepare("UPDATE ezd_zalaczniki SET sp_web_url=?, sp_synced_at=CURRENT_TIMESTAMP, sp_drive_id=?, sp_item_id=? WHERE id=?")
+        ->execute([$web_url, $drive_id, $item_id, $zal_id]);
     ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online',
         'Otwarto w Word Online: ' . $z['original_name']);
 
     return ['ok' => true, 'error' => null, 'url' => $web_url];
+}
+
+/**
+ * Ściąga aktualną treść pliku z SharePoint (po edycji w Word Online) i zapisuje
+ * jako nową wersję załącznika (analogicznie do ponownego wgrania pliku).
+ * Wymaga, by dokument był już wcześniej otwarty w Word Online (ma sp_item_id).
+ * @return array{ok:bool,error:?string,id:?int}
+ */
+function ezd_office_online_pull(int $zal_id, int $user_id): array {
+    $z = ezd_zal_get($zal_id);
+    if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'id' => null];
+    if (empty($z['sp_item_id']) || empty($z['sp_drive_id'])) {
+        return ['ok' => false, 'error' => 'Dokument nie był jeszcze otwarty w Word Online.', 'id' => null];
+    }
+
+    require_once __DIR__ . '/m365.php';
+    try {
+        $graph   = new M365Graph();
+        $content = $graph->sp_download_file($z['sp_drive_id'], $z['sp_item_id']);
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Błąd SharePoint: ' . $e->getMessage(), 'id' => null];
+    }
+
+    $ext    = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
+    $dir    = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (file_put_contents($dir . $stored, $content) === false) {
+        return ['ok' => false, 'error' => 'Nie udało się zapisać pliku.', 'id' => null];
+    }
+
+    db()->prepare(
+        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([
+        $z['sprawa_id'], $z['pismo_id'], $z['umowa_id'], $z['dokument_id'], $z['grupa_id'],
+        $stored, $z['original_name'], $z['mime_type'], strlen($content), (int)$z['wersja'] + 1, $zal_id, $user_id,
+    ]);
+    $new_id = (int)db()->lastInsertId();
+
+    ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online_pull',
+        'Zapisano zmiany z Word Online jako nową wersję: ' . $z['original_name'] . " (v" . ((int)$z['wersja'] + 1) . ")");
+
+    return ['ok' => true, 'error' => null, 'id' => $new_id];
 }
 
 function ezd_zal_delete(int $id, int $user_id): void {
