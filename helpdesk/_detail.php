@@ -6,7 +6,7 @@
  *   - helpdesk/view.php (strona samodzielna — np. z linków w mailach)
  *   - helpdesk/index.php → tryb pane (?_pane=1) ładowany do konsoli przez AJAX
  *
- * Wymaga w zasięgu: $ticket, $messages, $atts, $operators, $is_op, $u, $uid.
+ * Wymaga w zasięgu: $ticket, $messages, $atts, $operators, $escalations, $is_op, $u, $uid.
  * W trybie pane ($GLOBALS['hd_pane_mode']) pomija flash i skrypty inline —
  * zachowania wiąże konsola (assets w index.php). Style: hd_ui_css() w <head>.
  */
@@ -225,6 +225,39 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
 
 <!-- ── Sidebar ────────────────────────────────────────────────────────────── -->
 <div class="col-lg-4">
+
+  <!-- Podbicia — brak reakcji -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-megaphone me-1 text-warning"></i>Podbicia zgłoszenia
+    </div>
+    <div class="card-body small">
+      <?php if ($escalations): ?>
+      <ul class="list-unstyled mb-3">
+        <?php foreach ($escalations as $e): ?>
+        <li class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+          <div>
+            <span class="font-monospace" style="font-size:.78rem"><?= h($e['number']) ?></span>
+            <div class="text-muted" style="font-size:.72rem"><?= date('d.m.Y H:i', strtotime($e['created_at'])) ?></div>
+          </div>
+          <a href="<?= APP_URL ?>/helpdesk/escalation_pdf.php?id=<?= (int)$e['id'] ?>" target="_blank"
+             class="btn btn-sm btn-outline-secondary py-0" title="Pobierz potwierdzenie PDF">
+            <i class="bi bi-file-earmark-pdf"></i> PDF
+          </a>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?>
+      <p class="text-muted mb-3" style="font-size:.78rem">Brak podbić tego zgłoszenia.</p>
+      <?php endif; ?>
+      <?php if ($ticket['status'] !== 'zamknięte'): ?>
+      <button class="btn btn-sm btn-outline-warning text-start py-1 w-100" type="button"
+              data-bs-toggle="modal" data-bs-target="#hdEscalateModal">
+        <i class="bi bi-megaphone me-1"></i>Podbij zgłoszenie — brak reakcji
+      </button>
+      <?php endif; ?>
+    </div>
+  </div>
 
   <?php if ($is_op): ?>
   <!-- Status -->
@@ -464,6 +497,36 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
   </div>
 </div>
 <?php endif; ?>
+
+<!-- Modal: podbicie zgłoszenia — brak reakcji -->
+<div class="modal fade" id="hdEscalateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form>
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_escalate" value="1">
+        <div class="modal-header text-bg-warning py-2">
+          <h5 class="modal-title fs-6"><i class="bi bi-megaphone me-1"></i>Podbicie zgłoszenia — brak reakcji</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Jeśli od dłuższego czasu nie otrzymujesz odpowiedzi na zgłoszenie
+            <strong><?= h($ticket['number']) ?></strong>, możesz je formalnie podbić. Zostanie nadany osobny numer
+            podbicia, a operatorzy zostaną priorytetowo powiadomieni. Otrzymasz też potwierdzenie do wydruku (PDF).</p>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Opisz sytuację (opcjonalnie)</label>
+            <textarea name="escalate_reason" class="form-control form-control-sm" rows="3"
+                      placeholder="np. od kiedy czekasz na odpowiedź, jak pilna jest sprawa"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-sm btn-warning"><i class="bi bi-megaphone me-1"></i>Podbij zgłoszenie</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <!-- Overlay fullscreen edytora (jeden na stronę/pane) -->
 <div class="hd-quill-fs-overlay" id="<?= $hd_editor_id ?>_fsOverlay" role="dialog" aria-modal="true" aria-label="Edytor pełnoekranowy">

@@ -195,6 +195,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_merge']) && $is_op) 
     hd_finish($xhr, $id);
 }
 
+// ── Podbij zgłoszenie — brak reakcji ──────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_escalate'])) {
+    csrf_check();
+    if ($ticket['status'] === 'zamknięte') {
+        flash_set('warning', 'Zgłoszenie jest zamknięte — nie można go podbić.');
+        hd_finish($xhr, $id);
+    }
+    $reason = trim($_POST['escalate_reason'] ?? '');
+    $esc = hd_escalate($ticket, $reason, ['id' => $uid, 'name' => $u['name'] ?? '']);
+    flash_set('success', 'Zgłoszenie podbite — brak reakcji, sprawa przechodzi na 3. linię wsparcia. Nr podbicia: ' . $esc['number'] . '. Potwierdzenie PDF dostępne w sekcji „Podbicia" poniżej.');
+    hd_finish($xhr, $id, ['escalation_number' => $esc['number'], 'escalation_id' => $esc['id']]);
+}
+
 // ── Usuń zgłoszenie (admin) ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_delete']) && is_admin()) {
     csrf_check();
@@ -215,6 +228,7 @@ $atts      = db_all("SELECT * FROM helpdesk_attachments WHERE ticket_id=? ORDER 
 $operators = $is_op ? db_all(
     "SELECT id, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 ORDER BY name", []
 ) : [];
+$escalations = hd_escalations_for_ticket($id);
 
 // ── Tryb pane (fragment do konsoli) ────────────────────────────────────────────
 if (isset($_GET['_pane'])) {

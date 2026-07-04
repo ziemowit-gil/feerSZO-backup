@@ -126,6 +126,22 @@ function helpdesk_migrate(): void {
         PRIMARY KEY (ticket_id, user_id)
     )");
 
+    // Podbicia zgłoszeń — formalna eskalacja "brak reakcji" zgłaszana samodzielnie
+    // przez zgłaszającego, z osobną numeracją do wydruku PDF (potwierdzenie).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS helpdesk_escalations (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id       INTEGER NOT NULL REFERENCES helpdesk_tickets(id) ON DELETE CASCADE,
+        number          TEXT    NOT NULL UNIQUE,
+        reason          TEXT    NOT NULL DEFAULT '',
+        requester_name  TEXT    NOT NULL DEFAULT '',
+        requester_email TEXT,
+        requester_phone TEXT,
+        days_waiting    INTEGER NOT NULL DEFAULT 0,
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_hd_esc_ticket ON helpdesk_escalations(ticket_id)");
+
     // Seed makr domyślnych — tylko jeśli tabela dopiero co powstała (pusta)
     try {
         $macro_count = (int)($pdo->query("SELECT COUNT(*) FROM helpdesk_macros")->fetchColumn());
@@ -383,6 +399,152 @@ function hd_next_number(string $prefix = 'HD'): string {
     );
     $n = $last ? ((int)preg_replace('/\D/', '', $last['number']) + 1) : 1;
     return $prefix . str_pad($n, 5, '0', STR_PAD_LEFT);
+}
+
+// ── Podbicie zgłoszenia — brak reakcji ────────────────────────────────────────
+
+/**
+ * Generuje unikalny numer podbicia w formacie:
+ *   P-<numer zgłoszenia>-<ddmmrr>-<2 cyfry><3 litery>
+ * np. P-HD00042-040726-27XQZ — sufiks losowy zabezpiecza przed kolizją/odgadnięciem.
+ */
+function hd_escalation_number(string $ticket_number): string {
+    $letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $date    = date('dmy');
+    $suffix  = '';
+    for ($i = 0; $i < 20; $i++) {
+        $suffix = str_pad((string)random_int(0, 99), 2, '0', STR_PAD_LEFT);
+        for ($j = 0; $j < 3; $j++) $suffix .= $letters[random_int(0, 25)];
+        $number = 'P-' . $ticket_number . '-' . $date . '-' . $suffix;
+        if (!db_one("SELECT id FROM helpdesk_escalations WHERE number=?", [$number])) return $number;
+    }
+    // Praktycznie nieosiągalne — dodatkowy losowy człon na wypadek serii kolizji.
+    return 'P-' . $ticket_number . '-' . $date . '-' . $suffix . bin2hex(random_bytes(2));
+}
+
+/** Lista podbić danego zgłoszenia, najnowsze pierwsze. */
+function hd_escalations_for_ticket(int $ticket_id): array {
+    try {
+        return db_all("SELECT * FROM helpdesk_escalations WHERE ticket_id=? ORDER BY id DESC", [$ticket_id]);
+    } catch (\Throwable $e) { return []; }
+}
+
+/**
+ * Rejestruje formalne podbicie zgłoszenia z powodu braku reakcji: nadaje numer,
+ * dopisuje notatkę wewnętrzną do wątku i powiadamia operatorów priorytetowo.
+ * $who = ['id'=>?int, 'name'=>string] — osoba zgłaszająca podbicie.
+ * Zwraca ['id'=>int, 'number'=>string].
+ */
+function hd_escalate(array $ticket, string $reason, array $who): array {
+    $number = hd_escalation_number($ticket['number']);
+    $days   = max(0, (int)floor((time() - strtotime($ticket['updated_at'])) / 86400));
+
+    $esc_id = db_insert('helpdesk_escalations', [
+        'ticket_id'       => (int)$ticket['id'],
+        'number'          => $number,
+        'reason'          => $reason,
+        'requester_name'  => $ticket['requester_name'] ?? '',
+        'requester_email' => $ticket['requester_email'] ?? null,
+        'requester_phone' => $ticket['requester_phone'] ?? null,
+        'days_waiting'    => $days,
+        'created_by'      => $who['id'] ?? null,
+    ]);
+
+    $note = "Zgłoszenie podbite z powodu braku reakcji (nr podbicia: {$number}).";
+    if (trim($reason) !== '') $note .= "\n\nUzasadnienie zgłaszającego:\n" . $reason;
+    db_insert('helpdesk_messages', [
+        'ticket_id'   => (int)$ticket['id'],
+        'user_id'     => $who['id'] ?? null,
+        'user_name'   => $who['name'] ?? ($ticket['requester_name'] ?: 'Zgłaszający'),
+        'body'        => $note,
+        'is_internal' => 1,
+    ]);
+    db_update('helpdesk_tickets', ['updated_at' => date('Y-m-d H:i:s')], (int)$ticket['id']);
+
+    hd_notify_escalation($ticket, $number, $reason, $days);
+    hd_notify_escalation_requester($ticket, $number);
+
+    return ['id' => $esc_id, 'number' => $number];
+}
+
+/** Informuje zgłaszającego, że z powodu braku reakcji sprawa trafiła do 3. linii wsparcia. */
+function hd_notify_escalation_requester(array $ticket, string $number): void {
+    $email = $ticket['requester_email'] ?? '';
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+
+    $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
+    $url   = hd_track_url($ticket);
+    $num   = h($ticket['number']);
+    $title = h($ticket['title']);
+    $name  = h($ticket['requester_name']);
+    $html  = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:#ea580c;padding:20px 24px;border-radius:8px 8px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">🚨 Zgłoszenie podbite — {$org} Helpdesk</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+  <p>Witaj, <strong>{$name}</strong>!</p>
+  <p>W związku z brakiem reakcji na zgłoszenie <strong>{$num}</strong> — <em>{$title}</em>, zostało ono podbite
+     (nr podbicia: <strong>{$number}</strong>) i przechodzi na <strong>3. linię wsparcia</strong>.</p>
+  <p>Sprawą priorytetowo zajmie się teraz nasz zespół — o dalszych krokach poinformujemy w tym wątku.</p>
+  <div style="margin:20px 0;text-align:center">
+    <a href="{$url}" style="background:#ea580c;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz zgłoszenie →
+    </a>
+  </div>
+  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
+    {$org} · Helpdesk IT
+  </p>
+</div></body></html>
+HTML;
+    try {
+        require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        mail_queue_add($email, $ticket['requester_name'] ?? '', "[{$ticket['number']}] Zgłoszenie podbite — przekazano do 3. linii wsparcia", $html);
+    } catch (\Throwable $e) {}
+}
+
+/** Powiadamia priorytetowo operatora (lub wszystkich, gdy brak przypisania) o podbiciu. */
+function hd_notify_escalation(array $ticket, string $number, string $reason, int $days): void {
+    $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
+    $url   = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $num   = h($ticket['number']);
+    $title = h($ticket['title']);
+    $reason_block = trim($reason) !== ''
+        ? '<div style="background:#fff7ed;border-left:3px solid #ea580c;padding:10px 14px;margin:12px 0;border-radius:0 4px 4px 0;font-size:.9em">'
+          . nl2br(h($reason)) . '</div>'
+        : '';
+    $html = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:#ea580c;padding:20px 24px;border-radius:8px 8px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.1rem">🚨 Podbicie zgłoszenia — brak reakcji</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+  <p>Zgłaszający zgłosił <strong>brak reakcji</strong> na zgłoszenie <strong>{$num}</strong> — <em>{$title}</em>.</p>
+  <p>Nr podbicia: <strong>{$number}</strong> · dni bez aktualizacji: <strong>{$days}</strong></p>
+  {$reason_block}
+  <div style="margin:20px 0;text-align:center">
+    <a href="{$url}" style="background:#ea580c;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
+      Otwórz zgłoszenie →
+    </a>
+  </div>
+  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
+    {$org} · Helpdesk IT
+  </p>
+</div></body></html>
+HTML;
+    $subject = "[PILNE] Podbicie zgłoszenia {$ticket['number']} — brak reakcji";
+    try {
+        require_once dirname(__DIR__) . '/includes/mail_queue.php';
+        if (!empty($ticket['assigned_to'])) {
+            $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
+            if ($op && !empty($op['email'])) mail_queue_add($op['email'], $op['name'] ?? '', $subject, $html);
+        } else {
+            $ops = db_all(
+                "SELECT email, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 AND email IS NOT NULL AND email != ''", []
+            );
+            foreach ($ops as $op) mail_queue_add($op['email'], $op['name'] ?? '', $subject, $html);
+        }
+    } catch (\Throwable $e) {}
 }
 
 // ── Badges HTML ───────────────────────────────────────────────────────────────
