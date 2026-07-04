@@ -34,6 +34,19 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
     <h4 class="mb-0 mt-1 fw-bold"><?= h($ticket['title']) ?></h4>
     <div class="text-muted small mt-1 d-flex flex-wrap align-items-center gap-2">
       <span>Zgłoszono przez <strong><?= h($ticket['requester_name']) ?></strong></span>
+      <?php
+        $req_acct_name = trim((string)($ticket['requester_account_name'] ?? ''));
+        $req_typed_name = trim((string)($ticket['requester_name'] ?? ''));
+        $hd_on_behalf = ($ticket['requester_role'] ?? '') === 'admin'
+            && $req_acct_name !== ''
+            && mb_strtolower($req_acct_name) !== mb_strtolower($req_typed_name);
+      ?>
+      <?php if ($hd_on_behalf): ?>
+      <span class="badge bg-secondary-subtle text-secondary-emphasis border"
+            title="Zgłoszenie dodane przez administratora <?= h($req_acct_name) ?>">
+        <i class="bi bi-person-badge me-1"></i>W imieniu
+      </span>
+      <?php endif; ?>
       <?php if ($ticket['requester_email']): ?>
       <span class="font-monospace" style="font-size:.78rem"><?= h($ticket['requester_email']) ?></span>
       <?php try { echo hd_email_verify_badge($ticket['requester_email']); } catch (\Throwable $e) {} ?>

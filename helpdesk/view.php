@@ -250,8 +250,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_delete']) && is_admi
 }
 
 // ── Dane do widoku ────────────────────────────────────────────────────────────
-$ticket    = db_one("SELECT t.*, op.name AS assigned_name
-    FROM helpdesk_tickets t LEFT JOIN users op ON op.id=t.assigned_to WHERE t.id=?", [$id]);
+$ticket    = db_one("SELECT t.*, op.name AS assigned_name,
+        req.name AS requester_account_name, req.role AS requester_role
+    FROM helpdesk_tickets t
+    LEFT JOIN users op  ON op.id=t.assigned_to
+    LEFT JOIN users req ON req.id=t.requester_id
+    WHERE t.id=?", [$id]);
 $messages  = db_all("SELECT m.*, u.email AS user_email
     FROM helpdesk_messages m LEFT JOIN users u ON u.id=m.user_id
     WHERE m.ticket_id=? " . ($is_op ? '' : "AND m.is_internal=0") . "
