@@ -26,8 +26,23 @@ const HD_CATEGORIES = [
     'it_backup'         => 'Kopia zapasowa / Dane',
     'it_inne'           => 'Inne IT',
     'inne'              => 'Inne (spoza IT)',
-    'bug_report'        => 'Zgłoszenie błędu',
+    'zgl_blad'          => 'Błąd w systemie',
+    'zgl_sugestia'      => 'Sugestia dot. obecnej funkcji',
+    'zgl_nowa_funkcja'  => 'Propozycja nowej funkcji',
+    'bug_report'        => 'Zgłoszenie błędu', // legacy — zachowane do wyświetlania starszych zgłoszeń
 ];
+
+// Prefiksy numeracji zgłoszeń (zob. hd_next_number()) per kategoria zgłoszenia/sugestii/funkcji.
+const HD_CATEGORY_PREFIXES = [
+    'zgl_blad'         => 'HER',
+    'zgl_sugestia'     => 'SUG',
+    'zgl_nowa_funkcja' => 'HNF',
+    'bug_report'       => 'HER',
+];
+
+function hd_number_prefix_for(string $category): string {
+    return HD_CATEGORY_PREFIXES[$category] ?? 'HD';
+}
 
 // Priorytety + cele SLA (w minutach): czas reakcji (pierwsza odpowiedź operatora)
 // oraz czas rozwiązania. Liczone w czasie kalendarzowym od utworzenia zgłoszenia.

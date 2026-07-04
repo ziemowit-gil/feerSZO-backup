@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset(HD_PRIORITIES[$priority])) $priority = 'normalny';
 
     if (!$errors) {
-        $number = hd_next_number();
+        $number = hd_next_number(hd_number_prefix_for($category));
 
         $ticket_id = db_insert('helpdesk_tickets', [
             'number'         => $number,
