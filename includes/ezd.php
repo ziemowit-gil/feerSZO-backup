@@ -2261,16 +2261,21 @@ function ezd_office_online_url(int $zal_id, int $user_id): array {
 }
 
 /**
- * Ściąga aktualną treść pliku z SharePoint (po edycji w Word Online) i zapisuje
- * jako nową wersję załącznika (analogicznie do ponownego wgrania pliku).
- * Wymaga, by dokument był już wcześniej otwarty w Word Online (ma sp_item_id).
- * @return array{ok:bool,error:?string,id:?int}
+ * Ściąga aktualną treść pliku z SharePoint (po edycji w Office Online) i zapisuje
+ * ją albo jako NOWĄ WERSJĘ załącznika ($mode='version', domyślnie — oryginał
+ * zostaje zachowany, analogicznie do ponownego wgrania pliku), albo NADPISUJE
+ * istniejący plik w miejscu ($mode='replace' — bez tworzenia nowego wpisu,
+ * bez zachowania poprzedniej treści, nieodwracalne).
+ * Wymaga, by dokument był już wcześniej otwarty w Office Online (ma sp_item_id).
+ * @return array{ok:bool,error:?string,id:?int,mode:?string}
  */
-function ezd_office_online_pull(int $zal_id, int $user_id): array {
+function ezd_office_online_pull(int $zal_id, int $user_id, string $mode = 'version'): array {
+    if (!in_array($mode, ['version', 'replace'], true)) $mode = 'version';
+
     $z = ezd_zal_get($zal_id);
-    if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'id' => null];
+    if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'id' => null, 'mode' => null];
     if (empty($z['sp_item_id']) || empty($z['sp_drive_id'])) {
-        return ['ok' => false, 'error' => 'Dokument nie był jeszcze otwarty w Word Online.', 'id' => null];
+        return ['ok' => false, 'error' => 'Dokument nie był jeszcze otwarty w Office Online.', 'id' => null, 'mode' => null];
     }
 
     require_once __DIR__ . '/m365.php';
@@ -2278,15 +2283,30 @@ function ezd_office_online_pull(int $zal_id, int $user_id): array {
         $graph   = new M365Graph();
         $content = $graph->sp_download_file($z['sp_drive_id'], $z['sp_item_id']);
     } catch (\Throwable $e) {
-        return ['ok' => false, 'error' => 'Błąd SharePoint: ' . $e->getMessage(), 'id' => null];
+        return ['ok' => false, 'error' => 'Błąd SharePoint: ' . $e->getMessage(), 'id' => null, 'mode' => null];
+    }
+
+    $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+    if ($mode === 'replace') {
+        // Nadpisuje istniejący plik pod tą samą, dotychczasową nazwą przechowywania.
+        if (file_put_contents($dir . $z['filename'], $content) === false) {
+            return ['ok' => false, 'error' => 'Nie udało się zapisać pliku.', 'id' => null, 'mode' => null];
+        }
+        db()->prepare("UPDATE ezd_zalaczniki SET file_size=?, uploaded_by=?, uploaded_at=CURRENT_TIMESTAMP WHERE id=?")
+            ->execute([strlen($content), $user_id, $zal_id]);
+
+        ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online_pull_replace',
+            'Zastąpiono oryginalny plik zmianami z Office Online: ' . $z['original_name']);
+
+        return ['ok' => true, 'error' => null, 'id' => $zal_id, 'mode' => 'replace'];
     }
 
     $ext    = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
-    $dir    = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/';
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
     $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     if (file_put_contents($dir . $stored, $content) === false) {
-        return ['ok' => false, 'error' => 'Nie udało się zapisać pliku.', 'id' => null];
+        return ['ok' => false, 'error' => 'Nie udało się zapisać pliku.', 'id' => null, 'mode' => null];
     }
 
     db()->prepare(
@@ -2299,9 +2319,9 @@ function ezd_office_online_pull(int $zal_id, int $user_id): array {
     $new_id = (int)db()->lastInsertId();
 
     ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online_pull',
-        'Zapisano zmiany z Word Online jako nową wersję: ' . $z['original_name'] . " (v" . ((int)$z['wersja'] + 1) . ")");
+        'Zapisano zmiany z Office Online jako nową wersję: ' . $z['original_name'] . " (v" . ((int)$z['wersja'] + 1) . ")");
 
-    return ['ok' => true, 'error' => null, 'id' => $new_id];
+    return ['ok' => true, 'error' => null, 'id' => $new_id, 'mode' => 'version'];
 }
 
 /**

@@ -29,6 +29,10 @@ if (!defined('EZD_SIG_MODAL_RENDERED') && function_exists('current_user') && cur
 if (!defined('EZD_PDF_MODAL_RENDERED') && function_exists('current_user') && current_user()) {
     require __DIR__ . '/ezd_pdf_modal.php';
 }
+// Modal „Zapisz zmiany z Office Online" (nowa wersja / zastąp) — globalnie dla zalogowanych.
+if (!defined('EZD_OFFICE_PULL_MODAL_RENDERED') && function_exists('current_user') && current_user()) {
+    require __DIR__ . '/ezd_office_pull_modal.php';
+}
 ?>
 
 <?php require_once __DIR__ . '/chat_widget.php'; ?>

@@ -96,11 +96,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php if (in_array(strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION)), EZD_OFFICE_ONLINE_EXT, true)): ?>
           <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Otwórz w Word Online"><i class="bi bi-microsoft"></i></a>
           <?php if (!empty($z['sp_web_url'])): ?>
-          <form method="post" action="<?= APP_URL ?>/ezd/office_online_pull.php" class="d-inline" onsubmit="return confirm('Zapisać aktualną treść z Word Online jako nową wersję pliku?');">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="id" value="<?= $z['id'] ?>">
-            <button type="submit" class="btn btn-sm btn-outline-success" title="Zapisz zmiany z Word Online jako nową wersję"><i class="bi bi-cloud-arrow-down"></i></button>
-          </form>
+          <button type="button" class="btn btn-sm btn-outline-success ezd-oop-btn" title="Zapisz zmiany z Office Online"
+                  data-bs-toggle="modal" data-bs-target="#officeOnlinePullModal"
+                  data-zal="<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>"><i class="bi bi-cloud-arrow-down"></i></button>
           <?php endif; ?>
           <?php elseif (!empty($z['sp_web_url'])): ?>
           <a href="<?= h($z['sp_web_url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Otwórz na SharePoint"><i class="bi bi-cloud-check"></i></a>
