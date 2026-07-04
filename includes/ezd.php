@@ -251,6 +251,8 @@
         "ALTER TABLE ezd_zalaczniki ADD COLUMN dokument_id INTEGER REFERENCES ezd_dokumenty(id) ON DELETE CASCADE",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN grupa_id    INTEGER REFERENCES ezd_grupy_plikow(id) ON DELETE SET NULL",
         "ALTER TABLE ezd_pisma      ADD COLUMN rodzaj_medium TEXT  NOT NULL DEFAULT 'papier'",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN ref_type     TEXT",
+        "ALTER TABLE ezd_sprawy     ADD COLUMN ref_id       INTEGER",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -275,6 +277,7 @@
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_parent  ON ezd_sprawy(parent_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawa_users_s ON ezd_sprawa_users(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawa_users_u ON ezd_sprawa_users(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_ref     ON ezd_sprawy(ref_type, ref_id)",
     ] as $idx) {
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
     }
@@ -627,8 +630,8 @@ function ezd_sprawa_create(array $d, int $user_id): int {
 
     $ciagla = !empty($d['ciagla']) ? 1 : 0;
     db()->prepare(
-        "INSERT INTO ezd_sprawy (teczka_id,parent_id,znak_sprawy,numer,title,description,status,priority,owner_id,deadline,ciagla,created_by,updated_at)
-         VALUES (:tid,:pid,:znak,:num,:title,:desc,:status,:prio,:owner,:deadline,:ciagla,:uid,datetime('now'))"
+        "INSERT INTO ezd_sprawy (teczka_id,parent_id,znak_sprawy,numer,title,description,status,priority,owner_id,deadline,ciagla,created_by,updated_at,ref_type,ref_id)
+         VALUES (:tid,:pid,:znak,:num,:title,:desc,:status,:prio,:owner,:deadline,:ciagla,:uid,datetime('now'),:rt,:ri)"
     )->execute([
         ':tid'      => (int)$d['teczka_id'],
         ':pid'      => $parent_id,
@@ -642,11 +645,23 @@ function ezd_sprawa_create(array $d, int $user_id): int {
         ':deadline' => $ciagla ? null : (($d['deadline'] ?? '') ?: null),
         ':ciagla'   => $ciagla,
         ':uid'      => $user_id,
+        ':rt'       => $d['ref_type'] ?: null,
+        ':ri'       => $d['ref_id']   ?: null,
     ]);
     $id = (int)db()->lastInsertId();
     ezd_log(null, $id, null, null, $user_id, 'sprawa_create',
             ($parent_id ? 'Otwarto podsprawę ' : 'Otwarto sprawę ') . "$znak: {$d['title']}");
     return $id;
+}
+
+/** Sprawy powiązane z rekordem innego modułu (np. zgłoszeniem helpdesku). */
+function ezd_sprawy_by_ref(string $ref_type, int $ref_id): array {
+    return db_all(
+        "SELECT s.*, t.symbol AS teczka_symbol FROM ezd_sprawy s
+         JOIN ezd_teczki t ON t.id = s.teczka_id
+         WHERE s.ref_type=? AND s.ref_id=? ORDER BY s.id DESC",
+        [$ref_type, $ref_id]
+    );
 }
 
 function ezd_sprawa_update(int $id, array $d, int $user_id): void {
@@ -1790,6 +1805,25 @@ function _ezd_vol_sprawa_id(int $rok, int $user_id): int {
     $s = db_one("SELECT id FROM ezd_sprawy WHERE teczka_id=? AND title=? LIMIT 1", [$tid, $title]);
     if ($s) return (int)$s['id'];
     return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Rejestr pism wysłanych do wolontariuszy bez umowy w '.$rok.' r.', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
+}
+
+// ── Teczka „Informatyka i technologia" (integracja z modułem Helpdesk) ───────
+
+/** Hasło JRWA „IT" — istnieje z seeda, samonaprawa na wypadek starszej bazy. */
+function _ezd_it_jrwa_id(): int {
+    $j = db_one("SELECT id FROM ezd_jrwa WHERE symbol='IT'");
+    if ($j) return (int)$j['id'];
+    db()->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)")
+        ->execute(['IT', 'Informatyka i technologia', 'B5', 'Licencje, umowy serwisowe, polityki IT', 90]);
+    return (int)db()->lastInsertId();
+}
+
+/** Teczka roczna „Informatyka i technologia {rok}" (utworzona w razie potrzeby). */
+function _ezd_it_teczka_id(int $rok, int $user_id): int {
+    $jid = _ezd_it_jrwa_id();
+    $t = db_one("SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1", [$jid, $rok]);
+    if ($t) return (int)$t['id'];
+    return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>'IT', 'title'=>"Informatyka i technologia $rok", 'rok'=>$rok, 'owner_id'=>null], $user_id);
 }
 
 /**

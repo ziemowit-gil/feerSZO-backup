@@ -6,7 +6,7 @@
  *   - helpdesk/view.php (strona samodzielna — np. z linków w mailach)
  *   - helpdesk/index.php → tryb pane (?_pane=1) ładowany do konsoli przez AJAX
  *
- * Wymaga w zasięgu: $ticket, $messages, $atts, $operators, $escalations, $is_op, $u, $uid.
+ * Wymaga w zasięgu: $ticket, $messages, $atts, $operators, $escalations, $vendor_cases, $is_op, $u, $uid.
  * W trybie pane ($GLOBALS['hd_pane_mode']) pomija flash i skrypty inline —
  * zachowania wiąże konsola (assets w index.php). Style: hd_ui_css() w <head>.
  */
@@ -387,6 +387,37 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
       <?php if (!empty($ticket['ext_reason'])): ?><div class="mt-2 p-2 rounded" style="background:#f8f9fa;white-space:pre-wrap"><?= nl2br(h($ticket['ext_reason'])) ?></div><?php endif; ?>
     </div>
   </div>
+
+  <?php if ($is_op): ?>
+  <div class="card border-danger border-opacity-50 shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold text-bg-danger" style="font-size:.85rem">
+      <i class="bi bi-exclamation-diamond-fill me-1"></i>Firma zewnętrzna nie odpowiada
+    </div>
+    <div class="card-body small">
+      <?php if ($vendor_cases): ?>
+      <ul class="list-unstyled mb-3">
+        <?php foreach ($vendor_cases as $c): ?>
+        <li class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+          <div>
+            <span class="font-monospace" style="font-size:.78rem"><?= h($c['znak_sprawy']) ?></span>
+            <div class="text-muted" style="font-size:.72rem"><?= date('d.m.Y H:i', strtotime($c['created_at'])) ?></div>
+          </div>
+          <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$c['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary py-0">
+            <i class="bi bi-folder2-open"></i> Sprawa
+          </a>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?>
+      <p class="text-muted mb-3" style="font-size:.78rem">Brak założonych spraw dla tego zgłoszenia.</p>
+      <?php endif; ?>
+      <button class="btn btn-sm btn-outline-danger text-start py-1 w-100" type="button"
+              data-bs-toggle="modal" data-bs-target="#hdVendorCaseModal">
+        <i class="bi bi-folder-plus me-1"></i>Brak reakcji — załóż sprawę
+      </button>
+    </div>
+  </div>
+  <?php endif; ?>
   <?php endif; ?>
 
   <!-- Udostępnianie -->
@@ -527,6 +558,37 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
     </div>
   </div>
 </div>
+
+<!-- Modal: firma zewnętrzna nie odpowiada — od razu zakłada sprawę w EZD -->
+<?php if ($is_op): ?>
+<div class="modal fade" id="hdVendorCaseModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form>
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_vendor_no_response" value="1">
+        <div class="modal-header text-bg-danger py-2">
+          <h5 class="modal-title fs-6"><i class="bi bi-exclamation-diamond-fill me-1"></i>Firma zewnętrzna nie odpowiada</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Opisz całą sytuację — od razu zostanie założona formalna sprawa
+            w module Kancelaria (teczka „IT"), z dekretacją „do załatwienia" i terminem 7 dni.</p>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Opis sytuacji <span class="text-danger">*</span></label>
+            <textarea name="vendor_situation" class="form-control form-control-sm" rows="5" required
+                      placeholder="np. od kiedy brak kontaktu z firmą, jakie próby kontaktu podjęto, jak to wpływa na zgłoszenie"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-folder-plus me-1"></i>Załóż sprawę</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- Overlay fullscreen edytora (jeden na stronę/pane) -->
 <div class="hd-quill-fs-overlay" id="<?= $hd_editor_id ?>_fsOverlay" role="dialog" aria-modal="true" aria-label="Edytor pełnoekranowy">

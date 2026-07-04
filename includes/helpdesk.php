@@ -503,6 +503,102 @@ HTML;
     } catch (\Throwable $e) {}
 }
 
+// ── Firma zewnętrzna nie odpowiada — formalna sprawa w EZD ────────────────────
+
+/**
+ * Rejestruje "brak reakcji firmy zewnętrznej" na zgłoszenie przekazane do
+ * obsługi zewnętrznej i od razu zakłada formalną sprawę w module EZD/kancelaria
+ * (teczka „IT"), żeby sprawę dalej prowadzić do załatwienia — z dekretacją
+ * „do załatwienia" do operatora zgłoszenia. Dopisuje notatkę wewnętrzną w wątku
+ * zgłoszenia z odnośnikiem do sprawy.
+ * $who = ['id'=>?int, 'name'=>string] — operator zgłaszający brak reakcji.
+ * @return array{sprawa_id:int, znak_sprawy:string, url:string}|null null, gdy moduł EZD wyłączony.
+ */
+function hd_vendor_no_response(array $ticket, string $description, array $who): ?array {
+    if (!module_enabled('ezd_enabled')) return null;
+    require_once dirname(__DIR__) . '/includes/ezd.php';
+
+    $vendor = trim((string)($ticket['ext_vendor'] ?? '')) ?: 'nieznana firma';
+    $who_id = (int)($who['id'] ?? 0) ?: null;
+    $rok    = (int)date('Y');
+
+    $teczka_id = _ezd_it_teczka_id($rok, $who_id ?: 0);
+
+    $desc = "Zgłoszenie helpdesku: {$ticket['number']} — {$ticket['title']}\n"
+          . "Firma zewnętrzna: {$vendor}\n"
+          . (!empty($ticket['ext_ref'])       ? "Nr zgłoszenia u firmy: {$ticket['ext_ref']}\n" : '')
+          . (!empty($ticket['ext_handed_at']) ? "Przekazano dnia: " . date('d.m.Y', strtotime($ticket['ext_handed_at'])) . "\n" : '')
+          . "\nOpis sytuacji:\n" . trim($description);
+
+    $priority = match ($ticket['priority'] ?? 'normalny') {
+        'krytyczny' => 'urgent',
+        'wysoki'    => 'high',
+        'niski'     => 'low',
+        default     => 'normal',
+    };
+
+    $wykonawca_id = (int)($ticket['assigned_to'] ?? 0) ?: $who_id;
+    $deadline     = date('Y-m-d', strtotime('+7 days'));
+
+    $sprawa_id = ezd_sprawa_create([
+        'teczka_id'   => $teczka_id,
+        'title'       => 'Brak reakcji firmy zewnętrznej — ' . $vendor . ' (zgł. ' . $ticket['number'] . ')',
+        'description' => $desc,
+        'status'      => 'open',
+        'priority'    => $priority,
+        'owner_id'    => $wykonawca_id,
+        'deadline'    => $deadline,
+        'ref_type'    => 'helpdesk_ticket',
+        'ref_id'      => (int)$ticket['id'],
+    ], $who_id ?: 0);
+
+    if ($wykonawca_id) {
+        try {
+            $dekr_id = ezd_dekretacja_create([
+                'sprawa_id'    => $sprawa_id,
+                'pismo_id'     => null,
+                'umowa_id'     => null,
+                'unit_id'      => null,
+                'wykonawca_id' => $wykonawca_id,
+                'dyspozycja'   => 'do_zalat',
+                'tresc'        => "Firma zewnętrzna ({$vendor}) nie reaguje na zgłoszenie {$ticket['number']} — do załatwienia.",
+                'deadline'     => $deadline,
+            ], $who_id ?: 0);
+            // org.php resolves substitute/adres e-mail; działa niezależnie od przełącznika
+            // modułu jednostek (org_enabled dotyczy tylko UI struktury organizacyjnej).
+            require_once dirname(__DIR__) . '/includes/org.php';
+            require_once dirname(__DIR__) . '/includes/mail_queue.php';
+            require_once dirname(__DIR__) . '/includes/notification_service.php';
+            NotificationService::onDekretacja($dekr_id);
+        } catch (\Throwable $e) {}
+    }
+
+    $sprawa = ezd_sprawa_get($sprawa_id);
+    $url    = APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id;
+
+    $note = "Brak reakcji firmy zewnętrznej ({$vendor}) — założono formalną sprawę w EZD: {$sprawa['znak_sprawy']}.";
+    if (trim($description) !== '') $note .= "\n\nOpis sytuacji:\n" . trim($description);
+    db_insert('helpdesk_messages', [
+        'ticket_id'   => (int)$ticket['id'],
+        'user_id'     => $who_id,
+        'user_name'   => $who['name'] ?? '',
+        'body'        => $note,
+        'is_internal' => 1,
+    ]);
+    db_update('helpdesk_tickets', ['updated_at' => date('Y-m-d H:i:s')], (int)$ticket['id']);
+
+    return ['sprawa_id' => $sprawa_id, 'znak_sprawy' => $sprawa['znak_sprawy'], 'url' => $url];
+}
+
+/** Sprawy EZD utworzone dla tego zgłoszenia (brak reakcji firmy zewnętrznej). Pusto, gdy moduł EZD wyłączony. */
+function hd_vendor_cases(int $ticket_id): array {
+    if (!module_enabled('ezd_enabled')) return [];
+    try {
+        require_once dirname(__DIR__) . '/includes/ezd.php';
+        return ezd_sprawy_by_ref('helpdesk_ticket', $ticket_id);
+    } catch (\Throwable $e) { return []; }
+}
+
 /** Powiadamia priorytetowo operatora (lub wszystkich, gdy brak przypisania) o podbiciu. */
 function hd_notify_escalation(array $ticket, string $number, string $reason, int $days): void {
     $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';

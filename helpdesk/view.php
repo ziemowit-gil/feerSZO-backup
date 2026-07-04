@@ -208,6 +208,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_escalate'])) {
     hd_finish($xhr, $id, ['escalation_number' => $esc['number'], 'escalation_id' => $esc['id']]);
 }
 
+// ── Firma zewnętrzna nie odpowiada — od razu twórz sprawę w EZD ───────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_vendor_no_response']) && $is_op) {
+    csrf_check();
+    $description = trim($_POST['vendor_situation'] ?? '');
+    if ($description === '') {
+        flash_set('danger', 'Opisz sytuację przed założeniem sprawy.');
+        hd_finish($xhr, $id);
+    }
+    $case = hd_vendor_no_response($ticket, $description, ['id' => $uid, 'name' => $u['name'] ?? '']);
+    if ($case) {
+        flash_set('success', 'Założono sprawę ' . $case['znak_sprawy'] . ' w module Kancelaria — do załatwienia.');
+        hd_finish($xhr, $id, ['sprawa_id' => $case['sprawa_id'], 'znak_sprawy' => $case['znak_sprawy']]);
+    }
+    flash_set('warning', 'Moduł Kancelaria (EZD) jest wyłączony — sprawy nie założono.');
+    hd_finish($xhr, $id);
+}
+
 // ── Usuń zgłoszenie (admin) ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_delete']) && is_admin()) {
     csrf_check();
@@ -229,6 +246,7 @@ $operators = $is_op ? db_all(
     "SELECT id, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 ORDER BY name", []
 ) : [];
 $escalations = hd_escalations_for_ticket($id);
+$vendor_cases = $is_op ? hd_vendor_cases($id) : [];
 
 // ── Tryb pane (fragment do konsoli) ────────────────────────────────────────────
 if (isset($_GET['_pane'])) {
