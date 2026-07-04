@@ -76,6 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
+    if ($action === 'grupa_rename' && $can_act) {
+        try { ezd_grupa_rename((int)($_POST['grupa_id'] ?? 0), $_POST['nazwa'] ?? '', $user_id); flash_set('success','Nazwę grupy zmieniono.'); }
+        catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
     if ($action === 'grupa_del' && $can_act) {
         ezd_grupa_delete((int)($_POST['grupa_id'] ?? 0), $user_id);
         flash_set('success', 'Grupę usunięto (pliki pozostały bez grupy).');
@@ -640,14 +645,28 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <span class="fw-bold"><?= h($g['nazwa']) ?></span>
             <span class="badge bg-secondary bg-opacity-15 text-secondary"><?= (int)$g['plik_count'] ?></span>
             <?php if($can_act): ?>
-            <form method="post" class="d-inline ms-auto" onsubmit="return confirm('Usunąć grupę? Pliki pozostaną w repozytorium (bez grupy).')">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <input type="hidden" name="_action" value="grupa_del">
-              <input type="hidden" name="grupa_id" value="<?= $g['id'] ?>">
-              <button class="btn btn-xs btn-link p-0 text-muted" title="Usuń grupę"><i class="bi bi-x-circle"></i></button>
-            </form>
+            <div class="ms-auto d-flex gap-1">
+              <button class="btn btn-xs btn-link p-0 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#grupa-edit-<?= $g['id'] ?>" title="Edytuj nazwę grupy"><i class="bi bi-pencil"></i></button>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć grupę? Pliki pozostaną w repozytorium (bez grupy).')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_action" value="grupa_del">
+                <input type="hidden" name="grupa_id" value="<?= $g['id'] ?>">
+                <button class="btn btn-xs btn-link p-0 text-muted" title="Usuń grupę"><i class="bi bi-x-circle"></i></button>
+              </form>
+            </div>
             <?php endif; ?>
           </div>
+          <?php if($can_act): ?>
+          <div class="collapse px-3 py-2 bg-light border-bottom" id="grupa-edit-<?= $g['id'] ?>">
+            <form method="post" class="d-flex gap-2">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="grupa_rename">
+              <input type="hidden" name="grupa_id" value="<?= $g['id'] ?>">
+              <input type="text" name="nazwa" class="form-control form-control-sm" value="<?= h($g['nazwa']) ?>" required>
+              <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-check-lg me-1"></i>Zapisz</button>
+            </form>
+          </div>
+          <?php endif; ?>
           <?php if($grupy_map[(int)$g['id']]): foreach($grupy_map[(int)$g['id']] as $z) $renderZal($z); else: ?>
           <div class="text-muted px-4 py-2" style="font-size:.74rem">Grupa pusta — przenieś tu pliki z listy poniżej.</div>
           <?php endif; ?>
