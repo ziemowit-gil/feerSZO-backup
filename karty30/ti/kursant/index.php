@@ -2754,123 +2754,159 @@ document.addEventListener('DOMContentLoaded', function() {
       $dsrv_order = vlab_dedicated_server_for_student((int)$student['id']);
       $dsrv_msg   = $_SESSION['k30_ds_msg'] ?? null; unset($_SESSION['k30_ds_msg']);
   ?>
+  <?php
+    $dsrv_status = $dsrv_order['status'] ?? 'none';
+    $dsrv_teaser_badge = [
+      'requested' => ['Oczekuje na opłatę', 'text-bg-warning', 'hourglass-split'],
+      'paid'      => ['Realizacja u partnera', 'text-bg-info', 'truck'],
+      'active'    => ['Aktywny', 'text-bg-success', 'check-circle-fill'],
+    ][$dsrv_status] ?? null;
+  ?>
   <div class="vlab-card mt-4">
-    <div class="card-body">
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <span class="vlab-icon-badge bg-primary-subtle text-primary"><i class="bi bi-hdd-rack" aria-hidden="true"></i></span>
-        <h2 class="h6 fw-bold mb-0">Twój serwer VPS ze zniżką</h2>
-      </div>
-      <div class="alert alert-light border small d-flex align-items-start gap-2 mb-3">
-        <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
-        <span>
-          To jest <strong>VPS (wirtualny serwer prywatny)</strong> u zewnętrznego partnera hostingowego — „dedykowany" oznacza tu,
-          że zasoby (<?= h($dsrv_pricing['specs']) ?>) są przypisane <strong>wyłącznie Tobie</strong>, a nie że to fizyczny serwer
-          dedykowany (bare-metal). To inna usługa niż maszyny (kontenery Docker) w sekcji powyżej.
-        </span>
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+      <span class="vlab-icon-badge bg-primary-subtle text-primary flex-shrink-0"><i class="bi bi-hdd-rack" aria-hidden="true"></i></span>
+      <div class="flex-grow-1 min-width-0">
+        <h2 class="h6 fw-bold mb-1">Twój serwer VPS ze zniżką</h2>
+        <div class="small text-body-secondary">
+          <?php if ($dsrv_teaser_badge): ?>
+          <span class="badge <?= $dsrv_teaser_badge[1] ?> me-1"><i class="bi bi-<?= $dsrv_teaser_badge[2] ?> me-1" aria-hidden="true"></i><?= h($dsrv_teaser_badge[0]) ?></span>
+          <?= h($dsrv_status === 'active' ? $dsrv_order['server_hostname'] : ($dsrv_order['hostname_prefix'] . '.' . $dsrv_pricing['domain'])) ?>
+          <?php else: ?>
+          Własny VPS w cenie obniżonej dla kursantów fundacji.
+          <?php endif; ?>
+        </div>
       </div>
       <?php if ($dsrv_msg): ?>
-      <div class="alert alert-<?= $dsrv_msg[0]==='ok'?'success':'danger' ?> py-2 small"><?= h($dsrv_msg[1]) ?></div>
+      <div class="alert alert-<?= $dsrv_msg[0]==='ok'?'success':'danger' ?> py-2 small mb-0 w-100"><?= h($dsrv_msg[1]) ?></div>
       <?php endif; ?>
-
-      <?php if (!$dsrv_order || $dsrv_order['status'] === 'cancelled'): ?>
-      <p class="text-body-secondary small mb-2">
-        Własny VPS w cenie obniżonej dla kursantów fundacji. Fundacja wystawia fakturę VAT za wybrany okres
-        (+ jednorazowa opłata aktywacyjna); po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy Twój serwer.
-      </p>
-      <?php if (!$dsrv_periods): ?>
-      <div class="alert alert-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Cennik nie jest jeszcze skonfigurowany — skontaktuj się z administratorem.</div>
-      <?php else: ?>
-      <?php if ($dsrv_pricing['activation_fee'] > 0): ?>
-      <p class="small mb-3"><i class="bi bi-tag me-1" aria-hidden="true"></i>Opłata aktywacyjna (jednorazowo): <strong><?= number_format($dsrv_pricing['activation_fee'], 2, ',', ' ') ?> zł</strong></p>
-      <?php endif; ?>
-      <div class="row g-2 mb-3">
-        <?php foreach ($dsrv_periods as $pkey => $plan): ?>
-        <div class="col-6 col-md-4">
-          <div class="border rounded-3 p-2 text-center h-100">
-            <div class="small text-body-secondary"><?= h($plan['label']) ?></div>
-            <?php if ($plan['regular_price'] > $plan['price']): ?>
-            <div class="text-decoration-line-through text-body-secondary small"><?= number_format($plan['regular_price'], 2, ',', ' ') ?> zł</div>
-            <?php endif; ?>
-            <div class="fw-bold fs-5 text-primary"><?= number_format($plan['price'], 2, ',', ' ') ?> zł</div>
-          </div>
-        </div>
-        <?php endforeach; ?>
-      </div>
-      <form method="post" class="row g-2 align-items-end">
-        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-        <input type="hidden" name="_op" value="order_dedicated_server">
-        <div class="col-12 col-md-4">
-          <label class="form-label small" for="ds-prefix">Nazwa serwera</label>
-          <div class="input-group input-group-sm">
-            <input type="text" class="form-control" id="ds-prefix" name="hostname_prefix" required maxlength="32"
-                   pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?" placeholder="np. jkowalski">
-            <span class="input-group-text">.<?= h($dsrv_pricing['domain']) ?></span>
-          </div>
-        </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label small" for="ds-user">Nazwa użytkownika</label>
-          <input type="text" class="form-control form-control-sm" id="ds-user" name="server_username" required maxlength="64">
-        </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label small" for="ds-period">Okres rozliczeniowy</label>
-          <select class="form-select form-select-sm" id="ds-period" name="billing_period">
-            <?php foreach ($dsrv_periods as $pkey => $plan): ?>
-            <option value="<?= h($pkey) ?>"><?= h($plan['label']) ?> — <?= number_format($plan['price'], 2, ',', ' ') ?> zł</option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-12 col-md-2">
-          <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Zamówić VPS? Opłata za wybrany okres oraz opłata aktywacyjna zostaną dodane do Twojego rozliczenia.')">
-            <i class="bi bi-cart-plus me-1" aria-hidden="true"></i>Zamów
-          </button>
-        </div>
-      </form>
-      <?php endif; ?>
-
-      <?php elseif ($dsrv_order['status'] === 'requested'): ?>
-      <div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
-        <i class="bi bi-hourglass-split mt-1" aria-hidden="true"></i>
-        <div>
-          Zamówienie serwera <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> czeka na opłatę
-          (<?= number_format((float)$dsrv_order['price'] + (float)$dsrv_order['activation_fee'], 2, ',', ' ') ?> zł
-          <?php if ((float)$dsrv_order['activation_fee'] > 0): ?>w tym <?= number_format((float)$dsrv_order['activation_fee'], 2, ',', ' ') ?> zł aktywacji, <?php endif; ?>
-          okres: <?= $dsrv_order['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?>).
-          Fundacja wystawi fakturę VAT — sprawdź zakładkę <a href="?tab=rozliczenia">Rozliczenia</a>. Po zaksięgowaniu wpłaty złożymy zamówienie u partnera.
-        </div>
-      </div>
-      <form method="post" onsubmit="return confirm('Zrezygnować z zamówienia? Otrzymasz zwrot całej naliczonej opłaty, pomniejszony o opłatę manipulacyjną.')">
-        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-        <input type="hidden" name="_op" value="cancel_dedicated_server">
-        <input type="hidden" name="order_id" value="<?= (int)$dsrv_order['id'] ?>">
-        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Zrezygnuj z zamówienia</button>
-      </form>
-
-      <?php elseif ($dsrv_order['status'] === 'paid'): ?>
-      <div class="alert alert-info d-flex align-items-start gap-2 mb-0">
-        <i class="bi bi-truck mt-1" aria-hidden="true"></i>
-        <div>
-          Wpłata za serwer <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> została potwierdzona —
-          składamy zamówienie u partnera. O uruchomieniu poinformujemy e-mailem. Na tym etapie rezygnacja wymaga kontaktu z administratorem.
-        </div>
-      </div>
-
-      <?php else: /* active */ ?>
-      <div class="alert alert-success d-flex align-items-start gap-2 mb-3">
-        <i class="bi bi-check-circle-fill mt-1" aria-hidden="true"></i>
-        <div>
-          Serwer <strong><?= h($dsrv_order['server_hostname']) ?></strong> jest aktywny (użytkownik: <?= h($dsrv_order['server_username']) ?>).
-          Kolejne odnowienie (<?= $dsrv_order['billing_period'] === 'annual' ? 'roczne' : 'miesięczne' ?>): <?= $dsrv_order['next_renewal_at'] ? h(date('d.m.Y', strtotime($dsrv_order['next_renewal_at']))) : '—' ?>.
-        </div>
-      </div>
-      <form method="post" onsubmit="return confirm('Zrezygnować z VPS? Opłata za bieżący, już opłacony okres NIE jest zwracana (środki poszły do partnera) — naliczona zostanie tylko opłata manipulacyjna.')">
-        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-        <input type="hidden" name="_op" value="cancel_dedicated_server">
-        <input type="hidden" name="order_id" value="<?= (int)$dsrv_order['id'] ?>">
-        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Zrezygnuj z usługi</button>
-      </form>
-      <?php endif; ?>
+      <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" data-bs-toggle="modal" data-bs-target="#dsrvModal">
+        <i class="bi bi-hdd-rack me-1" aria-hidden="true"></i><?= $dsrv_teaser_badge ? 'Szczegóły' : 'Zamów' ?>
+      </button>
     </div>
   </div>
+
+  <!-- Modal: serwer VPS ze zniżką (zamówienie / status / rezygnacja) -->
+  <div class="modal fade" id="dsrvModal" tabindex="-1" aria-labelledby="dsrvModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="dsrvModalLabel"><i class="bi bi-hdd-rack text-primary me-2" aria-hidden="true"></i>Twój serwer VPS ze zniżką</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-light border small d-flex align-items-start gap-2 mb-3">
+            <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
+            <span>
+              To jest <strong>VPS (wirtualny serwer prywatny)</strong> u zewnętrznego partnera hostingowego — „dedykowany" oznacza tu,
+              że zasoby (<?= h($dsrv_pricing['specs']) ?>) są przypisane <strong>wyłącznie Tobie</strong>, a nie że to fizyczny serwer
+              dedykowany (bare-metal). To inna usługa niż maszyny (kontenery Docker) w sekcji powyżej.
+            </span>
+          </div>
+
+          <?php if (!$dsrv_order || $dsrv_order['status'] === 'cancelled'): ?>
+          <p class="text-body-secondary small mb-2">
+            Własny VPS w cenie obniżonej dla kursantów fundacji. Fundacja wystawia fakturę VAT za wybrany okres
+            (+ jednorazowa opłata aktywacyjna); po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy Twój serwer.
+          </p>
+          <?php if (!$dsrv_periods): ?>
+          <div class="alert alert-secondary small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Cennik nie jest jeszcze skonfigurowany — skontaktuj się z administratorem.</div>
+          <?php else: ?>
+          <?php if ($dsrv_pricing['activation_fee'] > 0): ?>
+          <p class="small mb-3"><i class="bi bi-tag me-1" aria-hidden="true"></i>Opłata aktywacyjna (jednorazowo): <strong><?= number_format($dsrv_pricing['activation_fee'], 2, ',', ' ') ?> zł</strong></p>
+          <?php endif; ?>
+          <div class="row g-2 mb-3">
+            <?php foreach ($dsrv_periods as $pkey => $plan): ?>
+            <div class="col-6 col-md-4">
+              <div class="border rounded-3 p-2 text-center h-100">
+                <div class="small text-body-secondary"><?= h($plan['label']) ?></div>
+                <?php if ($plan['regular_price'] > $plan['price']): ?>
+                <div class="text-decoration-line-through text-body-secondary small"><?= number_format($plan['regular_price'], 2, ',', ' ') ?> zł</div>
+                <?php endif; ?>
+                <div class="fw-bold fs-5 text-primary"><?= number_format($plan['price'], 2, ',', ' ') ?> zł</div>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="order_dedicated_server">
+            <div class="col-12 col-md-4">
+              <label class="form-label small" for="ds-prefix">Nazwa serwera</label>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="ds-prefix" name="hostname_prefix" required maxlength="32"
+                       pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?" placeholder="np. jkowalski">
+                <span class="input-group-text">.<?= h($dsrv_pricing['domain']) ?></span>
+              </div>
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label small" for="ds-user">Nazwa użytkownika</label>
+              <input type="text" class="form-control form-control-sm" id="ds-user" name="server_username" required maxlength="64">
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label small" for="ds-period">Okres rozliczeniowy</label>
+              <select class="form-select form-select-sm" id="ds-period" name="billing_period">
+                <?php foreach ($dsrv_periods as $pkey => $plan): ?>
+                <option value="<?= h($pkey) ?>"><?= h($plan['label']) ?> — <?= number_format($plan['price'], 2, ',', ' ') ?> zł</option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-12 col-md-2">
+              <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Zamówić VPS? Opłata za wybrany okres oraz opłata aktywacyjna zostaną dodane do Twojego rozliczenia.')">
+                <i class="bi bi-cart-plus me-1" aria-hidden="true"></i>Zamów
+              </button>
+            </div>
+          </form>
+          <?php endif; ?>
+
+          <?php elseif ($dsrv_order['status'] === 'requested'): ?>
+          <div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
+            <i class="bi bi-hourglass-split mt-1" aria-hidden="true"></i>
+            <div>
+              Zamówienie serwera <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> czeka na opłatę
+              (<?= number_format((float)$dsrv_order['price'] + (float)$dsrv_order['activation_fee'], 2, ',', ' ') ?> zł
+              <?php if ((float)$dsrv_order['activation_fee'] > 0): ?>w tym <?= number_format((float)$dsrv_order['activation_fee'], 2, ',', ' ') ?> zł aktywacji, <?php endif; ?>
+              okres: <?= $dsrv_order['billing_period'] === 'annual' ? 'roczny' : 'miesięczny' ?>).
+              Fundacja wystawi fakturę VAT — sprawdź zakładkę <a href="?tab=rozliczenia">Rozliczenia</a>. Po zaksięgowaniu wpłaty złożymy zamówienie u partnera.
+            </div>
+          </div>
+          <form method="post" onsubmit="return confirm('Zrezygnować z zamówienia? Otrzymasz zwrot całej naliczonej opłaty, pomniejszony o opłatę manipulacyjną.')">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="cancel_dedicated_server">
+            <input type="hidden" name="order_id" value="<?= (int)$dsrv_order['id'] ?>">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Zrezygnuj z zamówienia</button>
+          </form>
+
+          <?php elseif ($dsrv_order['status'] === 'paid'): ?>
+          <div class="alert alert-info d-flex align-items-start gap-2 mb-0">
+            <i class="bi bi-truck mt-1" aria-hidden="true"></i>
+            <div>
+              Wpłata za serwer <strong><?= h($dsrv_order['hostname_prefix']) ?>.<?= h($dsrv_pricing['domain']) ?></strong> została potwierdzona —
+              składamy zamówienie u partnera. O uruchomieniu poinformujemy e-mailem. Na tym etapie rezygnacja wymaga kontaktu z administratorem.
+            </div>
+          </div>
+
+          <?php else: /* active */ ?>
+          <div class="alert alert-success d-flex align-items-start gap-2 mb-3">
+            <i class="bi bi-check-circle-fill mt-1" aria-hidden="true"></i>
+            <div>
+              Serwer <strong><?= h($dsrv_order['server_hostname']) ?></strong> jest aktywny (użytkownik: <?= h($dsrv_order['server_username']) ?>).
+              Kolejne odnowienie (<?= $dsrv_order['billing_period'] === 'annual' ? 'roczne' : 'miesięczne' ?>): <?= $dsrv_order['next_renewal_at'] ? h(date('d.m.Y', strtotime($dsrv_order['next_renewal_at']))) : '—' ?>.
+            </div>
+          </div>
+          <form method="post" onsubmit="return confirm('Zrezygnować z VPS? Opłata za bieżący, już opłacony okres NIE jest zwracana (środki poszły do partnera) — naliczona zostanie tylko opłata manipulacyjna.')">
+            <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+            <input type="hidden" name="_op" value="cancel_dedicated_server">
+            <input type="hidden" name="order_id" value="<?= (int)$dsrv_order['id'] ?>">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Zrezygnuj z usługi</button>
+          </form>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php if ($dsrv_msg): ?>
+  <script>document.addEventListener('DOMContentLoaded', function(){ if (window.bootstrap) new bootstrap.Modal(document.getElementById('dsrvModal')).show(); });</script>
+  <?php endif; ?>
   <?php endif; ?>
 
   <?php endif; // vlab_term_ok ?>
