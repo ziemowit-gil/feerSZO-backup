@@ -1739,6 +1739,8 @@ if (atTitle) atTitle.addEventListener('keydown', e => {
 });
 
 // ── Kanban drag & drop (SortableJS) ──────────────────────────────────────
+let _tkDragActive = false;
+
 function tkInitKanban() {
     const bodies = document.querySelectorAll('.tk-kanban-body');
     if (!bodies.length || typeof Sortable === 'undefined') return;
@@ -1750,7 +1752,9 @@ function tkInitKanban() {
             ghostClass:'tk-card-ghost',
             dragClass: 'tk-card-dragging',
             handle:    '.tk-card-inner',
+            onStart: function() { _tkDragActive = true; },
             onEnd: function(evt) {
+                _tkDragActive = false;
                 const card       = evt.item;
                 const taskId     = parseInt(card.dataset.taskId);
                 const newListId  = parseInt(evt.to.dataset.listId);
@@ -1814,6 +1818,34 @@ window.tkAjaxLoad = function(e) {
     // Krótkie opóźnienie — daj czas na podmianę DOM
     setTimeout(tkInitKanban, 250);
 };
+
+// ── Dynamiczne odświeżanie co 30 sekund ────────────────────────────────────
+// Ta sama zasada co w tasks/inbox.php: pauza gdy karta w tle lub trwa
+// przeciąganie/otwarty modal, natychmiastowe odświeżenie po powrocie karty.
+let _tkPollTimer  = null;
+let _tkPollPaused = false;
+
+function tkStartPolling() {
+    clearInterval(_tkPollTimer);
+    _tkPollTimer = setInterval(tkPollTick, 30000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            _tkPollPaused = true;
+        } else {
+            _tkPollPaused = false;
+            tkPollTick();
+        }
+    });
+}
+
+function tkPollTick() {
+    if (_tkPollPaused || _tkDragActive) return;
+    // Nie przerywaj, gdy otwarty jest modal (np. tworzenie zadania) lub offcanvas ze szczegółami.
+    if (document.querySelector('.modal.show, .offcanvas.show')) return;
+    tkAjaxLoad();
+}
+
+document.addEventListener('DOMContentLoaded', tkStartPolling);
 
 // ── User chips w modalu tworzenia ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
