@@ -315,6 +315,30 @@ include __DIR__ . '/includes/header_panel.php';
       </a>
     </div>
     <?php endif; ?>
+    <?php if (module_enabled('procedures_enabled')): ?>
+    <div class="col-6 col-md-3">
+      <a href="<?= APP_URL ?>/panel/procedures.php" class="sv-quick">
+        <i class="bi bi-journal-text" style="color:#0EA5E9"></i>
+        <div><div class="fw-semibold">Procedury</div><div class="text-muted small">Dokumenty i instrukcje</div></div>
+      </a>
+    </div>
+    <?php endif; ?>
+    <?php if (module_enabled('org_documents_enabled')): ?>
+    <div class="col-6 col-md-3">
+      <a href="<?= APP_URL ?>/panel/org_documents.php" class="sv-quick">
+        <i class="bi bi-folder2-open" style="color:#0D9488"></i>
+        <div><div class="fw-semibold">Dokumenty organizacji</div><div class="text-muted small">Statut, regulaminy, wzory</div></div>
+      </a>
+    </div>
+    <?php endif; ?>
+    <?php if (module_enabled('whatsapp_group_enabled') && org_setting('whatsapp_group_link')): ?>
+    <div class="col-6 col-md-3">
+      <a href="<?= APP_URL ?>/panel/whatsapp_group.php" class="sv-quick">
+        <i class="bi bi-whatsapp" style="color:#25D366"></i>
+        <div><div class="fw-semibold">WhatsApp — grupa</div><div class="text-muted small">Dołącz do grupy</div></div>
+      </a>
+    </div>
+    <?php endif; ?>
   </div>
 
 </div>
