@@ -395,6 +395,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=ustawienia&alias=ok'); exit;
     }
 
+    // Zmiana głównego adresu e-mail (kontakt/powiadomienia) — pole współdzielone z kartą klienta
+    if ($op === 'change_email') {
+        $new_email = mb_substr(trim((string)($_POST['email'] ?? '')), 0, 190);
+        if ($new_email === '' || !filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+            header('Location: index.php?tab=ustawienia&emailerr=' . rawurlencode('Podaj prawidłowy adres e-mail.')); exit;
+        }
+        db()->prepare("UPDATE k30_clients SET email=?, updated_at=datetime('now') WHERE id=?")
+           ->execute([$new_email, (int)$student['client_id']]);
+        ti_account_log((int)$student['id'], 'email_changed', "Nowy e-mail: {$new_email}");
+        header('Location: index.php?tab=ustawienia&email=ok'); exit;
+    }
+
     // Zgłoszenie problemu technicznego → ticket helpdesk z prefiksem KUR
     if ($op === 'report_issue') {
         $title = trim((string)($_POST['title'] ?? ''));
@@ -640,7 +652,8 @@ include __DIR__ . '/_layout_head.php';
 
 <?php if (!empty($account['must_change_password'])):
   // Wymuszona zmiana hasła (np. po nadaniu/zresetowaniu hasła przez admina) — blokuje panel.
-  $pwerr = (string)($_GET['pwerr'] ?? '');
+  $pwerr  = (string)($_GET['pwerr'] ?? '');
+  $forced = true;
 ?>
 <main id="main" class="container-xl px-3 py-4" style="max-width:480px">
   <div class="card shadow-sm border-0">
@@ -661,7 +674,12 @@ include __DIR__ . '/_layout_head.php';
         <?php endif; ?>
         <div class="mb-3">
           <label class="form-label" for="cp-new">Nowe hasło</label>
-          <input type="password" class="form-control" id="cp-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znaków" <?= $forced ? 'autofocus' : '' ?>>
+          <input type="password" class="form-control" id="cp-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znaków"
+                 <?= $forced ? 'autofocus' : '' ?> oninput="kpPwMeter(this,'cp-new-meter')">
+          <div class="progress mt-1" style="height:5px" aria-hidden="true">
+            <div class="progress-bar" id="cp-new-meter-bar" style="width:0%"></div>
+          </div>
+          <div class="form-text" id="cp-new-meter-text" aria-live="polite"></div>
         </div>
         <div class="mb-3">
           <label class="form-label" for="cp-cnf">Powtórz nowe hasło</label>
@@ -3201,7 +3219,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php elseif ($tab === 'aktywnosc'):
   // Filtr zdarzeń widocznych dla kursanta (bez wewnętrznych akcji admina)
-  $kursant_visible_actions = ['login','login_failed','logout','password_changed','msg_sent','msg_blocked_attempt','alias_changed'];
+  $kursant_visible_actions = ['login','login_failed','logout','password_changed','msg_sent','msg_blocked_attempt','alias_changed','email_changed'];
   $placeholders = implode(',', array_fill(0, count($kursant_visible_actions), '?'));
   $kursant_log = db_all(
       "SELECT * FROM k30_ti_account_log WHERE student_id=? AND action IN ({$placeholders})
@@ -3215,6 +3233,7 @@ document.addEventListener('DOMContentLoaded', function() {
       'msg_sent'            => ['label' => 'Wysłano wiadomość',    'icon' => 'bi-envelope-arrow-up',  'color' => 'text-secondary'],
       'msg_blocked_attempt' => ['label' => 'Próba wysyłki (blok)', 'icon' => 'bi-slash-circle',       'color' => 'text-danger'],
       'alias_changed'       => ['label' => 'Zmiana aliasu',        'icon' => 'bi-person-badge',       'color' => 'text-secondary'],
+      'email_changed'       => ['label' => 'Zmiana adresu e-mail', 'icon' => 'bi-envelope-at',         'color' => 'text-primary'],
       'logout'              => ['label' => 'Wylogowanie',          'icon' => 'bi-box-arrow-right',    'color' => 'text-secondary'],
   ];
 ?>
@@ -3268,12 +3287,14 @@ document.addEventListener('DOMContentLoaded', function() {
   $cur_alias  = (string)($account['login_alias'] ?? '');
   $alias_msg  = (string)($_GET['alias']    ?? '');
   $alias_err  = rawurldecode((string)($_GET['aliaserr'] ?? ''));
+  $email_err  = rawurldecode((string)($_GET['emailerr'] ?? ''));
   $ust_flash  = '';
   if (($_GET['sms']    ?? '') === 'on')    $ust_flash = 'Włączono powiadomienia SMS o zajęciach.';
   if (($_GET['sms']    ?? '') === 'off')   $ust_flash = 'Wyłączono powiadomienia SMS o zajęciach.';
   if (($_GET['prefs']  ?? '') === '1')     $ust_flash = 'Ustawienia powiadomień zapisane.';
   if (($_GET['dyd']    ?? '') === '1')     $ust_flash = 'Ustawienia powiadomień o dydaktyce zapisane.';
   if (($_GET['cal']    ?? '') === 'reset') $ust_flash = 'Adres kalendarza zmieniony — zaktualizuj subskrypcję.';
+  if (($_GET['email']  ?? '') === 'ok')    $ust_flash = 'Adres e-mail zaktualizowany.';
   if (($_GET['pwok']   ?? '') === '1')     $ust_flash = 'Hasło zostało zmienione.';
   if (($_GET['phones'] ?? '') === '1')     $ust_flash = 'Numery do powiadomień SMS zapisane.';
   if ($alias_msg === 'ok')                 $ust_flash = 'Alias logowania zapisany.';
@@ -3364,7 +3385,12 @@ document.addEventListener('DOMContentLoaded', function() {
               </div>
               <div>
                 <label class="form-label small mb-1" for="cps-new">Nowe haslo</label>
-                <input type="password" class="form-control form-control-sm" id="cps-new" name="new" required minlength="8" autocomplete="new-password" placeholder="min. 8 znakow">
+                <input type="password" class="form-control form-control-sm" id="cps-new" name="new" required minlength="8" autocomplete="new-password"
+                       placeholder="min. 8 znakow" oninput="kpPwMeter(this,'cps-new-meter')">
+                <div class="progress mt-1" style="height:5px" aria-hidden="true">
+                  <div class="progress-bar" id="cps-new-meter-bar" style="width:0%"></div>
+                </div>
+                <div class="form-text" id="cps-new-meter-text" aria-live="polite"></div>
               </div>
               <div>
                 <label class="form-label small mb-1" for="cps-cnf">Powtorz nowe haslo</label>
@@ -3372,6 +3398,26 @@ document.addEventListener('DOMContentLoaded', function() {
               </div>
               <div>
                 <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz haslo</button>
+              </div>
+            </form>
+          </div>
+          <!-- E-mail -->
+          <div class="col-12 col-lg-6">
+            <h3 class="h6 fw-semibold mb-1"><i class="bi bi-envelope-at me-2 text-secondary" aria-hidden="true"></i>Zmień e-mail</h3>
+            <p class="text-body-secondary small mb-2">Główny adres e-mail — używany do kontaktu i powiadomień.</p>
+            <?php if ($email_err !== ''): ?>
+            <div class="alert alert-danger py-1 small mb-2"><i class="bi bi-exclamation-circle me-1"></i><?= h($email_err) ?></div>
+            <?php endif; ?>
+            <form method="post" autocomplete="off" class="d-flex flex-column gap-2">
+              <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+              <input type="hidden" name="_op" value="change_email">
+              <div>
+                <label class="form-label small mb-1" for="em-addr">Adres e-mail</label>
+                <input type="email" class="form-control form-control-sm" id="em-addr" name="email" maxlength="190" required
+                       value="<?= h((string)($client['email'] ?? '')) ?>" placeholder="np. jan.kowalski@example.com">
+              </div>
+              <div>
+                <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz e-mail</button>
               </div>
             </form>
           </div>

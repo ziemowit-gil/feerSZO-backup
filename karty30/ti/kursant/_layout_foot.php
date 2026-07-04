@@ -112,5 +112,33 @@
   });
 })();
 </script>
+<script>
+// Miernik siły hasła — czysto informacyjny (nie blokuje wysyłki), wołany z oninput na polu "nowe hasło".
+// prefix identyfikuje parę elementów: #<prefix>-bar (pasek) i #<prefix>-text (opis dla czytnika ekranu).
+function kpPwMeter(input, prefix) {
+  var bar  = document.getElementById(prefix + '-bar');
+  var text = document.getElementById(prefix + '-text');
+  if (!bar || !text) return;
+  var pw = input.value;
+  if (!pw) { bar.style.width = '0%'; bar.className = 'progress-bar'; text.textContent = ''; return; }
+  var score = 0;
+  if (pw.length >= 8)  score++;
+  if (pw.length >= 12) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  score = Math.min(score, 4);
+  var levels = [
+    { pct: 20,  cls: 'bg-danger',  label: 'Bardzo słabe' },
+    { pct: 40,  cls: 'bg-danger',  label: 'Słabe' },
+    { pct: 60,  cls: 'bg-warning', label: 'Średnie' },
+    { pct: 80,  cls: 'bg-info',    label: 'Dobre' },
+    { pct: 100, cls: 'bg-success', label: 'Bardzo dobre' }
+  ][score];
+  bar.style.width = levels.pct + '%';
+  bar.className = 'progress-bar ' + levels.cls;
+  text.textContent = 'Siła hasła: ' + levels.label;
+}
+</script>
 </body>
 </html>
