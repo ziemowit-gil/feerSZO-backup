@@ -142,6 +142,11 @@ include __DIR__ . '/includes/header_crm.php';
   border-radius:6px;padding:.1rem .4rem;cursor:pointer;
 }
 .var-chip:hover{background:var(--crm-primary);color:#fff}
+#tpl-quill-wrapper .ql-toolbar.ql-snow{border:1px solid #E5E7EB;border-bottom:none;border-radius:.375rem .375rem 0 0;background:#F9FAFB;padding:.3rem .5rem}
+#tpl-quill-wrapper .ql-container.ql-snow{border:1px solid #E5E7EB;border-radius:0 0 .375rem .375rem}
+#tpl-quill-wrapper .ql-editor{min-height:160px;font-size:.85rem}
+#tpl-quill-wrapper .ql-editor.ql-blank::before{color:#9CA3AF;font-style:normal}
+#tpl-quill-wrapper.is-invalid .ql-toolbar,#tpl-quill-wrapper.is-invalid .ql-container{border-color:#dc3545}
 </style>
 
 <div class="crm-page-header mb-4">
@@ -245,7 +250,7 @@ include __DIR__ . '/includes/header_crm.php';
       <?php if ($t['channel'] === 'email' && $t['subject']): ?>
       <div class="tpl-meta"><i class="bi bi-card-heading me-1" aria-hidden="true"></i><?= h($t['subject']) ?></div>
       <?php endif; ?>
-      <div class="tpl-preview"><?= h(mb_substr($t['body'], 0, 240)) ?></div>
+      <div class="tpl-preview"><?= h(mb_substr(strip_tags($t['body']), 0, 240)) ?></div>
       <div class="tpl-meta mt-1">Zmieniono: <?= h(date('d.m.Y', strtotime($t['updated_at'] ?? $t['created_at'] ?? 'now'))) ?></div>
     </div>
     <?php if ($crm_can_write && $locked && !$is_admin_user): ?>
@@ -333,9 +338,25 @@ include __DIR__ . '/includes/header_crm.php';
                      maxlength="200" placeholder="Temat wiadomości">
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold small" for="tpl_body">Treść <span class="text-danger" aria-hidden="true">*</span></label>
-              <textarea id="tpl_body" name="body" class="form-control form-control-sm" rows="8" required
-                        placeholder="Treść wiadomości. Możesz używać zmiennych, np. {imie}."></textarea>
+              <label class="form-label fw-semibold small" id="tpl_body_label">Treść <span class="text-danger" aria-hidden="true">*</span></label>
+              <input type="hidden" id="tpl_body" name="body">
+
+              <!-- E-mail: edytor WYSIWYG (HTML) -->
+              <div id="tpl_body_rich_wrap">
+                <div id="tpl-quill-wrapper">
+                  <div id="tpl_body_editor" aria-label="Treść szablonu" aria-required="true"></div>
+                </div>
+                <div id="tpl_body_err" class="text-danger d-none mt-1" style="font-size:.78rem">Treść szablonu nie może być pusta.</div>
+                <div class="form-text" style="font-size:.74rem">Formatowanie (pogrubienie, listy, linki) zostanie zachowane w wysłanym e-mailu.</div>
+              </div>
+
+              <!-- SMS: zwykły tekst (bez HTML) -->
+              <div id="tpl_body_plain_wrap" class="d-none">
+                <label class="visually-hidden" for="tpl_body_sms">Treść</label>
+                <textarea id="tpl_body_sms" class="form-control form-control-sm" rows="6"
+                          placeholder="Treść wiadomości SMS. Możesz używać zmiennych, np. {imie}."></textarea>
+              </div>
+
               <div class="mt-2">
                 <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
                   <span class="cv-meta me-1"><i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Odbiorca:</span>
@@ -376,12 +397,41 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
   </div>
 </div>
-<?php endif; ?>
 
 <script>
+var _tplQuill = null;
+
+function tplInitQuill() {
+  if (_tplQuill || typeof Quill === 'undefined') return;
+  _tplQuill = new Quill('#tpl_body_editor', {
+    theme: 'snow',
+    placeholder: 'Treść wiadomości. Możesz używać zmiennych, np. {imie}.',
+    modules: {
+      toolbar: [
+        [{ 'header': [false, 2, 3] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['blockquote', 'link'],
+        ['clean']
+      ]
+    }
+  });
+  _tplQuill.on('text-change', function () {
+    if (_tplQuill.getText().trim() !== '') {
+      document.getElementById('tpl_body_err').classList.add('d-none');
+      document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', tplInitQuill);
+
 function tplToggleSubject() {
   var ch = document.getElementById('tpl_channel').value;
-  document.getElementById('tpl_subject_wrap').style.display = (ch === 'email') ? '' : 'none';
+  var isEmail = (ch === 'email');
+  document.getElementById('tpl_subject_wrap').style.display = isEmail ? '' : 'none';
+  document.getElementById('tpl_body_rich_wrap').classList.toggle('d-none', !isEmail);
+  document.getElementById('tpl_body_plain_wrap').classList.toggle('d-none', isEmail);
+  if (isEmail) tplInitQuill();
 }
 
 function tplNew() {
@@ -391,6 +441,11 @@ function tplNew() {
   document.getElementById('tplModalLabel').innerHTML = '<i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Nowy szablon';
   document.getElementById('tpl_active').checked = true;
   var lk = document.getElementById('tpl_locked'); if (lk) lk.checked = false;
+  tplInitQuill();
+  if (_tplQuill) _tplQuill.setText('');
+  document.getElementById('tpl_body_sms').value = '';
+  document.getElementById('tpl_body_err').classList.add('d-none');
+  document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
   tplToggleSubject();
 }
 
@@ -400,7 +455,20 @@ function tplEdit(t) {
   document.getElementById('tpl_name').value   = t.name || '';
   document.getElementById('tpl_channel').value= t.channel || 'email';
   document.getElementById('tpl_subject').value= t.subject || '';
-  document.getElementById('tpl_body').value   = t.body || '';
+  tplInitQuill();
+  var body = t.body || '';
+  if ((t.channel || 'email') === 'sms') {
+    document.getElementById('tpl_body_sms').value = body;
+    if (_tplQuill) _tplQuill.setText('');
+  } else {
+    if (_tplQuill) {
+      if (/<[a-z]/i.test(body)) _tplQuill.root.innerHTML = body;
+      else _tplQuill.setText(body);
+    }
+    document.getElementById('tpl_body_sms').value = '';
+  }
+  document.getElementById('tpl_body_err').classList.add('d-none');
+  document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
   document.getElementById('tpl_active').checked = (t.is_active === 1 || t.is_active === '1');
   var lk = document.getElementById('tpl_locked'); if (lk) lk.checked = (t.is_locked === 1 || t.is_locked === '1');
   document.getElementById('tplModalLabel').innerHTML = '<i class="bi bi-pencil me-2" aria-hidden="true"></i>Edytuj szablon';
@@ -416,17 +484,52 @@ function tplCopyVar(btn) {
   setTimeout(function(){ btn.textContent = orig; }, 900);
 }
 
-// Wstaw zmienną w miejscu kursora w treści szablonu
+// Wstaw zmienną w miejscu kursora — do aktywnego edytora (Quill dla e-maila, textarea dla SMS)
 function tplInsertVar(v) {
-  var ta = document.getElementById('tpl_body');
-  if (!ta) return;
-  var s = (ta.selectionStart != null) ? ta.selectionStart : ta.value.length;
-  var e = (ta.selectionEnd   != null) ? ta.selectionEnd   : ta.value.length;
-  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
-  ta.focus();
-  var pos = s + v.length;
-  ta.setSelectionRange(pos, pos);
+  var ch = document.getElementById('tpl_channel').value;
+  if (ch === 'email') {
+    if (!_tplQuill) return;
+    var range = _tplQuill.getSelection(true);
+    _tplQuill.insertText(range ? range.index : _tplQuill.getLength(), v, 'user');
+  } else {
+    var ta = document.getElementById('tpl_body_sms');
+    if (!ta) return;
+    var s = (ta.selectionStart != null) ? ta.selectionStart : ta.value.length;
+    var e = (ta.selectionEnd   != null) ? ta.selectionEnd   : ta.value.length;
+    ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+    ta.focus();
+    var pos = s + v.length;
+    ta.setSelectionRange(pos, pos);
+  }
 }
+
+// Przed wysyłką formularza: przepisz treść z aktywnego edytora do ukrytego pola `body`
+document.getElementById('tplForm').addEventListener('submit', function (e) {
+  var ch = document.getElementById('tpl_channel').value;
+  if (ch === 'email') {
+    tplInitQuill();
+    if (!_tplQuill || _tplQuill.getText().trim() === '') {
+      e.preventDefault();
+      document.getElementById('tpl_body_err').classList.remove('d-none');
+      document.getElementById('tpl-quill-wrapper').classList.add('is-invalid');
+      if (_tplQuill) _tplQuill.focus();
+      return;
+    }
+    document.getElementById('tpl_body').value = _tplQuill.root.innerHTML;
+  } else {
+    var ta = document.getElementById('tpl_body_sms');
+    var plain = ta.value.trim();
+    if (plain === '') {
+      e.preventDefault();
+      ta.classList.add('is-invalid');
+      ta.focus();
+      return;
+    }
+    ta.classList.remove('is-invalid');
+    document.getElementById('tpl_body').value = plain;
+  }
+});
 </script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/includes/footer_crm.php'; ?>
