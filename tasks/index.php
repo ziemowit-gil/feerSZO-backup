@@ -1013,6 +1013,22 @@ require_once __DIR__ . '/includes/header_tasks.php';
 
 <?php if ($workspace): ?>
 
+<!-- ── Nagłówek obszaru: nazwa + główna akcja ──────────────────────────────── -->
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <h2 class="h5 fw-bold mb-0 d-flex align-items-center gap-2">
+    <span class="ws-dot" style="width:10px;height:10px;border-radius:50%;background:<?= h($workspace['color']) ?>" aria-hidden="true"></span>
+    <?= h($workspace['name']) ?>
+  </h2>
+  <?php if ($can_add): ?>
+  <button type="button"
+          class="btn btn-primary"
+          onclick="openAddModal()"
+          aria-label="Dodaj nowe zadanie">
+    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowe zadanie
+  </button>
+  <?php endif; ?>
+</div>
+
 <!-- ── Pasek narzędzi ────────────────────────────────────────────────────── -->
 <form id="tkFilterForm" class="tk-toolbar" role="search" aria-label="Filtry i wyszukiwanie" onsubmit="tkAjaxLoad(event)">
   <input type="hidden" name="ws"     value="<?= (int)$ws_id ?>">
@@ -1113,6 +1129,12 @@ require_once __DIR__ . '/includes/header_tasks.php';
   </select>
   <?php endif; ?>
 
+  <!-- Wyczyść filtry — widoczne tylko gdy jakiś filtr jest aktywny -->
+  <button type="button" id="tk-clear-filters" class="btn btn-link btn-sm text-decoration-none p-0 d-none"
+          onclick="tkClearFilters()">
+    <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Wyczyść filtry
+  </button>
+
   <!-- Powiadomienia + Widok + Dodaj zadanie + Usuń obszar -->
   <div class="ms-auto d-flex gap-2 align-items-center">
     <?php if ($ws_id && $my_role): ?>
@@ -1139,12 +1161,6 @@ require_once __DIR__ . '/includes/header_tasks.php';
     <?php endif; ?>
 
     <?php if ($can_add): ?>
-    <button type="button"
-            class="btn btn-primary btn-sm"
-            onclick="openAddModal()"
-            aria-label="Dodaj nowe zadanie">
-      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowe zadanie
-    </button>
     <button type="button"
             class="btn btn-outline-danger btn-sm"
             onclick="openDeleteWsModal()"
@@ -1444,11 +1460,53 @@ function claimTask(taskId, action, btn) {
     .catch(() => { btn.disabled = false; alert('Błąd połączenia.'); });
 }
 
+/* Czy jakiś filtr (poza domyślnym „wszystkie") jest aktywny */
+function tkHasActiveFilters(form) {
+    const fd = new FormData(form);
+    if ((fd.get('q') || '').trim() !== '') return true;
+    if ((fd.get('status') || 'all') !== 'all') return true;
+    for (const key of ['pri', 'list', 'tag', 'area', 'unit']) {
+        const v = fd.get(key);
+        if (v !== null && v !== '0') return true;
+    }
+    return false;
+}
+
+function tkUpdateClearButton() {
+    const form = document.getElementById('tkFilterForm');
+    const btn  = document.getElementById('tk-clear-filters');
+    if (!form || !btn) return;
+    btn.classList.toggle('d-none', !tkHasActiveFilters(form));
+}
+
+/* Resetuje wszystkie filtry naraz i przeładowuje listę */
+function tkClearFilters() {
+    const form = document.getElementById('tkFilterForm');
+    if (!form) return;
+    const q = document.getElementById('tk-q');
+    if (q) q.value = '';
+    ['tk-pri', 'tk-list', 'tk-tag', 'tk-area', 'tk-unit'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '0';
+    });
+    const hidden = document.getElementById('tk-status-hidden');
+    if (hidden) hidden.value = 'all';
+    document.querySelectorAll('.tk-pill[data-s]').forEach(p => {
+        const active = p.dataset.s === 'all';
+        p.classList.toggle('active', active);
+        p.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    tkAjaxLoad();
+}
+
+document.addEventListener('DOMContentLoaded', tkUpdateClearButton);
+
 /* AJAX: załaduj region listy */
 function tkAjaxLoad(e) {
     if (e && e.preventDefault) e.preventDefault();
     const form   = document.getElementById('tkFilterForm');
     if (!form) return;
+    tkUpdateClearButton();
     const params = new URLSearchParams(new FormData(form));
     params.set('_ajax', '1');
     fetch(BASE + '/tasks/index.php?' + params.toString())
