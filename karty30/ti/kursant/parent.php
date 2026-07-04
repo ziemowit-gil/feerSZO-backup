@@ -109,11 +109,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'propose_
 }
 
 // Akceptacja regulaminu VLab przez opiekuna (u małoletniego kursanta akceptuje wyłącznie rodzic)
+// — pomijamy regulaminy już podpisane (bieżąca wersja) i zakończone (wycofane, is_active=0).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'accept_term') {
     $p = parent_current();
     if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
-        $term_id = (int)($_POST['term_id'] ?? 0);
-        if ($term_id > 0) {
+        $term_id  = (int)($_POST['term_id'] ?? 0);
+        $term_row = $term_id > 0 ? db_one("SELECT * FROM k30_ti_terms WHERE id=?", [$term_id]) : null;
+        if ($term_row && !empty($term_row['is_active']) && !ti_term_accepted((int)$p['client_id'], $term_row['type'])) {
             ti_term_accept((int)$p['client_id'], $term_id, (int)$p['student_id'], 'rodzic');
         }
     }

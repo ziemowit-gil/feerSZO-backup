@@ -86,14 +86,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tok = $_POST['_token'] ?? '';
     if (!hash_equals(student_token(), (string)$tok)) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
 
-    // Akceptacja regulaminu TI
+    // Akceptacja regulaminu TI — pomijamy regulaminy już podpisane (bieżąca wersja) i zakończone
+    // (wycofane, is_active=0), żeby powtórne/spreparowane wysłanie formularza nic nie zmieniało.
     if ($op === 'accept_term') {
-        $term_id = (int)($_POST['term_id'] ?? 0);
-        $term_row = $term_id > 0 ? db_one("SELECT type FROM k30_ti_terms WHERE id=?", [$term_id]) : null;
+        $term_id  = (int)($_POST['term_id'] ?? 0);
+        $term_row = $term_id > 0 ? db_one("SELECT * FROM k30_ti_terms WHERE id=?", [$term_id]) : null;
         // Regulamin VLab u małoletniego akceptuje wyłącznie opiekun w panelu rodzica — kursant nie może go
         // zaakceptować sam, nawet wysyłając formularz bezpośrednio.
-        $is_minor_acc = !empty($account['is_minor']);
-        if ($term_row && !($is_minor_acc && $term_row['type'] === 'vlab')) {
+        $is_minor_acc   = !empty($account['is_minor']);
+        $already_signed = $term_row && ti_term_accepted((int)$student['client_id'], $term_row['type']);
+        if ($term_row && !empty($term_row['is_active']) && !$already_signed && !($is_minor_acc && $term_row['type'] === 'vlab')) {
             ti_term_accept((int)$student['client_id'], $term_id, (int)$student['id']);
         }
         $redirect_tab = (string)($_POST['redirect_tab'] ?? 'regulaminy');
