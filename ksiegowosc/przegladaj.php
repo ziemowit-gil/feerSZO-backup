@@ -478,7 +478,7 @@ echo pagination_html($pag, '?' . $qs . ($qs ? '&' : ''));
     }
     if (gen) {
       footer += ' <a href="<?= APP_URL ?>/ksiegowosc/download.php?id=' + doc.id + '&type=final" target="_blank"'
-        + ' class="btn btn-sm btn-success"><i class="bi bi-file-earmark-check"></i> Pobierz finalny PDF</a>';
+        + ' class="btn btn-sm btn-success"><i class="bi bi-file-earmark-check"></i> Pobierz dokument końcowy</a>';
     }
     modalFooter.innerHTML = footer;
 
@@ -532,12 +532,12 @@ echo pagination_html($pag, '?' . $qs . ($qs ? '&' : ''));
     }
     html += '</div>'; // end karta info
 
-    // Finalny PDF
+    // Dokument końcowy
     if (gen) {
       html += '<div class="p-3 border-bottom bg-success bg-opacity-10">'
         + '<div class="d-flex align-items-center gap-2 small">'
         + '<i class="bi bi-file-earmark-check-fill text-success fs-5"></i>'
-        + '<div><strong class="text-success">Finalny PDF wygenerowany</strong><br>'
+        + '<div><strong class="text-success">Dokument końcowy wygenerowany</strong><br>'
         + '<span class="text-muted">Przez: ' + escHtml(gen.gen_name) + ' · ' + escHtml(gen.generated_at_pl) + '</span><br>'
         + '<code style="font-size:.68rem;word-break:break-all">' + escHtml(gen.file_sha256) + '</code>'
         + ' <span class="text-muted">(' + escHtml(gen.file_size_kb) + ' KB)</span>'

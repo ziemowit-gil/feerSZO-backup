@@ -780,6 +780,37 @@ function _pdf(string $s): string {
     return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
+/**
+ * Liczy ile linii zajmie tekst po zawinięciu w danej szerokości — TAK SAMO jak
+ * zrobi to MultiCell (zachłanne pakowanie słów wg realnej szerokości znaków tej
+ * czcionki), żeby tła/ramki dało się narysować PRZED tekstem z właściwą wysokością.
+ * Bez tego szacowanie „po liczbie znaków" rozjeżdżało się z prawdziwym zawinięciem
+ * i tekst wychodził poza narysowane tło (efekt „zlewających się" elementów).
+ * Celowo lekko nadszacowuje (bufor zamiast dokładnego cMargin) — bezpieczniej mieć
+ * tło odrobinę za wysokie niż za niskie.
+ */
+function _pdf_count_lines($pdf, string $text, float $width): int {
+    $avail = max(5, $width - 2);
+    $lines = 0;
+    foreach (explode("\n", $text) as $para) {
+        $words = preg_split('/\s+/u', trim($para));
+        if (!$words || $words === ['']) { $lines++; continue; }
+        $cur = '';
+        $n = 1;
+        foreach ($words as $word) {
+            $test = $cur === '' ? $word : $cur . ' ' . $word;
+            if ($pdf->GetStringWidth(_pdf($test)) > $avail && $cur !== '') {
+                $n++;
+                $cur = $word;
+            } else {
+                $cur = $test;
+            }
+        }
+        $lines += $n;
+    }
+    return max(1, $lines);
+}
+
 // ── Budowanie obiektu PDF (wspólne dla raportu i finalnego PDF) ───────────────
 
 /**
@@ -909,9 +940,14 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $y = max($pdf->GetY(), $topY + $barcodeH + ($doc['kwota'] ? 17 : 6)) + 3;
 
     // ── Opis merytoryczny — wyróżniony blok ──────────────────────────────────
+    // Wysokość tła liczona z realnego zawinięcia tekstu (_pdf_count_lines), a nie
+    // z szacunku „liczba znaków / 100" — ten drugi rozjeżdżał się z MultiCell
+    // i tekst wychodził poza narysowane tło.
     if ($doc['description']) {
-        $descLines = max(2, (int)ceil(mb_strlen($doc['description']) / 100) + 1);
-        $descH     = $descLines * 5 + 8;
+        $descBodyW = $W - 8;
+        $pdf->SetFont('DejaVu', '', 9);
+        $descLines = _pdf_count_lines($pdf, $doc['description'], $descBodyW);
+        $descH     = max(14, $descLines * 5 + 8);
         $pdf->SetDrawColor(...$LINE);
         $pdf->SetFillColor(250, 250, 249);
         $pdf->Rect(15, $y, $W, $descH, 'DF');
@@ -923,26 +959,31 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
         $pdf->Cell(0, 4, _pdf('OPIS MERYTORYCZNY'), 0, 1);
         $pdf->SetFont('DejaVu', '', 9);
         $pdf->SetTextColor(...$INK);
-        $pdf->SetX(20);
-        $pdf->MultiCell($W - 8, 5, _pdf($doc['description']), 0, 'L');
+        $pdf->SetXY(20, $y + 6);
+        $pdf->MultiCell($descBodyW, 5, _pdf($doc['description']), 0, 'L');
         $pdf->SetTextColor(0, 0, 0);
-        $y = $pdf->GetY() + 3;
+        $y = max($pdf->GetY(), $y + $descH) + 3;
     }
 
-    // MPK / Grant / Uwagi — kompaktowy pasek
+    // MPK / Grant / Uwagi — pasek, teraz zawijany (MultiCell) zamiast jednej linii Cell,
+    // która przy dłuższej treści wychodziła poza tło i poza margines strony.
     $extras = [];
     if ($doc['mpk'])        $extras[] = 'MPK: ' . $doc['mpk'];
     if ($doc['grant_name']) $extras[] = 'Grant: ' . $doc['grant_name'];
     if ($doc['uwagi'])      $extras[] = 'Uwagi: ' . $doc['uwagi'];
     if ($extras) {
-        $pdf->SetFillColor(...$TINT);
-        $pdf->Rect(15, $y, $W, 6, 'F');
+        $extraBodyW = $W - 6;
+        $extraText  = implode('     ·     ', $extras);
         $pdf->SetFont('DejaVu', '', 7.5);
+        $extraLines = _pdf_count_lines($pdf, $extraText, $extraBodyW);
+        $extraH     = max(6, $extraLines * 4.2 + 2.4);
+        $pdf->SetFillColor(...$TINT);
+        $pdf->Rect(15, $y, $W, $extraH, 'F');
         $pdf->SetTextColor(...$ACCENT);
-        $pdf->SetXY(18, $y + 0.8);
-        $pdf->Cell(0, 4.5, _pdf(implode('     ·     ', $extras)), 0, 1);
+        $pdf->SetXY(18, $y + 1.2);
+        $pdf->MultiCell($extraBodyW, 4.2, _pdf($extraText), 0, 'L');
         $pdf->SetTextColor(0, 0, 0);
-        $y += 7;
+        $y = max($pdf->GetY(), $y + $extraH) + 1;
     }
 
     $y += 3;
@@ -973,8 +1014,13 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
         $fp     = $step['cert_fingerprint'] ?? '';
         $dot    = $stepDot[$status] ?? $stepDot[''];
         $rowAlt = !$rowAlt;
+        // Ten sam kolor tła dla nagłówka WIERSZA i jego bloków SHA/Uwagi poniżej —
+        // wcześniej SHA/Uwagi zawsze rysowały się na białym (fill=false), więc
+        // przy zacienionym wierszu wyglądało to jak dwa osobne, "zlewające się"
+        // elementy zamiast jednej spójnej sekcji tego samego etapu.
+        $rf = $rowAlt ? [250, 250, 249] : [255, 255, 255];
 
-        $pdf->SetFillColor($rowAlt ? 250 : 255, $rowAlt ? 250 : 255, $rowAlt ? 249 : 255);
+        $pdf->SetFillColor(...$rf);
         $pdf->Cell($cW[0], 6.5, _pdf($label),  'B', 0, 'L', true);
         $pdf->Cell($cW[1], 6.5, _pdf($cn),     'B', 0, 'L', true);
         $pdf->Cell($cW[2], 6.5, _pdf($dt),     'B', 0, 'C', true);
@@ -987,15 +1033,20 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
 
         if ($fp) {
             $pdf->SetFont('DejaVu', '', 5.5); $pdf->SetTextColor(120, 128, 132); $pdf->SetX(15);
+            $pdf->SetFillColor(...$rf);
             $fc = str_replace(':', '', $fp);
-            $pdf->MultiCell($W, 3.6, _pdf('SHA-256  ' . substr($fc, 0, 32) . "\n              " . substr($fc, 32)), 'B', 'L', false);
+            $pdf->MultiCell($W, 3.6, _pdf('SHA-256  ' . substr($fc, 0, 32) . "\n              " . substr($fc, 32)), 'B', 'L', true);
             $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(...$INK);
         }
         if ($step && $step['notes']) {
             $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetTextColor(...$GOLD); $pdf->SetX(15);
-            $pdf->MultiCell($W, 4, _pdf('Uwagi: ' . $step['notes']), 'B', 'L', false);
+            $pdf->SetFillColor(...$rf);
+            $pdf->MultiCell($W, 4, _pdf('Uwagi: ' . $step['notes']), 'B', 'L', true);
             $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(...$INK);
         }
+        // Odstęp między etapami, żeby granica jednego etapu i początek kolejnego
+        // były jednoznaczne nawet gdy oba mają to samo tło (rowAlt).
+        $pdf->SetY($pdf->GetY() + 1.2);
     }
     $pdf->SetDrawColor(...$LINE);
     $pdf->Line(15, $pdf->GetY(), 15 + $W, $pdf->GetY());
@@ -1009,21 +1060,37 @@ function kdok_build_report_pdf(array $doc, array $history): \setasign\Fpdi\Fpdi 
     $sectionLabel('Historia obiegu');
 
     $hW = [34, 58, $W - 92];
-    $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('DejaVu', 'B', 7.5);
-    $pdf->Cell($hW[0], 5.5, _pdf('Data i czas'), 'B', 0, 'C', true);
-    $pdf->Cell($hW[1], 5.5, _pdf('Uzytkownik'),  'B', 0, 'C', true);
-    $pdf->Cell($hW[2], 5.5, _pdf('Zdarzenie'),   'B', 1, 'C', true);
-    $pdf->SetTextColor(0, 0, 0);
+    $drawHistoryHeader = function () use ($pdf, $hW, $TINT, $INK) {
+        $pdf->SetFillColor(...$TINT); $pdf->SetTextColor(...$INK); $pdf->SetFont('DejaVu', 'B', 7.5);
+        $pdf->Cell($hW[0], 5.5, _pdf('Data i czas'), 'B', 0, 'C', true);
+        $pdf->Cell($hW[1], 5.5, _pdf('Uzytkownik'),  'B', 0, 'C', true);
+        $pdf->Cell($hW[2], 5.5, _pdf('Zdarzenie'),   'B', 1, 'C', true);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('DejaVu', '', 7.5);
+    };
+    $drawHistoryHeader();
 
-    $pdf->SetFont('DejaVu', '', 7.5); $alt = false;
+    // "Zdarzenie" renderowane teraz przez MultiCell (zawija długi tekst) zamiast
+    // Cell (który przy dłuższej notatce wychodził poza kolumnę i poza margines
+    // strony — widoczne obcięte słowa na prawym brzegu). Wysokość wiersza liczona
+    // z realnej liczby linii, więc wysoki wiersz nie zostaje przecięty na granicy
+    // strony — a jeśli i tak trafi na nową stronę, nagłówek tabeli jest powtórzony.
+    $alt = false;
     foreach ($history as $row) {
-        if ($pdf->GetY() > $LIM - 10) { $pdf->AddPage('L', 'A4'); }
+        $txt   = $row['action'] . ($row['note'] ? ': ' . $row['note'] : '');
+        $lineH = 4.2;
+        $lines = _pdf_count_lines($pdf, $txt, $hW[2] - 4);
+        $rowH  = max(5.5, $lines * $lineH + 1.2);
+
+        if ($pdf->GetY() + $rowH > $LIM) {
+            $pdf->AddPage('L', 'A4');
+            $drawHistoryHeader();
+        }
         $alt = !$alt;
         $pdf->SetFillColor($alt ? 250 : 255, $alt ? 250 : 255, $alt ? 249 : 255);
-        $txt = $row['action'] . ($row['note'] ? ': ' . $row['note'] : '');
-        $pdf->Cell($hW[0], 5.5, _pdf(date('d.m.Y H:i', strtotime($row['created_at']))), 'B', 0, 'C', true);
-        $pdf->Cell($hW[1], 5.5, _pdf($row['user_name']), 'B', 0, 'L', true);
-        $pdf->Cell($hW[2], 5.5, _pdf($txt),              'B', 1, 'L', true);
+        $pdf->Cell($hW[0], $rowH, _pdf(date('d.m.Y H:i', strtotime($row['created_at']))), 'B', 0, 'C', true);
+        $pdf->Cell($hW[1], $rowH, _pdf($row['user_name']), 'B', 0, 'L', true);
+        $pdf->MultiCell($hW[2], $lineH, _pdf($txt), 'B', 'L', true);
     }
     $pdf->SetDrawColor(...$LINE);
     $pdf->Line(15, $pdf->GetY(), 15 + $W, $pdf->GetY());
@@ -1082,7 +1149,7 @@ function kdok_generate_final_pdf(int $doc_id): string {
         'gen_name'     => $user['name'] ?? '',
     ]);
 
-    kdok_log($doc_id, 'Wygenerowano finalny PDF z kartą obiegu',
+    kdok_log($doc_id, 'Wygenerowano dokument końcowy',
         'SHA-256: ' . $sha256 . ' | ' . number_format($size / 1024, 1) . ' KB');
 
     return $rel;

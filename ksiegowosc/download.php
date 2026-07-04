@@ -41,7 +41,7 @@ if ($expected_hash && $actual_hash !== $expected_hash) {
     die('BŁĄD INTEGRALNOŚCI: Suma kontrolna pliku nie zgadza się. Plik mógł zostać zmodyfikowany.');
 }
 
-kdok_log($id, 'Pobrano plik', ($type === 'final' ? 'Finalny PDF' : 'Oryginał'));
+kdok_log($id, 'Pobrano plik', ($type === 'final' ? 'Dokument końcowy' : 'Oryginał'));
 
 header('Content-Type: application/pdf');
 header('Content-Disposition: attachment; filename="' . $dl_name . '"');

@@ -25,8 +25,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
 
-    // Aktualizacja metadanych dokumentu
+    // Aktualizacja metadanych dokumentu — zablokowana po zatwierdzeniu/odrzuceniu,
+    // żeby nie dało się po fakcie zmienić kwoty/opisu na dokumencie podpisanym
+    // już X.509 + WebAuthn/IKAKS (naruszałoby integralność zapisanej decyzji).
     if ($action === 'update_meta' && (is_admin() || kdok_has_role('upload'))) {
+        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
+            flash_set('danger', 'Dokument jest już ' . ($doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony') . ' — edycja danych jest zablokowana.');
+            header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+            exit;
+        }
+
         $contract_type = trim($_POST['contract_type'] ?? '');
         $contract_id   = (int)($_POST['contract_id'] ?? 0);
         if ($doc['type'] !== 'rachunek' || !$contract_type || !$contract_id || !kdok_contract_label($contract_type, $contract_id)) {
@@ -120,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         kdok_require_role('zatwierdza');
         try {
             kdok_generate_final_pdf($id);
-            flash_set('success', 'PDF z historią obiegu został wygenerowany.');
+            flash_set('success', 'Dokument końcowy został wygenerowany.');
         } catch (Throwable $e) {
             flash_set('danger', 'Błąd generowania PDF: ' . $e->getMessage());
         }
@@ -128,8 +136,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Odrzucenie dokumentu
+    // Odrzucenie dokumentu — zablokowane, gdy dokument jest już zaakceptowany
+    // (zatwierdzenie jest ostateczne; cofnięcie po fakcie wymagałoby osobnej,
+    // świadomej procedury, nie zwykłego przycisku "Odrzuć").
     if ($action === 'reject' && is_admin()) {
+        if ($doc['status'] === 'zaakceptowany') {
+            flash_set('danger', 'Dokument jest już zaakceptowany — nie można go odrzucić.');
+            header('Location: ' . APP_URL . '/ksiegowosc/view.php?id=' . $id);
+            exit;
+        }
         $note = trim($_POST['reject_note'] ?? '');
         kdok_exec("UPDATE kdok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
         kdok_log($id, 'Dokument odrzucony', $note);
@@ -142,6 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $doc     = kdok_get($id);
 $history = kdok_get_history($id);
 $PAGE_TITLE = 'Dokument ' . $doc['number'];
+// Dokument zatwierdzony lub odrzucony jest zablokowany do edycji (patrz guardy
+// przy akcjach update_meta/reject powyżej — to tylko lustrzana blokada w UI).
+$kdok_locked = in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true);
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -212,7 +230,14 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <?php endif; ?>
 
-        <?php if (!$errors && (is_admin() || kdok_has_role('upload'))): ?>
+        <?php if ($kdok_locked && (is_admin() || kdok_has_role('upload'))): ?>
+        <div class="small text-muted mb-2">
+          <i class="bi bi-lock-fill"></i> Dokument <?= $doc['status'] === 'zaakceptowany' ? 'zaakceptowany' : 'odrzucony' ?> — dane nie mogą już być zmieniane.
+        </div>
+        <?php if ($doc['description']): ?>
+        <p class="mb-0 small"><strong>Opis merytoryczny:</strong> <?= nl2br(h($doc['description'])) ?></p>
+        <?php endif; ?>
+        <?php elseif (!$errors && (is_admin() || kdok_has_role('upload'))): ?>
         <button class="btn btn-sm btn-outline-secondary mb-2" type="button"
           data-bs-toggle="collapse" data-bs-target="#metaForm">
           <i class="bi bi-pencil"></i> Edytuj dane dokumentu
@@ -412,7 +437,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="d-flex gap-2 flex-wrap mb-3">
       <?php if ($doc['generated']): ?>
       <button type="button" class="btn btn-outline-secondary disabled" disabled
-              title="Dostępny jest już oficjalny finalny PDF (poniżej) — raport na żywo jest wyłączony, aby uniknąć dwóch różnych wersji dokumentu.">
+              title="Dostępny jest już oficjalny dokument końcowy (poniżej) — raport na żywo jest wyłączony, aby uniknąć dwóch różnych wersji dokumentu.">
         <i class="bi bi-printer"></i> Raport weryfikacji
       </button>
       <?php else: ?>
@@ -426,27 +451,27 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="action" value="generate_pdf">
         <button type="submit" class="btn btn-outline-primary">
-          <i class="bi bi-file-earmark-arrow-down"></i> Generuj PDF z historią obiegu
+          <i class="bi bi-file-earmark-arrow-down"></i> Generuj dokument końcowy
         </button>
       </form>
       <?php endif; ?>
-      <?php if (is_admin() && !in_array($doc['status'], ['odrzucony'])): ?>
+      <?php if (is_admin() && !$kdok_locked): ?>
       <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
         <i class="bi bi-x-circle"></i> Odrzuć dokument (admin)
       </button>
       <?php endif; ?>
     </div>
 
-    <!-- Wygenerowane PDF -->
+    <!-- Dokument końcowy -->
     <?php if ($doc['generated']): ?>
     <div class="card shadow-sm mb-3 border-success">
       <div class="card-header bg-success text-white py-2">
-        <i class="bi bi-file-earmark-check-fill"></i> <strong>Finalny PDF z historią obiegu</strong>
+        <i class="bi bi-file-earmark-check-fill"></i> <strong>Dokument końcowy</strong>
       </div>
       <div class="card-body py-2 small">
         <div class="d-flex align-items-center gap-3 flex-wrap">
           <a href="<?= APP_URL ?>/ksiegowosc/download.php?id=<?= $id ?>&type=final" class="btn btn-success btn-sm">
-            <i class="bi bi-download"></i> Pobierz finalny PDF
+            <i class="bi bi-download"></i> Pobierz dokument końcowy
           </a>
           <span class="text-muted">
             Wygenerowano: <?= date_pl($doc['generated']['generated_at']) ?>
