@@ -667,6 +667,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_enabled        INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_activation_fee REAL    NOT NULL DEFAULT 100",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_monthly_fee    REAL    NOT NULL DEFAULT 30",
+        // Lista zablokowanego oprogramowania (jedna pozycja na wiersz) — informacja dla kursanta
+        "ALTER TABLE k30_ti_vlab_config ADD COLUMN blocked_software TEXT NOT NULL DEFAULT ''",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
     // Rejestr otwartych portów per kontener (UFW + Azure NSG)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_ports (

@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'dedicated_ip_enabled'        => isset($_POST['dedicated_ip_enabled']) ? 1 : 0,
             'dedicated_ip_activation_fee' => max(0, (float)str_replace(',', '.', $_POST['dedicated_ip_activation_fee'] ?? 100)),
             'dedicated_ip_monthly_fee'    => max(0, (float)str_replace(',', '.', $_POST['dedicated_ip_monthly_fee'] ?? 30)),
+            'blocked_software' => trim($_POST['blocked_software'] ?? ''),
             'updated_by'      => $uid ?: null,
         ];
         // Hasło SSH zmieniamy tylko jeśli podane (puste = bez zmian)
@@ -333,6 +334,13 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <div class="col-6"><label class="form-label small">Abonament miesięczny (zł)</label>
               <input class="form-control form-control-sm" name="dedicated_ip_monthly_fee" value="<?= h(number_format((float)($cfg['dedicated_ip_monthly_fee'] ?? 30), 2, ',', '')) ?>"></div>
             <div class="form-text small">Adres IP przydziela admin ręcznie po zamówieniu (zakładka „Porty" maszyny). Abonament nalicza cron <code>cli/vlab_dedicated_ip_monthly_charge.php</code>.</div>
+          </div>
+          <hr>
+          <p class="fw-semibold small mb-2"><i class="bi bi-shield-x me-1"></i>Lista zablokowanego oprogramowania</p>
+          <div class="mb-3">
+            <label class="form-label small" for="blocked_software">Jedna pozycja na wiersz — informacja wyświetlana kursantom w zakładce VLab</label>
+            <textarea class="form-control form-control-sm" name="blocked_software" id="blocked_software" rows="4"
+                      placeholder="np.&#10;Klienty torrent (qBittorrent, Transmission…)&#10;Narzędzia do kopania kryptowalut&#10;Skanery portów masowe (nmap w trybie agresywnym)"><?= h($cfg['blocked_software'] ?? '') ?></textarea>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-12"><label class="form-label small">Subscription ID</label>

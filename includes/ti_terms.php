@@ -37,8 +37,10 @@ function ti_terms_migrate(): void {
         version    INTEGER NOT NULL DEFAULT 1,
         ip         TEXT    NOT NULL DEFAULT '',
         ua         TEXT    NOT NULL DEFAULT '',
-        accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        accepted_by_role TEXT NOT NULL DEFAULT 'kursant' -- 'kursant' | 'rodzic' — kto faktycznie zaakceptował
     )");
+    try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN accepted_by_role TEXT NOT NULL DEFAULT 'kursant'"); } catch (\Throwable $e) {}
 
     db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_terms_acc ON k30_ti_terms_accepts(client_id, term_id)");
 
@@ -98,8 +100,12 @@ function ti_terms_pending(int $client_id): array {
     return $pending;
 }
 
-/** Zapisz akceptację regulaminu przez kursanta. */
-function ti_term_accept(int $client_id, int $term_id, int $account_id): void {
+/**
+ * Zapisz akceptację regulaminu. $role rozróżnia kto faktycznie kliknął „akceptuję":
+ * 'kursant' (domyślnie) — sam kursant, we własnym panelu; 'rodzic' — opiekun w panelu rodzica
+ * (wymagane dla regulaminów, które u małoletnich musi zaakceptować opiekun, np. VLab).
+ */
+function ti_term_accept(int $client_id, int $term_id, int $account_id, string $role = 'kursant'): void {
     ti_terms_migrate();
     $term = db_one("SELECT version FROM k30_ti_terms WHERE id=?", [$term_id]);
     if (!$term) return;
@@ -112,6 +118,7 @@ function ti_term_accept(int $client_id, int $term_id, int $account_id): void {
         'version'    => (int)$term['version'],
         'ip'         => substr($_SERVER['REMOTE_ADDR'] ?? '', 0, 45),
         'ua'         => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 300),
+        'accepted_by_role' => $role === 'rodzic' ? 'rodzic' : 'kursant',
     ]);
 }
 

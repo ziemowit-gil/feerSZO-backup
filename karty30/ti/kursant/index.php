@@ -89,7 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Akceptacja regulaminu TI
     if ($op === 'accept_term') {
         $term_id = (int)($_POST['term_id'] ?? 0);
-        if ($term_id > 0) {
+        $term_row = $term_id > 0 ? db_one("SELECT type FROM k30_ti_terms WHERE id=?", [$term_id]) : null;
+        // Regulamin VLab u małoletniego akceptuje wyłącznie opiekun w panelu rodzica — kursant nie może go
+        // zaakceptować sam, nawet wysyłając formularz bezpośrednio.
+        $is_minor_acc = !empty($account['is_minor']);
+        if ($term_row && !($is_minor_acc && $term_row['type'] === 'vlab')) {
             ti_term_accept((int)$student['client_id'], $term_id, (int)$student['id']);
         }
         $redirect_tab = (string)($_POST['redirect_tab'] ?? 'regulaminy');
@@ -2084,10 +2088,42 @@ document.addEventListener('DOMContentLoaded', function() {
     $vlab_term = ti_term_get('vlab'); ?>
   <div class="row justify-content-center">
     <div class="col-lg-7">
+      <?php if ($is_minor): ?>
+      <div class="card border-warning mb-4 shadow-sm">
+        <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center gap-2">
+          <i class="bi bi-file-earmark-text text-warning fs-5" aria-hidden="true"></i>
+          <strong><?= h($vlab_term['title'] ?? 'Regulamin vLAB') ?></strong>
+        </div>
+        <div class="card-body">
+          <div class="border rounded p-3 mb-3 small"
+               style="max-height:320px;overflow-y:auto;background:var(--bs-tertiary-bg)"
+               tabindex="0" aria-label="Treść regulaminu <?= h($vlab_term['title'] ?? '') ?>">
+            <?= $vlab_term['body_html'] ?? '' ?>
+          </div>
+          <div class="alert alert-info d-flex align-items-start gap-2 mb-0">
+            <i class="bi bi-people-fill mt-1" aria-hidden="true"></i>
+            <span>Jesteś niepełnoletni/a — regulamin VLab musi zaakceptować Twój opiekun, logując się do <strong>panelu rodzica</strong>. Poinformuj opiekuna — po zalogowaniu znajdzie regulamin w zakładce „Regulamin VLab".</span>
+          </div>
+        </div>
+      </div>
+      <?php else: ?>
       <?= _ti_terms_acceptance_block($vlab_term, $vlab_token, 'vlab') ?>
+      <?php endif; ?>
     </div>
   </div>
   <?php else: ?>
+
+  <?php $vlab_blocked_sw = vlab_blocked_software(); if ($vlab_blocked_sw): ?>
+  <div class="alert alert-warning small mb-3">
+    <div class="fw-semibold mb-1"><i class="bi bi-shield-x me-1" aria-hidden="true"></i>Zablokowane oprogramowanie</div>
+    <p class="mb-1">Instalowanie i uruchamianie poniższego oprogramowania w maszynach VLab jest zabronione:</p>
+    <ul class="mb-0 ps-3">
+      <?php foreach ($vlab_blocked_sw as $bsw): ?>
+      <li><?= h($bsw) ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
 
   <div id="vlab-root" data-token="<?= h($vlab_token) ?>">
     <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
@@ -3514,7 +3550,14 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
   <?php foreach ($terms_pending as $tp): ?>
+  <?php if ($is_minor && $tp['type'] === 'vlab'): ?>
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+    <i class="bi bi-people-fill mt-1" aria-hidden="true"></i>
+    <span><strong><?= h($tp['title']) ?></strong> — jesteś niepełnoletni/a, ten regulamin musi zaakceptować Twój opiekun w panelu rodzica (zakładka „Regulamin VLab").</span>
+  </div>
+  <?php else: ?>
   <?= _ti_terms_acceptance_block($tp, $vlab_token, 'regulaminy') ?>
+  <?php endif; ?>
   <?php endforeach; ?>
   <?php endif; ?>
 
@@ -3535,7 +3578,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <tbody>
           <?php foreach ($terms_accepted as $ta): ?>
           <tr>
-            <td><?= h($ta['title']) ?></td>
+            <td><?= h($ta['title']) ?>
+              <?php if (($ta['accepted_by_role'] ?? 'kursant') === 'rodzic'): ?>
+              <span class="badge text-bg-secondary ms-1" title="Zaakceptowane przez opiekuna"><i class="bi bi-people-fill" aria-hidden="true"></i> opiekun</span>
+              <?php endif; ?>
+            </td>
             <td class="text-nowrap small"><?= h(date('d.m.Y H:i', strtotime($ta['accepted_at']))) ?></td>
             <td class="font-monospace small text-body-secondary"><?= h($ta['ip']) ?></td>
             <td class="small">v<?= (int)$ta['version'] ?></td>

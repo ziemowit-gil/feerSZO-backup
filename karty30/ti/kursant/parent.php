@@ -9,6 +9,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
 require_once __DIR__ . '/auth.php';
 
 karty30_migrate();
@@ -107,6 +108,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'propose_
     header('Location: parent.php?ptab=harmonogram'); exit;
 }
 
+// Akceptacja regulaminu VLab przez opiekuna (u małoletniego kursanta akceptuje wyłącznie rodzic)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'accept_term') {
+    $p = parent_current();
+    if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
+        $term_id = (int)($_POST['term_id'] ?? 0);
+        if ($term_id > 0) {
+            ti_term_accept((int)$p['client_id'], $term_id, (int)$p['student_id'], 'rodzic');
+        }
+    }
+    $redirect_tab = (string)($_POST['redirect_tab'] ?? 'vlab');
+    header('Location: parent.php?ptab=' . urlencode($redirect_tab) . '&accepted=1'); exit;
+}
+
 // Ustawienia powiadomien rodzica
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_notify_prefs') {
     $p = parent_current();
@@ -190,7 +204,8 @@ if ($parent && isset($_GET['grades_pdf'])) {
 }
 
 $ptab   = $_GET['ptab'] ?? 'rozliczenia';
-if (!in_array($ptab, ['rozliczenia','frekwencja','oceny','licencje','dostep','harmonogram','wiadomosci'], true)) $ptab = 'rozliczenia';
+if (!in_array($ptab, ['rozliczenia','frekwencja','oceny','licencje','dostep','harmonogram','wiadomosci','vlab'], true)) $ptab = 'rozliczenia';
+$vlab_term_pending_parent = $parent ? !ti_term_accepted((int)$parent['client_id'], 'vlab') : false;
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
 $KP_TITLE  = 'Panel rodzica';
 $KP_TOPBAR = [
@@ -421,6 +436,12 @@ include __DIR__ . '/_layout_head.php';
       <li class="nav-item">
         <a class="nav-link <?= $ptab==='wiadomosci'?'active':'' ?>" href="?ptab=wiadomosci" <?= $ptab==='wiadomosci'?'aria-current="page"':'' ?>>
           <i class="bi bi-chat-text me-1" aria-hidden="true"></i>Wiadomości
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <?= $ptab==='vlab'?'active':'' ?>" href="?ptab=vlab" <?= $ptab==='vlab'?'aria-current="page"':'' ?>>
+          <i class="bi bi-hdd-stack me-1" aria-hidden="true"></i>Regulamin VLab
+          <?php if ($vlab_term_pending_parent): ?><span class="badge text-bg-warning ms-1" title="Wymaga akceptacji"><i class="bi bi-exclamation-lg" aria-hidden="true"></i></span><?php endif; ?>
         </a>
       </li>
       <li class="nav-item">
@@ -746,6 +767,36 @@ include __DIR__ . '/_layout_head.php';
     </div>
   </div>
   <?php endforeach; ?>
+  <?php endif; ?>
+
+<?php elseif ($ptab === 'vlab'):
+    $vlab_term    = ti_term_get('vlab');
+    $vlab_ok      = !$vlab_term_pending_parent;
+    $vlab_ptok    = student_token();
+    $vlab_accept  = $vlab_ok ? db_one(
+        "SELECT a.* FROM k30_ti_terms_accepts a WHERE a.client_id=? AND a.term_id=? ORDER BY a.id DESC LIMIT 1",
+        [(int)$parent['client_id'], (int)($vlab_term['id'] ?? 0)]
+    ) : null;
+?>
+  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1"><i class="bi bi-hdd-stack text-primary" aria-hidden="true"></i>Regulamin VLab</h1>
+  <p class="text-body-secondary small mb-3">
+    VLab to moduł wirtualnych maszyn (Docker/SSH) do ćwiczeń kursanta. Ponieważ Twoje dziecko jest niepełnoletnie,
+    regulamin korzystania z VLab musi zaakceptować opiekun.
+  </p>
+  <?php if (!empty($_GET['accepted'])): ?>
+  <div class="alert alert-success py-2 small" role="alert">
+    <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Regulamin zaakceptowany. Dziecko może teraz korzystać z modułu VLab.
+  </div>
+  <?php endif; ?>
+  <?php if ($vlab_ok): ?>
+  <div class="alert alert-success d-flex align-items-start gap-2" role="status">
+    <i class="bi bi-check-circle-fill mt-1" aria-hidden="true"></i>
+    <div>
+      Regulamin VLab został zaakceptowany<?= $vlab_accept ? ' dnia ' . h(date('d.m.Y H:i', strtotime($vlab_accept['accepted_at']))) . ' (wersja v' . (int)$vlab_accept['version'] . ')' : '' ?>.
+    </div>
+  </div>
+  <?php else: ?>
+  <?= _ti_terms_acceptance_block($vlab_term, $vlab_ptok, 'vlab') ?>
   <?php endif; ?>
 
 <?php elseif ($ptab === 'dostep'):
