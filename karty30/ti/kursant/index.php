@@ -3898,7 +3898,7 @@ $authp_list = db_all(
 
 <div class="alert alert-info d-flex gap-2 py-2 small mb-3" role="note">
   <i class="bi bi-info-circle flex-shrink-0 mt-1" aria-hidden="true"></i>
-  <span>Listą upoważnień zarządza administrator. Aby dodać lub usunąć osobę, skontaktuj się z biurem.</span>
+  <span>Listą upoważnień zarządza administrator. Aby dodać lub usunąć osobę, skontaktuj się z placówką.</span>
 </div>
 
 <?php if ($authp_list): ?>
