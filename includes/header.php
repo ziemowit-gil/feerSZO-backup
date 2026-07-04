@@ -398,6 +398,7 @@ body { background: #f8fafc; }
 </head>
 <body>
 <?= function_exists('ctx_banner_html') ? ctx_banner_html() : '' ?>
+<?= function_exists('helpdesk_intro_banner_html') ? helpdesk_intro_banner_html() : '' ?>
 
 <!-- ── NAVBAR ─────────────────────────────────────────────────── -->
 <?php

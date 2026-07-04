@@ -90,6 +90,7 @@ function helpdesk_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_hd_att_ticket ON helpdesk_attachments(ticket_id)");
 
     try { $pdo->exec("ALTER TABLE users ADD COLUMN helpdesk_operator INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN helpdesk_intro_seen_at DATETIME"); } catch (\Throwable $e) {}
 
     // Samonaprawa schematu — kolumny dla przekazania do firmy zewnętrznej
     // oraz token publicznego mikropanelu podglądu/odpowiedzi.
@@ -161,6 +162,46 @@ function helpdesk_migrate(): void {
         $s = db_one("SELECT id FROM settings WHERE key_='bug_report_enabled'");
         if (!$s) $pdo->prepare("INSERT INTO settings (key_, value) VALUES (?,?)")->execute(['bug_report_enabled', '1']);
     } catch (\Throwable $e) {}
+}
+
+// ── Baner powitalny (tylko przy 1. logowaniu) ──────────────────────────────────
+// Znacznik trwały w bazie (nie localStorage) — pokazuje się raz na konto,
+// niezależnie od urządzenia/przeglądarki, aż użytkownik go odrzuci.
+
+function helpdesk_intro_mark_seen(int $user_id): void {
+    try {
+        db()->prepare("UPDATE users SET helpdesk_intro_seen_at = datetime('now') WHERE id = ?")
+            ->execute([$user_id]);
+    } catch (\Throwable $e) {}
+}
+
+function helpdesk_intro_banner_html(): string {
+    $u = current_user();
+    if (!$u || !module_enabled('helpdesk_enabled')) return '';
+
+    // Odśwież ze świeżej bazy — sesja może być nieaktualna.
+    try {
+        $row = db_one("SELECT helpdesk_intro_seen_at FROM users WHERE id=?", [(int)$u['id']]);
+    } catch (\Throwable $e) { return ''; }
+    if (!$row || $row['helpdesk_intro_seen_at'] !== null) return '';
+
+    $h    = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $app  = defined('APP_URL') ? APP_URL : '';
+    $ret  = $h($_SERVER['REQUEST_URI'] ?? '/index.php');
+
+    return '<div style="position:sticky;top:0;z-index:10700;display:flex;align-items:center;gap:.6rem;'
+        . 'flex-wrap:wrap;background:#eff6ff;color:#1e3a8a;padding:.5rem .9rem;font-size:.85rem;'
+        . 'border-bottom:1px solid #bfdbfe" role="alert">'
+        . '<i class="bi bi-life-preserver" style="font-size:1rem;flex-shrink:0"></i>'
+        . '<span><strong>Masz problem techniczny?</strong> Zgłoś go przez '
+        . '<a href="' . $h($app) . '/helpdesk/new.php" style="color:#1d4ed8;font-weight:600">Helpdesk</a> '
+        . '— znajdziesz go też w menu górnym.</span>'
+        . '<form method="post" action="' . $h($app) . '/helpdesk/intro_dismiss.php" style="margin-left:auto">'
+        . '<input type="hidden" name="_csrf" value="' . $h(csrf_token()) . '">'
+        . '<input type="hidden" name="return" value="' . $ret . '">'
+        . '<button type="submit" class="btn-close" aria-label="Zamknij"></button>'
+        . '</form>'
+        . '</div>';
 }
 
 // ── Autoryzacja ───────────────────────────────────────────────────────────────
