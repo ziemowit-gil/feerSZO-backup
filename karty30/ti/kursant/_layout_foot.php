@@ -3,7 +3,7 @@
 <script>
 // Schematy kolorow — przyciski swatch w panelu dostepnosci + przycisk palety w navbarze.
 (function(){
-  var SCHEMES = ['classic','mint','violet','warm','slate'];
+  var SCHEMES = ['classic','mint','violet','warm','slate','metro'];
 
   function applyScheme(s){
     if (!s || !SCHEMES.includes(s)) s = 'classic';

@@ -56,6 +56,11 @@ if(localStorage.getItem('kp-hidemenu')==='1')d.classList.add('kp-hidemenu');
   --kp-body-bg:#f1f5f9; --kp-primary:#475569; --kp-primary-rgb:71,85,105;
   --kp-primary-hover:#334155; --kp-focus:#94a3b8; --kp-brand-gradient:linear-gradient(150deg,#0f172a 0%,#475569 50%,#64748b 100%);
 }
+/* Schemat: Metro (plaskie kolorowe kafle w stylu Windows 8 / Modern UI) */
+[data-kp-scheme="metro"] {
+  --kp-body-bg:#f2f2f2; --kp-primary:#2D89EF; --kp-primary-rgb:45,137,239;
+  --kp-primary-hover:#1e6fd0; --kp-focus:#2D89EF; --kp-brand-gradient:linear-gradient(150deg,#1a1a1a 0%,#2D89EF 100%);
+}
 /* Aplikacja schematow do BS tokens */
 body { background-color:var(--kp-body-bg) !important; }
 :root, [data-kp-scheme] {
@@ -191,6 +196,77 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 }
 .kp-a11y-panel[hidden] { display:none; }
 @media (max-width:575.98px){ .kp-a11y-panel { top:auto; bottom:.5rem; } }
+
+/* ══ Motyw Metro (kafle, ostre kąty, płaskie kolory — Windows 8 / Modern UI) ══ */
+/* Ogólny reset kształtu: bez zaokrągleń i cieni w całym panelu */
+[data-kp-scheme="metro"] .card, [data-kp-scheme="metro"] .btn, [data-kp-scheme="metro"] .badge,
+[data-kp-scheme="metro"] .alert, [data-kp-scheme="metro"] .modal-content, [data-kp-scheme="metro"] .form-control,
+[data-kp-scheme="metro"] .form-select, [data-kp-scheme="metro"] .input-group-text, [data-kp-scheme="metro"] .list-group-item,
+[data-kp-scheme="metro"] .dropdown-menu, [data-kp-scheme="metro"] .table, [data-kp-scheme="metro"] .nav-link,
+[data-kp-scheme="metro"] .vlab-hero, [data-kp-scheme="metro"] .vlab-card, [data-kp-scheme="metro"] .vlab-tpl-card,
+[data-kp-scheme="metro"] .vlab-icon-badge, [data-kp-scheme="metro"] .kp-auth-card, [data-kp-scheme="metro"] .kp-auth-logo {
+  border-radius:0 !important;
+}
+[data-kp-scheme="metro"] .card, [data-kp-scheme="metro"] .shadow, [data-kp-scheme="metro"] .shadow-sm,
+[data-kp-scheme="metro"] .vlab-hero, [data-kp-scheme="metro"] .vlab-card, [data-kp-scheme="metro"] .vlab-tpl-card,
+[data-kp-scheme="metro"] .kp-auth-card, [data-kp-scheme="metro"] .btn {
+  box-shadow:none !important;
+}
+[data-kp-scheme="metro"] .card { border:1px solid var(--bs-border-color); }
+[data-kp-scheme="metro"] .vlab-card:hover, [data-kp-scheme="metro"] .vlab-tpl-card:hover { transform:none; }
+[data-kp-scheme="metro"] h1, [data-kp-scheme="metro"] h2, [data-kp-scheme="metro"] h3, [data-kp-scheme="metro"] h4,
+[data-kp-scheme="metro"] .h1, [data-kp-scheme="metro"] .h2, [data-kp-scheme="metro"] .h3, [data-kp-scheme="metro"] .h4,
+[data-kp-scheme="metro"] .h5, [data-kp-scheme="metro"] .h6 {
+  font-weight:700; letter-spacing:.01em;
+}
+[data-kp-scheme="metro"] .btn { font-weight:600; }
+[data-kp-scheme="metro"] .btn:hover { filter:brightness(1.08); }
+
+/* Nawigacja główna → siatka kolorowych kafli (odpowiednik ekranu Start) */
+[data-kp-scheme="metro"] nav[aria-label="Sekcje panelu"] {
+  background:#1a1a1a; padding:.85rem .75rem; margin-left:calc(-1 * var(--bs-gutter-x,.75rem));
+  margin-right:calc(-1 * var(--bs-gutter-x,.75rem)); max-width:none;
+}
+[data-kp-scheme="metro"] nav[aria-label="Sekcje panelu"] .nav.nav-tabs {
+  display:flex; flex-wrap:wrap; gap:.4rem; border-bottom:0;
+}
+[data-kp-scheme="metro"] .nav-tabs .nav-item { margin:0; }
+[data-kp-scheme="metro"] .nav-tabs .nav-link {
+  width:104px; height:104px; border:0; padding:.6rem .65rem;
+  display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start;
+  color:#fff; font-size:.78rem; line-height:1.15; background:#2D89EF; transition:transform .08s ease;
+}
+[data-kp-scheme="metro"] .nav-tabs .nav-link i { font-size:1.7rem; }
+[data-kp-scheme="metro"] .nav-tabs .nav-link .badge { position:static; }
+[data-kp-scheme="metro"] .nav-tabs .nav-link:hover { color:#fff; filter:brightness(1.12); }
+[data-kp-scheme="metro"] .nav-tabs .nav-link:active { transform:scale(.96); }
+[data-kp-scheme="metro"] .nav-tabs .nav-link.active,
+[data-kp-scheme="metro"] .nav-tabs .nav-link.dropdown-toggle.show {
+  outline:3px solid #fff; outline-offset:-3px; font-weight:700;
+}
+/* Cykl kolorów kafli (8 klasycznych barw Metro), niezależnie od liczby zakładek */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+1) .nav-link { background:#2D89EF; } /* niebieski */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+2) .nav-link { background:#00ABA9; } /* turkusowy */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+3) .nav-link { background:#D80073; } /* magenta */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+4) .nav-link { background:#603CBA; } /* fioletowy */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+5) .nav-link { background:#8CBF26; } /* limonkowy */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+6) .nav-link { background:#F09609; } /* pomarańczowy */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+7) .nav-link { background:#E51400; } /* czerwony */
+[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+8) .nav-link { background:#825A2C; } /* brązowy */
+
+/* Rozwijane podgrupy (Nauka / Dostępy) → mniejsze kafle we flyoucie */
+[data-kp-scheme="metro"] .dropdown-menu {
+  background:#1a1a1a; border:0; padding:.5rem; flex-wrap:wrap; gap:.35rem; min-width:auto;
+}
+[data-kp-scheme="metro"] .dropdown-menu.show { display:flex; }
+[data-kp-scheme="metro"] .dropdown-item {
+  width:92px; height:84px; color:#fff; background:#3a3a3a; white-space:normal;
+  display:flex; flex-direction:column; justify-content:space-between; font-size:.72rem; font-weight:600; padding:.5rem;
+}
+[data-kp-scheme="metro"] .dropdown-item i { font-size:1.35rem; }
+[data-kp-scheme="metro"] .dropdown-item:hover, [data-kp-scheme="metro"] .dropdown-item:focus { background:#555; color:#fff; }
+[data-kp-scheme="metro"] .dropdown-item.active { background:var(--kp-primary); color:#fff; }
+[data-kp-scheme="metro"] .dropdown-divider { display:none; }
 </style>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>">
@@ -231,6 +307,8 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
                 style="background:#d97706;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Ciepły"></button>
         <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="slate" title="Grafitowy"
                 style="background:#475569;color:#fff;width:2rem;height:2rem;padding:0;border-radius:.4rem" aria-label="Grafitowy"></button>
+        <button type="button" class="kp-scheme-btn btn btn-sm" data-scheme="metro" title="Metro (kafle)"
+                style="background:#2D89EF;color:#fff;width:2rem;height:2rem;padding:0;border-radius:0" aria-label="Metro"></button>
       </div>
     </div>
     <button type="button" class="btn btn-outline-secondary w-100 d-flex align-items-center gap-2" id="kp-hidemenu-btn" aria-pressed="false">
