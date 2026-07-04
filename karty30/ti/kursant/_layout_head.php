@@ -21,6 +21,7 @@ if(localStorage.getItem('kp-contrast')==='1')d.classList.add('kp-contrast');
 var sc=localStorage.getItem('kp-scheme');if(sc)document.documentElement.setAttribute('data-kp-scheme',sc);
 var fs=localStorage.getItem('kp-fontscale');if(fs&&fs!=='0')d.setAttribute('data-kp-font',fs);
 if(localStorage.getItem('kp-hidemenu')==='1')d.classList.add('kp-hidemenu');
+if(localStorage.getItem('kp-metro-notice-dismissed')==='1')d.classList.add('kp-metro-notice-dismissed');
 }catch(e){}</script>
 <title><?= h($KP_TITLE) ?> — <?= h($KP_ORG) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -221,6 +222,19 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 }
 [data-kp-scheme="metro"] .btn { font-weight:600; }
 [data-kp-scheme="metro"] .btn:hover { filter:brightness(1.08); }
+/* Rozszerzenie płaskiego wyglądu na pozostałe elementy używane w zakładkach panelu */
+[data-kp-scheme="metro"] .progress, [data-kp-scheme="metro"] .form-check-input,
+[data-kp-scheme="metro"] .pagination .page-link, [data-kp-scheme="metro"] .accordion-button,
+[data-kp-scheme="metro"] .accordion-item {
+  border-radius:0 !important;
+}
+[data-kp-scheme="metro"] .form-check-input { border-width:2px; }
+[data-kp-scheme="metro"] .form-check-input:checked { background-color:var(--kp-primary); border-color:var(--kp-primary); }
+[data-kp-scheme="metro"] table thead th, [data-kp-scheme="metro"] .table > thead {
+  background:#1a1a1a; color:#fff; font-weight:700; border-color:#1a1a1a;
+}
+[data-kp-scheme="metro"] .list-group-item { border-width:1px; }
+[data-kp-scheme="metro"] .list-group-item.active { background:var(--kp-primary); border-color:var(--kp-primary); }
 
 /* Nawigacja główna → siatka kolorowych kafli (odpowiednik ekranu Start) */
 [data-kp-scheme="metro"] nav[aria-label="Sekcje panelu"] {
@@ -234,7 +248,7 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 [data-kp-scheme="metro"] .nav-tabs .nav-link {
   width:104px; height:104px; border:0; padding:.6rem .65rem;
   display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start;
-  color:#fff; font-size:.78rem; line-height:1.15; background:#2D89EF; transition:transform .08s ease;
+  color:#fff; font-size:.78rem; line-height:1.15; background:#4a4a4a; transition:transform .08s ease;
 }
 [data-kp-scheme="metro"] .nav-tabs .nav-link i { font-size:1.7rem; }
 [data-kp-scheme="metro"] .nav-tabs .nav-link .badge { position:static; }
@@ -244,15 +258,26 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 [data-kp-scheme="metro"] .nav-tabs .nav-link.dropdown-toggle.show {
   outline:3px solid #fff; outline-offset:-3px; font-weight:700;
 }
-/* Cykl kolorów kafli (8 klasycznych barw Metro), niezależnie od liczby zakładek */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+1) .nav-link { background:#2D89EF; } /* niebieski */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+2) .nav-link { background:#00ABA9; } /* turkusowy */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+3) .nav-link { background:#D80073; } /* magenta */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+4) .nav-link { background:#603CBA; } /* fioletowy */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+5) .nav-link { background:#8CBF26; } /* limonkowy */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+6) .nav-link { background:#F09609; } /* pomarańczowy */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+7) .nav-link { background:#E51400; } /* czerwony */
-[data-kp-scheme="metro"] .nav-tabs > .nav-item:nth-child(8n+8) .nav-link { background:#825A2C; } /* brązowy */
+/* WCAG 2.4.11: wskaźnik fokusu klawiatury musi być widoczny na KAŻDym kolorze kafla — domyślny
+   niebieski --kp-focus zlewałby się z niebieskim/fioletowym kaflem, więc na kaflach wymuszamy biały. */
+[data-kp-scheme="metro"] .nav-tabs .nav-link:focus-visible,
+[data-kp-scheme="metro"] .dropdown-item:focus-visible {
+  outline:3px solid #fff; outline-offset:-3px; box-shadow:none;
+}
+/* Kolor kafli: 8 własnych barw (nie z zewnętrznej biblioteki) — każda dobrana tak, by dawać
+   kontrast ≥4.5:1 wobec białego tekstu (WCAG 1.4.3, tekst kafli to ~12.5px, więc próg "normal text").
+   Klasy .kp-tile-N dopisane w HTML (index.php), przypisywane po kolejności zakładki (nie po pozycji
+   w drzewie DOM), więc kolor danej zakładki nie skacze, gdy pojawia się/znika sąsiednia pozycja. */
+/* Specificity: musi przebić bazową regułę „.nav-tabs .nav-link”/„.dropdown-item” (stąd
+   dopisane .nav-link/.dropdown-item w selektorze zamiast samego .kp-tile-N). */
+[data-kp-scheme="metro"] .nav-link.kp-tile-1, [data-kp-scheme="metro"] .dropdown-item.kp-tile-1, [data-kp-scheme="metro"] .btn.kp-tile-1, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-1 { background:#186fe0; } /* niebieski */
+[data-kp-scheme="metro"] .nav-link.kp-tile-2, [data-kp-scheme="metro"] .dropdown-item.kp-tile-2, [data-kp-scheme="metro"] .btn.kp-tile-2, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-2 { background:#12817d; } /* turkusowy */
+[data-kp-scheme="metro"] .nav-link.kp-tile-3, [data-kp-scheme="metro"] .dropdown-item.kp-tile-3, [data-kp-scheme="metro"] .btn.kp-tile-3, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-3 { background:#da1f7c; } /* magenta */
+[data-kp-scheme="metro"] .nav-link.kp-tile-4, [data-kp-scheme="metro"] .dropdown-item.kp-tile-4, [data-kp-scheme="metro"] .btn.kp-tile-4, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-4 { background:#662cd2; } /* fioletowy */
+[data-kp-scheme="metro"] .nav-link.kp-tile-5, [data-kp-scheme="metro"] .dropdown-item.kp-tile-5, [data-kp-scheme="metro"] .btn.kp-tile-5, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-5 { background:#4e7e24; } /* zielony */
+[data-kp-scheme="metro"] .nav-link.kp-tile-6, [data-kp-scheme="metro"] .dropdown-item.kp-tile-6, [data-kp-scheme="metro"] .btn.kp-tile-6, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-6 { background:#b35e09; } /* pomarańczowy */
+[data-kp-scheme="metro"] .nav-link.kp-tile-7, [data-kp-scheme="metro"] .dropdown-item.kp-tile-7, [data-kp-scheme="metro"] .btn.kp-tile-7, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-7 { background:#e02618; } /* czerwony */
+[data-kp-scheme="metro"] .nav-link.kp-tile-8, [data-kp-scheme="metro"] .dropdown-item.kp-tile-8, [data-kp-scheme="metro"] .btn.kp-tile-8, [data-kp-scheme="metro"] .kp-tile-lg.kp-tile-8 { background:#a2663d; } /* brązowy */
 
 /* Rozwijane podgrupy (Nauka / Dostępy) → mniejsze kafle we flyoucie */
 [data-kp-scheme="metro"] .dropdown-menu {
@@ -260,12 +285,55 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 }
 [data-kp-scheme="metro"] .dropdown-menu.show { display:flex; }
 [data-kp-scheme="metro"] .dropdown-item {
-  width:92px; height:84px; color:#fff; background:#3a3a3a; white-space:normal;
+  width:92px; height:84px; color:#fff; white-space:normal;
   display:flex; flex-direction:column; justify-content:space-between; font-size:.72rem; font-weight:600; padding:.5rem;
 }
 [data-kp-scheme="metro"] .dropdown-item i { font-size:1.35rem; }
-[data-kp-scheme="metro"] .dropdown-item:hover, [data-kp-scheme="metro"] .dropdown-item:focus { background:#555; color:#fff; }
-[data-kp-scheme="metro"] .dropdown-item.active { background:var(--kp-primary); color:#fff; }
+[data-kp-scheme="metro"] .dropdown-item:hover, [data-kp-scheme="metro"] .dropdown-item:focus { filter:brightness(1.15); color:#fff; }
+[data-kp-scheme="metro"] .dropdown-item.active { outline:3px solid #fff; outline-offset:-3px; }
+
+/* ── Baner „zmieniliśmy wygląd" — tylko w motywie Metro, do odrzucenia i zapamiętania ────── */
+.kp-metro-notice { display:none; }
+[data-kp-scheme="metro"] .kp-metro-notice {
+  display:flex; align-items:flex-start; gap:.75rem; background:#186fe0; color:#fff;
+  padding:.9rem 1rem; margin-bottom:1rem; border:0;
+}
+html.kp-metro-notice-dismissed .kp-metro-notice { display:none !important; }
+.kp-metro-notice .btn-close { filter:invert(1) grayscale(1) brightness(2); }
+
+/* ── Ekran startowy „Start" — ściana dużych kafli, widoczna po zalogowaniu (zakładka Dane) ── */
+.kp-startwall { display:none; }
+[data-kp-scheme="metro"] .kp-startwall {
+  display:block; background:#1a1a1a; margin:-1rem -.75rem 1.25rem; padding:1.5rem .75rem;
+}
+.kp-startwall-welcome { color:#fff; margin:0 0 1rem; }
+.kp-startwall-welcome .kp-startwall-hello { font-size:1.5rem; font-weight:700; }
+.kp-startwall-welcome .kp-startwall-sub { opacity:.75; font-size:.9rem; }
+.kp-startwall-grid { display:flex; flex-wrap:wrap; gap:.5rem; }
+.kp-tile-lg {
+  width:132px; height:132px; border:0; padding:.75rem; color:#fff; text-decoration:none;
+  display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start;
+  font-size:.85rem; font-weight:600; line-height:1.2; transition:transform .08s ease;
+}
+.kp-tile-lg:hover { color:#fff; filter:brightness(1.12); }
+.kp-tile-lg:active { transform:scale(.97); }
+.kp-tile-lg:focus-visible { outline:3px solid #fff; outline-offset:-3px; box-shadow:none; }
+.kp-tile-lg i { font-size:2rem; }
+.kp-tile-lg .badge { position:static; align-self:flex-start; }
+@media (max-width:420px){ .kp-tile-lg { width:calc(50% - .25rem); height:110px; } }
+
+/* ── Logowanie: dodatkowe opcje jako kafle Metro (zamiast pionowej listy przycisków) ──────── */
+.kp-login-tiles { display:flex; flex-direction:column; gap:.5rem; }
+[data-kp-scheme="metro"] .kp-login-tiles {
+  flex-direction:row; flex-wrap:wrap;
+}
+[data-kp-scheme="metro"] .kp-login-tiles .btn {
+  width:auto; flex:1 1 30%; min-width:9rem; height:6rem; color:#fff; border:0;
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:space-between;
+  padding:.65rem .75rem; font-size:.78rem; text-align:left; white-space:normal;
+}
+[data-kp-scheme="metro"] .kp-login-tiles .btn i { font-size:1.4rem; }
+[data-kp-scheme="metro"] .kp-login-tiles .btn:hover, [data-kp-scheme="metro"] .kp-login-tiles .btn:focus { color:#fff; filter:brightness(1.12); }
 [data-kp-scheme="metro"] .dropdown-divider { display:none; }
 </style>
 </head>

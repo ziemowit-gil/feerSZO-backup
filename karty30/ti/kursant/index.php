@@ -641,47 +641,54 @@ include __DIR__ . '/_layout_head.php';
   $nauka_active   = in_array($tab, $nauka_tabs, true);
   $dostepy_active = in_array($tab, $dostepy_tabs, true);
   $pomoc_active   = in_array($tab, $pomoc_tabs, true);
+
+  // Kolory kafli w motywie Metro — własne klasy .kp-tile-1..8 (zdefiniowane w _layout_head.php),
+  // dobrane pod kontrast WCAG AA (≥4.5:1 z białym tekstem kafla). Poza motywem Metro te klasy
+  // nic nie stylują (bez efektu na innych schematach).
+  $metro_tile_colors = ['kp-tile-1','kp-tile-2','kp-tile-3','kp-tile-4','kp-tile-5','kp-tile-6','kp-tile-7','kp-tile-8'];
+  $metro_i = 0;
+  $mc = function () use (&$metro_i, $metro_tile_colors) { return $metro_tile_colors[$metro_i++ % count($metro_tile_colors)]; };
 ?>
 <nav class="container-xl px-3 pt-3" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
 
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='dane'?'active':'' ?>" href="?tab=dane" <?= $tab==='dane'?'aria-current="page"':'' ?>>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='dane'?'active':'' ?>" href="?tab=dane" <?= $tab==='dane'?'aria-current="page"':'' ?>>
         <i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Dane kursanta
       </a>
     </li>
 
     <!-- Nauka: lekcje, dydaktyka/eLearning, oceny -->
     <li class="nav-item dropdown">
-      <a class="nav-link dropdown-toggle <?= $nauka_active?'active':'' ?>" href="#" role="button"
+      <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $nauka_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
         <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Nauka
         <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?><span class="visually-hidden"> zadań do oddania</span></span><?php endif; ?>
       </a>
       <ul class="dropdown-menu">
-        <li><a class="dropdown-item <?= $tab==='lekcje'?'active':'' ?>" href="?tab=lekcje" <?= $tab==='lekcje'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='lekcje'?'active':'' ?>" href="?tab=lekcje" <?= $tab==='lekcje'?'aria-current="page"':'' ?>>
           <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>Moje lekcje</a></li>
-        <li><a class="dropdown-item <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
           <i class="bi bi-journal-check me-2" aria-hidden="true"></i>Dydaktyka / eLearning
           <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-2"><?= $hw_pending_total ?></span><?php endif; ?></a></li>
-        <li><a class="dropdown-item <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
           <i class="bi bi-table me-2" aria-hidden="true"></i>Oceny</a></li>
-        <li><a class="dropdown-item <?= $tab==='plan'?'active':'' ?>" href="?tab=plan" <?= $tab==='plan'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='plan'?'active':'' ?>" href="?tab=plan" <?= $tab==='plan'?'aria-current="page"':'' ?>>
           <i class="bi bi-list-check me-2" aria-hidden="true"></i>Plan nauczania</a></li>
-        <li><a class="dropdown-item <?= $tab==='testy'?'active':'' ?>" href="?tab=testy" <?= $tab==='testy'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='testy'?'active':'' ?>" href="?tab=testy" <?= $tab==='testy'?'aria-current="page"':'' ?>>
           <i class="bi bi-card-checklist me-2" aria-hidden="true"></i>Testy</a></li>
       </ul>
     </li>
 
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='komunikaty'?'active':'' ?>" href="?tab=komunikaty" <?= $tab==='komunikaty'?'aria-current="page"':'' ?>>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='komunikaty'?'active':'' ?>" href="?tab=komunikaty" <?= $tab==='komunikaty'?'aria-current="page"':'' ?>>
         <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Komunikaty
         <?php if ($notices_unread > 0): ?><span class="badge text-bg-danger ms-1"><?= $notices_unread ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif; ?>
       </a>
     </li>
 
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='wiadomosci'?'active':'' ?>" href="?tab=wiadomosci" <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='wiadomosci'?'active':'' ?>" href="?tab=wiadomosci" <?= $tab==='wiadomosci'?'aria-current="page"':'' ?>>
         <i class="bi bi-envelope me-1" aria-hidden="true"></i>Wiadomości
         <?php if ($msg_unread > 0): ?><span class="badge text-bg-danger ms-1"><?= $msg_unread ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif; ?>
       </a>
@@ -689,12 +696,12 @@ include __DIR__ . '/_layout_head.php';
 
     <?php if (!$is_minor): ?>
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
         <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='upowaznieni'?'active':'' ?>" href="?tab=upowaznieni" <?= $tab==='upowaznieni'?'aria-current="page"':'' ?>>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='upowaznieni'?'active':'' ?>" href="?tab=upowaznieni" <?= $tab==='upowaznieni'?'aria-current="page"':'' ?>>
         <i class="bi bi-person-check me-1" aria-hidden="true"></i>Upoważnieni
       </a>
     </li>
@@ -702,34 +709,34 @@ include __DIR__ . '/_layout_head.php';
 
     <!-- Dostępy i narzędzia -->
     <li class="nav-item dropdown">
-      <a class="nav-link dropdown-toggle <?= $dostepy_active?'active':'' ?>" href="#" role="button"
+      <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $dostepy_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
         <i class="bi bi-grid me-1" aria-hidden="true"></i>Dostępy
       </a>
       <ul class="dropdown-menu">
-        <li><a class="dropdown-item <?= $tab==='online'?'active':'' ?>" href="?tab=online" <?= $tab==='online'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='online'?'active':'' ?>" href="?tab=online" <?= $tab==='online'?'aria-current="page"':'' ?>>
           <i class="bi bi-camera-video me-2" aria-hidden="true"></i>Szkolenia online</a></li>
-        <li><a class="dropdown-item <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab" <?= $tab==='vlab'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab" <?= $tab==='vlab'?'aria-current="page"':'' ?>>
           <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab</a></li>
-        <li><a class="dropdown-item <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje" <?= $tab==='licencje'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje" <?= $tab==='licencje'?'aria-current="page"':'' ?>>
           <i class="bi bi-key me-2" aria-hidden="true"></i>Licencje
           <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-2"><?= count($my_licenses) ?></span><?php endif; ?></a></li>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item <?= $tab==='pfron'?'active':'' ?>" href="?tab=pfron" <?= $tab==='pfron'?'aria-current="page"':'' ?>>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='pfron'?'active':'' ?>" href="?tab=pfron" <?= $tab==='pfron'?'aria-current="page"':'' ?>>
           <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>PFRON (konsultacje)</a></li>
       </ul>
     </li>
 
     <!-- Pomoc / zgłoszenie problemu -->
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='problem'?'active':'' ?>" href="?tab=problem" <?= $tab==='problem'?'aria-current="page"':'' ?>>
         <i class="bi bi-life-preserver me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Pomoc</span>
       </a>
     </li>
 
     <!-- Aktywność — dziennik zdarzeń konta -->
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='aktywnosc'?'active':'' ?>" href="?tab=aktywnosc" <?= $tab==='aktywnosc'?'aria-current="page"':'' ?>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='aktywnosc'?'active':'' ?>" href="?tab=aktywnosc" <?= $tab==='aktywnosc'?'aria-current="page"':'' ?>
          title="Aktywność konta" aria-label="Aktywność konta">
         <i class="bi bi-clock-history me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Aktywność</span>
       </a>
@@ -737,14 +744,14 @@ include __DIR__ . '/_layout_head.php';
 
     <!-- Ustawienia — bezpośrednio w nawigacji -->
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='ustawienia'?'active':'' ?>" href="?tab=ustawienia" <?= $tab==='ustawienia'?'aria-current="page"':'' ?>
          title="Ustawienia" aria-label="Ustawienia">
         <i class="bi bi-gear<?= $tab==='ustawienia'?'-fill':'' ?> me-1" aria-hidden="true"></i><span class="d-none d-xl-inline">Ustawienia</span>
       </a>
     </li>
 
     <li class="nav-item">
-      <a class="nav-link <?= $tab==='regulaminy'?'active':'' ?>" href="?tab=regulaminy" <?= $tab==='regulaminy'?'aria-current="page"':'' ?>>
+      <a class="nav-link <?= $mc() ?> <?= $tab==='regulaminy'?'active':'' ?>" href="?tab=regulaminy" <?= $tab==='regulaminy'?'aria-current="page"':'' ?>>
         <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Regulaminy
         <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-1"><?= count($terms_pending) ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?>
       </a>
@@ -922,7 +929,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php endif; ?>
 
-<?php if ($tab === 'dane'): ?>
+<?php if ($tab === 'dane'):
+  // ── Launcher „Start" (motyw Metro) — ściana dużych kafli widoczna od razu po zalogowaniu.
+  // Poza motywem Metro sekcja jest niewidoczna (kp-startwall ma display:none) — bez wpływu
+  // na pozostałe schematy kolorów.
+  $kp_welcome_name  = trim((string)($client['name'] ?? ''));
+  $kp_welcome_first = $kp_welcome_name !== '' ? explode(' ', $kp_welcome_name)[0] : ((string)($account['login'] ?? 'Kursancie'));
+  $kp_start_items = [
+    ['tab' => 'lekcje',     'icon' => 'calendar-check', 'label' => 'Moje lekcje'],
+    ['tab' => 'zadania',    'icon' => 'journal-check',  'label' => 'Dydaktyka / eLearning', 'badge' => $hw_pending_total],
+    ['tab' => 'komunikaty', 'icon' => 'megaphone',      'label' => 'Komunikaty',             'badge' => $notices_unread],
+    ['tab' => 'wiadomosci', 'icon' => 'envelope',       'label' => 'Wiadomości',             'badge' => $msg_unread],
+    ['tab' => 'plan',       'icon' => 'list-check',     'label' => 'Plan nauczania'],
+    ['tab' => 'testy',      'icon' => 'card-checklist', 'label' => 'Testy'],
+    ['tab' => 'online',     'icon' => 'camera-video',   'label' => 'Szkolenia online'],
+    ['tab' => 'vlab',       'icon' => 'code-square',    'label' => 'VLab'],
+  ];
+  if (!$is_minor) { $kp_start_items[] = ['tab' => 'rozliczenia', 'icon' => 'receipt', 'label' => 'Rozliczenia']; }
+  $kp_start_items[] = ['tab' => 'ustawienia', 'icon' => 'gear', 'label' => 'Ustawienia'];
+  $kp_si = 0;
+?>
+<div class="kp-startwall">
+  <div class="kp-metro-notice" role="note">
+    <i class="bi bi-info-circle-fill fs-4 flex-shrink-0" aria-hidden="true"></i>
+    <div class="flex-grow-1 small">
+      <div class="fw-bold mb-1">Zmieniliśmy wygląd panelu</div>
+      <div>Wypróbuj nowy motyw Metro — płaskie, kolorowe kafle zamiast dotychczasowych kart.
+        Poprzedni wygląd przywrócisz w każdej chwili w menu dostępności (ikona po lewej krawędzi ekranu).</div>
+    </div>
+    <button type="button" id="kp-metro-notice-close" class="btn-close flex-shrink-0" aria-label="Zamknij ten komunikat"></button>
+  </div>
+  <div class="kp-startwall-welcome">
+    <p class="kp-startwall-hello mb-1">Witaj, <?= h($kp_welcome_first) ?>!</p>
+    <p class="kp-startwall-sub mb-0">Wybierz, co chcesz dziś zrobić.</p>
+  </div>
+  <nav class="kp-startwall-grid" aria-label="Szybki start">
+    <?php foreach ($kp_start_items as $it): $kp_si++; ?>
+    <a class="kp-tile-lg kp-tile-<?= (($kp_si - 1) % 8) + 1 ?>" href="?tab=<?= h($it['tab']) ?>">
+      <i class="bi bi-<?= h($it['icon']) ?>" aria-hidden="true"></i>
+      <span><?= h($it['label']) ?><?php if (!empty($it['badge'])): ?> <span class="badge text-bg-light text-dark"><?= (int)$it['badge'] ?><span class="visually-hidden"> nowych</span></span><?php endif; ?></span>
+    </a>
+    <?php endforeach; ?>
+  </nav>
+</div>
 
   <!-- ── Dane kursanta — strona startowa panelu ─────────────────────────────── -->
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">

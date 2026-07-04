@@ -101,5 +101,16 @@
   });
 })();
 </script>
+<script>
+// Baner „zmieniliśmy wygląd" (motyw Metro) — odrzucenie zapamiętane na stałe.
+(function(){
+  var btn = document.getElementById('kp-metro-notice-close');
+  if (!btn) return;
+  btn.addEventListener('click', function(){
+    document.documentElement.classList.add('kp-metro-notice-dismissed');
+    try { localStorage.setItem('kp-metro-notice-dismissed', '1'); } catch(e){}
+  });
+})();
+</script>
 </body>
 </html>

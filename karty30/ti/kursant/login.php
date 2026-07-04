@@ -130,22 +130,22 @@ include __DIR__ . '/_layout_head.php';
 
           <hr class="my-4">
 
-          <a href="parent.php" class="btn btn-outline-secondary w-100">
-            <i class="bi bi-people me-2" aria-hidden="true"></i>Rodzic / opiekun lub osoba upoważniona
-          </a>
-          <p class="text-body-secondary mt-1 mb-3" style="font-size:.78rem">
+          <div class="kp-login-tiles">
+            <a href="parent.php" class="btn btn-outline-secondary w-100 kp-tile-1">
+              <i class="bi bi-people me-2" aria-hidden="true"></i>Rodzic / opiekun lub osoba upoważniona
+            </a>
+            <a href="pfron.php" class="btn btn-outline-secondary w-100 kp-tile-6">
+              <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd)
+            </a>
+            <a href="../dydaktyk/login.php" class="btn btn-outline-secondary w-100 kp-tile-2">
+              <i class="bi bi-easel me-2" aria-hidden="true"></i>Panel dydaktyka (prowadzącego)
+            </a>
+          </div>
+          <p class="text-body-secondary mt-2 mb-0" style="font-size:.78rem">
             <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
             Opiekunowie logują się SMS-em lub hasłem konta. Osoby upoważnione przez pełnoletniego kursanta
             logują się danymi z upoważnienia.
           </p>
-
-          <a href="pfron.php" class="btn btn-outline-secondary w-100">
-            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Rozliczenia PFRON (Aktywny Samorząd)
-          </a>
-
-          <a href="../dydaktyk/login.php" class="btn btn-outline-secondary w-100 mt-2">
-            <i class="bi bi-easel me-2" aria-hidden="true"></i>Panel dydaktyka (prowadzącego)
-          </a>
 
           <p class="text-body-secondary mt-4 mb-0 text-center" style="font-size:.78rem">
             <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Moduł „Kursant” jest częścią systemu <strong>System Zarządzania Organizacją</strong> i służy do obsługi szkoleń.
