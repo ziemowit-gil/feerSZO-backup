@@ -55,11 +55,9 @@ function vlab_enabled(): bool {
     return !empty($c['is_enabled']) && $c['ssh_host'] !== '' && $c['ssh_user'] !== '';
 }
 
-/** Lista zablokowanego oprogramowania (jedna pozycja na wiersz, ustawiana przez admina). */
-function vlab_blocked_software(): array {
-    $raw = (string)(vlab_config()['blocked_software'] ?? '');
-    $lines = array_map('trim', explode("\n", $raw));
-    return array_values(array_filter($lines, fn($l) => $l !== ''));
+/** Treść (HTML, edytowana WYSIWYG przez admina) regulaminu zablokowanego oprogramowania VLab. */
+function vlab_blocked_software_html(): string {
+    return (string)(vlab_config()['blocked_software'] ?? '');
 }
 
 /** Czy administrator wyłączył VLAB dla kursantów (tryb przerwy/konserwacji). */

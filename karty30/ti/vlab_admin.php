@@ -282,7 +282,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header fw-semibold"><i class="bi bi-server me-1"></i>Konfiguracja hosta Dockera (SSH)</div>
       <div class="card-body">
-        <form method="post">
+        <form method="post" id="vlab-config-form">
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="save_config">
           <div class="form-check form-switch mb-3">
@@ -383,12 +383,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <hr>
           <p class="fw-semibold small mb-2"><i class="bi bi-shield-x me-1"></i>Lista zablokowanego oprogramowania</p>
           <div class="mb-3">
-            <label class="form-label small" for="blocked_software">Jedna pozycja na wiersz — informacja wyświetlana kursantom w zakładce VLab</label>
-            <textarea class="form-control form-control-sm" name="blocked_software" id="blocked_software" rows="4"
-                      placeholder="np.&#10;Klienty torrent (qBittorrent, Transmission…)&#10;Narzędzia do kopania kryptowalut&#10;Skanery portów masowe (nmap w trybie agresywnym)"><?= h($cfg['blocked_software'] ?? '') ?></textarea>
+            <label class="form-label small" for="blocked-software-editor">Regulamin wyświetlany kursantom w zakładce VLab (nagłówki, listy, wyróżnienia)</label>
+            <div id="blocked-software-editor" style="min-height:220px;background:#fff"></div>
+            <textarea name="blocked_software" id="blocked_software" class="d-none"><?= h($cfg['blocked_software'] ?? '') ?></textarea>
           </div>
           <hr>
-          <p class="fw-semibold small mb-2"><i class="bi bi-hdd-rack me-1"></i>Dedykowany serwer u partnera (ze zniżką)</p>
+          <p class="fw-semibold small mb-2"><i class="bi bi-hdd-rack me-1"></i>VPS u partnera (ze zniżką) — „dedykowany" kursantowi, nie serwer bare-metal</p>
           <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" name="dedicated_server_enabled" id="dsrven" <?= !empty($cfg['dedicated_server_enabled']) ? 'checked' : '' ?>>
             <label class="form-check-label" for="dsrven">Pozwól kursantom zamawiać dedykowany serwer</label>
@@ -570,7 +570,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <!-- Zamówienia dedykowanych serwerów -->
 <div class="card border-0 shadow-sm mt-4" id="dedserver">
   <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-hdd-rack me-1"></i>Dedykowane serwery — zamówienia
+    <i class="bi bi-hdd-rack me-1"></i>VPS ze zniżką — zamówienia
     <?php if ($dedserver_pending): ?><span class="badge text-bg-warning ms-auto"><?= count($dedserver_pending) ?> do obsłużenia</span><?php endif; ?>
   </div>
   <div class="card-body">
@@ -739,5 +739,36 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 })();
 </script>
 <?php endif; ?>
+
+<!-- Quill WYSIWYG dla regulaminu zablokowanego oprogramowania -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.min.css">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<script>
+(function(){
+  const textarea = document.getElementById('blocked_software');
+  const editorEl  = document.getElementById('blocked-software-editor');
+  if (!textarea || !editorEl) return;
+
+  const quill = new Quill(editorEl, {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ header: [1,2,3,false] }],
+        ['bold','italic','underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link'],
+        ['clean']
+      ]
+    }
+  });
+
+  const existing = textarea.value.trim();
+  if (existing) quill.root.innerHTML = existing;
+
+  document.getElementById('vlab-config-form')?.addEventListener('submit', function() {
+    textarea.value = quill.root.innerHTML;
+  });
+})();
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

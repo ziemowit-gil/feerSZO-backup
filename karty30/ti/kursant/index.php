@@ -2125,25 +2125,31 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php else: ?>
 
-  <?php $vlab_blocked_sw = vlab_blocked_software(); if ($vlab_blocked_sw): ?>
-  <div class="alert alert-warning small mb-3">
-    <div class="fw-semibold mb-1"><i class="bi bi-shield-x me-1" aria-hidden="true"></i>Zablokowane oprogramowanie</div>
-    <p class="mb-1">Instalowanie i uruchamianie poniższego oprogramowania w maszynach VLab jest zabronione:</p>
-    <ul class="mb-0 ps-3">
-      <?php foreach ($vlab_blocked_sw as $bsw): ?>
-      <li><?= h($bsw) ?></li>
-      <?php endforeach; ?>
-    </ul>
+  <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-hdd-stack text-primary" aria-hidden="true"></i>VLab — Twoje maszyny
+  </h1>
+  <p class="text-body-secondary small mb-3">
+    Twórz własne środowiska (kontenery Docker) do ćwiczeń. Dostęp przez terminal w przeglądarce lub po SSH.
+  </p>
+
+  <?php $vlab_blocked_html = vlab_blocked_software_html(); if (trim($vlab_blocked_html) !== ''): ?>
+  <div class="card border-warning-subtle mb-3">
+    <div class="card-header bg-warning bg-opacity-10 p-0">
+      <button type="button" class="btn btn-link text-decoration-none w-100 text-start px-3 py-2 fw-semibold"
+              data-bs-toggle="collapse" data-bs-target="#vlab-blocked-sw" aria-expanded="false" aria-controls="vlab-blocked-sw">
+        <i class="bi bi-shield-x text-warning me-2" aria-hidden="true"></i>Zabronione oprogramowanie i usługi w VLab
+        <i class="bi bi-chevron-down float-end mt-1" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div id="vlab-blocked-sw" class="collapse">
+      <div class="card-body small">
+        <?= $vlab_blocked_html ?>
+      </div>
+    </div>
   </div>
   <?php endif; ?>
 
   <div id="vlab-root" data-token="<?= h($vlab_token) ?>">
-    <h1 class="h5 fw-bold d-flex align-items-center gap-2 mb-1">
-      <i class="bi bi-hdd-stack text-primary" aria-hidden="true"></i>VLab — Twoje maszyny
-    </h1>
-    <p class="text-body-secondary small mb-3">
-      Twórz własne środowiska (kontenery Docker) do ćwiczeń. Dostęp przez terminal w przeglądarce lub po SSH.
-    </p>
     <div id="vlab-content" aria-live="polite">
       <div class="text-body-secondary py-4 text-center">Ładowanie…</div>
     </div>
@@ -2558,17 +2564,25 @@ document.addEventListener('DOMContentLoaded', function() {
   ?>
   <div class="card border-0 shadow-sm mt-4">
     <div class="card-header fw-semibold d-flex align-items-center gap-2">
-      <i class="bi bi-hdd-rack text-primary" aria-hidden="true"></i>Dedykowany serwer ze zniżką
+      <i class="bi bi-hdd-rack text-primary" aria-hidden="true"></i>Twój serwer VPS ze zniżką
     </div>
     <div class="card-body">
+      <div class="alert alert-light border small d-flex align-items-start gap-2 mb-3">
+        <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
+        <span>
+          To jest <strong>VPS (wirtualny serwer prywatny)</strong> u zewnętrznego partnera hostingowego — „dedykowany" oznacza tu,
+          że zasoby (<?= h($dsrv_pricing['specs']) ?>) są przypisane <strong>wyłącznie Tobie</strong>, a nie że to fizyczny serwer
+          dedykowany (bare-metal). To inna usługa niż maszyny (kontenery Docker) w sekcji powyżej.
+        </span>
+      </div>
       <?php if ($dsrv_msg): ?>
       <div class="alert alert-<?= $dsrv_msg[0]==='ok'?'success':'danger' ?> py-2 small"><?= h($dsrv_msg[1]) ?></div>
       <?php endif; ?>
 
       <?php if (!$dsrv_order || $dsrv_order['status'] === 'cancelled'): ?>
       <p class="text-body-secondary small mb-3">
-        Własny serwer u zewnętrznego partnera hostingowego (<?= h($dsrv_pricing['specs']) ?>) w cenie obniżonej dla kursantów fundacji.
-        Fundacja wystawia fakturę VAT za wybrany okres; po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy serwer.
+        Własny VPS w cenie obniżonej dla kursantów fundacji. Fundacja wystawia fakturę VAT za wybrany okres;
+        po zaksięgowaniu wpłaty składamy zamówienie u partnera i uruchamiamy Twój serwer.
       </p>
       <div class="row g-2 mb-3">
         <?php foreach ($dsrv_pricing['periods'] as $pkey => $plan): ?>

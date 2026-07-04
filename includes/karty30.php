@@ -667,7 +667,7 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_enabled        INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_activation_fee REAL    NOT NULL DEFAULT 100",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_ip_monthly_fee    REAL    NOT NULL DEFAULT 30",
-        // Lista zablokowanego oprogramowania (jedna pozycja na wiersz) — informacja dla kursanta
+        // Lista zablokowanego oprogramowania (treść HTML, edytowana WYSIWYG) — informacja dla kursanta
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN blocked_software TEXT NOT NULL DEFAULT ''",
         // Dedykowany serwer u zewnętrznego partnera (8 GB RAM / 50 GB SSD, ze zniżką) — cennik
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_enabled  INTEGER NOT NULL DEFAULT 1",
@@ -678,6 +678,48 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_price          REAL NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_vlab_config ADD COLUMN dedicated_server_annual_regular_price  REAL NOT NULL DEFAULT 0",
     ] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
+    // Domyślna treść listy zabronionego oprogramowania — wgrywana jednorazowo, tylko gdy pole jest
+    // jeszcze puste (nie nadpisuje treści już zmienionej przez administratora w panelu VLAB).
+    $_bsw_row = db_one("SELECT blocked_software FROM k30_ti_vlab_config WHERE id=1");
+    if ($_bsw_row !== null && trim((string)$_bsw_row['blocked_software']) === '') {
+        $_bsw_default = <<<'HTML'
+<h3>1. Oprogramowanie do wymiany plików i P2P</h3>
+<ul>
+<li>Klienci sieci torrent oraz wszelkie narzędzia służące do masowej wymiany plików (np. uTorrent, qBittorrent, Transmission, Deluge).</li>
+<li>Programy i skrypty służące do nieautoryzowanego pobierania lub udostępniania treści chronionych prawem autorskim.</li>
+</ul>
+<h3>2. Narzędzia do kryptominingu i analizy blockchain</h3>
+<ul>
+<li>Oprogramowanie służące do wydobywania kryptowalut (tzw. koparki, np. XMRig, CGMiner, BFGMiner).</li>
+<li>Uruchamianie pełnych węzłów sieciowych (tzw. full nodes) bez wyraźnej, pisemnej zgody Administratora Głównego Fundacji.</li>
+</ul>
+<h3>3. Serwery rozrywkowe i usługi wysokiego obciążenia</h3>
+<ul>
+<li>Prywatne oraz publiczne serwery gier wieloosobowych (np. Minecraft, Counter-Strike, Rust, ARK i pokrewne).</li>
+<li>Serwery komunikacyjne (np. TeamSpeak3, Murmur/Mumble) oraz boty automatyzujące (np. zaawansowane boty Discord/IRC), o ile nie stanowią one bezpośredniego przedmiotu realizowanych warsztatów edukacyjnych Fundacji.</li>
+</ul>
+<h3>4. Narzędzia ofensywnego cyberbezpieczeństwa (poza celami szkoleniowymi)</h3>
+<ul>
+<li>Skanery sieciowe, frameworki do testów penetracyjnych i łamacze haseł (np. Nmap, Metasploit, John the Ripper, Wireshark, ZMap).</li>
+</ul>
+<p><em>Wyjątek: użycie wyżej wymienionych narzędzi jest dozwolone wyłącznie w ramach odizolowanych środowisk laboratoryjnych (np. vLAB) w celach prowadzenia zatwierdzonych szkoleń i warsztatów z zakresu IT.</em></p>
+<h3>5. Narzędzia do anonimizacji i tunelowania ruchu</h3>
+<ul>
+<li>Oprogramowanie służące do omijania zabezpieczeń sieciowych i całkowitego ukrywania ruchu (np. węzły wyjściowe sieci Tor, nieautoryzowane konfiguracje OpenVPN, WireGuard działające jako bramy wyjściowe).</li>
+<li>Konfigurowanie otwartych serwerów proxy (Open Proxy).</li>
+</ul>
+<h3>6. Usługi sieciowe podatne na nadużycia (brak zabezpieczeń)</h3>
+<ul>
+<li>Uruchamianie serwerów pocztowych w konfiguracji otwartego przekazywania (Open Relay SMTP).</li>
+<li>Narzędzia służące do masowej wysyłki wiadomości (SPAM), o ile nie są to oficjalnie wdrożone i zabezpieczone systemy marketingowe Fundacji.</li>
+</ul>
+<h3>7. Oprogramowanie nielegalne i komercyjne bez licencji</h3>
+<ul>
+<li>Wszelkie oprogramowanie komercyjne, na które Fundacja lub Użytkownik nie posiadają ważnej, udokumentowanej licencji (w tym wersji akademickiej lub open-source pozwalającej na dane zastosowanie).</li>
+</ul>
+HTML;
+        db()->prepare("UPDATE k30_ti_vlab_config SET blocked_software=? WHERE id=1")->execute([$_bsw_default]);
+    }
     // Rejestr otwartych portów per kontener (UFW + Azure NSG)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_vlab_ports (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
