@@ -221,6 +221,14 @@ try {
       )['c'] ?? 0);
   } catch (\Throwable $e) {}
 
+  // Zgoda przedstawiciela ustawowego na wolontariat małoletniego — liczba umów
+  // wymagających złożenia/odnowienia zgody, dopasowanie po e-mailu opiekuna.
+  $_gc_pending = 0;
+  try {
+      require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
+      $_gc_pending = count(guardian_consent_pending_for_email($_pu['email'] ?? ''));
+  } catch (\Throwable $e) {}
+
   // Pokaż link do RODO jeśli użytkownik ma aktywne upoważnienie
   $_has_rodo = false;
   try {
@@ -297,6 +305,13 @@ try {
   <?php if ($_has_rodo): ?>
   <a href="<?= APP_URL ?>/panel/rodo.php" class="pv-nav-link<?= _pv_nav_active('/panel/rodo') ?>">
     <i class="bi bi-shield-lock" aria-hidden="true"></i>Upoważnienie RODO
+  </a>
+  <?php endif; ?>
+  <?php if ($_gc_pending): ?>
+  <a href="<?= APP_URL ?>/panel/zgody.php" class="pv-nav-link<?= _pv_nav_active('/panel/zgody') ?>"
+     aria-label="Zgody i Oświadczenia — <?= $_gc_pending ?> do odnowienia">
+    <i class="bi bi-file-earmark-check" aria-hidden="true"></i>Zgody i Oświadczenia
+    <span class="pv-badge" aria-label="<?= $_gc_pending ?> do odnowienia"><?= $_gc_pending ?></span>
   </a>
   <?php endif; ?>
   <?php if (module_enabled('terminations_enabled')): ?>
@@ -689,6 +704,70 @@ if (empty($_SESSION['rpts_consent_snoozed'])) {
     fd.append('_csrf', csrf);
     fd.append('action', 'snooze');
     fetch(APP_URL + '/api/rpts_consent.php', { method: 'POST', body: fd })
+      .finally(function () { modal.hide(); });
+  });
+})();
+</script>
+<?php endif; ?>
+
+<?php
+// ── Przypomnienie: zgoda przedstawiciela ustawowego (co 6 miesięcy) ──────────
+// Odsyła do pełnej strony /panel/zgody.php zamiast osadzać długie oświadczenie
+// w modalu. Można odłożyć do następnego logowania (sesja).
+?>
+<?php if ($_gc_pending > 0 && empty($_SESSION['gc_consent_nudge_snoozed']) && basename($_SERVER['SCRIPT_NAME']) !== 'zgody.php'): ?>
+<div class="modal fade" id="gcConsentNudge" tabindex="-1" aria-labelledby="gcConsentNudgeLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden">
+      <div class="modal-header" style="background:var(--vol-color,#1D4ED8);color:#fff;border:none">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="gcConsentNudgeLabel">
+          <i class="bi bi-file-earmark-check" aria-hidden="true"></i>Wymagana odnowienie zgody
+        </h5>
+      </div>
+      <div class="modal-body" style="padding:1.5rem">
+        <p class="mb-0">
+          Zgoda przedstawiciela ustawowego na wolontariat i przetwarzanie danych osobowych jest
+          składana co 6 miesięcy. Dla <strong><?= $_gc_pending ?></strong>
+          <?= $_gc_pending === 1 ? 'umowy wymagane jest złożenie/odnowienie zgody' : 'umów wymagane jest złożenie/odnowienie zgody' ?>.
+          Przejdź do sekcji <strong>Zgody i Oświadczenia</strong>, aby dopełnić formalności.
+        </p>
+      </div>
+      <div class="modal-footer" style="border:none">
+        <button type="button" class="btn btn-link text-muted" id="gcNudgeSnooze" style="font-size:.85rem">
+          Przypomnij później
+        </button>
+        <a href="<?= APP_URL ?>/panel/zgody.php" class="btn" style="background:var(--vol-color,#1D4ED8);color:#fff">
+          <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>Przejdź do Zgody i Oświadczeń
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var APP_URL = '<?= APP_URL ?>';
+  var modalEl = document.getElementById('gcConsentNudge');
+  if (!modalEl || !window.bootstrap) return;
+  var modal = new bootstrap.Modal(modalEl);
+
+  function show() { modal.show(); }
+  var annPopup  = document.getElementById('pvAnnPopup');
+  var rptsModal = document.getElementById('rptsConsentModal');
+  if (rptsModal) {
+    rptsModal.addEventListener('hidden.bs.modal', show, { once: true });
+  } else if (annPopup) {
+    annPopup.addEventListener('hidden.bs.modal', show, { once: true });
+  } else {
+    show();
+  }
+
+  var snooze = document.getElementById('gcNudgeSnooze');
+  snooze.addEventListener('click', function () {
+    snooze.disabled = true;
+    var fd = new FormData();
+    fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
+    fd.append('action', 'snooze');
+    fetch(APP_URL + '/api/guardian_consent_nudge.php', { method: 'POST', body: fd })
       .finally(function () { modal.hide(); });
   });
 })();

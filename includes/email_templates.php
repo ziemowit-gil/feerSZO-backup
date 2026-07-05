@@ -362,6 +362,71 @@ HTML;
 </html>
 HTML;
 
+    // — Zaproszenie opiekuna do odnowienia zgody na wolontariat małoletniego —
+    $guardian_consent_body = <<<'HTML'
+<html><body style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#212529;line-height:1.6">
+  <p style="margin:0 0 4px;font-weight:700">{{org_nazwa}}</p>
+  <p style="margin:0;font-size:.92em;color:#495057">
+    {{org_adres}}<br>
+    e-mail: {{org_email}}<br>
+    tel: {{org_telefon}}
+  </p>
+  <p style="margin:18px 0 0;font-size:.85em;color:#6c757d">Znak sprawy: <strong>{{znak_sprawy}}</strong></p>
+  <p style="margin:4px 0 24px;font-size:.9em;color:#495057">{{miejscowosc}}, dnia {{data_pisma}} r.</p>
+
+  <p style="margin:0 0 20px">
+    Do:<br>
+    Przedstawiciel ustawowy (rodzic/opiekun)<br>
+    małoletniego/małoletniej <strong>{{dziecko}}</strong>
+  </p>
+
+  <p style="margin:0 0 20px"><strong>Dotyczy:</strong> Wyrażenie zgody na udział dziecka w wolontariacie</p>
+
+  <p>Szanowni Państwo,</p>
+  <p>
+    w związku z kontynuacją przez Państwa dziecko, <strong>{{dziecko}}</strong>, świadczeń w ramach
+    wolontariatu na rzecz naszej Fundacji, zwracamy się z uprzejmą prośbą o dopełnienie
+    niezbędnych formalności w formie online.
+  </p>
+  <p>
+    Bezpieczeństwo i transparentność naszych działań są dla nas priorytetem. Zgodnie
+    z obowiązującymi przepisami prawa, w tym Kodeksu cywilnego oraz Ogólnego Rozporządzenia
+    o Ochronie Danych (RODO), do dalszego udziału Państwa dziecka w wolontariacie niezbędne
+    jest regularne, składane co 6 miesięcy, potwierdzenie Państwa zgody. Obejmuje ona zarówno
+    zgodę na sam wolontariat, jak i na przetwarzanie danych osobowych w celach z nim związanych.
+  </p>
+  <p>
+    Aby maksymalnie ułatwić ten proces, przygotowaliśmy dla Państwa możliwość złożenia
+    odpowiedniego oświadczenia woli w formie elektronicznej („na klik").
+  </p>
+
+  <p style="font-weight:700;margin:24px 0 8px">Jak wyrazić zgodę krok po kroku:</p>
+  <ol style="padding-left:20px">
+    <li style="margin-bottom:8px">Prosimy o zalogowanie się na Państwa konto w naszym systemie pod adresem:
+      <a href="{{login_url}}" style="color:{{accent}}">{{login_url}}</a>.</li>
+    <li style="margin-bottom:8px">Po zalogowaniu, prosimy przejść do sekcji o nazwie „Zgody i Oświadczenia".</li>
+    <li style="margin-bottom:8px">Prosimy o dokładne zapoznanie się z treścią „Oświadczenia przedstawiciela
+      ustawowego", które pojawi się na ekranie.</li>
+    <li style="margin-bottom:8px">Wyrażenie zgody następuje poprzez zaznaczenie pola (checkbox) o treści:
+      „Oświadczam, że zapoznałem/am się z treścią Oświadczenia..." a następnie kliknięcie przycisku
+      „Potwierdzam i wyrażam zgodę".</li>
+  </ol>
+
+  <p>Potwierdzenie przez Państwa zgody zostanie automatycznie zapisane w naszym systemie, co
+  stanowi prawnie wiążące oświadczenie woli.</p>
+
+  <p>W razie jakichkolwiek pytań lub problemów technicznych, jesteśmy do Państwa dyspozycji pod
+  adresem e-mail: {{kontakt_email}} lub numerem telefonu: {{kontakt_telefon}}.</p>
+
+  <p style="margin-top:28px">Z wyrazami szacunku,</p>
+  <p style="font-weight:700;margin:2px 0 0">Zespół Fundacji Edukacji Empatii Rozwoju "FEER"</p>
+
+  <p style="margin-top:24px;padding-top:14px;border-top:1px solid #dee2e6;font-size:.78em;color:#adb5bd">
+    Wiadomość wygenerowana automatycznie przez system zarządzania umowami NGO.
+  </p>
+</body></html>
+HTML;
+
     // — Kod odzyskiwania dostępu ————————————————————————————————
     $recovery_body = <<<'HTML'
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
@@ -661,6 +726,30 @@ HTML;
                 'opiekun_email'    => ['label' => 'E-mail opiekuna',     'sample' => 'anna.kowalska@example.com'],
                 'data_weryfikacji' => ['label' => 'Data weryfikacji',    'sample' => '05.07.2026'],
                 'url'              => ['label' => 'Link do umowy',       'sample' => $base . '/contracts/wolontariat/view.php?id=14'],
+            ],
+        ],
+
+        'guardian_consent_renewal' => [
+            'label'       => 'Zaproszenie — odnowienie zgody opiekuna na wolontariat',
+            'group'       => 'Umowy',
+            'icon'        => 'bi-file-earmark-check',
+            'auto'        => true,
+            'description' => 'Wysyłane co 6 miesięcy do przedstawiciela ustawowego małoletniego wolontariusza — zaprasza do złożenia/odnowienia zgody „na klik" w panelu.',
+            'subject'     => 'Odnowienie zgody na wolontariat — {{dziecko}} (znak sprawy {{znak_sprawy}})',
+            'body'        => $guardian_consent_body,
+            'vars'        => [
+                'accent'          => ['label' => 'Kolor akcentu',           'sample' => '#1D4ED8'],
+                'org_nazwa'       => ['label' => 'Nazwa organizacji',       'sample' => 'Fundacja Edukacji Empatii Rozwoju "FEER"'],
+                'org_adres'       => ['label' => 'Adres organizacji',       'sample' => 'ul. Barbackiego 28/18, 33-300 Nowy Sącz'],
+                'org_email'       => ['label' => 'E-mail organizacji',      'sample' => 'kontakt@feer.org.pl'],
+                'org_telefon'     => ['label' => 'Telefon organizacji',     'sample' => '+48 123 456 789'],
+                'znak_sprawy'     => ['label' => 'Znak sprawy (EZD)',       'sample' => 'WOL.3.2026'],
+                'miejscowosc'     => ['label' => 'Miejscowość wysłania',    'sample' => 'Nowy Sącz'],
+                'data_pisma'      => ['label' => 'Data wysłania pisma',     'sample' => '05.07.2026'],
+                'dziecko'         => ['label' => 'Imię i nazwisko dziecka', 'sample' => 'Jan Kowalski'],
+                'login_url'       => ['label' => 'Link do logowania',      'sample' => $base . '/auth/login.php'],
+                'kontakt_email'   => ['label' => 'E-mail kontaktowy (pytania)', 'sample' => 'kontakt@feer.org.pl'],
+                'kontakt_telefon' => ['label' => 'Telefon kontaktowy (pytania)', 'sample' => '+48 123 456 789'],
             ],
         ],
 

@@ -1921,6 +1921,85 @@ function ezd_register_rpts_consent(array $user, int $created_by = 0): ?int {
     return $sprawa_id;
 }
 
+// ── Rejestracja zgody przedstawiciela ustawowego na wolontariat (JRWA WOL) ───
+
+/** Teczka roczna „Zgody opiekunów wolontariuszy niepełnoletnich {rok}" (utworzona w razie potrzeby). */
+function _ezd_guardian_consent_teczka_id(int $rok, int $user_id): int {
+    $jid   = _ezd_vol_jrwa_id();
+    $title = "Zgody opiekunów wolontariuszy niepełnoletnich $rok";
+    $t = db_one("SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND title=? AND status='open' ORDER BY id LIMIT 1", [$jid, $rok, $title]);
+    if ($t) return (int)$t['id'];
+    return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>ezd_vol_jrwa(), 'title'=>$title, 'rok'=>$rok, 'owner_id'=>null], $user_id);
+}
+
+/**
+ * Otwiera sprawę EZD dla zaproszenia opiekuna do złożenia/odnowienia zgody na
+ * wolontariat małoletniego + RODO (pismo podpisane przez przedstawiciela
+ * Fundacji — zob. org_representatives), i rejestruje samo pismo (wychodzące).
+ * Idempotentne — jeśli umowy_wolontariat.zgoda_przedstawiciela_ezd_sprawa_id
+ * jest już ustawione i sprawa jest otwarta, zwraca istniejące id.
+ *
+ * @return array{sprawa_id:int, znak_sprawy:string, podpisujacy:string}|null
+ */
+function ezd_register_guardian_consent_letter(array $contract, string $guardian_name, int $created_by = 0): ?array {
+    if (!module_enabled('ezd_enabled')) return null;
+
+    $existing_id = (int)($contract['zgoda_przedstawiciela_ezd_sprawa_id'] ?? 0);
+    if ($existing_id) {
+        $existing = ezd_sprawa_get($existing_id);
+        if ($existing && $existing['status'] !== 'closed') {
+            return ['sprawa_id' => $existing_id, 'znak_sprawy' => $existing['znak_sprawy'], 'podpisujacy' => ''];
+        }
+    }
+
+    $uid  = $created_by ?: 0;
+    $rok  = (int)date('Y');
+    $tid  = _ezd_guardian_consent_teczka_id($rok, $uid);
+    $osoba = $contract['imie_nazwisko'] ?? '';
+
+    $reps = org_representatives();
+    $podpisujacy = $reps ? ($reps[0]['name'] . ($reps[0]['title'] ? ' (' . $reps[0]['title'] . ')' : '')) : '';
+
+    $sprawa_id = ezd_sprawa_create([
+        'teczka_id'   => $tid,
+        'title'       => "Zgoda opiekuna na wolontariat — {$osoba}",
+        'description' => 'Sprawa otwarta automatycznie — zaproszenie przedstawiciela ustawowego do złożenia/'
+                        . 'odnowienia zgody na wolontariat małoletniego i przetwarzanie jego danych (RODO). '
+                        . 'Do zamknięcia po złożeniu zgody „na klik" w panelu opiekuna.',
+        'priority'    => 'normal',
+        'owner_id'    => null,
+        'ref_type'    => 'guardian_consent',
+        'ref_id'      => (int)$contract['id'],
+    ], $uid);
+
+    try {
+        ezd_pismo_create([
+            'sprawa_id'     => $sprawa_id,
+            'kierunek'      => 'wychodzace',
+            'title'         => 'Wyrażenie zgody na udział dziecka w wolontariacie',
+            'tresc'         => 'Zaproszenie przedstawiciela ustawowego ' . $guardian_name . ' do odnowienia zgody na wolontariat '
+                              . 'małoletniego ' . $osoba . ' oraz na przetwarzanie jego danych osobowych (RODO). '
+                              . ($podpisujacy ? "Podpisano: {$podpisujacy}." : ''),
+            'nadawca'       => '',
+            'odbiorca'      => $guardian_name,
+            'data_pisma'    => date('Y-m-d'),
+            'data_wysylki'  => date('Y-m-d'),
+            'status'        => 'nowe',
+            'rodzaj_medium' => 'email',
+        ], $uid);
+    } catch (\Throwable $e) {
+        // Sprawa jest już utworzona — brak pisma nie jest krytyczny.
+    }
+
+    $sprawa = ezd_sprawa_get($sprawa_id);
+    try {
+        db()->prepare("UPDATE umowy_wolontariat SET zgoda_przedstawiciela_ezd_sprawa_id=? WHERE id=?")
+            ->execute([$sprawa_id, (int)$contract['id']]);
+    } catch (\Throwable $e) {}
+
+    return ['sprawa_id' => $sprawa_id, 'znak_sprawy' => $sprawa['znak_sprawy'] ?? '', 'podpisujacy' => $podpisujacy];
+}
+
 // ── Teczka „Informatyka i technologia" (integracja z modułem Helpdesk) ───────
 
 /** Hasło JRWA „IT" — istnieje z seeda, samonaprawa na wypadek starszej bazy. */

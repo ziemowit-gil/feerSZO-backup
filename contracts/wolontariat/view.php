@@ -1090,6 +1090,52 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     </div>
   </div>
 
+  <!-- Zgoda przedstawiciela ustawowego -->
+  <?php if (!empty($row['niepelnoletni'])):
+    require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
+    $_gc_valid = guardian_consent_is_valid($row);
+  ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:<?= $_gc_valid ? '#F0FDF4' : '#FEF2F2' ?>;color:<?= $_gc_valid ? '#16A34A' : '#DC2626' ?>"><i class="bi bi-file-earmark-check"></i></div>
+      <span class="cv-section-title">Zgoda przedstawiciela ustawowego</span>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Status</div>
+        <div class="cv-value">
+          <?php if ($_gc_valid): ?>
+          <span class="badge bg-success-subtle text-success"><i class="bi bi-check2-circle me-1"></i>Ważna do <?= date_pl($row['zgoda_przedstawiciela_wygasa']) ?></span>
+          <?php elseif (!empty($row['zgoda_przedstawiciela_wygasa'])): ?>
+          <span class="badge bg-danger-subtle text-danger"><i class="bi bi-exclamation-octagon me-1"></i>Wygasła <?= date_pl($row['zgoda_przedstawiciela_wygasa']) ?></span>
+          <?php else: ?>
+          <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split me-1"></i>Jeszcze nieudzielona</span>
+          <?php endif; ?>
+          <?php if (!empty($row['zgoda_przedstawiciela_ezd_sprawa_id']) && module_enabled('ezd_enabled')): ?>
+          <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$row['zgoda_przedstawiciela_ezd_sprawa_id'] ?>" class="ms-2">
+            <i class="bi bi-folder2-open me-1"></i>Sprawa w EZD
+          </a>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php if (!empty($row['zgoda_przedstawiciela'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">Data złożenia</div>
+        <div class="cv-value"><?= $row['zgoda_przedstawiciela_at'] ? date_pl(substr($row['zgoda_przedstawiciela_at'], 0, 10)) : '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Seria i nr dowodu przedstawiciela</div>
+        <div class="cv-value font-monospace"><?= h($row['zgoda_przedstawiciela_dowod']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field-full">
+        <div class="cv-label">Adres zamieszkania przedstawiciela</div>
+        <div class="cv-value"><?= h($row['zgoda_przedstawiciela_adres']) ?: '—' ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- BHP i ubezpieczenia -->
   <div class="cv-section">
     <div class="cv-section-head">
