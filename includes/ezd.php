@@ -2304,6 +2304,14 @@ function ezd_office_online_pull(int $zal_id, int $user_id, string $mode = 'versi
     $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
 
+    // Bez zmian od ostatniego zapisu — nie twórz pustej wersji / nie dotykaj pliku
+    // (ważne przy automatycznej synchronizacji po zamknięciu edytora, gdy dokument
+    // był tylko otwarty do podglądu).
+    $current_path = $dir . $z['filename'];
+    if (is_file($current_path) && hash_equals(hash_file('sha256', $current_path), hash('sha256', $content))) {
+        return ['ok' => true, 'error' => null, 'id' => $zal_id, 'mode' => null, 'unchanged' => true];
+    }
+
     if ($mode === 'replace') {
         // Nadpisuje istniejący plik pod tą samą, dotychczasową nazwą przechowywania.
         if (file_put_contents($dir . $z['filename'], $content) === false) {

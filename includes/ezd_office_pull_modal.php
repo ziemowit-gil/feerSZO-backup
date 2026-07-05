@@ -56,4 +56,64 @@ define('EZD_OFFICE_PULL_MODAL_RENDERED', 1);
     nameLabel.textContent = btn.dataset.name || '';
   });
 })();
+
+// ── Autosynchronizacja po zamknięciu edytora Office Online ────────────────
+// Link „Otwórz w Office Online" otwiera się jako monitorowane okno — gdy
+// użytkownik je zamknie, w tle (bez pytania) próbujemy zapisać zmiany jako
+// nową, bezpieczną wersję pliku (ezd_office_online_pull, mode=version).
+// Brak realnych zmian = brak nowej wersji (porównanie hasha po stronie
+// serwera). Gdy autosync się nie uda, otwieramy zwykły modal ręcznego zapisu,
+// żeby użytkownik mógł spróbować sam / wybrać „zastąp oryginał".
+(function(){
+  document.addEventListener('click', function(e){
+    var a = e.target.closest('a[href*="/ezd/office_online.php?id="]');
+    if (!a) return;
+    var url = new URL(a.href, window.location.origin);
+    var zalId = url.searchParams.get('id');
+    if (!zalId) return; // nietypowy link — zostaw domyślną nawigację
+
+    e.preventDefault();
+    // UWAGA: bez flagi "noopener" w window.open — z nią większość przeglądarek
+    // zwraca null (świadomie zrywa referencję), co uniemożliwiłoby wykrycie
+    // zamknięcia okna. Bezpieczne mimo to — to nasz własny adres (ten sam origin).
+    var win = window.open(a.href, '_blank');
+    if (!win) { window.location.href = a.href; return; } // popup zablokowany
+
+    var timer = setInterval(function(){
+      if (!win.closed) return;
+      clearInterval(timer);
+      ezdOfficeOnlineAutosync(zalId);
+    }, 1000);
+  });
+
+  function ezdOfficeOnlineAutosync(zalId) {
+    var csrfInput = document.querySelector('#officeOnlinePullModal input[name="_csrf"]');
+    var csrf = csrfInput ? csrfInput.value : '';
+    var body = new URLSearchParams({ id: zalId, mode: 'version', _ajax: '1', _csrf: csrf });
+    fetch(APP_URL + '/ezd/office_online_pull.php', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: body
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.ok) {
+          if (!data.unchanged) window.location.reload();
+          return;
+        }
+        ezdOfficeOnlineFallbackModal(zalId);
+      })
+      .catch(function(){ ezdOfficeOnlineFallbackModal(zalId); });
+  }
+
+  function ezdOfficeOnlineFallbackModal(zalId) {
+    var idInput   = document.getElementById('oop-id');
+    var nameLabel = document.getElementById('oop-name');
+    var modalEl   = document.getElementById('officeOnlinePullModal');
+    if (!idInput || !modalEl || !window.bootstrap) return;
+    idInput.value = zalId;
+    if (nameLabel) nameLabel.textContent = '';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+})();
 </script>
