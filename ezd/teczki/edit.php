@@ -4,11 +4,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
-require_role('admin'); require_module_enabled('ezd_enabled','Moduł kancelarii');
+require_role('admin'); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko');
 
 $id     = (int)($_GET['id'] ?? 0);
 $teczka = ezd_teczka_get($id);
-if (!$teczka) { flash_set('error','Teczka nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
+if (!$teczka) { flash_set('error','Segregator nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
 
 $PAGE_TITLE = 'Edytuj: '.$teczka['symbol'];
 $jrwa  = ezd_jrwa_all();
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($row['status'], ['open','closed'])) $errors[] = 'Nieprawidłowy status.';
     if (!$errors) {
         ezd_teczka_update($id, $row, (int)current_user()['id']);
-        flash_set('success','Teczka zaktualizowana.');
+        flash_set('success','Segregator zaktualizowany.');
         header('Location:'.APP_URL.'/ezd/teczki/view.php?id='.$id); exit;
     }
 }
@@ -40,11 +40,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Teczki</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Segregatory</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $id ?>"><?= h($teczka['symbol']) ?></a></li>
   <li class="breadcrumb-item active">Edytuj</li>
 </ol></nav>
-<h4 class="fw-bold mb-3"><i class="bi bi-pencil text-primary me-2"></i>Edytuj teczkę <span class="font-monospace"><?= h($teczka['symbol']) ?></span></h4>
+<h4 class="fw-bold mb-3"><i class="bi bi-pencil text-primary me-2"></i>Edytuj segregator <span class="font-monospace"><?= h($teczka['symbol']) ?></span></h4>
 
 <?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
 
@@ -64,13 +64,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </select>
   </div>
   <div class="mb-3">
-    <label class="form-label fw-semibold">Symbol teczki <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Symbol segregatora <span class="text-danger">*</span></label>
     <input type="text" name="symbol" class="form-control text-uppercase font-monospace"
            value="<?= h($row['symbol']) ?>" maxlength="20" required>
     <div class="form-text text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Zmiana symbolu nie zmienia już nadanych znaków koszulek!</div>
   </div>
   <div class="mb-3">
-    <label class="form-label fw-semibold">Tytuł teczki <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Tytuł segregatora <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>" required>
   </div>
   <div class="row g-3 mb-3">
@@ -87,12 +87,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
   <div class="mb-3">
-    <label class="form-label fw-semibold">Status teczki</label>
+    <label class="form-label fw-semibold">Status segregatora</label>
     <select name="status" class="form-select">
-      <option value="open"   <?= $row['status']==='open'  ?'selected':'' ?>>Otwarta</option>
-      <option value="closed" <?= $row['status']==='closed'?'selected':'' ?>>Zamknięta</option>
+      <option value="open"   <?= $row['status']==='open'  ?'selected':'' ?>>Otwarty</option>
+      <option value="closed" <?= $row['status']==='closed'?'selected':'' ?>>Zamknięty</option>
     </select>
-    <div class="form-text">Zamknięcie teczki zablokuje zakładanie nowych koszulek.</div>
+    <div class="form-text">Zamknięcie segregatora zablokuje zakładanie nowych koszulek.</div>
   </div>
 </div><div class="card-footer d-flex gap-2">
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Zapisz zmiany</button>

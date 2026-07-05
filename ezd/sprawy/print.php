@@ -17,7 +17,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
@@ -83,7 +83,7 @@ if ($out === 'pdf') {
         $pdf->SetTextColor(255, 255, 255);
         $pdf->SetFont('DejaVu', 'B', 11);
         $pdf->SetXY(18, 15);
-        $pdf->Cell($W - 6, 7, $pl('KARTA TECZKI'), 0, 1, 'L');
+        $pdf->Cell($W - 6, 7, $pl('KARTA KOSZULKI'), 0, 1, 'L');
         $pdf->SetFont('DejaVu', '', 8);
         $pdf->SetXY(18, 22);
         $pdf->Cell($W - 6, 7, $pl(($org_name ?: '') . '   ·   Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'L');
@@ -93,7 +93,7 @@ if ($out === 'pdf') {
         $pdf->SetY(35);
         $pdf->SetFont('DejaVu', 'B', 9);
         $pdf->SetTextColor(100, 100, 100);
-        $pdf->Cell(0, 5, $pl('ZNAK TECZKI'), 0, 1);
+        $pdf->Cell(0, 5, $pl('ZNAK KOSZULKI'), 0, 1);
         $pdf->SetFont('DejaVu', 'B', 17);
         $pdf->SetTextColor(22, 53, 102);
         $pdf->Cell(0, 9, $pl($sprawa['znak_sprawy'] ?: '—'), 0, 1);
@@ -132,7 +132,7 @@ if ($out === 'pdf') {
         // ── Metadane (dwie kolumny) ───────────────────────────────────────────
         $stat   = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
         $meta   = [
-            ['Teczka',        $sprawa['teczka_symbol'] ?? '—'],
+            ['Segregator',    $sprawa['teczka_symbol'] ?? '—'],
             ['Status',        $stat],
             ['Właściciel',    $sprawa['owner_name'] ?? '—'],
             ['Otwarto',       $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
@@ -280,7 +280,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php endif; ?>
 
     <div class="card-body py-3 px-4 d-flex gap-4 flex-wrap" style="font-size:.82rem;background:#fff;border-top:1px solid #e8ecf4">
-      <span><span class="text-secondary">Teczka:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
+      <span><span class="text-secondary">Segregator:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
       <span><span class="text-secondary">Status:</span> <strong><?= h($stat_label) ?></strong></span>
       <?php if (!empty($sprawa['owner_name'])): ?>
       <span><span class="text-secondary">Właściciel:</span> <strong><?= h($sprawa['owner_name']) ?></strong></span>

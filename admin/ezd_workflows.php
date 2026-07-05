@@ -10,7 +10,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
 require_role('admin');
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $PAGE_TITLE = 'Edytor procesów (workflow)';
 $user_id = (int)current_user()['id'];

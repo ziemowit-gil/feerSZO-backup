@@ -523,7 +523,7 @@ HTML;
 
 /**
  * Rejestruje "brak reakcji firmy zewnętrznej" na zgłoszenie przekazane do
- * obsługi zewnętrznej i od razu zakłada formalną sprawę w module EZD/kancelaria
+ * obsługi zewnętrznej i od razu zakłada formalną sprawę w module EZD Wirtualne biurko
  * (teczka „IT"), żeby sprawę dalej prowadzić do załatwienia — z dekretacją
  * „do załatwienia" do operatora zgłoszenia. Dopisuje notatkę wewnętrzną w wątku
  * zgłoszenia z odnośnikiem do sprawy.
@@ -621,7 +621,7 @@ function hd_vendor_cases(int $ticket_id): array {
  * Gdy firmy zewnętrznej nie da się już użyć do rozwiązania zgłoszenia (upadłość,
  * likwidacja, zerwanie współpracy), operator kieruje sprawę do rozwiązania
  * zastępczego: zgłoszenie przechodzi na status 'zastepcze' (dalej prowadzi je
- * zespół wewnętrzny), a w EZD/Kancelarii zakłada się pilną sprawę (priorytet
+ * zespół wewnętrzny), a w EZD Wirtualne biurko zakłada się pilną sprawę (priorytet
  * 'urgent', termin 3 dni) z dekretacją „do załatwienia". Wyłącznie dla operatorów
  * helpdesku — sprawdź hd_is_operator() przed wywołaniem.
  * $who = ['id'=>?int, 'name'=>string] — operator dokonujący skierowania.

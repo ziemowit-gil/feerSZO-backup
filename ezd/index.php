@@ -6,7 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
 
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $PAGE_TITLE = 'Wirtualne biurko';
 $stats      = ezd_stats();
@@ -90,7 +90,7 @@ include dirname(__DIR__) . '/includes/header.php';
     </a>
     <?php if (is_admin()): ?>
     <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-archive me-1"></i>Nowa teczka
+      <i class="bi bi-archive me-1"></i>Nowy segregator
     </a>
     <?php endif; ?>
     <?php endif; ?>
@@ -108,7 +108,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="d-flex gap-2 mb-4 flex-wrap">
   <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-mailbox2 me-1"></i>Dziennik podawczy</a>
   <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder2-open me-1"></i>Koszulki</a>
-  <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Teczki aktowe</a>
+  <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Segregatory aktowe</a>
   <a href="<?= APP_URL ?>/ezd/jrwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Wykaz akt (JRWA)</a>
   <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard me-1"></i>Rejestr pełnomocnictw</a>
   <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-award me-1"></i>Rejestr zaświadczeń</a>
@@ -119,7 +119,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="row g-3 mb-4">
   <?php $items = [
     ['label'=>'W koszulce (RPW)',   'val'=>$rpw_stats['koszulka'], 'icon'=>'bi-inbox-fill',          'color'=>'info'],
-    ['label'=>'Teczki otwarte',     'val'=>$stats['teczki_open'],  'icon'=>'bi-archive-fill',       'color'=>'primary'],
+    ['label'=>'Segregatory otwarte','val'=>$stats['teczki_open'],  'icon'=>'bi-archive-fill',       'color'=>'primary'],
     ['label'=>'Koszulki aktywne',   'val'=>$stats['sprawy_open'],  'icon'=>'bi-folder2-open',        'color'=>'success'],
     ['label'=>'Pisma (ten miesiąc)','val'=>$stats['pisma_month'],  'icon'=>'bi-envelope-arrow-down', 'color'=>'info'],
     ['label'=>'Przekazania czekają','val'=>$stats['dekr_pending'], 'icon'=>'bi-person-lines-fill',   'color'=>'danger'],
@@ -187,7 +187,7 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <div class="row g-4">
-  <!-- Aktywne teczki -->
+  <!-- Aktywne koszulki -->
   <div class="col-lg-7">
     <div class="ezd-card">
       <div class="ezd-card-header">

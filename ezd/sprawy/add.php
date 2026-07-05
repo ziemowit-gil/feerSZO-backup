@@ -4,7 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
-require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
+require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko');
 
 $users  = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
 $teczki = ezd_teczki_all('open');
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'deadline'    => $_POST['deadline']           ?? '',
         'ciagla'      => isset($_POST['ciagla']) ? 1 : 0,
     ];
-    if (!$row['teczka_id']) $errors[] = 'Wybierz teczkę aktową.';
+    if (!$row['teczka_id']) $errors[] = 'Wybierz segregator aktowy.';
     if (!$row['title'])     $errors[] = 'Tytuł koszulki jest wymagany.';
     if (!in_array($row['status'],   array_keys(EZD_STATUSES_SPRAWA))) $errors[] = 'Nieprawidłowy status.';
     if (!in_array($row['priority'], array_keys(EZD_PRIORITIES)))      $errors[] = 'Nieprawidłowy priorytet.';
@@ -86,15 +86,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <?php if($parent): ?><input type="hidden" name="parent_id" value="<?= $parent_id ?>"><?php endif; ?>
 <div class="card shadow-sm">
 <div class="card-body">
-  <!-- Teczka -->
+  <!-- Segregator -->
   <div class="mb-3">
-    <label class="form-label fw-semibold">Teczka aktowa <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Segregator aktowy <span class="text-danger">*</span></label>
     <?php if($parent): ?>
     <input type="text" class="form-control" value="<?= h($parent['teczka_symbol'].' — '.$parent['teczka_title'].' ('.$parent['teczka_rok'].')') ?>" disabled>
-    <div class="form-text">Podteczka dziedziczy teczkę aktową nadrzędnej.</div>
+    <div class="form-text">Podkoszulka dziedziczy segregator aktowy nadrzędnej.</div>
     <?php else: ?>
     <select name="teczka_id" class="form-select" required onchange="updateZnak(this)">
-      <option value="">— wybierz teczkę —</option>
+      <option value="">— wybierz segregator —</option>
       <?php foreach($teczki as $t): ?>
       <option value="<?= $t['id'] ?>" data-symbol="<?= h($t['symbol']) ?>" data-rok="<?= $t['rok'] ?>"
               <?= (int)$row['teczka_id']===$t['id']?'selected':'' ?>>
@@ -107,7 +107,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <!-- Podgląd znaku -->
   <div class="mb-3">
     <div class="alert alert-info py-2 px-3" style="font-size:.82rem">
-      <i class="bi bi-info-circle me-1"></i>Znak teczki zostanie nadany automatycznie:
+      <i class="bi bi-info-circle me-1"></i>Znak koszulki zostanie nadany automatycznie:
       <strong id="znak-preview" class="font-monospace ms-1">SYMBOL.N.<?= date('Y') ?></strong>
     </div>
   </div>

@@ -10,7 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/certificates.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $user_id = (int)current_user()['id'];
 

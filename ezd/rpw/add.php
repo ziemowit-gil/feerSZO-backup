@@ -9,7 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/rpw/index.php'); exit; }
 
 $PAGE_TITLE = 'Rejestracja przesyłki';

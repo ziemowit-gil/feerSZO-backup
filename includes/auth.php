@@ -171,7 +171,7 @@ function require_login(): void {
         }
     }
 
-    // Użytkownicy ezd_user / ezd_only — dostęp wyłącznie do Kancelarii EZD
+    // Użytkownicy ezd_user / ezd_only — dostęp wyłącznie do EZD Wirtualne biurko
     if (is_ezd_only()) {
         $uri = $_SERVER['REQUEST_URI'] ?? '';
         $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';

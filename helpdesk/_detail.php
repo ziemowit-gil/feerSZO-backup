@@ -616,7 +616,7 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <form method="post" action="<?= h($view_action) ?>" data-hd-form
-            data-hd-confirm="Skierować zgłoszenie do rozwiązania zastępczego? Zmieni to status zgłoszenia i założy pilną sprawę w Kancelarii.">
+            data-hd-confirm="Skierować zgłoszenie do rozwiązania zastępczego? Zmieni to status zgłoszenia i założy pilną sprawę w EZD Wirtualne biurko.">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_vendor_insolvent" value="1">
         <div class="modal-header text-bg-dark py-2">
@@ -626,7 +626,7 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
         <div class="modal-body">
           <p class="text-muted small">Użyj, gdy nie ma już możliwości rozwiązania sprawy przez firmę zewnętrzną
             (upadłość, likwidacja, zerwanie współpracy). Zgłoszenie przejdzie na status „Rozwiązanie zastępcze",
-            a w Kancelarii zostanie założona pilna sprawa z terminem 3 dni.</p>
+            a w EZD Wirtualne biurko zostanie założona pilna sprawa z terminem 3 dni.</p>
           <div class="mb-2">
             <label class="form-label small mb-1">Opis sytuacji <span class="text-danger">*</span></label>
             <textarea name="vendor_insolvent_desc" class="form-control form-control-sm" rows="5" required

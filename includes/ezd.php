@@ -340,7 +340,7 @@
 // ── Stałe ────────────────────────────────────────────────────────────────────
 
 /**
- * Tryb „mini" kancelarii — uproszczony rejestr spraw i dokumentów bez
+ * Tryb „mini" EZD — uproszczony rejestr spraw i dokumentów bez
  * formalnych elementów postępowania (metryka, obieg/workflow BPM). Włączany
  * w Ustawieniach EZD (ustawienie org `ezd_mini`).
  */

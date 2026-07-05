@@ -9,7 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $user_id = (int)current_user()['id'];
 
@@ -51,7 +51,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php if ($new_teczka): ?>
       <a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $new_teczka ?>" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowe pełnomocnictwo</a>
       <?php else: ?>
-      <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-outline-primary btn-sm" title="Najpierw załóż teczkę w JRWA <?= h($jrwa) ?>"><i class="bi bi-archive me-1"></i>Załóż teczkę <?= h($jrwa) ?></a>
+      <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-outline-primary btn-sm" title="Najpierw załóż segregator w JRWA <?= h($jrwa) ?>"><i class="bi bi-archive me-1"></i>Załóż segregator <?= h($jrwa) ?></a>
       <?php endif; ?>
     <?php endif; ?>
   </div>
@@ -182,7 +182,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           Brak pełnomocnictw<?= $f['status']||$f['q']?' dla wybranych filtrów':'' ?>.
           <?php if(can_edit() && !$f['status'] && !$f['q']): ?>
             <br><?php if($new_teczka): ?><a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $new_teczka ?>">Dodaj pierwsze pełnomocnictwo</a>
-            <?php else: ?>Załóż najpierw teczkę w JRWA <?= h($jrwa) ?> (Pełnomocnictwa).<?php endif; ?>
+            <?php else: ?>Załóż najpierw segregator w JRWA <?= h($jrwa) ?> (Pełnomocnictwa).<?php endif; ?>
           <?php endif; ?>
         </td></tr>
       <?php endif; ?>
@@ -190,6 +190,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </table>
   </div>
 </div>
-<div class="text-muted mt-2" style="font-size:.74rem"><i class="bi bi-info-circle me-1"></i>Rejestr obejmuje wszystkie sprawy z teczek sklasyfikowanych w JRWA <?= h($jrwa) ?>. Status wyliczany automatycznie z dat ważności i odwołania.</div>
+<div class="text-muted mt-2" style="font-size:.74rem"><i class="bi bi-info-circle me-1"></i>Rejestr obejmuje wszystkie koszulki z segregatorów sklasyfikowanych w JRWA <?= h($jrwa) ?>. Status wyliczany automatycznie z dat ważności i odwołania.</div>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

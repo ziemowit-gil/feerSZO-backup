@@ -1,6 +1,6 @@
 <?php
 /**
- * Skrypt cron: Przypomnienia o terminach w kancelarii EZD.
+ * Skrypt cron: Przypomnienia o terminach w EZD Wirtualne biurko.
  * Uruchamiaj raz dziennie, np. o 7:30:
  *   30 7 * * * php /var/www/html/cron/ezd_deadline_reminder.php
  *

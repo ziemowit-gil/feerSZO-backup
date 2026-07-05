@@ -4,7 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
-require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
+require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
@@ -72,10 +72,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <label class="form-label fw-semibold">Znak koszulki</label>
     <input type="text" class="form-control font-monospace" value="<?= h($sprawa['znak_sprawy']) ?>" readonly>
   </div>
-  <!-- Teczka -->
+  <!-- Segregator -->
   <?php if(is_admin()): ?>
   <div class="mb-3">
-    <label class="form-label fw-semibold">Teczka aktowa</label>
+    <label class="form-label fw-semibold">Segregator aktowy</label>
     <select name="teczka_id" class="form-select">
       <?php foreach($teczki as $t): ?>
       <option value="<?= $t['id'] ?>" <?= (int)$row['teczka_id']===$t['id']?'selected':'' ?>>

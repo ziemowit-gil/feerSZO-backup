@@ -4,16 +4,16 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
-require_login(); require_module_enabled('ezd_enabled', 'Moduł kancelarii');
-$PAGE_TITLE = 'Teczki aktowe';
+require_login(); require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
+$PAGE_TITLE = 'Segregatory aktowe';
 $status = $_GET['status'] ?? 'open';
 $teczki = ezd_teczki_all($status === 'all' ? '' : $status);
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0 fw-bold"><i class="bi bi-archive text-primary me-2"></i>Teczki aktowe</h4>
+  <h4 class="mb-0 fw-bold"><i class="bi bi-archive text-primary me-2"></i>Segregatory aktowe</h4>
   <?php if (is_admin()): ?>
-  <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowa teczka</a>
+  <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowy segregator</a>
   <?php endif; ?>
 </div>
 <?= flash_html() ?>
@@ -26,7 +26,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <div class="card shadow-sm">
   <div class="card-header d-flex align-items-center justify-content-between">
-    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-archive me-1 text-primary"></i>Teczki (<?= count($teczki) ?>)</span>
+    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-archive me-1 text-primary"></i>Segregatory (<?= count($teczki) ?>)</span>
   </div>
   <div class="table-responsive">
     <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.83rem">
@@ -51,7 +51,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <td class="text-center text-nowrap">
             <span title="Aktywne / wszystkie"><i class="bi bi-folder2 me-1 text-muted"></i><span class="fw-semibold"><?= (int)$t['open_cases'] ?></span><span class="text-muted"> / <?= (int)$t['total_cases'] ?></span></span>
           </td>
-          <td><span class="badge bg-<?= $t['status']==='open'?'success':'secondary' ?>"><?= $t['status']==='open'?'Otwarta':'Zamknięta' ?></span></td>
+          <td><span class="badge bg-<?= $t['status']==='open'?'success':'secondary' ?>"><?= $t['status']==='open'?'Otwarty':'Zamknięty' ?></span></td>
           <td class="text-end" onclick="event.stopPropagation()">
             <a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $t['id'] ?>" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz"><i class="bi bi-folder2-open"></i></a>
             <?php if (is_admin()): ?>
@@ -63,7 +63,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php if (!$teczki): ?>
         <tr><td colspan="7" class="text-center py-5 text-muted">
           <i class="bi bi-archive" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-          Brak teczek. <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/teczki/add.php">Utwórz pierwszą teczkę.</a><?php endif; ?>
+          Brak segregatorów. <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/teczki/add.php">Utwórz pierwszy segregator.</a><?php endif; ?>
         </td></tr>
       <?php endif; ?>
       </tbody>

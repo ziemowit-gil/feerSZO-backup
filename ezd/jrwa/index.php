@@ -9,7 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $user_id = (int)current_user()['id'];
 
@@ -122,7 +122,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <th>Hasło klasyfikacyjne</th>
           <th style="width:90px" class="text-center">Kat. arch.</th>
           <th>Opis / zakres</th>
-          <th style="width:80px" class="text-center">Teczki</th>
+          <th style="width:80px" class="text-center">Segregatory</th>
           <?php if(is_admin()): ?><th style="width:90px"></th><?php endif; ?>
         </tr>
       </thead>

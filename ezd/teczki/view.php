@@ -4,10 +4,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
-require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
+require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko');
 $id     = (int)($_GET['id']??0);
 $teczka = ezd_teczka_get($id);
-if (!$teczka) { flash_set('error','Teczka nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
+if (!$teczka) { flash_set('error','Segregator nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
 $sprawy  = ezd_sprawy_by_teczka($id);
 $PAGE_TITLE = $teczka['symbol'].' — '.$teczka['title'];
 $status_f = $_GET['status'] ?? '';
@@ -22,7 +22,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </style>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Teczki</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Segregatory</a></li>
   <li class="breadcrumb-item active"><?= h($teczka['symbol']) ?></li>
 </ol></nav>
 
@@ -34,7 +34,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div>
         <div class="d-flex align-items-center gap-2 mb-1">
           <span class="badge bg-primary bg-opacity-15 text-primary fw-bold font-monospace fs-6"><?= h($teczka['symbol']) ?></span>
-          <span class="badge bg-<?= $teczka['status']==='open'?'success':'secondary' ?>"><?= $teczka['status']==='open'?'Otwarta':'Zamknięta' ?></span>
+          <span class="badge bg-<?= $teczka['status']==='open'?'success':'secondary' ?>"><?= $teczka['status']==='open'?'Otwarty':'Zamknięty' ?></span>
           <?php if($teczka['kat_arch']): ?><span class="badge bg-light text-dark border" style="font-size:.68rem">Kat. <?= h($teczka['kat_arch']) ?></span><?php endif; ?>
         </div>
         <h4 class="fw-bold mb-1"><?= h($teczka['title']) ?></h4>
@@ -91,7 +91,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php if (!$sprawy): ?>
     <div class="text-center py-5 text-muted">
       <i class="bi bi-folder2" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-      Brak koszulek w tej teczce.
+      Brak koszulek w tym segregatorze.
       <?php if(can_edit()&&$teczka['status']==='open'): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>">Załóż pierwszą koszulkę.</a><?php endif; ?>
     </div>
     <?php endif; ?>

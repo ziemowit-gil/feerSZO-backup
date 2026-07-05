@@ -8,7 +8,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
-require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
+require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko');
 
 $id = (int)($_GET['id'] ?? 0);
 $z  = ezd_zal_get($id);

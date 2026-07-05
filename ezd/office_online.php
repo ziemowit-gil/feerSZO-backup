@@ -11,7 +11,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
 
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $id  = (int)($_GET['id'] ?? 0);
 $ref = $_SERVER['HTTP_REFERER'] ?? (APP_URL . '/ezd/index.php');

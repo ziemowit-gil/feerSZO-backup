@@ -4,7 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
-require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
+require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko');
 
 $PAGE_TITLE = 'Koszulki';
 $user_id    = (int)current_user()['id'];
@@ -32,7 +32,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="sprawy_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM dla Excela
-    fputcsv($out, ['Znak koszulki','Tytuł','Teczka','Status','Priorytet','Etap','Właściciel','Termin'], ';');
+    fputcsv($out, ['Znak koszulki','Tytuł','Segregator','Status','Priorytet','Etap','Właściciel','Termin'], ';');
     foreach ($sprawy as $s) {
         fputcsv($out, [
             $s['znak_sprawy'], $s['title'], $s['teczka_symbol'].' — '.$s['teczka_title'],

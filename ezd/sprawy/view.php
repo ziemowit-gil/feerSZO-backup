@@ -11,7 +11,7 @@ if (module_enabled('org_enabled')) {
 }
 
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
@@ -719,7 +719,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="bc-h"><i class="bi bi-info-circle"></i>Informacje o koszulce</div>
       <div class="bc-b">
         <dl class="row mb-0" style="font-size:.82rem;row-gap:.3rem">
-          <dt class="col-5 text-muted fw-normal">Teczka</dt>
+          <dt class="col-5 text-muted fw-normal">Segregator</dt>
           <dd class="col-7 mb-0"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="text-decoration-none fw-semibold"><?= h($sprawa['teczka_symbol']) ?></a></dd>
           <dt class="col-5 text-muted fw-normal">Właściciel</dt>
           <dd class="col-7 mb-0"><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '<span class="text-muted">—</span>' ?></dd>

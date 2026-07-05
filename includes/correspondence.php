@@ -290,7 +290,7 @@ function corr_ezd_auto_enabled(): bool {
 }
 
 /**
- * Automatyczna rejestracja korespondencji w Kancelarii EZD.
+ * Automatyczna rejestracja korespondencji w EZD Wirtualne biurko.
  * Trafia do sprawy ciągłej „Korespondencja przychodząca/wychodząca {rok}" (JRWA korespondencji).
  * Idempotentne — pomija, gdy korespondencja jest już powiązana z pismem EZD.
  * @return int|null id utworzonego pisma EZD lub null gdy pominięto

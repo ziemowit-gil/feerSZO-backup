@@ -65,7 +65,7 @@ include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0"><i class="bi bi-building-gear text-primary me-2"></i>Ustawienia modułu Wirtualne biurko</h4>
-  <a href="<?= APP_URL ?>/ezd/index.php" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-box-arrow-up-right me-1"></i>Przejdź do kancelarii</a>
+  <a href="<?= APP_URL ?>/ezd/index.php" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-box-arrow-up-right me-1"></i>Przejdź do EZD</a>
 </div>
 
 <?= flash_html() ?>
@@ -81,7 +81,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" id="ezd_enabled" name="ezd_enabled" <?= module_enabled('ezd_enabled') ? 'checked' : '' ?>>
             <label class="form-check-label fw-semibold" for="ezd_enabled">Moduł włączony</label>
-            <div class="form-text">Udostępnia sekcję „Wirtualne biurko" w menu (Teczki, Sprawy, Pisma, Dziennik podawczy, JRWA). To samo ustawienie znajdziesz w <a href="<?= APP_URL ?>/admin/modules_settings.php">Modułach</a>.</div>
+            <div class="form-text">Udostępnia sekcję „Wirtualne biurko" w menu (Koszulki, Segregatory, Pisma, Dziennik podawczy, JRWA). To samo ustawienie znajdziesz w <a href="<?= APP_URL ?>/admin/modules_settings.php">Modułach</a>.</div>
           </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" id="ezd_mini" name="ezd_mini" <?= $cfg['ezd_mini'] === '1' ? 'checked' : '' ?>>
@@ -95,7 +95,7 @@ include dirname(__DIR__) . '/includes/header.php';
           </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" id="corr_ezd_auto" name="corr_ezd_auto" <?= $cfg['corr_ezd_auto'] !== '0' ? 'checked' : '' ?>>
-            <label class="form-check-label fw-semibold" for="corr_ezd_auto">Automatyczna rejestracja korespondencji w Kancelarii</label>
+            <label class="form-check-label fw-semibold" for="corr_ezd_auto">Automatyczna rejestracja korespondencji w EZD Wirtualne biurko</label>
             <div class="form-text">Każda nowa korespondencja przychodząca/wychodząca trafia automatycznie do sprawy ciągłej „Korespondencja przychodząca/wychodząca {rok}" jako pismo (z przeniesieniem załącznika). Po wyłączeniu pozostaje ręczne „Zarejestruj w EZD".</div>
           </div>
           <div class="row g-3">
@@ -128,8 +128,8 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="card-body">
         <div class="row g-3 text-center">
           <?php foreach ([
-            ['Teczki otwarte', $stat['teczki_open'], '/ezd/teczki/index.php'],
-            ['Sprawy aktywne', $stat['sprawy_open'], '/ezd/sprawy/index.php'],
+            ['Segregatory otwarte', $stat['teczki_open'], '/ezd/teczki/index.php'],
+            ['Koszulki aktywne', $stat['sprawy_open'], '/ezd/sprawy/index.php'],
             ['W koszulce (RPW)', $rpw['koszulka'], '/ezd/rpw/index.php?status=nowa'],
             ['Hasła JRWA', $counts['jrwa'], '/ezd/jrwa/index.php'],
             ['Dokumenty wewn.', $counts['dokumenty'], null],

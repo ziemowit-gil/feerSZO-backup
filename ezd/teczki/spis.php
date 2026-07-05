@@ -1,6 +1,6 @@
 <?php
 /**
- * Spis koszulek teczki — formalny rejestr koszulek wg kolejnego numeru (do wydruku).
+ * Spis koszulek segregatora — formalny rejestr koszulek wg kolejnego numeru (do wydruku).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -8,11 +8,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $id     = (int)($_GET['id'] ?? 0);
 $teczka = ezd_teczka_get($id);
-if (!$teczka) { flash_set('error','Teczka nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
+if (!$teczka) { flash_set('error','Segregator nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
 
 // Spis koszulek — kolejność wg numeru rosnąco (kolejność wszczynania)
 $sprawy = db_all(
@@ -45,7 +45,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </ol></nav>
 
 <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-  <h4 class="fw-bold mb-0"><i class="bi bi-list-ol text-primary me-2"></i>Spis koszulek teczki</h4>
+  <h4 class="fw-bold mb-0"><i class="bi bi-list-ol text-primary me-2"></i>Spis koszulek segregatora</h4>
   <button onclick="window.print()" class="btn btn-outline-primary btn-sm"><i class="bi bi-printer me-1"></i>Drukuj / PDF</button>
 </div>
 
@@ -57,7 +57,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="spis-meta">Spis koszulek</div>
     </div>
     <div class="text-end spis-meta">
-      <div><strong>Symbol teczki:</strong> <span class="font-monospace"><?= h($teczka['symbol']) ?></span></div>
+      <div><strong>Symbol segregatora:</strong> <span class="font-monospace"><?= h($teczka['symbol']) ?></span></div>
       <div><strong>Rok:</strong> <?= (int)$teczka['rok'] ?></div>
       <?php if($teczka['kat_arch']): ?><div><strong>Kat. arch.:</strong> <?= h($teczka['kat_arch']) ?></div><?php endif; ?>
     </div>
@@ -92,7 +92,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </tr>
       <?php endforeach; ?>
       <?php if(!$sprawy): ?>
-      <tr><td colspan="6" class="text-center text-muted py-3">Brak koszulek w teczce.</td></tr>
+      <tr><td colspan="6" class="text-center text-muted py-3">Brak koszulek w segregatorze.</td></tr>
       <?php endif; ?>
     </tbody>
   </table>

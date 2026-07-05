@@ -11,7 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $id  = (int)($_GET['id'] ?? 0);
 $rpw = ezd_rpw_get($id);
@@ -188,9 +188,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <form method="post">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_action" value="assign">
-              <label class="form-label mb-1" style="font-size:.74rem">Teczka (JRWA)</label>
+              <label class="form-label mb-1" style="font-size:.74rem">Segregator (JRWA)</label>
               <select name="teczka_id" class="form-select form-select-sm mb-2" required>
-                <option value="">— wybierz teczkę —</option>
+                <option value="">— wybierz segregator —</option>
                 <?php foreach($teczki as $t): ?>
                 <option value="<?= $t['id'] ?>"><?= h($t['symbol']) ?> — <?= h(mb_substr($t['title'],0,35)) ?> (<?= $t['rok'] ?>)</option>
                 <?php endforeach; ?>
@@ -200,7 +200,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <button class="btn btn-success btn-sm w-100"><i class="bi bi-folder-plus me-1"></i>Załóż sprawę i utwórz pismo</button>
             </form>
             <?php else: ?>
-            <div class="text-muted text-center py-2" style="font-size:.8rem">Brak otwartych teczek. <a href="<?= APP_URL ?>/ezd/teczki/add.php">Załóż teczkę</a>.</div>
+            <div class="text-muted text-center py-2" style="font-size:.8rem">Brak otwartych segregatorów. <a href="<?= APP_URL ?>/ezd/teczki/add.php">Załóż segregator</a>.</div>
             <?php endif; ?>
           </div>
         </div>

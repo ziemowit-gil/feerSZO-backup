@@ -9,7 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł kancelarii');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
@@ -79,7 +79,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div class="text-end mtr-meta">
       <div><strong>Znak koszulki:</strong> <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span></div>
-      <div><strong>Teczka:</strong> <span class="font-monospace"><?= h($sprawa['teczka_symbol']) ?></span></div>
+      <div><strong>Segregator:</strong> <span class="font-monospace"><?= h($sprawa['teczka_symbol']) ?></span></div>
     </div>
   </div>
   <div class="mb-3">
