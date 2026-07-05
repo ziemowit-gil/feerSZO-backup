@@ -214,6 +214,78 @@ HTML;
 </html>
 HTML;
 
+    // — Okresowa weryfikacja wolontariusza niepełnoletniego ——————————————
+    $minor_verif_body = <<<'HTML'
+<!DOCTYPE html>
+<html lang="pl">
+<head><meta charset="UTF-8"><title>Okresowa weryfikacja wolontariatu</title></head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;
+                    box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:600px;">
+        <tr>
+          <td style="background:{{accent}};padding:24px 32px;">
+            <p style="margin:0;font-size:13px;color:rgba(255,255,255,.8);text-transform:uppercase;
+                      letter-spacing:.05em;">System zarządzania umowami</p>
+            <h1 style="margin:6px 0 0;font-size:22px;color:#ffffff;font-weight:700;">
+              Okresowa weryfikacja wolontariatu
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <p style="margin:0 0 16px;font-size:15px;color:#333333;">
+              Szanowni Państwo{{greeting}},
+            </p>
+            <p style="margin:0 0 24px;font-size:15px;color:#333333;">
+              W związku z okresową weryfikacją wolontariatu uprzejmie informujemy, że zostanie
+              do Pani/Pana nadane pismo w sprawie wolontariusza niepełnoletniego
+              <strong>{{osoba}}</strong>.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+                          padding:0;margin-bottom:24px;">
+              <tr><td style="padding:20px 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Wolontariusz</td>
+                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{osoba}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
+                    <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data weryfikacji</td>
+                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{data_weryfikacji}}</td>
+                  </tr>
+                </table>
+              </td></tr>
+            </table>
+            <p style="margin:0 0 8px;font-size:14px;color:#495057;">
+              Weryfikacja przeprowadzana jest cyklicznie (co 90 dni) i ma na celu potwierdzenie
+              aktualności danych oraz zgody na dalszy udział w wolontariacie. Pismo, o którym mowa
+              powyżej, zostanie przekazane odrębnie.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8f9fa;padding:16px 32px;border-top:1px solid #e9ecef;">
+            <p style="margin:0;font-size:12px;color:#adb5bd;text-align:center;">
+              Wiadomość wygenerowana automatycznie przez system zarządzania umowami NGO.<br>
+              Prosimy nie odpowiadać na tę wiadomość.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+HTML;
+
     // — Kod odzyskiwania dostępu ————————————————————————————————
     $recovery_body = <<<'HTML'
 <html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
@@ -477,6 +549,23 @@ HTML;
                 'deadline' => ['label' => 'Termin (data)',    'sample' => '20.06.2026'],
                 'pilnosc'  => ['label' => 'Tekst pilności',   'sample' => 'Pozostały <strong>3 dni</strong>.'],
                 'url'      => ['label' => 'Link do umowy',    'sample' => $base . '/contracts/zlecenie/view.php?id=14'],
+            ],
+        ],
+
+        'minor_volunteer_periodic_verification' => [
+            'label'       => 'Okresowa weryfikacja — wolontariusz niepełnoletni',
+            'group'       => 'Umowy',
+            'icon'        => 'bi-shield-check',
+            'auto'        => true,
+            'description' => 'Cykliczne (co 90 dni) powiadomienie opiekuna wolontariusza niepełnoletniego o zbliżającym się piśmie w sprawie okresowej weryfikacji wolontariatu.',
+            'subject'     => 'Okresowa weryfikacja wolontariatu — {{osoba}}',
+            'body'        => $minor_verif_body,
+            'vars'        => [
+                'accent'           => ['label' => 'Kolor akcentu',       'sample' => '#0ea5e9'],
+                'greeting'         => ['label' => 'Zwrot grzecznościowy (np. ", Anna Nowak")', 'sample' => ', <strong>Anna Nowak</strong>'],
+                'osoba'            => ['label' => 'Wolontariusz (niepełnoletni)', 'sample' => 'Jan Kowalski'],
+                'numer'            => ['label' => 'Numer umowy',         'sample' => 'W/2026/014'],
+                'data_weryfikacji' => ['label' => 'Data weryfikacji',    'sample' => '05.07.2026'],
             ],
         ],
 

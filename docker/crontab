@@ -7,6 +7,10 @@
 # Przypomnienia o umowach — codziennie o 7:00
 0 7 * * * www-data php /var/www/html/cron/contract_expiry_reminder.php >> /var/log/feer_cron.log 2>&1
 
+# Okresowa weryfikacja wolontariuszy niepełnoletnich (co 90 dni, sprawdzane
+# codziennie) — codziennie o 7:10
+10 7 * * * www-data php /var/www/html/cron/minor_volunteer_periodic_verification.php >> /var/log/feer_cron.log 2>&1
+
 # Powiadomienia o zadaniach — codziennie o 7:05
 5 7 * * * www-data php /var/www/html/cron/tasks_due_reminder.php >> /var/log/feer_cron.log 2>&1
 
