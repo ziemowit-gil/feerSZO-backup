@@ -25,10 +25,14 @@ require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/mail_queue.php';
 require_once $base_dir . '/includes/email_templates.php';
+require_once $base_dir . '/includes/notifications.php';
 
 const MINOR_VERIF_INTERVAL_DAYS = 90;
 
 $today = date('Y-m-d');
+notif_migrate();
+
+$admins = db_all("SELECT id, name, email FROM users WHERE role='admin' AND is_active=1");
 
 $sent = 0; $skip = 0; $errs = 0;
 
@@ -92,6 +96,27 @@ foreach ($contracts as $c) {
     } catch (\Throwable $e) {
         echo "[" . date('Y-m-d H:i:s') . "] BLAD {$numer}: " . $e->getMessage() . "\n";
         $errs++;
+        continue;
+    }
+
+    // Info dla admina — pismo trzeba przygotować i wysłać ręcznie.
+    $contract_url = defined('APP_URL') ? APP_URL . '/contracts/wolontariat/view.php?id=' . $contract_id : '';
+    $admin_rendered = email_tpl_render('minor_volunteer_periodic_verification_admin', [
+        'accent'           => '#0ea5e9',
+        'osoba'            => $osoba,
+        'numer'            => $numer,
+        'opiekun_nazwa'    => $to_name,
+        'opiekun_email'    => $to_email,
+        'data_weryfikacji' => date('d.m.Y', strtotime($today)),
+        'url'              => $contract_url,
+    ]);
+    foreach ($admins as $admin) {
+        try { notif_create((int)$admin['id'], 'contract', 'Do wysłania: pismo ws. weryfikacji — ' . $osoba, '', $contract_url); }
+        catch (\Throwable $e) {}
+        if ($admin_rendered['enabled'] && !empty($admin['email'])) {
+            try { mail_queue_add($admin['email'], $admin['name'] ?? '', $admin_rendered['subject'], $admin_rendered['html']); }
+            catch (\Throwable $e) {}
+        }
     }
 }
 
