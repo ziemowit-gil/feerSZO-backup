@@ -138,11 +138,11 @@ include dirname(__DIR__) . '/includes/header.php';
   <?php endforeach; ?>
 </div>
 
-<!-- Widget: Moje sprawy / Moje pisma -->
+<!-- Widget: Moje koszulki / Moje dokumenty -->
 <div class="ezd-card mb-4">
   <ul class="nav nav-tabs px-2 pt-2" style="font-size:.82rem;border-bottom:1px solid #f1f5f9">
     <li class="nav-item"><a class="nav-link active py-1" data-bs-toggle="tab" href="#tab-moje-sprawy"><i class="bi bi-folder2-open me-1"></i>Moje teczki <span class="badge bg-primary rounded-pill"><?= $my_sprawy_cnt ?></span></a></li>
-    <li class="nav-item"><a class="nav-link py-1" data-bs-toggle="tab" href="#tab-moje-pisma"><i class="bi bi-envelope me-1"></i>Moje pisma <span class="badge bg-secondary rounded-pill"><?= $my_pisma_cnt ?></span></a></li>
+    <li class="nav-item"><a class="nav-link py-1" data-bs-toggle="tab" href="#tab-moje-pisma"><i class="bi bi-envelope me-1"></i>Moje dokumenty <span class="badge bg-secondary rounded-pill"><?= $my_pisma_cnt ?></span></a></li>
   </ul>
   <div class="tab-content p-0">
     <!-- Moje teczki -->
@@ -167,7 +167,7 @@ include dirname(__DIR__) . '/includes/header.php';
         </tbody>
       </table>
     </div>
-    <!-- Moje pisma -->
+    <!-- Moje dokumenty -->
     <div class="tab-pane fade" id="tab-moje-pisma">
       <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
         <tbody>
@@ -191,7 +191,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="col-lg-7">
     <div class="ezd-card">
       <div class="ezd-card-header">
-        <i class="bi bi-folder2-open"></i> Aktywne teczki
+        <i class="bi bi-folder2-open"></i> Aktywne koszulki
         <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="ms-auto text-primary" style="font-size:.75rem;font-weight:600;text-transform:none;letter-spacing:0">Wszystkie →</a>
       </div>
       <div class="table-responsive">
