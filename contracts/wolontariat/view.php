@@ -1117,6 +1117,13 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
             <i class="bi bi-folder2-open me-1"></i>Sprawa w EZD
           </a>
           <?php endif; ?>
+          <?php if (in_array(current_user()['role'] ?? '', ['admin', 'editor'], true)): ?>
+          <a href="<?= APP_URL ?>/contracts/wolontariat/guardian_consent_action.php?id=<?= (int)$row['id'] ?>"
+             class="btn btn-sm btn-outline-primary ms-2"
+             onclick="return confirm('Wygenerować i wysłać teraz pismo o odnowieniu zgody do przedstawiciela ustawowego (<?= h(addslashes($row['rodzic_email'] ?? '')) ?>)?')">
+            <i class="bi bi-envelope-plus me-1"></i>Wygeneruj pismo teraz
+          </a>
+          <?php endif; ?>
         </div>
       </div>
       <?php if (!empty($row['zgoda_przedstawiciela'])): ?>
