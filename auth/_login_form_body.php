@@ -157,6 +157,16 @@ if ($is_feer) {
     Logowanie przez Office nie działa? Utwórz hasło awaryjne
   </a>
 </p>
+<?php if (!$is_feer): ?>
+<p style="text-align:center;margin:.35rem 0 0">
+  <a href="<?= APP_URL ?>/user/verify_reset.php"
+     class="forgot-link" style="font-size:.82rem"
+     aria-label="Masz podpisaną umowę wolontariacką, ale nie masz jeszcze konta? Załóż je po weryfikacji tożsamości">
+    <i class="bi bi-person-plus" aria-hidden="true"></i>
+    Masz umowę, ale nie masz jeszcze konta? Załóż je
+  </a>
+</p>
+<?php endif; ?>
 
 <?php if (!empty($alt_tabs)): ?>
 <!-- ── Więcej opcji — rozwijane (kod jednorazowy / SMS / X.509) ─────────── -->

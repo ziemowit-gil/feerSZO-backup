@@ -59,10 +59,42 @@ const VR_ERR_CROSSMATCH  = 'Nie udało się zweryfikować danych. Sprawdź wprow
 const VR_ERR_SMS         = 'Podany kod jest nieprawidłowy lub wygasł. Spróbuj ponownie.';
 const VR_ERR_RATE        = 'Zbyt wiele prób weryfikacji. Spróbuj ponownie za godzinę.';
 
+/**
+ * Zakłada konto portalu dla wolontariusza, który ma umowę, ale nie ma jeszcze
+ * konta w `users` (np. e-mail nie przeszedł walidacji przy zapisie umowy).
+ * Wywoływane WYŁĄCZNIE po pozytywnej weryfikacji cross-match (numer umowy +
+ * e-mail + PESEL/dokument) — ten sam próg bezpieczeństwa co reset hasła.
+ * Zwraca id nowego konta lub 0.
+ */
+function _vr_provision_wolontariat_account(array $contract): int {
+    $email = trim((string)($contract['email'] ?? ''));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return 0;
+    if (db_one("SELECT id FROM users WHERE email = ?", [$email])) return 0; // nie duplikuj
+
+    $hash = password_hash(bin2hex(random_bytes(24)), PASSWORD_BCRYPT);
+    db_insert('users', [
+        'name'         => $contract['imie_nazwisko'] ?: $email,
+        'email'        => $email,
+        'password'     => $hash,
+        'role'         => 'viewer',
+        'is_active'    => 1,
+        'portal_scope' => $contract['portal_scope'] ?: null,
+        'created_at'   => date('Y-m-d H:i:s'),
+    ]);
+    $uid = (int) db()->lastInsertId();
+    log_system_action(
+        $uid,
+        'self_register_wolontariat',
+        'Konto założone samodzielnie (umowa ' . ($contract['numer_umowy'] ?? '') . ') po weryfikacji cross-match, IP: ' . ($_SERVER['REMOTE_ADDR'] ?? '')
+    );
+    return $uid;
+}
+
 // ── Odczyt stanu z sesji ──────────────────────────────────────────────────────
 $reset_step     = (int) ($_SESSION['vr_step']       ?? 1);
 $reset_user_id  = (int) ($_SESSION['vr_user_id']    ?? 0);
 $sms_fails      = (int) ($_SESSION['vr_sms_fails']  ?? 0);
+$vr_new_account = !empty($_SESSION['vr_new_account']); // konto właśnie założone (brak wcześniejszego konta)
 
 $error   = '';
 $success = '';
@@ -77,7 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset(
             $_SESSION['vr_step'],
             $_SESSION['vr_user_id'],
-            $_SESSION['vr_sms_fails']
+            $_SESSION['vr_sms_fails'],
+            $_SESSION['vr_new_account']
         );
         header('Location: ' . APP_URL . '/user/verify_reset.php');
         exit;
@@ -157,23 +190,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // ── Standardowa ścieżka Z numerem umowy ──────────────────────────────
             if (!$found_user && !$no_numer && $numer_umowy) {
-                // --- Sprawdzenie w tabeli wolontariat ---
+                // --- Sprawdzenie w tabeli wolontariat (z auto-zakładaniem konta, gdy go brak) ---
                 $stmt = $pdo->prepare(
-                    "SELECT u.id, u.email, u.phone_number, u.twofa_phone,
-                            u.is_minor, u.guardian_phone, u.guardian_email
-                     FROM umowy_wolontariat c
-                     JOIN users u ON u.email = c.email
-                     WHERE c.email = ?
-                       AND c.numer_umowy = ?
+                    "SELECT * FROM umowy_wolontariat
+                     WHERE email = ?
+                       AND numer_umowy = ?
                        AND (
-                           SUBSTR(c.pesel, -5) = ?
-                           OR c.id_document_number = ?
+                           SUBSTR(pesel, -5) = ?
+                           OR id_document_number = ?
                        )
                      LIMIT 1"
                 );
                 $stmt->execute([$email, $numer_umowy, $pesel_or_doc, $pesel_or_doc]);
-                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-                if ($row) $found_user = $row;
+                $contract_row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+                if ($contract_row) {
+                    $existing_user = db_one(
+                        "SELECT id, email, phone_number, twofa_phone, is_minor, guardian_phone, guardian_email
+                         FROM users WHERE email = ?",
+                        [$email]
+                    );
+                    if ($existing_user) {
+                        $found_user = $existing_user;
+                    } else {
+                        // Umowa istnieje, ale konto jeszcze nie — zakładamy je teraz.
+                        $new_uid = _vr_provision_wolontariat_account($contract_row);
+                        if ($new_uid) {
+                            $found_user = [
+                                'id' => $new_uid, 'email' => $email,
+                                // Brak jeszcze danych na koncie — telefon do SMS bierzemy wprost z umowy.
+                                'phone_number' => trim((string)($contract_row['telefon'] ?? '')),
+                                'twofa_phone' => '', 'is_minor' => 0,
+                                'guardian_phone' => '', 'guardian_email' => '',
+                            ];
+                            $_SESSION['vr_new_account'] = true;
+                        }
+                    }
+                }
 
                 foreach (['umowy_zlecenie','umowy_dzielo','umowy_praca'] as $_tbl) {
                     if ($found_user) break;
@@ -287,7 +340,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 unset(
                     $_SESSION['vr_step'],
                     $_SESSION['vr_user_id'],
-                    $_SESSION['vr_sms_fails']
+                    $_SESSION['vr_sms_fails'],
+                    $_SESSION['vr_new_account']
                 );
                 $reset_step    = 1;
                 $reset_user_id = 0;
@@ -316,20 +370,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare("UPDATE users SET password = ? WHERE id = ?")
                      ->execute([$hash, $reset_user_id]);
 
+                $is_new_account = !empty($_SESSION['vr_new_account']);
                 log_system_action(
                     $reset_user_id,
-                    'password_reset',
-                    'Użytkownik zresetował hasło metodą cross-match'
+                    $is_new_account ? 'self_register_password_set' : 'password_reset',
+                    $is_new_account
+                        ? 'Ustawiono hasło do nowo założonego konta (samodzielna rejestracja)'
+                        : 'Użytkownik zresetował hasło metodą cross-match'
                 );
 
                 // Wyczyść stan sesji resetu
                 unset(
                     $_SESSION['vr_step'],
                     $_SESSION['vr_user_id'],
-                    $_SESSION['vr_sms_fails']
+                    $_SESSION['vr_sms_fails'],
+                    $_SESSION['vr_new_account']
                 );
 
-                flash_set('success', 'Hasło zostało zmienione. Zaloguj się.');
+                flash_set('success', $is_new_account
+                    ? 'Konto zostało założone, a hasło ustawione. Zaloguj się.'
+                    : 'Hasło zostało zmienione. Zaloguj się.');
                 header('Location: ' . APP_URL . '/auth/login.php');
                 exit;
             }
@@ -488,7 +548,8 @@ $step_labels = [
     <div class="card-body p-4">
       <h6 class="fw-semibold mb-1">Weryfikacja tożsamości</h6>
       <p class="text-muted small mb-3">
-        Podaj dane z umowy, aby potwierdzić swoją tożsamość.
+        Podaj dane z umowy, aby potwierdzić swoją tożsamość — zresetujesz w ten sposób hasło,
+        a jeśli to Twoja pierwsza wizyta i nie masz jeszcze konta w systemie, formularz założy je automatycznie.
       </p>
       <form method="post" novalidate id="crossmatch-form">
         <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
@@ -653,10 +714,14 @@ $step_labels = [
   <?php elseif ($reset_step === 3): ?>
   <div class="card shadow-sm">
     <div class="card-body p-4">
-      <h6 class="fw-semibold mb-1">Ustaw nowe hasło</h6>
+      <h6 class="fw-semibold mb-1"><?= $vr_new_account ? 'Ustaw hasło do nowego konta' : 'Ustaw nowe hasło' ?></h6>
       <p class="text-muted small mb-3">
-        Wybierz nowe hasło do swojego konta. Hasło musi mieć co najmniej 8 znaków,
-        zawierać wielką literę, małą literę i cyfrę.
+        <?php if ($vr_new_account): ?>
+        Tożsamość potwierdzona — Twoje konto w systemie zostało właśnie założone. Ustaw hasło, aby się zalogować.
+        <?php else: ?>
+        Wybierz nowe hasło do swojego konta.
+        <?php endif; ?>
+        Hasło musi mieć co najmniej 8 znaków, zawierać wielką literę, małą literę i cyfrę.
       </p>
       <form method="post" novalidate>
         <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
