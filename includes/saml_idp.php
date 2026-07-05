@@ -240,13 +240,6 @@ function saml_preset(string $preset): array {
                 ['name' => 'displayname', 'friendly' => 'displayname', 'nameformat' => $basic, 'source' => 'display_name'],
                 ['name' => 'uid',         'friendly' => 'uid',         'nameformat' => $basic, 'source' => 'email'],
             ]];
-        case 'canva':
-            // Canva SSO: NameID = e-mail, atrybuty Email/FirstName/LastName.
-            return ['nameid_format' => 'emailAddress', 'nameid_attr' => 'email', 'attrs' => [
-                ['name' => 'Email',     'friendly' => 'Email',     'nameformat' => $basic, 'source' => 'email'],
-                ['name' => 'FirstName', 'friendly' => 'FirstName', 'nameformat' => $basic, 'source' => 'first_name'],
-                ['name' => 'LastName',  'friendly' => 'LastName',  'nameformat' => $basic, 'source' => 'last_name'],
-            ]];
         case 'grafana':
             return ['nameid_format' => 'emailAddress', 'nameid_attr' => 'email', 'attrs' => [
                 ['name' => 'email',       'friendly' => 'email',       'nameformat' => $basic, 'source' => 'email'],
@@ -269,9 +262,7 @@ function saml_preset(string $preset): array {
  * @return array<string,array{entity_id:string,acs_url:string}>
  */
 function saml_preset_endpoints(): array {
-    return [
-        'canva' => ['entity_id' => 'https://www.canva.com', 'acs_url' => 'https://www.canva.com/login/saml'],
-    ];
+    return [];
 }
 
 /** Efektywna mapa atrybutów SP: własna (JSON) lub z presetu. */

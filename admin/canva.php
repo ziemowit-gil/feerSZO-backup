@@ -11,9 +11,6 @@ require_role('admin');
 cpc_migrate();
 $PAGE_TITLE = 'Zarządzanie Canva Pro';
 
-// Status logowania jednokrotnego (SAML SSO) — gdy SP Canvy jest zarejestrowany.
-$canva_sso_ok = canva_sso_configured();
-
 // ── Oznacz jako zaproszony (zbiorczo) ─────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_mark_invited'])) {
     csrf_check();
@@ -217,34 +214,18 @@ include dirname(__DIR__) . '/includes/header.php';
   <?php endif; ?>
 </div>
 
-<!-- Status logowania jednokrotnego (SSO) -->
-<?php if ($canva_sso_ok): ?>
-<div class="alert alert-success d-flex gap-2 mb-3" style="font-size:.85rem">
-  <i class="bi bi-shield-check flex-shrink-0 mt-1"></i>
-  <div>
-    <strong>Logowanie jednokrotne (SSO) aktywne.</strong>
-    SZO działa jako dostawca tożsamości SAML, a Canva jest zarejestrowana jako aplikacja.
-    Wolontariusze z przyznanym dostępem widzą w panelu przycisk <strong>„Zaloguj do Canva"</strong> —
-    konto Canva tworzy się automatycznie przy pierwszym logowaniu (Just-In-Time).
-  </div>
-</div>
-<?php else: ?>
+<!-- Jak to działa -->
 <div class="alert alert-info d-flex gap-2 mb-3" style="font-size:.85rem">
   <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
   <div>
     <strong>Jak to działa:</strong>
-    Przycisk <strong>„Zaloguj do Canva"</strong> w panelu wolontariusza prowadzi obecnie do logowania
-    <em>„Continue with Microsoft"</em> na canva.com. Aby włączyć automatyczną aprowizację kont przez
-    logowanie jednokrotne (SSO), zarejestruj Canvę jako aplikację SAML
-    (preset <code>canva</code>, entity&nbsp;ID <code>https://www.canva.com</code>) w
-    <a href="<?= APP_URL ?>/admin/saml.php">ustawieniach SAML IdP</a>.
-    Na planie Canva Pro zaproszenia wysyłasz ręcznie w panelu Canva i oznaczasz poniżej.
-    <div class="mt-2">
-      <a href="<?= APP_URL ?>/admin/saml_diag.php" class="btn btn-sm btn-outline-primary"><i class="bi bi-shield-lock me-1"></i>Diagnostyka SSO / błędy SAML</a>
-    </div>
+    Canva nie obsługuje logowania jednokrotnego (SAML) — dostęp nadawany jest wyłącznie na podstawie
+    <strong>wniosku</strong>. Wolontariusz prosi o dostęp w panelu, prośba trafia do
+    <a href="<?= APP_URL ?>/contracts/approvals/index.php">Zatwierdzeń</a>, a po akceptacji administrator
+    zaprasza konto ręcznie w panelu Canva (plan Pro nie ma API do automatycznych zaproszeń) i oznacza je
+    poniżej jako zaproszone. Wolontariusz loguje się na canva.com przez <em>„Continue with Microsoft"</em>.
   </div>
 </div>
-<?php endif; ?>
 
 <?php if ($cnt_waiting > 0): ?>
 <div class="d-flex gap-2 mb-3 flex-wrap">

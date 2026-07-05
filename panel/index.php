@@ -692,11 +692,14 @@ $_my_children = (function_exists('ctx_is_impersonating') && !ctx_is_impersonatin
 <?php
 /* ── Skróty + powiadomienia: dane liczone tutaj, renderowane na dole panelu ── */
 require_once dirname(__DIR__) . '/includes/canva.php';
-$_canva_sso          = function_exists('canva_sso_url') ? canva_sso_url() : null;
-$_canva_activate_url = $_canva_sso ?: 'https://www.canva.com';
-$_canva_activate_sub = $_canva_sso
-    ? 'Logowanie jednokrotne — konto utworzy się automatycznie'
-    : 'Zaloguj przez „Continue with Microsoft" na canva.com';
+// Canva nie obsługuje SAML — dostęp wyłącznie przez wniosek (Zatwierdzenia).
+$_canva_contract_wolont = ($_active_row && $_active_contract && $_active_contract['contract_type'] === 'wolontariat');
+$_canva_has_access      = ($_canva_contract_wolont && (int)($_active_row['canva_access'] ?? 0) === 1)
+                           || canva_user_has_access((int)$user['id']);
+$_canva_requested       = !$_canva_has_access
+                           && $_canva_contract_wolont
+                           && !empty($_active_row['canva_access_requested_at']);
+$_canva_can_request     = !$_canva_has_access && !$_canva_requested && $_canva_contract_wolont;
 
 // Zachęta do uzupełnienia profilu w katalogu — raz na sesję, gdy profil pusty.
 auth_start();
@@ -1035,12 +1038,31 @@ include __DIR__ . '/includes/pv_apps_activity.php';
     <span class="pv-shortcut-tx"><strong>Poczta organizacji</strong><small>poczta.feer.org.pl</small></span>
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
   </a>
-  <a href="<?= h($_canva_activate_url) ?>" target="_blank" rel="noopener noreferrer" class="pv-shortcut" role="listitem"
-     aria-label="Aktywuj Canva — <?= h($_canva_activate_sub) ?> (otwiera w nowej karcie)">
+  <?php if ($_canva_has_access): ?>
+  <a href="https://www.canva.com" target="_blank" rel="noopener noreferrer" class="pv-shortcut" role="listitem"
+     aria-label="Otwórz Canva — zaloguj przez Continue with Microsoft (otwiera w nowej karcie)">
     <span class="pv-shortcut-ic" style="background:#7c3aed" aria-hidden="true">🎨</span>
-    <span class="pv-shortcut-tx"><strong>Aktywuj Canva</strong><small><?= h($_canva_activate_sub) ?></small></span>
+    <span class="pv-shortcut-tx"><strong>Otwórz Canva</strong><small>Zaloguj przez „Continue with Microsoft"</small></span>
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
   </a>
+  <?php elseif ($_canva_requested): ?>
+  <span class="pv-shortcut" role="listitem" style="cursor:default" aria-label="Wniosek o dostęp do Canva oczekuje na zatwierdzenie">
+    <span class="pv-shortcut-ic" style="background:#94a3b8" aria-hidden="true">🎨</span>
+    <span class="pv-shortcut-tx"><strong>Canva — wniosek wysłany</strong><small>Oczekuje na zatwierdzenie</small></span>
+  </span>
+  <?php elseif ($_canva_can_request): ?>
+  <form method="post" id="canvaRequestForm" role="listitem">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_request_canva" value="1">
+    <input type="hidden" name="canva_contract_id" value="<?= (int)$_active_contract['id'] ?>">
+    <button type="submit" class="pv-shortcut" style="width:100%;text-align:left;font:inherit;cursor:pointer"
+            aria-label="Poproś o dostęp do Canva — wyślij wniosek do administratora">
+      <span class="pv-shortcut-ic" style="background:#7c3aed" aria-hidden="true">🎨</span>
+      <span class="pv-shortcut-tx"><strong>Poproś o dostęp do Canva</strong><small>Wyślij wniosek do administratora</small></span>
+      <i class="bi bi-send" aria-hidden="true"></i>
+    </button>
+  </form>
+  <?php endif; ?>
 </div>
 
 <?php if ($_show_dir_invite): ?>
