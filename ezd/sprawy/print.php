@@ -224,7 +224,9 @@ if ($out === 'pdf') {
             try { $pdf->Image($path, 15, 24, $w, $h); }
             catch (\Throwable $e) { $notePage($z, 'Nie udało się osadzić obrazu.'); }
         } elseif (in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true)) {
-            // Word/Excel — konwertuj "w locie" na PDF przez SharePoint/Graph (bez trwałego załącznika) i dołącz strony
+            // Word/Excel — konwertuj "w locie" na PDF przez SharePoint/Graph (bez trwałego załącznika) i dołącz strony.
+            // Plik tymczasowy ląduje w tym samym (znanym jako zapisywalny) katalogu co reszta załączników
+            // sprawy — NIE w sys_get_temp_dir(), które bywa niedostępne pod open_basedir na hostingu.
             $tmpPdf = null;
             try {
                 if (empty($z['sp_drive_id']) || empty($z['sp_item_id'])) {
@@ -235,8 +237,15 @@ if ($out === 'pdf') {
                 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
                 $graph      = new M365Graph();
                 $pdfContent = $graph->sp_download_file_as_pdf($z['sp_drive_id'], $z['sp_item_id']);
-                $tmpPdf     = tempnam(sys_get_temp_dir(), 'ezdcv_');
-                file_put_contents($tmpPdf, $pdfContent);
+                if ($pdfContent === '') throw new \RuntimeException('SharePoint zwrócił pusty plik PDF.');
+                $tmpDir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/';
+                if (!is_dir($tmpDir) && !mkdir($tmpDir, 0755, true) && !is_dir($tmpDir)) {
+                    throw new \RuntimeException('Katalog załączników sprawy jest niedostępny.');
+                }
+                $tmpPdf = $tmpDir . '_convert_' . uniqid('', true) . '.pdf';
+                if (file_put_contents($tmpPdf, $pdfContent) === false) {
+                    throw new \RuntimeException('Nie udało się zapisać tymczasowego pliku PDF.');
+                }
                 $count = $pdf->setSourceFile($tmpPdf);
                 for ($i = 1; $i <= $count; $i++) {
                     $tpl  = $pdf->importPage($i);
@@ -247,7 +256,7 @@ if ($out === 'pdf') {
             } catch (\Throwable $e) {
                 $notePage($z, 'Nie udało się przekonwertować pliku na PDF (' . $e->getMessage() . '). Oryginał dostępny w repozytorium koszulki.');
             } finally {
-                if ($tmpPdf) @unlink($tmpPdf);
+                if ($tmpPdf && is_file($tmpPdf)) @unlink($tmpPdf);
             }
         } else {
             $notePage($z, 'Załącznik nie jest plikiem PDF ani obrazem (' . strtoupper($ext ?: 'plik') . ') — oryginał dostępny w repozytorium koszulki.');
