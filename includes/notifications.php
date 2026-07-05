@@ -224,6 +224,16 @@ HTML;
 function ann_delete(int $id): void {
     db()->prepare("UPDATE announcements SET is_active=0, updated_at=datetime('now') WHERE id=?")
         ->execute([$id]);
+
+    // Sprzątnij powiadomienia w dzwonku wskazujące na usunięte ogłoszenie —
+    // inaczej zostają jako martwe linki (kliknięcie prowadzi do "nie znaleziono").
+    // URL musi być identyczny z tym budowanym w ann_create() przy notif_create().
+    if (defined('APP_URL')) {
+        try {
+            db()->prepare("DELETE FROM notifications WHERE type='announcement' AND url=?")
+                ->execute([APP_URL . '/komunikaty/announcement.php?id=' . $id]);
+        } catch (\Throwable $e) {}
+    }
 }
 
 /**
