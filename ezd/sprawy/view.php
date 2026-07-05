@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $head = org_unit_head($unit_id_d);
                 if ($head) $wykonawca_id = (int)$head['user_id'];
             }
-            if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę do dekretacji.');
+            if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę, której przekazujesz sprawę.');
 
             $dekr_id = ezd_dekretacja_create([
                 'sprawa_id'    => $id,
@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (\Throwable $e) { /* powiadomienie nie blokuje akcji */ }
             }
 
-            flash_set('success', 'Dekretacja zapisana.');
+            flash_set('success', 'Przekazano.');
         } catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#dekretacje'); exit;
     }
@@ -340,11 +340,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal">
               <i class="bi bi-envelope-plus me-1"></i>Pismo
             </button>
-            <a href="<?= APP_URL ?>/ezd/umowy/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-warning">
-              <i class="bi bi-file-earmark-plus me-1"></i>Umowa
-            </a>
             <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#dekrModal">
-              <i class="bi bi-person-lines-fill me-1"></i>Dekretacja
+              <i class="bi bi-person-lines-fill me-1"></i>Przekaż osobie
             </button>
             <?php endif; ?>
             <?php if($can_edit_case): ?>
@@ -412,71 +409,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
     <?php endif; /* !mini */ ?>
-
-    <!-- Timeline dokumentów -->
-    <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size:.7rem;letter-spacing:.1em">
-      <i class="bi bi-activity me-1"></i>Dokumenty sprawy (<?= count($timeline) ?>)
-    </h6>
-
-    <?php if ($timeline): ?>
-    <div class="tl-wrap">
-      <?php foreach ($timeline as $item):
-        $is_pismo = $item['_typ'] === 'pismo';
-        $dot_class = $is_pismo ? 'pismo-' . match($item['sub_type']) { 'przychodzace'=>'in','wychodzace'=>'out',default=>'int' } : 'umowa-card';
-        $card_class = $is_pismo ? 'pismo-' . match($item['sub_type']) { 'przychodzace'=>'in','wychodzace'=>'out',default=>'int' } : 'umowa-card';
-        $view_url   = APP_URL . '/ezd/' . ($is_pismo ? 'pisma' : 'umowy') . '/view.php?id=' . $item['id'];
-        $edit_url   = APP_URL . '/ezd/' . ($is_pismo ? 'pisma' : 'umowy') . '/edit.php?id=' . $item['id'];
-      ?>
-      <div class="tl-item">
-        <div class="tl-dot <?= $dot_class ?>"></div>
-        <a href="<?= h($view_url) ?>" class="tl-card <?= $card_class ?>">
-          <div class="d-flex align-items-start gap-2">
-            <div class="flex-grow-1">
-              <div class="tl-syg d-flex align-items-center gap-2">
-                <?php if($is_pismo): ?>
-                <i class="bi <?= EZD_KIERUNKI[$item['sub_type']]['icon'] ?? 'bi-envelope' ?> text-<?= EZD_KIERUNKI[$item['sub_type']]['class'] ?? 'secondary' ?>"></i>
-                <span><?= h(EZD_KIERUNKI[$item['sub_type']]['label'] ?? $item['sub_type']) ?></span>
-                <?php else: ?>
-                <i class="bi bi-file-earmark-text text-warning"></i>
-                <span><?= h(EZD_UMOWA_TYPY[$item['sub_type']] ?? $item['sub_type']) ?></span>
-                <?php endif; ?>
-                <code class="ms-1" style="font-size:.68rem;color:#94a3b8"><?= h($item['sygnatura']) ?></code>
-              </div>
-              <div class="tl-title"><?= h($item['title']) ?></div>
-              <div class="tl-meta">
-                <span><i class="bi bi-clock me-1"></i><?= date('d.m.Y H:i', strtotime($item['created_at'])) ?></span>
-                <?php
-                $status_map_p = ['nowe'=>['Nowe','secondary'],'w_obiegu'=>['W obiegu','primary'],'zakonczone'=>['Zakończone','success']];
-                $status_map_u = ['projekt'=>['Projekt','secondary'],'aktywna'=>['Aktywna','success'],'zakonczona'=>['Zakończona','primary'],'anulowana'=>['Anulowana','danger']];
-                $sm = $is_pismo ? ($status_map_p[$item['status']] ?? [$item['status'],'secondary']) : ($status_map_u[$item['status']] ?? [$item['status'],'secondary']);
-                ?>
-                <span class="badge bg-<?= $sm[1] ?> bg-opacity-15 text-<?= $sm[1] ?> border border-<?= $sm[1] ?>" style="font-size:.63rem"><?= $sm[0] ?></span>
-              </div>
-            </div>
-            <?php if($can_act): ?>
-            <a href="<?= h($edit_url) ?>" class="btn btn-xs btn-outline-secondary btn-sm flex-shrink-0"
-               onclick="event.preventDefault();event.stopPropagation();window.location=this.href" title="Edytuj">
-              <i class="bi bi-pencil"></i>
-            </a>
-            <?php endif; ?>
-          </div>
-        </a>
-      </div>
-      <?php endforeach; ?>
-    </div>
-
-    <?php else: ?>
-    <div class="text-center py-4 text-muted" style="font-size:.85rem">
-      <i class="bi bi-inbox" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-      Brak dokumentów w tej sprawie.
-      <?php if($can_act): ?>
-      <div class="d-flex justify-content-center gap-2 mt-2">
-        <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-info"><i class="bi bi-envelope-plus me-1"></i>Dodaj pismo</a>
-        <a href="<?= APP_URL ?>/ezd/umowy/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-warning"><i class="bi bi-file-earmark-plus me-1"></i>Dodaj umowę</a>
-      </div>
-      <?php endif; ?>
-    </div>
-    <?php endif; ?>
 
     <!-- Dokumenty wewnętrzne -->
     <div class="mt-4" id="dokumenty">
@@ -858,8 +790,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php endif; ?>
           <dt class="col-5 text-muted fw-normal">Pisma</dt>
           <dd class="col-7 mb-0"><?= count(array_filter($timeline, fn($t)=>$t['_typ']==='pismo')) ?></dd>
-          <dt class="col-5 text-muted fw-normal">Umowy</dt>
-          <dd class="col-7 mb-0"><?= count(array_filter($timeline, fn($t)=>$t['_typ']==='umowa')) ?></dd>
         </dl>
       </div>
     </div>
@@ -910,20 +840,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="bc">
       <div class="bc-h"><i class="bi bi-lightning-charge"></i>Akcje</div>
       <div class="bc-b d-flex flex-column gap-2">
-        <?php if($can_act): ?>
-        <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-info w-100 text-start">
-          <i class="bi bi-envelope-arrow-down me-2"></i>Dodaj pismo przychodzące
-        </a>
-        <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>&kierunek=wychodzace" class="btn btn-sm btn-outline-primary w-100 text-start">
-          <i class="bi bi-envelope-arrow-up me-2"></i>Dodaj pismo wychodzące
-        </a>
-        <a href="<?= APP_URL ?>/ezd/pisma/add.php?sprawa_id=<?= $id ?>&kierunek=wewnetrzne" class="btn btn-sm btn-outline-secondary w-100 text-start">
-          <i class="bi bi-arrow-left-right me-2"></i>Dodaj pismo wewnętrzne
-        </a>
-        <a href="<?= APP_URL ?>/ezd/umowy/add.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-warning w-100 text-start">
-          <i class="bi bi-file-earmark-plus me-2"></i>Dodaj umowę / aneks
-        </a>
-        <?php endif; ?>
         <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary w-100 text-start">
           <i class="bi bi-pencil me-2"></i>Edytuj metadane sprawy
         </a>
@@ -931,10 +847,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <?php endif; ?>
 
-    <!-- Dekretacja -->
+    <!-- Przekaż osobie -->
     <div class="bc" id="dekretacje">
       <div class="bc-h">
-        <i class="bi bi-person-lines-fill"></i>Dekretacja
+        <i class="bi bi-person-lines-fill"></i>Przekaż osobie
         <?php $pend_d = count(array_filter($dekretacje,fn($d)=>$d['status']==='oczekuje')); ?>
         <?php if($pend_d): ?><span class="ms-auto badge bg-warning text-dark" style="font-size:.63rem"><?= $pend_d ?> oczekuje</span><?php endif; ?>
       </div>
@@ -962,7 +878,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?php endif; ?>
         </div>
         <?php endforeach; ?>
-        <?php if(!$dekretacje): ?><div class="text-muted text-center" style="font-size:.78rem">Brak dekretacji</div><?php endif; ?>
+        <?php if(!$dekretacje): ?><div class="text-muted text-center" style="font-size:.78rem">Brak przekazań</div><?php endif; ?>
       </div>
     </div>
 
@@ -1131,7 +1047,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="dekretacja">
         <div class="modal-header">
-          <h2 class="modal-title h5" id="dekrModalLabel"><i class="bi bi-person-lines-fill text-warning me-2" aria-hidden="true"></i>Nowa dekretacja</h2>
+          <h2 class="modal-title h5" id="dekrModalLabel"><i class="bi bi-person-lines-fill text-warning me-2" aria-hidden="true"></i>Przekaż osobie</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
         </div>
         <div class="modal-body">
@@ -1171,7 +1087,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-warning"><i class="bi bi-send me-1" aria-hidden="true"></i>Dekretuj</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-send me-1" aria-hidden="true"></i>Przekaż</button>
         </div>
       </form>
     </div>
