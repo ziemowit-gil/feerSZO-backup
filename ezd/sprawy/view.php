@@ -15,7 +15,7 @@ require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
-if (!$sprawa) { flash_set('error', 'Sprawa nie istnieje.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
+if (!$sprawa) { flash_set('error', 'Koszulka nie istnieje.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
 
 $user_id = (int)current_user()['id'];
 $access  = ezd_sprawa_access($sprawa, $user_id);
@@ -499,13 +499,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php endif; ?>
 
       <?php
+      // Opcje grup do wyboru w modalu przenoszenia pliku (jedna wspólna lista, bez zaznaczenia — ustawiane przez JS)
+      $grupaOptsPlain = '<option value="0">— bez grupy —</option>';
+      foreach ($grupy as $g) {
+          $grupaOptsPlain .= '<option value="'.$g['id'].'">'.h($g['nazwa']).'</option>';
+      }
       // Funkcja renderująca wiersz pliku (z przenoszeniem między grupami)
-      $renderZal = function(array $z) use ($grupy, $can_act) {
-          $opts = '';
-          $opts .= '<option value="0"'.(empty($z['grupa_id'])?' selected':'').'>— bez grupy —</option>';
-          foreach ($grupy as $g) {
-              $opts .= '<option value="'.$g['id'].'"'.(((int)($z['grupa_id']??0))===(int)$g['id']?' selected':'').'>'.h($g['nazwa']).'</option>';
-          }
+      $renderZal = function(array $z) use ($can_act, $grupy) {
           // Wykrycie podpisu elektronicznego (tylko dla istotnych rozszerzeń)
           $sig  = ['signed'=>false];
           $zext = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
@@ -540,12 +540,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               data-note="<?= h((string)($sig['note'] ?? '')) ?>"><i class="bi bi-patch-check"></i></button>
             <?php endif; ?>
             <?php if($can_act && $grupy): ?>
-            <form method="post" class="d-inline">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <input type="hidden" name="_action" value="zal_move">
-              <input type="hidden" name="zal_id" value="<?= $z['id'] ?>">
-              <select name="grupa_id" class="form-select form-select-sm" style="width:auto;font-size:.72rem" onchange="this.form.submit()" title="Przenieś do grupy"><?= $opts ?></select>
-            </form>
+            <button type="button" class="btn btn-xs btn-outline-secondary btn-sm ezd-move-grupa-btn flex-shrink-0" title="Przenieś do grupy"
+                    data-bs-toggle="modal" data-bs-target="#zalMoveGroupModal"
+                    data-zal="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>" data-grupa="<?= (int)($z['grupa_id'] ?? 0) ?>">
+              <i class="bi bi-folder-symlink"></i>
+            </button>
             <?php endif; ?>
             <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
             <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Office Online"><i class="bi bi-microsoft"></i></a>
@@ -683,6 +682,46 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
 
     <?php include dirname(dirname(__DIR__)) . '/includes/ezd_sig_modal.php'; ?>
+
+    <!-- Modal: przenieś plik do innej grupy -->
+    <div class="modal fade" id="zalMoveGroupModal" tabindex="-1" aria-labelledby="zalMoveGroupModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <form method="post">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="zal_move">
+            <input type="hidden" name="zal_id" id="zmg-zal-id" value="">
+            <div class="modal-header py-2">
+              <h2 class="modal-title h6 mb-0" id="zalMoveGroupModalLabel"><i class="bi bi-folder-symlink text-primary me-2" aria-hidden="true"></i>Przenieś do grupy</h2>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body">
+              <p class="mb-2" style="font-size:.85rem">Plik <strong id="zmg-name" class="font-monospace"></strong></p>
+              <label class="form-label fw-semibold" for="zmg-grupa-id">Grupa plików</label>
+              <select name="grupa_id" id="zmg-grupa-id" class="form-select"><?= $grupaOptsPlain ?></select>
+            </div>
+            <div class="modal-footer py-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+              <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Przenieś</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function(){
+      var idInput   = document.getElementById('zmg-zal-id');
+      var nameLabel = document.getElementById('zmg-name');
+      var grupaSel  = document.getElementById('zmg-grupa-id');
+      document.addEventListener('click', function(e){
+        var btn = e.target.closest('.ezd-move-grupa-btn');
+        if (!btn) return;
+        idInput.value = btn.dataset.zal || '';
+        nameLabel.textContent = btn.dataset.name || '';
+        grupaSel.value = btn.dataset.grupa || '0';
+      });
+    })();
+    </script>
 
     <!-- Audit log -->
     <div class="mt-4">
