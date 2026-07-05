@@ -528,3 +528,169 @@ $_pv_popups  = array_values(array_filter($_pv_msgs, fn($a) => ($a['display_mode'
 })();
 </script>
 <?php endif; ?>
+
+<?php
+// ── Zgoda na weryfikację RPTS (popup, można odłożyć do następnego logowania) ──
+require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
+$_rpts_gate = null;
+if (empty($_SESSION['rpts_consent_snoozed'])) {
+    $_rpts_fresh_user = db_one("SELECT * FROM users WHERE id=?", [(int)($_pu['id'] ?? 0)]);
+    if ($_rpts_fresh_user) $_rpts_gate = rpts_consent_needed($_rpts_fresh_user);
+}
+?>
+<?php if ($_rpts_gate !== null): $_rc = $_rpts_gate['contract'] ?? null; ?>
+<div class="modal fade" id="rptsConsentModal" tabindex="-1" aria-labelledby="rptsConsentLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden">
+      <div class="modal-header" style="background:#DC2626;color:#fff;border:none">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="rptsConsentLabel">
+          <i class="bi bi-shield-exclamation" aria-hidden="true"></i>Zgoda na weryfikację w RPTS
+        </h5>
+      </div>
+      <div class="modal-body" style="padding:1.5rem">
+        <div id="rptsConsentAlert"></div>
+        <p class="small text-muted">
+          Twoja współpraca z Fundacją Edukacji Empatii Rozwoju "FEER" obejmuje (lub może obejmować)
+          działalność związaną z wychowaniem, edukacją, wypoczynkiem lub opieką nad małoletnimi.
+          Ustawa z 13.05.2016 r. o przeciwdziałaniu zagrożeniom przestępczością na tle seksualnym
+          wymaga w takim przypadku sprawdzenia w Rejestrze Sprawców Przestępstw na Tle Seksualnym —
+          do tego potrzebna jest Twoja zgoda oraz kilka dodatkowych danych.
+        </p>
+        <div class="d-flex align-items-center gap-2 mb-3 p-2 rounded" style="background:#F9FAFB;font-size:.85rem">
+          <i class="bi bi-person-badge text-muted" aria-hidden="true"></i>
+          <span>Oświadczenie składa: <strong><?= h($_pu_name) ?></strong><?= !empty($_pu['email']) ? ' (' . h($_pu['email']) . ')' : '' ?></span>
+        </div>
+        <form id="rptsConsentForm">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="rpts-pesel">Numer PESEL</label>
+              <input type="text" id="rpts-pesel" name="pesel" class="form-control form-control-sm" maxlength="11"
+                     inputmode="numeric" value="<?= h($_rc['pesel'] ?? '') ?>" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="rpts-data-urodzenia">Data urodzenia</label>
+              <input type="date" id="rpts-data-urodzenia" name="data_urodzenia" class="form-control form-control-sm"
+                     value="<?= h($_rc['data_urodzenia'] ?? '') ?>" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="rpts-miejsce-urodzenia">Miejsce urodzenia</label>
+              <input type="text" id="rpts-miejsce-urodzenia" name="miejsce_urodzenia" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="rpts-nazwisko-rodowe">Nazwisko rodowe</label>
+              <input type="text" id="rpts-nazwisko-rodowe" name="nazwisko_rodowe" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="rpts-imie-ojca">Imię ojca</label>
+              <input type="text" id="rpts-imie-ojca" name="imie_ojca" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="rpts-imie-matki">Imię matki</label>
+              <input type="text" id="rpts-imie-matki" name="imie_matki" class="form-control form-control-sm" required>
+            </div>
+          </div>
+
+          <div class="border rounded p-3 mb-3" style="max-height:220px;overflow-y:auto;background:#F9FAFB;font-size:.8rem;line-height:1.6">
+            <div class="fw-bold text-center mb-2">
+              OŚWIADCZENIE O WYRAŻENIU ZGODY<br>NA WERYFIKACJĘ W REJESTRZE SPRAWCÓW PRZESTĘPSTW NA TLE SEKSUALNYM (RSPTS)
+            </div>
+            <p class="mb-2">Dotyczy: Fundacja Edukacji Empatii Rozwoju "FEER", ul. Barbackiego 28/18, 33-300 Nowy Sącz</p>
+            <p class="mb-2">
+              Ja, niżej podpisany/a, w związku z zamiarem podjęcia współpracy (w charakterze pracownika /
+              wolontariusza / zleceniobiorcy) z Fundacją Edukacji Empatii Rozwoju "FEER", która obejmować
+              będzie działalność związaną z wychowaniem, edukacją, wypoczynkiem lub opieką nad małoletnimi,
+              oświadczam, co następuje:
+            </p>
+            <p class="mb-2">
+              1. Przyjmuję do wiadomości, że na Fundacji Edukacji Empatii Rozwoju "FEER", jako organizatorze
+              ww. działalności, ciąży ustawowy obowiązek wynikający z art. 21 ustawy z dnia 13 maja 2016 r.
+              o przeciwdziałaniu zagrożeniom przestępczością na tle seksualnym i ochronie małoletnich,
+              polegający na weryfikacji, czy moje dane figurują w Rejestrze Sprawców Przestępstw na Tle Seksualnym.
+            </p>
+            <p class="mb-2">
+              2. Działając świadomie i dobrowolnie, wyrażam zgodę na dokonanie przez Fundację Edukacji
+              Empatii Rozwoju "FEER" weryfikacji w Rejestrze z dostępem ograniczonym przy użyciu danych
+              osobowych wskazanych powyżej.
+            </p>
+            <p class="mb-0">
+              3. Oświadczam, że podane przeze mnie dane osobowe są prawdziwe i kompletne. Zgadzam się na
+              ich przetwarzanie przez Fundację wyłącznie w celu i zakresie niezbędnym do przeprowadzenia
+              wyżej wymienionej weryfikacji.
+            </p>
+          </div>
+
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="rptsConsentCheck" name="consent" value="1" required>
+            <label class="form-check-label small" for="rptsConsentCheck">
+              Zapoznałem/-am się z treścią oświadczenia powyżej i <strong>wyrażam zgodę</strong> na weryfikację
+              moich danych w Rejestrze Sprawców Przestępstw na Tle Seksualnym.
+            </label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer" style="border:none">
+        <button type="button" class="btn btn-link text-muted" id="rptsConsentSnooze" style="font-size:.85rem">
+          Przypomnij później
+        </button>
+        <button type="submit" form="rptsConsentForm" class="btn" id="rptsConsentSubmit" style="background:#DC2626;color:#fff">
+          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Wyślij zgodę i dane
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var APP_URL = '<?= APP_URL ?>';
+  var modalEl = document.getElementById('rptsConsentModal');
+  if (!modalEl || !window.bootstrap) return;
+  var modal = new bootstrap.Modal(modalEl);
+
+  // Jeśli jednocześnie pokazuje się popup ogłoszenia, poczekaj aż zniknie —
+  // dwa modale naraz nakładałyby się na siebie (podwójne tło).
+  var annPopup = document.getElementById('pvAnnPopup');
+  if (annPopup) {
+    annPopup.addEventListener('hidden.bs.modal', function () { modal.show(); }, { once: true });
+  } else {
+    modal.show();
+  }
+
+  var form   = document.getElementById('rptsConsentForm');
+  var alertB = document.getElementById('rptsConsentAlert');
+  var submit = document.getElementById('rptsConsentSubmit');
+  var snooze = document.getElementById('rptsConsentSnooze');
+  var csrf   = form.querySelector('[name="_csrf"]').value;
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    submit.disabled = true;
+    var fd = new FormData(form);
+    fd.append('action', 'submit');
+    fetch(APP_URL + '/api/rpts_consent.php', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          modal.hide();
+        } else {
+          alertB.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.85rem">' + (d.error || 'Błąd zapisu.') + '</div>';
+          submit.disabled = false;
+        }
+      })
+      .catch(function () {
+        alertB.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.85rem">Błąd połączenia. Spróbuj ponownie.</div>';
+        submit.disabled = false;
+      });
+  });
+
+  snooze.addEventListener('click', function () {
+    snooze.disabled = true;
+    var fd = new FormData();
+    fd.append('_csrf', csrf);
+    fd.append('action', 'snooze');
+    fetch(APP_URL + '/api/rpts_consent.php', { method: 'POST', body: fd })
+      .finally(function () { modal.hide(); });
+  });
+})();
+</script>
+<?php endif; ?>

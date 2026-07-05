@@ -1187,6 +1187,47 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       <?php endif; ?>
     </div>
     <?php endif; ?>
+    <?php
+    // Zgoda i dane od wolontariusza (uzupełniane przez popup w panelu) — pomocne
+    // przy wykonywaniu faktycznej weryfikacji na rps.ms.gov.pl.
+    $_rpts_person = !empty($row['email']) ? db_one(
+        "SELECT rpts_consent, rpts_consent_at, rpts_pesel, rpts_data_urodzenia, rpts_miejsce_urodzenia,
+                rpts_nazwisko_rodowe, rpts_imie_ojca, rpts_imie_matki
+         FROM users WHERE email = ?", [$row['email']]
+    ) : null;
+    ?>
+    <?php if ($_rpts_person): ?>
+    <div class="cv-fields border-top pt-2 mt-2">
+      <div class="cv-field" style="flex-basis:100%">
+        <div class="cv-label">Zgoda wolontariusza na weryfikację</div>
+        <div class="cv-value">
+          <?php if (!empty($_rpts_person['rpts_consent'])): ?>
+          <span class="badge bg-success-subtle text-success"><i class="bi bi-check2-circle me-1"></i>Udzielona <?= $_rpts_person['rpts_consent_at'] ? '(' . date_pl(substr($_rpts_person['rpts_consent_at'], 0, 10)) . ')' : '' ?></span>
+          <?php else: ?>
+          <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split me-1"></i>Jeszcze nieudzielona</span>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php if (!empty($_rpts_person['rpts_consent'])): ?>
+      <div class="cv-field">
+        <div class="cv-label">PESEL (od wolontariusza)</div>
+        <div class="cv-value font-monospace"><?= h($_rpts_person['rpts_pesel']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Data i miejsce urodzenia</div>
+        <div class="cv-value"><?= $_rpts_person['rpts_data_urodzenia'] ? date_pl($_rpts_person['rpts_data_urodzenia']) : '—' ?>, <?= h($_rpts_person['rpts_miejsce_urodzenia']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Nazwisko rodowe</div>
+        <div class="cv-value"><?= h($_rpts_person['rpts_nazwisko_rodowe']) ?: '—' ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Imię ojca / matki</div>
+        <div class="cv-value"><?= h($_rpts_person['rpts_imie_ojca']) ?: '—' ?> / <?= h($_rpts_person['rpts_imie_matki']) ?: '—' ?></div>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 

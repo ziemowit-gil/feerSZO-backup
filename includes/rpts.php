@@ -44,6 +44,28 @@ require_once __DIR__ . '/byli.php'; // is_zarzad()
             // Kolumna już istnieje (duplicate) — to normalne, ignorujemy.
         }
     }
+
+    // Zgoda na weryfikację RPTS + dane do niej potrzebne — trzymana per-osoba
+    // (na users), bo dotyczy też osób bez jeszcze zawartej umowy (samodzielne
+    // konto wolontariusza) i przetrwa ewentualną zmianę/odnowienie umowy.
+    $user_columns = [
+        'rpts_consent'           => "INTEGER",
+        'rpts_consent_at'        => "DATETIME",
+        'rpts_pesel'             => "VARCHAR(11)",
+        'rpts_data_urodzenia'    => "DATE",
+        'rpts_miejsce_urodzenia' => "VARCHAR(255)",
+        'rpts_nazwisko_rodowe'   => "VARCHAR(255)",
+        'rpts_imie_ojca'         => "VARCHAR(255)",
+        'rpts_imie_matki'        => "VARCHAR(255)",
+    ];
+
+    foreach ($user_columns as $name => $def) {
+        try {
+            db()->exec("ALTER TABLE users ADD COLUMN {$name} {$def}");
+        } catch (\Throwable $e) {
+            // Kolumna już istnieje (duplicate) — to normalne, ignorujemy.
+        }
+    }
 })();
 
 if (!function_exists('rpts_wynik_options')) {
@@ -80,5 +102,72 @@ if (!function_exists('rpts_list_badge')) {
             return '<span class="badge bg-danger-subtle text-danger" style="font-size:.65rem"><i class="bi bi-exclamation-octagon-fill"></i> RPTS: wymaga uwagi zarządu</span>';
         }
         return '<span class="badge bg-success-subtle text-success" style="font-size:.65rem"><i class="bi bi-shield-check"></i> RPTS: brak wpisu</span>';
+    }
+}
+
+// ── Zgoda wolontariusza na weryfikację (popup w panelu) ────────────────────────
+
+/**
+ * Czy bieżący zalogowany (rola viewer) powinien zobaczyć popup ze zgodą na RPTS?
+ * Dotyczy wyłącznie osób, których współpraca wiąże się (lub może wiązać) z
+ * kontaktem z małoletnimi: bez umowy wolontariackiej jeszcze (nie wiadomo, czego
+ * będzie dotyczyć) LUB z umową, w której zaznaczono „kontakt z małoletnimi"
+ * (rpts_wymagana=1). Osoby z umową bez tej flagi nie są pytane — zgoda RPTS
+ * ich nie dotyczy.
+ *
+ * Zwraca null, gdy popup nie jest potrzebny, albo tablicę z ewentualnymi danymi
+ * do prefill (pesel/data urodzenia) pobranymi z umowy, jeśli istnieje.
+ */
+if (!function_exists('rpts_consent_needed')) {
+    function rpts_consent_needed(array $user): ?array {
+        if (!empty($user['rpts_consent'])) return null;
+        if (($user['role'] ?? 'viewer') !== 'viewer') return null;
+
+        if (!empty($user['is_standalone_volunteer'])) {
+            return ['contract' => null];
+        }
+
+        $email = trim($user['email'] ?? '');
+        if ($email === '') return null;
+
+        try {
+            $contract = db_one(
+                "SELECT id, pesel, data_urodzenia FROM umowy_wolontariat
+                 WHERE email = ? AND rpts_wymagana = 1
+                 ORDER BY created_at DESC LIMIT 1",
+                [$email]
+            );
+        } catch (\Throwable $e) {
+            $contract = null;
+        }
+
+        return $contract ? ['contract' => $contract] : null;
+    }
+}
+
+/** Zapisuje zgodę i uzupełnione dane osobowe potrzebne do weryfikacji RPTS. */
+if (!function_exists('rpts_consent_save')) {
+    function rpts_consent_save(int $user_id, array $d): void {
+        db()->prepare(
+            "UPDATE users SET
+                rpts_consent = 1,
+                rpts_consent_at = ?,
+                rpts_pesel = ?,
+                rpts_data_urodzenia = ?,
+                rpts_miejsce_urodzenia = ?,
+                rpts_nazwisko_rodowe = ?,
+                rpts_imie_ojca = ?,
+                rpts_imie_matki = ?
+             WHERE id = ?"
+        )->execute([
+            date('Y-m-d H:i:s'),
+            trim($d['pesel'] ?? ''),
+            (trim($d['data_urodzenia'] ?? '') ?: null),
+            trim($d['miejsce_urodzenia'] ?? ''),
+            trim($d['nazwisko_rodowe'] ?? ''),
+            trim($d['imie_ojca'] ?? ''),
+            trim($d['imie_matki'] ?? ''),
+            $user_id,
+        ]);
     }
 }
