@@ -243,6 +243,17 @@
         UNIQUE(sprawa_id, user_id)
     )");
 
+    // Przekazanie dostępu do konkretnych plików (niezależnie od dostępu do całej sprawy)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_zalacznik_access (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        zalacznik_id INTEGER NOT NULL REFERENCES ezd_zalaczniki(id) ON DELETE CASCADE,
+        user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        granted_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        granted_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        note         TEXT    NOT NULL DEFAULT '',
+        UNIQUE(zalacznik_id, user_id)
+    )");
+
     // Kolumny dokładane do istniejących tabel (idempotentnie)
     foreach ([
         "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
@@ -282,6 +293,8 @@
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_parent  ON ezd_sprawy(parent_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawa_users_s ON ezd_sprawa_users(sprawa_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawa_users_u ON ezd_sprawa_users(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_zal_access_zal ON ezd_zalacznik_access(zalacznik_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_zal_access_usr ON ezd_zalacznik_access(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_ref     ON ezd_sprawy(ref_type, ref_id)",
     ] as $idx) {
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
@@ -2385,6 +2398,51 @@ function ezd_zal_delete(int $id, int $user_id): void {
     if (is_file($path)) unlink($path);
     db()->prepare("DELETE FROM ezd_zalaczniki WHERE id=?")->execute([$id]);
     ezd_log(null, $z['sprawa_id'], null, null, $user_id, 'del_attachment', 'Usunięto plik: ' . $z['original_name']);
+}
+
+// ── Przekaż dokumenty — dostęp do konkretnych plików, poza dostępem do sprawy ──
+
+/** Przyznaje dostęp do wybranych plików wskazanej osobie. Zwraca liczbę nowych wpisów. */
+function ezd_zal_access_grant(array $zalacznik_ids, int $user_id, int $granted_by, string $note = ''): int {
+    $note = trim($note);
+    $n = 0;
+    $stmt = db()->prepare(
+        "INSERT OR IGNORE INTO ezd_zalacznik_access (zalacznik_id,user_id,granted_by,note) VALUES (?,?,?,?)"
+    );
+    foreach ($zalacznik_ids as $zid) {
+        $zid = (int)$zid;
+        if (!$zid) continue;
+        $z = ezd_zal_get($zid);
+        if (!$z) continue;
+        $stmt->execute([$zid, $user_id, $granted_by, $note]);
+        if (db()->lastInsertId()) {
+            $n++;
+            ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $granted_by,
+                'zal_access_grant', 'Przekazano dostęp do pliku: ' . $z['original_name']);
+        }
+    }
+    return $n;
+}
+
+/** Osoby, którym przekazano dostęp do danego pliku (poza dostępem do całej sprawy). */
+function ezd_zal_access_list(int $zalacznik_id): array {
+    return db_all(
+        "SELECT a.*, u.name AS user_name, u.email AS user_email
+         FROM ezd_zalacznik_access a JOIN users u ON u.id = a.user_id
+         WHERE a.zalacznik_id = ? ORDER BY a.granted_at DESC",
+        [$zalacznik_id]
+    );
+}
+
+function ezd_zal_access_has(int $zalacznik_id, int $user_id): bool {
+    return (bool) db_one(
+        "SELECT 1 FROM ezd_zalacznik_access WHERE zalacznik_id=? AND user_id=?",
+        [$zalacznik_id, $user_id]
+    );
+}
+
+function ezd_zal_access_revoke(int $id, int $revoked_by): void {
+    db()->prepare("DELETE FROM ezd_zalacznik_access WHERE id=?")->execute([$id]);
 }
 
 // ── Grupy plików w sprawie ───────────────────────────────────────────────────

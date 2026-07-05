@@ -135,6 +135,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
     }
 
+    if ($action === 'zal_przekaz' && $can_act) {
+        $przekaz_user_id = (int)($_POST['przekaz_user_id'] ?? 0);
+        $przekaz_zal_ids = $_POST['zal_ids'] ?? [];
+        if (!$przekaz_user_id || !$przekaz_zal_ids) {
+            flash_set('error', 'Wybierz co najmniej jeden plik i osobę.');
+        } else {
+            $n = ezd_zal_access_grant($przekaz_zal_ids, $przekaz_user_id, $user_id, trim($_POST['przekaz_note'] ?? ''));
+            flash_set($n ? 'success' : 'warning', $n ? "Przekazano dostęp do {$n} plik(ów)." : 'Ta osoba miała już dostęp do wybranych plików.');
+        }
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#files'); exit;
+    }
+
     if ($action === 'share_add' && $can_manage_share) {
         $su_id = (int)($_POST['share_user_id'] ?? 0);
         $su_upr = $_POST['share_uprawnienie'] ?? 'odczyt';
@@ -543,6 +555,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </ul>
           </div>
           <button class="btn btn-xs btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
+          <?php if($zalaczniki): ?>
+          <button class="btn btn-xs btn-outline-warning btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#przekazDokModal"><i class="bi bi-send-check me-1"></i>Przekaż dokumenty</button>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
       </div>
@@ -583,6 +598,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               </a>
               <div class="text-muted" style="font-size:.7rem"><?= ezd_filesize($z['file_size']) ?> · <?= h($z['uploader'] ?? '—') ?> · <?= date('d.m.Y H:i', strtotime($z['uploaded_at'])) ?>
                 <?php if($z['wersja']>1): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem">v<?= $z['wersja'] ?></span><?php endif; ?>
+                <?php $_zacc = ezd_zal_access_list((int)$z['id']); if($_zacc): ?>
+                <span class="badge bg-info bg-opacity-15 text-info border border-info ms-1" style="font-size:.6rem"
+                      title="Przekazano: <?= h(implode(', ', array_column($_zacc,'user_name'))) ?>">
+                  <i class="bi bi-send-check me-1"></i><?= count($_zacc) ?>
+                </span>
+                <?php endif; ?>
               </div>
             </div>
             <?php if(!empty($sig['signed'])): ?>
@@ -947,6 +968,55 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   });
 })();
 </script>
+<?php endif; ?>
+
+<!-- ── Modal: przekaż dokumenty ───────────────────────────────────────────── -->
+<?php if($can_act && $zalaczniki): ?>
+<div class="modal fade" id="przekazDokModal" tabindex="-1" aria-labelledby="przekazDokModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="zal_przekaz">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="przekazDokModalLabel"><i class="bi bi-send-check text-warning me-2" aria-hidden="true"></i>Przekaż dokumenty</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Wybierz dokumenty</label>
+            <div class="border rounded-3 p-2" style="max-height:260px;overflow-y:auto">
+              <?php foreach($zalaczniki as $z): ?>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="zal_ids[]" value="<?= (int)$z['id'] ?>" id="pz-zal-<?= (int)$z['id'] ?>">
+                <label class="form-check-label d-flex align-items-center gap-2" for="pz-zal-<?= (int)$z['id'] ?>" style="font-size:.85rem">
+                  <i class="bi <?= ezd_file_icon($z['original_name']) ?>"></i><?= h($z['original_name']) ?>
+                </label>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="pz-user">Komu przekazujesz <span class="text-danger">*</span></label>
+            <select name="przekaz_user_id" id="pz-user" class="form-select" required>
+              <option value="">— wybierz osobę —</option>
+              <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+            </select>
+            <div class="form-text">Osoba otrzyma dostęp do wybranych plików, niezależnie od dostępu do całej sprawy.</div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold" for="pz-note">Wiadomość <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <input type="text" name="przekaz_note" id="pz-note" class="form-control" placeholder="np. proszę o sprawdzenie faktury">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-send-check me-1" aria-hidden="true"></i>Przekaż</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <?php endif; ?>
 
 <!-- ── Modal: nowe pismo ──────────────────────────────────────────────────── -->
