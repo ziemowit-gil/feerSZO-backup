@@ -590,9 +590,18 @@ body{
   .choice{padding:.95rem .9rem;gap:.8rem}
   .choice-icon{width:44px;height:44px;font-size:1.3rem}
 }
+
+/* ── Widok „Administracja / koordynator" — kolor bocznego paska (--bp),      ──
+   nie kolor panelu wolontariusza. Domyślnie (choose/priv) --c = volunteer_color,
+   więc reszta strony jest już brandowana pod wolontariuszy bez zmian tutaj. */
+body.login-view-feer{
+  --c:var(--bp,#1e293b); --c-dark:var(--bp-dark,#0f172a); --c-darker:var(--bp-darker,#020617);
+  --c-light:var(--bp-light,#334155); --c-text:var(--bp-text,#fff);
+  --c-ring:var(--bp-subtle,rgba(30,41,59,.18)); --c-bg:var(--bp-subtle,rgba(30,41,59,.07));
+}
 </style>
 </head>
-<body>
+<body class="<?= $view === 'feer' ? 'login-view-feer' : '' ?>">
 
 <a href="#login-form-area" class="skip-link">Przejdź do formularza logowania</a>
 
@@ -660,7 +669,7 @@ body{
 
   <div class="chooser" role="group" aria-label="Wybierz rodzaj konta">
     <a href="<?= h($_url_priv) ?>" class="choice">
-      <span class="choice-icon" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
+      <span class="choice-icon" aria-hidden="true"><i class="bi bi-heart-fill"></i></span>
       <span class="choice-body">
         <span class="choice-title">Wolontariusz / zleceniobiorca</span>
         <span class="choice-sub">Logowanie prywatnym e-mailem i hasłem</span>
@@ -692,7 +701,11 @@ body{
   </a>
   <div class="view-head">
     <h1 class="view-title" id="login-title">
-      <?= $view === 'feer' ? 'Administracja i koordynatorzy' : 'Wolontariusze i zleceniobiorcy' ?>
+      <?php if ($view === 'feer'): ?>
+      Administracja i koordynatorzy
+      <?php else: ?>
+      <i class="bi bi-heart-fill" style="color:var(--c);font-size:.85em" aria-hidden="true"></i> Wolontariusze i zleceniobiorcy
+      <?php endif; ?>
     </h1>
     <p class="view-sub">
       <?php if ($view === 'feer'): ?>
