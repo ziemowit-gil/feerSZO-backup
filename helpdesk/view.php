@@ -218,10 +218,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_vendor_no_response']
     }
     $case = hd_vendor_no_response($ticket, $description, ['id' => $uid, 'name' => $u['name'] ?? '']);
     if ($case) {
-        flash_set('success', 'Założono sprawę ' . $case['znak_sprawy'] . ' w module Kancelaria — do załatwienia.');
+        flash_set('success', 'Założono sprawę ' . $case['znak_sprawy'] . ' w module EZD Wirtualne biurko — do załatwienia.');
         hd_finish($xhr, $id, ['sprawa_id' => $case['sprawa_id'], 'znak_sprawy' => $case['znak_sprawy']]);
     }
-    flash_set('warning', 'Moduł Kancelaria (EZD) jest wyłączony — sprawy nie założono.');
+    flash_set('warning', 'Moduł EZD Wirtualne biurko jest wyłączony — sprawy nie założono.');
     hd_finish($xhr, $id);
 }
 

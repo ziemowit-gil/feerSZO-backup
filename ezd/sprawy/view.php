@@ -19,7 +19,7 @@ if (!$sprawa) { flash_set('error', 'Sprawa nie istnieje.'); header('Location: ' 
 
 $user_id = (int)current_user()['id'];
 $access  = ezd_sprawa_access($sprawa, $user_id);
-if (!$access) { flash_set('error', 'Brak dostępu do tej teczki.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
+if (!$access) { flash_set('error', 'Brak dostępu do tej koszulki.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
 
 $PAGE_TITLE = $sprawa['znak_sprawy'] . ' — ' . $sprawa['title'];
 
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $custom_name = trim($_POST['custom_name'] ?? '');
         $new_zal_id = null;
         $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null, $new_zal_id);
-        $msg = $err ?: 'Plik dodany do repozytorium teczki.';
+        $msg = $err ?: 'Plik dodany do repozytorium koszulki.';
         if (!$err && $new_zal_id && !empty($_POST['convert_pdf'])) {
             $conv = ezd_convert_to_pdf($new_zal_id, $user_id);
             $msg .= $conv['ok'] ? ' Utworzono też wersję PDF.' : (' Konwersja na PDF nie powiodła się: ' . $conv['error']);
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $head = org_unit_head($unit_id_d);
                 if ($head) $wykonawca_id = (int)$head['user_id'];
             }
-            if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę, której przekazujesz teczkę.');
+            if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę, której przekazujesz koszulkę.');
 
             $dekr_id = ezd_dekretacja_create([
                 'sprawa_id'    => $id,
@@ -207,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'set_etap' && $can_act) {
         try {
             ezd_sprawa_set_etap($id, $_POST['etap'] ?? '', $user_id);
-            flash_set('success', 'Zmieniono etap obiegu teczki.');
+            flash_set('success', 'Zmieniono etap obiegu koszulki.');
         } catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#workflow'); exit;
     }
@@ -291,7 +291,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <!-- Breadcrumb -->
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb" style="font-size:.8rem">
-    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
+    <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
     <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>"><?= h($sprawa['teczka_symbol']) ?></a></li>
     <li class="breadcrumb-item active"><?= h($sprawa['znak_sprawy']) ?></li>
   </ol>
@@ -302,7 +302,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <?php if ($is_closed): ?>
 <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3" style="font-size:.84rem">
   <i class="bi bi-lock-fill"></i>
-  <span>Teczka jest <strong>zamknięta</strong>. Dodawanie dokumentów i edycja są zablokowane.
+  <span>Koszulka jest <strong>zamknięta</strong>. Dodawanie dokumentów i edycja są zablokowane.
   <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>">Przywróć</a><?php endif; ?></span>
 </div>
 <?php endif; ?>
@@ -321,7 +321,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <?= ezd_status_badge_sprawa($sprawa['status']) ?>
               <?= ezd_priority_badge($sprawa['priority']) ?>
               <?php if(!empty($sprawa['ciagla'])): ?>
-              <span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.7rem"><i class="bi bi-infinity me-1"></i>Teczka ciągła</span>
+              <span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.7rem"><i class="bi bi-infinity me-1"></i>Koszulka ciągła</span>
               <?php elseif($sprawa['deadline']): ?>
               <span class="<?= $sprawa['deadline']<date('Y-m-d')&&!$is_closed?'text-danger fw-bold':'text-muted' ?>" style="font-size:.76rem">
                 <i class="bi bi-calendar-event me-1"></i><?= date_pl($sprawa['deadline']) ?>
@@ -331,7 +331,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <h3 class="fw-bold mb-1" style="font-size:1.25rem;color:#0f172a"><?= h($sprawa['title']) ?></h3>
             <?php if($sprawa['parent_id']): ?>
             <div class="mb-1" style="font-size:.78rem">
-              <span class="badge bg-info bg-opacity-15 text-info border border-info"><i class="bi bi-diagram-3 me-1"></i>Podteczka</span>
+              <span class="badge bg-info bg-opacity-15 text-info border border-info"><i class="bi bi-diagram-3 me-1"></i>Podkoszulka</span>
               <span class="text-muted ms-1">sprawy <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa['parent_id'] ?>" class="font-monospace text-decoration-none"><?= h($sprawa['parent_znak']) ?></a></span>
             </div>
             <?php endif; ?>
@@ -340,11 +340,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
           </div>
           <div class="d-flex gap-2 flex-wrap flex-shrink-0">
-            <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark" title="Drukuj teczkę do PDF (wszystkie lub jeden dokument)">
-              <i class="bi bi-printer me-1"></i>Drukuj teczkę
+            <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark" title="Drukuj koszulkę do PDF (wszystkie lub jeden dokument)">
+              <i class="bi bi-printer me-1"></i>Drukuj koszulkę
             </a>
             <?php if(!$mini): ?>
-            <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Metryka teczki">
+            <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Metryka koszulki">
               <i class="bi bi-clipboard-check me-1"></i>Metryka
             </a>
             <?php endif; ?>
@@ -394,7 +394,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h2 class="modal-title h5" id="etapModalLabel"><i class="bi bi-diagram-2 text-primary me-2" aria-hidden="true"></i>Obieg teczki
+            <h2 class="modal-title h5" id="etapModalLabel"><i class="bi bi-diagram-2 text-primary me-2" aria-hidden="true"></i>Obieg koszulki
               <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-2" style="font-size:.6rem">wg JRWA <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
             </h2>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
@@ -445,7 +445,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="mt-4" id="podsprawy">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
-          <i class="bi bi-diagram-3 me-1"></i>Podteczki (<?= count($podsprawy) ?>)
+          <i class="bi bi-diagram-3 me-1"></i>Podkoszulki (<?= count($podsprawy) ?>)
         </h6>
       </div>
       <div class="card shadow-sm"><div class="card-body p-0">
@@ -466,7 +466,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="mt-4" id="files">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
-          <i class="bi bi-folder2 me-1"></i>Repozytorium plików teczki (<?= count($zalaczniki) ?>)
+          <i class="bi bi-folder2 me-1"></i>Repozytorium plików koszulki (<?= count($zalaczniki) ?>)
         </h6>
         <?php if($can_act): ?>
         <div class="d-flex gap-2">
@@ -591,7 +591,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="card shadow-sm">
         <div class="card-body p-0">
           <?php if(!$zalaczniki && !$grupy): ?>
-          <div class="text-center text-muted py-3" style="font-size:.8rem">Brak plików w repozytorium teczki</div>
+          <div class="text-center text-muted py-3" style="font-size:.8rem">Brak plików w repozytorium koszulki</div>
           <?php endif; ?>
 
           <?php foreach ($grupy as $g): ?>
@@ -648,7 +648,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <?php foreach($grupy as $g): ?><option value="<?= $g['id'] ?>"><?= h($g['nazwa']) ?></option><?php endforeach; ?>
               </select>
               <?php endif; ?>
-              <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Dodaj do teczki</button>
+              <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Dodaj do koszulki</button>
               <small class="text-muted">Maks. 25 MB</small>
             </div>
             <div class="form-check mt-2 d-none" id="ezd-upload-convert-wrap">
@@ -716,7 +716,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
     <!-- Metadane sprawy -->
     <div class="bc">
-      <div class="bc-h"><i class="bi bi-info-circle"></i>Informacje o teczce</div>
+      <div class="bc-h"><i class="bi bi-info-circle"></i>Informacje o koszulce</div>
       <div class="bc-b">
         <dl class="row mb-0" style="font-size:.82rem;row-gap:.3rem">
           <dt class="col-5 text-muted fw-normal">Teczka</dt>
@@ -767,7 +767,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
         <?php endforeach; ?>
         <?php if(!$shares): ?>
-        <div class="text-muted text-center mb-2" style="font-size:.78rem">Teczka nie jest współdzielona z dodatkowymi osobami.</div>
+        <div class="text-muted text-center mb-2" style="font-size:.78rem">Koszulka nie jest współdzielona z dodatkowymi osobami.</div>
         <?php endif; ?>
         <?php if($can_manage_share): ?>
         <form method="post" class="d-flex flex-column gap-2 mt-2 pt-2 border-top">
@@ -792,11 +792,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="bc-h"><i class="bi bi-lightning-charge"></i>Akcje</div>
       <div class="bc-b d-flex flex-column gap-2">
         <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary w-100 text-start">
-          <i class="bi bi-pencil me-2"></i>Edytuj metadane teczki
+          <i class="bi bi-pencil me-2"></i>Edytuj metadane koszulki
         </a>
         <?php if(!$sprawa['parent_id']): ?>
         <a href="<?= APP_URL ?>/ezd/sprawy/add.php?parent_id=<?= $id ?>" class="btn btn-sm btn-outline-secondary w-100 text-start">
-          <i class="bi bi-diagram-3 me-2"></i>Dodaj podteczkę
+          <i class="bi bi-diagram-3 me-2"></i>Dodaj podkoszulkę
         </a>
         <?php endif; ?>
       </div>
@@ -937,7 +937,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <option value="">— wybierz osobę —</option>
               <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
             </select>
-            <div class="form-text">Osoba otrzyma dostęp do wybranych plików, niezależnie od dostępu do całej teczki.</div>
+            <div class="form-text">Osoba otrzyma dostęp do wybranych plików, niezależnie od dostępu do całej koszulki.</div>
           </div>
           <div class="mb-1">
             <label class="form-label fw-semibold" for="pz-note">Wiadomość <span class="text-muted fw-normal">(opcjonalnie)</span></label>
@@ -968,7 +968,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="_action" value="note_add">
           <div class="d-flex gap-2 align-items-start">
-            <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Dodaj notatkę do teczki…" required></textarea>
+            <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Dodaj notatkę do koszulki…" required></textarea>
             <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-plus-lg me-1"></i>Dodaj</button>
           </div>
         </form>

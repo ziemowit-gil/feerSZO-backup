@@ -195,7 +195,7 @@ function issue_certificate(int $req_id, int $admin_id, string $content, ?string 
     $req['certificate_content'] = $content;
     $req['certificate_file']    = $file_path;
 
-    // Rejestracja w EZD (Kancelaria) pod hasłem JRWA zaświadczeń — nie blokuje wydania
+    // Rejestracja w EZD (Wirtualne biurko) pod hasłem JRWA zaświadczeń — nie blokuje wydania
     if (module_enabled('ezd_enabled')) {
         try {
             require_once __DIR__ . '/ezd.php';

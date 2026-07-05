@@ -494,7 +494,7 @@ function setup_tenant_db(PDO $pdo): void {
         uploaded_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )",
 
-    // ── EZD / Kancelaria ──────────────────────────────────────────────────────
+    // ── EZD / Wirtualne biurko ──────────────────────────────────────────────────
     "CREATE TABLE IF NOT EXISTS ezd_jrwa (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol      TEXT    NOT NULL UNIQUE,

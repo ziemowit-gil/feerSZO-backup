@@ -13,8 +13,8 @@ require_module_enabled('ezd_enabled', 'Moduł kancelarii');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
-if (!$sprawa) { flash_set('error','Teczka nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
-if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error','Brak dostępu do tej teczki.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
+if (!$sprawa) { flash_set('error','Koszulka nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error','Brak dostępu do tej koszulki.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 
 // Pełen log sprawy w kolejności chronologicznej
 $log = db_all(
@@ -25,8 +25,8 @@ $log = db_all(
 
 // Słownik czynności
 $ACTIONS = [
-    'sprawa_create'    => 'Wszczęcie teczki',
-    'sprawa_update'    => 'Aktualizacja danych teczki',
+    'sprawa_create'    => 'Wszczęcie koszulki',
+    'sprawa_update'    => 'Aktualizacja danych koszulki',
     'pismo_create'     => 'Rejestracja pisma',
     'pismo_update'     => 'Modyfikacja pisma',
     'umowa_create'     => 'Dodanie umowy / dokumentu',
@@ -61,13 +61,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3 no-print"><ol class="breadcrumb" style="font-size:.8rem">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>"><?= h($sprawa['znak_sprawy']) ?></a></li>
-  <li class="breadcrumb-item active">Metryka teczki</li>
+  <li class="breadcrumb-item active">Metryka koszulki</li>
 </ol></nav>
 
 <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-  <h4 class="fw-bold mb-0"><i class="bi bi-clipboard-check text-primary me-2"></i>Metryka teczki</h4>
+  <h4 class="fw-bold mb-0"><i class="bi bi-clipboard-check text-primary me-2"></i>Metryka koszulki</h4>
   <button onclick="window.print()" class="btn btn-outline-primary btn-sm"><i class="bi bi-printer me-1"></i>Drukuj / PDF</button>
 </div>
 
@@ -75,11 +75,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
     <div>
       <?php if($org_name): ?><div class="fw-bold" style="font-size:1.05rem"><?= h($org_name) ?></div><?php endif; ?>
-      <div class="mtr-meta">Metryka teczki — rejestr czynności</div>
+      <div class="mtr-meta">Metryka koszulki — rejestr czynności</div>
     </div>
     <div class="text-end mtr-meta">
-      <div><strong>Znak teczki:</strong> <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span></div>
-      <div><strong>Koszulka:</strong> <span class="font-monospace"><?= h($sprawa['teczka_symbol']) ?></span></div>
+      <div><strong>Znak koszulki:</strong> <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span></div>
+      <div><strong>Teczka:</strong> <span class="font-monospace"><?= h($sprawa['teczka_symbol']) ?></span></div>
     </div>
   </div>
   <div class="mb-3">

@@ -1,6 +1,6 @@
 <?php
 /**
- * Moduł EZD / Kancelaria — helpery DB + auto-migracja.
+ * Moduł EZD / Wirtualne biurko — helpery DB + auto-migracja.
  *
  * Hierarchia: Teczka (JRWA) → Sprawa → Pismo / Umowa
  *             Każdy poziom: Załączniki, Dekretacje, Log

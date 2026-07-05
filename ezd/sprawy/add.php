@@ -12,7 +12,7 @@ $teczki = ezd_teczki_all('open');
 // Tryb podsprawy — parent_id z GET/POST
 $parent_id = (int)($_GET['parent_id'] ?? $_POST['parent_id'] ?? 0);
 $parent    = $parent_id ? ezd_sprawa_get($parent_id) : null;
-$PAGE_TITLE = $parent ? 'Nowa podteczka' : 'Nowa teczka';
+$PAGE_TITLE = $parent ? 'Nowa podkoszulka' : 'Nowa koszulka';
 
 $_can_create = $parent
     ? ezd_sprawa_access($parent, (int)current_user()['id']) === 'write'
@@ -48,14 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ciagla'      => isset($_POST['ciagla']) ? 1 : 0,
     ];
     if (!$row['teczka_id']) $errors[] = 'Wybierz teczkę aktową.';
-    if (!$row['title'])     $errors[] = 'Tytuł teczki jest wymagany.';
+    if (!$row['title'])     $errors[] = 'Tytuł koszulki jest wymagany.';
     if (!in_array($row['status'],   array_keys(EZD_STATUSES_SPRAWA))) $errors[] = 'Nieprawidłowy status.';
     if (!in_array($row['priority'], array_keys(EZD_PRIORITIES)))      $errors[] = 'Nieprawidłowy priorytet.';
 
     if (!$errors) {
         try {
             $id = ezd_sprawa_create($row, (int)current_user()['id']);
-            flash_set('success', 'Teczka założona.');
+            flash_set('success', 'Koszulka założona.');
             header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$id); exit;
         } catch (\RuntimeException $e) {
             $errors[] = $e->getMessage();
@@ -66,16 +66,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Teczki</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Koszulki</a></li>
   <?php if($parent): ?><li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>"><?= h($parent['znak_sprawy']) ?></a></li><?php endif; ?>
-  <li class="breadcrumb-item active"><?= $parent ? 'Nowa podteczka' : 'Nowa teczka' ?></li>
+  <li class="breadcrumb-item active"><?= $parent ? 'Nowa podkoszulka' : 'Nowa koszulka' ?></li>
 </ol></nav>
-<h4 class="fw-bold mb-3"><i class="bi bi-<?= $parent ? 'diagram-3' : 'folder-plus' ?> text-primary me-2"></i><?= $parent ? 'Nowa podteczka' : 'Nowa teczka' ?></h4>
+<h4 class="fw-bold mb-3"><i class="bi bi-<?= $parent ? 'diagram-3' : 'folder-plus' ?> text-primary me-2"></i><?= $parent ? 'Nowa podkoszulka' : 'Nowa koszulka' ?></h4>
 <?php if($parent): ?>
 <div class="alert alert-light border d-flex align-items-center gap-2 py-2" style="font-size:.83rem">
   <i class="bi bi-diagram-3 text-primary"></i>
-  <span>Podteczka nadrzędnej teczki <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="font-monospace fw-semibold"><?= h($parent['znak_sprawy']) ?></a> — <?= h($parent['title']) ?></span>
+  <span>Podkoszulka nadrzędnej koszulki <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="font-monospace fw-semibold"><?= h($parent['znak_sprawy']) ?></a> — <?= h($parent['title']) ?></span>
 </div>
 <?php endif; ?>
 <?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
@@ -113,7 +113,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
   <!-- Tytuł -->
   <div class="mb-3">
-    <label class="form-label fw-semibold">Tytuł teczki <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Tytuł koszulki <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>"
            placeholder="np. Umowa z firmą XYZ na dostawę materiałów" required>
   </div>
@@ -121,7 +121,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="mb-3">
     <label class="form-label fw-semibold">Opis / uwagi</label>
     <textarea name="description" class="form-control" rows="3"
-              placeholder="Krótki opis teczki..."><?= h($row['description']) ?></textarea>
+              placeholder="Krótki opis koszulki..."><?= h($row['description']) ?></textarea>
   </div>
   <!-- Status + Priorytet -->
   <div class="row g-3 mb-3">
@@ -161,12 +161,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="form-check form-switch mt-3">
     <input class="form-check-input" type="checkbox" role="switch" name="ciagla" id="f-ciagla" value="1" <?= !empty($row['ciagla'])?'checked':'' ?>
            onchange="document.getElementById('f-deadline').disabled=this.checked; if(this.checked)document.getElementById('f-deadline').value='';">
-    <label class="form-check-label fw-semibold" for="f-ciagla">Teczka ciągła (stale otwarta)</label>
-    <div class="form-text">Teczka bez terminu zakończenia — nie podlega przypomnieniom o terminie i nie jest zamykana zwykłym zapisem (np. rejestr, ewidencja prowadzona na bieżąco).</div>
+    <label class="form-check-label fw-semibold" for="f-ciagla">Koszulka ciągła (stale otwarta)</label>
+    <div class="form-text">Koszulka bez terminu zakończenia — nie podlega przypomnieniom o terminie i nie jest zamykana zwykłym zapisem (np. rejestr, ewidencja prowadzona na bieżąco).</div>
   </div>
 </div>
 <div class="card-footer d-flex gap-2">
-  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Załóż teczkę</button>
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Załóż koszulkę</button>
   <?php if($parent): ?>
   <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="btn btn-outline-secondary">Anuluj</a>
   <?php elseif($preselect_teczka): ?>

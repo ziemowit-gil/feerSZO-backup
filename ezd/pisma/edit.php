@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $pismo['sprawa_id'] ?>"><?= h($pismo['znak_sprawy']) ?></a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/pisma/view.php?id=<?= $id ?>"><?= h($pismo['sygnatura']) ?></a></li>
   <li class="breadcrumb-item active">Edytuj</li>

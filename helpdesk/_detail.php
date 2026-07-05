@@ -595,7 +595,7 @@ $view_action = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
         </div>
         <div class="modal-body">
           <p class="text-muted small">Opisz całą sytuację — od razu zostanie założona formalna sprawa
-            w module Kancelaria (teczka „IT"), z dekretacją „do załatwienia" i terminem 7 dni.</p>
+            w module EZD Wirtualne biurko (teczka „IT"), z dekretacją „do załatwienia" i terminem 7 dni.</p>
           <div class="mb-2">
             <label class="form-label small mb-1">Opis sytuacji <span class="text-danger">*</span></label>
             <textarea name="vendor_situation" class="form-control form-control-sm" rows="5" required

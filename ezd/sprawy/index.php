@@ -6,7 +6,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
 
-$PAGE_TITLE = 'Teczki';
+$PAGE_TITLE = 'Koszulki';
 $user_id    = (int)current_user()['id'];
 
 $status_f   = $_GET['status']    ?? '';
@@ -32,7 +32,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="sprawy_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM dla Excela
-    fputcsv($out, ['Znak teczki','Tytuł','Koszulka','Status','Priorytet','Etap','Właściciel','Termin'], ';');
+    fputcsv($out, ['Znak koszulki','Tytuł','Teczka','Status','Priorytet','Etap','Właściciel','Termin'], ';');
     foreach ($sprawy as $s) {
         fputcsv($out, [
             $s['znak_sprawy'], $s['title'], $s['teczka_symbol'].' — '.$s['teczka_title'],
@@ -55,11 +55,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </style>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0 fw-bold"><i class="bi bi-folder2-open text-primary me-2"></i>Teczki</h4>
+  <h4 class="mb-0 fw-bold"><i class="bi bi-folder2-open text-primary me-2"></i>Koszulki</h4>
   <div class="d-flex gap-2">
     <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Eksport CSV</a>
     <?php if(can_edit()): ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa teczka</a>
+    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa koszulka</a>
     <?php endif; ?>
   </div>
 </div>
@@ -146,8 +146,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php if(!$sprawy): ?>
     <div class="text-center py-5 text-muted">
       <i class="bi bi-folder2" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-      Brak teczek pasujących do filtrów.
-      <?php if(can_edit()): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php">Załóż pierwszą teczkę.</a><?php endif; ?>
+      Brak koszulek pasujących do filtrów.
+      <?php if(can_edit()): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php">Załóż pierwszą koszulkę.</a><?php endif; ?>
     </div>
     <?php endif; ?>
   </div>

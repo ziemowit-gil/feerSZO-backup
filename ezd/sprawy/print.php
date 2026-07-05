@@ -21,8 +21,8 @@ require_module_enabled('ezd_enabled', 'Moduł kancelarii');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
-if (!$sprawa) { flash_set('error', 'Teczka nie istnieje.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
-if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error', 'Brak dostępu do tej teczki.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
+if (!$sprawa) { flash_set('error', 'Koszulka nie istnieje.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
+if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error', 'Brak dostępu do tej koszulki.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
 
 $zalaczniki = ezd_zalaczniki_by($id); // wszystkie dokumenty sprawy (jednolita ścieżka)
 $out   = $_GET['out'] ?? '';
@@ -120,7 +120,7 @@ if ($out === 'pdf') {
             $pdf->SetFont('DejaVu', 'B', 8);
             $pdf->SetTextColor(80, 100, 140);
             $pdf->SetXY(19, $xStart + 2);
-            $pdf->Cell(0, 5, $pl('OPIS TECZKI'), 0, 1);
+            $pdf->Cell(0, 5, $pl('OPIS KOSZULKI'), 0, 1);
             $pdf->SetFont('DejaVu', '', 9.5);
             $pdf->SetTextColor(30, 30, 30);
             $pdf->SetX(19);
@@ -132,12 +132,12 @@ if ($out === 'pdf') {
         // ── Metadane (dwie kolumny) ───────────────────────────────────────────
         $stat   = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
         $meta   = [
-            ['Koszulka',       $sprawa['teczka_symbol'] ?? '—'],
+            ['Teczka',        $sprawa['teczka_symbol'] ?? '—'],
             ['Status',        $stat],
             ['Właściciel',    $sprawa['owner_name'] ?? '—'],
             ['Otwarto',       $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
         ];
-        if (!empty($sprawa['ciagla']))        $meta[] = ['Termin', 'teczka ciągła (stale otwarta)'];
+        if (!empty($sprawa['ciagla']))        $meta[] = ['Termin', 'koszulka ciągła (stale otwarta)'];
         elseif (!empty($sprawa['deadline']))  $meta[] = ['Termin', date('d.m.Y', strtotime($sprawa['deadline']))];
         if (!empty($sprawa['closed_at']))     $meta[] = ['Zamknięto', date('d.m.Y', strtotime($sprawa['closed_at']))];
 
@@ -164,7 +164,7 @@ if ($out === 'pdf') {
         // ── Spis dokumentów ───────────────────────────────────────────────────
         $pdf->SetFont('DejaVu', 'B', 9);
         $pdf->SetTextColor(22, 53, 102);
-        $pdf->Cell(0, 6, $pl('DOKUMENTY W TECZCE  (' . count($files) . ')'), 0, 1);
+        $pdf->Cell(0, 6, $pl('DOKUMENTY W KOSZULCE  (' . count($files) . ')'), 0, 1);
         $pdf->SetTextColor(0, 0, 0);
         if ($files) {
             foreach ($files as $i => $z) {
@@ -206,7 +206,7 @@ if ($out === 'pdf') {
                     $pdf->useTemplate($tpl);
                 }
             } catch (\Throwable $e) {
-                $notePage($z, 'Nie udało się dołączyć pliku PDF (możliwe szyfrowanie lub uszkodzenie). Oryginał dostępny w repozytorium teczki.');
+                $notePage($z, 'Nie udało się dołączyć pliku PDF (możliwe szyfrowanie lub uszkodzenie). Oryginał dostępny w repozytorium koszulki.');
             }
         } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
             $pdf->AddPage('P', 'A4');
@@ -222,12 +222,12 @@ if ($out === 'pdf') {
             try { $pdf->Image($path, 15, 24, $w, $h); }
             catch (\Throwable $e) { $notePage($z, 'Nie udało się osadzić obrazu.'); }
         } else {
-            $notePage($z, 'Załącznik nie jest plikiem PDF ani obrazem (' . strtoupper($ext ?: 'plik') . ') — oryginał dostępny w repozytorium teczki.');
+            $notePage($z, 'Załącznik nie jest plikiem PDF ani obrazem (' . strtoupper($ext ?: 'plik') . ') — oryginał dostępny w repozytorium koszulki.');
         }
     }
 
-    $base = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $sprawa['znak_sprawy'] ?: ('teczka_' . $id));
-    $base = trim($base, '_') ?: ('teczka_' . $id);
+    $base = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $sprawa['znak_sprawy'] ?: ('koszulka_' . $id));
+    $base = trim($base, '_') ?: ('koszulka_' . $id);
     if ($zalId) $base .= '_dokument';
 
     // Czyść ewentualne bufory przed strumieniem PDF
@@ -237,12 +237,12 @@ if ($out === 'pdf') {
 }
 
 // ── Ekran wyboru ─────────────────────────────────────────────────────────────
-$PAGE_TITLE = 'Drukuj teczkę — ' . $sprawa['znak_sprawy'];
+$PAGE_TITLE = 'Drukuj koszulkę — ' . $sprawa['znak_sprawy'];
 $stat_label = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>"><?= h($sprawa['znak_sprawy']) ?></a></li>
   <li class="breadcrumb-item active">Drukuj</li>
 </ol></nav>
@@ -256,12 +256,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div style="background:linear-gradient(135deg,#163566 0%,#1e4a8a 100%);padding:20px 24px 14px">
       <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
         <div>
-          <div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.55);text-transform:uppercase;margin-bottom:4px">Znak teczki</div>
+          <div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.55);text-transform:uppercase;margin-bottom:4px">Znak koszulki</div>
           <div style="font-size:1.45rem;font-weight:800;color:#fff;letter-spacing:.01em;line-height:1.15"><?= h($sprawa['znak_sprawy']) ?></div>
         </div>
         <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>"
            class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);white-space:nowrap">
-          <i class="bi bi-arrow-left me-1"></i>Wróć do teczki
+          <i class="bi bi-arrow-left me-1"></i>Wróć do koszulki
         </a>
       </div>
       <div style="font-size:1.05rem;font-weight:600;color:rgba(255,255,255,.9);margin-top:10px;line-height:1.35">
@@ -273,14 +273,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div style="background:#f0f5ff;border-left:4px solid #163566;padding:14px 20px 14px 20px;display:flex;gap:12px;align-items:flex-start">
       <i class="bi bi-card-text" style="color:#163566;font-size:1.15rem;margin-top:2px;flex-shrink:0"></i>
       <div>
-        <div style="font-size:.68rem;font-weight:700;letter-spacing:.09em;color:#4a6096;text-transform:uppercase;margin-bottom:4px">Opis teczki</div>
+        <div style="font-size:.68rem;font-weight:700;letter-spacing:.09em;color:#4a6096;text-transform:uppercase;margin-bottom:4px">Opis koszulki</div>
         <div style="font-size:.93rem;color:#1a2a45;line-height:1.55;white-space:pre-wrap"><?= h($sprawa['description']) ?></div>
       </div>
     </div>
     <?php endif; ?>
 
     <div class="card-body py-3 px-4 d-flex gap-4 flex-wrap" style="font-size:.82rem;background:#fff;border-top:1px solid #e8ecf4">
-      <span><span class="text-secondary">Koszulka:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
+      <span><span class="text-secondary">Teczka:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
       <span><span class="text-secondary">Status:</span> <strong><?= h($stat_label) ?></strong></span>
       <?php if (!empty($sprawa['owner_name'])): ?>
       <span><span class="text-secondary">Właściciel:</span> <strong><?= h($sprawa['owner_name']) ?></strong></span>
@@ -299,9 +299,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <i class="bi bi-file-earmark-pdf" style="font-size:1.6rem;color:#dc2626"></i>
       </div>
       <div class="flex-grow-1">
-        <div class="fw-bold mb-1">Cała teczka — jeden plik PDF</div>
+        <div class="fw-bold mb-1">Cała koszulka — jeden plik PDF</div>
         <div class="text-secondary" style="font-size:.82rem">
-          Okładka z danymi i opisem teczki + scalone <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> w jednym pliku.
+          Okładka z danymi i opisem koszulki + scalone <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> w jednym pliku.
         </div>
       </div>
       <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener"
@@ -349,7 +349,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php endforeach; ?>
     </div>
     <div class="card-footer border-0 bg-white px-4 py-2" style="font-size:.76rem;color:#94a3b8">
-      <i class="bi bi-info-circle me-1"></i>PDF i obrazy (JPG, PNG) można eksportować do PDF. Inne formaty pobierz jako oryginał — są wykazane na okładce PDF całej teczki.
+      <i class="bi bi-info-circle me-1"></i>PDF i obrazy (JPG, PNG) można eksportować do PDF. Inne formaty pobierz jako oryginał — są wykazane na okładce PDF całej koszulki.
     </div>
   </div>
   <?php endif; ?>

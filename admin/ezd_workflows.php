@@ -50,7 +50,7 @@ include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">
   <h4 class="mb-0"><i class="bi bi-diagram-2 text-primary me-2"></i>Edytor procesów (workflow BPM)</h4>
-  <a href="<?= APP_URL ?>/ezd/index.php" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-box-arrow-up-right me-1"></i>Kancelaria</a>
+  <a href="<?= APP_URL ?>/ezd/index.php" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-box-arrow-up-right me-1"></i>EZD Wirtualne biurko</a>
 </div>
 <?= flash_html() ?>
 

@@ -76,7 +76,7 @@ $sprawy   = array_filter($sprawy, fn($s)=>$s['status']!=='closed');
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/rpw/index.php">Dziennik podawczy</a></li>
   <li class="breadcrumb-item active"><?= h(ezd_rpw_label($rpw)) ?></li>
 </ol></nav>
