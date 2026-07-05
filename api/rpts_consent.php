@@ -66,6 +66,15 @@ if ($action === 'submit') {
     ]);
     unset($_SESSION['rpts_consent_snoozed']);
 
+    // Otwórz sprawę w EZD dokumentującą złożenie zgody (nie blokuje odpowiedzi w razie błędu).
+    try {
+        require_once dirname(__DIR__) . '/includes/ezd.php';
+        $_fresh = db_one("SELECT * FROM users WHERE id=?", [(int)$_user['id']]);
+        if ($_fresh) ezd_register_rpts_consent($_fresh, (int)$_user['id']);
+    } catch (\Throwable $e) {
+        error_log('[rpts_consent] EZD: ' . $e->getMessage());
+    }
+
     echo json_encode(['ok' => true]);
     exit;
 }

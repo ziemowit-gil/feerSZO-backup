@@ -1192,7 +1192,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     // przy wykonywaniu faktycznej weryfikacji na rps.ms.gov.pl.
     $_rpts_person = !empty($row['email']) ? db_one(
         "SELECT rpts_consent, rpts_consent_at, rpts_pesel, rpts_data_urodzenia, rpts_miejsce_urodzenia,
-                rpts_nazwisko_rodowe, rpts_imie_ojca, rpts_imie_matki
+                rpts_nazwisko_rodowe, rpts_imie_ojca, rpts_imie_matki, rpts_ezd_sprawa_id
          FROM users WHERE email = ?", [$row['email']]
     ) : null;
     ?>
@@ -1205,6 +1205,11 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
           <span class="badge bg-success-subtle text-success"><i class="bi bi-check2-circle me-1"></i>Udzielona <?= $_rpts_person['rpts_consent_at'] ? '(' . date_pl(substr($_rpts_person['rpts_consent_at'], 0, 10)) . ')' : '' ?></span>
           <?php else: ?>
           <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split me-1"></i>Jeszcze nieudzielona</span>
+          <?php endif; ?>
+          <?php if (!empty($_rpts_person['rpts_ezd_sprawa_id']) && module_enabled('ezd_enabled')): ?>
+          <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$_rpts_person['rpts_ezd_sprawa_id'] ?>" class="ms-2">
+            <i class="bi bi-folder2-open me-1"></i>Sprawa w EZD
+          </a>
           <?php endif; ?>
         </div>
       </div>

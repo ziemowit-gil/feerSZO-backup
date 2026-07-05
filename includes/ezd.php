@@ -1830,6 +1830,97 @@ function _ezd_vol_sprawa_id(int $rok, int $user_id): int {
     return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Rejestr pism wysłanych do wolontariuszy bez umowy w '.$rok.' r.', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
 }
 
+// ── Rejestracja weryfikacji RPTS w EZD (JRWA KAD — akta osobowe) ─────────────
+
+function ezd_rpts_jrwa(): string {
+    $s = trim((string)org_setting('rpts_ezd_jrwa'));
+    return $s !== '' ? $s : 'KAD';
+}
+
+/** Hasło JRWA kadr — istnieje z seeda, samonaprawa na wypadek starszej bazy. */
+function _ezd_rpts_jrwa_id(): int {
+    $sym = ezd_rpts_jrwa();
+    $j = db_one("SELECT id FROM ezd_jrwa WHERE symbol=?", [$sym]);
+    if ($j) return (int)$j['id'];
+    db()->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)")
+        ->execute([$sym, 'Kadry i sprawy pracownicze', 'B50', 'Umowy o pracę, akta osobowe', 30]);
+    return (int)db()->lastInsertId();
+}
+
+/** Teczka roczna „Weryfikacje RPTS {rok}" (utworzona w razie potrzeby). */
+function _ezd_rpts_teczka_id(int $rok, int $user_id): int {
+    $jid   = _ezd_rpts_jrwa_id();
+    $title = "Weryfikacje RPTS $rok";
+    $t = db_one("SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND title=? AND status='open' ORDER BY id LIMIT 1", [$jid, $rok, $title]);
+    if ($t) return (int)$t['id'];
+    return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>ezd_rpts_jrwa(), 'title'=>$title, 'rok'=>$rok, 'owner_id'=>null], $user_id);
+}
+
+/**
+ * Otwiera dedykowaną sprawę EZD dla weryfikacji RPTS danej osoby, zaraz po
+ * złożeniu przez nią zgody w panelu wolontariusza (jedna sprawa na osobę,
+ * nie ciągła — do zamknięcia po wykonaniu faktycznej weryfikacji i
+ * odnotowaniu wyniku na umowie). Idempotentne — jeśli users.rpts_ezd_sprawa_id
+ * jest już ustawione, zwraca istniejące id bez tworzenia duplikatu.
+ *
+ * @return int|null id sprawy EZD, albo null gdy moduł EZD jest wyłączony
+ */
+function ezd_register_rpts_consent(array $user, int $created_by = 0): ?int {
+    if (!module_enabled('ezd_enabled')) return null;
+    if (!empty($user['rpts_ezd_sprawa_id'])) return (int)$user['rpts_ezd_sprawa_id'];
+
+    $uid  = $created_by ?: (int)$user['id'];
+    $rok  = (int)date('Y');
+    $tid  = _ezd_rpts_teczka_id($rok, $uid);
+    $name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''))
+        ?: ($user['name'] ?? $user['email'] ?? ('#' . $user['id']));
+
+    $tresc = "OŚWIADCZENIE O WYRAŻENIU ZGODY NA WERYFIKACJĘ W REJESTRZE SPRAWCÓW PRZESTĘPSTW NA TLE SEKSUALNYM (RSPTS)\n\n"
+        . "Imię i nazwisko: {$name}\n"
+        . "PESEL: " . ($user['rpts_pesel'] ?? '') . "\n"
+        . "Data i miejsce urodzenia: " . ($user['rpts_data_urodzenia'] ?? '') . ", " . ($user['rpts_miejsce_urodzenia'] ?? '') . "\n"
+        . "Nazwisko rodowe: " . ($user['rpts_nazwisko_rodowe'] ?? '') . "\n"
+        . "Imię ojca: " . ($user['rpts_imie_ojca'] ?? '') . "\n"
+        . "Imię matki: " . ($user['rpts_imie_matki'] ?? '') . "\n\n"
+        . "Osoba wyraziła zgodę na weryfikację w Rejestrze z dostępem ograniczonym, zgodnie "
+        . "z art. 21 ustawy z dnia 13 maja 2016 r. o przeciwdziałaniu zagrożeniom przestępczością "
+        . "na tle seksualnym i ochronie małoletnich.";
+
+    $sprawa_id = ezd_sprawa_create([
+        'teczka_id'   => $tid,
+        'title'       => "Weryfikacja RPTS — {$name}",
+        'description' => 'Sprawa otwarta automatycznie po złożeniu zgody w panelu wolontariusza. '
+                        . 'Do zamknięcia po wykonaniu weryfikacji na rps.ms.gov.pl i odnotowaniu wyniku na umowie.',
+        'priority'    => 'normal',
+        'owner_id'    => null,
+        'ref_type'    => 'rpts_consent',
+        'ref_id'      => (int)$user['id'],
+    ], $uid);
+
+    try {
+        ezd_pismo_create([
+            'sprawa_id'   => $sprawa_id,
+            'kierunek'    => 'przychodzace',
+            'title'       => 'Oświadczenie o wyrażeniu zgody na weryfikację RPTS',
+            'tresc'       => $tresc,
+            'nadawca'     => $name,
+            'odbiorca'    => '',
+            'data_pisma'  => date('Y-m-d'),
+            'data_wplywu' => date('Y-m-d'),
+            'status'      => 'nowe',
+            'rodzaj_medium' => 'inne',
+        ], $uid);
+    } catch (\Throwable $e) {
+        // Sprawa jest już utworzona — brak pisma nie jest krytyczny.
+    }
+
+    try {
+        db()->prepare("UPDATE users SET rpts_ezd_sprawa_id=? WHERE id=?")->execute([$sprawa_id, (int)$user['id']]);
+    } catch (\Throwable $e) {}
+
+    return $sprawa_id;
+}
+
 // ── Teczka „Informatyka i technologia" (integracja z modułem Helpdesk) ───────
 
 /** Hasło JRWA „IT" — istnieje z seeda, samonaprawa na wypadek starszej bazy. */

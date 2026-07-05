@@ -57,6 +57,7 @@ require_once __DIR__ . '/byli.php'; // is_zarzad()
         'rpts_nazwisko_rodowe'   => "VARCHAR(255)",
         'rpts_imie_ojca'         => "VARCHAR(255)",
         'rpts_imie_matki'        => "VARCHAR(255)",
+        'rpts_ezd_sprawa_id'     => "INTEGER",
     ];
 
     foreach ($user_columns as $name => $def) {
