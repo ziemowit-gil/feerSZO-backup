@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
@@ -481,7 +482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $identity_type    = $_POST['identity_type']    ?? 'pesel';
 
         // Pola checkboxowe
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'z_webngo', 'm365_nie_wylaczaj'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'z_webngo', 'm365_nie_wylaczaj', 'rpts_wymagana', 'rpts_zweryfikowano'] as $f) {
             $row[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         $row['wspolpraca_przed_2026'] = $is_technical ? 1 : 0;
@@ -494,7 +495,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row['m365_security_group_id']    = trim($_POST['m365_security_group_id']   ?? '') ?: null;
         $row['m365_security_group_name']  = trim($_POST['m365_security_group_name'] ?? '') ?: null;
 
-        foreach (['godzin_tygodniowo', 'limit_zwrotu_kosztow'] as $f) {
+        foreach (['godzin_tygodniowo', 'limit_zwrotu_kosztow', 'rpts_data_weryfikacji'] as $f) {
             if (isset($row[$f]) && $row[$f] === '') $row[$f] = null;
         }
         // Godziny przepracowane są wyliczane z zadań — wartość z formularza traktujemy
@@ -509,9 +510,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $plik_umowy = handle_upload('plik_umowy',         $TYPE);
         $plik_potw  = handle_upload('plik_potwierdzenia', $TYPE);
         $zgoda_op   = handle_upload('zgoda_opiekuna',     $TYPE);
+        $rpts_plik  = handle_upload('rpts_plik_potwierdzenia', $TYPE);
         if ($plik_umowy) $row['plik_umowy']         = $plik_umowy;
         if ($plik_potw)  $row['plik_potwierdzenia'] = $plik_potw;
         if ($zgoda_op)   $row['zgoda_opiekuna']      = $zgoda_op;
+        if ($rpts_plik)  $row['rpts_plik_potwierdzenia'] = $rpts_plik;
+        if (empty($row['rpts_zweryfikowano'])) { $row['rpts_data_weryfikacji'] = null; $row['rpts_wynik'] = null; }
 
         $row['created_by'] = current_user()['id'];
         $row['created_at'] = date('Y-m-d H:i:s');
@@ -539,7 +543,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'id_document_type', 'id_document_number', 'no_pesel_reason',
             'm365_security_group_id', 'm365_security_group_name',
             'portal_scope',
-            'template_id'];
+            'template_id',
+            'rpts_wymagana', 'rpts_zweryfikowano', 'rpts_data_weryfikacji', 'rpts_wynik',
+            'rpts_zweryfikowal', 'rpts_nr_potwierdzenia', 'rpts_plik_potwierdzenia', 'rpts_uwagi'];
 
         $data = array_intersect_key($row, array_flip($allowed));
 
@@ -1623,6 +1629,80 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <div class="wiz-card">
+    <div class="wiz-card-header">
+      <div class="wiz-card-icon" style="background:#FEF2F2;color:#DC2626"><i class="bi bi-shield-exclamation"></i></div>
+      <div>
+        <div class="wiz-card-title">Weryfikacja RPTS</div>
+        <div class="wiz-card-subtitle">Rejestr Sprawców Przestępstw na Tle Seksualnym</div>
+      </div>
+    </div>
+    <div class="wiz-card-body">
+
+      <div class="alert alert-secondary small mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        Jeśli wolontariusz będzie miał kontakt z małoletnimi, ustawa z 13.05.2016 r.
+        o przeciwdziałaniu zagrożeniom przestępczością na tle seksualnym wymaga
+        sprawdzenia go w RPTS przed dopuszczeniem do działalności. Sprawdzenia dokonuje się
+        ręcznie na <strong>rps.ms.gov.pl</strong> — tutaj odnotuj jego wynik i dowód (data, kto sprawdził,
+        nr potwierdzenia, skan wydruku).
+      </div>
+
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" name="rpts_wymagana" id="rpts_wymagana"
+               value="1" <?= !empty($row['rpts_wymagana'])?'checked':'' ?>>
+        <label class="form-check-label fw-semibold" for="rpts_wymagana">
+          Wolontariusz będzie miał kontakt z małoletnimi — wymagana weryfikacja RPTS
+        </label>
+      </div>
+
+      <div id="rpts_fields" style="<?= empty($row['rpts_wymagana'])?'display:none':'' ?>">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" name="rpts_zweryfikowano" id="rpts_zweryfikowano"
+                 value="1" <?= !empty($row['rpts_zweryfikowano'])?'checked':'' ?>>
+          <label class="form-check-label fw-semibold" for="rpts_zweryfikowano">
+            Zweryfikowano w RPTS
+          </label>
+        </div>
+        <div class="row g-3" id="rpts_detail_fields" style="<?= empty($row['rpts_zweryfikowano'])?'display:none':'' ?>">
+          <div class="col-sm-4">
+            <label class="form-label small text-muted">Data weryfikacji</label>
+            <input name="rpts_data_weryfikacji" type="date" class="form-control form-control-sm"
+                   value="<?= h($row['rpts_data_weryfikacji'] ?? '') ?>">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small text-muted">Wynik weryfikacji</label>
+            <select name="rpts_wynik" class="form-select form-select-sm">
+              <option value="">— wybierz —</option>
+              <?php foreach (rpts_wynik_options() as $_rk => $_rl): ?>
+              <option value="<?= h($_rk) ?>" <?= ($row['rpts_wynik'] ?? '') === $_rk ? 'selected' : '' ?>><?= h($_rl) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small text-muted">Kto zweryfikował</label>
+            <input name="rpts_zweryfikowal" class="form-control form-control-sm"
+                   value="<?= h($row['rpts_zweryfikowal'] ?? '') ?>" placeholder="Imię i nazwisko">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small text-muted">Nr / identyfikator potwierdzenia</label>
+            <input name="rpts_nr_potwierdzenia" class="form-control form-control-sm"
+                   value="<?= h($row['rpts_nr_potwierdzenia'] ?? '') ?>">
+          </div>
+          <div class="col-sm-8">
+            <label class="form-label small text-muted">Skan/wydruk potwierdzenia weryfikacji</label>
+            <input name="rpts_plik_potwierdzenia" type="file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+          <div class="col-12">
+            <label class="form-label small text-muted">Uwagi</label>
+            <textarea name="rpts_uwagi" class="form-control form-control-sm" rows="2"><?= h($row['rpts_uwagi'] ?? '') ?></textarea>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div class="wiz-nav-btns">
     <button type="button" class="btn btn-outline-secondary" onclick="goToStep(3)">
       <i class="bi bi-arrow-left me-1"></i>Wstecz
@@ -2463,6 +2543,12 @@ document.getElementById('szkolenie_bhp')?.addEventListener('change', function() 
 });
 document.getElementById('ubezpieczenie_nnw')?.addEventListener('change', function() {
   document.getElementById('numer_polisy_nnw').disabled = !this.checked;
+});
+document.getElementById('rpts_wymagana')?.addEventListener('change', function() {
+  document.getElementById('rpts_fields').style.display = this.checked ? '' : 'none';
+});
+document.getElementById('rpts_zweryfikowano')?.addEventListener('change', function() {
+  document.getElementById('rpts_detail_fields').style.display = this.checked ? '' : 'none';
 });
 document.getElementById('z_webngo')?.addEventListener('change', function() {
   document.getElementById('webngo_fields').style.display = this.checked ? '' : 'none';

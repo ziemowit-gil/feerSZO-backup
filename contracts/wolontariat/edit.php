@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 cpc_migrate();
 
 require_role('admin', 'editor');
@@ -46,9 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
 
     if (!$errors) {
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe', 'rpts_wymagana', 'rpts_zweryfikowano'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
         }
+        if (empty($data['rpts_zweryfikowano'])) { $data['rpts_data_weryfikacji'] = null; $data['rpts_wynik'] = null; }
         // Wykryj nowe zaznaczenie „przetwarza dane osobowe"
         $_rodo_was = (int)($row['przetwarza_dane_osobowe'] ?? 0);
         $_rodo_now = $data['przetwarza_dane_osobowe'];
@@ -93,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'webngo_id', 'numer_polisy_nnw', 'id_dokumentu_el',
             'pesel', 'seria_nr_dowodu',
             'm365_security_group_id',
+            'rpts_data_weryfikacji', 'rpts_wynik',
         ];
         foreach ($nullable_fields as $f) {
             if (isset($data[$f]) && $data[$f] === '') $data[$f] = null;
@@ -101,9 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $plik_umowy = handle_upload('plik_umowy', $TYPE);
         $plik_potw  = handle_upload('plik_potwierdzenia', $TYPE);
         $zgoda_op   = handle_upload('zgoda_opiekuna', $TYPE);
+        $rpts_plik  = handle_upload('rpts_plik_potwierdzenia', $TYPE);
         $data['plik_umowy']         = $plik_umowy  ?: $row['plik_umowy'];
         $data['plik_potwierdzenia'] = $plik_potw   ?: $row['plik_potwierdzenia'];
         $data['zgoda_opiekuna']     = $zgoda_op    ?: $row['zgoda_opiekuna'];
+        $data['rpts_plik_potwierdzenia'] = $rpts_plik ?: $row['rpts_plik_potwierdzenia'];
 
         $data['updated_at'] = date('Y-m-d H:i:s');
 
@@ -142,6 +147,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // RODO zgody i upoważnienia
             'email_consent', 'email_consent_at',
             'przetwarza_dane_osobowe',
+            // RPTS
+            'rpts_wymagana', 'rpts_zweryfikowano', 'rpts_data_weryfikacji', 'rpts_wynik',
+            'rpts_zweryfikowal', 'rpts_nr_potwierdzenia', 'rpts_plik_potwierdzenia', 'rpts_uwagi',
         ];
         $save = array_intersect_key($data, array_flip($allowed));
 
@@ -1130,6 +1138,80 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 </section>
 
 <!-- ══════════════════════════════════════════════════════════
+     SEKCJA 4B — WERYFIKACJA RPTS
+     ══════════════════════════════════════════════════════════ -->
+<section id="sec-rpts" class="esec">
+  <div class="esec-head">
+    <i class="bi bi-shield-exclamation"></i>
+    <h6>Weryfikacja RPTS <span class="esec-sub">Rejestr Sprawców Przestępstw na Tle Seksualnym</span></h6>
+  </div>
+
+  <div class="alert alert-secondary small mb-3">
+    <i class="bi bi-info-circle me-1"></i>
+    Wymagana, gdy wolontariusz ma kontakt z małoletnimi (ustawa z 13.05.2016 r.).
+    Sprawdzenia dokonuje się ręcznie na <strong>rps.ms.gov.pl</strong> — tu odnotuj wynik i dowód weryfikacji.
+  </div>
+
+  <div class="toggle-row">
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" role="switch"
+             name="rpts_wymagana" id="rpts_wymagana" value="1"
+             <?= $row['rpts_wymagana'] ? 'checked' : '' ?>>
+    </div>
+    <label for="rpts_wymagana" class="mb-0">Wolontariusz ma kontakt z małoletnimi — wymagana weryfikacja RPTS</label>
+  </div>
+
+  <div id="rpts_fields" style="<?= $row['rpts_wymagana'] ? '' : 'display:none' ?>">
+    <div class="toggle-row mt-2">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch"
+               name="rpts_zweryfikowano" id="rpts_zweryfikowano" value="1"
+               <?= $row['rpts_zweryfikowano'] ? 'checked' : '' ?>>
+      </div>
+      <label for="rpts_zweryfikowano" class="mb-0">Zweryfikowano w RPTS</label>
+    </div>
+
+    <div class="row g-3 mt-1" id="rpts_detail_fields" style="<?= $row['rpts_zweryfikowano'] ? '' : 'display:none' ?>">
+      <div class="col-md-3 fgroup">
+        <label>Data weryfikacji</label>
+        <input name="rpts_data_weryfikacji" type="date" class="form-control"
+               value="<?= h($row['rpts_data_weryfikacji'] ?? '') ?>">
+      </div>
+      <div class="col-md-3 fgroup">
+        <label>Wynik weryfikacji</label>
+        <select name="rpts_wynik" class="form-select">
+          <option value="">— wybierz —</option>
+          <?php foreach (rpts_wynik_options() as $_rk => $_rl): ?>
+          <option value="<?= h($_rk) ?>" <?= ($row['rpts_wynik'] ?? '') === $_rk ? 'selected' : '' ?>><?= h($_rl) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-3 fgroup">
+        <label>Kto zweryfikował</label>
+        <input name="rpts_zweryfikowal" class="form-control"
+               value="<?= h($row['rpts_zweryfikowal'] ?? '') ?>" placeholder="Imię i nazwisko">
+      </div>
+      <div class="col-md-3 fgroup">
+        <label>Nr / identyfikator potwierdzenia</label>
+        <input name="rpts_nr_potwierdzenia" class="form-control"
+               value="<?= h($row['rpts_nr_potwierdzenia'] ?? '') ?>">
+      </div>
+      <div class="col-md-8 fgroup">
+        <label>Skan/wydruk potwierdzenia weryfikacji</label>
+        <input name="rpts_plik_potwierdzenia" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+        <?php if ($row['rpts_plik_potwierdzenia']): ?>
+        <div class="mt-1"><?= upload_link($row['rpts_plik_potwierdzenia']) ?></div>
+        <?php endif; ?>
+      </div>
+      <div class="col-12 fgroup">
+        <label>Uwagi</label>
+        <textarea name="rpts_uwagi" class="form-control" rows="2"><?= h($row['rpts_uwagi'] ?? '') ?></textarea>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
      SEKCJA 5 — PODPISANIE
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-podpisanie" class="esec">
@@ -1590,6 +1672,12 @@ document.getElementById('szkolenie_bhp').addEventListener('change', function () 
 });
 document.getElementById('ubezpieczenie_nnw').addEventListener('change', function () {
   document.getElementById('numer_polisy_nnw').disabled = !this.checked;
+});
+document.getElementById('rpts_wymagana').addEventListener('change', function () {
+  document.getElementById('rpts_fields').style.display = this.checked ? '' : 'none';
+});
+document.getElementById('rpts_zweryfikowano').addEventListener('change', function () {
+  document.getElementById('rpts_detail_fields').style.display = this.checked ? '' : 'none';
 });
 document.getElementById('bezterminowa').addEventListener('change', function () {
   var d = document.getElementById('data_zakonczenia');

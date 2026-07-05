@@ -26,6 +26,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/apaczka.php';
 
 require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 require_login();
 $TYPE  = 'wolontariat';
 $TABLE = 'umowy_wolontariat';
@@ -1122,6 +1123,72 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       </div>
     </div>
   </div>
+
+  <!-- Weryfikacja RPTS -->
+  <?php if (!empty($row['rpts_wymagana'])):
+    $_rpts_visible = rpts_can_see_sensitive($row);
+  ?>
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FEF2F2;color:#DC2626"><i class="bi bi-shield-exclamation"></i></div>
+      <span class="cv-section-title">Weryfikacja RPTS</span>
+    </div>
+    <?php if (!$_rpts_visible): ?>
+    <div class="alert alert-danger d-flex gap-2 align-items-start py-2 px-3 mb-0">
+      <i class="bi bi-lock-fill flex-shrink-0 mt-1"></i>
+      <div class="small">
+        Weryfikacja wykonana <?= $row['rpts_data_weryfikacji'] ? ('(' . date_pl($row['rpts_data_weryfikacji']) . ')') : '' ?>
+        — wynik wymaga uwagi zarządu. Szczegóły (wynik, uwagi) widoczne tylko dla zarządu.
+      </div>
+    </div>
+    <?php else: ?>
+    <div class="cv-fields">
+      <div class="cv-field">
+        <div class="cv-label">Kontakt z małoletnimi</div>
+        <div class="cv-value"><?= yn($row['rpts_wymagana']) ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Zweryfikowano w RPTS</div>
+        <div class="cv-value"><?= yn($row['rpts_zweryfikowano']) ?></div>
+      </div>
+      <?php if ($row['rpts_zweryfikowano']): ?>
+      <div class="cv-field">
+        <div class="cv-label">Data weryfikacji</div>
+        <div class="cv-value"><?= date_pl($row['rpts_data_weryfikacji']) ?></div>
+      </div>
+      <div class="cv-field">
+        <div class="cv-label">Wynik weryfikacji</div>
+        <div class="cv-value"><?= h(rpts_wynik_label($row['rpts_wynik'])) ?: '—' ?></div>
+      </div>
+      <?php if ($row['rpts_zweryfikowal']): ?>
+      <div class="cv-field">
+        <div class="cv-label">Kto zweryfikował</div>
+        <div class="cv-value"><?= h($row['rpts_zweryfikowal']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($row['rpts_nr_potwierdzenia']): ?>
+      <div class="cv-field">
+        <div class="cv-label">Nr potwierdzenia</div>
+        <div class="cv-value"><?= h($row['rpts_nr_potwierdzenia']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($row['rpts_plik_potwierdzenia']): ?>
+      <div class="cv-field">
+        <div class="cv-label">Dowód weryfikacji</div>
+        <div class="cv-value"><?= upload_link($row['rpts_plik_potwierdzenia']) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($row['rpts_uwagi']): ?>
+      <div class="cv-field" style="flex-basis:100%">
+        <div class="cv-label">Uwagi</div>
+        <div class="cv-value"><?= nl2br(h($row['rpts_uwagi'])) ?></div>
+      </div>
+      <?php endif; ?>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
   <!-- Podpisanie -->
   <div class="cv-section">
