@@ -6,7 +6,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
 
-$PAGE_TITLE = 'Sprawy';
+$PAGE_TITLE = 'Teczki';
 $user_id    = (int)current_user()['id'];
 
 $status_f   = $_GET['status']    ?? '';
@@ -32,7 +32,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="sprawy_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM dla Excela
-    fputcsv($out, ['Znak sprawy','Tytuł','Teczka','Status','Priorytet','Etap','Właściciel','Termin'], ';');
+    fputcsv($out, ['Znak teczki','Tytuł','JRWA','Status','Priorytet','Etap','Właściciel','Termin'], ';');
     foreach ($sprawy as $s) {
         fputcsv($out, [
             $s['znak_sprawy'], $s['title'], $s['teczka_symbol'].' — '.$s['teczka_title'],
@@ -55,11 +55,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </style>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0 fw-bold"><i class="bi bi-folder2-open text-primary me-2"></i>Sprawy</h4>
+  <h4 class="mb-0 fw-bold"><i class="bi bi-folder2-open text-primary me-2"></i>Teczki</h4>
   <div class="d-flex gap-2">
     <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Eksport CSV</a>
     <?php if(can_edit()): ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa sprawa</a>
+    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa teczka</a>
     <?php endif; ?>
   </div>
 </div>

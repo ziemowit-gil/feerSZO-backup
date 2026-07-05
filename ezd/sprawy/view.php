@@ -19,7 +19,7 @@ if (!$sprawa) { flash_set('error', 'Sprawa nie istnieje.'); header('Location: ' 
 
 $user_id = (int)current_user()['id'];
 $access  = ezd_sprawa_access($sprawa, $user_id);
-if (!$access) { flash_set('error', 'Brak dostępu do tej sprawy.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
+if (!$access) { flash_set('error', 'Brak dostępu do tej teczki.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
 
 $PAGE_TITLE = $sprawa['znak_sprawy'] . ' — ' . $sprawa['title'];
 
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $custom_name = trim($_POST['custom_name'] ?? '');
         $new_zal_id = null;
         $err = ezd_upload('file', $id, $user_id, null, null, null, null, $grupa_id, $custom_name ?: null, $new_zal_id);
-        $msg = $err ?: 'Plik dodany do repozytorium sprawy.';
+        $msg = $err ?: 'Plik dodany do repozytorium teczki.';
         if (!$err && $new_zal_id && !empty($_POST['convert_pdf'])) {
             $conv = ezd_convert_to_pdf($new_zal_id, $user_id);
             $msg .= $conv['ok'] ? ' Utworzono też wersję PDF.' : (' Konwersja na PDF nie powiodła się: ' . $conv['error']);
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $head = org_unit_head($unit_id_d);
                 if ($head) $wykonawca_id = (int)$head['user_id'];
             }
-            if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę, której przekazujesz sprawę.');
+            if (!$wykonawca_id) throw new \RuntimeException('Wybierz osobę lub jednostkę, której przekazujesz teczkę.');
 
             $dekr_id = ezd_dekretacja_create([
                 'sprawa_id'    => $id,
@@ -207,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'set_etap' && $can_act) {
         try {
             ezd_sprawa_set_etap($id, $_POST['etap'] ?? '', $user_id);
-            flash_set('success', 'Zmieniono etap obiegu sprawy.');
+            flash_set('success', 'Zmieniono etap obiegu teczki.');
         } catch (\Throwable $e) { flash_set('error', $e->getMessage()); }
         header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#workflow'); exit;
     }
@@ -302,7 +302,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <?php if ($is_closed): ?>
 <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3" style="font-size:.84rem">
   <i class="bi bi-lock-fill"></i>
-  <span>Sprawa jest <strong>zamknięta</strong>. Dodawanie dokumentów i edycja są zablokowane.
+  <span>Teczka jest <strong>zamknięta</strong>. Dodawanie dokumentów i edycja są zablokowane.
   <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>">Przywróć</a><?php endif; ?></span>
 </div>
 <?php endif; ?>
@@ -321,7 +321,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <?= ezd_status_badge_sprawa($sprawa['status']) ?>
               <?= ezd_priority_badge($sprawa['priority']) ?>
               <?php if(!empty($sprawa['ciagla'])): ?>
-              <span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.7rem"><i class="bi bi-infinity me-1"></i>Sprawa ciągła</span>
+              <span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.7rem"><i class="bi bi-infinity me-1"></i>Teczka ciągła</span>
               <?php elseif($sprawa['deadline']): ?>
               <span class="<?= $sprawa['deadline']<date('Y-m-d')&&!$is_closed?'text-danger fw-bold':'text-muted' ?>" style="font-size:.76rem">
                 <i class="bi bi-calendar-event me-1"></i><?= date_pl($sprawa['deadline']) ?>
@@ -331,7 +331,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <h3 class="fw-bold mb-1" style="font-size:1.25rem;color:#0f172a"><?= h($sprawa['title']) ?></h3>
             <?php if($sprawa['parent_id']): ?>
             <div class="mb-1" style="font-size:.78rem">
-              <span class="badge bg-info bg-opacity-15 text-info border border-info"><i class="bi bi-diagram-3 me-1"></i>Podsprawa</span>
+              <span class="badge bg-info bg-opacity-15 text-info border border-info"><i class="bi bi-diagram-3 me-1"></i>Podteczka</span>
               <span class="text-muted ms-1">sprawy <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa['parent_id'] ?>" class="font-monospace text-decoration-none"><?= h($sprawa['parent_znak']) ?></a></span>
             </div>
             <?php endif; ?>
@@ -340,11 +340,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
           </div>
           <div class="d-flex gap-2 flex-wrap flex-shrink-0">
-            <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark" title="Drukuj sprawę do PDF (wszystkie lub jeden dokument)">
-              <i class="bi bi-printer me-1"></i>Drukuj sprawę
+            <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark" title="Drukuj teczkę do PDF (wszystkie lub jeden dokument)">
+              <i class="bi bi-printer me-1"></i>Drukuj teczkę
             </a>
             <?php if(!$mini): ?>
-            <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Metryka sprawy">
+            <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Metryka teczki">
               <i class="bi bi-clipboard-check me-1"></i>Metryka
             </a>
             <?php endif; ?>
@@ -379,7 +379,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     ?>
     <div class="bc mb-4" id="workflow">
-      <div class="bc-h"><i class="bi bi-diagram-2"></i>Obieg sprawy (workflow)
+      <div class="bc-h"><i class="bi bi-diagram-2"></i>Obieg teczki (workflow)
         <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-2" style="font-size:.6rem">wg JRWA <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
         <?php if(is_admin()): ?><a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= (int)($sprawa['jrwa_id'] ?? 0) ?>" class="ms-auto text-muted" style="font-size:.7rem" title="Edytuj workflow tej JRWA"><i class="bi bi-pencil"></i></a><?php endif; ?>
       </div>
@@ -422,47 +422,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <?php endif; /* !mini */ ?>
 
-    <!-- Dokumenty wewnętrzne -->
-    <div class="mt-4" id="dokumenty">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
-          <i class="bi bi-file-earmark-text me-1"></i>Dokumenty wewnętrzne (<?= count($dokumenty) ?>)
-        </h6>
-        <?php if($can_act): ?>
-        <a href="<?= APP_URL ?>/ezd/dokumenty/add.php?sprawa_id=<?= $id ?>" class="btn btn-xs btn-outline-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Dodaj dokument</a>
-        <?php endif; ?>
-      </div>
-      <div class="card shadow-sm"><div class="card-body p-0">
-        <?php foreach($dokumenty as $d): ?>
-        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="font-size:.82rem">
-          <i class="bi bi-file-earmark-text text-primary fs-5 flex-shrink-0"></i>
-          <div class="flex-grow-1 overflow-hidden">
-            <a href="<?= APP_URL ?>/ezd/dokumenty/view.php?id=<?= $d['id'] ?>" class="text-decoration-none fw-semibold text-truncate d-block"><?= h($d['title']) ?></a>
-            <div class="text-muted" style="font-size:.7rem">
-              <code style="font-size:.66rem"><?= h($d['sygnatura']) ?></code> ·
-              <?= h(EZD_DOK_RODZAJE[$d['rodzaj']] ?? $d['rodzaj']) ?> ·
-              <?= h($d['owner_name'] ?? '—') ?>
-              <?php if($d['plik_count']): ?> · <i class="bi bi-paperclip"></i><?= (int)$d['plik_count'] ?><?php endif; ?>
-            </div>
-          </div>
-          <?= ezd_dok_status_badge($d['status']) ?>
-        </div>
-        <?php endforeach; ?>
-        <?php if(!$dokumenty): ?>
-        <div class="text-center text-muted py-3" style="font-size:.8rem">Brak dokumentów wewnętrznych</div>
-        <?php endif; ?>
-      </div></div>
-    </div>
-
+    <?php if ($podsprawy): ?>
     <!-- Podsprawy -->
     <div class="mt-4" id="podsprawy">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
-          <i class="bi bi-diagram-3 me-1"></i>Podsprawy (<?= count($podsprawy) ?>)
+          <i class="bi bi-diagram-3 me-1"></i>Podteczki (<?= count($podsprawy) ?>)
         </h6>
-        <?php if($can_act && !$sprawa['parent_id']): ?>
-        <a href="<?= APP_URL ?>/ezd/sprawy/add.php?parent_id=<?= $id ?>" class="btn btn-xs btn-outline-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Dodaj podsprawę</a>
-        <?php endif; ?>
       </div>
       <div class="card shadow-sm"><div class="card-body p-0">
         <?php foreach($podsprawy as $ps): ?>
@@ -474,13 +440,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <?= ezd_status_badge_sprawa($ps['status']) ?>
         </a>
         <?php endforeach; ?>
-        <?php if(!$podsprawy): ?>
-        <div class="text-center text-muted py-3" style="font-size:.8rem">
-          <?= $sprawa['parent_id'] ? 'Ta sprawa jest już podsprawą — zagnieżdżanie ograniczone do jednego poziomu.' : 'Brak podspraw' ?>
-        </div>
-        <?php endif; ?>
       </div></div>
     </div>
+    <?php endif; ?>
 
     <!-- Notatki -->
     <div class="mt-4" id="notatki">
@@ -493,7 +455,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="_action" value="note_add">
           <div class="d-flex gap-2 align-items-start">
-            <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Dodaj notatkę do sprawy…" required></textarea>
+            <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Dodaj notatkę do teczki…" required></textarea>
             <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-plus-lg me-1"></i>Dodaj</button>
           </div>
         </form>
@@ -541,7 +503,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="mt-4" id="files">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size:.7rem;letter-spacing:.1em">
-          <i class="bi bi-folder2 me-1"></i>Repozytorium plików sprawy (<?= count($zalaczniki) ?>)
+          <i class="bi bi-folder2 me-1"></i>Repozytorium plików teczki (<?= count($zalaczniki) ?>)
         </h6>
         <?php if($can_act): ?>
         <div class="d-flex gap-2">
@@ -624,6 +586,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
             <?php if (in_array($zext, EZD_OFFICE_ONLINE_EXT, true)): ?>
             <a href="<?= APP_URL ?>/ezd/office_online.php?id=<?= $z['id'] ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w Office Online"><i class="bi bi-microsoft"></i></a>
+            <?php if (!empty($z['sp_web_url'])):
+              $_office_scheme = in_array($zext, ['xls','xlsx'], true) ? 'ms-excel' : 'ms-word';
+            ?>
+            <a href="<?= h($_office_scheme) ?>:ofe|u|<?= rawurlencode($z['sp_web_url']) ?>" class="btn btn-xs btn-outline-primary btn-sm" title="Otwórz w aplikacji <?= $_office_scheme==='ms-excel'?'Excel':'Word' ?> (desktop) — zmiany zapiszą się automatycznie w SharePoincie"><i class="bi bi-window-desktop"></i></a>
+            <?php endif; ?>
             <?php if (!empty($z['sp_web_url'])): ?>
             <button type="button" class="btn btn-xs btn-outline-success btn-sm ezd-oop-btn" title="Zapisz zmiany z Office Online"
                     data-bs-toggle="modal" data-bs-target="#officeOnlinePullModal"
@@ -661,7 +628,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="card shadow-sm">
         <div class="card-body p-0">
           <?php if(!$zalaczniki && !$grupy): ?>
-          <div class="text-center text-muted py-3" style="font-size:.8rem">Brak plików w repozytorium sprawy</div>
+          <div class="text-center text-muted py-3" style="font-size:.8rem">Brak plików w repozytorium teczki</div>
           <?php endif; ?>
 
           <?php foreach ($grupy as $g): ?>
@@ -718,7 +685,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                 <?php foreach($grupy as $g): ?><option value="<?= $g['id'] ?>"><?= h($g['nazwa']) ?></option><?php endforeach; ?>
               </select>
               <?php endif; ?>
-              <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Dodaj do sprawy</button>
+              <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Dodaj do teczki</button>
               <small class="text-muted">Maks. 25 MB</small>
             </div>
             <div class="form-check mt-2 d-none" id="ezd-upload-convert-wrap">
@@ -786,7 +753,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
     <!-- Metadane sprawy -->
     <div class="bc">
-      <div class="bc-h"><i class="bi bi-info-circle"></i>Informacje o sprawie</div>
+      <div class="bc-h"><i class="bi bi-info-circle"></i>Informacje o teczce</div>
       <div class="bc-b">
         <dl class="row mb-0" style="font-size:.82rem;row-gap:.3rem">
           <dt class="col-5 text-muted fw-normal">Teczka</dt>
@@ -837,7 +804,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
         <?php endforeach; ?>
         <?php if(!$shares): ?>
-        <div class="text-muted text-center mb-2" style="font-size:.78rem">Sprawa nie jest współdzielona z dodatkowymi osobami.</div>
+        <div class="text-muted text-center mb-2" style="font-size:.78rem">Teczka nie jest współdzielona z dodatkowymi osobami.</div>
         <?php endif; ?>
         <?php if($can_manage_share): ?>
         <form method="post" class="d-flex flex-column gap-2 mt-2 pt-2 border-top">
@@ -862,8 +829,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="bc-h"><i class="bi bi-lightning-charge"></i>Akcje</div>
       <div class="bc-b d-flex flex-column gap-2">
         <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary w-100 text-start">
-          <i class="bi bi-pencil me-2"></i>Edytuj metadane sprawy
+          <i class="bi bi-pencil me-2"></i>Edytuj metadane teczki
         </a>
+        <?php if(!$sprawa['parent_id']): ?>
+        <a href="<?= APP_URL ?>/ezd/sprawy/add.php?parent_id=<?= $id ?>" class="btn btn-sm btn-outline-secondary w-100 text-start">
+          <i class="bi bi-diagram-3 me-2"></i>Dodaj podteczkę
+        </a>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
@@ -1002,7 +974,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <option value="">— wybierz osobę —</option>
               <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
             </select>
-            <div class="form-text">Osoba otrzyma dostęp do wybranych plików, niezależnie od dostępu do całej sprawy.</div>
+            <div class="form-text">Osoba otrzyma dostęp do wybranych plików, niezależnie od dostępu do całej teczki.</div>
           </div>
           <div class="mb-1">
             <label class="form-label fw-semibold" for="pz-note">Wiadomość <span class="text-muted fw-normal">(opcjonalnie)</span></label>
