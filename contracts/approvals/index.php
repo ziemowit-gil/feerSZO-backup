@@ -15,6 +15,10 @@ $PAGE_TITLE = 'Akceptacje';
 $tab    = $_GET['tab']    ?? 'approvals';
 $status = $_GET['status'] ?? 'oczekuje';
 
+// Wycofaj osierocone wpisy „oczekuje" (umowa zmieniła status poza 'projekt'
+// z pominięciem tego ekranu, albo została usunięta) — zob. approval_sync_pending().
+approval_sync_pending();
+
 // Counts for badges
 $cnt = [];
 foreach (['contract_approvals' => 'approvals', 'contract_amendments' => 'amendments', 'contract_edit_requests' => 'changes'] as $tbl => $key) {

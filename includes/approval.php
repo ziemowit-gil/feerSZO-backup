@@ -11,6 +11,43 @@ function approval_badge(string $status): string {
     return '<span class="badge bg-' . $s['class'] . '">' . htmlspecialchars($s['label']) . '</span>';
 }
 
+/**
+ * Porządkuje przeterminowane wpisy „oczekuje" w contract_approvals: żaden
+ * edit.php nie wycofuje wpisu w tej tabeli, gdy ktoś ręcznie zmieni status
+ * umowy w edycji (z pominięciem przycisków akceptuj/odrzuć na tej liście) —
+ * wpis zostaje wtedy osierocony i wisi jako „oczekująca" na zawsze, mimo że
+ * umowa dawno przestała być projektem. Ta funkcja oznacza takie wpisy jako
+ * 'wycofana', jeśli powiązana umowa ma już status inny niż 'projekt' albo
+ * została usunięta. Bezpieczna do wywołania przy każdym wejściu na listę
+ * akceptacji (self-healing, jak samonaprawa schematu w innych modułach).
+ *
+ * Pomija typ 'canva_request' — to osobny cykl życia (zgoda na dostęp do
+ * Canva), niezwiązany ze statusem umowy 'projekt'.
+ */
+function approval_sync_pending(): void {
+    try {
+        $types = db_all(
+            "SELECT DISTINCT contract_type FROM contract_approvals WHERE status='oczekuje'"
+        );
+    } catch (\Throwable $e) {
+        return;
+    }
+    foreach ($types as $t) {
+        $type = $t['contract_type'];
+        if ($type === 'canva_request' || $type === 'crm_case') continue;
+        $tbl = table_for_type($type);
+        try {
+            db()->prepare(
+                "UPDATE contract_approvals SET status='wycofana'
+                 WHERE status='oczekuje' AND contract_type=?
+                   AND contract_id NOT IN (SELECT id FROM {$tbl} WHERE status='projekt')"
+            )->execute([$type]);
+        } catch (\Throwable $e) {
+            // Nietypowa tabela / brak kolumny status — pomiń ten typ, nie przerywaj reszty.
+        }
+    }
+}
+
 function get_current_approval(string $type, int $id): ?array {
     return db_one(
         "SELECT a.*, u.name AS requested_by_name, d.name AS decided_by_name
