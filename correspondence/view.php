@@ -308,7 +308,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="card shadow-sm mb-3 <?= $linked_pismo ? 'border-success' : '' ?>">
       <div class="card-header fw-semibold" style="font-size:.85rem">
         <i class="bi bi-building-gear me-1 text-<?= $linked_pismo ? 'success' : 'primary' ?>"></i>
-        Kancelaria EZD
+        Wirtualne biurko
         <?php if ($linked_pismo): ?>
         <span class="badge bg-success ms-1" style="font-size:.65rem">Połączone</span>
         <?php endif; ?>

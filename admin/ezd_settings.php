@@ -1,6 +1,6 @@
 <?php
 /**
- * Ustawienia modułu Kancelaria EZD.
+ * Ustawienia modułu Wirtualne biurko.
  * Włącznik modułu, powiadomienia o terminach, przegląd i skróty.
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -11,7 +11,7 @@ require_once dirname(__DIR__) . '/includes/ezd.php';
 
 require_role('admin');
 
-$PAGE_TITLE = 'Ustawienia modułu Kancelaria EZD';
+$PAGE_TITLE = 'Ustawienia modułu Wirtualne biurko';
 
 $settings_keys = [
     'ezd_enabled',
@@ -64,7 +64,7 @@ $counts = [
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="d-flex align-items-center mb-3 gap-2">
-  <h4 class="mb-0"><i class="bi bi-building-gear text-primary me-2"></i>Ustawienia modułu Kancelaria EZD</h4>
+  <h4 class="mb-0"><i class="bi bi-building-gear text-primary me-2"></i>Ustawienia modułu Wirtualne biurko</h4>
   <a href="<?= APP_URL ?>/ezd/index.php" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-box-arrow-up-right me-1"></i>Przejdź do kancelarii</a>
 </div>
 
@@ -81,7 +81,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" id="ezd_enabled" name="ezd_enabled" <?= module_enabled('ezd_enabled') ? 'checked' : '' ?>>
             <label class="form-check-label fw-semibold" for="ezd_enabled">Moduł włączony</label>
-            <div class="form-text">Udostępnia sekcję „Kancelaria EZD" w menu (Teczki, Sprawy, Pisma, Dziennik podawczy, JRWA). To samo ustawienie znajdziesz w <a href="<?= APP_URL ?>/admin/modules_settings.php">Modułach</a>.</div>
+            <div class="form-text">Udostępnia sekcję „Wirtualne biurko" w menu (Teczki, Sprawy, Pisma, Dziennik podawczy, JRWA). To samo ustawienie znajdziesz w <a href="<?= APP_URL ?>/admin/modules_settings.php">Modułach</a>.</div>
           </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" role="switch" id="ezd_mini" name="ezd_mini" <?= $cfg['ezd_mini'] === '1' ? 'checked' : '' ?>>

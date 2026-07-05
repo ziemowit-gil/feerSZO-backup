@@ -971,7 +971,7 @@ $total_steps = count($step_labels);
       'Dokumenty i raporty' => [
         ['key'=>'letters_enabled',     'icon'=>'bi-envelope-paper',      'label'=>'Pisma i korespondencja',       'default'=>true],
         ['key'=>'certificates_enabled','icon'=>'bi-award',               'label'=>'Zaświadczenia',                'default'=>true],
-        ['key'=>'ezd_enabled',         'icon'=>'bi-building-gear',       'label'=>'Kancelaria EZD',               'default'=>false],
+        ['key'=>'ezd_enabled',         'icon'=>'bi-building-gear',       'label'=>'Wirtualne biurko',               'default'=>false],
         ['key'=>'reports_enabled',     'icon'=>'bi-bar-chart-line',      'label'=>'Zestawienia i raporty',        'default'=>true],
         ['key'=>'correspondence_enabled','icon'=>'bi-mailbox2',          'label'=>'Rejestr korespondencji',       'default'=>false],
       ],

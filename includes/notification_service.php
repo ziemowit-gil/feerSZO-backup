@@ -177,7 +177,7 @@ HTML;
 
   <!-- Header -->
   <tr><td style="background:#1e293b;padding:24px 32px">
-    <div style="color:#94a3b8;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px">Kancelaria EZD</div>
+    <div style="color:#94a3b8;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px">Wirtualne biurko</div>
     <div style="color:#ffffff;font-size:20px;font-weight:700">{$org}</div>
   </td></tr>
 

@@ -8,7 +8,7 @@ require_once dirname(__DIR__) . '/includes/ezd.php';
 require_login();
 require_module_enabled('ezd_enabled', 'Moduł kancelarii');
 
-$PAGE_TITLE = 'Kancelaria EZD';
+$PAGE_TITLE = 'Wirtualne biurko';
 $stats      = ezd_stats();
 $rpw_stats  = ezd_rpw_stats();
 $user_id    = (int)current_user()['id'];
@@ -76,7 +76,7 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-building-gear text-primary me-2"></i>Kancelaria EZD</h4>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-building-gear text-primary me-2"></i>Wirtualne biurko</h4>
     <div class="text-muted" style="font-size:.8rem;margin-top:.15rem">Elektroniczne Zarządzanie Dokumentacją</div>
   </div>
   <div class="d-flex gap-2">

@@ -261,7 +261,7 @@ try {
   </a>
 
   <div class="pv-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="pv-nav-label" aria-hidden="true">Moje sprawy</div>
+  <div class="pv-nav-label" aria-hidden="true">Moje koszulki</div>
 
   <?php if (module_enabled('letters_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/letters.php" class="pv-nav-link<?= _pv_nav_active('/panel/letters') ?>">

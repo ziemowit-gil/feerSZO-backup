@@ -452,7 +452,7 @@ if ($_user) {
   <li class="nav-item dropdown">
     <a class="nav-link dropdown-toggle<?= $_ezd_dd_active ? ' active' : '' ?>"
        href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-building-gear"></i> Kancelaria EZD
+      <i class="bi bi-building-gear"></i> Wirtualne biurko
     </a>
     <ul class="dropdown-menu">
       <li><a class="dropdown-item<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php"><i class="bi bi-building-gear me-2"></i>Pulpit kancelarii</a></li>
@@ -753,7 +753,7 @@ if ($_user) {
       <li><a class="dropdown-item<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php"><i class="bi bi-file-ruled me-2"></i>Uchwały</a></li>
       <?php if (module_enabled('ezd_enabled')): ?>
       <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header nb-section-label">Kancelaria EZD</h6></li>
+      <li><h6 class="dropdown-header nb-section-label">Wirtualne biurko</h6></li>
       <li><a class="dropdown-item<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php"><i class="bi bi-building-gear me-2"></i>Pulpit kancelarii</a></li>
       <li><a class="dropdown-item<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php"><i class="bi bi-folder2-open me-2"></i>Teczki</a></li>
       <?php endif; ?>

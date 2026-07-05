@@ -13,7 +13,7 @@ const PERMISSION_MODULES = [
     'akceptacje'    => 'Akceptacje',
     'raporty'       => 'Raporty umów',
     'org'           => 'Struktura organizacyjna',
-    'ezd'           => 'Kancelaria EZD',
+    'ezd'           => 'Wirtualne biurko',
     'procedury'     => 'Procedury',
     'zadania'       => 'Zadania',
     'zgloszenia'    => 'Zgłoszenia',
@@ -38,7 +38,7 @@ const PERMISSION_MODULES = [
  */
 const MODULE_REGISTRY = [
     'crm'           => ['label'=>'CRM',            'url'=>'/crm/dashboard.php',               'paths'=>['/crm/'],          'icon'=>'bi-diagram-2-fill',     'grad'=>'linear-gradient(135deg,#14532D,#16A34A)'],
-    'ezd'           => ['label'=>'Kancelaria EZD', 'url'=>'/ezd/index.php',                   'paths'=>['/ezd/'],          'icon'=>'bi-archive-fill',       'grad'=>'linear-gradient(135deg,#7C2D12,#B45309)'],
+    'ezd'           => ['label'=>'Wirtualne biurko', 'url'=>'/ezd/index.php',                   'paths'=>['/ezd/'],          'icon'=>'bi-archive-fill',       'grad'=>'linear-gradient(135deg,#7C2D12,#B45309)'],
     'umowy'         => ['label'=>'Umowy',          'url'=>'/contracts/wolontariat/list.php',  'paths'=>['/contracts/'],    'icon'=>'bi-file-earmark-text',  'grad'=>'linear-gradient(135deg,#1E3A5F,#1D6EF9)'],
     'osoby'         => ['label'=>'Strony umów',    'url'=>'/persons/index.php',               'paths'=>['/persons/'],      'icon'=>'bi-people-fill',        'grad'=>'linear-gradient(135deg,#3730A3,#6366F1)'],
     'granty'        => ['label'=>'Granty',         'url'=>'/grants/index.php',                'paths'=>['/grants/'],       'icon'=>'bi-cash-coin',          'grad'=>'linear-gradient(135deg,#14532D,#15803D)'],
@@ -59,7 +59,7 @@ const MODULE_REGISTRY = [
 // Moduły dostępne dla roli crm_only (tylko CRM — bez systemu głównego)
 const CRM_ONLY_MODULES = ['crm'];
 
-// Moduły dostępne dla roli ezd_only (tylko Kancelaria EZD — bez systemu głównego)
+// Moduły dostępne dla roli ezd_only (tylko Wirtualne biurko — bez systemu głównego)
 const EZD_ONLY_MODULES = ['ezd'];
 
 // ── Auto-migration (lazy — runs on first permissions function call) ───────────
@@ -122,7 +122,7 @@ function _permissions_init(): void {
             ('editor',   'Edytor',        'Odczyt i zapis we wszystkich modułach (bez administracji)', 1, 0, 0, 2),
             ('viewer',   'Widz',          'Tylko odczyt (bez administracji)', 1, 0, 0, 3),
             ('crm_user', 'Użytkownik CRM','Dostęp wyłącznie do modułu CRM — bez systemu głównego', 1, 1, 0, 4),
-            ('ezd_user', 'Użytkownik EZD','Dostęp wyłącznie do modułu Kancelaria EZD — bez systemu głównego', 1, 0, 1, 5)
+            ('ezd_user', 'Użytkownik EZD','Dostęp wyłącznie do modułu Wirtualne biurko — bez systemu głównego', 1, 0, 1, 5)
         ");
 
         $admin_id    = (int)$pdo->query("SELECT id FROM roles WHERE name='admin'")->fetchColumn();
@@ -150,7 +150,7 @@ function _permissions_init(): void {
     $ezd_user_exists = $pdo->query("SELECT COUNT(*) FROM roles WHERE name='ezd_user'")->fetchColumn();
     if (!$ezd_user_exists) {
         $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, crm_only, ezd_only, sort_order)
-                    VALUES ('ezd_user','Użytkownik EZD','Dostęp wyłącznie do modułu Kancelaria EZD — bez systemu głównego',1,0,1,5)");
+                    VALUES ('ezd_user','Użytkownik EZD','Dostęp wyłącznie do modułu Wirtualne biurko — bez systemu głównego',1,0,1,5)");
         $ezd_id = (int)$pdo->query("SELECT id FROM roles WHERE name='ezd_user'")->fetchColumn();
         $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
             ->execute([$ezd_id, 'ezd', 1, 1, 0]);
