@@ -8,8 +8,18 @@
  * Uruchom: php seed_test_minor_volunteer.php
  * Bezpieczne do wielokrotnego uruchamiania — aktualizuje istniejący wpis
  * zamiast tworzyć duplikaty (dopasowanie po numer_umowy).
+ *
+ * WYŁĄCZNIE środowisko testowe — odmawia uruchomienia, gdy APP_ENV=production
+ * (zob. docker/setup-testy.sh, gdzie APP_ENV=testing; wzorzec jak w
+ * includes/prod_check_lib.php).
  */
 require_once __DIR__ . '/config.php';
+
+if (defined('APP_ENV') && APP_ENV === 'production') {
+    fwrite(STDERR, "BLAD: ten seed testowy nie może być uruchomiony w środowisku produkcyjnym (APP_ENV=production).\n");
+    exit(1);
+}
+
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';

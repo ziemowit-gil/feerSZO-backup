@@ -198,6 +198,12 @@ docker exec "${APP_CONTAINER}" \
     2>&1 | grep -E "✓|✗|→|Użytkownik|obszar|zadań" || true
 ok "Dane testowe załadowane"
 
+info "Ładowanie testowego wolontariusza niepełnoletniego (seed_test_minor_volunteer.php)..."
+docker exec "${APP_CONTAINER}" \
+    php /var/www/html/seed_test_minor_volunteer.php \
+    2>&1 | grep -E "Utworzono|Zaktualizowano|BLAD|hasło|e-mail" || true
+ok "Wolontariusz testowy załadowany"
+
 # ── 11. Certyfikat aplikacji ──────────────────────────────────────────────────
 section "11. Certyfikat aplikacji"
 
@@ -372,6 +378,16 @@ cat > "${INFO_FILE}" <<HTML
         <td><code>viewer.test@feer.test</code><button class="cp" onclick="cp(this,'viewer.test@feer.test')">kopiuj</button></td>
         <td><code>View5678!</code><button class="cp" onclick="cp(this,'View5678!')">kopiuj</button></td>
       </tr>
+      <tr>
+        <td><span class="badge viewer">Wolont. niepełnoletni</span></td>
+        <td><code>test.wolontariusz.mlodociany@example.com</code><button class="cp" onclick="cp(this,'test.wolontariusz.mlodociany@example.com')">kopiuj</button></td>
+        <td><code>Test1234!</code><button class="cp" onclick="cp(this,'Test1234!')">kopiuj</button></td>
+      </tr>
+      <tr>
+        <td><span class="badge viewer">Opiekun (przedstawiciel)</span></td>
+        <td><code>test.opiekun@example.com</code><button class="cp" onclick="cp(this,'test.opiekun@example.com')">kopiuj</button></td>
+        <td><code>Test1234!</code><button class="cp" onclick="cp(this,'Test1234!')">kopiuj</button></td>
+      </tr>
     </tbody>
   </table>
 
@@ -444,6 +460,8 @@ echo -e "  │ ${CYAN}Admin${RESET}          ${ADMIN_EMAIL}          ${BOLD}${AD
 echo -e "  │ ${CYAN}Lider${RESET}          leader.test@feer.test        Leader99!"
 echo -e "  │ ${CYAN}Wolontariusz${RESET}   vol.test@feer.test          Test1234!"
 echo -e "  │ ${CYAN}Obserwator${RESET}     viewer.test@feer.test        View5678!"
+echo -e "  │ ${CYAN}Wolont. niepełn.${RESET} test.wolontariusz.mlodociany@example.com  Test1234!"
+echo -e "  │ ${CYAN}Opiekun${RESET}        test.opiekun@example.com     Test1234!"
 echo -e "  └─────────────────────────────────────────────────────────┘"
 echo ""
 echo -e "  ${BOLD}Reset cykliczny:${RESET}  co niedziela o 03:00"
