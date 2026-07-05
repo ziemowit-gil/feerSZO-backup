@@ -17,11 +17,12 @@ $dod        = $_GET['deadline_od'] ?? '';
 $ddo        = $_GET['deadline_do'] ?? '';
 $q          = trim($_GET['q']    ?? '');
 $hide_ciagla_f = !empty($_GET['hide_ciagla']);
+$hide_old_f    = !empty($_GET['hide_old']);
 
 $filters = [
     'status' => $status_f, 'priority' => $priority_f, 'q' => $q,
     'owner_id' => $owner_f, 'deadline_od' => $dod, 'deadline_do' => $ddo,
-    'mine_or_shared' => $mine_f, 'hide_ciagla' => $hide_ciagla_f,
+    'mine_or_shared' => $mine_f, 'hide_ciagla' => $hide_ciagla_f, 'hide_old' => $hide_old_f,
 ];
 $sprawy  = ezd_sprawy_all($filters, $user_id);
 $owners  = db_all("SELECT DISTINCT u.id, u.name FROM ezd_sprawy s JOIN users u ON u.id=s.owner_id ORDER BY u.name");
@@ -114,6 +115,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="form-check">
     <input class="form-check-input" type="checkbox" name="hide_ciagla" value="1" id="f-hide-ciagla" <?= $hide_ciagla_f?'checked':'' ?> onchange="this.form.submit()">
     <label class="form-check-label" for="f-hide-ciagla" style="font-size:.82rem"><i class="bi bi-infinity me-1 text-info"></i>Ukryj ciągle otwarte</label>
+  </div>
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="hide_old" value="1" id="f-hide-old" <?= $hide_old_f?'checked':'' ?> onchange="this.form.submit()">
+    <label class="form-check-label" for="f-hide-old" style="font-size:.82rem"><i class="bi bi-clock-history me-1 text-muted"></i>Ukryj starsze niż 14 dni</label>
   </div>
 </div>
 </form>
