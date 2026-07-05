@@ -348,6 +348,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <i class="bi bi-clipboard-check me-1"></i>Metryka
             </a>
             <?php endif; ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#notatkiModal">
+              <i class="bi bi-sticky me-1"></i>Notatki
+              <?php if($notatki): ?><span class="badge rounded-pill bg-secondary ms-1"><?= count($notatki) ?></span><?php endif; ?>
+            </button>
             <?php if($can_act): ?>
             <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal">
               <i class="bi bi-envelope-plus me-1"></i>Pismo
@@ -457,61 +461,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div></div>
     </div>
     <?php endif; ?>
-
-    <!-- Notatki -->
-    <div class="mt-4" id="notatki">
-      <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size:.7rem;letter-spacing:.1em">
-        <i class="bi bi-sticky me-1"></i>Notatki (<?= count($notatki) ?>)
-      </h6>
-      <div class="card shadow-sm"><div class="card-body">
-        <?php if($can_act): ?>
-        <form method="post" class="mb-3">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="note_add">
-          <div class="d-flex gap-2 align-items-start">
-            <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Dodaj notatkę do teczki…" required></textarea>
-            <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-plus-lg me-1"></i>Dodaj</button>
-          </div>
-        </form>
-        <?php endif; ?>
-        <?php foreach($notatki as $n): $own = ($n['created_by']==$user_id || is_admin()); ?>
-        <div class="border rounded-3 p-2 mb-2 <?= $n['pinned'] ? 'border-warning bg-warning bg-opacity-10' : '' ?>" style="font-size:.83rem">
-          <div class="d-flex align-items-center gap-2 mb-1 text-muted" style="font-size:.7rem">
-            <?php if($n['pinned']): ?><i class="bi bi-pin-angle-fill text-warning"></i><?php endif; ?>
-            <span class="fw-semibold text-dark"><?= h($n['author'] ?? '—') ?></span>
-            <span><?= date('d.m.Y H:i', strtotime($n['created_at'])) ?></span>
-            <?php if($n['updated_at'] && $n['updated_at'] !== $n['created_at']): ?><span class="fst-italic">(edytowano)</span><?php endif; ?>
-            <?php if($can_act): ?>
-            <div class="ms-auto d-flex gap-1">
-              <form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_pin"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
-                <button class="btn btn-xs btn-link p-0 text-muted" title="<?= $n['pinned']?'Odepnij':'Przypnij' ?>"><i class="bi bi-pin-angle<?= $n['pinned']?'-fill text-warning':'' ?>"></i></button>
-              </form>
-              <?php if($own): ?>
-              <button class="btn btn-xs btn-link p-0 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#note-edit-<?= $n['id'] ?>" title="Edytuj"><i class="bi bi-pencil"></i></button>
-              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć notatkę?')"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_del"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
-                <button class="btn btn-xs btn-link p-0 text-danger" title="Usuń"><i class="bi bi-trash3"></i></button>
-              </form>
-              <?php endif; ?>
-            </div>
-            <?php endif; ?>
-          </div>
-          <div style="white-space:pre-wrap"><?= h($n['tresc']) ?></div>
-          <?php if($own && $can_act): ?>
-          <div class="collapse mt-2" id="note-edit-<?= $n['id'] ?>">
-            <form method="post">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_edit"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
-              <textarea name="tresc" class="form-control form-control-sm mb-2" rows="2" required><?= h($n['tresc']) ?></textarea>
-              <button class="btn btn-xs btn-primary btn-sm">Zapisz</button>
-            </form>
-          </div>
-          <?php endif; ?>
-        </div>
-        <?php endforeach; ?>
-        <?php if(!$notatki): ?>
-        <div class="text-center text-muted py-2" style="font-size:.8rem">Brak notatek</div>
-        <?php endif; ?>
-      </div></div>
-    </div>
 
     <!-- Repozytorium plików sprawy -->
     <div class="mt-4" id="files">
@@ -1004,6 +953,77 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 <?php endif; ?>
+
+<!-- ── Modal: notatki ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="notatkiModal" tabindex="-1" aria-labelledby="notatkiModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="notatkiModalLabel"><i class="bi bi-sticky text-secondary me-2" aria-hidden="true"></i>Notatki (<?= count($notatki) ?>)</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <?php if($can_act): ?>
+        <form method="post" class="mb-3">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="note_add">
+          <div class="d-flex gap-2 align-items-start">
+            <textarea name="tresc" class="form-control form-control-sm" rows="2" placeholder="Dodaj notatkę do teczki…" required></textarea>
+            <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-plus-lg me-1"></i>Dodaj</button>
+          </div>
+        </form>
+        <?php endif; ?>
+        <?php foreach($notatki as $n): $own = ($n['created_by']==$user_id || is_admin()); ?>
+        <div class="border rounded-3 p-2 mb-2 <?= $n['pinned'] ? 'border-warning bg-warning bg-opacity-10' : '' ?>" style="font-size:.83rem">
+          <div class="d-flex align-items-center gap-2 mb-1 text-muted" style="font-size:.7rem">
+            <?php if($n['pinned']): ?><i class="bi bi-pin-angle-fill text-warning"></i><?php endif; ?>
+            <span class="fw-semibold text-dark"><?= h($n['author'] ?? '—') ?></span>
+            <span><?= date('d.m.Y H:i', strtotime($n['created_at'])) ?></span>
+            <?php if($n['updated_at'] && $n['updated_at'] !== $n['created_at']): ?><span class="fst-italic">(edytowano)</span><?php endif; ?>
+            <?php if($can_act): ?>
+            <div class="ms-auto d-flex gap-1">
+              <form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_pin"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
+                <button class="btn btn-xs btn-link p-0 text-muted" title="<?= $n['pinned']?'Odepnij':'Przypnij' ?>"><i class="bi bi-pin-angle<?= $n['pinned']?'-fill text-warning':'' ?>"></i></button>
+              </form>
+              <?php if($own): ?>
+              <button class="btn btn-xs btn-link p-0 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#note-edit-<?= $n['id'] ?>" title="Edytuj"><i class="bi bi-pencil"></i></button>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć notatkę?')"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_del"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
+                <button class="btn btn-xs btn-link p-0 text-danger" title="Usuń"><i class="bi bi-trash3"></i></button>
+              </form>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
+          </div>
+          <div style="white-space:pre-wrap"><?= h($n['tresc']) ?></div>
+          <?php if($own && $can_act): ?>
+          <div class="collapse mt-2" id="note-edit-<?= $n['id'] ?>">
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="note_edit"><input type="hidden" name="note_id" value="<?= $n['id'] ?>">
+              <textarea name="tresc" class="form-control form-control-sm mb-2" rows="2" required><?= h($n['tresc']) ?></textarea>
+              <button class="btn btn-xs btn-primary btn-sm">Zapisz</button>
+            </form>
+          </div>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+        <?php if(!$notatki): ?>
+        <div class="text-center text-muted py-2" style="font-size:.8rem">Brak notatek</div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.location.hash === '#notatki') {
+    var m = document.getElementById('notatkiModal');
+    if (m && window.bootstrap) {
+      new bootstrap.Modal(m).show();
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }
+});
+</script>
 
 <!-- ── Modal: nowe pismo ──────────────────────────────────────────────────── -->
 <?php if($can_act): ?>
