@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
+require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }

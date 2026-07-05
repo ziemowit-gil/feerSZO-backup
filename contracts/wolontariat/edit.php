@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
+require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 cpc_migrate();
 
 require_role('admin', 'editor');

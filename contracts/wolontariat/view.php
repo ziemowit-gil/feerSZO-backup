@@ -27,6 +27,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/apaczka.php';
 require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
+require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 require_login();
 $TYPE  = 'wolontariat';
 $TABLE = 'umowy_wolontariat';

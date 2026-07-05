@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
+require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
