@@ -54,6 +54,8 @@ function notif_migrate(): void {
 
         // Sposób wyświetlania w panelu wolontariusza: 'feed' | 'banner' | 'popup'
         try { db()->exec("ALTER TABLE announcements ADD COLUMN display_mode TEXT NOT NULL DEFAULT 'feed'"); } catch (\Throwable $e) {}
+        // Kategoria ogłoszenia — zob. ann_kategoria_options()
+        try { db()->exec("ALTER TABLE announcements ADD COLUMN kategoria TEXT NOT NULL DEFAULT 'ogolne'"); } catch (\Throwable $e) {}
 
         // Indeksy dla wydajności
         try { db()->exec("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read)"); } catch (\Throwable $e) {}
@@ -111,11 +113,40 @@ function notif_mark_read(int $user_id, ?int $id = null): void {
 
 // ── Ogłoszenia ────────────────────────────────────────────────────────────────
 
+/** Dostępne kategorie ogłoszeń (klucz => etykieta). */
+function ann_kategoria_options(): array {
+    return [
+        'ogolne'          => 'Ogólne',
+        'pilne'           => 'Pilne',
+        'wydarzenie'      => 'Wydarzenie',
+        'techniczne'      => 'Techniczne / przerwa w działaniu',
+        'rodo'            => 'RODO / Bezpieczeństwo',
+        'administracyjne' => 'Administracyjne',
+    ];
+}
+
+function ann_kategoria_label(string $kategoria): string {
+    return ann_kategoria_options()[$kategoria] ?? 'Ogólne';
+}
+
+function ann_kategoria_color(string $kategoria): string {
+    return match ($kategoria) {
+        'pilne'           => '#DC2626',
+        'wydarzenie'      => '#7C3AED',
+        'techniczne'      => '#0EA5E9',
+        'rodo'            => '#16A34A',
+        'administracyjne' => '#6B7280',
+        default           => '#F59E0B', // ogolne
+    };
+}
+
 function ann_create(array $data, int $author_id, string $author_name): int {
+    $kategoria = array_key_exists($data['kategoria'] ?? '', ann_kategoria_options()) ? $data['kategoria'] : 'ogolne';
     $id = db_insert('announcements', [
         'title'       => $data['title'],
         'body'        => $data['body'] ?? '',
         'audience'    => $data['audience'] ?? 'all',
+        'kategoria'   => $kategoria,
         'author_id'   => $author_id,
         'author_name' => $author_name,
         'is_pinned'   => (int)($data['is_pinned'] ?? 0),
@@ -149,19 +180,71 @@ function ann_create(array $data, int $author_id, string $author_name): int {
         if (!empty($data['send_email']) && !empty($u['email'])) {
             try {
                 require_once __DIR__ . '/approval.php';
-                $subject  = 'Nowe ogłoszenie: ' . $data['title'];
-                $body_html = '<p>Witaj ' . htmlspecialchars($u['name'] ?? $u['email']) . ',</p>'
-                           . '<p>Opublikowano nowe ogłoszenie: <strong>' . htmlspecialchars($data['title']) . '</strong></p>'
-                           . '<div style="white-space:pre-wrap;border-left:3px solid #F59E0B;padding:8px 12px;background:#FFFBEB">'
-                           . htmlspecialchars($data['body'] ?? '')
-                           . '</div>'
-                           . '<p><a href="' . htmlspecialchars($ann_url) . '">Przejdź do ogłoszenia</a></p>';
+                $org      = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
+                $color    = ann_kategoria_color($kategoria);
+                $kat_lbl  = ann_kategoria_label($kategoria);
+                $subject  = '📢 ' . $kat_lbl . ': ' . $data['title'];
+                $name     = htmlspecialchars($u['name'] ?? $u['email']);
+                $title    = htmlspecialchars($data['title']);
+                $body_txt = nl2br(htmlspecialchars($data['body'] ?? ''));
+                $url      = htmlspecialchars($ann_url);
+                $body_html = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:linear-gradient(135deg,{$color},{$color}CC);padding:22px 26px;border-radius:10px 10px 0 0">
+  <span style="display:inline-block;background:rgba(255,255,255,.25);color:#fff;font-size:.72rem;font-weight:700;
+               padding:3px 10px;border-radius:999px;margin-bottom:8px">{$kat_lbl}</span>
+  <h2 style="color:#fff;margin:6px 0 0;font-size:1.1rem">📢 Nowe ogłoszenie — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:26px;border-radius:0 0 10px 10px">
+  <p>Cześć, <strong>{$name}</strong>!</p>
+  <p>Opublikowano nowe ogłoszenie: <strong>{$title}</strong></p>
+  <div style="border-left:3px solid {$color};border-radius:4px;padding:12px 16px;margin:16px 0;background:#F9FAFB;font-size:.92em">
+    {$body_txt}
+  </div>
+  <div style="margin:22px 0;text-align:center">
+    <a href="{$url}" style="background:{$color};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+      Przejdź do ogłoszenia →
+    </a>
+  </div>
+  <p style="color:#6c757d;font-size:.82em;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+    Wiadomość dotyczy: <strong>{$org}</strong>
+  </p>
+</div>
+</body></html>
+HTML;
                 approval_send_email($u['email'], $subject, $body_html);
             } catch (\Throwable $e) {}
         }
     }
 
     return $id;
+}
+
+/** Miękkie usunięcie ogłoszenia (is_active=0) — nie usuwa fizycznie, zachowuje historię odczytań. */
+function ann_delete(int $id): void {
+    db()->prepare("UPDATE announcements SET is_active=0, updated_at=datetime('now') WHERE id=?")
+        ->execute([$id]);
+}
+
+/**
+ * Pełna lista ogłoszeń do zarządzania przez admina — niezależna od tego,
+ * czy bieżący administrator sam należy do audytorium danego ogłoszenia
+ * (w przeciwieństwie do ann_list_for_user(), które filtruje po widoczności).
+ */
+function ann_all_list(string $kategoria = ''): array {
+    try {
+        $sql    = "SELECT a.*, (SELECT COUNT(*) FROM announcement_reads ar WHERE ar.announcement_id=a.id) AS read_count
+                   FROM announcements a WHERE a.is_active=1";
+        $params = [];
+        if ($kategoria !== '' && array_key_exists($kategoria, ann_kategoria_options())) {
+            $sql .= " AND a.kategoria=?";
+            $params[] = $kategoria;
+        }
+        $sql .= " ORDER BY a.is_pinned DESC, a.created_at DESC";
+        return db_all($sql, $params);
+    } catch (\Throwable $e) {
+        return [];
+    }
 }
 
 function _ann_get_audience_users(string $audience): array {
@@ -191,18 +274,21 @@ function _ann_get_audience_users(string $audience): array {
     return [];
 }
 
-function ann_list_for_user(int $user_id, string $role): array {
+function ann_list_for_user(int $user_id, string $role, string $kategoria = ''): array {
     try {
-        $rows = db_all(
-            "SELECT a.*,
+        $sql    = "SELECT a.*,
                     (SELECT COUNT(*) FROM announcement_reads ar
                      WHERE ar.announcement_id=a.id AND ar.user_id=?) AS is_read_by_me
              FROM announcements a
              WHERE a.is_active=1
-               AND (a.expires_at IS NULL OR a.expires_at >= date('now'))
-             ORDER BY a.is_pinned DESC, a.created_at DESC",
-            [$user_id]
-        );
+               AND (a.expires_at IS NULL OR a.expires_at >= date('now'))";
+        $params = [$user_id];
+        if ($kategoria !== '' && array_key_exists($kategoria, ann_kategoria_options())) {
+            $sql .= " AND a.kategoria=?";
+            $params[] = $kategoria;
+        }
+        $sql .= " ORDER BY a.is_pinned DESC, a.created_at DESC";
+        $rows = db_all($sql, $params);
 
         // Filtruj po audience
         return array_values(array_filter($rows, function ($a) use ($user_id, $role) {

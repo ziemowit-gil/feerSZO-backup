@@ -67,6 +67,10 @@ $PAGE_TITLE = h($ann['title']);
           <span class="badge bg-light text-secondary border" style="font-size:.7rem">
             <?= h(ann_audience_label($ann['audience'] ?? 'all')) ?>
           </span>
+          <?php $_kc = ann_kategoria_color($ann['kategoria'] ?? 'ogolne'); ?>
+          <span class="badge" style="font-size:.7rem;background:<?= $_kc ?>1A;color:<?= $_kc ?>;border:1px solid <?= $_kc ?>55">
+            <?= h(ann_kategoria_label($ann['kategoria'] ?? 'ogolne')) ?>
+          </span>
           <?php if (!empty($ann['expires_at'])): ?>
           <span class="badge bg-light text-secondary border" style="font-size:.7rem">
             <i class="bi bi-calendar-x me-1"></i>Wygasa: <?= h($ann['expires_at']) ?>

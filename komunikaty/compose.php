@@ -26,6 +26,7 @@ $values = [
     'title'      => '',
     'body'       => '',
     'audience'    => 'all',
+    'kategoria'  => 'ogolne',
     'display_mode'=> 'feed',
     'is_pinned'  => 0,
     'expires_at' => '',
@@ -37,6 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['title']      = trim($_POST['title'] ?? '');
     $values['body']       = trim($_POST['body'] ?? '');
     $values['audience']   = trim($_POST['audience'] ?? 'all');
+    $values['kategoria']  = trim($_POST['kategoria'] ?? 'ogolne');
+    if (!array_key_exists($values['kategoria'], ann_kategoria_options())) {
+        $values['kategoria'] = 'ogolne';
+    }
     $values['display_mode'] = trim($_POST['display_mode'] ?? 'feed');
     if (!in_array($values['display_mode'], ['feed', 'banner', 'popup'], true)) {
         $values['display_mode'] = 'feed';
@@ -118,6 +123,15 @@ require_once dirname(__DIR__) . '/includes/header.php';
               <span>Formatowanie zwykłym tekstem (nowe linie są zachowane)</span>
               <span><span id="body-cnt">0</span>/5000</span>
             </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="ann-kategoria" class="form-label fw-semibold">Kategoria</label>
+            <select name="kategoria" id="ann-kategoria" class="form-select">
+              <?php foreach (ann_kategoria_options() as $_kk => $_kl): ?>
+              <option value="<?= h($_kk) ?>" <?= $values['kategoria'] === $_kk ? 'selected' : '' ?>><?= h($_kl) ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
 
           <div class="mb-3">

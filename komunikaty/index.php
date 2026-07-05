@@ -19,9 +19,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_ann'])) {
     exit;
 }
 
-$PAGE_TITLE = 'Komunikaty';
+// Usunięcie ogłoszenia (tylko admin) — miękkie, is_active=0
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_ann'])) {
+    csrf_check();
+    if (is_admin()) {
+        ann_delete((int)$_POST['delete_ann']);
+        flash_set('success', 'Ogłoszenie zostało usunięte.');
+    }
+    header('Location: ' . APP_URL . '/komunikaty/index.php');
+    exit;
+}
 
-$announcements  = ann_list_for_user($_uid, $_role);
+$PAGE_TITLE = 'Komunikaty';
+$_kat = trim($_GET['kat'] ?? '');
+if (!array_key_exists($_kat, ann_kategoria_options())) $_kat = '';
+
+$announcements  = ann_list_for_user($_uid, $_role, $_kat);
 $notifications  = notif_latest($_uid, 20);
 $notif_unread   = notif_unread_count($_uid);
 
@@ -43,6 +56,7 @@ require_once dirname(__DIR__) . '/panel/includes/pv_ui.php';
 
 $_compose_btn = is_admin()
     ? '<a href="' . APP_URL . '/komunikaty/compose.php" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Nowe ogłoszenie</a>'
+      . ' <a href="' . APP_URL . '/komunikaty/manage.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear me-1"></i>Zarządzaj</a>'
     : '';
 
 pv_page_header('Komunikaty', [
@@ -58,6 +72,22 @@ pv_page_header('Komunikaty', [
   <div>Masz <strong><?= $ann_unread_count ?></strong> nieprzeczytane<?= $ann_unread_count === 1 ? '' : ($ann_unread_count < 5 ? ' ogłoszenia' : ' ogłoszeń') ?>.</div>
 </div>
 <?php endif; ?>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="<?= APP_URL ?>/komunikaty/index.php"
+     class="badge text-decoration-none <?= $_kat === '' ? 'bg-dark' : 'bg-light text-secondary border' ?>"
+     style="font-size:.75rem;padding:.4rem .7rem">Wszystkie</a>
+  <?php foreach (ann_kategoria_options() as $_kk => $_kl):
+    $_active = $_kat === $_kk;
+    $_color  = ann_kategoria_color($_kk);
+  ?>
+  <a href="<?= APP_URL ?>/komunikaty/index.php?kat=<?= urlencode($_kk) ?>"
+     class="badge text-decoration-none"
+     style="font-size:.75rem;padding:.4rem .7rem;<?= $_active ? "background:{$_color};color:#fff" : "background:{$_color}1A;color:{$_color};border:1px solid {$_color}55" ?>">
+    <?= h($_kl) ?>
+  </a>
+  <?php endforeach; ?>
+</div>
 
 <div class="row g-3">
   <!-- Lewa kolumna: ogłoszenia -->
@@ -92,6 +122,10 @@ pv_page_header('Komunikaty', [
             <?php endif; ?>
             <span class="badge bg-light text-secondary border" style="font-size:.67rem">
               <i class="bi bi-<?= ($ann['audience'] ?? '') === 'public' ? 'globe2' : 'people-fill' ?> me-1"></i><?= h(ann_audience_label($ann['audience'] ?? 'all')) ?>
+            </span>
+            <?php $_kc = ann_kategoria_color($ann['kategoria'] ?? 'ogolne'); ?>
+            <span class="badge" style="font-size:.67rem;background:<?= $_kc ?>1A;color:<?= $_kc ?>;border:1px solid <?= $_kc ?>55">
+              <?= h(ann_kategoria_label($ann['kategoria'] ?? 'ogolne')) ?>
             </span>
             <?php if (!empty($ann['expires_at'])): ?>
             <span class="badge bg-light text-warning border" style="font-size:.67rem">
@@ -143,6 +177,15 @@ pv_page_header('Komunikaty', [
             </form>
             <?php else: ?>
             <small class="text-success" style="font-size:.78rem"><i class="bi bi-check2-all me-1"></i>Przeczytane</small>
+            <?php endif; ?>
+            <?php if (is_admin()): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ogłoszenie „<?= h(addslashes($ann['title'])) ?>”? Tej operacji nie można cofnąć.')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="delete_ann" value="<?= $ann_id ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.78rem;padding:.2rem .5rem" title="Usuń" aria-label="Usuń ogłoszenie">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </form>
             <?php endif; ?>
           </div>
         </div>
