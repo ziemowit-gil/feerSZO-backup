@@ -1,7 +1,115 @@
 <?php
 /**
  * includes/events.php — Moduł Wydarzeń: funkcje pomocnicze
+ *
+ * Samonaprawa schematu: tabele modułu istniały dotąd tylko w
+ * cli/migrations/migrate_events.php (osobny skrypt CLI, nie wpięty w żaden
+ * automatyczny mechanizm) — moduł dało się włączyć (events_enabled) bez
+ * uruchomienia migracji, co dawało "no such table: ev_registrations" przy
+ * pierwszym użyciu (np. panel/index.php → "Moje wydarzenia"). Wzorzec jak
+ * includes/zlecenie_schema.php: CREATE TABLE / ALTER TABLE w try/catch,
+ * uruchamiane raz przy pierwszym require tego pliku.
  */
+
+(function () {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+
+    $exec = function (string $sql) use ($pdo) {
+        try { $pdo->exec($sql); } catch (\Throwable $e) { /* istnieje / niekrytyczne — ignorujemy */ }
+    };
+
+    $exec("CREATE TABLE IF NOT EXISTS ev_events (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug            TEXT    NOT NULL UNIQUE,
+        title           TEXT    NOT NULL,
+        description     TEXT,
+        type            TEXT    NOT NULL DEFAULT 'stationary',
+        status          TEXT    NOT NULL DEFAULT 'draft',
+        venue           TEXT,
+        address         TEXT,
+        meeting_url     TEXT,
+        start_at        DATETIME NOT NULL,
+        end_at          DATETIME,
+        capacity        INTEGER,
+        is_public       INTEGER NOT NULL DEFAULT 1,
+        reg_open_at     DATETIME,
+        reg_close_at    DATETIME,
+        cover_image     TEXT,
+        crm_group_id    INTEGER REFERENCES crm_groups(id) ON DELETE SET NULL,
+        pa_webhook_url  TEXT,
+        metadata        TEXT,
+        created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at      DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at      DATETIME DEFAULT (datetime('now','localtime'))
+    )");
+
+    $exec("CREATE TABLE IF NOT EXISTS ev_registrations (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id        INTEGER NOT NULL REFERENCES ev_events(id) ON DELETE CASCADE,
+        crm_contact_id  INTEGER REFERENCES crm_contacts(id) ON DELETE SET NULL,
+        first_name      TEXT    NOT NULL,
+        last_name       TEXT    NOT NULL,
+        email           TEXT    NOT NULL,
+        phone           TEXT,
+        ticket_code     TEXT    NOT NULL UNIQUE,
+        status          TEXT    NOT NULL DEFAULT 'confirmed',
+        checked_in_at   DATETIME,
+        checked_in_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        reg_data        TEXT,
+        source          TEXT    NOT NULL DEFAULT 'form',
+        notes           TEXT,
+        created_at      DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at      DATETIME DEFAULT (datetime('now','localtime'))
+    )");
+
+    $exec("CREATE TABLE IF NOT EXISTS ev_roles (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id    INTEGER NOT NULL REFERENCES ev_events(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role        TEXT    NOT NULL DEFAULT 'volunteer',
+        added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        added_at    DATETIME DEFAULT (datetime('now','localtime')),
+        UNIQUE(event_id, user_id)
+    )");
+
+    $exec("CREATE TABLE IF NOT EXISTS ev_form_fields (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id    INTEGER NOT NULL REFERENCES ev_events(id) ON DELETE CASCADE,
+        field_key   TEXT    NOT NULL,
+        label       TEXT    NOT NULL,
+        type        TEXT    NOT NULL DEFAULT 'text',
+        options     TEXT,
+        placeholder TEXT,
+        is_required INTEGER NOT NULL DEFAULT 0,
+        position    INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(event_id, field_key)
+    )");
+
+    $exec("CREATE TABLE IF NOT EXISTS ev_checkin_tokens (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id    INTEGER NOT NULL REFERENCES ev_events(id) ON DELETE CASCADE,
+        token       TEXT    NOT NULL UNIQUE,
+        expires_at  DATETIME,
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT (datetime('now','localtime'))
+    )");
+
+    // Kolumny dodane po pierwszym wdrożeniu
+    $exec("ALTER TABLE ev_events ADD COLUMN rodo_clause    TEXT");
+    $exec("ALTER TABLE ev_events ADD COLUMN notify_new_reg INTEGER NOT NULL DEFAULT 1");
+    $exec("ALTER TABLE ev_events ADD COLUMN notify_email   TEXT");
+    $exec("ALTER TABLE ev_events ADD COLUMN crm_auto_sync  INTEGER NOT NULL DEFAULT 1");
+
+    // Indeksy
+    $exec("CREATE INDEX IF NOT EXISTS idx_ev_reg_event  ON ev_registrations(event_id)");
+    $exec("CREATE INDEX IF NOT EXISTS idx_ev_reg_email  ON ev_registrations(email)");
+    $exec("CREATE INDEX IF NOT EXISTS idx_ev_reg_ticket ON ev_registrations(ticket_code)");
+    $exec("CREATE INDEX IF NOT EXISTS idx_ev_roles_user ON ev_roles(user_id)");
+    $exec("CREATE INDEX IF NOT EXISTS idx_ev_fields_ev  ON ev_form_fields(event_id, position)");
+})();
 
 // ── Generowanie unikalnego kodu biletu ────────────────────────────────────
 
