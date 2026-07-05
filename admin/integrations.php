@@ -20,7 +20,7 @@ $int_apaczka    = org_setting('apaczka_enabled') === '1' && (bool)(org_setting('
 $int_furgonetka = org_setting('furgonetka_enabled') === '1';
 $int_ceidg      = (bool)(org_setting('ceidg_api_key'));
 $int_moodle     = (bool)(org_setting('moodle_url'));
-$int_canva      = (bool)(org_setting('canva_client_id'));
+$int_canva      = org_setting('canva_enabled') !== '0';
 $int_ai         = (bool)(org_setting('ai_openai_key') ?: org_setting('ai_anthropic_key'));
 
 $api_keys_count = 0;

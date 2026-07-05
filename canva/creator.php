@@ -12,11 +12,12 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/canva.php';
 require_login();
 
-$me      = current_user();
-$is_adm  = is_admin();
-$hasAcc  = $is_adm || canva_user_has_access((int)$me['id']);
-$apiKey  = canva_button_api_key();
-$PAGE_TITLE = 'Canva Creator';
+$me           = current_user();
+$is_adm       = is_admin();
+$moduleOn     = canva_module_enabled();
+$hasAcc       = $moduleOn && ($is_adm || canva_user_has_access((int)$me['id']));
+$apiKey       = canva_button_api_key();
+$PAGE_TITLE   = 'Canva Creator';
 
 // Typy projektów (Design Button v2 — design.type) z polskimi etykietami i ikonami.
 $TYPES = [
@@ -47,7 +48,10 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<?php if (!$hasAcc): ?>
+<?php if (!$moduleOn): ?>
+<div class="alert alert-secondary"><i class="bi bi-power me-1"></i>Funkcjonalności Canva są obecnie wyłączone w systemie.<?php if ($is_adm): ?> Włącz je w <a href="<?= APP_URL ?>/admin/canva.php">ustawieniach Canva</a>.<?php endif; ?></div>
+
+<?php elseif (!$hasAcc): ?>
 <div class="alert alert-warning"><i class="bi bi-lock me-1"></i>Nie masz dostępu do Canva. Poproś administratora o włączenie dostępu.</div>
 
 <?php elseif ($apiKey === ''): ?>

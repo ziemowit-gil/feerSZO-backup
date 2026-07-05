@@ -11,6 +11,16 @@ require_role('admin');
 cpc_migrate();
 $PAGE_TITLE = 'Zarządzanie Canva Pro';
 
+// ── Wyłącznik funkcjonalności Canva (globalny, dla całego systemu) ────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_toggle_canva_enabled'])) {
+    csrf_check();
+    $on = isset($_POST['enabled']) ? '1' : '0';
+    org_setting_set('canva_enabled', $on);
+    flash_set('success', $on === '1' ? 'Funkcjonalności Canva włączone.' : 'Funkcjonalności Canva wyłączone w całym systemie.');
+    header('Location: canva.php'); exit;
+}
+$canva_enabled = canva_module_enabled();
+
 // ── Oznacz jako zaproszony (zbiorczo) ─────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_mark_invited'])) {
     csrf_check();
@@ -155,6 +165,38 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
+<!-- Wyłącznik funkcjonalności Canva -->
+<div class="card shadow-sm mb-3 <?= $canva_enabled ? '' : 'border-danger' ?>">
+  <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <div class="fw-semibold"><i class="bi bi-power me-2 <?= $canva_enabled ? 'text-success' : 'text-danger' ?>"></i>Funkcjonalności Canva w systemie</div>
+      <div class="text-muted" style="font-size:.82rem">
+        <?php if ($canva_enabled): ?>
+        Włączone — wolontariusze widzą w panelu prośbę o dostęp / kartę Canva, dostępny jest też Canva Creator.
+        <?php else: ?>
+        Wyłączone — moduł Canva jest ukryty w panelu wolontariusza i w kreatorze projektów. Nowe wnioski nie są przyjmowane.
+        <?php endif; ?>
+      </div>
+    </div>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_toggle_canva_enabled" value="1">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" role="switch" id="canvaEnabledSwitch" name="enabled"
+               onchange="this.form.submit()" <?= $canva_enabled ? 'checked' : '' ?>>
+        <label class="form-check-label" for="canvaEnabledSwitch"><?= $canva_enabled ? 'Włączone' : 'Wyłączone' ?></label>
+      </div>
+    </form>
+  </div>
+</div>
+
+<?php if (!$canva_enabled): ?>
+<div class="alert alert-warning d-flex gap-2 mb-3" style="font-size:.85rem">
+  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+  <div>Moduł Canva jest wyłączony — poniższe ustawienia i lista dostępów pozostają widoczne tylko dla administratora, ale wolontariusze nie zobaczą Canvy w swoim panelu.</div>
+</div>
+<?php endif; ?>
+
 <!-- Canva Creator (Design Button) -->
 <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold"><i class="bi bi-palette-fill me-2" style="color:#7c3aed"></i>Canva Creator — tworzenie projektów</div>
@@ -169,9 +211,9 @@ include dirname(__DIR__) . '/includes/header.php';
                value="<?= h(canva_button_api_key()) ?>" placeholder="np. AB1cd...">
       </div>
       <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
-      <a href="<?= APP_URL ?>/canva/creator.php" class="btn btn-sm <?= canva_creator_enabled()?'btn-outline-primary':'btn-outline-secondary disabled' ?>"><i class="bi bi-box-arrow-up-right me-1"></i>Otwórz kreator</a>
+      <a href="<?= APP_URL ?>/canva/creator.php" class="btn btn-sm <?= ($canva_enabled && canva_creator_enabled())?'btn-outline-primary':'btn-outline-secondary disabled' ?>"><i class="bi bi-box-arrow-up-right me-1"></i>Otwórz kreator</a>
     </form>
-    <?php if (canva_creator_enabled()): ?><div class="text-success mt-2" style="font-size:.78rem"><i class="bi bi-check-circle me-1"></i>Kreator aktywny — dostępny w panelu wolontariusza z dostępem do Canva.</div><?php endif; ?>
+    <?php if ($canva_enabled && canva_creator_enabled()): ?><div class="text-success mt-2" style="font-size:.78rem"><i class="bi bi-check-circle me-1"></i>Kreator aktywny — dostępny w panelu wolontariusza z dostępem do Canva.</div><?php endif; ?>
   </div>
 </div>
 

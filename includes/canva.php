@@ -11,6 +11,11 @@
 
 require_once __DIR__ . '/db.php';
 
+/** Czy moduł Canva jest włączony w systemie (domyślnie: tak). Wyłącznik admina. */
+function canva_module_enabled(): bool {
+    return org_setting('canva_enabled') !== '0';
+}
+
 // ── Dostęp do Canva na poziomie konta (dla wolontariuszy BEZ umowy) ───────────
 (function () {
     static $done = false;

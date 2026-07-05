@@ -146,7 +146,12 @@ if ($_active_contract) {
 // Wolontariusz podaje dane konta Canva, które sam założył (gdy admin nie wpisał).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save_canva_account'])) {
     require_once dirname(__DIR__) . '/includes/functions.php';
+    require_once dirname(__DIR__) . '/includes/canva.php';
     if (isset($_POST['_csrf'])) csrf_check();
+    if (!canva_module_enabled()) {
+        flash_set('error', 'Funkcjonalności Canva są obecnie wyłączone.');
+        header('Location: ' . $_SERVER['REQUEST_URI']); exit;
+    }
     // Tryb „user" — wolontariusz bez umowy zapisuje login swojego konta Canva.
     if (($_POST['canva_scope'] ?? '') === 'user') {
         require_once dirname(__DIR__) . '/includes/canva.php';
@@ -199,6 +204,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_request_canva'])) {
         }
     } elseif (isset($_POST['_csrf'])) {
         csrf_check();
+    }
+    require_once dirname(__DIR__) . '/includes/canva.php';
+    if (!canva_module_enabled()) {
+        $_canva_done('error', 'Funkcjonalności Canva są obecnie wyłączone.');
     }
     $contract_id = (int)($_POST['canva_contract_id'] ?? ($_active_contract['id'] ?? 0));
     if ($contract_id && $_active_contract && $_active_contract['contract_type'] === 'wolontariat') {
@@ -543,13 +552,17 @@ $_my_children = (function_exists('ctx_is_impersonating') && !ctx_is_impersonatin
 // ── Canva: status dostępu + samodzielne konto (gdy jest umowa wolontariacka) ──
 require_once dirname(__DIR__) . '/includes/canva.php';
 // Canva nie obsługuje SAML — dostęp wyłącznie przez wniosek (Zatwierdzenia).
+// Moduł można globalnie wyłączyć (admin/canva.php) — wtedy cała sekcja jest ukryta.
+$_canva_module_on       = canva_module_enabled();
 $_canva_contract_wolont = ($_active_row && $_active_contract && $_active_contract['contract_type'] === 'wolontariat');
-$_canva_has_access      = ($_canva_contract_wolont && (int)($_active_row['canva_access'] ?? 0) === 1)
-                           || canva_user_has_access((int)$user['id']);
-$_canva_requested       = !$_canva_has_access
+$_canva_has_access      = $_canva_module_on
+                           && (($_canva_contract_wolont && (int)($_active_row['canva_access'] ?? 0) === 1)
+                               || canva_user_has_access((int)$user['id']));
+$_canva_requested       = $_canva_module_on
+                           && !$_canva_has_access
                            && $_canva_contract_wolont
                            && !empty($_active_row['canva_access_requested_at']);
-$_canva_can_request     = !$_canva_has_access && !$_canva_requested && $_canva_contract_wolont;
+$_canva_can_request     = $_canva_module_on && !$_canva_has_access && !$_canva_requested && $_canva_contract_wolont;
 $_canva_own_account     = $_canva_contract_wolont && ($_active_row['canva_konto_zrodlo'] ?? '') !== 'admin';
 ?>
 
