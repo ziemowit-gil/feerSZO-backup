@@ -78,8 +78,8 @@ foreach ($contracts as $c) {
 
     $rendered = email_tpl_render('minor_volunteer_periodic_verification', [
         'accent'           => '#0ea5e9',
-        'greeting'         => $to_name && $to_name !== $osoba ? ', <strong>' . htmlspecialchars($to_name) . '</strong>' : '',
         'osoba'            => $osoba,
+        'opiekun_nazwa'    => htmlspecialchars($to_name),
         'numer'            => $numer,
         'data_weryfikacji' => date('d.m.Y', strtotime($today)),
     ]);

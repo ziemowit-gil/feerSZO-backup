@@ -237,7 +237,7 @@ HTML;
         <tr>
           <td style="padding:32px;">
             <p style="margin:0 0 16px;font-size:15px;color:#333333;">
-              Szanowni Państwo{{greeting}},
+              Szanowni Państwo,
             </p>
             <p style="margin:0 0 24px;font-size:15px;color:#333333;">
               W związku z okresową weryfikacją wolontariatu uprzejmie informujemy, że zostanie
@@ -252,6 +252,10 @@ HTML;
                   <tr>
                     <td style="padding:5px 0;font-size:13px;color:#6c757d;width:160px;">Wolontariusz</td>
                     <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{osoba}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:5px 0;font-size:13px;color:#6c757d;">Opiekun</td>
+                    <td style="padding:5px 0;font-size:14px;color:#212529;">{{opiekun_nazwa}}</td>
                   </tr>
                   <tr>
                     <td style="padding:5px 0;font-size:13px;color:#6c757d;">Numer umowy</td>
@@ -634,8 +638,8 @@ HTML;
             'body'        => $minor_verif_body,
             'vars'        => [
                 'accent'           => ['label' => 'Kolor akcentu',       'sample' => '#0ea5e9'],
-                'greeting'         => ['label' => 'Zwrot grzecznościowy (np. ", Anna Nowak")', 'sample' => ', <strong>Anna Nowak</strong>'],
                 'osoba'            => ['label' => 'Wolontariusz (niepełnoletni)', 'sample' => 'Jan Kowalski'],
+                'opiekun_nazwa'    => ['label' => 'Imię i nazwisko opiekuna', 'sample' => 'Anna Nowak'],
                 'numer'            => ['label' => 'Numer umowy',         'sample' => 'W/2026/014'],
                 'data_weryfikacji' => ['label' => 'Data weryfikacji',    'sample' => '05.07.2026'],
             ],
