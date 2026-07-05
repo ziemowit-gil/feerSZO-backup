@@ -539,8 +539,70 @@ $_my_children = (function_exists('ctx_is_impersonating') && !ctx_is_impersonatin
 </div>
 <?php endif; ?>
 
+<?php
+// ── Canva: status dostępu + samodzielne konto (gdy jest umowa wolontariacka) ──
+require_once dirname(__DIR__) . '/includes/canva.php';
+// Canva nie obsługuje SAML — dostęp wyłącznie przez wniosek (Zatwierdzenia).
+$_canva_contract_wolont = ($_active_row && $_active_contract && $_active_contract['contract_type'] === 'wolontariat');
+$_canva_has_access      = ($_canva_contract_wolont && (int)($_active_row['canva_access'] ?? 0) === 1)
+                           || canva_user_has_access((int)$user['id']);
+$_canva_requested       = !$_canva_has_access
+                           && $_canva_contract_wolont
+                           && !empty($_active_row['canva_access_requested_at']);
+$_canva_can_request     = !$_canva_has_access && !$_canva_requested && $_canva_contract_wolont;
+$_canva_own_account     = $_canva_contract_wolont && ($_active_row['canva_konto_zrodlo'] ?? '') !== 'admin';
+?>
+
 <!-- ═══ KARTY PLATFORM (styl standalone) ═════════════════════════════════════ -->
 <div class="sv-platforms">
+
+  <!-- Canva Pro -->
+  <?php if ($_canva_contract_wolont && $_canva_has_access): ?>
+  <div class="sv-card">
+    <div class="sv-card-head">
+      <div class="sv-card-icon" style="background:#faf5ff;color:#7c3aed"><i class="bi bi-palette-fill"></i></div>
+      <div>
+        <div class="sv-card-title">Canva Pro</div>
+        <div class="sv-card-sub">Grafika i projekty — zespół organizacji</div>
+      </div>
+    </div>
+    <?php if (!empty($_active_row['canva_login'])): ?>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Login Canva</div>
+      <div class="sv-field-val">
+        <?= h($_active_row['canva_login']) ?>
+        <button class="sv-copy-btn" type="button" onclick="copyText(<?= h(json_encode($_active_row['canva_login'])) ?>, this)" title="Kopiuj" aria-label="Kopiuj login Canva">
+          <i class="bi bi-copy"></i>
+        </button>
+      </div>
+    </div>
+    <?php endif; ?>
+    <?php if (!$_canva_own_account): ?>
+    <div class="sv-field">
+      <div class="sv-field-lbl">Status</div>
+      <div class="text-muted" style="font-size:.8rem">Dane konta ustawił administrator. W razie potrzeby skontaktuj się z nim.</div>
+    </div>
+    <?php else: ?>
+    <div class="sv-field">
+      <div class="sv-field-lbl"><label for="canvaOwnLogin">Załóż konto na canva.com i podaj tu jego login (e-mail)</label></div>
+      <form method="post" class="d-flex gap-2 mt-1">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_save_canva_account" value="1">
+        <input type="hidden" name="canva_contract_id" value="<?= (int)$_active_contract['id'] ?>">
+        <input type="email" id="canvaOwnLogin" name="canva_login" class="form-control form-control-sm"
+               placeholder="np. imie.nazwisko@feer.org.pl" value="<?= h($_active_row['canva_login'] ?? '') ?>">
+        <button class="btn btn-sm btn-outline-primary" style="white-space:nowrap"><i class="bi bi-save me-1"></i>Zapisz</button>
+      </form>
+      <div class="text-muted mt-1" style="font-size:.72rem">Login zobaczy administrator, aby zaprosić to konto do zespołu Canva Pro.</div>
+    </div>
+    <?php endif; ?>
+    <div class="sv-card-footer">
+      <a href="https://www.canva.com" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right"></i> Otwórz canva.com
+      </a>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- 1. Portal wolontariusza -->
   <div class="sv-card">
@@ -690,16 +752,7 @@ $_my_children = (function_exists('ctx_is_impersonating') && !ctx_is_impersonatin
 </div><!-- /sv-platforms -->
 
 <?php
-/* ── Skróty + powiadomienia: dane liczone tutaj, renderowane na dole panelu ── */
-require_once dirname(__DIR__) . '/includes/canva.php';
-// Canva nie obsługuje SAML — dostęp wyłącznie przez wniosek (Zatwierdzenia).
-$_canva_contract_wolont = ($_active_row && $_active_contract && $_active_contract['contract_type'] === 'wolontariat');
-$_canva_has_access      = ($_canva_contract_wolont && (int)($_active_row['canva_access'] ?? 0) === 1)
-                           || canva_user_has_access((int)$user['id']);
-$_canva_requested       = !$_canva_has_access
-                           && $_canva_contract_wolont
-                           && !empty($_active_row['canva_access_requested_at']);
-$_canva_can_request     = !$_canva_has_access && !$_canva_requested && $_canva_contract_wolont;
+/* ── Skróty + powiadomienia: dane liczone wyżej (sekcja Canva), renderowane na dole panelu ── */
 
 // Zachęta do uzupełnienia profilu w katalogu — raz na sesję, gdy profil pusty.
 auth_start();
