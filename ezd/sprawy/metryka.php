@@ -79,7 +79,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div class="text-end mtr-meta">
       <div><strong>Znak teczki:</strong> <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span></div>
-      <div><strong>JRWA:</strong> <span class="font-monospace"><?= h($sprawa['teczka_symbol']) ?></span></div>
+      <div><strong>Koszulka:</strong> <span class="font-monospace"><?= h($sprawa['teczka_symbol']) ?></span></div>
     </div>
   </div>
   <div class="mb-3">

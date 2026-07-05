@@ -5,7 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_role('admin'); require_module_enabled('ezd_enabled','Moduł kancelarii');
-$PAGE_TITLE = 'Nowa teczka aktowa';
+$PAGE_TITLE = 'Nowa koszulka aktowa';
 $jrwa  = ezd_jrwa_all();
 $users = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
 $row   = ['jrwa_id'=>'','symbol'=>'','title'=>'','rok'=>date('Y'),'owner_id'=>''];
@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if (!$row['title'])  $errors[]='Tytuł jest wymagany.';
     if (!$errors) {
         $id = ezd_teczka_create($row, (int)current_user()['id']);
-        flash_set('success','Teczka utworzona.');
+        flash_set('success','Koszulka utworzona.');
         header('Location:'.APP_URL.'/ezd/teczki/view.php?id='.$id); exit;
     }
 }
@@ -27,10 +27,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Teczki</a></li>
-  <li class="breadcrumb-item active">Nowa teczka</li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Koszulki</a></li>
+  <li class="breadcrumb-item active">Nowa koszulka</li>
 </ol></nav>
-<h4 class="fw-bold mb-3"><i class="bi bi-archive text-primary me-2"></i>Nowa teczka aktowa</h4>
+<h4 class="fw-bold mb-3"><i class="bi bi-archive text-primary me-2"></i>Nowa koszulka aktowa</h4>
 <?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
 <div class="row"><div class="col-lg-6">
 <form method="post">
@@ -48,13 +48,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </select>
   </div>
   <div class="mb-3">
-    <label class="form-label fw-semibold">Symbol teczki <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Symbol koszulki <span class="text-danger">*</span></label>
     <input type="text" name="symbol" class="form-control text-uppercase font-monospace"
            value="<?= h($row['symbol']) ?>" placeholder="np. FIN" maxlength="20" required>
-    <div class="form-text">Skrót kategorii — pojawi się w znaku sprawy: <code>SYMBOL.1.<?= date('Y') ?></code></div>
+    <div class="form-text">Skrót kategorii — pojawi się w znaku teczki: <code>SYMBOL.1.<?= date('Y') ?></code></div>
   </div>
   <div class="mb-3">
-    <label class="form-label fw-semibold">Tytuł teczki <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Tytuł koszulki <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>" placeholder="np. Umowy z kontrahentami 2026" required>
   </div>
   <div class="row g-3 mb-3">
@@ -71,7 +71,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 </div><div class="card-footer d-flex gap-2">
-  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Utwórz teczkę</button>
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Utwórz koszulkę</button>
   <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-outline-secondary">Anuluj</a>
 </div></div>
 </form>

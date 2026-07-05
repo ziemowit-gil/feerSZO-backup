@@ -458,7 +458,7 @@ if ($_user) {
       <li><a class="dropdown-item<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php"><i class="bi bi-building-gear me-2"></i>Pulpit kancelarii</a></li>
       <li><a class="dropdown-item<?= _nav_active('/ezd/rpw/') ?>" href="<?= APP_URL ?>/ezd/rpw/index.php"><i class="bi bi-mailbox2 me-2"></i>Dziennik podawczy</a></li>
       <li><a class="dropdown-item<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php"><i class="bi bi-folder2-open me-2"></i>Teczki</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/teczki/') ?>" href="<?= APP_URL ?>/ezd/teczki/index.php"><i class="bi bi-archive me-2"></i>Teczki aktowe</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/teczki/') ?>" href="<?= APP_URL ?>/ezd/teczki/index.php"><i class="bi bi-archive me-2"></i>Koszulki aktowe</a></li>
       <li><a class="dropdown-item<?= _nav_active('/ezd/jrwa/') ?>" href="<?= APP_URL ?>/ezd/jrwa/index.php"><i class="bi bi-tags me-2"></i>Wykaz akt (JRWA)</a></li>
       <li><a class="dropdown-item<?= _nav_active('/ezd/pelnomocnictwa/') ?>" href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php"><i class="bi bi-person-vcard me-2"></i>Pełnomocnictwa</a></li>
       <li><a class="dropdown-item<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php"><i class="bi bi-award me-2"></i>Zaświadczenia</a></li>

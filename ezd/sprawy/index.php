@@ -32,7 +32,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="sprawy_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM dla Excela
-    fputcsv($out, ['Znak teczki','Tytuł','JRWA','Status','Priorytet','Etap','Właściciel','Termin'], ';');
+    fputcsv($out, ['Znak teczki','Tytuł','Koszulka','Status','Priorytet','Etap','Właściciel','Termin'], ';');
     foreach ($sprawy as $s) {
         fputcsv($out, [
             $s['znak_sprawy'], $s['title'], $s['teczka_symbol'].' — '.$s['teczka_title'],
@@ -146,8 +146,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php if(!$sprawy): ?>
     <div class="text-center py-5 text-muted">
       <i class="bi bi-folder2" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-      Brak spraw pasujących do filtrów.
-      <?php if(can_edit()): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php">Załóż pierwszą sprawę.</a><?php endif; ?>
+      Brak teczek pasujących do filtrów.
+      <?php if(can_edit()): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php">Załóż pierwszą teczkę.</a><?php endif; ?>
     </div>
     <?php endif; ?>
   </div>

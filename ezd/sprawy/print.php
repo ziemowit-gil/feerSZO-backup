@@ -132,7 +132,7 @@ if ($out === 'pdf') {
         // ── Metadane (dwie kolumny) ───────────────────────────────────────────
         $stat   = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
         $meta   = [
-            ['JRWA',           $sprawa['teczka_symbol'] ?? '—'],
+            ['Koszulka',       $sprawa['teczka_symbol'] ?? '—'],
             ['Status',        $stat],
             ['Właściciel',    $sprawa['owner_name'] ?? '—'],
             ['Otwarto',       $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
@@ -280,7 +280,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php endif; ?>
 
     <div class="card-body py-3 px-4 d-flex gap-4 flex-wrap" style="font-size:.82rem;background:#fff;border-top:1px solid #e8ecf4">
-      <span><span class="text-secondary">JRWA:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
+      <span><span class="text-secondary">Koszulka:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
       <span><span class="text-secondary">Status:</span> <strong><?= h($stat_label) ?></strong></span>
       <?php if (!empty($sprawa['owner_name'])): ?>
       <span><span class="text-secondary">Właściciel:</span> <strong><?= h($sprawa['owner_name']) ?></strong></span>

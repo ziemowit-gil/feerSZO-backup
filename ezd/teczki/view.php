@@ -7,7 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
 $id     = (int)($_GET['id']??0);
 $teczka = ezd_teczka_get($id);
-if (!$teczka) { flash_set('error','Teczka nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
+if (!$teczka) { flash_set('error','Koszulka nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
 $sprawy  = ezd_sprawy_by_teczka($id);
 $PAGE_TITLE = $teczka['symbol'].' — '.$teczka['title'];
 $status_f = $_GET['status'] ?? '';
@@ -22,7 +22,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </style>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Teczki</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/index.php">Koszulki</a></li>
   <li class="breadcrumb-item active"><?= h($teczka['symbol']) ?></li>
 </ol></nav>
 
@@ -45,9 +45,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
       </div>
       <div class="d-flex gap-2">
-        <a href="<?= APP_URL ?>/ezd/teczki/spis.php?id=<?= $id ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-list-ol me-1"></i>Spis spraw</a>
+        <a href="<?= APP_URL ?>/ezd/teczki/spis.php?id=<?= $id ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-list-ol me-1"></i>Spis teczek</a>
         <?php if(can_edit()): ?>
-        <a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa sprawa</a>
+        <a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa teczka</a>
         <?php endif; ?>
         <?php if(is_admin()): ?>
         <a href="<?= APP_URL ?>/ezd/teczki/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i></a>
@@ -67,7 +67,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <!-- Lista spraw -->
 <div class="card shadow-sm">
   <div class="card-header d-flex align-items-center justify-content-between">
-    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-folder2-open me-1 text-primary"></i>Sprawy (<?= count($sprawy) ?>)</span>
+    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-folder2-open me-1 text-primary"></i>Teczki (<?= count($sprawy) ?>)</span>
   </div>
   <div>
     <?php foreach ($sprawy as $s): ?>
@@ -91,8 +91,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php if (!$sprawy): ?>
     <div class="text-center py-5 text-muted">
       <i class="bi bi-folder2" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-      Brak spraw w tej teczce.
-      <?php if(can_edit()&&$teczka['status']==='open'): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>">Załóż pierwszą sprawę.</a><?php endif; ?>
+      Brak teczek w tej koszulce.
+      <?php if(can_edit()&&$teczka['status']==='open'): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>">Załóż pierwszą teczkę.</a><?php endif; ?>
     </div>
     <?php endif; ?>
   </div>

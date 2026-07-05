@@ -13,11 +13,11 @@ $stats      = ezd_stats();
 $rpw_stats  = ezd_rpw_stats();
 $user_id    = (int)current_user()['id'];
 
-// Ostatnie sprawy
+// Ostatnie teczki
 $recent_sprawy = ezd_sprawy_all(['status' => ''], $user_id);  // all statuses, limited in function
 $recent_sprawy = array_slice(array_filter($recent_sprawy, fn($s) => $s['status'] !== 'closed'), 0, 8);
 
-// Moje dekretacje (oczekujące)
+// Moje przekazania (oczekujące)
 $my_dekr = db_all(
     "SELECT d.*, s.znak_sprawy, s.title AS sprawa_title, z.name AS zlec_name
      FROM ezd_dekretacje d
@@ -28,7 +28,7 @@ $my_dekr = db_all(
     [$user_id]
 );
 
-// Moje sprawy (jestem właścicielem/referentem lub mają ze mną współdzielone)
+// Moje teczki (jestem właścicielem/referentem lub mają ze mną współdzielone)
 $my_sprawy = db_all(
     "SELECT s.*, t.symbol AS teczka_symbol,
             (s.owner_id!=? AND s.created_by!=?) AS is_shared
@@ -86,11 +86,11 @@ include dirname(__DIR__) . '/includes/header.php';
     </a>
     <?php if (can_edit()): ?>
     <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm">
-      <i class="bi bi-folder-plus me-1"></i>Nowa sprawa
+      <i class="bi bi-folder-plus me-1"></i>Nowa teczka
     </a>
     <?php if (is_admin()): ?>
     <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-archive me-1"></i>Nowa teczka
+      <i class="bi bi-archive me-1"></i>Nowa koszulka
     </a>
     <?php endif; ?>
     <?php endif; ?>
@@ -107,8 +107,8 @@ include dirname(__DIR__) . '/includes/header.php';
 <!-- Podnawigacja modułu -->
 <div class="d-flex gap-2 mb-4 flex-wrap">
   <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-mailbox2 me-1"></i>Dziennik podawczy</a>
-  <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder2-open me-1"></i>Sprawy</a>
-  <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Teczki aktowe</a>
+  <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder2-open me-1"></i>Teczki</a>
+  <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Koszulki aktowe</a>
   <a href="<?= APP_URL ?>/ezd/jrwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Wykaz akt (JRWA)</a>
   <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard me-1"></i>Rejestr pełnomocnictw</a>
   <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-award me-1"></i>Rejestr zaświadczeń</a>
@@ -119,11 +119,10 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="row g-3 mb-4">
   <?php $items = [
     ['label'=>'W koszulce (RPW)',   'val'=>$rpw_stats['koszulka'], 'icon'=>'bi-inbox-fill',          'color'=>'info'],
-    ['label'=>'Teczki otwarte',     'val'=>$stats['teczki_open'],  'icon'=>'bi-archive-fill',       'color'=>'primary'],
-    ['label'=>'Sprawy aktywne',     'val'=>$stats['sprawy_open'],  'icon'=>'bi-folder2-open',        'color'=>'success'],
+    ['label'=>'Koszulki otwarte',   'val'=>$stats['teczki_open'],  'icon'=>'bi-archive-fill',       'color'=>'primary'],
+    ['label'=>'Teczki aktywne',     'val'=>$stats['sprawy_open'],  'icon'=>'bi-folder2-open',        'color'=>'success'],
     ['label'=>'Pisma (ten miesiąc)','val'=>$stats['pisma_month'],  'icon'=>'bi-envelope-arrow-down', 'color'=>'info'],
-    ['label'=>'Umowy aktywne',      'val'=>$stats['umowy_active'], 'icon'=>'bi-file-earmark-check',  'color'=>'warning'],
-    ['label'=>'Dekretacje czekają', 'val'=>$stats['dekr_pending'], 'icon'=>'bi-person-lines-fill',   'color'=>'danger'],
+    ['label'=>'Przekazania czekają','val'=>$stats['dekr_pending'], 'icon'=>'bi-person-lines-fill',   'color'=>'danger'],
   ]; foreach ($items as $it): ?>
   <div class="col-6 col-md-4 col-xl">
     <div class="ezd-stat">
@@ -142,11 +141,11 @@ include dirname(__DIR__) . '/includes/header.php';
 <!-- Widget: Moje sprawy / Moje pisma -->
 <div class="ezd-card mb-4">
   <ul class="nav nav-tabs px-2 pt-2" style="font-size:.82rem;border-bottom:1px solid #f1f5f9">
-    <li class="nav-item"><a class="nav-link active py-1" data-bs-toggle="tab" href="#tab-moje-sprawy"><i class="bi bi-folder2-open me-1"></i>Moje sprawy <span class="badge bg-primary rounded-pill"><?= $my_sprawy_cnt ?></span></a></li>
+    <li class="nav-item"><a class="nav-link active py-1" data-bs-toggle="tab" href="#tab-moje-sprawy"><i class="bi bi-folder2-open me-1"></i>Moje teczki <span class="badge bg-primary rounded-pill"><?= $my_sprawy_cnt ?></span></a></li>
     <li class="nav-item"><a class="nav-link py-1" data-bs-toggle="tab" href="#tab-moje-pisma"><i class="bi bi-envelope me-1"></i>Moje pisma <span class="badge bg-secondary rounded-pill"><?= $my_pisma_cnt ?></span></a></li>
   </ul>
   <div class="tab-content p-0">
-    <!-- Moje sprawy -->
+    <!-- Moje teczki -->
     <div class="tab-pane fade show active" id="tab-moje-sprawy">
       <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
         <tbody>
@@ -164,7 +163,7 @@ include dirname(__DIR__) . '/includes/header.php';
             </td>
           </tr>
         <?php endforeach; ?>
-        <?php if(!$my_sprawy): ?><tr><td class="text-center text-muted py-3" style="font-size:.8rem">Nie masz przypisanych aktywnych spraw</td></tr><?php endif; ?>
+        <?php if(!$my_sprawy): ?><tr><td class="text-center text-muted py-3" style="font-size:.8rem">Nie masz przypisanych aktywnych teczek</td></tr><?php endif; ?>
         </tbody>
       </table>
     </div>
@@ -188,17 +187,17 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <div class="row g-4">
-  <!-- Aktywne sprawy -->
+  <!-- Aktywne teczki -->
   <div class="col-lg-7">
     <div class="ezd-card">
       <div class="ezd-card-header">
-        <i class="bi bi-folder2-open"></i> Aktywne sprawy
+        <i class="bi bi-folder2-open"></i> Aktywne teczki
         <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="ms-auto text-primary" style="font-size:.75rem;font-weight:600;text-transform:none;letter-spacing:0">Wszystkie →</a>
       </div>
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0" style="font-size:.8rem">
           <thead class="table-light">
-            <tr><th>Znak sprawy</th><th>Tytuł</th><th>Priorytet</th><th>Deadline</th><th>Właściciel</th></tr>
+            <tr><th>Znak teczki</th><th>Tytuł</th><th>Priorytet</th><th>Deadline</th><th>Właściciel</th></tr>
           </thead>
           <tbody>
           <?php foreach ($recent_sprawy as $s): ?>
@@ -213,14 +212,14 @@ include dirname(__DIR__) . '/includes/header.php';
           </tr>
           <?php endforeach; ?>
           <?php if (!$recent_sprawy): ?>
-          <tr><td colspan="5" class="text-center text-muted py-3">Brak aktywnych spraw</td></tr>
+          <tr><td colspan="5" class="text-center text-muted py-3">Brak aktywnych teczek</td></tr>
           <?php endif; ?>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Moje dekretacje -->
+    <!-- Moje przekazania -->
     <?php if ($my_dekr): ?>
     <div class="ezd-card mt-3">
       <div class="ezd-card-header">

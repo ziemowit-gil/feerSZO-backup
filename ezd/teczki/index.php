@@ -5,15 +5,15 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login(); require_module_enabled('ezd_enabled', 'Moduł kancelarii');
-$PAGE_TITLE = 'Teczki aktowe';
+$PAGE_TITLE = 'Koszulki aktowe';
 $status = $_GET['status'] ?? 'open';
 $teczki = ezd_teczki_all($status === 'all' ? '' : $status);
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0 fw-bold"><i class="bi bi-archive text-primary me-2"></i>Teczki aktowe</h4>
+  <h4 class="mb-0 fw-bold"><i class="bi bi-archive text-primary me-2"></i>Koszulki aktowe</h4>
   <?php if (is_admin()): ?>
-  <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowa teczka</a>
+  <a href="<?= APP_URL ?>/ezd/teczki/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Nowa koszulka</a>
   <?php endif; ?>
 </div>
 <?= flash_html() ?>
@@ -26,7 +26,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <div class="card shadow-sm">
   <div class="card-header d-flex align-items-center justify-content-between">
-    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-archive me-1 text-primary"></i>Teczki (<?= count($teczki) ?>)</span>
+    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-archive me-1 text-primary"></i>Koszulki (<?= count($teczki) ?>)</span>
   </div>
   <div class="table-responsive">
     <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.83rem">
@@ -36,7 +36,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <th>Tytuł</th>
           <th>JRWA</th>
           <th class="text-center" style="width:70px">Rok</th>
-          <th class="text-center text-nowrap" style="width:130px">Sprawy</th>
+          <th class="text-center text-nowrap" style="width:130px">Teczki</th>
           <th style="width:100px">Status</th>
           <th style="width:90px"></th>
         </tr>
@@ -63,7 +63,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php if (!$teczki): ?>
         <tr><td colspan="7" class="text-center py-5 text-muted">
           <i class="bi bi-archive" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-          Brak teczek. <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/teczki/add.php">Utwórz pierwszą teczkę.</a><?php endif; ?>
+          Brak koszulek. <?php if(is_admin()): ?><a href="<?= APP_URL ?>/ezd/teczki/add.php">Utwórz pierwszą koszulkę.</a><?php endif; ?>
         </td></tr>
       <?php endif; ?>
       </tbody>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Spis spraw teczki — formalny rejestr spraw wg kolejnego numeru (do wydruku).
+ * Spis teczek koszulki — formalny rejestr teczek wg kolejnego numeru (do wydruku).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -12,9 +12,9 @@ require_module_enabled('ezd_enabled', 'Moduł kancelarii');
 
 $id     = (int)($_GET['id'] ?? 0);
 $teczka = ezd_teczka_get($id);
-if (!$teczka) { flash_set('error','Teczka nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
+if (!$teczka) { flash_set('error','Koszulka nie istnieje.'); header('Location:'.APP_URL.'/ezd/teczki/index.php'); exit; }
 
-// Spis spraw — kolejność wg numeru rosnąco (kolejność wszczynania)
+// Spis teczek — kolejność wg numeru rosnąco (kolejność wszczynania)
 $sprawy = db_all(
     "SELECT s.*, u.name AS owner_name FROM ezd_sprawy s
      LEFT JOIN users u ON u.id=s.owner_id
@@ -22,7 +22,7 @@ $sprawy = db_all(
 );
 $org_name = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 
-$PAGE_TITLE = 'Spis spraw — ' . $teczka['symbol'];
+$PAGE_TITLE = 'Spis teczek — ' . $teczka['symbol'];
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <style>
@@ -41,11 +41,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <nav aria-label="breadcrumb" class="mb-3 no-print"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $id ?>"><?= h($teczka['symbol']) ?></a></li>
-  <li class="breadcrumb-item active">Spis spraw</li>
+  <li class="breadcrumb-item active">Spis teczek</li>
 </ol></nav>
 
 <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-  <h4 class="fw-bold mb-0"><i class="bi bi-list-ol text-primary me-2"></i>Spis spraw teczki</h4>
+  <h4 class="fw-bold mb-0"><i class="bi bi-list-ol text-primary me-2"></i>Spis teczek koszulki</h4>
   <button onclick="window.print()" class="btn btn-outline-primary btn-sm"><i class="bi bi-printer me-1"></i>Drukuj / PDF</button>
 </div>
 
@@ -54,10 +54,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
     <div>
       <?php if($org_name): ?><div class="fw-bold" style="font-size:1.05rem"><?= h($org_name) ?></div><?php endif; ?>
-      <div class="spis-meta">Spis spraw</div>
+      <div class="spis-meta">Spis teczek</div>
     </div>
     <div class="text-end spis-meta">
-      <div><strong>Symbol teczki:</strong> <span class="font-monospace"><?= h($teczka['symbol']) ?></span></div>
+      <div><strong>Symbol koszulki:</strong> <span class="font-monospace"><?= h($teczka['symbol']) ?></span></div>
       <div><strong>Rok:</strong> <?= (int)$teczka['rok'] ?></div>
       <?php if($teczka['kat_arch']): ?><div><strong>Kat. arch.:</strong> <?= h($teczka['kat_arch']) ?></div><?php endif; ?>
     </div>
@@ -71,8 +71,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <thead>
       <tr>
         <th style="width:48px">Lp.</th>
-        <th>Znak sprawy</th>
-        <th>Tytuł / przedmiot sprawy</th>
+        <th>Znak teczki</th>
+        <th>Tytuł / przedmiot teczki</th>
         <th style="width:130px">Prowadzący</th>
         <th style="width:95px">Data wszczęcia</th>
         <th style="width:95px">Data zakończenia</th>
@@ -92,12 +92,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </tr>
       <?php endforeach; ?>
       <?php if(!$sprawy): ?>
-      <tr><td colspan="6" class="text-center text-muted py-3">Brak spraw w teczce.</td></tr>
+      <tr><td colspan="6" class="text-center text-muted py-3">Brak teczek w koszulce.</td></tr>
       <?php endif; ?>
     </tbody>
   </table>
 
-  <div class="spis-meta mt-3">Liczba spraw: <strong><?= count($sprawy) ?></strong> · Wydrukowano: <?= date('d.m.Y H:i') ?></div>
+  <div class="spis-meta mt-3">Liczba teczek: <strong><?= count($sprawy) ?></strong> · Wydrukowano: <?= date('d.m.Y H:i') ?></div>
 </div></div>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
