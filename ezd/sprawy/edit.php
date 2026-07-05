@@ -8,10 +8,10 @@ require_login(); require_module_enabled('ezd_enabled','Moduł kancelarii');
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
-if (!$sprawa) { flash_set('error','Sprawa nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+if (!$sprawa) { flash_set('error','Teczka nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 if (ezd_sprawa_access($sprawa, (int)current_user()['id']) !== 'write') { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 if ($sprawa['status'] === 'closed' && !is_admin()) {
-    flash_set('error','Sprawa jest zamknięta — tylko administrator może ją edytować.');
+    flash_set('error','Teczka jest zamknięta — tylko administrator może ją edytować.');
     header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$id); exit;
 }
 
@@ -34,12 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'deadline'    => $_POST['deadline']           ?? '',
         'ciagla'      => isset($_POST['ciagla']) ? 1 : 0,
     ];
-    if (!$row['title']) $errors[] = 'Tytuł sprawy jest wymagany.';
+    if (!$row['title']) $errors[] = 'Tytuł teczki jest wymagany.';
 
     if (!$errors) {
         try {
             ezd_sprawa_update($id, $row, (int)current_user()['id']);
-            flash_set('success','Sprawa zaktualizowana.');
+            flash_set('success','Teczka zaktualizowana.');
             header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$id); exit;
         } catch (\RuntimeException $e) {
             $errors[] = $e->getMessage();
@@ -51,15 +51,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Sprawy</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Teczki</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>"><?= h($sprawa['znak_sprawy']) ?></a></li>
   <li class="breadcrumb-item active">Edytuj</li>
 </ol></nav>
-<h4 class="fw-bold mb-3"><i class="bi bi-pencil text-primary me-2"></i>Edytuj sprawę <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span></h4>
+<h4 class="fw-bold mb-3"><i class="bi bi-pencil text-primary me-2"></i>Edytuj teczkę <span class="font-monospace"><?= h($sprawa['znak_sprawy']) ?></span></h4>
 
 <?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
 <?php if($sprawa['status']==='closed' && is_admin()): ?>
-<div class="alert alert-warning py-2 px-3" style="font-size:.82rem"><i class="bi bi-lock me-1"></i><strong>Sprawa zamknięta</strong> — edytujesz jako administrator.</div>
+<div class="alert alert-warning py-2 px-3" style="font-size:.82rem"><i class="bi bi-lock me-1"></i><strong>Teczka zamknięta</strong> — edytujesz jako administrator.</div>
 <?php endif; ?>
 
 <div class="row"><div class="col-lg-7">
@@ -67,9 +67,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 <div class="card shadow-sm">
 <div class="card-body">
-  <!-- Znak sprawy (readonly) -->
+  <!-- Znak teczki (readonly) -->
   <div class="mb-3">
-    <label class="form-label fw-semibold">Znak sprawy</label>
+    <label class="form-label fw-semibold">Znak teczki</label>
     <input type="text" class="form-control font-monospace" value="<?= h($sprawa['znak_sprawy']) ?>" readonly>
   </div>
   <!-- Teczka -->
@@ -89,7 +89,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <?php endif; ?>
   <!-- Tytuł -->
   <div class="mb-3">
-    <label class="form-label fw-semibold">Tytuł sprawy <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Tytuł teczki <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>" required>
   </div>
   <!-- Opis -->
@@ -106,7 +106,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <option value="<?= $sv ?>" <?= $row['status']===$sv?'selected':'' ?>><?= h($sl['label']) ?></option>
         <?php endforeach; ?>
       </select>
-      <?php if(!is_admin()): ?><div class="form-text">Zamknięcie sprawy zablokuje dalszą edycję dla non-adminów.</div><?php endif; ?>
+      <?php if(!is_admin()): ?><div class="form-text">Zamknięcie teczki zablokuje dalszą edycję dla non-adminów.</div><?php endif; ?>
     </div>
     <div class="col-6">
       <label class="form-label fw-semibold">Priorytet</label>
@@ -136,7 +136,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="form-check form-switch mt-3">
     <input class="form-check-input" type="checkbox" role="switch" name="ciagla" id="f-ciagla" value="1" <?= !empty($row['ciagla'])?'checked':'' ?>
            onchange="document.getElementById('f-deadline').disabled=this.checked; if(this.checked)document.getElementById('f-deadline').value='';">
-    <label class="form-check-label fw-semibold" for="f-ciagla">Sprawa ciągła (stale otwarta)</label>
+    <label class="form-check-label fw-semibold" for="f-ciagla">Teczka ciągła (stale otwarta)</label>
     <div class="form-text">Bez terminu zakończenia; nie podlega przypomnieniom i nie zostanie zamknięta zwykłym zapisem.</div>
   </div>
 </div>

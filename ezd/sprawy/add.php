@@ -12,7 +12,7 @@ $teczki = ezd_teczki_all('open');
 // Tryb podsprawy — parent_id z GET/POST
 $parent_id = (int)($_GET['parent_id'] ?? $_POST['parent_id'] ?? 0);
 $parent    = $parent_id ? ezd_sprawa_get($parent_id) : null;
-$PAGE_TITLE = $parent ? 'Nowa podsprawa' : 'Nowa sprawa';
+$PAGE_TITLE = $parent ? 'Nowa podteczka' : 'Nowa teczka';
 
 $_can_create = $parent
     ? ezd_sprawa_access($parent, (int)current_user()['id']) === 'write'
@@ -48,14 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ciagla'      => isset($_POST['ciagla']) ? 1 : 0,
     ];
     if (!$row['teczka_id']) $errors[] = 'Wybierz teczkę aktową.';
-    if (!$row['title'])     $errors[] = 'Tytuł sprawy jest wymagany.';
+    if (!$row['title'])     $errors[] = 'Tytuł teczki jest wymagany.';
     if (!in_array($row['status'],   array_keys(EZD_STATUSES_SPRAWA))) $errors[] = 'Nieprawidłowy status.';
     if (!in_array($row['priority'], array_keys(EZD_PRIORITIES)))      $errors[] = 'Nieprawidłowy priorytet.';
 
     if (!$errors) {
         try {
             $id = ezd_sprawa_create($row, (int)current_user()['id']);
-            flash_set('success', 'Sprawa założona.');
+            flash_set('success', 'Teczka założona.');
             header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$id); exit;
         } catch (\RuntimeException $e) {
             $errors[] = $e->getMessage();
@@ -67,15 +67,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">Kancelaria</a></li>
-  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Sprawy</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/index.php">Teczki</a></li>
   <?php if($parent): ?><li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>"><?= h($parent['znak_sprawy']) ?></a></li><?php endif; ?>
-  <li class="breadcrumb-item active"><?= $parent ? 'Nowa podsprawa' : 'Nowa sprawa' ?></li>
+  <li class="breadcrumb-item active"><?= $parent ? 'Nowa podteczka' : 'Nowa teczka' ?></li>
 </ol></nav>
-<h4 class="fw-bold mb-3"><i class="bi bi-<?= $parent ? 'diagram-3' : 'folder-plus' ?> text-primary me-2"></i><?= $parent ? 'Nowa podsprawa' : 'Nowa sprawa' ?></h4>
+<h4 class="fw-bold mb-3"><i class="bi bi-<?= $parent ? 'diagram-3' : 'folder-plus' ?> text-primary me-2"></i><?= $parent ? 'Nowa podteczka' : 'Nowa teczka' ?></h4>
 <?php if($parent): ?>
 <div class="alert alert-light border d-flex align-items-center gap-2 py-2" style="font-size:.83rem">
   <i class="bi bi-diagram-3 text-primary"></i>
-  <span>Podsprawa sprawy nadrzędnej <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="font-monospace fw-semibold"><?= h($parent['znak_sprawy']) ?></a> — <?= h($parent['title']) ?></span>
+  <span>Podteczka nadrzędnej teczki <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="font-monospace fw-semibold"><?= h($parent['znak_sprawy']) ?></a> — <?= h($parent['title']) ?></span>
 </div>
 <?php endif; ?>
 <?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
@@ -91,7 +91,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <label class="form-label fw-semibold">Teczka aktowa <span class="text-danger">*</span></label>
     <?php if($parent): ?>
     <input type="text" class="form-control" value="<?= h($parent['teczka_symbol'].' — '.$parent['teczka_title'].' ('.$parent['teczka_rok'].')') ?>" disabled>
-    <div class="form-text">Podsprawa dziedziczy teczkę sprawy nadrzędnej.</div>
+    <div class="form-text">Podteczka dziedziczy teczkę aktową nadrzędnej.</div>
     <?php else: ?>
     <select name="teczka_id" class="form-select" required onchange="updateZnak(this)">
       <option value="">— wybierz teczkę —</option>
@@ -107,13 +107,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <!-- Podgląd znaku -->
   <div class="mb-3">
     <div class="alert alert-info py-2 px-3" style="font-size:.82rem">
-      <i class="bi bi-info-circle me-1"></i>Znak sprawy zostanie nadany automatycznie:
+      <i class="bi bi-info-circle me-1"></i>Znak teczki zostanie nadany automatycznie:
       <strong id="znak-preview" class="font-monospace ms-1">SYMBOL.N.<?= date('Y') ?></strong>
     </div>
   </div>
   <!-- Tytuł -->
   <div class="mb-3">
-    <label class="form-label fw-semibold">Tytuł sprawy <span class="text-danger">*</span></label>
+    <label class="form-label fw-semibold">Tytuł teczki <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control" value="<?= h($row['title']) ?>"
            placeholder="np. Umowa z firmą XYZ na dostawę materiałów" required>
   </div>
@@ -121,7 +121,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="mb-3">
     <label class="form-label fw-semibold">Opis / uwagi</label>
     <textarea name="description" class="form-control" rows="3"
-              placeholder="Krótki opis sprawy..."><?= h($row['description']) ?></textarea>
+              placeholder="Krótki opis teczki..."><?= h($row['description']) ?></textarea>
   </div>
   <!-- Status + Priorytet -->
   <div class="row g-3 mb-3">
@@ -161,12 +161,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="form-check form-switch mt-3">
     <input class="form-check-input" type="checkbox" role="switch" name="ciagla" id="f-ciagla" value="1" <?= !empty($row['ciagla'])?'checked':'' ?>
            onchange="document.getElementById('f-deadline').disabled=this.checked; if(this.checked)document.getElementById('f-deadline').value='';">
-    <label class="form-check-label fw-semibold" for="f-ciagla">Sprawa ciągła (stale otwarta)</label>
-    <div class="form-text">Sprawa bez terminu zakończenia — nie podlega przypomnieniom o terminie i nie jest zamykana zwykłym zapisem (np. rejestr, ewidencja prowadzona na bieżąco).</div>
+    <label class="form-check-label fw-semibold" for="f-ciagla">Teczka ciągła (stale otwarta)</label>
+    <div class="form-text">Teczka bez terminu zakończenia — nie podlega przypomnieniom o terminie i nie jest zamykana zwykłym zapisem (np. rejestr, ewidencja prowadzona na bieżąco).</div>
   </div>
 </div>
 <div class="card-footer d-flex gap-2">
-  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Załóż sprawę</button>
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Załóż teczkę</button>
   <?php if($parent): ?>
   <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $parent_id ?>" class="btn btn-outline-secondary">Anuluj</a>
   <?php elseif($preselect_teczka): ?>
