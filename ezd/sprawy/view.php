@@ -378,46 +378,60 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       $next_step = $next_etap !== null ? $wf_steps[$cur_idx+1] : null;
       $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     ?>
-    <div class="bc mb-4" id="workflow">
-      <div class="bc-h"><i class="bi bi-diagram-2"></i>Obieg teczki (workflow)
-        <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-2" style="font-size:.6rem">wg JRWA <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
-        <?php if(is_admin()): ?><a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= (int)($sprawa['jrwa_id'] ?? 0) ?>" class="ms-auto text-muted" style="font-size:.7rem" title="Edytuj workflow tej JRWA"><i class="bi bi-pencil"></i></a><?php endif; ?>
-      </div>
-      <div class="bc-b">
-        <div class="ezd-stepper">
-          <?php foreach ($wf_steps as $i => $st):
-            $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
-          <div class="ezd-step ezd-step-<?= $state ?>" title="<?= h($st['label']) ?>">
-            <div class="ezd-step-dot"><i class="bi <?= $state==='done'?'bi-check-lg':($st['icon'] ?: 'bi-record-circle') ?>"></i></div>
-            <div class="ezd-step-lbl"><?= h($st['label']) ?></div>
+    <div class="d-flex align-items-center gap-2 mb-4" id="workflow" style="font-size:.8rem">
+      <span class="text-muted"><i class="bi bi-diagram-2 me-1"></i>Etap:</span>
+      <?= ezd_etap_badge($cur_etap) ?>
+      <button type="button" class="btn btn-link btn-sm p-0 text-muted text-decoration-none" data-bs-toggle="modal" data-bs-target="#etapModal">
+        <i class="bi bi-arrow-left-right me-1"></i>Zmień etap
+      </button>
+    </div>
+
+    <div class="modal fade" id="etapModal" tabindex="-1" aria-labelledby="etapModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h5" id="etapModalLabel"><i class="bi bi-diagram-2 text-primary me-2" aria-hidden="true"></i>Obieg teczki
+              <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-2" style="font-size:.6rem">wg JRWA <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
+            </h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
           </div>
-          <?php endforeach; ?>
-        </div>
-        <?php if($can_act): ?>
-        <div class="d-flex gap-2 flex-wrap align-items-center mt-3 pt-3 border-top">
-          <?php if($next_step): ?>
-          <form method="post" class="d-inline">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="set_etap">
-            <input type="hidden" name="etap" value="<?= h($next_etap) ?>">
-            <button class="btn btn-sm btn-primary"><i class="bi <?= h($next_step['icon'] ?: 'bi-arrow-right') ?> me-1"></i>Dalej: <?= h($next_step['label']) ?> →</button>
-          </form>
-          <?php endif; ?>
-          <form method="post" class="d-inline d-flex gap-1">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="set_etap">
-            <select name="etap" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
-              <option disabled selected>Przejdź do etapu…</option>
-              <?php foreach($wf_steps as $st): ?>
-              <option value="<?= h($st['key']) ?>" <?= $st['key']===$cur_etap?'disabled':'' ?>><?= h($st['label']) ?></option>
+          <div class="modal-body">
+            <?php if(is_admin()): ?>
+            <div class="text-end mb-2"><a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= (int)($sprawa['jrwa_id'] ?? 0) ?>" class="text-muted" style="font-size:.75rem"><i class="bi bi-pencil me-1"></i>Edytuj workflow tej JRWA</a></div>
+            <?php endif; ?>
+            <div class="ezd-stepper">
+              <?php foreach ($wf_steps as $i => $st):
+                $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
+              <div class="ezd-step ezd-step-<?= $state ?>" title="<?= h($st['label']) ?>">
+                <div class="ezd-step-dot"><i class="bi <?= $state==='done'?'bi-check-lg':($st['icon'] ?: 'bi-record-circle') ?>"></i></div>
+                <div class="ezd-step-lbl"><?= h($st['label']) ?></div>
+              </div>
               <?php endforeach; ?>
-            </select>
-          </form>
-          <span class="text-muted ms-auto" style="font-size:.74rem">Aktualny etap: <?= ezd_etap_badge($cur_etap) ?></span>
+            </div>
+            <?php if($can_act): ?>
+            <div class="d-flex gap-2 flex-wrap align-items-center mt-3 pt-3 border-top">
+              <?php if($next_step): ?>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_action" value="set_etap">
+                <input type="hidden" name="etap" value="<?= h($next_etap) ?>">
+                <button class="btn btn-sm btn-primary"><i class="bi <?= h($next_step['icon'] ?: 'bi-arrow-right') ?> me-1"></i>Dalej: <?= h($next_step['label']) ?> →</button>
+              </form>
+              <?php endif; ?>
+              <form method="post" class="d-inline d-flex gap-1">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_action" value="set_etap">
+                <select name="etap" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+                  <option disabled selected>Przejdź do etapu…</option>
+                  <?php foreach($wf_steps as $st): ?>
+                  <option value="<?= h($st['key']) ?>" <?= $st['key']===$cur_etap?'disabled':'' ?>><?= h($st['label']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </form>
+            </div>
+            <?php endif; ?>
+          </div>
         </div>
-        <?php else: ?>
-        <div class="mt-2 text-end"><?= ezd_etap_badge($cur_etap) ?></div>
-        <?php endif; ?>
       </div>
     </div>
     <?php endif; /* !mini */ ?>
