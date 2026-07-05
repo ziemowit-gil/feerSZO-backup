@@ -7,8 +7,10 @@
  *   ?id=N&out=pdf         → PDF całej sprawy (okładka + wszystkie dokumenty)
  *   ?id=N&out=pdf&zal=Z   → PDF jednego dokumentu (bez okładki)
  *
- * Pliki PDF są scalane stronami (FPDI), obrazy osadzane jako strona, pozostałe
- * formaty (docx/zip…) dostają stronę-notatkę (oryginał w repozytorium).
+ * Pliki PDF są scalane stronami (FPDI), obrazy osadzane jako strona, pliki
+ * Word/Excel (EZD_PDF_CONVERTIBLE_EXT) konwertowane "w locie" na PDF przez
+ * SharePoint/Graph (bez zapisu trwałego załącznika) i też scalane stronami.
+ * Pozostałe formaty (zip, txt…) dostają stronę-notatkę (oryginał w repozytorium).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -221,6 +223,32 @@ if ($out === 'pdf') {
             if ($h > $maxH) { $h = $maxH; $w = ($sz[1] ?? 0) > 0 ? ($sz[0] / $sz[1]) * $h : $maxW; }
             try { $pdf->Image($path, 15, 24, $w, $h); }
             catch (\Throwable $e) { $notePage($z, 'Nie udało się osadzić obrazu.'); }
+        } elseif (in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true)) {
+            // Word/Excel — konwertuj "w locie" na PDF przez SharePoint/Graph (bez trwałego załącznika) i dołącz strony
+            $tmpPdf = null;
+            try {
+                if (empty($z['sp_drive_id']) || empty($z['sp_item_id'])) {
+                    $sync = ezd_sp_sync_attachment((int)$z['id']);
+                    if (!$sync['ok']) throw new \RuntimeException($sync['error'] ?: 'Nie udało się wysłać pliku na SharePoint.');
+                    $z = ezd_zal_get((int)$z['id']);
+                }
+                require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+                $graph      = new M365Graph();
+                $pdfContent = $graph->sp_download_file_as_pdf($z['sp_drive_id'], $z['sp_item_id']);
+                $tmpPdf     = tempnam(sys_get_temp_dir(), 'ezdcv_');
+                file_put_contents($tmpPdf, $pdfContent);
+                $count = $pdf->setSourceFile($tmpPdf);
+                for ($i = 1; $i <= $count; $i++) {
+                    $tpl  = $pdf->importPage($i);
+                    $size = $pdf->getTemplateSize($tpl);
+                    $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
+                    $pdf->useTemplate($tpl);
+                }
+            } catch (\Throwable $e) {
+                $notePage($z, 'Nie udało się przekonwertować pliku na PDF (' . $e->getMessage() . '). Oryginał dostępny w repozytorium koszulki.');
+            } finally {
+                if ($tmpPdf) @unlink($tmpPdf);
+            }
         } else {
             $notePage($z, 'Załącznik nie jest plikiem PDF ani obrazem (' . strtoupper($ext ?: 'plik') . ') — oryginał dostępny w repozytorium koszulki.');
         }
@@ -321,7 +349,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="card-body p-0">
       <?php foreach ($zalaczniki as $i => $z):
         $ext       = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
-        $printable = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true);
+        $printable = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true) || in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true);
         $icon      = ezd_file_icon($z['original_name']);
         $bg        = $i % 2 === 0 ? '' : 'style="background:#fafbfc"';
       ?>
@@ -349,7 +377,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php endforeach; ?>
     </div>
     <div class="card-footer border-0 bg-white px-4 py-2" style="font-size:.76rem;color:#94a3b8">
-      <i class="bi bi-info-circle me-1"></i>PDF i obrazy (JPG, PNG) można eksportować do PDF. Inne formaty pobierz jako oryginał — są wykazane na okładce PDF całej koszulki.
+      <i class="bi bi-info-circle me-1"></i>PDF, obrazy (JPG, PNG) i pliki Word/Excel (DOC, DOCX, XLS, XLSX — konwertowane automatycznie) można eksportować do PDF. Inne formaty pobierz jako oryginał — są wykazane na okładce PDF całej koszulki.
     </div>
   </div>
   <?php endif; ?>
