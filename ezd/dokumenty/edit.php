@@ -14,7 +14,7 @@ $id  = (int)($_GET['id'] ?? 0);
 $doc = ezd_dokument_get($id);
 if (!$doc) { flash_set('error','Dokument nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 if ($doc['sprawa_status'] === 'closed' && !is_admin()) {
-    flash_set('error','Sprawa jest zamknięta.'); header('Location:'.APP_URL.'/ezd/dokumenty/view.php?id='.$id); exit;
+    flash_set('error','Koszulka jest zamknięta.'); header('Location:'.APP_URL.'/ezd/dokumenty/view.php?id='.$id); exit;
 }
 
 $PAGE_TITLE = 'Edycja — '.$doc['sygnatura'];

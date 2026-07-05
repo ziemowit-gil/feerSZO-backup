@@ -626,7 +626,7 @@ function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
          JOIN ezd_teczki t ON t.id = s.teczka_id
          LEFT JOIN users u ON u.id = s.owner_id
          WHERE " . implode(' AND ', $where) . "
-         ORDER BY s.updated_at DESC
+         ORDER BY s.title ASC
          LIMIT 200",
         $params
     );
@@ -634,8 +634,8 @@ function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
 
 function ezd_sprawa_create(array $d, int $user_id): int {
     $teczka = ezd_teczka_get((int)$d['teczka_id']);
-    if (!$teczka) throw new \RuntimeException('Teczka nie istnieje.');
-    if ($teczka['status'] === 'closed') throw new \RuntimeException('Teczka jest zamknięta.');
+    if (!$teczka) throw new \RuntimeException('Segregator nie istnieje.');
+    if ($teczka['status'] === 'closed') throw new \RuntimeException('Segregator jest zamknięty.');
 
     $rok   = (int)date('Y');
     $numer = _ezd_next_numer((int)$d['teczka_id'], $rok);
@@ -645,7 +645,7 @@ function ezd_sprawa_create(array $d, int $user_id): int {
     if ($parent_id) {
         $parent = ezd_sprawa_get($parent_id);
         if (!$parent || (int)$parent['teczka_id'] !== (int)$d['teczka_id']) {
-            throw new \RuntimeException('Podsprawa musi należeć do tej samej teczki co sprawa nadrzędna.');
+            throw new \RuntimeException('Podkoszulka musi należeć do tego samego segregatora co koszulka nadrzędna.');
         }
     }
 
@@ -691,7 +691,7 @@ function ezd_sprawa_update(int $id, array $d, int $user_id): void {
 
     // Blokada zamkniętej sprawy dla nie-adminów
     if ($sprawa['status'] === 'closed' && !is_admin()) {
-        throw new \RuntimeException('Sprawa jest zamknięta. Skontaktuj się z administratorem.');
+        throw new \RuntimeException('Koszulka jest zamknięta. Skontaktuj się z administratorem.');
     }
 
     $ciagla   = array_key_exists('ciagla', $d) ? (!empty($d['ciagla']) ? 1 : 0) : (int)($sprawa['ciagla'] ?? 0);
@@ -909,7 +909,7 @@ function ezd_etap_badge(?string $etap): string {
 function ezd_sprawa_set_etap(int $id, string $etap, int $user_id): void {
     $s = ezd_sprawa_get($id);
     if (!$s) return;
-    if ($s['status'] === 'closed' && !is_admin()) throw new \RuntimeException('Sprawa jest zamknięta.');
+    if ($s['status'] === 'closed' && !is_admin()) throw new \RuntimeException('Koszulka jest zamknięta.');
 
     $steps = ezd_sprawa_workflow($s);
     $keys  = array_column($steps, 'key');
@@ -1029,7 +1029,7 @@ function ezd_pisma_by_sprawa(int $sprawa_id): array {
 
 function ezd_pismo_create(array $d, int $user_id): int {
     $sprawa   = ezd_sprawa_get((int)$d['sprawa_id']);
-    if (!$sprawa) throw new \RuntimeException('Sprawa nie istnieje.');
+    if (!$sprawa) throw new \RuntimeException('Koszulka nie istnieje.');
     _ezd_check_sprawa_open($sprawa);
 
     $sygnatura = _ezd_next_sygnatura_pisma((int)$d['sprawa_id'], $sprawa['znak_sprawy']);
@@ -1110,7 +1110,7 @@ function ezd_umowy_by_sprawa(int $sprawa_id): array {
 
 function ezd_umowa_create(array $d, int $user_id): int {
     $sprawa = ezd_sprawa_get((int)$d['sprawa_id']);
-    if (!$sprawa) throw new \RuntimeException('Sprawa nie istnieje.');
+    if (!$sprawa) throw new \RuntimeException('Koszulka nie istnieje.');
     _ezd_check_sprawa_open($sprawa);
 
     $sygnatura = _ezd_next_sygnatura_umowy((int)$d['sprawa_id'], $sprawa['znak_sprawy']);
@@ -1139,7 +1139,7 @@ function ezd_umowa_update(int $id, array $d, int $user_id): void {
     $u = ezd_umowa_get($id);
     if (!$u) return;
     if ($u['sprawa_status'] === 'closed' && !is_admin()) {
-        throw new \RuntimeException('Sprawa jest zamknięta — edycja zablokowana.');
+        throw new \RuntimeException('Koszulka jest zamknięta — edycja zablokowana.');
     }
     db()->prepare(
         "UPDATE ezd_umowy SET title=:t,typ=:typ,strona=:str,wartosc=:war,waluta=:wal,
@@ -1324,10 +1324,10 @@ function ezd_rpw_assign(int $id, array $d, int $user_id): int {
             'deadline'    => null,
         ], $user_id);
     }
-    if (!$sprawa_id) throw new \RuntimeException('Wskaż sprawę lub teczkę dla nowej sprawy.');
+    if (!$sprawa_id) throw new \RuntimeException('Wskaż koszulkę lub segregator dla nowej koszulki.');
 
     $sprawa = ezd_sprawa_get($sprawa_id);
-    if (!$sprawa) throw new \RuntimeException('Sprawa nie istnieje.');
+    if (!$sprawa) throw new \RuntimeException('Koszulka nie istnieje.');
 
     // Utwórz pismo przychodzące z danych przesyłki
     $pismo_id = ezd_pismo_create([
@@ -1472,7 +1472,7 @@ function _ezd_next_sygnatura_dok(int $sprawa_id, string $znak): string {
 
 function ezd_dokument_create(array $d, int $user_id): int {
     $sprawa = ezd_sprawa_get((int)$d['sprawa_id']);
-    if (!$sprawa) throw new \RuntimeException('Sprawa nie istnieje.');
+    if (!$sprawa) throw new \RuntimeException('Koszulka nie istnieje.');
     _ezd_check_sprawa_open($sprawa);
     $syg = _ezd_next_sygnatura_dok((int)$d['sprawa_id'], $sprawa['znak_sprawy']);
     db()->prepare(
@@ -1495,7 +1495,7 @@ function ezd_dokument_update(int $id, array $d, int $user_id): void {
     $doc = ezd_dokument_get($id);
     if (!$doc) return;
     if ($doc['sprawa_status'] === 'closed' && !is_admin()) {
-        throw new \RuntimeException('Sprawa jest zamknięta — edycja zablokowana.');
+        throw new \RuntimeException('Koszulka jest zamknięta — edycja zablokowana.');
     }
     db()->prepare(
         "UPDATE ezd_dokumenty SET rodzaj=:rodz,title=:title,tresc=:tresc,status=:status,
@@ -2582,7 +2582,7 @@ function ezd_file_icon(string $name): string {
 
 function _ezd_check_sprawa_open(array $sprawa): void {
     if ($sprawa['status'] === 'closed' && !is_admin()) {
-        throw new \RuntimeException('Sprawa jest zamknięta. Edycja zablokowana dla nieadministratorów.');
+        throw new \RuntimeException('Koszulka jest zamknięta. Edycja zablokowana dla nieadministratorów.');
     }
 }
 

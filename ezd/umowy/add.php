@@ -9,9 +9,9 @@ if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP
 
 $sprawa_id = (int)($_GET['sprawa_id'] ?? 0);
 $sprawa    = ezd_sprawa_get($sprawa_id);
-if (!$sprawa) { flash_set('error','Sprawa nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
+if (!$sprawa) { flash_set('error','Koszulka nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 if ($sprawa['status'] === 'closed' && !is_admin()) {
-    flash_set('error','Sprawa jest zamknięta.'); header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$sprawa_id); exit;
+    flash_set('error','Koszulka jest zamknięta.'); header('Location:'.APP_URL.'/ezd/sprawy/view.php?id='.$sprawa_id); exit;
 }
 
 $PAGE_TITLE = 'Nowa umowa — '.$sprawa['znak_sprawy'];

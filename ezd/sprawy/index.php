@@ -126,10 +126,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div>
     <?php foreach($sprawy as $s): ?>
     <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="sprawa-row">
-      <div class="sprawa-znak"><?= h($s['znak_sprawy']) ?></div>
       <div class="flex-grow-1 overflow-hidden">
         <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($s['title']) ?></div>
-        <div class="text-muted" style="font-size:.74rem"><i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?></div>
+        <div class="text-muted" style="font-size:.74rem"><span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?></div>
       </div>
       <?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?>
       <?= ezd_priority_badge($s['priority']) ?>

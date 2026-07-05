@@ -11,7 +11,7 @@ $id    = (int)($_GET['id'] ?? 0);
 $umowa = ezd_umowa_get($id);
 if (!$umowa) { flash_set('error','Umowa nie istnieje.'); header('Location:'.APP_URL.'/ezd/sprawy/index.php'); exit; }
 if ($umowa['sprawa_status'] === 'closed' && !is_admin()) {
-    flash_set('error','Sprawa jest zamknięta.'); header('Location:'.APP_URL.'/ezd/umowy/view.php?id='.$id); exit;
+    flash_set('error','Koszulka jest zamknięta.'); header('Location:'.APP_URL.'/ezd/umowy/view.php?id='.$id); exit;
 }
 
 $PAGE_TITLE = 'Edytuj: '.$umowa['sygnatura'];

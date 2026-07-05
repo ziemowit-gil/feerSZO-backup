@@ -12,7 +12,7 @@ if (!$pismo) { flash_set('error','Pismo nie istnieje.'); header('Location:'.APP_
 $_sprawa_pisma = ezd_sprawa_get((int)$pismo['sprawa_id']);
 if (!$_sprawa_pisma || ezd_sprawa_access($_sprawa_pisma, (int)current_user()['id']) !== 'write') { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/index.php'); exit; }
 if ($pismo['sprawa_status'] === 'closed' && !is_admin()) {
-    flash_set('error','Sprawa jest zamknięta.'); header('Location:'.APP_URL.'/ezd/pisma/view.php?id='.$id); exit;
+    flash_set('error','Koszulka jest zamknięta.'); header('Location:'.APP_URL.'/ezd/pisma/view.php?id='.$id); exit;
 }
 
 $PAGE_TITLE = 'Edytuj: '.$pismo['sygnatura'];

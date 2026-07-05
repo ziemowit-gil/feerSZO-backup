@@ -36,7 +36,7 @@ $my_sprawy = db_all(
      JOIN ezd_teczki t ON t.id=s.teczka_id
      WHERE s.status!='closed' AND (s.owner_id=? OR s.created_by=?
            OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))
-     ORDER BY (s.deadline IS NULL), s.deadline ASC, s.updated_at DESC LIMIT 8",
+     ORDER BY s.title ASC LIMIT 8",
     [$user_id, $user_id, $user_id, $user_id, $user_id]
 );
 // Moje pisma (jestem referentem)
@@ -151,9 +151,11 @@ include dirname(__DIR__) . '/includes/header.php';
         <tbody>
         <?php foreach($my_sprawy as $s): ?>
           <tr onclick="location='<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>'" style="cursor:pointer">
-            <td class="font-monospace fw-semibold text-primary" style="white-space:nowrap;font-size:.74rem"><?= h($s['znak_sprawy']) ?></td>
-            <td class="text-truncate" style="max-width:1px"><?= h($s['title']) ?>
-              <?php if(!empty($s['is_shared'])): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-1" style="font-size:.6rem"><i class="bi bi-people me-1"></i>Współdzielona</span><?php endif; ?>
+            <td class="text-truncate" style="max-width:1px">
+              <div class="fw-semibold text-truncate"><?= h($s['title']) ?>
+                <?php if(!empty($s['is_shared'])): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-1" style="font-size:.6rem"><i class="bi bi-people me-1"></i>Współdzielona</span><?php endif; ?>
+              </div>
+              <div class="font-monospace text-muted" style="font-size:.68rem"><?= h($s['znak_sprawy']) ?></div>
             </td>
             <td class="text-nowrap"><?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?></td>
             <td class="text-nowrap text-end" style="font-size:.72rem">
@@ -197,13 +199,13 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0" style="font-size:.8rem">
           <thead class="table-light">
-            <tr><th>Znak koszulki</th><th>Tytuł</th><th>Priorytet</th><th>Deadline</th><th>Właściciel</th></tr>
+            <tr><th>Tytuł</th><th>Znak koszulki</th><th>Priorytet</th><th>Deadline</th><th>Właściciel</th></tr>
           </thead>
           <tbody>
           <?php foreach ($recent_sprawy as $s): ?>
           <tr>
-            <td><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="fw-semibold font-monospace text-decoration-none" style="font-size:.75rem"><?= h($s['znak_sprawy']) ?></a></td>
-            <td><?= h(mb_substr($s['title'], 0, 45)) ?></td>
+            <td><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="fw-semibold text-decoration-none"><?= h(mb_substr($s['title'], 0, 45)) ?></a></td>
+            <td class="font-monospace text-muted" style="font-size:.72rem"><?= h($s['znak_sprawy']) ?></td>
             <td><?= ezd_priority_badge($s['priority']) ?></td>
             <td class="<?= $s['deadline'] && $s['deadline'] < date('Y-m-d') ? 'text-danger fw-bold' : '' ?>">
               <?= $s['deadline'] ? date_pl($s['deadline']) : '—' ?>
