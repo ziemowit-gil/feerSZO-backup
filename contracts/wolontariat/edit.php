@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'data_urodzenia', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
             'data_szkolenia_bhp', 'epodpis_data_waznosci',
             'person_id', 'org_unit_id', 'org_position_id', 'action_id', 'grant_id',
-            'guardian_editor_id',
+            'guardian_editor_id', 'opiekun_wolontariusz_id',
             'webngo_id', 'numer_polisy_nnw', 'id_dokumentu_el',
             'pesel', 'seria_nr_dowodu',
             'm365_security_group_id',
@@ -116,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $allowed = ['numer_umowy', 'status', 'imie_nazwisko', 'pesel', 'adres', 'telefon', 'email',
             'addr_street', 'addr_house', 'addr_flat', 'addr_postal', 'addr_city', 'addr_country',
             'data_urodzenia', 'niepelnoletni', 'zgoda_opiekuna', 'rodzic_imie_nazwisko', 'rodzic_email', 'rodzic_telefon',
+            'opiekun_wolontariusz_id',
             'przedmiot_porozumienia',
             'miejsce_wolontariatu', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
             'bezterminowa', 'godzin_tygodniowo', 'godzin_korekta', 'ubezpieczenie_nnw',
@@ -229,6 +230,16 @@ catch (\Throwable $e) { $__units = []; }
 // Edytorzy do selecta opiekuna
 try { $__editors = db_all("SELECT id, CASE WHEN first_name!='' AND last_name!='' THEN first_name||' '||last_name ELSE name END AS display_name FROM users WHERE role IN ('admin','editor') AND is_active=1 ORDER BY display_name"); }
 catch (\Throwable $e) { $__editors = []; }
+// Dorośli wolontariusze (inne umowy) do selecta opiekuna towarzyszącego małoletniemu
+try {
+    $__opiekunowie_wol = db_all(
+        "SELECT id, imie_nazwisko FROM umowy_wolontariat
+         WHERE id != ? AND (niepelnoletni = 0 OR niepelnoletni IS NULL)
+           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
+         ORDER BY imie_nazwisko",
+        [(int)$id]
+    );
+} catch (\Throwable $e) { $__opiekunowie_wol = []; }
 $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 'secondary'];
 ?>
 <style>
@@ -674,6 +685,26 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
           <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Wyznacz / powiąż konto opiekuna
         </a>
         <div class="form-text">Utworzy (jeśli brak) i powiąże konto rodzica z kontem dziecka — opiekun będzie mógł wejść na konto dziecka ze swojego panelu.</div>
+      </div>
+    </div>
+
+    <div class="p-3 mt-2 rounded" style="background:#eff6ff;border:1px solid #bfdbfe">
+      <div class="fw-semibold small mb-2">
+        <i class="bi bi-person-check text-primary me-1"></i>Opiekun towarzyszący (wolontariusz)
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6 fgroup">
+          <label>Dorosły wolontariusz nadzorujący</label>
+          <select name="opiekun_wolontariusz_id" class="form-select form-select-sm">
+            <option value="">— brak —</option>
+            <?php foreach ($__opiekunowie_wol as $ow): ?>
+            <option value="<?= (int)$ow['id'] ?>" <?= (int)($row['opiekun_wolontariusz_id'] ?? 0) === (int)$ow['id'] ? 'selected' : '' ?>>
+              <?= h($ow['imie_nazwisko']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Dorosły wolontariusz FEER towarzyszący małoletniemu przy wykonywaniu świadczeń — pole informacyjne/organizacyjne, bez wpływu na zgodę przedstawiciela ustawowego.</div>
+        </div>
       </div>
     </div>
   </div>

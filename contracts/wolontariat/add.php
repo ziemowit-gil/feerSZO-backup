@@ -34,6 +34,16 @@ $_editors = db_all(
      ORDER BY display_name"
 );
 
+// Dorośli wolontariusze (inne umowy) do selecta opiekuna towarzyszącego małoletniemu
+try {
+    $__opiekunowie_wol = db_all(
+        "SELECT id, imie_nazwisko FROM umowy_wolontariat
+         WHERE (niepelnoletni = 0 OR niepelnoletni IS NULL)
+           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
+         ORDER BY imie_nazwisko"
+    );
+} catch (\Throwable $e) { $__opiekunowie_wol = []; }
+
 $m365_enabled = (new M365Graph())->is_configured();
 
 // Obszary zadań do sugestii przy wyborze grupy M365
@@ -496,7 +506,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row['m365_security_group_id']    = trim($_POST['m365_security_group_id']   ?? '') ?: null;
         $row['m365_security_group_name']  = trim($_POST['m365_security_group_name'] ?? '') ?: null;
 
-        foreach (['godzin_tygodniowo', 'limit_zwrotu_kosztow', 'rpts_data_weryfikacji'] as $f) {
+        foreach (['godzin_tygodniowo', 'limit_zwrotu_kosztow', 'rpts_data_weryfikacji', 'opiekun_wolontariusz_id'] as $f) {
             if (isset($row[$f]) && $row[$f] === '') $row[$f] = null;
         }
         // Godziny przepracowane są wyliczane z zadań — wartość z formularza traktujemy
@@ -524,6 +534,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $allowed = ['numer_umowy', 'status', 'imie_nazwisko', 'pesel', 'adres', 'telefon', 'email',
             'data_urodzenia', 'niepelnoletni', 'zgoda_opiekuna', 'rodzic_imie_nazwisko', 'rodzic_email', 'rodzic_telefon',
+            'opiekun_wolontariusz_id',
             'przedmiot_porozumienia',
             'miejsce_wolontariatu', 'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
             'bezterminowa', 'godzin_tygodniowo', 'godzin_korekta', 'ubezpieczenie_nnw',
@@ -1431,6 +1442,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div class="col-sm-4">
             <label class="form-label fw-semibold small">Zgoda opiekuna (plik)</label>
             <input name="zgoda_opiekuna" type="file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label fw-semibold small">Opiekun towarzyszący (wolontariusz)</label>
+            <select name="opiekun_wolontariusz_id" class="form-select">
+              <option value="">— brak —</option>
+              <?php foreach ($__opiekunowie_wol as $ow): ?>
+              <option value="<?= (int)$ow['id'] ?>" <?= (int)($row['opiekun_wolontariusz_id'] ?? 0) === (int)$ow['id'] ? 'selected' : '' ?>>
+                <?= h($ow['imie_nazwisko']) ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Dorosły wolontariusz FEER nadzorujący małoletniego — informacyjnie, bez wpływu na zgodę przedstawiciela ustawowego.</div>
           </div>
         </div>
       </div>

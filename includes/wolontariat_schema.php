@@ -34,6 +34,10 @@
         'powiat'           => "VARCHAR(255)",
         'wojewodztwo'      => "VARCHAR(100)",
         'teryt_kod'        => "VARCHAR(20)",
+        // Opiekun towarzyszący (dorosły wolontariusz nadzorujący małoletniego
+        // podczas świadczeń) — informacyjne, bez wpływu na zgodę RODO/wolontariat
+        // przedstawiciela ustawowego (zob. includes/guardian_consent.php).
+        'opiekun_wolontariusz_id' => "INTEGER",
     ];
 
     foreach ($columns as $name => $def) {

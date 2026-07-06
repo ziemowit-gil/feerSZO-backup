@@ -1610,6 +1610,25 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
       </div>
       <?php endif; ?>
 
+      <?php if ($row['niepelnoletni'] && !empty($row['opiekun_wolontariusz_id'])):
+        $__op_wol = db_one("SELECT id, imie_nazwisko FROM umowy_wolontariat WHERE id=?", [(int)$row['opiekun_wolontariusz_id']]);
+      ?>
+      <div class="cv-field-full mt-1">
+        <div class="border rounded p-2 bg-info-subtle small">
+          <div class="fw-semibold mb-1 text-info-emphasis">
+            <i class="bi bi-person-check"></i> Opiekun towarzyszący (wolontariusz)
+          </div>
+          <?php if ($__op_wol): ?>
+          <a href="<?= APP_URL ?>/contracts/wolontariat/view.php?id=<?= (int)$__op_wol['id'] ?>">
+            <?= h($__op_wol['imie_nazwisko']) ?>
+          </a>
+          <?php else: ?>
+          <span class="text-muted">— umowa opiekuna nie została znaleziona —</span>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
       <?php if ($row['adres_linia1'] || $row['adres_odbiorca']): ?>
       <div class="cv-field-full"><hr class="my-1">
         <div class="cv-label"><i class="bi bi-mailbox"></i> Adres do korespondencji</div>
