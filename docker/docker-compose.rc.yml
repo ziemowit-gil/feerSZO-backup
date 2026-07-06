@@ -1,0 +1,56 @@
+# ── Roundcube ("rc") addon — webmail dla userów, logowanie OAuth2 do M365 ─────
+#
+# DEV:
+#   docker compose -f docker-compose.yml -f docker-compose.rc.yml up -d
+#
+# PROD:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.rc.yml --env-file .env.prod up -d
+#
+# Przed uruchomieniem ustaw w .env / .env.prod (zob. sekcja "Roundcube" w
+# .env.prod.example) oraz wykonaj kroki manualne opisane w docker/roundcube/README.md
+# (rejestracja aplikacji Azure AD, rekord DNS poczta.feer.org.pl).
+#
+# Roundcube trzyma własną (małą) bazę w SQLite — trwały wolumin rc_db.
+# Skrzynki użytkowników to Microsoft 365 (IMAP/SMTP outlook.office365.com /
+# smtp.office365.com), logowanie przez OAuth2 — hasła do skrzynek NIE są
+# przechowywane w Roundcube. Konfiguracja: ./roundcube/config.inc.php.
+# Plugin OneDrive ("dołącz z OneDrive" w oknie tworzenia maila): zob.
+# ./roundcube/plugins/onedrive_picker/ — reużywa tokenu OAuth z logowania.
+
+services:
+
+  rc:
+    image: roundcube/roundcubemail:latest   # przypiąć konkretny tag przed produkcją
+    container_name: feer-rc
+    restart: unless-stopped
+    environment:
+      ROUNDCUBEMAIL_DB_TYPE:   sqlite
+      ROUNDCUBEMAIL_SKIN:      elastic
+      RC_DOMAIN:               ${RC_DOMAIN:-localhost}
+      RC_TENANT_ID:            ${RC_TENANT_ID:-}
+      RC_OAUTH_CLIENT_ID:      ${RC_OAUTH_CLIENT_ID:-}
+      RC_OAUTH_CLIENT_SECRET:  ${RC_OAUTH_CLIENT_SECRET:-}
+      RC_IMAP_HOST:            ${RC_IMAP_HOST:-ssl://outlook.office365.com:993}
+      RC_SMTP_HOST:            ${RC_SMTP_HOST:-tls://smtp.office365.com:587}
+    volumes:
+      - rc_db:/var/roundcube/db
+      - ./roundcube/config.inc.php:/var/roundcube/config/config.inc.php:ro
+      - ./roundcube/plugins/onedrive_picker:/var/www/html/plugins/onedrive_picker:ro
+    labels:
+      # Bez efektu w dev (Traefik nie działa) — aktywne dopiero z docker-compose.prod.yml.
+      - "traefik.enable=true"
+      - "traefik.http.routers.rc.rule=Host(`${RC_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.rc.entrypoints=websecure"
+      - "traefik.http.routers.rc.tls=true"
+      - "traefik.http.routers.rc.tls.certresolver=le"
+      - "traefik.http.routers.rc.middlewares=sec-headers@docker"
+      - "traefik.http.services.rc.loadbalancer.server.port=80"
+      - "traefik.http.routers.rc-http.rule=Host(`${RC_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.rc-http.entrypoints=web"
+      - "traefik.http.routers.rc-http.middlewares=https-redirect@docker"
+    networks:
+      - feer
+
+volumes:
+  rc_db:

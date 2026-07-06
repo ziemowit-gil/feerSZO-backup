@@ -16,6 +16,7 @@ $settings_keys = [
     'poczta_download_attachments',
     'poczta_attach_max_kb',
     'poczta_worker_batch',
+    'poczta_webmail_url',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -29,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'poczta_download_attachments'  => isset($_POST['poczta_download_attachments']) ? '1' : '0',
         'poczta_attach_max_kb'         => (string)max(1, (int)($_POST['poczta_attach_max_kb'] ?? 5120)),
         'poczta_worker_batch'          => (string)max(1, (int)($_POST['poczta_worker_batch'] ?? 5)),
+        'poczta_webmail_url'           => trim((string)($_POST['poczta_webmail_url'] ?? '')),
     ];
     foreach ($values as $k => $v) {
         org_setting_set($k, $v);
@@ -125,6 +127,15 @@ include dirname(__DIR__) . '/includes/header.php';
                         <input type="number" min="1" class="form-control" name="poczta_worker_batch" value="<?= h($cfg['poczta_worker_batch']) ?>">
                         <div class="form-text">Ile zadań ze skrzynki <code>poczta_skanowanie</code> przetwarza jeden przebieg <code>cron/poczta_worker.php</code>. Bez skonfigurowanego RabbitMQ (zmienna <code>RABBITMQ_HOST</code>) skanowanie odbywa się synchronicznie w <code>cron/poczta_dispatch.php</code>.</div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold"><i class="bi bi-envelope-open me-2 text-primary"></i>Webmail (Roundcube)</div>
+                <div class="card-body">
+                    <label class="form-label">Adres webmaila</label>
+                    <input type="url" class="form-control" name="poczta_webmail_url" placeholder="https://poczta.feer.org.pl" value="<?= h($cfg['poczta_webmail_url']) ?>">
+                    <div class="form-text">Osobny serwis Docker (<code>rc</code>/Roundcube, <code>docker/docker-compose.rc.yml</code>) — logowanie OAuth2 do Microsoft 365, dołączanie plików z OneDrive. Wypełnienie tego pola pokazuje przycisk „Otwórz Roundcube" w panelu Poczty. Wdrożenie i konfiguracja Azure AD: <code>docker/roundcube/README.md</code>.</div>
                 </div>
             </div>
 

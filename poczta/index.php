@@ -16,14 +16,23 @@ try {
     $_mailboxes = db_all("SELECT * FROM poczta_mailboxes ORDER BY mailbox ASC");
 } catch (\Throwable $e) {}
 
+$_webmail_url = org_setting('poczta_webmail_url');
+
 include __DIR__ . '/includes/header_poczta.php';
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0 fw-bold"><i class="bi bi-inboxes me-2" style="color:var(--pc-blue)"></i>Skrzynki do skanowania</h4>
-    <a href="<?= APP_URL ?>/poczta/add.php" class="btn btn-sm btn-primary" style="background:var(--pc-blue);border-color:var(--pc-blue)">
-        <i class="bi bi-plus-lg me-1"></i>Dodaj skrzynkę
-    </a>
+    <div class="d-flex gap-2">
+        <?php if ($_webmail_url): ?>
+        <a href="<?= h($_webmail_url) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz Roundcube
+        </a>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/poczta/add.php" class="btn btn-sm btn-primary" style="background:var(--pc-blue);border-color:var(--pc-blue)">
+            <i class="bi bi-plus-lg me-1"></i>Dodaj skrzynkę
+        </a>
+    </div>
 </div>
 
 <div class="alert alert-secondary py-2 small">
