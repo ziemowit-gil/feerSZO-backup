@@ -321,6 +321,12 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
     </button>
   </div>
 
+  <!-- Legenda statusu potwierdzenia -->
+  <div class="tk-legend" aria-label="Legenda oznaczeń przy statusie">
+    <span><span class="tk-confirm-badge z" aria-hidden="true">Z</span> Zakończone, ale niepotwierdzone</span>
+    <span><span class="tk-confirm-badge zp" aria-hidden="true">ZP</span> Zakończone i potwierdzone przez zlecającego</span>
+  </div>
+
   <div style="overflow-x:auto">
     <table class="tk-table"
            id="task-table"
@@ -443,6 +449,15 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                   title="Kliknij aby cofnąć ukończenie">
             <i class="bi bi-check-circle-fill" aria-hidden="true"></i> Ukończone
           </button>
+          <?php if (!empty($task['confirmed_at'])): ?>
+          <span class="tk-confirm-badge zp"
+                title="Potwierdzone przez zlecającego <?= h(substr($task['confirmed_at'],0,10)) ?>"
+                aria-label="Zakończone i potwierdzone przez zlecającego">ZP</span>
+          <?php else: ?>
+          <span class="tk-confirm-badge z"
+                title="Zakończone, ale niepotwierdzone przez zlecającego"
+                aria-label="Zakończone, ale niepotwierdzone przez zlecającego">Z</span>
+          <?php endif; ?>
           <?php else: ?>
           <button type="button" class="tk-status <?= $status_info[0] ?> tk-status-btn"
                   data-task-id="<?= $task['id'] ?>"
@@ -822,6 +837,23 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .s-open  {background:#dcfce7;color:#15803d}
 .s-taken {background:#dbeafe;color:#1d4ed8}
 .s-done  {background:#f1f5f9;color:#64748b}
+
+/* Badge potwierdzenia wykonania (Z / ZP) */
+.tk-confirm-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:1.35rem;height:1.15rem;padding:0 .3rem;margin-left:.3rem;
+  border-radius:.3rem;font-size:.62rem;font-weight:800;letter-spacing:.02em;
+  vertical-align:middle;
+}
+.tk-confirm-badge.z  {background:#fef3c7;color:#b45309}
+.tk-confirm-badge.zp {background:#ede9fe;color:#7c3aed}
+
+/* Legenda nad tabelą */
+.tk-legend{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1.25rem;
+  font-size:.75rem;color:#64748b;padding:.15rem .25rem .75rem;
+}
+.tk-legend .tk-confirm-badge{margin-left:0;margin-right:.35rem}
 
 /* Priorytet dot */
 .pri-dot{
