@@ -191,9 +191,10 @@ body {
 
 .tsk-ws-switch-menu {
   width: 290px; max-height: 420px;
-  display: flex; flex-direction: column;
+  flex-direction: column;
   padding: 0; overflow: hidden;
 }
+.tsk-ws-switch-menu.show { display: flex; }
 .tsk-ws-switch-search-wrap { padding: .5rem; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
 .tsk-ws-switch-list { overflow-y: auto; }
 .tsk-ws-switch-item {
