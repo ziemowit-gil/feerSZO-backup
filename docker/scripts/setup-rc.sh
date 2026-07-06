@@ -173,6 +173,27 @@ COMPOSE=(docker compose "${COMPOSE_FILES[@]}" --env-file "${ENV_FILE}")
 "${COMPOSE[@]}" up -d --remove-orphans rc
 ok "Kontener Roundcube uruchomiony/zaktualizowany"
 
+# ── 4b. Uprawnienia do wolumenu SQLite ───────────────────────────────────────
+section "4b. Uprawnienia wolumenu bazy Roundcube"
+
+# Świeży nazwany wolumin (rc_db) Docker tworzy jako root:root — Apache/PHP w
+# obrazie roundcube/roundcubemail działają jako www-data, więc bez tego SQLite
+# zwraca "unable to open database file" (SQLITE_CANTOPEN) na KAŻDYM żądaniu,
+# od razu, jeszcze przed OAuth. Błąd trafia do logs/errors.log W KONTENERZE
+# (nie do stdout/docker logs!), a strona wynikowa to generyczne "Oops..." z
+# kodem HTTP 200 — stąd łatwo to przeoczyć patrząc tylko na `docker logs`.
+# Bezpieczne do wielokrotnego uruchamiania.
+for i in $(seq 1 6); do
+    [[ "$(docker inspect "${RC_CONTAINER}" --format '{{.State.Status}}' 2>/dev/null)" == "running" ]] && break
+    sleep 5
+done
+if docker exec -u root "${RC_CONTAINER}" chown -R www-data:www-data /var/roundcube/db 2>/dev/null; then
+    ok "Uprawnienia /var/roundcube/db poprawione (www-data)"
+else
+    warn "Nie udało się poprawić uprawnień /var/roundcube/db — sprawdź ręcznie:"
+    warn "  docker exec -u root ${RC_CONTAINER} chown -R www-data:www-data /var/roundcube/db"
+fi
+
 # ── 5. Czekaj aż Roundcube wstanie ───────────────────────────────────────────
 section "5. Oczekiwanie na Roundcube"
 
