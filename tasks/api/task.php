@@ -262,13 +262,46 @@ if ($action === 'reopen') {
     );
     $now = date('Y-m-d H:i:s');
     if ($first_list) {
-        db()->prepare("UPDATE tasks SET list_id=?, completed_at=NULL, updated_at=? WHERE id=?")
+        db()->prepare("UPDATE tasks SET list_id=?, completed_at=NULL, confirmed_at=NULL, confirmed_by=NULL, updated_at=? WHERE id=?")
             ->execute([$first_list['id'], $now, $id]);
         task_log($id, $uid, 'reopened', null, $first_list['name']);
     } else {
-        db()->prepare("UPDATE tasks SET completed_at=NULL, updated_at=? WHERE id=?")->execute([$now, $id]);
+        db()->prepare("UPDATE tasks SET completed_at=NULL, confirmed_at=NULL, confirmed_by=NULL, updated_at=? WHERE id=?")->execute([$now, $id]);
         task_log($id, $uid, 'reopened');
     }
+    task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
+}
+
+// ── Potwierdź wykonanie (zlecający akceptuje ukończenie) ────────────────────
+if ($action === 'confirm') {
+    $id = (int)($body['id'] ?? 0);
+    if (!$id) task_api_error('Brak ID zadania.');
+    $task = db_one("SELECT * FROM tasks WHERE id=? AND deleted_at IS NULL", [$id]);
+    if (!$task) task_api_error('Zadanie nie istnieje.', 404);
+
+    task_require_workspace_access((int)$task['workspace_id']);
+
+    if (!$task['completed_at']) task_api_error('Zadanie nie jest jeszcze ukończone.');
+    if (!empty($task['confirmed_at'])) task_api_error('Wykonanie zostało już potwierdzone.');
+
+    $ws_role    = task_workspace_role((int)$task['workspace_id']);
+    $is_creator = (int)$task['created_by'] === $uid;
+    if (!$is_creator && !in_array($ws_role, ['admin', 'editor'], true)) {
+        task_api_error('Tylko osoba zlecająca zadanie lub lider obszaru może potwierdzić wykonanie.', 403);
+    }
+
+    // Samonaprawa schematu — kolumny mogły nie zostać jeszcze zmigrowane.
+    try { db()->exec("ALTER TABLE tasks ADD COLUMN confirmed_at TEXT DEFAULT NULL"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE tasks ADD COLUMN confirmed_by INTEGER DEFAULT NULL"); } catch (\Throwable $e) {}
+
+    $now = date('Y-m-d H:i:s');
+    db()->prepare("UPDATE tasks SET confirmed_at=?, confirmed_by=?, updated_at=? WHERE id=?")
+        ->execute([$now, $uid, $now, $id]);
+    task_log($id, $uid, 'confirmed');
+
+    require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
+    task_notify_confirmed($id, $uid);
+
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
 }
 

@@ -79,6 +79,11 @@ $is_done = (bool)$task['completed_at'];
 $overdue = $task['due_date'] && !$is_done
            && strtotime($task['due_date']) < strtotime('today');
 
+// ── Potwierdzenie wykonania przez zlecającego ─────────────────────────────
+$is_confirmed = !empty($task['confirmed_at'] ?? null);
+$can_confirm  = $is_done && !$is_confirmed
+                && ((int)$task['created_by'] === $uid || $can_edit);
+
 // ── Komórka organizacyjna aktora — do „Poproś o przejęcie" ───────────────
 $_actor_is_sys_admin = (db_one("SELECT role FROM users WHERE id=?", [$uid])['role'] ?? '') === 'admin';
 
@@ -251,6 +256,9 @@ function td_render_mentions(string $text, array $users): string {
 /* Warianty */
 .td-ab-primary { background: #16a34a; color: #fff; border-color: #16a34a; }
 .td-ab-primary:hover { background: #15803d; border-color: #15803d; color: #fff; }
+
+.td-ab-confirm { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+.td-ab-confirm:hover { background: #6d28d9; border-color: #6d28d9; color: #fff; }
 
 .td-ab-danger { color: #dc2626; border-color: #fecaca; }
 .td-ab-danger:hover { background: #fef2f2; border-color: #dc2626; }
@@ -520,6 +528,11 @@ function td_render_mentions(string $text, array $users): string {
       <i class="bi bi-check-circle me-1" aria-hidden="true"></i>Ukończone<?= $task['completed_at'] ? ' ' . substr($task['completed_at'],0,10) : '' ?>
     </span>
     <?php endif; ?>
+    <?php if ($is_confirmed): ?>
+    <span class="badge" style="background:#7c3aed">
+      <i class="bi bi-patch-check-fill me-1" aria-hidden="true"></i>Potwierdzone <?= substr($task['confirmed_at'],0,10) ?>
+    </span>
+    <?php endif; ?>
     <?php if ($overdue): ?>
     <span class="badge bg-danger">
       <i class="bi bi-alarm me-1" aria-hidden="true"></i>Po terminie
@@ -553,6 +566,18 @@ function td_render_mentions(string $text, array $users): string {
       <span>Wznów</span>
     </button>
     <?php endif; ?>
+    <?php endif; ?>
+
+    <!-- Potwierdź wykonanie — zlecający lub lider obszaru -->
+    <?php if ($can_confirm): ?>
+    <button type="button"
+            class="td-ab-btn td-ab-confirm"
+            id="td-btn-confirm"
+            onclick="tdConfirm()"
+            aria-label="Potwierdź wykonanie zadania">
+      <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+      <span>Potwierdź wykonanie</span>
+    </button>
     <?php endif; ?>
 
     <!-- Przekaż zadanie — lider/admin + komórka -->
@@ -1300,6 +1325,13 @@ $ev_defs = [
     'bg'          => '#fef9c3', 'color' => '#d97706',
     'badge_bg'    => '#fffbeb', 'badge_color' => '#d97706',
     'label'       => 'Wznowiono',
+    'desc'        => fn($e) => '',
+  ],
+  'confirmed' => [
+    'icon'        => 'bi-patch-check-fill',
+    'bg'          => '#ede9fe', 'color' => '#7c3aed',
+    'badge_bg'    => '#f5f3ff', 'badge_color' => '#7c3aed',
+    'label'       => 'Potwierdzono wykonanie',
     'desc'        => fn($e) => '',
   ],
   'tag_added' => [
@@ -2129,6 +2161,26 @@ window.tdReopen = function() {
         .then(r => {
             if (r.ok) { srAnnounce('Zadanie wznowione.'); openTask(TID); if (typeof tkAjaxLoad === 'function') tkAjaxLoad(); else setTimeout(() => location.reload(), 400); }
             else alert(r.error);
+        });
+};
+
+window.tdConfirm = function() {
+    if (!confirm('Potwierdzić wykonanie tego zadania? Wykonawca otrzyma powiadomienie.')) return;
+    const btn = document.getElementById('td-btn-confirm');
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Zapisuję…'; }
+    api('/tasks/api/task.php', {action:'confirm', id:TID})
+        .then(r => {
+            if (r.ok) {
+                srAnnounce('Wykonanie zadania potwierdzone.');
+                openTask(TID);
+                if (typeof tkAjaxLoad === 'function') tkAjaxLoad();
+            } else {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-patch-check-fill me-1" aria-hidden="true"></i>Potwierdź wykonanie';
+                }
+                alert(r.error);
+            }
         });
 };
 

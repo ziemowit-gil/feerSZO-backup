@@ -6,11 +6,13 @@
  * Publiczne API:
  *   task_notify_assigned(task_id, assigned_uid, by_uid)
  *   task_notify_new_comment(task_id, comment_id, body, author_uid)
+ *   task_notify_confirmed(task_id, by_uid)
  *   task_notify_get_pref(user_id)  → array
  *   task_notify_save_pref(user_id, array)
  */
 
 require_once __DIR__ . '/approval.php';   // approval_send_email()
+require_once __DIR__ . '/notifications.php';   // notif_create()
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PUBLICZNE FUNKCJE
@@ -166,6 +168,53 @@ function task_notify_due(int $task_id, string $event): void {
     }
 }
 
+/**
+ * Powiadamia przypisanych wykonawców, że zlecający potwierdził wykonanie zadania.
+ */
+function task_notify_confirmed(int $task_id, int $by_uid): void {
+    $task = _tn_task($task_id);
+    if (!$task) return;
+
+    $by_name  = _tn_user_name($by_uid);
+    $task_url = _tn_task_url($task_id);
+
+    $assignees = db_all(
+        "SELECT u.id, u.name, u.email
+         FROM task_assignments ta JOIN users u ON u.id=ta.user_id
+         WHERE ta.task_id=? AND u.is_active=1",
+        [$task_id]
+    );
+    foreach ($assignees as $u) {
+        if ((int)$u['id'] === $by_uid) continue;   // nie powiadamiaj siebie
+
+        try {
+            notif_create(
+                (int)$u['id'], 'task',
+                'Potwierdzono wykonanie: ' . $task['title'],
+                htmlspecialchars($by_name, ENT_QUOTES, 'UTF-8') . ' potwierdził(a) wykonanie zadania.',
+                '/tasks/index.php?task=' . $task_id
+            );
+        } catch (\Throwable $e) {}
+
+        if (!$u['email']) continue;
+        $pref = task_notify_get_pref((int)$u['id']);
+        if (!($pref['notify_confirmed'] ?? 1)) continue;
+        if (!_tn_should_send((int)$u['id'], 'confirmed', $task_id)) continue;
+
+        $subject = 'Potwierdzono wykonanie zadania: ' . $task['title'];
+        $content = '
+<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>
+<p><strong>' . htmlspecialchars($by_name) . '</strong> potwierdził(a) wykonanie zadania,
+które realizujesz.</p>
+' . _tn_task_card($task);
+        $html = _tn_tpl('Wykonanie potwierdzone', $subject, $content, $task_url);
+        if (_tn_send($u['email'], $subject, $html)) {
+            _tn_log((int)$u['id'], 'confirmed', $task_id);
+        }
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' potwierdził(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 60) . '".');
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  PREFERENCJE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -182,12 +231,14 @@ function task_notify_get_pref(int $user_id): array {
 }
 
 function task_notify_save_pref(int $user_id, array $data): void {
-    // migracja: kolumna notify_sms dodana już po wdrożeniu tabeli — starsze bazy jej nie mają
+    // migracja: kolumny dodane już po wdrożeniu tabeli — starsze bazy ich nie mają
     try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_sms INTEGER NOT NULL DEFAULT 0"); }
+    catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_confirmed INTEGER NOT NULL DEFAULT 1"); }
     catch (\Throwable $e) {}
 
     $fields  = ['notify_assigned', 'notify_mentioned', 'notify_comment',
-                'notify_due_1day', 'notify_due_today', 'notify_sms'];
+                'notify_due_1day', 'notify_due_today', 'notify_sms', 'notify_confirmed'];
     $values  = [];
     foreach ($fields as $f) {
         $values[$f] = isset($data[$f]) ? (int)(bool)$data[$f] : 0;
@@ -215,6 +266,7 @@ function _tn_default_prefs(): array {
         'notify_due_1day'  => 1,
         'notify_due_today' => 1,
         'notify_sms'       => 0,
+        'notify_confirmed' => 1,
     ];
 }
 

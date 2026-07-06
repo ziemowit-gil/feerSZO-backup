@@ -957,6 +957,11 @@ function migrate_tenant_db(PDO $pdo): array {
         catch (\Throwable $e) { $results[] = ['skip', "settings.$k"]; }
     }
 
+    // ── Schema v13: tasks — potwierdzenie wykonania przez zlecającego ─────────
+    $run('tasks.confirmed_at', "ALTER TABLE tasks ADD COLUMN confirmed_at TEXT DEFAULT NULL");
+    $run('tasks.confirmed_by', "ALTER TABLE tasks ADD COLUMN confirmed_by INTEGER DEFAULT NULL REFERENCES users(id)");
+    $run('task_notification_prefs.notify_confirmed', "ALTER TABLE task_notification_prefs ADD COLUMN notify_confirmed INTEGER NOT NULL DEFAULT 1");
+
     // ── Schema v10: pełny dziesiętny JRWA dla NGO (dane startowe modułu EZD) ────
     // Zastępuje 9 alfabetycznych haseł domyślnych (ORG/FIN/…) klasyfikacją
     // dziesiętną 0–9 z hierarchią parent_id. Idempotentne (gate w rejestrze).
