@@ -2102,6 +2102,7 @@ window.tdClosePreview = function() {
 function tdPreviewKeydown(e) { if (e.key === 'Escape') tdClosePreview(); }
 
 window.tdMarkDone = function() {
+    if (!confirm('Oznaczyć zadanie jako ukończone?')) return;
     const btn = document.getElementById('td-btn-done');
     if (btn) { btn.disabled = true; btn.textContent = 'Zapisuję…'; }
     api('/tasks/api/task.php', {action:'complete', id:TID})

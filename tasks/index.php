@@ -1572,6 +1572,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function tkToggleDone(btn, taskId) {
     var isDone = btn.classList.contains('s-done');
     var action = isDone ? 'reopen' : 'complete';
+    if (action === 'complete' && !confirm('Oznaczyć zadanie jako ukończone?')) return;
     fetch(BASE + '/tasks/api/task.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1756,6 +1757,9 @@ function bulkAction(action, extra = {}) {
 
     if (action === 'delete') {
         if (!confirm(`Usunąć ${ids.length} zadań? Tej operacji nie można cofnąć.`)) return;
+    }
+    if (action === 'complete') {
+        if (!confirm(`Oznaczyć ${ids.length} zadań jako ukończone?`)) return;
     }
 
     fetch(BASE + '/tasks/api/bulk.php', {
