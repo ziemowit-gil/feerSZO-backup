@@ -227,20 +227,52 @@ if (!function_exists('guardian_consent_cover_letter_html')) {
             $podpis_funk = $reps ? ($reps[0]['title'] ?? '') : '';
         }
 
+        // Logo Fundacji jako data-URI w nagłówku (jeśli skonfigurowane w Ustawieniach organizacji).
+        $logo_html = '';
+        $logo_file = org_setting('org_logo') ?: '';
+        if ($logo_file) {
+            $logo_path = dirname(__DIR__) . '/assets/logo/' . $logo_file;
+            if (is_file($logo_path)) {
+                $ext  = strtolower(pathinfo($logo_path, PATHINFO_EXTENSION));
+                $mime = $ext === 'svg' ? 'image/svg+xml' : ('image/' . ($ext === 'jpg' ? 'jpeg' : $ext));
+                $data = base64_encode((string)file_get_contents($logo_path));
+                $logo_html = '<img src="data:' . $mime . ';base64,' . $data . '" style="max-height:44px;max-width:120px">';
+            }
+        }
+
+        $data_pisma = $h(date('d.m.Y'));
+
         return '
-<p style="margin:0 0 2pt;font-weight:700">' . $h($org_nazwa) . '</p>
-<p style="margin:0 0 14pt;color:#444">
-  ' . $h($org_adres) . '<br>
-  ' . ($org_email ? 'e-mail: ' . $h($org_email) . '<br>' : '')
-    . ($org_telefon ? 'tel: ' . $h($org_telefon) : '') . '
+<table width="100%" style="margin-bottom:8pt">
+  <tr>'
+    . ($logo_html ? '<td width="70" style="vertical-align:middle">' . $logo_html . '</td>' : '') . '
+    <td style="vertical-align:middle">
+      <div style="font-size:13pt;font-weight:700">' . $h($org_nazwa) . '</div>
+      <div style="font-size:9pt;color:#444">
+        ' . $h($org_adres)
+        . ($org_email ? ' &nbsp;·&nbsp; e-mail: ' . $h($org_email) : '')
+        . ($org_telefon ? ' &nbsp;·&nbsp; tel: ' . $h($org_telefon) : '') . '
+      </div>
+    </td>
+  </tr>
+</table>
+<div style="border-bottom:1.5pt solid #1D4ED8;margin-bottom:6pt"></div>
+<p style="margin:0 0 14pt;font-size:8.5pt;color:#555;font-style:italic">
+  Niniejsze pismo zostało wygenerowane automatycznie przez system i opatrzone kwalifikowanym
+  podpisem elektronicznym — nie wymaga podpisu własnoręcznego.
 </p>
-<p style="margin:0 0 2pt;color:#666;font-size:9pt">Znak sprawy: <strong>' . $h($znak_sprawy) . '</strong></p>
-<p style="margin:0 0 16pt">' . $h($miejscowosc) . ', dnia ' . $h(date('d.m.Y')) . ' r.</p>
+
+<table width="100%" style="margin-bottom:14pt">
+  <tr>
+    <td width="50%" style="font-size:9pt;color:#666;vertical-align:top">Znak sprawy: <strong>' . $h($znak_sprawy) . '</strong></td>
+    <td width="50%" style="text-align:right;vertical-align:top">' . $h($miejscowosc) . ', dnia ' . $data_pisma . ' r.</td>
+  </tr>
+</table>
 
 <p style="margin:0 0 14pt">
   Do:<br>
-  Przedstawiciel ustawowy (rodzic/opiekun)<br>
-  małoletniego/małoletniej <strong>' . $dziecko . '</strong>
+  <strong>' . $h($guardian_name) . '</strong><br>
+  Przedstawiciel ustawowy (rodzic/opiekun) małoletniego/małoletniej <strong>' . $dziecko . '</strong>
 </p>
 
 <p style="margin:0 0 14pt"><strong>Dotyczy:</strong> Wyrażenie zgody na udział dziecka w wolontariacie</p>
@@ -264,17 +296,14 @@ if (!function_exists('guardian_consent_cover_letter_html')) {
     . ($kontakt['telefon'] ? ' lub telefonicznie: ' . $h($kontakt['telefon']) : '') . '.</p>
 
 <p style="margin-top:20pt">Z wyrazami szacunku,</p>
-<div style="margin-top:36pt">
-  <table width="100%">
-    <tr>
-      <td width="50%"></td>
-      <td width="50%" style="border-top:1px solid #000;padding-top:4pt;text-align:center">'
-        . ($podpis_imie ? $h($podpis_imie) . ($podpis_funk ? '<br><span style="font-size:9pt;color:#555">' . $h($podpis_funk) . '</span>' : '') : 'Podpis przedstawiciela Fundacji')
-        . '</td>
-    </tr>
-  </table>
-</div>
-<p style="margin-top:24pt;color:#888;font-size:8pt">Wygenerowano automatycznie ' . $h(date('d.m.Y H:i')) . ' — ' . $h($org_nazwa) . '</p>';
+<p style="margin-top:30pt">'
+    . ($podpis_imie ? '<strong>' . $h($podpis_imie) . '</strong>' . ($podpis_funk ? '<br><span style="font-size:9pt;color:#555">' . $h($podpis_funk) . '</span>' : '') : '<strong>' . $h($org_nazwa) . '</strong>')
+    . '</p>
+<p style="margin-top:2pt;font-size:8.5pt;color:#666">Dokument podpisany kwalifikowanym podpisem elektronicznym.</p>
+
+<p style="margin-top:24pt;color:#888;font-size:8pt;border-top:0.5pt solid #ddd;padding-top:6pt">
+  Pismo wygenerowano automatycznie ' . $h(date('d.m.Y H:i')) . ' — ' . $h($org_nazwa) . '.
+</p>';
     }
 }
 
