@@ -124,8 +124,12 @@ fi
 
 chmod 600 "${ENV_FILE}"
 
-# shellcheck disable=SC1090
-set -a; source "${ENV_FILE}"; set +a
+# Nie sourcujemy całego .env.prod jako bash — wartości typu ORG_NAME zawierają
+# spacje bez cytowania ("Fundacja Edukacji Empatii Rozwoju FEER"), co przy
+# `source` bash próbuje wykonać jako polecenia ("Edukacji: command not found").
+# Docker compose parsuje --env-file inaczej (bez interpretacji shellowej) i nie
+# ma tego problemu — tutaj wyciągamy tylko to, czego skrypt faktycznie potrzebuje.
+RC_DOMAIN="$(grep -m1 '^RC_DOMAIN=' "${ENV_FILE}" | cut -d= -f2-)"
 
 # ── 3. DNS ─────────────────────────────────────────────────────────────────────
 section "3. Sprawdzenie DNS"
