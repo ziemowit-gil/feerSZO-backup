@@ -331,6 +331,22 @@ body {
 .tsk-ws-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .tsk-ws-cnt { margin-left: auto; font-size: .68rem; color: #94a3b8; }
 
+/* Podpowiedź: wybór obszaru przeniesiony do topbara (jednorazowa, do odrzucenia) */
+.tsk-ws-hint {
+  display: flex; align-items: flex-start; gap: .4rem;
+  margin: .5rem .75rem; padding: .55rem .6rem;
+  background: var(--tsk-green-bg); border: 1px solid var(--tsk-green-light);
+  border-radius: 6px; color: var(--tsk-text-sub);
+  font-size: .72rem; line-height: 1.4;
+}
+.tsk-ws-hint i.bi-arrow-up-circle { color: var(--tsk-green); font-size: .9rem; flex-shrink: 0; margin-top: .05rem; }
+.tsk-ws-hint span { flex: 1; }
+.tsk-ws-hint-close {
+  background: none; border: none; color: inherit; opacity: .6;
+  cursor: pointer; padding: 0; flex-shrink: 0; line-height: 1;
+}
+.tsk-ws-hint-close:hover { opacity: 1; }
+
 /* Separator */
 .tsk-nav-sep { height: 1px; background: var(--tsk-border); margin: .5rem .75rem; }
 
@@ -604,6 +620,16 @@ body {
     <?php endif; ?>
   </a>
 
+  <?php if ($_tsk_workspaces): ?>
+  <div class="tsk-ws-hint" id="tsk-ws-hint">
+    <i class="bi bi-arrow-up-circle" aria-hidden="true"></i>
+    <span>Wybór obszaru przenieśliśmy do paska na górze.</span>
+    <button type="button" class="tsk-ws-hint-close" onclick="tskDismissWsHint()" aria-label="Zamknij podpowiedź o przełączniku obszarów">
+      <i class="bi bi-x" aria-hidden="true"></i>
+    </button>
+  </div>
+  <?php endif; ?>
+
   <!-- Lider / Admin -->
   <?php
   // Sprawdź czy user jest liderem jakiegokolwiek obszaru
@@ -816,6 +842,19 @@ function tskWsFilter(query) {
         if (search) { search.value = ''; tskWsFilter(''); search.focus(); }
     });
 })();
+
+/* Podpowiedź w sidebarze o przeniesieniu przełącznika obszarów do topbara */
+(function () {
+    var KEY = 'feer_tasks_ws_hint_dismissed_v1';
+    var el  = document.getElementById('tsk-ws-hint');
+    if (!el) return;
+    try { if (window.localStorage.getItem(KEY)) el.remove(); } catch (e) {}
+})();
+window.tskDismissWsHint = function () {
+    var el = document.getElementById('tsk-ws-hint');
+    if (el) el.remove();
+    try { window.localStorage.setItem('feer_tasks_ws_hint_dismissed_v1', '1'); } catch (e) {}
+};
 </script>
 
 <!-- Mini centrum powiadomień — polling + dźwięk -->

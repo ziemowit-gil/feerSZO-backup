@@ -402,7 +402,7 @@ function task_avatar_initials(string $name, string $bg = '#2563eb', string $colo
         $initials .= mb_strtoupper(mb_substr($p, 0, 1));
     }
     $initials = $initials ?: '?';
-    return '<span class="task-avatar" style="background:' . h($bg) . ';color:' . h($color) . '">' . h($initials) . '</span>';
+    return '<span class="tk-av" style="background:' . h($bg) . ';color:' . h($color) . '" title="' . h($name) . '">' . h($initials) . '</span>';
 }
 
 // ── Obszary (Areas) ────────────────────────────────────────────────────────
