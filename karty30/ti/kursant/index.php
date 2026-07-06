@@ -481,6 +481,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=dane'); exit;
     }
 
+    // Samoobsługowe utworzenie konta ownCloud (2 GB) — zakładka „dysk"
+    if ($op === 'owncloud_create') {
+        $r = owncloud_create_student_account((int)$student['id']);
+        if ($r['ok']) {
+            $_SESSION['owncloud_reveal'] = $r;
+        } else {
+            $_SESSION['k30_oc_msg'] = ['err', $r['msg']];
+        }
+        header('Location: index.php?tab=dysk'); exit;
+    }
+
+    // Reset hasła istniejącego konta ownCloud kursanta
+    if ($op === 'owncloud_reset') {
+        $r = owncloud_reset_student_password((int)$student['id']);
+        if ($r['ok']) {
+            $_SESSION['owncloud_reveal'] = $r;
+        } else {
+            $_SESSION['k30_oc_msg'] = ['err', $r['msg']];
+        }
+        header('Location: index.php?tab=dysk'); exit;
+    }
+
     // Zarządzanie osobami upoważnionymi (tylko pełnoletni)
 }
 
@@ -700,7 +722,7 @@ include __DIR__ . '/_layout_head.php';
 <?php
   // Grupy menu — spłaszczone w dropdowny (Nauka / Dostępy / Pomoc)
   $nauka_tabs     = ['lekcje','zadania','oceny','plan','testy'];
-  $dostepy_tabs   = ['online','vlab','licencje','pfron'];
+  $dostepy_tabs   = ['online','vlab','dysk','licencje','pfron'];
   $pomoc_tabs     = ['problem','ustawienia'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
   $dostepy_active = in_array($tab, $dostepy_tabs, true);
@@ -782,6 +804,8 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-camera-video me-2" aria-hidden="true"></i>Szkolenia online</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab" <?= $tab==='vlab'?'aria-current="page"':'' ?>>
           <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab</a></li>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='dysk'?'active':'' ?>" href="?tab=dysk" <?= $tab==='dysk'?'aria-current="page"':'' ?>>
+          <i class="bi bi-hdd-network me-2" aria-hidden="true"></i>Mój dysk</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='licencje'?'active':'' ?>" href="?tab=licencje" <?= $tab==='licencje'?'aria-current="page"':'' ?>>
           <i class="bi bi-key me-2" aria-hidden="true"></i>Licencje
           <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-2"><?= count($my_licenses) ?></span><?php endif; ?></a></li>
@@ -3741,6 +3765,83 @@ document.addEventListener('DOMContentLoaded', function() {
     $rv_lic_redirect_tab  = 'licencje';
     include __DIR__ . '/_licencje_view.php';
   ?>
+
+<?php elseif ($tab === 'dysk'):
+    $oc_msg         = $_SESSION['k30_oc_msg'] ?? null; unset($_SESSION['k30_oc_msg']);
+    $oc_reveal      = $_SESSION['owncloud_reveal'] ?? null; unset($_SESSION['owncloud_reveal']);
+    $oc_has_account = !empty($account['owncloud_username']);
+    $oc_ready       = owncloud_enabled() && owncloud_admin_configured();
+?>
+
+  <h1 class="h5 fw-bold mb-1"><i class="bi bi-hdd-network text-primary me-1" aria-hidden="true"></i>Mój dysk</h1>
+  <p class="text-body-secondary small mb-3">
+    Własne miejsce na pliki w chmurze ownCloud — materiały, kopie notatek, projekty.
+    To nie jest to samo co zakładka „Dydaktyka / eLearning" — tam oddajesz zadania domowe prowadzącemu.
+  </p>
+
+  <?php if ($oc_msg): ?>
+  <div class="alert alert-<?= $oc_msg[0]==='ok'?'success':'danger' ?> alert-dismissible fade show" role="alert">
+    <i class="bi bi-<?= $oc_msg[0]==='ok'?'check-circle':'exclamation-triangle' ?> me-1" aria-hidden="true"></i><?= h($oc_msg[1]) ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($oc_reveal): ?>
+  <div class="alert alert-warning shadow-sm" role="alert" style="max-width:520px">
+    <h2 class="h6 fw-bold mb-2"><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Zapisz dane logowania — pokażemy je tylko raz</h2>
+    <dl class="row mb-2 small">
+      <dt class="col-4">Adres</dt>
+      <dd class="col-8"><a href="<?= h($oc_reveal['url']) ?>" target="_blank" rel="noopener"><?= h($oc_reveal['url']) ?></a></dd>
+      <dt class="col-4">Login</dt><dd class="col-8 font-monospace"><?= h($oc_reveal['username']) ?></dd>
+      <dt class="col-4">Hasło</dt><dd class="col-8 font-monospace"><?= h($oc_reveal['password']) ?></dd>
+      <dt class="col-4">Limit</dt><dd class="col-8"><?= (int)$oc_reveal['quota_mb'] ?> MB</dd>
+    </dl>
+    <p class="small mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Po opuszczeniu tej strony hasła nie pokażemy ponownie — w razie potrzeby zresetuj je przyciskiem poniżej.</p>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!$oc_ready): ?>
+  <div class="alert alert-secondary" role="note">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Ta funkcja nie jest jeszcze skonfigurowana przez administratora. Spróbuj później.
+  </div>
+  <?php elseif (!$oc_has_account): ?>
+  <div class="card" style="max-width:460px">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-2">Nie masz jeszcze konta</h2>
+      <p class="small text-body-secondary">
+        Utworzymy konto ownCloud z limitem <?= (int)owncloud_setting('student_quota_mb', '2048') ?> MB.
+        Login i hasło zobaczysz od razu po utworzeniu — zapisz je w bezpiecznym miejscu.
+      </p>
+      <form method="post">
+        <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+        <input type="hidden" name="_op"    value="owncloud_create">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Utwórz konto</button>
+      </form>
+    </div>
+  </div>
+  <?php else: ?>
+  <div class="card" style="max-width:460px">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-2"><i class="bi bi-check-circle-fill text-success me-1" aria-hidden="true"></i>Twoje konto</h2>
+      <dl class="row mb-3 small">
+        <dt class="col-4">Login</dt><dd class="col-8 font-monospace"><?= h($account['owncloud_username']) ?></dd>
+        <dt class="col-4">Limit</dt><dd class="col-8"><?= (int)$account['owncloud_quota_mb'] ?> MB</dd>
+        <dt class="col-4">Założone</dt>
+        <dd class="col-8"><?= $account['owncloud_created_at'] ? h(date('d.m.Y', strtotime($account['owncloud_created_at']))) : '—' ?></dd>
+      </dl>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="<?= h(rtrim(owncloud_setting('url'), '/')) ?>" target="_blank" rel="noopener" class="btn btn-outline-primary">
+          <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz ownCloud
+        </a>
+        <form method="post" onsubmit="return confirm('Zresetować hasło? Stare hasło stanie się nieprawidłowe.');">
+          <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
+          <input type="hidden" name="_op"    value="owncloud_reset">
+          <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
 <?php elseif ($tab === 'pfron'):
     $pf_msg      = $_SESSION['pfron_msg'] ?? null; unset($_SESSION['pfron_msg']);

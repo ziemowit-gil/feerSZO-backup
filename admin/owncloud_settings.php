@@ -24,6 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         owncloud_save_setting('base_folder', trim($_POST['base_folder'] ?? '') ?: 'feerszo-pliki-lekcji');
         // Hasło — nie nadpisuj pustym (zostaw dotychczasowe)
         if (trim($_POST['password'] ?? '') !== '') owncloud_save_setting('password', trim($_POST['password']));
+
+        owncloud_save_setting('admin_username', trim($_POST['admin_username'] ?? ''));
+        if (trim($_POST['admin_password'] ?? '') !== '') owncloud_save_setting('admin_password', trim($_POST['admin_password']));
+        owncloud_save_setting('student_quota_mb', (string)max(1, (int)($_POST['student_quota_mb'] ?? 2048)));
+
         flash_set('success', 'Ustawienia ownCloud zapisane.');
         header('Location: owncloud_settings.php'); exit;
     }
@@ -42,11 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $cfg = [
-    'enabled'     => owncloud_setting('enabled'),
-    'url'         => owncloud_setting('url'),
-    'username'    => owncloud_setting('username'),
-    'base_folder' => owncloud_setting('base_folder', 'feerszo-pliki-lekcji'),
-    'has_password'=> owncloud_setting('password') !== '',
+    'enabled'           => owncloud_setting('enabled'),
+    'url'               => owncloud_setting('url'),
+    'username'          => owncloud_setting('username'),
+    'base_folder'       => owncloud_setting('base_folder', 'feerszo-pliki-lekcji'),
+    'has_password'      => owncloud_setting('password') !== '',
+    'admin_username'    => owncloud_setting('admin_username'),
+    'has_admin_password'=> owncloud_setting('admin_password') !== '',
+    'student_quota_mb'  => owncloud_setting('student_quota_mb', '2048'),
 ];
 
 include dirname(__DIR__) . '/includes/header.php';
@@ -109,6 +117,45 @@ include dirname(__DIR__) . '/includes/header.php';
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header fw-semibold"><i class="bi bi-hdd-network me-2"></i>Konta kursantów (panel kursanta — „Mój dysk")</div>
+      <div class="card-body">
+        <p class="text-muted small">Kursant może samodzielnie utworzyć własne konto ownCloud z limitem miejsca
+        (zakładka „Dysk" w panelu kursanta). Wymaga to konta <strong>administratora</strong> ownCloud — innego
+        niż konto integracyjne WebDAV powyżej (to jest konto bootstrapowe kontenera, ustawione przy
+        wdrożeniu — <code>OWNCLOUD_ADMIN_USERNAME</code>/<code>OWNCLOUD_ADMIN_PASSWORD</code> w <code>.env.prod</code>).</p>
+        <form method="post">
+          <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_action" value="save">
+          <input type="hidden" name="enabled"     value="<?= $cfg['enabled'] ?>">
+          <input type="hidden" name="url"         value="<?= h($cfg['url']) ?>">
+          <input type="hidden" name="username"    value="<?= h($cfg['username']) ?>">
+          <input type="hidden" name="base_folder" value="<?= h($cfg['base_folder']) ?>">
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="oc_admin_user">Login administratora ownCloud</label>
+            <input type="text" class="form-control font-monospace" name="admin_username" id="oc_admin_user"
+                   value="<?= h($cfg['admin_username']) ?>" placeholder="admin">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="oc_admin_pass">Hasło administratora</label>
+            <input type="password" class="form-control font-monospace" name="admin_password" id="oc_admin_pass"
+                   placeholder="<?= $cfg['has_admin_password'] ? '(zapisane — zostaw puste by nie zmieniać)' : 'hasło konta administratora' ?>">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="oc_quota">Limit miejsca dla nowych kont kursantów (MB)</label>
+            <input type="number" min="1" class="form-control" name="student_quota_mb" id="oc_quota"
+                   value="<?= h($cfg['student_quota_mb']) ?>">
+            <div class="form-text">2048 MB = 2 GB. Dotyczy tylko nowo tworzonych kont — nie zmienia limitu już istniejących.</div>
+          </div>
+          <button type="submit" class="btn btn-primary">Zapisz</button>
+        </form>
+      </div>
+    </div>
+
         <form id="oc_test" method="post">
           <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_action" value="test">
@@ -126,8 +173,6 @@ include dirname(__DIR__) . '/includes/header.php';
           document.getElementById('oc_test').submit();
         }
         </script>
-      </div>
-    </div>
   </div>
 
   <div class="col-lg-5">

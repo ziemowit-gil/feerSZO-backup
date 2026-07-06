@@ -866,6 +866,14 @@ HTML;
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
+    // Samoobsługowe konto ownCloud kursanta (2 GB) — panel kursanta, zakładka „dysk"
+    foreach ([
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN owncloud_username   TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN owncloud_created_at DATETIME",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN owncloud_quota_mb   INTEGER NOT NULL DEFAULT 0",
+    ] as $_sql) {
+        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
+    }
     // Tokeny linku magicznego dla rodzica (dostęp do rozliczeń dziecka)
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_parent_tokens (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,

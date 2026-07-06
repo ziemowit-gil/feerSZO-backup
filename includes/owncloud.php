@@ -61,11 +61,14 @@ function owncloud_migrate(): void {
     if ($done) return;
     $done = true;
     $defaults = [
-        'owncloud_enabled'     => '0',
-        'owncloud_url'         => '',
-        'owncloud_username'    => '',
-        'owncloud_password'    => '',
-        'owncloud_base_folder' => 'feerszo-pliki-lekcji',
+        'owncloud_enabled'          => '0',
+        'owncloud_url'              => '',
+        'owncloud_username'         => '',
+        'owncloud_password'         => '',
+        'owncloud_base_folder'      => 'feerszo-pliki-lekcji',
+        'owncloud_admin_username'   => '',
+        'owncloud_admin_password'   => '',
+        'owncloud_student_quota_mb' => '2048',
     ];
     foreach ($defaults as $key => $val) {
         try {
@@ -165,4 +168,173 @@ function owncloud_test_connection(array $cfg): array {
     }
     if ($r['http'] === 401) return ['ok' => false, 'msg' => 'Błędny login lub hasło (401).'];
     return ['ok' => false, 'msg' => 'Błąd połączenia' . ($r['http'] ? " (HTTP {$r['http']})" : '') . ': ' . ($r['err'] ?: 'sprawdź adres URL.')];
+}
+
+// ══ OCS PROVISIONING API — konta studentów (panel kursanta, „mój dysk") ══════
+//
+// Osobne, wyżej uprzywilejowane konto (administrator ownCloud) — inne niż
+// konto integracyjne WebDAV powyżej, które służy tylko do wgrywania materiałów.
+// Provisioning API działa po zwykłym HTTP (Basic Auth), więc aplikacja nie
+// potrzebuje dostępu do socketu Dockera / `occ` — tylko sieciowego dostępu do
+// instancji ownCloud, tak jak WebDAV.
+
+/** Konfiguracja konta administratora (do OCS Provisioning API). */
+function owncloud_admin_config(): array {
+    return [
+        'url'      => rtrim(owncloud_setting('url'), '/'),
+        'username' => owncloud_setting('admin_username'),
+        'password' => owncloud_setting('admin_password'),
+    ];
+}
+
+function owncloud_admin_configured(): bool {
+    $cfg = owncloud_admin_config();
+    return $cfg['url'] !== '' && $cfg['username'] !== '' && $cfg['password'] !== '';
+}
+
+/**
+ * Wywołanie OCS Provisioning API. Zwraca ujednolicony wynik niezależnie od
+ * tego, czy ownCloud odpowiedział poprawnym envelope OCS czy błędem transportu.
+ *
+ * @param array  $admin_cfg z owncloud_admin_config()
+ * @param string $path      np. "cloud/users" lub "cloud/users/jkowalski"
+ * @param array  $fields    pola formularza dla POST/PUT (form-urlencoded)
+ */
+function owncloud_ocs_request(array $admin_cfg, string $method, string $path, array $fields = []): array {
+    if ($admin_cfg['username'] === '' || $admin_cfg['password'] === '') {
+        return ['ok' => false, 'statuscode' => 0, 'data' => [], 'message' => 'Brak danych administratora ownCloud.'];
+    }
+    $url  = $admin_cfg['url'] . '/ocs/v1.php/' . ltrim($path, '/') . '?format=json';
+    $body = $fields ? http_build_query($fields) : '';
+    $headers = ['OCS-APIRequest: true'];
+    if ($body !== '') $headers[] = 'Content-Type: application/x-www-form-urlencoded';
+
+    // owncloud_request() wymaga w $cfg 'username'/'password' — konto administratora pełni tu tę rolę.
+    $adminAsCfg = ['username' => $admin_cfg['username'], 'password' => $admin_cfg['password']];
+    $r = owncloud_request($adminAsCfg, $method, $url, $body, $headers);
+
+    if (!$r['ok'] && $r['http'] === 0) {
+        return ['ok' => false, 'statuscode' => 0, 'data' => [], 'message' => $r['err'] ?: 'Błąd połączenia z ownCloud.'];
+    }
+
+    $decoded = json_decode($r['body'], true);
+    $meta    = $decoded['ocs']['meta'] ?? [];
+    $status  = (int)($meta['statuscode'] ?? 0);
+    // 100 = sukces w OCS (niezależnie od kodu HTTP, który bywa zawsze 200 nawet dla błędów OCS).
+    return [
+        'ok'         => $status === 100,
+        'statuscode' => $status,
+        'data'       => $decoded['ocs']['data'] ?? [],
+        'message'    => $meta['message'] ?? ($r['err'] ?: ($status === 0 ? 'Nieprawidłowa odpowiedź ownCloud.' : '')),
+    ];
+}
+
+/** Czy konto $userid już istnieje w ownCloud. */
+function owncloud_user_exists(array $admin_cfg, string $userid): bool {
+    $r = owncloud_ocs_request($admin_cfg, 'GET', 'cloud/users/' . rawurlencode($userid));
+    return $r['ok'];
+}
+
+/** Tworzy konto w ownCloud. */
+function owncloud_create_user(array $admin_cfg, string $userid, string $password): array {
+    $r = owncloud_ocs_request($admin_cfg, 'POST', 'cloud/users', ['userid' => $userid, 'password' => $password]);
+    return ['ok' => $r['ok'], 'msg' => $r['ok'] ? 'Konto utworzone.' : ('Błąd tworzenia konta ownCloud: ' . ($r['message'] ?: "kod {$r['statuscode']}"))];
+}
+
+/** Ustawia limit miejsca (np. "2048MB", "none" = bez limitu). */
+function owncloud_set_quota(array $admin_cfg, string $userid, string $quota): array {
+    $r = owncloud_ocs_request($admin_cfg, 'PUT', 'cloud/users/' . rawurlencode($userid), ['key' => 'quota', 'value' => $quota]);
+    return ['ok' => $r['ok'], 'msg' => $r['ok'] ? 'Limit ustawiony.' : ('Błąd ustawiania limitu: ' . ($r['message'] ?: "kod {$r['statuscode']}"))];
+}
+
+/** Ustawia nowe hasło (do resetu hasła studenta). */
+function owncloud_set_password(array $admin_cfg, string $userid, string $password): array {
+    $r = owncloud_ocs_request($admin_cfg, 'PUT', 'cloud/users/' . rawurlencode($userid), ['key' => 'password', 'value' => $password]);
+    return ['ok' => $r['ok'], 'msg' => $r['ok'] ? 'Hasło zresetowane.' : ('Błąd resetu hasła: ' . ($r['message'] ?: "kod {$r['statuscode']}"))];
+}
+
+/**
+ * Sanityzuje login kursanta do bezpiecznego dla ownCloud zestawu znaków i
+ * dokleja sufiks liczbowy przy kolizji nazwy — wzorzec jak
+ * M365Graph::unique_login() w includes/m365.php.
+ */
+function owncloud_unique_student_username(array $admin_cfg, string $base): string {
+    $safe = preg_replace('/[^a-zA-Z0-9._-]/', '', $base);
+    $safe = trim($safe, '._-') ?: 'kursant';
+    if (!owncloud_user_exists($admin_cfg, $safe)) return $safe;
+    for ($i = 1; $i <= 99; $i++) {
+        $candidate = "{$safe}{$i}";
+        if (!owncloud_user_exists($admin_cfg, $candidate)) return $candidate;
+    }
+    return $safe . bin2hex(random_bytes(2));
+}
+
+/**
+ * Tworzy samoobsługowe konto ownCloud dla kursanta (panel kursanta, zakładka „dysk").
+ * Idempotentne — jeśli konto już istnieje (owncloud_username ustawiony), nie tworzy drugiego.
+ * Hasło NIE jest zapisywane w bazie — tylko zwrócone do jednorazowego pokazania.
+ *
+ * @return array{ok:bool,msg:string,username?:string,password?:string,quota_mb?:int,url?:string}
+ */
+function owncloud_create_student_account(int $student_account_id): array {
+    if (!owncloud_enabled() || !owncloud_admin_configured()) {
+        return ['ok' => false, 'msg' => 'Integracja ownCloud nie jest skonfigurowana przez administratora.'];
+    }
+
+    $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student_account_id]);
+    if (!$account) return ['ok' => false, 'msg' => 'Nie znaleziono konta kursanta.'];
+    if (!empty($account['owncloud_username'])) {
+        return ['ok' => false, 'msg' => 'Konto ownCloud już istnieje.'];
+    }
+
+    $admin_cfg = owncloud_admin_config();
+    $username  = owncloud_unique_student_username($admin_cfg, $account['login'] ?? ('kursant' . $student_account_id));
+    $password  = bin2hex(random_bytes(8)) . 'Aa1!';
+
+    $created = owncloud_create_user($admin_cfg, $username, $password);
+    if (!$created['ok']) return ['ok' => false, 'msg' => $created['msg']];
+
+    $quota_mb = (int)(owncloud_setting('student_quota_mb', '2048') ?: '2048');
+    owncloud_set_quota($admin_cfg, $username, "{$quota_mb}MB"); // błąd limitu nie unieważnia utworzonego konta
+
+    db()->prepare(
+        "UPDATE k30_ti_student_accounts SET owncloud_username=?, owncloud_created_at=CURRENT_TIMESTAMP, owncloud_quota_mb=?, updated_at=CURRENT_TIMESTAMP WHERE id=?"
+    )->execute([$username, $quota_mb, $student_account_id]);
+
+    return [
+        'ok'       => true,
+        'msg'      => 'Konto ownCloud utworzone.',
+        'username' => $username,
+        'password' => $password,
+        'quota_mb' => $quota_mb,
+        'url'      => $admin_cfg['url'],
+    ];
+}
+
+/**
+ * Resetuje hasło istniejącego konta ownCloud kursanta — nowe hasło jednorazowe,
+ * NIE jest zapisywane (tylko zwrócone do pokazania).
+ */
+function owncloud_reset_student_password(int $student_account_id): array {
+    if (!owncloud_enabled() || !owncloud_admin_configured()) {
+        return ['ok' => false, 'msg' => 'Integracja ownCloud nie jest skonfigurowana przez administratora.'];
+    }
+    $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student_account_id]);
+    if (!$account || empty($account['owncloud_username'])) {
+        return ['ok' => false, 'msg' => 'Nie masz jeszcze konta ownCloud.'];
+    }
+
+    $admin_cfg = owncloud_admin_config();
+    $password  = bin2hex(random_bytes(8)) . 'Aa1!';
+    $r = owncloud_set_password($admin_cfg, $account['owncloud_username'], $password);
+    if (!$r['ok']) return ['ok' => false, 'msg' => $r['msg']];
+
+    return [
+        'ok'       => true,
+        'msg'      => 'Hasło zresetowane.',
+        'username' => $account['owncloud_username'],
+        'password' => $password,
+        'quota_mb' => (int)$account['owncloud_quota_mb'],
+        'url'      => $admin_cfg['url'],
+    ];
 }
