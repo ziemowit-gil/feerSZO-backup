@@ -19,16 +19,23 @@ cytowaną treść), `subscriptions_option` (przełącznik subskrypcji IMAP w
 Ustawieniach), `show_additional_headers`, `identicon` (awatar nadawcy).
 
 Plugin `login_notice` (montowany z `plugins/login_notice/`) dodaje na stronie
-logowania: (1) informację, że to poczta Fundacji i notatkę o bezpieczeństwie
-(brak przechowywania hasła w tym systemie), (2) komunikat o migracji z powodu
-problemów logowania — od 1 sierpnia poczta wyłącznie przez
-`poczta.feer.org.pl`/`rc.feer.org.pl` (te same dane), do tej daty można też
-korzystać z `outlook.office.com`. Treść jest na trwałe w kodzie pluginu
-(`add_notice()`) — do zmiany tam, gdy komunikat się zdezaktualizuje (np. po
-1 sierpnia). Wymaga `oauth_login_redirect = false` — inaczej strona logowania
-nigdy się nie renderuje (od razu przekierowanie do Microsoft). Ten plugin też
-ukrywa zwykły formularz login/hasło Roundcube (skrzynki są tylko przez
-OAuth), bo z `oauth_login_redirect=false` rdzeń sam go nie chowa.
+logowania komunikat (info Fundacji, bezpieczeństwo, ogłoszenia typu migracja
+adresu). **Treść zarządzana centralnie** — nie w kodzie pluginu: admin edytuje
+ją w głównej aplikacji, `admin/poczta_settings.php` → karta „Webmail
+(Roundcube)" → pole „Komunikat na stronie logowania Roundcube". Plugin
+pobiera ją przez wewnętrzne API (`api/internal/rc_login_notice.php`) po sieci
+Docker `feer` (`http://app/...`, NIE przez Traefik/publiczny internet),
+autoryzacja nagłówkiem `X-Internal-Key` = `APP_KEY` (ten sam sekret co
+kontener „app" — przekazany do „rc" w `docker-compose.rc.yml`). Cache ~5 min
+(`rcube_cache` Roundcube) — zmiana w adminie widoczna z niewielkim
+opóźnieniem, bez restartu kontenera. Jeśli główna aplikacja jest nieosiągalna
+(sieć, appka nie działa, brak `APP_KEY`), plugin pokazuje krótki tekst
+zapasowy zaszyty w kodzie (`fallback_html()`) — strona logowania nigdy nie
+zostaje bez komunikatu, ale też nigdy nie blokuje logowania, gdy API akurat
+nie odpowiada. Wymaga `oauth_login_redirect = false` — inaczej strona
+logowania nigdy się nie renderuje (od razu przekierowanie do Microsoft). Ten
+plugin też ukrywa zwykły formularz login/hasło Roundcube (skrzynki są tylko
+przez OAuth), bo z `oauth_login_redirect=false` rdzeń sam go nie chowa.
 
 Logo Fundacji na stronie logowania — `$config['skin_logo']` wskazuje na
 `plugins/login_notice/logo.png` (kopia aktualnego logo z `assets/logo/`
