@@ -171,6 +171,43 @@ body {
 }
 .tsk-topbar-bc strong { color: #fff; }
 
+/* Przełącznik obszaru roboczego */
+.tsk-ws-switch-btn {
+  display: inline-flex; align-items: center; gap: .4rem;
+  background: rgba(255,255,255,.13);
+  border: 1.5px solid rgba(255,255,255,.35);
+  border-radius: 6px; color: #fff;
+  padding: .3rem .6rem;
+  font-size: .82rem; font-weight: 500;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: background .12s;
+}
+.tsk-ws-switch-btn:hover { background: rgba(255,255,255,.24); }
+.tsk-ws-switch-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,.6);
+}
+.tsk-ws-switch-btn i.bi-grid-3x3-gap { font-size: .85rem; }
+
+.tsk-ws-switch-menu {
+  width: 290px; max-height: 420px;
+  display: flex; flex-direction: column;
+  padding: 0; overflow: hidden;
+}
+.tsk-ws-switch-search-wrap { padding: .5rem; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+.tsk-ws-switch-list { overflow-y: auto; }
+.tsk-ws-switch-item {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .5rem .9rem;
+  color: #334155; text-decoration: none;
+  font-size: .84rem; white-space: nowrap;
+}
+.tsk-ws-switch-item:hover { background: #f8fafc; color: #0f172a; }
+.tsk-ws-switch-item.active { background: var(--tsk-green-bg); color: var(--tsk-green); font-weight: 600; }
+.tsk-ws-switch-item i { flex-shrink: 0; }
+.tsk-ws-switch-sep { height: 1px; background: #f1f5f9; margin: .3rem 0; }
+.tsk-ws-switch-empty { text-align: center; color: #94a3b8; font-size: .8rem; padding: 1rem; }
+
 /* Akcje topbara */
 .tsk-topbar-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
 
@@ -289,16 +326,7 @@ body {
 }
 .tsk-nav-link.active .tsk-nav-badge { background: rgba(255,255,255,.7); }
 
-/* Workspace sub-items */
-.tsk-ws-link {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .38rem 1rem .38rem 2.1rem;
-  color: var(--tsk-text-sub); text-decoration: none;
-  font-size: .83rem; transition: background .1s;
-  border-left: 3px solid transparent;
-}
-.tsk-ws-link:hover { background: var(--tsk-green-bg); color: var(--tsk-green); }
-.tsk-ws-link.active { color: var(--tsk-green); font-weight: 600; border-left-color: var(--tsk-green); }
+/* Kropka koloru obszaru + licznik zadań — używane w przełączniku obszarów w topbarze */
 .tsk-ws-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .tsk-ws-cnt { margin-left: auto; font-size: .68rem; color: #94a3b8; }
 
@@ -360,6 +388,61 @@ body {
       <span class="tsk-brand-sub"><?= h($_org_name) ?></span>
     </span>
   </a>
+
+  <?php if ($_tsk_workspaces):
+      $_tsk_cur_ws  = null;
+      foreach ($_tsk_workspaces as $_wsRow) {
+          if ((int)$_wsRow['id'] === (int)$_ws_id) { $_tsk_cur_ws = $_wsRow; break; }
+      }
+      $_tsk_view_qs = isset($_GET['view']) ? '&view=' . urlencode($_GET['view']) : '';
+  ?>
+  <div class="dropdown" id="tsk-ws-switch-wrap">
+    <button type="button" class="tsk-ws-switch-btn" id="tsk-ws-switch-btn"
+            data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+            aria-label="Przełącz obszar roboczy<?= $_tsk_cur_ws ? ' — bieżący: ' . h($_tsk_cur_ws['name']) : ' — obecnie wszystkie obszary' ?>">
+      <?php if ($_tsk_cur_ws): ?>
+      <span class="tsk-ws-switch-dot" style="background:<?= h($_tsk_cur_ws['color']) ?>" aria-hidden="true"></span>
+      <span class="text-truncate" style="max-width:140px"><?= h($_tsk_cur_ws['name']) ?></span>
+      <?php else: ?>
+      <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+      <span class="d-none d-sm-inline">Wszystkie obszary</span>
+      <?php endif; ?>
+      <i class="bi bi-chevron-down" style="font-size:.62rem;opacity:.75" aria-hidden="true"></i>
+    </button>
+    <div class="dropdown-menu shadow tsk-ws-switch-menu" id="tsk-ws-switch-menu"
+         role="menu" aria-label="Lista obszarów roboczych">
+      <div class="tsk-ws-switch-search-wrap">
+        <input type="search" id="tsk-ws-switch-search"
+               class="form-control form-control-sm"
+               placeholder="Szukaj obszaru…"
+               aria-label="Szukaj obszaru roboczego"
+               oninput="tskWsFilter(this.value)">
+      </div>
+      <div class="tsk-ws-switch-list" id="tsk-ws-switch-list">
+        <a href="<?= APP_URL ?>/tasks/index.php<?= $_tsk_view_qs ? '?' . ltrim($_tsk_view_qs, '&') : '' ?>"
+           class="tsk-ws-switch-item <?= !$_ws_id ? 'active' : '' ?>"
+           data-name="wszystkie zadania"
+           aria-current="<?= !$_ws_id ? 'page' : 'false' ?>">
+          <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
+          <span class="flex-grow-1">Wszystkie zadania</span>
+        </a>
+        <div class="tsk-ws-switch-sep" role="separator"></div>
+        <?php foreach ($_tsk_workspaces as $ws): ?>
+        <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws['id'] ?><?= $_tsk_view_qs ?>"
+           class="tsk-ws-switch-item <?= (int)$_ws_id === (int)$ws['id'] ? 'active' : '' ?>"
+           data-name="<?= h(mb_strtolower($ws['name'])) ?>"
+           aria-current="<?= (int)$_ws_id === (int)$ws['id'] ? 'page' : 'false' ?>">
+          <span class="tsk-ws-dot" style="background:<?= h($ws['color']) ?>" aria-hidden="true"></span>
+          <i class="bi <?= h($ws['icon']) ?>" aria-hidden="true"></i>
+          <span class="flex-grow-1 text-truncate"><?= h($ws['name']) ?></span>
+          <span class="tsk-ws-cnt" aria-label="<?= (int)$ws['task_count'] ?> zadań"><?= (int)$ws['task_count'] ?></span>
+        </a>
+        <?php endforeach; ?>
+        <div class="tsk-ws-switch-empty" id="tsk-ws-switch-empty" style="display:none">Brak wyników</div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <div class="tsk-topbar-bc" aria-label="Bieżąca lokalizacja">
     Zadania <?php if ($_tsk_bc): ?>/ <strong><?= h($_tsk_bc) ?></strong><?php endif; ?>
@@ -519,22 +602,6 @@ body {
     <span class="tsk-nav-badge" aria-label="<?= $_my_count ?> zadań"><?= $_my_count ?></span>
     <?php endif; ?>
   </a>
-
-  <!-- Obszary robocze -->
-  <?php if ($_tsk_workspaces): ?>
-  <div class="tsk-nav-sep" role="separator"></div>
-  <span class="tsk-nav-label">Obszary</span>
-  <?php foreach ($_tsk_workspaces as $ws): ?>
-  <a class="tsk-ws-link <?= (int)($_ws_id ?? 0) === (int)$ws['id'] ? 'active' : '' ?>"
-     href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws['id'] ?>"
-     aria-current="<?= (int)($_ws_id ?? 0) === (int)$ws['id'] ? 'page' : 'false' ?>">
-    <span class="tsk-ws-dot" style="background:<?= h($ws['color']) ?>" aria-hidden="true"></span>
-    <i class="bi <?= h($ws['icon']) ?>" aria-hidden="true"></i>
-    <?= h($ws['name']) ?>
-    <span class="tsk-ws-cnt" aria-label="<?= (int)$ws['task_count'] ?> zadań"><?= (int)$ws['task_count'] ?></span>
-  </a>
-  <?php endforeach; ?>
-  <?php endif; ?>
 
   <!-- Lider / Admin -->
   <?php
@@ -719,6 +786,35 @@ document.addEventListener('click', function(e) {
         btn.setAttribute('aria-expanded', 'false');
     }
 });
+</script>
+
+<!-- Przełącznik obszaru roboczego — wyszukiwarka w liście -->
+<script>
+function tskWsFilter(query) {
+    const q     = query.trim().toLowerCase();
+    const list  = document.getElementById('tsk-ws-switch-list');
+    if (!list) return;
+    const items = list.querySelectorAll('.tsk-ws-switch-item');
+    const sep   = list.querySelector('.tsk-ws-switch-sep');
+    let visible = 0;
+    items.forEach(function (item) {
+        const match = !q || (item.dataset.name || '').includes(q);
+        item.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    if (sep) sep.style.display = q ? 'none' : '';
+    const empty = document.getElementById('tsk-ws-switch-empty');
+    if (empty) empty.style.display = visible ? 'none' : '';
+}
+
+(function () {
+    const wrap = document.getElementById('tsk-ws-switch-wrap');
+    if (!wrap) return;
+    wrap.addEventListener('shown.bs.dropdown', function () {
+        const search = document.getElementById('tsk-ws-switch-search');
+        if (search) { search.value = ''; tskWsFilter(''); search.focus(); }
+    });
+})();
 </script>
 
 <!-- Mini centrum powiadomień — polling + dźwięk -->
