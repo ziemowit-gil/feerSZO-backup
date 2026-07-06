@@ -12,13 +12,35 @@ $user = current_user();
 $force_change = isset($_GET['force']) || auth_must_change_password($user);
 
 // Sprawdź czy użytkownik ma hasło lokalne (nie tylko M365)
-$db_user = db_one("SELECT password, microsoft_id FROM users WHERE id = ?", [$user['id']]);
+$db_user = db_one("SELECT password, microsoft_id, phone_number FROM users WHERE id = ?", [$user['id']]);
 $has_local_password = !empty($db_user['password']);
 
 $errors = [];
 $success = false;
+$phone_errors = [];
+$phone_success = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// ── Numer telefonu konta (osobny formularz na tej samej stronie) ───────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['phone_number'])) {
+    csrf_check();
+
+    $phone_new = preg_replace('/[^\d+]/', '', trim($_POST['phone_number']));
+    if ($phone_new !== '' && strlen($phone_new) < 9) {
+        $phone_errors[] = 'Numer telefonu jest za krótki (min. 9 cyfr).';
+    }
+
+    if (!$phone_errors) {
+        db()->prepare("UPDATE users SET phone_number=? WHERE id=?")->execute([$phone_new, $user['id']]);
+        $db_user['phone_number'] = $phone_new;
+        authlog_write((int)$user['id'], 'phone_changed', $user['email'], 'Zmiana numeru telefonu konta');
+        $phone_success = true;
+        flash_set('success', 'Numer telefonu został zapisany.');
+        header('Location: ' . APP_URL . '/panel/password.php');
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['phone_number'])) {
     csrf_check();
 
     $current  = $_POST['current_password'] ?? '';
@@ -141,6 +163,29 @@ if ($_is_volunteer_only) {
   </div>
 </div>
 
+<div class="vol-detail-card mb-4">
+  <div class="vol-detail-header"><i class="bi bi-phone me-2" aria-hidden="true"></i>Numer telefonu</div>
+  <div class="vol-detail-body">
+    <?php if ($phone_errors): ?>
+    <div class="alert alert-danger"><ul class="mb-0">
+      <?php foreach ($phone_errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
+    </ul></div>
+    <?php endif; ?>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="phone_number">Numer telefonu</label>
+        <input type="tel" id="phone_number" name="phone_number" class="form-control"
+               value="<?= h($db_user['phone_number'] ?? '') ?>" placeholder="np. 600123456">
+        <div class="form-text">Używany m.in. do powiadomień SMS i kontaktu w sprawach dotyczących Twojego konta.</div>
+      </div>
+      <button type="submit" style="background:var(--vol-color);color:#fff;border:none;border-radius:8px;padding:.55rem 1.25rem;font-weight:600">
+        <i class="bi bi-check2 me-1" aria-hidden="true"></i> Zapisz numer
+      </button>
+    </form>
+  </div>
+</div>
+
 <div class="vol-detail-card">
   <div class="vol-detail-header"><i class="bi bi-shield-check me-2" aria-hidden="true"></i>Wskazówki bezpieczeństwa</div>
   <div class="vol-detail-body small text-muted">
@@ -237,6 +282,30 @@ if ($_is_volunteer_only) {
 </div>
 
 <?php endif; ?>
+
+<div class="card shadow-sm mt-4">
+  <div class="card-body p-4">
+    <h6 class="fw-semibold mb-3"><i class="bi bi-phone me-2" aria-hidden="true"></i>Numer telefonu</h6>
+    <?php if ($phone_errors): ?>
+    <div class="alert alert-danger"><ul class="mb-0">
+      <?php foreach ($phone_errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
+    </ul></div>
+    <?php endif; ?>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="phone_number">Numer telefonu</label>
+        <input type="tel" id="phone_number" name="phone_number" class="form-control"
+               value="<?= h($db_user['phone_number'] ?? '') ?>" placeholder="np. 600123456">
+        <div class="form-text">Używany m.in. do powiadomień SMS i kontaktu w sprawach dotyczących Twojego konta.</div>
+      </div>
+      <button type="submit" class="btn btn-outline-primary">
+        <i class="bi bi-check2 me-1" aria-hidden="true"></i> Zapisz numer
+      </button>
+    </form>
+  </div>
+</div>
+
 </div>
 </div>
 
