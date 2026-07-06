@@ -256,17 +256,20 @@ if ($action === 'reopen') {
         }
     }
 
+    task_review_schema_heal();
+
     $first_list = db_one(
         "SELECT id, name FROM task_lists WHERE workspace_id=? AND is_done_state=0 ORDER BY position LIMIT 1",
         [$task['workspace_id']]
     );
     $now = date('Y-m-d H:i:s');
+    $clear_review = ", confirmed_at=NULL, confirmed_by=NULL, rejected_at=NULL, rejected_by=NULL, rejection_reason=NULL";
     if ($first_list) {
-        db()->prepare("UPDATE tasks SET list_id=?, completed_at=NULL, confirmed_at=NULL, confirmed_by=NULL, updated_at=? WHERE id=?")
+        db()->prepare("UPDATE tasks SET list_id=?, completed_at=NULL{$clear_review}, updated_at=? WHERE id=?")
             ->execute([$first_list['id'], $now, $id]);
         task_log($id, $uid, 'reopened', null, $first_list['name']);
     } else {
-        db()->prepare("UPDATE tasks SET completed_at=NULL, confirmed_at=NULL, confirmed_by=NULL, updated_at=? WHERE id=?")->execute([$now, $id]);
+        db()->prepare("UPDATE tasks SET completed_at=NULL{$clear_review}, updated_at=? WHERE id=?")->execute([$now, $id]);
         task_log($id, $uid, 'reopened');
     }
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
@@ -290,17 +293,51 @@ if ($action === 'confirm') {
         task_api_error('Tylko osoba zlecająca zadanie lub lider obszaru może potwierdzić wykonanie.', 403);
     }
 
-    // Samonaprawa schematu — kolumny mogły nie zostać jeszcze zmigrowane.
-    try { db()->exec("ALTER TABLE tasks ADD COLUMN confirmed_at TEXT DEFAULT NULL"); } catch (\Throwable $e) {}
-    try { db()->exec("ALTER TABLE tasks ADD COLUMN confirmed_by INTEGER DEFAULT NULL"); } catch (\Throwable $e) {}
+    task_review_schema_heal();
 
     $now = date('Y-m-d H:i:s');
-    db()->prepare("UPDATE tasks SET confirmed_at=?, confirmed_by=?, updated_at=? WHERE id=?")
-        ->execute([$now, $uid, $now, $id]);
+    db()->prepare(
+        "UPDATE tasks SET confirmed_at=?, confirmed_by=?, rejected_at=NULL, rejected_by=NULL, rejection_reason=NULL, updated_at=? WHERE id=?"
+    )->execute([$now, $uid, $now, $id]);
     task_log($id, $uid, 'confirmed');
 
     require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
     task_notify_confirmed($id, $uid);
+
+    task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
+}
+
+// ── Odrzuć wykonanie (zlecający wskazuje powód) ─────────────────────────────
+if ($action === 'reject') {
+    $id     = (int)($body['id'] ?? 0);
+    $reason = trim((string)($body['reason'] ?? ''));
+    if (!$id) task_api_error('Brak ID zadania.');
+    if ($reason === '') task_api_error('Podaj powód odrzucenia.');
+
+    $task = db_one("SELECT * FROM tasks WHERE id=? AND deleted_at IS NULL", [$id]);
+    if (!$task) task_api_error('Zadanie nie istnieje.', 404);
+
+    task_require_workspace_access((int)$task['workspace_id']);
+
+    if (!$task['completed_at']) task_api_error('Zadanie nie jest jeszcze ukończone.');
+    if (!empty($task['confirmed_at'])) task_api_error('Wykonanie zostało już potwierdzone — nie można go odrzucić.');
+
+    $ws_role    = task_workspace_role((int)$task['workspace_id']);
+    $is_creator = (int)$task['created_by'] === $uid;
+    if (!$is_creator && !in_array($ws_role, ['admin', 'editor'], true)) {
+        task_api_error('Tylko osoba zlecająca zadanie lub lider obszaru może odrzucić wykonanie.', 403);
+    }
+
+    task_review_schema_heal();
+
+    $now = date('Y-m-d H:i:s');
+    db()->prepare(
+        "UPDATE tasks SET rejected_at=?, rejected_by=?, rejection_reason=?, updated_at=? WHERE id=?"
+    )->execute([$now, $uid, mb_substr($reason, 0, 1000), $now, $id]);
+    task_log($id, $uid, 'rejected', null, mb_substr($reason, 0, 120));
+
+    require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
+    task_notify_rejected($id, $uid, $reason);
 
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
 }

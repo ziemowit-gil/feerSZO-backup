@@ -321,12 +321,6 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
     </button>
   </div>
 
-  <!-- Legenda statusu potwierdzenia -->
-  <div class="tk-legend" aria-label="Legenda oznaczeń przy statusie">
-    <span><span class="tk-confirm-badge z" aria-hidden="true">Z</span> Zakończone, ale niepotwierdzone</span>
-    <span><span class="tk-confirm-badge zp" aria-hidden="true">ZP</span> Zakończone i potwierdzone przez zlecającego</span>
-  </div>
-
   <div style="overflow-x:auto">
     <table class="tk-table"
            id="task-table"
@@ -342,6 +336,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           </th>
           <th scope="col" style="width:3%" aria-label="Priorytet i tytuł">Zadanie</th>
           <th scope="col" style="width:10%" class="th-center">Status</th>
+          <th scope="col" style="width:6%"  class="th-center" aria-label="Weryfikacja wykonania">Weryf.</th>
           <th scope="col" style="width:10%">Kategoria</th>
           <th scope="col" style="width:8%"  class="th-center">Priorytet</th>
           <th scope="col" style="width:8%">Termin</th>
@@ -355,7 +350,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
 
       <?php if (!$tasks): ?>
       <tr>
-        <td colspan="10">
+        <td colspan="11">
           <?php
           $is_brand_new = ($workspace && (int)($workspace['task_count'] ?? 0) === 0 && empty($lists_map));
           ?>
@@ -449,15 +444,6 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                   title="Kliknij aby cofnąć ukończenie">
             <i class="bi bi-check-circle-fill" aria-hidden="true"></i> Ukończone
           </button>
-          <?php if (!empty($task['confirmed_at'])): ?>
-          <span class="tk-confirm-badge zp"
-                title="Potwierdzone przez zlecającego <?= h(substr($task['confirmed_at'],0,10)) ?>"
-                aria-label="Zakończone i potwierdzone przez zlecającego">ZP</span>
-          <?php else: ?>
-          <span class="tk-confirm-badge z"
-                title="Zakończone, ale niepotwierdzone przez zlecającego"
-                aria-label="Zakończone, ale niepotwierdzone przez zlecającego">Z</span>
-          <?php endif; ?>
           <?php else: ?>
           <button type="button" class="tk-status <?= $status_info[0] ?> tk-status-btn"
                   data-task-id="<?= $task['id'] ?>"
@@ -465,6 +451,27 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                   title="Kliknij aby oznaczyć jako ukończone">
             <i class="bi <?= $status_info[2] ?>" aria-hidden="true"></i> <?= $status_info[1] ?>
           </button>
+          <?php endif; ?>
+        </td>
+
+        <!-- Weryfikacja wykonania: Z / ZP / O -->
+        <td class="th-center" style="text-align:center">
+          <?php if ($task['_status'] === 'done'): ?>
+            <?php if (!empty($task['confirmed_at'])): ?>
+            <span class="tk-confirm-badge zp"
+                  title="Potwierdzone przez zlecającego <?= h(substr($task['confirmed_at'],0,10)) ?>"
+                  aria-label="Zakończone i potwierdzone przez zlecającego">ZP</span>
+            <?php elseif (!empty($task['rejected_at'])): ?>
+            <span class="tk-confirm-badge o"
+                  title="Odrzucone przez zlecającego <?= h(substr($task['rejected_at'],0,10)) ?>. Powód: <?= h($task['rejection_reason'] ?? '') ?>"
+                  aria-label="Zakończone, ale odrzucone przez zlecającego. Powód: <?= h($task['rejection_reason'] ?? '') ?>">O</span>
+            <?php else: ?>
+            <span class="tk-confirm-badge z"
+                  title="Zakończone, ale niepotwierdzone przez zlecającego"
+                  aria-label="Zakończone, ale niepotwierdzone przez zlecającego">Z</span>
+            <?php endif; ?>
+          <?php else: ?>
+          <span class="text-muted" style="font-size:.75rem">—</span>
           <?php endif; ?>
         </td>
 
@@ -616,6 +623,13 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
     <?php endif; ?>
   </div>
   <?php endif; ?>
+
+  <!-- Legenda kolumny "Weryf." -->
+  <div class="tk-legend" aria-label="Legenda kolumny weryfikacji wykonania">
+    <span><span class="tk-confirm-badge z" aria-hidden="true">Z</span> Zakończone, ale niepotwierdzone</span>
+    <span><span class="tk-confirm-badge zp" aria-hidden="true">ZP</span> Zakończone i potwierdzone przez zlecającego</span>
+    <span><span class="tk-confirm-badge o" aria-hidden="true">O</span> Odrzucone przez zlecającego (z podanym powodem)</span>
+  </div>
 
 </div>
 <?php endif; ?>
@@ -838,22 +852,24 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .s-taken {background:#dbeafe;color:#1d4ed8}
 .s-done  {background:#f1f5f9;color:#64748b}
 
-/* Badge potwierdzenia wykonania (Z / ZP) */
+/* Badge weryfikacji wykonania (Z / ZP / O) */
 .tk-confirm-badge{
   display:inline-flex;align-items:center;justify-content:center;
-  min-width:1.35rem;height:1.15rem;padding:0 .3rem;margin-left:.3rem;
+  min-width:1.35rem;height:1.15rem;padding:0 .3rem;
   border-radius:.3rem;font-size:.62rem;font-weight:800;letter-spacing:.02em;
   vertical-align:middle;
 }
 .tk-confirm-badge.z  {background:#fef3c7;color:#b45309}
 .tk-confirm-badge.zp {background:#ede9fe;color:#7c3aed}
+.tk-confirm-badge.o  {background:#fee2e2;color:#dc2626}
 
-/* Legenda nad tabelą */
+/* Legenda pod tabelą */
 .tk-legend{
   display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1.25rem;
-  font-size:.75rem;color:#64748b;padding:.15rem .25rem .75rem;
+  font-size:.75rem;color:#64748b;padding:.6rem .25rem .15rem;
+  border-top:1px solid var(--tk-border,#e2e8f0);
 }
-.tk-legend .tk-confirm-badge{margin-left:0;margin-right:.35rem}
+.tk-legend .tk-confirm-badge{margin-right:.35rem}
 
 /* Priorytet dot */
 .pri-dot{

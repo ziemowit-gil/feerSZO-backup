@@ -7,6 +7,7 @@
  *   task_notify_assigned(task_id, assigned_uid, by_uid)
  *   task_notify_new_comment(task_id, comment_id, body, author_uid)
  *   task_notify_confirmed(task_id, by_uid)
+ *   task_notify_rejected(task_id, by_uid, reason)
  *   task_notify_get_pref(user_id)  → array
  *   task_notify_save_pref(user_id, array)
  */
@@ -215,6 +216,58 @@ które realizujesz.</p>
     }
 }
 
+/**
+ * Powiadamia przypisanych wykonawców, że zlecający odrzucił wykonanie zadania (z powodem).
+ */
+function task_notify_rejected(int $task_id, int $by_uid, string $reason): void {
+    $task = _tn_task($task_id);
+    if (!$task) return;
+
+    $by_name  = _tn_user_name($by_uid);
+    $task_url = _tn_task_url($task_id);
+    $reason_h = htmlspecialchars($reason, ENT_QUOTES, 'UTF-8');
+
+    $assignees = db_all(
+        "SELECT u.id, u.name, u.email
+         FROM task_assignments ta JOIN users u ON u.id=ta.user_id
+         WHERE ta.task_id=? AND u.is_active=1",
+        [$task_id]
+    );
+    foreach ($assignees as $u) {
+        if ((int)$u['id'] === $by_uid) continue;   // nie powiadamiaj siebie
+
+        try {
+            notif_create(
+                (int)$u['id'], 'task',
+                'Odrzucono wykonanie: ' . $task['title'],
+                htmlspecialchars($by_name, ENT_QUOTES, 'UTF-8') . ' odrzucił(a) wykonanie. Powód: ' . mb_substr($reason, 0, 200),
+                '/tasks/index.php?task=' . $task_id
+            );
+        } catch (\Throwable $e) {}
+
+        if (!$u['email']) continue;
+        $pref = task_notify_get_pref((int)$u['id']);
+        if (!($pref['notify_rejected'] ?? 1)) continue;
+        if (!_tn_should_send((int)$u['id'], 'rejected', $task_id)) continue;
+
+        $subject = 'Odrzucono wykonanie zadania: ' . $task['title'];
+        $content = '
+<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>
+<p><strong>' . htmlspecialchars($by_name) . '</strong> odrzucił(a) wykonanie zadania,
+które realizujesz — konieczna poprawa.</p>
+' . _tn_task_card($task) . '
+<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px;
+            margin:14px 0;border-radius:0 6px 6px 0;font-size:14px;color:#1e293b;line-height:1.5">
+  <strong>Powód:</strong><br>' . nl2br($reason_h) . '
+</div>';
+        $html = _tn_tpl('Wykonanie odrzucone', $subject, $content, $task_url);
+        if (_tn_send($u['email'], $subject, $html)) {
+            _tn_log((int)$u['id'], 'rejected', $task_id);
+        }
+        _tn_sms((int)$u['id'], 'FEER SZO. ' . mb_substr($by_name, 0, 20) . ' odrzucił(a) wykonanie zadania: "' . mb_substr($task['title'], 0, 50) . '". Powod: ' . mb_substr($reason, 0, 60));
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  PREFERENCJE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -236,9 +289,11 @@ function task_notify_save_pref(int $user_id, array $data): void {
     catch (\Throwable $e) {}
     try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_confirmed INTEGER NOT NULL DEFAULT 1"); }
     catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE task_notification_prefs ADD COLUMN notify_rejected INTEGER NOT NULL DEFAULT 1"); }
+    catch (\Throwable $e) {}
 
     $fields  = ['notify_assigned', 'notify_mentioned', 'notify_comment',
-                'notify_due_1day', 'notify_due_today', 'notify_sms', 'notify_confirmed'];
+                'notify_due_1day', 'notify_due_today', 'notify_sms', 'notify_confirmed', 'notify_rejected'];
     $values  = [];
     foreach ($fields as $f) {
         $values[$f] = isset($data[$f]) ? (int)(bool)$data[$f] : 0;
@@ -267,6 +322,7 @@ function _tn_default_prefs(): array {
         'notify_due_today' => 1,
         'notify_sms'       => 0,
         'notify_confirmed' => 1,
+        'notify_rejected'  => 1,
     ];
 }
 

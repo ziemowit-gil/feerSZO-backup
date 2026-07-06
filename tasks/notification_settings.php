@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'notify_due_1day'  => isset($_POST['notify_due_1day'])  ? 1 : 0,
                 'notify_due_today' => isset($_POST['notify_due_today']) ? 1 : 0,
                 'notify_confirmed' => isset($_POST['notify_confirmed']) ? 1 : 0,
+                'notify_rejected'  => isset($_POST['notify_rejected'])  ? 1 : 0,
                 'notify_sms'       => isset($_POST['notify_sms'])       ? 1 : 0,
             ]);
             $saved = true;
@@ -202,6 +203,15 @@ require_once dirname(__DIR__) . '/includes/header.php';
               'desc'  => 'Gdy zlecający potwierdzi wykonanie zadania, które realizujesz.',
               'timing'=> 'od razu',
           ],
+          [
+              'key'   => 'notify_rejected',
+              'icon'  => 'bi-x-octagon-fill',
+              'color' => '#fee2e2',
+              'ic'    => '#dc2626',
+              'title' => 'Odrzucenie wykonania',
+              'desc'  => 'Gdy zlecający odrzuci wykonanie zadania i poda powód.',
+              'timing'=> 'od razu',
+          ],
       ];
       foreach ($activity as $opt):
           $on = (bool)($pref[$opt['key']] ?? 0);
@@ -365,14 +375,14 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
 <script>
 var PRESETS = {
-  all:       ['notify_assigned','notify_mentioned','notify_comment','notify_confirmed','notify_due_1day','notify_due_today'],
-  important: ['notify_assigned','notify_mentioned','notify_confirmed','notify_due_1day','notify_due_today'],
+  all:       ['notify_assigned','notify_mentioned','notify_comment','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
+  important: ['notify_assigned','notify_mentioned','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
   deadlines: ['notify_due_1day','notify_due_today'],
   none:      []
 };
 function setPreset(name) {
   var on = PRESETS[name] || [];
-  ['notify_assigned','notify_mentioned','notify_comment','notify_confirmed','notify_due_1day','notify_due_today'].forEach(function(k) {
+  ['notify_assigned','notify_mentioned','notify_comment','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'].forEach(function(k) {
     var el = document.getElementById(k);
     if (el) el.checked = on.indexOf(k) >= 0;
   });

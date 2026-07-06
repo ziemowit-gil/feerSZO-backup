@@ -79,10 +79,13 @@ $is_done = (bool)$task['completed_at'];
 $overdue = $task['due_date'] && !$is_done
            && strtotime($task['due_date']) < strtotime('today');
 
-// ── Potwierdzenie wykonania przez zlecającego ─────────────────────────────
+// ── Potwierdzenie / odrzucenie wykonania przez zlecającego ────────────────
 $is_confirmed = !empty($task['confirmed_at'] ?? null);
-$can_confirm  = $is_done && !$is_confirmed
+$is_rejected  = !empty($task['rejected_at'] ?? null);
+$can_review   = $is_done && !$is_confirmed
                 && ((int)$task['created_by'] === $uid || $can_edit);
+$can_confirm  = $can_review;
+$can_reject   = $can_review;
 
 // ── Komórka organizacyjna aktora — do „Poproś o przejęcie" ───────────────
 $_actor_is_sys_admin = (db_one("SELECT role FROM users WHERE id=?", [$uid])['role'] ?? '') === 'admin';
@@ -533,6 +536,11 @@ function td_render_mentions(string $text, array $users): string {
       <i class="bi bi-patch-check-fill me-1" aria-hidden="true"></i>Potwierdzone <?= substr($task['confirmed_at'],0,10) ?>
     </span>
     <?php endif; ?>
+    <?php if ($is_rejected): ?>
+    <span class="badge bg-danger" title="Powód: <?= h($task['rejection_reason'] ?? '') ?>">
+      <i class="bi bi-x-octagon-fill me-1" aria-hidden="true"></i>Odrzucone <?= substr($task['rejected_at'],0,10) ?>
+    </span>
+    <?php endif; ?>
     <?php if ($overdue): ?>
     <span class="badge bg-danger">
       <i class="bi bi-alarm me-1" aria-hidden="true"></i>Po terminie
@@ -542,6 +550,13 @@ function td_render_mentions(string $text, array $users): string {
       <i class="bi bi-columns-gap me-1" aria-hidden="true"></i><?= h($task['list_name']) ?>
     </span>
   </div>
+
+  <?php if ($is_rejected && !$is_confirmed): ?>
+  <div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.82rem" role="alert">
+    <i class="bi bi-x-octagon-fill me-1" aria-hidden="true"></i>
+    <strong>Odrzucono wykonanie</strong> — powód: <?= nl2br(h($task['rejection_reason'] ?? '')) ?>
+  </div>
+  <?php endif; ?>
 
   <!-- ── Belka przycisków ──────────────────────────────────────────────── -->
   <div class="td-action-bar" role="toolbar" aria-label="Akcje zadania">
@@ -568,7 +583,7 @@ function td_render_mentions(string $text, array $users): string {
     <?php endif; ?>
     <?php endif; ?>
 
-    <!-- Potwierdź wykonanie — zlecający lub lider obszaru -->
+    <!-- Potwierdź / odrzuć wykonanie — zlecający lub lider obszaru -->
     <?php if ($can_confirm): ?>
     <button type="button"
             class="td-ab-btn td-ab-confirm"
@@ -577,6 +592,17 @@ function td_render_mentions(string $text, array $users): string {
             aria-label="Potwierdź wykonanie zadania">
       <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
       <span>Potwierdź wykonanie</span>
+    </button>
+    <?php endif; ?>
+    <?php if ($can_reject): ?>
+    <button type="button"
+            class="td-ab-btn td-ab-danger"
+            id="td-reject-open-btn"
+            onclick="tdOpenRejectModal()"
+            aria-haspopup="dialog"
+            aria-label="Odrzuć wykonanie zadania i podaj powód">
+      <i class="bi bi-x-octagon" aria-hidden="true"></i>
+      <span>Odrzuć</span>
     </button>
     <?php endif; ?>
 
@@ -1334,6 +1360,15 @@ $ev_defs = [
     'label'       => 'Potwierdzono wykonanie',
     'desc'        => fn($e) => '',
   ],
+  'rejected' => [
+    'icon'        => 'bi-x-octagon-fill',
+    'bg'          => '#fee2e2', 'color' => '#dc2626',
+    'badge_bg'    => '#fef2f2', 'badge_color' => '#dc2626',
+    'label'       => 'Odrzucono wykonanie',
+    'desc'        => fn($e) => $e['to_value']
+      ? '<span class="td-hi-val" title="' . h($e['to_value']) . '">' . h(mb_substr($e['to_value'],0,50)) . (mb_strlen($e['to_value'])>50?'…':'') . '</span>'
+      : '',
+  ],
   'tag_added' => [
     'icon'        => 'bi-tag-fill',
     'bg'          => '#f0fdf4', 'color' => '#16a34a',
@@ -1592,6 +1627,107 @@ $ev_defs = [
             onclick="tdNotifyLeader()"
             aria-label="Wyślij zgłoszenie problemu do lidera obszaru">
       <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Wyślij zgłoszenie
+    </button>
+  </div>
+
+</div>
+
+<!-- ══ MODAL: Odrzuć wykonanie ═══════════════════════════════════════════ -->
+<div id="td-reject-backdrop"
+     style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9500;backdrop-filter:blur(2px)"
+     aria-hidden="true"
+     onclick="tdCloseRejectModal()"></div>
+
+<div id="td-reject-modal"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="td-reject-modal-title"
+     aria-describedby="td-reject-modal-desc"
+     tabindex="-1"
+     style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+            z-index:9600;width:400px;max-width:calc(100vw - 2rem);
+            background:#fff;border-radius:.75rem;
+            box-shadow:0 20px 48px rgba(0,0,0,.22);overflow:hidden">
+
+  <!-- Nagłówek -->
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:.8rem 1.1rem;border-bottom:1px solid #e2e8f0;background:#fef2f2">
+    <h2 id="td-reject-modal-title"
+        style="font-size:.93rem;font-weight:700;margin:0;
+               display:flex;align-items:center;gap:.45rem;color:#991b1b">
+      <span style="width:28px;height:28px;background:#fee2e2;border-radius:50%;
+                   display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"
+            aria-hidden="true">
+        <i class="bi bi-x-octagon-fill" style="color:#dc2626;font-size:.85rem"></i>
+      </span>
+      Odrzuć wykonanie
+    </h2>
+    <button type="button"
+            id="td-reject-close-btn"
+            class="btn-close"
+            onclick="tdCloseRejectModal()"
+            aria-label="Zamknij dialog odrzucenia wykonania"
+            style="font-size:.8rem"></button>
+  </div>
+
+  <!-- Treść -->
+  <div style="padding:.9rem 1.1rem">
+    <p id="td-reject-modal-desc"
+       style="font-size:.82rem;color:#64748b;margin-bottom:.75rem;line-height:1.5">
+      Podaj powód odrzucenia wykonania zadania
+      <strong style="color:#0f172a"><?= h(mb_substr($task['title'],0,50)) ?><?= mb_strlen($task['title'])>50?'…':'' ?></strong>.
+      Wykonawca otrzyma powiadomienie z tym powodem.
+    </p>
+
+    <div style="margin-bottom:.65rem">
+      <label for="td-reject-msg"
+             style="font-size:.78rem;font-weight:600;display:block;margin-bottom:.3rem">
+        Powód odrzucenia
+        <span style="color:#dc2626" aria-hidden="true">*</span>
+        <span class="visually-hidden">(wymagane)</span>
+      </label>
+      <textarea id="td-reject-msg"
+                style="width:100%;border:1.5px solid #e2e8f0;border-radius:.45rem;
+                       padding:.5rem .7rem;font-size:.85rem;resize:vertical;min-height:100px;
+                       font-family:inherit;line-height:1.55;color:#0f172a;
+                       transition:border-color .12s"
+                maxlength="1000"
+                placeholder="np. Brakuje wymaganych danych, wynik niezgodny z opisem zadania…"
+                aria-required="true"
+                aria-describedby="td-reject-hint td-reject-count-label"
+                oninput="tdRejectInput(this)"
+                onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();tdReject()}"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.3rem">
+        <p id="td-reject-hint" style="font-size:.72rem;color:#94a3b8;margin:0">
+          <kbd style="font-size:.68rem;background:#f1f5f9;border:1px solid #e2e8f0;
+                      border-radius:3px;padding:0 .25rem">Ctrl+Enter</kbd> wysyła
+        </p>
+        <span id="td-reject-count-label"
+              style="font-size:.72rem;color:#94a3b8"
+              aria-live="polite"
+              aria-label="Liczba znaków">0 / 1000</span>
+      </div>
+    </div>
+
+    <div id="td-reject-ok"  class="alert alert-success  small py-2 d-none" role="status"  aria-live="polite"></div>
+    <div id="td-reject-err" class="alert alert-danger   small py-2 d-none" role="alert"   aria-live="assertive"></div>
+  </div>
+
+  <!-- Stopka -->
+  <div style="display:flex;justify-content:flex-end;gap:.5rem;
+              padding:.65rem 1.1rem;border-top:1px solid #e2e8f0;background:#f8fafc">
+    <button type="button"
+            class="btn btn-outline-secondary btn-sm"
+            onclick="tdCloseRejectModal()"
+            aria-label="Anuluj i zamknij dialog">
+      Anuluj
+    </button>
+    <button type="button"
+            class="btn btn-danger btn-sm"
+            id="td-reject-btn"
+            onclick="tdReject()"
+            aria-label="Odrzuć wykonanie zadania z podanym powodem">
+      <i class="bi bi-x-octagon me-1" aria-hidden="true"></i>Odrzuć wykonanie
     </button>
   </div>
 
@@ -2181,6 +2317,113 @@ window.tdConfirm = function() {
                 }
                 alert(r.error);
             }
+        });
+};
+
+// ── Odrzuć wykonanie — modal z powodem ──────────────────────────────────────
+var _rejectPrevFocus = null;
+
+window.tdOpenRejectModal = function() {
+    const modal    = document.getElementById('td-reject-modal');
+    const backdrop = document.getElementById('td-reject-backdrop');
+    if (!modal || !backdrop) return;
+
+    const ta = document.getElementById('td-reject-msg');
+    if (ta) { ta.value = ''; ta.style.borderColor = ''; }
+    const cnt = document.getElementById('td-reject-count-label');
+    if (cnt) cnt.textContent = '0 / 1000';
+    document.getElementById('td-reject-ok')?.classList.add('d-none');
+    document.getElementById('td-reject-err')?.classList.add('d-none');
+
+    _rejectPrevFocus = document.activeElement;
+    backdrop.style.display = 'block';
+    modal.style.display    = 'block';
+    backdrop.removeAttribute('aria-hidden');
+
+    requestAnimationFrame(() => { document.getElementById('td-reject-msg')?.focus(); });
+    modal.addEventListener('keydown', _rejectTrapFocus);
+};
+
+window.tdCloseRejectModal = function() {
+    const modal    = document.getElementById('td-reject-modal');
+    const backdrop = document.getElementById('td-reject-backdrop');
+    if (!modal || !backdrop) return;
+
+    modal.style.display    = 'none';
+    backdrop.style.display = 'none';
+    backdrop.setAttribute('aria-hidden', 'true');
+    modal.removeEventListener('keydown', _rejectTrapFocus);
+
+    (_rejectPrevFocus || document.getElementById('td-reject-open-btn'))?.focus();
+    _rejectPrevFocus = null;
+};
+
+function _rejectTrapFocus(e) {
+    if (e.key !== 'Tab' && e.key !== 'Escape') return;
+    if (e.key === 'Escape') { e.preventDefault(); tdCloseRejectModal(); return; }
+
+    const modal     = document.getElementById('td-reject-modal');
+    const focusable = Array.from(modal.querySelectorAll(
+        'button:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+    )).filter(el => el.offsetParent !== null);
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last  = focusable[focusable.length - 1];
+
+    if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+        if (document.activeElement === last)  { e.preventDefault(); first.focus(); }
+    }
+}
+
+window.tdRejectInput = function(ta) {
+    const n   = ta.value.length;
+    const cnt = document.getElementById('td-reject-count-label');
+    if (cnt) {
+        cnt.textContent = n + ' / 1000';
+        cnt.style.color = n > 900 ? '#dc2626' : '#94a3b8';
+    }
+    ta.style.borderColor = '';
+};
+
+window.tdReject = function() {
+    const ta  = document.getElementById('td-reject-msg');
+    const btn = document.getElementById('td-reject-btn');
+    const ok  = document.getElementById('td-reject-ok');
+    const err = document.getElementById('td-reject-err');
+
+    const reason = (ta ? ta.value : '').trim();
+    if (!reason) {
+        if (ta) { ta.style.borderColor = '#dc2626'; ta.setAttribute('aria-invalid', 'true'); ta.focus(); }
+        return;
+    }
+    if (ta) { ta.style.borderColor = ''; ta.removeAttribute('aria-invalid'); }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Zapisuję…';
+    ok?.classList.add('d-none');
+    err?.classList.add('d-none');
+
+    api('/tasks/api/task.php', {action:'reject', id:TID, reason:reason})
+        .then(r => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-x-octagon me-1" aria-hidden="true"></i>Odrzuć wykonanie';
+            if (r.ok) {
+                if (ok) { ok.textContent = '✓ Wykonanie odrzucone — wykonawca otrzymał powiadomienie.'; ok.classList.remove('d-none'); }
+                srAnnounce('Wykonanie zadania odrzucone.');
+                if (typeof tkAjaxLoad === 'function') tkAjaxLoad();
+                setTimeout(() => { tdCloseRejectModal(); openTask(TID); }, 1200);
+            } else {
+                if (err) { err.textContent = r.error || 'Błąd zapisu.'; err.classList.remove('d-none'); }
+                ta?.focus();
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-x-octagon me-1" aria-hidden="true"></i>Odrzuć wykonanie';
+            if (err) { err.textContent = 'Błąd połączenia z serwerem.'; err.classList.remove('d-none'); }
         });
 };
 

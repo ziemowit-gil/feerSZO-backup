@@ -161,6 +161,25 @@ function task_log(int $task_id, int $user_id, string $event, ?string $from = nul
     } catch (\Throwable $e) { /* nie blokuj głównej operacji */ }
 }
 
+/**
+ * Samonaprawa schematu — kolumny weryfikacji wykonania (potwierdzenie/odrzucenie)
+ * mogły nie zostać jeszcze zmigrowane na tej instancji.
+ */
+function task_review_schema_heal(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    foreach ([
+        "ALTER TABLE tasks ADD COLUMN confirmed_at TEXT DEFAULT NULL",
+        "ALTER TABLE tasks ADD COLUMN confirmed_by INTEGER DEFAULT NULL",
+        "ALTER TABLE tasks ADD COLUMN rejected_at TEXT DEFAULT NULL",
+        "ALTER TABLE tasks ADD COLUMN rejected_by INTEGER DEFAULT NULL",
+        "ALTER TABLE tasks ADD COLUMN rejection_reason TEXT DEFAULT NULL",
+    ] as $sql) {
+        try { db()->exec($sql); } catch (\Throwable $e) {}
+    }
+}
+
 // ── Ruch zadania ───────────────────────────────────────────────────────────
 
 function task_move(int $task_id, int $new_list_id, float $new_pos, int $user_id): array {
