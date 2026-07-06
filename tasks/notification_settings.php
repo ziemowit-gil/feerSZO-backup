@@ -200,7 +200,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
               'color' => '#ede9fe',
               'ic'    => '#7c3aed',
               'title' => 'Potwierdzenie wykonania',
-              'desc'  => 'Gdy zlecający potwierdzi wykonanie zadania, które realizujesz.',
+              'desc'  => 'Gdy lider potwierdzi wykonanie zadania, które realizujesz.',
               'timing'=> 'od razu',
           ],
           [
@@ -209,7 +209,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
               'color' => '#fee2e2',
               'ic'    => '#dc2626',
               'title' => 'Odrzucenie wykonania',
-              'desc'  => 'Gdy zlecający odrzuci wykonanie zadania i poda powód.',
+              'desc'  => 'Gdy lider odrzuci wykonanie zadania i poda powód.',
               'timing'=> 'od razu',
           ],
       ];

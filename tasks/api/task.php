@@ -275,7 +275,7 @@ if ($action === 'reopen') {
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
 }
 
-// ── Potwierdź wykonanie (zlecający akceptuje ukończenie) ────────────────────
+// ── Potwierdź wykonanie (lider akceptuje ukończenie) ────────────────────────
 if ($action === 'confirm') {
     $id = (int)($body['id'] ?? 0);
     if (!$id) task_api_error('Brak ID zadania.');
@@ -290,7 +290,7 @@ if ($action === 'confirm') {
     $ws_role    = task_workspace_role((int)$task['workspace_id']);
     $is_creator = (int)$task['created_by'] === $uid;
     if (!$is_creator && !in_array($ws_role, ['admin', 'editor'], true)) {
-        task_api_error('Tylko osoba zlecająca zadanie lub lider obszaru może potwierdzić wykonanie.', 403);
+        task_api_error('Tylko lider obszaru może potwierdzić wykonanie.', 403);
     }
 
     task_review_schema_heal();
@@ -307,7 +307,7 @@ if ($action === 'confirm') {
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
 }
 
-// ── Odrzuć wykonanie (zlecający wskazuje powód) ─────────────────────────────
+// ── Odrzuć wykonanie (lider wskazuje powód) ─────────────────────────────────
 if ($action === 'reject') {
     $id     = (int)($body['id'] ?? 0);
     $reason = trim((string)($body['reason'] ?? ''));
@@ -325,7 +325,7 @@ if ($action === 'reject') {
     $ws_role    = task_workspace_role((int)$task['workspace_id']);
     $is_creator = (int)$task['created_by'] === $uid;
     if (!$is_creator && !in_array($ws_role, ['admin', 'editor'], true)) {
-        task_api_error('Tylko osoba zlecająca zadanie lub lider obszaru może odrzucić wykonanie.', 403);
+        task_api_error('Tylko lider obszaru może odrzucić wykonanie.', 403);
     }
 
     task_review_schema_heal();

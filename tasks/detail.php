@@ -79,7 +79,7 @@ $is_done = (bool)$task['completed_at'];
 $overdue = $task['due_date'] && !$is_done
            && strtotime($task['due_date']) < strtotime('today');
 
-// ── Potwierdzenie / odrzucenie wykonania przez zlecającego ────────────────
+// ── Potwierdzenie / odrzucenie wykonania przez lidera ─────────────────────
 $is_confirmed = !empty($task['confirmed_at'] ?? null);
 $is_rejected  = !empty($task['rejected_at'] ?? null);
 $can_review   = $is_done && !$is_confirmed
@@ -583,7 +583,7 @@ function td_render_mentions(string $text, array $users): string {
     <?php endif; ?>
     <?php endif; ?>
 
-    <!-- Potwierdź / odrzuć wykonanie — zlecający lub lider obszaru -->
+    <!-- Potwierdź / odrzuć wykonanie — lider obszaru -->
     <?php if ($can_confirm): ?>
     <button type="button"
             class="td-ab-btn td-ab-confirm"

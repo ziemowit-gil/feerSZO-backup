@@ -170,7 +170,7 @@ function task_notify_due(int $task_id, string $event): void {
 }
 
 /**
- * Powiadamia przypisanych wykonawców, że zlecający potwierdził wykonanie zadania.
+ * Powiadamia przypisanych wykonawców, że lider potwierdził wykonanie zadania.
  */
 function task_notify_confirmed(int $task_id, int $by_uid): void {
     $task = _tn_task($task_id);
@@ -217,7 +217,7 @@ które realizujesz.</p>
 }
 
 /**
- * Powiadamia przypisanych wykonawców, że zlecający odrzucił wykonanie zadania (z powodem).
+ * Powiadamia przypisanych wykonawców, że lider odrzucił wykonanie zadania (z powodem).
  */
 function task_notify_rejected(int $task_id, int $by_uid, string $reason): void {
     $task = _tn_task($task_id);

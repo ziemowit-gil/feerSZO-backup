@@ -459,16 +459,16 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <?php if ($task['_status'] === 'done'): ?>
             <?php if (!empty($task['confirmed_at'])): ?>
             <span class="tk-confirm-badge zp"
-                  title="Potwierdzone przez zlecającego <?= h(substr($task['confirmed_at'],0,10)) ?>"
-                  aria-label="Zakończone i potwierdzone przez zlecającego">ZP</span>
+                  title="Potwierdzone przez lidera <?= h(substr($task['confirmed_at'],0,10)) ?>"
+                  aria-label="Zakończone i potwierdzone przez lidera">ZP</span>
             <?php elseif (!empty($task['rejected_at'])): ?>
             <span class="tk-confirm-badge o"
-                  title="Odrzucone przez zlecającego <?= h(substr($task['rejected_at'],0,10)) ?>. Powód: <?= h($task['rejection_reason'] ?? '') ?>"
-                  aria-label="Zakończone, ale odrzucone przez zlecającego. Powód: <?= h($task['rejection_reason'] ?? '') ?>">O</span>
+                  title="Odrzucone przez lidera <?= h(substr($task['rejected_at'],0,10)) ?>. Powód: <?= h($task['rejection_reason'] ?? '') ?>"
+                  aria-label="Zakończone, ale odrzucone przez lidera. Powód: <?= h($task['rejection_reason'] ?? '') ?>">O</span>
             <?php else: ?>
             <span class="tk-confirm-badge z"
-                  title="Zakończone, ale niepotwierdzone przez zlecającego"
-                  aria-label="Zakończone, ale niepotwierdzone przez zlecającego">Z</span>
+                  title="Zakończone, ale niepotwierdzone przez lidera"
+                  aria-label="Zakończone, ale niepotwierdzone przez lidera">Z</span>
             <?php endif; ?>
           <?php else: ?>
           <span class="text-muted" style="font-size:.75rem">—</span>
@@ -627,8 +627,8 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
   <!-- Legenda kolumny "Weryf." -->
   <div class="tk-legend" aria-label="Legenda kolumny weryfikacji wykonania">
     <span><span class="tk-confirm-badge z" aria-hidden="true">Z</span> Zakończone, ale niepotwierdzone</span>
-    <span><span class="tk-confirm-badge zp" aria-hidden="true">ZP</span> Zakończone i potwierdzone przez zlecającego</span>
-    <span><span class="tk-confirm-badge o" aria-hidden="true">O</span> Odrzucone przez zlecającego (z podanym powodem)</span>
+    <span><span class="tk-confirm-badge zp" aria-hidden="true">ZP</span> Zakończone i potwierdzone przez lidera</span>
+    <span><span class="tk-confirm-badge o" aria-hidden="true">O</span> Odrzucone przez lidera (z podanym powodem)</span>
   </div>
 
 </div>
