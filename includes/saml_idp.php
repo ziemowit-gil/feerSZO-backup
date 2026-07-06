@@ -235,6 +235,7 @@ function saml_preset(string $preset): array {
                 ['name' => 'username',  'friendly' => 'username',  'nameformat' => $basic, 'source' => 'username'],
             ]];
         case 'nextcloud':
+        case 'owncloud': // ten sam app user_saml co Nextcloud — identyczne oczekiwane atrybuty
             return ['nameid_format' => 'emailAddress', 'nameid_attr' => 'email', 'attrs' => [
                 ['name' => 'email',       'friendly' => 'email',       'nameformat' => $basic, 'source' => 'email'],
                 ['name' => 'displayname', 'friendly' => 'displayname', 'nameformat' => $basic, 'source' => 'display_name'],
@@ -258,11 +259,24 @@ function saml_preset(string $preset): array {
 }
 
 /**
- * Stałe endpointy SP dla presetów chmurowych (te same dla każdej instalacji).
- * @return array<string,array{entity_id:string,acs_url:string}>
+ * Podpowiedzi endpointów SP — stałe dla presetów chmurowych (żaden na razie),
+ * a dla ownCloud wyliczone z już skonfigurowanego adresu (admin/owncloud_settings.php),
+ * bo `user_saml` w ownCloud ma przewidywalne ścieżki względem adresu instalacji.
+ * @return array<string,array{entity_id:string,acs_url:string,slo_url?:string}>
  */
 function saml_preset_endpoints(): array {
-    return [];
+    $out = [];
+    if (function_exists('owncloud_setting')) {
+        $url = rtrim(owncloud_setting('url'), '/');
+        if ($url !== '') {
+            $out['owncloud'] = [
+                'entity_id' => $url . '/apps/user_saml/saml/metadata',
+                'acs_url'   => $url . '/apps/user_saml/saml/acs',
+                'slo_url'   => $url . '/apps/user_saml/saml/sls',
+            ];
+        }
+    }
+    return $out;
 }
 
 /** Efektywna mapa atrybutów SP: własna (JSON) lub z presetu. */

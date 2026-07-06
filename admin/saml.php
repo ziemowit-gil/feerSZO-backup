@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/saml_idp.php';
+require_once dirname(__DIR__) . '/includes/owncloud.php';
 
 require_role('admin');
 ika_require(APP_URL . '/admin/saml.php', 3600);
@@ -26,7 +27,7 @@ $NAMEID_FORMATS = ['emailAddress' => 'E-mail (emailAddress)', 'persistent' => 'T
 $NAMEID_ATTRS   = ['email' => 'E-mail', 'username' => 'Login (część przed @)', 'id' => 'ID użytkownika',
                    'name' => 'Imię i nazwisko'];
 $PRESETS = ['generic' => 'Generyczny (OID)', 'moodle' => 'Moodle', 'nextcloud' => 'Nextcloud',
-            'grafana' => 'Grafana'];
+            'owncloud' => 'ownCloud', 'grafana' => 'Grafana'];
 $PRESET_ENDPOINTS = saml_preset_endpoints();
 $ROLES_AVAILABLE = [];
 try { foreach (db_all("SELECT name FROM roles ORDER BY name") as $r) $ROLES_AVAILABLE[] = $r['name']; } catch (\Throwable $e) {}
@@ -287,6 +288,16 @@ include dirname(__DIR__) . '/includes/header.php';
           </select>
         </div>
 
+        <div class="col-12" id="oc-help" style="display:none">
+          <div class="alert alert-info small mb-0">
+            <i class="bi bi-info-circle me-1"></i>Po stronie ownCloud: włącz aplikację
+            <strong>„user_saml"</strong> (Ustawienia → Administracja → uwierzytelnianie SAML)
+            i wklej tam adres metadata IdP: <code><?= h(saml_idp_metadata_url()) ?></code>.
+            Entity ID/ACS/SLO poniżej uzupełniły się automatycznie na podstawie adresu
+            skonfigurowanego w Admin → Integracje → Magazyn plików / ownCloud.
+          </div>
+        </div>
+
         <div class="col-md-6">
           <label class="form-label small fw-semibold">ACS URL (AssertionConsumerService) *</label>
           <input type="url" name="acs_url" class="form-control form-control-sm" value="<?= h($f('acs_url')) ?>" placeholder="https://app.example.org/saml/acs" required>
@@ -415,14 +426,20 @@ function samlCopy(id, btn) {
   var preset = form.querySelector('[name="preset"]');
   var entity = form.querySelector('[name="entity_id"]');
   var acs    = form.querySelector('[name="acs_url"]');
+  var slo    = form.querySelector('[name="slo_url"]');
+  var ocHelp = document.getElementById('oc-help');
   if (!preset) return;
-  preset.addEventListener('change', function () {
+  function syncPreset() {
+    if (ocHelp) ocHelp.style.display = preset.value === 'owncloud' ? '' : 'none';
     var e = ENDPOINTS[preset.value];
     if (!e) return;
     // Uzupełnij tylko puste pola, by nie nadpisać ręcznych zmian.
     if (entity && entity.value.trim() === '') entity.value = e.entity_id;
     if (acs && acs.value.trim() === '')       acs.value = e.acs_url;
-  });
+    if (slo && e.slo_url && slo.value.trim() === '') slo.value = e.slo_url;
+  }
+  preset.addEventListener('change', syncPreset);
+  syncPreset();
 })();
 </script>
 <?php
