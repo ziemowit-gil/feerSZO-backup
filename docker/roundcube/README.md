@@ -11,8 +11,17 @@ bazy danych. Skrzynki to Microsoft 365 (IMAP `outlook.office365.com`, SMTP
 `smtp.office365.com`).
 
 Plugin `onedrive_picker` (montowany z `plugins/onedrive_picker/`) dodaje przycisk
-„OneDrive" w oknie tworzenia maila — reużywa token OAuth z logowania (patrz
-punkt 3) do wywołań Microsoft Graph, więc user loguje się **raz**.
+„OneDrive" w oknie tworzenia maila — user loguje się **raz** (Microsoft 365),
+ale plugin pobiera **własny, osobny token Microsoft Graph** przez
+`grant_type=refresh_token` (ten sam refresh_token co Roundcube, inny `scope`).
+
+**Ważne — dlaczego osobny token:** Microsoft identity platform (v2.0) wydaje
+access token ważny dla JEDNEGO „resource"/audience na żądanie. Token z
+logowania (scope `outlook.office365.com/*`, do IMAP/SMTP) **nie jest ważny**
+dla `graph.microsoft.com` i na odwrót — nie da się dostać jednego tokenu na
+oba naraz w tym samym żądaniu (dlatego `oauth_scope` w `config.inc.php`
+celowo NIE zawiera `Files.Read`). Zob.
+[dokumentację Microsoft](https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow).
 
 **Ograniczenie:** nie ma aktywnie wspieranego, gotowego pluginu „OneDrive" dla
 Roundcube na rynku — `onedrive_picker` jest własnym, napisanym pod ten projekt
@@ -77,6 +86,16 @@ docker logs -f feer-rc
 
 ## 5. Jeśli logowanie OAuth lub plugin OneDrive nie zagra od razu
 
+- **"Oops... something went wrong! An internal error has occurred"** — to
+  ogólna strona błędu Roundcube (nieobsłużony wyjątek/błąd PHP), nie komunikat
+  specyficzny dla OAuth. Zawsze sprawdź `docker logs feer-rc` (albo
+  `docker logs --tail 200 feer-rc` po odtworzeniu problemu) — tam jest
+  konkretny stack trace. Najczęstsze przyczyny: (a) brak zapisu do wolumenu
+  `rc_db` (uprawnienia katalogu `/var/roundcube/db`), (b) literówka/brak
+  wartości w `RC_OAUTH_CLIENT_ID`/`RC_OAUTH_CLIENT_SECRET`/`RC_TENANT_ID` w
+  `.env.prod`, (c) błąd w niestandardowym pluginie `onedrive_picker` — spróbuj
+  chwilowo usunąć `'onedrive_picker'` z `$config['plugins']` w
+  `config.inc.php` i zrestartować kontener, żeby sprawdzić, czy błąd zniknie.
 - **Logowanie kończy się błędem "redirect_uri_mismatch"** — sprawdź w logach
   kontenera (`docker logs feer-rc`) lub w komunikacie błędu Azure, jaki redirect
   URI faktycznie wysłał Roundcube, i dodaj GO dokładnie (ze schematem i bez

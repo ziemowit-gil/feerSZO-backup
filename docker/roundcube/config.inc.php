@@ -37,12 +37,18 @@ $config['oauth_client_secret'] = getenv('RC_OAUTH_CLIENT_SECRET') ?: '';
 $config['oauth_auth_uri']      = "https://login.microsoftonline.com/{$_rc_tenant}/oauth2/v2.0/authorize";
 $config['oauth_token_uri']     = "https://login.microsoftonline.com/{$_rc_tenant}/oauth2/v2.0/token";
 $config['oauth_identity_uri']  = 'https://graph.microsoft.com/v1.0/me';
-// Files.Read na końcu — pozwala pluginowi onedrive_picker użyć tego samego
-// tokenu do Microsoft Graph, bez drugiego logowania.
+// UWAGA: celowo BEZ "https://graph.microsoft.com/Files.Read" tutaj — Microsoft
+// identity platform (v2.0) wydaje token dla JEDNEGO "resource"/audience na
+// żądanie; mieszanie scope'ów z outlook.office365.com i graph.microsoft.com
+// w jednym authorize/token request jest nieobsługiwane (token wychodzi ważny
+// tylko dla jednego z zasobów, w sposób nieprzewidywalny — patrz dokumentacja
+// Microsoft: https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow).
+// Plugin onedrive_picker pobiera WŁASNY token Graph osobnym żądaniem
+// grant_type=refresh_token (zob. onedrive_picker.php) — stąd offline_access
+// poniżej jest wymagane (żeby w ogóle dostać refresh_token).
 $config['oauth_scope'] = 'openid email profile offline_access '
     . 'https://outlook.office365.com/IMAP.AccessAsUser.All '
-    . 'https://outlook.office365.com/SMTP.Send '
-    . 'https://graph.microsoft.com/Files.Read';
+    . 'https://outlook.office365.com/SMTP.Send';
 // Pole z odpowiedzi oauth_identity_uri używane jako login IMAP/SMTP.
 $config['oauth_identity_fields'] = ['mail', 'userPrincipalName'];
 // Od razu przekieruj do logowania Microsoft — bez własnego formularza Roundcube.

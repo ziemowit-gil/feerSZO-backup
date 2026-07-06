@@ -136,10 +136,60 @@ class onedrive_picker extends rcube_plugin
         ]);
     }
 
-    /** Token OAuth zapisany przez rdzeń Roundcube przy logowaniu Microsoft 365. */
+    /**
+     * Token Microsoft Graph — NIE ten sam, którego Roundcube używa do IMAP/SMTP.
+     *
+     * Microsoft identity platform (v2.0) wydaje access token ważny dla JEDNEGO
+     * "resource"/audience na żądanie — token z logowania (scope
+     * outlook.office365.com/*) nie jest ważny dla graph.microsoft.com i na
+     * odwrót (https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow).
+     * Dlatego zamiast reużywać $_SESSION['oauth_token'] (którego zresztą rdzeń
+     * Roundcube i tak nie zapisuje z surowym access_token — zob. mask_auth_data()
+     * w program/include/rcmail_oauth.php), pobieramy WŁASNY token Graph osobnym
+     * żądaniem grant_type=refresh_token, tym samym refresh_tokenem co Roundcube,
+     * ale z innym "scope". Wymaga oauth_scope z "offline_access" w config.inc.php.
+     * Token cache'owany w sesji na czas jego ważności.
+     */
     private function access_token(): ?string
     {
-        return $_SESSION['oauth_token']['access_token'] ?? null;
+        if (!empty($_SESSION['onedrive_graph_token']['access_token'])
+            && ($_SESSION['onedrive_graph_token']['expires'] ?? 0) > time()) {
+            return $_SESSION['onedrive_graph_token']['access_token'];
+        }
+
+        $refresh_token_enc = $_SESSION['oauth_token']['refresh_token'] ?? null;
+        if (!$refresh_token_enc) return null;
+
+        $rcmail        = rcmail::get_instance();
+        $token_uri     = $rcmail->config->get('oauth_token_uri');
+        $client_id     = $rcmail->config->get('oauth_client_id');
+        $client_secret = $rcmail->config->get('oauth_client_secret');
+        $refresh_token = $rcmail->decrypt($refresh_token_enc);
+        if (!$token_uri || !$client_id || !$client_secret || !$refresh_token) return null;
+
+        $form = http_build_query([
+            'grant_type'    => 'refresh_token',
+            'refresh_token' => $refresh_token,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+            'scope'         => 'offline_access https://graph.microsoft.com/Files.Read',
+        ]);
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'POST',
+            'header'        => "Content-Type: application/x-www-form-urlencoded\r\n",
+            'content'       => $form,
+            'ignore_errors' => true,
+            'timeout'       => 15,
+        ]]);
+        $resp = @file_get_contents($token_uri, false, $ctx);
+        $data = json_decode($resp ?: '{}', true) ?? [];
+        if (empty($data['access_token'])) return null;
+
+        $_SESSION['onedrive_graph_token'] = [
+            'access_token' => $data['access_token'],
+            'expires'      => time() + (int)($data['expires_in'] ?? 3600) - 60,
+        ];
+        return $data['access_token'];
     }
 
     /** @return array{0: bool, 1: mixed} [ok, dane_lub_komunikat_bledu] */
