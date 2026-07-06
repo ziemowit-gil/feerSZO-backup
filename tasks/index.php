@@ -337,7 +337,6 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <th scope="col" style="width:3%" aria-label="Priorytet i tytuł">Zadanie</th>
           <th scope="col" style="width:10%" class="th-center">Status</th>
           <th scope="col" style="width:6%"  class="th-center" aria-label="Weryfikacja wykonania">Weryf.</th>
-          <th scope="col" style="width:10%">Kategoria</th>
           <th scope="col" style="width:8%"  class="th-center">Priorytet</th>
           <th scope="col" style="width:8%">Termin</th>
           <th scope="col" style="width:10%">Postęp</th>
@@ -350,7 +349,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
 
       <?php if (!$tasks): ?>
       <tr>
-        <td colspan="11">
+        <td colspan="10">
           <?php
           $is_brand_new = ($workspace && (int)($workspace['task_count'] ?? 0) === 0 && empty($lists_map));
           ?>
@@ -473,15 +472,6 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <?php else: ?>
           <span class="text-muted" style="font-size:.75rem">—</span>
           <?php endif; ?>
-        </td>
-
-        <!-- Kategoria -->
-        <td>
-          <?php $lc = $task['list_color'] ?: '#94a3b8'; ?>
-          <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem">
-            <span style="width:7px;height:7px;border-radius:50%;background:<?= h($lc) ?>;flex-shrink:0" aria-hidden="true"></span>
-            <?= h($task['list_name']) ?>
-          </span>
         </td>
 
         <!-- Priorytet — dropdown inline -->

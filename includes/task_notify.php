@@ -26,16 +26,28 @@ function task_notify_assigned(int $task_id, int $assigned_uid, int $by_uid): voi
     if ($assigned_uid === $by_uid) return;   // nie powiadamiaj siebie
 
     $user = db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$assigned_uid]);
-    if (!$user || !$user['email']) return;
+    if (!$user) return;
+
+    $task = _tn_task($task_id);
+    if (!$task) return;
+    $by_name = _tn_user_name($by_uid);
+
+    try {
+        notif_create(
+            $assigned_uid, 'task',
+            'Przypisano Cię do zadania: ' . $task['title'],
+            $by_name . ' przypisał(a) Cię do zadania.',
+            '/tasks/index.php?task=' . $task_id
+        );
+    } catch (\Throwable $e) {}
+
+    if (!$user['email']) return;
 
     $pref = task_notify_get_pref($assigned_uid);
     if (!($pref['notify_assigned'] ?? 1)) return;
 
     if (!_tn_should_send($assigned_uid, 'assigned', $task_id)) return;
 
-    $task     = _tn_task($task_id);
-    if (!$task) return;
-    $by_name  = _tn_user_name($by_uid);
     $task_url = _tn_task_url($task_id);
     $org      = defined('ORG_NAME') ? ORG_NAME : '';
 
@@ -78,6 +90,16 @@ function task_notify_new_comment(int $task_id, int $comment_id, string $body, in
     );
     foreach ($assignees as $u) {
         if ((int)$u['id'] === $author_uid) continue;
+
+        try {
+            notif_create(
+                (int)$u['id'], 'task',
+                $author_name . ' skomentował: ' . $task['title'],
+                mb_substr($snippet, 0, 200),
+                '/tasks/index.php?task=' . $task_id
+            );
+        } catch (\Throwable $e) {}
+
         if (!$u['email']) continue;
 
         $pref = task_notify_get_pref((int)$u['id']);
@@ -106,6 +128,15 @@ do którego jesteś przypisany/a.</p>
     $mentioned = _tn_parse_mentions($body, $all_users, $author_uid);
 
     foreach ($mentioned as $u) {
+        try {
+            notif_create(
+                (int)$u['id'], 'task',
+                $author_name . ' wspomniał Cię w zadaniu: ' . $task['title'],
+                mb_substr($snippet, 0, 200),
+                '/tasks/index.php?task=' . $task_id
+            );
+        } catch (\Throwable $e) {}
+
         if (!$u['email']) continue;
         $pref = task_notify_get_pref((int)$u['id']);
         if (!($pref['notify_mentioned'] ?? 1)) continue;
@@ -149,6 +180,15 @@ function task_notify_due(int $task_id, string $event): void {
         [$task_id]
     );
     foreach ($assignees as $u) {
+        try {
+            notif_create(
+                (int)$u['id'], 'task',
+                'Termin zadania ' . $due_label . ': ' . $task['title'],
+                $due_str ? ('Termin: ' . $due_str) : '',
+                '/tasks/index.php?task=' . $task_id
+            );
+        } catch (\Throwable $e) {}
+
         if (!$u['email']) continue;
         $pref = task_notify_get_pref((int)$u['id']);
         if (!($pref[$event] ?? 1)) continue;
@@ -192,7 +232,7 @@ function task_notify_confirmed(int $task_id, int $by_uid): void {
             notif_create(
                 (int)$u['id'], 'task',
                 'Potwierdzono wykonanie: ' . $task['title'],
-                htmlspecialchars($by_name, ENT_QUOTES, 'UTF-8') . ' potwierdził(a) wykonanie zadania.',
+                $by_name . ' potwierdził(a) wykonanie zadania.',
                 '/tasks/index.php?task=' . $task_id
             );
         } catch (\Throwable $e) {}
@@ -240,7 +280,7 @@ function task_notify_rejected(int $task_id, int $by_uid, string $reason): void {
             notif_create(
                 (int)$u['id'], 'task',
                 'Odrzucono wykonanie: ' . $task['title'],
-                htmlspecialchars($by_name, ENT_QUOTES, 'UTF-8') . ' odrzucił(a) wykonanie. Powód: ' . mb_substr($reason, 0, 200),
+                $by_name . ' odrzucił(a) wykonanie. Powód: ' . mb_substr($reason, 0, 200),
                 '/tasks/index.php?task=' . $task_id
             );
         } catch (\Throwable $e) {}
