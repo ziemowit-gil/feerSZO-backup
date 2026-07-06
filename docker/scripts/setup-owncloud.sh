@@ -27,7 +27,7 @@
 set -euo pipefail
 
 # ── Konfiguracja ───────────────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env.prod"
 OC_DOMAIN="${1:-owncloud.feer.org.pl}"
 OC_CONTAINER="feer-owncloud"
