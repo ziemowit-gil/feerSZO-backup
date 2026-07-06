@@ -38,8 +38,15 @@ if (!$guardian_email || !filter_var($guardian_email, FILTER_VALIDATE_EMAIL)) {
 }
 $guardian_name = $row['rodzic_imie_nazwisko'] ?: $guardian_email;
 
-$ezd         = ezd_register_guardian_consent_letter($row, $guardian_name, (int)current_user()['id']);
-$znak_sprawy = $ezd['znak_sprawy'] ?? '';
+// Sprawa EZD jest pomocnicza — awaria (np. problem ze schematem/segregatorem)
+// nie może uniemożliwić wysłania samego pisma do opiekuna.
+$znak_sprawy = '';
+try {
+    $ezd = ezd_register_guardian_consent_letter($row, $guardian_name, (int)current_user()['id']);
+    $znak_sprawy = $ezd['znak_sprawy'] ?? '';
+} catch (\Throwable $e) {
+    error_log('[guardian_consent_action] EZD: ' . $e->getMessage());
+}
 
 $rendered = email_tpl_render('guardian_consent_renewal', [
     'accent'          => '#1D4ED8',
