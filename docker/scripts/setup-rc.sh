@@ -69,17 +69,33 @@ ok "feer-traefik działa — Roundcube dołączy do tej samej sieci/Traefika"
 # ── 2. Zmienne w .env.prod ───────────────────────────────────────────────────
 section "2. Konfiguracja .env.prod"
 
+# Docker Compose interpoluje $VAR/${VAR} WEWNĄTRZ .env.prod (tak samo jak w
+# plikach compose) — literalny "$" w wartości (np. w sekrecie Azure) trzeba
+# zdublować na "$$", inaczej `docker compose` odmówi wczytania pliku
+# ("unexpected character ... in variable name").
+escape_dollar() { printf '%s' "${1//\$/\$\$}"; }
+
+# Gdyby plik nie kończył się nowym wierszem, `echo ... >> plik` dokleiłby się
+# do końca ostatniej linii bez separatora (dwie wartości zlepione w jedną) —
+# zabezpieczenie przed takim scenariuszem.
+ensure_trailing_newline() {
+    [[ -s "${ENV_FILE}" ]] || return 0
+    [[ "$(tail -c1 "${ENV_FILE}")" == $'\n' ]] || echo >> "${ENV_FILE}"
+}
+
 add_if_missing() {
     local key="$1" value="$2"
     if grep -q "^${key}=" "${ENV_FILE}"; then
         info "${key} już ustawione — bez zmian"
     else
-        echo "${key}=${value}" >> "${ENV_FILE}"
+        ensure_trailing_newline
+        echo "${key}=$(escape_dollar "${value}")" >> "${ENV_FILE}"
         ok "${key} ustawione i dopisane"
     fi
 }
 
 if ! grep -q "^# ── Roundcube" "${ENV_FILE}"; then
+    ensure_trailing_newline
     echo "" >> "${ENV_FILE}"
     echo "# ── Roundcube \"rc\" (wygenerowane przez setup-rc.sh) ─────────────────────" >> "${ENV_FILE}"
 fi
@@ -99,8 +115,9 @@ else
     RC_CLIENT_ID="$(ask "Application (client) ID z Azure AD" "")"
     if [[ -n "${RC_CLIENT_ID}" ]]; then
         sed -i.bak "/^RC_OAUTH_CLIENT_ID=/d" "${ENV_FILE}" 2>/dev/null || true
-        echo "RC_OAUTH_CLIENT_ID=${RC_CLIENT_ID}" >> "${ENV_FILE}"
         rm -f "${ENV_FILE}.bak"
+        ensure_trailing_newline
+        echo "RC_OAUTH_CLIENT_ID=$(escape_dollar "${RC_CLIENT_ID}")" >> "${ENV_FILE}"
         ok "RC_OAUTH_CLIENT_ID zapisane"
     else
         warn "Puste — RC_OAUTH_CLIENT_ID NIE zostało ustawione. Logowanie OAuth nie zadziała,"
@@ -114,8 +131,9 @@ else
     RC_CLIENT_SECRET="$(askp "Client secret z Azure AD (Enter = pomiń na razie)")"
     if [[ -n "${RC_CLIENT_SECRET}" ]]; then
         sed -i.bak "/^RC_OAUTH_CLIENT_SECRET=/d" "${ENV_FILE}" 2>/dev/null || true
-        echo "RC_OAUTH_CLIENT_SECRET=${RC_CLIENT_SECRET}" >> "${ENV_FILE}"
         rm -f "${ENV_FILE}.bak"
+        ensure_trailing_newline
+        echo "RC_OAUTH_CLIENT_SECRET=$(escape_dollar "${RC_CLIENT_SECRET}")" >> "${ENV_FILE}"
         ok "RC_OAUTH_CLIENT_SECRET zapisane"
     else
         warn "Puste — RC_OAUTH_CLIENT_SECRET NIE zostało ustawione."
