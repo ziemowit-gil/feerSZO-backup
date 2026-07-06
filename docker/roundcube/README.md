@@ -10,6 +10,14 @@ Osobny kontener Docker (`rc`), niezależny od głównej apki — nie dzieli z ni
 bazy danych. Skrzynki to Microsoft 365 (IMAP `outlook.office365.com`, SMTP
 `smtp.office365.com`).
 
+Dodatkowo włączone wbudowane, oficjalnie wspierane pluginy Roundcube (bez
+własnego kodu — same nazwy w `$config['plugins']`, obraz je już zawiera):
+`markasjunk` (oznacz jako spam), `newmail_notifier` (powiadomienie o nowej
+wiadomości — użytkownik włącza sposób w swoich Ustawieniach), `attachment_reminder`
+(ostrzeżenie o zapomnianym załączniku), `emoticons`, `hide_blockquote` (zwija
+cytowaną treść), `subscriptions_option` (przełącznik subskrypcji IMAP w
+Ustawieniach), `show_additional_headers`, `identicon` (awatar nadawcy).
+
 Plugin `onedrive_picker` (montowany z `plugins/onedrive_picker/`) dodaje przycisk
 „OneDrive" w oknie tworzenia maila — user loguje się **raz** (Microsoft 365),
 ale plugin pobiera **własny, osobny token Microsoft Graph** przez

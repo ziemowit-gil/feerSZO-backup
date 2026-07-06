@@ -79,6 +79,18 @@ $config['plugins'] = [
     'zipdownload',
     'managesieve',
     'onedrive_picker', // własny plugin — zob. plugins/onedrive_picker/
+
+    // ── UX / wygoda ──────────────────────────────────────────────────────────
+    'markasjunk',          // przycisk „Oznacz jako spam"
+    'newmail_notifier',    // powiadomienie o nowej wiadomości (dźwięk/desktop wg ustawień usera)
+    'attachment_reminder', // ostrzeżenie, gdy w treści jest „w załączniku" a nic nie dołączono
+    'emoticons',           // emotikony w edytorze treści
+    'hide_blockquote',     // zwija cytowaną treść w odpowiedziach (rozwijana po kliknięciu)
+
+    // ── Foldery / organizacja ────────────────────────────────────────────────
+    'subscriptions_option',      // przełącznik "używaj subskrypcji IMAP" w Ustawieniach
+    'show_additional_headers',  // pokazuje dodatkowe nagłówki wiadomości w podglądzie
+    'identicon',                 // automatyczna ikonka nadawcy bez zdjęcia (łatwiejsze rozpoznawanie w liście)
 ];
 
 $config['language'] = 'pl_PL';
