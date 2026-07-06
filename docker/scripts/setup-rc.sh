@@ -70,10 +70,12 @@ ok "feer-traefik działa — Roundcube dołączy do tej samej sieci/Traefika"
 section "2. Konfiguracja .env.prod"
 
 # Docker Compose interpoluje $VAR/${VAR} WEWNĄTRZ .env.prod (tak samo jak w
-# plikach compose) — literalny "$" w wartości (np. w sekrecie Azure) trzeba
-# zdublować na "$$", inaczej `docker compose` odmówi wczytania pliku
-# ("unexpected character ... in variable name").
-escape_dollar() { printf '%s' "${1//\$/\$\$}"; }
+# plikach compose) — literalny "$" (albo inny znak specjalny) w wartości
+# (np. w sekrecie Azure) potrafi wywalić `docker compose` błędem "unexpected
+# character ... in variable name". Cytowanie w apostrofy (jak w bashu/dotenv)
+# jest odporne na to w 100% — wewnątrz '...' nic nie jest interpolowane.
+# (Sekrety Azure AD nie zawierają apostrofów, więc nie trzeba ich escapować.)
+quote_value() { printf "'%s'" "$1"; }
 
 # Gdyby plik nie kończył się nowym wierszem, `echo ... >> plik` dokleiłby się
 # do końca ostatniej linii bez separatora (dwie wartości zlepione w jedną) —
@@ -89,7 +91,7 @@ add_if_missing() {
         info "${key} już ustawione — bez zmian"
     else
         ensure_trailing_newline
-        echo "${key}=$(escape_dollar "${value}")" >> "${ENV_FILE}"
+        echo "${key}=$(quote_value "${value}")" >> "${ENV_FILE}"
         ok "${key} ustawione i dopisane"
     fi
 }
@@ -117,7 +119,7 @@ else
         sed -i.bak "/^RC_OAUTH_CLIENT_ID=/d" "${ENV_FILE}" 2>/dev/null || true
         rm -f "${ENV_FILE}.bak"
         ensure_trailing_newline
-        echo "RC_OAUTH_CLIENT_ID=$(escape_dollar "${RC_CLIENT_ID}")" >> "${ENV_FILE}"
+        echo "RC_OAUTH_CLIENT_ID=$(quote_value "${RC_CLIENT_ID}")" >> "${ENV_FILE}"
         ok "RC_OAUTH_CLIENT_ID zapisane"
     else
         warn "Puste — RC_OAUTH_CLIENT_ID NIE zostało ustawione. Logowanie OAuth nie zadziała,"
@@ -133,7 +135,7 @@ else
         sed -i.bak "/^RC_OAUTH_CLIENT_SECRET=/d" "${ENV_FILE}" 2>/dev/null || true
         rm -f "${ENV_FILE}.bak"
         ensure_trailing_newline
-        echo "RC_OAUTH_CLIENT_SECRET=$(escape_dollar "${RC_CLIENT_SECRET}")" >> "${ENV_FILE}"
+        echo "RC_OAUTH_CLIENT_SECRET=$(quote_value "${RC_CLIENT_SECRET}")" >> "${ENV_FILE}"
         ok "RC_OAUTH_CLIENT_SECRET zapisane"
     else
         warn "Puste — RC_OAUTH_CLIENT_SECRET NIE zostało ustawione."
@@ -147,7 +149,11 @@ chmod 600 "${ENV_FILE}"
 # `source` bash próbuje wykonać jako polecenia ("Edukacji: command not found").
 # Docker compose parsuje --env-file inaczej (bez interpretacji shellowej) i nie
 # ma tego problemu — tutaj wyciągamy tylko to, czego skrypt faktycznie potrzebuje.
+# Zdejmujemy otaczające apostrofy (patrz quote_value powyżej) na potrzeby użycia
+# wartości w samym skrypcie (getent, wypisywane URL-e).
 RC_DOMAIN="$(grep -m1 '^RC_DOMAIN=' "${ENV_FILE}" | cut -d= -f2-)"
+RC_DOMAIN="${RC_DOMAIN%\'}"
+RC_DOMAIN="${RC_DOMAIN#\'}"
 
 # ── 3. DNS ─────────────────────────────────────────────────────────────────────
 section "3. Sprawdzenie DNS"
