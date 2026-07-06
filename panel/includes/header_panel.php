@@ -268,9 +268,9 @@ try {
   ?>
   <a href="<?= APP_URL ?>/tasks/index.php" class="pv-nav-link<?= _pv_nav_active('/tasks/') ?>"
      aria-label="Zadania<?= $_my_tasks_count ? " — {$_my_tasks_count} przypisanych" : '' ?>">
-    <i class="bi bi-list-check" aria-hidden="true"></i>Zadania
+    <i class="bi bi-list-check" style="color:#059669" aria-hidden="true"></i>Zadania
     <?php if ($_my_tasks_count): ?>
-    <span class="pv-badge" aria-label="<?= $_my_tasks_count ?> przypisanych zadań"><?= $_my_tasks_count ?></span>
+    <span class="pv-badge" style="background:#059669" aria-label="<?= $_my_tasks_count ?> przypisanych zadań"><?= $_my_tasks_count ?></span>
     <?php endif; ?>
   </a>
   <?php endif; ?>
