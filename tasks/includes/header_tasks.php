@@ -200,6 +200,36 @@ body {
   font-size: .67rem; font-weight: 700; flex-shrink: 0;
 }
 
+/* Mini centrum powiadomień */
+.tsk-notif-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.13);
+  border: 1.5px solid rgba(255,255,255,.35);
+  border-radius: 6px; color: #fff;
+  width: 34px; height: 34px; flex-shrink: 0;
+  font-size: .95rem; cursor: pointer;
+  transition: background .12s;
+}
+.tsk-notif-btn:hover { background: rgba(255,255,255,.24); }
+.tsk-notif-btn.tsk-notif-shake { animation: tskNotifShake .5s ease; }
+@keyframes tskNotifShake {
+  0%, 100% { transform: rotate(0); }
+  20%      { transform: rotate(-12deg); }
+  40%      { transform: rotate(10deg); }
+  60%      { transform: rotate(-8deg); }
+  80%      { transform: rotate(6deg); }
+}
+.tsk-notif-badge {
+  position: absolute; top: -4px; right: -4px;
+  background: #dc2626; color: #fff;
+  border-radius: 999px; font-size: .6rem; font-weight: 700;
+  min-width: 16px; height: 16px; padding: 0 3px;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; border: 1.5px solid var(--tsk-green-dark);
+}
+.tsk-notif-item.fw-semibold { background: #f5f9ff; }
+
 /* Mobile toggle */
 .tsk-menu-toggle {
   display: none;
@@ -350,6 +380,76 @@ body {
     </button>
     <?php endif; ?>
     <?php $msw_active='tasks'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
+
+    <?php
+    $_tsk_notif_unread = 0;
+    $_tsk_notif_latest = [];
+    try {
+        require_once dirname(dirname(__DIR__)) . '/includes/notifications.php';
+        notif_migrate();
+        $_tsk_notif_unread = (int)(db_one(
+            "SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND type='task' AND is_read=0",
+            [(int)$_tu['id']]
+        )['c'] ?? 0);
+        $_tsk_notif_latest = db_all(
+            "SELECT * FROM notifications WHERE user_id=? AND type='task' ORDER BY created_at DESC LIMIT 8",
+            [(int)$_tu['id']]
+        );
+    } catch (\Throwable $e) {}
+    ?>
+    <div class="dropdown" id="tsk-notif-wrap">
+      <button type="button" class="tsk-notif-btn" id="tsk-notif-btn"
+              data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+              aria-label="Powiadomienia zadań — <?= $_tsk_notif_unread ?> nieprzeczytanych">
+        <i class="bi bi-bell-fill" aria-hidden="true"></i>
+        <span class="tsk-notif-badge <?= $_tsk_notif_unread ? '' : 'd-none' ?>" id="tsk-notif-count">
+          <?= $_tsk_notif_unread > 99 ? '99+' : $_tsk_notif_unread ?>
+        </span>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end shadow" id="tsk-notif-menu"
+           style="width:320px;max-height:420px;overflow-y:auto" role="menu"
+           aria-label="Lista powiadomień modułu Zadania">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+          <span class="fw-semibold" style="font-size:.85rem">Powiadomienia — Zadania</span>
+          <button type="button" class="btn btn-link btn-sm p-0 text-muted <?= $_tsk_notif_unread ? '' : 'd-none' ?>"
+                  id="tsk-notif-mark-all" style="font-size:.75rem">Oznacz przeczytane</button>
+        </div>
+        <div id="tsk-notif-list">
+          <?php if (!$_tsk_notif_latest): ?>
+          <div class="text-center py-4 text-muted" style="font-size:.82rem" id="tsk-notif-empty">
+            <i class="bi bi-bell-slash d-block mb-1" style="font-size:1.5rem;opacity:.3" aria-hidden="true"></i>
+            Brak powiadomień
+          </div>
+          <?php else: foreach ($_tsk_notif_latest as $n): ?>
+          <a href="<?= h($n['url'] ?: APP_URL . '/tasks/notifications.php') ?>"
+             class="dropdown-item py-2 px-3 tsk-notif-item <?= $n['is_read'] ? '' : 'fw-semibold' ?>"
+             style="white-space:normal;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+             data-notif-id="<?= (int)$n['id'] ?>">
+            <div class="d-flex gap-2 align-items-start">
+              <i class="bi bi-kanban-fill mt-1 flex-shrink-0" style="color:#8B5CF6;font-size:.9rem" aria-hidden="true"></i>
+              <div class="flex-grow-1">
+                <div><?= h($n['title']) ?></div>
+                <?php if ($n['body']): ?>
+                <div class="text-muted fw-normal" style="font-size:.74rem"><?= h($n['body']) ?></div>
+                <?php endif; ?>
+                <div class="text-muted fw-normal" style="font-size:.72rem"><?= h(substr($n['created_at'], 0, 16)) ?></div>
+              </div>
+              <?php if (!$n['is_read']): ?>
+              <span class="rounded-circle bg-primary flex-shrink-0" style="width:7px;height:7px;margin-top:5px" aria-hidden="true"></span>
+              <?php endif; ?>
+            </div>
+          </a>
+          <?php endforeach; endif; ?>
+        </div>
+        <div class="px-3 py-2 border-top">
+          <a href="<?= APP_URL ?>/tasks/notifications.php" class="btn btn-sm w-100"
+             style="background:#f1f5f9;color:#374151;font-size:.8rem">
+            <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historia powiadomień
+          </a>
+        </div>
+      </div>
+    </div>
+
     <span class="tsk-user-btn" aria-label="Zalogowany: <?= h($_tu_name) ?>">
       <span class="tsk-user-av" aria-hidden="true"><?= h($_tu_initials) ?></span>
       <span class="d-none d-sm-inline"><?= h($_tu_name) ?></span>
@@ -619,4 +719,119 @@ document.addEventListener('click', function(e) {
         btn.setAttribute('aria-expanded', 'false');
     }
 });
+</script>
+
+<!-- Mini centrum powiadomień — polling + dźwięk -->
+<script>
+(function () {
+    const APP_URL   = '<?= APP_URL ?>';
+    const POLL_MS   = 25000;
+    let lastUnread  = <?= (int)$_tsk_notif_unread ?>;
+    let audioCtx    = null;
+
+    function escHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+        }[c]));
+    }
+
+    // Krótki "ding" wygenerowany na żywo (Web Audio API) — bez plików binarnych.
+    function tskPlayDing() {
+        try {
+            audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            const now = audioCtx.currentTime;
+            [[880, 0], [1318.5, 0.09]].forEach(([freq, delay]) => {
+                const osc  = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.0001, now + delay);
+                gain.gain.exponentialRampToValueAtTime(0.18, now + delay + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.5);
+                osc.connect(gain).connect(audioCtx.destination);
+                osc.start(now + delay);
+                osc.stop(now + delay + 0.55);
+            });
+        } catch (e) { /* autoplay zablokowany lub brak Web Audio — cicho pomiń */ }
+    }
+
+    function tskRenderNotifList(items) {
+        const list = document.getElementById('tsk-notif-list');
+        if (!list) return;
+        if (!items.length) {
+            list.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:.82rem" id="tsk-notif-empty">'
+                + '<i class="bi bi-bell-slash d-block mb-1" style="font-size:1.5rem;opacity:.3" aria-hidden="true"></i>Brak powiadomień</div>';
+            return;
+        }
+        list.innerHTML = items.map(n => (
+            '<a href="' + escHtml(n.url || (APP_URL + '/tasks/notifications.php')) + '"'
+            + ' class="dropdown-item py-2 px-3 tsk-notif-item ' + (n.is_read ? '' : 'fw-semibold') + '"'
+            + ' style="white-space:normal;font-size:.82rem;border-bottom:1px solid #f1f5f9" data-notif-id="' + n.id + '">'
+            + '<div class="d-flex gap-2 align-items-start">'
+            + '<i class="bi bi-kanban-fill mt-1 flex-shrink-0" style="color:#8B5CF6;font-size:.9rem" aria-hidden="true"></i>'
+            + '<div class="flex-grow-1"><div>' + escHtml(n.title) + '</div>'
+            + (n.body ? '<div class="text-muted fw-normal" style="font-size:.74rem">' + escHtml(n.body) + '</div>' : '')
+            + '<div class="text-muted fw-normal" style="font-size:.72rem">' + escHtml((n.created_at || '').slice(0, 16)) + '</div></div>'
+            + (n.is_read ? '' : '<span class="rounded-circle bg-primary flex-shrink-0" style="width:7px;height:7px;margin-top:5px" aria-hidden="true"></span>')
+            + '</div></a>'
+        )).join('');
+    }
+
+    function tskApplyUnread(unread) {
+        const badge   = document.getElementById('tsk-notif-count');
+        const markAll = document.getElementById('tsk-notif-mark-all');
+        const btn     = document.getElementById('tsk-notif-btn');
+        if (badge) {
+            badge.textContent = unread > 99 ? '99+' : unread;
+            badge.classList.toggle('d-none', unread === 0);
+        }
+        if (markAll) markAll.classList.toggle('d-none', unread === 0);
+        if (btn) btn.setAttribute('aria-label', 'Powiadomienia zadań — ' + unread + ' nieprzeczytanych');
+    }
+
+    function tskPollNotifications() {
+        fetch(APP_URL + '/tasks/api/notif_poll.php', {cache: 'no-store'})
+            .then(r => r.json())
+            .then(d => {
+                if (!d.ok) return;
+                if (d.unread > lastUnread) {
+                    tskPlayDing();
+                    const btn = document.getElementById('tsk-notif-btn');
+                    if (btn) {
+                        btn.classList.remove('tsk-notif-shake');
+                        void btn.offsetWidth; // restart animacji
+                        btn.classList.add('tsk-notif-shake');
+                    }
+                }
+                lastUnread = d.unread;
+                tskApplyUnread(d.unread);
+                tskRenderNotifList(d.latest || []);
+            })
+            .catch(() => {});
+    }
+
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('#tsk-notif-menu [data-notif-id]');
+        if (link) {
+            fetch(APP_URL + '/tasks/api/notif_poll.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'mark_read', id: parseInt(link.dataset.notifId, 10)})
+            }).catch(() => {});
+            return;
+        }
+        const markAll = e.target.closest('#tsk-notif-mark-all');
+        if (markAll) {
+            fetch(APP_URL + '/tasks/api/notif_poll.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'mark_all'})
+            }).then(r => r.json()).then(d => {
+                if (d.ok) { lastUnread = d.unread; tskApplyUnread(d.unread); tskRenderNotifList(d.latest || []); }
+            }).catch(() => {});
+        }
+    });
+
+    setInterval(tskPollNotifications, POLL_MS);
+})();
 </script>
