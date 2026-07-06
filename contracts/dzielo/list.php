@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
@@ -60,6 +61,7 @@ if ($wyna_od !== '') { $where .= " AND CAST(wynagrodzenie_brutto AS REAL) >= ?";
 if ($wyna_do !== '') { $where .= " AND CAST(wynagrodzenie_brutto AS REAL) <= ?"; $params[] = (float)$wyna_do; }
 if ($kup50_only) { $where .= " AND kup50 = 1"; }
 if ($prawa_only) { $where .= " AND prawa_autorskie = 1"; }
+$where .= ' AND ' . contract_access_where($TYPE);
 
 $adv_count = (int)!!$opiekun + (int)!!$projekt + (int)!!$forma
            + (int)!!$data_od + (int)!!$data_do + (int)!!$termin_od + (int)!!$termin_do

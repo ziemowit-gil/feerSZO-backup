@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin','editor');
 $TYPE  = 'uslugi';
@@ -11,6 +12,10 @@ $TABLE = 'umowy_uslugi';
 $id = intval($_GET['id'] ?? 0);
 $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono umowy.'); }
+if (!viewer_owns_contract($TYPE, $row)) {
+    flash_set('error', 'Nie masz dostępu do tej umowy.');
+    header('Location: ' . APP_URL . '/contracts/' . $TYPE . '/list.php'); exit;
+}
 if (contract_is_locked($row)) {
     flash_set('warning', 'Umowa jest zablokowana (zawarty aneks) — edycja niedostępna.');
     header('Location: view.php?id=' . $id); exit;
@@ -58,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
         $diff = format_field_diff($row, $save);
         db_update($TABLE, $save, $id);
+        contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'edit', $diff ?: 'Edytowano umowę');
         flash_set('success', 'Zmiany zapisane.');
@@ -329,6 +335,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <label class="form-label">Załącznik (PDF/DOCX/XLSX/ZIP)</label>
   <?php endif; ?>
   <input name="zalaczniki" type="file" class="form-control" accept=".pdf,.docx,.xlsx,.zip">
+</div>
+</div>
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-shield-lock"></i> Dostęp</div>
+<div class="card-body">
+  <?= contract_access_field_html(contract_access_user_ids($TYPE, $id)) ?>
 </div>
 </div>
 </div>

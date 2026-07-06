@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
@@ -74,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     };
 
     $row = $id ? db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]) : null;
+    if ($row && !contract_can_access($TYPE, $row)) { $row = null; }
     $owns = $row && (is_admin() || (int)($row['created_by'] ?? 0) === (int)current_user()['id']);
 
     if ($action === 'quick_status' && $row && $can_edit_uslugi) {
@@ -123,6 +125,7 @@ if ($f['koniec_do']) { $where .= " AND data_zakonczenia <= ?"; $params[] = $f['k
 if ($f['wartosc_od'] !== '') { $where .= " AND CAST(wartosc_brutto AS REAL) >= ?"; $params[] = (float)$f['wartosc_od']; }
 if ($f['wartosc_do'] !== '') { $where .= " AND CAST(wartosc_brutto AS REAL) <= ?"; $params[] = (float)$f['wartosc_do']; }
 if ($f['bezterm']) { $where .= " AND czas_nieokreslony = 1"; }
+$where .= ' AND ' . contract_access_where($TYPE);
 
 $adv_count = (int)!!$f['rozl'] + (int)!!$f['opiekun'] + (int)!!$f['projekt'] + (int)!!$f['forma']
            + (int)!!$f['waluta'] + (int)!!$f['data_od'] + (int)!!$f['data_do']

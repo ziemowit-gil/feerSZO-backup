@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
@@ -60,6 +61,7 @@ if ($koniec_od)  { $where .= " AND data_zakonczenia >= ?"; $params[] = $koniec_o
 if ($koniec_do)  { $where .= " AND data_zakonczenia <= ?"; $params[] = $koniec_do; }
 if ($wartosc_od !== '') { $where .= " AND CAST(wartosc_umowy AS REAL) >= ?"; $params[] = (float)$wartosc_od; }
 if ($wartosc_do !== '') { $where .= " AND CAST(wartosc_umowy AS REAL) <= ?"; $params[] = (float)$wartosc_do; }
+$where .= ' AND ' . contract_access_where($TYPE);
 
 $adv_count = (int)!!$opiekun + (int)!!$projekt + (int)!!$forma + (int)!!$waluta
            + (int)!!$data_od + (int)!!$data_do + (int)!!$koniec_od + (int)!!$koniec_do

@@ -11,6 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 cpc_migrate();
 
 require_role('admin', 'editor');
@@ -19,6 +20,10 @@ $TABLE = 'umowy_wolontariat';
 $id    = intval($_GET['id'] ?? 0);
 $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono porozumienia.'); }
+if (!viewer_owns_contract($TYPE, $row)) {
+    flash_set('error', 'Nie masz dostępu do tej umowy.');
+    header('Location: ' . APP_URL . '/contracts/' . $TYPE . '/list.php'); exit;
+}
 // Odśwież wyliczone godziny z zadań przed pokazaniem formularza
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     volunteer_recompute_hours($id, $row);
@@ -165,6 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
         $diff = format_field_diff($row, $save);
         db_update($TABLE, $save, $id);
+        contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
         // Przelicz godzin_przepracowanych = godzin_z_zadan + godzin_korekta
         volunteer_recompute_hours($id);
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
@@ -480,6 +486,9 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
         <?php endforeach; ?>
       </select>
       <div class="form-text">Inicjały opiekuna pojawiają się na numerze umowy.</div>
+    </div>
+    <div class="col-md-4 fgroup">
+      <?= contract_access_field_html(contract_access_user_ids($TYPE, $id)) ?>
     </div>
 
     <div class="col-md-4 fgroup">

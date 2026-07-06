@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/amendments.php';
+require_once dirname(__DIR__) . '/includes/contract_access.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -41,9 +42,9 @@ $tbl_map = [
 ];
 $tbl = $tbl_map[$type];
 
-// Weryfikacja: tylko rekordy istniejące w tej tabeli
+// Weryfikacja: tylko rekordy istniejące w tej tabeli i dostępne dla zalogowanego użytkownika
 $ph   = implode(',', array_fill(0, count($ids), '?'));
-$rows = db_all("SELECT id FROM {$tbl} WHERE id IN ({$ph})", $ids);
+$rows = db_all("SELECT id FROM {$tbl} WHERE id IN ({$ph}) AND " . contract_access_where($type), $ids);
 $ids  = array_column($rows, 'id');
 if (!$ids) _json(false, 0, 'Nie znaleziono wskazanych rekordów.');
 

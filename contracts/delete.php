@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
+require_once dirname(__DIR__) . '/includes/contract_access.php';
 
 require_role('admin', 'editor');
 csrf_check();
@@ -40,6 +41,13 @@ $role  = $user['role'] ?? '';
 $row = db_one("SELECT id, numer_umowy, created_by FROM {$table} WHERE id = ?", [$id]);
 if (!$row) {
     flash_set('danger', 'Umowa nie istnieje.');
+    header('Location: ' . APP_URL . "/contracts/{$type}/list.php");
+    exit;
+}
+
+// Dostęp do tej konkretnej umowy (lista dostępu z dodawania/edycji)
+if (!contract_can_access($type, $row)) {
+    flash_set('danger', 'Nie masz dostępu do tej umowy.');
     header('Location: ' . APP_URL . "/contracts/{$type}/list.php");
     exit;
 }

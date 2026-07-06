@@ -337,7 +337,11 @@ function account_is_office_only($user): bool {
 // Zwraca true jeśli zalogowany użytkownik jest właścicielem umowy (lub ma uprawnienia edytora/admina).
 // Używane w view.php do blokowania viewer-ów przed cudzymi umowami.
 function viewer_owns_contract(string $type, array $row): bool {
-    if (can_edit()) return true;
+    if (is_admin()) return true;
+    if (can_edit()) {
+        require_once __DIR__ . '/contract_access.php';
+        return contract_can_access($type, $row);
+    }
     $user  = current_user();
     if (!$user) return false;
     $email = $user['email'] ?? '';

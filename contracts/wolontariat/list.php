@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 
 require_login();
@@ -95,6 +96,7 @@ if ($ubez_nnw)   { $where .= " AND ubezpieczenie_nnw = 1"; }
 if ($ubez_oc)    { $where .= " AND ubezpieczenie_oc = 1"; }
 if ($niepelnoletni) { $where .= " AND niepelnoletni = 1"; }
 if ($bezterminowa)  { $where .= " AND bezterminowa = 1"; }
+$where .= ' AND ' . contract_access_where($TYPE);
 
 // Liczba aktywnych filtrów zaawansowanych (nie liczymy opiekuna i projektu – te są w "segmentacji")
 $adv_count = (int)!!$forma + (int)!!$data_od + (int)!!$data_do

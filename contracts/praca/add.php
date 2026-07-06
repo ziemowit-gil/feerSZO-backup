@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_praca', 'Umowy o pracę');
@@ -70,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         assign_nr_rejestru($data);
         $id = db_insert($TABLE, $data);
+        contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'create', 'Dodano: ' . ($data['numer_umowy'] ?? ''));
         if (isset($_POST['nie_mam_drukarki'])) {
@@ -417,6 +419,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <input name="plik_umowy" type="file" class="form-control" accept=".pdf,.docx">
       </div>
     </div>
+  </div>
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-shield-lock"></i> Dostęp</div>
+  <div class="card-body">
+    <?= contract_access_field_html([]) ?>
+  </div>
   </div>
 </div>
 </div><!-- /row -->

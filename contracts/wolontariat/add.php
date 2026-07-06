@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
@@ -611,6 +612,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data['numer_umowy'] = ''; // brak numeru RU
         }
         $id = db_insert($TABLE, $data);
+        contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
         // Ustaw godzin_przepracowanych = z zadań + korekta (na starcie = korekta)
         try {
             require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
@@ -1206,6 +1208,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <label class="form-label fw-semibold">Projekt / program</label>
           <input name="projekt_program" class="form-control"
                  value="<?= h($row['projekt_program'] ?? '') ?>" placeholder="np. Projekt A 2025">
+        </div>
+        <div class="col-sm-4">
+          <?= contract_access_field_html([]) ?>
         </div>
       </div>
 

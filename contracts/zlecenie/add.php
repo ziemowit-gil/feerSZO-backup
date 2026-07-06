@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin','editor');
 require_module_enabled('contract_zlecenie', 'Ten typ umowy');
@@ -77,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         assign_nr_rejestru($data);
         $id = db_insert($TABLE, $data);
+        contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
 
         // Weryfikacja utrwalenia — wykryj „cichy" brak zapisu (sukces bez danych w bazie).
         $missed = contract_assert_saved($TABLE, $id, $data);
@@ -460,6 +462,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
   <script>document.getElementById('m365_konto').addEventListener('change',function(){document.getElementById('m365_manual_fields').style.display=this.checked?'':'none'});</script>
   <small class="text-muted">Konto można też <a href="#">utworzyć automatycznie</a> po zapisaniu umowy z widoku szczegółów.</small>
+</div>
+</div>
+
+<!-- Dostęp -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-shield-lock"></i> Dostęp</div>
+<div class="card-body">
+  <?= contract_access_field_html([]) ?>
 </div>
 </div>
 

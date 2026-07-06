@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin','editor');
 require_once dirname(dirname(__DIR__)) . '/includes/zlecenie_schema.php';
@@ -22,6 +23,10 @@ $TABLE = 'umowy_zlecenie';
 $id = intval($_GET['id'] ?? 0);
 $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono.'); }
+if (!viewer_owns_contract($TYPE, $row)) {
+    flash_set('error', 'Nie masz dostępu do tej umowy.');
+    header('Location: ' . APP_URL . '/contracts/' . $TYPE . '/list.php'); exit;
+}
 if (contract_is_locked($row)) {
     flash_set('warning', 'Umowa jest zablokowana (zawarty aneks) — edycja niedostępna.');
     header('Location: view.php?id=' . $id); exit;
@@ -76,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
         $diff = format_field_diff($row, $save);
         db_update($TABLE, $save, $id);
+        contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
 
         // Weryfikacja utrwalenia — wykryj „cichy" brak zapisu (sukces bez zmian w bazie).
         $missed = contract_assert_saved($TABLE, $id, $save);
@@ -446,6 +452,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
   <script>document.getElementById('m365_konto').addEventListener('change',function(){document.getElementById('m365_manual_fields').style.display=this.checked?'':'none'});</script>
+</div>
+</div>
+
+<!-- Dostęp -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-shield-lock"></i> Dostęp</div>
+<div class="card-body">
+  <?= contract_access_field_html(contract_access_user_ids($TYPE, $id)) ?>
 </div>
 </div>
 
