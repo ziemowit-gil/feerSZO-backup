@@ -23,6 +23,8 @@
 
 require_once __DIR__ . '/envelopes.php';
 require_once __DIR__ . '/print_templates.php';
+require_once __DIR__ . '/contract_correction_schema.php';
+require_once __DIR__ . '/contract_correction.php';
 
 $_cvh_st       = STATUS_LABELS[$_cvh_row['status']] ?? ['label' => $_cvh_row['status'], 'class' => 'secondary'];
 $_cvh_status   = $_cvh_row['status'];
@@ -51,6 +53,8 @@ $_cvh_accent = match($_cvh_st['class']) {
     default     => '#94a3b8',
 };
 ?>
+
+<?= contract_correction_panel($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
 
 <?php if (!empty($_pending_term)): ?>
 <div class="alert alert-warning d-flex align-items-center gap-2 no-print mb-2 py-2">
@@ -341,6 +345,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       </span>
       <?php endif; ?>
       <?php endif; ?>
+      <?= needs_correction_badge($_cvh_row) ?>
     </div>
 
     <!-- Amount -->
