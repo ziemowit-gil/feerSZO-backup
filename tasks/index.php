@@ -466,10 +466,10 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
         <td style="text-align:center" onclick="event.stopPropagation()">
           <div class="dropdown d-inline-block">
             <button class="pri-btn btn btn-link btn-sm p-0" data-bs-toggle="dropdown"
-                    style="color:<?= $pri_meta[2] ?>;text-decoration:none"
+                    style="text-decoration:none"
+                    title="Priorytet: <?= h($pri_meta[1]) ?>"
                     aria-label="Priorytet: <?= h($pri_meta[1]) ?>. Kliknij, aby zmienić">
-              <span aria-hidden="true"><?= $pri_meta[0] ?></span>
-              <span style="font-size:.74rem"><?= $pri_meta[1] ?></span>
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<?= $pri_meta[2] ?>;vertical-align:middle" aria-hidden="true"></span>
             </button>
             <ul class="dropdown-menu shadow-sm py-1">
               <?php foreach ([4=>'🔴 Krytyczny',3=>'🟡 Wysoki',2=>'🔵 Normalny',1=>'⚪ Niski'] as $p=>$pl): ?>

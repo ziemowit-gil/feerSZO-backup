@@ -7,16 +7,18 @@
 // ── Priorytety ─────────────────────────────────────────────────────────────
 
 const TASK_PRIORITIES = [
-    1 => ['label' => 'Niski',     'class' => 'secondary', 'icon' => 'bi-arrow-down'],
-    2 => ['label' => 'Normalny',  'class' => 'primary',   'icon' => 'bi-dash'],
-    3 => ['label' => 'Wysoki',    'class' => 'warning',   'icon' => 'bi-arrow-up'],
-    4 => ['label' => 'Krytyczny', 'class' => 'danger',    'icon' => 'bi-exclamation-triangle-fill'],
+    1 => ['label' => 'Niski',     'class' => 'secondary', 'icon' => 'bi-arrow-down',                'dot' => '#94a3b8'],
+    2 => ['label' => 'Normalny',  'class' => 'primary',   'icon' => 'bi-dash',                       'dot' => '#3b82f6'],
+    3 => ['label' => 'Wysoki',    'class' => 'warning',   'icon' => 'bi-arrow-up',                   'dot' => '#f59e0b'],
+    4 => ['label' => 'Krytyczny', 'class' => 'danger',    'icon' => 'bi-exclamation-triangle-fill',  'dot' => '#dc2626'],
 ];
 
+/** Kolorowa kropka priorytetu (bez tekstu) — kolory zgodne z pv_tasks_panel.php i tasks/index.php. */
 function task_priority_badge(int $p): string {
     $d = TASK_PRIORITIES[$p] ?? TASK_PRIORITIES[2];
-    return '<span class="badge bg-' . $d['class'] . '">'
-         . '<i class="bi ' . $d['icon'] . ' me-1"></i>' . $d['label'] . '</span>';
+    return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'
+         . $d['dot'] . ';vertical-align:middle" title="Priorytet: ' . h($d['label'])
+         . '" aria-label="Priorytet: ' . h($d['label']) . '"></span>';
 }
 
 // ── Kontrola dostępu ───────────────────────────────────────────────────────

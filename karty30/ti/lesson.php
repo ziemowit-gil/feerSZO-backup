@@ -249,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 $session    = k30_ti_session_get($session_id);
 $attendance = k30_ti_session_attendance($session_id);
 $st_info    = K30_TI_SESSION_STATUSES[$session['status']] ?? ['label' => $session['status'], 'color' => '#666', 'bg' => '#eee'];
-$is_held    = in_array($session['status'], ['held', 'individual_change']);
+$is_held    = in_array($session['status'], ['held', 'individual_change', 'remote_material']);
 $is_past    = $session['lesson_date'] < date('Y-m-d'); // lekcja z dnia wcześniejszego niż dziś
 
 // Indywidualne uwagi (pobierz z bazy)

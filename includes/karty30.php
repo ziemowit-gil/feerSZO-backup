@@ -1992,14 +1992,15 @@ function k30_create_series(array $base_data, array $dates): array {
 const K30_TI_DAYS = [1=>'Poniedziałek',2=>'Wtorek',3=>'Środa',4=>'Czwartek',5=>'Piątek',6=>'Sobota',0=>'Niedziela'];
 
 const K30_TI_SESSION_STATUSES = [
-    'planned'           => ['label'=>'Zaplanowana',          'color'=>'#F59E0B', 'bg'=>'#FFFBEB'],
-    'held'              => ['label'=>'Odbyła się',           'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
-    'individual_change' => ['label'=>'Zajęcia indywidualne', 'color'=>'#7C3AED', 'bg'=>'#F5F3FF'],
-    'cancelled'         => ['label'=>'Odwołana',             'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
+    'planned'           => ['label'=>'Zaplanowana',                                   'color'=>'#F59E0B', 'bg'=>'#FFFBEB'],
+    'held'              => ['label'=>'Odbyła się',                                    'color'=>'#16A34A', 'bg'=>'#F0FDF4'],
+    'individual_change' => ['label'=>'Zajęcia indywidualne',                          'color'=>'#7C3AED', 'bg'=>'#F5F3FF'],
+    'remote_material'   => ['label'=>'Praca własna prowadzącego (materiał zdalny)',   'color'=>'#0891B2', 'bg'=>'#ECFEFF'],
+    'cancelled'         => ['label'=>'Odwołana',                                      'color'=>'#DC2626', 'bg'=>'#FEF2F2'],
 ];
 
 /** Statusy lekcji liczone jako „odbyła się" (do rozliczeń i wypłat). */
-const K30_TI_HELD_STATUSES = ['held', 'individual_change'];
+const K30_TI_HELD_STATUSES = ['held', 'individual_change', 'remote_material'];
 
 // Role osób mogących odwołać lekcję / udział w lekcji (z podaniem powodu)
 const K30_TI_CANCEL_ROLES = [
@@ -2121,7 +2122,7 @@ function k30_ti_payouts_by_instructor(string $ym): array {
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id = s.course_id
          LEFT JOIN users u ON u.id = c.instructor_id
-         WHERE s.status IN ('held','individual_change') AND c.lesson_payout_bb > 0
+         WHERE s.status IN ('held','individual_change','remote_material') AND c.lesson_payout_bb > 0
            AND strftime('%Y-%m', s.lesson_date) = ?
          ORDER BY iname, c.name",
         [$ym]
@@ -2154,7 +2155,7 @@ function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
     if ($bb <= 0) return $acc;
     $rows = db_all(
         "SELECT COUNT(*) AS c FROM k30_ti_sessions
-         WHERE course_id=? AND status IN ('held','individual_change') AND strftime('%Y-%m', lesson_date)=?",
+         WHERE course_id=? AND status IN ('held','individual_change','remote_material') AND strftime('%Y-%m', lesson_date)=?",
         [$course_id, $ym]
     );
     $n = (int)($rows[0]['c'] ?? 0);
@@ -3541,7 +3542,7 @@ function k30_ti_rate_lesson(int $session_id, int $client_id, int $rating, string
     $ok = db_one(
         "SELECT s.id FROM k30_ti_sessions s
          JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=? AND e.status='active'
-         WHERE s.id=? AND s.status IN ('held','individual_change')",
+         WHERE s.id=? AND s.status IN ('held','individual_change','remote_material')",
         [$client_id, $session_id]
     );
     if (!$ok) return false;
@@ -3967,7 +3968,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
         $rows = db_all(
             "SELECT s.duration_min
              FROM k30_ti_attendance a
-             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change')
+             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
              WHERE a.client_id=? AND a.attended=1 AND COALESCE(a.cancelled,0)=0",
             [(int)$e['course_id'], $from, $to, $client_id]
@@ -3978,7 +3979,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year): array 
         $ns_rows = db_all(
             "SELECT s.duration_min, a.no_show_billing
              FROM k30_ti_attendance a
-             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change')
+             JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
              WHERE a.client_id=? AND COALESCE(a.no_show,0)=1",
             [(int)$e['course_id'], $from, $to, $client_id]

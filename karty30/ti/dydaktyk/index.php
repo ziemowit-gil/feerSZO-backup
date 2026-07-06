@@ -149,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
         if ($sid && dyd_owns_session($uid, $sid)) {
-            $st = in_array($_POST['status'] ?? '', ['planned','held'], true) ? $_POST['status'] : 'planned';
+            $st = in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned';
             db()->prepare(
                 "UPDATE k30_ti_sessions
                  SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, status=?, updated_at=datetime('now')
@@ -885,6 +885,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course) {
         <select class="form-select" id="<?= $pfx ?>_status" name="status">
           <option value="planned" <?= ($r['status']??'')==='planned'?'selected':'' ?>>Zaplanowana</option>
           <option value="held" <?= ($r['status']??'')==='held'?'selected':'' ?>>Odbyła się</option>
+          <option value="remote_material" <?= ($r['status']??'')==='remote_material'?'selected':'' ?>>Praca własna prowadzącego (materiał zdalny)</option>
         </select>
         <?php if (($r['status']??'')==='cancelled'): ?><div class="form-text text-warning">Lekcja odwołana — zapis zmieni status.</div><?php endif; ?>
       </div>
@@ -1277,7 +1278,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       $absent_count = $cur_course ? (int)(db_one(
           "SELECT COUNT(*) AS n FROM k30_ti_attendance a
            JOIN k30_ti_sessions s ON s.id=a.session_id
-           WHERE s.course_id=? AND s.status IN ('held','individual_change') AND COALESCE(a.attended,0)=0
+           WHERE s.course_id=? AND s.status IN ('held','individual_change','remote_material') AND COALESCE(a.attended,0)=0
              AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.cancel_pending,0)=0", [$cur_course])['n'] ?? 0) : 0;
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
                'zadania'=>['Zadania','journal-check',count($homeworks)],
@@ -1408,7 +1409,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           $is_today= $s['lesson_date'] === $_today;
           $dow     = $_days_pl[(int)date('w', $sdate)];
           $_payout_bb = (float)($course['lesson_payout_bb'] ?? 0);
-          $_has_pay   = in_array($s['status'], ['held','individual_change']) && $_payout_bb > 0;
+          $_has_pay   = in_array($s['status'], ['held','individual_change','remote_material']) && $_payout_bb > 0;
           if ($_has_pay) { $_pb = k30_ti_payout_breakdown($_payout_bb); $_pf = fn($x) => number_format((float)$x, 2, ',', ' '); }
           $pending = db_all("SELECT a.client_id, cl.name, a.cancel_reason FROM k30_ti_attendance a JOIN k30_clients cl ON cl.id=a.client_id WHERE a.session_id=? AND a.cancel_pending=1 ORDER BY cl.name", [(int)$s['id']]);
           $resch   = k30_ti_reschedule_pending_for_session((int)$s['id']);
@@ -2081,7 +2082,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
          FROM k30_ti_attendance a
          JOIN k30_ti_sessions s ON s.id=a.session_id
          JOIN k30_clients cl ON cl.id=a.client_id
-         WHERE s.course_id=? AND s.status IN ('held','individual_change')
+         WHERE s.course_id=? AND s.status IN ('held','individual_change','remote_material')
            AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancel_pending,0)=0
          ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
         [$cur_course]);
