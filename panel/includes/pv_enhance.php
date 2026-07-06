@@ -112,20 +112,23 @@ $GLOBALS['__pv_enhance_booted'] = true;
     }
 
     // Podgląd szczegółów w Bootstrapowym offcanvas.
+    function openTaskDetail(id){
+      var oc = document.getElementById('panelTaskOffcanvas');
+      var body = document.getElementById('panelTaskOffcanvasBody');
+      if (!oc || !window.bootstrap){ window.location = BASE + '/tasks/index.php'; return; }
+      body.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Ładowanie…</span></div></div>';
+      bootstrap.Offcanvas.getOrCreateInstance(oc).show();
+      fetch(BASE + '/tasks/detail.php?id=' + id)
+        .then(function (r){ return r.text(); })
+        .then(function (htmlStr){ body.innerHTML = ''; body.appendChild(document.createRange().createContextualFragment(htmlStr)); })
+        .catch(function (){ body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania.</div>'; });
+    }
+
     root.addEventListener('click', function (e){
       var open = e.target.closest('[data-task-detail]');
       if (open){
         e.preventDefault();
-        var id = open.getAttribute('data-task-detail');
-        var oc = document.getElementById('panelTaskOffcanvas');
-        var body = document.getElementById('panelTaskOffcanvasBody');
-        if (!oc || !window.bootstrap){ window.location = BASE + '/tasks/index.php'; return; }
-        body.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Ładowanie…</span></div></div>';
-        bootstrap.Offcanvas.getOrCreateInstance(oc).show();
-        fetch(BASE + '/tasks/detail.php?id=' + id)
-          .then(function (r){ return r.text(); })
-          .then(function (htmlStr){ body.innerHTML = ''; body.appendChild(document.createRange().createContextualFragment(htmlStr)); })
-          .catch(function (){ body.innerHTML = '<div class="alert alert-danger m-3">Błąd ładowania.</div>'; });
+        openTaskDetail(open.getAttribute('data-task-detail'));
         return;
       }
 
@@ -153,6 +156,12 @@ $GLOBALS['__pv_enhance_booted'] = true;
           .then(function (){ window.location.reload(); })
           .catch(function (){ take.disabled = false; if (liO) liO.style.opacity = ''; announce('Nie udało się wziąć zadania.'); });
         return;
+      }
+
+      // Klik gdziekolwiek na wierszu (poza przyciskami obsłużonymi wyżej) też otwiera szczegóły.
+      var row = e.target.closest('[data-task-row]');
+      if (row && row.getAttribute('data-task-id')){
+        openTaskDetail(row.getAttribute('data-task-id'));
       }
     });
 

@@ -68,8 +68,8 @@ $_due = function (?string $ymd): ?array {
           <?php foreach ($_pv_tasks_mine as $t):
             $di = $_due($t['due_date'] ?? null);
           ?>
-          <li role="listitem" data-task-row data-task-mine data-task-title="<?= h($t['title']) ?>"
-              style="display:flex;align-items:center;gap:.65rem;padding:.55rem 0;border-bottom:1px solid #f8fafc">
+          <li role="listitem" data-task-row data-task-id="<?= (int)$t['id'] ?>" data-task-mine data-task-title="<?= h($t['title']) ?>"
+              style="display:flex;align-items:center;gap:.65rem;padding:.55rem 0;border-bottom:1px solid #f8fafc;cursor:pointer">
             <span style="width:9px;height:9px;border-radius:50%;background:<?= $_pri_dot[(int)($t['priority'] ?? 1)] ?? '#94a3b8' ?>;flex-shrink:0" aria-hidden="true"></span>
             <div style="flex:1;min-width:0">
               <button type="button" data-task-detail="<?= (int)$t['id'] ?>"
@@ -102,11 +102,13 @@ $_due = function (?string $ymd): ?array {
         <?php foreach ($_pv_tasks_open as $t):
           $di = $_due($t['due_date'] ?? null);
         ?>
-        <li role="listitem" data-task-row data-task-title="<?= h($t['title']) ?>"
-            style="display:flex;align-items:center;gap:.65rem;padding:.5rem;border-bottom:1px solid #f8fafc;background:#fafffe;border-radius:6px">
+        <li role="listitem" data-task-row data-task-id="<?= (int)$t['id'] ?>" data-task-title="<?= h($t['title']) ?>"
+            style="display:flex;align-items:center;gap:.65rem;padding:.5rem;border-bottom:1px solid #f8fafc;background:#fafffe;border-radius:6px;cursor:pointer">
           <span style="width:9px;height:9px;border-radius:50%;background:<?= $_pri_dot[(int)($t['priority'] ?? 1)] ?? '#94a3b8' ?>;flex-shrink:0" aria-hidden="true"></span>
           <div style="flex:1;min-width:0">
-            <div style="font-size:.85rem;font-weight:500;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= h($t['title']) ?></div>
+            <button type="button" data-task-detail="<?= (int)$t['id'] ?>"
+                    style="all:unset;cursor:pointer;font-size:.85rem;font-weight:500;color:#0f172a;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                    aria-label="Otwórz szczegóły: <?= h($t['title']) ?>"><?= h($t['title']) ?></button>
             <div style="font-size:.71rem;color:#94a3b8">
               <span style="width:6px;height:6px;border-radius:50%;background:<?= h($t['ws_color'] ?? '#cbd5e1') ?>;display:inline-block;margin-right:.2rem" aria-hidden="true"></span>
               <?= h($t['ws_name'] ?? '') ?><?= $di ? ' · ' . h($di[0]) : '' ?>

@@ -256,6 +256,24 @@ try {
     <i class="bi bi-chat-left-text" aria-hidden="true"></i>Wiadomości
   </a>
   <?php endif; ?>
+  <?php if (module_enabled('tasks_enabled')):
+      $_my_tasks_count = 0;
+      try {
+          $_my_tasks_count = (int)(db_one(
+              "SELECT COUNT(*) AS c FROM tasks t JOIN task_assignments ta ON ta.task_id=t.id
+               WHERE ta.user_id=? AND t.completed_at IS NULL AND t.deleted_at IS NULL",
+              [(int)(current_user()['id'] ?? 0)]
+          )['c'] ?? 0);
+      } catch (\Throwable $e) {}
+  ?>
+  <a href="<?= APP_URL ?>/tasks/index.php" class="pv-nav-link<?= _pv_nav_active('/tasks/') ?>"
+     aria-label="Zadania<?= $_my_tasks_count ? " — {$_my_tasks_count} przypisanych" : '' ?>">
+    <i class="bi bi-list-check" aria-hidden="true"></i>Zadania
+    <?php if ($_my_tasks_count): ?>
+    <span class="pv-badge" aria-label="<?= $_my_tasks_count ?> przypisanych zadań"><?= $_my_tasks_count ?></span>
+    <?php endif; ?>
+  </a>
+  <?php endif; ?>
   <a href="<?= APP_URL ?>/panel/apply.php" class="pv-nav-link<?= _pv_nav_active('/panel/apply') ?>">
     <i class="bi bi-send" aria-hidden="true"></i>Wyślij wniosek
   </a>
