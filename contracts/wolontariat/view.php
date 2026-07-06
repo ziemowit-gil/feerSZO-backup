@@ -1123,6 +1123,10 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
              onclick="return confirm('Wygenerować i wysłać teraz pismo o odnowieniu zgody do przedstawiciela ustawowego (<?= h(addslashes($row['rodzic_email'] ?? '')) ?>)?')">
             <i class="bi bi-envelope-plus me-1"></i>Wygeneruj pismo teraz
           </a>
+          <a href="<?= APP_URL ?>/contracts/wolontariat/guardian_consent_pdf.php?id=<?= (int)$row['id'] ?>"
+             class="btn btn-sm btn-outline-secondary ms-2" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Podgląd PDF
+          </a>
           <?php endif; ?>
         </div>
       </div>

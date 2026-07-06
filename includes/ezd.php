@@ -1948,7 +1948,13 @@ function ezd_register_guardian_consent_letter(array $contract, string $guardian_
     if ($existing_id) {
         $existing = ezd_sprawa_get($existing_id);
         if ($existing && $existing['status'] !== 'closed') {
-            return ['sprawa_id' => $existing_id, 'znak_sprawy' => $existing['znak_sprawy'], 'podpisujacy' => ''];
+            $existing_pismo = db_one("SELECT id FROM ezd_pisma WHERE sprawa_id=? ORDER BY id DESC LIMIT 1", [$existing_id]);
+            return [
+                'sprawa_id'   => $existing_id,
+                'pismo_id'    => $existing_pismo['id'] ?? null,
+                'znak_sprawy' => $existing['znak_sprawy'],
+                'podpisujacy' => '',
+            ];
         }
     }
 
@@ -1972,8 +1978,9 @@ function ezd_register_guardian_consent_letter(array $contract, string $guardian_
         'ref_id'      => (int)$contract['id'],
     ], $uid);
 
+    $pismo_id = null;
     try {
-        ezd_pismo_create([
+        $pismo_id = ezd_pismo_create([
             'sprawa_id'     => $sprawa_id,
             'kierunek'      => 'wychodzace',
             'title'         => 'Wyrażenie zgody na udział dziecka w wolontariacie',
@@ -1997,7 +2004,12 @@ function ezd_register_guardian_consent_letter(array $contract, string $guardian_
             ->execute([$sprawa_id, (int)$contract['id']]);
     } catch (\Throwable $e) {}
 
-    return ['sprawa_id' => $sprawa_id, 'znak_sprawy' => $sprawa['znak_sprawy'] ?? '', 'podpisujacy' => $podpisujacy];
+    return [
+        'sprawa_id'   => $sprawa_id,
+        'pismo_id'    => $pismo_id,
+        'znak_sprawy' => $sprawa['znak_sprawy'] ?? '',
+        'podpisujacy' => $podpisujacy,
+    ];
 }
 
 // ── Teczka „Informatyka i technologia" (integracja z modułem Helpdesk) ───────

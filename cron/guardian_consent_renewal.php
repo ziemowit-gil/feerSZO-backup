@@ -83,6 +83,12 @@ foreach ($contracts as $c) {
     try {
         $ezd = ezd_register_guardian_consent_letter($c, $guardian_name, 0);
         $znak_sprawy = $ezd['znak_sprawy'] ?? '';
+        if (!empty($ezd['sprawa_id'])) {
+            guardian_consent_attach_pdf(
+                (int)$ezd['sprawa_id'], $ezd['pismo_id'] ?? null,
+                $c, $guardian_name, $znak_sprawy, 0
+            );
+        }
     } catch (\Throwable $e) {
         echo "[" . date('Y-m-d H:i:s') . "] UWAGA {$numer}: EZD: " . $e->getMessage() . "\n";
     }

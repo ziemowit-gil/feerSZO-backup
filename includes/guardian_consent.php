@@ -195,3 +195,151 @@ if (!function_exists('guardian_consent_statement_html')) {
 HTML;
     }
 }
+
+/**
+ * Treść pisma przewodniego (zaproszenia do odnowienia zgody) jako fragment
+ * HTML pod mPDF — ten sam sens co szablon maila 'guardian_consent_renewal'
+ * (includes/email_templates.php), ale uproszczony pod druk (bez gradientów/
+ * przycisków) i z miejscem na podpis przedstawiciela Fundacji.
+ */
+if (!function_exists('guardian_consent_cover_letter_html')) {
+    function guardian_consent_cover_letter_html(array $contract, string $guardian_name, string $znak_sprawy): string {
+        $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+
+        $org_nazwa   = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju "FEER"');
+        $org_adres   = org_setting('org_adres') ?: 'ul. Barbackiego 28/18, 33-300 Nowy Sącz';
+        $org_email   = org_setting('notify_from_email') ?: '';
+        $org_telefon = org_setting('org_telefon') ?: '';
+        $miejscowosc = org_setting('org_miejscowosc') ?: 'Nowy Sącz';
+
+        $kontakt   = guardian_consent_contact($contract);
+        $dziecko   = $h($contract['imie_nazwisko'] ?? '');
+        $login_url = defined('APP_URL') ? APP_URL . '/auth/login.php' : '';
+
+        $reps        = function_exists('org_representatives') ? org_representatives() : [];
+        $podpis_imie = $reps ? $reps[0]['name'] : '';
+        $podpis_funk = $reps ? ($reps[0]['title'] ?? '') : '';
+
+        return '
+<p style="margin:0 0 2pt;font-weight:700">' . $h($org_nazwa) . '</p>
+<p style="margin:0 0 14pt;color:#444">
+  ' . $h($org_adres) . '<br>
+  ' . ($org_email ? 'e-mail: ' . $h($org_email) . '<br>' : '')
+    . ($org_telefon ? 'tel: ' . $h($org_telefon) : '') . '
+</p>
+<p style="margin:0 0 2pt;color:#666;font-size:9pt">Znak sprawy: <strong>' . $h($znak_sprawy) . '</strong></p>
+<p style="margin:0 0 16pt">' . $h($miejscowosc) . ', dnia ' . $h(date('d.m.Y')) . ' r.</p>
+
+<p style="margin:0 0 14pt">
+  Do:<br>
+  Przedstawiciel ustawowy (rodzic/opiekun)<br>
+  małoletniego/małoletniej <strong>' . $dziecko . '</strong>
+</p>
+
+<p style="margin:0 0 14pt"><strong>Dotyczy:</strong> Wyrażenie zgody na udział dziecka w wolontariacie</p>
+
+<p>Szanowni Państwo,</p>
+<p>
+  w związku z kontynuacją przez Państwa dziecko, <strong>' . $dziecko . '</strong>, świadczeń w ramach
+  wolontariatu na rzecz naszej Fundacji, zwracamy się z uprzejmą prośbą o dopełnienie niezbędnych
+  formalności w formie online.
+</p>
+<p>
+  Zgodnie z obowiązującymi przepisami prawa, w tym Kodeksu cywilnego oraz Ogólnego Rozporządzenia
+  o Ochronie Danych (RODO), do dalszego udziału Państwa dziecka w wolontariacie niezbędne jest
+  regularne, składane co 6 miesięcy, potwierdzenie Państwa zgody — zarówno na sam wolontariat, jak
+  i na przetwarzanie danych osobowych w celach z nim związanych.
+</p>
+<p>Aby dopełnić formalności, prosimy o zalogowanie się na Państwa konto w naszym systemie pod adresem
+  ' . $h($login_url) . ' i przejście do sekcji „Zgody i Oświadczenia", gdzie znajdą Państwo pełną
+  treść oświadczenia wraz z formularzem potwierdzenia.</p>
+<p>W razie pytań lub problemów technicznych prosimy o kontakt: ' . $h($kontakt['email'])
+    . ($kontakt['telefon'] ? ' lub telefonicznie: ' . $h($kontakt['telefon']) : '') . '.</p>
+
+<p style="margin-top:20pt">Z wyrazami szacunku,</p>
+<div style="margin-top:36pt">
+  <table width="100%">
+    <tr>
+      <td width="50%"></td>
+      <td width="50%" style="border-top:1px solid #000;padding-top:4pt;text-align:center">'
+        . ($podpis_imie ? $h($podpis_imie) . ($podpis_funk ? '<br><span style="font-size:9pt;color:#555">' . $h($podpis_funk) . '</span>' : '') : 'Podpis przedstawiciela Fundacji')
+        . '</td>
+    </tr>
+  </table>
+</div>
+<p style="margin-top:24pt;color:#888;font-size:8pt">Wygenerowano automatycznie ' . $h(date('d.m.Y H:i')) . ' — ' . $h($org_nazwa) . '</p>';
+    }
+}
+
+/**
+ * Renderuje pismo przewodnie jako gotowe bajty PDF (mPDF) — wzorzec jak
+ * helpdesk/escalation_pdf.php (jedyny ustalony wzorzec mPDF w tym repo:
+ * dejavuserif dla polskich znaków, własny tempDir zapisywalny na produkcji).
+ * Zwraca null przy błędzie (np. brak mPDF) zamiast rzucać wyjątek dalej.
+ */
+if (!function_exists('guardian_consent_generate_pdf')) {
+    function guardian_consent_generate_pdf(array $contract, string $guardian_name, string $znak_sprawy): ?string {
+        try {
+            require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+            $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
+            if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
+
+            $mpdf = new \Mpdf\Mpdf([
+                'mode'          => 'utf-8',
+                'format'        => 'A4',
+                'margin_left'   => 25,
+                'margin_right'  => 20,
+                'margin_top'    => 18,
+                'margin_bottom' => 18,
+                'default_font'  => 'dejavuserif',
+                'tempDir'       => $mpdf_tmp,
+            ]);
+            $osoba = $contract['imie_nazwisko'] ?? '';
+            $mpdf->SetTitle('Pismo przewodnie — zgoda na wolontariat ' . $osoba);
+            $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
+            $mpdf->WriteHTML(
+                'body { font-family: "DejaVu Serif", serif; font-size: 11pt; line-height: 1.5; color: #000; }
+                 table { border-collapse: collapse; } td { vertical-align: top; }',
+                \Mpdf\HTMLParserMode::HEADER_CSS
+            );
+            $mpdf->WriteHTML(
+                guardian_consent_cover_letter_html($contract, $guardian_name, $znak_sprawy),
+                \Mpdf\HTMLParserMode::HTML_BODY
+            );
+
+            return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+        } catch (\Throwable $e) {
+            error_log('[guardian_consent_pdf] ' . $e->getMessage());
+            return null;
+        }
+    }
+}
+
+/**
+ * Generuje pismo przewodnie w PDF i dołącza je jako załącznik do sprawy EZD
+ * (ezd_attach_path — ta sama ścieżka co przy ręcznym wgraniu pliku). Cała
+ * operacja jest pomocnicza — błąd nie może przerwać wysyłki samego pisma,
+ * dlatego funkcja nigdy nie rzuca dalej, tylko loguje.
+ */
+if (!function_exists('guardian_consent_attach_pdf')) {
+    function guardian_consent_attach_pdf(int $sprawa_id, ?int $pismo_id, array $contract, string $guardian_name, string $znak_sprawy, int $user_id): void {
+        if (!$sprawa_id || !function_exists('ezd_attach_path')) return;
+        try {
+            $bytes = guardian_consent_generate_pdf($contract, $guardian_name, $znak_sprawy);
+            if (!$bytes) return;
+
+            $tmp_dir = UPLOAD_DIR . 'mpdf_tmp';
+            if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
+            $osoba    = $contract['imie_nazwisko'] ?? 'wolontariusz';
+            $filename = 'Pismo przewodnie — zgoda na wolontariat — ' . $osoba . '.pdf';
+            $tmp_path = $tmp_dir . '/' . uniqid('gc_pdf_', true) . '.pdf';
+
+            if (file_put_contents($tmp_path, $bytes) === false) return;
+            ezd_attach_path($tmp_path, $filename, $sprawa_id, $pismo_id, $user_id);
+            @unlink($tmp_path);
+        } catch (\Throwable $e) {
+            error_log('[guardian_consent_attach_pdf] ' . $e->getMessage());
+        }
+    }
+}

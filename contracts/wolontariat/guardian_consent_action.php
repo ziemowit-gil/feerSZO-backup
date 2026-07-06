@@ -44,6 +44,12 @@ $znak_sprawy = '';
 try {
     $ezd = ezd_register_guardian_consent_letter($row, $guardian_name, (int)current_user()['id']);
     $znak_sprawy = $ezd['znak_sprawy'] ?? '';
+    if (!empty($ezd['sprawa_id'])) {
+        guardian_consent_attach_pdf(
+            (int)$ezd['sprawa_id'], $ezd['pismo_id'] ?? null,
+            $row, $guardian_name, $znak_sprawy, (int)current_user()['id']
+        );
+    }
 } catch (\Throwable $e) {
     error_log('[guardian_consent_action] EZD: ' . $e->getMessage());
 }
@@ -71,7 +77,7 @@ if ($rendered['enabled']) {
     log_contract_action('wolontariat', $id, (int)current_user()['id'], 'note',
         "Ręcznie wygenerowano i wysłano pismo o odnowieniu zgody przedstawiciela ustawowego"
         . ($znak_sprawy ? " (znak sprawy {$znak_sprawy})" : '') . " do {$guardian_email}.");
-    flash_set('success', 'Pismo zostało wygenerowane' . ($znak_sprawy ? " (znak sprawy {$znak_sprawy})" : '') . " i wysłane do {$guardian_email}.");
+    flash_set('success', 'Pismo zostało wygenerowane' . ($znak_sprawy ? " (znak sprawy {$znak_sprawy})" : '') . " i wysłane do {$guardian_email}. Kopia PDF dołączona do sprawy w EZD.");
 } else {
     flash_set('warning', 'Sprawa EZD' . ($znak_sprawy ? " {$znak_sprawy}" : '') . ' została otwarta, ale szablon maila jest wyłączony przez administratora (Admin → Maile systemowe) — e-mail nie został wysłany.');
 }
