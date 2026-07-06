@@ -222,11 +222,22 @@ function owncloud_ocs_request(array $admin_cfg, string $method, string $path, ar
     $meta    = $decoded['ocs']['meta'] ?? [];
     $status  = (int)($meta['statuscode'] ?? 0);
     // 100 = sukces w OCS (niezależnie od kodu HTTP, który bywa zawsze 200 nawet dla błędów OCS).
+    $message = $meta['message'] ?? '';
+    if ($message === '' && $status === 0) {
+        // json_decode() nie zwrócił poprawnego envelope OCS — zwykle znaczy, że żądanie
+        // w ogóle nie trafiło do Provisioning API (np. HTML zamiast JSON): błędny URL,
+        // złe dane administratora (strona logowania zamiast 401 JSON) albo wyłączona
+        // aplikacja „Provisioning API” w ownCloud. Kod HTTP jest tu kluczową wskazówką —
+        // bez niego poprzednia wersja dawała tylko bezużyteczne „Nieprawidłowa odpowiedź”.
+        $message = $r['err'] !== '' ? $r['err']
+            : "Nieprawidłowa odpowiedź ownCloud (HTTP {$r['http']}) — sprawdź adres URL, dane administratora"
+              . " i czy w ownCloud jest włączona aplikacja „Provisioning API” (occ app:enable provisioning_api).";
+    }
     return [
         'ok'         => $status === 100,
         'statuscode' => $status,
         'data'       => $decoded['ocs']['data'] ?? [],
-        'message'    => $meta['message'] ?? ($r['err'] ?: ($status === 0 ? 'Nieprawidłowa odpowiedź ownCloud.' : '')),
+        'message'    => $message,
     ];
 }
 
