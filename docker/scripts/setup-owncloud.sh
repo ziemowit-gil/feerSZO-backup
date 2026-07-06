@@ -88,8 +88,15 @@ add_if_missing "OWNCLOUD_ADMIN_PASSWORD" "$(openssl rand -hex 16)"
 
 chmod 600 "${ENV_FILE}"
 
-# shellcheck disable=SC1090
-set -a; source "${ENV_FILE}"; set +a
+# Odczyt konkretnych wartości z .env.prod BEZ source'owania całego pliku —
+# .env.prod to format docker compose (dopuszcza niecytowane wartości ze
+# spacjami, np. ORG_NAME=Fundacja Edukacji...), a `source` wykonałby taką
+# linię jako polecenie powłoki (błąd: "Edukacji: command not found").
+read_env_var() {
+    grep -m1 "^${1}=" "${ENV_FILE}" | cut -d'=' -f2-
+}
+OWNCLOUD_DOMAIN="$(read_env_var OWNCLOUD_DOMAIN)"
+OWNCLOUD_ADMIN_USERNAME="$(read_env_var OWNCLOUD_ADMIN_USERNAME)"
 
 # ── 3. DNS ─────────────────────────────────────────────────────────────────────
 section "3. Sprawdzenie DNS"
