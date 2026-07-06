@@ -1,6 +1,6 @@
 # Roundcube "rc" — webmail modułu Poczta
 
-> **Obraz:** `roundcube/roundcubemail` · **Domena:** `${RC_DOMAIN}` (np. `poczta.feer.org.pl`)
+> **Obraz:** `roundcube/roundcubemail` · **Domena:** `${RC_DOMAIN}` (np. `rc.feer.org.pl`)
 > **Logowanie:** OAuth2 do Microsoft 365 (bez haseł do skrzynek w Roundcube)
 
 ## 1. Co to jest
@@ -57,7 +57,7 @@ Najprościej przez konfigurator (idempotentny — bezpieczny do wielokrotnego
 uruchamiania, pyta tylko o brakujące wartości):
 
 ```bash
-cd docker && bash setup-rc.sh [domena]   # domyślnie poczta.feer.org.pl
+cd docker && bash setup-rc.sh [domena]   # domyślnie rc.feer.org.pl
 ```
 
 Robi to samo co ręcznie: dopisuje `RC_*` do `.env.prod` (pyta o

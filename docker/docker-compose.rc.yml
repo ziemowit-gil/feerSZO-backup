@@ -9,7 +9,7 @@
 #
 # Przed uruchomieniem ustaw w .env / .env.prod (zob. sekcja "Roundcube" w
 # .env.prod.example) oraz wykonaj kroki manualne opisane w docker/roundcube/README.md
-# (rejestracja aplikacji Azure AD, rekord DNS poczta.feer.org.pl).
+# (rejestracja aplikacji Azure AD, rekord DNS rc.feer.org.pl).
 #
 # Roundcube trzyma własną (małą) bazę w SQLite — trwały wolumin rc_db.
 # Skrzynki użytkowników to Microsoft 365 (IMAP/SMTP outlook.office365.com /

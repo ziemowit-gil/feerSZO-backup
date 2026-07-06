@@ -6,7 +6,7 @@
 # Uruchom z katalogu docker/ na serwerze, tam gdzie leży .env.prod:
 #   cd /opt/feer-szo/docker && bash setup-rc.sh [domena]
 #
-# Domyślna domena: poczta.feer.org.pl (można nadpisać argumentem).
+# Domyślna domena: rc.feer.org.pl (można nadpisać argumentem).
 #
 # Co robi:
 #   1. Sprawdza, że główny stack (feer-traefik) już działa — NIE startuje go
@@ -30,7 +30,7 @@ set -euo pipefail
 # ── Konfiguracja ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env.prod"
-RC_DOMAIN_ARG="${1:-poczta.feer.org.pl}"
+RC_DOMAIN_ARG="${1:-rc.feer.org.pl}"
 RC_CONTAINER="feer-rc"
 
 COMPOSE_FILES=(-f "${SCRIPT_DIR}/docker-compose.yml" -f "${SCRIPT_DIR}/docker-compose.prod.yml" -f "${SCRIPT_DIR}/docker-compose.rc.yml")

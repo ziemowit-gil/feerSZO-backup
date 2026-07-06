@@ -134,7 +134,7 @@ include dirname(__DIR__) . '/includes/header.php';
                 <div class="card-header fw-semibold"><i class="bi bi-envelope-open me-2 text-primary"></i>Webmail (Roundcube)</div>
                 <div class="card-body">
                     <label class="form-label">Adres webmaila</label>
-                    <input type="url" class="form-control" name="poczta_webmail_url" placeholder="https://poczta.feer.org.pl" value="<?= h($cfg['poczta_webmail_url']) ?>">
+                    <input type="url" class="form-control" name="poczta_webmail_url" placeholder="https://rc.feer.org.pl" value="<?= h($cfg['poczta_webmail_url']) ?>">
                     <div class="form-text">Osobny serwis Docker (<code>rc</code>/Roundcube, <code>docker/docker-compose.rc.yml</code>) — logowanie OAuth2 do Microsoft 365, dołączanie plików z OneDrive. Wypełnienie tego pola pokazuje przycisk „Otwórz Roundcube" w panelu Poczty. Wdrożenie i konfiguracja Azure AD: <code>docker/roundcube/README.md</code>.</div>
                 </div>
             </div>
