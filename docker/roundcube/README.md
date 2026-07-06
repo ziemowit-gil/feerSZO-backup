@@ -109,10 +109,17 @@ docker logs -f feer-rc
   (c) błąd w niestandardowym pluginie `onedrive_picker` — spróbuj chwilowo
   usunąć `'onedrive_picker'` z `$config['plugins']` w `config.inc.php` i
   zrestartować kontener, żeby sprawdzić, czy błąd zniknie.
-- **Logowanie kończy się błędem "redirect_uri_mismatch"** — sprawdź w logach
-  kontenera (`docker logs feer-rc`) lub w komunikacie błędu Azure, jaki redirect
-  URI faktycznie wysłał Roundcube, i dodaj GO dokładnie (ze schematem i bez
-  końcowego slasha) w Azure App registration → Authentication.
+- **Logowanie kończy się błędem "AADSTS50011 redirect_uri_mismatch", a Azure
+  pokazuje redirect URI z `http://` mimo że strona jest pod `https://`**
+  (potwierdzone na produkcji) — Traefik terminuje TLS i przekazuje ruch do
+  kontenera zwykłym HTTP, więc bez podpowiedzi Roundcube "myśli", że żądanie
+  przyszło po http i buduje redirect_uri z tym schematem. Naprawione w
+  `config.inc.php` przez `$config['use_https']` ustawiane na podstawie
+  nagłówka `X-Forwarded-Proto` od Traefika — jeśli mimo to problem wraca,
+  sprawdź, czy Traefik faktycznie wysyła ten nagłówek (domyślnie tak) i czy
+  redirect URI w Azure App registration jest dokładnie
+  `https://${RC_DOMAIN}/index.php/login/oauth` (ze schematem, bez końcowego
+  slasha).
 - **IMAP/SMTP XOAUTH2 nie działa mimo udanego logowania** — sprawdź czy
   `IMAP.AccessAsUser.All`/`SMTP.Send` mają **grant admin consent** (nie tylko
   "requested") w Azure Portal → widoczne jako zielony ptaszek, nie żółty wykrzyknik.

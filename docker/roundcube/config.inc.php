@@ -54,6 +54,15 @@ $config['oauth_identity_fields'] = ['mail', 'userPrincipalName'];
 // Od razu przekieruj do logowania Microsoft — bez własnego formularza Roundcube.
 $config['oauth_login_redirect'] = true;
 
+// Traefik terminuje TLS i przekazuje ruch do kontenera zwykłym HTTP — bez tego
+// Roundcube "widzi" żądanie jako http:// i buduje redirect_uri OAuth z "http://"
+// zamiast "https://", co Azure AD odrzuca (AADSTS50011 redirect_uri_mismatch),
+// mimo że w Azure zarejestrowany jest poprawny "https://" URI. Middleware
+// https-redirect (docker-compose.rc.yml) gwarantuje, że realny ruch zawsze
+// dotarł jako https, więc ufamy nagłówkowi Traefika. W dev (bez Traefika)
+// nagłówek nie jest ustawiony i to po prostu nic nie zmienia.
+$config['use_https'] = (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+
 // ── Wygląd / pluginy ─────────────────────────────────────────────────────────
 $config['skin'] = getenv('ROUNDCUBEMAIL_SKIN') ?: 'elastic';
 $config['plugins'] = [
