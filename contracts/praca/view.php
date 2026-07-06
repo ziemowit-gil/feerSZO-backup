@@ -33,7 +33,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
         $new_status = $_POST['status'] ?? '';
         if (isset(STATUS_LABELS[$new_status]) && $new_status !== 'aneks') {
             $old_status = $row['status'];
+            require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
+            require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+            try {
+                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row);
+            } catch (ContractTransitionException $e) {
+                flash_set('error', $e->getMessage());
+                header('Location: view.php?id=' . $id); exit;
+            }
             db_update($TABLE, ['status' => $new_status], $id);
+            if (ContractStatusTransitionValidator::isBlockedGroupExit($old_status, $new_status)) {
+                db_update($TABLE, [
+                    'is_blocked'   => 0,
+                    'unblocked_by' => (int)current_user()['id'],
+                    'unblocked_at' => date('Y-m-d H:i:s'),
+                ], $id);
+                log_contract_action($TYPE, $id, (int)current_user()['id'], 'unblock',
+                    'Odblokowano po potwierdzeniu zgody przedstawiciela ustawowego.');
+            }
             log_contract_action($TYPE, $id, (int)current_user()['id'], 'status_change',
                 'Zmiana statusu: ' . $old_status . ' → ' . $new_status);
             $row['status'] = $new_status;

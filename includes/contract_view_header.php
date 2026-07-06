@@ -25,6 +25,8 @@ require_once __DIR__ . '/envelopes.php';
 require_once __DIR__ . '/print_templates.php';
 require_once __DIR__ . '/contract_correction_schema.php';
 require_once __DIR__ . '/contract_correction.php';
+require_once __DIR__ . '/guardian_consent.php';
+require_once __DIR__ . '/contract_transitions.php';
 
 $_cvh_st       = STATUS_LABELS[$_cvh_row['status']] ?? ['label' => $_cvh_row['status'], 'class' => 'secondary'];
 $_cvh_status   = $_cvh_row['status'];
@@ -54,6 +56,7 @@ $_cvh_accent = match($_cvh_st['class']) {
 };
 ?>
 
+<?= contract_block_alert($_cvh_type, $_cvh_row) ?>
 <?= contract_correction_alert($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
 <?= contract_correction_notice_modal($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
 

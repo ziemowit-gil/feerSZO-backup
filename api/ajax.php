@@ -21,6 +21,9 @@ require_once dirname(__DIR__) . '/includes/messages.php';
 require_once dirname(__DIR__) . '/includes/notifications.php';
 require_once dirname(__DIR__) . '/includes/rozliczenia.php';
 require_once dirname(__DIR__) . '/includes/ksiegowy_email.php';
+require_once dirname(__DIR__) . '/includes/guardian_consent.php';
+require_once dirname(__DIR__) . '/includes/wolontariat_schema.php';
+require_once dirname(__DIR__) . '/includes/contract_transitions.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
@@ -73,7 +76,7 @@ switch ($action) {
         }
 
         try {
-            $row = db_one("SELECT status FROM {$table} WHERE id=?", [$id]);
+            $row = db_one("SELECT * FROM {$table} WHERE id=?", [$id]);
         } catch (\Throwable $e) {
             ajax_err('Nie znaleziono umowy');
         }
@@ -101,8 +104,26 @@ switch ($action) {
             }
         }
 
+        // Twarda macierz grup (Draft/Active/Blocked/Closed/Cancelled) + reguły
+        // biznesowe (pełnoletność, rozliczenie zaliczki) — obowiązuje WSZYSTKICH,
+        // także admina, w przeciwieństwie do miękkiej STATUS_TRANSITIONS wyżej.
+        try {
+            ContractStatusTransitionValidator::assertAllowed($old_status, $value, $row);
+        } catch (ContractTransitionException $e) {
+            ajax_err($e->getMessage(), 422);
+        }
+
         try {
             db_update($table, ['status' => $value], $id);
+            if (ContractStatusTransitionValidator::isBlockedGroupExit($old_status, $value)) {
+                db_update($table, [
+                    'is_blocked'   => 0,
+                    'unblocked_by' => (int)current_user()['id'],
+                    'unblocked_at' => date('Y-m-d H:i:s'),
+                ], $id);
+                log_contract_action($type, $id, (int)current_user()['id'], 'unblock',
+                    'Odblokowano po potwierdzeniu zgody przedstawiciela ustawowego.');
+            }
             log_contract_action(
                 $type, $id,
                 (int)current_user()['id'],

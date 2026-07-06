@@ -12,6 +12,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
+require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
 cpc_migrate();
 
 require_role('admin', 'editor');
@@ -53,8 +55,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
 
     if (!$errors) {
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe', 'rpts_wymagana', 'rpts_zweryfikowano'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe', 'rpts_wymagana', 'rpts_zweryfikowano', 'otrzymano_dowod_ksiegowy', 'rozliczono_srodki'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
+        }
+        $data['pobrana_zaliczka'] = (($_POST['pobrana_zaliczka'] ?? '') === '')
+            ? 0 : (float)str_replace(',', '.', $_POST['pobrana_zaliczka']);
+        // Ślad audytowy potwierdzenia rozliczenia zaliczki — kto/kiedy odznaczył checkboxy.
+        if (($data['otrzymano_dowod_ksiegowy'] !== (int)($row['otrzymano_dowod_ksiegowy'] ?? 0))
+            || ($data['rozliczono_srodki'] !== (int)($row['rozliczono_srodki'] ?? 0))) {
+            $data['rozliczenie_potwierdzone_by'] = current_user()['id'];
+            $data['rozliczenie_potwierdzone_at'] = date('Y-m-d H:i:s');
         }
         if (empty($data['rpts_zweryfikowano'])) { $data['rpts_data_weryfikacji'] = null; $data['rpts_wynik'] = null; }
         // Wykryj nowe zaznaczenie „przetwarza dane osobowe"
@@ -141,6 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'guardian_editor_id', 'guardian_initials',
             // Finanse
             'limit_zwrotu_kosztow',
+            'pobrana_zaliczka', 'otrzymano_dowod_ksiegowy', 'rozliczono_srodki',
+            'rozliczenie_potwierdzone_by', 'rozliczenie_potwierdzone_at',
             // ePodpis
             'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
             // Podpisujący
@@ -171,6 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $diff = format_field_diff($row, $save);
         db_update($TABLE, $save, $id);
         contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
+        // Automatyczna blokada, jeśli niepełnoletni bez aktualnej zgody przedstawiciela ustawowego.
+        ContractMinorGuard::syncAfterSave($TYPE, $id, array_merge($row, $save), (int)current_user()['id']);
         // Przelicz godzin_przepracowanych = godzin_z_zadan + godzin_korekta
         volunteer_recompute_hours($id);
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
@@ -1119,6 +1133,34 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
       <input name="limit_zwrotu_kosztow" type="number" step="0.01" min="0" class="form-control"
              value="<?= h($row['limit_zwrotu_kosztow'] ?? '') ?>" placeholder="np. 200.00">
     </div>
+  </div>
+
+  <!-- Pobrana zaliczka — musi być rozliczona przed zamknięciem/anulowaniem umowy -->
+  <div class="mt-3 row g-2 align-items-end">
+    <div class="col-md-3 fgroup">
+      <label>Pobrana zaliczka (zł)</label>
+      <input name="pobrana_zaliczka" type="number" step="0.01" min="0" class="form-control"
+             value="<?= h($row['pobrana_zaliczka'] ?? '0') ?>" placeholder="0.00">
+    </div>
+    <div class="col-md-9 d-flex align-items-center gap-3 pb-1">
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" name="otrzymano_dowod_ksiegowy" id="otrzymano_dowod_ksiegowy" value="1"
+               <?= $row['otrzymano_dowod_ksiegowy'] ? 'checked' : '' ?>>
+        <label for="otrzymano_dowod_ksiegowy" class="form-check-label">Otrzymano dowód księgowy</label>
+      </div>
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" name="rozliczono_srodki" id="rozliczono_srodki" value="1"
+               <?= $row['rozliczono_srodki'] ? 'checked' : '' ?>>
+        <label for="rozliczono_srodki" class="form-check-label">Rozliczono środki</label>
+      </div>
+    </div>
+    <?php if ((float)($row['pobrana_zaliczka'] ?? 0) > 0 && (empty($row['otrzymano_dowod_ksiegowy']) || empty($row['rozliczono_srodki']))): ?>
+    <div class="col-12">
+      <div class="alert alert-warning small py-2 mb-0">
+        <i class="bi bi-exclamation-triangle-fill"></i> Zaliczka nierozliczona — zamknięcie/anulowanie umowy będzie zablokowane, dopóki obie zgody nie zostaną odznaczone.
+      </div>
+    </div>
+    <?php endif; ?>
   </div>
 
   <div class="mt-3 fgroup">

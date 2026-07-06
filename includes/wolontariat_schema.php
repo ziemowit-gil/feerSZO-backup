@@ -38,6 +38,24 @@
         // podczas świadczeń) — informacyjne, bez wpływu na zgodę RODO/wolontariat
         // przedstawiciela ustawowego (zob. includes/guardian_consent.php).
         'opiekun_wolontariusz_id' => "INTEGER",
+        // Automatyczna blokada dla niepełnoletnich bez aktualnej zgody
+        // przedstawiciela ustawowego (zob. includes/contract_transitions.php,
+        // includes/guardian_consent.php). pre_block_status pamięta status
+        // "przerwany" blokadą, żeby odblokowanie przywróciło właściwy krok
+        // workflow, nie zawsze 'projekt'.
+        'is_blocked'          => "INTEGER",
+        'block_reason'        => "VARCHAR(50)",
+        'pre_block_status'    => "VARCHAR(50)",
+        'blocked_at'          => "DATETIME",
+        'unblocked_by'        => "INTEGER",
+        'unblocked_at'        => "DATETIME",
+        // Rozliczenie pobranej zaliczki — musi być rozliczone przed
+        // zamknięciem/anulowaniem umowy (zob. ContractSettlementGuard).
+        'pobrana_zaliczka'             => "DECIMAL(10,2)",
+        'otrzymano_dowod_ksiegowy'     => "INTEGER",
+        'rozliczono_srodki'            => "INTEGER",
+        'rozliczenie_potwierdzone_by'  => "INTEGER",
+        'rozliczenie_potwierdzone_at'  => "DATETIME",
     ];
 
     foreach ($columns as $name => $def) {

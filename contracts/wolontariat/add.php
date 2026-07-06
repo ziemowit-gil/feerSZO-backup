@@ -11,6 +11,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
+require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
@@ -613,6 +615,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $id = db_insert($TABLE, $data);
         contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
+        // Automatyczna blokada, jeśli niepełnoletni bez aktualnej zgody przedstawiciela ustawowego.
+        ContractMinorGuard::syncAfterSave($TYPE, (int)$id, $data, (int)current_user()['id']);
         // Ustaw godzin_przepracowanych = z zadań + korekta (na starcie = korekta)
         try {
             require_once dirname(dirname(__DIR__)) . '/includes/volunteer_hours.php';

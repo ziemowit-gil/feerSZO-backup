@@ -22,6 +22,7 @@ const STATUS_LABELS = [
     'obowiązująca'   => ['label' => 'Obowiązująca',   'class' => 'success'],
     'wygasła'        => ['label' => 'Wygasła',        'class' => 'secondary'],
     'aneks'          => ['label' => 'Aneks',          'class' => 'purple'],
+    'zablokowana'    => ['label' => 'Zablokowana',    'class' => 'danger'],
 ];
 
 /** Niestandardowe kolory badge'y dla klas spoza palety kontekstowej Bootstrap. */
@@ -49,6 +50,10 @@ const STATUS_TRANSITIONS = [
     'anulowana'      => [],
     'wygasła'        => [],
     'aneks'          => [],
+    // Puste — blokada jest systemowa (ContractMinorGuard::syncAfterSave) lub
+    // ręczna tylko dla admina; odblokowanie wymaga przejścia walidacji
+    // ContractStatusTransitionValidator (zob. includes/contract_transitions.php).
+    'zablokowana'    => [],
 ];
 
 /**

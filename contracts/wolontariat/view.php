@@ -215,7 +215,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
                 flash_set('error', 'Niedozwolona zmiana statusu: ' . $from_lbl . ' → ' . $to_lbl . '.');
                 header('Location: view.php?id=' . $id); exit;
             }
+            // Twarda macierz grup + reguły biznesowe — ten sam strażnik jak w api/ajax.php
+            // (druga ścieżka zmiany statusu, nie może omijać reguł Task 1/2/3).
+            require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
+            require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+            try {
+                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row);
+            } catch (ContractTransitionException $e) {
+                flash_set('error', $e->getMessage());
+                header('Location: view.php?id=' . $id); exit;
+            }
             db_update($TABLE, ['status' => $new_status], $id);
+            if (ContractStatusTransitionValidator::isBlockedGroupExit($old_status, $new_status)) {
+                db_update($TABLE, [
+                    'is_blocked'   => 0,
+                    'unblocked_by' => (int)current_user()['id'],
+                    'unblocked_at' => date('Y-m-d H:i:s'),
+                ], $id);
+                log_contract_action($TYPE, $id, (int)current_user()['id'], 'unblock',
+                    'Odblokowano po potwierdzeniu zgody przedstawiciela ustawowego.');
+            }
             log_contract_action($TYPE, $id, (int)current_user()['id'], 'status_change',
                 'Zmiana statusu: ' . $old_status . ' → ' . $new_status);
             $row['status'] = $new_status;
