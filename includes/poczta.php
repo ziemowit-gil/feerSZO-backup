@@ -410,3 +410,15 @@ class PocztaScanService
         return compact('queued', 'scanned', 'errors');
     }
 }
+
+/**
+ * Domyślna treść komunikatu na stronie logowania Roundcube (gdy admin jeszcze
+ * nic nie ustawił w admin/poczta_settings.php). Ta sama treść jest źródłem
+ * dla api/internal/rc_login_notice.php, skąd pobiera ją plugin
+ * docker/roundcube/plugins/login_notice/ — jedno miejsce prawdy.
+ */
+function poczta_rc_login_notice_default(): string {
+    return 'To oficjalna poczta <strong>Fundacji Edukacji Empatii Rozwoju (FEER)</strong>. '
+        . 'Logowanie odbywa się wyłącznie przez konto Microsoft Twojej organizacji — '
+        . 'ten system nie przechowuje ani nie widzi Twojego hasła do skrzynki.';
+}

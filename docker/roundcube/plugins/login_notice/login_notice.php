@@ -6,11 +6,22 @@
  * Wymaga oauth_login_redirect=false w config.inc.php — inaczej strona
  * logowania nigdy się nie renderuje (od razu przekierowanie do Microsoft),
  * więc ten komunikat nie miałby gdzie się pojawić.
+ *
+ * Treść komunikatu jest zarządzana CENTRALNIE w głównej aplikacji
+ * (admin/poczta_settings.php, pole "Komunikat na stronie logowania Roundcube")
+ * — ten plugin pobiera ją przez wewnętrzne API (api/internal/rc_login_notice.php)
+ * po sieci Docker "feer" (http://app/...), z cache ~5 min, żeby nie odpytywać
+ * głównej aplikacji przy każdym wejściu na stronę logowania. Jeśli API jest
+ * nieosiągalne (appka niedostępna, brak APP_KEY), pokazuje krótki, generyczny
+ * tekst zapasowy zamiast całkowicie zniknąć.
  */
 
 class login_notice extends rcube_plugin
 {
     public $task = 'login';
+
+    private const CACHE_TTL = 300; // 5 min
+    private const APP_INTERNAL_URL = 'http://app/api/internal/rc_login_notice.php';
 
     public function init(): void
     {
@@ -41,16 +52,55 @@ class login_notice extends rcube_plugin
         }
 
         $args['content'] = '<div class="alert alert-info" style="margin:0 0 1em;text-align:left;">'
-            . 'To oficjalna poczta <strong>Fundacji Edukacji Empatii Rozwoju (FEER)</strong>. '
-            . 'Logowanie odbywa się wyłącznie przez konto Microsoft Twojej organizacji — '
-            . 'ten system nie przechowuje ani nie widzi Twojego hasła do skrzynki.<br><br>'
-            . 'Z uwagi na problemy z logowaniem do kont Microsoft w domenie <strong>feer.org.pl</strong>, '
-            . 'od 1 sierpnia logowanie do poczty będzie możliwe wyłącznie przez '
-            . '<strong>poczta.feer.org.pl</strong> lub <strong>rc.feer.org.pl</strong> — tymi samymi danymi co dotychczas.<br>'
-            . 'Do 1 sierpnia możesz również korzystać z '
-            . '<a href="https://outlook.office.com" target="_blank" rel="noopener">outlook.office.com</a>.'
+            . $this->notice_html()
             . '</div>' . $args['content'];
 
         return $args;
+    }
+
+    private function notice_html(): string
+    {
+        $rcmail = rcmail::get_instance();
+        $cache  = $rcmail->get_cache_shared('login_notice');
+        $cached = $cache ? $cache->get('html') : null;
+
+        if (is_array($cached) && ($cached['expires'] ?? 0) > time()) {
+            return $cached['html'];
+        }
+
+        $html = $this->fetch_from_app() ?? $this->fallback_html();
+
+        if ($cache) {
+            $cache->set('html', ['html' => $html, 'expires' => time() + self::CACHE_TTL]);
+        }
+
+        return $html;
+    }
+
+    /** @return ?string Treść z api/internal/rc_login_notice.php, albo null gdy nieosiągalne. */
+    private function fetch_from_app(): ?string
+    {
+        $app_key = getenv('APP_KEY');
+        if (!$app_key) {
+            return null;
+        }
+
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'GET',
+            'header'        => "X-Internal-Key: {$app_key}\r\n",
+            'timeout'       => 3,
+            'ignore_errors' => true,
+        ]]);
+        $resp = @file_get_contents(self::APP_INTERNAL_URL, false, $ctx);
+        $data = json_decode($resp ?: '{}', true) ?? [];
+
+        return !empty($data['html']) ? $data['html'] : null;
+    }
+
+    /** Krótki tekst zapasowy, gdy główna aplikacja jest nieosiągalna. */
+    private function fallback_html(): string
+    {
+        return 'To oficjalna poczta <strong>Fundacji Edukacji Empatii Rozwoju (FEER)</strong>. '
+            . 'Logowanie odbywa się wyłącznie przez konto Microsoft Twojej organizacji.';
     }
 }

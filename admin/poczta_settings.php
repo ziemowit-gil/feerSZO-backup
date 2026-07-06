@@ -17,6 +17,7 @@ $settings_keys = [
     'poczta_attach_max_kb',
     'poczta_worker_batch',
     'poczta_webmail_url',
+    'poczta_rc_login_notice',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -31,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'poczta_attach_max_kb'         => (string)max(1, (int)($_POST['poczta_attach_max_kb'] ?? 5120)),
         'poczta_worker_batch'          => (string)max(1, (int)($_POST['poczta_worker_batch'] ?? 5)),
         'poczta_webmail_url'           => trim((string)($_POST['poczta_webmail_url'] ?? '')),
+        'poczta_rc_login_notice'       => trim((string)($_POST['poczta_rc_login_notice'] ?? '')),
     ];
     foreach ($values as $k => $v) {
         org_setting_set($k, $v);
@@ -47,6 +49,7 @@ if ($cfg['poczta_scan_hour_from']       === '') $cfg['poczta_scan_hour_from']   
 if ($cfg['poczta_scan_hour_to']         === '') $cfg['poczta_scan_hour_to']         = '23';
 if ($cfg['poczta_attach_max_kb']        === '') $cfg['poczta_attach_max_kb']        = '5120';
 if ($cfg['poczta_worker_batch']         === '') $cfg['poczta_worker_batch']         = '5';
+if ($cfg['poczta_rc_login_notice']      === '') $cfg['poczta_rc_login_notice']      = poczta_rc_login_notice_default();
 
 $_mb_count = 0;
 try { $_mb_count = (int)(db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes")['n'] ?? 0); } catch (\Throwable $e) {}
@@ -136,6 +139,14 @@ include dirname(__DIR__) . '/includes/header.php';
                     <label class="form-label">Adres webmaila</label>
                     <input type="url" class="form-control" name="poczta_webmail_url" placeholder="https://rc.feer.org.pl" value="<?= h($cfg['poczta_webmail_url']) ?>">
                     <div class="form-text">Osobny serwis Docker (<code>rc</code>/Roundcube, <code>docker/docker-compose.rc.yml</code>) — logowanie OAuth2 do Microsoft 365, dołączanie plików z OneDrive. Wypełnienie tego pola pokazuje przycisk „Otwórz Roundcube" w panelu Poczty. Wdrożenie i konfiguracja Azure AD: <code>docker/roundcube/README.md</code>.</div>
+
+                    <label class="form-label mt-3">Komunikat na stronie logowania Roundcube</label>
+                    <textarea class="form-control" name="poczta_rc_login_notice" rows="5"><?= h($cfg['poczta_rc_login_notice']) ?></textarea>
+                    <div class="form-text">
+                        Widoczny na stronie logowania <code>rc.feer.org.pl</code>, zanim ktoś kliknie „Zaloguj się przez Microsoft 365".
+                        Dopuszczone proste tagi HTML (<code>&lt;strong&gt;</code>, <code>&lt;br&gt;</code>, <code>&lt;a&gt;</code>) — to pole jest widoczne tylko dla adminów, ale trafia bez zmian na publiczną stronę logowania.
+                        Kontener Roundcube pobiera tę treść przez wewnętrzne API (<code>api/internal/rc_login_notice.php</code>) z cache ~5&nbsp;min — zmiana tutaj widoczna jest z niewielkim opóźnieniem, bez potrzeby restartu kontenera.
+                    </div>
                 </div>
             </div>
 

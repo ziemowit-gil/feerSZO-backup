@@ -55,6 +55,36 @@ kodem (wg dokumentowanego Roundcube Plugin API), **nieprzetestowanym na żywym
 Roundcube** (nie było dostępu do Azure AD/M365 podczas pisania). Może wymagać
 poprawek po pierwszym realnym uruchomieniu — zob. punkt 5.
 
+Plugin `owncloud_picker` (montowany z `plugins/owncloud_picker/`) dodaje
+analogiczny przycisk „ownCloud" w oknie tworzenia maila, ale przez WebDAV
+(Basic Auth) na **wspólne konto integracyjne** ownCloud Fundacji — to samo,
+którego główna aplikacja używa jako magazynu plików lekcji
+(`admin/owncloud_settings.php`, `includes/owncloud.php`), tylko podane tutaj
+osobno jako zmienne `RC_OWNCLOUD_*` (kontener „rc" nie ma dostępu do bazy
+głównej apki). To NIE jest osobiste konto każdego użytkownika poczty —
+pracownicy logują się do Roundcube przez Microsoft 365, a ownCloud w tym
+projekcie jest kontem serwisowym/magazynem zespołowym. Przycisk pokazuje
+zawartość katalogu `RC_OWNCLOUD_BASE_FOLDER` (domyślnie `poczta-udostepnione`
+— trzeba go utworzyć na koncie integracyjnym, jeśli jeszcze nie istnieje).
+Bez `RC_OWNCLOUD_URL`/`RC_OWNCLOUD_USERNAME`/`RC_OWNCLOUD_PASSWORD` przycisk po
+prostu się nie pojawia (plugin sprawdza `configured()` przed wyrenderowaniem).
+
+Plugin `outlook_contacts_sync` (montowany z `plugins/outlook_contacts_sync/`)
+synchronizuje kontakty z Outlooka (Microsoft Graph `/me/contacts`) do
+lokalnego adresownika Roundcube — **jednostronnie** (Outlook → Roundcube, bez
+zapisu z powrotem), przy każdym logowaniu, z throttlingiem raz na 6h per user
+(zapisany w prefs Roundcube, nie wymaga crona). Dopasowanie istniejący/nowy
+kontakt po adresie e-mail — kontakt zmieniony ręcznie w Roundcube pod tym samym
+adresem zostanie przy kolejnym sync nadpisany danymi z Outlooka. Podobnie jak
+`onedrive_picker`, pobiera **własny token Graph** (scope `Contacts.Read`) tym
+samym mechanizmem `grant_type=refresh_token` — wymaga dodania tego uprawnienia
+w Azure AD, zob. punkt 3.
+
+Plugin `feer_theme` (montowany z `plugins/feer_theme/`) to nakładka CSS na
+wbudowany skin Elastic (kolory FEER — `#1e293b`/`#2563eb`, te same co domyślne
+`sidebar_color`/`volunteer_color` w `admin/org_settings.php` głównej
+aplikacji), nie fork skina — mniej kodu, przetrwa aktualizacje obrazu.
+
 ## 2. Wymagania
 
 - DNS: `${RC_DOMAIN}` → IP serwera (rekord A, jak `szo.feer.org.pl`)
@@ -78,7 +108,7 @@ jest druga, osobna rejestracja aplikacji** w tym samym tenancie.
    `RC_OAUTH_CLIENT_SECRET` w `.env.prod`.
 3. **API permissions** → Add a permission:
    - Microsoft Graph (Delegated): `openid`, `email`, `profile`, `offline_access`,
-     `Files.Read`
+     `Files.Read` (plugin OneDrive), `Contacts.Read` (plugin outlook_contacts_sync)
    - APIs my organization uses → **Office 365 Exchange Online** (Delegated):
      `IMAP.AccessAsUser.All`, `SMTP.Send`
    - **Grant admin consent** dla tenanta (te uprawnienia zwykle wymagają zgody
@@ -132,9 +162,26 @@ docker logs -f feer-rc
   `setup-rc.sh` robi to automatycznie od teraz po każdym `up -d`. Inne możliwe
   przyczyny: (b) literówka/brak wartości w
   `RC_OAUTH_CLIENT_ID`/`RC_OAUTH_CLIENT_SECRET`/`RC_TENANT_ID` w `.env.prod`,
-  (c) błąd w niestandardowym pluginie `onedrive_picker` — spróbuj chwilowo
-  usunąć `'onedrive_picker'` z `$config['plugins']` w `config.inc.php` i
-  zrestartować kontener, żeby sprawdzić, czy błąd zniknie.
+  (c) błąd w niestandardowym pluginie `onedrive_picker`, `owncloud_picker`,
+  `outlook_contacts_sync` lub `feer_theme` — spróbuj chwilowo usunąć podejrzany
+  wpis z `$config['plugins']` w `config.inc.php` i zrestartować kontener, żeby
+  sprawdzić, czy błąd zniknie.
+- **Przycisk „ownCloud" w compose się nie pojawia** — to zamierzone zachowanie
+  pluginu, gdy `RC_OWNCLOUD_URL`/`RC_OWNCLOUD_USERNAME`/`RC_OWNCLOUD_PASSWORD`
+  nie są ustawione (patrz `configured()` w `owncloud_picker.php`) — uzupełnij
+  je w `.env.prod` i zrestartuj kontener `rc`.
+- **Przycisk „ownCloud" dołącza błąd HTTP 404/401** — sprawdź, czy katalog
+  `RC_OWNCLOUD_BASE_FOLDER` (domyślnie `poczta-udostepnione`) istnieje na
+  koncie integracyjnym ownCloud (trzeba go utworzyć ręcznie — plugin, w
+  odróżnieniu od `includes/owncloud.php` głównej aplikacji, nie robi
+  automatycznego `MKCOL`) i czy dane logowania są aktualne (to samo konto co
+  w Admin → Integracje → Magazyn plików / ownCloud głównej aplikacji).
+- **Kontakty z Outlooka nie pojawiają się w adresowniku Roundcube** — sync
+  działa tylko przy logowaniu (hook `login_after`) i jest throttlowany na 6h
+  per user (`outlook_contacts_last_sync` w prefs) — wyloguj się i zaloguj
+  ponownie, jeśli testujesz od razu po zmianie konfiguracji. Sprawdź
+  `logs/errors.log` (wpis `outlook_contacts_sync`) i czy `Contacts.Read` ma
+  **grant admin consent** w Azure Portal.
 - **Logowanie kończy się błędem "AADSTS50011 redirect_uri_mismatch", a Azure
   pokazuje redirect URI z `http://` mimo że strona jest pod `https://`**
   (potwierdzone na produkcji) — Traefik terminuje TLS i przekazuje ruch do

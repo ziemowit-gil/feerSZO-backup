@@ -17,6 +17,13 @@
 # przechowywane w Roundcube. Konfiguracja: ./roundcube/config.inc.php.
 # Plugin OneDrive ("dołącz z OneDrive" w oknie tworzenia maila): zob.
 # ./roundcube/plugins/onedrive_picker/ — reużywa tokenu OAuth z logowania.
+# Plugin ownCloud (analogiczny, ale konto integracyjne WebDAV, nie per-user):
+# zob. ./roundcube/plugins/owncloud_picker/ — RC_OWNCLOUD_* poniżej.
+# Plugin outlook_contacts_sync — jednostronna synchronizacja kontaktów Outlooka
+# do lokalnego adresownika Roundcube przy logowaniu, zob.
+# ./roundcube/plugins/outlook_contacts_sync/.
+# Plugin feer_theme — nakładka kolorystyczna skina Elastic, zob.
+# ./roundcube/plugins/feer_theme/.
 
 services:
 
@@ -33,11 +40,23 @@ services:
       RC_OAUTH_CLIENT_SECRET:  ${RC_OAUTH_CLIENT_SECRET:-}
       RC_IMAP_HOST:            ${RC_IMAP_HOST:-ssl://outlook.office365.com:993}
       RC_SMTP_HOST:            ${RC_SMTP_HOST:-tls://smtp.office365.com:587}
+      RC_OWNCLOUD_URL:         ${RC_OWNCLOUD_URL:-}
+      RC_OWNCLOUD_USERNAME:    ${RC_OWNCLOUD_USERNAME:-}
+      RC_OWNCLOUD_PASSWORD:    ${RC_OWNCLOUD_PASSWORD:-}
+      RC_OWNCLOUD_BASE_FOLDER: ${RC_OWNCLOUD_BASE_FOLDER:-poczta-udostepnione}
+      # Ten sam sekret co kontener "app" (docker-compose.yml) — plugin login_notice
+      # używa go jako nagłówka X-Internal-Key przy odpytywaniu wewnętrznego API
+      # (http://app/api/internal/rc_login_notice.php) po sieci Docker "feer",
+      # bez przechodzenia przez Traefik.
+      APP_KEY: ${APP_KEY:-}
     volumes:
       - rc_db:/var/roundcube/db
       - ./roundcube/config.inc.php:/var/roundcube/config/config.inc.php:ro
       - ./roundcube/plugins/onedrive_picker:/var/www/html/plugins/onedrive_picker:ro
+      - ./roundcube/plugins/owncloud_picker:/var/www/html/plugins/owncloud_picker:ro
+      - ./roundcube/plugins/outlook_contacts_sync:/var/www/html/plugins/outlook_contacts_sync:ro
       - ./roundcube/plugins/login_notice:/var/www/html/plugins/login_notice:ro
+      - ./roundcube/plugins/feer_theme:/var/www/html/plugins/feer_theme:ro
     labels:
       # Bez efektu w dev (Traefik nie działa) — aktywne dopiero z docker-compose.prod.yml.
       - "traefik.enable=true"

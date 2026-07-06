@@ -1,0 +1,88 @@
+/**
+ * feer_theme.css — nakładka na skin Elastic, kolory FEER SZO (#1e293b / #2563eb).
+ *
+ * Selektory są klasami Bootstrap (na których Elastic bazuje) + kilkoma stałymi
+ * id/klasami samego skina, stabilnymi od wielu wydań Roundcube. Obraz
+ * "roundcube/roundcubemail:latest" nie jest przypięty do wersji (zob.
+ * docker-compose.rc.yml) — po aktualizacji obrazu sprawdzić wizualnie, czy
+ * nakładka nadal się "trzyma" (dokładnie ten sam kompromis co przy pluginach
+ * onedrive_picker/owncloud_picker).
+ */
+
+:root {
+  --feer-ink:        #1e293b;
+  --feer-ink-light:  #334155;
+  --feer-accent:     #2563eb;
+  --feer-accent-dark:#1d4ed8;
+  --feer-accent-bg:  #eff6ff;
+}
+
+body { font-family: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, sans-serif; }
+
+/* Pasek zadań (ikony Mail/Ustawienia/Adresy po lewej) */
+#taskmenu,
+#layout-menu {
+  background: var(--feer-ink) !important;
+}
+#taskmenu a.selected,
+#taskmenu a.active,
+#taskmenu a:hover {
+  background: var(--feer-ink-light) !important;
+}
+
+/* Nagłówek/topline */
+.header-title,
+#toplogo,
+.skin-elastic header.topline {
+  background: var(--feer-ink) !important;
+}
+
+/* Przyciski / linki — akcent niebieski FEER (zamiast domyślnej pomarańczy Elastic) */
+.btn-primary,
+a.btn-primary,
+button.btn-primary {
+  background-color: var(--feer-accent) !important;
+  border-color: var(--feer-accent-dark) !important;
+}
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--feer-accent-dark) !important;
+  border-color: var(--feer-accent-dark) !important;
+}
+a, .link {
+  color: var(--feer-accent);
+}
+a:hover {
+  color: var(--feer-accent-dark);
+}
+
+/* Wybrany wiersz na liście wiadomości/kontaktów */
+.listing tr.selected,
+.listing tr.selected td,
+li.selected {
+  background: var(--feer-accent-bg) !important;
+}
+
+/* Strona logowania — zaokrąglona, delikatny cień, bez agresywnego akcentu Elastic */
+#login-form,
+.formbuttons,
+body.task-login .content {
+  border-radius: 10px !important;
+}
+#login-form input[type="submit"],
+#login-form button[type="submit"],
+.oauth-login-button {
+  background-color: var(--feer-accent) !important;
+  border-color: var(--feer-accent-dark) !important;
+  border-radius: 6px !important;
+}
+#login-form input[type="submit"]:hover,
+#login-form button[type="submit"]:hover {
+  background-color: var(--feer-accent-dark) !important;
+}
+
+/* Zakładki ustawień / aktywny element */
+.tablist .selected,
+.propform .row.selected {
+  border-color: var(--feer-accent) !important;
+}

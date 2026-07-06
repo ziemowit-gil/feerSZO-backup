@@ -82,14 +82,27 @@ $config['skin_logo'] = [
 // nagłówek nie jest ustawiony i to po prostu nic nie zmienia.
 $config['use_https'] = (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 
+// ── ownCloud (magazyn wspólny Fundacji — konto integracyjne, NIE per-user) ───
+// Osobne dane logowania od głównej aplikacji (kontener "rc" nie ma dostępu do
+// jej bazy) — to samo konto integracyjne, które główna apka trzyma w
+// Admin → Integracje → Magazyn plików / ownCloud, tylko podane tu jako env.
+// Zob. plugins/owncloud_picker/.
+$config['owncloud_url']         = getenv('RC_OWNCLOUD_URL') ?: '';
+$config['owncloud_username']    = getenv('RC_OWNCLOUD_USERNAME') ?: '';
+$config['owncloud_password']    = getenv('RC_OWNCLOUD_PASSWORD') ?: '';
+$config['owncloud_base_folder'] = getenv('RC_OWNCLOUD_BASE_FOLDER') ?: 'poczta-udostepnione';
+
 // ── Wygląd / pluginy ─────────────────────────────────────────────────────────
 $config['skin'] = getenv('ROUNDCUBEMAIL_SKIN') ?: 'elastic';
 $config['plugins'] = [
     'archive',
     'zipdownload',
     'managesieve',
-    'onedrive_picker', // własny plugin — zob. plugins/onedrive_picker/
-    'login_notice',    // własny plugin — komunikat na stronie logowania, zob. plugins/login_notice/
+    'onedrive_picker',        // własny plugin — zob. plugins/onedrive_picker/
+    'owncloud_picker',        // własny plugin — zob. plugins/owncloud_picker/
+    'outlook_contacts_sync',  // własny plugin — zob. plugins/outlook_contacts_sync/
+    'login_notice',           // własny plugin — komunikat na stronie logowania, zob. plugins/login_notice/
+    'feer_theme',             // własny plugin — nakładka kolorystyczna skina, zob. plugins/feer_theme/
 
     // ── UX / wygoda ──────────────────────────────────────────────────────────
     'markasjunk',          // przycisk „Oznacz jako spam"
