@@ -6,6 +6,7 @@ class M365Graph {
     private string $domain;
     private string $token = '';
     private int    $token_expires = 0;
+    private int    $last_status = 0;
 
     public function __construct(array $creds = []) {
         $this->tenant_id     = $creds['tenant_id']     ?? m365_setting('m365_tenant_id') ?: MS_TENANT_ID;
@@ -469,7 +470,9 @@ class M365Graph {
             'header' => "Authorization: Bearer {$this->token()}\r\nContent-Type: application/json\r\n",
             'ignore_errors' => true,
         ]]);
-        return json_decode(@file_get_contents($url, false, $ctx) ?: '{}', true) ?? [];
+        $resp = @file_get_contents($url, false, $ctx);
+        $this->capture_status($http_response_header ?? []);
+        return json_decode($resp ?: '{}', true) ?? [];
     }
 
     private function http_post(string $url, array $data, string $type = 'json'): array {
@@ -486,7 +489,9 @@ class M365Graph {
             'content' => $body,
             'ignore_errors' => true,
         ]]);
-        return json_decode(@file_get_contents($url, false, $ctx) ?: '{}', true) ?? [];
+        $resp = @file_get_contents($url, false, $ctx);
+        $this->capture_status($http_response_header ?? []);
+        return json_decode($resp ?: '{}', true) ?? [];
     }
 
     private function http_patch(string $url, array $data): void {
@@ -497,6 +502,20 @@ class M365Graph {
             'ignore_errors' => true,
         ]]);
         @file_get_contents($url, false, $ctx);
+        $this->capture_status($http_response_header ?? []);
+    }
+
+    /** Zapamiętuje status HTTP ostatniej odpowiedzi (do wykrycia 429/401/403 przez wołających). */
+    private function capture_status(array $headers): void {
+        $this->last_status = 0;
+        foreach ($headers as $h) {
+            if (preg_match('#^HTTP/\S+\s+(\d+)#', $h, $m)) { $this->last_status = (int)$m[1]; break; }
+        }
+    }
+
+    /** Status HTTP ostatniego wywołania Graph (0 = nieznany/brak wywołania). */
+    public function last_status(): int {
+        return $this->last_status;
     }
 
     /**
@@ -801,7 +820,7 @@ class M365Graph {
     public function get_messages_delta(string $user_id, string $folder = 'inbox', ?string $delta_link = null): array
     {
         $select = implode(',', [
-            'id','subject','bodyPreview',
+            'id','subject','bodyPreview','body','hasAttachments','internetMessageId',
             'from','toRecipients','ccRecipients',
             'receivedDateTime','sentDateTime',
             'conversationId','webLink',
@@ -832,6 +851,40 @@ class M365Graph {
             'messages'   => $all_messages,
             'delta_link' => $final_delta,
         ];
+    }
+
+    /**
+     * Metadane załączników wiadomości (bez zawartości — lekkie, bezpieczne do zawsze-wołania).
+     * Wymaga: Mail.Read (Application).
+     *
+     * @return array lista [{id, name, contentType, size}, ...]
+     */
+    public function get_message_attachments(string $mailbox, string $message_id): array {
+        $url = "https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox)
+             . "/messages/" . urlencode($message_id) . "/attachments"
+             . "?\$select=id,name,contentType,size";
+        $resp = $this->http_get($url);
+        if (isset($resp['error'])) {
+            $msg = $resp['error']['message'] ?? json_encode($resp['error']);
+            throw new \RuntimeException("Graph API (get_message_attachments): {$msg}");
+        }
+        return $resp['value'] ?? [];
+    }
+
+    /**
+     * Zawartość jednego załącznika (base64 → surowe bajty). Wołać tylko dla małych
+     * plików (fileAttachment, do ok. 3 MB) — większe wymagają osobnej sesji uploadu.
+     */
+    public function get_attachment_content(string $mailbox, string $message_id, string $attachment_id): string {
+        $url = "https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox)
+             . "/messages/" . urlencode($message_id) . "/attachments/" . urlencode($attachment_id)
+             . "?\$select=contentBytes";
+        $resp = $this->http_get($url);
+        if (isset($resp['error']) || empty($resp['contentBytes'])) {
+            $msg = $resp['error']['message'] ?? 'brak contentBytes w odpowiedzi';
+            throw new \RuntimeException("Graph API (get_attachment_content): {$msg}");
+        }
+        return base64_decode($resp['contentBytes']);
     }
 
     // ══ OUTLOOK CALENDARS ════════════════════════════════════════════════════

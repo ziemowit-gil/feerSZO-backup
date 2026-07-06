@@ -28,6 +28,7 @@ const PERMISSION_MODULES = [
     'karty30'          => 'Karty 30 — Dydaktyka',
     'wydarzenia'    => 'Moduł Wydarzeń',
     'szkolenia'     => 'Szkolenia (rezerwacja TidyCal)',
+    'poczta'        => 'Moduł Poczty',
     'admin'         => 'Administracja',
 ];
 
@@ -54,6 +55,7 @@ const MODULE_REGISTRY = [
     'karty30'       => ['label'=>'Karty 30',       'url'=>'/karty30/index.php',               'paths'=>['/karty30/'],      'icon'=>'bi-card-checklist',     'grad'=>'linear-gradient(135deg,#581C87,#7C3AED)'],
     'wydarzenia'    => ['label'=>'Wydarzenia',     'url'=>'/events/index.php',                'paths'=>['/events/'],       'icon'=>'bi-calendar-event-fill','grad'=>'linear-gradient(135deg,#9D174D,#EC4899)'],
     'szkolenia'     => ['label'=>'Szkolenia',      'url'=>'/szkolenia/index.php',             'paths'=>['/szkolenia/'],    'icon'=>'bi-calendar2-check',    'grad'=>'linear-gradient(135deg,#7C3AED,#C084FC)'],
+    'poczta'        => ['label'=>'Poczta',         'url'=>'/poczta/dashboard.php',            'paths'=>['/poczta/'],       'icon'=>'bi-envelope-fill',      'grad'=>'linear-gradient(135deg,#1D4ED8,#3B82F6)'],
 ];
 
 // Moduły dostępne dla roli crm_only (tylko CRM — bez systemu głównego)
@@ -184,6 +186,17 @@ function _permissions_init(): void {
             if ($rid) {
                 $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id,module,can_read,can_write,can_delete) VALUES (?,?,?,?,?)")
                     ->execute([$rid,'wydarzenia',...$perms]);
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    // Idempotentnie upewnij się, że moduł 'poczta' istnieje w uprawnieniach
+    foreach (['admin'=>[1,1,1],'editor'=>[1,1,0],'viewer'=>[1,0,0]] as $rname=>$perms) {
+        try {
+            $rid = (int)$pdo->query("SELECT id FROM roles WHERE name='$rname'")->fetchColumn();
+            if ($rid) {
+                $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id,module,can_read,can_write,can_delete) VALUES (?,?,?,?,?)")
+                    ->execute([$rid,'poczta',...$perms]);
             }
         } catch (\Throwable $e) {}
     }

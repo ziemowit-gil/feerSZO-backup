@@ -117,6 +117,16 @@ $AGENTS = [
         'interval' => 600,          // co 10 min
         'schedule' => [6, 23],      // w godzinach pracy
     ],
+    'poczta_dispatch' => [
+        'file'     => __DIR__ . '/poczta_dispatch.php',
+        'interval' => 600,          // co 10 min — generuje zadania skanowania skrzynek
+        'schedule' => [6, 23],      // w godzinach pracy
+    ],
+    'poczta_worker' => [
+        'file'     => __DIR__ . '/poczta_worker.php',
+        'interval' => 60,           // co minutę — konsumuje kolejkę RabbitMQ „poczta_skanowanie"
+        'schedule' => [6, 23],
+    ],
 ];
 
 $lock_dir = sys_get_temp_dir();

@@ -539,7 +539,7 @@ if ($_user) {
   $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/strategy/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/resources/') || str_contains($_uri,'/admin/shipments');
   $_on_rodo_nb  = str_contains($_uri, '/rodo/');
   $_on_admin_nb = str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding');
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
 
   try { $_msg_unread_total = msg_unread_admin(); } catch(\Exception $e) { $_msg_unread_total = 0; }
   try { require_once __DIR__ . '/termination.php'; $_term_pending = get_pending_terminations_count(); } catch(\Throwable $e) { $_term_pending = 0; }
@@ -701,7 +701,7 @@ if ($_user) {
 
   <!-- Więcej -->
   <?php
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
   ?>
   <li class="nav-item dropdown">
     <a class="nav-link dropdown-toggle<?= $_wiecej_active ? ' active' : '' ?>"
@@ -721,7 +721,7 @@ if ($_user) {
       <?php if (module_enabled('byli_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php"><i class="bi bi-person-dash me-2"></i>Byłe osoby</a></li>
       <?php endif; ?>
-      <?php if (module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled')): ?>
+      <?php if (module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled') || module_enabled('poczta_enabled')): ?>
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header nb-section-label">Obsługa<?php if ($_obs_badge): ?> <span class="badge bg-primary ms-1"><?= $_obs_badge ?></span><?php endif; ?></h6></li>
       <?php if (module_enabled('helpdesk_enabled')): ?>
@@ -735,6 +735,9 @@ if ($_user) {
       <?php endif; ?>
       <?php if (module_enabled('events_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/events/') ?>" href="<?= APP_URL ?>/events/dashboard.php"><i class="bi bi-calendar-event me-2"></i>Wydarzenia</a></li>
+      <?php endif; ?>
+      <?php if (module_enabled('poczta_enabled')): ?>
+      <li><a class="dropdown-item<?= _nav_active('/poczta/') ?>" href="<?= APP_URL ?>/poczta/dashboard.php"><i class="bi bi-envelope me-2"></i>Poczta</a></li>
       <?php endif; ?>
       <?php endif; ?>
       <li><hr class="dropdown-divider"></li>
@@ -817,13 +820,14 @@ if ($_user) {
       $_on_admin   = str_contains($_uri,'/admin/') && !str_contains($_uri,'/rodo/') && !str_contains($_uri,'/certificates/') && !str_contains($_uri,'/helpdesk/');
       $_on_actions = str_contains($_uri,'/actions/');
       $_on_events  = str_contains($_uri,'/events/');
+      $_on_poczta  = str_contains($_uri,'/poczta/');
       $_on_dir     = str_contains($_uri,'/directory/');
       $_on_k30     = str_contains($_uri,'/karty30/');
       $_on_rodo    = str_contains($_uri,'/rodo/');
       $_on_certs   = str_contains($_uri,'/certificates/') || str_contains($_uri,'/admin/certificates');
       $_on_wol     = str_contains($_uri,'/contracts/wolontariat/');
-      $_on_szo     = (!$_on_crm && !$_on_actions && !$_on_events && !$_on_dir && !$_on_k30 && !$_on_tasks && !$_on_admin && !$_on_rodo && !$_on_certs && !$_on_wol && !$_is_panel_view);
-      $_has_more_active = $_on_actions || $_on_events || $_on_dir || $_on_k30 || $_on_rodo || $_on_certs || $_on_wol;
+      $_on_szo     = (!$_on_crm && !$_on_actions && !$_on_events && !$_on_poczta && !$_on_dir && !$_on_k30 && !$_on_tasks && !$_on_admin && !$_on_rodo && !$_on_certs && !$_on_wol && !$_is_panel_view);
+      $_has_more_active = $_on_actions || $_on_events || $_on_poczta || $_on_dir || $_on_k30 || $_on_rodo || $_on_certs || $_on_wol;
     ?>
     <!-- ── Waffle switcher modułów ─────────────────────────────── -->
     <?php
@@ -836,6 +840,7 @@ if ($_user) {
     elseif ($_on_dir)     { $_sw_icon = 'bi-person-lines-fill'; $_sw_label = 'Katalog'; }
     elseif ($_on_actions) { $_sw_icon = 'bi-calendar-event';  $_sw_label = 'Działania'; }
     elseif ($_on_events)  { $_sw_icon = 'bi-calendar-event-fill'; $_sw_label = 'Wydarzenia'; }
+    elseif ($_on_poczta)  { $_sw_icon = 'bi-envelope-fill';   $_sw_label = 'Poczta'; }
     elseif ($_on_k30)     { $_sw_icon = 'bi-card-checklist';  $_sw_label = 'Karty 30'; }
     elseif ($_on_certs)   { $_sw_icon = 'bi-award-fill';      $_sw_label = 'Zaświadczenia'; }
     elseif ($_on_rodo)    { $_sw_icon = 'bi-shield-lock-fill'; $_sw_label = 'RODO'; }
@@ -855,6 +860,8 @@ if ($_user) {
     $__add('Raporty',       APP_URL.'/reports/index.php',              'bi-bar-chart-line',    '#0284c7','#f0f9ff', str_contains($_uri,'/reports/'), 'Praca i umowy');
     if (module_enabled('events_enabled'))
         $__add('Wydarzenia', APP_URL.'/events/dashboard.php',          'bi-calendar-event-fill','#7c3aed','#f5f3ff', str_contains($_uri,'/events/'), 'Praca i umowy');
+    if (module_enabled('poczta_enabled'))
+        $__add('Poczta',     APP_URL.'/poczta/dashboard.php',          'bi-envelope-fill',      '#1d4ed8','#eff6ff', $_on_poczta, 'Praca i umowy');
     // Relacje i ludzie
     if (module_enabled('crm_enabled') && can_read('crm'))
         $__add('CRM',       APP_URL.'/crm/dashboard.php',              'bi-diagram-2-fill',    '#16a34a','#f0fdf4', $_on_crm,     'Relacje i ludzie');

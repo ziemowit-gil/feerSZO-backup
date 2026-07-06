@@ -18,6 +18,7 @@ $_msw_mods = [
     ['key'=>'actions',   'label'=>'Działania',      'icon'=>'bi-calendar-event',    'mc'=>'#0891b2','mb'=>'#ecfeff','url'=>APP_URL.'/strategy/actions/index.php',         'check'=>null],
     ['key'=>'grants',    'label'=>'Granty',         'icon'=>'bi-cash-coin',         'mc'=>'#15803d','mb'=>'#f0fdf4','url'=>APP_URL.'/grants/index.php',                   'check'=>null],
     ['key'=>'events',    'label'=>'Wydarzenia',     'icon'=>'bi-calendar-star-fill','mc'=>'#7c3aed','mb'=>'#f5f3ff','url'=>APP_URL.'/events/index.php',                   'check'=>fn()=>module_enabled('events_enabled')],
+    ['key'=>'poczta',    'label'=>'Poczta',         'icon'=>'bi-envelope-fill',     'mc'=>'#1d4ed8','mb'=>'#eff6ff','url'=>APP_URL.'/poczta/dashboard.php',               'check'=>fn()=>module_enabled('poczta_enabled')],
     ['key'=>'directory', 'label'=>'Katalog',        'icon'=>'bi-person-lines-fill', 'mc'=>'#4338ca','mb'=>'#eef2ff','url'=>APP_URL.'/directory/',                         'check'=>null],
     ['key'=>'strategy',  'label'=>'Strategia',      'icon'=>'bi-bullseye',          'mc'=>'#6d28d9','mb'=>'#f5f3ff','url'=>APP_URL.'/strategy/index.php',                 'check'=>null],
     ['key'=>'reports',   'label'=>'Raporty',        'icon'=>'bi-bar-chart-line',    'mc'=>'#0284c7','mb'=>'#f0f9ff','url'=>APP_URL.'/reports/index.php',                  'check'=>null],
