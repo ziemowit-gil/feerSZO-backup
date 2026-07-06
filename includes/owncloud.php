@@ -66,9 +66,10 @@ function owncloud_migrate(): void {
         'owncloud_username'         => '',
         'owncloud_password'         => '',
         'owncloud_base_folder'      => 'feerszo-pliki-lekcji',
-        'owncloud_admin_username'   => '',
-        'owncloud_admin_password'   => '',
-        'owncloud_student_quota_mb' => '2048',
+        'owncloud_admin_username'      => '',
+        'owncloud_admin_password'      => '',
+        'owncloud_student_quota_mb'    => '2048',
+        'owncloud_instructor_quota_mb' => '5120',
     ];
     foreach ($defaults as $key => $val) {
         try {
@@ -254,13 +255,13 @@ function owncloud_set_password(array $admin_cfg, string $userid, string $passwor
 }
 
 /**
- * Sanityzuje login kursanta do bezpiecznego dla ownCloud zestawu znaków i
- * dokleja sufiks liczbowy przy kolizji nazwy — wzorzec jak
- * M365Graph::unique_login() w includes/m365.php.
+ * Sanityzuje login do bezpiecznego dla ownCloud zestawu znaków i dokleja
+ * sufiks liczbowy przy kolizji nazwy — wzorzec jak M365Graph::unique_login()
+ * w includes/m365.php.
  */
-function owncloud_unique_student_username(array $admin_cfg, string $base): string {
+function owncloud_unique_username(array $admin_cfg, string $base, string $fallback = 'konto'): string {
     $safe = preg_replace('/[^a-zA-Z0-9._-]/', '', $base);
-    $safe = trim($safe, '._-') ?: 'kursant';
+    $safe = trim($safe, '._-') ?: $fallback;
     if (!owncloud_user_exists($admin_cfg, $safe)) return $safe;
     for ($i = 1; $i <= 99; $i++) {
         $candidate = "{$safe}{$i}";
@@ -288,7 +289,7 @@ function owncloud_create_student_account(int $student_account_id): array {
     }
 
     $admin_cfg = owncloud_admin_config();
-    $username  = owncloud_unique_student_username($admin_cfg, $account['login'] ?? ('kursant' . $student_account_id));
+    $username  = owncloud_unique_username($admin_cfg, $account['login'] ?? ('kursant' . $student_account_id), 'kursant');
     $password  = bin2hex(random_bytes(8)) . 'Aa1!';
 
     $created = owncloud_create_user($admin_cfg, $username, $password);
@@ -323,6 +324,88 @@ function owncloud_reset_student_password(int $student_account_id): array {
     if (!$account || empty($account['owncloud_username'])) {
         return ['ok' => false, 'msg' => 'Nie masz jeszcze konta ownCloud.'];
     }
+
+    $admin_cfg = owncloud_admin_config();
+    $password  = bin2hex(random_bytes(8)) . 'Aa1!';
+    $r = owncloud_set_password($admin_cfg, $account['owncloud_username'], $password);
+    if (!$r['ok']) return ['ok' => false, 'msg' => $r['msg']];
+
+    return [
+        'ok'       => true,
+        'msg'      => 'Hasło zresetowane.',
+        'username' => $account['owncloud_username'],
+        'password' => $password,
+        'quota_mb' => (int)$account['owncloud_quota_mb'],
+        'url'      => $admin_cfg['url'],
+    ];
+}
+
+// ══ OCS PROVISIONING API — konta prowadzących (panel dydaktyka, „mój dysk") ══
+//
+// Sama mechanika co konta kursantów powyżej. Tożsamość dydaktyka to users.id
+// (logowanie danymi SZO, [[project_ti_dydaktyk_panel]]) — konto ownCloud trzymamy
+// więc per user_id w k30_ti_instructor_owncloud, niezależnie od istnienia wiersza
+// w k30_ti_instructor_accounts (ten dotyczy odrębnego mechanizmu logowania).
+
+/** Konto ownCloud prowadzącego (jeśli już utworzone). */
+function owncloud_instructor_account(int $user_id): ?array {
+    return db_one("SELECT * FROM k30_ti_instructor_owncloud WHERE user_id=?", [$user_id]) ?: null;
+}
+
+/**
+ * Tworzy samoobsługowe konto ownCloud dla prowadzącego (panel dydaktyka, zakładka „dysk").
+ * Idempotentne — jeśli konto już istnieje, nie tworzy drugiego.
+ * Hasło NIE jest zapisywane w bazie — tylko zwrócone do jednorazowego pokazania.
+ *
+ * @return array{ok:bool,msg:string,username?:string,password?:string,quota_mb?:int,url?:string}
+ */
+function owncloud_create_instructor_account(int $user_id): array {
+    if (!owncloud_enabled() || !owncloud_admin_configured()) {
+        return ['ok' => false, 'msg' => 'Integracja ownCloud nie jest skonfigurowana przez administratora.'];
+    }
+    if (owncloud_instructor_account($user_id)) {
+        return ['ok' => false, 'msg' => 'Konto ownCloud już istnieje.'];
+    }
+
+    $u = db_one("SELECT name, email FROM users WHERE id=?", [$user_id]);
+    if (!$u) return ['ok' => false, 'msg' => 'Nie znaleziono konta użytkownika.'];
+
+    $admin_cfg = owncloud_admin_config();
+    $base      = $u['email'] !== '' ? strtok($u['email'], '@') : $u['name'];
+    $username  = owncloud_unique_username($admin_cfg, (string)$base, 'prowadzacy');
+    $password  = bin2hex(random_bytes(8)) . 'Aa1!';
+
+    $created = owncloud_create_user($admin_cfg, $username, $password);
+    if (!$created['ok']) return ['ok' => false, 'msg' => $created['msg']];
+
+    $quota_mb = (int)(owncloud_setting('instructor_quota_mb', '5120') ?: '5120');
+    owncloud_set_quota($admin_cfg, $username, "{$quota_mb}MB"); // błąd limitu nie unieważnia utworzonego konta
+
+    db()->prepare(
+        "INSERT INTO k30_ti_instructor_owncloud(user_id, owncloud_username, owncloud_created_at, owncloud_quota_mb)
+         VALUES(?,?,CURRENT_TIMESTAMP,?)"
+    )->execute([$user_id, $username, $quota_mb]);
+
+    return [
+        'ok'       => true,
+        'msg'      => 'Konto ownCloud utworzone.',
+        'username' => $username,
+        'password' => $password,
+        'quota_mb' => $quota_mb,
+        'url'      => $admin_cfg['url'],
+    ];
+}
+
+/**
+ * Resetuje hasło istniejącego konta ownCloud prowadzącego — nowe hasło jednorazowe,
+ * NIE jest zapisywane (tylko zwrócone do pokazania).
+ */
+function owncloud_reset_instructor_password(int $user_id): array {
+    if (!owncloud_enabled() || !owncloud_admin_configured()) {
+        return ['ok' => false, 'msg' => 'Integracja ownCloud nie jest skonfigurowana przez administratora.'];
+    }
+    $account = owncloud_instructor_account($user_id);
+    if (!$account) return ['ok' => false, 'msg' => 'Nie masz jeszcze konta ownCloud.'];
 
     $admin_cfg = owncloud_admin_config();
     $password  = bin2hex(random_bytes(8)) . 'Aa1!';
