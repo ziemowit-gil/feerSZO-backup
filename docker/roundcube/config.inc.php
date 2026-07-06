@@ -65,6 +65,14 @@ $config['oauth_identity_fields'] = ['preferred_username', 'email'];
 // aktywnego konta Microsoft w organizacji, zanim kliknie przycisk logowania.
 $config['oauth_login_redirect'] = false;
 
+// Logo Fundacji na stronie logowania (plik trzymany przy pluginie login_notice,
+// bo to obraz statyczny w webroot "rc" — obraz z assets/logo/ głównej aplikacji
+// nie jest tutaj dostępny, kontenery są osobne). Aktualizować ręcznie, jeśli
+// zmieni się logo w admin/org_settings.php głównej aplikacji.
+$config['skin_logo'] = [
+    'login' => 'plugins/login_notice/logo.png',
+];
+
 // Traefik terminuje TLS i przekazuje ruch do kontenera zwykłym HTTP — bez tego
 // Roundcube "widzi" żądanie jako http:// i buduje redirect_uri OAuth z "http://"
 // zamiast "https://", co Azure AD odrzuca (AADSTS50011 redirect_uri_mismatch),

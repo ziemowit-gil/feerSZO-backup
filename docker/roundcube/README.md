@@ -19,15 +19,22 @@ cytowaną treść), `subscriptions_option` (przełącznik subskrypcji IMAP w
 Ustawieniach), `show_additional_headers`, `identicon` (awatar nadawcy).
 
 Plugin `login_notice` (montowany z `plugins/login_notice/`) dodaje na stronie
-logowania komunikat o migracji z powodu problemów logowania: od 1 sierpnia
-poczta wyłącznie przez `poczta.feer.org.pl`/`rc.feer.org.pl` (te same dane),
-do tej daty można też korzystać z `outlook.office.com`. Treść jest na trwałe
-w kodzie pluginu (`add_notice()`) — do zmiany tam, gdy komunikat się
-zdezaktualizuje (np. po 1 sierpnia). Wymaga `oauth_login_redirect = false` —
-inaczej strona logowania nigdy się nie renderuje (od razu przekierowanie do
-Microsoft). Ten plugin też ukrywa zwykły formularz login/hasło Roundcube
-(skrzynki są tylko przez OAuth), bo z `oauth_login_redirect=false` rdzeń sam
-go nie chowa.
+logowania: (1) informację, że to poczta Fundacji i notatkę o bezpieczeństwie
+(brak przechowywania hasła w tym systemie), (2) komunikat o migracji z powodu
+problemów logowania — od 1 sierpnia poczta wyłącznie przez
+`poczta.feer.org.pl`/`rc.feer.org.pl` (te same dane), do tej daty można też
+korzystać z `outlook.office.com`. Treść jest na trwałe w kodzie pluginu
+(`add_notice()`) — do zmiany tam, gdy komunikat się zdezaktualizuje (np. po
+1 sierpnia). Wymaga `oauth_login_redirect = false` — inaczej strona logowania
+nigdy się nie renderuje (od razu przekierowanie do Microsoft). Ten plugin też
+ukrywa zwykły formularz login/hasło Roundcube (skrzynki są tylko przez
+OAuth), bo z `oauth_login_redirect=false` rdzeń sam go nie chowa.
+
+Logo Fundacji na stronie logowania — `$config['skin_logo']` wskazuje na
+`plugins/login_notice/logo.png` (kopia aktualnego logo z `assets/logo/`
+głównej aplikacji; kontenery są osobne, więc plik trzeba fizycznie
+skopiować — nie jest to link do głównej apki). **Jeśli logo w
+`admin/org_settings.php` się zmieni, trzeba ręcznie podmienić też ten plik.**
 
 Plugin `onedrive_picker` (montowany z `plugins/onedrive_picker/`) dodaje przycisk
 „OneDrive" w oknie tworzenia maila — user loguje się **raz** (Microsoft 365),

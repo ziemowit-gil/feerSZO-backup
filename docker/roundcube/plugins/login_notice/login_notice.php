@@ -41,6 +41,9 @@ class login_notice extends rcube_plugin
         }
 
         $args['content'] = '<div class="alert alert-info" style="margin:0 0 1em;text-align:left;">'
+            . 'To oficjalna poczta <strong>Fundacji Edukacji Empatii Rozwoju (FEER)</strong>. '
+            . 'Logowanie odbywa się wyłącznie przez konto Microsoft Twojej organizacji — '
+            . 'ten system nie przechowuje ani nie widzi Twojego hasła do skrzynki.<br><br>'
             . 'Z uwagi na problemy z logowaniem do kont Microsoft w domenie <strong>feer.org.pl</strong>, '
             . 'od 1 sierpnia logowanie do poczty będzie możliwe wyłącznie przez '
             . '<strong>poczta.feer.org.pl</strong> lub <strong>rc.feer.org.pl</strong> — tymi samymi danymi co dotychczas.<br>'
