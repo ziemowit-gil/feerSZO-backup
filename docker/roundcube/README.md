@@ -120,6 +120,18 @@ docker logs -f feer-rc
   redirect URI w Azure App registration jest dokładnie
   `https://${RC_DOMAIN}/index.php/login/oauth` (ze schematem, bez końcowego
   slasha).
+- **Logowanie kończy się błędem w `logs/errors.log` typu `OAuth token request
+  failed: ... graph.microsoft.com/v1.0/me ... 401 Unauthorized ... Invalid
+  audience`** (potwierdzone na produkcji) — token logowania jest wystawiony
+  tylko dla audience `outlook.office365.com` (celowo, patrz komentarz przy
+  `oauth_scope`), więc Microsoft Graph zawsze go odrzuci. Przyczyna: pole
+  `oauth_identity_fields` wskazywało na nazwy pól z Microsoft Graph
+  (`mail`/`userPrincipalName`), których nigdy nie ma w `id_token` (JWT) — więc
+  Roundcube zawsze robił zapasowe (i skazane na porażkę) zapytanie do Graph.
+  Naprawione: `oauth_identity_fields` używa teraz prawdziwych claimów OIDC
+  (`preferred_username`, `email`) obecnych w JWT, a `oauth_identity_uri` (Graph
+  `/me`) jest całkiem usunięty z konfiguracji, bo z tym scope nie może
+  zadziałać.
 - **IMAP/SMTP XOAUTH2 nie działa mimo udanego logowania** — sprawdź czy
   `IMAP.AccessAsUser.All`/`SMTP.Send` mają **grant admin consent** (nie tylko
   "requested") w Azure Portal → widoczne jako zielony ptaszek, nie żółty wykrzyknik.

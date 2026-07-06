@@ -36,7 +36,12 @@ $config['oauth_client_id']     = getenv('RC_OAUTH_CLIENT_ID') ?: '';
 $config['oauth_client_secret'] = getenv('RC_OAUTH_CLIENT_SECRET') ?: '';
 $config['oauth_auth_uri']      = "https://login.microsoftonline.com/{$_rc_tenant}/oauth2/v2.0/authorize";
 $config['oauth_token_uri']     = "https://login.microsoftonline.com/{$_rc_tenant}/oauth2/v2.0/token";
-$config['oauth_identity_uri']  = 'https://graph.microsoft.com/v1.0/me';
+// BEZ oauth_identity_uri (Graph /me) — to zapasowe zapytanie robione jest tym
+// SAMYM tokenem co logowanie, wystawionym tylko dla audience
+// outlook.office365.com (patrz komentarz przy oauth_scope niżej), więc Graph
+// zawsze odrzuci je jako 401 "Invalid audience". Roundcube i tak najpierw
+// próbuje wyciągnąć username z claimów id_token (JWT) — patrz
+// oauth_identity_fields — do Graph sięga TYLKO gdy tam niczego nie znajdzie.
 // UWAGA: celowo BEZ "https://graph.microsoft.com/Files.Read" tutaj — Microsoft
 // identity platform (v2.0) wydaje token dla JEDNEGO "resource"/audience na
 // żądanie; mieszanie scope'ów z outlook.office365.com i graph.microsoft.com
@@ -49,8 +54,12 @@ $config['oauth_identity_uri']  = 'https://graph.microsoft.com/v1.0/me';
 $config['oauth_scope'] = 'openid email profile offline_access '
     . 'https://outlook.office365.com/IMAP.AccessAsUser.All '
     . 'https://outlook.office365.com/SMTP.Send';
-// Pole z odpowiedzi oauth_identity_uri używane jako login IMAP/SMTP.
-$config['oauth_identity_fields'] = ['mail', 'userPrincipalName'];
+// Claimy OIDC z id_token (JWT) używane jako login IMAP/SMTP — "preferred_username"
+// (obecny dzięki scope "profile") to zwykle UPN, "email" dzięki scope "email"
+// (bywa nieobecny, zależnie od konfiguracji tenanta/kont). To NIE są nazwy pól
+// z Microsoft Graph ("mail"/"userPrincipalName") — te nigdy nie występują w
+// id_token i tylko wywoływały zbędne (i niedziałające) zapytanie do Graph.
+$config['oauth_identity_fields'] = ['preferred_username', 'email'];
 // Od razu przekieruj do logowania Microsoft — bez własnego formularza Roundcube.
 $config['oauth_login_redirect'] = true;
 
