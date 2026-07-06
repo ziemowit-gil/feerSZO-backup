@@ -41,11 +41,11 @@ class login_notice extends rcube_plugin
         }
 
         $args['content'] = '<div class="alert alert-info" style="margin:0 0 1em;text-align:left;">'
-            . 'Logowanie wymaga aktywnego konta Microsoft w organizacji Fundacji Edukacji Empatii Rozwoju '
-            . '(domena <strong>feer.org.pl</strong>) oraz uprawnień do korzystania z tego konta.<br>'
-            . 'Jeżeli wolisz, możesz też skorzystać z '
-            . '<a href="https://outlook.com" target="_blank" rel="noopener">outlook.com</a> '
-            . '— ten interfejs jest prostszy.'
+            . 'Z uwagi na problemy z logowaniem do kont Microsoft w domenie <strong>feer.org.pl</strong>, '
+            . 'od 1 sierpnia logowanie do poczty będzie możliwe wyłącznie przez '
+            . '<strong>poczta.feer.org.pl</strong> lub <strong>rc.feer.org.pl</strong> — tymi samymi danymi co dotychczas.<br>'
+            . 'Do 1 sierpnia możesz również korzystać z '
+            . '<a href="https://outlook.office.com" target="_blank" rel="noopener">outlook.office.com</a>.'
             . '</div>' . $args['content'];
 
         return $args;
