@@ -721,6 +721,34 @@ require_once __DIR__ . '/includes/header_tasks.php';
 }
 .tk-select:focus-visible{outline:2px solid var(--tk-focus);outline-offset:2px}
 
+/* Przycisk "Filtry" + panel (priorytet/kategoria/tag/obszar/jednostka) */
+.tk-filters-btn{
+  display:inline-flex;align-items:center;gap:.35rem;
+  padding:.25rem .7rem;border-radius:.4rem;
+  border:1.5px solid #e2e8f0;background:#fff;color:var(--tk-text);
+  font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:border-color .12s,color .12s;
+}
+.tk-filters-btn:hover{border-color:#94a3b8}
+.tk-filters-btn.has-active{border-color:var(--tk-focus);color:var(--tk-focus)}
+.tk-filters-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:1.2rem;height:1.2rem;padding:0 .3rem;border-radius:999px;
+  background:var(--tk-focus);color:#fff;font-size:.65rem;font-weight:700;
+}
+.tk-filters-panel{width:280px;padding:.85rem}
+.tk-filters-field{margin-bottom:.65rem}
+.tk-filters-field:last-of-type{margin-bottom:0}
+.tk-filters-field label{
+  display:block;font-size:.7rem;font-weight:700;color:var(--tk-muted);
+  text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem;
+}
+.tk-filters-field .tk-select{width:100%}
+.tk-filters-panel-footer{
+  display:flex;align-items:center;justify-content:flex-start;
+  margin-top:.75rem;padding-top:.65rem;border-top:1px solid #f1f5f9;
+}
+
 .tk-search{
   font-size:.82rem;padding:.28rem .65rem;border-radius:.4rem;
   border:1.5px solid #e2e8f0;background:#fff;
@@ -1077,6 +1105,10 @@ require_once __DIR__ . '/includes/header_tasks.php';
   <?php endif; ?>
 </div>
 
+<?php
+$_tk_active_filters = (int)((bool)$filter_priority) + (int)((bool)$filter_list)
+                    + (int)((bool)$filter_tag) + (int)((bool)$filter_area) + (int)((bool)$filter_unit);
+?>
 <!-- ── Pasek narzędzi ────────────────────────────────────────────────────── -->
 <form id="tkFilterForm" class="tk-toolbar" role="search" aria-label="Filtry i wyszukiwanie" onsubmit="tkAjaxLoad(event)">
   <input type="hidden" name="ws"     value="<?= (int)$ws_id ?>">
@@ -1119,69 +1151,93 @@ require_once __DIR__ . '/includes/header_tasks.php';
 
   <div class="tk-sep" role="separator" aria-hidden="true"></div>
 
-  <!-- Priorytet -->
-  <label class="visually-hidden" for="tk-pri">Priorytet</label>
-  <select id="tk-pri" name="pri" class="tk-select" onchange="tkAjaxLoad()">
-    <option value="0" <?= !$filter_priority?'selected':'' ?>>Każdy priorytet</option>
-    <option value="4" <?= $filter_priority==4?'selected':'' ?>>🔴 Krytyczny</option>
-    <option value="3" <?= $filter_priority==3?'selected':'' ?>>🟡 Wysoki</option>
-    <option value="2" <?= $filter_priority==2?'selected':'' ?>>🔵 Normalny</option>
-    <option value="1" <?= $filter_priority==1?'selected':'' ?>>⚪ Niski</option>
-  </select>
+  <!-- Więcej filtrów — priorytet/kategoria/tag/obszar/jednostka pod jednym przyciskiem -->
+  <div class="dropdown" id="tk-filters-wrap">
+    <button type="button"
+            class="tk-filters-btn <?= $_tk_active_filters ? 'has-active' : '' ?>"
+            id="tk-filters-btn"
+            data-bs-toggle="dropdown"
+            data-bs-auto-close="outside"
+            aria-haspopup="true" aria-expanded="false"
+            aria-label="Więcej filtrów<?= $_tk_active_filters ? " — {$_tk_active_filters} aktywnych" : '' ?>">
+      <i class="bi bi-funnel<?= $_tk_active_filters ? '-fill' : '' ?>" aria-hidden="true"></i>
+      Filtry
+      <span class="tk-filters-badge <?= $_tk_active_filters ? '' : 'd-none' ?>" id="tk-filters-badge"><?= $_tk_active_filters ?></span>
+    </button>
+    <div class="dropdown-menu shadow tk-filters-panel" id="tk-filters-panel" role="menu" aria-label="Panel filtrów">
 
-  <!-- Kategoria (lista) -->
-  <?php if (count($lists_map) > 1): ?>
-  <label class="visually-hidden" for="tk-list">Kategoria</label>
-  <select id="tk-list" name="list" class="tk-select" onchange="tkAjaxLoad()">
-    <option value="0" <?= !$filter_list?'selected':'' ?>>Każda kategoria</option>
-    <?php foreach ($lists_map as $l): ?>
-    <option value="<?= $l['id'] ?>" <?= $filter_list==$l['id']?'selected':'' ?>><?= h($l['name']) ?></option>
-    <?php endforeach; ?>
-  </select>
-  <?php endif; ?>
+      <div class="tk-filters-field">
+        <label for="tk-pri">Priorytet</label>
+        <select id="tk-pri" name="pri" class="tk-select" onchange="tkAjaxLoad()">
+          <option value="0" <?= !$filter_priority?'selected':'' ?>>Każdy priorytet</option>
+          <option value="4" <?= $filter_priority==4?'selected':'' ?>>🔴 Krytyczny</option>
+          <option value="3" <?= $filter_priority==3?'selected':'' ?>>🟡 Wysoki</option>
+          <option value="2" <?= $filter_priority==2?'selected':'' ?>>🔵 Normalny</option>
+          <option value="1" <?= $filter_priority==1?'selected':'' ?>>⚪ Niski</option>
+        </select>
+      </div>
 
-  <!-- Tag -->
-  <?php if ($available_tags): ?>
-  <label class="visually-hidden" for="tk-tag">Tag</label>
-  <select id="tk-tag" name="tag" class="tk-select" onchange="tkAjaxLoad()">
-    <option value="0" <?= !$filter_tag?'selected':'' ?>>Każdy tag</option>
-    <?php foreach ($available_tags as $tg): ?>
-    <option value="<?= $tg['id'] ?>" <?= $filter_tag==$tg['id']?'selected':'' ?>><?= h($tg['name']) ?></option>
-    <?php endforeach; ?>
-  </select>
-  <?php endif; ?>
+      <?php if (count($lists_map) > 1): ?>
+      <div class="tk-filters-field">
+        <label for="tk-list">Kategoria</label>
+        <select id="tk-list" name="list" class="tk-select" onchange="tkAjaxLoad()">
+          <option value="0" <?= !$filter_list?'selected':'' ?>>Każda kategoria</option>
+          <?php foreach ($lists_map as $l): ?>
+          <option value="<?= $l['id'] ?>" <?= $filter_list==$l['id']?'selected':'' ?>><?= h($l['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
 
-  <!-- Obszar -->
-  <?php if ($all_areas): ?>
-  <label class="visually-hidden" for="tk-area">Obszar</label>
-  <select id="tk-area" name="area" class="tk-select" onchange="tkAjaxLoad()">
-    <option value="0" <?= !$filter_area?'selected':'' ?>>Każdy obszar</option>
-    <?php foreach ($all_areas as $ar): ?>
-    <option value="<?= $ar['id'] ?>" <?= $filter_area==$ar['id']?'selected':'' ?>>
-      <?= h($ar['name']) ?>
-    </option>
-    <?php endforeach; ?>
-  </select>
-  <?php endif; ?>
+      <?php if ($available_tags): ?>
+      <div class="tk-filters-field">
+        <label for="tk-tag">Tag</label>
+        <select id="tk-tag" name="tag" class="tk-select" onchange="tkAjaxLoad()">
+          <option value="0" <?= !$filter_tag?'selected':'' ?>>Każdy tag</option>
+          <?php foreach ($available_tags as $tg): ?>
+          <option value="<?= $tg['id'] ?>" <?= $filter_tag==$tg['id']?'selected':'' ?>><?= h($tg['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
 
-  <!-- Jednostka org -->
-  <?php if ($all_org_units): ?>
-  <label class="visually-hidden" for="tk-unit">Jednostka</label>
-  <select id="tk-unit" name="unit" class="tk-select" onchange="tkAjaxLoad()">
-    <option value="0" <?= !$filter_unit?'selected':'' ?>>Każda jednostka</option>
-    <?php foreach ($all_org_units as $ou): ?>
-    <option value="<?= $ou['id'] ?>" <?= $filter_unit==$ou['id']?'selected':'' ?>>
-      <?= h($ou['short_name'] ?: $ou['name']) ?>
-    </option>
-    <?php endforeach; ?>
-  </select>
-  <?php endif; ?>
+      <?php if ($all_areas): ?>
+      <div class="tk-filters-field">
+        <label for="tk-area">Obszar</label>
+        <select id="tk-area" name="area" class="tk-select" onchange="tkAjaxLoad()">
+          <option value="0" <?= !$filter_area?'selected':'' ?>>Każdy obszar</option>
+          <?php foreach ($all_areas as $ar): ?>
+          <option value="<?= $ar['id'] ?>" <?= $filter_area==$ar['id']?'selected':'' ?>>
+            <?= h($ar['name']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
 
-  <!-- Wyczyść filtry — widoczne tylko gdy jakiś filtr jest aktywny -->
-  <button type="button" id="tk-clear-filters" class="btn btn-link btn-sm text-decoration-none p-0 d-none"
-          onclick="tkClearFilters()">
-    <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Wyczyść filtry
-  </button>
+      <?php if ($all_org_units): ?>
+      <div class="tk-filters-field">
+        <label for="tk-unit">Jednostka</label>
+        <select id="tk-unit" name="unit" class="tk-select" onchange="tkAjaxLoad()">
+          <option value="0" <?= !$filter_unit?'selected':'' ?>>Każda jednostka</option>
+          <?php foreach ($all_org_units as $ou): ?>
+          <option value="<?= $ou['id'] ?>" <?= $filter_unit==$ou['id']?'selected':'' ?>>
+            <?= h($ou['short_name'] ?: $ou['name']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
+
+      <div class="tk-filters-panel-footer">
+        <button type="button" id="tk-clear-filters" class="btn btn-link btn-sm text-decoration-none p-0 <?= $_tk_active_filters || $filter_status!=='all' || $filter_q!=='' ? '' : 'd-none' ?>"
+                onclick="tkClearFilters()">
+          <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Wyczyść wszystkie filtry
+        </button>
+      </div>
+
+    </div>
+  </div>
 
   <!-- Powiadomienia + Widok + Dodaj zadanie + Usuń obszar -->
   <div class="ms-auto d-flex gap-2 align-items-center">
@@ -1527,6 +1583,25 @@ function tkUpdateClearButton() {
     btn.classList.toggle('d-none', !tkHasActiveFilters(form));
 }
 
+/* Licznik aktywnych filtrów w panelu "Filtry" (pri/list/tag/area/unit — bez q/status) */
+function tkUpdateFiltersBadge() {
+    const form  = document.getElementById('tkFilterForm');
+    const btn   = document.getElementById('tk-filters-btn');
+    const badge = document.getElementById('tk-filters-badge');
+    if (!form || !btn || !badge) return;
+    const fd = new FormData(form);
+    let n = 0;
+    for (const key of ['pri', 'list', 'tag', 'area', 'unit']) {
+        const v = fd.get(key);
+        if (v !== null && v !== '0') n++;
+    }
+    badge.textContent = n;
+    badge.classList.toggle('d-none', n === 0);
+    btn.classList.toggle('has-active', n > 0);
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = n > 0 ? 'bi bi-funnel-fill' : 'bi bi-funnel';
+}
+
 /* Resetuje wszystkie filtry naraz i przeładowuje listę */
 function tkClearFilters() {
     const form = document.getElementById('tkFilterForm');
@@ -1547,7 +1622,7 @@ function tkClearFilters() {
     tkAjaxLoad();
 }
 
-document.addEventListener('DOMContentLoaded', tkUpdateClearButton);
+document.addEventListener('DOMContentLoaded', function() { tkUpdateClearButton(); tkUpdateFiltersBadge(); });
 
 /* AJAX: załaduj region listy */
 function tkAjaxLoad(e) {
@@ -1555,6 +1630,7 @@ function tkAjaxLoad(e) {
     const form   = document.getElementById('tkFilterForm');
     if (!form) return;
     tkUpdateClearButton();
+    tkUpdateFiltersBadge();
     const params = new URLSearchParams(new FormData(form));
     params.set('_ajax', '1');
     fetch(BASE + '/tasks/index.php?' + params.toString())
