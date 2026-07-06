@@ -113,6 +113,59 @@ function contract_correction_alert(string $type, int $id, array $row): string
 }
 
 /**
+ * Duży modal ostrzegawczy, otwierany AUTOMATYCZNIE przy każdym wejściu w widok
+ * umowy z needs_correction=1 — żeby powodu korekty nie dało się przeoczyć.
+ * Alert w contract_correction_alert() zostaje jako trwałe przypomnienie na
+ * stronie po zamknięciu modala.
+ */
+function contract_correction_notice_modal(string $type, int $id, array $row): string
+{
+    if (empty($row['needs_correction'])) return '';
+
+    $modalId = 'correctionNoticeModal-' . h($type) . '-' . $id;
+    ob_start();
+    ?>
+    <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>-label" aria-modal="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title" id="<?= $modalId ?>-label">
+              <i class="bi bi-exclamation-triangle-fill"></i> Umowa wymaga uzupełnienia
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2 fs-5"><?= nl2br(h($row['correction_reason'] ?? '')) ?></p>
+            <p class="text-muted small mb-0">
+              Zgłoszono: <?= date_pl($row['correction_requested_at'] ?? null) ?>
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+            <?php if (can_edit()): ?>
+            <form method="post" action="<?= APP_URL ?>/contracts/mark_correction.php" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="type" value="<?= h($type) ?>">
+              <input type="hidden" name="id" value="<?= $id ?>">
+              <input type="hidden" name="action" value="resolve">
+              <button class="btn btn-success"><i class="bi bi-check-lg"></i> Poprawki wprowadzone</button>
+            </form>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById(<?= json_encode($modalId) ?>);
+        if (el) new bootstrap.Modal(el).show();
+      });
+    </script>
+    <?php
+    return ob_get_clean();
+}
+
+/**
  * Przycisk "Oznacz: do uzupełnienia" (+ modal z wymaganym powodem), widoczny
  * dla edytorów tylko gdy umowa nie jest już oznaczona. Umieszczany w pasku akcji
  * karty umowy, obok wydruków/dokumentów (includes/contract_view_header.php).

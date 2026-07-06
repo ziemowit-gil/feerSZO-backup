@@ -55,6 +55,7 @@ $_cvh_accent = match($_cvh_st['class']) {
 ?>
 
 <?= contract_correction_alert($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
+<?= contract_correction_notice_modal($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
 
 <?php if (!empty($_pending_term)): ?>
 <div class="alert alert-warning d-flex align-items-center gap-2 no-print mb-2 py-2">
