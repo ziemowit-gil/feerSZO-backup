@@ -78,8 +78,16 @@ foreach ($contracts as $c) {
         }
     }
 
-    $ezd = ezd_register_guardian_consent_letter($c, $guardian_name, 0);
-    $znak_sprawy = $ezd['znak_sprawy'] ?? '';
+    // Sprawa EZD jest pomocnicza — awaria nie może przerwać pętli po pozostałych umowach.
+    $znak_sprawy = '';
+    try {
+        $ezd = ezd_register_guardian_consent_letter($c, $guardian_name, 0);
+        $znak_sprawy = $ezd['znak_sprawy'] ?? '';
+    } catch (\Throwable $e) {
+        echo "[" . date('Y-m-d H:i:s') . "] UWAGA {$numer}: EZD: " . $e->getMessage() . "\n";
+    }
+
+    $kontakt = guardian_consent_contact($c);
 
     $rendered = email_tpl_render('guardian_consent_renewal', [
         'accent'          => '#1D4ED8',
@@ -92,8 +100,8 @@ foreach ($contracts as $c) {
         'data_pisma'      => date('d.m.Y', strtotime($today)),
         'dziecko'         => $osoba,
         'login_url'       => APP_URL . '/auth/login.php',
-        'kontakt_email'   => org_setting('notify_from_email') ?: '',
-        'kontakt_telefon' => org_setting('org_telefon') ?: '',
+        'kontakt_email'   => $kontakt['email'],
+        'kontakt_telefon' => $kontakt['telefon'],
     ]);
     if (!$rendered['enabled']) { $skip++; continue; } // wyłączony przez administratora
 

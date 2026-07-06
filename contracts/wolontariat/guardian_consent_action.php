@@ -48,6 +48,8 @@ try {
     error_log('[guardian_consent_action] EZD: ' . $e->getMessage());
 }
 
+$kontakt = guardian_consent_contact($row);
+
 $rendered = email_tpl_render('guardian_consent_renewal', [
     'accent'          => '#1D4ED8',
     'org_nazwa'       => org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju "FEER"'),
@@ -59,8 +61,8 @@ $rendered = email_tpl_render('guardian_consent_renewal', [
     'data_pisma'      => date('d.m.Y'),
     'dziecko'         => $row['imie_nazwisko'] ?? '',
     'login_url'       => APP_URL . '/auth/login.php',
-    'kontakt_email'   => org_setting('notify_from_email') ?: '',
-    'kontakt_telefon' => org_setting('org_telefon') ?: '',
+    'kontakt_email'   => $kontakt['email'],
+    'kontakt_telefon' => $kontakt['telefon'],
 ]);
 
 if ($rendered['enabled']) {

@@ -97,6 +97,32 @@ if (!function_exists('guardian_consent_save')) {
     }
 }
 
+/**
+ * Kontakt „w razie pytań" do pisma o odnowieniu zgody — dane pobierane
+ * z UMOWY (opiekun przypisany do tego konkretnego porozumienia,
+ * umowy_wolontariat.guardian_editor_id), nie z ogólnych ustawień organizacji.
+ * To osoba, która faktycznie zna sprawę tego wolontariusza. Gdy umowa nie ma
+ * przypisanego opiekuna, awaryjnie korzysta z ogólnego adresu organizacji.
+ */
+if (!function_exists('guardian_consent_contact')) {
+    function guardian_consent_contact(array $contract): array {
+        $editor_id = (int)($contract['guardian_editor_id'] ?? 0);
+        if ($editor_id) {
+            $ed = db_one("SELECT email, phone_number FROM users WHERE id=? AND is_active=1", [$editor_id]);
+            if ($ed && !empty($ed['email'])) {
+                return [
+                    'email'   => $ed['email'],
+                    'telefon' => $ed['phone_number'] ?? '',
+                ];
+            }
+        }
+        return [
+            'email'   => org_setting('notify_from_email') ?: '',
+            'telefon' => org_setting('org_telefon') ?: '',
+        ];
+    }
+}
+
 /** Pełny tekst oświadczenia (bez nagłówka miejscowość/data) z podstawionymi danymi. */
 if (!function_exists('guardian_consent_statement_html')) {
     function guardian_consent_statement_html(array $contract, string $rep_name): string {
