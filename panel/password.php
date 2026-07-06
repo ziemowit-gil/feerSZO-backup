@@ -77,6 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['phone_number'])) {
     }
 }
 
+// Formularz zmiany hasła jest domyślnie zwinięty za przyciskiem — rozwinięty
+// automatycznie, gdy zmiana jest wymuszona, konto nie ma jeszcze hasła
+// lokalnego, albo poprzednia próba zakończyła się błędem (żeby nie chować
+// komunikatu o błędzie razem z formularzem).
+$show_pwd_form = $force_change || !$has_local_password || !empty($errors);
+
 $_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
 
 if ($_is_volunteer_only) {
@@ -126,8 +132,15 @@ if ($_is_volunteer_only) {
 <?php endif; ?>
 
 <div class="vol-detail-card mb-4">
-  <div class="vol-detail-header"><i class="bi bi-key me-2" aria-hidden="true"></i>Ustaw nowe hasło</div>
+  <div class="vol-detail-header"><i class="bi bi-key me-2" aria-hidden="true"></i>Hasło</div>
   <div class="vol-detail-body">
+    <button type="button" id="pwd-toggle-btn"
+            class="btn btn-outline-secondary"
+            style="<?= $show_pwd_form ? 'display:none' : '' ?>"
+            onclick="document.getElementById('pwd-form-wrap').style.display='block'; this.style.display='none';">
+      <i class="bi bi-key me-1" aria-hidden="true"></i> Zmień hasło
+    </button>
+    <div id="pwd-form-wrap" style="<?= $show_pwd_form ? '' : 'display:none' ?>">
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
@@ -160,6 +173,7 @@ if ($_is_volunteer_only) {
         <a href="<?= APP_URL ?>/panel/index.php" class="btn btn-outline-secondary">Anuluj</a>
       </div>
     </form>
+    </div>
   </div>
 </div>
 
@@ -246,6 +260,13 @@ if ($_is_volunteer_only) {
 
 <div class="card shadow-sm">
   <div class="card-body p-4">
+    <button type="button" id="pwd-toggle-btn"
+            class="btn btn-outline-warning"
+            style="<?= $show_pwd_form ? 'display:none' : '' ?>"
+            onclick="document.getElementById('pwd-form-wrap').style.display='block'; this.style.display='none';">
+      <i class="bi bi-key me-1" aria-hidden="true"></i> Zmień hasło
+    </button>
+    <div id="pwd-form-wrap" style="<?= $show_pwd_form ? '' : 'display:none' ?>">
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
@@ -278,6 +299,7 @@ if ($_is_volunteer_only) {
         <a href="<?= APP_URL ?>/panel/index.php" class="btn btn-outline-secondary">Anuluj</a>
       </div>
     </form>
+    </div>
   </div>
 </div>
 
