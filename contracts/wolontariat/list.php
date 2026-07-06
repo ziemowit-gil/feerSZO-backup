@@ -12,6 +12,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/dyspozycyjnosc.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_correction_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_correction.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
@@ -52,6 +54,7 @@ $ubez_nnw      = !empty($_GET['nnw']);
 $ubez_oc       = !empty($_GET['oc']);
 $niepelnoletni = !empty($_GET['niep']);
 $bezterminowa  = !empty($_GET['bezterm']);
+$uwagi_only    = !empty($_GET['uwagi']);
 
 // ── Sortowanie
 $_sorts   = ['created_at' => 'created_at', 'data_zawarcia' => 'data_zawarcia',
@@ -96,12 +99,14 @@ if ($ubez_nnw)   { $where .= " AND ubezpieczenie_nnw = 1"; }
 if ($ubez_oc)    { $where .= " AND ubezpieczenie_oc = 1"; }
 if ($niepelnoletni) { $where .= " AND niepelnoletni = 1"; }
 if ($bezterminowa)  { $where .= " AND bezterminowa = 1"; }
+if ($uwagi_only)    { $where .= " AND needs_correction = 1"; }
 $where .= ' AND ' . contract_access_where($TYPE);
 
 // Liczba aktywnych filtrów zaawansowanych (nie liczymy opiekuna i projektu – te są w "segmentacji")
 $adv_count = (int)!!$forma + (int)!!$data_od + (int)!!$data_do
            + (int)!!$koniec_od + (int)!!$koniec_do
-           + (int)$ubez_nnw + (int)$ubez_oc + (int)$niepelnoletni + (int)$bezterminowa;
+           + (int)$ubez_nnw + (int)$ubez_oc + (int)$niepelnoletni + (int)$bezterminowa
+           + (int)$uwagi_only;
 $adv_open  = $adv_count > 0 || !empty($_GET['adv']);
 
 $_qs_base = array_filter([
@@ -112,6 +117,7 @@ $_qs_base = array_filter([
     'koniec_od' => $koniec_od, 'koniec_do' => $koniec_do,
     'nnw' => $ubez_nnw ? '1' : null, 'oc' => $ubez_oc ? '1' : null,
     'niep' => $niepelnoletni ? '1' : null, 'bezterm' => $bezterminowa ? '1' : null,
+    'uwagi' => $uwagi_only ? '1' : null,
     'sort' => $sort_col !== 'created_at' ? $sort_col : null,
     'dir'  => $sort_dir !== 'DESC' ? 'asc' : null,
     'view' => $view_mode !== 'table' ? $view_mode : null,
@@ -391,6 +397,10 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
                 <input type="checkbox" name="bezterm" value="1" id="f_bezterm" class="form-check-input" <?= $bezterminowa?'checked':'' ?>>
                 <label for="f_bezterm" class="form-check-label" style="font-size:.82rem;cursor:pointer">Bezterminowa</label>
               </div>
+              <div class="form-check mb-0">
+                <input type="checkbox" name="uwagi" value="1" id="f_uwagi" class="form-check-input" <?= $uwagi_only?'checked':'' ?>>
+                <label for="f_uwagi" class="form-check-label" style="font-size:.82rem;cursor:pointer"><i class="bi bi-exclamation-triangle-fill text-danger"></i> Z uwagami (do uzupełnienia)</label>
+              </div>
             </div>
             <div class="col-md-2 d-flex align-items-end gap-3 pb-1">
               <div class="form-check mb-0">
@@ -458,6 +468,7 @@ if ($adv_count):
   <?php if ($ubez_oc): ?><a href="<?= $_chip_qs('oc') ?>" class="active-chip">Ubezp. OC <span class="chip-x">×</span></a><?php endif; ?>
   <?php if ($niepelnoletni): ?><a href="<?= $_chip_qs('niep') ?>" class="active-chip">Niepełnoletni <span class="chip-x">×</span></a><?php endif; ?>
   <?php if ($bezterminowa): ?><a href="<?= $_chip_qs('bezterm') ?>" class="active-chip">Bezterminowa <span class="chip-x">×</span></a><?php endif; ?>
+  <?php if ($uwagi_only): ?><a href="<?= $_chip_qs('uwagi') ?>" class="active-chip">Z uwagami (do uzupełnienia) <span class="chip-x">×</span></a><?php endif; ?>
   <?php if ($data_od || $data_do): ?>
   <a href="<?= $_base_url . '?' . http_build_query(array_filter(array_merge($_qs_base, ['data_od'=>null,'data_do'=>null,'page'=>null]))) ?>" class="active-chip">
     Zawarcie: <?= $data_od ?: '…' ?> – <?= $data_do ?: '…' ?> <span class="chip-x">×</span>
@@ -503,6 +514,7 @@ if ($adv_count):
           <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
         </span>
       </div>
+      <?= needs_correction_badge($r) ?>
       <div class="wol-card-name"><?= h($r['imie_nazwisko']) ?></div>
       <div class="wol-card-meta mb-2">
         <?php if ($r['miejsce_wolontariatu']): ?>
@@ -621,6 +633,7 @@ if ($adv_count):
             <span class="wol-status-pill" style="background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>">
               <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
             </span>
+            <?= needs_correction_badge($r) ?>
           </td>
           <td class="text-end" style="white-space:nowrap">
             <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>"
