@@ -3090,7 +3090,10 @@ function k30_ti_homework_allowed_ext(): array {
 }
 
 /**
- * Zapisuje przesłany plik zadania do UPLOAD_DIR/ti_homework/.
+ * Zapisuje przesłany plik zadania do UPLOAD_DIR/ti_homework/. Gdy integracja
+ * ownCloud jest włączona (includes/owncloud.php), plik trafia tam (magazyn
+ * docelowy) — lokalna kopia zostaje tylko jeśli wysyłka się nie powiedzie,
+ * jako zabezpieczenie przed utratą pliku przy awarii sieci/serwera ownCloud.
  * @return array|null ['name'=>oryg, 'stored'=>nazwa-na-dysku] lub null gdy nie przesłano pliku.
  * @throws RuntimeException przy błędzie/niedozwolonym pliku.
  */
@@ -3105,26 +3108,55 @@ function k30_ti_homework_upload(string $field, string $prefix): ?array {
     if (!is_dir($dir)) { @mkdir($dir, 0775, true); @file_put_contents($dir . '.htaccess', "Deny from all\nOptions -Indexes\n"); }
     $stored = $prefix . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(5)) . '.' . $ext;
     if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) throw new RuntimeException('Nie udało się zapisać pliku.');
+
+    if (function_exists('owncloud_enabled') && owncloud_enabled()) {
+        $up = owncloud_put('ti_homework/' . $stored, $dir . $stored);
+        if ($up['ok']) @unlink($dir . $stored);
+        else error_log('[owncloud] upload ti_homework/' . $stored . ': ' . $up['msg']);
+    }
     return ['name' => mb_substr($f['name'], 0, 200), 'stored' => $stored];
 }
 
-/** Wysyła plik zadania do przeglądarki (download). Kończy skrypt. */
+/**
+ * Wysyła plik zadania do przeglądarki (download). Kończy skrypt.
+ * Sprawdza najpierw dysk lokalny (pliki sprzed włączenia ownCloud), potem
+ * ownCloud — dzięki temu migracja jest nieprzerywająca dla starych plików.
+ */
 function k30_ti_homework_send_file(string $stored, string $orig = ''): void {
+    if ($stored === '') { http_response_code(404); exit('Plik nie istnieje.'); }
     $path = rtrim(UPLOAD_DIR, '/') . '/ti_homework/' . basename($stored);
-    if ($stored === '' || !is_file($path)) { http_response_code(404); exit('Plik nie istnieje.'); }
     $name = preg_replace('/[\r\n"]+/', '', $orig !== '' ? $orig : basename($stored));
-    header('Content-Type: ' . (mime_content_type($path) ?: 'application/octet-stream'));
-    header('Content-Disposition: attachment; filename="' . $name . '"');
-    header('Content-Length: ' . filesize($path));
-    readfile($path);
-    exit;
+
+    if (is_file($path)) {
+        header('Content-Type: ' . (mime_content_type($path) ?: 'application/octet-stream'));
+        header('Content-Disposition: attachment; filename="' . $name . '"');
+        header('Content-Length: ' . filesize($path));
+        readfile($path);
+        exit;
+    }
+
+    if (function_exists('owncloud_enabled') && owncloud_enabled()) {
+        $data = owncloud_get('ti_homework/' . basename($stored));
+        if ($data !== null) {
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . $name . '"');
+            header('Content-Length: ' . strlen($data));
+            echo $data;
+            exit;
+        }
+    }
+
+    http_response_code(404); exit('Plik nie istnieje.');
 }
 
-/** Usuwa plik zadania z dysku (jeśli istnieje). */
+/** Usuwa plik zadania z dysku i/lub ownCloud (jeśli istnieje). */
 function k30_ti_homework_delete_file(string $stored): void {
     if ($stored === '') return;
     $path = rtrim(UPLOAD_DIR, '/') . '/ti_homework/' . basename($stored);
     if (is_file($path)) @unlink($path);
+    if (function_exists('owncloud_enabled') && owncloud_enabled()) {
+        owncloud_delete('ti_homework/' . basename($stored));
+    }
 }
 
 /** Lista zadań (dla prowadzącego); $course_id=0 → wszystkie. Z licznikiem oddań. */

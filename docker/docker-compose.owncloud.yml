@@ -1,0 +1,57 @@
+# ── ownCloud addon — magazyn plików do lekcji TI (materiały, zadania domowe) ──
+#
+# DEV:
+#   docker compose -f docker-compose.yml -f docker-compose.owncloud.yml up -d
+#
+# PROD:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.owncloud.yml --env-file .env.prod up -d
+#
+# Przed uruchomieniem ustaw w .env lub .env.prod:
+#   OWNCLOUD_DOMAIN=owncloud.przyklad.pl
+#   OWNCLOUD_ADMIN_USERNAME=admin
+#   OWNCLOUD_ADMIN_PASSWORD=<haslo>
+#
+# Domyślnie ownCloud trzyma własną bazę w SQLite (OWNCLOUD_DB_TYPE=sqlite) —
+# wystarczające dla magazynu plików lekcji. Do większej instalacji ustaw
+# OWNCLOUD_DB_TYPE=mysql i dodaj osobny kontener bazy.
+#
+# Aplikacja łączy się z ownCloud przez WebDAV (login/hasło konta integracyjnego,
+# NIE dane administratora poniżej) — zob. includes/owncloud.php i
+# admin/owncloud_settings.php.
+
+services:
+
+  owncloud:
+    image: owncloud/server:latest
+    container_name: feer-owncloud
+    restart: unless-stopped
+    environment:
+      OWNCLOUD_DOMAIN:          ${OWNCLOUD_DOMAIN:-localhost}
+      OWNCLOUD_DB_TYPE:         ${OWNCLOUD_DB_TYPE:-sqlite}
+      OWNCLOUD_DB_NAME:         ${OWNCLOUD_DB_NAME:-owncloud}
+      OWNCLOUD_DB_USERNAME:     ${OWNCLOUD_DB_USERNAME:-owncloud}
+      OWNCLOUD_DB_PASSWORD:     ${OWNCLOUD_DB_PASSWORD:-owncloud}
+      OWNCLOUD_DB_HOST:         ${OWNCLOUD_DB_HOST:-owncloud_db}
+      OWNCLOUD_ADMIN_USERNAME:  ${OWNCLOUD_ADMIN_USERNAME:?Ustaw OWNCLOUD_ADMIN_USERNAME w .env}
+      OWNCLOUD_ADMIN_PASSWORD:  ${OWNCLOUD_ADMIN_PASSWORD:?Ustaw OWNCLOUD_ADMIN_PASSWORD w .env}
+      OWNCLOUD_TRUSTED_DOMAINS: ${OWNCLOUD_DOMAIN:-localhost}
+    volumes:
+      - owncloud_files:/mnt/data
+    labels:
+      # Bez efektu w dev (Traefik nie działa) — aktywne dopiero z docker-compose.prod.yml.
+      - "traefik.enable=true"
+      - "traefik.http.routers.owncloud.rule=Host(`${OWNCLOUD_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.owncloud.entrypoints=websecure"
+      - "traefik.http.routers.owncloud.tls=true"
+      - "traefik.http.routers.owncloud.tls.certresolver=le"
+      - "traefik.http.routers.owncloud.middlewares=sec-headers@docker"
+      - "traefik.http.services.owncloud.loadbalancer.server.port=8080"
+      - "traefik.http.routers.owncloud-http.rule=Host(`${OWNCLOUD_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.owncloud-http.entrypoints=web"
+      - "traefik.http.routers.owncloud-http.middlewares=https-redirect@docker"
+    networks:
+      - feer
+
+volumes:
+  owncloud_files:

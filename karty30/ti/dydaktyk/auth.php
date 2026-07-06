@@ -15,6 +15,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 // (auth_start jest no-op przy aktywnej sesji panelu). Musi być przed karty30.php.
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 
 const DYD_SESSION_KEY = 'k30_ti_dyd';
 const DYD_SESSION_TTL = 3600 * 8; // 8h

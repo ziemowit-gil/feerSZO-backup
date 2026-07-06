@@ -788,6 +788,7 @@ if ($_user) {
       <li><a class="dropdown-item<?= _nav_active('/admin/tidycal') ?>" href="<?= APP_URL ?>/admin/tidycal_settings.php"><i class="bi bi-calendar2-check me-2"></i>Szkolenia (TidyCal)</a></li>
       <li><a class="dropdown-item<?= _nav_active('/admin/stripe_settings') ?>" href="<?= APP_URL ?>/admin/stripe_settings.php"><i class="bi bi-credit-card me-2"></i>Płatności / Stripe</a></li>
       <li><a class="dropdown-item<?= _nav_active('/admin/payu_settings') ?>" href="<?= APP_URL ?>/admin/payu_settings.php"><i class="bi bi-wallet2 me-2"></i>Płatności / PayU</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/admin/owncloud_settings') ?>" href="<?= APP_URL ?>/admin/owncloud_settings.php"><i class="bi bi-cloud-arrow-up me-2"></i>Magazyn plików / ownCloud</a></li>
       <li><a class="dropdown-item<?= _nav_active('/admin/api_manage') . _nav_active('/admin/api_keys') . _nav_active('/admin/api_audit') ?>" href="<?= APP_URL ?>/admin/api_manage.php"><i class="bi bi-key me-2"></i>API i webhooki</a></li>
     </ul>
   </li>
