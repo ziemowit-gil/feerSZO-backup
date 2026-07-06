@@ -53,6 +53,17 @@ jest druga, osobna rejestracja aplikacji** w tym samym tenancie.
 
 ## 4. Uruchomienie
 
+Najprościej przez konfigurator (idempotentny — bezpieczny do wielokrotnego
+uruchamiania, pyta tylko o brakujące wartości):
+
+```bash
+cd docker && bash setup-rc.sh [domena]   # domyślnie poczta.feer.org.pl
+```
+
+Robi to samo co ręcznie: dopisuje `RC_*` do `.env.prod` (pyta o
+`RC_OAUTH_CLIENT_ID`/`RC_OAUTH_CLIENT_SECRET` z punktu 3, jeśli jeszcze ich nie
+ma), sprawdza DNS, i uruchamia kontener:
+
 ```bash
 cp .env.prod.example .env.prod   # jeśli jeszcze nie istnieje — wypełnij sekcję Roundcube
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
