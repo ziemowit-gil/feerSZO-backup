@@ -35,6 +35,11 @@ if ($action === 'add') {
     if (!$task) task_api_error('Zadanie nie istnieje.', 404);
     task_require_workspace_access((int)$task['workspace_id']);
 
+    $ws_role = task_workspace_role((int)$task['workspace_id']);
+    if (!task_field_editable('comments', $ws_role)) {
+        task_api_error('Brak uprawnień do dodawania komentarzy w tym obszarze.', 403);
+    }
+
     $now = date('Y-m-d H:i:s');
     $cid = db_insert('task_comments', [
         'task_id'    => $task_id,

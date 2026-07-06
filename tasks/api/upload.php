@@ -34,7 +34,7 @@ if (str_contains($content_type, 'application/json')) {
         if ($task) {
             $ws_role = task_workspace_role((int)$task['workspace_id']);
             if (!in_array($ws_role, ['admin', 'editor'], true)) {
-                if ($ws_role !== 'viewer' || !task_is_assigned((int)$file['task_id'])) {
+                if (!task_field_editable('files', $ws_role) || !task_is_assigned((int)$file['task_id'])) {
                     task_api_error('Brak uprawnień do usunięcia pliku.', 403);
                 }
             }
@@ -70,7 +70,7 @@ $task = db_one(
 if (!$task) task_api_error('Zadanie nie istnieje.', 404);
 $ws_role = task_workspace_role((int)$task['workspace_id']);
 if (!in_array($ws_role, ['admin', 'editor'], true)) {
-    if ($ws_role !== 'viewer' || !task_is_assigned($task_id)) {
+    if (!task_field_editable('files', $ws_role) || !task_is_assigned($task_id)) {
         task_api_error('Brak uprawnień do dodania pliku.', 403);
     }
 }

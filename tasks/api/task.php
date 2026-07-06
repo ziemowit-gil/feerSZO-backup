@@ -143,9 +143,14 @@ if ($action === 'update') {
         }
     }
 
+    // 'comments'/'files' są w TASK_GOVERNED_FIELDS (współdzielą mechanizm
+    // uprawnień z ustawieniami admina), ale NIE są kolumnami tabeli tasks —
+    // rządzą nimi osobne endpointy (comment.php, upload.php). Wykluczone tu,
+    // żeby spreparowane żądanie z takim kluczem nie wywołało UPDATE tasks
+    // SET comments=... na nieistniejącej kolumnie.
     $allowed = array_values(array_filter(
         array_keys(TASK_GOVERNED_FIELDS),
-        fn($f) => task_field_editable($f, $ws_role)
+        fn($f) => !in_array($f, ['comments', 'files'], true) && task_field_editable($f, $ws_role)
     ));
     $changes = [];
     foreach ($allowed as $f) {

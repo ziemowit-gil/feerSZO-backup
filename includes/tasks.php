@@ -485,6 +485,11 @@ const TASK_GOVERNED_FIELDS = [
     'claimable'           => 'Możliwość przejęcia (claimable)',
     'area_id'             => 'Obszar zadania',
     'unit_id'             => 'Jednostka organizacyjna',
+    // Nie są kolumnami tabeli tasks — osobne podzasoby (task_comments/task_files),
+    // ale rządzą się tą samą logiką widoczności/edycji, więc reużywają ten sam
+    // mechanizm (klucz "pola" = nazwa zasobu, nie kolumna).
+    'comments'            => 'Komentarze (dodawanie)',
+    'files'               => 'Załączniki (dodawanie/usuwanie plików)',
 ];
 
 function task_field_perms_migrate(): void {
@@ -497,18 +502,23 @@ function task_field_perms_migrate(): void {
         visible_roles TEXT NOT NULL DEFAULT '',
         edit_roles    TEXT NOT NULL DEFAULT ''
     )");
-    // Zasiej wartości startowe zgodne z dotychczasowym twardo zakodowanym
-    // zestawem (member/viewer mogli PATCH-ować tylko te 4 pola) — tylko
-    // przy pierwszym uruchomieniu, żeby nie nadpisywać ustawień admina.
-    $seeded = db_one("SELECT 1 FROM task_field_perms LIMIT 1");
-    if (!$seeded) {
-        $legacy_editable = ['due_date', 'estimated_hours', 'recurrence', 'recurrence_end_date'];
-        $stmt = $pdo->prepare(
-            "INSERT OR IGNORE INTO task_field_perms (field_key, visible_roles, edit_roles) VALUES (?, '', ?)"
-        );
-        foreach (array_keys(TASK_GOVERNED_FIELDS) as $key) {
-            $stmt->execute([$key, in_array($key, $legacy_editable, true) ? '["member","viewer"]' : '']);
-        }
+    // Zasiej wartości startowe zgodne z dotychczasowym zachowaniem sprzed
+    // wprowadzenia tego mechanizmu — INSERT OR IGNORE per klucz (nie tylko
+    // przy pustej tabeli!), żeby nowe pozycje dodane do TASK_GOVERNED_FIELDS
+    // w przyszłości (np. 'comments'/'files' dołączone później) też się zasiały
+    // na środowiskach, gdzie tabela już istnieje — bez nadpisywania tego, co
+    // admin już skonfigurował dla istniejących kluczy (OR IGNORE + PRIMARY KEY).
+    // 'comments' było dostępne bez ograniczeń dla każdej roli obszaru —
+    // zachowane jako punkt startowy. 'files' NIE jest zasiane jako edytowalne:
+    // dotychczasowa logika w tasks/api/upload.php była niespójna (member był
+    // całkowicie wykluczony, viewer wpuszczany tylko gdy przypisany) —
+    // bezpieczniej zacząć od "brak dostępu" i zostawić decyzję adminowi.
+    $legacy_editable = ['due_date', 'estimated_hours', 'recurrence', 'recurrence_end_date', 'comments'];
+    $stmt = $pdo->prepare(
+        "INSERT OR IGNORE INTO task_field_perms (field_key, visible_roles, edit_roles) VALUES (?, '', ?)"
+    );
+    foreach (array_keys(TASK_GOVERNED_FIELDS) as $key) {
+        $stmt->execute([$key, in_array($key, $legacy_editable, true) ? '["member","viewer"]' : '']);
     }
 }
 

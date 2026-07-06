@@ -43,6 +43,9 @@ $assignees  = db_all(
     "SELECT u.id, u.name FROM task_assignments ta
      JOIN users u ON u.id=ta.user_id WHERE ta.task_id=? ORDER BY u.name", [$id]);
 $assign_ids = array_column($assignees, 'id');
+// Uprawnienie do plików wymaga też przypisania do zadania (dla ról poza admin/editor) —
+// tak samo jak sprawdza to tasks/api/upload.php.
+$can_manage_files = $can_edit || (task_field_editable('files', $my_role) && in_array($uid, $assign_ids, true));
 
 $all_users  = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
 
@@ -1099,6 +1102,7 @@ function td_render_mentions(string $text, array $users): string {
 <?php endif; ?>
 
 <!-- ══ ZAŁĄCZNIKI ══════════════════════════════════════════════════════════ -->
+<?php if (task_field_visible('files', $my_role)): ?>
 <div class="td-section">
   <div class="td-label">
     <i class="bi bi-paperclip" aria-hidden="true"></i>Załączniki
@@ -1133,7 +1137,7 @@ function td_render_mentions(string $text, array $users): string {
          title="Pobierz" aria-label="Pobierz <?= h($f['original_name']) ?>">
         <i class="bi bi-download" aria-hidden="true"></i>
       </a>
-      <?php if ($can_edit): ?>
+      <?php if ($can_manage_files): ?>
       <button type="button"
               class="btn-close flex-shrink-0"
               onclick="tdDeleteFile(<?= $f['id'] ?>)"
@@ -1144,7 +1148,7 @@ function td_render_mentions(string $text, array $users): string {
     <?php endforeach; ?>
   </div>
 
-  <?php if ($can_edit): ?>
+  <?php if ($can_manage_files): ?>
   <div class="d-flex flex-wrap gap-2 mt-2">
     <label class="btn btn-sm btn-outline-secondary" style="cursor:pointer">
       <i class="bi bi-upload me-1" aria-hidden="true"></i>Z dysku
@@ -1184,8 +1188,10 @@ function td_render_mentions(string $text, array $users): string {
   </div>
   <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <!-- ══ KOMENTARZE ══════════════════════════════════════════════════════════ -->
+<?php if (task_field_visible('comments', $my_role)): ?>
 <div class="td-section">
   <div class="td-label">
     <i class="bi bi-chat-left-text" aria-hidden="true"></i>Komentarze
@@ -1218,7 +1224,7 @@ function td_render_mentions(string $text, array $users): string {
     <?php endif; ?>
   </div>
 
-  <?php if ($can_edit): ?>
+  <?php if (task_field_editable('comments', $my_role)): ?>
   <label class="visually-hidden" for="td-new-cmt">Nowy komentarz</label>
   <textarea id="td-new-cmt"
             class="form-control form-control-sm mt-1"
@@ -1235,6 +1241,7 @@ function td_render_mentions(string $text, array $users): string {
   </button>
   <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <!-- ══ HISTORIA ════════════════════════════════════════════════════════════ -->
 <?php if ($history):
