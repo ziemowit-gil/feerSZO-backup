@@ -96,6 +96,23 @@ SMTP_PASS=${SMTP_PASS}
 SMTP_TLS=${SMTP_TLS}"
 fi
 
+# ── ownCloud (opcjonalne — magazyn plików lekcji TI) ──────────────────────────
+echo
+echo -e "${BOLD}ownCloud — magazyn plików lekcji TI (Enter = pomiń)${RESET}"
+OC_DOMAIN=$(ask "OWNCLOUD_DOMAIN" "")
+OC_BLOCK="# ownCloud nie skonfigurowany — uruchom docker/setup-owncloud.sh później, gdy będzie potrzebny"
+if [[ -n "$OC_DOMAIN" ]]; then
+    OC_ADMIN_USER=$(ask "OWNCLOUD_ADMIN_USERNAME" "admin")
+    OC_ADMIN_PASS=$(askp "OWNCLOUD_ADMIN_PASSWORD (Enter = wygeneruj losowe)")
+    if [[ -z "$OC_ADMIN_PASS" ]]; then
+        OC_ADMIN_PASS="$(openssl rand -hex 16)"
+        ok "OWNCLOUD_ADMIN_PASSWORD wygenerowane automatycznie"
+    fi
+    OC_BLOCK="OWNCLOUD_DOMAIN=${OC_DOMAIN}
+OWNCLOUD_ADMIN_USERNAME=${OC_ADMIN_USER}
+OWNCLOUD_ADMIN_PASSWORD=${OC_ADMIN_PASS}"
+fi
+
 # ── Zapisz plik ───────────────────────────────────────────────────────────────
 CRM_LINE=""
 [[ -n "$DOMAIN_CRM" ]] && CRM_LINE="DOMAIN_CRM=${DOMAIN_CRM}"
@@ -126,6 +143,9 @@ MS_TENANT_ID=${MS_TENANT}
 MS_CLIENT_ID=${MS_CLIENT}
 MS_CLIENT_SECRET=${MS_SECRET}
 MS_REDIRECT_URI=https://${DOMAIN}/auth/microsoft.php
+
+# ── ownCloud (magazyn plików lekcji TI, docker-compose.owncloud.yml) ─────────
+${OC_BLOCK}
 EOF
 
 chmod 600 "$ENV_FILE"
@@ -135,3 +155,6 @@ ok ".env.prod zapisany: ${ENV_FILE}"
 echo
 echo -e "  ${BOLD}Co dalej:${RESET}"
 echo -e "  ${CYAN}docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d --build${RESET}"
+if [[ -n "$OC_DOMAIN" ]]; then
+    echo -e "  Żeby uruchomić ownCloud: ${CYAN}bash setup-owncloud.sh${RESET} (dokłada kontener + konto integracyjne)"
+fi
