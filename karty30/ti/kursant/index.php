@@ -1465,7 +1465,10 @@ document.addEventListener('DOMContentLoaded', function() {
         else                                 $past_far[] = $l;
     }
     usort($near,   fn($a, $b) => strcmp((string)$b['lesson_date'], (string)$a['lesson_date'])); // najnowsze na górze
-    usort($up_far, fn($a, $b) => strcmp((string)$b['lesson_date'], (string)$a['lesson_date'])); // najnowsze na górze
+    // Przyszłe lekcje dalej niż 7 dni — najbliższa nadchodząca na górze (rosnąco),
+    // nie najdalsza w przyszłości (poprzednia wersja sortowała malejąco jak "near"/"past_far",
+    // co dla listy przyszłych zajęć pokazywało najpierw najdalszy termin zamiast najbliższego).
+    usort($up_far, fn($a, $b) => strcmp((string)$a['lesson_date'], (string)$b['lesson_date']));
     // $past_far zostaje malejąco (z zapytania) — od najnowszej
 
     // Zadania domowe podpięte pod konkretną lekcję (session_id => [zadania])
