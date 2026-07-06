@@ -562,6 +562,14 @@ function karty30_migrate(): void {
         token   TEXT NOT NULL DEFAULT ''
     )");
 
+    // Samoobsługowe konto ownCloud prowadzącego — panel dydaktyka, zakładka „dysk"
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_instructor_owncloud (
+        user_id             INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        owncloud_username   TEXT NOT NULL DEFAULT '',
+        owncloud_created_at DATETIME,
+        owncloud_quota_mb   INTEGER NOT NULL DEFAULT 0
+    )");
+
     // ── Lista oczekujących ────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_waiting_list (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,

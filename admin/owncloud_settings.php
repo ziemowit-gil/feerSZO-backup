@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         owncloud_save_setting('admin_username', trim($_POST['admin_username'] ?? ''));
         if (trim($_POST['admin_password'] ?? '') !== '') owncloud_save_setting('admin_password', trim($_POST['admin_password']));
         owncloud_save_setting('student_quota_mb', (string)max(1, (int)($_POST['student_quota_mb'] ?? 2048)));
+        owncloud_save_setting('instructor_quota_mb', (string)max(1, (int)($_POST['instructor_quota_mb'] ?? 5120)));
 
         flash_set('success', 'Ustawienia ownCloud zapisane.');
         header('Location: owncloud_settings.php'); exit;
@@ -52,9 +53,10 @@ $cfg = [
     'username'          => owncloud_setting('username'),
     'base_folder'       => owncloud_setting('base_folder', 'feerszo-pliki-lekcji'),
     'has_password'      => owncloud_setting('password') !== '',
-    'admin_username'    => owncloud_setting('admin_username'),
-    'has_admin_password'=> owncloud_setting('admin_password') !== '',
-    'student_quota_mb'  => owncloud_setting('student_quota_mb', '2048'),
+    'admin_username'      => owncloud_setting('admin_username'),
+    'has_admin_password'  => owncloud_setting('admin_password') !== '',
+    'student_quota_mb'    => owncloud_setting('student_quota_mb', '2048'),
+    'instructor_quota_mb' => owncloud_setting('instructor_quota_mb', '5120'),
 ];
 
 include dirname(__DIR__) . '/includes/header.php';
@@ -121,12 +123,13 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
 
     <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header fw-semibold"><i class="bi bi-hdd-network me-2"></i>Konta kursantów (panel kursanta — „Mój dysk")</div>
+      <div class="card-header fw-semibold"><i class="bi bi-hdd-network me-2"></i>Samoobsługowe konta „Mój dysk" (kursant / prowadzący)</div>
       <div class="card-body">
-        <p class="text-muted small">Kursant może samodzielnie utworzyć własne konto ownCloud z limitem miejsca
-        (zakładka „Dysk" w panelu kursanta). Wymaga to konta <strong>administratora</strong> ownCloud — innego
-        niż konto integracyjne WebDAV powyżej (to jest konto bootstrapowe kontenera, ustawione przy
-        wdrożeniu — <code>OWNCLOUD_ADMIN_USERNAME</code>/<code>OWNCLOUD_ADMIN_PASSWORD</code> w <code>.env.prod</code>).</p>
+        <p class="text-muted small">Kursant i prowadzący mogą samodzielnie utworzyć własne konto ownCloud z limitem
+        miejsca (zakładka „Dysk"/„Mój dysk" w panelu kursanta i panelu dydaktyka). Wymaga to konta
+        <strong>administratora</strong> ownCloud — innego niż konto integracyjne WebDAV powyżej (to jest konto
+        bootstrapowe kontenera, ustawione przy wdrożeniu —
+        <code>OWNCLOUD_ADMIN_USERNAME</code>/<code>OWNCLOUD_ADMIN_PASSWORD</code> w <code>.env.prod</code>).</p>
         <form method="post">
           <input type="hidden" name="_csrf"   value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_action" value="save">
@@ -150,6 +153,12 @@ include dirname(__DIR__) . '/includes/header.php';
             <input type="number" min="1" class="form-control" name="student_quota_mb" id="oc_quota"
                    value="<?= h($cfg['student_quota_mb']) ?>">
             <div class="form-text">2048 MB = 2 GB. Dotyczy tylko nowo tworzonych kont — nie zmienia limitu już istniejących.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="oc_instr_quota">Limit miejsca dla nowych kont prowadzących (MB)</label>
+            <input type="number" min="1" class="form-control" name="instructor_quota_mb" id="oc_instr_quota"
+                   value="<?= h($cfg['instructor_quota_mb']) ?>">
+            <div class="form-text">5120 MB = 5 GB. Dotyczy tylko nowo tworzonych kont — nie zmienia limitu już istniejących.</div>
           </div>
           <button type="submit" class="btn btn-primary">Zapisz</button>
         </form>
