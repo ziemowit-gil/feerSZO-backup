@@ -203,7 +203,7 @@ HTML;
  * przycisków) i z miejscem na podpis przedstawiciela Fundacji.
  */
 if (!function_exists('guardian_consent_cover_letter_html')) {
-    function guardian_consent_cover_letter_html(array $contract, string $guardian_name, string $znak_sprawy): string {
+    function guardian_consent_cover_letter_html(array $contract, string $guardian_name, string $znak_sprawy, ?array $signer = null): string {
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
         $org_nazwa   = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja Edukacji Empatii Rozwoju "FEER"');
@@ -216,9 +216,16 @@ if (!function_exists('guardian_consent_cover_letter_html')) {
         $dziecko   = $h($contract['imie_nazwisko'] ?? '');
         $login_url = defined('APP_URL') ? APP_URL . '/auth/login.php' : '';
 
-        $reps        = function_exists('org_representatives') ? org_representatives() : [];
-        $podpis_imie = $reps ? $reps[0]['name'] : '';
-        $podpis_funk = $reps ? ($reps[0]['title'] ?? '') : '';
+        // Podpisuje osoba faktycznie generująca pismo (zalogowany admin/editor);
+        // brak $signer (np. cron bez sesji) — fallback na przedstawiciela Fundacji.
+        if ($signer && !empty($signer['name'])) {
+            $podpis_imie = $signer['name'];
+            $podpis_funk = $signer['title'] ?? '';
+        } else {
+            $reps        = function_exists('org_representatives') ? org_representatives() : [];
+            $podpis_imie = $reps ? $reps[0]['name'] : '';
+            $podpis_funk = $reps ? ($reps[0]['title'] ?? '') : '';
+        }
 
         return '
 <p style="margin:0 0 2pt;font-weight:700">' . $h($org_nazwa) . '</p>
@@ -278,7 +285,7 @@ if (!function_exists('guardian_consent_cover_letter_html')) {
  * Zwraca null przy błędzie (np. brak mPDF) zamiast rzucać wyjątek dalej.
  */
 if (!function_exists('guardian_consent_generate_pdf')) {
-    function guardian_consent_generate_pdf(array $contract, string $guardian_name, string $znak_sprawy): ?string {
+    function guardian_consent_generate_pdf(array $contract, string $guardian_name, string $znak_sprawy, ?array $signer = null): ?string {
         try {
             require_once dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -304,7 +311,7 @@ if (!function_exists('guardian_consent_generate_pdf')) {
                 \Mpdf\HTMLParserMode::HEADER_CSS
             );
             $mpdf->WriteHTML(
-                guardian_consent_cover_letter_html($contract, $guardian_name, $znak_sprawy),
+                guardian_consent_cover_letter_html($contract, $guardian_name, $znak_sprawy, $signer),
                 \Mpdf\HTMLParserMode::HTML_BODY
             );
 
@@ -326,7 +333,16 @@ if (!function_exists('guardian_consent_attach_pdf')) {
     function guardian_consent_attach_pdf(int $sprawa_id, ?int $pismo_id, array $contract, string $guardian_name, string $znak_sprawy, int $user_id): void {
         if (!$sprawa_id || !function_exists('ezd_attach_path')) return;
         try {
-            $bytes = guardian_consent_generate_pdf($contract, $guardian_name, $znak_sprawy);
+            // $user_id = osoba wywołująca (0 przy cronie — brak zalogowanego,
+            // fallback na przedstawiciela Fundacji obsłużony w generate_pdf).
+            $signer = null;
+            if ($user_id > 0) {
+                $u = db_one("SELECT name, crm_job_title FROM users WHERE id=?", [$user_id]);
+                if ($u && !empty($u['name'])) {
+                    $signer = ['name' => $u['name'], 'title' => $u['crm_job_title'] ?? ''];
+                }
+            }
+            $bytes = guardian_consent_generate_pdf($contract, $guardian_name, $znak_sprawy, $signer);
             if (!$bytes) return;
 
             $tmp_dir = UPLOAD_DIR . 'mpdf_tmp';

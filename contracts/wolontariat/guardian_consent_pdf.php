@@ -30,7 +30,10 @@ if (!empty($row['zgoda_przedstawiciela_ezd_sprawa_id']) && function_exists('ezd_
     $znak_sprawy = $sprawa['znak_sprawy'] ?? '';
 }
 
-$bytes = guardian_consent_generate_pdf($row, $guardian_name, $znak_sprawy);
+$u      = current_user();
+$signer = $u ? ['name' => $u['name'] ?? '', 'title' => $u['crm_job_title'] ?? ''] : null;
+
+$bytes = guardian_consent_generate_pdf($row, $guardian_name, $znak_sprawy, $signer);
 if (!$bytes) {
     http_response_code(500);
     die('Błąd generowania PDF. Sprawdź logi serwera.');
