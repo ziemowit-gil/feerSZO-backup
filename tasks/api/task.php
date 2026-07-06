@@ -143,11 +143,10 @@ if ($action === 'update') {
         }
     }
 
-    $limited_edit = in_array($ws_role, ['member', 'viewer'], true);
-    $allowed = $limited_edit
-        ? ['due_date','estimated_hours','recurrence','recurrence_end_date']
-        : ['title','description','priority','start_date','due_date','estimated_hours',
-           'recurrence','recurrence_end_date','claimable','area_id','unit_id'];
+    $allowed = array_values(array_filter(
+        array_keys(TASK_GOVERNED_FIELDS),
+        fn($f) => task_field_editable($f, $ws_role)
+    ));
     $changes = [];
     foreach ($allowed as $f) {
         if (!array_key_exists($f, $body)) continue;

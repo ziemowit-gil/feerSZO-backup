@@ -467,3 +467,95 @@ function task_due_badge(?string $due_date, ?string $completed_at): string {
          . '<i class="bi ' . $icon . ' me-1"></i>'
          . date_pl($due_date) . '</span>';
 }
+
+// ── Uprawnienia per-pole (widoczność/edycja) dla ról obszaru ────────────────
+// admin/editor obszaru mają zawsze pełny dostęp — ograniczenia poniżej
+// dotyczą wyłącznie ról member/viewer. Zastępuje dawny twardo zakodowany
+// zestaw pól edytowalnych przez member/viewer w tasks/api/task.php.
+
+const TASK_GOVERNED_FIELDS = [
+    'title'               => 'Tytuł',
+    'description'         => 'Opis',
+    'priority'            => 'Priorytet',
+    'start_date'          => 'Data rozpoczęcia',
+    'due_date'            => 'Termin',
+    'estimated_hours'     => 'Szacowane godziny',
+    'recurrence'          => 'Cykliczność',
+    'recurrence_end_date' => 'Data zakończenia cykliczności',
+    'claimable'           => 'Możliwość przejęcia (claimable)',
+    'area_id'             => 'Obszar zadania',
+    'unit_id'             => 'Jednostka organizacyjna',
+];
+
+function task_field_perms_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS task_field_perms (
+        field_key     TEXT PRIMARY KEY,
+        visible_roles TEXT NOT NULL DEFAULT '',
+        edit_roles    TEXT NOT NULL DEFAULT ''
+    )");
+    // Zasiej wartości startowe zgodne z dotychczasowym twardo zakodowanym
+    // zestawem (member/viewer mogli PATCH-ować tylko te 4 pola) — tylko
+    // przy pierwszym uruchomieniu, żeby nie nadpisywać ustawień admina.
+    $seeded = db_one("SELECT 1 FROM task_field_perms LIMIT 1");
+    if (!$seeded) {
+        $legacy_editable = ['due_date', 'estimated_hours', 'recurrence', 'recurrence_end_date'];
+        $stmt = $pdo->prepare(
+            "INSERT OR IGNORE INTO task_field_perms (field_key, visible_roles, edit_roles) VALUES (?, '', ?)"
+        );
+        foreach (array_keys(TASK_GOVERNED_FIELDS) as $key) {
+            $stmt->execute([$key, in_array($key, $legacy_editable, true) ? '["member","viewer"]' : '']);
+        }
+    }
+}
+
+/** Ładuje uprawnienia pól z cache (jeden SELECT na żądanie). */
+function _task_field_perms(): array {
+    task_field_perms_migrate();
+    static $p = null;
+    if ($p !== null) return $p;
+    $p = [];
+    try {
+        foreach (db_all("SELECT field_key, visible_roles, edit_roles FROM task_field_perms") as $r) {
+            $p[$r['field_key']] = $r;
+        }
+    } catch (\Throwable $e) {}
+    return $p;
+}
+
+/**
+ * Czy dana rola OBSZARU (workspace) widzi pole $field_key.
+ * admin/editor — zawsze tak. Puste visible_roles = widoczne dla wszystkich
+ * (bezpieczny wariant domyślny — nic się nie chowa, dopóki admin nie skonfiguruje).
+ */
+function task_field_visible(string $field_key, ?string $ws_role = null): bool {
+    if (in_array($ws_role, ['admin', 'editor'], true)) return true;
+    $fd = _task_field_perms()[$field_key] ?? null;
+    if (!$fd) return true;
+    $roles_json = $fd['visible_roles'] ?? '';
+    if ($roles_json === '' || $roles_json === '[]') return true;
+    $allowed = json_decode($roles_json, true);
+    if (!is_array($allowed) || empty($allowed)) return true;
+    return in_array($ws_role, $allowed, true);
+}
+
+/**
+ * Czy dana rola OBSZARU może EDYTOWAĆ pole $field_key.
+ * admin/editor — zawsze tak. Puste edit_roles = NIEedytowalne przez member/
+ * viewer (odwrotny domyślny wariant niż widoczność — bezpieczniej nie
+ * przyznawać nowych uprawnień do zapisu bez jawnej decyzji admina).
+ */
+function task_field_editable(string $field_key, ?string $ws_role = null): bool {
+    if (in_array($ws_role, ['admin', 'editor'], true)) return true;
+    if (!task_field_visible($field_key, $ws_role)) return false;
+    $fd = _task_field_perms()[$field_key] ?? null;
+    if (!$fd) return false;
+    $roles_json = $fd['edit_roles'] ?? '';
+    if ($roles_json === '' || $roles_json === '[]') return false;
+    $allowed = json_decode($roles_json, true);
+    if (!is_array($allowed) || empty($allowed)) return false;
+    return in_array($ws_role, $allowed, true);
+}

@@ -493,8 +493,9 @@ function td_render_mentions(string $text, array $users): string {
 <div class="td-header">
 
   <!-- Tytuł -->
+  <?php if (task_field_visible('title', $my_role)): ?>
   <div class="mb-2">
-    <?php if ($can_edit): ?>
+    <?php if (task_field_editable('title', $my_role)): ?>
     <input type="text"
            id="td-title"
            class="td-title-input form-control"
@@ -506,6 +507,7 @@ function td_render_mentions(string $text, array $users): string {
     <div class="td-title-static"><?= h($task['title']) ?></div>
     <?php endif; ?>
   </div>
+  <?php endif; ?>
 
   <!-- Statusy inline -->
   <div class="td-status-row mb-2" aria-label="Status zadania">
@@ -689,30 +691,43 @@ function td_render_mentions(string $text, array $users): string {
     <i class="bi bi-sliders" aria-hidden="true"></i>Właściwości
   </div>
 
-  <?php if ($can_edit): ?>
   <div class="td-props-grid">
+    <?php if (task_field_visible('due_date', $my_role)): ?>
     <div>
       <label class="form-label small fw-semibold text-muted mb-1" for="td-due">
         <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Termin
       </label>
+      <?php if (task_field_editable('due_date', $my_role)): ?>
       <input type="date" id="td-due" class="form-control form-control-sm"
              value="<?= h($task['due_date'] ?? '') ?>"
              onchange="tdPatch({due_date:this.value||null})"
              aria-label="Data terminu zadania">
+      <?php else: ?>
+      <div class="small text-muted"><?= $task['due_date'] ? date_pl($task['due_date']) : '—' ?></div>
+      <?php endif; ?>
     </div>
+    <?php endif; ?>
+    <?php if (task_field_visible('start_date', $my_role)): ?>
     <div>
       <label class="form-label small fw-semibold text-muted mb-1" for="td-start">
         <i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Start
       </label>
+      <?php if (task_field_editable('start_date', $my_role)): ?>
       <input type="date" id="td-start" class="form-control form-control-sm"
              value="<?= h($task['start_date'] ?? '') ?>"
              onchange="tdPatch({start_date:this.value||null})"
              aria-label="Data rozpoczęcia zadania">
+      <?php else: ?>
+      <div class="small text-muted"><?= $task['start_date'] ? date_pl($task['start_date']) : '—' ?></div>
+      <?php endif; ?>
     </div>
+    <?php endif; ?>
+    <?php if (task_field_visible('priority', $my_role)): ?>
     <div>
       <label class="form-label small fw-semibold text-muted mb-1" for="td-priority">
         <i class="bi bi-flag me-1" aria-hidden="true"></i>Priorytet
       </label>
+      <?php if (task_field_editable('priority', $my_role)): ?>
       <select id="td-priority" class="form-select form-select-sm"
               onchange="tdPatch({priority:parseInt(this.value)})"
               aria-label="Priorytet zadania">
@@ -721,7 +736,12 @@ function td_render_mentions(string $text, array $users): string {
         <option value="3" <?= $task['priority']==3?'selected':'' ?>>Wysoki</option>
         <option value="4" <?= $task['priority']==4?'selected':'' ?>>Krytyczny</option>
       </select>
+      <?php else: ?>
+      <div class="small"><?= task_priority_badge((int)$task['priority']) ?></div>
+      <?php endif; ?>
     </div>
+    <?php endif; ?>
+    <?php if ($can_edit): ?>
     <div>
       <label class="form-label small fw-semibold text-muted mb-1" for="td-list">
         <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Kolumna
@@ -734,16 +754,18 @@ function td_render_mentions(string $text, array $users): string {
         <?php endforeach; ?>
       </select>
     </div>
+    <?php endif; ?>
     <?php
       $_all_units_det = [];
       try { $_all_units_det = db_all("SELECT id, name, short_name FROM org_units WHERE status='active' ORDER BY name"); }
       catch (\Throwable $e) {}
     ?>
-    <?php if ($_all_units_det): ?>
+    <?php if ($_all_units_det && task_field_visible('unit_id', $my_role)): ?>
     <div>
       <label class="form-label small fw-semibold text-muted mb-1" for="td-unit">
         <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Jednostka org
       </label>
+      <?php if (task_field_editable('unit_id', $my_role)): ?>
       <select id="td-unit" class="form-select form-select-sm"
               onchange="tdSetUnit(this)"
               data-prev="<?= (int)($task['unit_id'] ?? 0) ?>"
@@ -755,24 +777,12 @@ function td_render_mentions(string $text, array $users): string {
         </option>
         <?php endforeach; ?>
       </select>
+      <?php else: ?>
+      <div class="small text-muted"><?= task_unit_badge((int)$task['unit_id']) ?: '—' ?></div>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
   </div>
-  <?php else: ?>
-  <dl class="row g-1 small text-muted mb-0">
-    <?php if ($task['due_date']): ?>
-    <dt class="col-auto"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Termin:</dt>
-    <dd class="col mb-0"><?= date_pl($task['due_date']) ?></dd>
-    <?php endif; ?>
-    <dt class="col-auto"><i class="bi bi-columns-gap me-1" aria-hidden="true"></i>Kolumna:</dt>
-    <dd class="col mb-0"><?= h($task['list_name']) ?></dd>
-    <?php if (!empty($task['unit_id'])): ?>
-    <dt class="col-auto"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Jednostka:</dt>
-    <dd class="col mb-0"><?= task_unit_badge((int)$task['unit_id']) ?></dd>
-    <?php endif; ?>
-  </dl>
-  <?php endif; ?>
-</div>
 
 <!-- ══ PRZYPISANI ══════════════════════════════════════════════════════════ -->
 <div class="td-section">
@@ -822,11 +832,12 @@ function td_render_mentions(string $text, array $users): string {
 </div>
 
 <!-- ══ OPIS ════════════════════════════════════════════════════════════════ -->
+<?php if (task_field_visible('description', $my_role)): ?>
 <div class="td-section">
   <div class="td-label">
     <i class="bi bi-text-left" aria-hidden="true"></i>Opis
   </div>
-  <?php if ($can_edit): ?>
+  <?php if (task_field_editable('description', $my_role)): ?>
   <label class="visually-hidden" for="td-desc">Opis zadania</label>
   <textarea id="td-desc"
             class="form-control form-control-sm"
@@ -839,6 +850,7 @@ function td_render_mentions(string $text, array $users): string {
   </div>
   <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <!-- ══ PODZADANIA ══════════════════════════════════════════════════════════ -->
 <div class="td-section" id="td-subtasks-section">
@@ -939,24 +951,26 @@ function td_render_mentions(string $text, array $users): string {
     </div>
     <div class="d-flex gap-2 align-items-center">
       <!-- Szacowany czas -->
-      <?php if ($can_edit): ?>
-      <div class="d-flex align-items-center gap-1">
-        <label for="td-est-hours" class="text-muted" style="font-size:.72rem;white-space:nowrap">
-          Szacunek:
-        </label>
-        <input type="number" id="td-est-hours"
-               class="form-control form-control-sm"
-               style="width:70px;font-size:.78rem"
-               min="0" max="999" step="0.5"
-               value="<?= h($task['estimated_hours'] ?? '') ?>"
-               placeholder="godz."
-               aria-label="Szacowana liczba godzin"
-               onblur="tdPatch({estimated_hours:parseFloat(this.value)||null})">
-      </div>
-      <?php elseif ($task['estimated_hours']): ?>
-      <span class="text-muted" style="font-size:.76rem">
-        Szacunek: <?= h($task['estimated_hours']) ?>h
-      </span>
+      <?php if (task_field_visible('estimated_hours', $my_role)): ?>
+        <?php if (task_field_editable('estimated_hours', $my_role)): ?>
+        <div class="d-flex align-items-center gap-1">
+          <label for="td-est-hours" class="text-muted" style="font-size:.72rem;white-space:nowrap">
+            Szacunek:
+          </label>
+          <input type="number" id="td-est-hours"
+                 class="form-control form-control-sm"
+                 style="width:70px;font-size:.78rem"
+                 min="0" max="999" step="0.5"
+                 value="<?= h($task['estimated_hours'] ?? '') ?>"
+                 placeholder="godz."
+                 aria-label="Szacowana liczba godzin"
+                 onblur="tdPatch({estimated_hours:parseFloat(this.value)||null})">
+        </div>
+        <?php elseif ($task['estimated_hours']): ?>
+        <span class="text-muted" style="font-size:.76rem">
+          Szacunek: <?= h($task['estimated_hours']) ?>h
+        </span>
+        <?php endif; ?>
       <?php endif; ?>
 
       <!-- Timer start/stop -->
@@ -1028,11 +1042,12 @@ function td_render_mentions(string $text, array $users): string {
 </div>
 
 <!-- ══ POWTARZALNOŚĆ ══════════════════════════════════════════════════════ -->
-<?php if ($can_edit): ?>
+<?php if (task_field_visible('recurrence', $my_role)): ?>
 <div class="td-section">
   <div class="td-label">
     <i class="bi bi-arrow-repeat" aria-hidden="true"></i>Powtarzanie
   </div>
+  <?php if (task_field_editable('recurrence', $my_role)): ?>
   <div class="row g-2 align-items-end">
     <div class="col-sm-6">
       <label class="form-label small fw-semibold text-muted mb-1" for="td-recurrence">
@@ -1048,7 +1063,7 @@ function td_render_mentions(string $text, array $users): string {
         <option value="yearly"  <?= $task['recurrence']==='yearly' ?'selected':'' ?>>Co rok</option>
       </select>
     </div>
-    <?php if ($task['recurrence']): ?>
+    <?php if ($task['recurrence'] && task_field_editable('recurrence_end_date', $my_role)): ?>
     <div class="col-sm-6">
       <label class="form-label small fw-semibold text-muted mb-1" for="td-rec-end">
         Zakończ powtarzanie
@@ -1061,6 +1076,12 @@ function td_render_mentions(string $text, array $users): string {
     </div>
     <?php endif; ?>
   </div>
+  <?php elseif ($task['recurrence']): ?>
+  <div class="small text-muted">
+    <?= ['daily'=>'Codziennie','weekly'=>'Co tydzień','monthly'=>'Co miesiąc','yearly'=>'Co rok'][$task['recurrence']] ?? h($task['recurrence']) ?>
+    <?php if ($task['recurrence_end_date']): ?> — do <?= date_pl($task['recurrence_end_date']) ?><?php endif; ?>
+  </div>
+  <?php endif; ?>
   <?php if ($task['recurrence']): ?>
   <p class="text-muted small mt-2 mb-0">
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>

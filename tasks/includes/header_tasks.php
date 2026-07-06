@@ -564,6 +564,12 @@ body {
     <i class="bi bi-shield-lock" aria-hidden="true"></i>
     Uprawnienia ról
   </a>
+  <a class="tsk-nav-link <?= _tsk_active('/tasks/settings/fields') ? 'active' : '' ?>"
+     href="<?= APP_URL ?>/tasks/settings/fields.php"
+     aria-current="<?= _tsk_active('/tasks/settings/fields') ? 'page' : 'false' ?>">
+    <i class="bi bi-ui-checks-grid" aria-hidden="true"></i>
+    Uprawnienia pól
+  </a>
   <?php endif; ?>
   <?php if ($_is_admin): ?>
   <div class="tsk-nav-sep" role="separator"></div>

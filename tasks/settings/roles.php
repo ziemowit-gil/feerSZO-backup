@@ -56,6 +56,9 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
     <p class="text-muted small mb-0">Role systemowe i ich dostęp do modułu zadań oraz poszczególnych obszarów</p>
   </div>
   <?php if ($sys_admin): ?>
+  <a href="<?= APP_URL ?>/tasks/settings/fields.php" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-ui-checks-grid me-1"></i>Uprawnienia pól
+  </a>
   <a href="<?= APP_URL ?>/admin/roles.php" class="btn btn-sm btn-outline-primary">
     <i class="bi bi-pencil-square me-1"></i>Zarządzaj rolami
   </a>
