@@ -282,6 +282,42 @@ function owncloud_unique_username(array $admin_cfg, string $base, string $fallba
 }
 
 /**
+ * Wysyła dane logowania do konta ownCloud e-mailem i SMS-em — ten sam wzorzec
+ * co ti_send_ms_credentials() w includes/ti_online.php (konto szkoleniowe MS).
+ * Nigdy nie rzuca wyjątku — wysyłka jest opcjonalna, nie może zablokować
+ * utworzenia/resetu konta.
+ */
+function owncloud_send_credentials(string $email, string $phone, string $name, string $username, string $password, string $url): void {
+    $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
+
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!function_exists('mail_queue_add')) { @require_once __DIR__ . '/mail_queue.php'; }
+        if (function_exists('mail_queue_add')) {
+            $nameH = htmlspecialchars($name, ENT_QUOTES);
+            $urlH  = htmlspecialchars($url, ENT_QUOTES);
+            $html = "<p>Cześć {$nameH},</p>"
+                  . "<p>Utworzono dla Ciebie konto „Mój dysk” (ownCloud) w {$org}.</p>"
+                  . "<table style='border-collapse:collapse;font-size:14px'>"
+                  . "<tr><td style='padding:4px 12px;color:#555'>Adres</td><td style='padding:4px 12px'><a href='{$urlH}'>{$urlH}</a></td></tr>"
+                  . "<tr><td style='padding:4px 12px;color:#555'>Login</td><td style='padding:4px 12px'><code>" . htmlspecialchars($username, ENT_QUOTES) . "</code></td></tr>"
+                  . "<tr><td style='padding:4px 12px;color:#555'>Hasło</td><td style='padding:4px 12px'><code>" . htmlspecialchars($password, ENT_QUOTES) . "</code></td></tr>"
+                  . "</table>"
+                  . "<p style='color:#888;font-size:12px;margin-top:16px'>Nie udostępniaj tych danych osobom trzecim.</p>";
+            try { mail_queue_add($email, $name, "Dane logowania — Mój dysk (ownCloud)", $html, '', 'owncloud', 0, '', true); }
+            catch (\Throwable $e) { /* wysyłka nie może blokować operacji */ }
+        }
+    }
+
+    if ($phone !== '') {
+        if (!function_exists('sms_send')) { @require_once __DIR__ . '/sms.php'; }
+        if (function_exists('sms_is_enabled') && sms_is_enabled()) {
+            try { sms_send($phone, "{$org} - Moj dysk (ownCloud). Login: {$username}, haslo: {$password}"); }
+            catch (\Throwable $e) { /* SMS opcjonalny */ }
+        }
+    }
+}
+
+/**
  * Tworzy samoobsługowe konto ownCloud dla kursanta (panel kursanta, zakładka „dysk").
  * Idempotentne — jeśli konto już istnieje (owncloud_username ustawiony), nie tworzy drugiego.
  * Hasło NIE jest zapisywane w bazie — tylko zwrócone do jednorazowego pokazania.
@@ -329,6 +365,12 @@ function owncloud_create_student_account(int $student_account_id): array {
         "UPDATE k30_ti_student_accounts SET owncloud_username=?, owncloud_created_at=CURRENT_TIMESTAMP, owncloud_quota_mb=?, updated_at=CURRENT_TIMESTAMP WHERE id=?"
     )->execute([$username, $quota_mb, $student_account_id]);
 
+    $contact = function_exists('ti_student_row') ? ti_student_row($student_account_id) : null;
+    owncloud_send_credentials(
+        (string)($contact['client_email'] ?? ''), (string)($contact['client_phone'] ?? ''),
+        (string)($contact['client_name'] ?? $username), $username, $password, $admin_cfg['url']
+    );
+
     return [
         'ok'       => true,
         'msg'      => 'Konto ownCloud utworzone.',
@@ -356,6 +398,12 @@ function owncloud_reset_student_password(int $student_account_id): array {
     $password  = bin2hex(random_bytes(8)) . 'Aa1!';
     $r = owncloud_set_password($admin_cfg, $account['owncloud_username'], $password);
     if (!$r['ok']) return ['ok' => false, 'msg' => $r['msg']];
+
+    $contact = function_exists('ti_student_row') ? ti_student_row($student_account_id) : null;
+    owncloud_send_credentials(
+        (string)($contact['client_email'] ?? ''), (string)($contact['client_phone'] ?? ''),
+        (string)($contact['client_name'] ?? $account['owncloud_username']), $account['owncloud_username'], $password, $admin_cfg['url']
+    );
 
     return [
         'ok'       => true,
@@ -394,7 +442,7 @@ function owncloud_create_instructor_account(int $user_id): array {
         return ['ok' => false, 'msg' => 'Konto ownCloud już istnieje.'];
     }
 
-    $u = db_one("SELECT name, email FROM users WHERE id=?", [$user_id]);
+    $u = db_one("SELECT name, email, phone_number FROM users WHERE id=?", [$user_id]);
     if (!$u) return ['ok' => false, 'msg' => 'Nie znaleziono konta użytkownika.'];
 
     $admin_cfg = owncloud_admin_config();
@@ -412,6 +460,11 @@ function owncloud_create_instructor_account(int $user_id): array {
         "INSERT INTO k30_ti_instructor_owncloud(user_id, owncloud_username, owncloud_created_at, owncloud_quota_mb)
          VALUES(?,?,CURRENT_TIMESTAMP,?)"
     )->execute([$user_id, $username, $quota_mb]);
+
+    owncloud_send_credentials(
+        (string)$u['email'], (string)($u['phone_number'] ?? ''), (string)($u['name'] ?: $username),
+        $username, $password, $admin_cfg['url']
+    );
 
     return [
         'ok'       => true,
@@ -438,6 +491,12 @@ function owncloud_reset_instructor_password(int $user_id): array {
     $password  = bin2hex(random_bytes(8)) . 'Aa1!';
     $r = owncloud_set_password($admin_cfg, $account['owncloud_username'], $password);
     if (!$r['ok']) return ['ok' => false, 'msg' => $r['msg']];
+
+    $u = db_one("SELECT name, email, phone_number FROM users WHERE id=?", [$user_id]);
+    owncloud_send_credentials(
+        (string)($u['email'] ?? ''), (string)($u['phone_number'] ?? ''), (string)($u['name'] ?? $account['owncloud_username']),
+        $account['owncloud_username'], $password, $admin_cfg['url']
+    );
 
     return [
         'ok'       => true,
