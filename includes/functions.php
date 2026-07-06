@@ -80,6 +80,20 @@ function status_badge(string $status): string {
     return '<span class="badge bg-' . $s['class'] . '">' . htmlspecialchars($s['label']) . '</span>';
 }
 
+/**
+ * Ikonka z podpowiedzią (title) dla pola `notatka_do_realizacji` — wolna notatka
+ * osoby odpowiedzialnej o tym, co jeszcze trzeba zrobić, żeby umowę zrealizować/
+ * zamknąć. Ortogonalna do statusu i do flagi needs_correction (includes/contract_correction.php) —
+ * to nie audyt braków, tylko przypomnienie robocze. Na razie tylko zlecenie i wolontariat.
+ */
+function notatka_realizacji_badge(array $row): string {
+    $note = trim((string)($row['notatka_do_realizacji'] ?? ''));
+    if ($note === '') return '';
+    return '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" '
+         . 'title="' . h($note) . '" data-bs-toggle="tooltip">'
+         . '<i class="bi bi-sticky-fill"></i> Notatka</span>';
+}
+
 function h(mixed $v): string {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES);
 }

@@ -135,23 +135,24 @@ $_obs_labels = ['społeczny'=>'Społeczny','edukacyjny'=>'Edukacyjny','zdrowotny
 
 // Statystyki globalne
 $status_counts = [];
-$all_statuses  = ['projekt', 'podpisana', 'w realizacji', 'zakończona', 'rozwiązana', 'anulowana'];
+$all_statuses  = ['projekt', 'podpisana', 'w realizacji', 'do rozliczenia', 'zakończona', 'rozwiązana', 'anulowana'];
 $all_total     = 0;
 foreach ($all_statuses as $s) {
     $c = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status=?", [$s])['c'] ?? 0);
     $status_counts[$s] = $c;
     $all_total += $c;
 }
-$active_total = ($status_counts['podpisana'] ?? 0) + ($status_counts['w realizacji'] ?? 0) + ($status_counts['projekt'] ?? 0);
+$active_total = ($status_counts['podpisana'] ?? 0) + ($status_counts['w realizacji'] ?? 0) + ($status_counts['projekt'] ?? 0) + ($status_counts['do rozliczenia'] ?? 0);
 
 // Etykiety i kolory statusów
 $status_cfg = [
-    'projekt'     => ['label' => 'Projekt',     'color' => '#6366F1', 'bg' => '#EEF2FF', 'icon' => 'bi-file-earmark-text'],
-    'podpisana'   => ['label' => 'Podpisana',   'color' => '#2E844A', 'bg' => '#EFF7ED', 'icon' => 'bi-check-circle'],
-    'w realizacji'=> ['label' => 'W realizacji','color' => '#0176D3', 'bg' => '#EEF4FF', 'icon' => 'bi-play-circle'],
-    'zakończona'  => ['label' => 'Zakończona',  'color' => '#374151', 'bg' => '#F3F4F6', 'icon' => 'bi-flag'],
-    'rozwiązana'  => ['label' => 'Rozwiązana',  'color' => '#D97706', 'bg' => '#FEF3E2', 'icon' => 'bi-x-circle'],
-    'anulowana'   => ['label' => 'Anulowana',   'color' => '#DC2626', 'bg' => '#FEF2F2', 'icon' => 'bi-slash-circle'],
+    'projekt'        => ['label' => 'Projekt',        'color' => '#6366F1', 'bg' => '#EEF2FF', 'icon' => 'bi-file-earmark-text'],
+    'podpisana'      => ['label' => 'Podpisana',      'color' => '#2E844A', 'bg' => '#EFF7ED', 'icon' => 'bi-check-circle'],
+    'w realizacji'   => ['label' => 'W realizacji',   'color' => '#0176D3', 'bg' => '#EEF4FF', 'icon' => 'bi-play-circle'],
+    'do rozliczenia' => ['label' => 'Do rozliczenia', 'color' => '#7C3AED', 'bg' => '#F5F3FF', 'icon' => 'bi-cash-coin'],
+    'zakończona'     => ['label' => 'Zakończona',     'color' => '#374151', 'bg' => '#F3F4F6', 'icon' => 'bi-flag'],
+    'rozwiązana'     => ['label' => 'Rozwiązana',     'color' => '#D97706', 'bg' => '#FEF3E2', 'icon' => 'bi-x-circle'],
+    'anulowana'      => ['label' => 'Anulowana',      'color' => '#DC2626', 'bg' => '#FEF2F2', 'icon' => 'bi-slash-circle'],
 ];
 
 // Lista opiekunów do filtra
@@ -514,7 +515,7 @@ if ($adv_count):
           <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
         </span>
       </div>
-      <?= needs_correction_badge($r) ?>
+      <?= needs_correction_badge($r) ?><?= notatka_realizacji_badge($r) ?>
       <div class="wol-card-name"><?= h($r['imie_nazwisko']) ?></div>
       <div class="wol-card-meta mb-2">
         <?php if ($r['miejsce_wolontariatu']): ?>
@@ -633,7 +634,7 @@ if ($adv_count):
             <span class="wol-status-pill" style="background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>">
               <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
             </span>
-            <?= needs_correction_badge($r) ?>
+            <?= needs_correction_badge($r) ?><?= notatka_realizacji_badge($r) ?>
           </td>
           <td class="text-end" style="white-space:nowrap">
             <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>"

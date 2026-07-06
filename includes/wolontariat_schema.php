@@ -56,6 +56,9 @@
         'rozliczono_srodki'            => "INTEGER",
         'rozliczenie_potwierdzone_by'  => "INTEGER",
         'rozliczenie_potwierdzone_at'  => "DATETIME",
+        // Notatka wolna dla osoby odpowiedzialnej za realizację umowy —
+        // widoczna jako badge z tooltipem na liście (contracts/wolontariat/list.php).
+        'notatka_do_realizacji'        => "TEXT",
     ];
 
     foreach ($columns as $name => $def) {

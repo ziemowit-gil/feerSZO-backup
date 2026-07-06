@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','data_rachunku','okres_rachunku','forma_podpisania',
             'platforma_el','id_dokumentu_el','epodpis_dostawca','epodpis_nr_certyfikatu','epodpis_data_waznosci',
-            'plik_potwierdzenia','plik_umowy','uwagi','created_by','created_at','updated_at',
+            'plik_potwierdzenia','plik_umowy','uwagi','notatka_do_realizacji','created_by','created_at','updated_at',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
             'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id',
             'podpisujacy_fundacja','podpisujacy_stanowisko'];
@@ -443,6 +443,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <!-- Uwagi -->
 <div class="mb-3"><label class="form-label">Uwagi</label>
   <textarea name="uwagi" class="form-control" rows="3"><?= h($row['uwagi']??'') ?></textarea></div>
+
+<div class="mb-3"><label class="form-label">Notatka potrzebna do realizacji</label>
+  <textarea name="notatka_do_realizacji" class="form-control" rows="2"
+            placeholder="Co jeszcze trzeba zrobić, żeby umowę zrealizować/zamknąć…"><?= h($row['notatka_do_realizacji'] ?? '') ?></textarea>
+  <div class="form-text">Widoczna jako ikonka z podpowiedzią na liście umów.</div>
+</div>
 
 <!-- M365 -->
 <div class="card shadow-sm mb-3">

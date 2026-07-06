@@ -77,6 +77,7 @@ $pag  = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" .
 $rows = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY {$sort_col} {$sort_dir} LIMIT {$per} OFFSET {$pag['offset']}", $params);
 
 $statuses = ['projekt' => 'Projekt', 'podpisana' => 'Podpisana', 'w realizacji' => 'W realizacji',
+             'zawieszona' => 'Zawieszona', 'do rozliczenia' => 'Do rozliczenia',
              'zakończona' => 'Zakończona', 'rozwiązana' => 'Rozwiązana', 'anulowana' => 'Anulowana'];
 $typy_st  = ['miesięczna' => 'Miesięczna', 'godzinowa' => 'Godzinowa', 'akordowa' => 'Akordowa', 'ryczałtowa' => 'Ryczałtowa'];
 $formy    = ['papierowa' => 'Papierowa', 'elektroniczna' => 'Elektroniczna', 'kwalifikowany' => 'Kwalifikowany e-podpis'];
@@ -280,7 +281,7 @@ if ($adv_count):
           <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zawarcia']) ?></td>
           <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zakonczenia']) ?></td>
           <td class="d-none d-xl-table-cell"><?= money($r['wynagrodzenie_brutto']) ?></td>
-          <td><?= status_badge($r['status']) ?></td>
+          <td><?= status_badge($r['status']) ?><?= notatka_realizacji_badge($r) ?></td>
           <td class="text-end" style="white-space:nowrap">
             <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-eye"></i></a>
             <?php if (can_edit()): ?>

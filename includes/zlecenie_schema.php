@@ -74,6 +74,7 @@
         'plik_potwierdzenia'       => "VARCHAR(500)",
         'plik_umowy'               => "VARCHAR(500)",
         'uwagi'                    => "TEXT",
+        'notatka_do_realizacji'    => "TEXT",
         'created_by'               => "INTEGER",
         'created_at'               => "DATETIME",
         'updated_at'               => "DATETIME",

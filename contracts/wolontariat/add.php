@@ -546,7 +546,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'forma_podpisania', 'platforma_el', 'id_dokumentu_el', 'plik_potwierdzenia',
             'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
             'docusign_signer_email', 'docusign_signer_name',
-            'plik_umowy', 'uwagi', 'created_by', 'created_at', 'updated_at',
+            'plik_umowy', 'uwagi', 'notatka_do_realizacji', 'created_by', 'created_at', 'updated_at',
             'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne', 'm365_nie_wylaczaj', 'm365_data_utworzenia', 'm365_licencja_przypisana',
             'nr_roboczy', 'nr_system', 'nr_rejestru',
             'adres_odbiorca', 'adres_linia1', 'adres_linia2', 'adres_kod_pocztowy', 'adres_miasto', 'adres_kraj',
@@ -1584,6 +1584,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <label class="form-label fw-semibold">Uwagi wewnętrzne</label>
           <textarea name="uwagi" class="form-control" rows="2"
                     placeholder="Notatki, szczególne ustalenia…"><?= h($row['uwagi'] ?? '') ?></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Notatka potrzebna do realizacji</label>
+          <textarea name="notatka_do_realizacji" class="form-control" rows="2"
+                    placeholder="Co jeszcze trzeba zrobić, żeby porozumienie zrealizować/zamknąć…"><?= h($row['notatka_do_realizacji'] ?? '') ?></textarea>
+          <div class="form-text">Widoczna jako ikonka z podpowiedzią na liście umów.</div>
         </div>
       </div>
 
