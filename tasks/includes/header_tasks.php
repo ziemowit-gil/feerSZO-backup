@@ -596,7 +596,7 @@ body {
     <?php endif; ?>
   </a>
 
-  <a class="tsk-nav-link <?= _tsk_active('/tasks/index') || (str_contains($_uri,'/tasks/') && !str_contains($_uri,'dashboard') && !str_contains($_uri,'notification') && !str_contains($_uri,'admin') && !str_contains($_uri,'api') && !str_contains($_uri,'inbox')) && !_tsk_active('/tasks/dashboard') ? 'active' : '' ?>"
+  <a class="tsk-nav-link <?= _tsk_active('/tasks/index') || (str_contains($_uri,'/tasks/') && !str_contains($_uri,'dashboard') && !str_contains($_uri,'notification') && !str_contains($_uri,'admin') && !str_contains($_uri,'api') && !str_contains($_uri,'inbox') && !str_contains($_uri,'archive')) && !_tsk_active('/tasks/dashboard') ? 'active' : '' ?>"
      href="<?= APP_URL ?>/tasks/index.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
      aria-current="<?= str_contains($_uri,'/tasks/index') ? 'page' : 'false' ?>">
     <i class="bi bi-table" aria-hidden="true"></i>
@@ -604,6 +604,13 @@ body {
     <?php if ($_open_count > 0): ?>
     <span class="tsk-nav-badge" aria-label="<?= $_open_count ?> wolnych"><?= $_open_count ?></span>
     <?php endif; ?>
+  </a>
+
+  <a class="tsk-nav-link <?= _tsk_active('/tasks/archive') ? 'active' : '' ?>"
+     href="<?= APP_URL ?>/tasks/archive.php<?= $_ws_id ? '?ws='.$_ws_id : '' ?>"
+     aria-current="<?= _tsk_active('/tasks/archive') ? 'page' : 'false' ?>">
+    <i class="bi bi-archive" aria-hidden="true"></i>
+    Archiwum zadań
   </a>
 
   <?php

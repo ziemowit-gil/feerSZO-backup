@@ -21,5 +21,8 @@
 # Zadania cykliczne — co godzinę
 0 * * * * www-data php /var/www/html/cron/tasks_recurring.php >> /var/log/feer_cron.log 2>&1
 
+# Archiwizacja zadań ukończonych > 7 dni temu — codziennie o 3:10
+10 3 * * * www-data php /var/www/html/cron/tasks_archive.php >> /var/log/feer_cron.log 2>&1
+
 # Dispatcher (orchestrator) — co 5 minut
 */5 * * * * www-data php /var/www/html/cron/dispatcher.php >> /var/log/feer_cron.log 2>&1

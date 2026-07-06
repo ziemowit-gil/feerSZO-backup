@@ -1398,6 +1398,20 @@ $ev_defs = [
       ? '<span class="td-hi-val" title="' . h($e['to_value']) . '">' . h(mb_substr($e['to_value'],0,50)) . (mb_strlen($e['to_value'])>50?'…':'') . '</span>'
       : '',
   ],
+  'archived' => [
+    'icon'        => 'bi-archive-fill',
+    'bg'          => '#f1f5f9', 'color' => '#64748b',
+    'badge_bg'    => '#f8fafc', 'badge_color' => '#64748b',
+    'label'       => 'Zarchiwizowano',
+    'desc'        => fn($e) => '',
+  ],
+  'unarchived' => [
+    'icon'        => 'bi-arrow-counterclockwise',
+    'bg'          => '#f0fdf4', 'color' => '#16a34a',
+    'badge_bg'    => '#f0fdf4', 'badge_color' => '#16a34a',
+    'label'       => 'Przywrócono z archiwum',
+    'desc'        => fn($e) => '',
+  ],
   'tag_added' => [
     'icon'        => 'bi-tag-fill',
     'bg'          => '#f0fdf4', 'color' => '#16a34a',

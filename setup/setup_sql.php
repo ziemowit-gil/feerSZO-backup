@@ -957,16 +957,19 @@ function migrate_tenant_db(PDO $pdo): array {
         catch (\Throwable $e) { $results[] = ['skip', "settings.$k"]; }
     }
 
-    // ── Schema v13: tasks — potwierdzenie wykonania przez zlecającego ─────────
+    // ── Schema v13: tasks — potwierdzenie wykonania przez lidera ──────────────
     $run('tasks.confirmed_at', "ALTER TABLE tasks ADD COLUMN confirmed_at TEXT DEFAULT NULL");
     $run('tasks.confirmed_by', "ALTER TABLE tasks ADD COLUMN confirmed_by INTEGER DEFAULT NULL REFERENCES users(id)");
     $run('task_notification_prefs.notify_confirmed', "ALTER TABLE task_notification_prefs ADD COLUMN notify_confirmed INTEGER NOT NULL DEFAULT 1");
 
-    // ── Schema v14: tasks — odrzucenie wykonania (z powodem) przez zlecającego ─
+    // ── Schema v14: tasks — odrzucenie wykonania (z powodem) przez lidera ─────
     $run('tasks.rejected_at',      "ALTER TABLE tasks ADD COLUMN rejected_at TEXT DEFAULT NULL");
     $run('tasks.rejected_by',      "ALTER TABLE tasks ADD COLUMN rejected_by INTEGER DEFAULT NULL REFERENCES users(id)");
     $run('tasks.rejection_reason', "ALTER TABLE tasks ADD COLUMN rejection_reason TEXT DEFAULT NULL");
     $run('task_notification_prefs.notify_rejected', "ALTER TABLE task_notification_prefs ADD COLUMN notify_rejected INTEGER NOT NULL DEFAULT 1");
+
+    // ── Schema v15: tasks — archiwizacja ukończonych po 7 dniach ──────────────
+    $run('tasks.archived_at', "ALTER TABLE tasks ADD COLUMN archived_at TEXT DEFAULT NULL");
 
     // ── Schema v10: pełny dziesiętny JRWA dla NGO (dane startowe modułu EZD) ────
     // Zastępuje 9 alfabetycznych haseł domyślnych (ORG/FIN/…) klasyfikacją

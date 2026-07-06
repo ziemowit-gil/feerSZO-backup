@@ -439,6 +439,9 @@ function task_areas_migrate(): void {
     catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE task_workspace_members ADD COLUMN notify_push INTEGER NOT NULL DEFAULT 0"); }
     catch (\Throwable $e) {}
+    // v15: archiwizacja zadań ukończonych (7 dni po completed_at — patrz cron/tasks_archive.php)
+    try { $pdo->exec("ALTER TABLE tasks ADD COLUMN archived_at TEXT DEFAULT NULL"); }
+    catch (\Throwable $e) {}
 }
 
 function task_get_areas(): array {

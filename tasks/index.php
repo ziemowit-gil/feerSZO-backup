@@ -81,7 +81,7 @@ if ($ws_id) {
              FROM tasks t
              JOIN task_lists tl ON tl.id = t.list_id
              LEFT JOIN org_units ou ON ou.id = t.unit_id
-             WHERE t.workspace_id = ? AND t.deleted_at IS NULL
+             WHERE t.workspace_id = ? AND t.deleted_at IS NULL AND t.archived_at IS NULL
              ORDER BY
                CASE WHEN t.completed_at IS NULL AND t.due_date IS NOT NULL
                          AND t.due_date < date('now') THEN 0 ELSE 1 END,

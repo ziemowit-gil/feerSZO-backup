@@ -342,6 +342,21 @@ if ($action === 'reject') {
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
 }
 
+// ── Przywróć z archiwum ──────────────────────────────────────────────────────
+if ($action === 'unarchive') {
+    $id = (int)($body['id'] ?? 0);
+    if (!$id) task_api_error('Brak ID zadania.');
+    $task = db_one("SELECT * FROM tasks WHERE id=? AND deleted_at IS NULL", [$id]);
+    if (!$task) task_api_error('Zadanie nie istnieje.', 404);
+    task_require_workspace_access((int)$task['workspace_id'], ['admin', 'editor']);
+
+    db()->prepare("UPDATE tasks SET archived_at=NULL, updated_at=? WHERE id=?")
+        ->execute([date('Y-m-d H:i:s'), $id]);
+    task_log($id, $uid, 'unarchived');
+
+    task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
+}
+
 // ── Duplikuj zadanie ───────────────────────────────────────────────────────
 if ($action === 'duplicate') {
     $id = (int)($body['id'] ?? 0);
