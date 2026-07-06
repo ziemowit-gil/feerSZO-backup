@@ -54,7 +54,7 @@ $_cvh_accent = match($_cvh_st['class']) {
 };
 ?>
 
-<?= contract_correction_panel($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
+<?= contract_correction_alert($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
 
 <?php if (!empty($_pending_term)): ?>
 <div class="alert alert-warning d-flex align-items-center gap-2 no-print mb-2 py-2">
@@ -249,6 +249,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       </button>
       <?php endif; ?>
       <?php endif; ?>
+      <?= contract_correction_button($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
       <?php $_cvh_src = 'contract_id=' . (int)($_cvh_id ?? 0) . '&type=' . rawurlencode((string)($_cvh_type ?? '')); ?>
       <?php if (($_cvh_type ?? '') !== 'wolontariat'): /* dla wolontariatu wydruki są w dropdownie „Dokumenty i wydruki" */ ?>
       <?= wydruki_dropdown_html($_cvh_src) ?>
