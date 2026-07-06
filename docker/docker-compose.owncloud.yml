@@ -7,7 +7,12 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 #     -f docker-compose.owncloud.yml --env-file .env.prod up -d
 #
-# Przed uruchomieniem ustaw w .env lub .env.prod:
+# Konfiguracja OWNCLOUD_* w .env/.env.prod jest OPCJONALNA — brak tych
+# zmiennych nie wywala `docker compose` (żadnych wymaganych ${VAR:?...}
+# poniżej), tylko sam kontener ownCloud pokaże wtedy własny, przeglądarkowy
+# kreator pierwszego uruchomienia (utworzysz tam konto admina ręcznie).
+# Zalecane ustawienie z góry (zob. docker/setup-owncloud.sh lub sekcja
+# ownCloud w docker/make-env.sh):
 #   OWNCLOUD_DOMAIN=owncloud.przyklad.pl
 #   OWNCLOUD_ADMIN_USERNAME=admin
 #   OWNCLOUD_ADMIN_PASSWORD=<haslo>
@@ -33,8 +38,11 @@ services:
       OWNCLOUD_DB_USERNAME:     ${OWNCLOUD_DB_USERNAME:-owncloud}
       OWNCLOUD_DB_PASSWORD:     ${OWNCLOUD_DB_PASSWORD:-owncloud}
       OWNCLOUD_DB_HOST:         ${OWNCLOUD_DB_HOST:-owncloud_db}
-      OWNCLOUD_ADMIN_USERNAME:  ${OWNCLOUD_ADMIN_USERNAME:?Ustaw OWNCLOUD_ADMIN_USERNAME w .env}
-      OWNCLOUD_ADMIN_PASSWORD:  ${OWNCLOUD_ADMIN_PASSWORD:?Ustaw OWNCLOUD_ADMIN_PASSWORD w .env}
+      # Puste = ownCloud pokaże własny kreator pierwszego uruchomienia w przeglądarce
+      # (nie auto-provisionuje admina) — celowo BEZ ${VAR:?...}, żeby brak tej
+      # opcjonalnej konfiguracji nie przerywał `docker compose` błędem.
+      OWNCLOUD_ADMIN_USERNAME:  ${OWNCLOUD_ADMIN_USERNAME:-}
+      OWNCLOUD_ADMIN_PASSWORD:  ${OWNCLOUD_ADMIN_PASSWORD:-}
       OWNCLOUD_TRUSTED_DOMAINS: ${OWNCLOUD_DOMAIN:-localhost}
     volumes:
       - owncloud_files:/mnt/data
