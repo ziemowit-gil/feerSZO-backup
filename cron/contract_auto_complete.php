@@ -7,6 +7,10 @@
  * termin oddania) i umowa jest wciąż w statusie "aktywnym", status zmienia się
  * automatycznie na "zakończona". Umowy oznaczone jako bezterminowe/bez daty,
  * zablokowane aneksem lub z oczekującym wnioskiem o rozwiązanie są pomijane.
+ *
+ * Wyjątek: dla umów zlecenia i wolontariackich (patrz $ROZLICZENIE_TYPES) minięcie
+ * terminu przenosi status do "do rozliczenia" (nie od razu "zakończona") —
+ * ostateczne zamknięcie po rozliczeniu jest już czynnością ręczną.
  */
 
 if (php_sapi_name() !== 'cli') {
@@ -37,6 +41,9 @@ $TYPES = [
 // Statusy uznawane za aktywne — tylko te podlegają automatycznemu zakończeniu
 $ACTIVE_STATUSES = ['podpisana', 'w realizacji', 'zawieszona', 'do rozliczenia', 'obowiązująca'];
 
+// Typy, dla których minięcie terminu przenosi status do "do rozliczenia" zamiast wprost do "zakończona"
+$ROZLICZENIE_TYPES = ['wolontariat', 'zlecenie'];
+
 $done    = 0;
 $skipped = 0;
 $errors  = 0;
@@ -44,11 +51,17 @@ $errors  = 0;
 echo "[{$ts}] Start: contract_auto_complete\n";
 
 foreach ($TYPES as $type => [$table, $date_col, $flag_col]) {
+    $is_rozliczenie_type = in_array($type, $ROZLICZENIE_TYPES, true);
+    // Dla typów z etapem "do rozliczenia" ten status jest już celem — nie ma dalszego auto-przejścia
+    $active_statuses = $is_rozliczenie_type
+        ? array_values(array_diff($ACTIVE_STATUSES, ['do rozliczenia']))
+        : $ACTIVE_STATUSES;
+
     try {
-        $placeholders = implode(',', array_fill(0, count($ACTIVE_STATUSES), '?'));
+        $placeholders = implode(',', array_fill(0, count($active_statuses), '?'));
         $rows = db_all(
             "SELECT * FROM {$table} WHERE status IN ({$placeholders}) AND {$date_col} IS NOT NULL AND {$date_col} < ?",
-            [...$ACTIVE_STATUSES, $today]
+            [...$active_statuses, $today]
         );
     } catch (\Throwable $e) {
         echo "[{$ts}] BŁĄD zapytania dla {$type}: " . $e->getMessage() . "\n";
@@ -73,19 +86,25 @@ foreach ($TYPES as $type => [$table, $date_col, $flag_col]) {
             continue;
         }
 
+        $target_status = $is_rozliczenie_type ? 'do rozliczenia' : 'zakończona';
+        $action        = $is_rozliczenie_type ? 'auto_do_rozliczenia' : 'auto_zakonczenie';
+        $comment       = $is_rozliczenie_type
+            ? 'Automatyczne przejście do rozliczenia — minął termin (' . $row[$date_col] . ')'
+            : 'Automatyczne zakończenie — minął termin (' . $row[$date_col] . ')';
+
         try {
-            db()->prepare("UPDATE {$table} SET status='zakończona', updated_at=? WHERE id=?")
-                ->execute([$ts, $row['id']]);
+            db()->prepare("UPDATE {$table} SET status=?, updated_at=? WHERE id=?")
+                ->execute([$target_status, $ts, $row['id']]);
 
             log_contract_action(
                 $type,
                 (int)$row['id'],
                 0,
-                'auto_zakonczenie',
-                'Automatyczne zakończenie — minął termin (' . $row[$date_col] . ')'
+                $action,
+                $comment
             );
 
-            echo "[{$ts}] {$type} {$numer} → zakończona (termin: {$row[$date_col]})\n";
+            echo "[{$ts}] {$type} {$numer} → {$target_status} (termin: {$row[$date_col]})\n";
             $done++;
         } catch (\Throwable $e) {
             echo "[{$ts}] BŁĄD zakańczania {$type} {$numer}: " . $e->getMessage() . "\n";
