@@ -2399,6 +2399,7 @@ window.tdConfirm = function() {
         .then(r => {
             if (r.ok) {
                 srAnnounce('Wykonanie zadania potwierdzone.');
+                tdCelebrate();
                 openTask(TID);
                 if (typeof tkAjaxLoad === 'function') tkAjaxLoad();
             } else {
