@@ -18,6 +18,14 @@ wiadomości — użytkownik włącza sposób w swoich Ustawieniach), `attachment
 cytowaną treść), `subscriptions_option` (przełącznik subskrypcji IMAP w
 Ustawieniach), `show_additional_headers`, `identicon` (awatar nadawcy).
 
+Plugin `login_notice` (montowany z `plugins/login_notice/`) dodaje na stronie
+logowania informację, że dostęp wymaga aktywnego konta Microsoft w organizacji
+(domena `feer.org.pl`) i uprawnień do jego użycia, z alternatywą (`outlook.com`).
+Wymaga `oauth_login_redirect = false` — inaczej strona logowania nigdy się nie
+renderuje (od razu przekierowanie do Microsoft). Ten plugin też ukrywa zwykły
+formularz login/hasło Roundcube (skrzynki są tylko przez OAuth), bo z
+`oauth_login_redirect=false` rdzeń sam go nie chowa.
+
 Plugin `onedrive_picker` (montowany z `plugins/onedrive_picker/`) dodaje przycisk
 „OneDrive" w oknie tworzenia maila — user loguje się **raz** (Microsoft 365),
 ale plugin pobiera **własny, osobny token Microsoft Graph** przez

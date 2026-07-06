@@ -60,8 +60,10 @@ $config['oauth_scope'] = 'openid email profile offline_access '
 // z Microsoft Graph ("mail"/"userPrincipalName") — te nigdy nie występują w
 // id_token i tylko wywoływały zbędne (i niedziałające) zapytanie do Graph.
 $config['oauth_identity_fields'] = ['preferred_username', 'email'];
-// Od razu przekieruj do logowania Microsoft — bez własnego formularza Roundcube.
-$config['oauth_login_redirect'] = true;
+// UWAGA: BEZ auto-przekierowania (na życzenie) — użytkownik musi najpierw
+// zobaczyć stronę logowania z komunikatem (plugin login_notice) o wymaganiu
+// aktywnego konta Microsoft w organizacji, zanim kliknie przycisk logowania.
+$config['oauth_login_redirect'] = false;
 
 // Traefik terminuje TLS i przekazuje ruch do kontenera zwykłym HTTP — bez tego
 // Roundcube "widzi" żądanie jako http:// i buduje redirect_uri OAuth z "http://"
@@ -79,6 +81,7 @@ $config['plugins'] = [
     'zipdownload',
     'managesieve',
     'onedrive_picker', // własny plugin — zob. plugins/onedrive_picker/
+    'login_notice',    // własny plugin — komunikat na stronie logowania, zob. plugins/login_notice/
 
     // ── UX / wygoda ──────────────────────────────────────────────────────────
     'markasjunk',          // przycisk „Oznacz jako spam"

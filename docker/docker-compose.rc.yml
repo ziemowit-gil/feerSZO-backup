@@ -37,6 +37,7 @@ services:
       - rc_db:/var/roundcube/db
       - ./roundcube/config.inc.php:/var/roundcube/config/config.inc.php:ro
       - ./roundcube/plugins/onedrive_picker:/var/www/html/plugins/onedrive_picker:ro
+      - ./roundcube/plugins/login_notice:/var/www/html/plugins/login_notice:ro
     labels:
       # Bez efektu w dev (Traefik nie działa) — aktywne dopiero z docker-compose.prod.yml.
       - "traefik.enable=true"
