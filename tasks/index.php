@@ -676,14 +676,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 #tk-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
   overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-/* ── Zakładki obszarów ──────────────────────────────────────────────────── */
-.ws-tabs{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:1rem}
-.ws-tab{display:inline-flex;align-items:center;gap:.4rem;padding:.32rem .75rem;
-  border:1.5px solid #e2e8f0;border-radius:2rem;background:#fff;color:#475569;
-  font-size:.82rem;font-weight:500;text-decoration:none;transition:all .12s}
-.ws-tab:hover{border-color:#93c5fd;color:#1d4ed8}
-.ws-tab.active{border-color:var(--tk-focus);background:var(--tk-focus);color:#fff}
-.ws-tab:focus-visible{outline:2px solid var(--tk-focus);outline-offset:3px}
+/* Kropka koloru obszaru — używana w nagłówku bieżącego obszaru poniżej */
 .ws-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 
 /* ── Pasek filtrów ──────────────────────────────────────────────────────── */
@@ -1072,20 +1065,6 @@ require_once __DIR__ . '/includes/header_tasks.php';
 </div>
 
 <?php else: ?>
-
-<!-- ── Zakładki obszarów ─────────────────────────────────────────────────── -->
-<nav class="ws-tabs" aria-label="Obszary robocze">
-  <?php foreach ($workspaces as $ws): ?>
-  <a href="?ws=<?= $ws['id'] ?>"
-     class="ws-tab <?= $ws['id'] == $ws_id ? 'active' : '' ?>"
-     <?= $ws['id'] == $ws_id ? 'aria-current="page"' : '' ?>>
-    <span class="ws-dot" style="background:<?= h($ws['color']) ?>" aria-hidden="true"></span>
-    <i class="bi <?= h($ws['icon']) ?>" aria-hidden="true"></i>
-    <?= h($ws['name']) ?>
-    <span class="opacity-60" aria-label="<?= (int)$ws['task_count'] ?> zadań"><?= (int)$ws['task_count'] ?></span>
-  </a>
-  <?php endforeach; ?>
-</nav>
 
 <?php if ($workspace): ?>
 
