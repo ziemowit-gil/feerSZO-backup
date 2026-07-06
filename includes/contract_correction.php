@@ -93,7 +93,8 @@ final class ContractCorrectionService
 function needs_correction_badge(array $row): string
 {
     if (empty($row['needs_correction'])) return '';
-    return '<span class="badge bg-danger ms-1" title="' . h($row['correction_reason'] ?? '') . '">'
+    return '<span class="badge bg-danger ms-1 align-middle" style="font-size:.78rem;padding:.35rem .65rem" '
+         . 'title="' . h($row['correction_reason'] ?? '') . '">'
          . '<i class="bi bi-exclamation-triangle-fill"></i> Uzupełnij dokumenty lub dane</span>';
 }
 

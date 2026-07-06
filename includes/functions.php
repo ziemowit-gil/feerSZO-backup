@@ -89,7 +89,8 @@ function status_badge(string $status): string {
 function notatka_realizacji_badge(array $row): string {
     $note = trim((string)($row['notatka_do_realizacji'] ?? ''));
     if ($note === '') return '';
-    return '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" '
+    return '<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1 align-middle" '
+         . 'style="font-size:.78rem;padding:.35rem .65rem" '
          . 'title="' . h($note) . '" data-bs-toggle="tooltip">'
          . '<i class="bi bi-sticky-fill"></i> Notatka</span>';
 }

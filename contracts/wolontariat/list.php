@@ -515,7 +515,9 @@ if ($adv_count):
           <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
         </span>
       </div>
-      <?= needs_correction_badge($r) ?><?= notatka_realizacji_badge($r) ?>
+      <?php if (!empty($r['needs_correction']) || trim((string)($r['notatka_do_realizacji'] ?? '')) !== ''): ?>
+      <div class="d-flex flex-wrap align-items-center gap-1 mb-1"><?= needs_correction_badge($r) ?><?= notatka_realizacji_badge($r) ?></div>
+      <?php endif; ?>
       <div class="wol-card-name"><?= h($r['imie_nazwisko']) ?></div>
       <div class="wol-card-meta mb-2">
         <?php if ($r['miejsce_wolontariatu']): ?>
@@ -631,10 +633,12 @@ if ($adv_count):
             <?= h($r['opiekun'] ?? '—') ?>
           </td>
           <td>
-            <span class="wol-status-pill" style="background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>">
-              <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
-            </span>
-            <?= needs_correction_badge($r) ?><?= notatka_realizacji_badge($r) ?>
+            <div class="d-flex flex-wrap align-items-center gap-1">
+              <span class="wol-status-pill" style="background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>">
+                <i class="bi <?= $sc['icon'] ?>"></i><?= $sc['label'] ?>
+              </span>
+              <?= needs_correction_badge($r) ?><?= notatka_realizacji_badge($r) ?>
+            </div>
           </td>
           <td class="text-end" style="white-space:nowrap">
             <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>"

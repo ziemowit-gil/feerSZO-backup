@@ -281,7 +281,7 @@ if ($adv_count):
           <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zawarcia']) ?></td>
           <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zakonczenia']) ?></td>
           <td class="d-none d-xl-table-cell"><?= money($r['wynagrodzenie_brutto']) ?></td>
-          <td><?= status_badge($r['status']) ?><?= notatka_realizacji_badge($r) ?></td>
+          <td><div class="d-flex flex-wrap align-items-center gap-1"><?= status_badge($r['status']) ?><?= notatka_realizacji_badge($r) ?></div></td>
           <td class="text-end" style="white-space:nowrap">
             <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-eye"></i></a>
             <?php if (can_edit()): ?>
