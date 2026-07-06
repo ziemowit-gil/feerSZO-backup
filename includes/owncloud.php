@@ -289,7 +289,23 @@ function owncloud_create_student_account(int $student_account_id): array {
     }
 
     $admin_cfg = owncloud_admin_config();
-    $username  = owncloud_unique_username($admin_cfg, $account['login'] ?? ('kursant' . $student_account_id), 'kursant');
+
+    // Spójna tożsamość z kontem MS/Moodle (tenant szkoleniowy TI, jak w
+    // includes/ti_online.php) — jeśli kursant ma już własne konto MS, login
+    // ownCloud pochodzi z tego samego UPN (hasło i tak zostaje osobne, ownCloud
+    // nie ma SSO). Jeśli w tenancie istnieje konto UTWORZONE POZA SYSTEMEM
+    // (ti_ms_external_upn() — provisioning go celowo nie przejmuje, żeby nie
+    // zrobić duplikatu/nadpisania), nie podszywamy się pod ten login —
+    // doklejamy „.migracja", żeby jednoznacznie odróżnić konto tymczasowe od
+    // loginu „naturalnego" powiązanego z prawdziwym kontem MS.
+    $base = $account['login'] ?: ('kursant' . $student_account_id);
+    if (!empty($account['ms_upn'])) {
+        $base = strtok($account['ms_upn'], '@');
+    } elseif (function_exists('ti_ms_external_upn') && ($external_upn = ti_ms_external_upn($student_account_id)) !== null) {
+        $base = strtok($external_upn, '@') . '.migracja';
+    }
+
+    $username  = owncloud_unique_username($admin_cfg, (string)$base, 'kursant');
     $password  = bin2hex(random_bytes(8)) . 'Aa1!';
 
     $created = owncloud_create_user($admin_cfg, $username, $password);
