@@ -41,6 +41,16 @@ if ($row) {
     $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 }
 
+// Auto-blokada dla niepełnoletnich bez aktualnej zgody — sprawdzana też na GET
+// (nie tylko przy zapisie), żeby umowy istniejące przed wdrożeniem tej reguły
+// (i te, których zgoda wygasła w międzyczasie bez żadnej edycji) też się zablokowały.
+if ($row) {
+    require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
+    require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+    ContractMinorGuard::syncAfterSave($TYPE, $id, $row, (int)(current_user()['id'] ?? 0));
+    $row = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
+}
+
 // Aktywna zakładka — z URL lub domyślna; 'all' = pokaż wszystkie na jednej stronie
 $_tab  = preg_replace('/[^a-z-]/', '', $_GET['tab'] ?? '') ?: 'umowa';
 $_turl = APP_URL . '/contracts/wolontariat/view.php?id=' . $id . '&tab=';

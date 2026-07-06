@@ -12,6 +12,11 @@
  * woła właśnie ten endpoint).
  */
 
+// Zależność twarda (log_contract_action, money) — deklarujemy sami, bez
+// zakładania, że plik wołający już to zrobił we właściwej kolejności
+// (edit.php historycznie wymaga approval.php PO zapisie, nie przed).
+require_once __DIR__ . '/approval.php';
+
 final class ContractTransitionException extends \RuntimeException {}
 
 /** Task 1: blokada dla niepełnoletnich bez aktualnej zgody przedstawiciela ustawowego. */
