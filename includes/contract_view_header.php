@@ -350,7 +350,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       </span>
       <?php endif; ?>
       <?php endif; ?>
-      <?= needs_correction_badge($_cvh_row) ?>
+      <?= needs_correction_badge($_cvh_row) ?><?= notatka_realizacji_badge($_cvh_row) ?>
     </div>
 
     <!-- Amount -->

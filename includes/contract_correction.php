@@ -25,6 +25,13 @@ final class ContractCorrectionValidator
     }
 }
 
+/**
+ * Typy umów, dla których zgłoszenie "do poprawy" zapisuje dodatkowo wolną
+ * notatkę roboczą (kolumna notatka_do_realizacji — istnieje tylko na tych
+ * dwóch tabelach, patrz includes/zlecenie_schema.php, wolontariat_schema.php).
+ */
+const CORRECTION_NOTATKA_TYPES = ['zlecenie', 'wolontariat'];
+
 final class ContractCorrectionService
 {
     /**
@@ -33,7 +40,7 @@ final class ContractCorrectionService
      * wcześniej i wyświetlić błąd formularza; wyjątek tu jest ostatnią linią obrony
      * (broni przed obejściem walidatora z innej ścieżki wejścia, np. API).
      */
-    public static function markForCorrection(string $type, int $contractId, string $reason, int $byUserId): void
+    public static function markForCorrection(string $type, int $contractId, string $reason, int $byUserId, ?string $notatkaRealizacji = null): void
     {
         $reason = trim($reason);
         if ($reason === '') {
@@ -43,13 +50,19 @@ final class ContractCorrectionService
         $table = table_for_type($type);
         $now = date('Y-m-d H:i:s');
 
-        db_update($table, [
+        $update = [
             'needs_correction'        => 1,
             'correction_reason'       => $reason,
             'correction_requested_by' => $byUserId,
             'correction_requested_at' => $now,
             'correction_resolved_at'  => null,
-        ], $contractId);
+        ];
+        if (in_array($type, CORRECTION_NOTATKA_TYPES, true)) {
+            $notatkaRealizacji = trim((string)$notatkaRealizacji);
+            $update['notatka_do_realizacji'] = $notatkaRealizacji !== '' ? $notatkaRealizacji : null;
+        }
+
+        db_update($table, $update, $contractId);
 
         log_contract_action($type, $contractId, $byUserId, 'mark_correction', $reason);
     }
@@ -59,10 +72,15 @@ final class ContractCorrectionService
     {
         $table = table_for_type($type);
 
-        db_update($table, [
+        $update = [
             'needs_correction'       => 0,
             'correction_resolved_at' => date('Y-m-d H:i:s'),
-        ], $contractId);
+        ];
+        if (in_array($type, CORRECTION_NOTATKA_TYPES, true)) {
+            $update['notatka_do_realizacji'] = null;
+        }
+
+        db_update($table, $update, $contractId);
 
         log_contract_action($type, $contractId, $byUserId, 'resolve_correction', $note ?: 'Poprawki wprowadzone');
     }
@@ -174,6 +192,8 @@ function contract_correction_button(string $type, int $id, array $row): string
 {
     if (!empty($row['needs_correction']) || !can_edit()) return '';
 
+    $showNotatka = in_array($type, CORRECTION_NOTATKA_TYPES, true);
+
     ob_start();
     ?>
     <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
@@ -195,6 +215,14 @@ function contract_correction_button(string $type, int $id, array $row): string
               <input type="hidden" name="action" value="mark">
               <label class="form-label">Powód (widoczny dla osoby odpowiedzialnej)</label>
               <textarea name="correction_reason" class="form-control" rows="3" required minlength="5"></textarea>
+              <?php if ($showNotatka): ?>
+              <div class="mt-3">
+                <label class="form-label">Notatka potrzebna do realizacji</label>
+                <textarea name="notatka_do_realizacji" class="form-control" rows="2"
+                          placeholder="Co jeszcze trzeba zrobić, żeby umowę zrealizować/zamknąć…"></textarea>
+                <div class="form-text">Opcjonalna — widoczna jako ikonka z podpowiedzią na liście umów.</div>
+              </div>
+              <?php endif; ?>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>

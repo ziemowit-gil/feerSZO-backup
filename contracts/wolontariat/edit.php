@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'numer_polisy_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'data_szkolenia_bhp',
             'zwrot_kosztow', 'zwrot_kosztow_opis', 'opiekun', 'projekt_program',
             'forma_podpisania', 'platforma_el', 'id_dokumentu_el', 'plik_potwierdzenia',
-            'plik_umowy', 'uwagi', 'notatka_do_realizacji', 'updated_at',
+            'plik_umowy', 'uwagi', 'updated_at',
             'm365_konto', 'm365_login', 'm365_user_id', 'm365_konto_aktywne', 'm365_nie_wylaczaj', 'm365_data_utworzenia', 'm365_licencja_przypisana',
             'nr_roboczy', 'nr_system', 'nr_rejestru',
             'adres_odbiorca', 'adres_linia1', 'adres_linia2', 'adres_kod_pocztowy', 'adres_miasto', 'adres_kraj',
@@ -1166,13 +1166,6 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   <div class="mt-3 fgroup">
     <label>Uwagi</label>
     <textarea name="uwagi" class="form-control" rows="2"><?= h($row['uwagi']) ?></textarea>
-  </div>
-
-  <div class="mt-3 fgroup">
-    <label>Notatka potrzebna do realizacji</label>
-    <textarea name="notatka_do_realizacji" class="form-control" rows="2"
-              placeholder="Co jeszcze trzeba zrobić, żeby porozumienie zrealizować/zamknąć…"><?= h($row['notatka_do_realizacji'] ?? '') ?></textarea>
-    <small class="text-muted">Widoczna jako ikonka z podpowiedzią na liście umów.</small>
   </div>
 
 </section>

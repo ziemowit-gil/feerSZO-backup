@@ -12,6 +12,10 @@ require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/contract_access.php';
 require_once dirname(__DIR__) . '/includes/contract_correction_schema.php';
 require_once dirname(__DIR__) . '/includes/contract_correction.php';
+// notatka_do_realizacji istnieje tylko na tych dwóch tabelach (CORRECTION_NOTATKA_TYPES) —
+// dogrzewamy schemat tutaj, bo mark_correction.php to jedyne miejsce, które ją zapisuje.
+require_once dirname(__DIR__) . '/includes/zlecenie_schema.php';
+require_once dirname(__DIR__) . '/includes/wolontariat_schema.php';
 
 require_role('admin', 'editor'); // TODO: zawęzić do dedykowanej roli audytora, gdy powstanie
 csrf_check();
@@ -48,7 +52,7 @@ if ($action === 'mark') {
         header('Location: ' . APP_URL . "/contracts/{$type}/view.php?id={$id}");
         exit;
     }
-    ContractCorrectionService::markForCorrection($type, $id, $_POST['correction_reason'], (int)$user['id']);
+    ContractCorrectionService::markForCorrection($type, $id, $_POST['correction_reason'], (int)$user['id'], $_POST['notatka_do_realizacji'] ?? null);
     flash_set('success', 'Umowa oznaczona jako „do uzupełnienia" — powód zapisany w historii.');
 } else {
     ContractCorrectionService::resolveCorrection($type, $id, (int)$user['id']);
