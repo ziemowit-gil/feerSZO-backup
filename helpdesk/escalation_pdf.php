@@ -56,6 +56,14 @@ $body_html = '
   <table width="100%">
     <tr>
       <td width="50%">Data: ' . $h(date('d.m.Y')) . '</td>
+      <td width="50%" style="border-top:1px solid #000;padding-top:4pt">Podpis zgłaszającego</td>
+    </tr>
+  </table>
+</div>
+<div style="margin-top:30pt">
+  <table width="100%">
+    <tr>
+      <td width="50%">Data: ' . $h(date('d.m.Y')) . '</td>
       <td width="50%" style="border-top:1px solid #000;padding-top:4pt">Podpis osoby przyjmującej podbicie</td>
     </tr>
   </table>
