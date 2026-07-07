@@ -141,11 +141,11 @@ $_cvh_accent = match($_cvh_st['class']) {
     <div class="contract-hero-actions">
       <?php if (can_edit() && !$_cvh_locked): ?>
       <a href="<?= h($_cvh_edit_url) ?>" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Edytuj</span>
+        <i class="bi bi-pencil"></i> <span>Edytuj</span>
       </a>
       <?php elseif ($_cvh_locked): ?>
       <span class="btn btn-sm btn-outline-secondary disabled" title="Umowa zablokowana — zawarty aneks">
-        <i class="bi bi-lock-fill"></i> <span class="d-none d-sm-inline">Zablokowana</span>
+        <i class="bi bi-lock-fill"></i> <span>Zablokowana</span>
       </span>
       <?php endif; ?>
       <?php
@@ -158,7 +158,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       <div class="dropdown d-inline-block">
         <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
                 data-bs-toggle="dropdown" aria-expanded="false" title="Umowa — przedłużenie, rozwiązanie">
-          <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Umowa</span>
+          <i class="bi bi-arrow-repeat"></i> <span>Umowa</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <?php if ($_cvh_show_renew): ?>
@@ -185,7 +185,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       <div class="dropdown">
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
                 data-bs-toggle="dropdown" aria-expanded="false" title="Dokumenty, koperty i wydruki">
-          <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline">Dokumenty i wydruki</span>
+          <i class="bi bi-file-earmark-text"></i> <span>Dokumenty i wydruki</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end" style="min-width:230px">
           <li><h6 class="dropdown-header"><i class="bi bi-folder2-open me-1"></i>Karta do segregatora</h6></li>
@@ -273,7 +273,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       <div class="dropdown d-inline-block">
         <button class="btn btn-sm btn-outline-danger dropdown-toggle" type="button"
                 data-bs-toggle="dropdown" aria-expanded="false" title="Administracja">
-          <i class="bi bi-shield-lock"></i> <span class="d-none d-sm-inline">Administracja</span>
+          <i class="bi bi-shield-lock"></i> <span>Administracja</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li><h6 class="dropdown-header"><i class="bi bi-incognito me-1"></i>Dostęp do konta</h6></li>
@@ -290,10 +290,10 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?= wydruki_dropdown_html($_cvh_src) ?>
       <?php endif; ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark" title="Drukuj tę stronę">
-        <i class="bi bi-printer"></i>
+        <i class="bi bi-printer"></i> <span>Drukuj stronę</span>
       </button>
       <a href="<?= h($_cvh_list_url) ?>" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Lista</span>
+        <i class="bi bi-arrow-left"></i> <span>Lista</span>
       </a>
     </div>
 
