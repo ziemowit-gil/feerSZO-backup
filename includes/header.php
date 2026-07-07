@@ -544,7 +544,7 @@ if ($_user) {
   $_on_rodo_nb  = str_contains($_uri, '/rodo/');
   $_on_ezd_nb   = str_contains($_uri, '/ezd/');
   $_on_admin_nb = str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding');
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/');
 
   try { $_msg_unread_total = msg_unread_admin(); } catch(\Exception $e) { $_msg_unread_total = 0; }
   try { require_once __DIR__ . '/termination.php'; $_term_pending = get_pending_terminations_count(); } catch(\Throwable $e) { $_term_pending = 0; }
@@ -576,7 +576,14 @@ if ($_user) {
     try { $_alias_pending = (int)(db_one("SELECT COUNT(*) AS c FROM email_alias_requests WHERE status IN ('oczekuje','błąd')")['c'] ?? 0); }
     catch (\Throwable $e) {}
   }
-  $_obs_badge = (int)$_hd_open + (int)$_msg_unread_total + ($_alias_is_op ? (int)$_alias_pending : 0);
+  $_obieg_inbox = 0;
+  try {
+    if (module_enabled('obiegi_enabled') && ($_ob_u = current_user())) {
+      require_once __DIR__ . '/obiegi.php';
+      $_obieg_inbox = obiegi_inbox_count($_ob_u);
+    }
+  } catch (\Throwable $e) {}
+  $_obs_badge = (int)$_hd_open + (int)$_msg_unread_total + ($_alias_is_op ? (int)$_alias_pending : 0) + (int)$_obieg_inbox;
   $_wol_badge = $_rek_new + $_ob_new + $_ts_pending + $_cert_pending;
   $_fin_badge = $_zwr_pending + $_res_badge + (int)$_ship_pending;
   $_um_badge  = $_pending + $_term_pending;
@@ -725,7 +732,7 @@ if ($_user) {
 
   <!-- Więcej -->
   <?php
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/');
   ?>
   <li class="nav-item dropdown">
     <a class="nav-link dropdown-toggle<?= $_wiecej_active ? ' active' : '' ?>"
@@ -745,9 +752,12 @@ if ($_user) {
       <?php if (module_enabled('byli_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php"><i class="bi bi-person-dash me-2"></i>Byłe osoby</a></li>
       <?php endif; ?>
-      <?php if (module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled') || module_enabled('poczta_enabled')): ?>
+      <?php if (module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled') || module_enabled('poczta_enabled') || module_enabled('obiegi_enabled')): ?>
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header nb-section-label">Obsługa<?php if ($_obs_badge): ?> <span class="badge bg-primary ms-1"><?= $_obs_badge ?></span><?php endif; ?></h6></li>
+      <?php if (module_enabled('obiegi_enabled')): ?>
+      <li><a class="dropdown-item<?= _nav_active('/obiegi/') ?>" href="<?= APP_URL ?>/obiegi/index.php"><i class="bi bi-diagram-2 me-2"></i>Obiegi<?php if ($_obieg_inbox): ?><span class="badge bg-danger ms-2"><?= $_obieg_inbox ?></span><?php endif; ?></a></li>
+      <?php endif; ?>
       <?php if (module_enabled('helpdesk_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php"><i class="bi bi-ticket-perforated me-2"></i>Helpdesk<?php if ($_hd_open): ?><span class="badge bg-primary ms-2"><?= $_hd_open ?></span><?php endif; ?></a></li>
       <?php if ($_alias_is_op): ?>
@@ -898,6 +908,8 @@ if ($_user) {
         $__add('Zadania',   APP_URL.'/tasks/dashboard.php',            'bi-kanban',            '#ea580c','#fff7ed', $_on_tasks,   'Obsługa i zgłoszenia');
     if (module_enabled('helpdesk_enabled'))
         $__add('Helpdesk',  APP_URL.'/helpdesk/index.php',             'bi-ticket-perforated', '#b45309','#fffbeb', str_contains($_uri,'/helpdesk/'), 'Obsługa i zgłoszenia');
+    if (module_enabled('obiegi_enabled'))
+        $__add('Obiegi',    APP_URL.'/obiegi/index.php',               'bi-diagram-2',         '#0369a1','#f0f9ff', str_contains($_uri,'/obiegi/'), 'Obsługa i zgłoszenia');
     $__add('RODO',          APP_URL.'/rodo/index.php',                 'bi-shield-lock',       '#475569','#f8fafc', $_on_rodo,    'Obsługa i zgłoszenia');
     // Administracja
     if (is_admin())
