@@ -299,7 +299,7 @@ function print_template_dropdown_html(string $src_params, array $opts = []): str
     <div class="dropdown d-inline-block">
       <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
               data-bs-toggle="dropdown" aria-expanded="false" title="Drukuj dokument ze wzoru">
-        <i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+        <i class="bi bi-file-earmark-text"></i> <span><?= h($label) ?></span>
       </button>
       <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:260px"><?= $items ?></ul>
     </div>

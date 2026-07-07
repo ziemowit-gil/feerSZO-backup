@@ -199,7 +199,7 @@ function contract_correction_button(string $type, int $id, array $row): string
     ?>
     <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
             data-bs-target="#markCorrectionModal-<?= h($type) ?>-<?= $id ?>">
-      <i class="bi bi-flag-fill"></i> <span class="d-none d-sm-inline">Oznacz: do uzupełnienia</span>
+      <i class="bi bi-flag-fill"></i> <span>Oznacz: do uzupełnienia</span>
     </button>
     <div class="modal fade" id="markCorrectionModal-<?= h($type) ?>-<?= $id ?>" tabindex="-1">
       <div class="modal-dialog">

@@ -268,7 +268,7 @@ function envelope_dropdown_html(string $src_params, array $opts = []): string {
     <div class="dropdown d-inline-block">
       <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
               data-bs-toggle="dropdown" aria-expanded="false" title="Generuj kopertę ze wzoru">
-        <i class="bi bi-envelope"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+        <i class="bi bi-envelope"></i> <span><?= h($label) ?></span>
       </button>
       <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:248px"><?= $items ?></ul>
     </div>
@@ -299,7 +299,7 @@ function wydruki_dropdown_html(string $src_params, array $opts = []): string {
     <div class="dropdown d-inline-block">
       <button class="<?= h($btn_class) ?> dropdown-toggle" type="button"
               data-bs-toggle="dropdown" aria-expanded="false" title="Wydruki: koperty i dokumenty">
-        <i class="bi bi-printer"></i> <span class="d-none d-sm-inline"><?= h($label) ?></span>
+        <i class="bi bi-printer"></i> <span><?= h($label) ?></span>
       </button>
       <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:260px">
         <?php if ($env !== ''): ?>
