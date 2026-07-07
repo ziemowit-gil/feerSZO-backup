@@ -148,11 +148,35 @@ $_cvh_accent = match($_cvh_st['class']) {
         <i class="bi bi-lock-fill"></i> <span class="d-none d-sm-inline">Zablokowana</span>
       </span>
       <?php endif; ?>
-      <?php if (can_edit() && ($_cvh_type ?? '') === 'wolontariat'): ?>
-      <a href="<?= APP_URL ?>/contracts/wolontariat/renew.php?id=<?= (int)($_cvh_id ?? 0) ?>"
-         class="btn btn-sm btn-outline-success" title="Przedłuż porozumienie">
-        <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Przedłuż</span>
-      </a>
+      <?php
+        // ── Grupa "Umowa": akcje zmieniające cykl życia umowy (przedłużenie, rozwiązanie) ──
+        $_cvh_show_renew     = can_edit() && ($_cvh_type ?? '') === 'wolontariat';
+        $_cvh_show_terminate = can_edit() && ($_cvh_type ?? '') === 'wolontariat'
+            && empty($_pending_term) && defined('TERMINABLE_STATUSES') && in_array($_cvh_status, TERMINABLE_STATUSES);
+      ?>
+      <?php if ($_cvh_show_renew || $_cvh_show_terminate): ?>
+      <div class="dropdown d-inline-block">
+        <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false" title="Umowa — przedłużenie, rozwiązanie">
+          <i class="bi bi-arrow-repeat"></i> <span class="d-none d-sm-inline">Umowa</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <?php if ($_cvh_show_renew): ?>
+          <li>
+            <a class="dropdown-item" href="<?= APP_URL ?>/contracts/wolontariat/renew.php?id=<?= (int)($_cvh_id ?? 0) ?>">
+              <i class="bi bi-arrow-repeat me-2 text-success"></i>Przedłuż porozumienie
+            </a>
+          </li>
+          <?php endif; ?>
+          <?php if ($_cvh_show_terminate): ?>
+          <li>
+            <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#terminateModal">
+              <i class="bi bi-x-circle me-2 text-danger"></i>Rozwiąż umowę
+            </button>
+          </li>
+          <?php endif; ?>
+        </ul>
+      </div>
       <?php endif; ?>
 
       <?php if (($_cvh_type ?? '') === 'wolontariat'): ?>
@@ -242,22 +266,24 @@ $_cvh_accent = match($_cvh_st['class']) {
       </div>
       <?php endif; ?>
 
-      <?php if (can_edit() && ($_cvh_type ?? '') === 'wolontariat'): ?>
-      <?php if (empty($_pending_term) && defined('TERMINABLE_STATUSES') && in_array($_cvh_status, TERMINABLE_STATUSES)): ?>
-      <button type="button"
-              class="btn btn-sm btn-outline-danger"
-              data-bs-toggle="modal"
-              data-bs-target="#terminateModal"
-              title="Złóż wniosek o rozwiązanie umowy">
-        <i class="bi bi-x-circle"></i> <span class="d-none d-sm-inline">Rozwiąż</span>
-      </button>
-      <?php endif; ?>
-      <?php endif; ?>
       <?= contract_correction_button($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
+
       <?php if (!empty($_imp_target)): ?>
-      <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#impReqModal" title="Wejdź na konto tej osoby">
-        <i class="bi bi-incognito"></i> <span class="d-none d-sm-inline">Wejdź na konto</span>
-      </button>
+      <!-- ── Grupa "Administracja": akcje dostępne tylko dla admina, dot. tej konkretnej osoby ── -->
+      <div class="dropdown d-inline-block">
+        <button class="btn btn-sm btn-outline-danger dropdown-toggle" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false" title="Administracja">
+          <i class="bi bi-shield-lock"></i> <span class="d-none d-sm-inline">Administracja</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><h6 class="dropdown-header"><i class="bi bi-incognito me-1"></i>Dostęp do konta</h6></li>
+          <li>
+            <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#impReqModal">
+              <i class="bi bi-incognito me-2 text-danger"></i>Wejdź na konto tej osoby
+            </button>
+          </li>
+        </ul>
+      </div>
       <?php endif; ?>
       <?php $_cvh_src = 'contract_id=' . (int)($_cvh_id ?? 0) . '&type=' . rawurlencode((string)($_cvh_type ?? '')); ?>
       <?php if (($_cvh_type ?? '') !== 'wolontariat'): /* dla wolontariatu wydruki są w dropdownie „Dokumenty i wydruki" */ ?>
