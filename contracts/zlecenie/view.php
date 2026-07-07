@@ -479,18 +479,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
     </div>
 
     <?php if ($_imp_target): ?>
-    <!-- Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) -->
-    <div class="card shadow-sm mb-3 border-danger-subtle">
-    <div class="card-header fw-semibold"><i class="bi bi-incognito"></i> Dostęp do konta</div>
-    <div class="card-body">
-      <p class="text-muted small mb-2">Konto: <strong><?= h($_imp_target['name']) ?></strong> · <?= h($_imp_target['email']) ?></p>
-      <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#impReqModal">
-        <i class="bi bi-incognito me-1"></i>Wejdź na konto tej osoby
-      </button>
-      <p class="text-muted mt-2 mb-0" style="font-size:.78rem">Wymaga podania powodu i potwierdzenia kodem wysłanym do tej osoby SMS-em lub e-mailem.</p>
-    </div>
-    </div>
-
+    <!-- Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) — przycisk w górnym pasku akcji umowy (includes/contract_view_header.php) -->
     <!-- Modal: żądanie kodu -->
     <div class="modal fade" id="impReqModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog">

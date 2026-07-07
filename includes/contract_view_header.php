@@ -254,6 +254,11 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
       <?php endif; ?>
       <?= contract_correction_button($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
+      <?php if (!empty($_imp_target)): ?>
+      <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#impReqModal" title="Wejdź na konto tej osoby">
+        <i class="bi bi-incognito"></i> <span class="d-none d-sm-inline">Wejdź na konto</span>
+      </button>
+      <?php endif; ?>
       <?php $_cvh_src = 'contract_id=' . (int)($_cvh_id ?? 0) . '&type=' . rawurlencode((string)($_cvh_type ?? '')); ?>
       <?php if (($_cvh_type ?? '') !== 'wolontariat'): /* dla wolontariatu wydruki są w dropdownie „Dokumenty i wydruki" */ ?>
       <?= wydruki_dropdown_html($_cvh_src) ?>

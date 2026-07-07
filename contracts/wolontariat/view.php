@@ -1852,19 +1852,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   </div>
 
   <?php if ($_imp_target): ?>
-  <!-- Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) -->
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#FEF2F2;color:#DC2626"><i class="bi bi-incognito"></i></div>
-      <span class="cv-section-title">Dostęp do konta</span>
-    </div>
-    <p class="text-muted small mb-2">Konto: <strong><?= h($_imp_target['name']) ?></strong> · <?= h($_imp_target['email']) ?></p>
-    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#impReqModal">
-      <i class="bi bi-incognito me-1"></i>Wejdź na konto tej osoby
-    </button>
-    <p class="text-muted mt-2 mb-0" style="font-size:.78rem">Wymaga podania powodu i potwierdzenia kodem wysłanym do tej osoby SMS-em lub e-mailem.</p>
-  </div>
-
+  <!-- Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) — przycisk w górnym pasku akcji umowy (includes/contract_view_header.php) -->
   <!-- Modal: żądanie kodu -->
   <div class="modal fade" id="impReqModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
