@@ -247,6 +247,10 @@ body { background: #f8fafc; }
     color: <?= h($_sb_hover_text) ?> !important;
 }
 #navbar .navbar-nav .nav-link .badge { font-size: .58rem; margin-left: .2rem; }
+#navbar .navbar-nav .nb-ezd-link { color: #dc2626 !important; }
+#navbar .navbar-nav .nb-ezd-link:hover,
+#navbar .navbar-nav .nb-ezd-link.show,
+#navbar .navbar-nav .nb-ezd-link.active { background: rgba(220,38,38,.12) !important; color: #b91c1c !important; }
 
 /* Dropdowns */
 #navbar .dropdown-menu {
@@ -450,7 +454,7 @@ if ($_user) {
   <?php if (module_enabled('ezd_enabled')): ?>
   <?php $_ezd_dd_active = str_contains($_uri, '/ezd/'); ?>
   <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_ezd_dd_active ? ' active' : '' ?>"
+    <a class="nav-link dropdown-toggle nb-ezd-link<?= $_ezd_dd_active ? ' active' : '' ?>"
        href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
       <i class="bi bi-building-gear"></i> Wirtualne biurko
     </a>
@@ -538,8 +542,9 @@ if ($_user) {
   $_on_it       = str_contains($_uri, '/it/') || str_contains($_uri, '/tools/');
   $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/strategy/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/resources/') || str_contains($_uri,'/admin/shipments');
   $_on_rodo_nb  = str_contains($_uri, '/rodo/');
+  $_on_ezd_nb   = str_contains($_uri, '/ezd/');
   $_on_admin_nb = str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding');
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
 
   try { $_msg_unread_total = msg_unread_admin(); } catch(\Exception $e) { $_msg_unread_total = 0; }
   try { require_once __DIR__ . '/termination.php'; $_term_pending = get_pending_terminations_count(); } catch(\Throwable $e) { $_term_pending = 0; }
@@ -691,6 +696,26 @@ if ($_user) {
     </ul>
   </li>
 
+  <!-- Wirtualne biurko (EZD) -->
+  <?php if (module_enabled('ezd_enabled')): ?>
+  <li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle nb-ezd-link<?= $_on_ezd_nb ? ' active' : '' ?>"
+       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-building-gear"></i> Wirtualne biurko
+    </a>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php"><i class="bi bi-building-gear me-2"></i>Pulpit EZD</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/rpw/') ?>" href="<?= APP_URL ?>/ezd/rpw/index.php"><i class="bi bi-mailbox2 me-2"></i>Dziennik podawczy</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php"><i class="bi bi-folder2-open me-2"></i>Koszulki</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/teczki/') ?>" href="<?= APP_URL ?>/ezd/teczki/index.php"><i class="bi bi-archive me-2"></i>Segregatory aktowe</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/jrwa/') ?>" href="<?= APP_URL ?>/ezd/jrwa/index.php"><i class="bi bi-tags me-2"></i>Wykaz akt (JRWA)</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/pelnomocnictwa/') ?>" href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php"><i class="bi bi-person-vcard me-2"></i>Pełnomocnictwa</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php"><i class="bi bi-award me-2"></i>Zaświadczenia</a></li>
+      <li><a class="dropdown-item<?= _nav_active('/ezd/wolontariusze/') ?>" href="<?= APP_URL ?>/ezd/wolontariusze/index.php"><i class="bi bi-heart me-2"></i>Wolontariusze bez umowy</a></li>
+    </ul>
+  </li>
+  <?php endif; ?>
+
   <!-- RODO -->
   <li class="nav-item">
     <a class="nav-link<?= $_on_rodo_nb ? ' active' : '' ?>" href="<?= APP_URL ?>/rodo/index.php">
@@ -701,7 +726,7 @@ if ($_user) {
 
   <!-- Więcej -->
   <?php
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/ezd/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/');
   ?>
   <li class="nav-item dropdown">
     <a class="nav-link dropdown-toggle<?= $_wiecej_active ? ' active' : '' ?>"
@@ -754,12 +779,6 @@ if ($_user) {
       <li><a class="dropdown-item<?= _nav_active('/admin/org_documents') . _nav_active('/org_documents/') ?>" href="<?= APP_URL ?>/admin/org_documents.php"><i class="bi bi-folder2-open me-2"></i>Dokumenty organizacji</a></li>
       <?php endif; ?>
       <li><a class="dropdown-item<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php"><i class="bi bi-file-ruled me-2"></i>Uchwały</a></li>
-      <?php if (module_enabled('ezd_enabled')): ?>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header nb-section-label">Wirtualne biurko</h6></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php"><i class="bi bi-building-gear me-2"></i>Pulpit EZD</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php"><i class="bi bi-folder2-open me-2"></i>Koszulki</a></li>
-      <?php endif; ?>
       <?php if ((module_enabled('dostepnosc_ngo_enabled') && !is_viewer()) || (module_enabled('projekty_enabled') && !is_viewer())): ?>
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header nb-section-label">Formularze zewnętrzne</h6></li>
