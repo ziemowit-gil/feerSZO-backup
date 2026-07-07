@@ -11,23 +11,27 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_login();
 if (!can_edit()) { http_response_code(403); die('Brak uprawnień.'); }
 
-$f_q   = trim($_GET['q']   ?? '');
-$f_typ = trim($_GET['typ'] ?? '');
+$filters = [
+    'typ'     => trim($_GET['typ']     ?? ''),
+    'status'  => trim($_GET['status']  ?? ''),
+    'rok'     => trim($_GET['rok']     ?? ''),
+    'opiekun' => trim($_GET['opiekun'] ?? ''),
+    'data_od' => trim($_GET['data_od'] ?? ''),
+    'data_do' => trim($_GET['data_do'] ?? ''),
+    'q'       => trim($_GET['q']       ?? ''),
+];
+$rejestr = contracts_registry_filter(all_contracts_registry(), $filters);
 
-$rejestr = all_contracts_registry();
-
-if ($f_typ !== '') {
-    $rejestr = array_values(array_filter($rejestr, fn($r) => $r['contract_type'] === $f_typ));
-}
-if ($f_q !== '') {
-    $needle = mb_strtolower($f_q);
-    $rejestr = array_values(array_filter($rejestr, function ($r) use ($needle) {
-        return str_contains(mb_strtolower((string)$r['nr_rejestru']), $needle)
-            || str_contains(mb_strtolower((string)$r['numer_umowy']), $needle)
-            || str_contains(mb_strtolower((string)($r['strona'] ?? '')), $needle)
-            || str_contains(mb_strtolower((string)($r['opiekun'] ?? '')), $needle);
-    }));
-}
+// Opis aktywnych filtrów do nagłówka wydruku
+$filter_desc = array_filter([
+    $filters['typ']     !== '' ? 'Typ: ' . (CONTRACT_TYPES[$filters['typ']] ?? $filters['typ']) : '',
+    $filters['status']  !== '' ? 'Status: ' . (STATUS_LABELS[$filters['status']]['label'] ?? $filters['status']) : '',
+    $filters['rok']     !== '' ? 'Rok rejestru: ' . $filters['rok'] : '',
+    $filters['opiekun'] !== '' ? 'Opiekun: ' . $filters['opiekun'] : '',
+    ($filters['data_od'] !== '' || $filters['data_do'] !== '')
+        ? 'Zawarcie: ' . ($filters['data_od'] ?: '…') . ' – ' . ($filters['data_do'] ?: '…') : '',
+    $filters['q']       !== '' ? 'Szukano: „' . $filters['q'] . '"' : '',
+]);
 
 $org = defined('ORG_NAME') ? ORG_NAME : '';
 ?>
@@ -61,8 +65,7 @@ $org = defined('ORG_NAME') ? ORG_NAME : '';
 <h1><?= h($org) ?> — Rejestr umów (RU)</h1>
 <div class="meta">
   Wygenerowano: <?= date('d.m.Y H:i') ?> | Liczba pozycji: <?= count($rejestr) ?>
-  <?php if ($f_typ !== ''): ?> | Typ umowy: <?= h(CONTRACT_TYPES[$f_typ] ?? $f_typ) ?><?php endif; ?>
-  <?php if ($f_q !== ''): ?> | Filtr: „<?= h($f_q) ?>"<?php endif; ?>
+  <?php foreach ($filter_desc as $d): ?> | <?= h($d) ?><?php endforeach; ?>
 </div>
 
 <table>

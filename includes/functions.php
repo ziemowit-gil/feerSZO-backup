@@ -626,6 +626,48 @@ function all_contracts_registry(): array {
     return $rows;
 }
 
+/** Rok z numeru rejestru RU/{nr}/{rok}/{inicjały} — '' gdy format nie pasuje. */
+function registry_year(string $nr_rejestru): string {
+    $parts = explode('/', $nr_rejestru);
+    return preg_match('/^\d{4}$/', $parts[2] ?? '') ? $parts[2] : '';
+}
+
+/**
+ * Filtruje wpisy rejestru RU (wynik all_contracts_registry) po kryteriach:
+ * typ (slug typu umowy), status, rok (z numeru rejestru), opiekun (fragment),
+ * data_od/data_do (data zawarcia; wpisy bez daty odpadają gdy filtr ustawiony),
+ * q (szukanie w nr rejestru / nr umowy / stronie umowy / opiekunie).
+ * Wspólne dla przeglądania (contracts/rejestr.php) i wydruku (contracts/rejestr_print.php).
+ */
+function contracts_registry_filter(array $rows, array $f): array {
+    $typ     = trim($f['typ']     ?? '');
+    $status  = trim($f['status']  ?? '');
+    $rok     = trim($f['rok']     ?? '');
+    $opiekun = trim($f['opiekun'] ?? '');
+    $data_od = trim($f['data_od'] ?? '');
+    $data_do = trim($f['data_do'] ?? '');
+    $q       = trim($f['q']       ?? '');
+
+    if ($typ !== '')    $rows = array_filter($rows, fn($r) => $r['contract_type'] === $typ);
+    if ($status !== '') $rows = array_filter($rows, fn($r) => $r['status'] === $status);
+    if ($rok !== '')    $rows = array_filter($rows, fn($r) => registry_year((string)$r['nr_rejestru']) === $rok);
+    if ($opiekun !== '') {
+        $n = mb_strtolower($opiekun);
+        $rows = array_filter($rows, fn($r) => str_contains(mb_strtolower((string)($r['opiekun'] ?? '')), $n));
+    }
+    if ($data_od !== '') $rows = array_filter($rows, fn($r) => ($r['data_zawarcia'] ?? '') !== '' && $r['data_zawarcia'] >= $data_od);
+    if ($data_do !== '') $rows = array_filter($rows, fn($r) => ($r['data_zawarcia'] ?? '') !== '' && $r['data_zawarcia'] <= $data_do);
+    if ($q !== '') {
+        $n = mb_strtolower($q);
+        $rows = array_filter($rows, fn($r) =>
+               str_contains(mb_strtolower((string)$r['nr_rejestru']), $n)
+            || str_contains(mb_strtolower((string)$r['numer_umowy']), $n)
+            || str_contains(mb_strtolower((string)($r['strona'] ?? '')), $n)
+            || str_contains(mb_strtolower((string)($r['opiekun'] ?? '')), $n));
+    }
+    return array_values($rows);
+}
+
 /**
  * Weryfikuje, czy zapis (INSERT/UPDATE) faktycznie utrwalił dane w bazie.
  * Odczytuje rekord po zapisie i porównuje z wartościami, które miały być zapisane.
