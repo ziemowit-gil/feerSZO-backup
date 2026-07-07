@@ -537,7 +537,7 @@ if ($_user) {
   <?php else: ?>
   <!-- ══ WIDOK EDYTORA / ADMINA ════════════════════════════════ -->
   <?php
-  $_on_umowy    = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters') || str_contains($_uri,'/admin/terminations');
+  $_on_umowy    = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters') || str_contains($_uri,'/contracts/rejestr') || str_contains($_uri,'/admin/terminations');
   $_on_wol_main = str_contains($_uri,'/contracts/wolontariat/') || str_contains($_uri,'/contracts/rekrutacja/') || str_contains($_uri,'/onboarding/') || str_contains($_uri,'/admin/timesheets') || str_contains($_uri,'/admin/certificates');
   $_on_it       = str_contains($_uri, '/it/') || str_contains($_uri, '/tools/');
   $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/strategy/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/resources/') || str_contains($_uri,'/admin/shipments');
@@ -609,9 +609,9 @@ if ($_user) {
       <li><a class="dropdown-item<?= _nav_active("/contracts/$s/") ?>" href="<?= APP_URL ?>/contracts/<?= $s ?>/list.php"><i class="bi <?= $_ct_icon($s) ?> me-2"></i><?= h($_ct_label($s)) ?></a></li>
       <?php endforeach; endforeach; ?>
 
-      <?php if (module_enabled('approvals_enabled') || module_enabled('letters_enabled') || module_enabled('terminations_enabled')): ?>
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header nb-section-label">Obsługa umów</h6></li>
+      <li><a class="dropdown-item<?= _nav_active('/contracts/rejestr') ?>" href="<?= APP_URL ?>/contracts/rejestr.php"><i class="bi bi-journal-text me-2"></i>Rejestr umów (RU)</a></li>
       <?php if (module_enabled('approvals_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/contracts/approvals/') ?>" href="<?= APP_URL ?>/contracts/approvals/index.php"><i class="bi bi-check2-square me-2"></i>Akceptacje<?php if ($_pending): ?><span class="badge bg-warning text-dark ms-2"><?= $_pending ?></span><?php endif; ?></a></li>
       <?php endif; ?>
@@ -620,7 +620,6 @@ if ($_user) {
       <?php endif; ?>
       <?php if (module_enabled('terminations_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php"><i class="bi bi-file-earmark-x me-2"></i>Rozwiązania<?php if ($_term_pending): ?><span class="badge bg-danger ms-2"><?= $_term_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
       <?php endif; ?>
     </ul>
   </li>

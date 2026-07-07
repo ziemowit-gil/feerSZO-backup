@@ -588,6 +588,44 @@ function assign_nr_rejestru(array &$data): void {
     }
 }
 
+// Kolumny per typ umowy potrzebne do zbudowania wpisu w rejestrze RU — nazwa "strony umowy"
+// i opiekuna różnią się między tabelami (np. umowy_praca ma opiekun_przelozony, nie opiekun).
+const CONTRACT_REGISTRY_FIELDS = [
+    'zlecenie'    => ['name_col' => 'imie_nazwisko',   'opiekun_col' => 'opiekun'],
+    'uslugi'      => ['name_col' => 'nazwa_wykonawcy', 'opiekun_col' => 'opiekun'],
+    'wolontariat' => ['name_col' => 'imie_nazwisko',   'opiekun_col' => 'opiekun'],
+    'dzielo'      => ['name_col' => 'imie_nazwisko',   'opiekun_col' => 'opiekun'],
+    'praca'       => ['name_col' => 'imie_nazwisko',   'opiekun_col' => 'opiekun_przelozony'],
+    'powierzenie' => ['name_col' => 'nazwa_zadania',   'opiekun_col' => 'opiekun'],
+    'inne'        => ['name_col' => 'strona_umowy',    'opiekun_col' => 'opiekun'],
+];
+
+/**
+ * Rejestr Umów (RU) — wszystkie umowy z przydzielonym numerem rejestru (nr_rejestru),
+ * ze wszystkich typów, w kolejności rejestru. Umowy techniczne/bez numeru są wykluczone
+ * (patrz komentarz przy assign_nr_rejestru — numeracja jest globalna, nie per rok, więc
+ * sortowanie po samym stringu nr_rejestru zachowuje kolejność chronologiczną).
+ */
+function all_contracts_registry(): array {
+    $rows = [];
+    foreach (CONTRACT_TYPES as $slug => $label) {
+        $table  = table_for_type($slug);
+        $fields = CONTRACT_REGISTRY_FIELDS[$slug] ?? ['name_col' => 'numer_umowy', 'opiekun_col' => 'opiekun'];
+        try {
+            $r = db_all(
+                "SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia,
+                        {$fields['name_col']} AS strona, {$fields['opiekun_col']} AS opiekun
+                 FROM {$table} WHERE nr_rejestru IS NOT NULL AND nr_rejestru != ''"
+            );
+        } catch (\Throwable $e) { continue; }
+        foreach ($r as &$row) { $row['contract_type'] = $slug; $row['contract_type_label'] = $label; }
+        unset($row);
+        $rows = array_merge($rows, $r);
+    }
+    usort($rows, fn($a, $b) => strcmp($a['nr_rejestru'], $b['nr_rejestru']));
+    return $rows;
+}
+
 /**
  * Weryfikuje, czy zapis (INSERT/UPDATE) faktycznie utrwalił dane w bazie.
  * Odczytuje rekord po zapisie i porównuje z wartościami, które miały być zapisane.
