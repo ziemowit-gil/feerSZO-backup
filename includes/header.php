@@ -1523,6 +1523,7 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
 
 <?php require_once __DIR__ . '/bug_report_widget.php'; ?>
 <?php require_once __DIR__ . '/welcome_notice.php'; ?>
+<?php require_once __DIR__ . '/mobywatel_notice.php'; ?>
 
 
   <div id="content">
