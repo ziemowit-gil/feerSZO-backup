@@ -151,12 +151,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $su_id = (int)($_POST['share_user_id'] ?? 0);
         $su_upr = $_POST['share_uprawnienie'] ?? 'odczyt';
         if ($su_id) { ezd_sprawa_share_add($id, $su_id, $su_upr, $user_id); flash_set('success', 'Sprawa udostępniona.'); }
-        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#wspoldzielenie'); exit;
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '&share=1'); exit;
     }
     if ($action === 'share_del' && $can_manage_share) {
         ezd_sprawa_share_remove($id, (int)($_POST['share_user_id'] ?? 0), $user_id);
         flash_set('success', 'Odebrano współdzielenie.');
-        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '#wspoldzielenie'); exit;
+        header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id . '&share=1'); exit;
     }
 
     if ($action === 'dekretacja' && $can_act) {
@@ -358,6 +358,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <i class="bi bi-sticky me-1"></i>Notatki
               <?php if($notatki): ?><span class="badge rounded-pill bg-secondary ms-1"><?= count($notatki) ?></span><?php endif; ?>
             </button>
+            <?php if($can_manage_share || $shares): ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#shareModal" title="Współdzielenie koszulki">
+              <i class="bi bi-people me-1"></i>Współdzielenie
+              <?php if($shares): ?><span class="badge rounded-pill bg-secondary ms-1"><?= count($shares) ?></span><?php endif; ?>
+            </button>
+            <?php endif; ?>
             <?php if($can_act): ?>
             <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal">
               <i class="bi bi-envelope-plus me-1"></i>Pismo
@@ -790,47 +796,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
 
-    <!-- Współdzielenie sprawy -->
-    <div class="bc" id="wspoldzielenie">
-      <div class="bc-h"><i class="bi bi-people"></i>Współdzielone z<?= $shares ? ' ('.count($shares).')' : '' ?></div>
-      <div class="bc-b">
-        <?php foreach($shares as $sh): ?>
-        <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.8rem">
-          <i class="bi bi-person-circle text-muted"></i>
-          <div class="flex-grow-1">
-            <div class="fw-semibold"><?= h($sh['user_name']) ?></div>
-            <div class="text-muted" style="font-size:.7rem"><?= h(EZD_SPRAWA_UPRAWNIENIA[$sh['uprawnienie']] ?? $sh['uprawnienie']) ?></div>
-          </div>
-          <?php if($can_manage_share): ?>
-          <form method="post" onsubmit="return confirm('Odebrać dostęp?')">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="share_del">
-            <input type="hidden" name="share_user_id" value="<?= (int)$sh['user_id'] ?>">
-            <button class="btn btn-xs btn-link p-0 text-danger" title="Odbierz dostęp"><i class="bi bi-x-circle"></i></button>
-          </form>
-          <?php endif; ?>
-        </div>
-        <?php endforeach; ?>
-        <?php if(!$shares): ?>
-        <div class="text-muted text-center mb-2" style="font-size:.78rem">Koszulka nie jest współdzielona z dodatkowymi osobami.</div>
-        <?php endif; ?>
-        <?php if($can_manage_share): ?>
-        <form method="post" class="d-flex flex-column gap-2 mt-2 pt-2 border-top">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="share_add">
-          <select name="share_user_id" class="form-select form-select-sm" required>
-            <option value="">— wybierz osobę —</option>
-            <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
-          </select>
-          <select name="share_uprawnienie" class="form-select form-select-sm">
-            <?php foreach(EZD_SPRAWA_UPRAWNIENIA as $uv=>$ul): ?><option value="<?= $uv ?>"><?= h($ul) ?></option><?php endforeach; ?>
-          </select>
-          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-plus me-1"></i>Udostępnij</button>
-        </form>
-        <?php endif; ?>
-      </div>
-    </div>
-
     <!-- Szybkie akcje -->
     <?php if($can_edit_case): ?>
     <div class="bc">
@@ -1229,6 +1194,72 @@ function dekrUnitChange(sel) {
 }
 </script>
 <?php endif; ?>
+<?php endif; ?>
+
+<!-- ── Modal: współdzielenie koszulki ─────────────────────────────────────── -->
+<?php if($can_manage_share || $shares): ?>
+<div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 mb-0" id="shareModalLabel"><i class="bi bi-people text-primary me-2" aria-hidden="true"></i>Współdzielenie koszulki</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Osoby, którym udostępniono tę koszulkę poza właścicielem i rolami z dostępem do modułu.</p>
+
+        <?php if($shares): ?>
+        <ul class="list-group list-group-flush mb-3">
+          <?php foreach($shares as $sh): ?>
+          <li class="list-group-item d-flex align-items-center gap-2 px-0">
+            <i class="bi bi-person-circle text-muted"></i>
+            <div class="flex-grow-1">
+              <div class="fw-semibold" style="font-size:.85rem"><?= h($sh['user_name']) ?></div>
+              <div class="text-muted" style="font-size:.72rem"><?= h(EZD_SPRAWA_UPRAWNIENIA[$sh['uprawnienie']] ?? $sh['uprawnienie']) ?></div>
+            </div>
+            <?php if($can_manage_share): ?>
+            <form method="post" onsubmit="return confirm('Odebrać dostęp?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="share_del">
+              <input type="hidden" name="share_user_id" value="<?= (int)$sh['user_id'] ?>">
+              <button class="btn btn-sm btn-link p-0 text-danger" title="Odbierz dostęp"><i class="bi bi-x-circle"></i></button>
+            </form>
+            <?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+        <?php else: ?>
+        <div class="text-muted text-center py-3" style="font-size:.82rem">Koszulka nie jest współdzielona z dodatkowymi osobami.</div>
+        <?php endif; ?>
+
+        <?php if($can_manage_share): ?>
+        <form method="post" class="d-flex flex-column gap-2 pt-3 border-top">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="share_add">
+          <label class="form-label fw-semibold mb-0" style="font-size:.8rem">Udostępnij nowej osobie</label>
+          <select name="share_user_id" class="form-select form-select-sm" required>
+            <option value="">— wybierz osobę —</option>
+            <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+          </select>
+          <select name="share_uprawnienie" class="form-select form-select-sm">
+            <?php foreach(EZD_SPRAWA_UPRAWNIENIA as $uv=>$ul): ?><option value="<?= $uv ?>"><?= h($ul) ?></option><?php endforeach; ?>
+          </select>
+          <button class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1"></i>Udostępnij</button>
+        </form>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  // Po dodaniu/odebraniu współdzielenia (redirect ?share=1) otwórz modal ponownie.
+  if (new URLSearchParams(location.search).get('share') === '1') {
+    var el = document.getElementById('shareModal');
+    if (el && window.bootstrap) { try { new bootstrap.Modal(el).show(); } catch(e){} }
+  }
+})();
+</script>
 <?php endif; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

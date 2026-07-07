@@ -82,6 +82,11 @@ try {
     }
 } catch (\Throwable $e) {}
 
+// Dane do eDoręczeń (konfigurowalne przez settings; domyślne wartości FEER)
+$ede_ade   = org_setting('ezd_ede_ade')   ?: 'AE:PL-70366-85524-UJBAB-23';
+$ede_email = org_setting('ezd_ede_email') ?: 'fundacja@feer.org.pl';
+$ede_phone = org_setting('ezd_ede_phone') ?: '601 350 487';
+
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <style>
@@ -202,6 +207,12 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
     Rejestry
   </a>
+  <a href="#" class="ezd-launcher-tile" data-bs-toggle="modal" data-bs-target="#ezdEDoreczeniaModal">
+    <div class="ezd-launcher-icon bg-primary bg-opacity-10">
+      <i class="bi bi-envelope-paper text-primary"></i>
+    </div>
+    eDoręczenia
+  </a>
 </div>
 
 <!-- Modal: Rejestry -->
@@ -226,6 +237,89 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
 </div>
+
+<!-- Modal: eDoręczenia -->
+<div class="modal fade" id="ezdEDoreczeniaModal" tabindex="-1" aria-labelledby="ezdEDoreczeniaModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 mb-0" id="ezdEDoreczeniaModalLabel"><i class="bi bi-envelope-paper text-primary me-2" aria-hidden="true"></i>eDoręczenia</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Dane fundacji do korespondencji przez eDoręczenia. Użyj „Podpowiedz dane", aby skopiować komplet do schowka.</p>
+
+        <div class="list-group mb-3" id="edeFields">
+          <div class="list-group-item d-flex align-items-center gap-2">
+            <div class="flex-grow-1">
+              <div class="text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.03em">Adres do doręczeń elektronicznych (ADE)</div>
+              <div class="fw-semibold font-monospace" data-ede-copy><?= h($ede_ade) ?></div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary ede-copy-btn" data-ede-value="<?= h($ede_ade) ?>" title="Kopiuj adres ADE"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <div class="list-group-item d-flex align-items-center gap-2">
+            <div class="flex-grow-1">
+              <div class="text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.03em">Ogólny adres e-mail</div>
+              <div class="fw-semibold" data-ede-copy><?= h($ede_email) ?></div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary ede-copy-btn" data-ede-value="<?= h($ede_email) ?>" title="Kopiuj e-mail"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <div class="list-group-item d-flex align-items-center gap-2">
+            <div class="flex-grow-1">
+              <div class="text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.03em">Telefon</div>
+              <div class="fw-semibold" data-ede-copy><?= h($ede_phone) ?></div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary ede-copy-btn" data-ede-value="<?= h($ede_phone) ?>" title="Kopiuj telefon"><i class="bi bi-clipboard"></i></button>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-primary btn-sm" id="edeHintBtn"
+                  data-ede-all="Adres do doręczeń (ADE): <?= h($ede_ade) ?>&#10;E-mail: <?= h($ede_email) ?>&#10;Telefon: <?= h($ede_phone) ?>">
+            <i class="bi bi-magic me-1"></i>Podpowiedz dane
+          </button>
+          <a href="https://app.edopost.pl/login" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Zaloguj do eDoPost
+          </a>
+          <span id="edeCopyStatus" class="align-self-center text-success small d-none"><i class="bi bi-check-circle me-1"></i>Skopiowano do schowka</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var modal = document.getElementById('ezdEDoreczeniaModal');
+  if (!modal) return;
+  var status = document.getElementById('edeCopyStatus');
+  function flash(){
+    if (!status) return;
+    status.classList.remove('d-none');
+    clearTimeout(flash._t);
+    flash._t = setTimeout(function(){ status.classList.add('d-none'); }, 2000);
+  }
+  function copy(text){
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(flash, fallback);
+    } else { fallback(); }
+    function fallback(){
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); flash(); } catch(e){}
+      document.body.removeChild(ta);
+    }
+  }
+  modal.querySelectorAll('.ede-copy-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ copy(btn.getAttribute('data-ede-value') || ''); });
+  });
+  var hint = document.getElementById('edeHintBtn');
+  if (hint) hint.addEventListener('click', function(){
+    copy((hint.getAttribute('data-ede-all') || '').replace(/&#10;/g, '\n'));
+  });
+})();
+</script>
 
 <!-- Statystyki -->
 <div class="row g-3 mb-4">
