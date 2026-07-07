@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     cron \
     msmtp \
+    qpdf \
     && rm -rf /var/lib/apt/lists/*
 
 # Rozszerzenia PHP (SQLite + MySQL + extras)

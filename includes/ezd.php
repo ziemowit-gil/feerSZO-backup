@@ -2644,6 +2644,62 @@ function ezd_convert_to_pdf(int $zal_id, int $user_id): array {
  * @param string $files_field nazwa pola $_FILES z tablicą plików (np. <input name="files[]" multiple>)
  * @return array{ok:bool,error:?string,id:?int}
  */
+/** Ścieżka do binarki qpdf (jeśli dostępna na serwerze) — cache na czas żądania. */
+function _ezd_qpdf_bin(): ?string {
+    static $bin = false;
+    if ($bin !== false) return $bin;
+    $bin = null;
+    if (function_exists('exec')) {
+        $out = []; $rc = 1;
+        @exec('command -v qpdf 2>/dev/null', $out, $rc);
+        if ($rc === 0 && !empty($out[0])) $bin = trim($out[0]);
+    }
+    return $bin;
+}
+
+/**
+ * Scala pliki PDF (ścieżki na dysku, w podanej kolejności) w jeden plik $out.
+ * Preferuje qpdf — obsługuje KAŻDĄ wersję PDF, w tym skompresowany cross-reference
+ * (PDF 1.5+, jaki generują Word/Excel/Chrome/LibreOffice „zapisz jako PDF").
+ * Gdy qpdf niedostępny, używa FPDI (tylko PDF ≤1.4) i rzuca czytelny komunikat,
+ * jeśli natrafi na nowoczesną kompresję.
+ * @throws \RuntimeException
+ */
+function ezd_merge_pdf_files(array $paths, string $out): void {
+    $paths = array_values(array_filter($paths, 'is_file'));
+    if (count($paths) < 2) throw new \RuntimeException('Za mało dostępnych plików PDF do scalenia.');
+
+    $qpdf = _ezd_qpdf_bin();
+    if ($qpdf) {
+        $args = implode(' ', array_map('escapeshellarg', $paths));
+        $cmd  = escapeshellarg($qpdf) . ' --warning-exit-0 --empty --pages ' . $args . ' -- ' . escapeshellarg($out) . ' 2>&1';
+        $o = []; $rc = 1; @exec($cmd, $o, $rc);
+        if ($rc === 0 && is_file($out) && filesize($out) > 0) return;
+        // qpdf zawiódł (np. plik zaszyfrowany) — spróbuj jeszcze FPDI poniżej.
+        if (is_file($out)) @unlink($out);
+    }
+
+    require_once dirname(__DIR__) . '/includes/fpdf/fpdf.php';
+    require_once dirname(__DIR__) . '/includes/fpdi/autoload_fpdi.php';
+    $pdf = new \setasign\Fpdi\Fpdi();
+    foreach ($paths as $path) {
+        try {
+            $cnt = $pdf->setSourceFile($path);
+            for ($p = 1; $p <= $cnt; $p++) {
+                $tpl = $pdf->importPage($p);
+                $sz  = $pdf->getTemplateSize($tpl);
+                $pdf->AddPage($sz['width'] > $sz['height'] ? 'L' : 'P', [$sz['width'], $sz['height']]);
+                $pdf->useTemplate($tpl);
+            }
+        } catch (\setasign\Fpdi\PdfParser\CrossReference\CrossReferenceException $e) {
+            throw new \RuntimeException('Plik „' . basename($path) . '" używa nowoczesnej kompresji PDF (1.5+), której nie obsługuje wbudowany parser. Na serwerze potrzebny jest qpdf (dodany do obrazu Docker) — po wdrożeniu aktualizacji scalanie zadziała dla wszystkich plików.');
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Nie udało się odczytać pliku „' . basename($path) . '": ' . $e->getMessage());
+        }
+    }
+    $pdf->Output('F', $out);
+}
+
 function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?string $custom_name = null, ?int $grupa_id = null): array {
     $f = $_FILES[$files_field] ?? null;
     if (!$f || empty($f['name']) || !is_array($f['name'])) {
@@ -2723,33 +2779,19 @@ function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?s
 
     if (count($merge_ids) < 2) { $cleanup($created); return ['ok' => false, 'error' => 'Wybierz co najmniej 2 pliki do połączenia.', 'id' => null]; }
 
-    // ── Scalanie stron PDF (FPDI) ────────────────────────────────────────────
-    require_once dirname(__DIR__) . '/includes/fpdf/fpdf.php';
-    require_once dirname(__DIR__) . '/includes/fpdi/autoload_fpdi.php';
-    $pdf = new \setasign\Fpdi\Fpdi();
-    try {
-        foreach ($merge_ids as $mid) {
-            $mz   = ezd_zal_get($mid);
-            $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $mz['sprawa_id'] . '/' . $mz['filename'];
-            if (!is_file($path)) throw new \RuntimeException('Plik "' . $mz['original_name'] . '" nie jest dostępny na dysku.');
-            $pageCount = $pdf->setSourceFile($path);
-            for ($p = 1; $p <= $pageCount; $p++) {
-                $tpl  = $pdf->importPage($p);
-                $size = $pdf->getTemplateSize($tpl);
-                $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
-                $pdf->useTemplate($tpl);
-            }
-        }
-    } catch (\Throwable $e) {
-        $cleanup($created);
-        return ['ok' => false, 'error' => 'Nie udało się połączyć plików w PDF: ' . $e->getMessage(), 'id' => null];
+    // Ścieżki plików PDF do scalenia (w kolejności wgrania)
+    $merge_paths = [];
+    foreach ($merge_ids as $mid) {
+        $mz = ezd_zal_get($mid);
+        if (!$mz) continue;
+        $merge_paths[] = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $mz['sprawa_id'] . '/' . $mz['filename'];
     }
 
-    // ── Zapis wynikowego PDF jako nowy załącznik repozytorium ────────────────
+    // ── Nazwa i miejsce docelowe ─────────────────────────────────────────────
     $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $stored  = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
-    $content = $pdf->Output('S');
+    $dest    = $dir . $stored;
 
     $final_name = trim((string)$custom_name);
     if ($final_name !== '') {
@@ -2760,7 +2802,16 @@ function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?s
     }
     if ($final_name === '') $final_name = 'Spinacz_' . date('Y-m-d_His') . '.pdf';
 
-    if (file_put_contents($dir . $stored, $content) === false) {
+    // ── Scalanie (qpdf → FPDI) prosto do pliku ───────────────────────────────
+    try {
+        ezd_merge_pdf_files($merge_paths, $dest);
+    } catch (\Throwable $e) {
+        if (is_file($dest)) @unlink($dest);
+        $cleanup($created);
+        return ['ok' => false, 'error' => 'Nie udało się połączyć plików w PDF: ' . $e->getMessage(), 'id' => null];
+    }
+    if (!is_file($dest) || filesize($dest) === 0) {
+        if (is_file($dest)) @unlink($dest);
         $cleanup($created);
         return ['ok' => false, 'error' => 'Nie udało się zapisać scalonego pliku PDF.', 'id' => null];
     }
@@ -2768,7 +2819,7 @@ function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?s
     db()->prepare(
         "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$sprawa_id, null, null, null, $grupa_id ?: null, $stored, $final_name, 'application/pdf', strlen($content), 1, null, $user_id]);
+    )->execute([$sprawa_id, null, null, null, $grupa_id ?: null, $stored, $final_name, 'application/pdf', filesize($dest), 1, null, $user_id]);
     $merged_id = (int)db()->lastInsertId();
 
     ezd_log(null, $sprawa_id, null, null, $user_id, 'spinacz',
