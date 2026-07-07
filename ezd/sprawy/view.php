@@ -479,6 +479,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <li><a class="dropdown-item ezd-new-office-file" href="#" data-type="xlsx" data-bs-toggle="modal" data-bs-target="#newOfficeFileModal"><i class="bi bi-file-earmark-excel text-success me-2"></i>Excel (.xlsx)</a></li>
             </ul>
           </div>
+          <a href="<?= APP_URL ?>/ezd/sprawy/spinacz.php?sprawa_id=<?= $id ?>" class="btn btn-xs btn-outline-info btn-sm" title="Połącz kilka plików w jeden PDF"><i class="bi bi-paperclip me-1"></i>Spinacz</a>
           <button class="btn btn-xs btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
           <?php if($zalaczniki): ?>
           <button class="btn btn-xs btn-outline-warning btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#przekazDokModal"><i class="bi bi-send-check me-1"></i>Przekaż dokumenty</button>

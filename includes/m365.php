@@ -7,6 +7,7 @@ class M365Graph {
     private string $token = '';
     private int    $token_expires = 0;
     private int    $last_status = 0;
+    private ?array $last_error  = null;
 
     public function __construct(array $creds = []) {
         $this->tenant_id     = $creds['tenant_id']     ?? m365_setting('m365_tenant_id') ?: MS_TENANT_ID;
@@ -472,7 +473,9 @@ class M365Graph {
         ]]);
         $resp = @file_get_contents($url, false, $ctx);
         $this->capture_status($http_response_header ?? []);
-        return json_decode($resp ?: '{}', true) ?? [];
+        $decoded = json_decode($resp ?: '{}', true) ?? [];
+        $this->capture_error($decoded);
+        return $decoded;
     }
 
     private function http_post(string $url, array $data, string $type = 'json'): array {
@@ -491,7 +494,9 @@ class M365Graph {
         ]]);
         $resp = @file_get_contents($url, false, $ctx);
         $this->capture_status($http_response_header ?? []);
-        return json_decode($resp ?: '{}', true) ?? [];
+        $decoded = json_decode($resp ?: '{}', true) ?? [];
+        $this->capture_error($decoded);
+        return $decoded;
     }
 
     private function http_patch(string $url, array $data): void {
@@ -516,6 +521,16 @@ class M365Graph {
     /** Status HTTP ostatniego wywołania Graph (0 = nieznany/brak wywołania). */
     public function last_status(): int {
         return $this->last_status;
+    }
+
+    /** Zapamiętuje treść błędu Graph API z ostatniej odpowiedzi (jeśli wystąpił). */
+    private function capture_error(array $decoded): void {
+        $this->last_error = $decoded['error'] ?? null;
+    }
+
+    /** Treść błędu Graph API ostatniego wywołania (null = brak błędu/nieznany). */
+    public function last_error(): ?array {
+        return $this->last_error;
     }
 
     /**
@@ -718,6 +733,17 @@ class M365Graph {
             throw new \RuntimeException('Nie udało się pobrać wersji PDF z SharePoint.');
         }
         return $data;
+    }
+
+    /** Usuwa plik z SharePoint (best-effort — do porządkowania tymczasowych elementów, np. po konwersji „Spinacz"). */
+    public function sp_delete_item(string $drive_id, string $item_id): void {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'DELETE',
+            'header'        => "Authorization: Bearer {$this->token()}\r\n",
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents("https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/{$item_id}", false, $ctx);
+        $this->capture_status($http_response_header ?? []);
     }
 
     private function sp_upload_large(string $session_url, string $local_path, int $size): array {

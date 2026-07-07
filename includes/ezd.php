@@ -2582,6 +2582,155 @@ function ezd_convert_to_pdf(int $zal_id, int $user_id): array {
     return ['ok' => true, 'error' => null, 'id' => $new_id];
 }
 
+/**
+ * "Spinacz" — łączy 2+ wgranych plików (Word/Excel są najpierw konwertowane na PDF
+ * przez SharePoint/Graph) w JEDEN plik PDF i dodaje go do repozytorium koszulki.
+ * Pliki wejściowe i pośrednie konwersje są tworzone jako tymczasowe załączniki na
+ * czas operacji (żeby odtworzyć istniejące ścieżki uploadu/konwersji), a po scaleniu
+ * usuwane — w koszulce zostaje tylko wynikowy PDF. Cała operacja jest atomowa: błąd
+ * na którymkolwiek etapie usuwa wszystko, co powstało do tego momentu.
+ * @param string $files_field nazwa pola $_FILES z tablicą plików (np. <input name="files[]" multiple>)
+ * @return array{ok:bool,error:?string,id:?int}
+ */
+function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?string $custom_name = null, ?int $grupa_id = null): array {
+    $f = $_FILES[$files_field] ?? null;
+    if (!$f || empty($f['name']) || !is_array($f['name'])) {
+        return ['ok' => false, 'error' => 'Nie wybrano plików.', 'id' => null];
+    }
+
+    $allowed  = array_merge(['pdf'], EZD_PDF_CONVERTIBLE_EXT);
+    $n_files  = 0;
+    $need_convert = false;
+    foreach ($f['error'] as $i => $err) {
+        if ($err === UPLOAD_ERR_NO_FILE) continue;
+        $n_files++;
+        $ext = strtolower(pathinfo($f['name'][$i], PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowed, true)) {
+            return ['ok' => false, 'error' => 'Niedozwolony format pliku: ' . $f['name'][$i] . ' (Spinacz przyjmuje PDF, DOC, DOCX, XLS, XLSX).', 'id' => null];
+        }
+        if (in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true)) $need_convert = true;
+    }
+    if ($n_files < 2) return ['ok' => false, 'error' => 'Wybierz co najmniej 2 pliki do połączenia.', 'id' => null];
+
+    require_once __DIR__ . '/m365.php';
+    if ($need_convert && (m365_setting('sp_enabled') !== '1' || !(new M365Graph())->is_configured())) {
+        return ['ok' => false, 'error' => 'Konwersja plików Word/Excel na PDF wymaga włączonej integracji z SharePoint (Admin → SharePoint).', 'id' => null];
+    }
+
+    // Usuwa tymczasowy załącznik (plik + wpis, bez logowania każdego z osobna — patrz jeden zbiorczy wpis niżej)
+    // i best-effort usuwa też jego kopię z SharePoint, jeśli została zsynchronizowana.
+    $cleanup = function (array $ids): void {
+        foreach ($ids as $zid) {
+            $z = ezd_zal_get($zid);
+            if (!$z) continue;
+            if (!empty($z['sp_drive_id']) && !empty($z['sp_item_id'])) {
+                try { (new M365Graph())->sp_delete_item($z['sp_drive_id'], $z['sp_item_id']); } catch (\Throwable $e) {}
+            }
+            $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $z['sprawa_id'] . '/' . $z['filename'];
+            if (is_file($path)) @unlink($path);
+            db()->prepare("DELETE FROM ezd_zalaczniki WHERE id=?")->execute([$zid]);
+        }
+    };
+
+    $created   = []; // wszystkie tymczasowe załączniki (oryginały + konwersje PDF) — do usunięcia na końcu
+    $merge_ids = []; // id załączników PDF do scalenia, w kolejności wgrania
+    $names     = [];
+
+    foreach ($f['error'] as $i => $err) {
+        if ($err === UPLOAD_ERR_NO_FILE) continue;
+        if ($err !== UPLOAD_ERR_OK) {
+            $cleanup($created);
+            return ['ok' => false, 'error' => 'Błąd przesyłania pliku: ' . $f['name'][$i], 'id' => null];
+        }
+
+        $ext = strtolower(pathinfo($f['name'][$i], PATHINFO_EXTENSION));
+
+        $_FILES['_spinacz_tmp'] = [
+            'name' => $f['name'][$i], 'type' => $f['type'][$i] ?? '',
+            'tmp_name' => $f['tmp_name'][$i], 'error' => $f['error'][$i], 'size' => $f['size'][$i],
+        ];
+        $orig_id = null;
+        $err_msg = ezd_upload('_spinacz_tmp', $sprawa_id, $user_id, null, null, null, null, null, null, $orig_id);
+        unset($_FILES['_spinacz_tmp']);
+        if ($err_msg) { $cleanup($created); return ['ok' => false, 'error' => $err_msg, 'id' => null]; }
+        $created[] = $orig_id;
+        $names[]   = $f['name'][$i];
+
+        if (in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true)) {
+            $conv = ezd_convert_to_pdf($orig_id, $user_id);
+            if (!$conv['ok']) {
+                $cleanup($created);
+                return ['ok' => false, 'error' => 'Nie udało się przekonwertować pliku ' . $f['name'][$i] . ' na PDF: ' . $conv['error'], 'id' => null];
+            }
+            $created[]   = $conv['id'];
+            $merge_ids[] = $conv['id'];
+        } else {
+            $merge_ids[] = $orig_id;
+        }
+    }
+
+    if (count($merge_ids) < 2) { $cleanup($created); return ['ok' => false, 'error' => 'Wybierz co najmniej 2 pliki do połączenia.', 'id' => null]; }
+
+    // ── Scalanie stron PDF (FPDI) ────────────────────────────────────────────
+    require_once dirname(__DIR__) . '/includes/fpdf/fpdf.php';
+    require_once dirname(__DIR__) . '/includes/fpdi/autoload_fpdi.php';
+    $pdf = new \setasign\Fpdi\Fpdi();
+    try {
+        foreach ($merge_ids as $mid) {
+            $mz   = ezd_zal_get($mid);
+            $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $mz['sprawa_id'] . '/' . $mz['filename'];
+            if (!is_file($path)) throw new \RuntimeException('Plik "' . $mz['original_name'] . '" nie jest dostępny na dysku.');
+            $pageCount = $pdf->setSourceFile($path);
+            for ($p = 1; $p <= $pageCount; $p++) {
+                $tpl  = $pdf->importPage($p);
+                $size = $pdf->getTemplateSize($tpl);
+                $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
+                $pdf->useTemplate($tpl);
+            }
+        }
+    } catch (\Throwable $e) {
+        $cleanup($created);
+        return ['ok' => false, 'error' => 'Nie udało się połączyć plików w PDF: ' . $e->getMessage(), 'id' => null];
+    }
+
+    // ── Zapis wynikowego PDF jako nowy załącznik repozytorium ────────────────
+    $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $stored  = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
+    $content = $pdf->Output('S');
+
+    $final_name = trim((string)$custom_name);
+    if ($final_name !== '') {
+        $final_name = str_replace(['/', '\\', "\0"], '', $final_name);
+        $final_name = trim(preg_replace('/\s+/', ' ', $final_name));
+        if (strtolower(pathinfo($final_name, PATHINFO_EXTENSION)) !== 'pdf') $final_name .= '.pdf';
+        $final_name = mb_substr($final_name, 0, 255);
+    }
+    if ($final_name === '') $final_name = 'Spinacz_' . date('Y-m-d_His') . '.pdf';
+
+    if (file_put_contents($dir . $stored, $content) === false) {
+        $cleanup($created);
+        return ['ok' => false, 'error' => 'Nie udało się zapisać scalonego pliku PDF.', 'id' => null];
+    }
+
+    db()->prepare(
+        "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$sprawa_id, null, null, null, $grupa_id ?: null, $stored, $final_name, 'application/pdf', strlen($content), 1, null, $user_id]);
+    $merged_id = (int)db()->lastInsertId();
+
+    ezd_log(null, $sprawa_id, null, null, $user_id, 'spinacz',
+        'Spinacz: połączono ' . count($merge_ids) . ' plik(ów) w „' . $final_name . '": ' . implode(', ', $names));
+
+    // Porządki — usuń tymczasowe oryginały i pośrednie konwersje (patrz $cleanup powyżej).
+    $cleanup($created);
+
+    // Synchronizacja wynikowego PDF z SharePoint w tle — błąd nie blokuje operacji.
+    try { ezd_sp_sync_attachment($merged_id); } catch (\Throwable $e) {}
+
+    return ['ok' => true, 'error' => null, 'id' => $merged_id];
+}
+
 function ezd_zal_delete(int $id, int $user_id): void {
     $z = ezd_zal_get($id);
     if (!$z) return;
