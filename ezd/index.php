@@ -65,25 +65,58 @@ $activity = db_all(
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <style>
-.ezd-stat { background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:1rem 1.25rem;display:flex;align-items:center;gap:.9rem; }
-.ezd-stat-icon { width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0; }
-.ezd-card { background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden; }
-.ezd-card-header { padding:.6rem 1rem;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;border-bottom:1px solid #f1f5f9;background:#fafbfc;display:flex;align-items:center;gap:.4rem; }
-.activity-item { display:flex;gap:.65rem;padding:.4rem 0;border-bottom:1px solid #f8fafc;font-size:.78rem;align-items:flex-start; }
-.activity-item:last-child { border-bottom:none; }
-.activity-dot { width:7px;height:7px;border-radius:50%;margin-top:.3rem;flex-shrink:0; }
+.ezd-hero {
+  display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
+  background:linear-gradient(135deg,#fef2f2 0%,#ffffff 60%); border:1px solid #fee2e2;
+  border-radius:16px; padding:1.15rem 1.4rem; margin-bottom:1.25rem;
+}
+.ezd-hero-icon {
+  width:52px; height:52px; border-radius:14px; background:#dc2626; color:#fff; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:1.55rem;
+  box-shadow:0 4px 10px rgba(220,38,38,.28);
+}
+.ezd-hero-sub { font-size:.83rem; color:#5b6472; margin-top:.1rem; }
+.ezd-launcher { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.65rem; margin-bottom:1.5rem; }
+.ezd-launcher-tile {
+  position:relative; display:flex; align-items:center; gap:.65rem; padding:.7rem .85rem;
+  background:#fff; border:1px solid #e2e8f0; border-radius:12px; text-decoration:none;
+  color:#334155; font-size:.8rem; font-weight:600; transition:transform .12s,box-shadow .12s,border-color .12s;
+}
+.ezd-launcher-tile:hover { transform:translateY(-2px); box-shadow:0 8px 18px rgba(15,23,42,.09); border-color:#cbd5e1; color:#0f172a; }
+.ezd-launcher-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.05rem; flex-shrink:0; }
+.ezd-launcher-badge { position:absolute; top:-7px; right:-7px; }
+.ezd-stat {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.05rem 1.25rem;
+  display:flex; align-items:center; gap:1rem; height:100%; transition:box-shadow .12s,border-color .12s;
+}
+.ezd-stat:hover { box-shadow:0 8px 18px rgba(15,23,42,.07); border-color:#cbd5e1; }
+.ezd-stat-icon { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; flex-shrink:0; }
+.ezd-stat-val { font-size:1.55rem; font-weight:800; line-height:1; color:#0f172a; }
+.ezd-stat-label { font-size:.74rem; color:#5b6472; margin-top:.2rem; }
+.ezd-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.ezd-card-header {
+  padding:.75rem 1.1rem; font-size:.86rem; font-weight:700; color:#1e293b;
+  border-bottom:1px solid #f1f5f9; background:#fafbfc; display:flex; align-items:center; gap:.55rem;
+}
+.ezd-card-header .bi { color:#64748b; font-size:.95rem; }
+.ezd-card-header .ezd-more { margin-left:auto; font-size:.76rem; font-weight:600; text-transform:none; letter-spacing:0; text-decoration:none; }
+.ezd-card-header .ezd-count { margin-left:.15rem; font-weight:600; color:#5b6472; }
+.ezd-row-link { cursor:pointer; }
+.ezd-row-link:hover { background:#f8fafc; }
+.ezd-timeline { position:relative; padding:.4rem 1rem .4rem 1.3rem; max-height:480px; overflow-y:auto; }
+.ezd-timeline::before { content:''; position:absolute; left:1.05rem; top:.9rem; bottom:.9rem; width:1px; background:#e7ebf1; }
+.activity-item { position:relative; padding:.5rem 0; font-size:.79rem; }
+.activity-dot { position:absolute; left:-1.05rem; top:.85rem; width:9px; height:9px; border-radius:50%; box-shadow:0 0 0 2px #fff; }
+.activity-empty { text-align:center; color:#5b6472; font-size:.8rem; padding:1.5rem 0; }
 </style>
 
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-building-gear text-primary me-2"></i>Wirtualne biurko</h4>
-    <div class="text-muted" style="font-size:.8rem;margin-top:.15rem">Elektroniczne Zarządzanie Dokumentacją</div>
+<div class="ezd-hero">
+  <div class="ezd-hero-icon"><i class="bi bi-building-gear"></i></div>
+  <div class="flex-grow-1">
+    <h4 class="mb-0 fw-bold">Wirtualne biurko</h4>
+    <div class="ezd-hero-sub">Elektroniczne Zarządzanie Dokumentacją</div>
   </div>
-  <div class="d-flex gap-2">
-    <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="btn btn-outline-primary btn-sm position-relative">
-      <i class="bi bi-mailbox2 me-1"></i>Dziennik podawczy
-      <?php if ($rpw_stats['koszulka']): ?><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-info" style="font-size:.6rem"><?= (int)$rpw_stats['koszulka'] ?></span><?php endif; ?>
-    </a>
+  <div class="d-flex gap-2 flex-wrap">
     <?php if (can_edit()): ?>
     <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm">
       <i class="bi bi-folder-plus me-1"></i>Nowa koszulka
@@ -104,15 +137,27 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<!-- Podnawigacja modułu -->
-<div class="d-flex gap-2 mb-4 flex-wrap">
-  <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-mailbox2 me-1"></i>Dziennik podawczy</a>
-  <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder2-open me-1"></i>Koszulki</a>
-  <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Segregatory aktowe</a>
-  <a href="<?= APP_URL ?>/ezd/jrwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tags me-1"></i>Wykaz akt (JRWA)</a>
-  <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard me-1"></i>Rejestr pełnomocnictw</a>
-  <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-award me-1"></i>Rejestr zaświadczeń</a>
-  <a href="<?= APP_URL ?>/ezd/wolontariusze/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-heart me-1"></i>Wolontariusze bez umowy</a>
+<!-- Launcher modułu -->
+<div class="ezd-launcher">
+  <?php $tiles = [
+    ['label'=>'Dziennik podawczy',      'icon'=>'bi-mailbox2',          'color'=>'info',      'href'=>'/ezd/rpw/index.php',            'badge'=>$rpw_stats['koszulka']],
+    ['label'=>'Koszulki',               'icon'=>'bi-folder2-open',      'color'=>'primary',   'href'=>'/ezd/sprawy/index.php'],
+    ['label'=>'Segregatory aktowe',     'icon'=>'bi-archive',           'color'=>'dark',      'href'=>'/ezd/teczki/index.php'],
+    ['label'=>'Wykaz akt (JRWA)',       'icon'=>'bi-tags',              'color'=>'warning',   'href'=>'/ezd/jrwa/index.php'],
+    ['label'=>'Rejestr pełnomocnictw',  'icon'=>'bi-person-vcard',      'color'=>'success',   'href'=>'/ezd/pelnomocnictwa/index.php'],
+    ['label'=>'Rejestr zaświadczeń',    'icon'=>'bi-award',             'color'=>'secondary', 'href'=>'/ezd/zaswiadczenia/index.php'],
+    ['label'=>'Wolontariusze bez umowy','icon'=>'bi-heart',             'color'=>'danger',    'href'=>'/ezd/wolontariusze/index.php'],
+  ]; foreach ($tiles as $t): ?>
+  <a href="<?= APP_URL . $t['href'] ?>" class="ezd-launcher-tile">
+    <?php if (!empty($t['badge'])): ?>
+    <span class="ezd-launcher-badge badge rounded-pill bg-info" style="font-size:.6rem"><?= (int)$t['badge'] ?></span>
+    <?php endif; ?>
+    <div class="ezd-launcher-icon bg-<?= $t['color'] ?> bg-opacity-10">
+      <i class="bi <?= $t['icon'] ?> text-<?= $t['color'] ?>"></i>
+    </div>
+    <?= h($t['label']) ?>
+  </a>
+  <?php endforeach; ?>
 </div>
 
 <!-- Statystyki -->
@@ -130,8 +175,8 @@ include dirname(__DIR__) . '/includes/header.php';
         <i class="bi <?= $it['icon'] ?> text-<?= $it['color'] ?>"></i>
       </div>
       <div>
-        <div style="font-size:1.5rem;font-weight:700;line-height:1"><?= $it['val'] ?></div>
-        <div style="font-size:.72rem;color:#64748b"><?= $it['label'] ?></div>
+        <div class="ezd-stat-val"><?= $it['val'] ?></div>
+        <div class="ezd-stat-label"><?= $it['label'] ?></div>
       </div>
     </div>
   </div>
@@ -147,43 +192,37 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="tab-content p-0">
     <!-- Moje koszulki -->
     <div class="tab-pane fade show active" id="tab-moje-sprawy">
-      <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
-        <tbody>
-        <?php foreach($my_sprawy as $s): ?>
-          <tr onclick="location='<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>'" style="cursor:pointer">
-            <td class="text-truncate" style="max-width:1px">
-              <div class="fw-semibold text-truncate"><?= h($s['title']) ?>
-                <?php if(!empty($s['is_shared'])): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-1" style="font-size:.6rem"><i class="bi bi-people me-1"></i>Współdzielona</span><?php endif; ?>
-              </div>
-              <div class="font-monospace text-muted" style="font-size:.68rem"><?= h($s['znak_sprawy']) ?></div>
-            </td>
-            <td class="text-nowrap"><?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?></td>
-            <td class="text-nowrap text-end" style="font-size:.72rem">
-              <?php if(!empty($s['ciagla'])): ?><span class="text-info"><i class="bi bi-infinity"></i></span>
-              <?php elseif($s['deadline']): ?><span class="<?= $s['deadline']<date('Y-m-d')?'text-danger fw-bold':'text-muted' ?>"><?= date_pl($s['deadline']) ?></span>
-              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
-            </td>
-          </tr>
-        <?php endforeach; ?>
-        <?php if(!$my_sprawy): ?><tr><td class="text-center text-muted py-3" style="font-size:.8rem">Nie masz przypisanych aktywnych koszulek</td></tr><?php endif; ?>
-        </tbody>
-      </table>
+      <?php if ($my_sprawy): foreach ($my_sprawy as $s): ?>
+      <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom ezd-row-link" style="font-size:.82rem" onclick="location='<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>'">
+        <div class="flex-grow-1 overflow-hidden">
+          <div class="fw-semibold text-truncate"><?= h($s['title']) ?>
+            <?php if(!empty($s['is_shared'])): ?><span class="badge bg-info bg-opacity-15 text-info border border-info ms-1" style="font-size:.6rem"><i class="bi bi-people me-1"></i>Współdzielona</span><?php endif; ?>
+          </div>
+          <div class="font-monospace text-muted" style="font-size:.7rem"><?= h($s['znak_sprawy']) ?></div>
+        </div>
+        <div class="text-nowrap flex-shrink-0"><?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?></div>
+        <div class="text-nowrap text-end flex-shrink-0" style="font-size:.72rem;min-width:5.5rem">
+          <?php if(!empty($s['ciagla'])): ?><span class="text-info"><i class="bi bi-infinity"></i></span>
+          <?php elseif($s['deadline']): ?><span class="<?= $s['deadline']<date('Y-m-d')?'text-danger fw-bold':'text-muted' ?>"><?= date_pl($s['deadline']) ?></span>
+          <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+        </div>
+      </div>
+      <?php endforeach; else: ?>
+      <div class="activity-empty">Nie masz przypisanych aktywnych koszulek</div>
+      <?php endif; ?>
     </div>
     <!-- Moje dokumenty -->
     <div class="tab-pane fade" id="tab-moje-pisma">
-      <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
-        <tbody>
-        <?php foreach($my_pisma as $p): $k = EZD_KIERUNKI[$p['kierunek']] ?? ['icon'=>'bi-envelope','class'=>'secondary','label'=>$p['kierunek']]; ?>
-          <tr onclick="location='<?= APP_URL ?>/ezd/pisma/view.php?id=<?= $p['id'] ?>'" style="cursor:pointer">
-            <td class="text-nowrap"><i class="bi <?= $k['icon'] ?> text-<?= $k['class'] ?>" title="<?= h($k['label']) ?>"></i></td>
-            <td class="font-monospace" style="white-space:nowrap;font-size:.72rem"><?= h($p['sygnatura']) ?></td>
-            <td class="text-truncate" style="max-width:1px"><?= h($p['title']) ?></td>
-            <td class="text-nowrap"><span class="badge bg-light text-dark border" style="font-size:.62rem"><?= h($p['status']) ?></span></td>
-          </tr>
-        <?php endforeach; ?>
-        <?php if(!$my_pisma): ?><tr><td class="text-center text-muted py-3" style="font-size:.8rem">Nie jesteś referentem żadnego pisma</td></tr><?php endif; ?>
-        </tbody>
-      </table>
+      <?php if ($my_pisma): foreach ($my_pisma as $p): $k = EZD_KIERUNKI[$p['kierunek']] ?? ['icon'=>'bi-envelope','class'=>'secondary','label'=>$p['kierunek']]; ?>
+      <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom ezd-row-link" style="font-size:.82rem" onclick="location='<?= APP_URL ?>/ezd/pisma/view.php?id=<?= $p['id'] ?>'">
+        <i class="bi <?= $k['icon'] ?> text-<?= $k['class'] ?> flex-shrink-0" title="<?= h($k['label']) ?>"></i>
+        <div class="font-monospace text-muted flex-shrink-0" style="font-size:.72rem"><?= h($p['sygnatura']) ?></div>
+        <div class="flex-grow-1 overflow-hidden text-truncate"><?= h($p['title']) ?></div>
+        <span class="badge bg-light text-dark border flex-shrink-0" style="font-size:.62rem"><?= h($p['status']) ?></span>
+      </div>
+      <?php endforeach; else: ?>
+      <div class="activity-empty">Nie jesteś referentem żadnego pisma</div>
+      <?php endif; ?>
     </div>
   </div>
 </div>
@@ -193,8 +232,8 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="col-lg-7">
     <div class="ezd-card">
       <div class="ezd-card-header">
-        <i class="bi bi-folder2-open"></i> Aktywne koszulki
-        <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="ms-auto text-primary" style="font-size:.75rem;font-weight:600;text-transform:none;letter-spacing:0">Wszystkie →</a>
+        <i class="bi bi-folder2-open"></i> Aktywne koszulki <span class="ezd-count">(<?= count($recent_sprawy) ?>)</span>
+        <a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="ezd-more">Wszystkie →</a>
       </div>
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0" style="font-size:.8rem">
@@ -214,7 +253,7 @@ include dirname(__DIR__) . '/includes/header.php';
           </tr>
           <?php endforeach; ?>
           <?php if (!$recent_sprawy): ?>
-          <tr><td colspan="5" class="text-center text-muted py-3">Brak aktywnych koszulek</td></tr>
+          <tr><td colspan="5" class="activity-empty">Brak aktywnych koszulek</td></tr>
           <?php endif; ?>
           </tbody>
         </table>
@@ -225,7 +264,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <?php if ($my_dekr): ?>
     <div class="ezd-card mt-3">
       <div class="ezd-card-header">
-        <i class="bi bi-person-lines-fill text-warning"></i> Moje zadania do wykonania
+        <i class="bi bi-person-lines-fill text-warning"></i> Moje zadania do wykonania <span class="ezd-count">(<?= count($my_dekr) ?>)</span>
       </div>
       <div class="p-0">
         <?php foreach ($my_dekr as $d): ?>
@@ -254,22 +293,22 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="col-lg-5">
     <div class="ezd-card h-100">
       <div class="ezd-card-header"><i class="bi bi-activity"></i> Ostatnia aktywność</div>
-      <div class="p-3" style="max-height:480px;overflow-y:auto">
+      <div class="ezd-timeline">
         <?php $action_colors = ['sprawa_create'=>'success','sprawa_update'=>'primary','pismo_create'=>'info','umowa_create'=>'warning','upload'=>'secondary','teczka_create'=>'success','dekretacja_create'=>'warning']; ?>
         <?php foreach ($activity as $a): ?>
         <div class="activity-item">
-          <div class="activity-dot mt-1" style="background:#<?= match($action_colors[$a['action']] ?? 'secondary') { 'success'=>'22c55e','primary'=>'3b82f6','info'=>'06b6d4','warning'=>'f59e0b',default=>'94a3b8' } ?>"></div>
-          <div class="flex-grow-1">
+          <div class="activity-dot" style="background:#<?= match($action_colors[$a['action']] ?? 'secondary') { 'success'=>'22c55e','primary'=>'3b82f6','info'=>'06b6d4','warning'=>'f59e0b',default=>'94a3b8' } ?>"></div>
+          <div>
             <?php if ($a['znak_sprawy']): ?>
             <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $a['sprawa_id'] ?>" class="font-monospace text-decoration-none fw-semibold" style="font-size:.72rem"><?= h($a['znak_sprawy']) ?></a>
             <?php endif; ?>
             <div style="color:#374151;line-height:1.3"><?= h($a['details'] ?: $a['action']) ?></div>
-            <div style="color:#94a3b8;font-size:.7rem"><?= h($a['user_name'] ?? '—') ?> · <?= date('d.m H:i', strtotime($a['created_at'])) ?></div>
+            <div style="color:#5b6472;font-size:.7rem"><?= h($a['user_name'] ?? '—') ?> · <?= date('d.m H:i', strtotime($a['created_at'])) ?></div>
           </div>
         </div>
         <?php endforeach; ?>
         <?php if (!$activity): ?>
-        <div class="text-center text-muted py-3" style="font-size:.8rem">Brak aktywności</div>
+        <div class="activity-empty">Brak aktywności</div>
         <?php endif; ?>
       </div>
     </div>
