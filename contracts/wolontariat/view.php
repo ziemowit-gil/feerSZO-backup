@@ -28,6 +28,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/impersonation.php';
 require_login();
 $TYPE  = 'wolontariat';
 $TABLE = 'umowy_wolontariat';
@@ -73,6 +74,12 @@ if (!viewer_owns_contract($TYPE, $row)) {
     flash_set('error', 'Nie masz dostępu do tej umowy.');
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
+
+// ── Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) ────
+$_imp_target  = (is_admin() && !ctx_is_impersonating()) ? impersonation_linked_user($TYPE, $row) : null;
+$_imp_pending = $_SESSION['imp_pending'] ?? null;
+$_imp_show_verify = !empty($_GET['imp']) && is_array($_imp_pending)
+    && ($_imp_pending['type'] ?? '') === $TYPE && (int)($_imp_pending['id'] ?? 0) === $id;
 
 // ── Endpoint AJAX: odznaki (?_badges=1) ───────────────────────────────────────
 if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest') {
@@ -1843,6 +1850,86 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     </form>
     <?php endif; ?>
   </div>
+
+  <?php if ($_imp_target): ?>
+  <!-- Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FEF2F2;color:#DC2626"><i class="bi bi-incognito"></i></div>
+      <span class="cv-section-title">Dostęp do konta</span>
+    </div>
+    <p class="text-muted small mb-2">Konto: <strong><?= h($_imp_target['name']) ?></strong> · <?= h($_imp_target['email']) ?></p>
+    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#impReqModal">
+      <i class="bi bi-incognito me-1"></i>Wejdź na konto tej osoby
+    </button>
+    <p class="text-muted mt-2 mb-0" style="font-size:.78rem">Wymaga podania powodu i potwierdzenia kodem wysłanym do tej osoby SMS-em lub e-mailem.</p>
+  </div>
+
+  <!-- Modal: żądanie kodu -->
+  <div class="modal fade" id="impReqModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" action="<?= APP_URL ?>/auth/impersonate_request.php" class="modal-content">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="type" value="<?= h($TYPE) ?>">
+        <input type="hidden" name="id" value="<?= (int)$id ?>">
+        <div class="modal-header">
+          <h5 class="modal-title">Wejdź na konto — <?= h($_imp_target['name']) ?></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Powód <span class="text-danger">*</span></label>
+            <textarea name="reason" class="form-control" rows="2" required maxlength="500" placeholder="np. diagnoza zgłoszenia, pomoc przy wypełnieniu formularza…"></textarea>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Metoda potwierdzenia</label>
+            <?php if (!empty($_imp_target['phone_number'])): ?>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="method" value="sms" id="impMethodSms" checked>
+              <label class="form-check-label" for="impMethodSms">SMS na numer tej osoby</label>
+            </div>
+            <?php endif; ?>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="method" value="email" id="impMethodEmail" <?= empty($_imp_target['phone_number']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="impMethodEmail">E-mail na adres tej osoby</label>
+            </div>
+          </div>
+          <p class="text-muted mb-0" style="font-size:.8rem">Kod otrzyma wyłącznie właściciel konta — poproś go o przekazanie Ci kodu.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-sm btn-danger">Wyślij kod</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: wpisanie kodu -->
+  <div class="modal fade" id="impVerifyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" action="<?= APP_URL ?>/auth/impersonate_verify.php" class="modal-content">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <div class="modal-header">
+          <h5 class="modal-title">Wpisz kod potwierdzający</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small">Poproś <strong><?= h($_imp_target['name']) ?></strong> o kod, który właśnie otrzymał(a) SMS-em lub e-mailem.</p>
+          <input type="text" name="code" class="form-control form-control-lg text-center" style="letter-spacing:.3em" inputmode="numeric" pattern="\d{6}" maxlength="6" required autofocus placeholder="000000">
+        </div>
+        <div class="modal-footer justify-content-between">
+          <button type="submit" class="btn btn-sm btn-link text-muted" formaction="<?= APP_URL ?>/auth/impersonate_cancel.php" formnovalidate>Anuluj żądanie</button>
+          <button type="submit" class="btn btn-sm btn-danger">Potwierdź i wejdź</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <?php if ($_imp_show_verify): ?>
+  <script>document.addEventListener('DOMContentLoaded', function(){
+    (new bootstrap.Modal(document.getElementById('impVerifyModal'))).show();
+  });</script>
+  <?php endif; ?>
+  <?php endif; ?>
 
   <!-- Metadata -->
   <div class="cv-section">

@@ -167,6 +167,9 @@ function ctx_ensure_log_table(): void {
     } catch (\Throwable $e) {}
     // Dołożenie kolumny w istniejących instalacjach.
     try { db()->exec("ALTER TABLE user_context_log ADD COLUMN reason TEXT"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE user_context_log ADD COLUMN source_type TEXT"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE user_context_log ADD COLUMN source_id INTEGER"); } catch (\Throwable $e) {}
+    try { db()->exec("ALTER TABLE user_context_log ADD COLUMN verified_via TEXT"); } catch (\Throwable $e) {}
 }
 
 function _ctx_ip(): string {
@@ -175,9 +178,11 @@ function _ctx_ip(): string {
 
 /**
  * Wejście w kontekst konkretnego użytkownika. Wymaga podania powodu (audyt).
+ * $meta — opcjonalne metadane pochodzenia żądania (np. impersonacja z poziomu
+ * umowy, potwierdzona kodem): 'source_type', 'source_id', 'verified_via'.
  * Zwraca true/false.
  */
-function ctx_enter_user(int $uid, string $reason = ''): bool {
+function ctx_enter_user(int $uid, string $reason = '', array $meta = []): bool {
     if (!ctx_can_switch()) return false;
     $reason = trim($reason);
     if ($reason === '') return false; // powód wymagany
@@ -192,17 +197,22 @@ function ctx_enter_user(int $uid, string $reason = ''): bool {
     $label = trim(($target['name'] ?? '') . ' · ' . ($target['email'] ?? ''));
     ctx_ensure_log_table();
     $log_id = 0;
+    $source_type  = $meta['source_type']  ?? null;
+    $source_id    = isset($meta['source_id']) ? (int)$meta['source_id'] : null;
+    $verified_via = $meta['verified_via'] ?? null;
     try {
         db()->prepare(
-            "INSERT INTO user_context_log (real_user_id, real_email, mode, target_user_id, target_role, target_label, reason, ip)
-             VALUES (?,?,?,?,?,?,?,?)"
-        )->execute([(int)$real['id'], $real['email'] ?? '', 'user', $uid, $target['role'] ?? '', $label, $reason, _ctx_ip()]);
+            "INSERT INTO user_context_log (real_user_id, real_email, mode, target_user_id, target_role, target_label, reason, ip, source_type, source_id, verified_via)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        )->execute([(int)$real['id'], $real['email'] ?? '', 'user', $uid, $target['role'] ?? '', $label, $reason, _ctx_ip(), $source_type, $source_id, $verified_via]);
         $log_id = (int)db()->lastInsertId();
     } catch (\Throwable $e) {}
 
     $_SESSION['ctx'] = ['mode'=>'user', 'uid'=>$uid, 'via'=>'admin', 'since'=>time(), 'log_id'=>$log_id];
     $_SESSION['ctx_decided'] = 1;
-    _ctx_authlog($real, "Wejście w kontekst użytkownika: {$label} — powód: {$reason}");
+    $log_msg = "Wejście w kontekst użytkownika: {$label} — powód: {$reason}";
+    if ($verified_via) $log_msg .= " (potwierdzone: {$verified_via})";
+    _ctx_authlog($real, $log_msg);
     return true;
 }
 
