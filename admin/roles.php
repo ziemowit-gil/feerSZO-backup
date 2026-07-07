@@ -132,9 +132,14 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-shield-lock text-primary"></i> Role i uprawnienia</h4>
-  <a href="access_matrix.php" class="btn btn-sm btn-outline-primary">
-    <i class="bi bi-grid-3x3-gap"></i> Macierz uprawnień (wydruk)
-  </a>
+  <div class="d-flex gap-2">
+    <a href="ezd_access_matrix.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-archive-fill" style="color:#b45309"></i> Macierz EZD
+    </a>
+    <a href="access_matrix.php" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-grid-3x3-gap"></i> Macierz uprawnień (wydruk)
+    </a>
+  </div>
 </div>
 
 <?= flash_html() ?>

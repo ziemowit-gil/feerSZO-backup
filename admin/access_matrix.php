@@ -312,6 +312,9 @@ include dirname(__DIR__) . '/includes/header.php';
     <a href="roles.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-pencil-square"></i> Edytuj uprawnienia
     </a>
+    <a href="ezd_access_matrix.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-archive-fill" style="color:#b45309"></i> Macierz EZD
+    </a>
     <a href="access_matrix.php?print=1" target="_blank" rel="noopener" class="btn btn-sm btn-primary">
       <i class="bi bi-printer"></i> Drukuj / PDF
     </a>

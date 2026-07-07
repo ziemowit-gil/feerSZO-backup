@@ -475,6 +475,41 @@ function require_module_enabled(string $key, string $module_name = 'Ten moduł')
         header('Location: ' . APP_URL . '/index.php');
         exit;
     }
+    require_module_vpn($key, $module_name);
+}
+
+/**
+ * Strażnik „tylko przez VPN" dla dowolnego modułu — sterowany konwencją kluczy
+ * settings: dla klucza włączenia `X_enabled` sprawdza `X_vpn_only` (0/1) oraz
+ * `X_vpn_allowlist` (lista adresów jak w whiteliście IP admina). Gdy ograniczenie
+ * jest włączone, a adres klienta nie należy do dozwolonej puli — 403.
+ *
+ * Konto awaryjne serwis@local jest zawsze wykluczone (break-glass). Administrator
+ * konfiguruje moduł z panelu głównego (poza tym modułem), więc nie potrzebuje
+ * wyjątku od blokady. Pierwszym konsumentem jest Wirtualne biurko (ezd).
+ */
+function require_module_vpn(string $enabled_key, string $module_name = 'Ten moduł'): void {
+    $base = str_ends_with($enabled_key, '_enabled') ? substr($enabled_key, 0, -8) : $enabled_key;
+    if (org_setting($base . '_vpn_only') !== '1') return;
+    if (!function_exists('ip_in_allowlist')) return; // auth.php niezaładowany — nie blokuj
+
+    // Break-glass: konto serwisowe zawsze przechodzi
+    $u = function_exists('current_user') ? current_user() : null;
+    if ($u && ($u['email'] ?? '') === 'serwis@local') return;
+
+    $client_ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (ip_in_allowlist($client_ip, org_setting($base . '_vpn_allowlist'))) return;
+
+    http_response_code(403);
+    $ip_h  = htmlspecialchars($client_ip, ENT_QUOTES);
+    $mod_h = htmlspecialchars($module_name, ENT_QUOTES);
+    die('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        . '<div style="max-width:560px;margin:80px auto;font:15px/1.6 system-ui,sans-serif;color:#334155;text-align:center;padding:0 16px">'
+        . '<div style="font-size:42px">🔒</div>'
+        . '<h1 style="font-size:20px;color:#1e293b">Dostęp tylko przez VPN</h1>'
+        . '<p>' . $mod_h . ' jest dostępny wyłącznie z sieci firmowej (VPN).</p>'
+        . '<p style="color:#64748b;font-size:13px">Twój adres IP <code>' . $ip_h . '</code> nie należy do dozwolonej puli.</p>'
+        . '<p><a href="javascript:history.back()" style="color:#2563eb">← Wróć</a></p></div>');
 }
 
 // ── System widoczności menu ───────────────────────────────────────────────────

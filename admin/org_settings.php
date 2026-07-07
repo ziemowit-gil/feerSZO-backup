@@ -29,7 +29,8 @@ $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres',
                   'notify_from_name','notify_from_email',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                   'm365_send_from_email','ksiegowy_email',
-                  'admin_ip_restrict','admin_ip_whitelist'];
+                  'admin_ip_restrict','admin_ip_whitelist',
+                  'ezd_vpn_only','ezd_vpn_allowlist'];
 $saved = [];
 foreach ($branding_keys as $k) {
     $r = db_one("SELECT value FROM settings WHERE key_=?", [$k]);
@@ -226,6 +227,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $saved['admin_ip_whitelist'] = $whitelist;
                 flash_set('success', 'Ustawienia bezpieczeństwa zapisane.');
             }
+        }
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
+
+    } elseif (isset($_POST['save_ezd_vpn'])) {
+        $vpn_only  = isset($_POST['ezd_vpn_only']) ? '1' : '0';
+        $allowlist = trim($_POST['ezd_vpn_allowlist'] ?? '');
+
+        // Walidacja — ten sam format co whitelista admina
+        $lines = array_filter(array_map('trim', explode("\n", $allowlist)));
+        $bad   = [];
+        foreach ($lines as $line) {
+            if (str_starts_with($line, '#')) continue;
+            $entry = $line;
+            if (str_ends_with($entry, '.*')) {
+                $base  = rtrim($entry, '.*');
+                $parts = explode('.', $base);
+                while (count($parts) < 4) $parts[] = '0';
+                $entry = implode('.', $parts) . '/' . (count(explode('.', $base)) * 8);
+            }
+            if (strpos($entry, '/') !== false) {
+                [$subnet] = explode('/', $entry, 2);
+                if (!filter_var($subnet, FILTER_VALIDATE_IP)) $bad[] = $line;
+            } else {
+                if (!filter_var($entry, FILTER_VALIDATE_IP)) $bad[] = $line;
+            }
+        }
+
+        if ($bad) {
+            flash_set('error', 'Nieprawidłowe wpisy: ' . implode(', ', array_map('htmlspecialchars', $bad)));
+        } elseif ($vpn_only === '1' && empty($lines)) {
+            flash_set('error', 'Włącz dostęp tylko przez VPN dopiero po dodaniu co najmniej jednego adresu — inaczej zablokujesz Wirtualne biurko wszystkim użytkownikom (poza serwis@local).');
+        } else {
+            $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
+            $stmt->execute(['ezd_vpn_only',      $vpn_only]);
+            $stmt->execute(['ezd_vpn_allowlist', $allowlist]);
+            $saved['ezd_vpn_only']      = $vpn_only;
+            $saved['ezd_vpn_allowlist'] = $allowlist;
+            flash_set('success', 'Ustawienia VPN dla Wirtualnego biurka zapisane.');
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
     }
@@ -859,6 +898,62 @@ include dirname(__DIR__) . '/includes/header.php';
                 Twój bieżący adres IP: <code><?= h($_SERVER['REMOTE_ADDR'] ?? '?') ?></code>
               </span>
             </div>
+
+          </form>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card-header d-flex align-items-center gap-2" style="border-top:3px solid #b45309">
+          <i class="bi bi-archive-fill" style="color:#b45309"></i>
+          <strong>Wirtualne biurko (EZD) — dostęp tylko przez VPN</strong>
+        </div>
+        <div class="card-body">
+
+          <form method="post">
+            <?= csrf_field() ?>
+
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" name="ezd_vpn_only" id="ezd_vpn_only"
+                     value="1" <?= ($saved['ezd_vpn_only'] ?? '') === '1' ? 'checked' : '' ?>>
+              <label class="form-check-label" for="ezd_vpn_only">
+                Zezwalaj na dostęp do modułu <strong>Wirtualne biurko</strong> tylko z poniższych adresów IP (VPN)
+              </label>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Dozwolona pula adresów (VPN / biuro)</label>
+              <textarea name="ezd_vpn_allowlist" id="ezd_vpn_allowlist" class="form-control font-monospace"
+                        rows="6" placeholder="Jeden wpis na linię, np.&#10;10.8.0.0/24&#10;10.10.0.0/16&#10;203.0.113.10/32&#10;2001:db8::/32"><?= h($saved['ezd_vpn_allowlist'] ?? '') ?></textarea>
+              <div class="form-text">
+                Ograniczenie działa na <em>wszystkich</em> podstronach <code>/ezd/</code> (koszulki, pisma, RPW, pobieranie plików).
+                Obsługiwane formaty: pojedynczy adres, CIDR (<code>10.8.0.0/24</code>), wildcard (<code>10.8.0.*</code>), IPv4/IPv6.
+                Linie od <code>#</code> to komentarze.
+              </div>
+            </div>
+
+            <div class="alert alert-info d-flex align-items-start gap-2 py-2">
+              <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+              <div>
+                Konto <strong>serwis@local</strong> jest zawsze wykluczone (dostęp awaryjny). Administrator
+                może zmieniać te ustawienia z panelu głównego niezależnie od tej blokady.
+                Podgląd ról i czynności: <a href="ezd_access_matrix.php">Macierz uprawnień EZD</a>.
+              </div>
+            </div>
+
+            <?php if (($saved['ezd_vpn_only'] ?? '') === '1'): ?>
+            <div class="alert alert-warning d-flex align-items-start gap-2 py-2">
+              <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+              <div>
+                Ograniczenie jest <strong>aktywne</strong>. Jeśli pracujesz zdalnie, upewnij się, że Twój adres
+                (<code><?= h($_SERVER['REMOTE_ADDR'] ?? '?') ?></code>) mieści się w dozwolonej puli VPN.
+              </div>
+            </div>
+            <?php endif; ?>
+
+            <button type="submit" name="save_ezd_vpn" class="btn btn-primary">
+              <i class="bi bi-floppy me-1"></i>Zapisz ustawienia VPN dla EZD
+            </button>
 
           </form>
         </div>

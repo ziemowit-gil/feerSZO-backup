@@ -244,6 +244,29 @@ function _ip_in_cidr(string $ip, string $cidr): bool {
     return false;
 }
 
+/**
+ * Czy adres $ip pasuje do którejkolwiek reguły z listy dozwolonych.
+ * Format listy (jeden wpis na linię): pojedynczy IP, CIDR (10.0.0.0/8),
+ * wildcard (192.168.1.*), IPv4 lub IPv6. Linie zaczynające się od `#` to komentarze.
+ * Pusta lista lub same komentarze → false (brak dopasowania). Wspólny silnik
+ * dopasowania dla strażnika IP admina i strażnika „tylko przez VPN" modułów.
+ */
+function ip_in_allowlist(string $ip, string $raw): bool {
+    $entries = array_filter(array_map('trim', explode("\n", $raw)));
+    foreach ($entries as $entry) {
+        if ($entry === '' || str_starts_with($entry, '#')) continue;
+        // Zamień wildcard 192.168.1.* → 192.168.1.0/24
+        if (str_ends_with($entry, '.*')) {
+            $base  = rtrim($entry, '.*');
+            $parts = explode('.', $base);
+            while (count($parts) < 4) $parts[] = '0';
+            $entry = implode('.', $parts) . '/' . (count(explode('.', $base)) * 8);
+        }
+        if (_ip_in_cidr($ip, $entry)) return true;
+    }
+    return false;
+}
+
 function _admin_ip_guard(): void {
     $enabled      = false;
     $whitelist_raw = '';
@@ -262,19 +285,7 @@ function _admin_ip_guard(): void {
     if ($user && ($user['email'] ?? '') === 'serwis@local') return;
 
     $client_ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    $entries   = array_filter(array_map('trim', explode("\n", $whitelist_raw)));
-
-    foreach ($entries as $entry) {
-        if ($entry === '' || str_starts_with($entry, '#')) continue;
-        // Zamień wildcard 192.168.1.* → 192.168.1.0/24
-        if (str_ends_with($entry, '.*')) {
-            $base  = rtrim($entry, '.*');
-            $parts = explode('.', $base);
-            while (count($parts) < 4) $parts[] = '0';
-            $entry = implode('.', $parts) . '/' . (count(explode('.', $base)) * 8);
-        }
-        if (_ip_in_cidr($client_ip, $entry)) return;
-    }
+    if (ip_in_allowlist($client_ip, $whitelist_raw)) return;
 
     http_response_code(403);
     include __DIR__ . '/header.php';
