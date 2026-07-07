@@ -36,6 +36,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'withdraw') {
             obiegi_withdraw($id, $uid);
             flash_set('success', 'Wniosek wycofany.');
+        } elseif ($action === 'add_file') {
+            $is_owner = (int)$req['submitted_by'] === $uid;
+            if (!$is_owner && !obiegi_can_act($req, $u) && !is_admin()) throw new \RuntimeException('Brak uprawnień do dodania pliku.');
+            if (empty($_FILES['file']['name'])) throw new \RuntimeException('Nie wybrano pliku.');
+            obiegi_add_upload($id, 'file', $uid);
+            flash_set('success', 'Dodano plik.');
+        } elseif ($action === 'del_file') {
+            $fid = (int)($_POST['file_id'] ?? 0);
+            $f = obiegi_file_get($fid);
+            if (!$f || (int)$f['request_id'] !== $id) throw new \RuntimeException('Nie znaleziono pliku.');
+            if ((int)$f['uploaded_by'] !== $uid && !is_admin()) throw new \RuntimeException('Można usunąć tylko własny plik.');
+            obiegi_file_delete($fid);
+            flash_set('success', 'Usunięto plik.');
         }
     } catch (\Throwable $e) {
         flash_set('error', $e->getMessage());
@@ -58,6 +71,9 @@ $curOrd   = (int)$req['current_step_order'];
 $actions  = obiegi_request_actions($id);
 $can_act  = obiegi_can_act($req, $u);
 $is_owner = (int)$req['submitted_by'] === $uid;
+$files    = obiegi_files($id);
+$sprawa   = obiegi_request_sprawa($req);
+$can_add_file = $is_owner || $can_act || is_admin();
 
 $PAGE_TITLE = 'Wniosek: ' . $req['title'];
 include dirname(__DIR__) . '/includes/header.php';
@@ -83,10 +99,58 @@ include dirname(__DIR__) . '/includes/header.php';
               Złożono: <?= h(substr((string)$req['submitted_at'], 0, 16)) ?>
             </div>
           </div>
+          <?php if ($sprawa): ?>
+            <hr>
+            <div class="small">
+              <i class="bi bi-folder2-open me-1 text-muted"></i>Koszulka EZD:
+              <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$sprawa['id'] ?>">
+                <?= h($sprawa['znak_sprawy']) ?> — <?= h($sprawa['title']) ?>
+              </a>
+            </div>
+          <?php elseif ((int)($req['ezd_sprawa_id'] ?? 0) > 0): ?>
+            <hr><div class="small text-muted"><i class="bi bi-folder2 me-1"></i>Koszulka EZD #<?= (int)$req['ezd_sprawa_id'] ?> (brak dostępu lub usunięta)</div>
+          <?php endif; ?>
           <?php if (trim((string)$req['body']) !== ''): ?>
             <hr><div style="white-space:pre-wrap"><?= h($req['body']) ?></div>
           <?php endif; ?>
         </div>
+      </div>
+
+      <!-- Załączniki -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold"><i class="bi bi-paperclip me-1"></i>Załączniki (<?= count($files) ?>)</div>
+        <ul class="list-group list-group-flush">
+          <?php if (!$files): ?>
+            <li class="list-group-item text-muted small">Brak załączników.</li>
+          <?php endif; ?>
+          <?php foreach ($files as $f): ?>
+            <li class="list-group-item d-flex align-items-center gap-2">
+              <i class="bi bi-file-earmark text-muted"></i>
+              <a href="<?= APP_URL ?>/obiegi/file.php?id=<?= (int)$f['id'] ?>" target="_blank"><?= h($f['original_name']) ?></a>
+              <?php if ($f['source'] === 'ezd'): ?><span class="badge bg-info-subtle text-info-emphasis border border-info small">z koszulki</span><?php endif; ?>
+              <span class="text-muted small ms-1"><?= h(function_exists('ezd_filesize') ? ezd_filesize((int)$f['file_size']) : ((int)$f['file_size'] . ' B')) ?></span>
+              <a href="<?= APP_URL ?>/obiegi/file.php?id=<?= (int)$f['id'] ?>&dl=1" class="btn btn-sm btn-outline-secondary ms-auto py-0" title="Pobierz"><i class="bi bi-download"></i></a>
+              <?php if (((int)$f['uploaded_by'] === $uid || is_admin()) && $req['status'] === 'w_toku'): ?>
+                <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="id" value="<?= $id ?>">
+                  <input type="hidden" name="file_id" value="<?= (int)$f['id'] ?>">
+                  <button name="action" value="del_file" class="btn btn-sm btn-outline-danger py-0" title="Usuń"><i class="bi bi-trash3"></i></button>
+                </form>
+              <?php endif; ?>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+        <?php if ($can_add_file && $req['status'] === 'w_toku'): ?>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+            <?= csrf_field() ?>
+            <input type="hidden" name="id" value="<?= $id ?>">
+            <input type="file" name="file" class="form-control form-control-sm" required>
+            <button name="action" value="add_file" class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-upload me-1"></i>Dodaj</button>
+          </form>
+        </div>
+        <?php endif; ?>
       </div>
 
       <!-- Ścieżka kroków -->
@@ -104,7 +168,7 @@ include dirname(__DIR__) . '/includes/header.php';
               <i class="bi <?= $ic ?> me-2"></i>
               <span class="me-2 text-muted small"><?= $ord ?>.</span>
               <span><?= h($s['name']) ?></span>
-              <span class="badge bg-light text-dark ms-2"><?= h($s['role_name']) ?></span>
+              <span class="badge bg-light text-dark ms-2"><?= h(obiegi_step_assignee_label($s)) ?></span>
               <?php if ($state === 'current'): ?><span class="badge bg-warning text-dark ms-auto">tutaj</span><?php endif; ?>
             </li>
           <?php endforeach; ?>

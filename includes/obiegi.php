@@ -81,8 +81,33 @@ function obiegi_init(): void {
         note        TEXT    NOT NULL DEFAULT '',
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     )");
+    // Pliki wniosku — wgrane bezpośrednio (source='upload') lub wskazane
+    // z repozytorium koszulki EZD (source='ezd', ezd_zalacznik_id).
+    $db->exec("CREATE TABLE IF NOT EXISTS obieg_files (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id       INTEGER NOT NULL REFERENCES obieg_requests(id) ON DELETE CASCADE,
+        source           TEXT    NOT NULL DEFAULT 'upload',
+        path             TEXT    NOT NULL DEFAULT '',
+        original_name    TEXT    NOT NULL DEFAULT '',
+        mime_type        TEXT    NOT NULL DEFAULT '',
+        file_size        INTEGER NOT NULL DEFAULT 0,
+        ezd_zalacznik_id INTEGER,
+        uploaded_by      INTEGER,
+        created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+    )");
+
+    // Samonaprawa schematu — kolumny dodane po pierwszym wdrożeniu.
+    foreach ([
+        "ALTER TABLE obieg_def_steps ADD COLUMN assignee_type TEXT NOT NULL DEFAULT 'role'",
+        "ALTER TABLE obieg_def_steps ADD COLUMN user_id INTEGER",
+        "ALTER TABLE obieg_requests ADD COLUMN ezd_sprawa_id INTEGER",
+    ] as $sql) {
+        try { $db->exec($sql); } catch (\Throwable $e) {}
+    }
+
     $db->exec("CREATE INDEX IF NOT EXISTS idx_obieg_req_status ON obieg_requests(status, current_step_order)");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_obieg_act_req ON obieg_actions(request_id, id)");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_obieg_files_req ON obieg_files(request_id, id)");
 }
 
 // ── Definicje (typy obiegów) ──────────────────────────────────────────────────
@@ -142,21 +167,31 @@ function obiegi_def_delete(int $id): void {
 
 /**
  * Zapisuje komplet kroków definicji (zastępuje istniejące).
- * $steps = [['name'=>..., 'role_name'=>...], ...] w kolejności.
+ * $steps = [['name'=>..., 'assignee_type'=>'role'|'user', 'role_name'=>..., 'user_id'=>...], ...].
+ * Krok przypisany do roli wymaga role_name; przypisany do osoby wymaga user_id.
  */
 function obiegi_def_save_steps(int $definition_id, array $steps): void {
     obiegi_init();
     $db = db();
     $db->prepare("DELETE FROM obieg_def_steps WHERE definition_id=?")->execute([$definition_id]);
     $ins = $db->prepare(
-        "INSERT INTO obieg_def_steps (definition_id, step_order, name, role_name) VALUES (?,?,?,?)"
+        "INSERT INTO obieg_def_steps (definition_id, step_order, name, assignee_type, role_name, user_id)
+         VALUES (?,?,?,?,?,?)"
     );
     $order = 1;
     foreach ($steps as $s) {
         $name = trim((string)($s['name'] ?? ''));
+        $type = ($s['assignee_type'] ?? 'role') === 'user' ? 'user' : 'role';
         $role = trim((string)($s['role_name'] ?? ''));
-        if ($name === '' || $role === '') continue;
-        $ins->execute([$definition_id, $order++, $name, $role]);
+        $uid  = (int)($s['user_id'] ?? 0);
+        if ($name === '') continue;
+        if ($type === 'user') {
+            if ($uid <= 0) continue;
+            $ins->execute([$definition_id, $order++, $name, 'user', '', $uid]);
+        } else {
+            if ($role === '') continue;
+            $ins->execute([$definition_id, $order++, $name, 'role', $role, null]);
+        }
     }
 }
 
@@ -192,10 +227,11 @@ function obiegi_current_step(array $request): ?array {
 }
 
 /**
- * Uruchamia nowy obieg dla definicji. Loguje złożenie i powiadamia rolę kroku 1.
+ * Uruchamia nowy obieg dla definicji. Loguje złożenie i powiadamia adresata kroku 1.
+ * Opcjonalnie wiąże wniosek z koszulką EZD ($ezd_sprawa_id).
  * Zwraca id wniosku. Rzuca wyjątek, gdy definicja nie ma kroków.
  */
-function obiegi_request_start(int $definition_id, string $title, string $body, int $by): int {
+function obiegi_request_start(int $definition_id, string $title, string $body, int $by, ?int $ezd_sprawa_id = null): int {
     obiegi_init();
     $def = obiegi_definition($definition_id);
     if (!$def || !$def['is_active']) throw new \RuntimeException('Nieprawidłowy typ obiegu.');
@@ -209,6 +245,7 @@ function obiegi_request_start(int $definition_id, string $title, string $body, i
         'submitted_by'       => $by,
         'current_step_order' => 1,
         'status'             => 'w_toku',
+        'ezd_sprawa_id'      => $ezd_sprawa_id ?: null,
     ]);
 
     $first = $steps[0];
@@ -223,7 +260,20 @@ function obiegi_can_act(array $request, array $user): bool {
     $step = obiegi_current_step($request);
     if (!$step) return false;
     if (($user['role'] ?? '') === 'admin') return true;
+    if (($step['assignee_type'] ?? 'role') === 'user') {
+        return (int)($user['id'] ?? 0) === (int)($step['user_id'] ?? 0);
+    }
     return ($user['role'] ?? '') === $step['role_name'];
+}
+
+/** Czytelna etykieta adresata kroku (osoba lub rola). */
+function obiegi_step_assignee_label(array $step): string {
+    if (($step['assignee_type'] ?? 'role') === 'user') {
+        $u = db_one("SELECT name, email FROM users WHERE id=?", [(int)($step['user_id'] ?? 0)]);
+        return $u ? ('👤 ' . ($u['name'] ?: $u['email'])) : '👤 (nieznana osoba)';
+    }
+    $r = db_one("SELECT display_name FROM roles WHERE name=?", [(string)($step['role_name'] ?? '')]);
+    return ($r['display_name'] ?? '') ?: (string)($step['role_name'] ?? '');
 }
 
 /**
@@ -318,9 +368,11 @@ function obiegi_inbox(array $user): array {
          JOIN obieg_definitions d ON d.id = r.definition_id
          LEFT JOIN users u ON u.id = r.submitted_by
          JOIN obieg_def_steps s ON s.definition_id = r.definition_id AND s.step_order = r.current_step_order
-         WHERE r.status = 'w_toku' AND s.role_name = ?
+         WHERE r.status = 'w_toku'
+           AND ( (COALESCE(s.assignee_type,'role')='role' AND s.role_name = ?)
+              OR (s.assignee_type='user' AND s.user_id = ?) )
          ORDER BY r.submitted_at DESC",
-        [$role]
+        [$role, (int)($user['id'] ?? 0)]
     );
 }
 
@@ -346,8 +398,10 @@ function obiegi_inbox_count(array $user): int {
             $r = db_one(
                 "SELECT COUNT(*) c FROM obieg_requests r
                  JOIN obieg_def_steps s ON s.definition_id = r.definition_id AND s.step_order = r.current_step_order
-                 WHERE r.status='w_toku' AND s.role_name = ?",
-                [$role]
+                 WHERE r.status='w_toku'
+                   AND ( (COALESCE(s.assignee_type,'role')='role' AND s.role_name = ?)
+                      OR (s.assignee_type='user' AND s.user_id = ?) )",
+                [$role, (int)($user['id'] ?? 0)]
             );
         }
         return (int)($r['c'] ?? 0);
@@ -368,10 +422,22 @@ function obiegi_role_users(string $role_name): array {
     );
 }
 
-/** Powiadamia mailem członków roli danego kroku, że czeka na nich decyzja. */
+/** Adresaci kroku do powiadomienia: członkowie roli albo wskazana osoba. */
+function obiegi_step_recipients(array $step): array {
+    if (($step['assignee_type'] ?? 'role') === 'user') {
+        $u = db_one(
+            "SELECT id, name, email FROM users WHERE id=? AND is_active=1 AND user_status='active' AND email<>''",
+            [(int)($step['user_id'] ?? 0)]
+        );
+        return $u ? [$u] : [];
+    }
+    return obiegi_role_users((string)($step['role_name'] ?? ''));
+}
+
+/** Powiadamia mailem adresata danego kroku, że czeka na niego decyzja. */
 function obiegi_notify_step(int $request_id, array $step, ?array $def, string $title): void {
     if (!function_exists('mail_queue_add')) return;
-    $users = obiegi_role_users((string)$step['role_name']);
+    $users = obiegi_step_recipients($step);
     if (!$users) return;
     $url  = rtrim(APP_URL, '/') . '/obiegi/view.php?id=' . $request_id;
     $dname = $def['name'] ?? 'Obieg';
@@ -404,6 +470,104 @@ function obiegi_notify_submitter(array $req, string $status, string $note): void
     try {
         mail_queue_add($email, $req['submitter_name'] ?: $email, $subject, $html, '', 'obieg', (int)$req['id']);
     } catch (\Throwable $e) {}
+}
+
+// ── Pliki wniosku ─────────────────────────────────────────────────────────────
+
+const OBIEG_UPLOAD_EXTS = ['pdf','jpg','jpeg','png','docx','xlsx','doc','xls','odt','txt'];
+
+function obiegi_files(int $request_id): array {
+    obiegi_init();
+    return db_all(
+        "SELECT f.*, u.name AS uploader FROM obieg_files f
+         LEFT JOIN users u ON u.id = f.uploaded_by
+         WHERE f.request_id = ? ORDER BY f.id",
+        [$request_id]
+    );
+}
+
+function obiegi_file_get(int $id): ?array {
+    obiegi_init();
+    return db_one("SELECT * FROM obieg_files WHERE id = ?", [$id]);
+}
+
+/**
+ * Wgrywa plik z $_FILES[$field] jako załącznik wniosku (source='upload').
+ * Zwraca id rekordu lub null. Waliduje rozszerzenie i rozmiar (≤20 MB).
+ */
+function obiegi_add_upload(int $request_id, string $field, int $user_id): ?int {
+    obiegi_init();
+    if (empty($_FILES[$field]['tmp_name']) || ($_FILES[$field]['error'] ?? 1) !== UPLOAD_ERR_OK) return null;
+    $f    = $_FILES[$field];
+    $ext  = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, OBIEG_UPLOAD_EXTS, true)) throw new \RuntimeException('Niedozwolony typ pliku: .' . $ext);
+    if ($f['size'] > 20 * 1024 * 1024) throw new \RuntimeException('Plik jest za duży (maks. 20 MB).');
+
+    $rel = 'obiegi/' . $request_id;
+    $dir = UPLOAD_DIR . $rel . '/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) throw new \RuntimeException('Nie udało się zapisać pliku.');
+
+    $mime = function_exists('mime_content_type') ? (mime_content_type($dir . $stored) ?: '') : '';
+    return db_insert('obieg_files', [
+        'request_id'    => $request_id,
+        'source'        => 'upload',
+        'path'          => $rel . '/' . $stored,
+        'original_name' => mb_substr($f['name'], 0, 255),
+        'mime_type'     => $mime,
+        'file_size'     => (int)($f['size'] ?? filesize($dir . $stored) ?: 0),
+        'uploaded_by'   => $user_id,
+    ]);
+}
+
+/**
+ * Dołącza do wniosku istniejący plik z repozytorium koszulki EZD (source='ezd').
+ * Wymaga modułu EZD; kopiuje metadane z ezd_zalaczniki. Zwraca id lub null.
+ */
+function obiegi_add_ezd_file(int $request_id, int $zalacznik_id, int $user_id): ?int {
+    obiegi_init();
+    if (!function_exists('ezd_zal_get')) {
+        @require_once __DIR__ . '/ezd.php';
+    }
+    if (!function_exists('ezd_zal_get')) return null;
+    $z = ezd_zal_get($zalacznik_id);
+    if (!$z) return null;
+    // unikaj duplikatu tego samego pliku
+    $dup = db_one("SELECT id FROM obieg_files WHERE request_id=? AND source='ezd' AND ezd_zalacznik_id=?", [$request_id, $zalacznik_id]);
+    if ($dup) return (int)$dup['id'];
+    return db_insert('obieg_files', [
+        'request_id'       => $request_id,
+        'source'           => 'ezd',
+        'path'             => '',
+        'original_name'    => mb_substr((string)$z['original_name'], 0, 255),
+        'mime_type'        => (string)($z['mime_type'] ?? ''),
+        'file_size'        => (int)($z['file_size'] ?? 0),
+        'ezd_zalacznik_id' => $zalacznik_id,
+        'uploaded_by'      => $user_id,
+    ]);
+}
+
+function obiegi_file_delete(int $id): void {
+    obiegi_init();
+    $f = obiegi_file_get($id);
+    if (!$f) return;
+    if ($f['source'] === 'upload' && $f['path']) {
+        $abs = UPLOAD_DIR . $f['path'];
+        if (is_file($abs)) @unlink($abs);
+    }
+    db()->prepare("DELETE FROM obieg_files WHERE id=?")->execute([$id]);
+}
+
+/** Powiązana koszulka EZD wniosku (lub null). */
+function obiegi_request_sprawa(array $request): ?array {
+    $sid = (int)($request['ezd_sprawa_id'] ?? 0);
+    if ($sid <= 0) return null;
+    if (!function_exists('ezd_sprawa_get')) {
+        @require_once __DIR__ . '/ezd.php';
+    }
+    if (!function_exists('ezd_sprawa_get')) return null;
+    try { return ezd_sprawa_get($sid); } catch (\Throwable $e) { return null; }
 }
 
 /** Etykieta akcji dziennika (dla osi czasu). */

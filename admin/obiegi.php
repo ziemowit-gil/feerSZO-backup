@@ -34,10 +34,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'save_steps') {
             $id = (int)($_POST['id'] ?? 0);
             $names = $_POST['step_name'] ?? [];
+            $types = $_POST['step_type'] ?? [];
             $roles = $_POST['step_role'] ?? [];
+            $usrs  = $_POST['step_user'] ?? [];
             $steps = [];
             foreach ($names as $i => $n) {
-                $steps[] = ['name' => (string)$n, 'role_name' => (string)($roles[$i] ?? '')];
+                $steps[] = [
+                    'name'          => (string)$n,
+                    'assignee_type' => (string)($types[$i] ?? 'role'),
+                    'role_name'     => (string)($roles[$i] ?? ''),
+                    'user_id'       => (int)($usrs[$i] ?? 0),
+                ];
             }
             obiegi_def_save_steps($id, $steps);
             flash_set('success', 'Zapisano kroki obiegu.');
@@ -60,6 +67,7 @@ $sel_id = (int)($_GET['id'] ?? 0);
 $sel    = $sel_id ? obiegi_definition($sel_id) : null;
 $steps  = $sel ? obiegi_def_steps($sel_id) : [];
 $roles  = roles_all();
+$users  = db_all("SELECT id, name, email FROM users WHERE is_active=1 AND user_status='active' ORDER BY name COLLATE NOCASE");
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -180,16 +188,30 @@ include dirname(__DIR__) . '/includes/header.php';
               <div id="stepsWrap">
                 <?php
                 $render_rows = $steps ?: [];
-                if (!$render_rows) $render_rows = [['name' => '', 'role_name' => '']];
-                foreach ($render_rows as $i => $st): ?>
-                  <div class="step-row d-flex align-items-center gap-2 mb-2">
+                if (!$render_rows) $render_rows = [['name' => '', 'assignee_type' => 'role', 'role_name' => '', 'user_id' => 0]];
+                foreach ($render_rows as $i => $st):
+                  $stype = ($st['assignee_type'] ?? 'role') === 'user' ? 'user' : 'role';
+                ?>
+                  <div class="step-row d-flex align-items-center gap-2 mb-2 flex-wrap">
                     <span class="badge bg-secondary step-num"><?= $i + 1 ?></span>
-                    <input name="step_name[]" class="form-control form-control-sm" placeholder="Nazwa kroku (np. Akceptacja przełożonego)" value="<?= h($st['name']) ?>">
-                    <select name="step_role[]" class="form-select form-select-sm" style="max-width:260px">
+                    <input name="step_name[]" class="form-control form-control-sm" style="max-width:230px" placeholder="Nazwa kroku (np. Akceptacja przełożonego)" value="<?= h($st['name']) ?>">
+                    <select name="step_type[]" class="form-select form-select-sm step-type" style="max-width:130px">
+                      <option value="role" <?= $stype === 'role' ? 'selected' : '' ?>>Rola</option>
+                      <option value="user" <?= $stype === 'user' ? 'selected' : '' ?>>Osoba</option>
+                    </select>
+                    <select name="step_role[]" class="form-select form-select-sm step-role<?= $stype === 'user' ? ' d-none' : '' ?>" style="max-width:220px">
                       <option value="">— rola zatwierdzająca —</option>
                       <?php foreach ($roles as $r): ?>
                         <option value="<?= h($r['name']) ?>" <?= ($st['role_name'] ?? '') === $r['name'] ? 'selected' : '' ?>>
                           <?= h($r['display_name'] ?: $r['name']) ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                    <select name="step_user[]" class="form-select form-select-sm step-user<?= $stype === 'user' ? '' : ' d-none' ?>" style="max-width:220px">
+                      <option value="">— wskaż osobę —</option>
+                      <?php foreach ($users as $usr): ?>
+                        <option value="<?= (int)$usr['id'] ?>" <?= (int)($st['user_id'] ?? 0) === (int)$usr['id'] ? 'selected' : '' ?>>
+                          <?= h($usr['name'] ?: $usr['email']) ?>
                         </option>
                       <?php endforeach; ?>
                     </select>
@@ -212,13 +234,23 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <template id="stepRowTpl">
-  <div class="step-row d-flex align-items-center gap-2 mb-2">
+  <div class="step-row d-flex align-items-center gap-2 mb-2 flex-wrap">
     <span class="badge bg-secondary step-num">?</span>
-    <input name="step_name[]" class="form-control form-control-sm" placeholder="Nazwa kroku">
-    <select name="step_role[]" class="form-select form-select-sm" style="max-width:260px">
+    <input name="step_name[]" class="form-control form-control-sm" style="max-width:230px" placeholder="Nazwa kroku">
+    <select name="step_type[]" class="form-select form-select-sm step-type" style="max-width:130px">
+      <option value="role" selected>Rola</option>
+      <option value="user">Osoba</option>
+    </select>
+    <select name="step_role[]" class="form-select form-select-sm step-role" style="max-width:220px">
       <option value="">— rola zatwierdzająca —</option>
       <?php foreach ($roles as $r): ?>
         <option value="<?= h($r['name']) ?>"><?= h($r['display_name'] ?: $r['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <select name="step_user[]" class="form-select form-select-sm step-user d-none" style="max-width:220px">
+      <option value="">— wskaż osobę —</option>
+      <?php foreach ($users as $usr): ?>
+        <option value="<?= (int)$usr['id'] ?>"><?= h($usr['name'] ?: $usr['email']) ?></option>
       <?php endforeach; ?>
     </select>
     <button type="button" class="btn btn-sm btn-outline-danger step-del" title="Usuń krok"><i class="bi bi-x-lg"></i></button>
@@ -231,10 +263,19 @@ include dirname(__DIR__) . '/includes/header.php';
   function renum(){
     wrap.querySelectorAll('.step-num').forEach(function(b,i){ b.textContent = i+1; });
   }
+  function syncType(sel){
+    var row = sel.closest('.step-row');
+    var isUser = sel.value === 'user';
+    row.querySelector('.step-role').classList.toggle('d-none', isUser);
+    row.querySelector('.step-user').classList.toggle('d-none', !isUser);
+  }
   document.getElementById('addStep').addEventListener('click', function(){
     var tpl = document.getElementById('stepRowTpl');
     wrap.appendChild(tpl.content.cloneNode(true));
     renum();
+  });
+  wrap.addEventListener('change', function(e){
+    if (e.target.classList.contains('step-type')) syncType(e.target);
   });
   wrap.addEventListener('click', function(e){
     var btn = e.target.closest('.step-del');

@@ -586,6 +586,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                data-url="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>" data-name="<?= h($z['original_name']) ?>" title="Podgląd PDF"><i class="bi bi-eye"></i></a>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>&dl=1" class="btn btn-xs btn-outline-secondary btn-sm"><i class="bi bi-download"></i></a>
+            <?php if(module_enabled('obiegi_enabled')): ?>
+            <a href="<?= APP_URL ?>/obiegi/new.php?ezd_sprawa_id=<?= $id ?>&ezd_zalacznik_id=<?= $z['id'] ?>"
+               class="btn btn-xs btn-outline-primary btn-sm" title="Uruchom obieg z tym plikiem"><i class="bi bi-diagram-2"></i></a>
+            <?php endif; ?>
             <?php if($can_act): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
