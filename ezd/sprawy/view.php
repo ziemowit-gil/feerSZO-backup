@@ -246,6 +246,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
 <style>
+/* ── Hero koszulki ───────────────────────── */
+.ezd-hero{display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;background:linear-gradient(135deg,#fef2f2 0%,#ffffff 60%);border:1px solid #fee2e2;border-radius:16px;padding:1.15rem 1.4rem;margin-bottom:1.5rem;}
+.ezd-hero-icon{width:52px;height:52px;border-radius:14px;background:#dc2626;color:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.55rem;box-shadow:0 4px 10px rgba(220,38,38,.28);}
+.ezd-hero-title{font-size:1.3rem;font-weight:800;color:#0f172a;line-height:1.2;margin:.15rem 0 .1rem;}
+.ezd-hero-desc{font-size:.83rem;color:#5b6472;line-height:1.5;}
+
 /* ── Bento karty ─────────────────────────── */
 .bc{background:#fff;border:1.5px solid #e8edf3;border-radius:12px;overflow:hidden;margin-bottom:1rem;}
 .bc-h{padding:.55rem 1rem;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94a3b8;border-bottom:1px solid #f1f5f9;background:#fafbfc;display:flex;align-items:center;gap:.4rem;}
@@ -311,13 +317,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <!-- ══ LEWA: Timeline ══════════════════════════════════════════════════════ -->
   <div class="col-lg-8">
 
-    <!-- Nagłówek sprawy -->
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <div class="d-flex align-items-start gap-3 flex-wrap">
+    <!-- Nagłówek sprawy (hero) -->
+    <div class="ezd-hero">
+      <div class="ezd-hero-icon"><i class="bi bi-folder2-open"></i></div>
+      <div class="d-flex align-items-start gap-3 flex-wrap flex-grow-1">
           <div class="flex-grow-1">
             <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-              <code class="bg-light px-2 py-0 rounded fw-bold" style="font-size:.82rem;color:#1d4ed8"><?= h($sprawa['znak_sprawy']) ?></code>
+              <code class="bg-white px-2 py-0 rounded fw-bold border" style="font-size:.82rem;color:#1d4ed8"><?= h($sprawa['znak_sprawy']) ?></code>
               <?= ezd_status_badge_sprawa($sprawa['status']) ?>
               <?= ezd_priority_badge($sprawa['priority']) ?>
               <?php if(!empty($sprawa['ciagla'])): ?>
@@ -328,7 +334,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               </span>
               <?php endif; ?>
             </div>
-            <h3 class="fw-bold mb-1" style="font-size:1.25rem;color:#0f172a"><?= h($sprawa['title']) ?></h3>
+            <h1 class="ezd-hero-title"><?= h($sprawa['title']) ?></h1>
             <?php if($sprawa['parent_id']): ?>
             <div class="mb-1" style="font-size:.78rem">
               <span class="badge bg-info bg-opacity-15 text-info border border-info"><i class="bi bi-diagram-3 me-1"></i>Podkoszulka</span>
@@ -336,7 +342,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </div>
             <?php endif; ?>
             <?php if($sprawa['description']): ?>
-            <div class="text-muted" style="font-size:.83rem;line-height:1.5"><?= nl2br(h($sprawa['description'])) ?></div>
+            <div class="ezd-hero-desc"><?= nl2br(h($sprawa['description'])) ?></div>
             <?php endif; ?>
           </div>
           <div class="d-flex gap-2 flex-wrap flex-shrink-0">
@@ -366,7 +372,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </a>
             <?php endif; ?>
           </div>
-        </div>
       </div>
     </div>
 
