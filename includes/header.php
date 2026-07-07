@@ -539,7 +539,7 @@ if ($_user) {
   <?php
   $_on_umowy    = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters') || str_contains($_uri,'/contracts/rejestr') || str_contains($_uri,'/admin/terminations');
   $_on_wol_main = str_contains($_uri,'/contracts/wolontariat/') || str_contains($_uri,'/contracts/rekrutacja/') || str_contains($_uri,'/onboarding/') || str_contains($_uri,'/admin/timesheets') || str_contains($_uri,'/admin/certificates');
-  $_on_it       = str_contains($_uri, '/it/') || str_contains($_uri, '/tools/');
+  $_on_it       = str_contains($_uri, '/it/') || str_contains($_uri, '/tools/') || str_contains($_uri, '/vpn/');
   $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/strategy/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/resources/') || str_contains($_uri,'/admin/shipments');
   $_on_rodo_nb  = str_contains($_uri, '/rodo/');
   $_on_ezd_nb   = str_contains($_uri, '/ezd/');
@@ -581,6 +581,13 @@ if ($_user) {
     if (module_enabled('obiegi_enabled') && ($_ob_u = current_user())) {
       require_once __DIR__ . '/obiegi.php';
       $_obieg_inbox = obiegi_inbox_count($_ob_u);
+    }
+  } catch (\Throwable $e) {}
+  $_vpn_pending = 0;
+  try {
+    if (is_admin() && module_enabled('vpn_enabled')) {
+      require_once __DIR__ . '/vpn.php';
+      $_vpn_pending = vpn_pending_count();
     }
   } catch (\Throwable $e) {}
   $_obs_badge = (int)$_hd_open + (int)$_msg_unread_total + ($_alias_is_op ? (int)$_alias_pending : 0) + (int)$_obieg_inbox;
@@ -667,8 +674,14 @@ if ($_user) {
       <li><a class="dropdown-item<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php"><i class="bi bi-person-badge me-2"></i>Konta</a></li>
       <li><a class="dropdown-item<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php"><i class="bi bi-key me-2"></i>Hasła</a></li>
       <li><a class="dropdown-item<?= _nav_active('/tools/r2_upload') ?>" href="<?= APP_URL ?>/tools/r2_upload.php"><i class="bi bi-cloud-arrow-up me-2"></i>Upload do R2</a></li>
+      <?php if (module_enabled('vpn_enabled')): ?>
+      <li><a class="dropdown-item<?= _nav_active('/vpn/') ?>" href="<?= APP_URL ?>/vpn/index.php"><i class="bi bi-shield-lock me-2"></i>Dostęp VPN</a></li>
+      <?php endif; ?>
       <?php if (is_admin()): ?>
       <li><a class="dropdown-item<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php"><i class="bi bi-gear me-2"></i>Serwisy IT</a></li>
+      <?php if (module_enabled('vpn_enabled')): ?>
+      <li><a class="dropdown-item<?= _nav_active('/admin/vpn') ?>" href="<?= APP_URL ?>/admin/vpn.php"><i class="bi bi-shield-check me-2"></i>VPN — dostępy<?php if (($_vpn_pending ?? 0) > 0): ?><span class="badge bg-warning text-dark ms-2"><?= (int)$_vpn_pending ?></span><?php endif; ?></a></li>
+      <?php endif; ?>
       <?php endif; ?>
     </ul>
   </li>
