@@ -750,6 +750,17 @@ function td_render_mentions(string $text, array $users): string {
       <span>Problem</span>
     </button>
 
+    <!-- Otwórz zadanie — pełny widok w module Zadania (ukryty, gdy podgląd
+         otwarto już z giełdy zadań: index.php dokleja in_tasks=1) -->
+    <?php if (empty($_GET['in_tasks'])): ?>
+    <a class="td-ab-btn td-ab-ghost"
+       href="<?= APP_URL ?>/tasks/index.php?task=<?= $id ?>"
+       aria-label="Otwórz zadanie w module Zadania">
+      <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+      <span>Otwórz zadanie</span>
+    </a>
+    <?php endif; ?>
+
     <!-- Separator -->
     <div class="td-ab-sep" aria-hidden="true"></div>
 

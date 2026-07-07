@@ -1496,7 +1496,7 @@ function openTask(taskId) {
     bootstrap.Offcanvas.getOrCreateInstance(
         document.getElementById('taskOffcanvas')
     ).show();
-    fetch(BASE + '/tasks/detail.php?id=' + taskId)
+    fetch(BASE + '/tasks/detail.php?id=' + taskId + '&in_tasks=1')
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
         .then(html => {
             body.innerHTML = '';
@@ -1507,6 +1507,18 @@ function openTask(taskId) {
                 + escHtml(String(err)) + '</div>';
         });
 }
+
+/* Głęboki link ?task=ID (maile, przycisk „Otwórz zadanie" w podglądzie) —
+   otwórz szczegóły od razu po wejściu i wyczyść parametr z adresu. */
+document.addEventListener('DOMContentLoaded', function() {
+    const dlTask = new URLSearchParams(location.search).get('task');
+    if (dlTask && /^\d+$/.test(dlTask)) {
+        openTask(parseInt(dlTask, 10));
+        const url = new URL(location.href);
+        url.searchParams.delete('task');
+        history.replaceState(null, '', url);
+    }
+});
 
 /* Weź / Oddaj */
 function claimTask(taskId, action, btn) {
