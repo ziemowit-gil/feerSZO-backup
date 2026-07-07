@@ -144,9 +144,6 @@ include dirname(__DIR__) . '/includes/header.php';
     ['label'=>'Koszulki',               'icon'=>'bi-folder2-open',      'color'=>'primary',   'href'=>'/ezd/sprawy/index.php'],
     ['label'=>'Segregatory aktowe',     'icon'=>'bi-archive',           'color'=>'dark',      'href'=>'/ezd/teczki/index.php'],
     ['label'=>'Wykaz akt (JRWA)',       'icon'=>'bi-tags',              'color'=>'warning',   'href'=>'/ezd/jrwa/index.php'],
-    ['label'=>'Rejestr pełnomocnictw',  'icon'=>'bi-person-vcard',      'color'=>'success',   'href'=>'/ezd/pelnomocnictwa/index.php'],
-    ['label'=>'Rejestr zaświadczeń',    'icon'=>'bi-award',             'color'=>'secondary', 'href'=>'/ezd/zaswiadczenia/index.php'],
-    ['label'=>'Wolontariusze bez umowy','icon'=>'bi-heart',             'color'=>'danger',    'href'=>'/ezd/wolontariusze/index.php'],
   ]; foreach ($tiles as $t): ?>
   <a href="<?= APP_URL . $t['href'] ?>" class="ezd-launcher-tile">
     <?php if (!empty($t['badge'])): ?>
@@ -158,6 +155,35 @@ include dirname(__DIR__) . '/includes/header.php';
     <?= h($t['label']) ?>
   </a>
   <?php endforeach; ?>
+  <a href="#" class="ezd-launcher-tile" data-bs-toggle="modal" data-bs-target="#ezdRejestryModal">
+    <div class="ezd-launcher-icon bg-success bg-opacity-10">
+      <i class="bi bi-journals text-success"></i>
+    </div>
+    Rejestry
+  </a>
+</div>
+
+<!-- Modal: Rejestry -->
+<div class="modal fade" id="ezdRejestryModal" tabindex="-1" aria-labelledby="ezdRejestryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 mb-0" id="ezdRejestryModalLabel"><i class="bi bi-journals text-success me-2" aria-hidden="true"></i>Rejestry</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="list-group list-group-flush">
+        <a href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+          <i class="bi bi-person-vcard text-success"></i> Rejestr pełnomocnictw
+        </a>
+        <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+          <i class="bi bi-award text-secondary"></i> Rejestr zaświadczeń
+        </a>
+        <a href="<?= APP_URL ?>/ezd/wolontariusze/index.php" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+          <i class="bi bi-heart text-danger"></i> Wolontariusze bez umowy
+        </a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Statystyki -->

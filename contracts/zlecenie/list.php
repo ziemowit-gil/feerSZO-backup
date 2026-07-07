@@ -283,19 +283,29 @@ if ($adv_count):
           <td class="d-none d-xl-table-cell"><?= money($r['wynagrodzenie_brutto']) ?></td>
           <td><div class="d-flex flex-wrap align-items-center gap-1"><?= status_badge($r['status']) ?><?= notatka_realizacji_badge($r) ?></div></td>
           <td class="text-end" style="white-space:nowrap">
-            <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-eye"></i></a>
-            <?php if (can_edit()): ?>
-            <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/edit.php?id=<?= $r['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-pencil"></i></a>
-            <?php endif; ?>
-            <?php if (is_admin() || (can_edit() && (int)($r['created_by'] ?? 0) === (int)current_user()['id'])): ?>
-            <form method="post" action="<?= APP_URL ?>/contracts/delete.php" class="d-inline"
-                  onsubmit="return confirm('Usunąć umowę <?= h(addslashes($r['numer_umowy'] ?? '#'.$r['id'])) ?>?')">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <input type="hidden" name="type"  value="<?= $TYPE ?>">
-              <input type="hidden" name="id"    value="<?= (int)$r['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń"><i class="bi bi-trash"></i></button>
-            </form>
-            <?php endif; ?>
+            <div class="dropdown">
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 row-actions-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Akcje">
+                <i class="bi bi-three-dots-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>"><i class="bi bi-eye me-2"></i>Podgląd</a></li>
+                <?php if (can_edit()): ?>
+                <li><a class="dropdown-item" href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/edit.php?id=<?= $r['id'] ?>"><i class="bi bi-pencil me-2"></i>Edytuj</a></li>
+                <?php endif; ?>
+                <?php if (is_admin() || (can_edit() && (int)($r['created_by'] ?? 0) === (int)current_user()['id'])): ?>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form method="post" action="<?= APP_URL ?>/contracts/delete.php"
+                        onsubmit="return confirm('Usunąć umowę <?= h(addslashes($r['numer_umowy'] ?? '#'.$r['id'])) ?>?')">
+                    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                    <input type="hidden" name="type"  value="<?= $TYPE ?>">
+                    <input type="hidden" name="id"    value="<?= (int)$r['id'] ?>">
+                    <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Usuń</button>
+                  </form>
+                </li>
+                <?php endif; ?>
+              </ul>
+            </div>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -316,5 +326,12 @@ if ($adv_count):
     <?php endif; ?>
   </div>
 </div>
+
+<script>
+// Dropdowny akcji w tabeli: popper "fixed", żeby menu nie było przycinane przez overflow .table-responsive
+document.querySelectorAll('.row-actions-toggle').forEach(function (el) {
+  new bootstrap.Dropdown(el, { popperConfig: { strategy: 'fixed' } });
+});
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
