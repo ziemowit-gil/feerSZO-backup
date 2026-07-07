@@ -216,6 +216,7 @@ function kdok_migrate(): void {
         'rok'           => "INTEGER",
         'contract_type' => "TEXT",
         'contract_id'   => "INTEGER",
+        'ezd_dokument_id' => "INTEGER", // link do dokumentu wewn. w EZD (rejestracja po zaakceptowaniu)
     ]);
     _kdok_add_columns($kdb, 'kdok_steps', [
         'user_name'        => "TEXT NOT NULL DEFAULT ''",
@@ -503,6 +504,66 @@ function kdok_auth_verify(int $user_id, string $ika_plain = '', string $ika_reas
 }
 
 /**
+/**
+ * Rejestruje zaakceptowany (zatwierdzony do wypłaty) dokument księgowy jako
+ * dokument wewnętrzny w EZD — JRWA „Dokumenty księgowe - obieg od zapłaty",
+ * sprawa ciągła roczna. Idempotentne (link ezd_dokument_id w kdok_documents).
+ * Bezpieczne: NIGDY nie rzuca wyjątkiem — błąd (np. EZD wyłączone) tylko loguje,
+ * bo nie może zablokować obiegu księgowego. Moduł KDOK bywa w osobnej bazie, więc
+ * dane dokumentu przekazujemy tablicą, a link zapisujemy po stronie bazy KDOK.
+ * @return int|null id dokumentu EZD lub null
+ */
+function kdok_register_in_ezd(array $doc, int $user_id): ?int {
+    if (!module_enabled('ezd_enabled')) return null;
+    if (!empty($doc['ezd_dokument_id'])) return (int)$doc['ezd_dokument_id'];
+
+    require_once __DIR__ . '/ezd.php';
+    try {
+        $created = $doc['created_at'] ?? date('Y-m-d');
+        $rok     = (int)substr((string)$created, 0, 4) ?: (int)date('Y');
+        $sprawa_id = ezd_kdok_sprawa_id($rok, $user_id ?: 0);
+
+        $typ_label = KDOK_TYPES[$doc['type']]['label'] ?? ($doc['type'] ?? 'Dokument księgowy');
+        $num  = trim((string)($doc['number'] ?? ''));
+
+        $lines = [];
+        if ($num)                        $lines[] = 'Numer: ' . $num;
+        $lines[] = 'Typ: ' . $typ_label;
+        if (($doc['kwota'] ?? '') !== '')  $lines[] = 'Kwota: ' . $doc['kwota'];
+        if (($doc['grant_name'] ?? '') !== '') $lines[] = 'Dotacja/projekt: ' . $doc['grant_name'];
+        if (($doc['mpk'] ?? '') !== '')    $lines[] = 'MPK: ' . $doc['mpk'];
+        // Obieg akceptacji — kto podpisał kolejne kroki (dokumentacja „obiegu od zapłaty")
+        if (!empty($doc['steps']) && is_array($doc['steps'])) {
+            foreach (KDOK_STEPS as $sk => $slbl) {
+                $st = $doc['steps'][$sk] ?? null;
+                if ($st && ($st['status'] ?? '') === 'ok') {
+                    $who  = ($st['user_name'] ?? '') ?: ('#' . ($st['user_id'] ?? '?'));
+                    $when = !empty($st['decided_at']) ? ' (' . substr((string)$st['decided_at'], 0, 10) . ')' : '';
+                    $lines[] = $slbl . ': ' . $who . $when;
+                }
+            }
+        }
+
+        $did = ezd_dokument_create([
+            'sprawa_id' => $sprawa_id,
+            'rodzaj'    => 'inne',
+            'title'     => trim($typ_label . ($num ? ' ' . $num : '') . (($doc['title'] ?? '') !== '' ? ' — ' . $doc['title'] : '')),
+            'tresc'     => implode("\n", $lines),
+            'status'    => 'zatwierdzony',
+            'owner_id'  => $user_id ?: null,
+        ], $user_id ?: 0);
+
+        kdok_exec("UPDATE kdok_documents SET ezd_dokument_id=? WHERE id=?", [$did, (int)$doc['id']]);
+        // Log jest pomocniczy — nie może „cofnąć" udanej rejestracji, więc osobny try.
+        try { kdok_log((int)$doc['id'], 'Zarejestrowano w EZD (dokument wewnętrzny #' . $did . ')'); } catch (\Throwable $e) {}
+        return $did;
+    } catch (\Throwable $e) {
+        try { kdok_log((int)($doc['id'] ?? 0), 'EZD: nie udało się zarejestrować dokumentu', $e->getMessage()); } catch (\Throwable $e2) {}
+        return null;
+    }
+}
+
+/**
  * Zapisuje decyzję jednego kroku obiegu (meryt/formal/zatwierdza) dla dokumentu.
  * Wymaga wcześniejszego udanego kdok_auth_verify() — $auth to jego wynik.
  * Zwraca ['status'=>string kdok_documents.status po zapisie, 'rejected'=>bool].
@@ -555,6 +616,8 @@ function kdok_decide_step(array $doc, string $step_key, string $status, int $use
     kdok_exec("UPDATE kdok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
     if ($new_status === 'zaakceptowany') {
         kdok_log($id, 'Obieg zakończony — dokument zaakceptowany');
+        // Rejestracja w EZD (JRWA „Dokumenty księgowe - obieg od zapłaty") — best-effort.
+        kdok_register_in_ezd($fresh_doc, $user_id);
         if (org_setting('kdok_archive_enabled') === '1') {
             try {
                 kdok_archive_push($id);

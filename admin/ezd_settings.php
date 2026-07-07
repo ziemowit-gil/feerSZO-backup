@@ -19,6 +19,7 @@ $settings_keys = [
     'ezd_reminders_enabled',
     'ezd_peln_jrwa',
     'ezd_cert_jrwa',
+    'ezd_kdok_jrwa',
     'corr_ezd_auto',
     'corr_ezd_jrwa',
 ];
@@ -31,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ezd_reminders_enabled' => isset($_POST['ezd_reminders_enabled']) ? '1' : '0',
         'ezd_peln_jrwa'         => trim($_POST['ezd_peln_jrwa'] ?? '') ?: '013',
         'ezd_cert_jrwa'         => trim($_POST['ezd_cert_jrwa'] ?? '') ?: '53',
+        'ezd_kdok_jrwa'         => trim($_POST['ezd_kdok_jrwa'] ?? '') ?: 'KSG',
         'corr_ezd_auto'         => isset($_POST['corr_ezd_auto']) ? '1' : '0',
         'corr_ezd_jrwa'         => trim($_POST['corr_ezd_jrwa'] ?? '') ?: 'KOR',
     ];
@@ -113,6 +115,11 @@ include dirname(__DIR__) . '/includes/header.php';
               <label class="form-label fw-semibold mb-1" for="corr_ezd_jrwa">Symbol JRWA korespondencji</label>
               <input type="text" class="form-control form-control-sm font-monospace" id="corr_ezd_jrwa" name="corr_ezd_jrwa" value="<?= h($cfg['corr_ezd_jrwa'] ?: 'KOR') ?>" placeholder="KOR">
               <div class="form-text"><a href="<?= APP_URL ?>/correspondence/index.php">Korespondencja</a></div>
+            </div>
+            <div class="col-sm-4" style="max-width:200px">
+              <label class="form-label fw-semibold mb-1" for="ezd_kdok_jrwa">Symbol JRWA dok. księgowych</label>
+              <input type="text" class="form-control form-control-sm font-monospace" id="ezd_kdok_jrwa" name="ezd_kdok_jrwa" value="<?= h($cfg['ezd_kdok_jrwa'] ?: 'KSG') ?>" placeholder="KSG">
+              <div class="form-text">JRWA „Dokumenty księgowe - obieg od zapłaty". Dokumenty zatwierdzone do wypłaty w <a href="<?= APP_URL ?>/ksiegowosc/index.php">EOD Dok. Księgowych</a> trafiają tu automatycznie.</div>
             </div>
           </div>
         </div>

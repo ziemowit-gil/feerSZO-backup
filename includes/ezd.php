@@ -1843,6 +1843,45 @@ function _ezd_vol_sprawa_id(int $rok, int $user_id): int {
     return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Rejestr pism wysłanych do wolontariuszy bez umowy w '.$rok.' r.', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
 }
 
+// ── Dokumenty księgowe (EDOK/KDOK) — obieg od zapłaty ────────────────────────
+// Prowizjonowanie hasła JRWA + teczki rocznej + sprawy ciągłej dla dokumentów
+// finansowo-księgowych. Sama rejestracja dokumentu żyje w includes/ksiegowosc.php
+// (kdok_register_in_ezd) — moduł KDOK bywa w osobnej bazie, więc link zwrotny
+// zapisuje wołający po stronie bazy KDOK, bez JOIN-a między bazami.
+
+function ezd_kdok_jrwa(): string {
+    $s = trim((string)org_setting('ezd_kdok_jrwa'));
+    return $s !== '' ? $s : 'KSG';
+}
+
+/** Hasło JRWA dokumentów księgowych — utworzone, jeśli nie istnieje. */
+function _ezd_kdok_jrwa_id(): int {
+    $sym = ezd_kdok_jrwa();
+    $j = db_one("SELECT id FROM ezd_jrwa WHERE symbol=?", [$sym]);
+    if ($j) return (int)$j['id'];
+    db()->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)")
+        ->execute([$sym, 'Dokumenty księgowe - obieg od zapłaty', 'B5',
+                   'Dokumenty finansowo-księgowe zatwierdzone do wypłaty w module EOD Dokumentów Księgowych', 300]);
+    return (int)db()->lastInsertId();
+}
+
+/** Teczka roczna dokumentów księgowych (utworzona w razie potrzeby). */
+function _ezd_kdok_teczka_id(int $rok, int $user_id): int {
+    $jid = _ezd_kdok_jrwa_id();
+    $t = db_one("SELECT id FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1", [$jid, $rok]);
+    if ($t) return (int)$t['id'];
+    return ezd_teczka_create(['jrwa_id'=>$jid, 'symbol'=>ezd_kdok_jrwa(), 'title'=>"Dokumenty księgowe $rok", 'rok'=>$rok, 'owner_id'=>null], $user_id);
+}
+
+/** Sprawa ciągła „Dokumenty księgowe - obieg od zapłaty {rok}" (utworzona w razie potrzeby). */
+function ezd_kdok_sprawa_id(int $rok, int $user_id): int {
+    $tid   = _ezd_kdok_teczka_id($rok, $user_id);
+    $title = "Dokumenty księgowe - obieg od zapłaty $rok";
+    $s = db_one("SELECT id FROM ezd_sprawy WHERE teczka_id=? AND title=? LIMIT 1", [$tid, $title]);
+    if ($s) return (int)$s['id'];
+    return ezd_sprawa_create(['teczka_id'=>$tid, 'title'=>$title, 'description'=>'Rejestr dokumentów finansowo-księgowych zatwierdzonych do wypłaty w '.$rok.' r. (moduł EOD Dokumentów Księgowych).', 'priority'=>'normal', 'owner_id'=>null, 'ciagla'=>1], $user_id);
+}
+
 // ── Rejestracja weryfikacji RPTS w EZD (JRWA KAD — akta osobowe) ─────────────
 
 function ezd_rpts_jrwa(): string {
