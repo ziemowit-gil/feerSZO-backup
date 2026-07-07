@@ -62,6 +62,26 @@ $activity = db_all(
      ORDER BY l.created_at DESC LIMIT 12"
 );
 
+// Komu przekazana (najnowsza otwarta dekretacja per koszulka) + ile koszulek
+// z otwartą dekretacją "leży" u danego wykonawcy (obciążenie).
+$dekr_map = [];
+try {
+    $open_dekr = db_all(
+        "SELECT d.sprawa_id, d.wykonawca_id, u.name AS wykonawca_name
+         FROM ezd_dekretacje d JOIN users u ON u.id=d.wykonawca_id
+         WHERE d.status='oczekuje' AND d.sprawa_id IS NOT NULL
+         ORDER BY d.created_at ASC"
+    );
+    $workload = [];
+    foreach ($open_dekr as $d) $workload[(int)$d['wykonawca_id']][(int)$d['sprawa_id']] = true;
+    foreach ($open_dekr as $d) {
+        $dekr_map[(int)$d['sprawa_id']] = [
+            'name'  => $d['wykonawca_name'],
+            'count' => count($workload[(int)$d['wykonawca_id']]),
+        ];
+    }
+} catch (\Throwable $e) {}
+
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <style>
@@ -76,6 +96,16 @@ include dirname(__DIR__) . '/includes/header.php';
   box-shadow:0 4px 10px rgba(220,38,38,.28);
 }
 .ezd-hero-sub { font-size:.83rem; color:#5b6472; margin-top:.1rem; }
+.ezd-search { margin-bottom:1.25rem; }
+.ezd-search .input-group {
+  box-shadow:0 4px 14px rgba(15,23,42,.08); border-radius:14px; overflow:hidden;
+}
+.ezd-search .input-group-text { background:#fff; border:1px solid #e2e8f0; border-right:none; font-size:1.1rem; color:#64748b; padding:.7rem .55rem .7rem 1rem; }
+.ezd-search input {
+  border:1px solid #e2e8f0; border-left:none; border-right:none; font-size:.95rem; padding:.7rem .5rem;
+}
+.ezd-search input:focus { box-shadow:none; border-color:#e2e8f0; }
+.ezd-search .btn { padding:.7rem 1.4rem; font-weight:600; }
 .ezd-launcher { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.65rem; margin-bottom:1.5rem; }
 .ezd-launcher-tile {
   position:relative; display:flex; align-items:center; gap:.65rem; padding:.7rem .85rem;
@@ -136,6 +166,17 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- Wyszukiwarka EZD -->
+<form method="get" action="<?= APP_URL ?>/ezd/szukaj.php" class="ezd-search" role="search" aria-label="Wyszukiwanie w EZD">
+  <div class="input-group">
+    <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+    <input type="search" name="q" class="form-control" required minlength="2" autocomplete="off"
+           placeholder="Szukaj po numerze dokumentu, znaku koszulki lub tytule…"
+           aria-label="Szukaj po numerze dokumentu, znaku koszulki lub tytule">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Szukaj</button>
+  </div>
+</form>
 
 <!-- Launcher modułu -->
 <div class="ezd-launcher">
@@ -264,10 +305,10 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0" style="font-size:.8rem">
           <thead class="table-light">
-            <tr><th>Tytuł</th><th>Znak koszulki</th><th>Priorytet</th><th>Deadline</th><th>Właściciel</th></tr>
+            <tr><th>Tytuł</th><th>Znak koszulki</th><th>Priorytet</th><th>Deadline</th><th>Właściciel</th><th>Przekazana do</th></tr>
           </thead>
           <tbody>
-          <?php foreach ($recent_sprawy as $s): ?>
+          <?php foreach ($recent_sprawy as $s): $dk = $dekr_map[(int)$s['id']] ?? null; ?>
           <tr>
             <td><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="fw-semibold text-decoration-none"><?= h(mb_substr($s['title'], 0, 45)) ?></a></td>
             <td class="font-monospace text-muted" style="font-size:.72rem"><?= h($s['znak_sprawy']) ?></td>
@@ -276,10 +317,17 @@ include dirname(__DIR__) . '/includes/header.php';
               <?= $s['deadline'] ? date_pl($s['deadline']) : '—' ?>
             </td>
             <td><?= h($s['owner_name'] ?? '—') ?></td>
+            <td>
+              <?php if ($dk): ?>
+              <?= h($dk['name']) ?>
+              <span class="badge bg-warning text-dark ms-1" style="font-size:.62rem"
+                    title="Liczba koszulek z otwartym przekazaniem u tej osoby"><?= (int)$dk['count'] ?></span>
+              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+            </td>
           </tr>
           <?php endforeach; ?>
           <?php if (!$recent_sprawy): ?>
-          <tr><td colspan="5" class="activity-empty">Brak aktywnych koszulek</td></tr>
+          <tr><td colspan="6" class="activity-empty">Brak aktywnych koszulek</td></tr>
           <?php endif; ?>
           </tbody>
         </table>
