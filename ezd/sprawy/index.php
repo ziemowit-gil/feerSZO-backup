@@ -53,6 +53,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .sprawa-row:last-child{border-bottom:none;}
 .sprawa-row:hover{background:#f8fafc;}
 .sprawa-znak{font-family:monospace;font-size:.8rem;font-weight:700;color:#2563eb;white-space:nowrap;}
+.ezd-search .input-group{box-shadow:0 4px 14px rgba(15,23,42,.08);border-radius:14px;overflow:hidden;}
+.ezd-search .input-group-text{background:#fff;border:1px solid #e2e8f0;border-right:none;font-size:1.15rem;color:#64748b;padding:.7rem .55rem .7rem 1rem;}
+.ezd-search input{border:1px solid #e2e8f0;border-left:none;border-right:none;font-size:.95rem;padding:.7rem .5rem;}
+.ezd-search input:focus{box-shadow:none;border-color:#e2e8f0;}
+.ezd-search .btn{padding:.7rem 1.4rem;font-weight:600;}
+.dekr-cell{white-space:nowrap;font-size:.72rem;text-align:right;min-width:112px;}
+.dekr-cell .dekr-who{font-weight:600;color:#334155;}
+.dekr-cell .dekr-lezy{font-size:.66rem;}
 </style>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -69,11 +77,17 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <!-- Filtry -->
 <form method="get" class="mb-3">
+<!-- Duża listwa wyszukiwania -->
+<div class="ezd-search mb-3">
+  <div class="input-group input-group-lg">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="search" name="q" value="<?= h($q) ?>" autofocus
+           placeholder="Szukaj po numerze dokumentu, numerze koszulki lub tytule…">
+    <button class="btn btn-primary" type="submit">Szukaj</button>
+  </div>
+</div>
 <div class="row g-2 align-items-end">
   <div class="col-md-3">
-    <input type="search" name="q" class="form-control form-control-sm" placeholder="Szukaj znaku lub tytułu…" value="<?= h($q) ?>">
-  </div>
-  <div class="col-md-2">
     <select name="status" class="form-select form-select-sm">
       <option value="">Wszystkie statusy</option>
       <?php foreach(EZD_STATUSES_SPRAWA as $sv=>$sl): ?>
@@ -104,7 +118,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <input type="date" name="deadline_do" class="form-control form-control-sm" value="<?= h($ddo) ?>" title="Termin do">
   </div>
   <div class="col-md-1">
-    <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Szukaj</button>
+    <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-funnel me-1"></i>Filtruj</button>
   </div>
 </div>
 <div class="d-flex flex-wrap gap-3 mt-2">
@@ -129,11 +143,21 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-folder2 me-1 text-primary"></i>Wyniki (<?= count($sprawy) ?>)</span>
   </div>
   <div>
-    <?php foreach($sprawy as $s): ?>
+    <?php foreach($sprawy as $s):
+      $lz = ezd_lezy_since($s['dekr_since'] ?? null);
+    ?>
     <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="sprawa-row">
       <div class="flex-grow-1 overflow-hidden">
         <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($s['title']) ?></div>
         <div class="text-muted" style="font-size:.74rem"><span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?></div>
+      </div>
+      <div class="dekr-cell">
+        <?php if(!empty($s['dekr_wykonawca_name'])): ?>
+        <div class="dekr-who"><i class="bi bi-person-fill me-1 text-warning"></i><?= h($s['dekr_wykonawca_name']) ?></div>
+        <div class="dekr-lezy text-<?= $lz['class'] ?>"><i class="bi bi-hourglass-split me-1"></i>leży: <?= h($lz['label']) ?></div>
+        <?php else: ?>
+        <span class="text-muted" style="font-size:.7rem"><i class="bi bi-dash-circle me-1"></i>nieprzekazana</span>
+        <?php endif; ?>
       </div>
       <?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?>
       <?= ezd_priority_badge($s['priority']) ?>
@@ -143,7 +167,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <span class="<?= $s['deadline']<date('Y-m-d')?'text-danger fw-bold':'' ?>"><i class="bi bi-calendar-event me-1"></i><?= date_pl($s['deadline']) ?></span>
         <?php endif; ?>
       </div>
-      <div class="text-muted" style="font-size:.73rem;white-space:nowrap"><?= h($s['owner_name']??'—') ?></div>
+      <div class="text-muted" style="font-size:.73rem;white-space:nowrap" title="Właściciel"><?= h($s['owner_name']??'—') ?></div>
       <i class="bi bi-chevron-right text-muted" style="font-size:.75rem"></i>
     </a>
     <?php endforeach; ?>

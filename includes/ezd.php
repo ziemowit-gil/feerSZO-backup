@@ -608,7 +608,12 @@ function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
     if (!empty($f['priority']))  { $where[] = "s.priority=?";   $params[] = $f['priority']; }
     if (!empty($f['teczka_id'])) { $where[] = "s.teczka_id=?";  $params[] = (int)$f['teczka_id']; }
     if (!empty($f['owner_id']))  { $where[] = "s.owner_id=?";   $params[] = (int)$f['owner_id']; }
-    if (!empty($f['q']))         { $where[] = "(s.title LIKE ? OR s.znak_sprawy LIKE ?)"; $q = '%'.$f['q'].'%'; $params[] = $q; $params[] = $q; }
+    if (!empty($f['q']))         {
+        // Szukanie po: tytule koszulki, numerze koszulki (znak), numerze/tytule dokumentu (pisma w koszulce)
+        $where[] = "(s.title LIKE ? OR s.znak_sprawy LIKE ?
+                     OR EXISTS (SELECT 1 FROM ezd_pisma p WHERE p.sprawa_id=s.id AND (p.sygnatura LIKE ? OR p.title LIKE ?)))";
+        $q = '%'.$f['q'].'%'; $params[] = $q; $params[] = $q; $params[] = $q; $params[] = $q;
+    }
     if (!empty($f['deadline_od'])) { $where[] = "s.deadline>=?"; $params[] = $f['deadline_od']; }
     if (!empty($f['deadline_do'])) { $where[] = "s.deadline<=?"; $params[] = $f['deadline_do']; }
     if (!empty($f['hide_ciagla'])) { $where[] = "COALESCE(s.ciagla,0)=0"; }
@@ -622,10 +627,18 @@ function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
         array_push($params, $viewer_id, $viewer_id, $viewer_id);
     }
     return db_all(
-        "SELECT s.*, t.symbol AS teczka_symbol, t.title AS teczka_title, u.name AS owner_name
+        "SELECT s.*, t.symbol AS teczka_symbol, t.title AS teczka_title, u.name AS owner_name,
+                dk.wykonawca_id AS dekr_wykonawca_id, dw.name AS dekr_wykonawca_name,
+                dk.created_at AS dekr_since, dk.deadline AS dekr_deadline
          FROM ezd_sprawy s
          JOIN ezd_teczki t ON t.id = s.teczka_id
          LEFT JOIN users u ON u.id = s.owner_id
+         LEFT JOIN ezd_dekretacje dk ON dk.id = (
+             SELECT d2.id FROM ezd_dekretacje d2
+             WHERE d2.sprawa_id = s.id AND d2.status='oczekuje'
+             ORDER BY d2.created_at DESC, d2.id DESC LIMIT 1
+         )
+         LEFT JOIN users dw ON dw.id = dk.wykonawca_id
          WHERE " . implode(' AND ', $where) . "
          ORDER BY s.title ASC
          LIMIT 200",
@@ -2899,6 +2912,28 @@ function ezd_status_badge_sprawa(string $status): string {
 function ezd_priority_badge(string $p): string {
     $pr = EZD_PRIORITIES[$p] ?? ['label' => $p, 'class' => 'secondary'];
     return '<span class="badge bg-' . $pr['class'] . ' bg-opacity-15 text-' . $pr['class'] . ' border border-' . $pr['class'] . '" style="font-size:.65rem">' . h($pr['label']) . '</span>';
+}
+
+/**
+ * "Ile leży" — czas od podanej daty (created_at dekretacji) do teraz, po polsku.
+ * Zwraca np. "dziś", "1 dzień", "3 dni", "2 tyg.". Kolor (klasa) rośnie z czasem:
+ * do 3 dni — muted, do 7 — warning, powyżej — danger.
+ * @return array{label:string,class:string,days:int}
+ */
+function ezd_lezy_since(?string $datetime): array {
+    if (!$datetime) return ['label' => '—', 'class' => 'muted', 'days' => 0];
+    $ts = strtotime($datetime);
+    if (!$ts) return ['label' => '—', 'class' => 'muted', 'days' => 0];
+    $days = (int)floor((time() - $ts) / 86400);
+    if ($days <= 0)      $label = 'dziś';
+    elseif ($days === 1) $label = '1 dzień';
+    elseif ($days < 5)   $label = $days . ' dni';
+    elseif ($days < 7)   $label = $days . ' dni';
+    elseif ($days < 14)  $label = '1 tydz.';
+    elseif ($days < 31)  $label = floor($days / 7) . ' tyg.';
+    else                 $label = floor($days / 30) . ' mies.';
+    $class = $days > 7 ? 'danger' : ($days > 3 ? 'warning' : 'muted');
+    return ['label' => $label, 'class' => $class, 'days' => $days];
 }
 
 function ezd_filesize(int $b): string {
