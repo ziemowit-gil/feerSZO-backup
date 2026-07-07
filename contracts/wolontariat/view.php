@@ -81,6 +81,15 @@ $_imp_pending = $_SESSION['imp_pending'] ?? null;
 $_imp_show_verify = !empty($_GET['imp']) && is_array($_imp_pending)
     && ($_imp_pending['type'] ?? '') === $TYPE && (int)($_imp_pending['id'] ?? 0) === $id;
 
+// ── Przepisz użytkownika (nowy e-mail, oświadczenie do podpisu + skan) ───────
+require_once dirname(dirname(__DIR__)) . '/includes/user_reassignment.php';
+$_reassign_pending = $_SESSION['reassign_pending'] ?? null;
+$_reassign_show_upload = !empty($_GET['reassign']) && is_array($_reassign_pending)
+    && ($_reassign_pending['type'] ?? '') === $TYPE && (int)($_reassign_pending['id'] ?? 0) === $id;
+$_reassign_req = $_reassign_show_upload
+    ? db_one("SELECT * FROM user_reassignments WHERE id=?", [(int)$_reassign_pending['request_id']])
+    : null;
+
 // ── Endpoint AJAX: odznaki (?_badges=1) ───────────────────────────────────────
 if (!empty($_GET['_badges']) && ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest') {
     try {

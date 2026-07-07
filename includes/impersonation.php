@@ -49,15 +49,17 @@ function impersonation_linked_user(string $type, array $row): ?array {
         $conds[] = 'microsoft_id = ?';
         $params[] = $row['m365_user_id'];
     }
-    $email = '';
-    if (in_array($type, ['zlecenie', 'dzielo'], true)) {
-        $email = $row['m365_login'] ?? '';
-    } else { // wolontariat
-        $email = ($row['m365_login'] ?? '') ?: ($row['email'] ?? '');
-    }
-    if ($email) {
+    // Odzwierciedla DOKŁADNIE logikę viewer_owns_contract() (includes/auth.php) —
+    // to jest OR pomiędzy kandydatami, nie jeden priorytetowy adres. Kontrakt
+    // wolontariacki dopuszcza dopasowanie zarówno po m365_login, jak i po email;
+    // zlecenie/dzieło — tylko po m365_login.
+    $email_candidates = [];
+    if (!empty($row['m365_login'])) $email_candidates[] = $row['m365_login'];
+    if ($type === 'wolontariat' && !empty($row['email'])) $email_candidates[] = $row['email'];
+    $email_candidates = array_unique($email_candidates);
+    foreach ($email_candidates as $cand) {
         $conds[] = 'email = ?';
-        $params[] = $email;
+        $params[] = $cand;
     }
     if (!$conds) return null;
 

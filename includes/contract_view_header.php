@@ -282,6 +282,13 @@ $_cvh_accent = match($_cvh_st['class']) {
               <i class="bi bi-incognito me-2 text-danger"></i>Wejdź na konto tej osoby
             </button>
           </li>
+          <li><hr class="dropdown-divider"></li>
+          <li><h6 class="dropdown-header"><i class="bi bi-arrow-left-right me-1"></i>Przepisanie konta</h6></li>
+          <li>
+            <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#reassignReqModal">
+              <i class="bi bi-arrow-left-right me-2 text-danger"></i>Przepisz użytkownika
+            </button>
+          </li>
         </ul>
       </div>
       <?php endif; ?>
@@ -506,6 +513,76 @@ $_cvh_accent = match($_cvh_st['class']) {
 <?php if (!empty($_imp_show_verify)): ?>
 <script>document.addEventListener('DOMContentLoaded', function(){
   (new bootstrap.Modal(document.getElementById('impVerifyModal'))).show();
+});</script>
+<?php endif; ?>
+<?php endif; ?>
+
+<?php if (!empty($_imp_target)): ?>
+<!-- "Przepisz użytkownika" — krok 1: powód + nowy e-mail -->
+<div class="modal fade" id="reassignReqModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="<?= APP_URL ?>/auth/reassign_request.php" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="type" value="<?= h($_cvh_type) ?>">
+      <input type="hidden" name="id" value="<?= (int)$_cvh_id ?>">
+      <div class="modal-header">
+        <h5 class="modal-title">Przepisz użytkownika — <?= h($_imp_target['name']) ?></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Konto zostanie zamknięte, a w jego miejsce utworzone nowe — na podstawie
+        podpisanego oświadczenia (wydrukujesz je w kolejnym kroku).</p>
+        <div class="mb-3">
+          <label class="form-label">Powód <span class="text-danger">*</span></label>
+          <textarea name="reason" class="form-control" rows="2" required maxlength="500" placeholder="np. zmiana adresu e-mail na wniosek osoby…"></textarea>
+        </div>
+        <div class="mb-1">
+          <label class="form-label">Nowy adres e-mail <span class="text-danger">*</span></label>
+          <input type="email" name="new_email" class="form-control" required placeholder="nowy.adres@przyklad.pl">
+        </div>
+        <p class="text-muted mb-0" style="font-size:.8rem">Obecny adres: <?= h($_imp_target['email']) ?></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-sm btn-danger">Utwórz zgłoszenie</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- "Przepisz użytkownika" — krok 2: druk oświadczenia + przesłanie skanu -->
+<div class="modal fade" id="reassignUploadModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="<?= APP_URL ?>/auth/reassign_upload.php" enctype="multipart/form-data" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="modal-header">
+        <h5 class="modal-title">Prześlij podpisane oświadczenie</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <?php if (!empty($_reassign_req)): ?>
+        <p class="small">Dokument nr <strong><?= h($_reassign_req['doc_number']) ?></strong> —
+        wydrukuj, podpisz (Operator), a następnie prześlij skan poniżej.</p>
+        <a href="<?= APP_URL ?>/auth/reassign_print.php?req=<?= (int)$_reassign_req['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary mb-3">
+          <i class="bi bi-printer"></i> Drukuj oświadczenie
+        </a>
+        <?php endif; ?>
+        <div class="mb-1">
+          <label class="form-label">Skan podpisanego oświadczenia <span class="text-danger">*</span></label>
+          <input type="file" name="scan" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+        </div>
+        <p class="text-muted mb-0" style="font-size:.8rem">Po przesłaniu skanu konto zostanie od razu przepisane — ta operacja jest nieodwracalna.</p>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="submit" class="btn btn-sm btn-link text-muted" formaction="<?= APP_URL ?>/auth/reassign_cancel.php" formnovalidate>Anuluj zgłoszenie</button>
+        <button type="submit" class="btn btn-sm btn-danger">Prześlij i wykonaj przepisanie</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php if (!empty($_reassign_show_upload)): ?>
+<script>document.addEventListener('DOMContentLoaded', function(){
+  (new bootstrap.Modal(document.getElementById('reassignUploadModal'))).show();
 });</script>
 <?php endif; ?>
 <?php endif; ?>
