@@ -572,8 +572,14 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
 
         <!-- Akcja (klik zatrzymuje propagację) -->
         <td style="text-align:center" onclick="event.stopPropagation()">
-          <?php if ($task['_status'] !== 'done'): ?>
           <div class="tk-actions justify-content-center">
+            <button type="button"
+                    class="btn-open"
+                    onclick="openTask(<?= $task['id'] ?>)"
+                    aria-label="Otwórz zadanie: <?= h($task['title']) ?>">
+              <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz
+            </button>
+            <?php if ($task['_status'] !== 'done'): ?>
             <?php if ($task['_mine']): ?>
             <button type="button"
                     class="btn-unclaim"
@@ -588,13 +594,9 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                     aria-label="Weź zadanie: <?= h($task['title']) ?>">
               <i class="bi bi-hand-index me-1" aria-hidden="true"></i>Weź
             </button>
-            <?php else: ?>
-            <span class="text-muted" style="font-size:.73rem">—</span>
+            <?php endif; ?>
             <?php endif; ?>
           </div>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.73rem">—</span>
-          <?php endif; ?>
         </td>
 
       </tr>
@@ -924,6 +926,14 @@ require_once __DIR__ . '/includes/header_tasks.php';
 }
 .btn-unclaim:hover,.btn-unclaim:focus-visible{border-color:#dc2626;color:#dc2626}
 .btn-unclaim:focus-visible{outline:2px solid var(--tk-focus);outline-offset:2px}
+.btn-open{
+  display:inline-flex;align-items:center;
+  font-size:.73rem;font-weight:600;padding:.2rem .6rem;border-radius:2rem;
+  border:1.5px solid #16a34a;background:#16a34a;color:#fff;
+  white-space:nowrap;text-decoration:none;transition:all .12s;cursor:pointer;
+}
+.btn-open:hover,.btn-open:focus-visible{background:#15803d;border-color:#15803d;color:#fff}
+.btn-open:focus-visible{outline:2px solid var(--tk-focus);outline-offset:2px}
 
 /* Stan pusty */
 .tk-empty{
