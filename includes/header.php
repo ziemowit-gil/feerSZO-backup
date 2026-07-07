@@ -1241,6 +1241,13 @@ if ($_user) {
     </button>
     <?php endif; // can_edit ?>
 
+    <?php if (str_contains($_uri, '/ezd/')): ?>
+    <button type="button" id="ezd-fs-btn" class="nb-icon-btn"
+            title="Ukryj menu górne — EZD na całą stronę" aria-label="Ukryj menu górne">
+      <i class="bi bi-arrows-fullscreen"></i>
+    </button>
+    <?php endif; ?>
+
     <?php
     // Przycisk zgłoszenia błędu — widoczny dla wszystkich zalogowanych, gdy moduł aktywny
     $_bug_report_on = false;
@@ -1407,6 +1414,37 @@ if ($_user) {
   </div><!-- /.navbar-collapse -->
 </div><!-- /.container-fluid -->
 </nav><!-- /#navbar -->
+
+<?php if (str_contains($_uri, '/ezd/')): ?>
+<!-- Tryb pełnoekranowy EZD — chowa menu górne, stan zapamiętany w localStorage -->
+<style>
+body.ezd-fs #navbar, body.ezd-fs #page-title-bar,
+body.ezd-fs #saas-bar, body.ezd-fs .saas-tenant-bar { display:none !important; }
+#ezd-fs-exit {
+  display:none; position:fixed; top:.6rem; right:.9rem; z-index:1080;
+  align-items:center; gap:.4rem; background:#0f172a; color:#fff; border:none;
+  border-radius:999px; padding:.35rem .85rem; font-size:.78rem; font-weight:600;
+  box-shadow:0 4px 12px rgba(2,6,23,.3); opacity:.5; transition:opacity .15s; cursor:pointer;
+}
+#ezd-fs-exit:hover, #ezd-fs-exit:focus-visible { opacity:1; }
+body.ezd-fs #ezd-fs-exit { display:inline-flex; }
+</style>
+<button type="button" id="ezd-fs-exit" title="Pokaż menu górne" aria-label="Pokaż menu górne">
+  <i class="bi bi-arrows-angle-contract"></i> Pokaż menu
+</button>
+<script>
+(function () {
+  var KEY = 'feerEzdFullscreen';
+  function apply(on) { document.body.classList.toggle('ezd-fs', on); }
+  function set(on)   { try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {} apply(on); }
+  try { apply(localStorage.getItem(KEY) === '1'); } catch (e) {}
+  var btn  = document.getElementById('ezd-fs-btn');
+  var exit = document.getElementById('ezd-fs-exit');
+  if (btn)  btn.addEventListener('click',  function () { set(true);  });
+  if (exit) exit.addEventListener('click', function () { set(false); });
+})();
+</script>
+<?php endif; ?>
 
 <!-- Mobile offcanvas -->
 <div class="offcanvas offcanvas-start" tabindex="-1" id="navOffcanvas"
