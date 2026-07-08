@@ -128,11 +128,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'parent_n
     $p = parent_current();
     if ($p && hash_equals(student_token(), (string)($_POST['_token'] ?? ''))) {
         $sid = (int)$p['student_id'];
-        db()->prepare("UPDATE k30_ti_student_accounts SET parent_notify_absence=?, parent_notify_grade=?, parent_notify_messages=? WHERE id=?")
+        // Kanały niedostępne (brak e-maila/telefonu opiekuna) mają wyłączone pola —
+        // nie nadpisujemy wtedy zapisanej wartości wartością z niewyświetlonego pola.
+        $cur = db_one("SELECT parent_notify_absence, parent_notify_grade, parent_notify_messages, parent_notify_lessons, guardian_email, guardian_phone FROM k30_ti_student_accounts WHERE id=?", [$sid]);
+        $has_email = trim((string)($cur['guardian_email'] ?? '')) !== '';
+        $has_phone = trim((string)($cur['guardian_phone'] ?? '')) !== '';
+        db()->prepare("UPDATE k30_ti_student_accounts SET parent_notify_absence=?, parent_notify_grade=?, parent_notify_messages=?, parent_notify_lessons=? WHERE id=?")
            ->execute([
-               isset($_POST['pn_absence'])  ? 1 : 0,
-               isset($_POST['pn_grade'])    ? 1 : 0,
-               isset($_POST['pn_messages']) ? 1 : 0,
+               $has_email ? (isset($_POST['pn_absence'])  ? 1 : 0) : (int)($cur['parent_notify_absence']  ?? 1),
+               $has_email ? (isset($_POST['pn_grade'])    ? 1 : 0) : (int)($cur['parent_notify_grade']    ?? 1),
+               $has_email ? (isset($_POST['pn_messages']) ? 1 : 0) : (int)($cur['parent_notify_messages'] ?? 1),
+               $has_phone ? (isset($_POST['pn_lessons'])  ? 1 : 0) : (int)($cur['parent_notify_lessons']  ?? 1),
                $sid,
            ]);
         $_SESSION['k30_parent_msg'] = ['ok', 'Ustawienia powiadomien zapisane.'];
@@ -868,34 +874,43 @@ include __DIR__ . '/_layout_head.php';
     </div>
   </div>
 
-  <!-- Ustawienia powiadomien e-mail dla rodzica -->
+  <!-- Ustawienia powiadomien dla rodzica (e-mail + SMS) -->
   <?php
-    $pn_acc = db_one("SELECT parent_notify_absence, parent_notify_grade, parent_notify_messages, guardian_email FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
+    $pn_acc = db_one("SELECT parent_notify_absence, parent_notify_grade, parent_notify_messages, parent_notify_lessons, guardian_email, guardian_phone FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
     $gemail = trim((string)($pn_acc['guardian_email'] ?? ''));
+    $gphone = trim((string)($pn_acc['guardian_phone'] ?? ''));
     $ptok_n = student_token();
   ?>
   <div class="card border-0 shadow-sm mt-3">
-    <div class="card-header fw-semibold"><i class="bi bi-bell me-2 text-primary" aria-hidden="true"></i>Powiadomienia e-mail</div>
+    <div class="card-header fw-semibold"><i class="bi bi-bell me-2 text-primary" aria-hidden="true"></i>Powiadomienia</div>
     <div class="card-body">
-      <?php if ($gemail === ''): ?>
-      <div class="alert alert-warning py-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Brak adresu e-mail opiekuna w systemie. Skontaktuj się z prowadzącym, aby dodać adres.</div>
+      <?php if ($gemail === '' && $gphone === ''): ?>
+      <div class="alert alert-warning py-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Brak adresu e-mail i numeru telefonu opiekuna w systemie. Skontaktuj się z prowadzącym, aby je dodać.</div>
       <?php else: ?>
-      <p class="small text-body-secondary mb-3">Powiadomienia będą wysyłane na: <strong><?= h($gemail) ?></strong></p>
+      <p class="small text-body-secondary mb-3">
+        <?php if ($gemail !== ''): ?>E-mail: <strong><?= h($gemail) ?></strong><?php endif; ?>
+        <?php if ($gemail !== '' && $gphone !== ''): ?><br><?php endif; ?>
+        <?php if ($gphone !== ''): ?>SMS: <strong><?= h($gphone) ?></strong><?php endif; ?>
+      </p>
       <form method="post">
         <input type="hidden" name="_token" value="<?= h($ptok_n) ?>">
         <input type="hidden" name="_op" value="parent_notify_prefs">
         <div class="d-flex flex-column gap-2">
           <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="pn_absence" name="pn_absence" <?= !empty($pn_acc['parent_notify_absence']) ? 'checked' : '' ?>>
-            <label class="form-check-label small" for="pn_absence">Nieobecność dziecka na zajęciach</label>
+            <input class="form-check-input" type="checkbox" id="pn_absence" name="pn_absence" <?= !empty($pn_acc['parent_notify_absence']) ? 'checked' : '' ?> <?= $gemail === '' ? 'disabled' : '' ?>>
+            <label class="form-check-label small" for="pn_absence">Nieobecność dziecka na zajęciach <span class="text-body-secondary">(e-mail)</span></label>
           </div>
           <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="pn_grade" name="pn_grade" <?= !empty($pn_acc['parent_notify_grade']) ? 'checked' : '' ?>>
-            <label class="form-check-label small" for="pn_grade">Nowa ocena dziecka</label>
+            <input class="form-check-input" type="checkbox" id="pn_grade" name="pn_grade" <?= !empty($pn_acc['parent_notify_grade']) ? 'checked' : '' ?> <?= $gemail === '' ? 'disabled' : '' ?>>
+            <label class="form-check-label small" for="pn_grade">Nowa ocena dziecka <span class="text-body-secondary">(e-mail)</span></label>
           </div>
           <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="pn_messages" name="pn_messages" <?= !empty($pn_acc['parent_notify_messages']) ? 'checked' : '' ?>>
-            <label class="form-check-label small" for="pn_messages">Nowa wiadomość od prowadzącego</label>
+            <input class="form-check-input" type="checkbox" id="pn_messages" name="pn_messages" <?= !empty($pn_acc['parent_notify_messages']) ? 'checked' : '' ?> <?= $gemail === '' ? 'disabled' : '' ?>>
+            <label class="form-check-label small" for="pn_messages">Nowa wiadomość od prowadzącego <span class="text-body-secondary">(e-mail)</span></label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="pn_lessons" name="pn_lessons" <?= !empty($pn_acc['parent_notify_lessons']) ? 'checked' : '' ?> <?= $gphone === '' ? 'disabled' : '' ?>>
+            <label class="form-check-label small" for="pn_lessons">Nowe, zmienione i odwołane zajęcia <span class="text-body-secondary">(SMS)</span><?= $gphone === '' ? ' — brak numeru telefonu opiekuna' : '' ?></label>
           </div>
         </div>
         <button class="btn btn-sm btn-primary mt-3"><i class="bi bi-check2 me-1"></i>Zapisz</button>
