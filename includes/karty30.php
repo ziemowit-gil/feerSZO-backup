@@ -2711,14 +2711,16 @@ function ti_time_options(string $selected = '', string $from = '07:00', string $
 
 /**
  * Wysyła SMS o zajęciach do aktywnych kursantów grupy, którzy WŁĄCZYLI powiadomienia
- * (notify_sms_lessons=1) i mają numer telefonu. Zwraca liczbę wysłanych. Bezpieczne,
+ * (notify_sms_lessons=1) i mają numer telefonu. Dla małoletnich SMS trafia dodatkowo
+ * na numer opiekuna (guardian_phone). Zwraca liczbę wysłanych. Bezpieczne,
  * gdy SMS wyłączony lub brak odbiorców (zwraca 0).
  */
 function ti_lesson_sms_notify(int $courseId, string $message): int {
     require_once __DIR__ . '/sms.php';
     if (!function_exists('sms_is_enabled') || !sms_is_enabled()) return 0;
     $rows = db_all(
-        "SELECT cl.phone, a.notify_phone2, a.notify_phone2_verified, a.notify_phone3, a.notify_phone3_verified
+        "SELECT cl.phone, a.notify_phone2, a.notify_phone2_verified, a.notify_phone3, a.notify_phone3_verified,
+                a.is_minor, a.guardian_phone
          FROM k30_ti_enrollments e
          JOIN k30_ti_student_accounts a ON a.client_id = e.client_id AND a.is_active = 1 AND a.notify_sms_lessons = 1
          JOIN k30_clients cl ON cl.id = e.client_id
@@ -2727,7 +2729,13 @@ function ti_lesson_sms_notify(int $courseId, string $message): int {
     );
     $sent = 0;
     foreach ($rows as $r) {
-        foreach (k30_ti_sms_numbers($r) as $num) {
+        $nums = k30_ti_sms_numbers($r);
+        // Małoletni — powiadom również opiekuna na jego numer.
+        if (!empty($r['is_minor'])) {
+            $gp = trim((string)($r['guardian_phone'] ?? ''));
+            if ($gp !== '' && !in_array($gp, $nums, true)) $nums[] = $gp;
+        }
+        foreach ($nums as $num) {
             try { sms_send($num, $message); $sent++; } catch (\Throwable $e) { /* pojedynczy błąd nie blokuje */ }
         }
     }
