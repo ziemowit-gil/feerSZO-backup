@@ -30,9 +30,19 @@ if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error',
 // Klasyfikacja JRWA (symbol, hasło, kategoria archiwalna) — dziedziczona z segregatora
 $jrwa = !empty($sprawa['jrwa_id']) ? ezd_jrwa_get((int)$sprawa['jrwa_id']) : null;
 
-$zalaczniki = ezd_zalaczniki_by($id); // wszystkie dokumenty sprawy (jednolita ścieżka)
 $out   = $_GET['out'] ?? '';
 $zalId = (int)($_GET['zal'] ?? 0);
+
+// Wydruk sprawy = operacja na danych osobowych → wymaga re-autoryzacji IKA
+// (Indywidualny Kod Autoryzacyjny). Bramka egzekwuje politykę wg roli i wraca
+// na dokładnie ten sam URL wydruku (zachowując out/zal). Musi być PRZED outputem.
+ika_require(APP_URL . '/ezd/sprawy/print.php?' . http_build_query(array_filter([
+    'id'  => $id,
+    'out' => $out !== '' ? $out : null,
+    'zal' => $zalId ?: null,
+])));
+
+$zalaczniki = ezd_zalaczniki_by($id); // wszystkie dokumenty sprawy (jednolita ścieżka)
 
 $zal_path = fn(array $z): string => UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/' . $z['filename'];
 $zal_src  = fn(array $z): string => $z['pismo_id'] ? 'Pismo' : ($z['umowa_id'] ? 'Umowa' : ($z['dokument_id'] ? 'Dokument wewn.' : 'Repozytorium'));
