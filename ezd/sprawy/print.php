@@ -17,6 +17,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/qr.php';
 
 require_login();
 require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
@@ -25,6 +26,9 @@ $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
 if (!$sprawa) { flash_set('error', 'Koszulka nie istnieje.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
 if (!ezd_sprawa_access($sprawa, (int)current_user()['id'])) { flash_set('error', 'Brak dostępu do tej koszulki.'); header('Location: ' . APP_URL . '/ezd/index.php'); exit; }
+
+// Klasyfikacja JRWA (symbol, hasło, kategoria archiwalna) — dziedziczona z segregatora
+$jrwa = !empty($sprawa['jrwa_id']) ? ezd_jrwa_get((int)$sprawa['jrwa_id']) : null;
 
 $zalaczniki = ezd_zalaczniki_by($id); // wszystkie dokumenty sprawy (jednolita ścieżka)
 $out   = $_GET['out'] ?? '';
@@ -131,10 +135,22 @@ if ($out === 'pdf') {
         }
         $pdf->Ln(2);
 
+        // ── Hasło klasyfikacyjne JRWA (pełne, z zawijaniem) ───────────────────
+        if ($jrwa && trim((string)($jrwa['title'] ?? '')) !== '') {
+            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
+            $pdf->Cell(0, 5, $pl('HASŁO KLASYFIKACYJNE JRWA'), 0, 1);
+            $pdf->SetFont('DejaVu', 'B', 9.5); $pdf->SetTextColor(0, 0, 0);
+            $pdf->MultiCell(0, 5.5, $pl(trim(($jrwa['symbol'] ?? '') . '  ' . ($jrwa['title'] ?? ''))
+                . '   (kat. arch. ' . ($jrwa['kat_arch'] ?? '—') . ')'), 0, 'L');
+            $pdf->Ln(2);
+        }
+
         // ── Metadane (dwie kolumny) ───────────────────────────────────────────
         $stat   = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
         $meta   = [
-            ['Segregator',    $sprawa['teczka_symbol'] ?? '—'],
+            ['Segregator',        $sprawa['teczka_symbol'] ?? '—'],
+            ['Klasyfikacja JRWA', $jrwa['symbol'] ?? '—'],
+            ['Kategoria archiwalna', $jrwa['kat_arch'] ?? '—'],
             ['Status',        $stat],
             ['Właściciel',    $sprawa['owner_name'] ?? '—'],
             ['Otwarto',       $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
@@ -189,6 +205,53 @@ if ($out === 'pdf') {
             $pdf->Cell(0, 6, $pl('Brak plików — karta zawiera wyłącznie metadane.'), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
         }
+
+        // ── Kod QR + adnotacje kancelaryjne ───────────────────────────────────
+        // Zapewnij miejsce na blok (QR 30 mm + podpisy) — inaczej przejdź na nową stronę.
+        if ($pdf->GetY() > 235) { $pdf->AddPage('P', 'A4'); }
+        $pdf->Ln(6);
+        $pdf->SetDrawColor(210, 215, 225);
+        $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
+        $pdf->Ln(4);
+        $blockY = $pdf->GetY();
+
+        // QR z linkiem do koszulki — generowany LOKALNIE (dane sprawy nie wychodzą na zewnątrz)
+        $qrSize = 30; // mm
+        $qrFile = qr_png_file(rtrim(APP_URL, '/') . '/ezd/sprawy/view.php?id=' . $id,
+                              UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $id . '/', 300);
+        if ($qrFile) {
+            try { $pdf->Image($qrFile, 15, $blockY, $qrSize, $qrSize); } catch (\Throwable $e) {}
+            @unlink($qrFile);
+            $pdf->SetXY(15, $blockY + $qrSize + 1);
+            $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetTextColor(120, 120, 120);
+            $pdf->MultiCell($qrSize, 3, $pl('Zeskanuj, aby otworzyć koszulkę w EZD'), 0, 'C');
+            $pdf->SetTextColor(0, 0, 0);
+        }
+
+        // Adnotacje / miejsce na podpisy — po prawej od QR
+        $ax = $qrFile ? 15 + $qrSize + 8 : 15;
+        $pdf->SetXY($ax, $blockY);
+        $pdf->SetFont('DejaVu', 'B', 8); $pdf->SetTextColor(22, 53, 102);
+        $pdf->Cell(195 - $ax, 5, $pl('ADNOTACJE KANCELARYJNE'), 0, 1);
+        $pdf->SetTextColor(0, 0, 0);
+        $annLine = function (string $label) use ($pdf, $ax, $pl) {
+            $y   = $pdf->GetY();
+            $lbl = $pl($label);
+            $pdf->SetX($ax);
+            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(90, 90, 90);
+            $pdf->Cell($pdf->GetStringWidth($lbl) + 2, 7, $lbl, 0, 0);
+            $pdf->SetTextColor(0, 0, 0);
+            $pdf->SetDrawColor(185, 190, 200);
+            $pdf->Line($pdf->GetX(), $y + 5.5, 195, $y + 5.5);
+            $pdf->Ln(7);
+        };
+        $annLine('Sprawę założył / prowadzi:');
+        $annLine('Data przekazania / dekretacja:');
+        $annLine('Sprawę zakończono dnia:');
+        $annLine('Przekazano do archiwum (kat. ' . ($jrwa['kat_arch'] ?? '—') . '):');
+
+        // Zejdź pod wyższy z dwóch bloków (QR vs adnotacje)
+        $pdf->SetY(max($pdf->GetY(), $blockY + $qrSize + ($qrFile ? 6 : 0)));
     }
 
     // ── Scalanie dokumentów ──────────────────────────────────────────────────

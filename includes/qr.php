@@ -12,6 +12,42 @@ function qr_url(string $data, int $size = 200): string {
 }
 
 /**
+ * Generuje kod QR jako lokalny plik PNG (bez wysyłania danych do zewnętrznego serwisu)
+ * i zwraca jego ścieżkę. Przeznaczone do osadzania w PDF (FPDF/FPDI) dla treści
+ * wrażliwych. Plik ląduje w $dir (musi być zapisywalny) — wywołujący usuwa go po użyciu.
+ * Zwraca null, gdy biblioteka endroid/GD są niedostępne lub zapis się nie powiódł.
+ */
+function qr_png_file(string $data, string $dir, int $size = 300): ?string {
+    // Biblioteka endroid emituje E_DEPRECATED pod PHP 8.4 — częściowo już przy
+    // kompilacji klas (autoload). Gdy funkcję wywołano w trakcie budowania PDF,
+    // taki komunikat (przy display_errors=On) uszkodziłby strumień pliku. Dlatego
+    // wyciszamy deprecacje i buforujemy stray-output ZANIM dotkniemy klas endroid.
+    $er = error_reporting();
+    error_reporting($er & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+    ob_start();
+    try {
+        if (!class_exists(\Endroid\QrCode\Builder\Builder::class)) return null;
+        $result = \Endroid\QrCode\Builder\Builder::create()
+            ->writer(new \Endroid\QrCode\Writer\PngWriter())
+            ->data($data)
+            ->encoding(new \Endroid\QrCode\Encoding\Encoding('UTF-8'))
+            ->errorCorrectionLevel(\Endroid\QrCode\ErrorCorrectionLevel::Medium)
+            ->size($size)
+            ->margin(1)
+            ->build();
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) return null;
+        $path = rtrim($dir, '/') . '/_qr_' . uniqid('', true) . '.png';
+        if (file_put_contents($path, $result->getString()) === false) return null;
+        return $path;
+    } catch (\Throwable $e) {
+        return null;
+    } finally {
+        ob_end_clean();
+        error_reporting($er);
+    }
+}
+
+/**
  * Generuje token check-in dla umowy wolontariackiej.
  * Format base64url: wolontariat:{contract_id}:{sha256(contract_id.secret)}
  */
