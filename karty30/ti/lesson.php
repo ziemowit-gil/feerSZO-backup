@@ -437,6 +437,15 @@ if ($_no_students): ?>
     <?php endif; ?>
   </div>
 
+  <?php if ($session['status'] === 'remote_material'): ?>
+  <div class="card-body">
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-0 py-2" style="font-size:.88rem">
+      <i class="bi bi-person-workspace fs-5"></i>
+      <div><strong>Praca własna prowadzącego (materiał zdalny)</strong> — dla tej lekcji <strong>nie liczymy obecności ani nieobecności</strong>. Lista poniżej ma charakter wyłącznie informacyjny i nie wchodzi do frekwencji.</div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <?php if (!$attendance): ?>
   <div class="card-body text-muted">
     Brak uczestników kursu.

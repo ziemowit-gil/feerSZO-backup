@@ -2020,6 +2020,14 @@ const K30_TI_SESSION_STATUSES = [
 /** Statusy lekcji liczone jako „odbyła się" (do rozliczeń i wypłat). */
 const K30_TI_HELD_STATUSES = ['held', 'individual_change', 'remote_material'];
 
+/**
+ * Statusy liczone do FREKWENCJI (obecność / nieobecność kursantów).
+ * UWAGA: „Praca własna prowadzącego" (remote_material) jest CELOWO wykluczona —
+ * to zdalna praca prowadzącego, nie zajęcia z listą obecności, więc nie liczymy
+ * ani obecności, ani nieobecności. (Rozliczenia/wypłaty pozostają wg K30_TI_HELD_STATUSES.)
+ */
+const K30_TI_ATTENDANCE_STATUSES = ['held', 'individual_change'];
+
 // Role osób mogących odwołać lekcję / udział w lekcji (z podaniem powodu)
 const K30_TI_CANCEL_ROLES = [
     'beneficjent' => 'Beneficjent',

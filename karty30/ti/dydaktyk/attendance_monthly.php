@@ -46,7 +46,7 @@ $sessions = db_all(
      JOIN k30_ti_courses c ON c.id=s.course_id
      WHERE s.course_id IN ($placeholders)
        AND s.lesson_date BETWEEN ? AND ?
-       AND (s.status IS NULL OR s.status != 'removed')
+       AND (s.status IS NULL OR s.status NOT IN ('removed','remote_material'))
      ORDER BY s.course_id, s.lesson_date, s.time_from",
     array_merge($course_ids, [$month_first, $month_last])
 );

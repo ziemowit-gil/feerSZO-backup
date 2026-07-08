@@ -1295,7 +1295,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       $absent_count = $cur_course ? (int)(db_one(
           "SELECT COUNT(*) AS n FROM k30_ti_attendance a
            JOIN k30_ti_sessions s ON s.id=a.session_id
-           WHERE s.course_id=? AND s.status IN ('held','individual_change','remote_material') AND COALESCE(a.attended,0)=0
+           WHERE s.course_id=? AND s.status IN ('held','individual_change') AND COALESCE(a.attended,0)=0
              AND COALESCE(a.cancelled,0)=0 AND COALESCE(a.cancel_pending,0)=0", [$cur_course])['n'] ?? 0) : 0;
       $tabs = ['lekcje'=>['Lekcje','calendar-week',count($sessions)],
                'zadania'=>['Zadania','journal-check',count($homeworks)],
@@ -1472,7 +1472,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                   <?php if ($has_alert): ?>
                   <span class="badge text-bg-warning" style="font-size:.7rem" title="Oczekujące prośby"><i class="bi bi-exclamation-circle"></i> <?= count($pending) + count($resch) ?></span>
                   <?php endif; ?>
-                  <?php if ($att_total > 0): ?>
+                  <?php if ($s['status'] === 'remote_material'): ?>
+                  <span class="text-body-secondary small" title="Praca własna prowadzącego — nie liczymy obecności ani nieobecności"><i class="bi bi-person-workspace me-1"></i>bez frekwencji</span>
+                  <?php elseif ($att_total > 0): ?>
                   <span class="d-flex align-items-center gap-1 text-body-secondary small">
                     <i class="bi bi-people"></i>
                     <span class="fw-semibold <?= $att_present===$att_total&&$s['status']!=='planned'?'text-success':'' ?>"><?= $att_present ?></span><span>/<?= $att_total ?></span>
@@ -2099,7 +2101,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
          FROM k30_ti_attendance a
          JOIN k30_ti_sessions s ON s.id=a.session_id
          JOIN k30_clients cl ON cl.id=a.client_id
-         WHERE s.course_id=? AND s.status IN ('held','individual_change','remote_material')
+         WHERE s.course_id=? AND s.status IN ('held','individual_change')
            AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancel_pending,0)=0
          ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
         [$cur_course]);

@@ -23,8 +23,13 @@ $rv_mon = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',7=>'Lip',8=>'Si
           <td class="text-body-secondary small"><?= h($l['course_name']) ?></td>
           <td class="small"><?= $l['topic'] ? h($l['topic']) : '<span class="text-body-secondary">—</span>' ?></td>
           <td class="text-center">
-            <?php if (!in_array($l['status'], ['held','individual_change'])): ?>
-            <span class="badge text-bg-secondary"><?= $l['status']==='planned'?'planowana':h($l['status']) ?></span>
+            <?php if (!in_array($l['status'], K30_TI_ATTENDANCE_STATUSES, true)):
+              // Statusy poza frekwencją (planowana, praca własna, odwołana) — bez obecności/nieobecności
+              $lbl = K30_TI_SESSION_STATUSES[$l['status']]['label'] ?? $l['status'];
+              if ($l['status'] === 'planned') $lbl = 'planowana';
+              elseif ($l['status'] === 'remote_material') $lbl = 'praca własna';
+            ?>
+            <span class="badge text-bg-secondary"><?= h($lbl) ?></span>
             <?php elseif ($l['attended']): ?>
             <span class="badge text-bg-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>obecny</span>
             <?php elseif ((int)($l['att_no_show'] ?? 0) === 1): ?>
