@@ -33,7 +33,15 @@ services:
     restart: unless-stopped
     environment:
       ROUNDCUBEMAIL_DB_TYPE:   sqlite
-      ROUNDCUBEMAIL_SKIN:      elastic
+      # Skin domyślny. "chameleon-blue" to zwendorowany skin (Kolab Chameleon,
+      # niebieski wariant Pavla Kosko) montowany niżej z
+      # ./roundcube/skins/chameleon-blue. Dziedziczy po wbudowanym skinie
+      # "larry" (obraz roundcube/roundcubemail nadal go zawiera). styles.css
+      # jest prekompilowany ze styles.less (skin ma go pustego) — patrz
+      # roundcube/skins/chameleon-blue/README.FEER. Powrót do domyślnego:
+      # ustaw z powrotem "elastic" (wtedy działa nakładka pluginu feer_theme,
+      # która celuje w Elastic i przy chameleon-blue jest bez efektu).
+      ROUNDCUBEMAIL_SKIN:      chameleon-blue
       RC_DOMAIN:               ${RC_DOMAIN:-localhost}
       RC_TENANT_ID:            ${RC_TENANT_ID:-}
       RC_OAUTH_CLIENT_ID:      ${RC_OAUTH_CLIENT_ID:-}
@@ -57,6 +65,10 @@ services:
       - ./roundcube/plugins/outlook_contacts_sync:/var/www/html/plugins/outlook_contacts_sync:ro
       - ./roundcube/plugins/login_notice:/var/www/html/plugins/login_notice:ro
       - ./roundcube/plugins/feer_theme:/var/www/html/plugins/feer_theme:ro
+      # Skin Chameleon Blue (aktywny przez ROUNDCUBEMAIL_SKIN wyżej). Skiny
+      # Roundcube leżą w /var/www/html/skins/<nazwa>; parent "larry" jest już
+      # w obrazie, więc montujemy tylko sam chameleon-blue.
+      - ./roundcube/skins/chameleon-blue:/var/www/html/skins/chameleon-blue:ro
     labels:
       # Bez efektu w dev (Traefik nie działa) — aktywne dopiero z docker-compose.prod.yml.
       - "traefik.enable=true"
