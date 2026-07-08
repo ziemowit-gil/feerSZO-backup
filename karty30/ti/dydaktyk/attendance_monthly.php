@@ -47,6 +47,7 @@ $sessions = db_all(
      WHERE s.course_id IN ($placeholders)
        AND s.lesson_date BETWEEN ? AND ?
        AND (s.status IS NULL OR s.status NOT IN ('removed','remote_material'))
+       AND COALESCE(c.track_attendance,1)=1
      ORDER BY s.course_id, s.lesson_date, s.time_from",
     array_merge($course_ids, [$month_first, $month_last])
 );

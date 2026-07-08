@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'lesson_payout_bb'    => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
         'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
         'is_active'           => isset($_POST['is_active']) ? 1 : 0,
+        'track_attendance'    => isset($_POST['track_attendance']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
 
@@ -179,6 +180,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia</a></li>
       <li><a class="dropdown-item" href="payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
+      <li><a class="dropdown-item" href="self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
     </ul>
   </div>
 
@@ -356,6 +358,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <input class="form-check-input" type="checkbox" name="is_subgroup" id="c_sub" <?= !empty($f['is_subgroup'])?'checked':'' ?>>
         <label class="form-check-label" for="c_sub">
           Podgrupa <span class="text-body-secondary small">(lekcje zawsze jako <em>Zajęcia indywidualne</em>, oznaczenie 1I)</span>
+        </label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="track_attendance" id="c_att" <?= (!isset($f['track_attendance']) || $f['track_attendance']) ? 'checked' : '' ?>>
+        <label class="form-check-label" for="c_att">
+          Licz frekwencję <span class="text-body-secondary small">(obecność/nieobecność; wyłącz dla kursów bez list obecności)</span>
         </label>
       </div>
       <div class="form-check form-switch mb-3">

@@ -18,6 +18,10 @@ if (!$course_id || !dyd_owns_course($uid, $course_id)) {
 
 $course = db_one("SELECT * FROM k30_ti_courses WHERE id=?", [$course_id]);
 if (!$course) { http_response_code(404); exit('Nie znaleziono kursu.'); }
+if ((int)($course['track_attendance'] ?? 1) === 0) {
+    http_response_code(200);
+    exit('Frekwencja jest wyłączona dla tego kursu — raport obecności niedostępny.');
+}
 
 // Lekcje kursu — rosnąco po dacie. „Praca własna prowadzącego" (remote_material)
 // jest wykluczona z listy obecności — nie liczymy dla niej obecności/nieobecności.

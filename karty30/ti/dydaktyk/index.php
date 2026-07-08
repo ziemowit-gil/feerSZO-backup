@@ -1292,7 +1292,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <?php if ($tab_is_course): ?>
   <ul class="nav nav-tabs mb-3" role="tablist">
     <?php
-      $absent_count = $cur_course ? (int)(db_one(
+      $absent_count = ($cur_course && k30_ti_course_tracks_attendance($cur_course)) ? (int)(db_one(
           "SELECT COUNT(*) AS n FROM k30_ti_attendance a
            JOIN k30_ti_sessions s ON s.id=a.session_id
            WHERE s.course_id=? AND s.status IN ('held','individual_change') AND COALESCE(a.attended,0)=0
@@ -1472,8 +1472,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
                   <?php if ($has_alert): ?>
                   <span class="badge text-bg-warning" style="font-size:.7rem" title="Oczekujące prośby"><i class="bi bi-exclamation-circle"></i> <?= count($pending) + count($resch) ?></span>
                   <?php endif; ?>
-                  <?php if ($s['status'] === 'remote_material'): ?>
-                  <span class="text-body-secondary small" title="Praca własna prowadzącego — nie liczymy obecności ani nieobecności"><i class="bi bi-person-workspace me-1"></i>bez frekwencji</span>
+                  <?php if ($s['status'] === 'remote_material' || (int)($course['track_attendance'] ?? 1) === 0): ?>
+                  <span class="text-body-secondary small" title="<?= $s['status']==='remote_material' ? 'Praca własna prowadzącego — nie liczymy obecności ani nieobecności' : 'Frekwencja wyłączona dla tego kursu' ?>"><i class="bi bi-person-workspace me-1"></i>bez frekwencji</span>
                   <?php elseif ($att_total > 0): ?>
                   <span class="d-flex align-items-center gap-1 text-body-secondary small">
                     <i class="bi bi-people"></i>
@@ -2094,7 +2094,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
     <?php /* ═══════════════════════ NIEOBECNOŚCI ═══════════════════════ */ ?>
     <?php if ($tab === 'nieobecnosci'):
-      $absences = db_all(
+      $absences = k30_ti_course_tracks_attendance((int)$cur_course) ? db_all(
         "SELECT a.session_id, a.client_id, a.cancelled, a.cancel_reason, a.cancelled_by, a.cancelled_at,
                 a.no_show, a.no_show_billing, a.no_show_reason,
                 s.lesson_date, s.time_from, s.topic, cl.name AS client_name
@@ -2104,7 +2104,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
          WHERE s.course_id=? AND s.status IN ('held','individual_change')
            AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancel_pending,0)=0
          ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
-        [$cur_course]);
+        [$cur_course]) : [];
       $abs_unexcused = array_filter($absences, fn($r) => (int)($r['cancelled'] ?? 0) === 0 && (int)($r['no_show'] ?? 0) === 0);
     ?>
     <div class="card border-0 shadow-sm">

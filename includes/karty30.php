@@ -326,6 +326,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_courses  ADD COLUMN default_meeting_url TEXT NOT NULL DEFAULT ''",
         // Oceny (e-dziennik) włączone dla kursu (0=wyłączone — np. kurs dla dorosłych)
         "ALTER TABLE k30_ti_courses ADD COLUMN grades_enabled INTEGER NOT NULL DEFAULT 1",
+        // Liczenie frekwencji (obecność/nieobecność) dla kursu (0=wyłączone — np. kurs bez list obecności)
+        "ALTER TABLE k30_ti_courses ADD COLUMN track_attendance INTEGER NOT NULL DEFAULT 1",
         // Oceny włączone dla osoby globalnie (per osoba) — niezależnie od kursu
         "ALTER TABLE k30_clients   ADD COLUMN ti_grades_enabled INTEGER NOT NULL DEFAULT 1",
         // Model rozliczania kursu: 1=miesięczny, 2=godzinowy (domyślny), 3=stały
@@ -2678,6 +2680,7 @@ function k30_ti_client_billing(int $client_id): array {
 function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
     return db_all(
         "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url,
+                c.track_attendance AS course_track_attendance,
                 a.attended, a.ind_notes,
                 a.cancelled AS att_cancelled, a.cancel_pending AS att_cancel_pending,
                 a.cancel_reason AS att_cancel_reason,
@@ -4884,6 +4887,12 @@ function ti_course_instructor_id(int $course_id): int {
 function k30_ti_course_grades_enabled(int $course_id): bool {
     $r = db_one("SELECT grades_enabled FROM k30_ti_courses WHERE id=?", [$course_id]);
     return $r === null ? true : (int)($r['grades_enabled'] ?? 1) === 1;
+}
+
+/** Czy kurs liczy frekwencję (obecność/nieobecność)? 0 = wyłączone dla kursu. */
+function k30_ti_course_tracks_attendance(int $course_id): bool {
+    $r = db_one("SELECT track_attendance FROM k30_ti_courses WHERE id=?", [$course_id]);
+    return $r === null ? true : (int)($r['track_attendance'] ?? 1) === 1;
 }
 
 /** Czy osoba ma globalnie włączone oceny w TI? */

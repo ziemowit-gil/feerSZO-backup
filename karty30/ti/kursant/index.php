@@ -583,10 +583,13 @@ $online_term_ok = ti_term_accepted((int)$student['client_id'], 'szkolenia');
 // Urlopy / nieobecności prowadzących kursanta (trwające + nadchodzące 30 dni)
 $instructor_leaves = ti_leaves_for_client((int)$student['client_id'], 30);
 
-// Statystyki. Praca własna prowadzącego (remote_material) nie liczy się do frekwencji.
+// Statystyki. Do frekwencji nie liczą się: praca własna prowadzącego (remote_material)
+// oraz kursy z wyłączonym liczeniem frekwencji (track_attendance=0).
+$fr_counts = fn($l) => ($l['status'] ?? '') !== 'remote_material'
+                    && (int)($l['course_track_attendance'] ?? 1) === 1;
 $total_lessons  = count($lessons);
-$attended_count = count(array_filter($lessons, fn($l) => $l['attended']));
-$fr_lessons     = count(array_filter($lessons, fn($l) => ($l['status'] ?? '') !== 'remote_material'));
+$attended_count = count(array_filter($lessons, fn($l) => $l['attended'] && $fr_counts($l)));
+$fr_lessons     = count(array_filter($lessons, $fr_counts));
 $pct = $fr_lessons > 0 ? round($attended_count / $fr_lessons * 100) : 0;
 
 // Zadania domowe — lekcje odbyte z oznaczonym zadaniem (do bloku na stronie głównej)
@@ -1561,6 +1564,8 @@ document.addEventListener('DOMContentLoaded', function() {
               <span class="badge text-bg-warning" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Czeka na potwierdzenie</span>
               <?php elseif ($att_cancelled): ?>
               <span class="badge text-bg-danger" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>odwołane</span>
+              <?php elseif ((int)($l['course_track_attendance'] ?? 1) === 0): ?>
+              <span class="badge text-bg-light text-secondary border" title="Kurs bez liczenia frekwencji">bez frekwencji</span>
               <?php elseif ($l['status'] !== 'held'):
                 $lbl = $l['status']==='planned' ? 'planowana'
                      : ($l['status']==='remote_material' ? 'praca własna'
