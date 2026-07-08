@@ -59,6 +59,10 @@ function _att_txt(string $s): string {
     return iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
 }
 
+// Generowanie PDF w try/catch — zamiast gołego 500 pokaż czytelny powód
+// (błąd fontu FPDF, brak biblioteki itp.) i zaloguj.
+try {
+
 $pdf = new FPDF('L', 'mm', 'A4'); // landscape — więcej kolumn
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
@@ -196,3 +200,10 @@ $pdf->SetTextColor(0, 0, 0);
 $fname = 'obecnosc_' . preg_replace('/[^a-z0-9_]/i', '_', $course['name'] ?? 'kurs') . '_' . date('Ymd') . '.pdf';
 $pdf->Output('D', $fname);
 exit;
+} catch (\Throwable $e) {
+    error_log('[attendance_pdf] course=' . $course_id . ': ' . $e->getMessage());
+    if (!headers_sent()) { http_response_code(500); header('Content-Type: text/plain; charset=UTF-8'); }
+    echo "Nie udało się wygenerować PDF listy obecności.\n";
+    echo "Powód: " . $e->getMessage() . "\n";
+    exit;
+}

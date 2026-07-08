@@ -105,6 +105,8 @@ $MONTHS_PL_FULL = ['','Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
                    'Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
 $ORG = defined('ORG_NAME') ? ORG_NAME : '';
 
+// Generowanie PDF w try/catch — czytelny powód zamiast gołego 500
+try {
 $pdf = new FPDF('L', 'mm', 'A4');
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
@@ -264,3 +266,10 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
 $fname = 'frekwencja_' . str_replace('-', '_', $month_raw) . '_' . date('His') . '.pdf';
 $pdf->Output('D', $fname);
 exit;
+} catch (\Throwable $e) {
+    error_log('[attendance_monthly] ' . $month_raw . ': ' . $e->getMessage());
+    if (!headers_sent()) { http_response_code(500); header('Content-Type: text/plain; charset=UTF-8'); }
+    echo "Nie udało się wygenerować raportu frekwencji.\n";
+    echo "Powód: " . $e->getMessage() . "\n";
+    exit;
+}
