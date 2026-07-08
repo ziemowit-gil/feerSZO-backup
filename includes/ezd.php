@@ -300,22 +300,184 @@
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
     }
 
-    // Seed JRWA (tylko jeśli pusta)
-    $cnt = $pdo->query("SELECT COUNT(*) FROM ezd_jrwa")->fetchColumn();
-    if ((int)$cnt === 0) {
-        $ins = $pdo->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order) VALUES (?,?,?,?,?)");
-        foreach ([
-            ['ORG', 'Organizacja i zarządzanie',        'A',   'Statuty, regulaminy, protokoły organów',          10],
-            ['FIN', 'Finanse i księgowość',              'B10', 'Budżety, sprawozdania finansowe, faktury',        20],
-            ['KAD', 'Kadry i sprawy pracownicze',        'B50', 'Umowy o pracę, akta osobowe',                    30],
-            ['WOL', 'Wolontariat',                       'B10', 'Porozumienia wolontariackie, listy obecności',   40],
-            ['PRM', 'Projekty i programy',               'B10', 'Wnioski, umowy dotacyjne, raporty projektowe',   50],
-            ['ZAM', 'Zamówienia i umowy z kontrahentami','B5',  'Umowy zlecenie, o dzieło, usługowe',             60],
-            ['KOR', 'Korespondencja ogólna',             'B5',  'Pisma wpływające i wychodzące niezakwalifikowane do innych kategorii', 70],
-            ['PR',  'Promocja i komunikacja',            'B5',  'Materiały PR, media społecznościowe, publikacje', 80],
-            ['IT',  'Informatyka i technologia',         'B5',  'Licencje, umowy serwisowe, polityki IT',         90],
-        ] as [$sym, $tit, $kat, $desc, $ord]) {
-            try { $ins->execute([$sym, $tit, $kat, $desc, $ord]); } catch (\Throwable $e) {}
+    // ── Seed / rozbudowa wykazu JRWA ─────────────────────────────────────────
+    // Pełna, hierarchiczna struktura numeryczna (0–5) z podklasami i kategoriami
+    // archiwalnymi. Węzły strukturalne (grupy i klasy mające podklasy) mają pustą
+    // kat. arch. — dokumentuje się w klasach końcowych. Wstawianie jest idempotentne
+    // po symbolu (bezpieczne dla istniejących wdrożeń). Guard: obecność symbolu '545'
+    // oznacza, że nowy wykaz już zaseedowano → pomijamy przy kolejnych żądaniach.
+    $hasNewJrwa = $pdo->query("SELECT 1 FROM ezd_jrwa WHERE symbol='545' LIMIT 1")->fetchColumn();
+    if (!$hasNewJrwa) {
+        // [symbol, tytuł, kat_arch, opis, [podklasy]]
+        $jrwaCatalog = [
+            ['0', 'Zarządzanie, organy statutowe i organizacja', '', '', [
+                ['00', 'Akta ustrojowe, rejestracja i status prawny', '', '', [
+                    ['001', 'Statut', 'A', '', []],
+                    ['002', 'KRS, NIP, REGON', 'A', '', []],
+                    ['005', 'Status OPP', 'A', 'Organizacja pożytku publicznego', []],
+                ]],
+                ['01', 'Działalność organów kolegialnych i nadzorczych', '', '', [
+                    ['011', 'Posiedzenia Zarządu', 'A', '', []],
+                    ['012', 'Uchwały Zarządu', 'A', '', []],
+                    ['014', 'Uchwały Rady', 'A', '', []],
+                ]],
+                ['02', 'Organizacja wewnętrzna i zarządzanie', '', '', [
+                    ['021', 'Regulaminy', 'A', '', []],
+                    ['022', 'Zarządzenia', 'A', '', []],
+                    ['025', 'Księga procedur', 'A', '', []],
+                ]],
+                ['03', 'Pełnomocnictwa, upoważnienia i reprezentacja', '', '', [
+                    ['031', 'Pełnomocnictwa', 'B10', '', []],
+                    ['033', 'Rejestr pełnomocnictw', 'B10', '', []],
+                ]],
+                ['04', 'Kontrole zewnętrzne i audyty', '', '', [
+                    ['041', 'Kontrole ministerstwa', 'A', '', []],
+                    ['043', 'Audyty zewnętrzne', 'BE10', '', []],
+                ]],
+                ['05', 'Planowanie strategiczne i rozwój', 'A', '', []],
+            ]],
+            ['1', 'Sprawy kadrowe, zatrudnienie i BHP', '', '', [
+                ['10', 'Rekrutacja i nawiązanie stosunku pracy', '', '', [
+                    ['102', 'Akta osobowe', 'B50', '', []],
+                    ['103', 'Umowy o pracę', 'B50', '', []],
+                ]],
+                ['11', 'Umowy cywilnoprawne i B2B', '', '', [
+                    ['111', 'Umowy zlecenia', 'B10', '', []],
+                    ['112', 'Umowy o dzieło', 'B10', '', []],
+                    ['113', 'Umowy B2B', 'B10', '', []],
+                ]],
+                ['12', 'Ewidencja czasu pracy i płace', '', '', [
+                    ['121', 'Karty czasu pracy', 'B10', '', []],
+                    ['123', 'Listy płac', 'B50', '', []],
+                    ['124', 'ZUS', 'B50', '', []],
+                ]],
+                ['13', 'Bezpieczeństwo i Higiena Pracy (BHP)', '', '', [
+                    ['131', 'Szkolenia BHP', 'B10', '', []],
+                    ['133', 'Wypadki', 'B10', '', []],
+                ]],
+                ['14', 'Wolontariat, staże i praktyki', '', '', [
+                    ['141', 'Porozumienia o świadczeniu świadczeń wolontariackich', 'B10', 'Wolontariat długoterminowy / pisemny', []],
+                    ['142', 'Wolontariat akcyjny i krótkoterminowy (WOL)', 'B5', 'Bez umów pisemnych: oświadczenia, listy obecności, zgody rodziców', []],
+                    ['143', 'Umowy o staże i praktyki', 'B10', '', []],
+                    ['144', 'Rejestr wolontariuszy i zaświadczenia', 'B10', '', []],
+                ]],
+                ['15', 'Podnoszenie kwalifikacji i sprawy socjalne', 'B10', '', []],
+            ]],
+            ['2', 'Finanse, księgowość i majątek', '', '', [
+                ['20', 'Organizacja finansowo-księgowa', '', '', [
+                    ['201', 'Polityka rachunkowości', 'B10', '', []],
+                ]],
+                ['21', 'Dokumentacja i dowody księgowe', '', '', [
+                    ['211', 'Faktury kosztowe', 'B5', '', []],
+                    ['212', 'Faktury sprzedażowe', 'B5', '', []],
+                    ['214', 'Wyciągi bankowe', 'B5', '', []],
+                ]],
+                ['22', 'Rozliczenia podatkowe i budżetowanie', '', '', [
+                    ['221', 'CIT', 'B5', '', []],
+                    ['222', 'PIT', 'B5', '', []],
+                    ['224', 'Budżety', 'B10', '', []],
+                ]],
+                ['23', 'Sprawozdawczość finansowa i merytoryczna', '', '', [
+                    ['231', 'Roczne sprawozdania finansowe', 'A', '', []],
+                    ['232', 'Sprawozdania merytoryczne do ministerstwa', 'A', '', []],
+                ]],
+                ['24', 'Zarządzanie majątkiem i inwentaryzacja', '', '', [
+                    ['241', 'Środki trwałe', 'B10', '', []],
+                    ['242', 'Wyposażenie', 'B5', '', []],
+                ]],
+            ]],
+            ['3', 'Działalność statutowa i projekty', '', 'Klasa czysta — bez podziału strukturalnego. Podklasy (3.x) nadaje się ręcznie per projekt / akcja / grant, a kategorię archiwalną ustala indywidualnie przy zakładaniu.', []],
+            ['4', 'Komunikacja, PR i współpraca zewnętrzna', '', '', [
+                ['40', 'Relacje z mediami i wizerunek publiczny', '', '', [
+                    ['401', 'Informacje prasowe', 'B5', '', []],
+                    ['403', 'Księga Znaku', 'A', '', []],
+                ]],
+                ['41', 'Narzędzia komunikacji i materiały promocyjne', '', '', [
+                    ['411', 'Strona WWW', 'B5', '', []],
+                    ['412', 'Social media', 'B5', '', []],
+                    ['413', 'Archiwum foto/wideo', 'BE10', '', []],
+                ]],
+                ['42', 'Współpraca instytucjonalna i partnerstwa', '', '', [
+                    ['421', 'Listy intencyjne', 'B10', '', []],
+                    ['422', 'Partnerstwa', 'B10', '', []],
+                    ['423', 'Umowy sponsorskie', 'B10', '', []],
+                ]],
+                ['43', 'Organizacja wydarzeń i konferencji', '', '', [
+                    ['431', 'Plany i agendy wydarzeń', 'B5', '', []],
+                    ['432', 'Umowy z prelegentami i cateringiem', 'B5', '', []],
+                ]],
+            ]],
+            ['5', 'Administracja, IT, RODO i Systemy AI', '', '', [
+                ['50', 'Obsługa kancelaryjna i bieżąca administracja', '', '', [
+                    ['501', 'Dziennik przychodzący', 'B10', '', []],
+                    ['502', 'Dziennik wychodzący', 'B10', '', []],
+                    ['504', 'Najem lokalu', 'B10', '', []],
+                ]],
+                ['51', 'Infrastruktura IT i zarządzanie systemami', '', '', [
+                    ['511', 'Sprzęt', 'B5', '', []],
+                    ['512', 'Licencje / SaaS', 'B5', '', []],
+                    ['513', 'Domeny i hosting', 'B10', '', []],
+                ]],
+                ['52', 'Ochrona Danych Osobowych (RODO)', '', '', [
+                    ['521', 'Polityka ochrony danych', 'B10', '', []],
+                    ['522', 'Rejestr czynności przetwarzania (RCP)', 'B10', '', []],
+                    ['523', 'Upoważnienia do przetwarzania', 'B10', '', []],
+                    ['524', 'Umowy powierzenia', 'B10', '', []],
+                ]],
+                ['53', 'Zarządzanie dokumentacją i archiwum zakładowe', '', '', [
+                    ['532', 'Spisy zdawczo-odbiorcze', 'A', '', []],
+                    ['533', 'Brakowanie akt', 'A', '', []],
+                ]],
+                ['54', 'Systemy Sztucznej Inteligencji (AI) i Automatyzacje', '', '', [
+                    ['541', 'Polityka AI Governance', 'B10', '', []],
+                    ['542', 'Rejestr systemów i ryzyk AI', 'B10', '', []],
+                    ['543', 'Umowy i DPA z dostawcami LLM', 'B10', '', []],
+                    ['544', 'Prompty systemowe i bazy wiedzy RAG', 'B5', '', []],
+                    ['545', 'Skrypty integracyjne kategoryzacji dokumentów', 'B5', '', []],
+                ]],
+            ]],
+        ];
+
+        $insJrwa  = $pdo->prepare("INSERT INTO ezd_jrwa (symbol,title,kat_arch,description,sort_order,parent_id) VALUES (?,?,?,?,?,?)");
+        $findJrwa = $pdo->prepare("SELECT id FROM ezd_jrwa WHERE symbol=?");
+        $ordJrwa  = 0;
+        $seedJrwa = function (array $nodes, ?int $parentId) use (&$seedJrwa, $pdo, $insJrwa, $findJrwa, &$ordJrwa) {
+            foreach ($nodes as [$sym, $tit, $kat, $desc, $kids]) {
+                $ordJrwa += 10;
+                $findJrwa->execute([$sym]);
+                $existing = $findJrwa->fetchColumn();
+                if ($existing !== false) {
+                    $nodeId = (int)$existing;             // już istnieje — nie duplikuj, użyj do podpięcia dzieci
+                } else {
+                    try { $insJrwa->execute([$sym, $tit, $kat, $desc, $ordJrwa, $parentId]); } catch (\Throwable $e) {}
+                    $nodeId = (int)$pdo->lastInsertId();
+                }
+                if ($kids) $seedJrwa($kids, $nodeId);
+            }
+        };
+        $seedJrwa($jrwaCatalog, null);
+
+        // Wycofanie dawnego, ubogiego seedu symbolicznego (ORG/FIN/…): usuń tylko klasy
+        // nieużywane (brak powiązanych teczek/workflow). Używane zostają — z adnotacją
+        // i zepchnięte na koniec wykazu — aby nie zerwać klasyfikacji istniejących teczek.
+        foreach (['ORG','FIN','KAD','WOL','PRM','ZAM','KOR','PR','IT'] as $legacySym) {
+            try {
+                $findJrwa->execute([$legacySym]);
+                $lid = $findJrwa->fetchColumn();
+                if ($lid === false) continue;
+                $lid  = (int)$lid;
+                $refT = (int)$pdo->query("SELECT COUNT(*) FROM ezd_teczki WHERE jrwa_id={$lid}")->fetchColumn();
+                $refW = (int)$pdo->query("SELECT COUNT(*) FROM ezd_workflows WHERE jrwa_id={$lid}")->fetchColumn();
+                if ($refT === 0 && $refW === 0) {
+                    $pdo->prepare("DELETE FROM ezd_jrwa WHERE id=?")->execute([$lid]);
+                } else {
+                    $pdo->prepare(
+                        "UPDATE ezd_jrwa SET sort_order=9500,
+                         description=TRIM(COALESCE(description,'') || ' [Klasa wycofana — używać nowego wykazu numerycznego]')
+                         WHERE id=?"
+                    )->execute([$lid]);
+                }
+            } catch (\Throwable $e) {}
         }
     }
 
