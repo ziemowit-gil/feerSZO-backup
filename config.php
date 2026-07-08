@@ -4,6 +4,9 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
 
+// Strefa czasowa aplikacji — Polska (obowiązuje globalnie, przed użyciem date()/time()).
+date_default_timezone_set('Europe/Warsaw');
+
 // ---- SaaS multi-tenant detection ----
 $_saas_slug = $_SERVER['REDIRECT_TENANT_SLUG'] ?? $_SERVER['TENANT_SLUG'] ?? '';
 
