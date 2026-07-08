@@ -155,8 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 flash_set('danger', 'Podaj powód odwołania lekcji.');
                 header('Location: lesson.php?id=' . $session_id); exit;
             }
-            k30_ti_cancel_session($session_id, $reason, $cancel_role, $cancel_label);
-            flash_set('success', 'Lekcja odwołana — nie zostanie policzona do ceny.');
+            $sms_sent = k30_ti_cancel_session($session_id, $reason, $cancel_role, $cancel_label);
+            flash_set('success', 'Lekcja odwołana — nie zostanie policzona do ceny.'
+                . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
         } else {
             // Powrót do planowanej / odbytej — czyścimy dane odwołania
             db()->prepare(

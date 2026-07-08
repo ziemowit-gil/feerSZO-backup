@@ -3981,7 +3981,7 @@ function k30_ti_notify_grade(int $course_id, int $client_id, string $valueText, 
  * Odwołuje całą lekcję (Doradca / admin) — status='cancelled', z powodem i autorem.
  * Odwołana lekcja nie jest liczona do ceny (rozliczenie bierze tylko status='held').
  */
-function k30_ti_cancel_session(int $session_id, string $reason, string $role, string $by_label): void {
+function k30_ti_cancel_session(int $session_id, string $reason, string $role, string $by_label): int {
     $role = array_key_exists($role, K30_TI_CANCEL_ROLES) ? $role : 'doradca';
     db()->prepare(
         "UPDATE k30_ti_sessions
@@ -3989,6 +3989,22 @@ function k30_ti_cancel_session(int $session_id, string $reason, string $role, st
              updated_at=datetime('now')
          WHERE id=?"
     )->execute([$reason, $role, $by_label, $session_id]);
+
+    // Powiadomienie SMS o odwołaniu — tylko do kursantów, którzy włączyli SMS o lekcjach.
+    // Zwraca liczbę wysłanych SMS-ów (0 gdy SMS wyłączony / brak odbiorców).
+    $row = db_one(
+        "SELECT s.course_id, s.lesson_date, s.time_from, c.name AS course_name
+         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.id=? LIMIT 1",
+        [$session_id]
+    );
+    if (!$row || !function_exists('ti_lesson_sms_notify')) return 0;
+    $when = date('d.m.Y', strtotime((string)$row['lesson_date']));
+    if (!empty($row['time_from'])) $when .= ' o ' . substr((string)$row['time_from'], 0, 5);
+    return ti_lesson_sms_notify(
+        (int)$row['course_id'],
+        'Odwolane zajecia: ' . (string)$row['course_name'] . ' — ' . $when . '. Szczegoly w panelu kursanta.'
+    );
 }
 
 /**

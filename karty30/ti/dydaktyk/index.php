@@ -333,8 +333,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $reason = trim($_POST['reason'] ?? '');
                 if ($reason === '') { flash_set('danger', 'Podaj powód odwołania lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
                 $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
-                k30_ti_cancel_session($sid, $reason, $role, (string)($me['name'] ?? ''));
-                flash_set('success', 'Lekcja odwołana — nie zostanie policzona do ceny.');
+                $sms_sent = k30_ti_cancel_session($sid, $reason, $role, (string)($me['name'] ?? ''));
+                flash_set('success', 'Lekcja odwołana — nie zostanie policzona do ceny.'
+                    . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
             } else {
                 db()->prepare(
                     "UPDATE k30_ti_sessions SET status='planned', cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL, updated_at=datetime('now') WHERE id=?"
