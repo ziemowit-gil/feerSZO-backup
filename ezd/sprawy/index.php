@@ -24,8 +24,48 @@ $filters = [
     'owner_id' => $owner_f, 'deadline_od' => $dod, 'deadline_do' => $ddo,
     'mine_or_shared' => $mine_f, 'hide_ciagla' => $hide_ciagla_f, 'hide_old' => $hide_old_f,
 ];
+// ── Masowe przerejestrowanie zaznaczonych koszulek ────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'bulk_reregister') {
+    csrf_check();
+    if (!can_edit()) { flash_set('error', 'Brak uprawnień.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
+
+    $ids       = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['ids'] ?? [])))));
+    $targetRaw = trim((string)($_POST['target'] ?? ''));
+    $target    = null;
+    if (str_starts_with($targetRaw, 'teczka:'))  $target = ['teczka_id' => (int)substr($targetRaw, 7)];
+    elseif (str_starts_with($targetRaw, 'jrwa:')) $target = ['jrwa' => substr($targetRaw, 5)];
+
+    if (!$ids)          flash_set('danger', 'Zaznacz przynajmniej jedną koszulkę.');
+    elseif (!$target)   flash_set('danger', 'Wskaż, gdzie przenieść zaznaczone koszulki.');
+    else {
+        $ok = 0; $fail = [];
+        foreach ($ids as $sid) {
+            $sp = ezd_sprawa_get($sid);
+            if (!$sp || !ezd_sprawa_access($sp, $user_id)) { $fail[] = "#{$sid}: brak dostępu"; continue; }
+            $r = ezd_sprawa_reregister($sid, $target, $user_id);
+            if (!empty($r['ok'])) $ok++;
+            else $fail[] = ($sp['znak_sprawy'] ?: "#{$sid}") . ': ' . $r['error'];
+        }
+        $msg = "Przerejestrowano koszulek: {$ok}.";
+        if ($fail) $msg .= ' Pominięto ' . count($fail) . ' — ' . implode('; ', array_slice($fail, 0, 6)) . (count($fail) > 6 ? '…' : '');
+        flash_set($ok ? 'success' : 'warning', $msg);
+    }
+    header('Location: ' . $_SERVER['REQUEST_URI']); exit;
+}
+
 $sprawy  = ezd_sprawy_all($filters, $user_id);
 $owners  = db_all("SELECT DISTINCT u.id, u.name FROM ezd_sprawy s JOIN users u ON u.id=s.owner_id ORDER BY u.name");
+
+// Cele masowego przeniesienia (otwarte segregatory + klasy JRWA) — tylko dla edytujących
+$teczki_cele = $jrwa_cele = [];
+if (can_edit()) {
+    $teczki_cele = db_all(
+        "SELECT t.id, t.symbol, t.title, t.rok, j.symbol AS jrwa_symbol
+         FROM ezd_teczki t LEFT JOIN ezd_jrwa j ON j.id=t.jrwa_id
+         WHERE t.status='open' ORDER BY t.symbol, t.rok DESC"
+    );
+    $jrwa_cele = ezd_jrwa_all();
+}
 
 // Eksport CSV bieżących wyników (respektuje filtry)
 if (($_GET['export'] ?? '') === 'csv') {
@@ -49,9 +89,11 @@ if (($_GET['export'] ?? '') === 'csv') {
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <style>
-.sprawa-row{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;transition:background .12s;}
-.sprawa-row:last-child{border-bottom:none;}
-.sprawa-row:hover{background:#f8fafc;}
+.sprawa-line{display:flex;align-items:center;border-bottom:1px solid #f1f5f9;}
+.sprawa-line:last-child{border-bottom:none;}
+.sprawa-line:hover{background:#f8fafc;}
+.sprawa-row{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;text-decoration:none;color:inherit;transition:background .12s;}
+.bulk-bar{background:#eff4fb;border-bottom:1px solid #dbe6f5;}
 .sprawa-znak{font-family:monospace;font-size:.8rem;font-weight:700;color:#2563eb;white-space:nowrap;}
 .ezd-search .input-group{box-shadow:0 4px 14px rgba(15,23,42,.08);border-radius:14px;overflow:hidden;}
 .ezd-search .input-group-text{background:#fff;border:1px solid #e2e8f0;border-right:none;font-size:1.15rem;color:#64748b;padding:.7rem .55rem .7rem 1rem;}
@@ -142,12 +184,50 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="card shadow-sm">
   <div class="card-header d-flex align-items-center justify-content-between">
     <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-folder2 me-1 text-primary"></i>Wyniki (<?= count($sprawy) ?>)</span>
+    <?php if(can_edit() && $sprawy): ?>
+    <div class="form-check mb-0">
+      <input type="checkbox" id="bulkAll" class="form-check-input">
+      <label for="bulkAll" class="form-check-label" style="font-size:.8rem">Zaznacz wszystkie</label>
+    </div>
+    <?php endif; ?>
   </div>
+
+  <?php if(can_edit() && $sprawy): ?>
+  <form id="bulkForm" method="post" class="bulk-bar px-3 py-2 d-flex flex-wrap align-items-center gap-2"
+        action="<?= h($_SERVER['REQUEST_URI']) ?>" onsubmit="return bulkConfirm()">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_op" value="bulk_reregister">
+    <span class="small fw-semibold text-primary"><i class="bi bi-arrow-left-right me-1"></i>Masowe przerejestrowanie</span>
+    <span class="badge bg-secondary" id="bulkCount">0</span>
+    <select name="target" class="form-select form-select-sm w-auto flex-grow-1" style="min-width:260px;max-width:560px" required>
+      <option value="">— przenieś zaznaczone do… (segregator lub klasa JRWA) —</option>
+      <?php if($teczki_cele): ?>
+      <optgroup label="Istniejące segregatory (otwarte)">
+        <?php foreach($teczki_cele as $t): ?>
+        <option value="teczka:<?= (int)$t['id'] ?>"><?= h($t['symbol']) ?> · <?= h($t['title']) ?> (<?= (int)$t['rok'] ?>)<?= $t['jrwa_symbol'] ? ' — JRWA '.h($t['jrwa_symbol']) : '' ?></option>
+        <?php endforeach; ?>
+      </optgroup>
+      <?php endif; ?>
+      <optgroup label="Utwórz/uzupełnij segregator w klasie JRWA">
+        <?php foreach($jrwa_cele as $j): ?>
+        <option value="jrwa:<?= h($j['symbol']) ?>"><?= h($j['symbol']) ?> — <?= h($j['title']) ?></option>
+        <?php endforeach; ?>
+      </optgroup>
+    </select>
+    <button class="btn btn-success btn-sm" id="bulkBtn" disabled><i class="bi bi-arrow-left-right me-1"></i>Przenieś zaznaczone</button>
+    <span class="small text-muted w-100" style="font-size:.72rem"><i class="bi bi-info-circle me-1"></i>Każda koszulka otrzyma nowy znak w wskazanym segregatorze. Pomijane: podkoszulki, koszulki z podkoszulkami, już w tym segregatorze. Operacja nieodwracalna.</span>
+  </form>
+  <?php endif; ?>
+
   <div>
     <?php foreach($sprawy as $s):
       $lz = ezd_lezy_since($s['dekr_since'] ?? null);
     ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="sprawa-row">
+    <div class="sprawa-line">
+      <?php if(can_edit()): ?>
+      <div class="ps-3 pe-1"><input type="checkbox" class="form-check-input bulk-cb" name="ids[]" value="<?= (int)$s['id'] ?>" form="bulkForm" aria-label="Zaznacz koszulkę <?= h($s['znak_sprawy']) ?>"></div>
+      <?php endif; ?>
+    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>" class="sprawa-row flex-grow-1">
       <div class="flex-grow-1 overflow-hidden">
         <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($s['title']) ?></div>
         <div class="text-muted" style="font-size:.74rem"><span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?></div>
@@ -171,6 +251,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="text-muted" style="font-size:.73rem;white-space:nowrap" title="Właściciel"><?= h($s['owner_name']??'—') ?></div>
       <i class="bi bi-chevron-right text-muted" style="font-size:.75rem"></i>
     </a>
+    </div>
     <?php endforeach; ?>
     <?php if(!$sprawy): ?>
     <div class="text-center py-5 text-muted">
@@ -181,4 +262,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php endif; ?>
   </div>
 </div>
+<?php if(can_edit() && $sprawy): ?>
+<script>
+(function(){
+  const cbs   = () => Array.from(document.querySelectorAll('.bulk-cb'));
+  const all   = document.getElementById('bulkAll');
+  const count = document.getElementById('bulkCount');
+  const btn   = document.getElementById('bulkBtn');
+  const sel   = document.querySelector('#bulkForm select[name="target"]');
+  function refresh(){
+    const n = cbs().filter(c=>c.checked).length;
+    if(count) count.textContent = n;
+    if(btn)   btn.disabled = (n===0 || !sel || sel.value==='');
+    if(all){ const total=cbs().length; all.checked = n>0 && n===total; all.indeterminate = n>0 && n<total; }
+  }
+  cbs().forEach(c=>c.addEventListener('change', refresh));
+  if(all) all.addEventListener('change', ()=>{ cbs().forEach(c=>c.checked=all.checked); refresh(); });
+  if(sel) sel.addEventListener('change', refresh);
+  window.bulkConfirm = function(){
+    const n = cbs().filter(c=>c.checked).length;
+    if(n===0){ alert('Zaznacz przynajmniej jedną koszulkę.'); return false; }
+    if(!sel || sel.value===''){ alert('Wskaż, gdzie przenieść.'); return false; }
+    const label = sel.options[sel.selectedIndex].text.trim();
+    return confirm('Przenieść '+n+' zaznaczonych koszulek do:\n'+label+'\n\nKażda otrzyma NOWY znak sprawy. Operacja nieodwracalna.');
+  };
+  refresh();
+})();
+</script>
+<?php endif; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
