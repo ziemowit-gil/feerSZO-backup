@@ -83,125 +83,128 @@ if ($out === 'pdf') {
         $pdf->AddPage('P', 'A4');
         $W = 180; // szerokość robocza (mm)
 
-        // ── Pasek nagłówkowy ─────────────────────────────────────────────────
-        $pdf->SetFillColor(22, 53, 102);
-        $pdf->Rect(15, 15, $W, 14, 'F');
-        $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetFont('DejaVu', 'B', 11);
-        $pdf->SetXY(18, 15);
-        $pdf->Cell($W - 6, 7, $pl('KARTA KOSZULKI'), 0, 1, 'L');
-        $pdf->SetFont('DejaVu', '', 8);
-        $pdf->SetXY(18, 22);
-        $pdf->Cell($W - 6, 7, $pl(($org_name ?: '') . '   ·   Wygenerowano: ' . date('d.m.Y H:i')), 0, 1, 'L');
-        $pdf->SetTextColor(0, 0, 0);
+        // ── Paleta i pomocniki wizualne ───────────────────────────────────────
+        $cNavy = [22, 53, 102]; $cInk = [28, 35, 51]; $cMuted = [124, 132, 146];
+        $cLine = [224, 229, 237]; $cTint = [240, 244, 251]; $cAccent = [37, 99, 235];
+        $tc = fn(array $c) => $pdf->SetTextColor($c[0], $c[1], $c[2]);
+        $fc = fn(array $c) => $pdf->SetFillColor($c[0], $c[1], $c[2]);
+        $dc = fn(array $c) => $pdf->SetDrawColor($c[0], $c[1], $c[2]);
+        // Mikro-etykieta sekcji (wersaliki, wyciszona)
+        $micro = function (string $t) use ($pdf, $pl, $tc, $cMuted) {
+            $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
+            $pdf->Cell(0, 4.6, $pl(mb_strtoupper($t, 'UTF-8')), 0, 1);
+            $pdf->SetTextColor(0, 0, 0);
+        };
 
-        // ── Znak sprawy (duży, wyróżniony) ──────────────────────────────────
-        $pdf->SetY(35);
-        $pdf->SetFont('DejaVu', 'B', 9);
-        $pdf->SetTextColor(100, 100, 100);
-        $pdf->Cell(0, 5, $pl('ZNAK KOSZULKI'), 0, 1);
-        $pdf->SetFont('DejaVu', 'B', 17);
-        $pdf->SetTextColor(22, 53, 102);
-        $pdf->Cell(0, 9, $pl($sprawa['znak_sprawy'] ?: '—'), 0, 1);
+        // ── Hero: pasek ze znakiem koszulki ──────────────────────────────────
+        $bandH = 23;
+        $fc($cNavy); $pdf->Rect(15, 15, $W, $bandH, 'F');
+        $pdf->SetFont('DejaVu', '', 7.5); $pdf->SetTextColor(182, 198, 226);
+        $pdf->SetXY(19, 18.2); $pdf->Cell(90, 4, $pl('KARTA KOSZULKI'), 0, 0, 'L');
+        $pdf->SetXY(105, 18.2);
+        $pdf->Cell($W - 96, 4, $pl(($org_name ?: '') . '   ·   ' . date('d.m.Y H:i')), 0, 0, 'R');
+        $pdf->SetFont('DejaVu', 'B', 18); $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetXY(19, 23.6); $pdf->Cell($W - 8, 9, $pl($sprawa['znak_sprawy'] ?: '—'), 0, 1, 'L');
         $pdf->SetTextColor(0, 0, 0);
-        $pdf->Ln(1);
+        $pdf->SetY(15 + $bandH + 7);
 
-        // ── Tytuł sprawy ─────────────────────────────────────────────────────
-        $pdf->SetFont('DejaVu', 'B', 13);
-        $pdf->MultiCell(0, 7, $pl($sprawa['title']), 0, 'L');
-        $pdf->Ln(3);
+        // ── Tytuł + status ────────────────────────────────────────────────────
+        $pdf->SetX(15);
+        $pdf->SetFont('DejaVu', 'B', 13.5); $tc($cInk);
+        $pdf->MultiCell($W, 6.8, $pl($sprawa['title']), 0, 'L');
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Ln(2.5);
+        $stat  = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
+        $pdf->SetFont('DejaVu', 'B', 8);
+        $pillW = $pdf->GetStringWidth($pl($stat)) + 9;
+        $pillY = $pdf->GetY();
+        $fc($cTint); $pdf->Rect(15, $pillY, $pillW, 6.2, 'F');
+        $fc($cAccent); $pdf->Rect(15, $pillY, 1.6, 6.2, 'F');   // akcent
+        $tc($cNavy); $pdf->SetXY(15, $pillY + 0.4);
+        $pdf->Cell($pillW, 5.4, $pl($stat), 0, 1, 'C');
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetY($pillY + 6.2 + 5);
 
         // ── Opis — wyróżnione pole ────────────────────────────────────────────
         if (!empty($sprawa['description'])) {
-            $desc = $pl($sprawa['description']);
-            $pdf->SetFillColor(240, 245, 255);
-            // Szacuj wysokość multi-cell: ~5mm na linię, min 14mm
-            $lines = max(3, (int)ceil(mb_strlen($sprawa['description']) / 90) + 1);
-            $boxH  = $lines * 5.5 + 6;
-            $pdf->Rect(15, $pdf->GetY(), $W, $boxH, 'F');
-            $pdf->SetDrawColor(180, 200, 230);
-            $pdf->Rect(15, $pdf->GetY(), 2, $boxH, 'F');     // lewy pasek akcentu
-            $pdf->SetDrawColor(200, 200, 200);
-            $xStart = $pdf->GetY();
-            $pdf->SetFont('DejaVu', 'B', 8);
-            $pdf->SetTextColor(80, 100, 140);
-            $pdf->SetXY(19, $xStart + 2);
-            $pdf->Cell(0, 5, $pl('OPIS KOSZULKI'), 0, 1);
-            $pdf->SetFont('DejaVu', '', 9.5);
-            $pdf->SetTextColor(30, 30, 30);
-            $pdf->SetX(19);
-            $pdf->MultiCell($W - 4, 5.5, $desc, 0, 'L');
-            $pdf->SetY($xStart + $boxH + 4);
+            $desc  = $pl($sprawa['description']);
+            $lines = max(2, (int)ceil(mb_strlen($sprawa['description']) / 92) + 1);
+            $boxH  = $lines * 5.5 + 11;
+            $yBox  = $pdf->GetY();
+            $fc($cTint);   $pdf->Rect(15, $yBox, $W, $boxH, 'F');
+            $fc($cAccent); $pdf->Rect(15, $yBox, 1.6, $boxH, 'F');   // lewy pasek akcentu
+            $pdf->SetXY(20, $yBox + 3);
+            $micro('Opis koszulki');
+            $pdf->SetFont('DejaVu', '', 9.5); $tc($cInk);
+            $pdf->SetX(20);
+            $pdf->MultiCell($W - 8, 5.5, $desc, 0, 'L');
+            $pdf->SetTextColor(0, 0, 0);
+            $pdf->SetY($yBox + $boxH + 5);
         }
-        $pdf->Ln(2);
 
         // ── Hasło klasyfikacyjne JRWA (pełne, z zawijaniem) ───────────────────
         if ($jrwa && trim((string)($jrwa['title'] ?? '')) !== '') {
-            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
-            $pdf->Cell(0, 5, $pl('HASŁO KLASYFIKACYJNE JRWA'), 0, 1);
-            $pdf->SetFont('DejaVu', 'B', 9.5); $pdf->SetTextColor(0, 0, 0);
-            $pdf->MultiCell(0, 5.5, $pl(trim(($jrwa['symbol'] ?? '') . '  ' . ($jrwa['title'] ?? ''))
-                . '   (kat. arch. ' . ($jrwa['kat_arch'] ?? '—') . ')'), 0, 'L');
-            $pdf->Ln(2);
+            $micro('Hasło klasyfikacyjne JRWA · kat. arch. ' . ($jrwa['kat_arch'] ?? '—'));
+            $pdf->SetFont('DejaVu', 'B', 9.5); $tc($cInk);
+            $pdf->MultiCell(0, 5.5, $pl(trim(($jrwa['symbol'] ?? '') . '   ' . ($jrwa['title'] ?? ''))), 0, 'L');
+            $pdf->SetTextColor(0, 0, 0);
+            $pdf->Ln(3);
         }
 
         // ── Metadane (dwie kolumny) ───────────────────────────────────────────
-        $stat   = EZD_STATUSES_SPRAWA[$sprawa['status']]['label'] ?? $sprawa['status'];
-        $meta   = [
-            ['Segregator',        $sprawa['teczka_symbol'] ?? '—'],
-            ['Klasyfikacja JRWA', $jrwa['symbol'] ?? '—'],
+        $meta = [
+            ['Segregator',           $sprawa['teczka_symbol'] ?? '—'],
+            ['Klasyfikacja JRWA',    $jrwa['symbol'] ?? '—'],
             ['Kategoria archiwalna', $jrwa['kat_arch'] ?? '—'],
-            ['Status',        $stat],
-            ['Właściciel',    $sprawa['owner_name'] ?? '—'],
-            ['Otwarto',       $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
+            ['Właściciel',           $sprawa['owner_name'] ?? '—'],
+            ['Otwarto',              $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—'],
         ];
         if (!empty($sprawa['ciagla']))        $meta[] = ['Termin', 'koszulka ciągła (stale otwarta)'];
         elseif (!empty($sprawa['deadline']))  $meta[] = ['Termin', date('d.m.Y', strtotime($sprawa['deadline']))];
         if (!empty($sprawa['closed_at']))     $meta[] = ['Zamknięto', date('d.m.Y', strtotime($sprawa['closed_at']))];
 
-        $colW = ($W - 6) / 2;
+        $colW = ($W - 8) / 2;
+        $rowH = 12.5;
         $y0   = $pdf->GetY();
         $col  = 0;
         foreach ($meta as $i => [$k, $v]) {
-            $x = 15 + ($col ? $colW + 6 : 0);
-            $pdf->SetXY($x, $y0 + (int)floor($i / 2) * 11);
-            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(110, 110, 110);
-            $pdf->Cell($colW, 5, $pl($k), 0, 1);
+            $x = 15 + ($col ? $colW + 8 : 0);
+            $yr = $y0 + (int)floor($i / 2) * $rowH;
+            $pdf->SetXY($x, $yr);
+            $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
+            $pdf->Cell($colW, 4.6, $pl(mb_strtoupper($k, 'UTF-8')), 0, 1);
             $pdf->SetX($x);
-            $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetTextColor(0, 0, 0);
-            $pdf->Cell($colW, 5.5, $pl($v), 0, 1);
+            $pdf->SetFont('DejaVu', 'B', 10); $tc($cInk);
+            $pdf->Cell($colW, 5.6, $pl($v), 0, 1);
+            $pdf->SetTextColor(0, 0, 0);
             $col = 1 - $col;
         }
-        $pdf->SetY($y0 + (int)ceil(count($meta) / 2) * 11 + 4);
+        $pdf->SetY($y0 + (int)ceil(count($meta) / 2) * $rowH + 3);
 
         // ── Separator ────────────────────────────────────────────────────────
-        $pdf->SetDrawColor(210, 215, 225);
+        $dc($cLine);
         $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
-        $pdf->Ln(4);
+        $pdf->Ln(5);
 
         // ── Spis dokumentów ───────────────────────────────────────────────────
-        $pdf->SetFont('DejaVu', 'B', 9);
-        $pdf->SetTextColor(22, 53, 102);
-        $pdf->Cell(0, 6, $pl('DOKUMENTY W KOSZULCE  (' . count($files) . ')'), 0, 1);
-        $pdf->SetTextColor(0, 0, 0);
+        $micro('Dokumenty w koszulce (' . count($files) . ')');
+        $pdf->Ln(1);
         if ($files) {
             foreach ($files as $i => $z) {
-                $pdf->SetFillColor($i % 2 === 0 ? 250 : 244, $i % 2 === 0 ? 251 : 247, 255);
-                $pdf->Rect(15, $pdf->GetY(), $W, 6.5, 'F');
-                $pdf->SetFont('DejaVu', '', 8.5);
-                $nr   = $pl(($i + 1) . '.');
-                $name = $pl($z['original_name']);
-                $src  = $pl($zal_src($z) . ' · ' . ezd_filesize($z['file_size']));
-                $pdf->SetXY(16, $pdf->GetY() + 0.5);
-                $pdf->Cell(8, 5.5, $nr, 0, 0);
-                $pdf->Cell(110, 5.5, $name, 0, 0);
-                $pdf->SetTextColor(120, 120, 120);
-                $pdf->Cell(0, 5.5, $src, 0, 1);
+                $yr = $pdf->GetY();
+                if ($i % 2 === 1) { $fc($cTint); $pdf->Rect(15, $yr, $W, 7, 'F'); }
+                $pdf->SetXY(18, $yr + 1);
+                $pdf->SetFont('DejaVu', 'B', 8.5); $tc($cAccent);
+                $pdf->Cell(8, 5, $pl(($i + 1) . '.'), 0, 0);
+                $pdf->SetFont('DejaVu', '', 8.5); $tc($cInk);
+                $pdf->Cell(112, 5, $pl($z['original_name']), 0, 0);
+                $pdf->SetFont('DejaVu', '', 8); $tc($cMuted);
+                $pdf->Cell($W - 8 - 120, 5, $pl($zal_src($z) . ' · ' . ezd_filesize($z['file_size'])), 0, 1, 'R');
                 $pdf->SetTextColor(0, 0, 0);
+                $pdf->SetY($yr + 7);
             }
         } else {
-            $pdf->SetFont('DejaVu', '', 9);
-            $pdf->SetTextColor(130, 130, 130);
+            $pdf->SetFont('DejaVu', '', 9); $tc($cMuted);
             $pdf->Cell(0, 6, $pl('Brak plików — karta zawiera wyłącznie metadane.'), 0, 1);
             $pdf->SetTextColor(0, 0, 0);
         }
@@ -210,9 +213,9 @@ if ($out === 'pdf') {
         // Zapewnij miejsce na blok (QR 30 mm + podpisy) — inaczej przejdź na nową stronę.
         if ($pdf->GetY() > 235) { $pdf->AddPage('P', 'A4'); }
         $pdf->Ln(6);
-        $pdf->SetDrawColor(210, 215, 225);
+        $dc($cLine);
         $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
-        $pdf->Ln(4);
+        $pdf->Ln(5);
         $blockY = $pdf->GetY();
 
         // QR z linkiem do koszulki — generowany LOKALNIE (dane sprawy nie wychodzą na zewnątrz)
@@ -222,8 +225,8 @@ if ($out === 'pdf') {
         if ($qrFile) {
             try { $pdf->Image($qrFile, 15, $blockY, $qrSize, $qrSize); } catch (\Throwable $e) {}
             @unlink($qrFile);
-            $pdf->SetXY(15, $blockY + $qrSize + 1);
-            $pdf->SetFont('DejaVu', '', 6.5); $pdf->SetTextColor(120, 120, 120);
+            $pdf->SetXY(15, $blockY + $qrSize + 1.5);
+            $pdf->SetFont('DejaVu', '', 6.5); $tc($cMuted);
             $pdf->MultiCell($qrSize, 3, $pl('Zeskanuj, aby otworzyć koszulkę w EZD'), 0, 'C');
             $pdf->SetTextColor(0, 0, 0);
         }
@@ -231,17 +234,18 @@ if ($out === 'pdf') {
         // Adnotacje / miejsce na podpisy — po prawej od QR
         $ax = $qrFile ? 15 + $qrSize + 8 : 15;
         $pdf->SetXY($ax, $blockY);
-        $pdf->SetFont('DejaVu', 'B', 8); $pdf->SetTextColor(22, 53, 102);
-        $pdf->Cell(195 - $ax, 5, $pl('ADNOTACJE KANCELARYJNE'), 0, 1);
+        $pdf->SetFont('DejaVu', 'B', 7.5); $tc($cMuted);
+        $pdf->Cell(195 - $ax, 4.6, $pl('ADNOTACJE KANCELARYJNE'), 0, 1);
         $pdf->SetTextColor(0, 0, 0);
-        $annLine = function (string $label) use ($pdf, $ax, $pl) {
+        $pdf->SetY($blockY + 6);
+        $annLine = function (string $label) use ($pdf, $ax, $pl, $tc, $cMuted, $cLine, $dc) {
             $y   = $pdf->GetY();
             $lbl = $pl($label);
             $pdf->SetX($ax);
-            $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(90, 90, 90);
+            $pdf->SetFont('DejaVu', '', 8); $tc($cMuted);
             $pdf->Cell($pdf->GetStringWidth($lbl) + 2, 7, $lbl, 0, 0);
             $pdf->SetTextColor(0, 0, 0);
-            $pdf->SetDrawColor(185, 190, 200);
+            $dc($cLine);
             $pdf->Line($pdf->GetX(), $y + 5.5, 195, $y + 5.5);
             $pdf->Ln(7);
         };
@@ -349,63 +353,106 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div style="max-width:860px">
+<style>
+  .pk-wrap{max-width:900px}
+  .pk-hero{border-radius:16px;overflow:hidden;background:#fff;
+           box-shadow:0 1px 2px rgba(16,42,82,.06),0 14px 32px -18px rgba(16,42,82,.35)}
+  .pk-hero__top{background:linear-gradient(135deg,#12305e 0%,#1e4a8a 100%);color:#fff;padding:22px 26px 20px}
+  .pk-eyebrow{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+  .pk-znak{font-size:1.55rem;font-weight:800;line-height:1.12;letter-spacing:.01em;color:#fff;margin-top:3px}
+  .pk-title{font-size:1.02rem;font-weight:600;color:rgba(255,255,255,.92);margin-top:10px;line-height:1.4}
+  .pk-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .pk-chip{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:600;
+           padding:4px 11px;border-radius:999px;background:rgba(255,255,255,.13);
+           color:#fff;border:1px solid rgba(255,255,255,.22);white-space:nowrap}
+  .pk-chip i{opacity:.8}
+  .pk-back{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.26);
+           border-radius:8px;white-space:nowrap;transition:background .15s}
+  .pk-back:hover{background:rgba(255,255,255,.26);color:#fff}
+  .pk-desc{background:#f2f6fd;border-top:1px solid #e6eefb;padding:14px 24px;
+           display:flex;gap:12px;align-items:flex-start}
+  .pk-desc__lbl{font-size:.64rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5a719e;margin-bottom:3px}
+  .pk-desc__txt{font-size:.92rem;color:#1a2a45;line-height:1.55;white-space:pre-wrap}
+  .pk-meta{display:flex;flex-wrap:wrap;gap:18px 30px;padding:16px 24px;border-top:1px solid #eef2f8}
+  .pk-meta__k{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8a94a6}
+  .pk-meta__v{font-size:.9rem;font-weight:700;color:#1c2333;margin-top:2px}
+  .pk-card{border:1px solid #edf0f6;border-radius:14px;background:#fff;
+           box-shadow:0 1px 2px rgba(16,42,82,.05);transition:box-shadow .15s,border-color .15s;overflow:hidden}
+  .pk-cta{display:flex;align-items:center;gap:18px;padding:18px 22px}
+  .pk-cta__icon{width:52px;height:52px;border-radius:12px;background:#fdecec;display:flex;
+                align-items:center;justify-content:center;flex-shrink:0;color:#dc2626;font-size:1.7rem}
+  .pk-cta__btn{background:#dc2626;border:0;color:#fff;font-weight:600;border-radius:9px;
+               padding:11px 22px;white-space:nowrap;transition:background .15s,transform .1s}
+  .pk-cta__btn:hover{background:#b91c1c;color:#fff;transform:translateY(-1px)}
+  .pk-sec{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7a8496}
+  .pk-doc{display:flex;align-items:center;gap:14px;padding:11px 20px;border-top:1px solid #f2f4f9;transition:background .12s}
+  .pk-doc:first-of-type{border-top:0}
+  .pk-doc:hover{background:#f7f9fc}
+  .pk-doc__icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .pk-doc__name{font-size:.88rem;font-weight:600;color:#1c2333}
+  .pk-doc__meta{font-size:.73rem;color:#8a94a6;margin-top:1px}
+  .pk-foot{font-size:.75rem;color:#98a2b3;padding:12px 20px;border-top:1px solid #f2f4f9;background:#fcfdff}
+</style>
+
+<div class="pk-wrap">
 
   <!-- ── Karta podglądu sprawy ─────────────────────────────────────────────── -->
-  <div class="card border-0 shadow-sm mb-4 overflow-hidden">
-    <div style="background:linear-gradient(135deg,#163566 0%,#1e4a8a 100%);padding:20px 24px 14px">
+  <div class="pk-hero mb-4">
+    <div class="pk-hero__top">
       <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-        <div>
-          <div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.55);text-transform:uppercase;margin-bottom:4px">Znak koszulki</div>
-          <div style="font-size:1.45rem;font-weight:800;color:#fff;letter-spacing:.01em;line-height:1.15"><?= h($sprawa['znak_sprawy']) ?></div>
+        <div class="flex-grow-1">
+          <div class="pk-eyebrow">Znak koszulki</div>
+          <div class="pk-znak"><?= h($sprawa['znak_sprawy']) ?></div>
         </div>
-        <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>"
-           class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);white-space:nowrap">
+        <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $id ?>" class="btn btn-sm pk-back">
           <i class="bi bi-arrow-left me-1"></i>Wróć do koszulki
         </a>
       </div>
-      <div style="font-size:1.05rem;font-weight:600;color:rgba(255,255,255,.9);margin-top:10px;line-height:1.35">
-        <?= h($sprawa['title']) ?>
+      <div class="pk-title"><?= h($sprawa['title']) ?></div>
+      <div class="pk-chips">
+        <span class="pk-chip"><i class="bi bi-flag"></i><?= h($stat_label) ?></span>
+        <span class="pk-chip"><i class="bi bi-folder2"></i><?= h($sprawa['teczka_symbol'] ?? '—') ?></span>
+        <?php if ($jrwa): ?>
+        <span class="pk-chip"><i class="bi bi-diagram-3"></i>JRWA <?= h($jrwa['symbol'] ?? '—') ?></span>
+        <span class="pk-chip"><i class="bi bi-archive"></i>kat. <?= h($jrwa['kat_arch'] ?? '—') ?></span>
+        <?php endif; ?>
       </div>
     </div>
 
     <?php if (!empty($sprawa['description'])): ?>
-    <div style="background:#f0f5ff;border-left:4px solid #163566;padding:14px 20px 14px 20px;display:flex;gap:12px;align-items:flex-start">
-      <i class="bi bi-card-text" style="color:#163566;font-size:1.15rem;margin-top:2px;flex-shrink:0"></i>
+    <div class="pk-desc">
+      <i class="bi bi-card-text" style="color:#2f5aa8;font-size:1.15rem;margin-top:1px;flex-shrink:0"></i>
       <div>
-        <div style="font-size:.68rem;font-weight:700;letter-spacing:.09em;color:#4a6096;text-transform:uppercase;margin-bottom:4px">Opis koszulki</div>
-        <div style="font-size:.93rem;color:#1a2a45;line-height:1.55;white-space:pre-wrap"><?= h($sprawa['description']) ?></div>
+        <div class="pk-desc__lbl">Opis koszulki</div>
+        <div class="pk-desc__txt"><?= h($sprawa['description']) ?></div>
       </div>
     </div>
     <?php endif; ?>
 
-    <div class="card-body py-3 px-4 d-flex gap-4 flex-wrap" style="font-size:.82rem;background:#fff;border-top:1px solid #e8ecf4">
-      <span><span class="text-secondary">Segregator:</span> <strong><?= h($sprawa['teczka_symbol'] ?? '—') ?></strong></span>
-      <span><span class="text-secondary">Status:</span> <strong><?= h($stat_label) ?></strong></span>
-      <?php if (!empty($sprawa['owner_name'])): ?>
-      <span><span class="text-secondary">Właściciel:</span> <strong><?= h($sprawa['owner_name']) ?></strong></span>
+    <div class="pk-meta">
+      <div><div class="pk-meta__k">Właściciel</div><div class="pk-meta__v"><?= h($sprawa['owner_name'] ?? '—') ?></div></div>
+      <div><div class="pk-meta__k">Otwarto</div><div class="pk-meta__v"><?= $sprawa['created_at'] ? date('d.m.Y', strtotime($sprawa['created_at'])) : '—' ?></div></div>
+      <?php if (!empty($sprawa['ciagla'])): ?>
+      <div><div class="pk-meta__k">Termin</div><div class="pk-meta__v">koszulka ciągła</div></div>
+      <?php elseif (!empty($sprawa['deadline'])): ?>
+      <div><div class="pk-meta__k">Termin</div><div class="pk-meta__v"><?= date('d.m.Y', strtotime($sprawa['deadline'])) ?></div></div>
       <?php endif; ?>
-      <?php if (!empty($sprawa['deadline'])): ?>
-      <span><span class="text-secondary">Termin:</span> <strong><?= date('d.m.Y', strtotime($sprawa['deadline'])) ?></strong></span>
-      <?php endif; ?>
-      <span class="ms-auto text-secondary"><?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : (count($zalaczniki) < 5 ? 'dokumenty' : 'dokumentów') ?></span>
+      <div class="ms-auto"><div class="pk-meta__k">Dokumenty</div><div class="pk-meta__v"><?= count($zalaczniki) ?></div></div>
     </div>
   </div>
 
   <!-- ── Akcja: cała sprawa ────────────────────────────────────────────────── -->
-  <div class="card border-0 shadow-sm mb-3">
-    <div class="card-body d-flex align-items-center gap-4 flex-wrap px-4 py-3">
-      <div style="width:48px;height:48px;background:#fff0f0;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <i class="bi bi-file-earmark-pdf" style="font-size:1.6rem;color:#dc2626"></i>
-      </div>
+  <div class="pk-card mb-3">
+    <div class="pk-cta">
+      <div class="pk-cta__icon"><i class="bi bi-file-earmark-pdf"></i></div>
       <div class="flex-grow-1">
         <div class="fw-bold mb-1">Cała koszulka — jeden plik PDF</div>
-        <div class="text-secondary" style="font-size:.82rem">
-          Okładka z danymi i opisem koszulki + scalone <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> w jednym pliku.
+        <div class="text-secondary" style="font-size:.83rem">
+          Okładka (dane, klasyfikacja JRWA, kod QR, adnotacje) + scalone
+          <?= count($zalaczniki) ?> <?= count($zalaczniki) === 1 ? 'dokument' : 'dokumenty/dokumentów' ?> w jednym pliku.
         </div>
       </div>
-      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener"
-         class="btn btn-danger px-4">
+      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf" target="_blank" rel="noopener" class="btn pk-cta__btn">
         <i class="bi bi-download me-2"></i>Pobierz PDF
       </a>
     </div>
@@ -413,30 +460,28 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   <!-- ── Lista dokumentów ─────────────────────────────────────────────────── -->
   <?php if ($zalaczniki): ?>
-  <div class="card border-0 shadow-sm">
-    <div class="card-header border-0 bg-white px-4 pt-3 pb-2">
-      <span class="fw-semibold"><i class="bi bi-files me-2 text-secondary"></i>Pojedynczy dokument</span>
-      <span class="text-secondary ms-2" style="font-size:.8rem">— wybierz z listy</span>
+  <div class="pk-card">
+    <div class="d-flex align-items-center px-4 pt-3 pb-2">
+      <span class="pk-sec"><i class="bi bi-files me-2"></i>Pojedynczy dokument</span>
+      <span class="text-secondary ms-2" style="font-size:.8rem">— pobierz z listy</span>
     </div>
-    <div class="card-body p-0">
+    <div>
       <?php foreach ($zalaczniki as $i => $z):
         $ext       = strtolower(pathinfo($z['original_name'], PATHINFO_EXTENSION));
         $printable = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true) || in_array($ext, EZD_PDF_CONVERTIBLE_EXT, true);
         $icon      = ezd_file_icon($z['original_name']);
-        $bg        = $i % 2 === 0 ? '' : 'style="background:#fafbfc"';
       ?>
-      <div class="d-flex align-items-center gap-3 px-4 py-2 border-bottom" <?= $bg ?>>
-        <div style="width:34px;height:34px;background:<?= $printable ? '#eff6ff' : '#f8fafc' ?>;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <div class="pk-doc">
+        <div class="pk-doc__icon" style="background:<?= $printable ? '#eef4ff' : '#f5f7fa' ?>">
           <i class="bi <?= $icon ?>" style="font-size:1.1rem;color:<?= $printable ? '#2563eb' : '#94a3b8' ?>"></i>
         </div>
         <div class="flex-grow-1 overflow-hidden">
-          <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($z['original_name']) ?></div>
-          <div class="text-secondary" style="font-size:.73rem"><?= h($zal_src($z)) ?> · <?= ezd_filesize($z['file_size']) ?></div>
+          <div class="pk-doc__name text-truncate"><?= h($z['original_name']) ?></div>
+          <div class="pk-doc__meta"><?= h($zal_src($z)) ?> · <?= ezd_filesize($z['file_size']) ?></div>
         </div>
         <?php if ($printable): ?>
         <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>&out=pdf&zal=<?= (int)$z['id'] ?>"
-           target="_blank" rel="noopener"
-           class="btn btn-sm btn-outline-primary" style="white-space:nowrap">
+           target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" style="white-space:nowrap">
           <i class="bi bi-file-earmark-pdf me-1"></i>PDF
         </a>
         <?php else: ?>
@@ -448,7 +493,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
       <?php endforeach; ?>
     </div>
-    <div class="card-footer border-0 bg-white px-4 py-2" style="font-size:.76rem;color:#94a3b8">
+    <div class="pk-foot">
       <i class="bi bi-info-circle me-1"></i>PDF, obrazy (JPG, PNG) i pliki Word/Excel (DOC, DOCX, XLS, XLSX — konwertowane automatycznie) można eksportować do PDF. Inne formaty pobierz jako oryginał — są wykazane na okładce PDF całej koszulki.
     </div>
   </div>
