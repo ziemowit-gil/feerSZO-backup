@@ -225,6 +225,7 @@
     // Protokół przerejestrowania spraw do Nowego JRWA (asystent AI)
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_przerejestrowania (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        sprawa_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL,
         stary_znak  TEXT    NOT NULL DEFAULT '',
         nowy_znak   TEXT    NOT NULL,
         kod_jrwa    TEXT    NOT NULL,
@@ -233,9 +234,13 @@
         adnotacja_stara TEXT NOT NULL DEFAULT '',
         adnotacja_nowa  TEXT NOT NULL DEFAULT '',
         instrukcja  TEXT    NOT NULL DEFAULT '',
+        zastosowano INTEGER NOT NULL DEFAULT 0,
         created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // Kolumny dokładane idempotentnie (istniejące wdrożenia utworzyły tabelę bez nich)
+    try { $pdo->exec("ALTER TABLE ezd_przerejestrowania ADD COLUMN sprawa_id   INTEGER"); } catch (\Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE ezd_przerejestrowania ADD COLUMN zastosowano INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Definicje workflow (BPM) per JRWA — kroki jako JSON
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_workflows (
@@ -982,6 +987,82 @@ function _ezd_next_numer(int $teczka_id, int $rok): int {
         [$teczka_id]
     );
     return ($r['m'] ?? 0) + 1;
+}
+
+/**
+ * Faktyczne przerejestrowanie koszulki do nowej klasy JRWA: przenosi sprawę do
+ * teczki (segregatora) zgodnej z docelowym symbolem JRWA — tworząc ją dla roku,
+ * jeśli brak — i generuje NOWY znak sprawy wg systemowego schematu SYMBOL.numer.rok.
+ * Zapisuje audyt (ezd_log). Operacja zmienia unikalny znak — nieodwracalna.
+ *
+ * Blokuje sprawy z hierarchią (podsprawy / podkoszulki), bo znak i teczka są
+ * współdzielone z rodzicem — takie przypadki wymagają ręcznej decyzji.
+ *
+ * @return array{ok:bool, error?:string, old_znak?:string, new_znak?:string, teczka_id?:int, created_teczka?:bool}
+ */
+function ezd_sprawa_reregister(int $sprawa_id, string $kod_jrwa, int $user_id): array {
+    $sprawa = ezd_sprawa_get($sprawa_id);
+    if (!$sprawa) return ['ok' => false, 'error' => 'Koszulka nie istnieje.'];
+
+    // Hierarchia — nie ruszamy automatycznie (znak/teczka współdzielone z rodzicem)
+    if (!empty($sprawa['parent_id'])) {
+        return ['ok' => false, 'error' => 'To podkoszulka — przerejestruj koszulkę nadrzędną (znak dziedziczy segregator).'];
+    }
+    if (db_one("SELECT 1 FROM ezd_sprawy WHERE parent_id=? LIMIT 1", [$sprawa_id])) {
+        return ['ok' => false, 'error' => 'Koszulka ma podkoszulki — przenieś je ręcznie; automatyczne przerejestrowanie zablokowane.'];
+    }
+
+    $kod  = trim($kod_jrwa);
+    $jrwa = db_one("SELECT * FROM ezd_jrwa WHERE symbol=?", [$kod]);
+    if (!$jrwa) {
+        return ['ok' => false, 'error' => "Klasa JRWA „{$kod}” nie istnieje w wykazie — dodaj ją w administracji JRWA lub wybierz istniejącą klasę."];
+    }
+
+    $rok = (int)date('Y');
+
+    // Teczka docelowa: istniejąca otwarta dla tego JRWA i roku, albo nowa
+    $teczka = db_one(
+        "SELECT * FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1",
+        [(int)$jrwa['id'], $rok]
+    );
+    $created_teczka = false;
+    if (!$teczka) {
+        $tid = ezd_teczka_create([
+            'jrwa_id'  => (int)$jrwa['id'],
+            'symbol'   => $jrwa['symbol'],
+            'title'    => $jrwa['title'] . ' ' . $rok,
+            'rok'      => $rok,
+            'owner_id' => $sprawa['owner_id'] ?: null,
+        ], $user_id);
+        $teczka = ezd_teczka_get($tid);
+        $created_teczka = true;
+    }
+
+    if ((int)$teczka['id'] === (int)$sprawa['teczka_id']) {
+        return ['ok' => false, 'error' => 'Koszulka jest już w tej klasie JRWA — brak zmian.'];
+    }
+
+    // Nowy znak wg schematu systemowego; zabezpieczenie unikalności (UNIQUE na znak_sprawy)
+    $old_znak = (string)$sprawa['znak_sprawy'];
+    $numer    = _ezd_next_numer((int)$teczka['id'], $rok);
+    $sym      = strtoupper($teczka['symbol']);
+    do {
+        $new_znak = $sym . '.' . $numer . '.' . $rok;
+        $clash = db_one("SELECT 1 FROM ezd_sprawy WHERE znak_sprawy=?", [$new_znak]);
+        if ($clash) $numer++;
+    } while ($clash);
+
+    db()->prepare(
+        "UPDATE ezd_sprawy SET teczka_id=?, numer=?, znak_sprawy=?, updated_at=datetime('now') WHERE id=?"
+    )->execute([(int)$teczka['id'], $numer, $new_znak, $sprawa_id]);
+
+    ezd_log((int)$teczka['id'], $sprawa_id, null, null, $user_id, 'przerejestrowanie',
+        'Przerejestrowano: ' . $old_znak . ' → ' . $new_znak . ' (JRWA ' . $kod . ')');
+
+    return [
+        'ok' => true, 'old_znak' => $old_znak, 'new_znak' => $new_znak,
+        'teczka_id' => (int)$teczka['id'], 'created_teczka' => $created_teczka,
+    ];
 }
 
 // ── Workflow BPM — etapy obiegu sprawy (konfigurowalne per JRWA) ─────────────

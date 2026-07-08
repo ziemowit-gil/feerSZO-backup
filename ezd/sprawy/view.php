@@ -373,6 +373,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             </button>
             <?php endif; ?>
             <?php if($can_edit_case): ?>
+            <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Przerejestruj koszulkę do Nowego JRWA (asystent AI)">
+              <i class="bi bi-stars me-1"></i>Przerejestruj
+            </a>
             <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
               <i class="bi bi-pencil"></i>
             </a>

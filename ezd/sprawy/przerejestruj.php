@@ -20,12 +20,27 @@ require_login();
 require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 if (!can_edit()) { flash_set('error', 'Brak uprawnień.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit; }
 
-$wynik = null;   // wynik analizy AI (op=analyze)
-$in    = ['opis' => '', 'stary_znak' => '', 'forma' => 'auto'];
+$wynik  = null;   // wynik analizy AI (op=analyze)
+$in     = ['opis' => '', 'stary_znak' => '', 'forma' => 'auto'];
+
+// Kontekst istniejącej koszulki (?id=N lub z formularza) — prefill + faktyczne przeniesienie
+$sprawa_id = (int)($_GET['id'] ?? $_POST['sprawa_id'] ?? 0);
+$sprawa    = $sprawa_id ? ezd_sprawa_get($sprawa_id) : null;
+if ($sprawa_id && !$sprawa) { flash_set('danger', 'Koszulka nie istnieje.'); }
+if ($sprawa && !ezd_sprawa_access($sprawa, (int)current_user()['id'])) {
+    flash_set('error', 'Brak dostępu do tej koszulki.'); header('Location: ' . APP_URL . '/ezd/sprawy/index.php'); exit;
+}
+
+// Prefill z danych sprawy przy wejściu GET
+if ($sprawa && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $in['opis']       = trim($sprawa['title'] . "\n" . ($sprawa['description'] ?? ''));
+    $in['stary_znak'] = (string)$sprawa['znak_sprawy'];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    $op = $_POST['_op'] ?? '';
+    $op  = $_POST['_op'] ?? '';
+    $uid = (int)current_user()['id'];
 
     if ($op === 'analyze') {
         $in['opis']       = trim($_POST['opis'] ?? '');
@@ -40,27 +55,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($op === 'save') {
+    if ($op === 'save' || $op === 'apply') {
         $d = json_decode((string)($_POST['payload'] ?? ''), true);
         if (!is_array($d) || empty($d['nowy_znak']) || empty($d['kod_jrwa'])) {
             flash_set('danger', 'Brak danych do zapisania — wykonaj najpierw analizę.');
-        } else {
-            db_insert('ezd_przerejestrowania', [
-                'stary_znak'      => (string)($d['stary_znak'] ?? ''),
-                'nowy_znak'       => (string)$d['nowy_znak'],
-                'kod_jrwa'        => (string)$d['kod_jrwa'],
-                'forma'           => (string)($d['forma'] ?? ''),
-                'opis'            => (string)($d['opis'] ?? ''),
-                'adnotacja_stara' => (string)($d['adnotacja_stara'] ?? ''),
-                'adnotacja_nowa'  => (string)($d['adnotacja_nowa'] ?? ''),
-                'instrukcja'      => json_encode((array)($d['instrukcja'] ?? []), JSON_UNESCAPED_UNICODE),
-                'created_by'      => (int)current_user()['id'],
-            ]);
-            ezd_log(null, null, null, null, (int)current_user()['id'], 'przerejestrowanie',
-                'Protokół: ' . ($d['stary_znak'] ?: '—') . ' → ' . $d['nowy_znak']);
-            flash_set('success', 'Wpis dodany do protokołu przerejestrowania.');
+            header('Location: przerejestruj.php' . ($sprawa_id ? '?id=' . $sprawa_id : '')); exit;
         }
-        header('Location: przerejestruj.php'); exit;
+
+        $zastosowano = 0;
+        $nowy_znak   = (string)$d['nowy_znak'];
+
+        // op=apply → faktyczne przeniesienie istniejącej koszulki do nowej klasy JRWA
+        if ($op === 'apply') {
+            if (!$sprawa) {
+                flash_set('danger', 'Faktyczne przeniesienie wymaga istniejącej koszulki.');
+                header('Location: przerejestruj.php'); exit;
+            }
+            $ap = ezd_sprawa_reregister($sprawa_id, (string)$d['kod_jrwa'], $uid);
+            if (!$ap['ok']) {
+                flash_set('danger', $ap['error']);
+                header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id); exit;
+            }
+            $zastosowano = 1;
+            $nowy_znak   = $ap['new_znak']; // realny znak nadany przez system (nie przykład z AI)
+            $d['stary_znak'] = $ap['old_znak'];
+        }
+
+        db_insert('ezd_przerejestrowania', [
+            'sprawa_id'       => $sprawa_id ?: null,
+            'stary_znak'      => (string)($d['stary_znak'] ?? ''),
+            'nowy_znak'       => $nowy_znak,
+            'kod_jrwa'        => (string)$d['kod_jrwa'],
+            'forma'           => (string)($d['forma'] ?? ''),
+            'opis'            => (string)($d['opis'] ?? ''),
+            'adnotacja_stara' => (string)($d['adnotacja_stara'] ?? ''),
+            'adnotacja_nowa'  => (string)($d['adnotacja_nowa'] ?? ''),
+            'instrukcja'      => json_encode((array)($d['instrukcja'] ?? []), JSON_UNESCAPED_UNICODE),
+            'zastosowano'     => $zastosowano,
+            'created_by'      => $uid,
+        ]);
+
+        if ($op === 'apply') {
+            flash_set('success', 'Koszulka przerejestrowana: ' . ($d['stary_znak'] ?: '—') . ' → ' . $nowy_znak
+                . ($ap['created_teczka'] ? ' (utworzono nowy segregator).' : '.'));
+            header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id); exit;
+        }
+        flash_set('success', 'Wpis dodany do protokołu przerejestrowania.');
+        header('Location: przerejestruj.php' . ($sprawa_id ? '?id=' . $sprawa_id : '')); exit;
     }
 
     if ($op === 'delete') {
@@ -71,8 +112,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $protokol = db_all(
-    "SELECT p.*, u.name AS user_name FROM ezd_przerejestrowania p
-     LEFT JOIN users u ON u.id=p.created_by ORDER BY p.id"
+    "SELECT p.*, u.name AS user_name, s.id AS sprawa_exists
+     FROM ezd_przerejestrowania p
+     LEFT JOIN users u ON u.id=p.created_by
+     LEFT JOIN ezd_sprawy s ON s.id=p.sprawa_id
+     ORDER BY p.id"
 );
 
 $PAGE_TITLE = 'Przerejestrowanie do Nowego JRWA';
@@ -95,6 +139,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <div style="max-width:960px">
 
+  <?php if ($sprawa): ?>
+  <div class="alert alert-primary d-flex align-items-center gap-2 py-2 mb-4" style="font-size:.9rem">
+    <i class="bi bi-link-45deg fs-5"></i>
+    <div>Przerejestrowujesz istniejącą koszulkę
+      <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$sprawa['id'] ?>" class="fw-bold"><?= h($sprawa['znak_sprawy']) ?></a>.
+      Po analizie możesz <strong>zastosować</strong> nową klasę — koszulka zostanie przeniesiona i otrzyma nowy znak.</div>
+  </div>
+  <?php endif; ?>
+
   <!-- ── Formularz sprawy ──────────────────────────────────────────────────── -->
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white fw-semibold"><i class="bi bi-1-circle me-2 text-primary"></i>Opisz sprawę</div>
@@ -102,6 +155,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <form method="post">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_op" value="analyze">
+        <?php if ($sprawa_id): ?><input type="hidden" name="sprawa_id" value="<?= $sprawa_id ?>"><?php endif; ?>
         <div class="mb-3">
           <label class="form-label fw-semibold small">Opis sprawy <span class="text-danger">*</span></label>
           <textarea name="opis" class="form-control" rows="3" required
@@ -176,26 +230,45 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <?php
+    $payloadJson = json_encode([
+        'stary_znak'      => $in['stary_znak'],
+        'nowy_znak'       => $wynik['nowy_znak'],
+        'kod_jrwa'        => $wynik['kod_jrwa'],
+        'forma'           => $wynik['forma'],
+        'opis'            => $in['opis'],
+        'adnotacja_stara' => $wynik['adnotacja_stara'],
+        'adnotacja_nowa'  => $wynik['adnotacja_nowa'],
+        'instrukcja'      => $wynik['instrukcja'],
+    ], JSON_UNESCAPED_UNICODE);
+  ?>
   <!-- ── 3. Wpis do protokołu ─────────────────────────────────────────────── -->
   <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white fw-semibold d-flex align-items-center justify-content-between">
+    <div class="card-header bg-white fw-semibold d-flex align-items-center justify-content-between gap-2 flex-wrap">
       <span><i class="bi bi-table me-2 text-primary"></i>3. Wpis do protokołu przerejestrowania</span>
-      <form method="post" class="mb-0">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_op" value="save">
-        <input type="hidden" name="payload" value="<?= h(json_encode([
-            'stary_znak'      => $in['stary_znak'],
-            'nowy_znak'       => $wynik['nowy_znak'],
-            'kod_jrwa'        => $wynik['kod_jrwa'],
-            'forma'           => $wynik['forma'],
-            'opis'            => $in['opis'],
-            'adnotacja_stara' => $wynik['adnotacja_stara'],
-            'adnotacja_nowa'  => $wynik['adnotacja_nowa'],
-            'instrukcja'      => $wynik['instrukcja'],
-        ], JSON_UNESCAPED_UNICODE)) ?>">
-        <button class="btn btn-success btn-sm"><i class="bi bi-check2-circle me-1"></i>Zapisz do protokołu</button>
-      </form>
+      <div class="d-flex gap-2">
+        <form method="post" class="mb-0">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_op" value="save">
+          <?php if ($sprawa_id): ?><input type="hidden" name="sprawa_id" value="<?= $sprawa_id ?>"><?php endif; ?>
+          <input type="hidden" name="payload" value="<?= h($payloadJson) ?>">
+          <button class="btn btn-outline-success btn-sm"><i class="bi bi-journal-plus me-1"></i>Zapisz do protokołu</button>
+        </form>
+        <?php if ($sprawa): ?>
+        <form method="post" class="mb-0"
+              onsubmit="return confirm('Przenieść koszulkę <?= h($sprawa['znak_sprawy']) ?> do klasy JRWA <?= h($wynik['kod_jrwa']) ?>? Koszulka otrzyma NOWY znak sprawy. Operacja nieodwracalna.')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_op" value="apply">
+          <input type="hidden" name="sprawa_id" value="<?= $sprawa_id ?>">
+          <input type="hidden" name="payload" value="<?= h($payloadJson) ?>">
+          <button class="btn btn-success btn-sm"><i class="bi bi-arrow-left-right me-1"></i>Zastosuj — przenieś koszulkę</button>
+        </form>
+        <?php endif; ?>
+      </div>
     </div>
+    <?php if ($sprawa): ?>
+    <div class="px-3 pt-2 small text-secondary"><i class="bi bi-info-circle me-1"></i>Przy „Zastosuj" nowy znak nada system wg schematu <code>SYMBOL.numer.rok</code> z docelowego segregatora (może różnić się od przykładu powyżej).</div>
+    <?php endif; ?>
     <div class="card-body">
       <div class="table-responsive mb-2">
         <table class="table table-bordered table-sm mb-0">
@@ -230,15 +303,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <table class="table table-hover table-sm mb-0 align-middle">
           <thead class="table-light"><tr>
             <th style="width:52px">Lp.</th><th>Stary znak sprawy</th><th>Nowy znak sprawy</th><th>Forma prowadzenia</th>
-            <th>Data</th><th>Kto</th><th style="width:44px"></th>
+            <th>Status</th><th>Data</th><th>Kto</th><th style="width:44px"></th>
           </tr></thead>
           <tbody>
           <?php foreach ($protokol as $i => $p): ?>
           <tr>
             <td><?= $i + 1 ?></td>
             <td><?= h($p['stary_znak'] !== '' ? $p['stary_znak'] : '—') ?></td>
-            <td class="fw-semibold"><?= h($p['nowy_znak']) ?></td>
+            <td class="fw-semibold">
+              <?php if (!empty($p['sprawa_exists'])): ?>
+                <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$p['sprawa_id'] ?>"><?= h($p['nowy_znak']) ?></a>
+              <?php else: ?><?= h($p['nowy_znak']) ?><?php endif; ?>
+            </td>
             <td class="small"><?= h($p['forma']) ?></td>
+            <td>
+              <?php if (!empty($p['zastosowano'])): ?>
+                <span class="badge bg-success" title="Koszulka faktycznie przeniesiona"><i class="bi bi-check2"></i> zastosowano</span>
+              <?php else: ?>
+                <span class="badge bg-light text-secondary border">wpis</span>
+              <?php endif; ?>
+            </td>
             <td class="small text-secondary"><?= $p['created_at'] ? date('d.m.Y', strtotime($p['created_at'])) : '—' ?></td>
             <td class="small text-secondary"><?= h($p['user_name'] ?? '—') ?></td>
             <td>
