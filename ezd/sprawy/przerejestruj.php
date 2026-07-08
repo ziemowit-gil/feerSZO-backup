@@ -65,13 +65,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $zastosowano = 0;
         $nowy_znak   = (string)$d['nowy_znak'];
 
-        // op=apply → faktyczne przeniesienie istniejącej koszulki do nowej klasy JRWA
+        // op=apply → faktyczne przeniesienie istniejącej koszulki do WSKAZANEGO miejsca
         if ($op === 'apply') {
             if (!$sprawa) {
                 flash_set('danger', 'Faktyczne przeniesienie wymaga istniejącej koszulki.');
                 header('Location: przerejestruj.php'); exit;
             }
-            $ap = ezd_sprawa_reregister($sprawa_id, (string)$d['kod_jrwa'], $uid);
+            // Cel wskazuje użytkownik: "teczka:ID" (istniejący segregator) lub "jrwa:SYMBOL" (klasa)
+            $targetRaw = trim((string)($_POST['target'] ?? ''));
+            if (str_starts_with($targetRaw, 'teczka:'))   $target = ['teczka_id' => (int)substr($targetRaw, 7)];
+            elseif (str_starts_with($targetRaw, 'jrwa:'))  $target = ['jrwa' => substr($targetRaw, 5)];
+            else {
+                flash_set('danger', 'Wskaż, gdzie przenieść koszulkę (segregator lub klasę JRWA).');
+                header('Location: przerejestruj.php?id=' . $sprawa_id); exit;
+            }
+            $ap = ezd_sprawa_reregister($sprawa_id, $target, $uid);
             if (!$ap['ok']) {
                 flash_set('danger', $ap['error']);
                 header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id); exit;
@@ -118,6 +126,18 @@ $protokol = db_all(
      LEFT JOIN ezd_sprawy s ON s.id=p.sprawa_id
      ORDER BY p.id"
 );
+
+// Cele przeniesienia (tylko gdy pracujemy na istniejącej koszulce): otwarte segregatory + klasy JRWA
+$teczki_cele = $jrwa_cele = [];
+if ($sprawa) {
+    $teczki_cele = db_all(
+        "SELECT t.id, t.symbol, t.title, t.rok, j.symbol AS jrwa_symbol
+         FROM ezd_teczki t LEFT JOIN ezd_jrwa j ON j.id=t.jrwa_id
+         WHERE t.status='open' AND t.id<>? ORDER BY t.symbol, t.rok DESC",
+        [(int)$sprawa['teczka_id']]
+    );
+    $jrwa_cele = ezd_jrwa_all();
+}
 
 $PAGE_TITLE = 'Przerejestrowanie do Nowego JRWA';
 include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -254,20 +274,45 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <input type="hidden" name="payload" value="<?= h($payloadJson) ?>">
           <button class="btn btn-outline-success btn-sm"><i class="bi bi-journal-plus me-1"></i>Zapisz do protokołu</button>
         </form>
-        <?php if ($sprawa): ?>
-        <form method="post" class="mb-0"
-              onsubmit="return confirm('Przenieść koszulkę <?= h($sprawa['znak_sprawy']) ?> do klasy JRWA <?= h($wynik['kod_jrwa']) ?>? Koszulka otrzyma NOWY znak sprawy. Operacja nieodwracalna.')">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_op" value="apply">
-          <input type="hidden" name="sprawa_id" value="<?= $sprawa_id ?>">
-          <input type="hidden" name="payload" value="<?= h($payloadJson) ?>">
-          <button class="btn btn-success btn-sm"><i class="bi bi-arrow-left-right me-1"></i>Zastosuj — przenieś koszulkę</button>
-        </form>
-        <?php endif; ?>
       </div>
     </div>
     <?php if ($sprawa): ?>
-    <div class="px-3 pt-2 small text-secondary"><i class="bi bi-info-circle me-1"></i>Przy „Zastosuj" nowy znak nada system wg schematu <code>SYMBOL.numer.rok</code> z docelowego segregatora (może różnić się od przykładu powyżej).</div>
+    <?php $suggest = 'jrwa:' . $wynik['kod_jrwa']; ?>
+    <div class="card-body border-top bg-light-subtle">
+      <form method="post" class="row g-2 align-items-end"
+            onsubmit="return confirm('Przenieść koszulkę <?= h($sprawa['znak_sprawy']) ?> do wskazanego miejsca? Koszulka otrzyma NOWY znak sprawy. Operacja nieodwracalna.')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_op" value="apply">
+        <input type="hidden" name="sprawa_id" value="<?= $sprawa_id ?>">
+        <input type="hidden" name="payload" value="<?= h($payloadJson) ?>">
+        <div class="col-md-8">
+          <label class="form-label fw-semibold small mb-1"><i class="bi bi-arrow-left-right me-1"></i>Przenieś koszulkę do:</label>
+          <select name="target" class="form-select form-select-sm" required>
+            <option value="">— wskaż segregator lub klasę JRWA —</option>
+            <?php if ($teczki_cele): ?>
+            <optgroup label="Istniejące segregatory (otwarte)">
+              <?php foreach ($teczki_cele as $t): ?>
+              <option value="teczka:<?= (int)$t['id'] ?>">
+                <?= h($t['symbol']) ?> · <?= h($t['title']) ?> (<?= (int)$t['rok'] ?>)<?= $t['jrwa_symbol'] ? ' — JRWA ' . h($t['jrwa_symbol']) : '' ?>
+              </option>
+              <?php endforeach; ?>
+            </optgroup>
+            <?php endif; ?>
+            <optgroup label="Utwórz/uzupełnij segregator w klasie JRWA">
+              <?php foreach ($jrwa_cele as $j): $val = 'jrwa:' . $j['symbol']; ?>
+              <option value="<?= h($val) ?>" <?= $val === $suggest ? 'selected' : '' ?>>
+                <?= h($j['symbol']) ?> — <?= h($j['title']) ?><?= $val === $suggest ? '  (sugestia AI)' : '' ?>
+              </option>
+              <?php endforeach; ?>
+            </optgroup>
+          </select>
+          <div class="form-text">Wybierz konkretny segregator albo klasę JRWA (system znajdzie/utworzy segregator dla bieżącego roku). Nowy znak: <code>SYMBOL.numer.rok</code>.</div>
+        </div>
+        <div class="col-md-4 d-flex justify-content-md-end">
+          <button class="btn btn-success"><i class="bi bi-arrow-left-right me-1"></i>Zastosuj — przenieś</button>
+        </div>
+      </form>
+    </div>
     <?php endif; ?>
     <div class="card-body">
       <div class="table-responsive mb-2">

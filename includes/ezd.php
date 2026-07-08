@@ -990,17 +990,22 @@ function _ezd_next_numer(int $teczka_id, int $rok): int {
 }
 
 /**
- * Faktyczne przerejestrowanie koszulki do nowej klasy JRWA: przenosi sprawę do
- * teczki (segregatora) zgodnej z docelowym symbolem JRWA — tworząc ją dla roku,
- * jeśli brak — i generuje NOWY znak sprawy wg systemowego schematu SYMBOL.numer.rok.
+ * Faktyczne przerejestrowanie koszulki: przenosi sprawę do WSKAZANEGO miejsca
+ * i generuje NOWY znak sprawy wg systemowego schematu SYMBOL.numer.rok.
  * Zapisuje audyt (ezd_log). Operacja zmienia unikalny znak — nieodwracalna.
+ *
+ * Cel wskazuje wywołujący ($target):
+ *   ['teczka_id'=>N]  → przenieś do istniejącego (otwartego) segregatora N,
+ *   ['jrwa'=>'142']   → do segregatora tej klasy JRWA dla roku (utwórz, jeśli brak).
+ * (Dla zgodności wstecznej dopuszczony też string z symbolem JRWA.)
  *
  * Blokuje sprawy z hierarchią (podsprawy / podkoszulki), bo znak i teczka są
  * współdzielone z rodzicem — takie przypadki wymagają ręcznej decyzji.
  *
+ * @param array{teczka_id?:int, jrwa?:string}|string $target
  * @return array{ok:bool, error?:string, old_znak?:string, new_znak?:string, teczka_id?:int, created_teczka?:bool}
  */
-function ezd_sprawa_reregister(int $sprawa_id, string $kod_jrwa, int $user_id): array {
+function ezd_sprawa_reregister(int $sprawa_id, $target, int $user_id): array {
     $sprawa = ezd_sprawa_get($sprawa_id);
     if (!$sprawa) return ['ok' => false, 'error' => 'Koszulka nie istnieje.'];
 
@@ -1012,35 +1017,45 @@ function ezd_sprawa_reregister(int $sprawa_id, string $kod_jrwa, int $user_id): 
         return ['ok' => false, 'error' => 'Koszulka ma podkoszulki — przenieś je ręcznie; automatyczne przerejestrowanie zablokowane.'];
     }
 
-    $kod  = trim($kod_jrwa);
-    $jrwa = db_one("SELECT * FROM ezd_jrwa WHERE symbol=?", [$kod]);
-    if (!$jrwa) {
-        return ['ok' => false, 'error' => "Klasa JRWA „{$kod}” nie istnieje w wykazie — dodaj ją w administracji JRWA lub wybierz istniejącą klasę."];
-    }
-
+    if (is_string($target)) $target = ['jrwa' => $target];
     $rok = (int)date('Y');
-
-    // Teczka docelowa: istniejąca otwarta dla tego JRWA i roku, albo nowa
-    $teczka = db_one(
-        "SELECT * FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1",
-        [(int)$jrwa['id'], $rok]
-    );
     $created_teczka = false;
-    if (!$teczka) {
-        $tid = ezd_teczka_create([
-            'jrwa_id'  => (int)$jrwa['id'],
-            'symbol'   => $jrwa['symbol'],
-            'title'    => $jrwa['title'] . ' ' . $rok,
-            'rok'      => $rok,
-            'owner_id' => $sprawa['owner_id'] ?: null,
-        ], $user_id);
-        $teczka = ezd_teczka_get($tid);
-        $created_teczka = true;
+
+    if (!empty($target['teczka_id'])) {
+        // Cel wskazany wprost: istniejący segregator
+        $teczka = ezd_teczka_get((int)$target['teczka_id']);
+        if (!$teczka)                       return ['ok' => false, 'error' => 'Wskazany segregator nie istnieje.'];
+        if (($teczka['status'] ?? '') === 'closed') return ['ok' => false, 'error' => 'Wskazany segregator jest zamknięty.'];
+    } else {
+        // Cel przez klasę JRWA: istniejący otwarty segregator dla roku, albo nowy
+        $kod  = trim((string)($target['jrwa'] ?? ''));
+        $jrwa = $kod !== '' ? db_one("SELECT * FROM ezd_jrwa WHERE symbol=?", [$kod]) : null;
+        if (!$jrwa) {
+            return ['ok' => false, 'error' => "Klasa JRWA „{$kod}” nie istnieje w wykazie — wybierz istniejący segregator albo dodaj klasę w administracji JRWA."];
+        }
+        $teczka = db_one(
+            "SELECT * FROM ezd_teczki WHERE jrwa_id=? AND rok=? AND status='open' ORDER BY id LIMIT 1",
+            [(int)$jrwa['id'], $rok]
+        );
+        if (!$teczka) {
+            $tid = ezd_teczka_create([
+                'jrwa_id'  => (int)$jrwa['id'],
+                'symbol'   => $jrwa['symbol'],
+                'title'    => $jrwa['title'] . ' ' . $rok,
+                'rok'      => $rok,
+                'owner_id' => $sprawa['owner_id'] ?: null,
+            ], $user_id);
+            $teczka = ezd_teczka_get($tid);
+            $created_teczka = true;
+        }
     }
 
     if ((int)$teczka['id'] === (int)$sprawa['teczka_id']) {
-        return ['ok' => false, 'error' => 'Koszulka jest już w tej klasie JRWA — brak zmian.'];
+        return ['ok' => false, 'error' => 'Koszulka jest już w tym segregatorze — brak zmian.'];
     }
+
+    $rok = (int)($teczka['rok'] ?? $rok); // numeruj w roczniku docelowego segregatora
+    $kod = $teczka['symbol'];
 
     // Nowy znak wg schematu systemowego; zabezpieczenie unikalności (UNIQUE na znak_sprawy)
     $old_znak = (string)$sprawa['znak_sprawy'];
