@@ -93,7 +93,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .sprawa-line:last-child{border-bottom:none;}
 .sprawa-line:hover{background:#f8fafc;}
 .sprawa-row{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;text-decoration:none;color:inherit;transition:background .12s;}
-.bulk-bar{background:#eff4fb;border-bottom:1px solid #dbe6f5;}
 .sprawa-znak{font-family:monospace;font-size:.8rem;font-weight:700;color:#2563eb;white-space:nowrap;}
 .ezd-search .input-group{box-shadow:0 4px 14px rgba(15,23,42,.08);border-radius:14px;overflow:hidden;}
 .ezd-search .input-group-text{background:#fff;border:1px solid #e2e8f0;border-right:none;font-size:1.15rem;color:#64748b;padding:.7rem .55rem .7rem 1rem;}
@@ -108,6 +107,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="mb-0 fw-bold"><i class="bi bi-folder2-open text-primary me-2"></i>Koszulki</h4>
   <div class="d-flex gap-2">
+    <?php if(can_edit()): ?>
+    <button type="button" id="bulkTrigger" class="btn btn-success btn-sm" disabled
+            data-bs-toggle="modal" data-bs-target="#bulkModal" title="Przerejestruj zaznaczone koszulki">
+      <i class="bi bi-arrow-left-right me-1"></i>Przerejestruj zaznaczone <span class="badge bg-light text-success ms-1" id="bulkCount">0</span>
+    </button>
+    <?php endif; ?>
     <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Eksport CSV</a>
     <?php if(can_edit()): ?>
     <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-stars me-1"></i>Przerejestrowanie (AI)</a>
@@ -192,33 +197,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php endif; ?>
   </div>
 
-  <?php if(can_edit() && $sprawy): ?>
-  <form id="bulkForm" method="post" class="bulk-bar px-3 py-2 d-flex flex-wrap align-items-center gap-2"
-        action="<?= h($_SERVER['REQUEST_URI']) ?>" onsubmit="return bulkConfirm()">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <input type="hidden" name="_op" value="bulk_reregister">
-    <span class="small fw-semibold text-primary"><i class="bi bi-arrow-left-right me-1"></i>Masowe przerejestrowanie</span>
-    <span class="badge bg-secondary" id="bulkCount">0</span>
-    <select name="target" class="form-select form-select-sm w-auto flex-grow-1" style="min-width:260px;max-width:560px" required>
-      <option value="">— przenieś zaznaczone do… (segregator lub klasa JRWA) —</option>
-      <?php if($teczki_cele): ?>
-      <optgroup label="Istniejące segregatory (otwarte)">
-        <?php foreach($teczki_cele as $t): ?>
-        <option value="teczka:<?= (int)$t['id'] ?>"><?= h($t['symbol']) ?> · <?= h($t['title']) ?> (<?= (int)$t['rok'] ?>)<?= $t['jrwa_symbol'] ? ' — JRWA '.h($t['jrwa_symbol']) : '' ?></option>
-        <?php endforeach; ?>
-      </optgroup>
-      <?php endif; ?>
-      <optgroup label="Utwórz/uzupełnij segregator w klasie JRWA">
-        <?php foreach($jrwa_cele as $j): ?>
-        <option value="jrwa:<?= h($j['symbol']) ?>"><?= h($j['symbol']) ?> — <?= h($j['title']) ?></option>
-        <?php endforeach; ?>
-      </optgroup>
-    </select>
-    <button class="btn btn-success btn-sm" id="bulkBtn" disabled><i class="bi bi-arrow-left-right me-1"></i>Przenieś zaznaczone</button>
-    <span class="small text-muted w-100" style="font-size:.72rem"><i class="bi bi-info-circle me-1"></i>Każda koszulka otrzyma nowy znak w wskazanym segregatorze. Pomijane: podkoszulki, koszulki z podkoszulkami, już w tym segregatorze. Operacja nieodwracalna.</span>
-  </form>
-  <?php endif; ?>
-
   <div>
     <?php foreach($sprawy as $s):
       $lz = ezd_lezy_since($s['dekr_since'] ?? null);
@@ -263,24 +241,66 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 <?php if(can_edit() && $sprawy): ?>
+<!-- Modal: masowe przerejestrowanie -->
+<div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="bulkForm" method="post" action="<?= h($_SERVER['REQUEST_URI']) ?>" onsubmit="return bulkConfirm()">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-arrow-left-right me-2 text-success"></i>Przerejestruj zaznaczone koszulki</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_op" value="bulk_reregister">
+          <p class="small mb-3">Zaznaczono: <span class="fw-bold" id="bulkModalCount">0</span> koszulek. Wskaż, gdzie je przenieść — każda otrzyma nowy znak w docelowym segregatorze.</p>
+          <label class="form-label fw-semibold small">Przenieś do:</label>
+          <select name="target" class="form-select" required>
+            <option value="">— segregator lub klasa JRWA —</option>
+            <?php if($teczki_cele): ?>
+            <optgroup label="Istniejące segregatory (otwarte)">
+              <?php foreach($teczki_cele as $t): ?>
+              <option value="teczka:<?= (int)$t['id'] ?>"><?= h($t['symbol']) ?> · <?= h($t['title']) ?> (<?= (int)$t['rok'] ?>)<?= $t['jrwa_symbol'] ? ' — JRWA '.h($t['jrwa_symbol']) : '' ?></option>
+              <?php endforeach; ?>
+            </optgroup>
+            <?php endif; ?>
+            <optgroup label="Utwórz/uzupełnij segregator w klasie JRWA">
+              <?php foreach($jrwa_cele as $j): ?>
+              <option value="jrwa:<?= h($j['symbol']) ?>"><?= h($j['symbol']) ?> — <?= h($j['title']) ?></option>
+              <?php endforeach; ?>
+            </optgroup>
+          </select>
+          <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Pomijane: podkoszulki, koszulki z podkoszulkami oraz te już w wskazanym segregatorze. Operacja nieodwracalna.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-arrow-left-right me-1"></i>Przenieś zaznaczone</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 (function(){
-  const cbs   = () => Array.from(document.querySelectorAll('.bulk-cb'));
-  const all   = document.getElementById('bulkAll');
-  const count = document.getElementById('bulkCount');
-  const btn   = document.getElementById('bulkBtn');
-  const sel   = document.querySelector('#bulkForm select[name="target"]');
+  const cbs     = () => Array.from(document.querySelectorAll('.bulk-cb'));
+  const all     = document.getElementById('bulkAll');
+  const trigger = document.getElementById('bulkTrigger');
+  const badge   = document.getElementById('bulkCount');
+  const mCount  = document.getElementById('bulkModalCount');
+  const sel     = document.querySelector('#bulkForm select[name="target"]');
+  function selected(){ return cbs().filter(c=>c.checked).length; }
   function refresh(){
-    const n = cbs().filter(c=>c.checked).length;
-    if(count) count.textContent = n;
-    if(btn)   btn.disabled = (n===0 || !sel || sel.value==='');
+    const n = selected();
+    if(badge)   badge.textContent = n;
+    if(mCount)  mCount.textContent = n;
+    if(trigger) trigger.disabled = (n===0);
     if(all){ const total=cbs().length; all.checked = n>0 && n===total; all.indeterminate = n>0 && n<total; }
   }
   cbs().forEach(c=>c.addEventListener('change', refresh));
   if(all) all.addEventListener('change', ()=>{ cbs().forEach(c=>c.checked=all.checked); refresh(); });
-  if(sel) sel.addEventListener('change', refresh);
   window.bulkConfirm = function(){
-    const n = cbs().filter(c=>c.checked).length;
+    const n = selected();
     if(n===0){ alert('Zaznacz przynajmniej jedną koszulkę.'); return false; }
     if(!sel || sel.value===''){ alert('Wskaż, gdzie przenieść.'); return false; }
     const label = sel.options[sel.selectedIndex].text.trim();
