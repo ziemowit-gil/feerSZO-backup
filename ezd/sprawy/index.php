@@ -68,6 +68,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="d-flex gap-2">
     <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Eksport CSV</a>
     <?php if(can_edit()): ?>
+    <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-stars me-1"></i>Przerejestrowanie (AI)</a>
     <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa koszulka</a>
     <?php endif; ?>
   </div>

@@ -83,8 +83,11 @@ include dirname(__DIR__) . '/includes/header.php';
       <option value="claude-sonnet-4-6" <?= $model === 'claude-sonnet-4-6' ? 'selected' : '' ?>>
         claude-sonnet-4-6 — lepszy, droższy
       </option>
+      <option value="claude-opus-4-8" <?= $model === 'claude-opus-4-8' ? 'selected' : '' ?>>
+        claude-opus-4-8 — najlepszy (zalecany do klasyfikacji JRWA)
+      </option>
     </select>
-    <div class="form-text">Model używany do generowania treści wiadomości w CRM.</div>
+    <div class="form-text">Model używany do generowania treści w CRM oraz asystenta JRWA w EZD.</div>
   </div>
 
   <button type="submit" class="btn btn-primary btn-sm">
@@ -100,6 +103,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <ul class="mb-0 ps-3">
     <li>CRM → Komunikacja → przycisk <strong>Wygeneruj AI</strong> w edytorze e-mail</li>
     <li>CRM → Masowa wysyłka → przycisk <strong>Wygeneruj AI</strong></li>
+    <li>EZD → Koszulki → <strong>Przerejestrowanie (AI)</strong> — kwalifikacja spraw do Nowego JRWA</li>
   </ul>
 </div>
 </div>

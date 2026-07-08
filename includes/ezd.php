@@ -222,6 +222,21 @@
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Protokół przerejestrowania spraw do Nowego JRWA (asystent AI)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_przerejestrowania (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        stary_znak  TEXT    NOT NULL DEFAULT '',
+        nowy_znak   TEXT    NOT NULL,
+        kod_jrwa    TEXT    NOT NULL,
+        forma       TEXT    NOT NULL DEFAULT '',
+        opis        TEXT    NOT NULL DEFAULT '',
+        adnotacja_stara TEXT NOT NULL DEFAULT '',
+        adnotacja_nowa  TEXT NOT NULL DEFAULT '',
+        instrukcja  TEXT    NOT NULL DEFAULT '',
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Definicje workflow (BPM) per JRWA — kroki jako JSON
     $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_workflows (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
