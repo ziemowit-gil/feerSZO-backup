@@ -30,6 +30,11 @@ if ($course_id_filter) {
     $all_courses = array_values(array_filter($all_courses, fn($c) => (int)$c['id'] === $course_id_filter));
 }
 
+// Kursy z wyłączonym liczeniem frekwencji nie wchodzą do raportu.
+// Filtrujemy w PHP (z domyślną wartością 1), aby nie zależeć od istnienia
+// kolumny track_attendance w SQL — raport działa też przed migracją.
+$all_courses = array_values(array_filter($all_courses, fn($c) => (int)($c['track_attendance'] ?? 1) === 1));
+
 // Lekcje w miesiącu — dla wybranych kursów
 $course_ids = array_column($all_courses, 'id');
 if (!$course_ids) {
@@ -47,7 +52,6 @@ $sessions = db_all(
      WHERE s.course_id IN ($placeholders)
        AND s.lesson_date BETWEEN ? AND ?
        AND (s.status IS NULL OR s.status NOT IN ('removed','remote_material'))
-       AND COALESCE(c.track_attendance,1)=1
      ORDER BY s.course_id, s.lesson_date, s.time_from",
     array_merge($course_ids, [$month_first, $month_last])
 );

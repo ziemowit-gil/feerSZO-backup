@@ -2678,9 +2678,11 @@ function k30_ti_client_billing(int $client_id): array {
 
 /** Ostatnie lekcje kursanta z obecnością (współdzielone: panel kursanta + rodzica). */
 function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
-    return db_all(
+    // $extra: dodatkowa kolumna flagi frekwencji kursu. Wydzielona, bo przed
+    // migracją (brak kolumny track_attendance) zapytanie musi zadziałać bez niej.
+    $build = fn(string $extra) =>
         "SELECT s.*, c.name AS course_name, c.default_meeting_url AS course_meeting_url,
-                c.track_attendance AS course_track_attendance,
+                {$extra}
                 a.attended, a.ind_notes,
                 a.cancelled AS att_cancelled, a.cancel_pending AS att_cancel_pending,
                 a.cancel_reason AS att_cancel_reason,
@@ -2695,9 +2697,13 @@ function k30_ti_client_lessons(int $client_id, int $limit = 40): array {
              SELECT course_id FROM k30_ti_enrollments WHERE client_id=? AND status='active'
          )
          ORDER BY s.lesson_date DESC, s.time_from DESC
-         LIMIT " . max(1, $limit),
-        [$client_id, $client_id, $client_id]
-    );
+         LIMIT " . max(1, $limit);
+    $p = [$client_id, $client_id, $client_id];
+    try {
+        return db_all($build("c.track_attendance AS course_track_attendance,"), $p);
+    } catch (\Throwable $e) {
+        return db_all($build(""), $p); // przed migracją — bez kolumny (widoki użyją domyślnie „liczy frekwencję")
+    }
 }
 
 /**
@@ -4889,9 +4895,14 @@ function k30_ti_course_grades_enabled(int $course_id): bool {
     return $r === null ? true : (int)($r['grades_enabled'] ?? 1) === 1;
 }
 
-/** Czy kurs liczy frekwencję (obecność/nieobecność)? 0 = wyłączone dla kursu. */
+/** Czy kurs liczy frekwencję (obecność/nieobecność)? 0 = wyłączone dla kursu.
+ *  Odporne na brak kolumny (przed migracją) — wtedy domyślnie liczy frekwencję. */
 function k30_ti_course_tracks_attendance(int $course_id): bool {
-    $r = db_one("SELECT track_attendance FROM k30_ti_courses WHERE id=?", [$course_id]);
+    try {
+        $r = db_one("SELECT track_attendance FROM k30_ti_courses WHERE id=?", [$course_id]);
+    } catch (\Throwable $e) {
+        return true; // kolumna jeszcze nie istnieje — nie blokuj
+    }
     return $r === null ? true : (int)($r['track_attendance'] ?? 1) === 1;
 }
 
