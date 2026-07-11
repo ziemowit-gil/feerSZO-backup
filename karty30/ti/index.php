@@ -198,6 +198,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header">Raporty (PDF)</h6></li>
       <li><a class="dropdown-item" href="#raporty-ti"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty TI — kreator…</a></li>
+      <li><a class="dropdown-item" href="#raport-wup"><i class="bi bi-bank me-2"></i>Sprawozdanie do WUP…</a></li>
     </ul>
   </div>
 
@@ -520,6 +521,43 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           'instructor_monthly.php', 'instructor_annual.php', 'instructor_id', 'Wszyscy prowadzący', $ti_instructors);
       ?>
     </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mt-4" id="raport-wup">
+  <div class="card-header bg-white d-flex align-items-center">
+    <i class="bi bi-bank me-2 text-primary"></i>
+    <span class="fw-semibold">Sprawozdanie do Wojewódzkiego Urzędu Pracy</span>
+    <span class="ms-2 small text-body-secondary">ustawa o promocji zatrudnienia · PDF</span>
+  </div>
+  <div class="card-body">
+    <p class="text-body-secondary small mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      Zestawienie zajęć wg prowadzących i grup: prowadzący per grupa, liczba osób, liczba uczestników i czas pracy per prowadzący — z miejscem na podpis kierownika.
+      Uwzględnia grupy, w których w podanym okresie odbyły się zajęcia.
+    </p>
+    <form method="get" action="wup_report.php" target="_blank" rel="noopener" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-1">Od</label>
+        <input type="date" name="from" value="<?= h(date('Y-m-01')) ?>" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Do</label>
+        <input type="date" name="to" value="<?= h(date('Y-m-t')) ?>" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-1">Prowadzący</label>
+        <select name="instructor_id" class="form-select form-select-sm">
+          <option value="0">Wszyscy prowadzący</option>
+          <?php foreach ($ti_instructors as $it): ?>
+          <option value="<?= (int)$it['id'] ?>"><?= h($it['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Generuj sprawozdanie</button>
+      </div>
+    </form>
   </div>
 </div>
 <?php endif; ?>
