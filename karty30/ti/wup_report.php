@@ -49,7 +49,8 @@ $org_name   = $S('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 $org_adres  = $S('org_adres');
 $org_miejsc = $S('org_miejscowosc');
 $org_nip    = $S('org_nip');
-$org_regon  = $S('org_regon');
+$org_regon  = $S('org_regon')     ?: '38311833100000';   // fallback FEER; nadpisywalne w settings.org_regon
+$ris_number = $S('ti_ris_number') ?: 'KR.403.2023';      // nr wpisu do Rejestru Instytucji Szkoleniowych (settings.ti_ris_number)
 
 // ── Zbierz dane: grupy z zajęciami w okresie, pogrupowane wg prowadzącego ────────
 $byInstr = [];        // iid => ['name'=>, 'groups'=>[...], 'ids'=>[...distinct...]]
@@ -92,7 +93,8 @@ foreach (k30_ti_courses(false) as $co) {
 }
 uasort($byInstr, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 
-$fmtH = fn(int $m): string => number_format($m / 60, 2, ',', ' ');
+$fmtH  = fn(int $m): string => number_format($m / 60, 2, ',', ' ');  // godziny zegarowe
+$fmtHd = fn(int $m): string => number_format($m / 45, 2, ',', ' ');  // godziny dydaktyczne (45 min)
 $MONTHS = TI_PR_MONTHS_PL;
 $period_txt = date('d.m.Y', strtotime($from)) . ' – ' . date('d.m.Y', strtotime($to));
 
@@ -119,6 +121,7 @@ try {
     if ($addr)       $pdf->MultiCell($W * 0.62, 4, $pl($addr), 0, 'L');
     $reg = trim(($org_nip ? 'NIP ' . $org_nip : '') . ($org_regon ? ($org_nip ? '   ·   ' : '') . 'REGON ' . $org_regon : ''));
     if ($reg)        $pdf->MultiCell($W * 0.62, 4, $pl($reg), 0, 'L');
+    if ($ris_number) $pdf->MultiCell($W * 0.62, 4, $pl('Nr wpisu do RIS: ' . $ris_number), 0, 'L');
     $endLeftY = $pdf->GetY();
     // prawa kolumna
     $pdf->SetXY(14 + $W * 0.62, $topY);
@@ -138,18 +141,19 @@ try {
     $pdf->MultiCell($W, 5.5, $pl('za okres: ' . $period_txt), 0, 'C');
     $pdf->Ln(3);
 
-    // Kolumny tabeli: Lp | Grupa | Liczba zajęć | Liczba uczestników | Czas pracy (godz.)
-    $cLp = 9; $cLes = 22; $cPart = 30; $cH = 30;
-    $cGrp = $W - ($cLp + $cLes + $cPart + $cH);
+    // Kolumny: Lp | Grupa | Zajęcia | Uczestnicy | Czas pracy (h zeg.) | Godz. dyd. (45')
+    $cLp = 8; $cLes = 18; $cPart = 24; $cHz = 26; $cHd = 26;
+    $cGrp = $W - ($cLp + $cLes + $cPart + $cHz + $cHd);
 
-    $tableHead = function () use ($pdf, $pl, $W, $cLp, $cGrp, $cLes, $cPart, $cH) {
-        $pdf->SetFont('DejaVu', 'B', 8);
+    $tableHead = function () use ($pdf, $pl, $cLp, $cGrp, $cLes, $cPart, $cHz, $cHd) {
+        $pdf->SetFont('DejaVu', 'B', 7.5);
         $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(150, 165, 185);
-        $pdf->Cell($cLp,   7, $pl('Lp.'),        1, 0, 'C', true);
-        $pdf->Cell($cGrp,  7, $pl('Grupa (kurs)'), 1, 0, 'L', true);
-        $pdf->Cell($cLes,  7, $pl('Liczba zajęć'), 1, 0, 'C', true);
-        $pdf->Cell($cPart, 7, $pl('Liczba uczestników'), 1, 0, 'C', true);
-        $pdf->Cell($cH,    7, $pl('Czas pracy (godz.)'), 1, 1, 'C', true);
+        $pdf->Cell($cLp,   7, $pl('Lp.'),            1, 0, 'C', true);
+        $pdf->Cell($cGrp,  7, $pl('Grupa (kurs)'),   1, 0, 'L', true);
+        $pdf->Cell($cLes,  7, $pl('Zajęcia'),        1, 0, 'C', true);
+        $pdf->Cell($cPart, 7, $pl('Uczestnicy'),     1, 0, 'C', true);
+        $pdf->Cell($cHz,   7, $pl('Czas pracy (h zeg.)'), 1, 0, 'C', true);
+        $pdf->Cell($cHd,   7, $pl("Godz. dyd. (45')"),    1, 1, 'C', true);
     };
     $tableHead();
 
@@ -172,29 +176,32 @@ try {
             $lp++;
             $pdf->SetFillColor($fill ? 247 : 255, $fill ? 249 : 255, $fill ? 253 : 255);
             $pdf->Cell($cLp,   6, (string)$lp, 1, 0, 'C', true);
-            $pdf->Cell($cGrp,  6, $pl(mb_strimwidth($g['name'], 0, 70, '…')), 1, 0, 'L', true);
+            $pdf->Cell($cGrp,  6, $pl(mb_strimwidth($g['name'], 0, 62, '…')), 1, 0, 'L', true);
             $pdf->Cell($cLes,  6, (string)$g['lessons'], 1, 0, 'C', true);
             $pdf->Cell($cPart, 6, (string)$g['participants'], 1, 0, 'C', true);
-            $pdf->Cell($cH,    6, $fmtH($g['mins']), 1, 1, 'R', true);
+            $pdf->Cell($cHz,   6, $fmtH($g['mins']),  1, 0, 'R', true);
+            $pdf->Cell($cHd,   6, $fmtHd($g['mins']), 1, 1, 'R', true);
             $fill = !$fill;
         }
         // Podsumowanie prowadzącego (pkt 3 + 4)
-        $pdf->SetFont('DejaVu', 'B', 8.5); $pdf->SetFillColor(224, 232, 244);
+        $pdf->SetFont('DejaVu', 'B', 8); $pdf->SetFillColor(224, 232, 244);
         $pdf->Cell($cLp + $cGrp, 6.5, $pl('Razem — ' . $ins['name']
             . '   (osób: ' . count($ins['ids']) . ')'), 1, 0, 'L', true);
         $pdf->Cell($cLes,  6.5, (string)$ins['lessons'], 1, 0, 'C', true);
         $pdf->Cell($cPart, 6.5, (string)$ins['participants'], 1, 0, 'C', true);
-        $pdf->Cell($cH,    6.5, $fmtH($ins['mins']), 1, 1, 'R', true);
+        $pdf->Cell($cHz,   6.5, $fmtH($ins['mins']),  1, 0, 'R', true);
+        $pdf->Cell($cHd,   6.5, $fmtHd($ins['mins']), 1, 1, 'R', true);
         $pdf->SetFont('DejaVu', '', 8.5);
     }
 
     // Wiersz ogółem (pkt 2: liczba osób)
     if ($byInstr) {
-        $pdf->SetFont('DejaVu', 'B', 9); $pdf->SetFillColor(210, 221, 236);
+        $pdf->SetFont('DejaVu', 'B', 8.5); $pdf->SetFillColor(210, 221, 236);
         $pdf->Cell($cLp + $cGrp, 7, $pl('OGÓŁEM   (liczba osób / unikalnych uczestników: ' . count($all_ids) . ')'), 1, 0, 'L', true);
         $pdf->Cell($cLes,  7, (string)$grand['lessons'], 1, 0, 'C', true);
         $pdf->Cell($cPart, 7, (string)$grand['participants'], 1, 0, 'C', true);
-        $pdf->Cell($cH,    7, $fmtH($grand['mins']), 1, 1, 'R', true);
+        $pdf->Cell($cHz,   7, $fmtH($grand['mins']),  1, 0, 'R', true);
+        $pdf->Cell($cHd,   7, $fmtHd($grand['mins']), 1, 1, 'R', true);
     }
     $pdf->Ln(2);
 
@@ -205,10 +212,12 @@ try {
         . '   ·   Grup: ' . $grand['groups']
         . '   ·   Liczba osób (unikalnych): ' . count($all_ids)
         . '   ·   Liczba uczestników w grupach (łącznie): ' . $grand['participants']
-        . '   ·   Łączny czas pracy: ' . $fmtH($grand['mins']) . ' godz.'), 0, 'L');
+        . '   ·   Łączny czas pracy: ' . $fmtH($grand['mins']) . ' godz. zeg. = '
+        . $fmtHd($grand['mins']) . ' godz. dyd.'), 0, 'L');
     $pdf->SetFont('DejaVu', '', 6.8); $pdf->SetTextColor(110, 110, 110);
     $pdf->MultiCell($W, 3.8, $pl(
         'Czas pracy = suma czasu trwania zajęć odbytych w okresie (statusy: odbyła się / zmiana indywidualna / praca własna prowadzącego). '
+        . 'Przelicznik: 1 godzina dydaktyczna = 45 min (godz. dyd. = czas w minutach ÷ 45); godzina zegarowa = 60 min. '
         . 'Liczba uczestników = osoby aktywnie zapisane do grupy; „liczba osób" nie liczy podwójnie osób zapisanych do kilku grup. '
         . 'Uwzględniono wyłącznie grupy, w których w podanym okresie odbyły się zajęcia.'), 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
