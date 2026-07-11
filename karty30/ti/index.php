@@ -195,6 +195,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="billing.php"><i class="bi bi-receipt me-2"></i>Rozliczenia</a></li>
       <li><a class="dropdown-item" href="payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
       <li><a class="dropdown-item" href="self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><h6 class="dropdown-header">Raporty per uczestnik</h6></li>
+      <li><a class="dropdown-item" href="participant_monthly.php" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-2"></i>Miesięczny (PDF)</a></li>
+      <li><a class="dropdown-item" href="participant_annual.php" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-2"></i>Roczny (PDF)</a></li>
+      <li><a class="dropdown-item small text-muted" href="#raporty-uczestnik"><i class="bi bi-sliders me-2"></i>Wybór okresu / kursu…</a></li>
     </ul>
   </div>
 
@@ -452,6 +457,67 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </div>
   </div>
   <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<?php if ($can_write): ?>
+<div class="card border-0 shadow-sm mt-4" id="raporty-uczestnik">
+  <div class="card-header bg-white d-flex align-items-center">
+    <i class="bi bi-file-earmark-person me-2 text-primary"></i>
+    <span class="fw-semibold">Raporty per uczestnik</span>
+    <span class="ms-2 small text-body-secondary">frekwencja + rozliczenia · PDF</span>
+  </div>
+  <div class="card-body">
+    <p class="text-body-secondary small mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      Zestawienie dla każdego aktywnego kursanta: frekwencja we wszystkich jego kursach oraz rozliczenia (należności i wpłaty) w wybranym okresie.
+      Opcjonalnie ogranicz do jednego kursu. Wynik generuje się od razu jako PDF.
+    </p>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <form method="get" action="participant_monthly.php" target="_blank" rel="noopener" class="row g-2 align-items-end">
+          <div class="col-12"><span class="fw-semibold small"><i class="bi bi-calendar-month me-1"></i>Raport miesięczny</span></div>
+          <div class="col-auto">
+            <label class="form-label small mb-1">Miesiąc</label>
+            <input type="month" name="m" value="<?= h(date('Y-m')) ?>" class="form-control form-control-sm" style="width:auto">
+          </div>
+          <div class="col">
+            <label class="form-label small mb-1">Kurs</label>
+            <select name="course_id" class="form-select form-select-sm">
+              <option value="0">Wszystkie kursy</option>
+              <?php foreach ($courses as $c): ?>
+              <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Generuj PDF</button>
+          </div>
+        </form>
+      </div>
+      <div class="col-md-6">
+        <form method="get" action="participant_annual.php" target="_blank" rel="noopener" class="row g-2 align-items-end">
+          <div class="col-12"><span class="fw-semibold small"><i class="bi bi-calendar3 me-1"></i>Raport roczny</span></div>
+          <div class="col-auto">
+            <label class="form-label small mb-1">Rok</label>
+            <input type="number" name="y" value="<?= (int)date('Y') ?>" min="2000" max="2100" class="form-control form-control-sm" style="width:90px">
+          </div>
+          <div class="col">
+            <label class="form-label small mb-1">Kurs</label>
+            <select name="course_id" class="form-select form-select-sm">
+              <option value="0">Wszystkie kursy</option>
+              <?php foreach ($courses as $c): ?>
+              <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Generuj PDF</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 <?php endif; ?>
 
