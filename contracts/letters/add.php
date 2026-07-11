@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 
 require_login();
 if (!can_edit()) { http_response_code(403); die('Brak uprawnień.'); }
+require_module_enabled('letters_enabled', 'Moduł pism');
 
 $type = $_GET['type'] ?? $_POST['contract_type'] ?? '';
 $cid  = intval($_GET['id'] ?? $_POST['contract_id'] ?? 0);
@@ -56,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($content_mode !== 'text' && !$plik) {
         $error = 'Załącznik jest wymagany dla tego trybu lub wystąpił błąd uploadu.';
     } else {
-        $letter_id = create_letter([
+        $letter_id = create_letter(array_merge([
             'contract_type'  => $type,
             'contract_id'    => $cid,
             'kierunek'       => $kierunek,
@@ -72,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'email_sent'     => 0,
             'created_by'     => $user['id'],
             'created_at'     => date('Y-m-d H:i:s'),
-        ]);
+        ], letter_meta_from_post()));
 
         $sent = false;
 
@@ -108,6 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+
+$signers = letter_signers();
+// $L — bieżące wartości dla partiala _meta_fields.php (dla nowego pisma tylko domyślne).
+$L = ['miejsce' => org_setting('org_miejscowosc') ?: ''];
 
 $PAGE_TITLE = 'Dodaj pismo';
 include dirname(dirname(__DIR__)) . '/includes/header.php';
@@ -201,6 +206,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                                 <input type="text" name="odbiorca" class="form-control" value="<?= h($_POST['odbiorca'] ?? $default_odbiorca) ?>">
                             </div>
                         </div>
+
+                        <?php include __DIR__ . '/_meta_fields.php'; ?>
 
                         <div class="mb-3">
                             <label class="form-label small fw-bold d-block mb-3">TRYB TREŚCI</label>

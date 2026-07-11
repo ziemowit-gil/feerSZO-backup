@@ -753,22 +753,9 @@ function crm_migrate(): void {
         $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_cases_contract ON crm_cases(contract_type, contract_id) WHERE contract_type IS NOT NULL AND contract_id IS NOT NULL");
     } catch (\Throwable $e) {}
 
-    // Rozszerzone pola pisma (idempotentne)
-    foreach ([
-        "ALTER TABLE contract_letters ADD COLUMN sygnatura TEXT",
-        "ALTER TABLE contract_letters ADD COLUMN miejsce TEXT",
-        "ALTER TABLE contract_letters ADD COLUMN sposob_doreczenia TEXT DEFAULT 'email'",
-        "ALTER TABLE contract_letters ADD COLUMN pilnosc TEXT DEFAULT 'zwykłe'",
-        "ALTER TABLE contract_letters ADD COLUMN termin_odpowiedzi TEXT",
-        "ALTER TABLE contract_letters ADD COLUMN kopia_do TEXT",
-        "ALTER TABLE contract_letters ADD COLUMN podpisujacy_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
-        "ALTER TABLE contract_letters ADD COLUMN podstawa_prawna TEXT",
-        "ALTER TABLE contract_letters ADD COLUMN nr_nadania TEXT",
-        "ALTER TABLE contract_letters ADD COLUMN adres_edoreczenia TEXT",
-        "ALTER TABLE contract_letters ADD COLUMN edoreczenia_ref TEXT",
-    ] as $_sql) {
-        try { $pdo->exec($_sql); } catch (\Throwable $e) {}
-    }
+    // Schemat pism (dane rejestrowe + Postivo) — jedno źródło prawdy.
+    // Wcześniej lista kolumn pisma była tu duplikowana i rozjeżdżała się z kodem.
+    require_once __DIR__ . '/letters_schema.php';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

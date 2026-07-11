@@ -266,9 +266,9 @@ function setup_tenant_db(PDO $pdo): void {
         typ_pisma TEXT NOT NULL DEFAULT 'inne', tytul TEXT NOT NULL,
         tresc TEXT, plik TEXT, data_pisma TEXT, nadawca TEXT,
         odbiorca TEXT, odbiorca_email TEXT, uwagi TEXT,
-        email_sent INTEGER DEFAULT 0, postivo_id TEXT, postivo_status TEXT,
+        email_sent INTEGER DEFAULT 0, postivo_job_id TEXT, postivo_status TEXT,
         created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )",
+    )", // pełny zestaw kolumn dogania includes/letters_schema.php (jedno źródło prawdy)
     "CREATE TABLE IF NOT EXISTS contract_supervisors (
         id INTEGER PRIMARY KEY AUTOINCREMENT, contract_type TEXT NOT NULL,
         contract_id INTEGER NOT NULL, user_id INTEGER NOT NULL,

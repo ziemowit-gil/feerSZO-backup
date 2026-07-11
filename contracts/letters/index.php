@@ -115,6 +115,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
              class="text-decoration-none fw-semibold">
             <?= h($l['tytul']) ?>
           </a>
+          <?php if (!empty($l['sygnatura'])): ?>
+          <div class="text-muted" style="font-size:.72rem"><i class="bi bi-hash"></i><?= h($l['sygnatura']) ?></div>
+          <?php endif; ?>
           <?php if ($l['email_sent']): ?>
           <i class="bi bi-envelope-check text-success ms-1" title="E-mail wysłany"></i>
           <?php endif; ?>
@@ -144,6 +147,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $l['id'] ?>"
              class="btn btn-sm btn-outline-secondary" title="Podgląd / druk">
             <i class="bi bi-eye"></i>
+          </a>
+          <a href="<?= APP_URL ?>/contracts/letters/edit.php?id=<?= $l['id'] ?>"
+             class="btn btn-sm btn-outline-primary" title="Edytuj">
+            <i class="bi bi-pencil"></i>
           </a>
           <?php if ($l['plik']): ?>
           <a href="<?= h(letter_file_url($l['plik'])) ?>" download

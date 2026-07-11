@@ -18,6 +18,7 @@ if (!can_edit()) {
     http_response_code(403);
     die('Brak uprawnień.');
 }
+require_module_enabled('letters_enabled', 'Moduł pism');
 
 // Tylko POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

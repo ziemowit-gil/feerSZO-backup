@@ -537,11 +537,13 @@ run('contract_letters', "CREATE TABLE IF NOT EXISTS contract_letters (
     odbiorca_email TEXT,
     uwagi          TEXT,
     email_sent     INTEGER DEFAULT 0,
-    postivo_id     TEXT,
+    postivo_job_id TEXT,
     postivo_status TEXT,
     created_by     INTEGER,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 )");
+// Pełny, kanoniczny zestaw kolumn (dane rejestrowe + reszta pól Postivo) dogania
+// includes/letters_schema.php przy pierwszym użyciu modułu — jedno źródło prawdy.
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 7. WIADOMOŚCI

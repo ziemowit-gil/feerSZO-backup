@@ -1,4 +1,24 @@
 <?php
+/**
+ * includes/letters.php — moduł „Pisma do umów".
+ *
+ * Jedna funkcja, spójne mapowanie nazw (świadomie: kod po angielsku, UI po polsku):
+ *   - katalog / pliki .....  contracts/letters/*, panel/letters.php
+ *   - flaga modułu (settings) letters_enabled           (module_enabled/require_module_enabled)
+ *   - obszar uprawnień ....  'pisma'  (WSPÓŁDZIELONY z admin/applications.php „Pisma i wnioski"
+ *                            — dlatego nie zmieniamy tego klucza)
+ *   - klucz menu panelu ...  'pisma'  (admin/menu_config.php → panel/letters.php)
+ *   - etykieta UI .........  „Pisma do umów"
+ *   - tabela ..............  contract_letters (schemat: includes/letters_schema.php)
+ *
+ * Powiązanie z umową jest polimorficzne: (contract_type, contract_id),
+ * gdzie contract_type ∈ CONTRACT_TYPES, a tabelę wyznacza table_for_type().
+ */
+
+// Samonaprawa schematu — musi być PRZED jakimkolwiek SELECT/INSERT/UPDATE na
+// contract_letters (kolumny rejestrowe/Postivo bywają nieobecne w starszych bazach).
+require_once __DIR__ . '/letters_schema.php';
+
 const LETTER_DIRECTIONS = [
     'wychodzące'   => ['label' => 'Wychodzące',   'class' => 'primary',   'icon' => 'bi-arrow-up-right-circle'],
     'przychodzące' => ['label' => 'Przychodzące', 'class' => 'success',   'icon' => 'bi-arrow-down-left-circle'],
@@ -16,6 +36,33 @@ const LETTER_TYPES = [
     'inne'          => ['label' => 'Inne pismo',     'class' => 'secondary', 'icon' => 'bi-file-text'],
 ];
 
+// Dane rejestrowe pisma (metryka / dziennik podawczy) ────────────────────────
+const LETTER_DELIVERY_METHODS = [
+    'email'        => 'E-mail',
+    'osobiscie'    => 'Osobiście',
+    'poczta'       => 'Poczta (list zwykły)',
+    'polecony'     => 'List polecony',
+    'epuap'        => 'ePUAP',
+    'edoreczenia'  => 'e-Doręczenia',
+    'inny'         => 'Inny',
+];
+
+const LETTER_URGENCY = [
+    'zwykłe' => ['label' => 'Zwykłe', 'class' => 'secondary'],
+    'pilne'  => ['label' => 'Pilne',  'class' => 'danger'],
+];
+
+function letter_delivery_label(?string $key): string {
+    return LETTER_DELIVERY_METHODS[$key] ?? ($key ?: '—');
+}
+
+function letter_urgency_badge(?string $key): string {
+    if (!$key || $key === 'zwykłe') return '';
+    $u = LETTER_URGENCY[$key] ?? ['label' => $key, 'class' => 'secondary'];
+    return '<span class="badge bg-' . $u['class'] . '"><i class="bi bi-exclamation-lg me-1"></i>'
+         . htmlspecialchars($u['label']) . '</span>';
+}
+
 function letter_type_badge(string $type): string {
     $t = LETTER_TYPES[$type] ?? ['label' => $type, 'class' => 'secondary', 'icon' => 'bi-file-text'];
     return '<span class="badge bg-' . $t['class'] . '"><i class="bi ' . $t['icon'] . ' me-1"></i>'
@@ -30,9 +77,10 @@ function letter_direction_badge(string $dir): string {
 
 function get_contract_letters(string $type, int $id): array {
     return db_all(
-        "SELECT l.*, u.name AS created_by_name
+        "SELECT l.*, u.name AS created_by_name, s.name AS podpisujacy_name
          FROM contract_letters l
          LEFT JOIN users u ON u.id = l.created_by
+         LEFT JOIN users s ON s.id = l.podpisujacy_id
          WHERE l.contract_type = ? AND l.contract_id = ?
          ORDER BY l.data_pisma DESC, l.id DESC",
         [$type, $id]
@@ -44,9 +92,10 @@ function get_all_letters(string $kierunek = '', string $typ = '', string $contra
     if ($kierunek)      { $where[] = 'l.kierunek = ?';       $params[] = $kierunek; }
     if ($typ)           { $where[] = 'l.typ_pisma = ?';      $params[] = $typ; }
     if ($contract_type) { $where[] = 'l.contract_type = ?';  $params[] = $contract_type; }
-    $sql = "SELECT l.*, u.name AS created_by_name
+    $sql = "SELECT l.*, u.name AS created_by_name, s.name AS podpisujacy_name
             FROM contract_letters l
-            LEFT JOIN users u ON u.id = l.created_by"
+            LEFT JOIN users u ON u.id = l.created_by
+            LEFT JOIN users s ON s.id = l.podpisujacy_id"
          . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
          . " ORDER BY l.data_pisma DESC, l.id DESC";
     return db_all($sql, $params);
@@ -54,9 +103,10 @@ function get_all_letters(string $kierunek = '', string $typ = '', string $contra
 
 function get_letter(int $id): ?array {
     return db_one(
-        "SELECT l.*, u.name AS created_by_name
+        "SELECT l.*, u.name AS created_by_name, s.name AS podpisujacy_name
          FROM contract_letters l
          LEFT JOIN users u ON u.id = l.created_by
+         LEFT JOIN users s ON s.id = l.podpisujacy_id
          WHERE l.id = ?",
         [$id]
     );
@@ -64,6 +114,46 @@ function get_letter(int $id): ?array {
 
 function create_letter(array $data): int {
     return db_insert('contract_letters', $data);
+}
+
+function update_letter(int $id, array $data): void {
+    db_update('contract_letters', $data, $id);
+}
+
+/**
+ * Zbiera pola „Dane rejestrowe" (metryka pisma) z $_POST do zapisu.
+ * Wspólne dla add.php i edit.php — jedno źródło listy pól.
+ */
+function letter_meta_from_post(): array {
+    $delivery = $_POST['sposob_doreczenia'] ?? 'email';
+    if (!array_key_exists($delivery, LETTER_DELIVERY_METHODS)) $delivery = 'email';
+    $urgency = $_POST['pilnosc'] ?? 'zwykłe';
+    if (!array_key_exists($urgency, LETTER_URGENCY)) $urgency = 'zwykłe';
+    return [
+        'sygnatura'         => trim($_POST['sygnatura'] ?? '') ?: null,
+        'miejsce'           => trim($_POST['miejsce'] ?? '') ?: null,
+        'sposob_doreczenia' => $delivery,
+        'pilnosc'           => $urgency,
+        'termin_odpowiedzi' => trim($_POST['termin_odpowiedzi'] ?? '') ?: null,
+        'kopia_do'          => trim($_POST['kopia_do'] ?? '') ?: null,
+        'podpisujacy_id'    => ($v = intval($_POST['podpisujacy_id'] ?? 0)) ? $v : null,
+        'podstawa_prawna'   => trim($_POST['podstawa_prawna'] ?? '') ?: null,
+        'nr_nadania'        => trim($_POST['nr_nadania'] ?? '') ?: null,
+        'adres_edoreczenia' => trim($_POST['adres_edoreczenia'] ?? '') ?: null,
+        'edoreczenia_ref'   => trim($_POST['edoreczenia_ref'] ?? '') ?: null,
+    ];
+}
+
+/**
+ * Lista osób, które mogą figurować jako „podpisujący" pismo
+ * (pracownicy/edytorzy/administratorzy). Do selecta w add/edit.
+ */
+function letter_signers(): array {
+    return db_all(
+        "SELECT id, name FROM users
+         WHERE role IN ('admin','editor') AND is_active = 1
+         ORDER BY name"
+    );
 }
 
 function handle_letter_upload(string $field): ?string {
