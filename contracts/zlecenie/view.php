@@ -534,6 +534,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       <td class="small"><?= h($_l['kierunek'] === 'wychodzące' ? ($_l['odbiorca'] ?: '—') : ($_l['nadawca'] ?: '—')) ?></td>
       <td class="text-end text-nowrap">
         <a href="<?= APP_URL ?>/contracts/letters/view.php?id=<?= $_l['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+        <?php if (can_edit()): ?>
+        <a href="<?= APP_URL ?>/contracts/letters/edit.php?id=<?= $_l['id'] ?>" class="btn btn-sm btn-outline-primary" title="Edytuj"><i class="bi bi-pencil"></i></a>
+        <?php endif; ?>
         <?php if ($_l['plik']): ?>
         <a href="<?= h(letter_file_url($_l['plik'])) ?>" download class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>
         <?php endif; ?>
