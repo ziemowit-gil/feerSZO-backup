@@ -11,6 +11,7 @@ require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 $PAGE_TITLE = 'Wirtualne biurko';
 $stats      = ezd_stats();
 $rpw_stats  = ezd_rpw_stats();
+$arch_stats = ezd_arch_stats();
 $user_id    = (int)current_user()['id'];
 
 // Ostatnie koszulki
@@ -190,6 +191,7 @@ include dirname(__DIR__) . '/includes/header.php';
     ['label'=>'Koszulki',               'icon'=>'bi-folder2-open',      'color'=>'primary',   'href'=>'/ezd/sprawy/index.php'],
     ['label'=>'Segregatory aktowe',     'icon'=>'bi-archive',           'color'=>'dark',      'href'=>'/ezd/teczki/index.php'],
     ['label'=>'Wykaz akt (JRWA)',       'icon'=>'bi-tags',              'color'=>'warning',   'href'=>'/ezd/jrwa/index.php'],
+    ['label'=>'Archiwum zakładowe',     'icon'=>'bi-archive-fill',      'color'=>'secondary', 'href'=>'/ezd/archiwum/index.php', 'badge'=>$arch_stats['do_brakowania'] ?: null],
   ]; foreach ($tiles as $t): ?>
   <a href="<?= APP_URL . $t['href'] ?>" class="ezd-launcher-tile">
     <?php if (!empty($t['badge'])): ?>
@@ -233,6 +235,11 @@ include dirname(__DIR__) . '/includes/header.php';
         <a href="<?= APP_URL ?>/ezd/wolontariusze/index.php" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
           <i class="bi bi-heart text-danger"></i> Wolontariusze bez umowy
         </a>
+        <?php if (is_admin()): ?>
+        <a href="<?= APP_URL ?>/admin/ezd_szablony.php" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+          <i class="bi bi-file-earmark-text text-primary"></i> Szablony pism
+        </a>
+        <?php endif; ?>
       </div>
     </div>
   </div>

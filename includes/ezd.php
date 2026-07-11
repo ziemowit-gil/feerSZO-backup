@@ -274,6 +274,56 @@
         UNIQUE(zalacznik_id, user_id)
     )");
 
+    // Archiwum zakładowe — spisy zdawczo-odbiorcze i protokoły brakowania
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_arch_spisy (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        typ         TEXT    NOT NULL DEFAULT 'zdawczo_odbiorczy',
+        nr          INTEGER NOT NULL,
+        rok         INTEGER NOT NULL,
+        tytul       TEXT    NOT NULL DEFAULT '',
+        komorka     TEXT    NOT NULL DEFAULT '',
+        status      TEXT    NOT NULL DEFAULT 'projekt',
+        uwagi       TEXT    NOT NULL DEFAULT '',
+        zgoda_ap    TEXT    NOT NULL DEFAULT '',
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        approved_at DATETIME,
+        realized_at DATETIME
+    )");
+    // Pozycje spisu — snapshot metryki segregatora (przetrwa brakowanie/usunięcie teczki)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_arch_pozycje (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        spis_id       INTEGER NOT NULL REFERENCES ezd_arch_spisy(id) ON DELETE CASCADE,
+        teczka_id     INTEGER REFERENCES ezd_teczki(id) ON DELETE SET NULL,
+        lp            INTEGER NOT NULL DEFAULT 0,
+        znak          TEXT    NOT NULL DEFAULT '',
+        tytul         TEXT    NOT NULL DEFAULT '',
+        rok_od        INTEGER,
+        rok_do        INTEGER,
+        kat_arch      TEXT    NOT NULL DEFAULT '',
+        liczba_teczek INTEGER NOT NULL DEFAULT 1,
+        rok_brakowania INTEGER,
+        uwagi         TEXT    NOT NULL DEFAULT '',
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Szablony pism / dokumentów — korespondencja seryjna (mail merge)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ezd_szablony (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        nazwa         TEXT    NOT NULL,
+        kategoria     TEXT    NOT NULL DEFAULT 'pismo',
+        kierunek      TEXT    NOT NULL DEFAULT 'wychodzace',
+        rodzaj_medium TEXT    NOT NULL DEFAULT 'papier',
+        tytul_wzor    TEXT    NOT NULL DEFAULT '',
+        tresc_wzor    TEXT    NOT NULL DEFAULT '',
+        opis          TEXT    NOT NULL DEFAULT '',
+        aktywny       INTEGER NOT NULL DEFAULT 1,
+        created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Kolumny dokładane do istniejących tabel (idempotentnie)
     foreach ([
         "ALTER TABLE ezd_sprawy     ADD COLUMN parent_id   INTEGER REFERENCES ezd_sprawy(id) ON DELETE SET NULL",
@@ -289,6 +339,10 @@
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_drive_id  TEXT",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN sp_item_id   TEXT",
         "ALTER TABLE ezd_zalaczniki ADD COLUMN converted_from_id INTEGER REFERENCES ezd_zalaczniki(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_teczki     ADD COLUMN arch_status    TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_teczki     ADD COLUMN arch_spis_id   INTEGER REFERENCES ezd_arch_spisy(id) ON DELETE SET NULL",
+        "ALTER TABLE ezd_teczki     ADD COLUMN rok_brakowania INTEGER",
+        "ALTER TABLE ezd_teczki     ADD COLUMN arch_at        DATETIME",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -316,6 +370,10 @@
         "CREATE INDEX IF NOT EXISTS idx_ezd_zal_access_zal ON ezd_zalacznik_access(zalacznik_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_zal_access_usr ON ezd_zalacznik_access(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_ezd_sprawy_ref     ON ezd_sprawy(ref_type, ref_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_arch_poz_spis  ON ezd_arch_pozycje(spis_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_arch_poz_tecz  ON ezd_arch_pozycje(teczka_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_teczki_arch    ON ezd_teczki(arch_status, rok_brakowania)",
+        "CREATE INDEX IF NOT EXISTS idx_ezd_szablony_akt   ON ezd_szablony(aktywny, kategoria)",
     ] as $idx) {
         try { $pdo->exec($idx); } catch (\Throwable $e) {}
     }
@@ -3326,3 +3384,9 @@ function _ezd_check_sprawa_open(array $sprawa): void {
 
 // ── Wykrywanie i walidacja podpisu el. — wydzielone do includes/sigcheck.php ──
 require_once __DIR__ . '/sigcheck.php';
+
+// ── Archiwum zakładowe (spisy zdawczo-odbiorcze, brakowanie) ──────────────────
+require_once __DIR__ . '/ezd_archiwum.php';
+
+// ── Szablony pism / korespondencja seryjna ────────────────────────────────────
+require_once __DIR__ . '/ezd_szablony.php';

@@ -35,6 +35,22 @@ $row = [
 ];
 $errors = [];
 
+// Prefill z szablonu pisma (?szablon_id=) — korespondencja / mail merge
+$szablony_pism = ezd_szablony_all(true, 'pismo');
+$szablon_uzyty = 0;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($szid = (int)($_GET['szablon_id'] ?? 0))) {
+    $sz = ezd_szablon_get($szid);
+    if ($sz && $sz['aktywny']) {
+        $ctx = ezd_szablon_context($sprawa);
+        $t = ezd_szablon_render($sz['tytul_wzor'], $ctx);
+        if ($t !== '') $row['title'] = $t;
+        $row['tresc']         = ezd_szablon_render($sz['tresc_wzor'], $ctx);
+        $row['kierunek']      = $sz['kierunek'];
+        $row['rodzaj_medium'] = $sz['rodzaj_medium'];
+        $szablon_uzyty        = $szid;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $row = [
@@ -76,6 +92,25 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="text-muted mb-3" style="font-size:.82rem"><i class="bi bi-folder2 me-1"></i>Sprawa: <strong><?= h($sprawa['znak_sprawy']) ?></strong> — <?= h($sprawa['title']) ?></div>
 
 <?php if($errors): ?><div class="alert alert-danger"><?php foreach($errors as $e) echo '<div>• '.h($e).'</div>'; ?></div><?php endif; ?>
+
+<?php if($szablony_pism): ?>
+<div class="card shadow-sm mb-3 border-primary border-opacity-25">
+  <div class="card-body py-2">
+    <form method="get" action="<?= APP_URL ?>/ezd/pisma/add.php" class="d-flex align-items-center gap-2 flex-wrap">
+      <input type="hidden" name="sprawa_id" value="<?= $sprawa_id ?>">
+      <label class="fw-semibold small mb-0"><i class="bi bi-file-earmark-text text-primary me-1"></i>Wstaw z szablonu:</label>
+      <select name="szablon_id" class="form-select form-select-sm" style="max-width:360px" onchange="this.form.submit()">
+        <option value="">— wybierz szablon —</option>
+        <?php foreach($szablony_pism as $s): ?>
+        <option value="<?= (int)$s['id'] ?>" <?= $szablon_uzyty===(int)$s['id']?'selected':'' ?>><?= h($s['nazwa']) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <?php if($szablon_uzyty): ?><span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Wstawiono</span><?php endif; ?>
+      <a href="<?= APP_URL ?>/ezd/pisma/seria.php?sprawa_id=<?= $sprawa_id ?>" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-envelope-paper me-1"></i>Tryb seryjny</a>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="row"><div class="col-lg-8">
 <form method="post">

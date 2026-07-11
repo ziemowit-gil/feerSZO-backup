@@ -36,6 +36,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <span class="badge bg-primary bg-opacity-15 text-primary fw-bold font-monospace fs-6"><?= h($teczka['symbol']) ?></span>
           <span class="badge bg-<?= $teczka['status']==='open'?'success':'secondary' ?>"><?= $teczka['status']==='open'?'Otwarty':'Zamknięty' ?></span>
           <?php if($teczka['kat_arch']): ?><span class="badge bg-light text-dark border" style="font-size:.68rem">Kat. <?= h($teczka['kat_arch']) ?></span><?php endif; ?>
+          <?php if(!empty($teczka['arch_status'])): ?><?= ezd_arch_teczka_badge($teczka['arch_status']) ?><?php if(!empty($teczka['rok_brakowania'])): ?><span class="badge bg-light text-dark border" style="font-size:.68rem">Brakowanie: <?= (int)$teczka['rok_brakowania'] ?></span><?php endif; ?><?php endif; ?>
         </div>
         <h4 class="fw-bold mb-1"><?= h($teczka['title']) ?></h4>
         <div class="text-muted" style="font-size:.8rem">
