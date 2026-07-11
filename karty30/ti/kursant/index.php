@@ -151,6 +151,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=lekcje' . ($cancel_flag ? '&cancel=' . $cancel_flag : '')); exit;
     }
 
+    // Samodzielne usprawiedliwienie nieobecności (lekcja odbyła się, kursant nieobecny)
+    if ($op === 'excuse_absence') {
+        $sid    = (int)($_POST['session_id'] ?? 0);
+        $reason = trim($_POST['reason'] ?? '');
+        $own = db_one(
+            "SELECT s.status, COALESCE(a.attended,0) AS attended, COALESCE(a.cancelled,0) AS cancelled,
+                    COALESCE(a.cancel_pending,0) AS pending
+             FROM k30_ti_sessions s
+             JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=? AND e.status='active'
+             LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
+             WHERE s.id=?",
+            [$student['client_id'], $student['client_id'], $sid]
+        );
+        $flag = '';
+        if ($own && in_array($own['status'], ['held','individual_change'], true)
+            && (int)$own['attended'] === 0 && (int)$own['cancelled'] === 0 && (int)$own['pending'] === 0) {
+            if ($reason === '') {
+                $flag = 'need_reason';
+            } else {
+                // Prośba czeka na zatwierdzenie prowadzącego (mail do niego); po zatwierdzeniu = poza frekwencją
+                k30_ti_request_cancel_attendance(
+                    $sid, $student['client_id'],
+                    'Usprawiedliwienie nieobecności: ' . $reason,
+                    'beneficjent', $client['name'] ?? ''
+                );
+                $flag = 'requested';
+            }
+        }
+        header('Location: index.php?tab=lekcje' . ($flag ? '&excuse=' . $flag : '')); exit;
+    }
+
     // Propozycja nowego terminu lekcji — czeka na decyzję prowadzącego
     if ($op === 'propose_reschedule') {
         $sid  = (int)($_POST['session_id'] ?? 0);
@@ -1425,6 +1456,17 @@ document.addEventListener('DOMContentLoaded', function() {
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
   </div>
   <?php endif; ?>
+  <?php if (($_GET['excuse'] ?? '') === 'requested'): ?>
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="bi bi-file-earmark-medical me-1" aria-hidden="true"></i>Usprawiedliwienie nieobecności zostało wysłane do prowadzącego i czeka na zatwierdzenie.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php elseif (($_GET['excuse'] ?? '') === 'need_reason'): ?>
+  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Podaj powód usprawiedliwienia, aby wysłać zgłoszenie.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+  </div>
+  <?php endif; ?>
   <?php if (($_GET['cancel'] ?? '') === 'requested'): ?>
   <div class="alert alert-info alert-dismissible fade show" role="alert">
     <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Prośba o odwołanie została wysłana do prowadzącego i czeka na potwierdzenie.
@@ -1654,6 +1696,22 @@ document.addEventListener('DOMContentLoaded', function() {
                   <?php endif; ?>
                 </ul>
               </div>
+              <?php elseif (in_array($l['status'], ['held','individual_change'], true) && !$l['attended'] && !$att_cancelled): ?>
+              <?php if ($att_pending): ?>
+              <span class="badge text-bg-info align-self-center" title="Usprawiedliwienie oczekuje na decyzję prowadzącego">
+                <i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Usprawiedliwienie: czeka
+              </span>
+              <?php else: ?>
+              <form method="post" class="d-inline js-excuse">
+                <input type="hidden" name="_token"     value="<?= h($vlab_token) ?>">
+                <input type="hidden" name="_op"         value="excuse_absence">
+                <input type="hidden" name="session_id"  value="<?= (int)$l['id'] ?>">
+                <input type="hidden" name="reason"      class="js-excuse-reason" value="">
+                <button type="submit" class="btn btn-sm btn-outline-warning" title="Zgłoś usprawiedliwienie nieobecności">
+                  <i class="bi bi-file-earmark-medical me-1" aria-hidden="true"></i>Usprawiedliw
+                </button>
+              </form>
+              <?php endif; ?>
               <?php endif; ?>
               </div>
             </td>
@@ -1885,6 +1943,23 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('cl_lesson_label').textContent = btn.getAttribute('data-lesson-label') || '';
         document.getElementById('cl_reason').value = '';
         new bootstrap.Modal(modalEl).show();
+      });
+    });
+  })();
+  </script>
+
+  <script>
+  // Usprawiedliwienie nieobecności — zapytaj o powód przed wysłaniem
+  (function(){
+    document.querySelectorAll('form.js-excuse').forEach(function(f){
+      f.addEventListener('submit', function(e){
+        var input = f.querySelector('.js-excuse-reason');
+        if (input && input.value.trim() !== '') return; // powód ustawiony — wyślij
+        e.preventDefault();
+        var r = window.prompt('Podaj powód usprawiedliwienia nieobecności (np. choroba, wizyta lekarska):');
+        if (r === null || r.trim() === '') return;
+        input.value = r.trim();
+        f.submit();
       });
     });
   })();
