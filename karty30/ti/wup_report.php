@@ -99,6 +99,39 @@ $fmtHd = fn(int $m): string => number_format($m / 45, 2, ',', ' ');  // godziny 
 $MONTHS = TI_PR_MONTHS_PL;
 $period_txt = date('d.m.Y', strtotime($from)) . ' – ' . date('d.m.Y', strtotime($to));
 
+// ── Wskaźniki dodatkowe do sprawozdania WUP ─────────────────────────────────────
+$instrCond = $instr_filter ? " AND c.instructor_id = ?" : "";
+$rp        = $instr_filter ? [$from, $to, $instr_filter] : [$from, $to];
+
+// Zajęcia odbyte wg trybu: online/zdalnie (link do lekcji z sesji lub kursu, albo
+// praca własna zdalna) vs stacjonarne.
+$modeAgg = db_one(
+    "SELECT
+        SUM(CASE WHEN TRIM(COALESCE(s.meeting_url,''))<>'' OR TRIM(COALESCE(c.default_meeting_url,''))<>'' OR s.status='remote_material' THEN 1 ELSE 0 END) AS online,
+        SUM(CASE WHEN TRIM(COALESCE(s.meeting_url,''))='' AND TRIM(COALESCE(c.default_meeting_url,''))='' AND s.status<>'remote_material' THEN 1 ELSE 0 END) AS onsite
+     FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
+     WHERE s.lesson_date BETWEEN ? AND ? AND s.status IN ('held','individual_change','remote_material')$instrCond",
+    $rp);
+$les_online = (int)($modeAgg['online'] ?? 0);
+$les_onsite = (int)($modeAgg['onsite'] ?? 0);
+
+// Zajęcia odwołane w okresie
+$les_cancelled = (int)(db_one(
+    "SELECT COUNT(*) AS c FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
+     WHERE s.lesson_date BETWEEN ? AND ? AND s.status='cancelled'$instrCond", $rp)['c'] ?? 0);
+
+// Osoby zatrudnione do prowadzenia szkoleń = prowadzący z przypisaniem (bez pseudo-„brak")
+$employed = count(array_filter(array_keys($byInstr), fn($iid) => $iid > 0));
+
+// Uczestnicy z niepełnosprawnością = uczestnicy sprawozdania z umową PFRON
+$disabled = 0;
+if ($all_ids) {
+    $ph = implode(',', array_fill(0, count($all_ids), '?'));
+    $disabled = (int)(db_one(
+        "SELECT COUNT(DISTINCT client_id) AS c FROM k30_pfron_contracts WHERE client_id IN ($ph)",
+        array_keys($all_ids))['c'] ?? 0);
+}
+
 // ── PDF ────────────────────────────────────────────────────────────────────────
 require_once dirname(dirname(__DIR__)) . '/includes/fpdf/fpdf.php';
 $FD = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
@@ -206,6 +239,27 @@ try {
     }
     $pdf->Ln(2);
 
+    // ── Wskaźniki zbiorcze (wymagane do sprawozdania WUP) ────────────────────────
+    if ($pdf->GetY() > $pdf->GetPageHeight() - 70) $pdf->AddPage();
+    $pdf->SetFont('DejaVu', 'B', 10);
+    $pdf->MultiCell($W, 6, $pl('Wskaźniki zbiorcze'), 0, 'L');
+    $kv = function (string $k, string $v, bool $sub = false) use ($pdf, $pl, $W) {
+        $pdf->SetFont('DejaVu', $sub ? '' : 'B', 8.5);
+        $pdf->SetFillColor($sub ? 247 : 236, $sub ? 249 : 240, $sub ? 253 : 246);
+        $pdf->Cell($W * 0.70, 6, $pl(($sub ? '     ' : '') . $k), 1, 0, 'L', true);
+        $pdf->SetFont('DejaVu', 'B', 9);
+        $pdf->Cell($W * 0.30, 6, $pl($v), 1, 1, 'R', true);
+    };
+    $kv('Liczba osób zatrudnionych do prowadzenia szkoleń', (string)$employed);
+    $kv('Liczba uczestników (unikalnych)', (string)count($all_ids));
+    $kv('w tym z niepełnosprawnością (umowa PFRON)', (string)$disabled, true);
+    $kv('Liczba zajęć odbytych — ogółem', (string)$grand['lessons']);
+    $kv('w tym online / zdalnie', (string)$les_online, true);
+    $kv('w tym stacjonarnie', (string)$les_onsite, true);
+    $kv('Liczba zajęć odwołanych', (string)$les_cancelled);
+    $kv('Liczba grup (kursów)', (string)$grand['groups']);
+    $pdf->Ln(3);
+
     // Podsumowanie skrótowe
     $pdf->SetFont('DejaVu', '', 8.5);
     $pdf->MultiCell($W, 4.5, $pl(
@@ -220,7 +274,11 @@ try {
         'Czas pracy = suma czasu trwania zajęć odbytych w okresie (statusy: odbyła się / zmiana indywidualna / praca własna prowadzącego). '
         . 'Przelicznik: 1 godzina dydaktyczna = 45 min (godz. dyd. = czas w minutach ÷ 45); godzina zegarowa = 60 min. '
         . 'Liczba uczestników = osoby aktywnie zapisane do grupy; „liczba osób" nie liczy podwójnie osób zapisanych do kilku grup. '
-        . 'Uwzględniono wyłącznie grupy, w których w podanym okresie odbyły się zajęcia.'), 0, 'L');
+        . 'Uwzględniono wyłącznie grupy, w których w podanym okresie odbyły się zajęcia. '
+        . 'Zatrudnieni do szkoleń = prowadzący z przypisaniem do grup. '
+        . 'Uczestnicy z niepełnosprawnością = uczestnicy posiadający umowę PFRON. '
+        . 'Zajęcia online/zdalne = zajęcia z linkiem do lekcji (sesji lub grupy) albo praca własna zdalna; pozostałe uznano za stacjonarne. '
+        . 'Liczba zajęć odwołanych obejmuje zajęcia o statusie „odwołane" z datą w podanym okresie.'), 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
 
     // Miejsce na podpis — wyłącznie kierownika (bez podpisu sporządzającego)
