@@ -65,7 +65,11 @@ AWK_OUT="$(awk '
     {
         line = $0
         if (pending != "") {
-            pending = pending "\n" line
+            # Sklej BEZ separatora — chcemy odtworzyć jedną fizyczną linię,
+            # nie wstawić z powrotem tego samego znaku nowej linii, który
+            # rozbił wartość (print pending z "\n" w środku dalej wyglądałby
+            # jak dwie linie w pliku wynikowym).
+            pending = pending line
             if (line ~ /'"'"'$/) { print pending; keys[key_of(pending)]++; pending = "" }
             next
         }
