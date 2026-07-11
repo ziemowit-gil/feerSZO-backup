@@ -2758,9 +2758,12 @@ function ezd_sprawa_sp_folder(int $sprawa_id): ?string {
     );
     if (!$row) return null;
     $jrwa = _ezd_sp_sanitize($row['jrwa_symbol'] ?: 'bez-JRWA');
-    // Nazwa folderu sprawy: „Tytuł sprawy - data wszczęcia" (wszczęcie = utworzenie sprawy)
+    // Nazwa folderu sprawy: „Tytuł sprawy - data wszczęcia (znak)" — znak sprawy
+    // (unikalny) na końcu zabezpiecza przed kolizją folderów o tym samym tytule i dacie.
     $data = $row['created_at'] ? substr($row['created_at'], 0, 10) : '';
-    $name = trim($row['title']) . ($data !== '' ? ' - ' . $data : '');
+    $name = trim($row['title'])
+          . ($data !== '' ? ' - ' . $data : '')
+          . ($row['znak_sprawy'] ? ' (' . $row['znak_sprawy'] . ')' : '');
     $case = _ezd_sp_sanitize($name);
     return 'cases/' . $jrwa . '/' . $case;
 }
