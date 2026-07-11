@@ -196,10 +196,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><a class="dropdown-item" href="payouts.php"><i class="bi bi-wallet2 me-2"></i>Wypłaty prowadzących</a></li>
       <li><a class="dropdown-item" href="self_work.php"><i class="bi bi-person-workspace me-2"></i>Praca własna prowadzących</a></li>
       <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header">Raporty per uczestnik</h6></li>
-      <li><a class="dropdown-item" href="participant_monthly.php" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-2"></i>Miesięczny (PDF)</a></li>
-      <li><a class="dropdown-item" href="participant_annual.php" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-2"></i>Roczny (PDF)</a></li>
-      <li><a class="dropdown-item small text-muted" href="#raporty-uczestnik"><i class="bi bi-sliders me-2"></i>Wybór okresu / kursu…</a></li>
+      <li><h6 class="dropdown-header">Raporty (PDF)</h6></li>
+      <li><a class="dropdown-item" href="#raporty-ti"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty TI — kreator…</a></li>
     </ul>
   </div>
 
@@ -460,62 +458,67 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 <?php endif; ?>
 
-<?php if ($can_write): ?>
-<div class="card border-0 shadow-sm mt-4" id="raporty-uczestnik">
+<?php if ($can_write):
+  $ti_instructors = k30_ti_instructors();
+  // Pomocniczy render pojedynczego bloku raportu (miesięczny + roczny) z filtrem.
+  $report_block = function (string $title, string $icon, string $desc, string $monthly, string $annual, string $filter_name, string $filter_all, array $filter_opts) {
+    ?>
+    <div class="col-lg-4">
+      <div class="border rounded h-100 p-3">
+        <div class="fw-semibold mb-1"><i class="bi bi-<?= h($icon) ?> me-1 text-primary"></i><?= h($title) ?></div>
+        <div class="text-body-secondary mb-2" style="font-size:.8rem"><?= h($desc) ?></div>
+        <form method="get" action="<?= h($monthly) ?>" target="_blank" rel="noopener" class="mb-2">
+          <label class="form-label small mb-1"><?= h($filter_all === 'Wszystkie kursy' ? 'Kurs' : 'Prowadzący') ?></label>
+          <select name="<?= h($filter_name) ?>" class="form-select form-select-sm mb-2">
+            <option value="0"><?= h($filter_all) ?></option>
+            <?php foreach ($filter_opts as $o): ?>
+            <option value="<?= (int)$o['id'] ?>"><?= h($o['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="input-group input-group-sm">
+            <input type="month" name="m" value="<?= h(date('Y-m')) ?>" class="form-control">
+            <button type="submit" class="btn btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1"></i>Miesięczny</button>
+          </div>
+        </form>
+        <form method="get" action="<?= h($annual) ?>" target="_blank" rel="noopener">
+          <select name="<?= h($filter_name) ?>" class="form-select form-select-sm mb-2">
+            <option value="0"><?= h($filter_all) ?></option>
+            <?php foreach ($filter_opts as $o): ?>
+            <option value="<?= (int)$o['id'] ?>"><?= h($o['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="input-group input-group-sm">
+            <input type="number" name="y" value="<?= (int)date('Y') ?>" min="2000" max="2100" class="form-control">
+            <button type="submit" class="btn btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1"></i>Roczny</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <?php
+  };
+?>
+<div class="card border-0 shadow-sm mt-4" id="raporty-ti">
   <div class="card-header bg-white d-flex align-items-center">
-    <i class="bi bi-file-earmark-person me-2 text-primary"></i>
-    <span class="fw-semibold">Raporty per uczestnik</span>
-    <span class="ms-2 small text-body-secondary">frekwencja + rozliczenia · PDF</span>
+    <i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>
+    <span class="fw-semibold">Raporty TI</span>
+    <span class="ms-2 small text-body-secondary">frekwencja i rozliczenia · PDF · wybierz okres i zakres</span>
   </div>
   <div class="card-body">
-    <p class="text-body-secondary small mb-3">
-      <i class="bi bi-info-circle me-1"></i>
-      Zestawienie dla każdego aktywnego kursanta: frekwencja we wszystkich jego kursach oraz rozliczenia (należności i wpłaty) w wybranym okresie.
-      Opcjonalnie ogranicz do jednego kursu. Wynik generuje się od razu jako PDF.
-    </p>
     <div class="row g-3">
-      <div class="col-md-6">
-        <form method="get" action="participant_monthly.php" target="_blank" rel="noopener" class="row g-2 align-items-end">
-          <div class="col-12"><span class="fw-semibold small"><i class="bi bi-calendar-month me-1"></i>Raport miesięczny</span></div>
-          <div class="col-auto">
-            <label class="form-label small mb-1">Miesiąc</label>
-            <input type="month" name="m" value="<?= h(date('Y-m')) ?>" class="form-control form-control-sm" style="width:auto">
-          </div>
-          <div class="col">
-            <label class="form-label small mb-1">Kurs</label>
-            <select name="course_id" class="form-select form-select-sm">
-              <option value="0">Wszystkie kursy</option>
-              <?php foreach ($courses as $c): ?>
-              <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-auto">
-            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Generuj PDF</button>
-          </div>
-        </form>
-      </div>
-      <div class="col-md-6">
-        <form method="get" action="participant_annual.php" target="_blank" rel="noopener" class="row g-2 align-items-end">
-          <div class="col-12"><span class="fw-semibold small"><i class="bi bi-calendar3 me-1"></i>Raport roczny</span></div>
-          <div class="col-auto">
-            <label class="form-label small mb-1">Rok</label>
-            <input type="number" name="y" value="<?= (int)date('Y') ?>" min="2000" max="2100" class="form-control form-control-sm" style="width:90px">
-          </div>
-          <div class="col">
-            <label class="form-label small mb-1">Kurs</label>
-            <select name="course_id" class="form-select form-select-sm">
-              <option value="0">Wszystkie kursy</option>
-              <?php foreach ($courses as $c): ?>
-              <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-auto">
-            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Generuj PDF</button>
-          </div>
-        </form>
-      </div>
+      <?php
+        $report_block(
+          'Per uczestnik', 'file-earmark-person',
+          'Frekwencja we wszystkich kursach + rozliczenia (należności/wpłaty) i saldo konta — sekcja na kursanta.',
+          'participant_monthly.php', 'participant_annual.php', 'course_id', 'Wszystkie kursy', $courses);
+        $report_block(
+          'Per grupa', 'collection',
+          'Frekwencja uczestników w grupie + ich rozliczenia i saldo — sekcja na kurs. Śr. frekwencja grupy.',
+          'group_monthly.php', 'group_annual.php', 'course_id', 'Wszystkie kursy', $courses);
+        $report_block(
+          'Per prowadzący', 'person-badge',
+          'Frekwencja grup prowadzącego (lekcje odbyte/odwołane, śr. frekwencja) — bez kwot.',
+          'instructor_monthly.php', 'instructor_annual.php', 'instructor_id', 'Wszyscy prowadzący', $ti_instructors);
+      ?>
     </div>
   </div>
 </div>

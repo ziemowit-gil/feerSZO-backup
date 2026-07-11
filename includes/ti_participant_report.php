@@ -93,6 +93,47 @@ function ti_pr_attendance(int $client_id, string $from, string $to, int $course_
 }
 
 /**
+ * Frekwencja CAŁEJ grupy (kursu) w okresie: per uczestnik + agregat grupy.
+ * Frekwencja grupy = suma obecności ÷ suma lekcji z listą obecności (ważona liczbą lekcji).
+ *
+ * @return array{track:int,participants:array<int,array>,lessons_held:int,lessons_cancelled:int,
+ *                held_total:int,present_total:int,avg_pct:?int}
+ */
+function ti_pr_course_attendance(int $course_id, string $from, string $to): array {
+    $track = 1;
+    try {
+        $c = db_one("SELECT track_attendance FROM k30_ti_courses WHERE id=?", [$course_id]);
+        if ($c) $track = (int)($c['track_attendance'] ?? 1);
+    } catch (\Throwable $e) { $track = 1; } // przed migracją kolumny — domyślnie liczy frekwencję
+
+    // Lekcje kursu w okresie (odbyte vs odwołane) — niezależnie od uczestników
+    $sessions = db_all(
+        "SELECT status FROM k30_ti_sessions
+         WHERE course_id=? AND lesson_date BETWEEN ? AND ?
+           AND (status IS NULL OR status IN ('held','individual_change','cancelled'))",
+        [$course_id, $from, $to]);
+    $lessons_held = $lessons_cancelled = 0;
+    foreach ($sessions as $s) {
+        if (($s['status'] ?? '') === 'cancelled') $lessons_cancelled++; else $lessons_held++;
+    }
+
+    $participants = []; $tHeld = $tPres = 0;
+    foreach (ti_pr_clients($course_id) as $cl) {
+        $cid = (int)$cl['id'];
+        $a   = ti_pr_attendance($cid, $from, $to, $course_id);
+        $c0  = $a['courses'][$course_id] ?? ['held' => 0, 'present' => 0, 'absent' => 0, 'cancelled_lesson' => 0, 'pct' => null];
+        $participants[] = ['client_id' => $cid, 'name' => $cl['name'],
+                           'held' => $c0['held'], 'present' => $c0['present'], 'absent' => $c0['absent'],
+                           'cancelled_lesson' => $c0['cancelled_lesson'], 'pct' => $c0['pct']];
+        $tHeld += $c0['held']; $tPres += $c0['present'];
+    }
+    return ['track' => $track, 'participants' => $participants,
+            'lessons_held' => $lessons_held, 'lessons_cancelled' => $lessons_cancelled,
+            'held_total' => $tHeld, 'present_total' => $tPres,
+            'avg_pct' => $tHeld > 0 ? (int)round($tPres / $tHeld * 100) : null];
+}
+
+/**
  * Rozliczenia uczestnika w JEDNYM miesiącu.
  * @return array{charges:float,paid:float,payments:float}
  *   charges  — należności wystawione za ten miesiąc (amount + korekta),
