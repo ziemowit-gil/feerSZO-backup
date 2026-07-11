@@ -2750,7 +2750,7 @@ function _ezd_sp_sanitize(string $s): string {
  */
 function ezd_sprawa_sp_folder(int $sprawa_id): ?string {
     $row = db_one(
-        "SELECT s.znak_sprawy, s.title, j.symbol AS jrwa_symbol
+        "SELECT s.znak_sprawy, s.title, s.created_at, j.symbol AS jrwa_symbol
          FROM ezd_sprawy s
          JOIN ezd_teczki t ON t.id = s.teczka_id
          LEFT JOIN ezd_jrwa j ON j.id = t.jrwa_id
@@ -2758,7 +2758,10 @@ function ezd_sprawa_sp_folder(int $sprawa_id): ?string {
     );
     if (!$row) return null;
     $jrwa = _ezd_sp_sanitize($row['jrwa_symbol'] ?: 'bez-JRWA');
-    $case = _ezd_sp_sanitize(trim($row['znak_sprawy'] . ' ' . $row['title']));
+    // Nazwa folderu sprawy: „Tytuł sprawy - data wszczęcia" (wszczęcie = utworzenie sprawy)
+    $data = $row['created_at'] ? substr($row['created_at'], 0, 10) : '';
+    $name = trim($row['title']) . ($data !== '' ? ' - ' . $data : '');
+    $case = _ezd_sp_sanitize($name);
     return 'cases/' . $jrwa . '/' . $case;
 }
 
