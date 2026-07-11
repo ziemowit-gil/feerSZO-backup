@@ -1346,6 +1346,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
               <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= date('Y-m') ?>">
                 <i class="bi bi-calendar-month me-2"></i>Raport miesiecny (biezacy)
               </a></li>
+              <li><a class="dropdown-item" href="self_work.php?month=<?= date('Y-m') ?>">
+                <i class="bi bi-person-workspace me-2"></i>Praca wlasna (biezacy mies.)
+              </a></li>
               <li><hr class="dropdown-divider"></li>
               <?php
                 $prev = date('Y-m', strtotime('-1 month'));
