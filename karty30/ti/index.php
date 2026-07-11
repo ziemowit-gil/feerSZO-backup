@@ -539,11 +539,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <form method="get" action="wup_report.php" target="_blank" rel="noopener" class="row g-2 align-items-end">
       <div class="col-auto">
         <label class="form-label small mb-1">Od</label>
-        <input type="date" name="from" value="<?= h(date('Y-m-01')) ?>" class="form-control form-control-sm">
+        <input type="date" name="from" value="<?= h(date('Y-m-d', strtotime('first day of last month'))) ?>" class="form-control form-control-sm">
       </div>
       <div class="col-auto">
         <label class="form-label small mb-1">Do</label>
-        <input type="date" name="to" value="<?= h(date('Y-m-t')) ?>" class="form-control form-control-sm">
+        <input type="date" name="to" value="<?= h(date('Y-m-d', strtotime('last day of last month'))) ?>" class="form-control form-control-sm">
       </div>
       <div class="col-md-4">
         <label class="form-label small mb-1">Prowadzący</label>

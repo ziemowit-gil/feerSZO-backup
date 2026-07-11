@@ -31,8 +31,9 @@ $from = (string)($_GET['from'] ?? '');
 $to   = (string)($_GET['to'] ?? '');
 $ok   = fn($d) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && strtotime($d);
 if (!$ok($from) || !$ok($to)) {
-    $ym = (string)($_GET['m'] ?? date('Y-m'));
-    if (!preg_match('/^\d{4}-\d{2}$/', $ym)) $ym = date('Y-m');
+    // Domyślnie podpowiadamy poprzedni (zamknięty) miesiąc
+    $ym = (string)($_GET['m'] ?? date('Y-m', strtotime('first day of last month')));
+    if (!preg_match('/^\d{4}-\d{2}$/', $ym)) $ym = date('Y-m', strtotime('first day of last month'));
     $from = $ym . '-01';
     $to   = date('Y-m-t', strtotime($from));
 }
@@ -222,20 +223,17 @@ try {
         . 'Uwzględniono wyłącznie grupy, w których w podanym okresie odbyły się zajęcia.'), 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
 
-    // Miejsce na podpisy
-    $pdf->Ln(12);
-    if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
-    $colW = $W / 2;
+    // Miejsce na podpis — wyłącznie kierownika (bez podpisu sporządzającego)
+    $pdf->Ln(14);
+    if ($pdf->GetY() > $pdf->GetPageHeight() - 28) $pdf->AddPage();
+    $sigW = 72;
+    $sigX = 14 + $W - $sigW;         // wyrównanie do prawej
     $ySig = $pdf->GetY() + 10;
     $pdf->SetDrawColor(120, 120, 120);
-    // linia sporządzającego
-    $pdf->Line(14 + 8, $ySig, 14 + $colW - 8, $ySig);
-    // linia kierownika
-    $pdf->Line(14 + $colW + 8, $ySig, 14 + $W - 8, $ySig);
-    $pdf->SetXY(14, $ySig + 1);
+    $pdf->Line($sigX, $ySig, $sigX + $sigW, $ySig);
+    $pdf->SetXY($sigX, $ySig + 1);
     $pdf->SetFont('DejaVu', '', 8);
-    $pdf->Cell($colW, 4, $pl('(sporządził/a — imię, nazwisko i podpis)'), 0, 0, 'C');
-    $pdf->Cell($colW, 4, $pl('(podpis i pieczęć kierownika)'), 0, 1, 'C');
+    $pdf->Cell($sigW, 4, $pl('(podpis i pieczęć kierownika)'), 0, 1, 'C');
 
     while (ob_get_level() > 0) ob_end_clean();
     $pdf->Output('D', 'sprawozdanie_WUP_' . $from . '_' . $to . '.pdf');
