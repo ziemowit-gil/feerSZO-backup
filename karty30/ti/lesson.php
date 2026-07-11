@@ -134,6 +134,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
              WHERE id=?"
         )->execute([$new_status, $topic, $instructor_notes, $has_homework, $self_prep_remote, $duration_min, $time_from, $time_to, $session_id]);
 
+        // Alert niskiej frekwencji — sprawdź aktywnych kursantów kursu
+        foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [(int)$session['course_id']]) as $er) {
+            try { k30_ti_check_low_attendance((int)$session['course_id'], (int)$er['client_id']); } catch (\Throwable $ex) {}
+        }
+
         flash_set('success', 'Lekcja zapisana.');
         header('Location: lesson.php?id=' . $session_id);
         exit;

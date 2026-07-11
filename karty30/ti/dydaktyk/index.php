@@ -256,6 +256,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_enrolled   = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$_cid])['n'] ?? 0);
             $new_st = ($_is_sub || $any_absent || $_enrolled <= 1) ? 'individual_change' : 'held';
             db()->prepare("UPDATE k30_ti_sessions SET status=?, updated_at=datetime('now') WHERE id=? AND status='planned'")->execute([$new_st, $sid]);
+            // Alert niskiej frekwencji — sprawdź wszystkich aktywnych kursantów kursu
+            foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$_cid]) as $er) {
+                try { k30_ti_check_low_attendance($_cid, (int)$er['client_id']); } catch (\Throwable $ex) {}
+            }
             flash_set('success', 'Obecność zapisana.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;

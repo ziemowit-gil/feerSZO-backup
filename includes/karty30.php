@@ -344,6 +344,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_courses ADD COLUMN is_subgroup  INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN pay_account TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN pay_title   TEXT NOT NULL DEFAULT ''",
+        // Dedup alertu niskiej frekwencji (1=już powiadomiono; reset gdy frekwencja wróci powyżej progu)
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN low_att_alerted INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_attendance ADD COLUMN ind_notes      TEXT NOT NULL DEFAULT ''",
         // Odwołanie całej lekcji (Doradca/admin) — z powodem i autorem
         "ALTER TABLE k30_ti_sessions ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
@@ -4904,6 +4906,121 @@ function k30_ti_course_tracks_attendance(int $course_id): bool {
         return true; // kolumna jeszcze nie istnieje — nie blokuj
     }
     return $r === null ? true : (int)($r['track_attendance'] ?? 1) === 1;
+}
+
+// ── Alert niskiej frekwencji ──────────────────────────────────────────────────
+
+/** Próg alertu niskiej frekwencji w % (ustawienie ti_low_attendance_pct, domyślnie 50). */
+function k30_ti_low_attendance_threshold(): int {
+    $v = (int)(db_one("SELECT value FROM settings WHERE key_='ti_low_attendance_pct'")['value'] ?? 0);
+    return ($v > 0 && $v <= 100) ? $v : 50;
+}
+
+/** Czy alerty niskiej frekwencji są włączone (ti_low_attendance_enabled; domyślnie tak). */
+function k30_ti_low_attendance_enabled(): bool {
+    $r = db_one("SELECT value FROM settings WHERE key_='ti_low_attendance_enabled'");
+    return $r === null ? true : (string)$r['value'] !== '0';
+}
+
+/** Frekwencja kursanta w kursie: [present, countable, pct]. Liczy tylko lekcje
+ *  held/individual_change bez odwołanego udziału (praca własna wykluczona). */
+function k30_ti_client_course_attendance(int $course_id, int $client_id): array {
+    $r = db_one(
+        "SELECT
+            SUM(CASE WHEN COALESCE(a.cancelled,0)=0 THEN 1 ELSE 0 END) AS countable,
+            SUM(CASE WHEN a.attended=1 AND COALESCE(a.cancelled,0)=0 THEN 1 ELSE 0 END) AS present
+         FROM k30_ti_attendance a
+         JOIN k30_ti_sessions s ON s.id=a.session_id
+         WHERE s.course_id=? AND a.client_id=? AND s.status IN ('held','individual_change')",
+        [$course_id, $client_id]
+    );
+    $countable = (int)($r['countable'] ?? 0);
+    $present   = (int)($r['present'] ?? 0);
+    $pct = $countable > 0 ? (int)round($present / $countable * 100) : 100;
+    return ['present' => $present, 'countable' => $countable, 'pct' => $pct];
+}
+
+/**
+ * Sprawdza frekwencję kursanta w kursie i — gdy spadła poniżej progu — wysyła
+ * jednorazowy alert (e-mail/SMS do kursanta i opiekuna). Reset dedupa, gdy
+ * frekwencja wróci powyżej progu. Wołane po zapisie obecności.
+ */
+function k30_ti_check_low_attendance(int $course_id, int $client_id): void {
+    if (!k30_ti_low_attendance_enabled())            return;
+    if (!k30_ti_course_tracks_attendance($course_id)) return;
+
+    $st = k30_ti_client_course_attendance($course_id, $client_id);
+    if ($st['countable'] < 3) return; // za mało lekcji, by liczyć frekwencję
+
+    $threshold = k30_ti_low_attendance_threshold();
+    $enr = db_one("SELECT id, COALESCE(low_att_alerted,0) AS alerted FROM k30_ti_enrollments WHERE course_id=? AND client_id=? AND status='active'", [$course_id, $client_id]);
+    if (!$enr) return;
+    $already = (int)$enr['alerted'] === 1;
+
+    if ($st['pct'] < $threshold && !$already) {
+        db()->prepare("UPDATE k30_ti_enrollments SET low_att_alerted=1 WHERE id=?")->execute([(int)$enr['id']]);
+        k30_ti_notify_low_attendance($course_id, $client_id, $st['pct'], $threshold);
+    } elseif ($st['pct'] >= $threshold && $already) {
+        db()->prepare("UPDATE k30_ti_enrollments SET low_att_alerted=0 WHERE id=?")->execute([(int)$enr['id']]);
+    }
+}
+
+/** Powiadom kursanta (i opiekuna małoletniego) o niskiej frekwencji — e-mail + SMS. */
+function k30_ti_notify_low_attendance(int $course_id, int $client_id, int $pct, int $threshold): void {
+    $row = db_one(
+        "SELECT c.name AS course_name, cl.name AS client_name, cl.email, cl.phone,
+                a.is_minor, a.guardian_email, a.guardian_name, a.guardian_phone,
+                a.notify_phone2, a.notify_phone2_verified, a.notify_phone3, a.notify_phone3_verified
+         FROM k30_ti_courses c
+         JOIN k30_clients cl ON cl.id=?
+         LEFT JOIN k30_ti_student_accounts a ON a.client_id=cl.id AND a.is_active=1
+         WHERE c.id=? LIMIT 1",
+        [$client_id, $course_id]
+    );
+    if (!$row) return;
+    $org  = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    $crs  = (string)$row['course_name'];
+    $stu  = (string)$row['client_name'];
+    $isMinor = !empty($row['is_minor']);
+
+    // E-mail
+    $emails = [];
+    $primary = trim((string)($row['email'] ?? ''));
+    if ($primary !== '' && filter_var($primary, FILTER_VALIDATE_EMAIL)) $emails[$primary] = $stu;
+    $gem = trim((string)($row['guardian_email'] ?? ''));
+    if ($isMinor && $gem !== '' && filter_var($gem, FILTER_VALIDATE_EMAIL)) $emails[$gem] = $row['guardian_name'] ?: $stu;
+    if ($emails) {
+        if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+        if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
+        $url  = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
+        $r = function_exists('email_tpl_render') ? email_tpl_render('ti_low_attendance', [
+            'org'         => $org,
+            'client_name' => htmlspecialchars($stu, ENT_QUOTES),
+            'course_name' => htmlspecialchars($crs, ENT_QUOTES),
+            'pct'         => (string)$pct,
+            'threshold'   => (string)$threshold,
+            'url'         => htmlspecialchars($url, ENT_QUOTES),
+        ]) : ['enabled' => true, 'subject' => '', 'html' => ''];
+        if (!isset($r['enabled']) || $r['enabled']) {
+            $subject = !empty($r['subject']) ? $r['subject'] : "{$org}: niska frekwencja — {$crs} ({$pct}%)";
+            $html    = !empty($r['html']) ? $r['html'] :
+                "<p>Frekwencja {$stu} na kursie <strong>{$crs}</strong> wynosi <strong>{$pct}%</strong> — poniżej progu {$threshold}%.</p>"
+              . "<p>Prosimy o regularną obecność. Szczegóły w panelu kursanta.</p>";
+            foreach ($emails as $addr => $nm) {
+                try { mail_queue_add($addr, (string)$nm, $subject, $html, '', 'ti_low_attendance', $course_id, '', false); }
+                catch (\Throwable $e) {}
+            }
+        }
+    }
+
+    // SMS (opt-in lekcje + numery zweryfikowane; opiekun małoletniego)
+    require_once __DIR__ . '/sms.php';
+    if (function_exists('sms_is_enabled') && sms_is_enabled()) {
+        $nums = k30_ti_sms_numbers($row);
+        if ($isMinor) { $gp = trim((string)($row['guardian_phone'] ?? '')); if ($gp !== '' && !in_array($gp, $nums, true)) $nums[] = $gp; }
+        $msg = "Niska frekwencja: {$crs} — {$pct}% (prog {$threshold}%). Prosimy o regularna obecnosc.";
+        foreach ($nums as $n) { try { sms_send($n, $msg); } catch (\Throwable $e) {} }
+    }
 }
 
 /** Czy osoba ma globalnie włączone oceny w TI? */

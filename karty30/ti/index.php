@@ -43,6 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_pay
     header('Location: index.php'); exit;
 }
 
+// Ustawienia alertu niskiej frekwencji — tylko administrator
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_low_att_settings') {
+    csrf_check();
+    if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
+    $pct = (int)($_POST['ti_low_attendance_pct'] ?? 50);
+    if ($pct < 1 || $pct > 100) $pct = 50;
+    $en  = isset($_POST['ti_low_attendance_enabled']) ? '1' : '0';
+    foreach (['ti_low_attendance_pct' => (string)$pct, 'ti_low_attendance_enabled' => $en] as $k => $v) {
+        db()->prepare("INSERT OR REPLACE INTO settings (key_, value) VALUES (?, ?)")->execute([$k, $v]);
+    }
+    flash_set('success', 'Ustawienia alertu frekwencji zapisane.');
+    header('Location: index.php'); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $data = [
@@ -488,6 +502,43 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         Podatek: <strong><?= $_fmt($_ex['pit']) ?> zł</strong> ·
         Na rękę: <strong class="text-success"><?= $_fmt($_ex['netto']) ?> zł</strong>
       </div>
+    </div>
+  </div>
+</div>
+
+<?php $_la_pct = k30_ti_low_attendance_threshold(); $_la_on = k30_ti_low_attendance_enabled(); ?>
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header bg-white d-flex align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#lowAttCfg" aria-expanded="false">
+    <i class="bi bi-graph-down-arrow me-2 text-primary"></i>
+    <span class="fw-semibold">Alert niskiej frekwencji</span>
+    <span class="badge <?= $_la_on ? 'bg-success' : 'bg-secondary' ?> ms-2"><?= $_la_on ? 'włączony' : 'wyłączony' ?></span>
+    <i class="bi bi-chevron-down ms-auto"></i>
+  </div>
+  <div class="collapse" id="lowAttCfg">
+    <div class="card-body">
+      <p class="text-body-secondary small mb-3">
+        Gdy frekwencja kursanta w kursie spadnie poniżej progu (po zapisie obecności), system raz wyśle powiadomienie e-mail/SMS do kursanta i opiekuna. Kolejny alert dopiero, gdy frekwencja wróci powyżej progu i znów spadnie. Kursy z wyłączonym liczeniem frekwencji oraz praca własna są pomijane.
+      </p>
+      <form method="post" class="row g-3 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_op" value="save_low_att_settings">
+        <div class="col-auto">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="ti_low_attendance_enabled" id="la_on" <?= $_la_on ? 'checked' : '' ?>>
+            <label class="form-check-label" for="la_on">Alerty włączone</label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small fw-semibold mb-1">Próg frekwencji</label>
+          <div class="input-group" style="width:130px">
+            <input type="number" class="form-control" name="ti_low_attendance_pct" min="1" max="100" value="<?= (int)$_la_pct ?>">
+            <span class="input-group-text">%</span>
+          </div>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Zapisz</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
