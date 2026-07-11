@@ -83,6 +83,66 @@ $f  = fn($x) => number_format((float)$x, 2, ',', ' ');
 $hh = fn($m) => number_format($m / 60, 2, ',', ' ');
 $_mon = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
 
+// Próg ostrzeżenia (nadużycia pracy własnej) — konfigurowalny; domyślnie 12 lekcji/mies.
+$sw_limit = (int)(db_one("SELECT value FROM settings WHERE key_='ti_self_work_month_limit'")['value'] ?? 0);
+if ($sw_limit <= 0) $sw_limit = 12;
+$over_instructors = 0;
+foreach ($groups as &$g) { $g['over'] = ((int)$g['count'] > $sw_limit); if ($g['over']) $over_instructors++; }
+unset($g);
+
+// ── Eksport PDF ───────────────────────────────────────────────────────────────
+if (($_GET['export'] ?? '') === 'pdf') {
+    require_once dirname(dirname(__DIR__)) . '/includes/fpdf/fpdf.php';
+    $FD = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
+    $pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    try {
+        $pdf = new FPDF('P', 'mm', 'A4');
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->SetMargins(12, 12, 12);
+        $pdf->AddFont('DejaVu', '',  'dejavusans.json',  $FD);
+        $pdf->AddFont('DejaVu', 'B', 'dejavusansb.json', $FD);
+        $pdf->AddPage();
+        $W = $pdf->GetPageWidth() - 24;
+        $org = defined('ORG_NAME') ? ORG_NAME : '';
+
+        $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetFont('DejaVu', 'B', 13);
+        $pdf->Cell($W, 9, $pl('Praca własna prowadzących — ' . ucfirst($ym_label)), 0, 1, 'L', true);
+        $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('DejaVu', '', 8);
+        $pdf->Cell($W, 5, $pl(($org ? $org . '   ·   ' : '') . 'Wygenerowano: ' . date('d.m.Y H:i')
+            . '   ·   Lekcji: ' . $tot_count . ' · ' . $hh($tot_min) . ' h · netto ' . $f($tot_net) . ' zł'), 0, 1);
+        $pdf->Ln(2);
+
+        foreach ($groups as $iname => $g) {
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
+            $pdf->SetFillColor(233, 238, 245); $pdf->SetFont('DejaVu', 'B', 10);
+            $head = $iname . '   (' . (int)$g['count'] . ' lekcji · ' . $hh($g['min']) . ' h'
+                  . ($g['net'] > 0 ? ' · netto ' . $f($g['net']) . ' zł' : '') . ')'
+                  . ($g['over'] ? '   ⚠ powyżej progu ' . $sw_limit : '');
+            $pdf->Cell($W, 7, $pl($head), 0, 1, 'L', true);
+            $pdf->SetFont('DejaVu', '', 8.5);
+            foreach ($g['rows'] as $r) {
+                $d = new DateTime($r['lesson_date']);
+                $line = $d->format('d.m.Y') . '  ' . substr((string)$r['time_from'], 0, 5)
+                      . '  ·  ' . (int)$r['duration_min'] . ' min  ·  ' . $r['course_name']
+                      . ($r['topic'] ? '  — ' . $r['topic'] : '')
+                      . ($r['_net'] > 0 ? '   (' . $f($r['_net']) . ' zł)' : '');
+                $pdf->Cell(4); $pdf->MultiCell($W - 4, 5, $pl($line), 0, 'L');
+            }
+            $pdf->Ln(2);
+        }
+        if (!$groups) { $pdf->SetFont('DejaVu', '', 10); $pdf->Cell($W, 8, $pl('Brak lekcji „praca własna" w tym miesiącu.'), 0, 1); }
+
+        while (ob_get_level() > 0) ob_end_clean();
+        $pdf->Output('D', 'praca_wlasna_' . $ym . '.pdf');
+        exit;
+    } catch (\Throwable $e) {
+        error_log('[self_work pdf] ' . $ym . ': ' . $e->getMessage());
+        if (!headers_sent()) { http_response_code(500); header('Content-Type: text/plain; charset=UTF-8'); }
+        echo "Nie udało się wygenerować PDF.\nPowód: " . $e->getMessage() . "\n"; exit;
+    }
+}
+
 include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb">
@@ -112,13 +172,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php endforeach; ?>
     </select>
   </div>
-  <div class="col-auto">
-    <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Eksport CSV</a>
+  <div class="col-auto d-flex gap-1">
+    <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV</a>
+    <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'pdf']))) ?>" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
   </div>
 </form>
 
 <div class="text-body-secondary mb-3" style="font-size:.88rem">
   <i class="bi bi-info-circle me-1"></i><?= h(ucfirst($ym_label)) ?> · lekcje „praca własna prowadzącego (materiał zdalny)". Ten status <strong>nie liczy się do frekwencji</strong>, ale jest lekcją odbytą do wypłaty.
+  <?php if ($over_instructors): ?>
+  <span class="text-warning-emphasis ms-1"><i class="bi bi-exclamation-triangle-fill me-1"></i><?= $over_instructors ?> prowadzących powyżej progu <?= $sw_limit ?> lekcji/mies.</span>
+  <?php endif; ?>
 </div>
 
 <!-- Karty podsumowania -->
@@ -143,7 +207,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 <?php foreach ($groups as $iname => $g): ?>
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <span class="fw-semibold"><i class="bi bi-person-badge me-2 text-primary"></i><?= h($iname) ?></span>
+    <span class="fw-semibold"><i class="bi bi-person-badge me-2 text-primary"></i><?= h($iname) ?>
+      <?php if (!empty($g['over'])): ?>
+      <span class="badge text-bg-warning ms-1" title="Dużo pracy własnej w tym miesiącu (próg: <?= $sw_limit ?>)"><i class="bi bi-exclamation-triangle me-1"></i>powyżej progu</span>
+      <?php endif; ?>
+    </span>
     <span class="small text-body-secondary">
       <?= (int)$g['count'] ?> lekcji · <?= $hh($g['min']) ?> h<?= $g['net'] > 0 ? ' · netto ' . $f($g['net']) . ' zł' : '' ?>
     </span>
