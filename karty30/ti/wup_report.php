@@ -28,6 +28,10 @@ if (!(can_write('karty30') || is_admin())) { http_response_code(403); die('Brak 
 
 $user_id = (int)current_user()['id'];
 
+// Usuwać zapisane sprawozdania może wyłącznie kierownictwo (admin lub zarząd).
+$zarzad_ids = array_filter(array_map('intval', explode(',', (string)org_setting('zarzad_user_ids'))));
+$can_delete = is_admin() || in_array($user_id, $zarzad_ids, true);
+
 // ── Ustawienia organizacji / RIS / kierownik ─────────────────────────────────────
 $S = function (string $k): string {
     $r = db_one("SELECT value FROM settings WHERE key_=?", [$k]);
@@ -117,6 +121,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'upload_s
     }
     header('Location: wup_report.php?from=' . urlencode($r['period_from'] ?? $from) . '&to=' . urlencode($r['period_to'] ?? $to)
         . '&instructor_id=' . (int)($r['instructor_id'] ?? $instr_filter)); exit;
+}
+
+// ── Usunięcie zapisanego sprawozdania (tylko kierownictwo) ───────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'delete_report') {
+    csrf_check();
+    if (!$can_delete) { http_response_code(403); die('Usuwanie sprawozdań jest zastrzeżone dla kierownictwa.'); }
+    $rid = (int)($_POST['report_id'] ?? 0);
+    $r   = db_one("SELECT * FROM k30_ti_wup_reports WHERE id=?", [$rid]);
+    if ($r) {
+        if (!empty($r['signed_path']) && is_file($r['signed_path'])) @unlink($r['signed_path']);
+        db()->prepare("DELETE FROM k30_ti_wup_reports WHERE id=?")->execute([$rid]);
+        flash_set('success', 'Sprawozdanie usunięte.');
+    } else {
+        flash_set('error', 'Nie znaleziono sprawozdania.');
+    }
+    header('Location: wup_report.php?from=' . urlencode($from) . '&to=' . urlencode($to) . '&instructor_id=' . $instr_filter); exit;
 }
 
 // ── Zbieranie danych (wspólne dla podglądu i PDF) ────────────────────────────────
@@ -609,6 +629,14 @@ $mgrTitleVal = (string)$fld('manager_title', $mgr_title);
               <a href="wup_report.php?download=<?= (int)$r['id'] ?>" class="btn btn-outline-success btn-sm py-0 px-2"><i class="bi bi-download"></i></a>
               <?php endif; ?>
               <button class="btn btn-outline-primary btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#signModal" data-rid="<?= (int)$r['id'] ?>" data-lbl="<?= h($r['period_from'].' – '.$r['period_to']) ?>"><i class="bi bi-upload"></i></button>
+              <?php if ($can_delete): ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć zapisane sprawozdanie<?= $r['signed_path'] ? ' wraz z podpisanym plikiem' : '' ?>? Operacji nie można cofnąć.');">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_op" value="delete_report">
+                <input type="hidden" name="report_id" value="<?= (int)$r['id'] ?>">
+                <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Usuń sprawozdanie (kierownictwo)"><i class="bi bi-trash"></i></button>
+              </form>
+              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
