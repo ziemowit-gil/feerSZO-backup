@@ -373,10 +373,12 @@ function _menu_editor(): array {
         $it[] = _mi('Serwisy IT','/it/services.php','bi-gear',['match'=>'/it/services','kw'=>'serwisy usługi it']);
         if (module_enabled('vpn_enabled'))
             $it[] = _mi('VPN — dostępy','/admin/vpn.php','bi-shield-check',['match'=>'/admin/vpn','badge'=>$cnt['vpn'],'kw'=>'vpn dostępy admin']);
+        if (module_enabled('cloudflare_enabled'))
+            $it[] = _mi('Cloudflare DNS','/admin/cloudflare_dns.php','bi-globe2',['match'=>'/admin/cloudflare_','kw'=>'cloudflare dns domeny rekordy']);
     }
     $nodes[] = [
         'id'=>'it','label'=>'IT','icon'=>'bi-hdd-network',
-        'active'=>_menu_hit('/it/')||_menu_hit('/tools/')||_menu_hit('/vpn/'),
+        'active'=>_menu_hit('/it/')||_menu_hit('/tools/')||_menu_hit('/vpn/')||_menu_hit('/admin/cloudflare_'),
         'groups'=>[['label'=>null,'items'=>$it]],
     ];
 
