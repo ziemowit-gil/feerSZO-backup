@@ -105,7 +105,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       pola narracyjne i wgranie podpisanego dokumentu. Dane RIS i kierownika ustawisz w zakładce
       <a href="ris.php">Dane do RIS</a>.
     </p>
-    <form method="get" action="wup_report.php" class="row g-2 align-items-end">
+    <form id="wupPreviewForm" action="wup_report.php" class="row g-2 align-items-end">
       <div class="col-auto">
         <label class="form-label small mb-1">Od</label>
         <input type="date" name="from" value="<?= h(date('Y-m-d', strtotime('first day of last month'))) ?>" class="form-control form-control-sm">
@@ -129,5 +129,39 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     </form>
   </div>
 </div>
+
+<!-- Modal: podgląd sprawozdania WUP -->
+<div class="modal fade" id="wupModal" tabindex="-1" aria-labelledby="wupModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 mb-0" id="wupModalLabel"><i class="bi bi-bank me-2 text-primary"></i>Sprawozdanie do WUP — podgląd</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body" id="wupModalBody">
+        <div class="text-center text-body-secondary py-5"><div class="spinner-border" role="status" aria-hidden="true"></div><div class="mt-2 small">Ładowanie podglądu…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var form  = document.getElementById('wupPreviewForm');
+  var modalEl = document.getElementById('wupModal');
+  if (!form || !modalEl || !window.bootstrap) return; // brak Bootstrapa → zwykły submit (fallback)
+  var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  var body  = document.getElementById('wupModalBody');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var qs = new URLSearchParams(new FormData(form)).toString();
+    body.innerHTML = '<div class="text-center text-body-secondary py-5"><div class="spinner-border" role="status"></div><div class="mt-2 small">Ładowanie podglądu…</div></div>';
+    modal.show();
+    fetch('wup_report.php?embed=1&' + qs, { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (html) { body.innerHTML = html; })
+      .catch(function (err) { body.innerHTML = '<div class="alert alert-danger m-3">Nie udało się wczytać podglądu: ' + err.message + '</div>'; });
+  });
+});
+</script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>

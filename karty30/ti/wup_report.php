@@ -455,14 +455,17 @@ $ti_instructors = k30_ti_instructors();
 $savedReports   = db_all("SELECT r.*, u.name AS gen_name FROM k30_ti_wup_reports r
     LEFT JOIN users u ON u.id=r.generated_by ORDER BY r.period_from DESC, r.instructor_id LIMIT 30");
 
-$PAGE_TITLE = 'Sprawozdanie do WUP';
-include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
+$embed       = !empty($_GET['embed']);   // fragment do wczytania w modalu (bez chrome strony)
 $mgrNameVal  = (string)$fld('manager_name', $mgr_name);
 $mgrTitleVal = (string)$fld('manager_title', $mgr_title);
+$PAGE_TITLE  = 'Sprawozdanie do WUP';
+if (!$embed) include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 ?>
+<?php if (!$embed): ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.85rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/index.php">Karty 30</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/ti/index.php">Zajęcia TI</a></li>
+  <li class="breadcrumb-item"><a href="<?= APP_URL ?>/karty30/ti/raporty.php">Raporty</a></li>
   <li class="breadcrumb-item active">Sprawozdanie do WUP</li>
 </ol></nav>
 
@@ -491,6 +494,12 @@ $mgrTitleVal = (string)$fld('manager_title', $mgr_title);
     <div class="col-auto ms-auto text-body-secondary small">Okres: <strong><?= h($period_txt) ?></strong></div>
   </div>
 </form>
+<?php else: ?>
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+  <span class="text-body-secondary small">Okres: <strong><?= h($period_txt) ?></strong><?= $instr_filter ? ' · wybrany prowadzący' : '' ?></span>
+  <a href="<?= APP_URL ?>/karty30/ti/wup_report.php?from=<?= urlencode($from) ?>&to=<?= urlencode($to) ?>&instructor_id=<?= $instr_filter ?>" target="_blank" class="btn btn-link btn-sm p-0"><i class="bi bi-box-arrow-up-right me-1"></i>Otwórz pełną stronę</a>
+</div>
+<?php endif; ?>
 
 <div class="row g-3">
   <!-- Podgląd danych -->
@@ -546,7 +555,7 @@ $mgrTitleVal = (string)$fld('manager_title', $mgr_title);
 
   <!-- Pola sprawozdania + generowanie -->
   <div class="col-lg-5">
-    <form method="post" class="card border-0 shadow-sm mb-3">
+    <form method="post" action="<?= APP_URL ?>/karty30/ti/wup_report.php" class="card border-0 shadow-sm mb-3">
       <div class="card-header bg-white fw-semibold"><i class="bi bi-pencil-square me-2"></i>Dane sprawozdania</div>
       <div class="card-body">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -603,6 +612,7 @@ $mgrTitleVal = (string)$fld('manager_title', $mgr_title);
   </div>
 </div>
 
+<?php if (!$embed): ?>
 <!-- Zapisane / podpisane sprawozdania -->
 <div class="card border-0 shadow-sm mt-3">
   <div class="card-header bg-white fw-semibold"><i class="bi bi-folder2-open me-2"></i>Zapisane sprawozdania</div>
@@ -676,3 +686,4 @@ document.getElementById('signModal')?.addEventListener('show.bs.modal', function
 </script>
 
 <?php include dirname(dirname(__DIR__)) . '/karty30/includes/footer_k30.php'; ?>
+<?php endif; ?>
