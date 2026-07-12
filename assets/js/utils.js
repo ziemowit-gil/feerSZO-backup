@@ -227,16 +227,15 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 11. CTRL+K — focus pola wyszukiwania w topbarze
+// 11. CTRL+K — wyszukiwarka menu (paleta poleceń)
 // ═══════════════════════════════════════════════════════════════════════════
+// Paletę obsługuje własny handler w includes/header.php (gdy istnieje #cmdk-root).
+// Tu zostaje tylko fallback dla stron bez palety (np. wyzwolenie triggera).
 document.addEventListener('keydown', function(e) {
   if (!((e.ctrlKey || e.metaKey) && e.key === 'k')) return;
-  var inp = document.getElementById('topbar-search');
-  if (!inp) return;
-  e.preventDefault();
-  inp.classList.add('expanded');
-  inp.focus();
-  inp.select();
+  if (document.getElementById('cmdk-root')) return; // paleta ma własny handler
+  var t = document.getElementById('cmdk-trigger');
+  if (t) { e.preventDefault(); t.click(); }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

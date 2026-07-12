@@ -446,411 +446,40 @@ if ($_user) {
   <div class="collapse navbar-collapse">
     <ul class="navbar-nav me-auto align-items-center flex-wrap">
 
-  <?php $_ezd_only = is_ezd_only(); ?>
-  <?php if ($_user): ?>
-
-  <?php if ($_ezd_only): ?>
-  <!-- ══ WIDOK EZD-ONLY (rola ezd_user) ══════════════════════ -->
-  <?php if (module_enabled('ezd_enabled')): ?>
-  <?php $_ezd_dd_active = str_contains($_uri, '/ezd/'); ?>
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle nb-ezd-link<?= $_ezd_dd_active ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-building-gear"></i> Wirtualne biurko
-    </a>
-    <ul class="dropdown-menu">
-      <li><a class="dropdown-item<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php"><i class="bi bi-building-gear me-2"></i>Pulpit EZD</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/rpw/') ?>" href="<?= APP_URL ?>/ezd/rpw/index.php"><i class="bi bi-mailbox2 me-2"></i>Dziennik podawczy</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php"><i class="bi bi-folder2-open me-2"></i>Koszulki</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/teczki/') ?>" href="<?= APP_URL ?>/ezd/teczki/index.php"><i class="bi bi-archive me-2"></i>Segregatory aktowe</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/jrwa/') ?>" href="<?= APP_URL ?>/ezd/jrwa/index.php"><i class="bi bi-tags me-2"></i>Wykaz akt (JRWA)</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/pelnomocnictwa/') ?>" href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php"><i class="bi bi-person-vcard me-2"></i>Pełnomocnictwa</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php"><i class="bi bi-award me-2"></i>Zaświadczenia</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/wolontariusze/') ?>" href="<?= APP_URL ?>/ezd/wolontariusze/index.php"><i class="bi bi-heart me-2"></i>Wolontariusze bez umowy</a></li>
-    </ul>
-  </li>
-  <?php endif; ?>
-
-  <?php else: ?>
-
-  <?php if (!can_edit()): ?>
-  <!-- ══ WIDOK UŻYTKOWNIKA (viewer) ═══════════════════════════ -->
   <?php
-  try { require_once __DIR__ . '/org_rules.php'; org_rules_migrate();
-    $_unread_rules = count(org_rules_unread((int)($_user['id'] ?? 0)));
-  } catch (\Throwable $e) { $_unread_rules = 0; }
-  $_pnl_unread = 0;
-  if (!empty($_SESSION['panel_contract'])) {
-    try { $_pnl_unread = msg_unread_thread('contract', (int)$_SESSION['panel_contract']['id'], 'user'); }
-    catch (\Throwable $e) {}
-  }
-  $_pnl_dd_active = str_contains($_uri, '/panel/') || str_contains($_uri, '/org_intro/') || str_contains($_uri, '/komunikaty/') || str_contains($_uri, '/directory/');
+  // ── Nawigacja z rejestru menu (includes/menu.php) ─────────────────────────
+  require_once __DIR__ . '/menu.php';
+  $_menu = $_user ? menu_build() : ['mode' => 'guest', 'tree' => []];
+  foreach ($_menu['tree'] as $_n):
+      $_n_cls = (!empty($_n['active']) ? ' active' : '') . (!empty($_n['ezd']) ? ' nb-ezd-link' : '');
+      if (!empty($_n['path']) && empty($_n['groups'])): // zakładka-link (np. RODO)
   ?>
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_pnl_dd_active ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-person-circle"></i> Mój panel
-      <?php $_pnl_total = $_unread_rules + $_pnl_unread; if ($_pnl_total > 0): ?>
-      <span class="badge bg-danger ms-1" style="font-size:.6rem"><?= $_pnl_total ?></span>
-      <?php endif; ?>
-    </a>
-    <ul class="dropdown-menu">
-      <li><a class="dropdown-item<?= _nav_active('/panel/index') ?>" href="<?= APP_URL ?>/panel/index.php"><i class="bi bi-person-circle me-2"></i>Moja umowa</a></li>
-      <?php if (panel_visible('zasady')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/org_intro/') ?>" href="<?= APP_URL ?>/org_intro/index.php"><i class="bi bi-building-heart me-2"></i>Zasady organizacji<?php if ($_unread_rules > 0): ?><span class="badge bg-danger ms-2"><?= $_unread_rules ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/profile_edit') ?>" href="<?= APP_URL ?>/panel/profile_edit.php"><i class="bi bi-person-badge me-2"></i>Mój profil</a></li>
-      <?php if (panel_visible('komunikaty')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/komunikaty/') ?>" href="<?= APP_URL ?>/komunikaty/index.php"><i class="bi bi-megaphone me-2"></i>Komunikaty</a></li>
-      <?php endif; ?>
-      <?php if (panel_visible('katalog')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/"><i class="bi bi-person-lines-fill me-2"></i>Książka telefoniczna</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('messages_enabled') && panel_visible('wiadomosci')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/messages') ?>" href="<?= APP_URL ?>/panel/messages.php"><i class="bi bi-chat-left-text me-2"></i>Wiadomości<?php if ($_pnl_unread): ?><span class="badge bg-danger ms-2"><?= $_pnl_unread ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('letters_enabled') && panel_visible('pisma')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/letters') ?>" href="<?= APP_URL ?>/panel/letters.php"><i class="bi bi-archive me-2"></i>Moje pisma</a></li>
-      <?php endif; ?>
-      <?php if (panel_visible('wnioski')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/apply') ?>" href="<?= APP_URL ?>/panel/apply.php"><i class="bi bi-send me-2"></i>Wyślij pismo / wniosek</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('certificates_enabled') && panel_visible('zaswiadczenia')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/certificates') ?>" href="<?= APP_URL ?>/panel/certificates.php"><i class="bi bi-award me-2"></i>Zaświadczenia</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('terminations_enabled') && panel_visible('rozwiazanie')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/terminations') ?>" href="<?= APP_URL ?>/panel/terminations.php"><i class="bi bi-file-earmark-x me-2"></i>Rozwiązanie umowy</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('timesheets_enabled') && panel_visible('godziny')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/timesheets') ?>" href="<?= APP_URL ?>/panel/timesheets.php"><i class="bi bi-clock-history me-2"></i>Ewidencja godzin</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('moodle_enabled') && panel_visible('kursy')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/panel/moodle') ?>" href="<?= APP_URL ?>/panel/moodle.php"><i class="bi bi-mortarboard me-2"></i>Moje kursy</a></li>
-      <?php endif; ?>
-      <li><hr class="dropdown-divider"></li>
-      <li><a class="dropdown-item<?= _nav_active('/panel/m365') ?>" href="<?= APP_URL ?>/panel/m365.php"><i class="bi bi-microsoft me-2"></i>Microsoft 365</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/panel/sessions') ?>" href="<?= APP_URL ?>/panel/sessions.php"><i class="bi bi-shield-lock me-2"></i>Sesje i bezpieczeństwo</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/panel/password') . _nav_active('/panel/2fa') . _nav_active('/panel/m365_password') ?>" href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-gear me-2"></i>Ustawienia konta</a></li>
-    </ul>
-  </li>
-
-  <?php else: ?>
-  <!-- ══ WIDOK EDYTORA / ADMINA ════════════════════════════════ -->
-  <?php
-  $_on_umowy    = (str_contains($_uri,'/contracts/') && !str_contains($_uri,'/contracts/wolontariat') && !str_contains($_uri,'/contracts/rekrutacja')) || str_contains($_uri,'/contracts/approvals') || str_contains($_uri,'/contracts/letters') || str_contains($_uri,'/contracts/rejestr') || str_contains($_uri,'/admin/terminations');
-  $_on_wol_main = str_contains($_uri,'/contracts/wolontariat/') || str_contains($_uri,'/contracts/rekrutacja/') || str_contains($_uri,'/onboarding/') || str_contains($_uri,'/admin/timesheets') || str_contains($_uri,'/admin/certificates');
-  $_on_it       = str_contains($_uri, '/it/') || str_contains($_uri, '/tools/') || str_contains($_uri, '/vpn/');
-  $_on_fin      = str_contains($_uri,'/contracts/zwroty') || str_contains($_uri,'/grants/') || str_contains($_uri,'/strategy/') || str_contains($_uri,'/ksiegowosc/') || str_contains($_uri,'/resources/') || str_contains($_uri,'/admin/shipments');
-  $_on_rodo_nb  = str_contains($_uri, '/rodo/');
-  $_on_ezd_nb   = str_contains($_uri, '/ezd/');
-  $_on_admin_nb = str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding');
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/') || str_contains($_uri,'/wsparcie_ou/');
-
-  try { $_msg_unread_total = msg_unread_admin(); } catch(\Exception $e) { $_msg_unread_total = 0; }
-  try { require_once __DIR__ . '/termination.php'; $_term_pending = get_pending_terminations_count(); } catch(\Throwable $e) { $_term_pending = 0; }
-  try { require_once __DIR__ . '/certificates.php'; $_cert_pending = get_pending_certificates_count(); } catch(\Throwable $e) { $_cert_pending = 0; }
-  try { require_once __DIR__ . '/timesheets.php'; $_ts_pending = ts_pending_count(); } catch(\Throwable $e) { $_ts_pending = 0; }
-  try { require_once __DIR__ . '/apaczka.php'; require_once __DIR__ . '/furgonetka.php'; $_ship_pending = shipment_pending_count(); $_has_shipping = apaczka_setting('apaczka_enabled') !== '0' || furgonetka_enabled(); } catch(\Throwable $e) { $_ship_pending = 0; $_has_shipping = false; }
-  try { $r = db_one("SELECT COUNT(*) AS c FROM zwroty_kosztow WHERE status IN ('oczekuje','weryfikacja')"); $_zwr_pending = (int)($r['c'] ?? 0); } catch(\Throwable $e) { $_zwr_pending = 0; }
-  try { $r = db_one("SELECT COUNT(*) AS c FROM volunteer_applications WHERE status = 'new'"); $_rek_new = (int)($r['c'] ?? 0); } catch(\Throwable $e) { $_rek_new = 0; }
-  try { $r = db_one("SELECT COUNT(*) AS c FROM onboarding_volunteers WHERE status='pending'"); $_ob_new = (int)($r['c'] ?? 0); } catch(\Throwable $e) { $_ob_new = 0; }
-  try { $r = db_one("SELECT COUNT(*) AS c FROM resource_reservations WHERE status IN ('zlozony','pending_admin')"); $_res_badge = (int)($r['c'] ?? 0); } catch(\Throwable $e) { $_res_badge = 0; }
-  $_adm_badge = 0;
-  try { $r = db_one("SELECT COUNT(*) AS c FROM mail_queue WHERE status='failed'"); $_adm_badge += (int)($r['c'] ?? 0); } catch(\Throwable $e) {}
-  try { $r = db_one("SELECT COUNT(*) AS c FROM user_applications WHERE status='nowy'"); $_adm_badge += (int)($r['c'] ?? 0); } catch(\Throwable $e) {}
-  $_hd_open = 0;
-  try {
-    if (module_enabled('helpdesk_enabled')) {
-      $_hd_u = current_user();
-      if ($_hd_u) {
-        if (is_admin() || !empty($_hd_u['helpdesk_operator']))
-          $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE status NOT IN ('zamknięte')")['c'] ?? 0);
-        else
-          $_hd_open = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')", [(int)$_hd_u['id']])['c'] ?? 0);
-      }
-    }
-  } catch (\Throwable $e) {}
-  $_alias_is_op   = is_admin() || !empty(current_user()['helpdesk_operator']);
-  $_alias_pending = 0;
-  if ($_alias_is_op) {
-    try { $_alias_pending = (int)(db_one("SELECT COUNT(*) AS c FROM email_alias_requests WHERE status IN ('oczekuje','błąd')")['c'] ?? 0); }
-    catch (\Throwable $e) {}
-  }
-  $_obieg_inbox = 0;
-  try {
-    if (module_enabled('obiegi_enabled') && ($_ob_u = current_user())) {
-      require_once __DIR__ . '/obiegi.php';
-      $_obieg_inbox = obiegi_inbox_count($_ob_u);
-    }
-  } catch (\Throwable $e) {}
-  $_vpn_pending = 0;
-  try {
-    if (is_admin() && module_enabled('vpn_enabled')) {
-      require_once __DIR__ . '/vpn.php';
-      $_vpn_pending = vpn_pending_count();
-    }
-  } catch (\Throwable $e) {}
-  $_wsparcie_ou_pending = 0;
-  try {
-    if (module_enabled('wsparcie_ou_enabled') && can_write('wsparcie_ou')) {
-      require_once __DIR__ . '/wsparcie_ou.php';
-      $_wsparcie_ou_pending = wsparcie_ou_pending_count();
-    }
-  } catch (\Throwable $e) {}
-  $_obs_badge = (int)$_hd_open + (int)$_msg_unread_total + ($_alias_is_op ? (int)$_alias_pending : 0) + (int)$_obieg_inbox;
-  $_wol_badge = $_rek_new + $_ob_new + $_ts_pending + $_cert_pending;
-  $_fin_badge = $_zwr_pending + $_res_badge + (int)$_ship_pending;
-  $_um_badge  = $_pending + $_term_pending;
-  require_once __DIR__ . '/ksiegowosc.php'; kdok_migrate();
-  $_has_kdok = kdok_has_role('upload') || kdok_has_role('meryt') || kdok_has_role('formal') || kdok_has_role('zatwierdza') || is_admin();
-  $_ct_label = fn($s) => CONTRACT_TYPES[$s] ?? ucfirst($s);
-  $_ct_icon  = fn($s) => $_contract_icons[$s] ?? 'bi-file-text';
-  ?>
-
-  <!-- Umowy -->
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_on_umowy ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-file-text"></i> Umowy
-      <?php if ($_um_badge): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem"><?= $_um_badge ?></span><?php endif; ?>
-    </a>
-    <ul class="dropdown-menu">
-      <?php
-      $_um_groups = [
-        ['Wolontariat',               'bi-heart',             ['wolontariat']],
-        ['Zlecenie / Praca / Dzieło',  'bi-person-lines-fill', ['zlecenie','praca','dzielo']],
-        ['Inne umowy',                 'bi-file-text',         ['uslugi','powierzenie','inne']],
-      ];
-      foreach ($_um_groups as [$glabel, $gicon, $slugs]):
-        $vis = array_values(array_filter($slugs, fn($s) => module_enabled('contract_' . $s)));
-        if (!$vis) continue;
-      ?>
-      <li><h6 class="dropdown-header nb-section-label"><?= h($glabel) ?></h6></li>
-      <?php foreach ($vis as $s): ?>
-      <li><a class="dropdown-item<?= _nav_active("/contracts/$s/") ?>" href="<?= APP_URL ?>/contracts/<?= $s ?>/list.php"><i class="bi <?= $_ct_icon($s) ?> me-2"></i><?= h($_ct_label($s)) ?></a></li>
-      <?php endforeach; endforeach; ?>
-
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header nb-section-label">Obsługa umów</h6></li>
-      <li><a class="dropdown-item<?= _nav_active('/contracts/rejestr') ?>" href="<?= APP_URL ?>/contracts/rejestr.php"><i class="bi bi-journal-text me-2"></i>Rejestr umów (RU)</a></li>
-      <?php if (module_enabled('approvals_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/contracts/approvals/') ?>" href="<?= APP_URL ?>/contracts/approvals/index.php"><i class="bi bi-check2-square me-2"></i>Akceptacje<?php if ($_pending): ?><span class="badge bg-warning text-dark ms-2"><?= $_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('letters_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/contracts/letters/') ?>" href="<?= APP_URL ?>/contracts/letters/index.php"><i class="bi bi-envelope-paper me-2"></i>Pisma</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('terminations_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/terminations') ?>" href="<?= APP_URL ?>/admin/terminations.php"><i class="bi bi-file-earmark-x me-2"></i>Rozwiązania<?php if ($_term_pending): ?><span class="badge bg-danger ms-2"><?= $_term_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-    </ul>
-  </li>
-
-  <!-- Wolontariat -->
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_on_wol_main ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-heart"></i> Wolontariat
-      <?php if ($_wol_badge): ?><span class="badge bg-primary ms-1" style="font-size:.6rem"><?= $_wol_badge ?></span><?php endif; ?>
-    </a>
-    <ul class="dropdown-menu">
-      <?php if (module_enabled('contract_wolontariat')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/contracts/wolontariat/') ?>" href="<?= APP_URL ?>/contracts/wolontariat/list.php"><i class="bi bi-heart me-2"></i>Wolontariusze</a></li>
-      <?php endif; ?>
-      <li><a class="dropdown-item<?= _nav_active('/contracts/rekrutacja/') ?>" href="<?= APP_URL ?>/contracts/rekrutacja/index.php"><i class="bi bi-megaphone me-2"></i>Zgłoszenia<?php if ($_rek_new): ?><span class="badge bg-primary ms-2"><?= $_rek_new ?></span><?php endif; ?></a></li>
-      <?php if (module_enabled('onboarding_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/onboarding/') ?>" href="<?= APP_URL ?>/onboarding/index.php"><i class="bi bi-person-check me-2"></i>Onboarding<?php if ($_ob_new): ?><span class="badge bg-warning text-dark ms-2"><?= $_ob_new ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('timesheets_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/timesheets') ?>" href="<?= APP_URL ?>/admin/timesheets.php"><i class="bi bi-clock-history me-2"></i>Ewidencja godzin<?php if ($_ts_pending): ?><span class="badge bg-warning text-dark ms-2"><?= $_ts_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('certificates_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/certificates') . _nav_active('/certificates/') ?>" href="<?= APP_URL ?>/admin/certificates.php"><i class="bi bi-award me-2"></i>Zaświadczenia<?php if ($_cert_pending): ?><span class="badge bg-warning text-dark ms-2"><?= $_cert_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-    </ul>
-  </li>
-
-
-  <!-- IT -->
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_on_it ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-hdd-network"></i> IT
-    </a>
-    <ul class="dropdown-menu">
-      <li><a class="dropdown-item<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php"><i class="bi bi-grid-1x2 me-2"></i>Dashboard IT</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/it/accounts') ?>" href="<?= APP_URL ?>/it/accounts.php"><i class="bi bi-person-badge me-2"></i>Konta</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/it/passwords') ?>" href="<?= APP_URL ?>/it/passwords.php"><i class="bi bi-key me-2"></i>Hasła</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/tools/r2_upload') ?>" href="<?= APP_URL ?>/tools/r2_upload.php"><i class="bi bi-cloud-arrow-up me-2"></i>Upload do R2</a></li>
-      <?php if (module_enabled('vpn_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/vpn/') ?>" href="<?= APP_URL ?>/vpn/index.php"><i class="bi bi-shield-lock me-2"></i>Dostęp VPN</a></li>
-      <?php endif; ?>
-      <?php if (is_admin()): ?>
-      <li><a class="dropdown-item<?= _nav_active('/it/services') ?>" href="<?= APP_URL ?>/it/services.php"><i class="bi bi-gear me-2"></i>Serwisy IT</a></li>
-      <?php if (module_enabled('vpn_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/vpn') ?>" href="<?= APP_URL ?>/admin/vpn.php"><i class="bi bi-shield-check me-2"></i>VPN — dostępy<?php if (($_vpn_pending ?? 0) > 0): ?><span class="badge bg-warning text-dark ms-2"><?= (int)$_vpn_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php endif; ?>
-    </ul>
-  </li>
-
-
-  <!-- Finanse -->
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_on_fin ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-cash-coin"></i> Finanse
-      <?php if ($_fin_badge): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem"><?= $_fin_badge ?></span><?php endif; ?>
-    </a>
-    <ul class="dropdown-menu">
-      <?php if (menu_visible('grants')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/grants/') ?>" href="<?= APP_URL ?>/grants/index.php"><i class="bi bi-cash-coin me-2"></i>Granty</a></li>
-      <?php endif; ?>
-      <?php if (menu_visible('actions')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/strategy/actions/') . _nav_active('/actions/') ?>" href="<?= APP_URL ?>/strategy/actions/index.php"><i class="bi bi-calendar-event me-2"></i>Działania</a></li>
-      <?php endif; ?>
-      <?php if (can_read('umowy') || is_admin()): ?>
-      <li><a class="dropdown-item<?= str_contains($_uri,'/strategy/') && !str_contains($_uri,'/strategy/actions/') ? ' active' : '' ?>" href="<?= APP_URL ?>/strategy/index.php"><i class="bi bi-bullseye me-2"></i>Strategia</a></li>
-      <?php endif; ?>
-      <li><a class="dropdown-item<?= _nav_active('/contracts/zwroty/') ?>" href="<?= APP_URL ?>/contracts/zwroty/index.php"><i class="bi bi-receipt-cutoff me-2"></i>Zwroty kosztów<?php if ($_zwr_pending): ?><span class="badge bg-warning text-dark ms-2"><?= $_zwr_pending ?></span><?php endif; ?></a></li>
-      <?php if ($_has_kdok): ?>
-      <li><a class="dropdown-item<?= _nav_active('/ksiegowosc/') ?>" href="<?= APP_URL ?>/ksiegowosc/index.php"><i class="bi bi-file-earmark-check me-2"></i>EOD Dok. Księgowych</a></li>
-      <?php endif; ?>
-      <li><a class="dropdown-item<?= str_contains($_uri,'/resources/') ? ' active' : '' ?>" href="<?= APP_URL ?>/resources/"><i class="bi bi-box-seam me-2"></i>Zasoby<?php if ($_res_badge): ?><span class="badge bg-danger ms-2"><?= $_res_badge ?></span><?php endif; ?></a></li>
-      <?php if ($_has_shipping): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/shipments') ?>" href="<?= APP_URL ?>/admin/shipments.php"><i class="bi bi-truck me-2"></i>Przesyłki<?php if ($_ship_pending): ?><span class="badge bg-warning text-dark ms-2"><?= $_ship_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-    </ul>
-  </li>
-
-  <!-- Wirtualne biurko (EZD) -->
-  <?php if (module_enabled('ezd_enabled')): ?>
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle nb-ezd-link<?= $_on_ezd_nb ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-building-gear"></i> Wirtualne biurko
-    </a>
-    <ul class="dropdown-menu">
-      <li><a class="dropdown-item<?= _nav_active('/ezd/index.php') ?>" href="<?= APP_URL ?>/ezd/index.php"><i class="bi bi-building-gear me-2"></i>Pulpit EZD</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/rpw/') ?>" href="<?= APP_URL ?>/ezd/rpw/index.php"><i class="bi bi-mailbox2 me-2"></i>Dziennik podawczy</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/sprawy/') ?>" href="<?= APP_URL ?>/ezd/sprawy/index.php"><i class="bi bi-folder2-open me-2"></i>Koszulki</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/teczki/') ?>" href="<?= APP_URL ?>/ezd/teczki/index.php"><i class="bi bi-archive me-2"></i>Segregatory aktowe</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/jrwa/') ?>" href="<?= APP_URL ?>/ezd/jrwa/index.php"><i class="bi bi-tags me-2"></i>Wykaz akt (JRWA)</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/pelnomocnictwa/') ?>" href="<?= APP_URL ?>/ezd/pelnomocnictwa/index.php"><i class="bi bi-person-vcard me-2"></i>Pełnomocnictwa</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/zaswiadczenia/') ?>" href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php"><i class="bi bi-award me-2"></i>Zaświadczenia</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/ezd/wolontariusze/') ?>" href="<?= APP_URL ?>/ezd/wolontariusze/index.php"><i class="bi bi-heart me-2"></i>Wolontariusze bez umowy</a></li>
-    </ul>
-  </li>
-  <?php endif; ?>
-
-  <!-- RODO -->
   <li class="nav-item">
-    <a class="nav-link<?= $_on_rodo_nb ? ' active' : '' ?>" href="<?= APP_URL ?>/rodo/index.php">
-      <i class="bi bi-shield-lock"></i> RODO
+    <a class="nav-link<?= $_n_cls ?>" href="<?= APP_URL . h($_n['path']) ?>">
+      <i class="bi <?= h($_n['icon']) ?>"></i> <?= h($_n['label']) ?>
+      <?php if (!empty($_n['badge'])): ?><span class="badge bg-danger ms-1" style="font-size:.6rem"><?= (int)$_n['badge'] ?></span><?php endif; ?>
     </a>
   </li>
-
-
-  <!-- Więcej -->
-  <?php
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/') || str_contains($_uri,'/wsparcie_ou/');
-  ?>
+  <?php else: ?>
   <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_wiecej_active ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      Więcej
+    <a class="nav-link dropdown-toggle<?= $_n_cls ?>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi <?= h($_n['icon']) ?>"></i> <?= h($_n['label']) ?>
+      <?php if (!empty($_n['badge'])): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem"><?= (int)$_n['badge'] ?></span><?php endif; ?>
     </a>
-    <ul class="dropdown-menu dropdown-menu-end" style="min-width:220px">
-      <li><h6 class="dropdown-header nb-section-label">Ludzie</h6></li>
-      <li><a class="dropdown-item<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php"><i class="bi bi-people me-2"></i>Osoby</a></li>
-      <?php if (module_enabled('crm_enabled') && can_read('crm')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/crm/') ?>" href="<?= APP_URL ?>/crm/dashboard.php"><i class="bi bi-diagram-2 me-2"></i>CRM</a></li>
-      <?php endif; ?>
-      <li><a class="dropdown-item<?= _nav_active('/directory/') ?>" href="<?= APP_URL ?>/directory/"><i class="bi bi-person-lines-fill me-2"></i>Katalog osób</a></li>
-      <?php if (module_enabled('org_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/org/') ?>" href="<?= APP_URL ?>/org/index.php"><i class="bi bi-diagram-3 me-2"></i>Struktura org.</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('byli_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/byli/') ?>" href="<?= APP_URL ?>/byli/index.php"><i class="bi bi-person-dash me-2"></i>Byłe osoby</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('helpdesk_enabled') || module_enabled('messages_enabled') || module_enabled('events_enabled') || module_enabled('poczta_enabled') || module_enabled('obiegi_enabled')): ?>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header nb-section-label">Obsługa<?php if ($_obs_badge): ?> <span class="badge bg-primary ms-1"><?= $_obs_badge ?></span><?php endif; ?></h6></li>
-      <?php if (module_enabled('obiegi_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/obiegi/') ?>" href="<?= APP_URL ?>/obiegi/index.php"><i class="bi bi-diagram-2 me-2"></i>Obiegi<?php if ($_obieg_inbox): ?><span class="badge bg-danger ms-2"><?= $_obieg_inbox ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('helpdesk_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/helpdesk/') ?>" href="<?= APP_URL ?>/helpdesk/index.php"><i class="bi bi-ticket-perforated me-2"></i>Helpdesk<?php if ($_hd_open): ?><span class="badge bg-primary ms-2"><?= $_hd_open ?></span><?php endif; ?></a></li>
-      <?php if ($_alias_is_op): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/email_aliasy') ?>" href="<?= APP_URL ?>/admin/email_aliasy.php"><i class="bi bi-at me-2"></i>Aliasy e-mail<?php if ($_alias_pending): ?><span class="badge bg-warning text-dark ms-2"><?= $_alias_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php endif; ?>
-      <?php if (module_enabled('messages_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/messages') ?>" href="<?= APP_URL ?>/admin/messages.php"><i class="bi bi-chat-dots me-2"></i>Wiadomości<?php if ($_msg_unread_total): ?><span class="badge bg-danger ms-2" data-msg-sb-badge><?= $_msg_unread_total ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('events_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/events/') ?>" href="<?= APP_URL ?>/events/dashboard.php"><i class="bi bi-calendar-event me-2"></i>Wydarzenia</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('poczta_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/poczta/') ?>" href="<?= APP_URL ?>/poczta/dashboard.php"><i class="bi bi-envelope me-2"></i>Poczta</a></li>
-      <?php endif; ?>
-      <?php endif; ?>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header nb-section-label">Archiwum i rejestry</h6></li>
-      <?php if (module_enabled('reports_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/reports/') ?>" href="<?= APP_URL ?>/reports/index.php"><i class="bi bi-bar-chart-line me-2"></i>Raporty</a></li>
-      <?php endif; ?>
-      <li><a class="dropdown-item<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php"><i class="bi bi-mailbox me-2"></i>Korespondencja</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php"><i class="bi bi-list-task me-2"></i>Procedury</a></li>
-      <?php if (module_enabled('wsparcie_ou_enabled') && can_read('wsparcie_ou')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/wsparcie_ou/') ?>" href="<?= APP_URL ?>/wsparcie_ou/index.php"><i class="bi bi-building-add me-2"></i>Wsparcie zewnętrzne OU<?php if (!empty($_wsparcie_ou_pending)): ?><span class="badge bg-warning text-dark ms-2"><?= (int)$_wsparcie_ou_pending ?></span><?php endif; ?></a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('doc_signing_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/podpisy/') ?>" href="<?= APP_URL ?>/podpisy/index.php"><i class="bi bi-pen me-2"></i>Podpisz dokument</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('org_documents_enabled')): ?>
-      <li><a class="dropdown-item<?= _nav_active('/admin/org_documents') . _nav_active('/org_documents/') ?>" href="<?= APP_URL ?>/admin/org_documents.php"><i class="bi bi-folder2-open me-2"></i>Dokumenty organizacji</a></li>
-      <?php endif; ?>
-      <li><a class="dropdown-item<?= _nav_active('/resolutions/') ?>" href="<?= APP_URL ?>/resolutions/index.php"><i class="bi bi-file-ruled me-2"></i>Uchwały</a></li>
-      <?php if ((module_enabled('dostepnosc_ngo_enabled') && !is_viewer()) || (module_enabled('projekty_enabled') && !is_viewer())): ?>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header nb-section-label">Formularze zewnętrzne</h6></li>
-      <?php if (module_enabled('dostepnosc_ngo_enabled') && !is_viewer()): ?>
-      <li><a class="dropdown-item<?= _nav_active('/dostepnosc/') ?>" href="<?= APP_URL ?>/dostepnosc/admin.php"><i class="bi bi-universal-access me-2"></i>Dostępność NGO</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/asysta/') ?>" href="<?= APP_URL ?>/asysta/admin.php"><i class="bi bi-universal-access-circle me-2"></i>Zgłoszenia asysty</a></li>
-      <?php endif; ?>
-      <?php if (module_enabled('projekty_enabled') && !is_viewer()): ?>
-      <li><a class="dropdown-item<?= _nav_active('/extforms/konsultacjeADNGO/') ?>" href="<?= APP_URL ?>/extforms/konsultacjeADNGO/admin.php"><i class="bi bi-clipboard2-pulse me-2"></i>Karty doradztwa ADNGO</a></li>
-      <?php endif; ?>
-      <?php endif; ?>
-    </ul>
-  </li>
-
-  <!-- Admin -->
-  <?php if (is_admin()): ?>
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_on_admin_nb ? ' active' : '' ?>"
-       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi bi-shield-shaded"></i> Admin
-      <?php if ($_adm_badge): ?><span class="badge bg-danger ms-1" style="font-size:.6rem"><?= $_adm_badge ?></span><?php endif; ?>
-    </a>
-    <ul class="dropdown-menu dropdown-menu-end">
-      <li><a class="dropdown-item<?= _nav_active('/admin/index') ?>" href="<?= APP_URL ?>/admin/index.php"><i class="bi bi-shield-shaded me-2"></i>Panel admina</a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><h6 class="dropdown-header nb-section-label">Integracje</h6></li>
-      <li><a class="dropdown-item<?= _nav_active('/admin/m365') ?>" href="<?= APP_URL ?>/admin/m365_settings.php"><i class="bi bi-microsoft me-2"></i>Microsoft 365</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/admin/sharepoint') ?>" href="<?= APP_URL ?>/admin/sharepoint_settings.php"><i class="bi bi-cloud-upload me-2"></i>SharePoint</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/admin/tidycal') ?>" href="<?= APP_URL ?>/admin/tidycal_settings.php"><i class="bi bi-calendar2-check me-2"></i>Szkolenia (TidyCal)</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/admin/stripe_settings') ?>" href="<?= APP_URL ?>/admin/stripe_settings.php"><i class="bi bi-credit-card me-2"></i>Płatności / Stripe</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/admin/payu_settings') ?>" href="<?= APP_URL ?>/admin/payu_settings.php"><i class="bi bi-wallet2 me-2"></i>Płatności / PayU</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/admin/owncloud_settings') ?>" href="<?= APP_URL ?>/admin/owncloud_settings.php"><i class="bi bi-cloud-arrow-up me-2"></i>Magazyn plików / ownCloud</a></li>
-      <li><a class="dropdown-item<?= _nav_active('/admin/api_manage') . _nav_active('/admin/api_keys') . _nav_active('/admin/api_audit') ?>" href="<?= APP_URL ?>/admin/api_manage.php"><i class="bi bi-key me-2"></i>API i webhooki</a></li>
+    <ul class="dropdown-menu<?= !empty($_n['end']) ? ' dropdown-menu-end' : '' ?>">
+      <?php foreach ($_n['groups'] as $_gi => $_g): ?>
+        <?php if ($_gi > 0): ?><li><hr class="dropdown-divider"></li><?php endif; ?>
+        <?php if (!empty($_g['label'])): ?>
+        <li><h6 class="dropdown-header nb-section-label"><?= h($_g['label']) ?><?php if (!empty($_g['badge'])): ?> <span class="badge bg-primary ms-1"><?= (int)$_g['badge'] ?></span><?php endif; ?></h6></li>
+        <?php endif; ?>
+        <?php foreach ($_g['items'] as $_it): ?>
+        <li><a class="dropdown-item<?= !empty($_it['active']) ? ' active' : '' ?><?= !empty($_it['danger']) ? ' text-danger' : '' ?>" href="<?= APP_URL . h($_it['path']) ?>"><i class="bi <?= h($_it['icon']) ?> me-2"></i><?= h($_it['label']) ?><?php if (!empty($_it['badge'])): ?><span class="badge bg-warning text-dark ms-2"<?= !empty($_it['attr']) ? ' ' . $_it['attr'] : '' ?>><?= (int)$_it['badge'] ?></span><?php endif; ?></a></li>
+        <?php endforeach; ?>
+      <?php endforeach; ?>
     </ul>
   </li>
   <?php endif; ?>
-
-  <?php endif; /* can_edit */ ?>
-  <?php endif; /* ezd_only */ ?>
-  <?php endif; /* _user */ ?>
+  <?php endforeach; ?>
 
     </ul><!-- /.navbar-nav -->
 
@@ -1096,176 +725,15 @@ if ($_user) {
       trigger.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();isOpen?close():openL();});
     })();
     </script>
-      <!-- Szukajka — w ramach nawigacji modułów -->
-      <div class="nb-search-wrap d-none d-md-block" id="qs-wrap">
-      <i class="nb-search-icon bi bi-search" aria-hidden="true"></i>
-      <form method="get" action="<?= APP_URL ?>/search.php" id="qs-form" autocomplete="off">
-        <input type="search" name="q" id="topbar-search"
-               placeholder="Szukaj modułu lub danych… (Ctrl+K)"
-               autocomplete="off"
-               aria-label="Szukajka modułów i danych"
-               aria-expanded="false"
-               aria-controls="qs-dropdown"
-               aria-autocomplete="list"
-               style="padding-left:1.75rem"
-               onfocus="this.classList.add('expanded')"
-               onblur="if(!this.value)this.classList.remove('expanded')">
-      </form>
-      <!-- Dropdown wyników -->
-      <div id="qs-dropdown"
-           role="listbox"
-           aria-label="Wyniki wyszukiwania"
-           style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
-                  background:#fff;border:1px solid #E2E8F0;border-radius:10px;
-                  box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:2000;
-                  max-height:420px;overflow-y:auto;font-family:system-ui,sans-serif">
+      <!-- Wyszukiwarka menu — otwiera paletę poleceń (Ctrl+K) -->
+      <div class="nb-search-wrap d-none d-md-block">
+        <i class="nb-search-icon bi bi-search" aria-hidden="true"></i>
+        <input type="search" id="cmdk-trigger" readonly
+               class="expanded"
+               placeholder="Szukaj w menu… (Ctrl+K)"
+               aria-label="Otwórz wyszukiwarkę menu (Ctrl+K)"
+               style="padding-left:1.75rem;cursor:pointer">
       </div>
-    </div>
-    <style>
-    #qs-dropdown .qs-section-head {
-      font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-      color:#94A3B8;padding:.55rem .85rem .2rem;
-    }
-    #qs-dropdown .qs-item {
-      display:flex;align-items:center;gap:.6rem;
-      padding:.5rem .85rem;cursor:pointer;text-decoration:none;color:#1E293B;
-      border-radius:0;transition:background .08s;
-    }
-    #qs-dropdown .qs-item:hover,
-    #qs-dropdown .qs-item.qs-active { background:#F1F5F9; }
-    #qs-dropdown .qs-item .qs-icon {
-      width:26px;height:26px;border-radius:6px;flex-shrink:0;
-      display:flex;align-items:center;justify-content:center;font-size:.85rem;
-    }
-    #qs-dropdown .qs-item .qs-label { font-size:.84rem;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-    #qs-dropdown .qs-item .qs-sub  { font-size:.73rem;color:#6B7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-    #qs-dropdown .qs-item .qs-badge{ font-size:.65rem;flex-shrink:0; }
-    #qs-dropdown .qs-footer {
-      font-size:.75rem;text-align:center;padding:.45rem;border-top:1px solid #F1F5F9;
-      color:#94A3B8;
-    }
-    #qs-dropdown .qs-footer a { color:#3B82F6;text-decoration:none; }
-    #qs-dropdown .qs-footer a:hover { text-decoration:underline; }
-    </style>
-    <script>
-    (function(){
-      var inp    = document.getElementById('topbar-search');
-      var wrap   = document.getElementById('qs-wrap'); // nb-search-wrap
-      var drop   = document.getElementById('qs-dropdown');
-      var active = -1;
-      var items  = [];
-      var timer  = null;
-      var API    = '<?= APP_URL ?>/api/search_quick.php';
-      var SRCH   = '<?= APP_URL ?>/search.php';
-
-      var colorMap = {
-        success:'#16A34A',primary:'#2563EB',warning:'#D97706',
-        danger:'#DC2626',info:'#0891B2',secondary:'#6B7280',dark:'#1E293B'
-      };
-      var bgMap = {
-        success:'#F0FDF4',primary:'#EFF6FF',warning:'#FFFBEB',
-        danger:'#FEF2F2',info:'#F0F9FF',secondary:'#F8FAFC',dark:'#F1F5F9'
-      };
-
-      function buildItem(data, isModule) {
-        var a = document.createElement('a');
-        a.href = data.url;
-        a.className = 'qs-item';
-        a.setAttribute('role','option');
-        var color = colorMap[data.color] || '#6B7280';
-        var bg    = bgMap[data.color]   || '#F8FAFC';
-        var body  = '<div class="qs-icon" style="background:' + bg + ';color:' + color + '">'
-                  + '<i class="bi ' + data.icon + '"></i></div>'
-                  + '<div style="flex:1;min-width:0">'
-                  + '<div class="qs-label">' + esc(data.label) + '</div>';
-        if (data.sub) body += '<div class="qs-sub">' + esc(data.sub) + '</div>';
-        body += '</div>';
-        if (data.badge) body += '<span class="badge qs-badge" style="background:' + bg + ';color:' + color + ';border:1px solid ' + color + '40">' + esc(data.badge) + '</span>';
-        a.innerHTML = body;
-        return a;
-      }
-
-      function esc(s) {
-        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-      }
-
-      function render(data) {
-        drop.innerHTML = '';
-        items = [];
-        var any = false;
-
-        if (data.modules && data.modules.length) {
-          any = true;
-          var h = document.createElement('div');
-          h.className = 'qs-section-head';
-          h.textContent = 'Moduły';
-          drop.appendChild(h);
-          data.modules.forEach(function(m) {
-            var el = buildItem(m, true);
-            drop.appendChild(el);
-            items.push(el);
-          });
-        }
-
-        if (data.results && data.results.length) {
-          any = true;
-          var h2 = document.createElement('div');
-          h2.className = 'qs-section-head';
-          h2.textContent = 'Wyniki';
-          drop.appendChild(h2);
-          data.results.forEach(function(r) {
-            var el = buildItem(r, false);
-            drop.appendChild(el);
-            items.push(el);
-          });
-        }
-
-        if (any) {
-          var foot = document.createElement('div');
-          foot.className = 'qs-footer';
-          foot.innerHTML = '<a href="' + SRCH + '?q=' + encodeURIComponent(data.query) + '">Pełne wyniki wyszukiwania →</a>';
-          drop.appendChild(foot);
-        } else {
-          drop.innerHTML = '<div style="padding:.75rem .85rem;font-size:.84rem;color:#6B7280">Brak wyników dla <strong>' + esc(data.query) + '</strong></div>';
-        }
-
-        active = -1;
-        show();
-      }
-
-      function show() { drop.style.display = ''; inp.setAttribute('aria-expanded','true'); }
-      function hide() { drop.style.display = 'none'; inp.setAttribute('aria-expanded','false'); active = -1; }
-
-      function setActive(i) {
-        items.forEach(function(el,j){ el.classList.toggle('qs-active', j===i); });
-        active = i;
-      }
-
-      inp.addEventListener('input', function() {
-        var q = this.value.trim();
-        clearTimeout(timer);
-        if (q.length < 2) { hide(); return; }
-        timer = setTimeout(function() {
-          fetch(API + '?q=' + encodeURIComponent(q))
-            .then(function(r){ return r.json(); })
-            .then(render)
-            .catch(function(){ hide(); });
-        }, 160);
-      });
-
-      inp.addEventListener('keydown', function(e) {
-        if (drop.style.display === 'none') return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(active+1, items.length-1)); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(active-1, 0)); }
-        else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); items[active].click(); }
-        else if (e.key === 'Escape') { hide(); inp.blur(); }
-      });
-
-      document.addEventListener('click', function(e) {
-        if (!wrap.contains(e.target)) hide();
-      });
-    })();
-    </script>
     <button type="button"
             id="shortcuts-hint"
             onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}))"
@@ -1450,6 +918,174 @@ if ($_user) {
 </div><!-- /.container-fluid -->
 </nav><!-- /#navbar -->
 
+<?php /* ── Command palette (Ctrl+K) — wyszukiwarka menu + danych ─────────────── */ ?>
+<?php if ($_user):
+  $_cmdk_index = function_exists('menu_search_index') ? menu_search_index($_menu['tree'] ?? []) : [];
+?>
+<div id="cmdk-root" hidden></div>
+<script>window.__feerCmdk = <?= json_encode([
+  'appUrl' => APP_URL,
+  'items'  => $_cmdk_index,
+  'api'    => APP_URL . '/api/search_quick.php',
+  'search' => APP_URL . '/search.php',
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;</script>
+<style>
+#cmdk-root *{box-sizing:border-box}
+.cmdk-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:5000;display:flex;align-items:flex-start;justify-content:center;animation:cmdkFade .12s ease both}
+@keyframes cmdkFade{from{opacity:0}to{opacity:1}}
+@keyframes cmdkPop{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+.cmdk-panel{margin-top:9vh;width:min(640px,calc(100vw - 24px));max-height:74vh;background:#fff;border-radius:16px;
+  box-shadow:0 24px 70px rgba(2,6,23,.35);display:flex;flex-direction:column;overflow:hidden;animation:cmdkPop .16s ease both}
+.cmdk-inbar{display:flex;align-items:center;gap:.6rem;padding:.85rem 1rem;border-bottom:1px solid #eef2f7}
+.cmdk-inbar>.bi{color:#94a3b8;font-size:1.05rem}
+.cmdk-inbar input{flex:1;border:0;outline:0;font-size:1rem;color:#0f172a;background:transparent}
+.cmdk-esc{font-size:.62rem;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:6px;padding:.15rem .4rem;flex-shrink:0}
+.cmdk-scroll{overflow-y:auto;padding:.3rem .4rem .45rem}
+.cmdk-sec{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94a3b8;padding:.6rem .85rem .25rem}
+.cmdk-item{display:flex;align-items:center;gap:.7rem;padding:.5rem .7rem;border-radius:10px;text-decoration:none;color:#334155;cursor:pointer}
+.cmdk-ic{width:32px;height:32px;border-radius:9px;background:#f1f5f9;color:#475569;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.cmdk-tx{flex:1;min-width:0}
+.cmdk-lb{font-size:.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmdk-sb{font-size:.74rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmdk-item .badge{flex-shrink:0}
+.cmdk-item.cmdk-on,.cmdk-item:hover{background:#eff6ff;color:#1d4ed8}
+.cmdk-item.cmdk-on .cmdk-ic,.cmdk-item:hover .cmdk-ic{background:#dbeafe;color:#1d4ed8}
+.cmdk-empty{padding:1.5rem;text-align:center;color:#94a3b8;font-size:.86rem}
+.cmdk-foot{border-top:1px solid #f1f5f9;padding:.5rem .9rem;font-size:.72rem;color:#94a3b8;display:flex;gap:1.1rem;align-items:center;flex-wrap:wrap}
+.cmdk-foot kbd{background:#f1f5f9;border-radius:5px;padding:.05rem .35rem;font-size:.7rem;color:#475569;border:0}
+@media(prefers-reduced-motion:reduce){.cmdk-backdrop,.cmdk-panel{animation:none!important}}
+</style>
+<script>
+(function(){
+  var cfg = window.__feerCmdk; if(!cfg) return;
+  var root = document.getElementById('cmdk-root'); if(!root) return;
+  if(root.parentNode !== document.body) document.body.appendChild(root);
+
+  var open=false, query='', active=0, flat=[], menuRes=[], dataRes=[], timer=null, seq=0;
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  function filterMenu(q){
+    if(!q) return cfg.items.slice(0,60);
+    var lq=q.toLowerCase();
+    var starts=[], contains=[];
+    cfg.items.forEach(function(it){
+      var lbl=(it.label||'').toLowerCase();
+      var hay=(lbl+' '+(it.sub||'')+' '+(it.kw||'')).toLowerCase();
+      if(lbl.indexOf(lq)===0) starts.push(it);
+      else if(hay.indexOf(lq)>=0) contains.push(it);
+    });
+    return starts.concat(contains).slice(0,60);
+  }
+
+  function itemHTML(it, idx, kind){
+    var url = kind==='menu' ? (cfg.appUrl + it.path) : it.url;
+    var badge = it.badge ? '<span class="badge bg-warning text-dark">'+esc(it.badge)+'</span>' : '';
+    var sub = it.sub ? '<div class="cmdk-sb">'+esc(it.sub)+'</div>' : '';
+    return '<a class="cmdk-item'+(idx===active?' cmdk-on':'')+'" data-idx="'+idx+'" href="'+esc(url)+'">'
+      +'<span class="cmdk-ic"><i class="bi '+esc(it.icon)+'"></i></span>'
+      +'<span class="cmdk-tx"><div class="cmdk-lb">'+esc(it.label)+'</div>'+sub+'</span>'+badge+'</a>';
+  }
+
+  function renderList(){
+    var scroll = document.getElementById('cmdk-scroll'); if(!scroll) return;
+    flat = [];
+    var html='';
+    if(menuRes.length){
+      html+='<div class="cmdk-sec">Menu</div>';
+      menuRes.forEach(function(m){ var i=flat.length; flat.push({kind:'menu',d:m}); html+=itemHTML(m,i,'menu'); });
+    }
+    if(dataRes.length){
+      html+='<div class="cmdk-sec">Dane</div>';
+      dataRes.forEach(function(d){ var i=flat.length; flat.push({kind:'data',d:d}); html+=itemHTML(d,i,'data'); });
+    }
+    if(!flat.length) html='<div class="cmdk-empty">Brak wyników'+(query?' dla „'+esc(query)+'”':'')+'.</div>';
+    scroll.innerHTML=html;
+    if(active>=flat.length) active=Math.max(0,flat.length-1);
+    markActive(false);
+  }
+
+  function markActive(scrollTo){
+    var scroll=document.getElementById('cmdk-scroll'); if(!scroll) return;
+    var nodes=scroll.querySelectorAll('.cmdk-item');
+    nodes.forEach(function(n){ n.classList.toggle('cmdk-on', +n.getAttribute('data-idx')===active); });
+    if(scrollTo && nodes[active]) nodes[active].scrollIntoView({block:'nearest'});
+  }
+
+  function fetchData(q){
+    if(q.length<2){ dataRes=[]; renderList(); return; }
+    var mine=++seq;
+    fetch(cfg.api+'?q='+encodeURIComponent(q))
+      .then(function(r){return r.json();})
+      .then(function(d){ if(mine!==seq) return; dataRes=(d && d.results)?d.results:[]; renderList(); })
+      .catch(function(){ if(mine===seq){ dataRes=[]; renderList(); } });
+  }
+
+  function onInput(v){
+    query=v; active=0;
+    menuRes=filterMenu(query);
+    renderList();
+    clearTimeout(timer);
+    timer=setTimeout(function(){ fetchData(query.trim()); }, 170);
+  }
+
+  function go(){
+    if(!flat.length) return;
+    var e=flat[active]; if(!e) return;
+    var url = e.kind==='menu' ? (cfg.appUrl + e.d.path) : e.d.url;
+    window.location.href = url;
+  }
+
+  function openPalette(){
+    if(open) return; open=true;
+    query=''; active=0; menuRes=filterMenu(''); dataRes=[];
+    root.hidden=false;
+    root.innerHTML='<div class="cmdk-backdrop" data-cmdk-close="1">'
+      +'<div class="cmdk-panel" role="dialog" aria-modal="true" aria-label="Wyszukiwarka menu">'
+      +'<div class="cmdk-inbar"><i class="bi bi-search"></i>'
+      +'<input id="cmdk-input" type="text" placeholder="Szukaj w menu i danych…" autocomplete="off" spellcheck="false" aria-label="Szukaj w menu i danych">'
+      +'<span class="cmdk-esc">ESC</span></div>'
+      +'<div class="cmdk-scroll" id="cmdk-scroll"></div>'
+      +'<div class="cmdk-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> nawigacja</span><span><kbd>↵</kbd> otwórz</span><span><kbd>esc</kbd> zamknij</span></div>'
+      +'</div></div>';
+    renderList();
+    var inp=document.getElementById('cmdk-input');
+    inp.addEventListener('input', function(){ onInput(this.value); });
+    document.getElementById('cmdk-scroll').addEventListener('mousemove', function(e){
+      var a=e.target.closest('.cmdk-item'); if(a){ active=+a.getAttribute('data-idx'); markActive(false); }
+    });
+    root.querySelector('.cmdk-backdrop').addEventListener('click', function(e){
+      if(e.target && e.target.getAttribute('data-cmdk-close')==='1') closePalette();
+    });
+    setTimeout(function(){ inp.focus(); }, 20);
+  }
+
+  function closePalette(){
+    if(!open) return; open=false;
+    root.hidden=true; root.innerHTML='';
+  }
+
+  document.addEventListener('keydown', function(e){
+    // Ctrl/Cmd+K → otwórz/zamknij
+    if((e.ctrlKey||e.metaKey) && !e.altKey && (e.key==='k'||e.key==='K')){
+      e.preventDefault(); open?closePalette():openPalette(); return;
+    }
+    if(!open) return;
+    if(e.key==='Escape'){ e.preventDefault(); closePalette(); }
+    else if(e.key==='ArrowDown'){ e.preventDefault(); if(flat.length){ active=(active+1)%flat.length; markActive(true);} }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); if(flat.length){ active=(active-1+flat.length)%flat.length; markActive(true);} }
+    else if(e.key==='Enter'){ e.preventDefault(); go(); }
+  });
+
+  // Wyzwalacze otwarcia: pole w topbarze + dowolny element [data-cmdk-open]
+  document.addEventListener('click', function(e){
+    var t=e.target.closest('#cmdk-trigger,[data-cmdk-open]');
+    if(t){ e.preventDefault(); openPalette(); }
+  });
+})();
+</script>
+<?php endif; ?>
+
 <?php if (str_contains($_uri, '/ezd/')): ?>
 <!-- Tryb pełnoekranowy EZD — chowa menu górne, stan zapamiętany w localStorage -->
 <style>
@@ -1494,28 +1130,16 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
     <div class="px-2 py-2 mb-1" style="font-size:.8rem;opacity:.7"><?= h($_user['name']) ?> · <a href="<?= APP_URL ?>/auth/logout.php" style="color:inherit">Wyloguj</a></div>
     <?php endif; ?>
     <a class="oc-link<?= _nav_active('/index') ?>" href="<?= APP_URL ?>/index.php"><i class="bi bi-house me-2"></i>Strona główna</a>
-    <?php if ($_user && !is_ezd_only() && can_edit()): ?>
-    <div class="oc-section">Umowy</div>
-    <a class="oc-link<?= str_contains($_uri,'/contracts/') ? ' active' : '' ?>" href="<?= APP_URL ?>/contracts/wolontariat/list.php"><i class="bi bi-file-text me-2"></i>Umowy</a>
-    <a class="oc-link<?= str_contains($_uri,'/contracts/rekrutacja/') ? ' active' : '' ?>" href="<?= APP_URL ?>/contracts/rekrutacja/index.php"><i class="bi bi-megaphone me-2"></i>Zgłoszenia</a>
-    <div class="oc-section">Finanse</div>
-    <a class="oc-link<?= _nav_active('/grants/') ?>" href="<?= APP_URL ?>/grants/index.php"><i class="bi bi-cash-coin me-2"></i>Granty</a>
-    <a class="oc-link<?= _nav_active('/contracts/zwroty/') ?>" href="<?= APP_URL ?>/contracts/zwroty/index.php"><i class="bi bi-receipt-cutoff me-2"></i>Zwroty kosztów</a>
-    <div class="oc-section">IT / RODO</div>
-    <a class="oc-link<?= _nav_active('/it/index') ?>" href="<?= APP_URL ?>/it/index.php"><i class="bi bi-hdd-network me-2"></i>IT</a>
-    <a class="oc-link<?= _nav_active('/rodo/') ?>" href="<?= APP_URL ?>/rodo/index.php"><i class="bi bi-shield-lock me-2"></i>RODO</a>
-    <div class="oc-section">Więcej</div>
-    <a class="oc-link<?= _nav_active('/persons/') ?>" href="<?= APP_URL ?>/persons/index.php"><i class="bi bi-people me-2"></i>Osoby</a>
-    <a class="oc-link<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php"><i class="bi bi-mailbox me-2"></i>Korespondencja</a>
-    <?php if (is_admin()): ?>
-    <div class="oc-section">Admin</div>
-    <a class="oc-link<?= _nav_active('/admin/index') ?>" href="<?= APP_URL ?>/admin/index.php"><i class="bi bi-shield-shaded me-2"></i>Panel admina</a>
-    <?php endif; ?>
-    <?php elseif ($_user && !is_ezd_only()): ?>
-    <a class="oc-link<?= _nav_active('/panel/index') ?>" href="<?= APP_URL ?>/panel/index.php"><i class="bi bi-person-circle me-2"></i>Moja umowa</a>
-    <a class="oc-link<?= _nav_active('/panel/m365') ?>" href="<?= APP_URL ?>/panel/m365.php"><i class="bi bi-microsoft me-2"></i>Microsoft 365</a>
-    <a class="oc-link<?= _nav_active('/panel/sessions') ?>" href="<?= APP_URL ?>/panel/sessions.php"><i class="bi bi-shield-lock me-2"></i>Sesje</a>
-    <?php endif; ?>
+    <?php if ($_user): foreach (($_menu['tree'] ?? []) as $_n): ?>
+      <?php if (!empty($_n['path']) && empty($_n['groups'])): ?>
+    <a class="oc-link<?= !empty($_n['active']) ? ' active' : '' ?>" href="<?= APP_URL . h($_n['path']) ?>"><i class="bi <?= h($_n['icon']) ?> me-2"></i><?= h($_n['label']) ?></a>
+      <?php else: ?>
+    <div class="oc-section"><?= h($_n['label']) ?></div>
+        <?php foreach ($_n['groups'] as $_g): foreach ($_g['items'] as $_it): ?>
+    <a class="oc-link<?= !empty($_it['active']) ? ' active' : '' ?>" href="<?= APP_URL . h($_it['path']) ?>"><i class="bi <?= h($_it['icon']) ?> me-2"></i><?= h($_it['label']) ?><?php if (!empty($_it['badge'])): ?><span class="badge bg-warning text-dark"><?= (int)$_it['badge'] ?></span><?php endif; ?></a>
+        <?php endforeach; endforeach; ?>
+      <?php endif; ?>
+    <?php endforeach; endif; ?>
   </div>
 </div>
 
