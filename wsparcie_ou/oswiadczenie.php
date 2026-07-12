@@ -38,6 +38,13 @@ $fmtG  = fn($x) => rtrim(rtrim(number_format((float)$x, 2, ',', ' '), '0'), ',')
 $mies  = $w['miesiac'];
 $decDate = $w['decided_at'] ? substr($w['decided_at'], 0, 10) : date('Y-m-d');
 
+// Różnica godzin względem poprzedniego miesiąca (ten sam podmiot)
+$prevInfo  = wsparcie_ou_prev_month_hours($w['podmiot_krs'], $w['podmiot_nazwa'], $mies);
+$prevHours = $prevInfo['hours'];
+$prevMies  = $prevInfo['prev'];
+$diff      = $prevHours === null ? null : ((float)$w['liczba_godzin'] - $prevHours);
+$diffStr   = $diff === null ? '—' : (($diff > 0 ? '+' : ($diff < 0 ? '−' : '')) . $fmtG(abs($diff)) . ' h');
+
 require_once dirname(__DIR__) . '/includes/fpdf/fpdf.php';
 $FD = dirname(__DIR__) . '/includes/fpdf/font/';
 $pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
@@ -63,7 +70,12 @@ try {
     $pdf->SetXY(18 + $W * 0.62, $topY);
     $pdf->SetFont('DejaVu', '', 9);
     $pdf->MultiCell($W * 0.38, 5, $pl(($org_miejsc ? $org_miejsc . ', ' : '') . 'dnia ' . $decDate . ' r.'), 0, 'R');
-    $pdf->SetY(max($endLeftY, $topY) + 10);
+    $pdf->SetY(max($endLeftY, $topY) + 6);
+
+    // Linia oddzielająca nagłówek
+    $pdf->SetDrawColor(40, 40, 40); $pdf->SetLineWidth(0.4);
+    $ry = $pdf->GetY(); $pdf->Line(18, $ry, 18 + $W, $ry);
+    $pdf->SetLineWidth(0.2); $pdf->Ln(8);
 
     // Tytuł
     $pdf->SetFont('DejaVu', 'B', 15);
@@ -71,7 +83,11 @@ try {
     $pdf->SetFont('DejaVu', '', 9.5); $pdf->SetTextColor(70, 70, 70);
     $pdf->MultiCell($W, 5, $pl('w sprawie ewidencji wsparcia zewnętrznego'), 0, 'C');
     $pdf->SetTextColor(0, 0, 0);
-    $pdf->Ln(8);
+    // Krótka linia dekoracyjna pod tytułem
+    $cy = $pdf->GetY() + 2; $pdf->SetDrawColor(150, 165, 185);
+    $pdf->Line(18 + $W / 2 - 25, $cy, 18 + $W / 2 + 25, $cy);
+    $pdf->SetDrawColor(150, 165, 185);
+    $pdf->Ln(9);
 
     // Treść
     $pdf->SetFont('DejaVu', '', 11);
@@ -94,6 +110,8 @@ try {
     if ($w['podmiot_adres']) $row('Adres', $w['podmiot_adres']);
     $row('Okres (miesiąc)', $mies);
     $row('Liczba godzin wsparcia', $fmtG($w['liczba_godzin']) . ' h');
+    $row('Poprzedni miesiąc (' . $prevMies . ')', $prevHours === null ? 'brak wpisu' : $fmtG($prevHours) . ' h');
+    $row('Różnica godzin (miesiąc do miesiąca)', $diffStr);
     $pdf->Ln(5);
 
     // Rozstrzygnięcie
@@ -120,8 +138,19 @@ try {
         $pdf->SetTextColor(0, 0, 0);
     }
 
+    // Adnotacja urzędowa (tryb złożenia)
+    $pdf->Ln(6);
+    if ($pdf->GetY() > $pdf->GetPageHeight() - 60) $pdf->AddPage();
+    $pdf->SetFont('DejaVu', 'B', 8.5);
+    $pdf->SetFillColor(238, 242, 247); $pdf->SetDrawColor(150, 165, 185);
+    $pdf->Cell($W, 6, $pl('Tryb złożenia'), 1, 1, 'L', true);
+    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->MultiCell($W, 5, $pl('Niniejsze oświadczenie należy zatwierdzić elektronicznie i przesłać za pośrednictwem '
+        . 'systemu SOD Generator NGO do Wydziału Polityki Społecznej, Równości i Zdrowia '
+        . 'Urzędu Miasta Krakowa.'), 1, 'J');
+
     // Podpis zarządu
-    $pdf->Ln(20);
+    $pdf->Ln(18);
     if ($pdf->GetY() > $pdf->GetPageHeight() - 40) $pdf->AddPage();
     $sigW = 82; $sigX = 18 + $W - $sigW; $ySig = $pdf->GetY() + 8;
     $pdf->SetDrawColor(120, 120, 120);

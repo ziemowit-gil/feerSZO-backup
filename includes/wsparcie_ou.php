@@ -176,3 +176,20 @@ function wsparcie_ou_stats(?string $miesiac = null): array {
 function wsparcie_ou_pending_count(): int {
     return (int)(db_one("SELECT COUNT(*) AS c FROM wsparcie_ou WHERE status='oczekuje'")['c'] ?? 0);
 }
+
+/**
+ * Godziny wsparcia tego samego podmiotu za poprzedni miesiąc (suma wpisów).
+ * Dopasowanie po KRS (gdy jest), w innym wypadku po nazwie.
+ * @return array{prev:string, hours:?float} hours=null gdy brak wpisu za poprzedni miesiąc
+ */
+function wsparcie_ou_prev_month_hours(string $krs, string $nazwa, string $miesiac): array {
+    if (!preg_match('/^\d{4}-\d{2}$/', $miesiac)) return ['prev' => '', 'hours' => null];
+    $prev = date('Y-m', strtotime($miesiac . '-01 -1 month'));
+    $krs  = preg_replace('/\D/', '', $krs);
+    if ($krs !== '') {
+        $r = db_one("SELECT COALESCE(SUM(liczba_godzin),0) AS g, COUNT(*) AS c FROM wsparcie_ou WHERE miesiac=? AND podmiot_krs=?", [$prev, $krs]);
+    } else {
+        $r = db_one("SELECT COALESCE(SUM(liczba_godzin),0) AS g, COUNT(*) AS c FROM wsparcie_ou WHERE miesiac=? AND podmiot_nazwa=?", [$prev, trim($nazwa)]);
+    }
+    return ['prev' => $prev, 'hours' => ($r && (int)$r['c'] > 0) ? (float)$r['g'] : null];
+}
