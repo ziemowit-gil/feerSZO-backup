@@ -45,6 +45,8 @@ $org_regon  = $S('org_regon')     ?: '38311833100000';
 $ris_number = $S('ti_ris_number') ?: 'KR.403.2023';
 $ris_date   = $S('ti_ris_date');
 $ris_voiv   = $S('ti_ris_voivodeship');
+$ris_teryt  = $S('ti_teryt');
+$wup_name   = $S('ti_wup_name');
 $mgr_name   = $S('ti_manager_name');
 $mgr_title  = $S('ti_manager_title') ?: 'Kierownik';
 
@@ -282,7 +284,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         if ($reg)        $pdf->MultiCell($W * 0.62, 4, $pl($reg), 0, 'L');
         $risLine = 'Nr wpisu do RIS: ' . $ris_number . ($ris_date ? '  (z dnia ' . $ris_date . ')' : '');
         $pdf->MultiCell($W * 0.62, 4, $pl($risLine), 0, 'L');
-        if ($ris_voiv) $pdf->MultiCell($W * 0.62, 4, $pl('Województwo: ' . $ris_voiv), 0, 'L');
+        $geoLine = trim(($ris_voiv ? 'Województwo: ' . $ris_voiv : '') . ($ris_teryt ? ($ris_voiv ? '   ·   ' : '') . 'TERYT: ' . $ris_teryt : ''));
+        if ($geoLine) $pdf->MultiCell($W * 0.62, 4, $pl($geoLine), 0, 'L');
         $endLeftY = $pdf->GetY();
         $pdf->SetXY(14 + $W * 0.62, $topY);
         $pdf->SetFont('DejaVu', '', 8.5);
@@ -294,8 +297,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
         $pdf->SetFont('DejaVu', 'B', 13);
         $pdf->MultiCell($W, 6.5, $pl('ZESTAWIENIE ZAJĘĆ / SPRAWOZDANIE'), 0, 'C');
         $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(70, 70, 70);
-        $pdf->MultiCell($W, 4.5, $pl('dla Wojewódzkiego Urzędu Pracy — na podstawie ustawy z dnia 20 kwietnia 2004 r. '
-            . 'o promocji zatrudnienia i instytucjach rynku pracy'), 0, 'C');
+        $pdf->MultiCell($W, 4.5, $pl('dla ' . ($wup_name !== '' ? $wup_name : 'Wojewódzkiego Urzędu Pracy')
+            . ' — na podstawie ustawy z dnia 20 kwietnia 2004 r. o promocji zatrudnienia i instytucjach rynku pracy'), 0, 'C');
         $pdf->SetTextColor(0, 0, 0);
         $pdf->SetFont('DejaVu', 'B', 9.5);
         $pdf->MultiCell($W, 5.5, $pl('za okres: ' . $period_txt), 0, 'C');

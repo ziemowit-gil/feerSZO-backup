@@ -21,7 +21,9 @@ $can_write = can_write('karty30') || is_admin();
 $RIS_KEYS = [
     'ti_ris_number'      => ['Numer wpisu do RIS',        'np. 2.12/00123/2023'],
     'ti_ris_date'        => ['Data wpisu do RIS',         'RRRR-MM-DD'],
-    'ti_ris_voivodeship' => ['Województwo (właściwy WUP)','np. małopolskie'],
+    'ti_ris_voivodeship' => ['Województwo',               'np. małopolskie'],
+    'ti_wup_name'        => ['Właściwy WUP',              'np. Wojewódzki Urząd Pracy w Krakowie'],
+    'ti_teryt'           => ['Kod terytorialny (TERYT) jednostki', 'np. 1261011'],
     'ti_manager_name'    => ['Kierownik — imię i nazwisko','np. Jan Kowalski'],
     'ti_manager_title'   => ['Kierownik — stanowisko',    'np. Prezes Zarządu'],
 ];
