@@ -1,1 +1,3 @@
-DirectoryIndex index.html
+<FilesMatch "\.yaml$">
+    Require all denied
+</FilesMatch>

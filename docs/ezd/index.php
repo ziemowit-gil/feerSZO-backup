@@ -1,3 +1,24 @@
+<?php
+/**
+ * docs/ezd/index.php — Swagger UI dla specyfikacji HTTP modułu EZD.
+ * Dokumentacja opisuje wewnętrzne API — dostęp tylko dla zalogowanych przez
+ * Microsoft 365 (konto @feer.org.pl). Niezalogowani trafiają wprost do
+ * ekranu logowania MS365 (bez ekranu wyboru metody, jak auth/ms365.php).
+ */
+require_once dirname(__DIR__, 2) . '/config.php';
+require_once dirname(__DIR__, 2) . '/includes/db.php';
+require_once dirname(__DIR__, 2) . '/includes/auth.php';
+
+if (!current_user()) {
+    $uri  = $_SERVER['REQUEST_URI'] ?? '/';
+    $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+    if ($base !== '' && $base !== '/' && str_starts_with($uri, $base . '/')) {
+        $uri = substr($uri, strlen($base));
+    }
+    header('Location: ' . APP_URL . '/auth/ms365.php?redirect=' . urlencode(APP_URL . $uri));
+    exit;
+}
+?>
 <!doctype html>
 <html lang="pl">
 <head>
@@ -31,7 +52,7 @@
   <script>
     window.addEventListener('load', function () {
       window.ui = SwaggerUIBundle({
-        url: './openapi.yaml',
+        url: './openapi.php',
         dom_id: '#swagger-ui',
         deepLinking: true,
         docExpansion: 'none',
