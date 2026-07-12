@@ -74,6 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
         'is_active'           => isset($_POST['is_active']) ? 1 : 0,
         'track_attendance'    => isset($_POST['track_attendance']) ? 1 : 0,
+        'is_online'           => isset($_POST['is_online']) ? 1 : 0,
+        'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
 
@@ -198,7 +200,8 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <li><hr class="dropdown-divider"></li>
       <li><h6 class="dropdown-header">Raporty (PDF)</h6></li>
       <li><a class="dropdown-item" href="#raporty-ti"><i class="bi bi-file-earmark-bar-graph me-2"></i>Raporty TI — kreator…</a></li>
-      <li><a class="dropdown-item" href="#raport-wup"><i class="bi bi-bank me-2"></i>Sprawozdanie do WUP…</a></li>
+      <li><a class="dropdown-item" href="wup_report.php"><i class="bi bi-bank me-2"></i>Sprawozdanie do WUP…</a></li>
+      <li><a class="dropdown-item" href="ris.php"><i class="bi bi-card-list me-2"></i>Dane do RIS</a></li>
     </ul>
   </div>
 
@@ -384,6 +387,18 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           Licz frekwencję <span class="text-body-secondary small">(obecność/nieobecność; wyłącz dla kursów bez list obecności)</span>
         </label>
       </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="is_online" id="c_online" <?= !empty($f['is_online'])?'checked':'' ?>>
+        <label class="form-check-label" for="c_online">
+          Zdalne / online <span class="text-body-secondary small">(zajęcia liczone jako online w sprawozdaniu WUP; inaczej — stacjonarne)</span>
+        </label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="wup_exclude" id="c_wupx" <?= !empty($f['wup_exclude'])?'checked':'' ?>>
+        <label class="form-check-label" for="c_wupx">
+          Nie uwzględniaj w raporcie WUP <span class="text-body-secondary small">(grupa pomijana w sprawozdaniu do Urzędu Pracy)</span>
+        </label>
+      </div>
       <div class="form-check form-switch mb-3">
         <input class="form-check-input" type="checkbox" name="is_active" id="c_act" <?= $f['is_active']?'checked':'' ?>>
         <label class="form-check-label" for="c_act">Kurs aktywny</label>
@@ -528,15 +543,16 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <div class="card-header bg-white d-flex align-items-center">
     <i class="bi bi-bank me-2 text-primary"></i>
     <span class="fw-semibold">Sprawozdanie do Wojewódzkiego Urzędu Pracy</span>
-    <span class="ms-2 small text-body-secondary">ustawa o promocji zatrudnienia · PDF</span>
+    <span class="ms-2 small text-body-secondary">ustawa o promocji zatrudnienia · podgląd → PDF</span>
   </div>
   <div class="card-body">
     <p class="text-body-secondary small mb-3">
       <i class="bi bi-info-circle me-1"></i>
-      Zestawienie zajęć wg prowadzących i grup: prowadzący per grupa, liczba osób, liczba uczestników i czas pracy per prowadzący — z miejscem na podpis kierownika.
-      Uwzględnia grupy, w których w podanym okresie odbyły się zajęcia.
+      Podgląd przed wydrukiem: zajęcia wg prowadzących i grup, wskaźniki (zatrudnieni, uczestnicy w tym z niepełnosprawnością, zajęcia online/stacjonarne, odwołania, frekwencja),
+      pola narracyjne i wgranie podpisanego dokumentu. Dane RIS i kierownika ustawisz w zakładce
+      <a href="ris.php">Dane do RIS</a>.
     </p>
-    <form method="get" action="wup_report.php" target="_blank" rel="noopener" class="row g-2 align-items-end">
+    <form method="get" action="wup_report.php" class="row g-2 align-items-end">
       <div class="col-auto">
         <label class="form-label small mb-1">Od</label>
         <input type="date" name="from" value="<?= h(date('Y-m-d', strtotime('first day of last month'))) ?>" class="form-control form-control-sm">
@@ -555,7 +571,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         </select>
       </div>
       <div class="col-auto">
-        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Generuj sprawozdanie</button>
+        <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye me-1"></i>Otwórz podgląd</button>
       </div>
     </form>
   </div>
