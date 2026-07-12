@@ -53,6 +53,9 @@ info:
     - `403` — naruszenie bramy dostępu (`ezd_sprawa_access`, `can_edit`, `is_admin`).
     - `404` — nie znaleziono rekordu / pliku.
 
+    ### Autorzy
+    Ziemowit Gil, Jarosław Połczyński, Sebastian Dzienisowicz — na potrzeby FEER'a.
+
 servers:
   - url: "{APP_URL}"
     description: Instancja SZO (np. https://szo.feer.org.pl)
