@@ -105,6 +105,9 @@ include dirname(__DIR__) . '/includes/header.php';
         <option value="<?= h($z['id']) ?>" <?= $z['id'] === $zone_id ? 'selected' : '' ?>><?= h($z['name']) ?></option>
         <?php endforeach; ?>
       </select>
+      <a href="cloudflare_m365.php?zone=<?= h($zone_id) ?>" class="btn btn-sm btn-outline-primary ms-auto">
+        <i class="bi bi-magic me-1"></i>Autokonfigurator M365
+      </a>
     </form>
   </div>
 </div>
