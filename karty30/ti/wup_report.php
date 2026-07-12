@@ -419,16 +419,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
             $pdf->Ln(2);
         }
 
-        // Przypis metodyczny
-        $pdf->SetFont('DejaVu', '', 6.8); $pdf->SetTextColor(110, 110, 110);
-        $pdf->MultiCell($W, 3.8, $pl(
-            'Czas pracy = suma czasu zajęć odbytych (statusy: odbyła się / zmiana indywidualna / praca własna). '
-            . '1 godz. dydaktyczna = 45 min; godz. zegarowa = 60 min. Liczba osób nie liczy podwójnie osób z kilku grup. '
-            . 'Tryb online/stacjonarny wg oznaczenia grupy. Uczestnicy z niepełnosprawnością = posiadający umowę PFRON. '
-            . 'Frekwencja = obecności ÷ wpisy obecności na zajęciach odbytych (grupy z listą obecności). '
-            . 'Pominięto grupy oznaczone „nie uwzględniaj w WUP" oraz rekordy z „Test" w nazwie.'), 0, 'L');
-        $pdf->SetTextColor(0, 0, 0);
-
         // Podpis kierownika (z danych RIS)
         $pdf->Ln(12);
         if ($pdf->GetY() > $pdf->GetPageHeight() - 30) $pdf->AddPage();
