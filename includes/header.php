@@ -544,7 +544,7 @@ if ($_user) {
   $_on_rodo_nb  = str_contains($_uri, '/rodo/');
   $_on_ezd_nb   = str_contains($_uri, '/ezd/');
   $_on_admin_nb = str_contains($_uri,'/admin/') && !str_contains($_uri,'/admin/messages') && !str_contains($_uri,'/admin/terminations') && !str_contains($_uri,'/admin/certificates') && !str_contains($_uri,'/admin/timesheets') && !str_contains($_uri,'/admin/shipments') && !str_contains($_uri,'/admin/onboarding');
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/') || str_contains($_uri,'/wsparcie_ou/');
 
   try { $_msg_unread_total = msg_unread_admin(); } catch(\Exception $e) { $_msg_unread_total = 0; }
   try { require_once __DIR__ . '/termination.php'; $_term_pending = get_pending_terminations_count(); } catch(\Throwable $e) { $_term_pending = 0; }
@@ -588,6 +588,13 @@ if ($_user) {
     if (is_admin() && module_enabled('vpn_enabled')) {
       require_once __DIR__ . '/vpn.php';
       $_vpn_pending = vpn_pending_count();
+    }
+  } catch (\Throwable $e) {}
+  $_wsparcie_ou_pending = 0;
+  try {
+    if (module_enabled('wsparcie_ou_enabled') && can_edit()) {
+      require_once __DIR__ . '/wsparcie_ou.php';
+      $_wsparcie_ou_pending = wsparcie_ou_pending_count();
     }
   } catch (\Throwable $e) {}
   $_obs_badge = (int)$_hd_open + (int)$_msg_unread_total + ($_alias_is_op ? (int)$_alias_pending : 0) + (int)$_obieg_inbox;
@@ -745,7 +752,7 @@ if ($_user) {
 
   <!-- Więcej -->
   <?php
-  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/');
+  $_wiecej_active = str_contains($_uri,'/persons/') || str_contains($_uri,'/crm/') || str_contains($_uri,'/directory/') || str_contains($_uri,'/org/') || str_contains($_uri,'/byli/') || str_contains($_uri,'/helpdesk/') || str_contains($_uri,'/admin/messages') || str_contains($_uri,'/events/') || str_contains($_uri,'/poczta/') || str_contains($_uri,'/reports/') || str_contains($_uri,'/correspondence/') || str_contains($_uri,'/procedures/') || str_contains($_uri,'/resolutions/') || str_contains($_uri,'/dostepnosc/') || str_contains($_uri,'/asysta/') || str_contains($_uri,'/extforms/') || str_contains($_uri,'/obiegi/') || str_contains($_uri,'/wsparcie_ou/');
   ?>
   <li class="nav-item dropdown">
     <a class="nav-link dropdown-toggle<?= $_wiecej_active ? ' active' : '' ?>"
@@ -794,6 +801,9 @@ if ($_user) {
       <?php endif; ?>
       <li><a class="dropdown-item<?= _nav_active('/correspondence/') ?>" href="<?= APP_URL ?>/correspondence/index.php"><i class="bi bi-mailbox me-2"></i>Korespondencja</a></li>
       <li><a class="dropdown-item<?= _nav_active('/procedures/') ?>" href="<?= APP_URL ?>/procedures/index.php"><i class="bi bi-list-task me-2"></i>Procedury</a></li>
+      <?php if (module_enabled('wsparcie_ou_enabled') && can_edit()): ?>
+      <li><a class="dropdown-item<?= _nav_active('/wsparcie_ou/') ?>" href="<?= APP_URL ?>/wsparcie_ou/index.php"><i class="bi bi-building-add me-2"></i>Wsparcie zewnętrzne OU<?php if (!empty($_wsparcie_ou_pending)): ?><span class="badge bg-warning text-dark ms-2"><?= (int)$_wsparcie_ou_pending ?></span><?php endif; ?></a></li>
+      <?php endif; ?>
       <?php if (module_enabled('doc_signing_enabled')): ?>
       <li><a class="dropdown-item<?= _nav_active('/podpisy/') ?>" href="<?= APP_URL ?>/podpisy/index.php"><i class="bi bi-pen me-2"></i>Podpisz dokument</a></li>
       <?php endif; ?>
