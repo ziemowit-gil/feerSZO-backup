@@ -138,7 +138,11 @@ include dirname(__DIR__) . '/includes/header.php';
             <td class="text-end fw-semibold"><?= $fmtG($r['liczba_godzin']) ?> h</td>
             <td><?= wsparcie_ou_status_badge($r['status']) ?></td>
             <td class="text-end text-nowrap">
-              <?php if (!$can_write): ?><span class="text-muted small">—</span><?php endif; ?>
+              <?php if ($r['status'] !== 'oczekuje'): ?>
+              <button class="btn btn-outline-dark btn-sm py-0 px-2" title="Oświadczenie Zarządu (PDF)"
+                      data-bs-toggle="modal" data-bs-target="#oswModal"
+                      data-osw="<?= (int)$r['id'] ?>" data-lbl="<?= h($r['podmiot_nazwa'].' · '.$r['miesiac']) ?>"><i class="bi bi-file-earmark-pdf me-1"></i>Oświadczenie</button>
+              <?php elseif (!$can_write): ?><span class="text-muted small">—</span><?php endif; ?>
               <?php if ($can_write): ?>
               <?php if ($r['status'] !== 'zatwierdzony'): ?>
               <form method="post" class="d-inline">
@@ -244,6 +248,24 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 <?php endif; /* can_write — modale */ ?>
 
+<!-- Modal: podgląd oświadczenia Zarządu (PDF) -->
+<div class="modal fade" id="oswModal" tabindex="-1" aria-hidden="true" aria-labelledby="oswModalLbl">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content" style="height:90vh">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 mb-0" id="oswModalLbl"><i class="bi bi-file-earmark-pdf text-danger me-2"></i>Oświadczenie Zarządu — <span id="oswLbl" class="fw-normal text-body-secondary"></span></h2>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <a href="#" id="oswDownload" class="btn btn-danger btn-sm"><i class="bi bi-download me-1"></i>Pobierz PDF</a>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+      </div>
+      <div class="modal-body p-0" style="background:#525659">
+        <iframe id="oswFrame" title="Oświadczenie Zarządu — podgląd PDF" style="width:100%;height:100%;border:0"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   var APP = <?= json_encode(APP_URL) ?>;
@@ -302,6 +324,19 @@ include dirname(__DIR__) . '/includes/header.php';
     var b = ev.relatedTarget;
     document.getElementById('rejId').value = b ? b.getAttribute('data-id') : '';
     document.getElementById('rejLbl').textContent = b ? b.getAttribute('data-lbl') : '';
+  });
+
+  // Podgląd oświadczenia Zarządu (PDF w iframe) + pobranie
+  var oswModal = document.getElementById('oswModal');
+  oswModal && oswModal.addEventListener('show.bs.modal', function (ev) {
+    var b = ev.relatedTarget, id = b ? b.getAttribute('data-osw') : '';
+    var base = APP + '/wsparcie_ou/oswiadczenie.php?id=' + encodeURIComponent(id);
+    document.getElementById('oswLbl').textContent = b ? b.getAttribute('data-lbl') : '';
+    document.getElementById('oswFrame').src = base;
+    document.getElementById('oswDownload').setAttribute('href', base + '&dl=1');
+  });
+  oswModal && oswModal.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('oswFrame').src = 'about:blank';   // zwolnij podgląd
   });
 })();
 </script>
