@@ -11,7 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $id  = (int)($_GET['id'] ?? 0);
 $rpw = ezd_rpw_get($id);

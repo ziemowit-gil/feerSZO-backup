@@ -12,7 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/secure_mail.php';
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $user_id    = (int)current_user()['id'];
 $sms_ready  = sms_is_enabled();

@@ -140,7 +140,10 @@ function _permissions_init(): void {
             $ins->execute([$admin_id, $mod, 1, 1, 1]);
             if ($mod !== 'admin') {
                 $ins->execute([$editor_id, $mod, 1, 1, 0]);
-                $ins->execute([$viewer_id, $mod, 1, 0, 0]);
+                // EZD: viewer nie ma domyślnego dostępu — trzeba mu przyznać rolę
+                // ezd_user albo indywidualne uprawnienie (moduł wrażliwy, inaczej
+                // niż resztę modułów z domyślnym odczytem dla viewer).
+                $ins->execute([$viewer_id, $mod, $mod === 'ezd' ? 0 : 1, 0, 0]);
             }
         }
         // crm_user: tylko crm read+write

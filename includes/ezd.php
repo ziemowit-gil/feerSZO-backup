@@ -6,6 +6,19 @@
  *             Każdy poziom: Załączniki, Dekretacje, Log
  */
 
+/**
+ * Bramka dostępu do modułu EZD — wymagana na każdej stronie /ezd/*.
+ * Zgodnie z macierzą uprawnień (admin/ezd_access_matrix.php) dostęp do modułu
+ * ma tylko rola z can_read/can_write('ezd') lub administrator; użytkownik bez
+ * takiego uprawnienia (np. zwykły viewer bez roli EZD) nie wchodzi wcale.
+ */
+function ezd_require_access(): void {
+    if (can_read('ezd') || can_write('ezd')) return;
+    flash_set('error', 'Nie masz dostępu do modułu Wirtualne biurko.');
+    header('Location: ' . APP_URL . '/index.php');
+    exit;
+}
+
 // ── Auto-migracja ─────────────────────────────────────────────────────────────
 (function () {
     static $done = false;

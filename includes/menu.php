@@ -383,7 +383,7 @@ function _menu_editor(): array {
     ];
 
     // ══ WIRTUALNE BIURKO (EZD) ═════════════════════════════════════════════════
-    if (module_enabled('ezd_enabled')) {
+    if (module_enabled('ezd_enabled') && (can_read('ezd') || can_write('ezd'))) {
         $nodes[] = [
             'id'=>'ezd','label'=>'Wirtualne biurko','icon'=>'bi-building-gear','ezd'=>true,
             'active'=>_menu_hit('/ezd/'),

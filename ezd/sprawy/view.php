@@ -11,7 +11,7 @@ if (module_enabled('org_enabled')) {
 }
 
 require_login();
-require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
+require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $id     = (int)($_GET['id'] ?? 0);
 $sprawa = ezd_sprawa_get($id);
