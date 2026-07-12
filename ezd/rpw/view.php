@@ -38,10 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ], $user_id);
             flash_set('success', 'Dane przesyłki zaktualizowane.');
         } elseif ($action === 'przekaz') {
-            $wyk = (int)($_POST['przekazano_do'] ?? 0);
-            if (!$wyk) throw new \RuntimeException('Wybierz referenta.');
+            $wyk = (int)($_POST['przekazano_unit_id'] ?? 0);
+            if (!$wyk) throw new \RuntimeException('Wybierz jednostkę.');
             ezd_rpw_przekaz($id, $wyk, $user_id);
-            flash_set('success', 'Przesyłkę przekazano referentowi.');
+            flash_set('success', 'Przesyłkę przekazano do jednostki.');
         } elseif ($action === 'odrzuc') {
             ezd_rpw_odrzuc($id, $user_id, trim($_POST['powod'] ?? ''));
             flash_set('success', 'Przesyłkę oznaczono jako odrzuconą.');
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $PAGE_TITLE = ezd_rpw_label($rpw);
 $typ      = EZD_RPW_TYPY[$rpw['typ']] ?? ['label'=>$rpw['typ'],'icon'=>'bi-envelope'];
 $locked   = $rpw['status'] === 'w_sprawie';
-$users    = $locked ? [] : db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
+$units    = $locked ? [] : ezd_org_units();
 $teczki   = $locked ? [] : ezd_teczki_all('open');
 $sprawy   = $locked ? [] : ezd_sprawy_all(['status'=>'']);
 $sprawy   = array_filter($sprawy, fn($s)=>$s['status']!=='closed');
@@ -209,18 +209,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
     <!-- Przekazanie / odrzucenie -->
     <div class="card shadow-sm mb-3"><div class="card-body">
-      <div class="fw-semibold mb-2" style="font-size:.82rem"><i class="bi bi-person-up me-1"></i>Przekaż do referenta</div>
+      <div class="fw-semibold mb-2" style="font-size:.82rem"><i class="bi bi-diagram-3 me-1"></i>Przekaż do jednostki</div>
       <form method="post" class="d-flex gap-2 mb-3">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="przekaz">
-        <select name="przekazano_do" class="form-select form-select-sm" required>
-          <option value="">— osoba —</option>
-          <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>" <?= (int)$rpw['przekazano_do']===$u['id']?'selected':'' ?>><?= h($u['name']) ?></option><?php endforeach; ?>
+        <select name="przekazano_unit_id" class="form-select form-select-sm" required>
+          <option value="">— jednostka —</option>
+          <?php foreach($units as $u): ?><option value="<?= (int)$u['id'] ?>" <?= (int)$rpw['przekazano_unit_id']===(int)$u['id']?'selected':'' ?>><?= h(ezd_unit_label($u)) ?></option><?php endforeach; ?>
         </select>
-        <button class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-send"></i></button>
+        <button class="btn btn-sm btn-outline-primary text-nowrap" <?= $units?'':'disabled' ?>><i class="bi bi-send"></i></button>
       </form>
-      <?php if($rpw['przekazano_name']): ?>
-      <div class="text-muted mb-3" style="font-size:.76rem">Obecnie w koszulce: <strong><?= h($rpw['przekazano_name']) ?></strong></div>
+      <?php if(!$units && !$locked): ?><div class="text-warning-emphasis mb-3" style="font-size:.74rem"><i class="bi bi-exclamation-triangle me-1"></i>Brak jednostek — zdefiniuj w „Struktura organizacyjna".</div><?php endif; ?>
+      <?php if(!empty($rpw['przekazano_unit_name'])): ?>
+      <div class="text-muted mb-3" style="font-size:.76rem">Obecnie w koszulce: <strong><?= h($rpw['przekazano_unit_name']) ?></strong></div>
       <?php endif; ?>
 
       <details>

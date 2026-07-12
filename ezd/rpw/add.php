@@ -13,17 +13,17 @@ require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko');
 if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/rpw/index.php'); exit; }
 
 $PAGE_TITLE = 'Rejestracja przesyłki';
-$users = db_all("SELECT id,name FROM users WHERE is_active=1 ORDER BY name");
+$units = ezd_org_units();
 $today = date('Y-m-d');
 
 $row = [
-    'data_wplywu'   => $today,
-    'typ'           => 'list',
-    'nadawca'       => '',
-    'znak_obcy'     => '',
-    'opis'          => '',
-    'uwagi'         => '',
-    'przekazano_do' => '',
+    'data_wplywu'        => $today,
+    'typ'                => 'list',
+    'nadawca'            => '',
+    'znak_obcy'          => '',
+    'opis'               => '',
+    'uwagi'              => '',
+    'przekazano_unit_id' => '',
 ];
 $errors = [];
 
@@ -35,8 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'nadawca'       => trim($_POST['nadawca'] ?? ''),
         'znak_obcy'     => trim($_POST['znak_obcy'] ?? ''),
         'opis'          => trim($_POST['opis'] ?? ''),
-        'uwagi'         => trim($_POST['uwagi'] ?? ''),
-        'przekazano_do' => (int)($_POST['przekazano_do'] ?? 0) ?: null,
+        'uwagi'              => trim($_POST['uwagi'] ?? ''),
+        'przekazano_unit_id' => (int)($_POST['przekazano_unit_id'] ?? 0) ?: null,
     ];
     if (!$row['opis']) $errors[] = 'Opis / przedmiot przesyłki jest wymagany.';
     if (!array_key_exists($row['typ'], EZD_RPW_TYPY)) $errors[] = 'Nieprawidłowy sposób doręczenia.';
@@ -115,11 +115,12 @@ $next_nr = _ezd_next_rpw((int)date('Y'));
 
   <div class="row g-3">
     <div class="col-md-6">
-      <label class="form-label fw-semibold">Przekaż do referenta <span class="text-muted fw-normal">(opcjonalnie)</span></label>
-      <select name="przekazano_do" class="form-select">
+      <label class="form-label fw-semibold">Przekaż do jednostki <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+      <select name="przekazano_unit_id" class="form-select">
         <option value="">— pozostaw w koszulce —</option>
-        <?php foreach($users as $u): ?><option value="<?= $u['id'] ?>" <?= (int)$row['przekazano_do']===$u['id']?'selected':'' ?>><?= h($u['name']) ?></option><?php endforeach; ?>
+        <?php foreach($units as $u): ?><option value="<?= (int)$u['id'] ?>" <?= (int)$row['przekazano_unit_id']===(int)$u['id']?'selected':'' ?>><?= h(ezd_unit_label($u)) ?></option><?php endforeach; ?>
       </select>
+      <?php if(!$units): ?><div class="form-text text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>Brak zdefiniowanych jednostek — dodaj je w module „Struktura organizacyjna".</div><?php endif; ?>
     </div>
     <div class="col-md-6">
       <label class="form-label fw-semibold">Skan przesyłki <span class="text-muted fw-normal">(opcjonalnie)</span></label>

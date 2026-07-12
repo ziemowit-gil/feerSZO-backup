@@ -133,7 +133,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php if($r['znak_sprawy']): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $r['sprawa_id'] ?>" onclick="event.stopPropagation()" class="font-monospace text-decoration-none" style="font-size:.72rem"><i class="bi bi-folder2-open me-1"></i><?= h($r['znak_sprawy']) ?></a><?php endif; ?>
           </td>
           <td><?= ezd_rpw_status_badge($r['status']) ?>
-            <?php if($r['przekazano_name'] && $r['status']==='przekazana'): ?><div class="text-muted" style="font-size:.68rem"><?= h($r['przekazano_name']) ?></div><?php endif; ?>
+            <?php if(!empty($r['przekazano_unit_name']) && $r['status']==='przekazana'): ?><div class="text-muted" style="font-size:.68rem"><i class="bi bi-diagram-3 me-1"></i><?= h($r['przekazano_unit_name']) ?></div><?php endif; ?>
           </td>
           <td class="text-end"><i class="bi bi-chevron-right text-muted"></i></td>
         </tr>

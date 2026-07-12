@@ -343,6 +343,7 @@
         "ALTER TABLE ezd_teczki     ADD COLUMN arch_spis_id   INTEGER REFERENCES ezd_arch_spisy(id) ON DELETE SET NULL",
         "ALTER TABLE ezd_teczki     ADD COLUMN rok_brakowania INTEGER",
         "ALTER TABLE ezd_teczki     ADD COLUMN arch_at        DATETIME",
+        "ALTER TABLE ezd_rpw        ADD COLUMN przekazano_unit_id INTEGER",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -1520,18 +1521,50 @@ function ezd_rpw_label(array $r): string {
     return 'RPW ' . $r['rpw_nr'] . '/' . $r['rok'];
 }
 
+/** Aktywne jednostki organizacyjne do wyboru w dzienniku podawczym.
+ *  Defensywnie — pusta lista, gdy moduł „Struktura organizacyjna" nieobecny. */
+function ezd_org_units(): array {
+    try {
+        return db_all("SELECT id, code, name, short_name FROM org_units WHERE status='active' ORDER BY sort_order, name");
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Etykieta jednostki: „KOD — Nazwa". */
+function ezd_unit_label(array $u): string {
+    $n = trim((string)($u['name'] ?? ''));
+    return !empty($u['code']) ? trim($u['code'] . ' — ' . $n) : $n;
+}
+
+/** Mapa id => nazwa jednostki (defensywnie). */
+function _ezd_unit_names(array $ids): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) return [];
+    try {
+        $in  = implode(',', array_fill(0, count($ids), '?'));
+        $out = [];
+        foreach (db_all("SELECT id, name FROM org_units WHERE id IN ($in)", $ids) as $u) {
+            $out[(int)$u['id']] = $u['name'];
+        }
+        return $out;
+    } catch (\Throwable $e) { return []; }
+}
+
 function ezd_rpw_get(int $id): ?array {
-    return db_one(
+    $r = db_one(
         "SELECT r.*, s.znak_sprawy, s.title AS sprawa_title,
                 p.title AS pismo_title, p.sygnatura AS pismo_sygnatura,
-                u.name AS przekazano_name, c.name AS creator_name
+                c.name AS creator_name
          FROM ezd_rpw r
          LEFT JOIN ezd_sprawy s ON s.id = r.sprawa_id
          LEFT JOIN ezd_pisma  p ON p.id = r.pismo_id
-         LEFT JOIN users      u ON u.id = r.przekazano_do
          LEFT JOIN users      c ON c.id = r.created_by
          WHERE r.id=?", [$id]
     );
+    if ($r) {
+        $nm = _ezd_unit_names([$r['przekazano_unit_id'] ?? 0]);
+        $r['przekazano_unit_name'] = $nm[(int)($r['przekazano_unit_id'] ?? 0)] ?? '';
+    }
+    return $r;
 }
 
 function ezd_rpw_all(array $f = []): array {
@@ -1543,16 +1576,21 @@ function ezd_rpw_all(array $f = []): array {
         $where[] = "(r.opis LIKE ? OR r.nadawca LIKE ? OR r.znak_obcy LIKE ?)";
         $q = '%'.$f['q'].'%'; $params[] = $q; $params[] = $q; $params[] = $q;
     }
-    return db_all(
-        "SELECT r.*, s.znak_sprawy, u.name AS przekazano_name
+    $rows = db_all(
+        "SELECT r.*, s.znak_sprawy
          FROM ezd_rpw r
          LEFT JOIN ezd_sprawy s ON s.id = r.sprawa_id
-         LEFT JOIN users      u ON u.id = r.przekazano_do
          WHERE " . implode(' AND ', $where) . "
          ORDER BY r.rok DESC, r.rpw_nr DESC
          LIMIT 500",
         $params
     );
+    $names = _ezd_unit_names(array_column($rows, 'przekazano_unit_id'));
+    foreach ($rows as &$r) {
+        $r['przekazano_unit_name'] = $names[(int)($r['przekazano_unit_id'] ?? 0)] ?? '';
+    }
+    unset($r);
+    return $rows;
 }
 
 /** @return array{id:int,rpw_nr:int,rok:int} */
@@ -1561,8 +1599,8 @@ function ezd_rpw_create(array $d, int $user_id): array {
     $rok  = (int)substr($data, 0, 4) ?: (int)date('Y');
     $nr   = _ezd_next_rpw($rok);
     db()->prepare(
-        "INSERT INTO ezd_rpw (rpw_nr,rok,data_wplywu,typ,nadawca,znak_obcy,opis,uwagi,status,przekazano_do,created_by)
-         VALUES (:nr,:rok,:dw,:typ,:nad,:zo,:opis,:uw,:st,:pd,:uid)"
+        "INSERT INTO ezd_rpw (rpw_nr,rok,data_wplywu,typ,nadawca,znak_obcy,opis,uwagi,status,przekazano_unit_id,created_by)
+         VALUES (:nr,:rok,:dw,:typ,:nad,:zo,:opis,:uw,:st,:pu,:uid)"
     )->execute([
         ':nr'  => $nr, ':rok' => $rok, ':dw' => $data,
         ':typ' => $d['typ'] ?? 'list',
@@ -1570,8 +1608,8 @@ function ezd_rpw_create(array $d, int $user_id): array {
         ':zo'  => trim($d['znak_obcy'] ?? ''),
         ':opis'=> trim($d['opis'] ?? ''),
         ':uw'  => trim($d['uwagi'] ?? ''),
-        ':st'  => !empty($d['przekazano_do']) ? 'przekazana' : 'nowa',
-        ':pd'  => $d['przekazano_do'] ?? null,
+        ':st'  => !empty($d['przekazano_unit_id']) ? 'przekazana' : 'nowa',
+        ':pu'  => ((int)($d['przekazano_unit_id'] ?? 0)) ?: null,
         ':uid' => $user_id,
     ]);
     $id = (int)db()->lastInsertId();
@@ -1597,11 +1635,11 @@ function ezd_rpw_update(int $id, array $d, int $user_id): void {
     ezd_log(null, null, null, null, $user_id, 'rpw_update', 'Edytowano ' . ezd_rpw_label($r));
 }
 
-function ezd_rpw_przekaz(int $id, int $wykonawca_id, int $user_id): void {
+function ezd_rpw_przekaz(int $id, int $unit_id, int $user_id): void {
     $r = ezd_rpw_get($id);
     if (!$r || $r['status'] === 'w_sprawie') return;
-    db()->prepare("UPDATE ezd_rpw SET przekazano_do=?, status='przekazana' WHERE id=?")->execute([$wykonawca_id, $id]);
-    ezd_log(null, null, null, null, $user_id, 'rpw_przekaz', ezd_rpw_label($r) . ' → użytkownik #' . $wykonawca_id);
+    db()->prepare("UPDATE ezd_rpw SET przekazano_unit_id=?, status='przekazana' WHERE id=?")->execute([$unit_id ?: null, $id]);
+    ezd_log(null, null, null, null, $user_id, 'rpw_przekaz', ezd_rpw_label($r) . ' → jednostka #' . $unit_id);
 }
 
 function ezd_rpw_odrzuc(int $id, int $user_id, string $powod = ''): void {
